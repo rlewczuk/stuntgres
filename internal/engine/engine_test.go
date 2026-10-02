@@ -1,0 +1,209 @@
+package engine
+
+import (
+	"bytes"
+	"context"
+	"database/sql/driver"
+	"errors"
+	"io"
+	"reflect"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/parser"
+)
+
+func statement(t *testing.T, sql string) parser.Statement {
+	t.Helper()
+	s, err := parser.Parse(sql)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s) != 1 {
+		t.Fatalf("expected single statement, got %d", len(s))
+	}
+	return s[0]
+}
+func run(t *testing.T, e *Engine, sql string, args ...any) Result {
+	t.Helper()
+	named := make([]driver.NamedValue, len(args))
+	for i, v := range args {
+		named[i] = driver.NamedValue{Ordinal: i + 1, Value: v}
+	}
+	r, err := e.Execute(context.Background(), statement(t, sql), named)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+func tuples(r Result) [][]driver.Value {
+	rows := make([][]driver.Value, r.Rows.Len())
+	for i := range rows {
+		rows[i] = make([]driver.Value, len(r.Columns))
+		r.Rows.Values(i, rows[i])
+	}
+	return rows
+}
+func state(t *testing.T, err error, want string) {
+	t.Helper()
+	var s interface{ SQLState() string }
+	if !errors.As(err, &s) || s.SQLState() != want {
+		t.Fatalf("error %v, want SQLSTATE %s", err, want)
+	}
+}
+func TestBindingAndSemanticValidation(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE t (a INTEGER, b TEXT, c INTEGER)")
+	info, err := e.Describe(statement(t, "INSERT INTO t VALUES ($1, $2, $1)"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Count != 2 || !reflect.DeepEqual(info.Types, []parser.Type{parser.Int4, parser.Text}) {
+		t.Fatalf("bad parameter types: %+v", info)
+	}
+	for _, c := range []struct{ sql, code string }{
+		{"SELECT missing FROM t", "42703"}, {"SELECT a FROM t WHERE missing = 1", "42703"}, {"SELECT a FROM t ORDER BY missing", "42703"}, {"SELECT a FROM missing", "42P01"},
+		{"INSERT INTO t VALUES ($2, 'x', $2)", "42P18"}, {"INSERT INTO t VALUES ($1, $1, 1)", "0A000"}, {"INSERT INTO t (a,a) VALUES (1,2)", "42701"}, {"INSERT INTO t VALUES (1)", "42601"},
+		{"SELECT a FROM t WHERE a = TRUE", "42883"}, {"SELECT b FROM t WHERE b = 1", "42883"},
+	} {
+		t.Run(c.sql, func(t *testing.T) { _, err := e.Describe(statement(t, c.sql)); state(t, err, c.code) })
+	}
+	s := statement(t, "INSERT INTO t VALUES ($1,$2,$1)")
+	for _, args := range [][]driver.NamedValue{{{Ordinal: 1, Value: 1}}, {{Ordinal: 2, Value: 1}, {Ordinal: 1, Value: "x"}}, {{Ordinal: 1, Name: "a", Value: 1}, {Ordinal: 2, Value: "x"}}} {
+		if _, err := e.Execute(context.Background(), s, args); err == nil {
+			t.Fatal("invalid arguments accepted")
+		}
+	}
+	run(t, e, "INSERT INTO t VALUES ($1,$2,$1)", int32(7), "x")
+	want := [][]driver.Value{{int64(7), "x", int64(7)}}
+	if got := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+func TestCoercionsAndStatementAtomicity(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE t (i INTEGER NOT NULL, n BIGINT, s TEXT, b BOOLEAN)")
+	run(t, e, "INSERT INTO t VALUES ($1,$2,$3,$4)", " +2147483647 ", "-9223372036854775808", true, []byte(" ye "))
+	run(t, e, "INSERT INTO t (i,s,b) VALUES (0, 42, 'off')")
+	want := [][]driver.Value{{int64(2147483647), int64(-9223372036854775808), "true", true}, {int64(0), nil, "42", false}}
+	if got := tuples(run(t, e, "SELECT * FROM t ORDER BY i DESC")); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for _, c := range []struct{ sql, code string }{
+		{"INSERT INTO t (i) VALUES (1),(2147483648)", "22003"}, {"INSERT INTO t (i) VALUES (1),('oops')", "22P02"}, {"INSERT INTO t (i) VALUES (1),(NULL)", "23502"},
+		{"INSERT INTO t (s) VALUES ('omitted required')", "23502"}, {"INSERT INTO t (i) VALUES (TRUE)", "42804"}, {"INSERT INTO t (i,b) VALUES (1,1)", "42804"}, {"INSERT INTO t (i,b) VALUES (1,'o')", "22P02"}, {"INSERT INTO t (i,n) VALUES (1,'9223372036854775808')", "22003"},
+	} {
+		_, err := e.Execute(context.Background(), statement(t, c.sql), nil)
+		state(t, err, c.code)
+		if got := tuples(run(t, e, "SELECT * FROM t ORDER BY i DESC")); !reflect.DeepEqual(got, want) {
+			t.Fatalf("failed statement changed rows: %v", got)
+		}
+	}
+	_, err := e.Execute(context.Background(), statement(t, "INSERT INTO t (i) VALUES ($1)"), []driver.NamedValue{{Ordinal: 1, Value: 1.5}})
+	state(t, err, "0A000")
+	// WHERE integer literals use numeric comparison, not an int4 assignment cast.
+	if r := run(t, e, "SELECT i FROM t WHERE i = 2147483648"); r.Count != 0 {
+		t.Fatalf("unexpected matching count %d", r.Count)
+	}
+}
+func TestNullOrderingAndSnapshotLifetime(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE t (i INTEGER, s TEXT, b BOOLEAN)")
+	run(t, e, "INSERT INTO t VALUES (2,'z',TRUE),(NULL,'A',FALSE),(1,NULL,NULL),(1,'a',TRUE)")
+	asc := run(t, e, "SELECT i FROM t ORDER BY i")
+	want := [][]driver.Value{{int64(1)}, {int64(1)}, {int64(2)}, {nil}}
+	if !reflect.DeepEqual(tuples(asc), want) {
+		t.Fatalf("ASC rows: %v", tuples(asc))
+	}
+	if got := tuples(run(t, e, "SELECT i FROM t ORDER BY i DESC")); !reflect.DeepEqual(got, [][]driver.Value{{nil}, {int64(2)}, {int64(1)}, {int64(1)}}) {
+		t.Fatalf("DESC rows: %v", got)
+	}
+	if r := run(t, e, "SELECT * FROM t WHERE i = NULL"); r.Count != 0 {
+		t.Fatal("NULL equality matched")
+	}
+	if got := tuples(run(t, e, "SELECT s FROM t ORDER BY s")); !reflect.DeepEqual(got, [][]driver.Value{{"A"}, {"a"}, {"z"}, {nil}}) {
+		t.Fatalf("text order: %v", got)
+	}
+	if got := tuples(run(t, e, "SELECT b FROM t ORDER BY b")); !reflect.DeepEqual(got, [][]driver.Value{{false}, {true}, {true}, {nil}}) {
+		t.Fatalf("bool order: %v", got)
+	}
+	run(t, e, "INSERT INTO t VALUES (0,'new',FALSE)")
+	if !reflect.DeepEqual(tuples(asc), want) {
+		t.Fatal("insert changed snapshot")
+	}
+	if err := e.Reset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE replacement (x TEXT);")); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(tuples(asc), want) {
+		t.Fatal("reset/restore changed snapshot")
+	}
+}
+
+type failingReader struct{}
+
+func (failingReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+func TestControlsRoundTripAndFailurePreservation(t *testing.T) {
+	e := New()
+	run(t, e, `CREATE TABLE "a table" ("quote""col" TEXT, n BIGINT, b BOOLEAN, i INTEGER NOT NULL)`)
+	run(t, e, `CREATE TABLE empty (x TEXT)`)
+	run(t, e, `INSERT INTO "a table" VALUES ($1, $2, $3, $4)`, "line\nO'Brien\\tail", int64(-9223372036854775808), false, 0)
+	run(t, e, `INSERT INTO "a table" VALUES ('',NULL,NULL,1)`)
+	var dump bytes.Buffer
+	if err := e.Dump(context.Background(), &dump); err != nil {
+		t.Fatal(err)
+	}
+	copy := New()
+	if err := copy.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+		t.Fatal(err)
+	}
+	var again bytes.Buffer
+	if err := copy.Dump(context.Background(), &again); err != nil {
+		t.Fatal(err)
+	}
+	if dump.String() != again.String() {
+		t.Fatalf("unstable dump:\n%s\n%s", dump.String(), again.String())
+	}
+	want := [][]driver.Value{{"line\nO'Brien\\tail", int64(-9223372036854775808), false, int64(0)}, {"", nil, nil, int64(1)}}
+	if got := tuples(run(t, copy, `SELECT * FROM "a table" ORDER BY i`)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("round trip rows: %v", got)
+	}
+	for _, script := range []string{"CREATE TABLE other (i INTEGER NOT NULL); INSERT INTO other VALUES (1),(NULL);", "CREATE TABLE other (i INTEGER); CREATE TABLE other (i TEXT);", "SELECT * FROM empty;", "CREATE TABLE other (i INTEGER); INSERT INTO other VALUES ($1);", "CREATE TABLE other (i INTEGER); nonsense"} {
+		if err := copy.Restore(context.Background(), strings.NewReader(script)); err == nil {
+			t.Fatalf("restore accepted %q", script)
+		}
+		if got := tuples(run(t, copy, `SELECT * FROM "a table" ORDER BY i`)); !reflect.DeepEqual(got, want) {
+			t.Fatalf("failed restore lost sentinel: %v", got)
+		}
+	}
+	if err := copy.Restore(context.Background(), failingReader{}); !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("reader error: %v", err)
+	}
+	if err := copy.Dump(context.Background(), failingWriter{}); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("writer error: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, operation := range []func() error{func() error { return copy.Reset(ctx) }, func() error { return copy.Restore(ctx, strings.NewReader("")) }, func() error {
+		_, err := copy.Execute(ctx, statement(t, `INSERT INTO "a table" VALUES ('lost',0,TRUE,3)`), nil)
+		return err
+	}} {
+		if err := operation(); !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancellation error: %v", err)
+		}
+	}
+	if got := tuples(run(t, copy, `SELECT * FROM "a table" ORDER BY i`)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("failed controls changed sentinel: %v", got)
+	}
+	if err := copy.Restore(context.Background(), strings.NewReader(" -- empty\n /* script */ ")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := copy.Describe(statement(t, `SELECT * FROM "a table"`))
+	state(t, err, "42P01")
+}
