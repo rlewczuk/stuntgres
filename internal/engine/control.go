@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"io"
 	"sort"
@@ -15,13 +16,9 @@ func (e *Engine) Reset(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	e.tables = make(map[string]*table)
-	return nil
+	fresh := New()
+	_, err := e.ReplaceCatalog(ctx, fresh.CatalogRead())
+	return err
 }
 func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
 func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
@@ -36,12 +33,40 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		e.mu.Unlock()
 		return err
 	}
-	tables := make([]table, 0, len(e.tables))
-	for _, t := range e.tables {
-		tables = append(tables, *t)
+	type dumpRelation struct {
+		schema, name string
+		columns      []parser.Column
+		rows         [][]driver.Value
+	}
+	tables := make([]dumpRelation, 0)
+	for a, d := range e.state.descriptors {
+		r, ok := d.(*relationDescriptor)
+		if !ok {
+			if d.Kind() == NamespaceObject {
+				continue
+			}
+			e.mu.Unlock()
+			return fmt.Errorf("stuntgres: unsupported catalog descriptor kind")
+		}
+		ns, ok := e.state.descriptors[r.namespace].(*namespaceDescriptor)
+		if !ok {
+			e.mu.Unlock()
+			return fmt.Errorf("stuntgres: relation namespace is missing")
+		}
+		storage := e.storage[a]
+		if storage == nil {
+			e.mu.Unlock()
+			return fmt.Errorf("stuntgres: relation storage is missing")
+		}
+		tables = append(tables, dumpRelation{ns.name, r.name, append([]parser.Column(nil), r.columns...), storage.rows})
 	}
 	e.mu.Unlock()
-	sort.Slice(tables, func(i, j int) bool { return tables[i].name < tables[j].name })
+	sort.Slice(tables, func(i, j int) bool {
+		if tables[i].schema != tables[j].schema {
+			return tables[i].schema < tables[j].schema
+		}
+		return tables[i].name < tables[j].name
+	})
 	emit := func(s string) error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -56,17 +81,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return ctx.Err()
 	}
 	for _, t := range tables {
+		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 		var line strings.Builder
-		line.WriteString("CREATE TABLE ")
-		line.WriteString(quoteIdentifier(t.name))
-		line.WriteString(" (")
+		line.WriteString("CREATE TABLE " + qualified + " (")
 		for i, c := range t.columns {
 			if i > 0 {
 				line.WriteString(", ")
 			}
-			line.WriteString(quoteIdentifier(c.Name))
-			line.WriteByte(' ')
-			line.WriteString(c.Type.SQL())
+			line.WriteString(quoteIdentifier(c.Name) + " " + c.Type.SQL())
 			if !c.Nullable {
 				line.WriteString(" NOT NULL")
 			}
@@ -77,9 +99,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		for _, row := range t.rows {
 			line.Reset()
-			line.WriteString("INSERT INTO ")
-			line.WriteString(quoteIdentifier(t.name))
-			line.WriteString(" VALUES (")
+			line.WriteString("INSERT INTO " + qualified + " VALUES (")
 			for i, v := range row {
 				if i > 0 {
 					line.WriteString(", ")
@@ -151,7 +171,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			for _, row := range s.Rows {
 				for _, v := range row {
 					if v.Kind == parser.ParameterValue {
-						return sqlError("42P02", "parameters are not allowed in restore", s.Name, "")
+						return sqlError("42P02", "parameters are not allowed in restore", objectNameRelation(s.Name), "")
 					}
 				}
 			}
@@ -162,11 +182,6 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			return err
 		}
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err = ctx.Err(); err != nil {
-		return err
-	}
-	e.tables = stage.tables
-	return nil
+	_, err = e.ReplaceCatalog(ctx, stage.CatalogRead())
+	return err
 }

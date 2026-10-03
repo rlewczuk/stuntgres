@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 func statement(t *testing.T, sql string) parser.Statement {
@@ -49,6 +50,24 @@ func state(t *testing.T, err error, want string) {
 	var s interface{ SQLState() string }
 	if !errors.As(err, &s) || s.SQLState() != want {
 		t.Fatalf("error %v, want SQLSTATE %s", err, want)
+	}
+}
+func TestQualifiedCreateDiagnosticsUseRelationComponent(t *testing.T) {
+	e := New()
+	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}}
+	for _, stmt := range []parser.Statement{
+		&parser.CreateTable{Name: name},
+		&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Int4}, {Name: "id", Type: parser.Text}}},
+		&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Type(255)}}},
+	} {
+		_, err := e.Describe(stmt)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) {
+			t.Fatalf("%T: error %v", stmt, err)
+		}
+		if diagnostic.Schema != "public" || diagnostic.Table != "t" {
+			t.Errorf("%T: schema/table fields %q/%q", stmt, diagnostic.Schema, diagnostic.Table)
+		}
 	}
 }
 func TestBindingAndSemanticValidation(t *testing.T) {
@@ -222,4 +241,61 @@ func TestControlsRoundTripAndFailurePreservation(t *testing.T) {
 	}
 	_, err := copy.Describe(statement(t, `SELECT * FROM "a table"`))
 	state(t, err, "42P01")
+}
+func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE public.t (id INTEGER)")
+	e.mu.Lock()
+	_, qualified, _, err := e.resolveRelation(parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}})
+	_, unqualified, _, err2 := e.resolveRelation(parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}})
+	e.mu.Unlock()
+	if err != nil || err2 != nil || qualified != unqualified || qualified.Address.ObjectID == 0 {
+		t.Fatalf("qualified=%#v unqualified=%#v errors=%v,%v", qualified, unqualified, err, err2)
+	}
+	rev := e.CatalogRead().state.descriptors[qualified.Address].Revision()
+	r := run(t, e, "INSERT INTO public.t VALUES (1)")
+	if r.Count != 1 || e.CatalogRead().state.descriptors[qualified.Address].Revision() != rev {
+		t.Fatal("INSERT changed relation definition or count")
+	}
+	got := run(t, e, "SELECT id FROM t")
+	if got.Count != 1 || got.Columns[0].Type.DatabaseType() != "INT4" || !reflect.DeepEqual(tuples(got), [][]driver.Value{{int64(1)}}) {
+		t.Fatalf("qualified result: %#v %v", got, tuples(got))
+	}
+	run(t, e, `CREATE TABLE public."Foo" (id INTEGER)`)
+	run(t, e, "CREATE TABLE public.FOO (id INTEGER)")
+	if _, err = e.Execute(context.Background(), statement(t, `CREATE TABLE public."foo" (id INTEGER)`), nil); err == nil {
+		t.Fatal("normalized duplicate was accepted")
+	} else {
+		state(t, err, "42P07")
+	}
+	run(t, e, `CREATE TABLE public."a.b" (id INTEGER)`)
+	if r := run(t, e, `SELECT id FROM public."a.b"`); r.Count != 0 {
+		t.Fatalf("dotted quoted relation rows %d", r.Count)
+	}
+	run(t, e, `CREATE TABLE "public.t" (id INTEGER)`)
+	if r := run(t, e, `SELECT id FROM "public.t"`); r.Count != 0 {
+		t.Fatalf("single dotted identifier resolved as qualification: %d", r.Count)
+	}
+	longA := strings.Repeat("a", 61) + "éx"
+	longB := strings.Repeat("a", 61) + "éy"
+	run(t, e, "CREATE TABLE public."+longA+" (id INTEGER)")
+	if _, err = e.Execute(context.Background(), statement(t, "CREATE TABLE public."+longB+" (id INTEGER)"), nil); err == nil {
+		t.Fatal("UTF-8-truncated duplicate accepted")
+	} else {
+		state(t, err, "42P07")
+	}
+	if _, err = e.Execute(context.Background(), statement(t, `SELECT id FROM "A.B".t`), nil); err == nil {
+		t.Fatal("dotted schema lookup unexpectedly succeeded")
+	} else {
+		state(t, err, "42P01")
+	}
+	if _, err = parser.Parse(`SELECT * FROM "public.t"`); err != nil {
+		t.Fatalf("one dotted identifier rejected: %v", err)
+	}
+	if _, err = parser.Parse(`SELECT * FROM a.b.c`); err == nil {
+		t.Fatal("three-part relation name accepted")
+	}
+	if _, err = parser.Parse(`SELECT * FROM public.`); err == nil {
+		t.Fatal("incomplete relation name accepted")
+	}
 }

@@ -167,12 +167,13 @@ func TestDatabaseIdentity(t *testing.T) {
 	same := openLocal(t, d, "")
 	other := openLocal(t, d, " ")
 	isolated := openLocal(t, stuntgres.NewDriver(), "")
-	execSQL(t, first, "CREATE TABLE identity (v INT)")
-	execSQL(t, first, "INSERT INTO identity VALUES (7)")
+	execSQL(t, first, "CREATE TABLE public.identity (v INT)")
+	execSQL(t, first, "INSERT INTO public.identity VALUES (7)")
 	first.Close()
+	wantTuples(t, same, "SELECT v FROM public.identity", [][]any{{int64(7)}})
 	wantTuples(t, same, "SELECT v FROM identity", [][]any{{int64(7)}})
 	for _, db := range []*sql.DB{other, isolated} {
-		_, err := db.Query("SELECT v FROM identity")
+		_, err := db.Query("SELECT v FROM public.identity")
 		sqlState(t, err, "42P01")
 	}
 }

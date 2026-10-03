@@ -40,10 +40,10 @@ func run() error {
 	if err = stuntgres.Reset(ctx, db); err != nil {
 		return err
 	}
-	if _, err = db.ExecContext(ctx, "CREATE TABLE people (id INTEGER NOT NULL, name TEXT, active BOOLEAN NOT NULL)"); err != nil {
+	if _, err = db.ExecContext(ctx, "CREATE TABLE public.people (id INTEGER NOT NULL, name TEXT, active BOOLEAN NOT NULL)"); err != nil {
 		return err
 	}
-	stmt, err := db.PrepareContext(ctx, "INSERT INTO people (id, name, active) VALUES ($1, $2, $3)")
+	stmt, err := db.PrepareContext(ctx, "INSERT INTO public.people (id, name, active) VALUES ($1, $2, $3)")
 	if err != nil {
 		return err
 	}
@@ -63,46 +63,109 @@ func run() error {
 	}
 	expected := [][]any{{int64(1), "Ada", true}, {int64(2), "O'Brien", false}}
 	verify := func(handle *sql.DB) error {
-		rows, e := handle.QueryContext(ctx, "SELECT id, name, active FROM people ORDER BY id")
-		if e != nil {
-			return e
-		}
-		defer rows.Close()
-		names, e := rows.Columns()
-		if e != nil {
-			return e
-		}
-		if !reflect.DeepEqual(names, []string{"id", "name", "active"}) {
-			return fmt.Errorf("columns: %v", names)
-		}
-		types, e := rows.ColumnTypes()
-		if e != nil {
-			return e
-		}
-		for i, want := range []string{"INT4", "TEXT", "BOOL"} {
-			if types[i].DatabaseTypeName() != want {
-				return fmt.Errorf("column type: got %s, want %s", types[i].DatabaseTypeName(), want)
-			}
-		}
-		var actual [][]any
-		for rows.Next() {
-			var id int64
-			var name string
-			var active bool
-			if e = rows.Scan(&id, &name, &active); e != nil {
+		for _, query := range []string{"SELECT id, name, active FROM public.people ORDER BY id", "SELECT id, name, active FROM people ORDER BY id"} {
+			rows, e := handle.QueryContext(ctx, query)
+			if e != nil {
 				return e
 			}
-			actual = append(actual, []any{id, name, active})
-		}
-		if e = rows.Err(); e != nil {
-			return e
-		}
-		if !reflect.DeepEqual(actual, expected) {
-			return fmt.Errorf("rows: got %v, want %v", actual, expected)
+			names, e := rows.Columns()
+			if e != nil {
+				rows.Close()
+				return e
+			}
+			if !reflect.DeepEqual(names, []string{"id", "name", "active"}) {
+				rows.Close()
+				return fmt.Errorf("columns: %v", names)
+			}
+			types, e := rows.ColumnTypes()
+			if e != nil {
+				rows.Close()
+				return e
+			}
+			for i, want := range []string{"INT4", "TEXT", "BOOL"} {
+				if types[i].DatabaseTypeName() != want {
+					rows.Close()
+					return fmt.Errorf("column type: got %s, want %s", types[i].DatabaseTypeName(), want)
+				}
+			}
+			var actual [][]any
+			for rows.Next() {
+				var id int64
+				var name string
+				var active bool
+				if e = rows.Scan(&id, &name, &active); e != nil {
+					rows.Close()
+					return e
+				}
+				actual = append(actual, []any{id, name, active})
+			}
+			e = rows.Err()
+			rows.Close()
+			if e != nil {
+				return e
+			}
+			if !reflect.DeepEqual(actual, expected) {
+				return fmt.Errorf("rows: got %v, want %v", actual, expected)
+			}
 		}
 		return nil
 	}
 	if err = verify(db); err != nil {
+		return err
+	}
+	if err = verify(second); err != nil {
+		return err
+	}
+	if _, err = db.ExecContext(ctx, "CREATE TABLE public.t (id INTEGER)"); err != nil {
+		return err
+	}
+	checkT := func(query string, wantCount int64) error {
+		rows, e := db.QueryContext(ctx, query)
+		if e != nil {
+			return e
+		}
+		defer rows.Close()
+		types, e := rows.ColumnTypes()
+		if e != nil {
+			return e
+		}
+		if len(types) != 1 || types[0].DatabaseTypeName() != "INT4" {
+			return fmt.Errorf("qualified catalog metadata: %v", types)
+		}
+		var count int64
+		for rows.Next() {
+			var id int64
+			if e = rows.Scan(&id); e != nil {
+				return e
+			}
+			if id != 1 {
+				return fmt.Errorf("qualified catalog row: %d", id)
+			}
+			count++
+		}
+		if e = rows.Err(); e != nil {
+			return e
+		}
+		if count != wantCount {
+			return fmt.Errorf("qualified catalog count: got %d, want %d", count, wantCount)
+		}
+		return nil
+	}
+	if err = checkT("SELECT id FROM public.t", 0); err != nil {
+		return err
+	}
+	r, e := db.ExecContext(ctx, "INSERT INTO public.t VALUES (1)")
+	if e != nil {
+		return e
+	}
+	n, e := r.RowsAffected()
+	if e != nil {
+		return e
+	}
+	if n != 1 {
+		return fmt.Errorf("qualified insert count: %d", n)
+	}
+	if err = checkT("SELECT id FROM t", 1); err != nil {
 		return err
 	}
 	var dump bytes.Buffer
@@ -121,6 +184,9 @@ func run() error {
 		return fmt.Errorf("reset: expected 42P01, got %v", err)
 	}
 	if err = stuntgres.Restore(ctx, db, &dump); err != nil {
+		return err
+	}
+	if err = verify(db); err != nil {
 		return err
 	}
 	if err = verify(second); err != nil {

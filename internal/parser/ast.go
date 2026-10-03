@@ -16,6 +16,11 @@ func (t Type) SQL() string          { return [...]string{"INTEGER", "BIGINT", "T
 func (t Type) DatabaseType() string { return [...]string{"INT4", "INT8", "TEXT", "BOOL"}[t] }
 
 type Position struct{ Offset, Character int }
+type Identifier struct {
+	Text string
+	Pos  Position
+}
+type ObjectName struct{ Parts []Identifier }
 type Column struct {
 	Name     string
 	Type     Type
@@ -23,7 +28,7 @@ type Column struct {
 	Pos      Position
 }
 type CreateTable struct {
-	Name    string
+	Name    ObjectName
 	Columns []Column
 	Pos     Position
 }
@@ -31,7 +36,7 @@ type CreateTable struct {
 func (*CreateTable) statement() {}
 
 type Insert struct {
-	Name    string
+	Name    ObjectName
 	Targets []InsertTarget
 	Rows    [][]Value
 	Pos     Position
@@ -45,7 +50,7 @@ type InsertTarget struct {
 func (*Insert) statement() {}
 
 type Select struct {
-	Name    string
+	Name    ObjectName
 	Star    bool
 	Columns []string
 	Where   *Predicate

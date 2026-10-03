@@ -8,7 +8,9 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"stuntgres"
 )
@@ -46,8 +48,11 @@ func TestControlRoundTripAndSharedPools(t *testing.T) {
 	execSQL(t, db, `CREATE TABLE "odd""table" ("id" INT NOT NULL, "text" TEXT, "flag" BOOL)`)
 	execSQL(t, db, `CREATE TABLE "empty" ("big" BIGINT)`)
 	execSQL(t, db, `INSERT INTO "odd""table" VALUES ($1,$2,$3),(1,NULL,NULL),(2,'',FALSE)`, 0, "line\nO'Brien\\end", false)
+	execSQL(t, db, `CREATE TABLE public."a.b" ("q""x" INTEGER, note TEXT)`)
+	execSQL(t, db, `INSERT INTO public."a.b" VALUES (9,'round trip')`)
 	query := `SELECT "id","text","flag" FROM "odd""table" ORDER BY "id"`
 	want := [][]any{{int64(0), "line\nO'Brien\\end", false}, {int64(1), nil, nil}, {int64(2), "", false}}
+	wantTuples(t, other, `SELECT "q""x",note FROM public."a.b"`, [][]any{{int64(9), "round trip"}})
 	var first, second bytes.Buffer
 	if err := stuntgres.Dump(ctx, db, &first); err != nil {
 		t.Fatal(err)
@@ -67,6 +72,7 @@ func TestControlRoundTripAndSharedPools(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantTuples(t, other, query, want)
+	wantTuples(t, other, `SELECT "q""x",note FROM public."a.b"`, [][]any{{int64(9), "round trip"}})
 	wantTuples(t, other, `SELECT big FROM empty`, [][]any{})
 	var restored bytes.Buffer
 	if err = stuntgres.Dump(ctx, other, &restored); err != nil {
@@ -138,16 +144,16 @@ func TestSnapshotSurvivesCatalogReplacement(t *testing.T) {
 			d := stuntgres.NewDriver()
 			db := openLocal(t, d, "snapshot")
 			other := openLocal(t, d, "snapshot")
-			execSQL(t, db, "CREATE TABLE snap(v INT)")
-			execSQL(t, db, "INSERT INTO snap VALUES(1),(2)")
-			rows, err := db.Query("SELECT v FROM snap ORDER BY v")
+			execSQL(t, db, "CREATE TABLE public.snap(v INT)")
+			execSQL(t, db, "INSERT INTO public.snap VALUES(1),(2)")
+			rows, err := db.Query("SELECT v FROM public.snap ORDER BY v")
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer rows.Close()
-			execSQL(t, other, "INSERT INTO snap VALUES(3)")
+			execSQL(t, other, "INSERT INTO public.snap VALUES(3)")
 			if restore {
-				err = stuntgres.Restore(context.Background(), other, strings.NewReader("CREATE TABLE snap(v INT); INSERT INTO snap VALUES(99);"))
+				err = stuntgres.Restore(context.Background(), other, strings.NewReader("CREATE TABLE public.snap(v INT); INSERT INTO public.snap VALUES(99);"))
 			} else {
 				err = stuntgres.Reset(context.Background(), other)
 			}
@@ -254,3 +260,133 @@ func (foreignConn) Prepare(string) (driver.Stmt, error) {
 }
 func (foreignConn) Close() error              { return nil }
 func (foreignConn) Begin() (driver.Tx, error) { return nil, errors.New("foreign begin unsupported") }
+func controlValues(ctx context.Context, db *sql.DB, query string, want []int64) error {
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var got []int64
+	for rows.Next() {
+		var v int64
+		if err = rows.Scan(&v); err != nil {
+			return err
+		}
+		got = append(got, v)
+	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	if len(got) != len(want) {
+		return errors.New("unexpected control query row count")
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return errors.New("unexpected control query value")
+		}
+	}
+	return nil
+}
+
+type gatedWriter struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+	output  bytes.Buffer
+}
+
+func (w *gatedWriter) Write(p []byte) (int, error) {
+	blocked := false
+	w.once.Do(func() { close(w.started); blocked = true })
+	if blocked {
+		<-w.release
+	}
+	return w.output.Write(p)
+}
+
+type gatedReader struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+	sent    bool
+}
+
+func (r *gatedReader) Read(p []byte) (int, error) {
+	if r.sent {
+		return 0, io.EOF
+	}
+	r.once.Do(func() { close(r.started); <-r.release })
+	r.sent = true
+	return copy(p, "CREATE TABLE public.replaced (v INT); INSERT INTO public.replaced VALUES (99);"), nil
+}
+
+func TestCatalogControlsReleaseLocksDuringIO(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	d := stuntgres.NewDriver()
+	db := openLocal(t, d, "gated")
+	other := openLocal(t, d, "gated")
+	execSQL(t, db, "CREATE TABLE public.sentinel (v INT)")
+	execSQL(t, db, "INSERT INTO public.sentinel VALUES (77)")
+	writer := &gatedWriter{started: make(chan struct{}), release: make(chan struct{})}
+	dumpDone := make(chan error, 1)
+	go func() { dumpDone <- stuntgres.Dump(ctx, db, writer) }()
+	select {
+	case <-writer.started:
+	case <-ctx.Done():
+		t.Fatal("Dump did not reach gated writer")
+	}
+	operation := make(chan error, 1)
+	go func() {
+		if err := controlValues(ctx, other, "SELECT v FROM sentinel", []int64{77}); err != nil {
+			operation <- err
+			return
+		}
+		_, err := other.ExecContext(ctx, "INSERT INTO sentinel VALUES (88)")
+		operation <- err
+	}()
+	select {
+	case err := <-operation:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		close(writer.release)
+		<-dumpDone
+		t.Fatal("Dump held engine lock during writer I/O")
+	}
+	close(writer.release)
+	if err := <-dumpDone; err != nil {
+		t.Fatal(err)
+	}
+	independent := openLocal(t, stuntgres.NewDriver(), "dump_copy")
+	if err := stuntgres.Restore(ctx, independent, bytes.NewReader(writer.output.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	wantTuples(t, independent, "SELECT v FROM sentinel", [][]any{{int64(77)}})
+	reader := &gatedReader{started: make(chan struct{}), release: make(chan struct{})}
+	restoreDone := make(chan error, 1)
+	go func() { restoreDone <- stuntgres.Restore(ctx, db, reader) }()
+	select {
+	case <-reader.started:
+	case <-ctx.Done():
+		t.Fatal("Restore did not reach gated reader")
+	}
+	readDone := make(chan error, 1)
+	go func() { readDone <- controlValues(ctx, other, "SELECT v FROM sentinel ORDER BY v", []int64{77, 88}) }()
+	select {
+	case err := <-readDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		close(reader.release)
+		<-restoreDone
+		t.Fatal("Restore held engine lock during reader I/O")
+	}
+	close(reader.release)
+	if err := <-restoreDone; err != nil {
+		t.Fatal(err)
+	}
+	wantTuples(t, other, "SELECT v FROM replaced", [][]any{{int64(99)}})
+}

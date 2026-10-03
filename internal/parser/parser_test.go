@@ -26,7 +26,7 @@ func TestScriptAndLiterals(t *testing.T) {
 		t.Fatalf("statements = %d", len(statements))
 	}
 	create := statements[0].(*CreateTable)
-	if create.Name != "Mixed;Name" || create.Columns[0].Name != "integer" || create.Columns[0].Nullable || create.Columns[1].Name != "a\"b" || !create.Columns[1].Nullable || create.Columns[3].Type != Int8 {
+	if len(create.Name.Parts) != 1 || create.Name.Parts[0].Text != "Mixed;Name" || create.Columns[0].Name != "integer" || create.Columns[0].Nullable || create.Columns[1].Name != "a\"b" || !create.Columns[1].Nullable || create.Columns[3].Type != Int8 {
 		t.Fatalf("create = %#v", create)
 	}
 	insert := statements[1].(*Insert)
@@ -56,8 +56,23 @@ func TestIdentifierNormalization(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := statements[0].(*CreateTable)
-	if got.Name != strings.Repeat("a", 62) || got.Columns[0].Name != strings.Repeat("A", 62) || got.Columns[1].Name != "École" || got.Columns[2].Name != "bigint" || got.Columns[3].Name != "values" {
+	if got.Name.Parts[0].Text != strings.Repeat("a", 62) || got.Columns[0].Name != strings.Repeat("A", 62) || got.Columns[1].Name != "École" || got.Columns[2].Name != "bigint" || got.Columns[3].Name != "values" {
 		t.Fatalf("normalized = %#v", got)
+	}
+}
+
+func TestQualifiedRelationComponents(t *testing.T) {
+	statements, err := Parse(`CREATE TABLE public."a.b" (id INT); SELECT * FROM "public.t";`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	create := statements[0].(*CreateTable)
+	selectStmt := statements[1].(*Select)
+	if len(create.Name.Parts) != 2 || create.Name.Parts[0].Text != "public" || create.Name.Parts[1].Text != "a.b" || create.Name.Parts[0].Pos.Offset != 13 || create.Name.Parts[1].Pos.Offset != 20 {
+		t.Fatalf("create name = %#v", create.Name)
+	}
+	if len(selectStmt.Name.Parts) != 1 || selectStmt.Name.Parts[0].Text != "public.t" {
+		t.Fatalf("select name = %#v", selectStmt.Name)
 	}
 }
 
@@ -86,13 +101,14 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (E'a')", "0A000"}, {"INSERT INTO t VALUES ($tag$a$tag$)", "0A000"},
 		{"INSERT INTO t VALUES (U&'a')", "0A000"}, {"CREATE TABLE U&\"t\" (x INT)", "0A000"},
 		{"CREATE TABLE t (x TIMESTAMP)", "0A000"}, {"CREATE TABLE t (x NUMERIC(8))", "0A000"},
-		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"}, {"SELECT * FROM public.t", "0A000"},
+		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
 		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT * FROM t alias", "0A000"}, {"SELECT x alias FROM t", "0A000"},
 		{"SELECT x FROM t ORDER BY x, y", "0A000"}, {"SELECT f(x) FROM t", "0A000"},
 		{"SELECT x + 1 FROM t", "0A000"}, {"SELECT 1 FROM t", "0A000"},
 		{"CREATE TABLE IF NOT EXISTS t (x INT)", "0A000"}, {"CREATE TABLE t (x INT[])", "0A000"},
 		{"SELECT * FROM t JOIN u ON t.x = u.x", "0A000"}, {"SELECT * FROM t WHERE x = 1::INT", "0A000"},
+		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"UPDATE t SET x = 1", "0A000"}, {"DELETE FROM t", "0A000"}, {"BEGIN", "0A000"},
 		{"START TRANSACTION", "0A000"}, {"COMMIT", "0A000"}, {"ROLLBACK", "0A000"},
 		{"SAVEPOINT x", "0A000"}, {"RELEASE x", "0A000"},

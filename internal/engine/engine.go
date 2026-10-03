@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 
 	"stuntgres/internal/parser"
@@ -13,14 +14,12 @@ import (
 )
 
 type Engine struct {
-	mu     sync.Mutex
-	tables map[string]*table
-}
-type table struct {
-	name    string
-	columns []parser.Column
-	index   map[string]int
-	rows    [][]driver.Value
+	mu           sync.Mutex
+	state        *catalogState
+	providers    map[OID]CatalogProvider
+	storage      map[ObjectAddress]*relationStorage
+	nextOID      OID
+	nextRevision DefinitionRevision
 }
 type ParameterInfo struct {
 	Count int
@@ -32,7 +31,9 @@ type Result struct {
 	Rows    *Snapshot
 }
 type binding struct {
-	table      *table
+	relation   *relationDescriptor
+	storage    *relationStorage
+	ref        ObjectRef
 	targets    []int
 	projection []int
 	predicate  int
@@ -40,7 +41,82 @@ type binding struct {
 	parameters ParameterInfo
 }
 
-func New() *Engine { return &Engine{tables: make(map[string]*table)} }
+func New() *Engine {
+	e, err := newEngine(nil)
+	if err != nil {
+		panic(err)
+	}
+	return e
+}
+
+// NewWithCatalogProviders registers feature-owned catalog providers before
+// installing the builtin namespace descriptors.
+func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
+	return newEngine(providers)
+}
+
+func newEngine(providers []CatalogProvider) (*Engine, error) {
+	e := &Engine{providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
+	for _, p := range providers {
+		if err := e.RegisterCatalogProvider(p); err != nil {
+			return nil, err
+		}
+	}
+	if err := e.RegisterCatalogProvider(namespaceProvider{}); err != nil {
+		return nil, err
+	}
+	if err := e.RegisterCatalogProvider(relationProvider{}); err != nil {
+		return nil, err
+	}
+	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
+	for _, ns := range []struct {
+		oid  OID
+		name string
+	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PublicNamespaceOID, "public"}} {
+		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1}
+		e.state.descriptors[d.address] = d
+		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
+	}
+	view := CatalogRead{owner: e, state: e.state}
+	for _, d := range e.state.descriptors {
+		p := e.providers[d.Address().ClassID]
+		if p == nil || p.Validate(view, d) != nil {
+			return nil, fmt.Errorf("stuntgres: invalid built-in catalog descriptor")
+		}
+	}
+	return e, nil
+}
+func (e *Engine) CatalogRead() CatalogRead {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return CatalogRead{owner: e, state: e.state}
+}
+func (e *Engine) allocateOIDLocked() (OID, error) {
+	for e.nextOID != 0 {
+		n := e.nextOID
+		if n == ^OID(0) {
+			e.nextOID = 0
+		} else {
+			e.nextOID++
+		}
+		if n == NamespaceClassID || n == RelationClassID || n == PGCatalogNamespaceOID || n == PublicNamespaceOID {
+			continue
+		}
+		if _, ok := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: n}]; !ok {
+			return n, nil
+		}
+	}
+	return 0, fmt.Errorf("stuntgres: catalog object identity exhausted")
+}
+func (e *Engine) revisionLocked() (DefinitionRevision, error) {
+	if e.nextRevision == DefinitionRevision(^uint64(0)) {
+		return 0, fmt.Errorf("stuntgres: catalog definition revision exhausted")
+	}
+	r := e.nextRevision
+	e.nextRevision++
+	return r, nil
+}
+
 func sqlError(code, message, table, column string) error {
 	e := &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR",
@@ -60,6 +136,64 @@ func (e *Engine) Describe(stmt parser.Statement) (ParameterInfo, error) {
 	}
 	return b.parameters, nil
 }
+func objectNameText(n parser.ObjectName) string {
+	parts := make([]string, len(n.Parts))
+	for i, p := range n.Parts {
+		parts[i] = p.Text
+	}
+	return strings.Join(parts, ".")
+}
+func objectNameRelation(n parser.ObjectName) string {
+	if len(n.Parts) == 0 {
+		return ""
+	}
+	return n.Parts[len(n.Parts)-1].Text
+}
+func (e *Engine) namespaceForName(name parser.ObjectName, creation bool) (ObjectAddress, error) {
+	if len(name.Parts) == 1 {
+		a := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+		if _, ok := e.state.descriptors[a]; ok {
+			return a, nil
+		}
+	} else if len(name.Parts) == 2 {
+		a, ok := e.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+		if ok {
+			return a, nil
+		}
+		if creation {
+			return ObjectAddress{}, &sqlstate.Error{Code: "3F000", Message: fmt.Sprintf("schema %q does not exist", name.Parts[0].Text)}
+		}
+		return ObjectAddress{}, nil
+	}
+	return ObjectAddress{}, nil
+}
+func (e *Engine) resolveRelation(name parser.ObjectName) (*relationDescriptor, ObjectRef, *relationStorage, error) {
+	relname := name.Parts[len(name.Parts)-1].Text
+	var a ObjectAddress
+	var ok bool
+	if len(name.Parts) == 1 {
+		pg := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+		a, ok = e.state.names[NameKey{ClassID: RelationClassID, Namespace: pg, Name: relname}]
+		if !ok {
+			pub := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			a, ok = e.state.names[NameKey{ClassID: RelationClassID, Namespace: pub, Name: relname}]
+		}
+	} else {
+		ns, err := e.namespaceForName(name, false)
+		if err != nil {
+			return nil, ObjectRef{}, nil, err
+		}
+		a, ok = e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
+	}
+	if !ok {
+		return nil, ObjectRef{}, nil, &sqlstate.Error{Code: "42P01", Message: fmt.Sprintf("relation %q does not exist", objectNameText(name))}
+	}
+	d, valid := e.state.descriptors[a].(*relationDescriptor)
+	if !valid {
+		return nil, ObjectRef{}, nil, fmt.Errorf("stuntgres: invalid relation descriptor")
+	}
+	return d, ObjectRef{Epoch: e.state.epoch, Address: a}, e.storage[a], nil
+}
 func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	b := binding{predicate: -1, order: -1}
 	used := make(map[int]parser.Type)
@@ -71,7 +205,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		if v.Parameter <= 0 {
 			return sqlError("42P02", "undefined parameter", "", c.Name)
 		}
-		if typ, ok := used[v.Parameter]; ok && typ != c.Type {
+		if t, ok := used[v.Parameter]; ok && t != c.Type {
 			return sqlError("0A000", "parameter reused with different destination types", "", c.Name)
 		}
 		used[v.Parameter] = c.Type
@@ -80,48 +214,43 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		}
 		return nil
 	}
-	lookup := func(name string) (*table, error) {
-		t := e.tables[name]
-		if t == nil {
-			return nil, sqlError("42P01", "table does not exist", name, "")
-		}
-		return t, nil
-	}
 	column := func(name string) (int, error) {
-		i, ok := b.table.index[name]
+		i, ok := b.relation.index[name]
 		if !ok {
-			return 0, sqlError("42703", "column does not exist", b.table.name, name)
+			return 0, &sqlstate.Error{Code: "42703", Message: fmt.Sprintf("column %q does not exist", name)}
 		}
 		return i, nil
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
-		if e.tables[s.Name] != nil {
-			return b, sqlError("42P07", "table already exists", s.Name, "")
-		}
-		seen := make(map[string]bool, len(s.Columns))
 		if len(s.Columns) == 0 {
-			return b, sqlError("42601", "table requires columns", s.Name, "")
+			return b, sqlError("42601", "table requires columns", objectNameRelation(s.Name), "")
 		}
+		seen := map[string]bool{}
 		for _, c := range s.Columns {
 			if seen[c.Name] {
-				return b, sqlError("42701", "duplicate column", s.Name, c.Name)
+				return b, sqlError("42701", "duplicate column", objectNameRelation(s.Name), c.Name)
 			}
 			seen[c.Name] = true
 			if c.Type > parser.Bool {
-				return b, sqlError("0A000", "unsupported column type", s.Name, c.Name)
+				return b, sqlError("0A000", "unsupported column type", objectNameRelation(s.Name), c.Name)
 			}
 		}
 	case *parser.Insert:
 		var err error
-		b.table, err = lookup(s.Name)
+		b.ref, err = e.resolveReference(CatalogRead{owner: e, state: e.state}, s.Name)
 		if err != nil {
 			return b, err
 		}
+		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.storage = e.storage[b.ref.Address]
+		if b.storage == nil {
+			return b, fmt.Errorf("stuntgres: relation storage is missing")
+		}
 		if len(s.Targets) == 0 {
 			width := len(s.Rows[0])
-			if width > len(b.table.columns) {
-				return b, insertError("42601", "INSERT has more expressions than target columns", s.Rows[0][len(b.table.columns)].Pos)
+			if width > len(b.relation.columns) {
+				return b, insertError("42601", "INSERT has more expressions than target columns", s.Rows[0][len(b.relation.columns)].Pos)
 			}
 			b.targets = make([]int, width)
 			for i := range b.targets {
@@ -130,9 +259,9 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		} else {
 			seen := make(map[int]bool, len(s.Targets))
 			for _, target := range s.Targets {
-				i, ok := b.table.index[target.Name]
+				i, ok := b.relation.index[target.Name]
 				if !ok {
-					return b, insertError("42703", fmt.Sprintf("column %q of relation %q does not exist", target.Name, s.Name), target.Pos)
+					return b, insertError("42703", fmt.Sprintf("column %q of relation %q does not exist", target.Name, b.relation.name), target.Pos)
 				}
 				if seen[i] {
 					return b, insertError("42701", fmt.Sprintf("column %q specified more than once", target.Name), target.Pos)
@@ -152,7 +281,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 				return b, insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 			}
 			for j, v := range row {
-				c := b.table.columns[b.targets[j]]
+				c := b.relation.columns[b.targets[j]]
 				if err := bind(v, c, false); err != nil {
 					return b, insertValueError(err, c, v)
 				}
@@ -160,20 +289,25 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		}
 	case *parser.Select:
 		var err error
-		b.table, err = lookup(s.Name)
+		b.ref, err = e.resolveReference(CatalogRead{owner: e, state: e.state}, s.Name)
 		if err != nil {
 			return b, err
 		}
+		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.storage = e.storage[b.ref.Address]
+		if b.storage == nil {
+			return b, fmt.Errorf("stuntgres: relation storage is missing")
+		}
 		if s.Star {
-			b.projection = make([]int, len(b.table.columns))
+			b.projection = make([]int, len(b.relation.columns))
 			for i := range b.projection {
 				b.projection[i] = i
 			}
 		} else {
-			for _, name := range s.Columns {
-				i, err := column(name)
-				if err != nil {
-					return b, err
+			for _, n := range s.Columns {
+				i, er := column(n)
+				if er != nil {
+					return b, &sqlstate.Error{Code: "42703", Message: fmt.Sprintf("column %q does not exist", n)}
 				}
 				b.projection = append(b.projection, i)
 			}
@@ -181,23 +315,21 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		if s.Where != nil {
 			b.predicate, err = column(s.Where.Column)
 			if err != nil {
-				return b, err
+				return b, &sqlstate.Error{Code: "42703", Message: fmt.Sprintf("column %q does not exist", s.Where.Column)}
 			}
-			c := b.table.columns[b.predicate]
-			if err = bind(s.Where.Value, c, true); err != nil {
-				return b, annotate(err, s.Name, c.Name)
+			if err = bind(s.Where.Value, b.relation.columns[b.predicate], true); err != nil {
+				return b, annotate(err, b.relation.name, s.Where.Column)
 			}
 		}
 		if s.Order != nil {
 			b.order, err = column(s.Order.Column)
 			if err != nil {
-				return b, err
+				return b, &sqlstate.Error{Code: "42703", Message: fmt.Sprintf("column %q does not exist", s.Order.Column)}
 			}
 		}
 	default:
 		return b, sqlError("0A000", "unsupported statement", "", "")
 	}
-	// Gaps must fail before allocating a potentially huge parameter slice.
 	if len(used) != b.parameters.Count {
 		return b, sqlError("42P18", "could not determine unused parameter type", "", "")
 	}
@@ -206,6 +338,29 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		b.parameters.Types[n-1] = t
 	}
 	return b, nil
+}
+func (e *Engine) resolveReference(view CatalogRead, name parser.ObjectName) (ObjectRef, error) {
+	if view.owner != e || view.state == nil {
+		return ObjectRef{}, fmt.Errorf("stuntgres: foreign catalog view")
+	}
+	if view.state != e.state {
+		return ObjectRef{}, ErrCatalogReplaced
+	}
+	_, ref, _, err := e.resolveRelation(name)
+	return ref, err
+}
+func (e *Engine) resolveCreation(view CatalogRead, name parser.ObjectName) (ObjectRef, error) {
+	if view.owner != e || view.state == nil {
+		return ObjectRef{}, fmt.Errorf("stuntgres: foreign catalog view")
+	}
+	ns, err := e.namespaceForName(name, true)
+	if err != nil {
+		return ObjectRef{}, err
+	}
+	if ns.ObjectID != PublicNamespaceOID {
+		return ObjectRef{}, &sqlstate.Error{Code: "0A000", Message: "creation outside public is unsupported"}
+	}
+	return ObjectRef{Epoch: view.Epoch(), Address: ns}, nil
 }
 func annotate(err error, table, column string) error {
 	var e *sqlstate.Error
@@ -304,9 +459,22 @@ func prepareArgs(args []driver.NamedValue) ([]driver.Value, error) {
 	return values, nil
 }
 
-func parameterColumn(stmt parser.Statement) string {
-	if s, ok := stmt.(*parser.Select); ok && s.Where != nil {
-		return s.Where.Column
+// parameterColumn identifies the first destination for diagnostics only.
+// Searching on error avoids extra metadata allocations in successful binding.
+func parameterColumn(stmt parser.Statement, b binding, number int) string {
+	switch s := stmt.(type) {
+	case *parser.Insert:
+		for _, row := range s.Rows {
+			for i, v := range row {
+				if v.Kind == parser.ParameterValue && v.Parameter == number {
+					return b.relation.columns[b.targets[i]].Name
+				}
+			}
+		}
+	case *parser.Select:
+		if s.Where != nil {
+			return s.Where.Column
+		}
 	}
 	return ""
 }
@@ -323,6 +491,62 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 	if err = ctx.Err(); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
+	}
+	if s, ok := stmt.(*parser.CreateTable); ok {
+		if _, er := e.describe(s); er != nil {
+			e.mu.Unlock()
+			return Result{}, er
+		}
+	}
+	if s, ok := stmt.(*parser.CreateTable); ok {
+		if len(values) != 0 {
+			e.mu.Unlock()
+			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", len(values))
+		}
+		nsref, er := e.resolveCreation(CatalogRead{owner: e, state: e.state}, s.Name)
+		if er != nil {
+			e.mu.Unlock()
+			return Result{}, er
+		}
+		ns := nsref.Address
+		key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
+		if _, exists := e.state.names[key]; exists {
+			e.mu.Unlock()
+			return Result{}, &sqlstate.Error{Code: "42P07", Message: fmt.Sprintf("relation %q already exists", key.Name)}
+		}
+		oid, er := e.allocateOIDLocked()
+		if er != nil {
+			e.mu.Unlock()
+			return Result{}, er
+		}
+		rev, er := e.revisionLocked()
+		if er != nil {
+			e.mu.Unlock()
+			return Result{}, er
+		}
+		addr := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
+		rd := &relationDescriptor{address: addr, namespace: ns, name: key.Name, revision: rev, columns: append([]parser.Column(nil), s.Columns...), index: make(map[string]int, len(s.Columns)), attributes: make([]int32, len(s.Columns))}
+		for i, c := range rd.columns {
+			rd.index[c.Name] = i
+			rd.attributes[i] = int32(i + 1)
+		}
+		base := CatalogRead{owner: e, state: e.state}
+		stage := e.BeginCatalogStage(base)
+		er = stage.Create(rd)
+		e.mu.Unlock()
+		if er != nil {
+			return Result{}, er
+		}
+		prepared, er := e.ValidateCatalogStage(ctx, stage)
+		if er != nil {
+			e.DiscardCatalogStage(stage)
+			return Result{}, er
+		}
+		_, er = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+		if _, conflict := er.(CatalogConflict); conflict {
+			return Result{}, &sqlstate.Error{Code: "42P07", Message: fmt.Sprintf("relation %q already exists", key.Name)}
+		}
+		return Result{}, er
 	}
 	b, err := e.describe(stmt)
 	if err != nil {
@@ -342,7 +566,7 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 				return Result{}, err
 			}
 			e.mu.Unlock()
-			return Result{}, annotate(err, b.table.name, parameterColumn(stmt))
+			return Result{}, annotate(err, b.relation.name, parameterColumn(stmt, b, i+1))
 		}
 	}
 	resolve := func(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
@@ -352,16 +576,6 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 		return literal(v, t, where)
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateTable:
-		t := &table{name: s.Name, columns: append([]parser.Column(nil), s.Columns...), index: make(map[string]int, len(s.Columns))}
-		for i, c := range t.columns {
-			t.index[c.Name] = i
-		}
-		if err = ctx.Err(); err == nil {
-			e.tables[s.Name] = t
-		}
-		e.mu.Unlock()
-		return Result{}, err
 	case *parser.Insert:
 		rows := make([][]driver.Value, len(s.Rows))
 		for i, source := range s.Rows {
@@ -369,26 +583,26 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 				e.mu.Unlock()
 				return Result{}, err
 			}
-			row := make([]driver.Value, len(b.table.columns))
+			row := make([]driver.Value, len(b.relation.columns))
 			for j, v := range source {
 				target := b.targets[j]
-				c := b.table.columns[target]
+				c := b.relation.columns[target]
 				row[target], err = resolve(v, c.Type, false)
 				if err != nil {
 					e.mu.Unlock()
 					return Result{}, insertValueError(err, c, v)
 				}
 			}
-			for j, c := range b.table.columns {
+			for j, c := range b.relation.columns {
 				if row[j] == nil && !c.Nullable {
 					e.mu.Unlock()
-					return Result{}, notNullError(s.Name, c.Name, row)
+					return Result{}, notNullError(b.relation.name, c.Name, row)
 				}
 			}
 			rows[i] = row
 		}
 		if err = ctx.Err(); err == nil {
-			b.table.rows = append(b.table.rows, rows...)
+			b.storage.rows = append(b.storage.rows, rows...)
 		}
 		e.mu.Unlock()
 		if err != nil {
@@ -398,16 +612,16 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 	case *parser.Select:
 		var predicate driver.Value
 		if s.Where != nil {
-			predicate, err = resolve(s.Where.Value, b.table.columns[b.predicate].Type, true)
+			predicate, err = resolve(s.Where.Value, b.relation.columns[b.predicate].Type, true)
 			if err != nil {
 				e.mu.Unlock()
-				return Result{}, annotate(err, s.Name, s.Where.Column)
+				return Result{}, annotate(err, b.relation.name, s.Where.Column)
 			}
 		}
-		snap := &Snapshot{rows: b.table.rows, projection: b.projection}
+		snap := &Snapshot{rows: b.storage.rows, projection: b.projection}
 		columns := make([]parser.Column, len(b.projection))
 		for i, j := range b.projection {
-			columns[i] = b.table.columns[j]
+			columns[i] = b.relation.columns[j]
 		}
 		e.mu.Unlock()
 		if err = snap.selectRows(ctx, b.predicate, predicate, b.order, s.Order != nil && s.Order.Desc); err != nil {

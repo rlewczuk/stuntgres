@@ -3,6 +3,7 @@
 package stuntgres_test
 
 import (
+
 	"bytes"
 	"context"
 	"database/sql"
@@ -16,7 +17,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/lib/pq"
-
 	"stuntgres"
 )
 
@@ -90,16 +90,22 @@ func referenceAssertDiagnostic(t *testing.T, err error, want *referenceDiagnosti
 }
 
 type referenceStep struct {
-	query          string
-	args           []any
-	prepared       bool
-	selectRows     bool
-	affected       int64
-	state          string
-	diagnostic     *referenceDiagnostic
-	columns, types []string
-	rows           [][]any
+	query             string
+	args              []any
+	prepared          bool
+	selectRows        bool
+	affected          int64
+	state             string
+	diagnostic        *referenceDiagnostic
+	catalogDiagnostic *referenceCatalogDiagnostic
+	errorStage        string
+	partialDiagnostic bool
+	memoryContext     string
+	postgresContext   string
+	columns, types    []string
+	rows              [][]any
 }
+type referenceCatalogDiagnostic struct{ state, message, schema, table, column, position string }
 
 func referenceExec(query string, count int64, args ...any) referenceStep {
 	return referenceStep{query: query, args: args, affected: count}
@@ -110,6 +116,12 @@ func referenceError(query, state string, args ...any) referenceStep {
 func referenceErrorDiagnostic(query string, want referenceDiagnostic, args ...any) referenceStep {
 	return referenceStep{query: query, args: args, state: want.Code, diagnostic: &want}
 }
+func referenceImplicitError(query string, want referenceDiagnostic, args ...any) referenceStep {
+	step := referenceErrorDiagnostic(query, want, args...)
+	step.partialDiagnostic = true
+	return step
+}
+
 
 func referencePosition(position int) string {
 	if position == 0 {
@@ -128,32 +140,7 @@ type referenceObserved struct {
 	affected       int64
 	columns, types []string
 	rows           [][]any
-}
-
-func referenceDiagnosticOf(t *testing.T, err error, want *referenceDiagnostic) *referenceDiagnostic {
-	t.Helper()
-	if want == nil {
-		return nil
-	}
-	if want.Severity != "" {
-		got := referenceAssertDiagnostic(t, err, want)
-		return &got
-	}
-	// INSERT fixtures compare SQL diagnostics, not PostgreSQL's wire-portal
-	// execution context. Full error-field fixtures above compare every field.
-	extracted := referenceExtractDiagnostic(t, err)
-	if extracted.Severity != "ERROR" || extracted.SeverityUnlocalized != "ERROR" {
-		t.Fatalf("SQL error severity = %q/%q", extracted.Severity, extracted.SeverityUnlocalized)
-	}
-	got := referenceDiagnostic{
-		Code: extracted.Code, Message: extracted.Message, Detail: extracted.Detail,
-		Hint: extracted.Hint, Position: extracted.Position, Schema: extracted.Schema,
-		Table: extracted.Table, Column: extracted.Column,
-	}
-	if !reflect.DeepEqual(got, *want) {
-		t.Fatalf("diagnostic got %+v want %+v", got, *want)
-	}
-	return &got
+	errorStage string
 }
 
 func referenceState(t *testing.T, err error, want string) string {
@@ -175,6 +162,72 @@ func referenceState(t *testing.T, err error, want string) string {
 		t.Fatalf("SQLSTATE got %s want %s: %v", state.SQLState(), want, err)
 	}
 	return state.SQLState()
+}
+func referenceCheckDiagnostic(t *testing.T, err error, s referenceStep, stage string) *referenceDiagnostic {
+	t.Helper()
+	if s.diagnostic == nil {
+		return nil
+	}
+	var got referenceDiagnostic
+	if s.partialDiagnostic {
+		got = referenceExtractDiagnostic(t, err)
+		if got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" {
+			t.Errorf("SQL error severity = %q/%q", got.Severity, got.SeverityUnlocalized)
+		}
+		expectedContext := s.postgresContext
+		var native *stuntgres.Error
+		if errors.As(err, &native) {
+			expectedContext = s.memoryContext
+		}
+		if got.Context != expectedContext {
+			t.Errorf("SQL error context = %q, want %q", got.Context, expectedContext)
+		}
+		fields := referenceDiagnostic{
+			Code: got.Code, Message: got.Message, Detail: got.Detail, Hint: got.Hint,
+			Position: got.Position, Schema: got.Schema, Table: got.Table, Column: got.Column,
+		}
+		if !reflect.DeepEqual(fields, *s.diagnostic) {
+			t.Errorf("diagnostic got %#v want %#v", fields, *s.diagnostic)
+		}
+		got = fields
+	} else {
+		got = referenceAssertDiagnostic(t, err, s.diagnostic)
+	}
+	if s.errorStage != "" && stage != s.errorStage {
+		t.Errorf("error stage got %q want %q", stage, s.errorStage)
+	}
+	return &got
+}
+func referenceCheckCatalogDiagnostic(t *testing.T, err error, s referenceStep, stage string) *referenceCatalogDiagnostic {
+	t.Helper()
+	if s.catalogDiagnostic == nil {
+		return nil
+	}
+	got := referenceCatalogDiagnostic{}
+	memoryErr := false
+	var memory *stuntgres.Error
+	if errors.As(err, &memory) {
+		memoryErr = true
+		got = referenceCatalogDiagnostic{memory.Code, memory.Message, memory.Schema, memory.Table, memory.Column, ""}
+	} else {
+		var pg *pq.Error
+		if !errors.As(err, &pg) {
+			t.Fatalf("diagnostic error type %T", err)
+		}
+		got = referenceCatalogDiagnostic{string(pg.Code), pg.Message, pg.Schema, pg.Table, pg.Column, pg.Position}
+	}
+	want := *s.catalogDiagnostic
+	if memoryErr {
+		want.position = ""
+	}
+	if got != want {
+		t.Errorf("diagnostic got %#v want %#v", got, want)
+	}
+	if s.errorStage != "" && stage != s.errorStage {
+		t.Errorf("error stage got %q want %q", stage, s.errorStage)
+	}
+	got.position = ""
+	return &got
 }
 
 func referenceNormalize(v any) any {
@@ -202,7 +255,10 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 	if s.prepared {
 		stmt, err = db.PrepareContext(ctx, s.query)
 		if err != nil {
-			return referenceObserved{state: referenceState(t, err, s.state), diagnostic: referenceDiagnosticOf(t, err, s.diagnostic)}
+			stage := "prepare"
+			diag := referenceCheckDiagnostic(t, err, s, stage)
+			referenceCheckCatalogDiagnostic(t, err, s, stage)
+			return referenceObserved{state: referenceState(t, err, s.state), diagnostic: diag, errorStage: stage}
 		}
 		defer func() {
 			if err := stmt.Close(); err != nil {
@@ -219,7 +275,10 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 		}
 		state := referenceState(t, err, s.state)
 		if err != nil {
-			return referenceObserved{state: state, diagnostic: referenceDiagnosticOf(t, err, s.diagnostic)}
+			stage := "execute"
+			diag := referenceCheckDiagnostic(t, err, s, stage)
+			referenceCheckCatalogDiagnostic(t, err, s, stage)
+			return referenceObserved{state: state, diagnostic: diag, errorStage: stage}
 		}
 		count, err := result.RowsAffected()
 		if err != nil {
@@ -236,9 +295,15 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 	} else {
 		rows, err = db.QueryContext(ctx, s.query, s.args...)
 	}
+	stage := "execute"
+	if stmt != nil && err != nil {
+		stage = "prepare"
+	}
 	state := referenceState(t, err, s.state)
 	if err != nil {
-		return referenceObserved{state: state, diagnostic: referenceDiagnosticOf(t, err, s.diagnostic)}
+		diag := referenceCheckDiagnostic(t, err, s, stage)
+		referenceCheckCatalogDiagnostic(t, err, s, stage)
+		return referenceObserved{state: state, diagnostic: diag, errorStage: stage}
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
@@ -431,6 +496,8 @@ func TestReferenceDumpRoundTrip(t *testing.T) {
 		`CREATE TABLE "Round" ("id" INTEGER NOT NULL, "a""b" TEXT, "flag" BOOLEAN, "big" BIGINT)`,
 		`INSERT INTO "Round" VALUES (0, '', FALSE, 0), (1, NULL, NULL, NULL), (2, 'first
 O''Brien\last', TRUE, -9223372036854775808)`,
+		`CREATE TABLE public."a.b" ("q""x" INTEGER, note TEXT)`,
+		`INSERT INTO public."a.b" VALUES (9, 'qualified')`,
 	} {
 		if _, err := p.memory.ExecContext(p.ctx, query); err != nil {
 			t.Fatal(err)
@@ -454,6 +521,7 @@ O''Brien\last', TRUE, -9223372036854775808)`,
 	p.step(t, referenceSelect(`SELECT * FROM "Round" ORDER BY id`, []string{"id", `a"b`, "flag", "big"}, []string{"INT4", "TEXT", "BOOL", "INT8"}, [][]any{
 		{int64(0), "", false, int64(0)}, {int64(1), nil, nil, nil}, {int64(2), "first\nO'Brien\\last", true, int64(-9223372036854775808)},
 	}))
+	p.step(t, referenceSelect(`SELECT "q""x",note FROM public."a.b"`, []string{`q"x`, "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(9), "qualified"}}))
 	var restored bytes.Buffer
 	if err := stuntgres.Dump(p.ctx, p.native, &restored); err != nil {
 		t.Fatal(err)
@@ -666,7 +734,7 @@ func TestReferenceInsertImplicitShortDiagnostics(t *testing.T) {
 	p.step(t, referenceExec("INSERT INTO t VALUES (99)", 1))
 	check := func(query, code, message string, position int, detail, hint, schema, table, column string) {
 		t.Helper()
-		p.step(t, referenceErrorDiagnostic(query, referenceDiagnostic{Code: code, Message: message, Position: referencePosition(position), Detail: detail, Hint: hint, Schema: schema, Table: table, Column: column}))
+		p.step(t, referenceImplicitError(query, referenceDiagnostic{Code: code, Message: message, Position: referencePosition(position), Detail: detail, Hint: hint, Schema: schema, Table: table, Column: column}))
 		p.step(t, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(99)}}))
 	}
 	q := "INSERT INTO t VALUES (20),('oops')"
@@ -691,8 +759,8 @@ func TestReferenceInsertImplicitShortDiagnostics(t *testing.T) {
 	check(q, "42601", "INSERT has more target columns than expressions", strings.Index(q, "label")+1, "", "", "", "", "")
 	q = "INSERT INTO t (id,label) VALUES ('oops')"
 	wantUnderflow := referenceDiagnostic{Code: "42601", Message: "INSERT has more target columns than expressions", Position: referencePosition(strings.Index(q, "label") + 1)}
-	p.step(t, referenceErrorDiagnostic(q, wantUnderflow))
-	p.step(t, referencePrepared(referenceErrorDiagnostic(q, wantUnderflow)))
+	p.step(t, referenceImplicitError(q, wantUnderflow))
+	p.step(t, referencePrepared(referenceImplicitError(q, wantUnderflow)))
 	p.step(t, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(99)}}))
 	q = "INSERT INTO t (id,id) VALUES (20,21)"
 	check(q, "42701", `column "id" specified more than once`, strings.LastIndex(q, "id)")+1, "", "", "", "", "")
@@ -700,27 +768,30 @@ func TestReferenceInsertImplicitShortDiagnostics(t *testing.T) {
 	check(q, "42703", `column "missing" of relation "t" does not exist`, strings.Index(q, "missing")+1, "", "", "", "", "")
 	q = "/* é */ INSERT INTO t VALUES (20),('oops')"
 	check(q, "22P02", `invalid input syntax for type integer: "oops"`, utf8.RuneCountInString(q[:strings.Index(q, "'oops'")])+1, "", "", "", "", "")
-	p.step(t, referencePrepared(referenceErrorDiagnostic("INSERT INTO t VALUES($1)", referenceDiagnostic{
+	parameterError := referenceImplicitError("INSERT INTO t VALUES($1)", referenceDiagnostic{
 		Code: "22P02", Message: `invalid input syntax for type integer: "oops"`,
-	}, "oops")))
+	}, "oops")
+	parameterError.postgresContext = "unnamed portal parameter $1 = '...'"
+	p.step(t, referencePrepared(parameterError))
 	p.step(t, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(99)}}))
 	q = "INSERT INTO t VALUES (20),(NULL)"
 	check(q, "23502", `null value in column "id" of relation "t" violates not-null constraint`, 0, "Failing row contains (null, null, null, null).", "", "public", "t", "id")
 	p.step(t, referenceExec("CREATE TABLE required(id INT,flag BOOL NOT NULL)", 0))
-	p.step(t, referenceErrorDiagnostic("INSERT INTO required VALUES (1)", referenceDiagnostic{
+	p.step(t, referenceImplicitError("INSERT INTO required VALUES (1)", referenceDiagnostic{
 		Code: "23502", Message: `null value in column "flag" of relation "required" violates not-null constraint`,
 		Detail: "Failing row contains (1, null).", Schema: "public", Table: "required", Column: "flag",
 	}))
 	p.step(t, referenceExec("CREATE TABLE clip(label TEXT,flag BOOL,required INT NOT NULL)", 0))
-	p.step(t, referenceErrorDiagnostic("INSERT INTO clip VALUES ('raw',TRUE)", referenceDiagnostic{
+	p.step(t, referenceImplicitError("INSERT INTO clip VALUES ('raw',TRUE)", referenceDiagnostic{
 		Code: "23502", Message: `null value in column "required" of relation "clip" violates not-null constraint`,
 		Detail: "Failing row contains (raw, t, null).", Schema: "public", Table: "clip", Column: "required",
 	}))
 	long := strings.Repeat("é", 33)
-	p.step(t, referencePrepared(referenceErrorDiagnostic("INSERT INTO clip VALUES ($1,$2)", referenceDiagnostic{
+	clipParameterError := referenceImplicitError("INSERT INTO clip VALUES ($1,$2)", referenceDiagnostic{
 		Code: "23502", Message: `null value in column "required" of relation "clip" violates not-null constraint`,
 		Detail: "Failing row contains (" + strings.Repeat("é", 32) + "..., t, null).", Schema: "public", Table: "clip", Column: "required",
-	}, long, true)))
+	}, long, true)
+	p.step(t, referencePrepared(clipParameterError))
 }
 func TestReferenceInsertImplicitShortDumpRoundTrip(t *testing.T) {
 	p := newReferencePair(t)
@@ -743,4 +814,44 @@ func TestReferenceInsertImplicitShortDumpRoundTrip(t *testing.T) {
 	p.step(t, referenceSelect("SELECT * FROM t ORDER BY id", []string{"id", "label", "flag"}, []string{"INT4", "TEXT", "BOOL"}, [][]any{
 		{int64(1), nil, nil}, {int64(2), nil, nil}, {int64(3), "reordered", nil},
 	}))
+}
+
+func TestReferenceCatalogCore(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec("CREATE TABLE public.t (id integer)", 0))
+	type c struct {
+		query, state, message, stage, pos string
+		prepared bool
+	}
+	cases := []c{
+		{"SELECT id FROM public.missing_table", "42P01", `relation "public.missing_table" does not exist`, "execute", "16", false},
+		{"SELECT id FROM public.missing_table", "42P01", `relation "public.missing_table" does not exist`, "prepare", "16", true},
+		{"INSERT INTO public.missing_table VALUES (1)", "42P01", `relation "public.missing_table" does not exist`, "execute", "13", false},
+		{"INSERT INTO public.missing_table VALUES (1)", "42P01", `relation "public.missing_table" does not exist`, "prepare", "13", true},
+		{"CREATE TABLE missing_schema.t (id integer)", "3F000", `schema "missing_schema" does not exist`, "execute", "14", false},
+		{"CREATE TABLE missing_schema.t (id integer)", "3F000", `schema "missing_schema" does not exist`, "execute", "14", true},
+		{"SELECT id FROM missing_schema.t", "42P01", `relation "missing_schema.t" does not exist`, "execute", "16", false},
+		{"SELECT id FROM missing_schema.t", "42P01", `relation "missing_schema.t" does not exist`, "prepare", "16", true},
+		{"INSERT INTO missing_schema.t VALUES (1)", "42P01", `relation "missing_schema.t" does not exist`, "execute", "13", false},
+		{"INSERT INTO missing_schema.t VALUES (1)", "42P01", `relation "missing_schema.t" does not exist`, "prepare", "13", true},
+		{"CREATE TABLE public.t (id integer)", "42P07", `relation "t" already exists`, "execute", "", false},
+		{"CREATE TABLE public.t (id integer)", "42P07", `relation "t" already exists`, "execute", "", true},
+		{"CREATE TABLE t (id integer)", "42P07", `relation "t" already exists`, "execute", "", false},
+		{"CREATE TABLE t (id integer)", "42P07", `relation "t" already exists`, "execute", "", true},
+		{"SELECT missing_column FROM public.t", "42703", `column "missing_column" does not exist`, "execute", "8", false},
+		{"SELECT missing_column FROM public.t", "42703", `column "missing_column" does not exist`, "prepare", "8", true},
+		{"INSERT INTO public.t (missing_column) VALUES (1)", "42703", `column "missing_column" of relation "t" does not exist`, "execute", "23", false},
+		{"INSERT INTO public.t (missing_column) VALUES (1)", "42703", `column "missing_column" of relation "t" does not exist`, "prepare", "23", true},
+	}
+	for _, tc := range cases {
+		want := &referenceCatalogDiagnostic{state: tc.state, message: tc.message, position: tc.pos}
+		step := referenceStep{query: tc.query, prepared: tc.prepared, state: tc.state, catalogDiagnostic: want, errorStage: tc.stage}
+		p.step(t, step)
+	}
+	p.step(t, referenceExec("INSERT INTO public.t VALUES (1)", 1))
+	p.step(t, referenceSelect("SELECT id FROM public.t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+	p.step(t, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+	p.step(t, referencePrepared(referenceExec("INSERT INTO public.t VALUES ($1)", 1, 1)))
+	p.step(t, referencePrepared(referenceSelect("SELECT id FROM public.t WHERE id = $1 ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}}, 1)))
+	p.step(t, referencePrepared(referenceSelect("SELECT id FROM t WHERE id = $1 ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}}, 1)))
 }
