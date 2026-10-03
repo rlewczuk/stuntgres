@@ -55,6 +55,25 @@ Controls require a **native stuntgres** pool; foreign and middleware-wrapped poo
 
 Restore accepts supported CREATE/INSERT scripts without parameters, builds a staging engine, then atomically **replaces**, never merges, the catalog. Empty input clears it. Read, parse, execution and cancellation errors leave original data untouched. Reset/Restore publication supersedes earlier completed writes. Existing SELECT snapshots remain valid across inserts and catalog replacement. Writer errors do not change the database.
 
+## Catalog-part agent workflow
+
+OMP discovers `/implement-part <part-symbol>` from `.omp/commands`, with coordinator/review skills and dedicated scout, implementer and reviewer roles. Planning reuses OMP's native `/plan` instructions and auto-approval via `--plan-yolo`, rather than a custom planner agent/system prompt. This is workflow infrastructure, not an implementation of the future SQL catalog. It reads existing ignored `.cswd/spec_parts.json` and `.cswd/spec_status.json`; only a selected part with completed prerequisites may start.
+
+Invoke from a clean named integration branch. Research and a frozen `.cswd/parts/<symbol>.md` plan precede an owned Git worktree. The helper runs generation, all unit/race/reference-tagged tests, public smoke, standard-library dependency checks and the planned feature smoke. Exact-tree review must route through externally configured `@csw-review-2`; critical/high findings require fixes and fresh verification/review. Implementer `prewalk: true` uses configured `@smol` without changing model settings.
+
+The planning adapter `.omp/bin/plan_part.py` runs native planning non-interactively and exports the existing four-field planner JSON contract. Native auto-approval permits only authoring/export of that plan, not implementation: a trusted extension permits read-only tools plus canonical session-local plan writes/proposal, even after approval. A per-invocation safety overlay disables native plan autosave; user/project settings and model mappings are untouched. Native event/guard evidence is retained beside the result, and absent approval, stale/invalid output or attempted forbidden execution fails closed. The coordinator then ingests the exported plan through the lifecycle helper before creating the implementation worktree.
+
+Only verified, approved content is committed and fast-forwarded to the latest integration tip. Rebase/conflict resolutions require full reverification. Status becomes `done` only after ancestry proof; failures retain worktrees, branches and journals under the Git common directory's `implement-part/`. Use helper `resume` for interrupted runs; never manually reset/stash the integration checkout. The coordinator skill documents all helper actions, evidence schemas and recovery rules.
+
+Infrastructure regression proof uses disposable Git repositories and a tiny Go fixture, not real catalog parts or PostgreSQL coverage:
+
+```sh
+python3 -m unittest discover -s .omp/bin -p 'test_*.py' -v
+python3 .omp/bin/implement_part.py select --repo "$PWD" PG18-ARCH-CATALOG-IDENTITY
+```
+
+`select` is read-only. A real `begin` refuses uncommitted user changes, including an edited `.gitignore`. No real part is executed during infrastructure installation.
+
 ## Development and verification
 
 ```sh
