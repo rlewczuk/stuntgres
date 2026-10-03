@@ -30,7 +30,7 @@ func (c *conn) BeginTx(ctx context.Context, _ driver.TxOptions) (driver.Tx, erro
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
-	return nil, &Error{Code: "0A000", Message: "explicit transactions are unsupported"}
+	return nil, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "explicit transactions are unsupported"}
 }
 func parseOne(query string) (parser.Statement, error) {
 	ss, err := parser.Parse(query)
@@ -38,7 +38,7 @@ func parseOne(query string) (parser.Statement, error) {
 		return nil, err
 	}
 	if len(ss) > 1 {
-		return nil, &Error{Code: "0A000", Message: "multiple statements are unsupported"}
+		return nil, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "multiple statements are unsupported"}
 	}
 	if len(ss) == 0 {
 		return nil, nil

@@ -85,6 +85,7 @@ func (l *lexer) skip(allowBlock bool) bool {
 			continue
 		}
 		if allowBlock && strings.HasPrefix(l.input[l.offset:], "/*") {
+			opener := l.offset
 			l.offset += 2
 			depth := 1
 			for depth > 0 && l.offset < len(l.input) {
@@ -101,7 +102,7 @@ func (l *lexer) skip(allowBlock bool) bool {
 				}
 			}
 			if depth != 0 {
-				l.fail("42601", "unterminated comment")
+				l.failAt("42601", "unterminated comment", opener)
 				return newline
 			}
 			continue
@@ -112,6 +113,7 @@ func (l *lexer) skip(allowBlock bool) bool {
 }
 
 func (l *lexer) quoted(quote byte) (string, bool) {
+	opener := l.offset
 	l.offset++
 	var b strings.Builder
 	for l.offset < len(l.input) {
@@ -131,7 +133,11 @@ func (l *lexer) quoted(quote byte) (string, bool) {
 		}
 		b.WriteByte(c)
 	}
-	l.fail("42601", "unterminated quoted input")
+	message := "unterminated quoted string"
+	if quote == '"' {
+		message = "unterminated quoted identifier"
+	}
+	l.failAt("42601", message, opener)
 	return "", false
 }
 func (l *lexer) parameter(s string) int { n, _ := strconv.ParseInt(s, 10, 32); return int(n) }
@@ -157,7 +163,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 		if s == "" {
-			l.fail("42601", "empty quoted identifier")
+			l.fail("42601", "zero-length delimited identifier")
 			return 0
 		}
 		l.current.text = truncateName(s)
@@ -167,6 +173,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		if !ok {
 			return 0
 		}
+		l.current.raw = l.input[start:l.offset]
 		for {
 			saved := l.offset
 			newline := l.skip(false)
@@ -265,6 +272,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			l.offset++
 		}
 		token = int(c)
+	}
+	if l.current.raw == "" {
+		l.current.raw = l.input[start:l.offset]
 	}
 	v.tok = l.current
 	return token

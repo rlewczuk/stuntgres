@@ -3,8 +3,12 @@ package engine
 import (
 	"context"
 	"database/sql/driver"
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -40,7 +44,14 @@ type binding struct {
 
 func New() *Engine { return &Engine{tables: make(map[string]*table)} }
 func sqlError(code, message, table, column string) error {
-	return &sqlstate.Error{Code: code, Message: message, Schema: "public", Table: table, Column: column}
+	e := &sqlstate.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR",
+		Code: code, Message: message, Table: table, Column: column,
+	}
+	if table != "" {
+		e.Schema = "public"
+	}
+	return e
 }
 func (e *Engine) Describe(stmt parser.Statement) (ParameterInfo, error) {
 	e.mu.Lock()
@@ -189,11 +200,63 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	return b, nil
 }
 func annotate(err error, table, column string) error {
-	if e, ok := err.(*sqlstate.Error); ok {
-		e.Table = table
-		e.Column = column
+	var e *sqlstate.Error
+	if errors.As(err, &e) {
+		if e.Table == "" && table != "" {
+			e.Table = table
+		}
+		if e.Column == "" && column != "" {
+			e.Column = column
+		}
+		if e.Schema == "" && table != "" && e.Table == table {
+			e.Schema = "public"
+		}
 	}
 	return err
+}
+
+func notNullError(table, column string, row []driver.Value) error {
+	err := sqlError("23502", fmt.Sprintf(
+		"null value in column \"%s\" of relation \"%s\" violates not-null constraint",
+		column, table,
+	), table, column)
+	err.(*sqlstate.Error).Detail = failingRowDetail(row)
+	return err
+}
+
+func failingRowDetail(row []driver.Value) string {
+	var b strings.Builder
+	b.WriteString("Failing row contains (")
+	for i, value := range row {
+		if i != 0 {
+			b.WriteString(", ")
+		}
+		switch value := value.(type) {
+		case nil:
+			b.WriteString("null")
+		case int64:
+			b.WriteString(strconv.FormatInt(value, 10))
+		case bool:
+			if value {
+				b.WriteByte('t')
+			} else {
+				b.WriteByte('f')
+			}
+		case string:
+			if len(value) > 64 {
+				n := 64
+				for !utf8.RuneStart(value[n]) {
+					n--
+				}
+				b.WriteString(value[:n])
+				b.WriteString("...")
+			} else {
+				b.WriteString(value)
+			}
+		}
+	}
+	b.WriteString(").")
+	return b.String()
 }
 
 func prepareArgs(args []driver.NamedValue) ([]driver.Value, error) {
@@ -309,7 +372,7 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 			for j, c := range b.table.columns {
 				if row[j] == nil && !c.Nullable {
 					e.mu.Unlock()
-					return Result{}, sqlError("23502", "null value violates not-null constraint", s.Name, c.Name)
+					return Result{}, notNullError(s.Name, c.Name, row)
 				}
 			}
 			rows[i] = row

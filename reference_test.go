@@ -9,10 +9,82 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"github.com/lib/pq"
+	"time"
+	"strings"
 	"testing"
 
 	"stuntgres"
 )
+
+type referenceDiagnostic struct {
+	Severity            string
+	SeverityUnlocalized string
+	Code                string
+	Message             string
+	Detail              string
+	Hint                string
+	Position            string
+	InternalPosition    string
+	InternalQuery       string
+	Context             string
+	Schema              string
+	Table               string
+	Column              string
+	DataType            string
+	Constraint          string
+}
+
+func referenceExtractDiagnostic(t *testing.T, err error) referenceDiagnostic {
+	t.Helper()
+	var native *stuntgres.Error
+	if errors.As(err, &native) {
+		got := referenceDiagnostic{
+			Severity: native.Severity, SeverityUnlocalized: native.SeverityUnlocalized,
+			Code: native.Code, Message: native.Message, Detail: native.Detail, Hint: native.Hint,
+			Position: native.Position, InternalPosition: native.InternalPosition,
+			InternalQuery: native.InternalQuery, Context: native.Context, Schema: native.Schema,
+			Table: native.Table, Column: native.Column, DataType: native.DataType,
+			Constraint: native.Constraint,
+		}
+		if native.File != "" || native.Line != "" || native.Routine != "" {
+			t.Fatalf("native source fields must not claim PostgreSQL C locations: %#v", native)
+		}
+		if len(got.Code) != 5 || got.InternalPosition != "" && got.InternalQuery == "" {
+			t.Fatalf("invalid native diagnostic contract: %#v", got)
+		}
+		return got
+	}
+	var postgres *pq.Error
+	if errors.As(err, &postgres) {
+		got := referenceDiagnostic{
+			Severity: postgres.Severity, SeverityUnlocalized: postgres.Severity,
+			Code: string(postgres.Code), Message: postgres.Message, Detail: postgres.Detail, Hint: postgres.Hint,
+			Position: postgres.Position, InternalPosition: postgres.InternalPosition,
+			InternalQuery: postgres.InternalQuery, Context: postgres.Where, Schema: postgres.Schema,
+			Table: postgres.Table, Column: postgres.Column, DataType: postgres.DataTypeName,
+			Constraint: postgres.Constraint,
+		}
+		if len(got.Code) != 5 || got.InternalPosition != "" && got.InternalQuery == "" {
+			t.Fatalf("invalid PostgreSQL diagnostic contract: %#v", got)
+		}
+		return got
+	}
+	t.Fatalf("unknown SQL diagnostic %T: %v", err, err)
+	return referenceDiagnostic{}
+}
+
+func referenceAssertDiagnostic(t *testing.T, err error, want *referenceDiagnostic) referenceDiagnostic {
+	t.Helper()
+	if want == nil {
+		t.Fatal("diagnostic expectation is required for structured-error fixtures")
+	}
+	got := referenceExtractDiagnostic(t, err)
+	if !reflect.DeepEqual(got, *want) {
+		t.Fatalf("diagnostic got %#v want %#v", got, *want)
+	}
+	return got
+}
 
 type referenceStep struct {
 	query          string
@@ -23,6 +95,7 @@ type referenceStep struct {
 	state          string
 	columns, types []string
 	rows           [][]any
+	diagnostic     *referenceDiagnostic
 }
 
 func referenceExec(query string, count int64, args ...any) referenceStep {
@@ -41,6 +114,7 @@ type referenceObserved struct {
 	affected       int64
 	columns, types []string
 	rows           [][]any
+	diagnostic     *referenceDiagnostic
 }
 
 func referenceState(t *testing.T, err error, want string) string {
@@ -89,7 +163,13 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 	if s.prepared {
 		stmt, err = db.PrepareContext(ctx, s.query)
 		if err != nil {
-			return referenceObserved{state: referenceState(t, err, s.state)}
+			state := referenceState(t, err, s.state)
+			var diagnostic *referenceDiagnostic
+			if s.diagnostic != nil {
+				got := referenceAssertDiagnostic(t, err, s.diagnostic)
+				diagnostic = &got
+			}
+			return referenceObserved{state: state, diagnostic: diagnostic}
 		}
 		defer func() {
 			if err := stmt.Close(); err != nil {
@@ -106,7 +186,12 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 		}
 		state := referenceState(t, err, s.state)
 		if err != nil {
-			return referenceObserved{state: state}
+			var diagnostic *referenceDiagnostic
+			if s.diagnostic != nil {
+				got := referenceAssertDiagnostic(t, err, s.diagnostic)
+				diagnostic = &got
+			}
+			return referenceObserved{state: state, diagnostic: diagnostic}
 		}
 		count, err := result.RowsAffected()
 		if err != nil {
@@ -125,7 +210,12 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 	}
 	state := referenceState(t, err, s.state)
 	if err != nil {
-		return referenceObserved{state: state}
+		var diagnostic *referenceDiagnostic
+		if s.diagnostic != nil {
+			got := referenceAssertDiagnostic(t, err, s.diagnostic)
+			diagnostic = &got
+		}
+		return referenceObserved{state: state, diagnostic: diagnostic}
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
@@ -347,5 +437,183 @@ O''Brien\last', TRUE, -9223372036854775808)`,
 	}
 	if !bytes.Equal(dump.Bytes(), restored.Bytes()) {
 		t.Fatalf("dump changed across restore:\nbefore:\n%s\nafter:\n%s", dump.String(), restored.String())
+	}
+}
+
+func TestReferenceErrorFields(t *testing.T) {
+	p := newReferencePair(t)
+	syntax := &referenceDiagnostic{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601",
+		Message: `syntax error at or near ")"`, Position: "28",
+	}
+	notNull := &referenceDiagnostic{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
+		Message: `null value in column "id" of relation "diagnostic_rows" violates not-null constraint`,
+		Detail: "Failing row contains (null, bad).", Schema: "public",
+		Table: "diagnostic_rows", Column: "id",
+	}
+	p.step(t, referenceExec("CREATE TABLE diagnostic_rows (id INT NOT NULL,note TEXT)", 0))
+	for _, step := range []referenceStep{
+		{query: "INSERT INTO t VALUES ('é', )", state: "42601", diagnostic: syntax},
+		{query: "INSERT INTO t VALUES ('é', )", state: "42601", diagnostic: syntax, selectRows: true},
+		{query: "INSERT INTO t VALUES ('é', )", state: "42601", diagnostic: syntax, prepared: true},
+		{query: "INSERT INTO diagnostic_rows VALUES (NULL,'bad')", state: "23502", diagnostic: notNull},
+		{query: "INSERT INTO diagnostic_rows VALUES ($1,$2)", state: "23502", diagnostic: notNull, prepared: true, args: []any{nil, "bad"}},
+		{query: "INSERT INTO diagnostic_rows VALUES (1,'good'),(NULL,'bad')", state: "23502", diagnostic: &referenceDiagnostic{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
+			Message: notNull.Message, Detail: "Failing row contains (null, bad).",
+			Schema: "public", Table: "diagnostic_rows", Column: "id",
+		}},
+	} {
+		p.step(t, step)
+	}
+	p.step(t, referenceSelect("SELECT id,note FROM diagnostic_rows ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"}, nil))
+	p.step(t, referenceExec("CREATE TABLE row_formats (id INT NOT NULL,big BIGINT,flag BOOL,note TEXT)", 0))
+	for _, tc := range []struct {
+		name, big, flag, note, detail string
+	}{
+		{"values", "-9223372036854775808", "TRUE", "a,b\nc", "Failing row contains (null, -9223372036854775808, t, a,b\nc)."},
+		{"false", "9223372036854775807", "FALSE", "edge", "Failing row contains (null, 9223372036854775807, f, edge)."},
+		{"exact_64", "NULL", "NULL", strings.Repeat("x", 64), "Failing row contains (null, null, null, " + strings.Repeat("x", 64) + ")."},
+		{"long_ascii", "NULL", "NULL", strings.Repeat("x", 65), "Failing row contains (null, null, null, " + strings.Repeat("x", 64) + "...)."},
+		{"long_utf8", "NULL", "NULL", strings.Repeat("x", 63) + "é", "Failing row contains (null, null, null, " + strings.Repeat("x", 63) + "...)."},
+	} {
+		message := `null value in column "id" of relation "row_formats" violates not-null constraint`
+		expected := &referenceDiagnostic{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: message,
+			Detail: tc.detail, Schema: "public", Table: "row_formats", Column: "id",
+		}
+		query := fmt.Sprintf("INSERT INTO row_formats VALUES (NULL,%s,%s,'%s')", tc.big, tc.flag, tc.note)
+		p.step(t, referenceStep{query: query, state: "23502", diagnostic: expected})
+	}
+}
+
+func TestReferenceConditionalErrorFields(t *testing.T) {
+	p := newReferencePair(t)
+	assertPostgres := func(query string, want referenceDiagnostic) referenceDiagnostic {
+		t.Helper()
+		_, err := p.postgres.ExecContext(p.ctx, query)
+		if err == nil {
+			t.Fatalf("query succeeded, want diagnostic: %s", query)
+		}
+		return referenceExtractDiagnostic(t, fmt.Errorf("wrapped: %w", err))
+	}
+	for _, tc := range []struct {
+		name, query string
+		want        referenceDiagnostic
+	}{
+		{"column", `DO $$ BEGIN RAISE EXCEPTION USING ERRCODE='23505', MESSAGE='independent fields', COLUMN='only_column'; END $$;`, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: "independent fields", Column: "only_column", Context: "PL/pgSQL function inline_code_block line 1 at RAISE"}},
+		{"schema", `DO $$ BEGIN RAISE EXCEPTION USING ERRCODE='23505', MESSAGE='independent fields', SCHEMA='only_object'; END $$;`, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: "independent fields", Schema: "only_object", Context: "PL/pgSQL function inline_code_block line 1 at RAISE"}},
+		{"table", `DO $$ BEGIN RAISE EXCEPTION USING ERRCODE='23505', MESSAGE='independent fields', TABLE='only_object'; END $$;`, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: "independent fields", Table: "only_object", Context: "PL/pgSQL function inline_code_block line 1 at RAISE"}},
+		{"datatype", `DO $$ BEGIN RAISE EXCEPTION USING ERRCODE='23505', MESSAGE='independent fields', DATATYPE='only_object'; END $$;`, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: "independent fields", DataType: "only_object", Context: "PL/pgSQL function inline_code_block line 1 at RAISE"}},
+		{"constraint", `DO $$ BEGIN RAISE EXCEPTION USING ERRCODE='23505', MESSAGE='independent fields', CONSTRAINT='only_object'; END $$;`, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: "independent fields", Constraint: "only_object", Context: "PL/pgSQL function inline_code_block line 1 at RAISE"}},
+		{"detail", `DO $$ BEGIN RAISE EXCEPTION USING ERRCODE='23505', MESSAGE='independent fields', DETAIL='facts'; END $$;`, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: "independent fields", Detail: "facts", Context: "PL/pgSQL function inline_code_block line 1 at RAISE"}},
+		{"hint", `DO $$ BEGIN RAISE EXCEPTION USING ERRCODE='23505', MESSAGE='independent fields', HINT='advice'; END $$;`, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: "independent fields", Hint: "advice", Context: "PL/pgSQL function inline_code_block line 1 at RAISE"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := assertPostgres(tc.query, tc.want)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("conditional diagnostic = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+	internal := assertPostgres(`DO $$ BEGIN EXECUTE 'SELECT 1 +'; END $$;`, referenceDiagnostic{})
+	if internal.Code != "42601" || internal.Message != "syntax error at end of input" ||
+		internal.InternalQuery != "SELECT 1 +" || internal.InternalPosition != "11" || internal.Context == "" {
+		t.Fatalf("internal query diagnostic = %#v", internal)
+	}
+}
+
+func TestReferencePermissionAndCancellationFields(t *testing.T) {
+	p := newReferencePair(t)
+	if _, err := referenceAdmin.ExecContext(p.ctx, "CREATE TABLE diagnostic_rows (id INT NOT NULL,note TEXT); CREATE ROLE error_fields_denied NOLOGIN; GRANT USAGE ON SCHEMA public TO error_fields_denied"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if _, err := referenceAdmin.ExecContext(context.Background(), "DROP OWNED BY error_fields_denied; DROP ROLE IF EXISTS error_fields_denied"); err != nil {
+			t.Errorf("drop reference role: %v", err)
+		}
+	}()
+	roleConn, err := p.postgres.Conn(p.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := roleConn.ExecContext(p.ctx, "SET ROLE error_fields_denied"); err != nil {
+		roleConn.Close()
+		t.Fatal(err)
+	}
+	_, err = roleConn.QueryContext(p.ctx, "SELECT id FROM diagnostic_rows")
+	if err == nil {
+		roleConn.Close()
+		t.Fatal("restricted SELECT succeeded")
+	}
+	permission := referenceExtractDiagnostic(t, fmt.Errorf("wrapped: %w", err))
+	if permission.Code != "42501" || permission.Severity != "ERROR" ||
+		permission.Message != "permission denied for table diagnostic_rows" ||
+		permission.Schema != "" || permission.Table != "" || permission.Column != "" {
+		roleConn.Close()
+		t.Fatalf("permission diagnostic = %#v", permission)
+	}
+	if _, err := roleConn.ExecContext(p.ctx, "RESET ROLE"); err != nil {
+		roleConn.Close()
+		t.Fatal(err)
+	}
+	if err := roleConn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cancelConn, err := p.postgres.Conn(p.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cancelConn.Close()
+	if _, err := cancelConn.ExecContext(p.ctx, "SET statement_timeout='50ms'"); err != nil {
+		t.Fatal(err)
+	}
+	timeoutCtx, timeoutCancel := context.WithTimeout(p.ctx, 5*time.Second)
+	_, err = cancelConn.ExecContext(timeoutCtx, "SELECT pg_sleep(10)")
+	timeoutCancel()
+	timeout := referenceExtractDiagnostic(t, fmt.Errorf("wrapped: %w", err))
+	if timeout.Code != "57014" || timeout.Severity != "ERROR" || timeout.Message != "canceling statement due to statement timeout" {
+		t.Fatalf("timeout diagnostic = %#v", timeout)
+	}
+	if _, err := cancelConn.ExecContext(p.ctx, "SET statement_timeout=0"); err != nil {
+		t.Fatal(err)
+	}
+	var pid int
+	if err := cancelConn.QueryRowContext(p.ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	queryCtx, queryCancel := context.WithTimeout(p.ctx, 8*time.Second)
+	result := make(chan error, 1)
+	go func() {
+		_, queryErr := cancelConn.ExecContext(queryCtx, "SELECT pg_sleep(10)")
+		result <- queryErr
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	active := false
+	for time.Now().Before(deadline) {
+		var waitEvent sql.NullString
+		if err := referenceAdmin.QueryRowContext(p.ctx, "SELECT wait_event FROM pg_stat_activity WHERE pid=$1 AND state='active'", pid).Scan(&waitEvent); err == nil && waitEvent.Valid && waitEvent.String == "PgSleep" {
+			active = true
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !active {
+		queryCancel()
+		<-result
+		t.Fatal("timed out waiting for reference query to enter PgSleep")
+	}
+	var canceled bool
+	if err := referenceAdmin.QueryRowContext(p.ctx, "SELECT pg_cancel_backend($1)", pid).Scan(&canceled); err != nil || !canceled {
+		queryCancel()
+		<-result
+		t.Fatalf("cancel backend: canceled=%v error=%v", canceled, err)
+	}
+	userErr := <-result
+	queryCancel()
+	user := referenceExtractDiagnostic(t, fmt.Errorf("wrapped: %w", userErr))
+	if user.Code != "57014" || user.Severity != "ERROR" || user.Message != "canceling statement due to user request" {
+		t.Fatalf("user cancellation diagnostic = %#v", user)
 	}
 }

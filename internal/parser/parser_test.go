@@ -115,6 +115,57 @@ func TestParserErrorBoundaries(t *testing.T) {
 	}
 }
 
+func TestDiagnosticPositions(t *testing.T) {
+	for _, tc := range []struct {
+		query, message, position string
+	}{
+		{"INSERT INTO t VALUES ('é', )", `syntax error at or near ")"`, "28"},
+		{"INSERT INTO t VALUES ('a', )", `syntax error at or near ")"`, "28"},
+		{"INSERT INTO t VALUES ('😀', )", `syntax error at or near ")"`, "28"},
+		{"CREATE TABLE t (x INT", "syntax error at end of input", "22"},
+		{"CREATE TABLE t ()", `syntax error at or near ")"`, "17"},
+		{"/*é*/ /* never closed", "unterminated comment", "7"},
+		{"INSERT INTO t VALUES ('é", "unterminated quoted string", "23"},
+		{`SELECT * FROM "Bad`, "unterminated quoted identifier", "15"},
+		{"SELECT * FROM T WHERE X = )", `syntax error at or near ")"`, "27"},
+		{`SELECT * FROM t WHERE x "Quoted"`, `syntax error at or near ""Quoted""`, "25"},
+		{"SELECT * FROM T WHERE X TRUE", `syntax error at or near "TRUE"`, "25"},
+		{"INSERT INTO t VALUES ('first'\n 'later", "unterminated quoted string", "32"},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			_, err := Parse(tc.query)
+			var got *sqlstate.Error
+			if !errors.As(err, &got) || got.Code != "42601" || got.Message != tc.message ||
+				got.Position != tc.position || got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" {
+				t.Fatalf("diagnostic = %#v, %v; want %s at %s", got, err, tc.message, tc.position)
+			}
+			if got.Detail != "" || got.Hint != "" || got.InternalPosition != "" ||
+				got.InternalQuery != "" || got.Context != "" || got.Schema != "" ||
+				got.Table != "" || got.Column != "" || got.DataType != "" || got.Constraint != "" {
+				t.Fatalf("unexpected optional fields: %#v", got)
+			}
+		})
+	}
+}
+
+func TestInvalidInputCharacterPositions(t *testing.T) {
+	for _, tc := range []struct {
+		query, message, position string
+	}{
+		{"SELECT \xff", "invalid UTF-8 in SQL", "8"},
+		{"SELECT 'é'\x00", "NUL in SQL", "11"},
+		{"\x00SELECT \xff", "NUL in SQL", "1"},
+		{"SELECT \xff\x00", "invalid UTF-8 in SQL", "8"},
+	} {
+		_, err := Parse(tc.query)
+		var got *sqlstate.Error
+		if !errors.As(err, &got) || got.Code != "42601" || got.Message != tc.message ||
+			got.Position != tc.position || got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" {
+			t.Errorf("Parse(%q) = %#v (%v), want %q at %s", tc.query, got, err, tc.message, tc.position)
+		}
+	}
+}
+
 func TestMarkersAndRepeatedParameters(t *testing.T) {
 	got, err := Parse(`INSERT INTO t VALUES ('$17', $2, $2, $0001) /* $9 */`)
 	if err != nil {
