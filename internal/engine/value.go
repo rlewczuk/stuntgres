@@ -2,6 +2,7 @@ package engine
 
 import (
 	"database/sql/driver"
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -22,21 +23,21 @@ func input(text string, t parser.Type) (driver.Value, error) {
 		if len(digits) > 0 && (digits[0] == '+' || digits[0] == '-') {
 			digits = digits[1:]
 		}
-		if digits == "" {
-			return nil, sqlError("22P02", "invalid integer input", "", "")
-		}
+		valid := digits != ""
 		for _, c := range digits {
-			if c < '0' || c > '9' {
-				return nil, sqlError("22P02", "invalid integer input", "", "")
-			}
+			valid = valid && c >= '0' && c <= '9'
 		}
-		bits := 64
-		if t == parser.Int4 {
-			bits = 32
+		typeName := "integer"
+		bits := 32
+		if t == parser.Int8 {
+			typeName, bits = "bigint", 64
+		}
+		if !valid {
+			return nil, sqlError("22P02", fmt.Sprintf("invalid input syntax for type %s: \"%s\"", typeName, text), "", "")
 		}
 		v, err := strconv.ParseInt(s, 10, bits)
 		if err != nil {
-			return nil, sqlError("22003", "integer out of range", "", "")
+			return nil, sqlError("22003", fmt.Sprintf("value \"%s\" is out of range for type %s", text, typeName), "", "")
 		}
 		return v, nil
 	case parser.Bool:
@@ -59,7 +60,7 @@ func input(text string, t parser.Type) (driver.Value, error) {
 				}
 			}
 		}
-		return nil, sqlError("22P02", "invalid boolean input", "", "")
+		return nil, sqlError("22P02", fmt.Sprintf("invalid input syntax for type boolean: \"%s\"", text), "", "")
 	}
 	return nil, sqlError("0A000", "unsupported type", "", "")
 }
@@ -118,4 +119,38 @@ func literal(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
 		return mismatch()
 	}
 	return nil, sqlError("0A000", "unsupported value", "", "")
+}
+func failingRowDetail(row []driver.Value) string {
+	var b strings.Builder
+	b.WriteString("Failing row contains (")
+	for i, value := range row {
+		if i != 0 {
+			b.WriteString(", ")
+		}
+		switch value := value.(type) {
+		case nil:
+			b.WriteString("null")
+		case int64:
+			b.WriteString(strconv.FormatInt(value, 10))
+		case bool:
+			if value {
+				b.WriteByte('t')
+			} else {
+				b.WriteByte('f')
+			}
+		case string:
+			if len(value) > 64 {
+				n := 64
+				for !utf8.RuneStart(value[n]) {
+					n--
+				}
+				b.WriteString(value[:n])
+				b.WriteString("...")
+			} else {
+				b.WriteString(value)
+			}
+		}
+	}
+	b.WriteString(").")
+	return b.String()
 }

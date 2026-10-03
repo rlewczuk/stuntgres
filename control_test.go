@@ -182,6 +182,45 @@ func TestSnapshotSurvivesCatalogReplacement(t *testing.T) {
 	}
 }
 
+func TestInsertImplicitShortControls(t *testing.T) {
+	ctx := context.Background()
+	db := openLocal(t, stuntgres.NewDriver(), "implicit-controls")
+	execSQL(t, db, "CREATE TABLE t(id INT NOT NULL,label TEXT,flag BOOL)")
+	execSQL(t, db, "INSERT INTO t VALUES(1),(2)")
+	execSQL(t, db, "INSERT INTO t(label,id) VALUES('reordered',3)")
+	want := [][]any{{int64(1), nil, nil}, {int64(2), nil, nil}, {int64(3), "reordered", nil}}
+	wantTuples(t, db, "SELECT * FROM t ORDER BY id", want)
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(ctx, db, strings.NewReader(dump.String())); err != nil {
+		t.Fatal(err)
+	}
+	wantTuples(t, db, "SELECT * FROM t ORDER BY id", want)
+	var second bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &second); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(dump.Bytes(), second.Bytes()) {
+		t.Fatalf("short-row dump changed:\n%s\n%s", dump.String(), second.String())
+	}
+	if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE staged(id INT,label TEXT); INSERT INTO staged VALUES(7); CREATE TABLE required(flag BOOL NOT NULL); INSERT INTO required VALUES(NULL);")); err == nil {
+		t.Fatal("invalid staged restore succeeded")
+	}
+	wantTuples(t, db, "SELECT * FROM t ORDER BY id", want)
+	if _, err := db.Query("SELECT * FROM staged"); err == nil {
+		t.Fatal("failed staged table was published")
+	}
+	if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE restored(id INT,label TEXT); INSERT INTO restored VALUES(8);")); err != nil {
+		t.Fatal(err)
+	}
+	wantTuples(t, db, "SELECT * FROM restored", [][]any{{int64(8), nil}})
+}
+
 func TestControlInvalidInputs(t *testing.T) {
 	ctx := context.Background()
 	db := openLocal(t, stuntgres.NewDriver(), "invalid")

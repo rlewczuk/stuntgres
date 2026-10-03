@@ -7,11 +7,13 @@ import (
 )
 
 type lexer struct {
-	input      string
-	offset     int
-	current    lexeme
-	err        error
-	statements []Statement
+	input              string
+	offset             int
+	positionOffset     int
+	positionCharacters int
+	current            lexeme
+	err                error
+	statements         []Statement
 }
 
 var keywords = map[string]int{
@@ -150,7 +152,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		return 0
 	}
 	start := l.offset
-	l.current = lexeme{pos: Position{Offset: start}}
+	l.positionCharacters += utf8.RuneCountInString(l.input[l.positionOffset:start])
+	l.positionOffset = start
+	l.current = lexeme{pos: Position{Offset: start, Character: l.positionCharacters + 1}}
 	if start == len(l.input) {
 		return 0
 	}

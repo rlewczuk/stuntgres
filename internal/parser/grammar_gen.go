@@ -11,6 +11,7 @@ type sqlSymType struct {
 	cols       []Column
 	typ        Type
 	nullable   bool
+	targets    []InsertTarget
 	names      []string
 	rows       [][]Value
 	row        []Value
@@ -58,6 +59,8 @@ var sqlToknames = [...]string{
 	"NUMBER",
 	"STRING",
 	"PARAM",
+	"'+'",
+	"'-'",
 	"CREATE",
 	"TABLE",
 	"INSERT",
@@ -86,8 +89,6 @@ var sqlToknames = [...]string{
 	"';'",
 	"')'",
 	"','",
-	"'+'",
-	"'-'",
 	"'*'",
 	"'/'",
 	"'='",
@@ -107,94 +108,94 @@ var sqlExca = [...]int8{
 
 const sqlPrivate = 57344
 
-const sqlLast = 147
+const sqlLast = 148
 
 var sqlAct = [...]int8{
-	92, 20, 79, 62, 19, 94, 30, 27, 25, 26,
-	3, 97, 98, 21, 35, 105, 39, 40, 81, 42,
-	43, 70, 71, 22, 23, 24, 31, 32, 33, 34,
-	36, 37, 47, 48, 49, 50, 89, 14, 28, 29,
-	18, 56, 59, 60, 51, 80, 10, 58, 11, 54,
-	95, 12, 93, 55, 88, 87, 63, 103, 104, 66,
-	68, 83, 41, 65, 15, 64, 30, 27, 25, 26,
-	84, 4, 63, 53, 35, 85, 73, 74, 75, 76,
-	77, 16, 91, 22, 23, 24, 31, 32, 33, 34,
-	36, 37, 96, 30, 99, 2, 100, 52, 28, 29,
-	101, 35, 13, 5, 1, 102, 82, 67, 17, 90,
-	38, 30, 78, 31, 32, 33, 34, 36, 37, 35,
-	30, 44, 69, 57, 42, 45, 46, 86, 35, 72,
-	61, 31, 32, 33, 34, 36, 37, 9, 8, 7,
-	31, 32, 33, 34, 36, 37, 6,
+	93, 20, 79, 62, 30, 27, 25, 26, 28, 29,
+	96, 3, 107, 21, 35, 90, 39, 40, 47, 48,
+	43, 99, 100, 22, 23, 24, 31, 32, 33, 34,
+	36, 37, 81, 82, 70, 71, 14, 51, 18, 80,
+	58, 30, 59, 60, 97, 45, 46, 95, 49, 50,
+	54, 35, 10, 84, 11, 64, 63, 12, 16, 66,
+	68, 56, 41, 31, 32, 33, 34, 36, 37, 15,
+	85, 44, 63, 55, 42, 86, 53, 4, 89, 88,
+	105, 106, 92, 94, 30, 27, 25, 26, 28, 29,
+	52, 30, 13, 98, 35, 5, 101, 1, 102, 104,
+	83, 35, 103, 22, 23, 24, 31, 32, 33, 34,
+	36, 37, 30, 31, 32, 33, 34, 36, 37, 67,
+	17, 91, 35, 78, 19, 69, 73, 74, 75, 76,
+	77, 2, 65, 57, 31, 32, 33, 34, 36, 37,
+	87, 72, 61, 9, 8, 7, 38, 6,
 }
 
 var sqlPact = [...]int16{
-	-32768, -32768, 38, -32768, -32768, 4, -32768, -32768, -32768, -32768,
-	55, 70, 2, -32768, -32768, 116, 116, 48, -32768, 89,
-	-4, 12, -32768, -32768, -32768, -32768, -32768, -32768, 92, 68,
-	-32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, 38, 21,
-	15, 116, 116, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
-	-32768, -32768, -32768, -32768, -32768, 116, -32768, 53, 116, 107,
-	-32768, -13, -32768, 52, 13, -16, -32768, 45, -32768, 116,
-	-32768, 116, 34, -32768, -32768, -32768, -32768, -32768, 1, -32768,
-	62, -32768, -32768, 35, -35, -32768, -32768, -32768, 29, 13,
-	-23, -4, 12, 116, 62, -32768, -32768, -32768, 62, 39,
-	-4, -4, -20, -32768, -32768, -32768,
+	-32768, -32768, 42, -32768, -32768, 1, -32768, -32768, -32768, -32768,
+	58, 45, 0, -32768, -32768, 87, 87, 46, -32768, 37,
+	10, 3, -32768, -32768, -32768, -32768, -32768, -32768, 85, 71,
+	-32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, 42, 39,
+	6, 87, 87, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32768, -32768, -32768, 87, -32768, 41, 87, 108,
+	-32768, -2, -32768, 100, 5, -4, -32768, 35, -32768, 87,
+	-32768, 87, 56, -32768, -32768, -32768, -32768, -32768, -22, -32768,
+	80, -32768, 87, -32768, 28, -30, -32768, -32768, -32768, 21,
+	5, -15, 10, 3, -32768, 87, 80, -32768, -32768, -32768,
+	80, 60, 10, 10, -25, -32768, -32768, -32768,
 }
 
 var sqlPgo = [...]uint8{
-	0, 146, 139, 138, 137, 3, 130, 129, 127, 0,
-	4, 123, 112, 2, 109, 1, 108, 107, 106, 105,
-	104, 95, 10, 103, 102,
+	0, 147, 145, 144, 143, 3, 142, 141, 140, 0,
+	133, 132, 124, 123, 2, 121, 1, 120, 119, 100,
+	99, 97, 131, 11, 95, 92,
 }
 
 var sqlR1 = [...]int8{
-	0, 20, 21, 21, 22, 22, 24, 24, 23, 1,
+	0, 21, 22, 22, 23, 23, 25, 25, 24, 1,
 	1, 1, 2, 2, 6, 6, 5, 7, 7, 7,
-	7, 7, 8, 8, 8, 3, 11, 11, 10, 10,
-	12, 12, 13, 14, 14, 15, 15, 15, 15, 15,
-	15, 15, 15, 15, 15, 15, 15, 15, 4, 4,
-	16, 16, 16, 16, 16, 16, 16, 17, 17, 18,
-	18, 18, 19, 19, 19, 9, 9, 9, 9, 9,
-	9, 9, 9,
+	7, 7, 8, 8, 8, 3, 10, 10, 11, 11,
+	12, 12, 13, 13, 14, 15, 15, 16, 16, 16,
+	16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+	4, 4, 17, 17, 17, 17, 17, 17, 17, 18,
+	18, 19, 19, 19, 20, 20, 20, 9, 9, 9,
+	9, 9, 9, 9, 9,
 }
 
 var sqlR2 = [...]int8{
 	0, 2, 0, 2, 0, 2, 0, 3, 1, 1,
 	1, 1, 6, 4, 1, 3, 3, 1, 1, 1,
 	1, 1, 0, 1, 2, 6, 0, 3, 1, 3,
-	1, 3, 3, 1, 3, 1, 1, 1, 1, 1,
-	1, 2, 2, 2, 2, 2, 2, 2, 6, 5,
-	1, 1, 2, 2, 2, 2, 1, 0, 4, 0,
-	4, 5, 0, 1, 1, 1, 1, 1, 1, 1,
-	1, 1, 1,
+	1, 3, 1, 3, 3, 1, 3, 1, 1, 1,
+	1, 1, 1, 2, 2, 2, 2, 2, 2, 2,
+	6, 5, 1, 1, 2, 2, 2, 2, 1, 0,
+	4, 0, 4, 5, 0, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1,
 }
 
 var sqlChk = [...]int16{
-	-32768, -20, -21, -22, 33, -23, -1, -2, -3, -4,
-	8, 10, 13, -24, 33, 9, 11, -16, 38, -10,
-	-15, -9, 21, 22, 23, 6, 7, 5, 36, 37,
-	4, 24, 25, 26, 27, 12, 28, 29, -21, -9,
-	-9, 14, 35, -9, 32, 36, 37, 36, 37, 38,
-	39, 32, 5, 5, -22, 32, 20, -11, 32, -9,
-	-9, -6, -5, -9, 12, -10, -9, -17, -9, 15,
-	34, 35, -7, 24, 25, 26, 27, 28, -12, -13,
-	32, 34, -18, 16, -9, -5, -8, 21, 20, 35,
-	-14, -15, -9, 17, 40, 21, -13, 34, 35, -9,
-	-15, -15, -19, 18, 19, 35,
+	-32768, -21, -22, -23, 35, -24, -1, -2, -3, -4,
+	10, 12, 15, -25, 35, 11, 13, -17, 38, -12,
+	-16, -9, 23, 24, 25, 6, 7, 5, 8, 9,
+	4, 26, 27, 28, 29, 14, 30, 31, -22, -9,
+	-9, 16, 37, -9, 34, 8, 9, 8, 9, 38,
+	39, 34, 5, 5, -23, 34, 22, -10, 34, -9,
+	-9, -6, -5, -9, 14, -11, -9, -18, -9, 17,
+	36, 37, -7, 26, 27, 28, 29, 30, -13, -14,
+	34, 36, 37, -19, 18, -9, -5, -8, 23, 22,
+	37, -15, -16, -9, -9, 19, 40, 23, -14, 36,
+	37, -9, -16, -16, -20, 20, 21, 37,
 }
 
 var sqlDef = [...]int8{
 	2, -2, 4, 1, 3, 6, 8, 9, 10, 11,
-	0, 0, 0, 5, 2, 0, 0, 0, 50, 51,
-	56, 28, 35, 36, 37, 38, 39, 40, 0, 0,
-	65, 66, 67, 68, 69, 70, 71, 72, 4, 0,
-	26, 0, 0, 52, 53, 54, 55, 43, 44, 45,
-	46, 47, 41, 42, 7, 0, 13, 0, 0, 57,
-	29, 0, 14, 0, 0, 0, 28, 59, 49, 0,
-	12, 0, 22, 17, 18, 19, 20, 21, 25, 30,
-	0, 27, 48, 0, 0, 15, 16, 23, 0, 0,
-	0, 33, 0, 0, 0, 24, 31, 32, 0, 62,
-	58, 34, 60, 63, 64, 61,
+	0, 0, 0, 5, 2, 0, 0, 0, 52, 53,
+	58, 30, 37, 38, 39, 40, 41, 42, 0, 0,
+	67, 68, 69, 70, 71, 72, 73, 74, 4, 0,
+	26, 0, 0, 54, 55, 56, 57, 45, 46, 47,
+	48, 49, 43, 44, 7, 0, 13, 0, 0, 59,
+	31, 0, 14, 0, 0, 0, 28, 61, 51, 0,
+	12, 0, 22, 17, 18, 19, 20, 21, 25, 32,
+	0, 27, 0, 50, 0, 0, 15, 16, 23, 0,
+	0, 0, 35, 0, 29, 0, 0, 24, 33, 34,
+	0, 64, 60, 36, 62, 65, 66, 63,
 }
 
 var sqlTok1 = [...]int8{
@@ -202,15 +203,15 @@ var sqlTok1 = [...]int8{
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	32, 34, 38, 36, 35, 37, 3, 39, 3, 3,
-	3, 3, 3, 3, 3, 3, 3, 3, 3, 33,
+	34, 36, 38, 8, 37, 9, 3, 39, 3, 3,
+	3, 3, 3, 3, 3, 3, 3, 3, 3, 35,
 	3, 40,
 }
 
 var sqlTok2 = [...]int8{
-	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-	12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-	22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+	2, 3, 4, 5, 6, 7, 10, 11, 12, 13,
+	14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+	24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
 }
 
 var sqlTok3 = [...]int8{
@@ -631,79 +632,89 @@ sqldefault:
 	case 25:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
-			sqlVAL.stmt = &Insert{Name: sqlDollar[3].tok.text, Columns: sqlDollar[4].names, Rows: sqlDollar[6].rows, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.stmt = &Insert{Name: sqlDollar[3].tok.text, Targets: sqlDollar[4].targets, Rows: sqlDollar[6].rows, Pos: sqlDollar[1].tok.pos}
 		}
 	case 26:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
-			sqlVAL.names = nil
+			sqlVAL.targets = nil
 		}
 	case 27:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.names = sqlDollar[2].names
+			sqlVAL.targets = sqlDollar[2].targets
 		}
 	case 28:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.names = []string{sqlDollar[1].tok.text}
+			sqlVAL.targets = []InsertTarget{{Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}}
 		}
 	case 29:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.names = append(sqlDollar[1].names, sqlDollar[3].tok.text)
+			sqlVAL.targets = append(sqlDollar[1].targets, InsertTarget{Name: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos})
 		}
 	case 30:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.rows = [][]Value{sqlDollar[1].row}
+			sqlVAL.names = []string{sqlDollar[1].tok.text}
 		}
 	case 31:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.rows = append(sqlDollar[1].rows, sqlDollar[3].row)
+			sqlVAL.names = append(sqlDollar[1].names, sqlDollar[3].tok.text)
 		}
 	case 32:
-		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
-		{
-			sqlVAL.row = sqlDollar[2].row
-		}
-	case 33:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.row = []Value{sqlDollar[1].value}
+			sqlVAL.rows = [][]Value{sqlDollar[1].row}
+		}
+	case 33:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			sqlVAL.rows = append(sqlDollar[1].rows, sqlDollar[3].row)
 		}
 	case 34:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.row = append(sqlDollar[1].row, sqlDollar[3].value)
+			sqlVAL.row = sqlDollar[2].row
 		}
 	case 35:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.value = Value{Kind: NullValue, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.row = []Value{sqlDollar[1].value}
 		}
 	case 36:
-		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.value = Value{Kind: BooleanValue, Boolean: true, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.row = append(sqlDollar[1].row, sqlDollar[3].value)
 		}
 	case 37:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.value = Value{Kind: BooleanValue, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.value = Value{Kind: NullValue, Pos: sqlDollar[1].tok.pos}
 		}
 	case 38:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.value = Value{Kind: StringValue, Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
+			sqlVAL.value = Value{Kind: BooleanValue, Boolean: true, Pos: sqlDollar[1].tok.pos}
 		}
 	case 39:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.value = Value{Kind: ParameterValue, Parameter: sqllex.(*lexer).parameter(sqlDollar[1].tok.text), Pos: sqlDollar[1].tok.pos}
+			sqlVAL.value = Value{Kind: BooleanValue, Pos: sqlDollar[1].tok.pos}
 		}
 	case 40:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			sqlVAL.value = Value{Kind: StringValue, Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
+		}
+	case 41:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			sqlVAL.value = Value{Kind: ParameterValue, Parameter: sqllex.(*lexer).parameter(sqlDollar[1].tok.text), Pos: sqlDollar[1].tok.pos}
+		}
+	case 42:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			var ok bool
@@ -712,7 +723,7 @@ sqldefault:
 				return 1
 			}
 		}
-	case 41:
+	case 43:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			var ok bool
@@ -720,8 +731,9 @@ sqldefault:
 			if !ok {
 				return 1
 			}
+			sqlVAL.value.Pos = sqlDollar[1].tok.pos
 		}
-	case 42:
+	case 44:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			var ok bool
@@ -729,18 +741,7 @@ sqldefault:
 			if !ok {
 				return 1
 			}
-		}
-	case 43:
-		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
-		{
-			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
-			return 1
-		}
-	case 44:
-		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
-		{
-			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
-			return 1
+			sqlVAL.value.Pos = sqlDollar[1].tok.pos
 		}
 	case 45:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
@@ -757,10 +758,22 @@ sqldefault:
 	case 47:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqllex.(*lexer).fail("0A000", "functions are unsupported")
+			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
 			return 1
 		}
 	case 48:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
+			return 1
+		}
+	case 49:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).fail("0A000", "functions are unsupported")
+			return 1
+		}
+	case 50:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
 			sqlDollar[2].selectStmt.Name = sqlDollar[4].tok.text
@@ -769,89 +782,89 @@ sqldefault:
 			sqlDollar[2].selectStmt.Pos = sqlDollar[1].tok.pos
 			sqlVAL.stmt = sqlDollar[2].selectStmt
 		}
-	case 49:
+	case 51:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "table aliases are unsupported")
 			return 1
 		}
-	case 50:
+	case 52:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.selectStmt = &Select{Star: true}
 		}
-	case 51:
+	case 53:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.selectStmt = &Select{Columns: sqlDollar[1].names}
 		}
-	case 52:
+	case 54:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "projection aliases are unsupported")
 			return 1
 		}
-	case 53:
+	case 55:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "functions are unsupported")
 			return 1
 		}
-	case 54:
-		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
-		{
-			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
-			return 1
-		}
-	case 55:
-		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
-		{
-			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
-			return 1
-		}
 	case 56:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
+			return 1
+		}
+	case 57:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
+			return 1
+		}
+	case 58:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "literal projections are unsupported")
 			return 1
 		}
-	case 57:
+	case 59:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
 			sqlVAL.pred = nil
 		}
-	case 58:
+	case 60:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
 			sqlVAL.pred = &Predicate{Column: sqlDollar[2].tok.text, Value: sqlDollar[4].value}
 		}
-	case 59:
+	case 61:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
 			sqlVAL.order = nil
 		}
-	case 60:
+	case 62:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
 			sqlVAL.order = &Order{Column: sqlDollar[3].tok.text, Desc: sqlDollar[4].desc}
 		}
-	case 61:
+	case 63:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "multiple sort keys are unsupported")
 			return 1
 		}
-	case 62:
+	case 64:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
 			sqlVAL.desc = false
 		}
-	case 63:
+	case 65:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.desc = false
 		}
-	case 64:
+	case 66:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.desc = true

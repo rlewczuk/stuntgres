@@ -63,7 +63,7 @@ func TestBindingAndSemanticValidation(t *testing.T) {
 	}
 	for _, c := range []struct{ sql, code string }{
 		{"SELECT missing FROM t", "42703"}, {"SELECT a FROM t WHERE missing = 1", "42703"}, {"SELECT a FROM t ORDER BY missing", "42703"}, {"SELECT a FROM missing", "42P01"},
-		{"INSERT INTO t VALUES ($2, 'x', $2)", "42P18"}, {"INSERT INTO t VALUES ($1, $1, 1)", "0A000"}, {"INSERT INTO t (a,a) VALUES (1,2)", "42701"}, {"INSERT INTO t VALUES (1)", "42601"},
+		{"INSERT INTO t VALUES ($2, 'x', $2)", "42P18"}, {"INSERT INTO t VALUES ($1, $1, 1)", "0A000"}, {"INSERT INTO t (a,a) VALUES (1,2)", "42701"},
 		{"SELECT a FROM t WHERE a = TRUE", "42883"}, {"SELECT b FROM t WHERE b = 1", "42883"},
 	} {
 		t.Run(c.sql, func(t *testing.T) { _, err := e.Describe(statement(t, c.sql)); state(t, err, c.code) })
@@ -78,6 +78,22 @@ func TestBindingAndSemanticValidation(t *testing.T) {
 	want := [][]driver.Value{{int64(7), "x", int64(7)}}
 	if got := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestImplicitShortTargetDescribe(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE short_values (a INT, b TEXT)")
+	info, err := e.Describe(statement(t, "INSERT INTO short_values VALUES ($1)"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Count != 1 || !reflect.DeepEqual(info.Types, []parser.Type{parser.Int4}) {
+		t.Fatalf("short target parameter info: %+v", info)
+	}
+	run(t, e, "INSERT INTO short_values VALUES ($1),($1)", 7)
+	if got, want := tuples(run(t, e, "SELECT * FROM short_values ORDER BY a")), [][]driver.Value{{int64(7), nil}, {int64(7), nil}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("short implicit rows got %v want %v", got, want)
 	}
 }
 func TestCoercionsAndStatementAtomicity(t *testing.T) {

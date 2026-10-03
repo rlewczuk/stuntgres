@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
-	"unicode/utf8"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -120,33 +118,43 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		if err != nil {
 			return b, err
 		}
-		if len(s.Columns) == 0 {
-			b.targets = make([]int, len(b.table.columns))
+		if len(s.Targets) == 0 {
+			width := len(s.Rows[0])
+			if width > len(b.table.columns) {
+				return b, insertError("42601", "INSERT has more expressions than target columns", s.Rows[0][len(b.table.columns)].Pos)
+			}
+			b.targets = make([]int, width)
 			for i := range b.targets {
 				b.targets[i] = i
 			}
 		} else {
-			seen := make(map[int]bool, len(s.Columns))
-			for _, name := range s.Columns {
-				i, err := column(name)
-				if err != nil {
-					return b, err
+			seen := make(map[int]bool, len(s.Targets))
+			for _, target := range s.Targets {
+				i, ok := b.table.index[target.Name]
+				if !ok {
+					return b, insertError("42703", fmt.Sprintf("column %q of relation %q does not exist", target.Name, s.Name), target.Pos)
 				}
 				if seen[i] {
-					return b, sqlError("42701", "duplicate insert target", s.Name, name)
+					return b, insertError("42701", fmt.Sprintf("column %q specified more than once", target.Name), target.Pos)
 				}
 				seen[i] = true
 				b.targets = append(b.targets, i)
 			}
 		}
-		for _, row := range s.Rows {
-			if len(row) != len(b.targets) {
-				return b, sqlError("42601", "VALUES width differs from insert targets", s.Name, "")
+		for rowIndex, row := range s.Rows {
+			if rowIndex > 0 && len(row) != len(s.Rows[0]) {
+				return b, insertError("42601", "VALUES lists must all be the same length", row[0].Pos)
+			}
+			if len(row) > len(b.targets) {
+				return b, insertError("42601", "INSERT has more expressions than target columns", row[len(b.targets)].Pos)
+			}
+			if rowIndex == 0 && len(s.Targets) != 0 && len(row) < len(b.targets) {
+				return b, insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 			}
 			for j, v := range row {
 				c := b.table.columns[b.targets[j]]
 				if err := bind(v, c, false); err != nil {
-					return b, annotate(err, s.Name, c.Name)
+					return b, insertValueError(err, c, v)
 				}
 			}
 		}
@@ -215,6 +223,51 @@ func annotate(err error, table, column string) error {
 	return err
 }
 
+
+func insertError(code, message string, pos parser.Position) error {
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(pos.Character)}
+}
+
+func insertValueError(err error, column parser.Column, value parser.Value) error {
+	sqlErr, ok := err.(*sqlstate.Error)
+	if !ok {
+		return err
+	}
+	sqlErr.Schema, sqlErr.Table, sqlErr.Column = "", "", ""
+	switch sqlErr.Code {
+	case "42804":
+		source := "unknown"
+		switch value.Kind {
+		case parser.IntegerValue:
+			source = "integer"
+			if value.Integer < -2147483648 || value.Integer > 2147483647 {
+				source = "bigint"
+			}
+		case parser.StringValue:
+			source = "text"
+		case parser.BooleanValue:
+			source = "boolean"
+		}
+		destination := "integer"
+		switch column.Type {
+		case parser.Int8:
+			destination = "bigint"
+		case parser.Text:
+			destination = "text"
+		case parser.Bool:
+			destination = "boolean"
+		}
+		sqlErr.Message = fmt.Sprintf("column %q is of type %s but expression is of type %s", column.Name, destination, source)
+		sqlErr.Hint = "You will need to rewrite or cast the expression."
+		sqlErr.Position = strconv.Itoa(value.Pos.Character)
+	case "22P02", "22003":
+		if value.Kind == parser.StringValue {
+			sqlErr.Position = strconv.Itoa(value.Pos.Character)
+		}
+	}
+	return sqlErr
+}
+
 func notNullError(table, column string, row []driver.Value) error {
 	err := sqlError("23502", fmt.Sprintf(
 		"null value in column \"%s\" of relation \"%s\" violates not-null constraint",
@@ -224,40 +277,6 @@ func notNullError(table, column string, row []driver.Value) error {
 	return err
 }
 
-func failingRowDetail(row []driver.Value) string {
-	var b strings.Builder
-	b.WriteString("Failing row contains (")
-	for i, value := range row {
-		if i != 0 {
-			b.WriteString(", ")
-		}
-		switch value := value.(type) {
-		case nil:
-			b.WriteString("null")
-		case int64:
-			b.WriteString(strconv.FormatInt(value, 10))
-		case bool:
-			if value {
-				b.WriteByte('t')
-			} else {
-				b.WriteByte('f')
-			}
-		case string:
-			if len(value) > 64 {
-				n := 64
-				for !utf8.RuneStart(value[n]) {
-					n--
-				}
-				b.WriteString(value[:n])
-				b.WriteString("...")
-			} else {
-				b.WriteString(value)
-			}
-		}
-	}
-	b.WriteString(").")
-	return b.String()
-}
 
 func prepareArgs(args []driver.NamedValue) ([]driver.Value, error) {
 	values := make([]driver.Value, len(args))
@@ -285,22 +304,9 @@ func prepareArgs(args []driver.NamedValue) ([]driver.Value, error) {
 	return values, nil
 }
 
-// parameterColumn identifies the first destination for diagnostics only.
-// Searching on error avoids extra metadata allocations in successful binding.
-func parameterColumn(stmt parser.Statement, b binding, number int) string {
-	switch s := stmt.(type) {
-	case *parser.Insert:
-		for _, row := range s.Rows {
-			for i, v := range row {
-				if v.Kind == parser.ParameterValue && v.Parameter == number {
-					return b.table.columns[b.targets[i]].Name
-				}
-			}
-		}
-	case *parser.Select:
-		if s.Where != nil {
-			return s.Where.Column
-		}
+func parameterColumn(stmt parser.Statement) string {
+	if s, ok := stmt.(*parser.Select); ok && s.Where != nil {
+		return s.Where.Column
 	}
 	return ""
 }
@@ -331,8 +337,12 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 	for i, v := range values {
 		canonical[i], err = parameter(v, b.parameters.Types[i])
 		if err != nil {
+			if _, isInsert := stmt.(*parser.Insert); isInsert {
+				e.mu.Unlock()
+				return Result{}, err
+			}
 			e.mu.Unlock()
-			return Result{}, annotate(err, b.table.name, parameterColumn(stmt, b, i+1))
+			return Result{}, annotate(err, b.table.name, parameterColumn(stmt))
 		}
 	}
 	resolve := func(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
@@ -366,7 +376,7 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 				row[target], err = resolve(v, c.Type, false)
 				if err != nil {
 					e.mu.Unlock()
-					return Result{}, annotate(err, s.Name, c.Name)
+					return Result{}, insertValueError(err, c, v)
 				}
 			}
 			for j, c := range b.table.columns {

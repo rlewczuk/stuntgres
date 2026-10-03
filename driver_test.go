@@ -9,8 +9,10 @@ import (
 	"io"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
+	"unicode/utf8"
 
 	"stuntgres"
 )
@@ -509,6 +511,226 @@ func TestConcurrentInsertsPreserveSnapshot(t *testing.T) {
 	wantTuples(t, db, "SELECT id FROM concurrent_rows ORDER BY id", want)
 }
 
+func TestInsertImplicitShortTargets(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), "implicit-short")
+			execSQL(t, db, "CREATE TABLE t(id INT NOT NULL,big BIGINT,label TEXT,flag BOOL)")
+			execSQL(t, db, "CREATE TABLE repeats(a INT,b INT,tail TEXT)")
+			exec := func(query string, args ...any) (sql.Result, error) {
+				if !prepared {
+					return db.Exec(query, args...)
+				}
+				stmt, err := db.Prepare(query)
+				if err != nil {
+					return nil, err
+				}
+				defer stmt.Close()
+				return stmt.Exec(args...)
+			}
+			for _, tc := range []struct {
+				query string
+				args  []any
+				count int64
+			}{
+				{"INSERT INTO t VALUES (1)", nil, 1},
+				{"INSERT INTO t VALUES ($1,$2)", []any{2, "20"}, 1},
+				{"INSERT INTO t VALUES (3,30,'three')", nil, 1},
+				{"INSERT INTO t VALUES ($1)", []any{"5"}, 1},
+				{"INSERT INTO t VALUES ($1)", []any{[]byte("6")}, 1},
+				{"INSERT INTO t(label,id) VALUES ('reordered',4)", nil, 1},
+				{"INSERT INTO repeats VALUES ($1,$1),($2,$2)", []any{11, 12}, 2},
+			} {
+				result, err := exec(tc.query, tc.args...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				count, err := result.RowsAffected()
+				if err != nil || count != tc.count {
+					t.Fatalf("affected=%d err=%v want=%d", count, err, tc.count)
+				}
+				if _, err = result.LastInsertId(); err == nil {
+					t.Fatal("LastInsertId succeeded")
+				}
+			}
+			wantTuples(t, db, "SELECT * FROM t ORDER BY id", [][]any{{int64(1), nil, nil, nil}, {int64(2), int64(20), nil, nil}, {int64(3), int64(30), "three", nil}, {int64(4), nil, "reordered", nil}, {int64(5), nil, nil, nil}, {int64(6), nil, nil, nil}})
+			wantTuples(t, db, "SELECT * FROM repeats ORDER BY a", [][]any{{int64(11), int64(11), nil}, {int64(12), int64(12), nil}})
+			execSQL(t, db, `CREATE TABLE "Odd"("Id" INT NOT NULL,label TEXT)`)
+			if _, err := exec(`INSERT INTO "Odd" VALUES ($1)`, "7"); err != nil {
+				t.Fatal(err)
+			}
+			wantTuples(t, db, `SELECT * FROM "Odd" ORDER BY "Id"`, [][]any{{int64(7), nil}})
+			_, err := exec("INSERT INTO t VALUES ($2)", 10)
+			sqlState(t, err, "42P18")
+			_, err = exec("INSERT INTO t VALUES ($1,$1)", 10)
+			sqlState(t, err, "0A000")
+			query := "SELECT * FROM t ORDER BY id"
+			var rows *sql.Rows
+			if prepared {
+				stmt, err := db.Prepare(query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer stmt.Close()
+				rows, err = stmt.Query()
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				rows, err = db.Query(query)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			defer rows.Close()
+			types, err := rows.ColumnTypes()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, expected := range []struct {
+				name, database string
+				scan           reflect.Type
+				nullable       bool
+			}{
+				{"id", "INT4", reflect.TypeOf(int64(0)), false}, {"big", "INT8", reflect.TypeOf(int64(0)), true}, {"label", "TEXT", reflect.TypeOf(""), true}, {"flag", "BOOL", reflect.TypeOf(false), true},
+			} {
+				name, _ := rows.Columns()
+				nullable, known := types[i].Nullable()
+				if name[i] != expected.name || types[i].DatabaseTypeName() != expected.database || types[i].ScanType() != expected.scan || !known || nullable != expected.nullable {
+					t.Fatalf("metadata %d: name=%s type=%s scan=%v nullable=%v/%v", i, name[i], types[i].DatabaseTypeName(), types[i].ScanType(), nullable, known)
+				}
+			}
+		})
+	}
+}
+
+func TestInsertImplicitShortDiagnostics(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "implicit-diagnostics")
+	execSQL(t, db, "CREATE TABLE t(id INT NOT NULL,big BIGINT,label TEXT,flag BOOL)")
+	execSQL(t, db, "INSERT INTO t VALUES(99)")
+	check := func(query, code, message string, position int, detail, hint, schema, table, column string) {
+		t.Helper()
+		_, err := db.Exec(query)
+		var got *stuntgres.Error
+		if !errors.As(err, &got) {
+			t.Fatalf("%s: expected SQL diagnostic, got %v", query, err)
+		}
+		wantPosition := ""
+		if position > 0 {
+			wantPosition = fmt.Sprint(position)
+		}
+		if got.Code != code || got.Message != message || got.Position != wantPosition || got.Detail != detail || got.Hint != hint || got.Schema != schema || got.Table != table || got.Column != column {
+			t.Fatalf("%s: diagnostic=%+v", query, got)
+		}
+		wantTuples(t, db, "SELECT id FROM t ORDER BY id", [][]any{{int64(99)}})
+	}
+	q := "INSERT INTO t VALUES (20),('oops')"
+	check(q, "22P02", `invalid input syntax for type integer: "oops"`, strings.Index(q, "'oops'")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20),('2147483648')"
+	check(q, "22003", `value "2147483648" is out of range for type integer`, strings.Index(q, "'2147483648'")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20,'oops')"
+	check(q, "22P02", `invalid input syntax for type bigint: "oops"`, strings.Index(q, "'oops'")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20,20,NULL,'maybe')"
+	check(q, "22P02", `invalid input syntax for type boolean: "maybe"`, strings.Index(q, "'maybe'")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (2147483648)"
+	check(q, "22003", "integer out of range", 0, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20),(21,22)"
+	check(q, "42601", "VALUES lists must all be the same length", strings.Index(q, "21,22")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20,30),(21)"
+	check(q, "42601", "VALUES lists must all be the same length", strings.Index(q, "21)")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20,30,40,TRUE,50)"
+	check(q, "42601", "INSERT has more expressions than target columns", strings.Index(q, "50)")+1, "", "", "", "", "")
+	q = "INSERT INTO t (id,label) VALUES (20)"
+	check(q, "42601", "INSERT has more target columns than expressions", strings.Index(q, "label")+1, "", "", "", "", "")
+	q = "INSERT INTO t (id,label) VALUES ('oops')"
+	check(q, "42601", "INSERT has more target columns than expressions", strings.Index(q, "label")+1, "", "", "", "", "")
+	preparedUnderflow, prepareErr := db.Prepare(q)
+	err := prepareErr
+	if prepareErr == nil {
+		_, err = preparedUnderflow.Exec()
+		preparedUnderflow.Close()
+	}
+	var underflow *stuntgres.Error
+	if !errors.As(err, &underflow) || underflow.Code != "42601" || underflow.Message != "INSERT has more target columns than expressions" || underflow.Position != fmt.Sprint(strings.Index(q, "label")+1) || underflow.Detail != "" || underflow.Hint != "" || underflow.Schema != "" || underflow.Table != "" || underflow.Column != "" {
+		t.Fatalf("prepared explicit underflow diagnostic: %+v (%v)", underflow, err)
+	}
+	wantTuples(t, db, "SELECT id FROM t ORDER BY id", [][]any{{int64(99)}})
+	q = "INSERT INTO t (id,id) VALUES (20,21)"
+	check(q, "42701", `column "id" specified more than once`, strings.LastIndex(q, "id)")+1, "", "", "", "", "")
+	q = "INSERT INTO t (missing) VALUES (20)"
+	check(q, "42703", `column "missing" of relation "t" does not exist`, strings.Index(q, "missing")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (TRUE)"
+	check(q, "42804", `column "id" is of type integer but expression is of type boolean`, strings.Index(q, "TRUE")+1, "", "You will need to rewrite or cast the expression.", "", "", "")
+	q = "INSERT INTO t VALUES (20),(NULL)"
+	check(q, "23502", `null value in column "id" of relation "t" violates not-null constraint`, 0, "Failing row contains (null, null, null, null).", "", "public", "t", "id")
+	execSQL(t, db, "CREATE TABLE required(id INT,flag BOOL NOT NULL)")
+	q = "INSERT INTO required VALUES (1)"
+	_, err = db.Exec(q)
+	var got *stuntgres.Error
+	if !errors.As(err, &got) || got.Code != "23502" || got.Detail != "Failing row contains (1, null)." || got.Schema != "public" || got.Table != "required" || got.Column != "flag" {
+		t.Fatalf("NOT NULL diagnostic: %+v (%v)", got, err)
+	}
+	prepared, err := db.Prepare("INSERT INTO t VALUES ($1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = prepared.Exec("oops")
+	prepared.Close()
+	if !errors.As(err, &got) || got.Code != "22P02" || got.Message != `invalid input syntax for type integer: "oops"` || got.Position != "" || got.Schema != "" || got.Table != "" || got.Column != "" {
+		t.Fatalf("prepared parameter diagnostic: %+v (%v)", got, err)
+	}
+	wantTuples(t, db, "SELECT id FROM t ORDER BY id", [][]any{{int64(99)}})
+	execSQL(t, db, "CREATE TABLE clip(label TEXT,flag BOOL,required INT NOT NULL)")
+	long := strings.Repeat("é", 33)
+	_, err = db.Exec("INSERT INTO clip VALUES ($1,$2)", long, true)
+	if !errors.As(err, &got) || got.Code != "23502" || got.Detail != "Failing row contains ("+strings.Repeat("é", 32)+"..., t, null)." || got.Column != "required" {
+		t.Fatalf("UTF-8 clipped row detail: %#v detail=%q (%v)", got, got.Detail, err)
+	}
+}
+func TestInsertImplicitShortUnicodePosition(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "implicit-unicode")
+	execSQL(t, db, "CREATE TABLE t(id INT,label TEXT)")
+	query := "/* é */ INSERT INTO t VALUES(1),('bad')"
+	_, err := db.Exec(query)
+	var got *stuntgres.Error
+	if !errors.As(err, &got) || got.Code != "22P02" || got.Position != fmt.Sprint(utf8.RuneCountInString(query[:strings.Index(query, "'bad'")])+1) {
+		t.Fatalf("UTF-8 diagnostic position: %+v (%v)", got, err)
+	}
+	if got.Schema != "" || got.Table != "" || got.Column != "" || got.Detail != "" || got.Hint != "" {
+		t.Fatalf("unexpected optional fields: %+v", got)
+	}
+}
+func TestInsertImplicitShortBoundariesAndCancellation(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "implicit-boundaries")
+	execSQL(t, db, "CREATE TABLE t(id INT,label TEXT)")
+	for _, tc := range []struct{ query, state string }{
+		{"CREATE TABLE defaults(id INT DEFAULT 1)", "0A000"},
+		{"INSERT INTO t VALUES(DEFAULT)", "0A000"},
+		{"INSERT INTO t DEFAULT VALUES", "0A000"},
+		{"INSERT INTO t SELECT 1", "0A000"},
+		{"INSERT INTO t VALUES(1) RETURNING id", "0A000"},
+		{"INSERT INTO t VALUES()", "42601"},
+		{"INSERT INTO t VALUES($2)", "42P18"},
+	} {
+		_, err := db.Exec(tc.query)
+		sqlState(t, err, tc.state)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := db.ExecContext(ctx, "INSERT INTO t VALUES(1)"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("direct cancellation: %v", err)
+	}
+	stmt, err := db.Prepare("INSERT INTO t VALUES($1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = stmt.ExecContext(ctx, 1); !errors.Is(err, context.Canceled) {
+		t.Fatalf("prepared cancellation: %v", err)
+	}
+	stmt.Close()
+	wantTuples(t, db, "SELECT * FROM t", [][]any{})
+}
+
 func TestParameterConversionErrorMetadata(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), "error_metadata")
 	execSQL(t, db, "CREATE TABLE diagnostics (id INT, flag BOOLEAN)")
@@ -516,18 +738,22 @@ func TestParameterConversionErrorMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer stmt.Close()
 	_, insertErr := stmt.Exec("ambiguous", 1)
+	if err := stmt.Close(); err != nil {
+		t.Fatal(err)
+	}
 	_, queryErr := db.Query("SELECT id FROM diagnostics WHERE id = $1", "not an integer")
 	for _, tc := range []struct {
-		err    error
-		column string
-	}{{insertErr, "flag"}, {queryErr, "id"}} {
+		err      error
+		schema   string
+		table    string
+		column   string
+	}{{insertErr, "", "", ""}, {queryErr, "public", "diagnostics", "id"}} {
 		var sqlErr *stuntgres.Error
 		if !errors.As(tc.err, &sqlErr) || sqlErr.Code != "22P02" ||
 			sqlErr.Severity != "ERROR" || sqlErr.SeverityUnlocalized != "ERROR" ||
-			sqlErr.Schema != "public" || sqlErr.Table != "diagnostics" || sqlErr.Column != tc.column {
-			t.Fatalf("parameter diagnostic for %s: %#v (%v)", tc.column, sqlErr, tc.err)
+			sqlErr.Schema != tc.schema || sqlErr.Table != tc.table || sqlErr.Column != tc.column {
+			t.Fatalf("parameter diagnostic: %#v (%v)", sqlErr, tc.err)
 		}
 	}
 	wantTuples(t, db, "SELECT * FROM diagnostics", [][]any{})

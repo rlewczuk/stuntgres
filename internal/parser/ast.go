@@ -15,7 +15,7 @@ const (
 func (t Type) SQL() string          { return [...]string{"INTEGER", "BIGINT", "TEXT", "BOOLEAN"}[t] }
 func (t Type) DatabaseType() string { return [...]string{"INT4", "INT8", "TEXT", "BOOL"}[t] }
 
-type Position struct{ Offset int }
+type Position struct{ Offset, Character int }
 type Column struct {
 	Name     string
 	Type     Type
@@ -32,9 +32,14 @@ func (*CreateTable) statement() {}
 
 type Insert struct {
 	Name    string
-	Columns []string
+	Targets []InsertTarget
 	Rows    [][]Value
 	Pos     Position
+}
+
+type InsertTarget struct {
+	Name string
+	Pos  Position
 }
 
 func (*Insert) statement() {}

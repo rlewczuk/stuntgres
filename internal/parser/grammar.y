@@ -8,6 +8,7 @@ package parser
  cols []Column
  typ Type
  nullable bool
+ targets []InsertTarget
  names []string
  rows [][]Value
  row []Value
@@ -18,6 +19,7 @@ package parser
  desc bool
 }
 %token <tok> IDENT NUMBER STRING PARAM
+%token <tok> '+' '-'
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN UNSUP_TYPE UNSUP_IDENT UNSUP
 /* A following '(' denotes an unsupported function, not a completed name list. */
@@ -29,7 +31,8 @@ package parser
 %type <typ> type
 %type <nullable> nullability
 %type <tok> name
-%type <names> names insert_columns
+%type <targets> insert_columns insert_targets
+%type <names> names
 %type <rows> rows
 %type <row> row values
 %type <value> value
@@ -51,8 +54,9 @@ column: name type nullability { $$ = Column{Name:$1.text, Type:$2, Nullable:$3, 
 type: INTEGER { $$ = Int4 } | BIGINT { $$ = Int8 } | TEXT { $$ = Text } | BOOLEAN { $$ = Bool }
  | UNSUP_TYPE { sqllex.(*lexer).fail("0A000", "unsupported column type"); return 1 } ;
 nullability: /* empty */ { $$ = true } | NULL { $$ = true } | NOT NULL { $$ = false } ;
-insert: INSERT INTO name insert_columns VALUES rows { $$ = &Insert{Name:$3.text, Columns:$4, Rows:$6, Pos:$1.pos} } ;
-insert_columns: /* empty */ { $$ = nil } | '(' names ')' { $$ = $2 } ;
+insert: INSERT INTO name insert_columns VALUES rows { $$ = &Insert{Name:$3.text, Targets:$4, Rows:$6, Pos:$1.pos} } ;
+insert_columns: /* empty */ { $$ = nil } | '(' insert_targets ')' { $$ = $2 } ;
+insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name { $$ = append($1,$3.text) } ;
 rows: row { $$ = [][]Value{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' values ')' { $$ = $2 } ;
@@ -63,8 +67,8 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | STRING { $$ = Value{Kind:StringValue, Text:$1.text, Pos:$1.pos} }
  | PARAM { $$ = Value{Kind:ParameterValue, Parameter:sqllex.(*lexer).parameter($1.text), Pos:$1.pos} }
  | NUMBER { var ok bool; $$, ok = integerValue(sqllex,$1,""); if !ok { return 1 } }
- | '+' NUMBER { var ok bool; $$, ok = integerValue(sqllex,$2,"+"); if !ok { return 1 } }
- | '-' NUMBER { var ok bool; $$, ok = integerValue(sqllex,$2,"-"); if !ok { return 1 } }
+ | '+' NUMBER { var ok bool; $$, ok = integerValue(sqllex,$2,"+"); if !ok { return 1 }; $$.Pos=$1.pos }
+ | '-' NUMBER { var ok bool; $$, ok = integerValue(sqllex,$2,"-"); if !ok { return 1 }; $$.Pos=$1.pos }
  | value '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
  | value '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
  | value '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }

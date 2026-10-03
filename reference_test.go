@@ -9,10 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"github.com/lib/pq"
-	"time"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
+
+	"github.com/lib/pq"
 
 	"stuntgres"
 )
@@ -93,9 +96,9 @@ type referenceStep struct {
 	selectRows     bool
 	affected       int64
 	state          string
+	diagnostic     *referenceDiagnostic
 	columns, types []string
 	rows           [][]any
-	diagnostic     *referenceDiagnostic
 }
 
 func referenceExec(query string, count int64, args ...any) referenceStep {
@@ -104,6 +107,16 @@ func referenceExec(query string, count int64, args ...any) referenceStep {
 func referenceError(query, state string, args ...any) referenceStep {
 	return referenceStep{query: query, args: args, state: state}
 }
+func referenceErrorDiagnostic(query string, want referenceDiagnostic, args ...any) referenceStep {
+	return referenceStep{query: query, args: args, state: want.Code, diagnostic: &want}
+}
+
+func referencePosition(position int) string {
+	if position == 0 {
+		return ""
+	}
+	return strconv.Itoa(position)
+}
 func referenceSelect(query string, columns, types []string, rows [][]any, args ...any) referenceStep {
 	return referenceStep{query: query, args: args, selectRows: true, columns: columns, types: types, rows: rows}
 }
@@ -111,10 +124,36 @@ func referencePrepared(s referenceStep) referenceStep { s.prepared = true; retur
 
 type referenceObserved struct {
 	state          string
+	diagnostic     *referenceDiagnostic
 	affected       int64
 	columns, types []string
 	rows           [][]any
-	diagnostic     *referenceDiagnostic
+}
+
+func referenceDiagnosticOf(t *testing.T, err error, want *referenceDiagnostic) *referenceDiagnostic {
+	t.Helper()
+	if want == nil {
+		return nil
+	}
+	if want.Severity != "" {
+		got := referenceAssertDiagnostic(t, err, want)
+		return &got
+	}
+	// INSERT fixtures compare SQL diagnostics, not PostgreSQL's wire-portal
+	// execution context. Full error-field fixtures above compare every field.
+	extracted := referenceExtractDiagnostic(t, err)
+	if extracted.Severity != "ERROR" || extracted.SeverityUnlocalized != "ERROR" {
+		t.Fatalf("SQL error severity = %q/%q", extracted.Severity, extracted.SeverityUnlocalized)
+	}
+	got := referenceDiagnostic{
+		Code: extracted.Code, Message: extracted.Message, Detail: extracted.Detail,
+		Hint: extracted.Hint, Position: extracted.Position, Schema: extracted.Schema,
+		Table: extracted.Table, Column: extracted.Column,
+	}
+	if !reflect.DeepEqual(got, *want) {
+		t.Fatalf("diagnostic got %+v want %+v", got, *want)
+	}
+	return &got
 }
 
 func referenceState(t *testing.T, err error, want string) string {
@@ -163,13 +202,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 	if s.prepared {
 		stmt, err = db.PrepareContext(ctx, s.query)
 		if err != nil {
-			state := referenceState(t, err, s.state)
-			var diagnostic *referenceDiagnostic
-			if s.diagnostic != nil {
-				got := referenceAssertDiagnostic(t, err, s.diagnostic)
-				diagnostic = &got
-			}
-			return referenceObserved{state: state, diagnostic: diagnostic}
+			return referenceObserved{state: referenceState(t, err, s.state), diagnostic: referenceDiagnosticOf(t, err, s.diagnostic)}
 		}
 		defer func() {
 			if err := stmt.Close(); err != nil {
@@ -186,12 +219,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 		}
 		state := referenceState(t, err, s.state)
 		if err != nil {
-			var diagnostic *referenceDiagnostic
-			if s.diagnostic != nil {
-				got := referenceAssertDiagnostic(t, err, s.diagnostic)
-				diagnostic = &got
-			}
-			return referenceObserved{state: state, diagnostic: diagnostic}
+			return referenceObserved{state: state, diagnostic: referenceDiagnosticOf(t, err, s.diagnostic)}
 		}
 		count, err := result.RowsAffected()
 		if err != nil {
@@ -210,12 +238,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *r
 	}
 	state := referenceState(t, err, s.state)
 	if err != nil {
-		var diagnostic *referenceDiagnostic
-		if s.diagnostic != nil {
-			got := referenceAssertDiagnostic(t, err, s.diagnostic)
-			diagnostic = &got
-		}
-		return referenceObserved{state: state, diagnostic: diagnostic}
+		return referenceObserved{state: state, diagnostic: referenceDiagnosticOf(t, err, s.diagnostic)}
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
@@ -616,4 +639,108 @@ func TestReferencePermissionAndCancellationFields(t *testing.T) {
 	if user.Code != "57014" || user.Severity != "ERROR" || user.Message != "canceling statement due to user request" {
 		t.Fatalf("user cancellation diagnostic = %#v", user)
 	}
+}
+func TestReferenceInsertImplicitShortTargets(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL,big BIGINT,label TEXT,flag BOOL)", 0))
+	p.step(t, referenceExec("INSERT INTO t VALUES (1)", 1))
+	p.step(t, referencePrepared(referenceExec("INSERT INTO t VALUES ($1,$2)", 1, 2, "20")))
+	p.step(t, referencePrepared(referenceExec("INSERT INTO t VALUES ($1)", 1, "5")))
+	p.step(t, referenceExec("INSERT INTO t VALUES ($1)", 1, []byte("6")))
+	p.step(t, referenceExec("CREATE TABLE repeats(a INT,b INT,tail TEXT)", 0))
+	p.step(t, referencePrepared(referenceExec("INSERT INTO repeats VALUES ($1,$1),($2,$2)", 2, 11, 12)))
+	p.step(t, referenceExec("INSERT INTO t VALUES (3,30,'three')", 1))
+	p.step(t, referenceExec("INSERT INTO t(label,id) VALUES ('reordered',4)", 1))
+	p.step(t, referenceSelect("SELECT * FROM t ORDER BY id", []string{"id", "big", "label", "flag"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{
+		{int64(1), nil, nil, nil}, {int64(2), int64(20), nil, nil}, {int64(3), int64(30), "three", nil}, {int64(4), nil, "reordered", nil}, {int64(5), nil, nil, nil}, {int64(6), nil, nil, nil},
+	}))
+	p.step(t, referenceSelect("SELECT * FROM repeats ORDER BY a", []string{"a", "b", "tail"}, []string{"INT4", "INT4", "TEXT"}, [][]any{{int64(11), int64(11), nil}, {int64(12), int64(12), nil}}))
+	p.step(t, referenceExec(`CREATE TABLE "Odd"("Id" INT NOT NULL,label TEXT)`, 0))
+	p.step(t, referencePrepared(referenceExec(`INSERT INTO "Odd" VALUES ($1)`, 1, "7")))
+	p.step(t, referenceSelect(`SELECT * FROM "Odd" ORDER BY "Id"`, []string{"Id", "label"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), nil}}))
+}
+
+func TestReferenceInsertImplicitShortDiagnostics(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL,big BIGINT,label TEXT,flag BOOL)", 0))
+	p.step(t, referenceExec("INSERT INTO t VALUES (99)", 1))
+	check := func(query, code, message string, position int, detail, hint, schema, table, column string) {
+		t.Helper()
+		p.step(t, referenceErrorDiagnostic(query, referenceDiagnostic{Code: code, Message: message, Position: referencePosition(position), Detail: detail, Hint: hint, Schema: schema, Table: table, Column: column}))
+		p.step(t, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(99)}}))
+	}
+	q := "INSERT INTO t VALUES (20),('oops')"
+	check(q, "22P02", `invalid input syntax for type integer: "oops"`, strings.Index(q, "'oops'")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20),(21,22)"
+	check(q, "42601", "VALUES lists must all be the same length", strings.Index(q, "21,22")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20,30),(21)"
+	check(q, "42601", "VALUES lists must all be the same length", strings.Index(q, "21)")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES ('2147483648')"
+	check(q, "22003", `value "2147483648" is out of range for type integer`, strings.Index(q, "'2147483648'")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (2147483648)"
+	check(q, "22003", "integer out of range", 0, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20,'oops')"
+	check(q, "22P02", `invalid input syntax for type bigint: "oops"`, strings.Index(q, "'oops'")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (20,30,NULL,'maybe')"
+	check(q, "22P02", `invalid input syntax for type boolean: "maybe"`, strings.Index(q, "'maybe'")+1, "", "", "", "", "")
+	q = "INSERT INTO t VALUES (TRUE)"
+	check(q, "42804", `column "id" is of type integer but expression is of type boolean`, strings.Index(q, "TRUE")+1, "", "You will need to rewrite or cast the expression.", "", "", "")
+	q = "INSERT INTO t VALUES (20,30,40,TRUE,50)"
+	check(q, "42601", "INSERT has more expressions than target columns", strings.Index(q, "50)")+1, "", "", "", "", "")
+	q = "INSERT INTO t (id,label) VALUES (20)"
+	check(q, "42601", "INSERT has more target columns than expressions", strings.Index(q, "label")+1, "", "", "", "", "")
+	q = "INSERT INTO t (id,label) VALUES ('oops')"
+	wantUnderflow := referenceDiagnostic{Code: "42601", Message: "INSERT has more target columns than expressions", Position: referencePosition(strings.Index(q, "label") + 1)}
+	p.step(t, referenceErrorDiagnostic(q, wantUnderflow))
+	p.step(t, referencePrepared(referenceErrorDiagnostic(q, wantUnderflow)))
+	p.step(t, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(99)}}))
+	q = "INSERT INTO t (id,id) VALUES (20,21)"
+	check(q, "42701", `column "id" specified more than once`, strings.LastIndex(q, "id)")+1, "", "", "", "", "")
+	q = "INSERT INTO t (missing) VALUES (20)"
+	check(q, "42703", `column "missing" of relation "t" does not exist`, strings.Index(q, "missing")+1, "", "", "", "", "")
+	q = "/* é */ INSERT INTO t VALUES (20),('oops')"
+	check(q, "22P02", `invalid input syntax for type integer: "oops"`, utf8.RuneCountInString(q[:strings.Index(q, "'oops'")])+1, "", "", "", "", "")
+	p.step(t, referencePrepared(referenceErrorDiagnostic("INSERT INTO t VALUES($1)", referenceDiagnostic{
+		Code: "22P02", Message: `invalid input syntax for type integer: "oops"`,
+	}, "oops")))
+	p.step(t, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(99)}}))
+	q = "INSERT INTO t VALUES (20),(NULL)"
+	check(q, "23502", `null value in column "id" of relation "t" violates not-null constraint`, 0, "Failing row contains (null, null, null, null).", "", "public", "t", "id")
+	p.step(t, referenceExec("CREATE TABLE required(id INT,flag BOOL NOT NULL)", 0))
+	p.step(t, referenceErrorDiagnostic("INSERT INTO required VALUES (1)", referenceDiagnostic{
+		Code: "23502", Message: `null value in column "flag" of relation "required" violates not-null constraint`,
+		Detail: "Failing row contains (1, null).", Schema: "public", Table: "required", Column: "flag",
+	}))
+	p.step(t, referenceExec("CREATE TABLE clip(label TEXT,flag BOOL,required INT NOT NULL)", 0))
+	p.step(t, referenceErrorDiagnostic("INSERT INTO clip VALUES ('raw',TRUE)", referenceDiagnostic{
+		Code: "23502", Message: `null value in column "required" of relation "clip" violates not-null constraint`,
+		Detail: "Failing row contains (raw, t, null).", Schema: "public", Table: "clip", Column: "required",
+	}))
+	long := strings.Repeat("é", 33)
+	p.step(t, referencePrepared(referenceErrorDiagnostic("INSERT INTO clip VALUES ($1,$2)", referenceDiagnostic{
+		Code: "23502", Message: `null value in column "required" of relation "clip" violates not-null constraint`,
+		Detail: "Failing row contains (" + strings.Repeat("é", 32) + "..., t, null).", Schema: "public", Table: "clip", Column: "required",
+	}, long, true)))
+}
+func TestReferenceInsertImplicitShortDumpRoundTrip(t *testing.T) {
+	p := newReferencePair(t)
+	if _, err := p.native.ExecContext(p.ctx, "CREATE TABLE t(id INT NOT NULL,label TEXT,flag BOOL)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.native.ExecContext(p.ctx, "INSERT INTO t VALUES(1),(2)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.native.ExecContext(p.ctx, "INSERT INTO t(label,id) VALUES('reordered',3)"); err != nil {
+		t.Fatal(err)
+	}
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+		t.Fatalf("execute native dump on PostgreSQL: %v\\n%s", err, dump.String())
+	}
+	p.step(t, referenceSelect("SELECT * FROM t ORDER BY id", []string{"id", "label", "flag"}, []string{"INT4", "TEXT", "BOOL"}, [][]any{
+		{int64(1), nil, nil}, {int64(2), nil, nil}, {int64(3), "reordered", nil},
+	}))
 }
