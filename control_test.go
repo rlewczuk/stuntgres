@@ -222,12 +222,25 @@ func TestInsertImplicitShortControls(t *testing.T) {
 	if !bytes.Equal(dump.Bytes(), second.Bytes()) {
 		t.Fatalf("short-row dump changed:\n%s\n%s", dump.String(), second.String())
 	}
-	if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE staged(id INT,label TEXT); INSERT INTO staged VALUES(7); CREATE TABLE required(flag BOOL NOT NULL); INSERT INTO required VALUES(NULL);")); err == nil {
-		t.Fatal("invalid staged restore succeeded")
+	err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE staged(id INT,label TEXT); INSERT INTO staged VALUES(7); CREATE TABLE required(id INT,flag BOOL NOT NULL); INSERT INTO required VALUES(8);"))
+	var restoreError *stuntgres.Error
+	if !errors.As(err, &restoreError) || restoreError.Code != "23502" ||
+		restoreError.Message != `null value in column "flag" of relation "required" violates not-null constraint` ||
+		restoreError.Detail != "Failing row contains (8, null)." ||
+		restoreError.Schema != "public" || restoreError.Table != "required" || restoreError.Column != "flag" ||
+		restoreError.Position != "" || restoreError.Hint != "" {
+		t.Fatalf("short staged restore diagnostic: %+v (%v)", restoreError, err)
 	}
 	wantTuples(t, db, "SELECT * FROM t ORDER BY id", want)
 	if _, err := db.Query("SELECT * FROM staged"); err == nil {
 		t.Fatal("failed staged table was published")
+	}
+	var preserved bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &preserved); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(dump.Bytes(), preserved.Bytes()) {
+		t.Fatal("failed short staged restore changed catalog")
 	}
 	if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE restored(id INT,label TEXT); INSERT INTO restored VALUES(8);")); err != nil {
 		t.Fatal(err)

@@ -8,6 +8,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -116,6 +117,67 @@ func TestImplicitShortTargetDescribe(t *testing.T) {
 		t.Fatalf("short implicit rows got %v want %v", got, want)
 	}
 }
+
+// cancelAtErrCheck drives existing cooperative cancellation boundaries without
+// sleeps or production hooks. Its embedded real context owns Done and Err state.
+type cancelAtErrCheck struct {
+	context.Context
+	cancel context.CancelFunc
+	at     int32
+	checks atomic.Int32
+}
+
+func (c *cancelAtErrCheck) Err() error {
+	if c.checks.Add(1) == c.at {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestInsertImplicitShortStagedCancellation(t *testing.T) {
+	// Execute checks admission twice, then once per converted row, once per
+	// constraint row, and once immediately before the sole publication.
+	// Three valid short rows therefore reach checks 3–5, 6–8, and 9.
+	for _, tc := range []struct {
+		name  string
+		check int32
+	}{
+		{"after_first_staged_row", 4},
+		{"constraint_pass_start", 6},
+		{"during_constraint_pass", 7},
+		{"before_publication", 9},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+			run(t, e, "CREATE TABLE t(id INT NOT NULL,label TEXT,flag BOOL)")
+			run(t, e, "INSERT INTO t VALUES(99,'sentinel',TRUE)")
+			base, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			ctx := &cancelAtErrCheck{Context: base, cancel: cancel, at: tc.check}
+			_, err := e.Execute(ctx, statement(t, "INSERT INTO t VALUES(1,'one'),(2,'two'),(3,'three')"), nil)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("staged cancellation: %v", err)
+			}
+			var sqlErr interface{ SQLState() string }
+			if errors.As(err, &sqlErr) {
+				t.Fatalf("context cancellation fabricated SQLSTATE: %v", err)
+			}
+			if got := ctx.checks.Load(); got != tc.check {
+				t.Fatalf("cancellation check got %d, want %d", got, tc.check)
+			}
+			want := [][]driver.Value{{int64(99), "sentinel", true}}
+			if got := tuples(run(t, e, "SELECT * FROM t ORDER BY id")); !reflect.DeepEqual(got, want) {
+				t.Fatalf("canceled staged INSERT changed complete rows: %v", got)
+			}
+			run(t, e, "INSERT INTO t VALUES(4)")
+			want = [][]driver.Value{{int64(4), nil, nil}, {int64(99), "sentinel", true}}
+			if got := tuples(run(t, e, "SELECT * FROM t ORDER BY id")); !reflect.DeepEqual(got, want) {
+				t.Fatalf("engine unusable after cancellation: %v", got)
+			}
+		})
+	}
+}
+
 func TestCoercionsAndStatementAtomicity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t (i INTEGER NOT NULL, n BIGINT, s TEXT, b BOOLEAN)")

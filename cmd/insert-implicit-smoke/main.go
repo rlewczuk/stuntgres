@@ -43,14 +43,29 @@ func run() error {
 		return err
 	}
 	for _, insert := range []struct {
-		query string
-		args  []any
+		query    string
+		args     []any
+		prepared bool
 	}{
-		{"INSERT INTO t VALUES (1)", nil},
-		{"INSERT INTO t VALUES ($1,$2)", []any{2, "20"}},
-		{"INSERT INTO t(label,id) VALUES ('reordered',3)", nil},
+		{"INSERT INTO t VALUES (1)", nil, false},
+		{"INSERT INTO t VALUES ($1,$2)", []any{2, "20"}, true},
+		{"INSERT INTO t(label,id) VALUES ('reordered',3)", nil, false},
 	} {
-		result, e := first.ExecContext(ctx, insert.query, insert.args...)
+		var result sql.Result
+		var e error
+		if insert.prepared {
+			stmt, prepareErr := first.PrepareContext(ctx, insert.query)
+			if prepareErr != nil {
+				return prepareErr
+			}
+			result, e = stmt.ExecContext(ctx, insert.args...)
+			closeErr := stmt.Close()
+			if e == nil {
+				e = closeErr
+			}
+		} else {
+			result, e = first.ExecContext(ctx, insert.query, insert.args...)
+		}
 		if e != nil {
 			return e
 		}
@@ -139,11 +154,32 @@ func run() error {
 	if err = verify(first); err != nil {
 		return err
 	}
+	rangeStmt, err := first.PrepareContext(ctx, "INSERT INTO t VALUES (NULL),(2147483648)")
+	if err != nil {
+		return fmt.Errorf("compatible typed integer assignment failed preparation: %w", err)
+	}
+	_, err = rangeStmt.ExecContext(ctx)
+	if closeErr := rangeStmt.Close(); closeErr != nil {
+		return closeErr
+	}
+	var rangeError *stuntgres.Error
+	if !errors.As(err, &rangeError) || rangeError.Code != "22003" || rangeError.Message != "integer out of range" ||
+		rangeError.Position != "" || rangeError.Detail != "" || rangeError.Hint != "" ||
+		rangeError.Schema != "" || rangeError.Table != "" || rangeError.Column != "" {
+		return fmt.Errorf("prepared typed range execution diagnostic: %+v (%v)", rangeError, err)
+	}
+	if err = verify(first); err != nil {
+		return err
+	}
 	if _, err = first.ExecContext(ctx, "CREATE TABLE required(id INT,flag BOOL NOT NULL)"); err != nil {
 		return err
 	}
 	if err = checkError(first, "INSERT INTO required VALUES (1)", "23502", `null value in column "flag" of relation "required" violates not-null constraint`, "Failing row contains (1, null).", 0, "public", "required", "flag"); err != nil {
 		return err
+	}
+	var requiredCount int64
+	if err = first.QueryRowContext(ctx, "SELECT id FROM required").Scan(&requiredCount); !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed short INSERT published required row: %v", err)
 	}
 	rows, err := first.QueryContext(ctx, "SELECT * FROM t ORDER BY id")
 	if err != nil {
@@ -191,11 +227,35 @@ func run() error {
 	if dump.String() != again.String() {
 		return fmt.Errorf("dump changed after restore")
 	}
-	if err = stuntgres.Restore(ctx, first, bytes.NewReader([]byte("CREATE TABLE staged(v INT); INSERT INTO staged VALUES(1); CREATE TABLE required_again(v INT NOT NULL); INSERT INTO required_again VALUES(NULL);"))); err == nil {
-		return fmt.Errorf("invalid staging restore succeeded")
+	err = stuntgres.Restore(ctx, first, strings.NewReader("CREATE TABLE staged(v INT,label TEXT); INSERT INTO staged VALUES(1); CREATE TABLE required_again(id INT,flag BOOL NOT NULL); INSERT INTO required_again VALUES(2);"))
+	var restoreError *stuntgres.Error
+	if !errors.As(err, &restoreError) || restoreError.Code != "23502" ||
+		restoreError.Message != `null value in column "flag" of relation "required_again" violates not-null constraint` ||
+		restoreError.Detail != "Failing row contains (2, null)." ||
+		restoreError.Schema != "public" || restoreError.Table != "required_again" || restoreError.Column != "flag" ||
+		restoreError.Position != "" || restoreError.Hint != "" {
+		return fmt.Errorf("short staging restore diagnostic: %+v (%v)", restoreError, err)
 	}
 	if err = verify(second); err != nil {
 		return err
+	}
+	var preserved bytes.Buffer
+	if err = stuntgres.Dump(ctx, second, &preserved); err != nil {
+		return err
+	}
+	if !bytes.Equal(dump.Bytes(), preserved.Bytes()) {
+		return fmt.Errorf("failed staging restore changed catalog")
+	}
+	if err = stuntgres.Restore(ctx, first, strings.NewReader("CREATE TABLE restored(id INT,label TEXT); INSERT INTO restored VALUES(8);")); err != nil {
+		return err
+	}
+	var restoredID int64
+	var restoredLabel sql.NullString
+	if err = second.QueryRowContext(ctx, "SELECT * FROM restored").Scan(&restoredID, &restoredLabel); err != nil {
+		return err
+	}
+	if restoredID != 8 || restoredLabel.Valid {
+		return fmt.Errorf("hand-authored short restore: id=%d label=%+v", restoredID, restoredLabel)
 	}
 	fmt.Print("implicit short INSERT: rows, diagnostics, metadata, atomicity, snapshot and dump/restore OK\n")
 	return nil

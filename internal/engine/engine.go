@@ -162,6 +162,12 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	used := make(map[int]parser.Type)
 	bind := func(v parser.Value, c parser.Column, where bool) error {
 		if v.Kind != parser.ParameterValue {
+			// Integer-to-int4 assignment is type-compatible. Its range check
+			// belongs to execution, not preparation; unknown string input
+			// still runs during binding below.
+			if !where && v.Kind == parser.IntegerValue && c.Type == parser.Int4 {
+				return nil
+			}
 			_, err := literal(v, c.Type, where)
 			return err
 		}
@@ -550,13 +556,22 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 					return Result{}, insertValueError(err, c, v)
 				}
 			}
+			rows[i] = row
+		}
+		// All supported expressions are literals or canonical parameters.
+		// Finish assignment conversion before executor constraint checks,
+		// so a deferred constant range failure is not masked by NOT NULL.
+		for _, row := range rows {
+			if err = ctx.Err(); err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
 			for j, c := range b.relation.columns {
 				if row[j] == nil && !c.Nullable {
 					e.mu.Unlock()
 					return Result{}, notNullError(b.relation.name, c.Name, row)
 				}
 			}
-			rows[i] = row
 		}
 		if err = ctx.Err(); err == nil {
 			b.storage.rows = append(b.storage.rows, rows...)

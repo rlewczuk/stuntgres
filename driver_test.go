@@ -619,6 +619,9 @@ func TestInsertImplicitShortTargets(t *testing.T) {
 				{"INSERT INTO t VALUES ($1)", []any{"5"}, 1},
 				{"INSERT INTO t VALUES ($1)", []any{[]byte("6")}, 1},
 				{"INSERT INTO t(label,id) VALUES ('reordered',4)", nil, 1},
+				{"INSERT INTO t VALUES (7,70,'full',TRUE)", nil, 1},
+				{"INSERT INTO t VALUES (8),(9)", nil, 2},
+				{"INSERT INTO t(label,id) VALUES ('ten',10),('eleven',11)", nil, 2},
 				{"INSERT INTO repeats VALUES ($1,$1),($2,$2)", []any{11, 12}, 2},
 			} {
 				result, err := exec(tc.query, tc.args...)
@@ -633,7 +636,7 @@ func TestInsertImplicitShortTargets(t *testing.T) {
 					t.Fatal("LastInsertId succeeded")
 				}
 			}
-			wantTuples(t, db, "SELECT * FROM t ORDER BY id", [][]any{{int64(1), nil, nil, nil}, {int64(2), int64(20), nil, nil}, {int64(3), int64(30), "three", nil}, {int64(4), nil, "reordered", nil}, {int64(5), nil, nil, nil}, {int64(6), nil, nil, nil}})
+			wantTuples(t, db, "SELECT * FROM t ORDER BY id", [][]any{{int64(1), nil, nil, nil}, {int64(2), int64(20), nil, nil}, {int64(3), int64(30), "three", nil}, {int64(4), nil, "reordered", nil}, {int64(5), nil, nil, nil}, {int64(6), nil, nil, nil}, {int64(7), int64(70), "full", true}, {int64(8), nil, nil, nil}, {int64(9), nil, nil, nil}, {int64(10), nil, "ten", nil}, {int64(11), nil, "eleven", nil}})
 			wantTuples(t, db, "SELECT * FROM repeats ORDER BY a", [][]any{{int64(11), int64(11), nil}, {int64(12), int64(12), nil}})
 			execSQL(t, db, `CREATE TABLE "Odd"("Id" INT NOT NULL,label TEXT)`)
 			if _, err := exec(`INSERT INTO "Odd" VALUES ($1)`, "7"); err != nil {
@@ -684,88 +687,146 @@ func TestInsertImplicitShortTargets(t *testing.T) {
 	}
 }
 
+func TestInsertImplicitShortPreparedIntegerRange(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "implicit-prepared-range")
+	execSQL(t, db, "CREATE TABLE t(id INT NOT NULL,label TEXT)")
+	execSQL(t, db, "INSERT INTO t VALUES(99)")
+	for _, query := range []string{
+		"INSERT INTO t VALUES (2147483648)",
+		"INSERT INTO t VALUES (20),(-2147483649)",
+		"INSERT INTO t VALUES (NULL),(2147483648)",
+	} {
+		stmt, err := db.Prepare(query)
+		if err != nil {
+			t.Fatalf("%s: compatible integer assignment must prepare: %v", query, err)
+		}
+		_, err = stmt.Exec()
+		if closeErr := stmt.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		var got *stuntgres.Error
+		if !errors.As(err, &got) || got.Code != "22003" || got.Message != "integer out of range" ||
+			got.Position != "" || got.Detail != "" || got.Hint != "" ||
+			got.Schema != "" || got.Table != "" || got.Column != "" {
+			t.Fatalf("%s: execution diagnostic: %+v (%v)", query, got, err)
+		}
+		assertImplicitErrorBoundary(t, got)
+		wantTuples(t, db, "SELECT * FROM t ORDER BY id", [][]any{{int64(99), nil}})
+	}
+}
+
+func assertImplicitErrorBoundary(t *testing.T, got *stuntgres.Error) {
+	t.Helper()
+	if got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" ||
+		got.InternalPosition != "" || got.InternalQuery != "" || got.Context != "" ||
+		got.DataType != "" || got.Constraint != "" ||
+		got.File != "" || got.Line != "" || got.Routine != "" {
+		t.Fatalf("unexpected implicit INSERT diagnostic fields: %+v", got)
+	}
+}
+
 func TestInsertImplicitShortDiagnostics(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), "implicit-diagnostics")
 	execSQL(t, db, "CREATE TABLE t(id INT NOT NULL,big BIGINT,label TEXT,flag BOOL)")
 	execSQL(t, db, "INSERT INTO t VALUES(99)")
-	check := func(query, code, message string, position int, detail, hint, schema, table, column string) {
+	check := func(preparedStage, query, code, message string, position int, detail, hint, schema, table, column string) {
 		t.Helper()
-		_, err := db.Exec(query)
-		var got *stuntgres.Error
-		if !errors.As(err, &got) {
-			t.Fatalf("%s: expected SQL diagnostic, got %v", query, err)
+		for _, prepared := range []bool{false, true} {
+			var err error
+			if prepared {
+				stmt, prepareErr := db.Prepare(query)
+				err = prepareErr
+				if preparedStage == "prepare" && prepareErr == nil {
+					stmt.Close()
+					t.Fatalf("%s: expected preparation failure", query)
+				}
+				if preparedStage == "execute" && prepareErr != nil {
+					t.Fatalf("%s: expected successful preparation: %v", query, prepareErr)
+				}
+				if err == nil {
+					_, err = stmt.Exec()
+					stmt.Close()
+				}
+			} else {
+				_, err = db.Exec(query)
+			}
+			var got *stuntgres.Error
+			if !errors.As(err, &got) {
+				t.Fatalf("%s (prepared=%v): expected SQL diagnostic, got %v", query, prepared, err)
+			}
+			wantPosition := ""
+			if position > 0 {
+				wantPosition = fmt.Sprint(position)
+			}
+			assertImplicitErrorBoundary(t, got)
+			if got.Code != code || got.Message != message || got.Position != wantPosition || got.Detail != detail || got.Hint != hint || got.Schema != schema || got.Table != table || got.Column != column {
+				t.Fatalf("%s (prepared=%v): diagnostic=%+v", query, prepared, got)
+			}
+			wantTuples(t, db, "SELECT * FROM t ORDER BY id", [][]any{{int64(99), nil, nil, nil}})
 		}
-		wantPosition := ""
-		if position > 0 {
-			wantPosition = fmt.Sprint(position)
-		}
-		if got.Code != code || got.Message != message || got.Position != wantPosition || got.Detail != detail || got.Hint != hint || got.Schema != schema || got.Table != table || got.Column != column {
-			t.Fatalf("%s: diagnostic=%+v", query, got)
-		}
-		wantTuples(t, db, "SELECT id FROM t ORDER BY id", [][]any{{int64(99)}})
 	}
 	q := "INSERT INTO t VALUES (20),('oops')"
-	check(q, "22P02", `invalid input syntax for type integer: "oops"`, strings.Index(q, "'oops'")+1, "", "", "", "", "")
+	check("prepare", q, "22P02", `invalid input syntax for type integer: "oops"`, strings.Index(q, "'oops'")+1, "", "", "", "", "")
 	q = "INSERT INTO t VALUES (20),('2147483648')"
-	check(q, "22003", `value "2147483648" is out of range for type integer`, strings.Index(q, "'2147483648'")+1, "", "", "", "", "")
+	check("prepare", q, "22003", `value "2147483648" is out of range for type integer`, strings.Index(q, "'2147483648'")+1, "", "", "", "", "")
 	q = "INSERT INTO t VALUES (20,'oops')"
-	check(q, "22P02", `invalid input syntax for type bigint: "oops"`, strings.Index(q, "'oops'")+1, "", "", "", "", "")
+	check("prepare", q, "22P02", `invalid input syntax for type bigint: "oops"`, strings.Index(q, "'oops'")+1, "", "", "", "", "")
 	q = "INSERT INTO t VALUES (20,20,NULL,'maybe')"
-	check(q, "22P02", `invalid input syntax for type boolean: "maybe"`, strings.Index(q, "'maybe'")+1, "", "", "", "", "")
+	check("prepare", q, "22P02", `invalid input syntax for type boolean: "maybe"`, strings.Index(q, "'maybe'")+1, "", "", "", "", "")
 	q = "INSERT INTO t VALUES (2147483648)"
-	check(q, "22003", "integer out of range", 0, "", "", "", "", "")
+	check("execute", q, "22003", "integer out of range", 0, "", "", "", "", "")
 	q = "INSERT INTO t VALUES (20),(21,22)"
-	check(q, "42601", "VALUES lists must all be the same length", strings.Index(q, "21,22")+1, "", "", "", "", "")
+	check("prepare", q, "42601", "VALUES lists must all be the same length", strings.Index(q, "21,22")+1, "", "", "", "", "")
 	q = "INSERT INTO t VALUES (20,30),(21)"
-	check(q, "42601", "VALUES lists must all be the same length", strings.Index(q, "21)")+1, "", "", "", "", "")
+	check("prepare", q, "42601", "VALUES lists must all be the same length", strings.Index(q, "21)")+1, "", "", "", "", "")
 	q = "INSERT INTO t VALUES (20,30,40,TRUE,50)"
-	check(q, "42601", "INSERT has more expressions than target columns", strings.Index(q, "50)")+1, "", "", "", "", "")
+	check("prepare", q, "42601", "INSERT has more expressions than target columns", strings.Index(q, "50)")+1, "", "", "", "", "")
 	q = "INSERT INTO t (id,label) VALUES (20)"
-	check(q, "42601", "INSERT has more target columns than expressions", strings.Index(q, "label")+1, "", "", "", "", "")
+	check("prepare", q, "42601", "INSERT has more target columns than expressions", strings.Index(q, "label")+1, "", "", "", "", "")
 	q = "INSERT INTO t (id,label) VALUES ('oops')"
-	check(q, "42601", "INSERT has more target columns than expressions", strings.Index(q, "label")+1, "", "", "", "", "")
-	preparedUnderflow, prepareErr := db.Prepare(q)
-	err := prepareErr
-	if prepareErr == nil {
-		_, err = preparedUnderflow.Exec()
-		preparedUnderflow.Close()
-	}
-	var underflow *stuntgres.Error
-	if !errors.As(err, &underflow) || underflow.Code != "42601" || underflow.Message != "INSERT has more target columns than expressions" || underflow.Position != fmt.Sprint(strings.Index(q, "label")+1) || underflow.Detail != "" || underflow.Hint != "" || underflow.Schema != "" || underflow.Table != "" || underflow.Column != "" {
-		t.Fatalf("prepared explicit underflow diagnostic: %+v (%v)", underflow, err)
-	}
-	wantTuples(t, db, "SELECT id FROM t ORDER BY id", [][]any{{int64(99)}})
+	check("prepare", q, "42601", "INSERT has more target columns than expressions", strings.Index(q, "label")+1, "", "", "", "", "")
 	q = "INSERT INTO t (id,id) VALUES (20,21)"
-	check(q, "42701", `column "id" specified more than once`, strings.LastIndex(q, "id)")+1, "", "", "", "", "")
+	check("prepare", q, "42701", `column "id" specified more than once`, strings.LastIndex(q, "id)")+1, "", "", "", "", "")
 	q = "INSERT INTO t (missing) VALUES (20)"
-	check(q, "42703", `column "missing" of relation "t" does not exist`, strings.Index(q, "missing")+1, "", "", "", "", "")
+	check("prepare", q, "42703", `column "missing" of relation "t" does not exist`, strings.Index(q, "missing")+1, "", "", "", "", "")
 	q = "INSERT INTO t VALUES (TRUE)"
-	check(q, "42804", `column "id" is of type integer but expression is of type boolean`, strings.Index(q, "TRUE")+1, "", "You will need to rewrite or cast the expression.", "", "", "")
+	check("prepare", q, "42804", `column "id" is of type integer but expression is of type boolean`, strings.Index(q, "TRUE")+1, "", "You will need to rewrite or cast the expression.", "", "", "")
+	q = "INSERT INTO t VALUES (20),(TRUE)"
+	check("prepare", q, "42804", `column "id" is of type integer but expression is of type boolean`, strings.Index(q, "TRUE")+1, "", "You will need to rewrite or cast the expression.", "", "", "")
 	q = "INSERT INTO t VALUES (20),(NULL)"
-	check(q, "23502", `null value in column "id" of relation "t" violates not-null constraint`, 0, "Failing row contains (null, null, null, null).", "", "public", "t", "id")
+	check("execute", q, "23502", `null value in column "id" of relation "t" violates not-null constraint`, 0, "Failing row contains (null, null, null, null).", "", "public", "t", "id")
 	execSQL(t, db, "CREATE TABLE required(id INT,flag BOOL NOT NULL)")
 	q = "INSERT INTO required VALUES (1)"
-	_, err = db.Exec(q)
-	var got *stuntgres.Error
-	if !errors.As(err, &got) || got.Code != "23502" || got.Detail != "Failing row contains (1, null)." || got.Schema != "public" || got.Table != "required" || got.Column != "flag" {
-		t.Fatalf("NOT NULL diagnostic: %+v (%v)", got, err)
+	check("execute", q, "23502", `null value in column "flag" of relation "required" violates not-null constraint`, 0, "Failing row contains (1, null).", "", "public", "required", "flag")
+	wantTuples(t, db, "SELECT * FROM required", [][]any{})
+	for _, prepared := range []bool{false, true} {
+		q = "INSERT INTO t VALUES ($1),($2)"
+		var err error
+		if prepared {
+			stmt, prepareErr := db.Prepare(q)
+			if prepareErr != nil {
+				t.Fatal(prepareErr)
+			}
+			_, err = stmt.Exec(20, "oops")
+			stmt.Close()
+		} else {
+			_, err = db.Exec(q, 20, "oops")
+		}
+		var got *stuntgres.Error
+		if !errors.As(err, &got) || got.Code != "22P02" || got.Message != `invalid input syntax for type integer: "oops"` || got.Position != "" || got.Detail != "" || got.Hint != "" || got.Schema != "" || got.Table != "" || got.Column != "" {
+			t.Fatalf("parameter diagnostic (prepared=%v): %+v (%v)", prepared, got, err)
+		}
+		assertImplicitErrorBoundary(t, got)
+		wantTuples(t, db, "SELECT * FROM t ORDER BY id", [][]any{{int64(99), nil, nil, nil}})
 	}
-	prepared, err := db.Prepare("INSERT INTO t VALUES ($1)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = prepared.Exec("oops")
-	prepared.Close()
-	if !errors.As(err, &got) || got.Code != "22P02" || got.Message != `invalid input syntax for type integer: "oops"` || got.Position != "" || got.Schema != "" || got.Table != "" || got.Column != "" {
-		t.Fatalf("prepared parameter diagnostic: %+v (%v)", got, err)
-	}
-	wantTuples(t, db, "SELECT id FROM t ORDER BY id", [][]any{{int64(99)}})
 	execSQL(t, db, "CREATE TABLE clip(label TEXT,flag BOOL,required INT NOT NULL)")
 	long := strings.Repeat("é", 33)
-	_, err = db.Exec("INSERT INTO clip VALUES ($1,$2)", long, true)
-	if !errors.As(err, &got) || got.Code != "23502" || got.Detail != "Failing row contains ("+strings.Repeat("é", 32)+"..., t, null)." || got.Column != "required" {
-		t.Fatalf("UTF-8 clipped row detail: %#v detail=%q (%v)", got, got.Detail, err)
+	_, err := db.Exec("INSERT INTO clip VALUES ($1,$2)", long, true)
+	var got *stuntgres.Error
+	if !errors.As(err, &got) || got.Code != "23502" || got.Message != `null value in column "required" of relation "clip" violates not-null constraint` || got.Detail != "Failing row contains ("+strings.Repeat("é", 32)+"..., t, null)." || got.Hint != "" || got.Position != "" || got.Schema != "public" || got.Table != "clip" || got.Column != "required" {
+		t.Fatalf("UTF-8 clipped row detail: %#v (%v)", got, err)
 	}
+	assertImplicitErrorBoundary(t, got)
 }
 func TestInsertImplicitShortUnicodePosition(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), "implicit-unicode")
