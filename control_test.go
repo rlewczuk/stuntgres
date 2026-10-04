@@ -474,3 +474,78 @@ func TestStringLiteralControls(t *testing.T) {
 	}
 	wantTuples(t, other, "SELECT * FROM restored", [][]any{{"a\nb"}, {"é"}})
 }
+
+func TestNumericLiteralsControlsAndCancellation(t *testing.T) {
+	ctx := context.Background()
+	db := openLocal(t, stuntgres.NewDriver(), "numeric_controls")
+	script := "CREATE TABLE t(id INT,b BIGINT); INSERT INTO t VALUES (1,0b1010),(2,1_000),(3,0x7FFF_FFFF_FFFF_FFFF),(4,-0x8000_0000_0000_0000)"
+	want := [][]any{{int64(1), int64(10)}, {int64(2), int64(1000)}, {int64(3), int64(9223372036854775807)}, {int64(4), int64(-9223372036854775808)}}
+	if err := stuntgres.Restore(ctx, db, strings.NewReader(script)); err != nil {
+		t.Fatal(err)
+	}
+	check := func() {
+		t.Helper()
+		rows, err := db.Query("SELECT id,b FROM t ORDER BY id")
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertNumericRows(t, rows, []string{"id", "b"}, []string{"INT4", "INT8"}, want)
+	}
+	check()
+	held, err := db.Query("SELECT id,b FROM t ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	bad := "CREATE TABLE staged(x INT); INSERT INTO staged VALUES (1); INSERT INTO staged VALUES (0b2)"
+	err = stuntgres.Restore(ctx, db, strings.NewReader(bad))
+	assertNumericDiagnostic(t, err, "42601", `trailing junk after numeric literal at or near "0b2"`, "87")
+	check()
+	_, err = db.Query("SELECT x FROM staged")
+	sqlState(t, err, "42P01")
+	assertNumericRows(t, held, []string{"id", "b"}, []string{"INT4", "INT8"}, want)
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	for _, spelling := range []string{"10", "1000", "9223372036854775807", "-9223372036854775808"} {
+		if !strings.Contains(dump.String(), spelling) {
+			t.Fatalf("canonical dump missing %s: %s", spelling, dump.String())
+		}
+	}
+	for _, spelling := range []string{"0b", "0x", "1_000", "7FFF"} {
+		if strings.Contains(dump.String(), spelling) {
+			t.Fatalf("noncanonical dump: %s", dump.String())
+		}
+	}
+	if err := stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	check()
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	_, err = db.ExecContext(cancelled, "INSERT INTO t VALUES (5,0xa)")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Exec cancellation: %v", err)
+	}
+	stmt, err := db.PrepareContext(cancelled, "INSERT INTO t VALUES (5,0xa)")
+	if stmt != nil {
+		stmt.Close()
+		t.Fatal("canceled Prepare succeeded")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Prepare cancellation: %v", err)
+	}
+	err = stuntgres.Restore(cancelled, db, strings.NewReader(script))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Restore cancellation: %v", err)
+	}
+	var sqlErr *stuntgres.Error
+	if errors.As(err, &sqlErr) {
+		t.Fatalf("context cancellation has SQL diagnostic: %#v", sqlErr)
+	}
+	check()
+}

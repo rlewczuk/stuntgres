@@ -101,6 +101,9 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (1e3)", "0A000"}, {"INSERT INTO t VALUES (1z)", "42601"},
 		{"INSERT INTO t VALUES (B'a')", "0A000"}, {"INSERT INTO t VALUES (X'a')", "0A000"},
 		{"INSERT INTO t VALUES (N'a')", "0A000"}, {"INSERT INTO t VALUES ($tag$a$tag$)", "0A000"},
+		{"INSERT INTO t VALUES (1e+3)", "0A000"}, {"INSERT INTO t VALUES (1_000e3)", "0A000"},
+		{"INSERT INTO t VALUES (1E-3_000)", "0A000"},
+		{"INSERT INTO t VALUES (B'1010')", "0A000"},
 		{"INSERT INTO t VALUES (U&'a')", "0A000"}, {"CREATE TABLE U&\"t\" (x INT)", "0A000"},
 		{"CREATE TABLE t (x TIMESTAMP)", "0A000"}, {"CREATE TABLE t (x NUMERIC(8))", "0A000"},
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
@@ -289,4 +292,85 @@ func TestEscapeStringDiagnostics(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestNumericLiteralDecoding(t *testing.T) {
+	cases := []struct {
+		literal string
+		want    int64
+	}{
+		{"0b1010", 10}, {"0B_1_010", 10}, {"0o12", 10}, {"0O_1_2", 10}, {"0xa", 10}, {"0X_A", 10},
+		{"1_000", 1000}, {"001_000", 1000}, {"010", 10}, {"08", 8}, {"0x1EEE_FFFF", 518979583},
+		{"0o2_73", 187}, {"0b_10_0101", 37}, {"0x1e3", 483},
+		{"0x7FFF_FFFF", math.MaxInt32}, {"-0x8000_0000", math.MinInt32}, {"0x8000_0000", 2147483648},
+		{"9_223_372_036_854_775_807", math.MaxInt64}, {"-9_223_372_036_854_775_808", math.MinInt64},
+		{"0x7FFF_FFFF_FFFF_FFFF", math.MaxInt64}, {"-0x8000_0000_0000_0000", math.MinInt64},
+		{"0o777777777777777777777", math.MaxInt64}, {"-0o1000000000000000000000", math.MinInt64},
+		{"0b" + strings.Repeat("1", 63), math.MaxInt64}, {"-0b1" + strings.Repeat("0", 63), math.MinInt64},
+		{"+0x7FFF_FFFF_FFFF_FFFF", math.MaxInt64}, {"- /*comment*/ 0x8000_0000_0000_0000", math.MinInt64},
+	}
+	for _, base := range []string{"", "0b", "0o", "0x"} {
+		for _, sign := range []string{"", "+", "-"} {
+			cases = append(cases, struct {
+				literal string
+				want    int64
+			}{sign + base + "0", 0})
+			want := int64(1)
+			if sign == "-" {
+				want = -1
+			}
+			cases = append(cases, struct {
+				literal string
+				want    int64
+			}{sign + base + "1", want})
+		}
+	}
+	for _, c := range cases {
+		t.Run(c.literal, func(t *testing.T) {
+			statements, err := Parse("INSERT INTO t VALUES (" + c.literal + ")")
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := statements[0].(*Insert).Rows[0][0]
+			if got.Kind != IntegerValue || got.Integer != c.want || got.Pos.Offset != 22 || got.Pos.Character != 23 {
+				t.Fatalf("value %#v, want %d at 23", got, c.want)
+			}
+		})
+	}
+	if _, err := Parse("CREATE TABLE _100(_1_000 INT); SELECT _1_000 FROM _100"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNumericLiteralLexicalPrecedenceAndNativeLimits(t *testing.T) {
+	check := func(query, code, message, position string) {
+		t.Helper()
+		statements, err := Parse(query)
+		var got *sqlstate.Error
+		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: position}
+		if statements != nil || !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
+			t.Fatalf("Parse(%q) = %#v, %#v (%v), want %#v", query, statements, got, err, want)
+		}
+	}
+	for _, c := range []struct{ tokens, reason string }{
+		{"0b 0B 0b_", "invalid binary integer"}, {"0o 0O 0o_", "invalid octal integer"}, {"0x 0X 0x_", "invalid hexadecimal integer"},
+		{"0b2 0b102 0o8 0o78 0xg 0x1g 0b__1 0o__1 0x__1 0b_2 0x_g 1_ 1__0 1_000_ 1_000__0 0x1_ 0x1__f 1z 1b 1o 1x 0b1junk 0o1$ 10é 1efoo 1e+ 1e3foo 1e3_ 1_000e3__0 1E3foo 1e+3foo 1e-3_ 1_000E+3__0", "trailing junk after numeric literal"},
+	} {
+		for _, token := range strings.Fields(c.tokens) {
+			check("INSERT INTO t VALUES ("+token+")", "42601", c.reason+` at or near "`+token+`"`, "23")
+			check("INSERT INTO t VALUES (1),("+token+")", "42601", c.reason+` at or near "`+token+`"`, "27")
+		}
+	}
+	for _, token := range []string{"9223372036854775808", "0x8000000000000000", "0o1000000000000000000000", "0b1" + strings.Repeat("0", 63), strings.Repeat("9", 200)} {
+		check("INSERT INTO t VALUES ("+token+")", "22003", "integer literal out of range", "23")
+		junk := token + "z"
+		check("INSERT INTO t VALUES ("+junk+")", "42601", `trailing junk after numeric literal at or near "`+junk+`"`, "23")
+	}
+	for _, token := range []string{"9223372036854775809", "0x8000000000000001", "0o1000000000000000000001", "0b1" + strings.Repeat("0", 62) + "1"} {
+		check("INSERT INTO t VALUES (-"+token+")", "22003", "integer literal out of range", "24")
+	}
+	check("INSERT INTO t VALUES (-0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "24")
+	check("/*é*/ INSERT INTO t VALUES (0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "29")
+	check("/*😀*/ INSERT INTO t VALUES (0x_)", "42601", `invalid hexadecimal integer at or near "0x_"`, "29")
+	check("INSERT INTO t VALUES (1); INSERT INTO t VALUES (0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "49")
 }

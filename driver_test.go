@@ -1328,3 +1328,344 @@ func TestStringLiteralPublicDiagnostics(t *testing.T) {
 		}
 	}
 }
+
+// These expectations come from the PostgreSQL numeric lexical contract, not
+// from native decoding or observed parity.
+func numericLiteralErrors() []struct{ token, reason string } {
+	var cases []struct{ token, reason string }
+	for _, prefix := range []struct{ spelling, name string }{{"b", "binary"}, {"o", "octal"}, {"x", "hexadecimal"}} {
+		for _, token := range []string{"0" + prefix.spelling, "0" + strings.ToUpper(prefix.spelling), "0" + prefix.spelling + "_"} {
+			cases = append(cases, struct{ token, reason string }{token, "invalid " + prefix.name + " integer"})
+		}
+	}
+	for _, token := range []string{"0b2", "0b102", "0o8", "0o78", "0xg", "0x1g", "0b__1", "0o__1", "0x__1", "0b_2", "0x_g", "1_", "1__0", "1_000_", "1_000__0", "0x1_", "0x1__f", "1z", "1b", "1o", "1x", "0b1junk", "0o1$", "10é", "1efoo", "1e+", "1e3foo", "1e3_", "1_000e3__0", "1E3foo", "1e+3foo", "1e-3_", "1_000E+3__0"} {
+		cases = append(cases, struct{ token, reason string }{token, "trailing junk after numeric literal"})
+	}
+	for _, token := range []string{strings.Repeat("9", 200) + "z", "0x" + strings.Repeat("F", 100) + "z", "0o" + strings.Repeat("7", 100) + "z", "0b" + strings.Repeat("1", 200) + "z"} {
+		cases = append(cases, struct{ token, reason string }{token, "trailing junk after numeric literal"})
+	}
+	return cases
+}
+
+func numericEndpoints() []string {
+	return []string{
+		"9_223_372_036_854_775_807", "-9_223_372_036_854_775_808",
+		"0x7FFF_FFFF_FFFF_FFFF", "-0x8000_0000_0000_0000",
+		"0o777777777777777777777", "-0o1000000000000000000000",
+		"0b" + strings.Repeat("1", 63), "-0b1" + strings.Repeat("0", 63),
+		"+0x7FFF_FFFF_FFFF_FFFF", "- /*comment*/ 0x8000_0000_0000_0000",
+	}
+}
+
+func assertNumericDiagnostic(t *testing.T, err error, code, message, position string) {
+	t.Helper()
+	var got *stuntgres.Error
+	want := &stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: position}
+	if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
+		t.Fatalf("numeric diagnostic = %#v (%v), want %#v", got, err, want)
+	}
+}
+
+func assertNumericRows(t *testing.T, rows *sql.Rows, names, types []string, want [][]any) {
+	t.Helper()
+	defer rows.Close()
+	gotNames, err := rows.Columns()
+	if err != nil || !reflect.DeepEqual(gotNames, names) {
+		t.Fatalf("names %v, %v; want %v", gotNames, err, names)
+	}
+	metadata, err := rows.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, typ := range types {
+		scan := reflect.TypeOf(int64(0))
+		if typ == "TEXT" {
+			scan = reflect.TypeOf("")
+		}
+		if metadata[i].DatabaseTypeName() != typ || metadata[i].ScanType() != scan {
+			t.Fatalf("metadata %d = %#v, want %s", i, metadata[i], typ)
+		}
+	}
+	var got [][]any
+	for rows.Next() {
+		values := make([]any, len(names))
+		dest := make([]any, len(names))
+		for i := range values {
+			dest[i] = &values[i]
+		}
+		if err := rows.Scan(dest...); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, values)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("rows %v, want %v", got, want)
+	}
+}
+
+func TestNumericLiteralsPublic(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), "numeric")
+			exec := func(query string, count int64, args ...any) {
+				t.Helper()
+				var result sql.Result
+				var err error
+				if prepared {
+					stmt, e := db.Prepare(query)
+					if e != nil {
+						t.Fatal(e)
+					}
+					defer stmt.Close()
+					result, err = stmt.Exec(args...)
+				} else {
+					result, err = db.Exec(query, args...)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if n, e := result.RowsAffected(); e != nil || n != count {
+					t.Fatalf("affected %d, %v; want %d", n, e, count)
+				}
+			}
+			check := func(query string, names, types []string, want [][]any) {
+				t.Helper()
+				var rows *sql.Rows
+				var err error
+				if prepared {
+					stmt, e := db.Prepare(query)
+					if e != nil {
+						t.Fatal(e)
+					}
+					defer stmt.Close()
+					rows, err = stmt.Query()
+				} else {
+					rows, err = db.Query(query)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertNumericRows(t, rows, names, types, want)
+			}
+			exec("CREATE TABLE t(id INT,i INT,b BIGINT)", 0)
+			exec("INSERT INTO t VALUES (1,0b1010,0o12),(2,0xa,1_000)", 2)
+			check("SELECT id,i,b FROM t ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(1), int64(10), int64(10)}, {int64(2), int64(10), int64(1000)}})
+			stmt, err := db.Prepare("INSERT INTO t VALUES ($1,0B_1_010,0X_A)")
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := stmt.Exec(int64(3))
+			stmt.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n, e := result.RowsAffected(); e != nil || n != 1 {
+				t.Fatalf("affected %d, %v", n, e)
+			}
+			check("SELECT id,i,b FROM t WHERE i=0b1010 ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(1), int64(10), int64(10)}, {int64(2), int64(10), int64(1000)}, {int64(3), int64(10), int64(10)}})
+			check("SELECT id,i,b FROM t WHERE b=1_000", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(2), int64(10), int64(1000)}})
+			exec("CREATE TABLE endpoints(id INT,b BIGINT)", 0)
+			var want [][]any
+			for i, literal := range numericEndpoints() {
+				exec(fmt.Sprintf("INSERT INTO endpoints VALUES (%d,%s)", i, literal), 1)
+				value := int64(9223372036854775807)
+				if i%2 == 1 {
+					value = -9223372036854775808
+				}
+				want = append(want, []any{int64(i), value})
+			}
+			check("SELECT id,b FROM endpoints ORDER BY id", []string{"id", "b"}, []string{"INT4", "INT8"}, want)
+			exec("CREATE TABLE bounds(i INT,b BIGINT,label TEXT)", 0)
+			exec("INSERT INTO bounds VALUES (-0x8000_0000,0x8000_0000,0xa),(0x7FFF_FFFF,010,1_000)", 2)
+			check("SELECT i,b,label FROM bounds ORDER BY i", []string{"i", "b", "label"}, []string{"INT4", "INT8", "TEXT"}, [][]any{{int64(-2147483648), int64(2147483648), "10"}, {int64(2147483647), int64(10), "1000"}})
+		})
+	}
+}
+
+func TestNumericLiteralsDiagnosticsAtomicity(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "numeric_errors")
+	if _, err := db.Exec("CREATE TABLE t(x INT)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("INSERT INTO t VALUES (99)"); err != nil {
+		t.Fatal(err)
+	}
+	type failure struct{ query, code, message, position string }
+	var cases []failure
+	for _, c := range numericLiteralErrors() {
+		cases = append(cases, failure{"INSERT INTO t VALUES (1),(" + c.token + ")", "42601", c.reason + ` at or near "` + c.token + `"`, "27"})
+		cases = append(cases, failure{"INSERT INTO t VALUES (" + c.token + ")", "42601", c.reason + ` at or near "` + c.token + `"`, "23"})
+	}
+	cases = append(cases,
+		failure{"INSERT INTO t VALUES (-0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "24"},
+		failure{"/*é*/ INSERT INTO t VALUES (0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "29"},
+		failure{"/*😀*/ INSERT INTO t VALUES (0x_)", "42601", `invalid hexadecimal integer at or near "0x_"`, "29"},
+		failure{"INSERT INTO t VALUES (1); INSERT INTO t VALUES (0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "49"})
+	for _, c := range cases {
+		for _, operation := range []string{"exec", "query", "prepare"} {
+			t.Run(operation+"/"+c.query, func(t *testing.T) {
+				var err error
+				switch operation {
+				case "exec":
+					_, err = db.Exec(c.query)
+				case "query":
+					rows, e := db.Query(c.query)
+					err = e
+					if rows != nil {
+						rows.Close()
+						t.Fatal("failed Query returned cursor")
+					}
+				case "prepare":
+					stmt, e := db.Prepare(c.query)
+					err = e
+					if stmt != nil {
+						stmt.Close()
+						t.Fatal("failed Prepare returned statement")
+					}
+				}
+				assertNumericDiagnostic(t, err, c.code, c.message, c.position)
+				rows, e := db.Query("SELECT x FROM t ORDER BY x")
+				if e != nil {
+					t.Fatal(e)
+				}
+				assertNumericRows(t, rows, []string{"x"}, []string{"INT4"}, [][]any{{int64(99)}})
+			})
+		}
+	}
+	for _, prepared := range []bool{false, true} {
+		query := "INSERT INTO t VALUES (1),(0x8000_0000)"
+		var err error
+		if prepared {
+			stmt, prepareErr := db.Prepare(query)
+			if prepareErr != nil {
+				t.Fatalf("representable int8 assignment must prepare successfully: %v", prepareErr)
+			}
+			_, err = stmt.Exec()
+			stmt.Close()
+		} else {
+			_, err = db.Exec(query)
+		}
+		assertNumericDiagnostic(t, err, "22003", "integer out of range", "")
+		rows, e := db.Query("SELECT x FROM t ORDER BY x")
+		if e != nil {
+			t.Fatal(e)
+		}
+		assertNumericRows(t, rows, []string{"x"}, []string{"INT4"}, [][]any{{int64(99)}})
+	}
+	rows, err := db.Query("SELECT x FROM t WHERE x=0x8000_0000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertNumericRows(t, rows, []string{"x"}, []string{"INT4"}, nil)
+}
+
+func TestNumericLiteralNativeRepresentabilityLimit(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "numeric_native_limits")
+	if _, err := db.Exec("CREATE TABLE t(x BIGINT)"); err != nil {
+		t.Fatal(err)
+	}
+	for _, token := range []string{"9223372036854775808", "0x8000000000000000", "0o1000000000000000000000", "0b1" + strings.Repeat("0", 63), "-9223372036854775809", "-0x8000000000000001", "-0o1000000000000000000001", "-0b1" + strings.Repeat("0", 62) + "1", strings.Repeat("9", 200)} {
+		query := "INSERT INTO t VALUES (" + token + ")"
+		position := "23"
+		if strings.HasPrefix(token, "-") {
+			position = "24"
+		}
+		for _, operation := range []string{"exec", "query", "prepare"} {
+			var err error
+			switch operation {
+			case "exec":
+				_, err = db.Exec(query)
+			case "query":
+				rows, e := db.Query(query)
+				err = e
+				if rows != nil {
+					rows.Close()
+					t.Fatal("out-of-range Query succeeded")
+				}
+			case "prepare":
+				stmt, e := db.Prepare(query)
+				err = e
+				if stmt != nil {
+					stmt.Close()
+					t.Fatal("out-of-range Prepare succeeded")
+				}
+			}
+			assertNumericDiagnostic(t, err, "22003", "integer literal out of range", position)
+		}
+	}
+	rows, err := db.Query("SELECT x FROM t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertNumericRows(t, rows, []string{"x"}, []string{"INT8"}, nil)
+}
+
+func numericLiteralSpellings() []struct {
+	literal string
+	value   int64
+} {
+	cases := []struct {
+		literal string
+		value   int64
+	}{
+		{"0B_1_010", 10}, {"0O_1_2", 10}, {"0X_A", 10}, {"001_000", 1000}, {"010", 10}, {"08", 8},
+		{"0x1EEE_FFFF", 518979583}, {"0o2_73", 187}, {"0b_10_0101", 37}, {"0x1e3", 483},
+	}
+	for _, prefix := range []string{"", "0b", "0o", "0x"} {
+		for _, sign := range []string{"", "+", "-"} {
+			cases = append(cases, struct {
+				literal string
+				value   int64
+			}{sign + prefix + "0", 0})
+			value := int64(1)
+			if sign == "-" {
+				value = -1
+			}
+			cases = append(cases, struct {
+				literal string
+				value   int64
+			}{sign + prefix + "1", value})
+		}
+	}
+	return cases
+}
+
+func TestNumericLiteralsSpellings(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		db := openLocal(t, stuntgres.NewDriver(), fmt.Sprint("spellings", prepared))
+		if _, err := db.Exec("CREATE TABLE t(id INT,b BIGINT)"); err != nil {
+			t.Fatal(err)
+		}
+		var want [][]any
+		for i, c := range numericLiteralSpellings() {
+			query := fmt.Sprintf("INSERT INTO t VALUES (%d,%s)", i, c.literal)
+			var result sql.Result
+			var err error
+			if prepared {
+				stmt, e := db.Prepare(query)
+				if e != nil {
+					t.Fatal(e)
+				}
+				result, err = stmt.Exec()
+				stmt.Close()
+			} else {
+				result, err = db.Exec(query)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n, e := result.RowsAffected(); e != nil || n != 1 {
+				t.Fatalf("affected %d, %v", n, e)
+			}
+			want = append(want, []any{int64(i), c.value})
+		}
+		rows, err := db.Query("SELECT id,b FROM t ORDER BY id")
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertNumericRows(t, rows, []string{"id", "b"}, []string{"INT4", "INT8"}, want)
+	}
+}

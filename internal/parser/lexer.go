@@ -394,19 +394,8 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.current.text = s
 		token = PARAM
 	case digit(c):
-		for l.offset < len(l.input) && digit(l.input[l.offset]) {
-			l.offset++
-		}
-		if l.offset < len(l.input) {
-			next := l.input[l.offset]
-			if next == '.' || next == 'e' || next == 'E' || next == 'x' || next == 'X' || next == 'b' || next == 'B' || next == 'o' || next == 'O' || next == '_' {
-				l.fail("0A000", "non-decimal-integer literal is unsupported")
-				return 0
-			}
-			if initial(next) {
-				l.fail("42601", "trailing junk after integer")
-				return 0
-			}
+		if !l.integerToken(start) {
+			return 0
 		}
 		l.current.text = l.input[start:l.offset]
 		token = NUMBER
@@ -453,4 +442,114 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	v.tok = l.current
 	return token
+}
+
+func numericDigit(c byte) uint64 {
+	switch {
+	case c >= '0' && c <= '9':
+		return uint64(c - '0')
+	case c >= 'a' && c <= 'f':
+		return uint64(c - 'a' + 10)
+	case c >= 'A' && c <= 'F':
+		return uint64(c - 'A' + 10)
+	default:
+		return 16
+	}
+}
+
+// digitEnd recognizes one optional separator before each digit. The caller
+// supplies the mandatory first decimal digit or the radix prefix.
+func digitEnd(input string, offset int, base uint64) int {
+	for offset < len(input) {
+		next := offset
+		if input[next] == '_' {
+			next++
+		}
+		if next == len(input) || numericDigit(input[next]) >= base {
+			break
+		}
+		offset = next + 1
+	}
+	return offset
+}
+
+func (l *lexer) integerToken(start int) bool {
+	decimalEnd := digitEnd(l.input, start+1, 10)
+	end := decimalEnd
+	reason := ""
+	if l.input[start] == '0' && start+1 < len(l.input) {
+		var base uint64
+		var name string
+		switch l.input[start+1] {
+		case 'b', 'B':
+			base, name = 2, "binary"
+		case 'o', 'O':
+			base, name = 8, "octal"
+		case 'x', 'X':
+			base, name = 16, "hexadecimal"
+		}
+		if base != 0 {
+			end = digitEnd(l.input, start+2, base)
+			if end == start+2 {
+				if end < len(l.input) && l.input[end] == '_' {
+					end++
+				}
+				reason = "invalid " + name + " integer"
+			}
+		}
+	}
+	// PostgreSQL integer_junk is a decimal integer followed by an identifier,
+	// even when the spelling also starts a radix integer. Longest match wins;
+	// valid radix and missing-digit rules win ties.
+	junkEnd := decimalEnd
+	if junkEnd < len(l.input) && initial(l.input[junkEnd]) {
+		for junkEnd < len(l.input) && continuation(l.input[junkEnd]) {
+			junkEnd++
+		}
+		if junkEnd > end {
+			end, reason = junkEnd, "trailing junk after numeric literal"
+		}
+	}
+	// Keep valid decimal numeric constants unsupported, but do not hide
+	// integer junk such as 1efoo. Hexadecimal e is already a valid digit.
+	if end == decimalEnd || reason != "" && decimalEnd < len(l.input) && (l.input[decimalEnd] == 'e' || l.input[decimalEnd] == 'E') {
+		if decimalEnd < len(l.input) && l.input[decimalEnd] == '.' {
+			l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
+			return false
+		}
+		if decimalEnd < len(l.input) && (l.input[decimalEnd] == 'e' || l.input[decimalEnd] == 'E') {
+			exponent := decimalEnd + 1
+			if exponent < len(l.input) && (l.input[exponent] == '+' || l.input[exponent] == '-') {
+				exponent++
+			}
+			if exponent < len(l.input) && digit(l.input[exponent]) {
+				exponentEnd := digitEnd(l.input, exponent+1, 10)
+				realJunkEnd := exponentEnd
+				if realJunkEnd < len(l.input) && initial(l.input[realJunkEnd]) {
+					for realJunkEnd < len(l.input) && continuation(l.input[realJunkEnd]) {
+						realJunkEnd++
+					}
+				}
+				// A complete valid exponent beats equal-length integer junk,
+				// but not a longer identifier/separator suffix. Signed
+				// exponents also need the real_junk match beyond the sign.
+				if realJunkEnd == exponentEnd && exponentEnd >= end {
+					l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
+					return false
+				}
+				if realJunkEnd > end {
+					end, reason = realJunkEnd, "trailing junk after numeric literal"
+				}
+			}
+			if exponent > end {
+				end, reason = exponent, "trailing junk after numeric literal"
+			}
+		}
+	}
+	l.offset = end
+	if reason != "" {
+		l.failAt("42601", reason+" at or near \""+l.input[start:end]+"\"", start)
+		return false
+	}
+	return true
 }

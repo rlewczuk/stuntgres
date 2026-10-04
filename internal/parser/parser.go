@@ -48,10 +48,40 @@ type lexeme struct {
 }
 
 func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
-	n, err := strconv.ParseInt(sign+tok.text, 10, 64)
-	if err != nil {
-		l.(*lexer).fail("22003", "integer literal out of range")
-		return Value{}, false
+	base, offset := uint64(10), 0
+	if len(tok.text) > 2 && tok.text[0] == '0' {
+		switch tok.text[1] {
+		case 'b', 'B':
+			base, offset = 2, 2
+		case 'o', 'O':
+			base, offset = 8, 2
+		case 'x', 'X':
+			base, offset = 16, 2
+		}
+	}
+	limit := uint64(1<<63 - 1)
+	if sign == "-" {
+		limit++
+	}
+	var magnitude uint64
+	for ; offset < len(tok.text); offset++ {
+		if tok.text[offset] == '_' {
+			continue
+		}
+		d := numericDigit(tok.text[offset])
+		if magnitude > (limit-d)/base {
+			l.(*lexer).failAt("22003", "integer literal out of range", tok.pos.Offset)
+			return Value{}, false
+		}
+		magnitude = magnitude*base + d
+	}
+	var n int64
+	if sign == "-" && magnitude != 0 {
+		// Map magnitude 2^63 to MinInt64 without overflowing conversion or
+		// negation; zero uses the ordinary conversion below.
+		n = -int64(magnitude-1) - 1
+	} else {
+		n = int64(magnitude)
 	}
 	return Value{Kind: IntegerValue, Integer: n, Pos: tok.pos}, true
 }
