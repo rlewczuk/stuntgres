@@ -1,53 +1,34 @@
-# PG18-ARCH-EXPRESSION-ANALYSIS — Expression analysis and evaluation contract
+# PG18-ARCH-EXPRESSION-ANALYSIS — Expression analysis and evaluation
 
-## 1. Decision, scope, and authority
+## 1. Decision and authority
 
-This is the completed **design decision artifact**, not an executable expression foundation. Adopt one raw-expression representation in `internal/parser` and one immutable, typed bound-expression seam in the existing `internal/engine` statement binder and executor. All signatures below are proposed internal contracts. No SQL, unit/reference tests, builds, formatters, or smoke commands were executed for this design. The frozen plan declares `smoke_commands=[]`; future executable consumers must supply actual feature smoke, not baseline-only evidence.
+Adopt one parser raw-expression representation and one immutable typed expression seam inside the **existing engine statement binder/executor**. This is a design-only contract: all declarations and SQL witnesses below are future requirements, not implemented APIs or exercised results. No production code or adjacent design changes are authorized. Individual syntax, operators/functions, casts, aggregates/windows, subqueries and clauses remain their bounded implementation owners. Production dependencies remain standard library/module only.
 
-This decision covers scalar expression analysis and evaluation interfaces, references, scopes, contexts, NULL, evaluation guarantees, dependencies, and diagnostics. Individual syntax, operators/functions, casts, aggregates/windows, subqueries, and query clauses remain separate implementation capabilities. No production code, prerequisite, catalog record/status, or adjacent design is changed by this artifact. Production dependencies remain standard library/module only.
+Binding prerequisites: [CATALOG-IDENTITY](PG18-ARCH-CATALOG-IDENTITY.md) §§2–4,6–7 owns provenance, normalized names, retained reads, lookup, dependencies, validity and publication; [TYPE-SYSTEM](PG18-ARCH-TYPE-SYSTEM.md) §§2–9 owns Usage/Value, coercions, callable selection, parameters, keys, metadata and adapter conversion. Use its `ColumnDescriptor`/`StatementDescription`, not catalog's illustrative parser-column result shape as a second metadata model. Completed designs do not imply executable capabilities.
 
-Binding prerequisites, whose completed design status does **not** imply implemented APIs:
+Composition with the allowed companion contracts is explicit, not a new subsystem:
+- [SESSION](PG18-ARCH-SESSION.md) §3 supplies the same pointer-owned `*Operation` to Describe/Execute, coherent resolution/selected target and combined cancellation context; statement-owned expressionBinder receives these privately. No retained session state in bound nodes.
+- [AUTHORIZATION](PG18-ARCH-AUTHORIZATION.md) §§5,7–8 owns `AccessRequirement` collection/checkpoints, routine EXECUTE, scoped definer authority and RLS placement. Binder contributes actual referenced columns/callables and positions to statement requirements, including predicate-only uses. Binding an identity does not authorize access. Preserve its preparation/preflight versus execution phases; do not add an unconditional ACL-first rule.
+- [TX-VISIBILITY](PG18-ARCH-TX-VISIBILITY.md) §§3,5–8 supplies statement scope, purpose-specific resolution catalog/data view, staged writes and completion. Preparation retains definitions, not execution snapshots; snapshot-requiring analysis can acquire a view. Scalar evaluation cannot acquire arbitrary snapshots, commit or invent retries. Source `{DatabaseTarget,ObjectRef}` provenance survives query/frame construction; frame slots are not authority.
 
-* [Catalog identity design](PG18-ARCH-CATALOG-IDENTITY.md), §§2–4 and 6–7: engine/epoch/object ownership, normalized names, coherent retained `CatalogRead`, candidate discovery, `PlanDependency`, prepared validity/reanalysis, and publication.
-* [Type-system design](PG18-ARCH-TYPE-SYSTEM.md), §§2–9: `sqltype.Usage`, immutable nullable `sqltype.Value`, raw unknown handling, coercion/call plans, parameter constraints, comparison/key families, metadata, adapters, and cutover ownership.
+### Acceptance
 
-Use the type design's `ColumnDescriptor`/`StatementDescription` in the catalog design's illustrative `BoundPlan` result slots; do not preserve `[]parser.Column` as a second resolved metadata model. Diagnostic transport is shared `internal/sqlstate`, extended by **PG18-DRIVER-ERROR-FIELDS**, not expression-owned.
-
-### 1.1 Version and source policy
-
-Normative semantics are the official PostgreSQL `/docs/18/` manual, whose research navigation identifies **18.6**. The real reference stays **PostgreSQL 18.0**, UTF8/C, pinned to:
-
-```
-postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854
-```
-
-Only **PG18-REF-ORACLE-18-6** owns minor-specific oracle alignment. Local PostgreSQL 20devel is research-only, never the release oracle. Future reference outcomes below are independently specified expectations, not observed executions or parity claims.
-
-Normative links: [value expressions §4.2](https://www.postgresql.org/docs/18/sql-expressions.html), [evaluation §4.2.14](https://www.postgresql.org/docs/18/sql-expressions.html#SYNTAX-EXPRESS-EVAL), [query scopes and WHERE §7.2](https://www.postgresql.org/docs/18/queries-table-expressions.html), [logical truth §9.1](https://www.postgresql.org/docs/18/functions-logical.html), [conditionals §9.18](https://www.postgresql.org/docs/18/functions-conditional.html), [volatility §36.7](https://www.postgresql.org/docs/18/xfunc-volatility.html), [conversion §10.1](https://www.postgresql.org/docs/18/typeconv-overview.html), [assignment §10.4](https://www.postgresql.org/docs/18/typeconv-query.html), and [error fields §54.8](https://www.postgresql.org/docs/18/protocol-error-fields.html).
-
-### 1.2 Acceptance map
-
-| Selected acceptance | Decision | Independent future witnesses |
+| Item | Contract | Independent future witness |
 |---|---|---|
-| A1 raw/bound, typed result, error/location | §§2, 5 | W1–W3, W5 |
-| A2 resolution, rows/parameters, correlation | §§3–4 | W1, W3–W4, W6 |
-| A3 context, ownership, NULL/truth | §§4, 6 | W2, W6–W7 |
-| A4 catalog/type delegation | §§2–4 | W1, W5, W7 |
-| A5 volatility, skipping/order, cancellation | §§6–7 | W5–W6 |
-| A6 extension and clean cutover | §§8–9 | W7 |
-| A7 bounded backlog consumers | §10 | W1–W7 and owner exit witnesses |
+| A1 raw/bound interfaces, typed result, errors/locations | §§2,5 | W1–W3,W5 |
+| A2 scopes, row/parameter access, correlation boundaries | §§3–4 | W1,W3–W4,W6 |
+| A3 context, ownership/lifetime, NULL/truth | §§4,6 | W2,W6 |
+| A4 catalog/type operator/function delegation | §§2,4 | W1,W5,W7 |
+| A5 volatility, skipping/order, cancellation | §6 | W5–W6 |
+| A6 extension and clean-cutover caller map | §§7–8 | W7 |
+| A7 bounded backlog implementation breakdown | §9 | W1–W7 and owner exits |
 
-## 2. Raw syntax → finalized immutable expression
+## 2. Raw → bound → execution
 
-### 2.1 Parser-owned raw contract
-
-The following logical declarations belong in the existing parser package when their consumer implements them:
+Proposed parser contracts (package-private marker closes the set):
 
 ```go
-type Expr interface {
-    expression()
-    SourcePosition() Position
-}
+type Expr interface { expression(); SourcePosition() Position }
 type LiteralExpr struct { Value Value }
 type ColumnExpr struct { Name ObjectName; Pos Position }
 type ParameterExpr struct { Number int; Pos Position }
@@ -55,13 +36,9 @@ type OperatorExpr struct { Name ObjectName; Args []Expr; Pos Position }
 type FunctionExpr struct { Name ObjectName; Args []Expr; Pos Position }
 ```
 
-The package-private marker closes the set; new syntax adds concrete parser kinds and grammar productions, not a public string/`any` expression registry. `ObjectName`/`Identifier` reuse the catalog parser contract: individual normalized parts and positions, normalization exactly once. Raw `Value` denotes literal syntax only, never runtime storage or a resolved type. `LiteralExpr.SourcePosition` returns its literal token's position; other nodes return `Pos`. Parentheses preserve child occurrence positions.
+Reuse catalog's component-wise normalized `ObjectName`/`Identifier`; no splitting decoded dots or second normalization. Raw Value is literal syntax, not runtime storage. LiteralExpr returns Value.Pos; other kinds return Pos. ParameterExpr becomes the sole generalized `$n` occurrence, replacing scalar ParameterValue paths during migration; raw type-modifier Value syntax remains TYPE-CORE-owned until its owner migrates it. Feature owners add named/default/variadic syntax. Parentheses preserve child positions.
 
-`ParameterExpr` is the sole generalized parameter occurrence. During migration, grammar emits it for `$n`; do not wrap `ParameterValue` as a literal or retain both expression paths. TYPE-CORE-owned raw type modifiers stay distinct until that owner migrates them; their retained `Value` syntax does not authorize a second scalar evaluator. Named/default/variadic function syntax is feature-owned.
-
-Retain the original SQL with the statement/plan, rather than evaluating SQL substrings or reconstructing source from nodes. `Position.Offset` is a zero-based byte offset into that SQL. For newly synthesized expressions, `Offset=-1` denotes absence; zero is the first character. An occurrence reports the responsible token: column reference start, `$n`, operator token, or function-name token.
-
-### 2.2 Engine-owned bound contract
+Proposed engine contracts:
 
 ```go
 type BoundExpr interface {
@@ -72,56 +49,32 @@ type BoundExpr interface {
     Eval(*EvalContext) (sqltype.Value, error)
 }
 type Volatility uint8
-const (
-    Immutable Volatility = iota
-    Stable
-    Volatile
-)
+const (Immutable Volatility = iota; Stable; Volatile)
 type ExprProperties struct {
     Volatility Volatility
-    RowDependent bool
-    ParameterDependent bool
-    StageDependent bool
+    RowDependent, ParameterDependent, StageDependent bool
 }
-type ExpressionAnalysis struct {
-    Expr BoundExpr
-    Dependencies []PlanDependency
-}
+type ExpressionAnalysis struct { Expr BoundExpr; Dependencies []PlanDependency }
 func (b *expressionBinder) Bind(raw parser.Expr, policy ExprPolicy) (ExpressionAnalysis, error)
 ```
 
-`expressionBinder` is **private state of the existing statement binder**. Its parent supplies the cancellation context, retained catalog/type view, resolution context, scope allocator, and statement-local parameter state. It is not another externally reachable statement analyzer. A successful `Bind` yields a typed node plus dependencies into analysis-private state; only successful whole-statement finalization publishes the complete immutable plan/description. On failure, no partial result or changed public parameter description is installed.
+`expressionBinder` is private statement-binder state holding its operation context, catalog/type view, resolution context, scope allocation and parameter constraints. Bind adds analysis-private nodes/dependencies; **whole-statement successful finalization** freezes nodes, children, usages, providers, dependencies and descriptions. Failure publishes no executable binding or partial public metadata.
 
-Required node forms and invariants:
-
-| Form | Immutable retained data | Eval behavior |
+| Bound form | Retained immutable data | Evaluation |
 |---|---|---|
-| Literal | Concrete Usage, immutable typed constant or type-owned materialization plan, occurrence | Returns typed value; no raw unknown runtime Value |
-| Column | Usage, `BoundColumnRef`, occurrence | Reads validated frame coordinates; no runtime name lookup |
-| Parameter | Fixed parameter index/Usage and occurrence-specific conversion plan | Reads imported execution parameter then applies that occurrence plan |
-| Coercion | Child, type-owned immutable plan, destination Usage, occurrence | Evaluates child and invokes `CoercionPlan.Apply` |
-| Selected call | Children, immutable `sqltype.BoundCall`/provider handle, result Usage, occurrence | Evaluates call inputs, applies selected conversions, invokes provider or strict NULL rule |
-| Conditional/control | Ordered typed children and selected common Usage/plans | Implements the dedicated lazy contract in §6, never eager-call desugaring |
-| Stage value | Typed scope/frame/slot, occurrence and stage dependence | Reads an already computed value through `StageValues` |
+| Literal | Concrete Usage, typed constant/materialization plan, occurrence | No raw unknown runtime Value |
+| Column | Usage, BoundColumnRef, occurrence | Validated frame coordinates, never names |
+| Parameter | Fixed index/Usage, occurrence conversion plan | Imported parameter then occurrence coercion |
+| Coercion | Child, type-owned plan, destination Usage, occurrence | Child then CoercionPlan.Apply |
+| Selected call | Typed children, BoundCall/provider, result Usage, occurrence | Selected input conversions then invocation/strict NULL |
+| Control | Ordered typed children, common Usage/plans | Dedicated lazy runtime rule (§6) |
+| Stage value | Usage, scope/frame/slot, stage dependence, occurrence | Already computed stage result |
 
-Every executable node has concrete `Usage`, source evidence, properties and dependency contribution. `Eval` succeeds only with a valid Value whose descriptor matches `ResultUsage().Type`; typmod/collation stay occurrence metadata, not per-cell descriptors. SQL NULL is typed. Zero `sqltype.Value` is invalid/unset, never NULL. Result nullability remains unknown unless analysis proves it, per the type metadata contract.
+Every executable kind contributes dependencies/properties and returns a valid Value matching its result descriptor. Usage carries occurrence typmod/collation; these are not per-cell descriptors. Zero Value is invalid, not NULL; SQL NULL retains a concrete type. Nullability is unknown unless proved. Deduplicate statement `PlanDependency` values for columns/types/casts/callables/providers/collations. Derived outputs invent no catalog identities. Stored definitions convert these to catalog edges; prepared dependencies remain ephemeral and cannot block DROP RESTRICT.
 
-Freeze all nodes, children, usages, provider handles, parameter descriptions and dependency collections at whole-statement finalization. Deduplicate dependencies in the parent statement binder using catalog `PlanDependency`: columns, types, casts, selected callable/provider and collation identities. Derived values do not invent catalog objects. Stored-definition consumers translate bound dependencies to their catalog edges; prepared validity dependencies are not durable `pg_depend` entries and never block DROP RESTRICT.
+Lifecycle: whole-input parse → private analysis → type/scope/parameter/dependency finalization → immutable plan/StatementDescription → catalog validity/reanalysis at prepared use → private execution → retained result or staged publication. Direct execution analyzes fresh. Prepared use follows catalog §6's owner/epoch/revision/environment validity and fixed parameter/result shape; complete replacement only, no stale execution or metadata mutation on failed reanalysis. Original SQL remains with statement/plan, never runtime substring evaluation.
 
-### 2.3 Lifecycle and publication
-
-| Transition | Owner and complete output | Failure |
-|---|---|---|
-| SQL → raw AST | Existing whole-input parser; source/positions | No execution of a valid prefix |
-| Raw → private analysis | Statement binder delegates each expression with explicit policy | No executable statement/description published |
-| Resolve/finalize | Type/candidate resolution, occurrence coercions, parameters and dependencies; immutable bound plan plus StatementDescription | Unresolved usages or illegal contexts reject the statement |
-| Validate prepared use | Catalog validity/reanalysis against current retained view | No stale binding executes; no partial replacement |
-| Execute | Fresh typed parameters, frames, stage values, scratch | Ordinary context/provider errors propagate; no staged write publishes |
-| Result/publication | Cursor retains paired rows/metadata; write owner publishes once | Final cancellation/precondition failure preserves committed state |
-
-Direct execution analyzes fresh; prepared execution follows catalog §6's engine/epoch/revision/environment state machine and fixed parameter/result shape. Reanalysis uses original SQL, installs one complete replacement only after success, and may fail without running stale nodes. Expression analysis neither invents retries nor changes public metadata.
-
-## 3. Scope resolution and explicit correlation coordinates
+## 3. Scope, policy and correlation
 
 ```go
 type ScopeID uint32
@@ -136,8 +89,7 @@ type ColumnBinding struct {
 type NamespaceItem struct {
     Name parser.ObjectName
     Columns []ColumnBinding
-    RelationVisible bool
-    ColumnsVisible bool
+    RelationVisible, ColumnsVisible bool
 }
 type ExpressionScope struct {
     ID ScopeID
@@ -154,18 +106,11 @@ type BoundColumnRef struct {
 }
 ```
 
-These are engine-owned, analysis-immutable records. The statement/query binder allocates nonzero IDs unique within the bound plan; zero IDs are invalid. `Depth=0` addresses the current query frame; each permitted outer-query edge increases it by one. Lexical nesting, policy changes and a conditional arm do not create a query depth. Physical column `Origin.Address.SubID` is the catalog's stable attribute number, never a slice index. Derived/stage outputs use zero Origin and valid execution coordinates. The query owner supplies aliases, namespace visibility and flattened join/derived layouts from authoritative catalog descriptors; expression analysis does not own another column catalog.
+The statement/query owner creates analysis-immutable namespaces and plan-unique nonzero scope/frame IDs; zero is invalid. Catalog supplies descriptors; query owner supplies exposed aliases, qualification and flattened join/derived layouts. Origin.SubID is stable attribute number, not execution slot. Derived/stage outputs use zero Origin and valid coordinates. Preserve catalog/target provenance through source binding; no expression column catalog.
 
-Resolution algorithm:
+Resolution has distinct stopping rules. **Unqualified column:** search ColumnsVisible items in the current query scope; multiple matches fail 42702, one match shadows outer columns, and only no eligible column match permits an enabled Outer edge. **Qualified reference:** first select the nearest eligible RelationVisible relation/alias item by qualifier (same-scope alias ambiguity fails 42P09), traversing enabled outer edges only if no qualifier matches. Then search the column **only in that selected item**; a missing column cannot restart qualifier lookup in an outer scope. Feature-owned whole-row/function-style fallback also uses that selected item, not an outer alias. Schema qualification matches unaliased relation identity, not a dotted alias string. Depth counts query edges, not lexical nesting/policy changes. Missing columns fail 42703; unknown/alias-hidden qualifiers have feature-specific 42P01 paths. Aliases hide original names; inaccessible-column diagnostics distinguish hidden existing columns from no match.
 
-1. Select visible namespace items appropriate to the raw qualification. Unqualified lookup uses `ColumnsVisible`; a qualifier matches `RelationVisible` items by their exposed relation/alias name.
-2. Resolve matches in the nearest permitted query scope. More than one matching column there fails **42702**; never choose registration order. A local match shadows outer matches.
-3. Only no local match allows an outer lookup, and only through an explicitly enabled `OuterAllowed` edge. Record the resolved Scope, Depth, Frame and Slot once.
-4. Missing unqualified columns fail **42703**. Unknown/hidden relation qualifiers have command-specific **42P01** diagnostics, not a universal column error. Diagnostics distinguish an inaccessible existing column from one that does not exist.
-
-An alias hides the original relation name. Query owners must provide a filtered namespace, not expose every execution frame and expect Eval to police it. A non-LATERAL FROM-derived context excludes sibling inputs; a LATERAL context includes only eligible preceding/left inputs. Allowed outer-query references are separate from excluded siblings. A scalar subquery owner builds its own scope and permitted outer edge, then a runtime frame retaining the correct outer row. Cardinality/width checks and correlation iteration belong to **PG18-QUERY-SUBQUERY**, not scalar Eval.
-
-### 3.1 Policy is explicit and copied into nested binding
+Non-LATERAL FROM-derived scopes exclude sibling inputs. LATERAL owners expose only eligible preceding/left inputs and enforce join-side legality; an allowed outer query is distinct from excluded siblings. Query/subquery owner constructs the outer frame for the correct row and owns correlation iteration, width/cardinality and exact context errors. Scalar Eval never searches a convenient ancestor.
 
 ```go
 type ExprContext uint8
@@ -187,39 +132,35 @@ type ExprPolicy struct {
     Expected *sqltype.Usage
     Coercion sqltype.CoercionContext
     MaxVolatility Volatility
-    AllowParameters bool
-    AllowAggregate bool
-    AllowWindow bool
-    AllowSubquery bool
+    AllowParameters, AllowAggregate, AllowWindow, AllowSubquery bool
 }
 ```
 
-Consumers explicitly construct every policy; a zero-valued policy is not a permissive default. `Expected=nil` means no contextual destination, never implicitly TEXT. Expected usage is a destination/construct constraint, not permission to use assignment casts in overload selection. Nested binding receives policy by value; any child-specific changes are local, and failures cannot leak context into siblings. Consumers validate feature-specific legality (including self/generated references and stage nesting), while common dispatch rejects nodes disallowed by the supplied policy before finalization. Unsupported features return their owning feature's error, never a successful fallback.
+Consumers construct every policy explicitly; zero is not permissive. Expected=nil means no destination, never automatic TEXT or assignment-cast overload admission. Nested binding receives policy by value; child changes/errors cannot leak into siblings. Common dispatch rejects disallowed kinds before finalization; feature owners check stage nesting, self/generated references and context-specific restrictions/errors.
 
-| Context transition | Supplied scope/expected usage | Boundary |
+| Context transition | Owner supplies | Acceptance/boundary |
 |---|---|---|
-| Projection | Query-visible input; optional construct destination | Output unknown default only at type-owned boundary |
-| Filter/ON/HAVING | Stage-appropriate namespace; BOOL expected | Consume only True; stage owner controls aggregate/window legality |
-| Assignment | Owner's input frame; destination Usage, Assignment context | Resolve expression first, then sizing/constraints |
-| Default | Empty row namespace, no outer columns | Fresh per-row value, followed by assignment |
-| Generated/CHECK/index | Feature-filtered same-table row namespace | Generated dependencies, CHECK truth and index immutability remain distinct |
-| RETURNING | Feature-provided OLD/NEW/result namespace | No invented old-row or conflict semantics |
-| Aggregate/window argument | Feature-provided pre-stage namespace | Feature owns nesting legality and stage computation |
-| Subquery entry | New scope and explicitly permitted outer edge | No accidental sibling or lexical-parent capture |
+| Projection | Query input namespace | Type-owned output fallback |
+| Filter/ON/HAVING | Stage-appropriate namespace, BOOL expectation | Only True retained; owner controls stage legality |
+| Assignment | Input frame, destination Usage, Assignment context | Expression resolution before sizing/constraints |
+| Default | Empty row scope, no outer columns | Fresh per-row evaluation then assignment |
+| Generated/CHECK/index | Feature-filtered same-row scope | Distinct dependencies, truth and immutability restrictions |
+| RETURNING | Feature OLD/NEW/result namespace | No invented old-row/conflict semantics |
+| Aggregate/window args | Pre-stage namespace | Owner controls nesting/computation |
+| Subquery | New query scope, enabled outer edges only | Owner controls cardinality and iteration |
+| RLS | Authorization-selected feature row scope, BOOL; no aggregates/windows | USING drops False/Unknown; WITH CHECK rejects them (not CHECK-constraint truth) |
 
-## 4. Catalog/type delegation and execution inputs
+RLS query placement/leakproof ordering belongs to authorization/query consumers. Do not infer reordering permission from volatility alone or implement a second policy evaluator.
 
-### 4.1 Analysis uses the prerequisite authorities
+## 4. Delegation and execution ownership
 
-Retain one coherent `CatalogRead` and `ResolutionContext` for a statement analysis. Obtain object descriptors through catalog `ResolveReference`; obtain routine/operator candidates through `LookupCandidates` with the proper `LookupKind`. Adapt authoritative descriptors to type-owned `sqltype.Candidate`, including signature, strictness, provider metadata and visibility. Do not duplicate search-path filtering, identity allocation, overload rules or cast graphs.
+Analysis retains a coherent catalog/type view and resolution context for its purpose. Resolve objects with ResolveReference, routine/operator candidates with LookupCandidates and LookupKind. Adapt authoritative candidates to sqltype.Candidate including signature, strictness, visibility and provider properties; invent no search-path/overload/cast algorithm or callable catalog.
 
-Use `ResolveOperator`/`ResolveFunction` to select `BoundCall` and inserted **Implicit** conversions. Use `ResolveUnknown`, `PlanCoercion` and ordered `CommonType` as specified by the type design, not a local expression type enum. Resolve the expression/operator first; apply destination **Assignment** coercion and typmod sizing afterward. Unknown literals run only the selected input codec; failed input does not retry another overload. Explicit cast syntax/plans remain **PG18-CAST-EXPLICIT**; generalized executable CommonType remains **PG18-FUNC-CONDITIONAL**.
+ResolveOperator/ResolveFunction choose BoundCall and **Implicit** input conversions. Apply destination **Assignment** coercion/sizing only after expression resolution. ResolveUnknown, PlanCoercion and ordered CommonType remain type-owned; failed selected input never retries overloads. CASE supplies CommonType's type-owned ELSE-before-THEN order, distinct from runtime WHEN order. Explicit cast syntax is CAST-EXPLICIT; executable conditional CommonType belongs to FUNC-CONDITIONAL. Preserve BoundCall's operation/input collation separately from result collation.
 
-Reuse statement-private `ConstrainParameter(number, expected, sourceOffset)` and `FinalizeParameters()` from type §5.2. Retain sparse references until validating gaps before count-sized allocation. The fixed published parameter Usage has typmod -1 and descriptor default collation; each occurrence retains its own conversion/sizing plan. Invalid references, unresolved/gap parameters and incompatible unresolved occurrences follow the prerequisite's **42P02**, **42P18** and **42P08** boundaries. Do not change parameter types from execution Go kinds. TYPE-CORE's narrow unsupported mixed-destination rule stays until its generalized inference owner migrates it.
+Use statement-private ConstrainParameter(number,expected,sourceOffset) and FinalizeParameters. Preserve sparse gap validation before count-sized allocation, fixed Usage (typmod -1/default collation), and occurrence-specific conversion/sizing. Invalid/unresolved/inconsistently unresolved parameters follow 42P02/42P18/42P08. Go argument kinds cannot change inferred types. TYPE-CORE's narrow mixed-destination 0A000 remains until its generalized inference owner migrates it.
 
-Finalization prohibits unknown/invalid executable results and parameters. Standalone unknown literal output defaults to TEXT only at the designated type output boundary; contextual/set-operation inputs defer that default. An unresolved parameter does not receive the literal TEXT default.
-
-### 4.2 Runtime context and access
+Finalization prohibits unknown/invalid executable results and parameters. At the type-owned standalone SELECT/RETURNING output boundary, remaining unknown targets, including bare unresolved parameters, receive a TEXT contextual constraint after other inference. Contextual INSERT SELECT/set-operation inputs defer output fallback; unresolved parameters elsewhere (such as `$1 IS NULL`) still fail 42P18. This is not an unconditional parameter default.
 
 ```go
 type EvalFrame struct {
@@ -242,195 +183,133 @@ type StageValues interface {
 }
 ```
 
-The execution owner supplies a nonnil Context, current frame and any adapters needed by its finalized nodes. A column read follows exactly `Depth` outer links, checks the expected Scope and reads its Frame/Slot. It does not search ancestors opportunistically or resolve names. Invalid/missing coordinates or absent required stage adapters are internal invariant errors, not SQL NULL or invented undefined-column SQLSTATE. Stage access consumes already computed typed values; its query owner ensures any correlated stage address uses the correct retained scope instance.
+Column Eval follows exactly Depth outer links, checks Scope, reads Frame/Slot. Missing coordinates/stage adapters are invariant errors, never NULL or fabricated undefined-column SQLSTATE. Stage owner supplies the correct correlated scope instance. Parameter n reads index n-1 from the imported array; public count/name/ordinal validation precedes Eval. Root ImportParameter/ExportValue own wire conversion. CallExecutor receives values normalized once to selected formals; native/routine owners handle privileges, body frames, scoped settings/authority, nested snapshots and effects.
 
-Parameters read index n-1 from a fixed imported array. Public missing/extra/invalid args fail the existing adapter count/ordinal/name boundary before Eval. Root `ImportParameter`/`ExportValue` own driver conversion; detached typed inputs are supplied to the engine. `CallExecutor.Invoke` receives values normalized to the selected formal signature; conversion runs once under the type-owned plans, not again in provider lookup. It bridges native/routine owners, not another routine interpreter. Those owners control privileges, body frames, nested snapshots and publication.
+Ownership/allocation rules:
+- Bound plans contain no execution values, contexts, frames, scratch or mutable caches; concurrent executions never mutate nodes/descriptions.
+- Each execution owns frames/parameters/stages and reusable scratch sized once for required calls/output. Nested live arguments use nonoverlapping scratch. Borrowed rows/argument slices cannot be retained by providers.
+- Detach mutable external inputs once at import; share immutable strings/scalars/descriptors. No redundant whole-snapshot copying, primitive boxing or descriptors per cell. Returned Values cannot wrap mutable borrowed scratch.
+- Frame maps describe logical setup, not per-cell allocation/catalog work; compile IDs to indexed access when appropriate without changing semantics.
+- Retained catalog/provider/descriptor/row lifetimes outlive their plan/cursor uses. Reset/Restore installs a new lifetime, never mutates captured rows/metadata. Cursor owns typed scratch and ExportValue; NULL exports nil with declared metadata preserved.
 
-### 4.3 Ownership and allocation invariants
+## 5. Errors and source evidence
 
-* A retained bound plan contains no execution arguments, frames, context pointers, mutable caches or scratch. Concurrent/repeated use requires no mutation of expression nodes.
-* Each execution owns its frames, parameter array, stage adapters and reusable scratch sized for its expression/call requirements. Rows and argument slices are borrowed for the invocation; providers cannot retain those slices or context for later mutation. Nested calls use nonoverlapping live scratch regions, so a child cannot overwrite still-live parent arguments.
-* Detach mutable external inputs once at import. Share immutable scalars/strings/descriptors and checked immutable extension payloads; do not box primitives, copy whole snapshots or allocate descriptors per cell.
-* Frame maps are logical setup records, not per-cell catalog lookups/allocations. Consumers may compile Frame IDs to indexed access without changing identity or visibility semantics.
-* Provider results obey type-owned immutable-payload construction and resolved result identity. Returning borrowed mutable scratch as a Value is forbidden.
-* Catalog reads, descriptors, bound provider handles and captured snapshots are retained for the plan/cursor's required lifetime. Reset/Restore installs a new lifetime; it never mutates values or metadata already held by a cursor.
-* Cursor output uses type-owned `ColumnDescriptor`, typed private scratch and `ExportValue`. NULL exports nil but never loses BOOL or another declared result descriptor.
+Bind/Eval return ordinary error using the **existing** internal/sqlstate transport/root alias. PG18-DRIVER-ERROR-FIELDS transport and full-field reference helpers already exist; expression consumers populate exact feature diagnostics, not another envelope. Preserve provider SQLSTATE/primary/detail/hint; never mutate a shared provider error or blanket-add Schema/Table/Column. Attach location only where the corresponding PostgreSQL diagnostic has it. Context/adapter/I/O/internal invariant errors remain ordinary errors.
 
-## 5. Errors and locations
+Position.Offset is a zero-based byte offset into retained SQL; newly synthesized absent positions use -1, never zero (first character). Preserve existing Position.Character evidence. Convert to one-based **character** Position at the shared diagnostic boundary, not by substring search/byte counting. Responsible locations are reference start, `$n`, operator token or function name; parentheses do not replace children.
 
-`Eval`/`Bind` return ordinary `error`; SQL errors reuse `internal/sqlstate` and **PG18-DRIVER-ERROR-FIELDS** for SQLSTATE, primary/detail/hint, optional object fields and source positions. There is no expression-specific error envelope. Preserve provider SQLSTATE and English primary/detail/hint; do not mutate a shared provider error. Attach consumer location only where the corresponding PostgreSQL diagnostic has it. Do not blanket-fill Schema/Table/Column for every expression failure.
+Delegated examples: undefined/ambiguous column 42703/42702, relation qualifier 42P01, no/ambiguous callable 42883/42725, assignment/common-type mismatch 42804, unsupported cast pair 42846, input/range/sizing 22P02/22003/22001. Feature owners supply exact wording/fields and unsupported-feature diagnostics, never a successful fallback or error-to-NULL suppression.
 
-The diagnostic adapter converts an occurrence's byte offset using original SQL into PostgreSQL's one-based **character** Position. Absent offset -1 stays absent. Parentheses do not displace responsible tokens. Internal execution-layout errors are engine invariant failures, not fabricated SQL user errors. Go context, driver argument, converter and I/O errors stay ordinary errors at their documented boundaries.
+## 6. Truth, evaluation guarantees, volatility and cancellation
 
-Representative delegated SQL failure classes: missing column 42703, same-scope ambiguous column 42702, qualifier/relation lookup 42P01, no callable 42883, ambiguous callable 42725, assignment/common-type mismatch 42804, unsupported explicit pair 42846, invalid input 22P02, range 22003 and sizing 22001. Feature owners determine exact English diagnostics and optional fields through release reference witnesses. Cancellation or a provider failure rejects the entire staged write; no error is suppressed into NULL.
+Typed nullable BOOL is the scalar result. Define internal `type Truth uint8`, `const (False Truth = iota; True; Unknown)` and `TruthOf(sqltype.Value) (Truth,error)`. Invalid/non-BOOL is an invariant error. Truth is only a predicate/control view, not a bool-only alternative evaluator. For input order T,F,U:
 
-## 6. NULL, three-valued truth, and evaluation guarantees
-
-### 6.1 Truth is a view of typed BOOL
-
-```go
-type Truth uint8
-const (
-    False Truth = iota
-    True
-    Unknown
-)
-func TruthOf(v sqltype.Value) (Truth, error)
-```
-
-`TruthOf` accepts only a valid resolved BOOL Value. BOOL NULL maps to Unknown; it does not become Go false. A non-BOOL/invalid value here is an internal typing violation. Typed nullable Values remain the scalar representation, including for projection; Truth is only the predicate/control view.
-
-| AND | True | False | Unknown |
+| Operation | T row | F row | U row |
 |---|---|---|---|
-| True | True | False | Unknown |
-| False | False | False | False |
-| Unknown | Unknown | False | Unknown |
+| AND (columns T,F,U) | T,F,U | F,F,F | U,F,U |
+| OR (columns T,F,U) | T,T,T | T,F,U | T,U,U |
+| NOT | F | T | U |
 
-| OR | True | False | Unknown |
-|---|---|---|---|
-| True | True | True | True |
-| False | True | False | Unknown |
-| Unknown | True | Unknown | Unknown |
+Strict scalar comparison with NULL yields BOOL NULL. WHERE/ON/HAVING retain True only; CHECK accepts True/Unknown. RLS WITH CHECK instead requires True (§3). Sorting/grouping/key NULL policies are type/query-owned, not nullable equality; preserve ASC NULLS LAST/DESC NULLS FIRST.
 
-NOT maps True→False, False→True, Unknown→Unknown. Strict scalar comparison with a NULL input returns BOOL NULL. WHERE/ON/HAVING retain only True; CHECK accepts True or Unknown and rejects False. These are consumer acceptance policies, not different equality operators. NULL grouping/key equivalence and ordering belong to type/query key families, not SQL nullable comparison; preserve baseline ASC NULLS LAST/DESC NULLS FIRST.
+**Bind/type/scope-check every arm.** Ordinary selected calls receive evaluated inputs; the straightforward executor may choose a deterministic order internally, but SQL exposes no fixed left-to-right order or portable callback count. Strictness suppresses provider invocation for NULL inputs without promising expression-input order. Boolean expressions may be reordered or omitted as PostgreSQL §4.2.14 permits, particularly in WHERE/HAVING. `TRUE OR failing_expression` and `x<>0 AND 10/x>1` are not guaranteed error guards.
 
-### 6.2 Bind all arms; lazy runtime control is explicit
+CASE/COALESCE require dedicated bound control nodes, never ordinary eager-call desugaring. Searched CASE tests WHENs in order (Unknown is not True) and evaluates/coerces only its selected result/ELSE using that arm's prebound common-type plan, or returns typed NULL if none. Simple CASE evaluates its test once, then feature comparisons in order. **COALESCE evaluates each reached argument including its prebound common-type conversion, then tests the converted Value for NULL.** A converted nonnull result stops evaluation; a converted NULL continues, even if the unconverted child was nonnull. Reached conversion errors propagate; only later unreached children/conversions are skipped. All converted results NULL yields typed NULL. Do not assume type-owned coercions preserve NULLness.
 
-Every arm is bound and type/scope checked even if runtime skips it. Ordinary selected calls evaluate inputs eagerly, but expose **no portable left-to-right argument order**. Strictness may suppress provider invocation and produce typed NULL when an argument is NULL; it does not establish expression-argument order. Any optimization of Boolean evaluation must preserve SQL truth and documented volatility/error boundaries; callers cannot rely on callback counts or `TRUE OR failing_expression` as a guaranteed guard.
+Runtime skipping does **not** prevent binding errors, permitted immutable constant folding or earlier aggregate/window evaluation. A constant `1/0` in an unreachable CASE arm can fail during planning; CASE cannot protect aggregate arguments evaluated before scalar output. Parameter/function-local substitution can expose constants to a future folding owner. No optimizer is mandated in EXPR-CORE.
 
-CASE and COALESCE have dedicated bound control nodes:
+Properties conservatively combine maximum provider/child volatility, including no-argument calls, and separate row/parameter/stage dependence. Immutable does not mean constant. Optional folding requires concrete independent immutable constants and retains dependencies/errors; Stable reuse is statement-local under routine/type/session contracts, never cached across prepared executions; Volatile reevaluates wherever a row/execution needs its value and is not cached across needed rows. Skipped runtime CASE providers remain uninvoked. Routine/TX owns SQL-body snapshot semantics (stable/immutable calling snapshot versus volatile nested-query snapshots), not scalar Eval.
 
-* Searched CASE evaluates WHEN conditions in order; Unknown is not True. It evaluates only the selected result arm, otherwise ELSE (or a typed NULL when absent).
-* Simple CASE evaluates its test once, then its feature-owned comparisons in order, with the same selected-result rule.
-* COALESCE evaluates through the first nonnull input and skips later inputs; all-NULL produces typed NULL of the resolved common result Usage.
+Check Context.Err at analysis/evaluation entry, unbounded child/row traversal, before/after providers and before publication. Providers receive the same cancellation context and cooperate; blocking external I/O is not forcibly cancelable. Later-row coercion/evaluation/constraint failure or cancellation publishes no statement fragment. Evaluate providers outside final publication locks; SELECT captures immutable input/metadata and evaluates outside target locks. TX/write owner stages, completes and publishes; Restore uses ordinary staging binder/executor and replaces only after complete success. These are retention/atomicity contracts, not new visibility/locking algorithms.
 
-Branch-result type/coercion plans are chosen before execution under type-owned CommonType and applied only to the chosen runtime input. Runtime branch skipping does **not** promise to avoid bind-time validation, permitted immutable constant evaluation, or earlier aggregate/window-stage evaluation. In particular, an unreachable constant `1/0` can fail during planning, and CASE cannot guard aggregate arguments that its query stage computes earlier. This design does not mandate a constant-folding optimizer in EXPR-CORE.
+## 7. Extension rule
 
-## 7. Volatility, cancellation, and publication
+New scalar kinds extend closed parser/engine markers and existing bind dispatch: position, explicit policy validation, delegated Usage/coercions, dependencies, conservative properties and typed Eval/error are mandatory. Finalize one statement description/parameter set. No string-expression parser, substring evaluation, any-valued registry, separate prepared/DDL evaluator or bool-only predicate path.
 
-Compute a node's volatility as the maximum of provider metadata and its children. No-argument calls still carry provider volatility. Record row, parameter and stage dependence separately; do not equate Immutable with constant. Callable properties come from the existing candidate/provider adapter, not another catalog field authority.
+Aggregate/window owners supply typed computed stage slots and legality; subquery owners supply scopes/frames/iteration/cardinality/result adaptation. Scalar Eval does not compute relational stages, publish DDL/DML or revalidate catalogs. QUERY-EXECUTION and feature owners specify stage order; no adjacent design is authored or consulted here.
 
-| Property | Permitted reuse | Forbidden |
-|---|---|---|
-| Immutable | Optional plan-time folding of concretely typed, independent constants | Folding row/parameter/stage-dependent expressions as constants; losing dependencies/errors |
-| Stable | Statement-local reuse only under routine/type/session snapshot contracts | Retaining results or execution args across prepared executions |
-| Volatile | Evaluate wherever a row/execution needs the value | Caching across needed rows/executions or invoking runtime skipped CASE branches |
+## 8. Current callers → future clean cutover
 
-A future folding owner preserves dependency and error behavior, including CASE's constant-error caveat. Routine/TX owns volatility-specific SQL-body snapshot visibility; scalar Eval cannot create that policy.
+This inventory is code read, not code fixed. TYPE-CORE/CAT-CORE implementations precede expression consumers. Reread symbols at each migration and remove every migrated alternate path, including tests, without aliases/shims.
 
-Check `Context.Err()` before analysis/evaluation entry, while traversing unbounded children/rows, before and after provider calls and before final publication. The parent binder holds the same context even though Bind's logical signature uses private binder state. Providers receive it and must cooperate; external blocking I/O is not forcibly interruptible. No context escapes into an immutable node.
+| Current paths/symbols | Future migration / retained seam |
+|---|---|
+| parser/ast.go Insert.Rows, Select.Columns/Where, Predicate, ParameterValue | Rows→[][]Expr, expression targets/Where→Expr; remove migrated Predicate/string-only scalar paths. Retain star expansion, later query Order and type-owned modifier syntax. ObjectName already exists; do not restore string relation names. |
+| parser/grammar.y, grammar_gen.go, lexer.go | Emit occurrence nodes through existing normalized lexer/goyacc grammar; regenerate output, never generated-only edits or second normalization. |
+| engine/engine.go binding, Describe/describe local bind/column, Execute resolve | One private expressionBinder for all migrated occurrences, finalized usages/dependencies/access requirements/description, typed frames and evaluator; remove where bool/scalar indices. Preserve catalog identity-keyed relationStorage/staged CREATE and atomic INSERT; no name-map/store cutover. |
+| engine.go prepareArgs/parameterColumn; engine/value.go input/parameter/literal | Root normalization/import, type codecs/occurrence plans replace migrated conversion switches. parameterColumn currently searches **diagnostics only**, not inference; replace its raw visitor with occurrence metadata, not another successful-path type scan. |
+| engine/snapshot.go Values/compare/selectRows | Typed projected values/reusable scratch and bound predicates/projections; type-owned key families replace payload comparator under their owner. Keep immutable capture/nil-selection fast path and NULL sort policy. |
+| conn.go PrepareContext/execute/direct Exec/Query; stmt.go NumInput/Exec/Query | Retain original SQL/AST/StatementDescription/BoundPlan, fixed params and catalog validity rather than AST/count-only preparation/rebinding every use; both prepared methods converge with direct path. SESSION/TX admission/lifecycle retained. |
+| rows.go newRows/Next/metadata | ColumnDescriptor/typed scratch/ExportValue; retain Context/EOF/Close and descriptor/pin lifetime. Remove resolved parser-type switches under TYPE-CORE. |
+| engine/control.go Restore/Dump | Shared raw expression visitor rejects every parameter occurrence with 42P02, replacing INSERT-Value-only scan. Keep CREATE/INSERT whitelist, ordinary stage.Execute and ReplaceCatalog; Dump uses type descriptors/codecs, no expression serializer invented here. Stored refs remint on replacement per catalog §7. |
+| engine_test.go, parser_test.go, driver_test.go, reference_test.go | Migrate affected constructors/callers under owners without weakening independent expected rows/types/diagnostics/atomicity. Reuse referenceDiagnostic/referenceExtractDiagnostic/referenceAssertDiagnostic; they already compare complete exposed fields. |
 
-A later-row evaluation/coercion/constraint error or cancellation publishes **none** of a statement's staged writes. The write owner evaluates/validates outside final publication and retains one indivisible publish boundary. SELECT captures immutable input and paired metadata at the existing synchronization seam, evaluates outside target locks and keeps captured row lifetime. Arbitrary callable execution must not move under the publication lock. Restore still uses the ordinary parser/binder/evaluator in a staging Engine and replaces the target only after complete success. Snapshot visibility, transactions, locks and retries remain their assigned owners, not expression decisions.
+Search Go/grammar callers for `Predicate|ParameterValue|parameterColumn|selectRows|literal\(|parameter\(|\.describe\(|\.Describe\(|\.Execute\(|\.Values\(`; inspect every match, including generated consumers/tests. Distinguish raw type modifiers, later query Order and referenceStep.selectRows fixture flag from obsolete scalar paths.
 
-## 8. Extension contract
+## 9. Bounded existing-backlog owners
 
-New scalar kinds extend the closed raw and bound markers and the existing bind dispatch. Each kind supplies occurrence position, policy validation, delegated typing/coercion, dependencies, conservative properties and Eval returning typed Value/error. The containing statement still finalizes all parameters and descriptions once. No string expression parser, runtime SQL substring evaluation, `any` functor registry, bool-only predicate evaluator or separate DDL/prepared evaluator is permitted.
+These are implementation sessions, not new catalog tasks, prerequisite edges or implemented features. Each supplies independent public/unit/reference outcomes and concrete feature smoke when its capability exists.
 
-Aggregate/window/subquery syntax may have feature-owned concrete nodes, but their relational work remains stage-owned. Aggregate/window consumers expose typed computed slots via `StageValues`; absence is an invariant error. Subquery consumers own query entry, frame creation, correlated iteration, cardinality/width errors and result adaptation through the same typed boundary. Scalar Eval does not implement grouping, window partitioning, query-stage order, DDL/DML publication or catalog revalidation. **PG18-ARCH-QUERY-EXECUTION** and each consumer supply those responsibilities.
+| Owner | Bounded consumption and independent exit |
+|---|---|
+| PG18-EXPR-CORE (implemented CAT-CORE/TYPE-CORE) | Literals/columns/parameters, simple projections and existing equality filter on one seam; W1 typed params/columns and unit nullable equality. No arithmetic/functions/aliases/general clauses. Equality-projection syntax waits for its feature owner. |
+| PG18-FUNC-LOGICAL | Typed AND/OR/NOT; complete truth matrices, no order/callback promise. |
+| PG18-FUNC-COMPARE-OPS / PG18-FUNC-COMPARE-NULL | Selected comparisons/cross-width conversions / nonstrict NULL-distinct-truth predicates; independent BOOL/NULL rows and resolution errors, not strict equality reused for distinctness. |
+| PG18-FUNC-CONDITIONAL / PG18-CAST-EXPLICIT | Lazy nodes/ordered executable CommonType (W5) / explicit syntax/type plans and cast/sizing diagnostics. |
+| PG18-QUERY-CORE after PG18-ARCH-QUERY-EXECUTION | Source/filter/project/sort policies/frames; W2 typed projection versus filter and captured metadata. |
+| PG18-QUERY-SUBQUERY | Correlation scopes/frames/iteration/width/cardinality; W4 forbidden sibling versus LATERAL. |
+| PG18-QUERY-AGGREGATE / PG18-QUERY-WINDOW | Legality and typed stage results; earlier computations cannot be guarded by later CASE. |
+| PG18-EXPR-COLLATION | Type-owned derivation/provider identities and exact conflict errors; no extra authority. |
+| PG18-DDL-DEFAULT | Empty row/no outer scope, fresh per-row then assignment; no column capture. |
+| PG18-DDL-GENERATED-STORED | Permitted same-row inputs, no self/generated/disallowed references or feature-disallowed volatility; owner controls dependency order and write-time results. |
+| PG18-DDL-CHECK / PG18-INDEX-EXPRESSION | Same-row False-only rejection / same-table immutable expressions with no aggregates/subqueries; exact failures/atomic preservation and real computed keys. |
+| PG18-DML-UPDATE-CORE | Every RHS reads old-row frame before replacement, then assignment/constraints/publication; simultaneous assignments and late-error atomicity. |
+| PG18-DML-INSERT-RETURNING | Feature OLD/NEW/result frames/descriptors; exact returned rows/counts without invented old-row/conflict semantics. |
 
-## 9. Clean-cutover callsite map
+Stored-definition owners persist dependency-backed bound expressions via catalog staging, not name-text rebinding. Native/routine, authorization/RLS, session/TX, catalog/prepared/type owners keep their existing responsibilities; this breakdown does not absorb their algorithms.
 
-The anchors below describe the inspected baseline in this worktree, not edits performed by the design. Future owners reread each callsite before migration and delete all migrated alternate paths without aliases/shims. Shared prerequisite implementations precede their consumers; this table does not authorize changing them here.
+## 10. Independently expected witnesses and evidence boundary
 
-| Current file/symbols | Future replacement/removal | Owner/retained seam |
-|---|---|---|
-| `internal/parser/ast.go:32–78` — Insert.Rows, Select.Columns/Where, Predicate, Value parameters | Rows→`[][]Expr`; expression targets; Where→Expr; remove Predicate/string-only migrated projection binding and generalized ParameterValue path | EXPR-CORE baseline expression containers; star stays statement expansion; Order waits for query owner; raw type modifiers stay TYPE-CORE-owned |
-| `internal/parser/grammar.y:4–18,61–84`, generated `grammar_gen.go` | Emit occurrence nodes/positions and selected feature productions; generate output from grammar source, never hand-edit generated parser | One lexer/goyacc path; each syntax owner adds its own grammar |
-| `internal/parser/lexer.go` — normalization and offsets | Supply existing normalized identifiers and byte offsets; no resolver normalization/substr search | Catalog/identifier contracts, original SQL retained |
-| `internal/engine/engine.go:32–189` — binding, Describe/describe, local bind/column closures | Route migrated occurrences through expressionBinder; finalize parameters/dependencies/description once; bound projections/predicates replace scalar indices/where bool | Sole statement analysis authority; catalog/type resolution retained |
-| `engine.go:225–343` — parameterColumn, Execute resolve/canonical paths | Use occurrence metadata, fresh typed imports/frames and BoundExpr evaluation; remove migrated raw-expression inference/traversal | Root import/type plans, atomic staging and final cancellation |
-| `internal/engine/value.go:66–121` — parameter/literal/input switches | Delete obsolete helpers when TYPE-CORE codecs and expression binding take all callers | TYPE-CORE owns codecs; no duplicate expression conversion switches |
-| `internal/engine/snapshot.go:9–90` — projection, Values, compare/selectRows | Bound predicate/projection plus typed cursor scratch; use prerequisite key families, remove migrated payload comparator | Immutable capture/all-rows fast path; QUERY-CORE owns general stages/sort |
-| `conn.go:35–110` — PrepareContext, execute, direct Exec/Query | Retain source/AST/StatementDescription/BoundPlan, shared typed import and expression seam | parseOne; catalog validity; no prepared-only binder |
-| `stmt.go:11–47` — count/NumInput, Exec/Query | Fixed description and complete prepared binding; no mutation of inferred parameter metadata | Closed-state lifecycle and conn.execute convergence |
-| `rows.go:12–60` — Next/metadata/Values | Typed private scratch, ColumnDescriptor and ExportValue | Existing Context/EOF/Close/public metadata boundary |
-| `internal/engine/control.go:134–171` — Restore parameter scan/stage.Execute | Shared raw expression visitor rejects every parameter at occurrence with 42P02; ordinary staged execution | CREATE/INSERT whitelist, final replacement and failed-target preservation; Dump uses type codecs/descriptors, not a new expression serializer |
-| `internal/engine/engine_test.go`, `driver_test.go`, `reference_test.go` | Migrate representation callers under feature owners, retain independent expected rows/types/counts/atomicity | PG18-DRIVER-ERROR-FIELDS expands diagnostics; do not weaken tests to fit implementation |
+**Specifications only; no SQL/build/test/formatter/smoke was run by this implementer.** Future owners assert each backend against predetermined results before parity, direct/prepared database/sql where applicable. Unordered queries compare bags with multiplicity. Reuse serialized real PostgreSQL 18.0 UTF8/C fixtures/full-field helpers; Docker/image/network failure is failure, never mock/skip. Release-C/arithmetically derived expectations below require pinned-runtime confirmation before implementation acceptance, not claims of observation. Optional fields absent in the cited error construction stay absent; never fabricate object fields from references.
 
-At each migration session, use repository grep over Go and grammar files for:
+**W1 — typed column/parameter (A1/A2/A4).** Create expr_t(id INTEGER,v INTEGER); insert (1,1),(2,NULL),(3,2), affected=3. Ordered `SELECT id,v FROM expr_t ORDER BY id` expects [(1,1),(2,NULL),(3,2)], INT4/INT4. Prepared `SELECT v FROM expr_t WHERE v=$1`, argument 2, expects [(2)], parameter INT4/typmod -1 independent of Go integer kind. Units assert stable Origin.SubID separate from slot, fixed parameter/occurrence plans and call/type/cast dependencies; gap/invalid inference publishes no binding and allocates only after validation.
 
-```
-Predicate|ParameterValue|parameterColumn|selectRows|literal\(|parameter\(|\.describe\(|\.Describe\(|\.Execute\(|\.Values\(
-```
+Output-context parameter boundary: future prepared `SELECT $1` with argument `hello` expects [('hello')], TEXT, parameter ID25/typmod -1/default collation; argument NULL still returns one TEXT-typed NULL. `SELECT $1 IS NULL` with no declared parameter type instead fails 42P18 / `could not determine data type of parameter $1`, Position absent, before execution: the release variable-parameter finalization loop adds no cursor location. Units assert contextual TEXT constraint, not a Go-kind or universal fallback; bare target grammar remains deferred.
 
-Inspect every match, including tests/generated consumers. Distinguish raw type modifiers and intentionally later query stages from obsolete scalar paths. `referenceStep.selectRows`, for example, is a fixture result-kind flag, not the engine predicate evaluator. Completion requires every migrated caller on the one seam, no compatibility aliases, and no retained second binder/evaluator.
+**W2 — projection versus filtering (A1/A3).** Future `SELECT id,v=1 FROM expr_t ORDER BY id` expects [(1,TRUE),(2,NULL),(3,FALSE)], INT4/BOOL; `SELECT id FROM expr_t WHERE v=1 ORDER BY id` expects [(1)]. NULL exports nil without losing BOOL metadata. Equality-projection syntax is its feature owner's work, not silently added to narrow EXPR-CORE. Logical owners enumerate all nine ordered AND/OR pairs and three NOT inputs; CHECK accepts NULL, RLS check rejects NULL.
 
-## 10. Bounded existing-backlog ownership
+**W3 — unknown reference/location (A1/A2).** `SELECT missing FROM expr_t` expects ERROR/42703, primary `column "missing" does not exist`, Position 8. `SELECT /*é*/ missing FROM expr_t` expects Position 14 (not byte position 15). For this fixture, no detail/hint/context/object/internal-position fields: no exact/fuzzy match in release errorMissingColumn. No binding/result publication. Unit scopes also require same-scope 42702, local shadowing and distinct qualifier 42P01/alias ambiguity diagnostics.
 
-These are existing capability sessions, not new tasks/status changes. Each owner consumes implemented prerequisites, updates all of its callers and supplies independent unit/public/reference outcomes and concrete feature smoke. No row in this table is implemented by this document.
+**W4 — inaccessible sibling versus correlation (A2).** `SELECT o.id FROM expr_t AS o, (SELECT v) AS s` expects ERROR/42703, primary `column "v" does not exist`, Position 39 (prefix through `(SELECT ` is 38 characters); Detail `There is a column named "v" in table "o", but it cannot be referenced from this part of the query.`; Hint `To reference that column, you must mark this subquery with LATERAL.` No object/context/internal-position fields are added by this release branch. `SELECT o.id FROM expr_t AS o, LATERAL (SELECT v) AS s` expects bag [(1),(2),(3)], INT4, including the NULL-v row. Units prove permitted Depth/Scope/Frame/Slot, forbidden sibling traversal, local shadowing and alias hiding; owner separately checks lateral join-side legality.
 
-| Backlog owner | Bounded work / policy and frame | Independent exit witness and exclusion |
-|---|---|---|
-| **PG18-EXPR-CORE** | After implemented CAT-CORE/TYPE-CORE: literals, columns, parameters, simple projections and existing equality filtering through one bound seam | W1 typed projection/parameter and nullable equality versus WHERE unit semantics; no arithmetic, general clauses, functions or aliases. Equality projection syntax is its selected expression/operator owner's work, not silent widening of this foundation |
-| **PG18-FUNC-LOGICAL** | AND/OR/NOT typed truth nodes | All nine ordered AND/OR pairs and three NOT inputs; no callback-order promises |
-| **PG18-FUNC-COMPARE-OPS** | Expanded comparisons/cross-width selected calls | Independent BOOL/NULL rows, resolution identity and coercion failures |
-| **PG18-FUNC-COMPARE-NULL** | NULL/distinct/truth predicates | Independently enumerate NULL/non-NULL inputs; do not reuse strict equality's NULL result for nonstrict predicates |
-| **PG18-FUNC-CONDITIONAL** | Dedicated lazy CASE/COALESCE; executable ordered CommonType | W5 row-dependent skipped branch; incompatible arm types still fail binding |
-| **PG18-CAST-EXPLICIT** | Explicit syntax and type-owned plans | Success/no-cast SQLSTATE/positions and sizing; no new overload algorithm |
-| **PG18-QUERY-CORE** after **PG18-ARCH-QUERY-EXECUTION** | Source/filter/project/sort stage cutover with supplied policies/frames | W2 predicate projection/filter difference, ordered output and captured metadata; scalar Eval does not define query order |
-| **PG18-QUERY-SUBQUERY** | New scope/frame plus permitted outer edges; correlated iteration/width/cardinality | W4 forbidden sibling versus LATERAL, correct outer values; scalar evaluator does not iterate queries |
-| **PG18-QUERY-AGGREGATE** | Legality and computed typed aggregate slots | Earlier aggregate evaluation independent of later CASE selection; grouping is stage-owned |
-| **PG18-QUERY-WINDOW** | Legality and typed window-result slots | Correct stage context/result values; partition/order semantics not expression-owned |
-| **PG18-EXPR-COLLATION** | Type-owned derivation/provider identity in nodes/calls/keys | Independently expected conflicting derivation/provider errors; no extra collation authority |
-| **PG18-DDL-DEFAULT** | Empty row/no outer scope, fresh per-row evaluation then assignment | Multiple inserted rows receive feature-correct values; no accidental row-column capture |
-| **PG18-DDL-GENERATED-STORED** | Permitted same-row inputs, excluded self/generated/disallowed refs and feature-disallowed volatility | Stored write-time results and rejected illegal references; owner controls dependency order |
-| **PG18-DDL-CHECK** | Same-row scope, True/Unknown acceptance | NULL accepted, False rejected with feature diagnostics and atomic preservation |
-| **PG18-INDEX-EXPRESSION** | Same-table immutable inputs; no aggregate/subquery contexts | Real computed keys and rejected volatile/illegal expressions; no index implementation in Eval |
-| **PG18-DML-UPDATE-CORE** | Every RHS reads retained old-row frame before replacement; assignment/constraints then one publish | Simultaneous assignments see original row; late failure publishes none |
-| **PG18-DML-INSERT-RETURNING** | Feature-owned OLD/NEW frames and result descriptors | Exact typed returned rows and affected counts; no fabricated old-row/conflict values |
+Qualified-shadowing witness: create outer_t(v INTEGER) with (11),(22) and inner_t(id INTEGER) with (1), no applicable whole-row/function fallback. `SELECT (SELECT r.v FROM inner_t AS r) FROM outer_t AS r` must fail 42703, not correlate past local r. Release errorMissingColumn/searchRangeTableForCol predicts primary `column r.v does not exist`, Position 16, Detail `There is a column named "v" in table "r", but it cannot be referenced from this part of the query.`; Hint/object/context/internal-position fields absent. Confirm complete fields against the pinned release before implementation acceptance. Positive `SELECT (SELECT r.v FROM inner_t AS i) FROM outer_t AS r` expects bag [(11),(22)], INT4; no local r allows explicit outer correlation. Unqualified `SELECT (SELECT v FROM inner_t AS r) FROM outer_t AS r` also expects that bag: absence of local v permits column lookup outside, unlike qualified r.v. Units assert these distinct stopping conditions and the correct outer coordinates.
 
-DDL owners persist dependency-backed bound expressions via catalog staging, not text-name rebinding. Routine/native providers consume CallExecutor with their own authorization, body frames and snapshot contracts; catalog/type/driver-prepared owners retain their prerequisite responsibilities.
+**W5 — skipped failing branch (A1/A4/A5).** Create branch_t(id INTEGER,v INTEGER); insert (1,0),(2,2), affected=2. `SELECT id,CASE WHEN v=0 THEN 7 ELSE 10/v END FROM branch_t ORDER BY id` expects [(1,7),(2,5)], INT4/INT4. `SELECT 10/v FROM branch_t` fails 22012 / `division by zero`; integer provider diagnostics, not expression-token location guessed by Eval. A unit provider proves zero-row branch not invoked. All arms still bind: missing column/incompatible type fails even in skipped arm. COALESCE's row-dependent skipped provider remains uninvoked. Constant `1/0` can fail in planning; aggregate argument division can fail before CASE; these caveats are not runtime lazy-node failures. No Boolean callback/order assertions.
 
-## 11. Independent future acceptance witnesses
+COALESCE coercion units use predefined type-owned plans: first child is nonnull but its reached conversion returns typed NULL; second converts to value 7, so result is typed 7 and the third child/conversion remains uninvoked. Separately a reached conversion returning a sentinel error must return that same error without evaluating later arguments. With first converted result nonnull, all later conversions, including an error-producing one, remain uninvoked. These are independent provider/coercion expectations, not SQL user-cast syntax implemented here.
 
-**None of these scenarios were executed in this design session.** Future owners specify expectations independently for both engine and pinned PostgreSQL, then compare. Use public direct and prepared `database/sql` paths where applicable; unit tests additionally assert binding identities/frames/properties not visible in SQL. Without ORDER BY compare bags with multiplicity. Existing serialized reference fixture/schema reset is reused; Docker/image/version errors remain visible failures. Structured diagnostic assertions require PG18-DRIVER-ERROR-FIELDS rather than SQLSTATE-only weakening. Optional fields not captured here are future release-reference obligations, not observed evidence.
+**W6 — ownership/volatility/cancellation/atomicity (A3/A5).** Concurrent/repeated executions of one plan with distinct args return their own values, without shared state. Mutate input bytes after import: retained values unchanged. Cursor across append/Reset/Restore retains original rows/types/labels; new reads see replacement. Units test buffers (PostgreSQL cannot prove Go ownership), stable state not reused across executions, volatile values not cached across needed rows, ordinary context.Canceled at entry/iteration, checks surrounding providers, late multirow error publishing no rows, and failed/canceled Restore preserving sentinel/lifetime. SQL reference fixtures independently establish applicable atomicity, not Go context ownership.
 
-### W1 — Typed column and parameter resolution (A1/A2/A4)
+**W7 — one seam (A6/A7).** Review all §8 callers and §9 owners: typed nodes/source/properties/dependencies/errors, validated frames, explicit truth/legality policies, one finalization and no alternative migrated evaluator. Catalog validity and metadata stay prerequisite-owned; no scalar stage computes grouping/correlation iteration/publication.
 
-```
-CREATE TABLE expr_t(id INTEGER,v INTEGER);
-INSERT INTO expr_t VALUES (1,1),(2,NULL),(3,2);
-SELECT id,v FROM expr_t ORDER BY id;
-```
+`smoke_commands=[]`: design changes enable no runtime expression behavior; running W1–W5 against current narrow grammar is not a feature smoke. Root still runs fresh **full utility verification**, including existing public smoke (`go run ./cmd/smoke` from assigned worktree; existing four-line public assertion output), real reference/race/dependency/benchmark gates, then independent review. Baseline passing evidence cannot prove future expressions. Future implementation owners supply executable smoke argv for their new features and record expected versus observed results.
 
-INSERT affects 3. SELECT independently expects `[(1,1),(2,NULL),(3,2)]`, types INT4/INT4. Prepared `SELECT v FROM expr_t WHERE v=$1` with argument 2 returns `[(2)]`; parameter Usage is INT4, typmod -1, not inferred as INT8 from Go integer kind. Unit assertions cover stable column Origin/SubID, separate frame slot, selected call/type/cast dependencies, fixed parameter description and occurrence coercions. Invalid/unresolved sparse parameter validation precedes large allocation; failed analysis installs no executable binding.
+## 11. Sources and revision rationale
 
-### W2 — NULL projection is not filtering (A1/A3)
+Primary PG18 documentation: [value expressions/evaluation §4.2](https://www.postgresql.org/docs/18/sql-expressions.html#SYNTAX-EXPRESS-EVAL), [scopes/LATERAL/WHERE §7.2](https://www.postgresql.org/docs/18/queries-table-expressions.html), [truth §9.1](https://www.postgresql.org/docs/18/functions-logical.html), [conditionals §9.18](https://www.postgresql.org/docs/18/functions-conditional.html), [volatility §36.7](https://www.postgresql.org/docs/18/xfunc-volatility.html), [conversion overview](https://www.postgresql.org/docs/18/typeconv-overview.html), [assignment](https://www.postgresql.org/docs/18/typeconv-query.html), [error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html).
 
-Future expression projection `SELECT id,v=1 FROM expr_t ORDER BY id` independently expects `[(1,TRUE),(2,NULL),(3,FALSE)]`, INT4/BOOL. `SELECT id FROM expr_t WHERE v=1 ORDER BY id` expects `[(1)]`. Projected NULL exports nil with BOOL metadata. Equality projection grammar is implemented by its selected expression/operator owner, not an expansion silently assigned to narrow EXPR-CORE.
+Release C (REL_18_0), not local 20devel, corroborates: [parse_relation.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/parser/parse_relation.c) refnameNamespaceItem/errorMissingColumn (scope/qualification and W3–W4 fields); [parse_target.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/parser/parse_target.c) resolveTargetListUnknowns; [parse_param.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/parser/parse_param.c) variable_coerce_param_hook (fixed identity, typmod/collation, inconsistency); [execExpr.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/executor/execExpr.c) T_CaseExpr/T_CoalesceExpr and strict-call dispatch (dedicated execution, not eager function sugar).
 
-Logical-owner unit/reference cases enumerate the complete §6 matrices. CHECK-owner cases accept True and Unknown but reject False. NULL key grouping/sorting expectations are specified separately under their owners; nullable equality is not a key-equivalence implementation.
+[parse_expr.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/parser/parse_expr.c) transformColumnRef first resolves a qualifier and then scans only that namespace item; transformCoalesceExpr wraps every argument in common-type coercion before execExpr.c's post-evaluation NULL jump.
 
-### W3 — Missing reference and UTF8 source location (A1/A2)
+[int.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/int.c) int4div constructs 22012/`division by zero` without a token Position; future fixtures confirm complete fields instead of blanket annotation.
 
-`SELECT missing FROM expr_t` fails **42703**, primary `column "missing" does not exist`, Position **8**, no binding/result publication. `SELECT /*é*/ missing FROM expr_t` expects Position **14**, not byte-based position 15. These positions are arithmetic-derived independent expectations, not captures. The release-source research grounds primary wording; future pinned reference checks exact optional detail/hint/object fields rather than assuming their presence/absence.
+[postgres.c](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/tcop/postgres.c) pg_analyze_and_rewrite_varparams rejects remaining unknown parameter types with 42P18/primary and no Position; distinguish this from parse_param's inconsistent-occurrence diagnostics.
 
-Unit scope failures additionally prove **42702** for same-scope ambiguity and the feature's **42P01** qualifier boundary for hidden/unknown aliases. No first-match fallback is accepted.
+Version provenance unchanged: /docs/18 navigation identifies 18.6; oracle remains `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C (`reference_helpers_test.go` referenceImage/setup). Only PG18-REF-ORACLE-18-6 owns minor alignment. `/home/rlew/projects/stuntgres/src-ref/postgres` 20devel and ramsql are research aids, never semantics precedence or release-runtime proof.
 
-### W4 — Correlation is permitted explicitly (A2)
+2026-10-04 compatible revision preserves original rationale: closed raw/bound seam, explicit scope coordinates/policies, delegated catalog/type authority, typed NULL, lazy controls, execution-private ownership and atomic staged publication. Compact tables replace repeated prescriptions; stale string-relation/SQLSTATE-only fixture and frozen-plan claims are superseded by inspected ObjectName/catalog/full-field seams and living-plan verification. SESSION/AUTHORIZATION/TX composition follows their established contracts without replacing them. Shared todo-conflict.md records **unimplemented** migrations, not fixed code; no consumer status is changed.
 
-Unit scopes independently prove local shadowing, same-scope ambiguity, correct outer Depth/Scope/Frame/Slot and prohibited sibling traversal. Future `SELECT o.id FROM expr_t AS o, (SELECT v) AS s` fails **42703** with inaccessible-column detail and LATERAL hint as grounded by release-source research. The LATERAL version returns ids 1,2,3 as a bag of three rows, including the row whose v is NULL. Exact full Position/detail/hint fields remain future pinned-release capture obligations; do not claim them observed here. Aliases hide original relation qualifiers. Correlated execution holds the right outer frame for each row, not any convenient parent frame.
+Explicit user decision **2026-10-04, “Follow type-system contract”**, after identifying prior expression §4.1 versus TYPE-SYSTEM §§3/5, supersedes exactly the blanket ban on TEXT fallback for unresolved output parameters. Current §4/W1 adopts the prerequisite's standalone SELECT/RETURNING contextual constraint; `$1 IS NULL` still fails 42P18. Bare parameter projections remain unimplemented; parser/binder/caller/reference migrations are recorded in the shared conflict report.
 
-### W5 — Skipped failing branch, not a Boolean-order promise (A1/A4/A5)
-
-Conditional/arithmetic consumers establish:
-
-```
-CREATE TABLE branch_t(id INTEGER,v INTEGER);
-INSERT INTO branch_t VALUES (1,0),(2,2);
-SELECT id,CASE WHEN v=0 THEN 7 ELSE 10/v END FROM branch_t ORDER BY id;
-```
-
-INSERT affects 2; SELECT independently expects `[(1,7),(2,5)]`, INT4/INT4. `SELECT 10/v FROM branch_t` fails **22012**, expected English primary `division by zero`, requiring future pinned-release confirmation of fields. A unit provider proves the row-dependent failing branch is not invoked for the zero row. Bind all arms: a missing column or incompatible arm cannot be hidden by runtime selection. Do not replace the row-dependent case with constant `1/0` and promise success; permitted planning evaluation may fail. Do not assert left-to-right Boolean callback counts or use `TRUE OR failing_expression` as an error guard.
-
-### W6 — Lifetime, volatility, cancellation and atomicity (A3/A5)
-
-Execute one retained plan concurrently/repeatedly with distinct args: each result matches its own typed frame with no leakage. Mutate a borrowed `[]byte` after import: retained values stay unchanged. Hold a cursor across append/Reset/Restore: original rows/types/labels remain captured; replacement affects only new reads. Go buffer ownership is a unit/public boundary witness, not something real PostgreSQL can prove.
-
-Unit providers assert Stable state is not reused on the next execution, Volatile is not cached across needed rows, and runtime skipped CASE providers are uninvoked. Pre-canceled execution and canceled cursor iteration return ordinary `context.Canceled`. Cancellation checks surround providers and unbounded traversal. A late multirow INSERT evaluation/input/coercion/constraint failure changes no rows; failed/canceled Restore preserves a target sentinel and catalog lifetime. Reference SQL verifies corresponding feature atomicity independently; it does not stand in for Go-context/buffer assertions.
-
-### W7 — One seam and bounded ownership (A6/A7)
-
-Artifact/consumer review follows every §9 caller to its owner and validates the lifecycle: raw → private analysis → complete immutable plan → private execution → result/staged publication. Every new node has source/type/properties/dependencies/error behavior; every allowed scope has a validated runtime frame; every consumer has a truth/legality policy. Retained metadata and plan invalidation stay catalog/type-owned. No stage policy authorizes scalar Eval to implement grouping, query iteration or publication.
-
-Baseline source evidence read, not run: `internal/engine/engine_test.go:54–139,152–209` covers parameter/NULL/multirow/snapshot/control seams; `reference_test.go:17–65,84–170` has independent rows/types/count fixture paths; `reference_helpers_test.go:20,57–88` is the research anchor for pinned release/locale. Existing SQLSTATE-only fixtures must gain structured diagnostics through their owner. Future implementations supply new-behavior smoke under their own frozen plans; this design's empty smoke list is not executable acceptance evidence.
+Review-1 M1/M2 compatible factual remediation: distinguish CASE selected-result coercion from COALESCE reached-argument conversion-before-NULL-testing; separate unqualified-column outer search from qualified-item shadowing. Added coercion-provider and qualified-shadowing/positive-correlation witnesses. Prerequisite contracts and design-only deferrals are unchanged.
