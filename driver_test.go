@@ -1065,3 +1065,266 @@ func TestErrorFieldsRestore(t *testing.T) {
 		t.Fatalf("failed NOT NULL Restore changed data: %#v", rows)
 	}
 }
+
+// These expected values are specified independently of either SQL engine.
+func stringLiteralValues() []struct{ source, text string } {
+	return []struct{ source, text string }{
+		{`E'a\nb'`, "a\nb"}, {`E'O\'Brien\\tail'`, "O'Brien\\tail"},
+		{`E'O''Brien'`, "O'Brien"}, {"E'a'\r'\\n'", "a\n"},
+		{`E''`, ""}, {`e'\303\251'`, "é"}, {`E'\xC3\xA9'`, "é"},
+		{`E'\U0001F600'`, "😀"}, {`E'\uD83D\uDE00'`, "😀"},
+		{`E'\uD83D\U0000DE00'`, "😀"}, {`E'\U0000D83D\uDE00'`, "😀"},
+		{`E'\b\f\n\r\t\v'`, "\b\f\n\r\t\v"}, {`E'\q\8\9\x\X'`, "q89xX"},
+		{`E'\101\12\1\1012\x41\x4\x414'`, "A\n\x01A2A\x04A4"},
+		{`E'\u0061\U00000062\u00612'`, "aba2"}, {`E'\uFFFF\uFFFD'`, "\uFFFF\uFFFD"},
+		{"E'\\xC3'\n'\\xA9'", "é"}, {"E'a' -- continue\r'\\n'", "a\n"},
+		{`'O''Brien\n'`, `O'Brien\n`}, {"'a'\n'\\n'", `a\n`},
+		{"E'\\\n\\\r'", "\n\r"},
+	}
+}
+
+func stringLiteralErrors() []struct{ source, code, message, position, hint string } {
+	const h = `Unicode escapes must be \uXXXX or \UXXXXXXXX.`
+	return []struct{ source, code, message, position, hint string }{
+		{`E'\0')`, "22021", `invalid byte sequence for encoding "UTF8": 0x00`, "", ""},
+		{`E'\000')`, "22021", `invalid byte sequence for encoding "UTF8": 0x00`, "", ""},
+		{`E'\400')`, "22021", `invalid byte sequence for encoding "UTF8": 0x00`, "", ""},
+		{`E'\x00')`, "22021", `invalid byte sequence for encoding "UTF8": 0x00`, "", ""},
+		{`E'\777')`, "22021", `invalid byte sequence for encoding "UTF8": 0xff`, "", ""},
+		{`E'\xff')`, "22021", `invalid byte sequence for encoding "UTF8": 0xff`, "", ""},
+		{`E'\x80')`, "22021", `invalid byte sequence for encoding "UTF8": 0x80`, "", ""},
+		{`E'\xc3')`, "22021", `invalid byte sequence for encoding "UTF8": 0xc3`, "", ""},
+		{`E'ok\xc3x')`, "22021", `invalid byte sequence for encoding "UTF8": 0xc3 0x78`, "", ""},
+		{`E'\xc0\xaf')`, "22021", `invalid byte sequence for encoding "UTF8": 0xc0 0xaf`, "", ""},
+		{`E'\xed\xa0\x80')`, "22021", `invalid byte sequence for encoding "UTF8": 0xed 0xa0 0x80`, "", ""},
+		{`E'\xf4\x90\x80\x80')`, "22021", `invalid byte sequence for encoding "UTF8": 0xf4 0x90 0x80 0x80`, "", ""},
+		{`E'\u061')`, "22025", "invalid Unicode escape", "25", h},
+		{`E'\U0061')`, "22025", "invalid Unicode escape", "25", h},
+		{`E'\u0000')`, "42601", `invalid Unicode escape value at or near "\u0000"`, "25", ""},
+		{`E'\U00000000')`, "42601", `invalid Unicode escape value at or near "\U00000000"`, "25", ""},
+		{`E'\U00110000')`, "42601", `invalid Unicode escape value at or near "\U00110000"`, "25", ""},
+		{`E'\uDC00')`, "42601", `invalid Unicode surrogate pair at or near "\uDC00"`, "25", ""},
+		{`E'\uD800\u0061')`, "42601", `invalid Unicode surrogate pair at or near "\u0061"`, "31", ""},
+		{`E'\uD800\u0000')`, "42601", `invalid Unicode surrogate pair at or near "\u0000"`, "31", ""},
+		{`E'\uD800\U00110000')`, "42601", `invalid Unicode surrogate pair at or near "\U00110000"`, "31", ""},
+		{`E'\uD800\u061')`, "22025", "invalid Unicode escape", "31", h},
+		{`E'\uD800x')`, "42601", `invalid Unicode surrogate pair at or near "x"`, "31", ""},
+		{`E'\uD800é')`, "42601", "invalid Unicode surrogate pair at or near \"\xc3\"", "31", ""},
+		{`E'\uD800😀')`, "42601", "invalid Unicode surrogate pair at or near \"\xf0\"", "31", ""},
+		{`E'\uD800')`, "42601", `invalid Unicode surrogate pair at or near "'"`, "31", ""},
+		{`E'\uD800`, "42601", "invalid Unicode surrogate pair at end of input", "31", ""},
+		{`E'abc`, "42601", `unterminated quoted string at or near "E'abc"`, "23", ""},
+		{`E'abc\`, "42601", `unterminated quoted string at or near "E'abc\"`, "23", ""},
+		{`E'abc\'`, "42601", `unterminated quoted string at or near "E'abc\'"`, "23", ""},
+		{"E'a'\n'b", "42601", "unterminated quoted string at or near \"E'a'\n'b\"", "23", ""},
+		{"E'\\uD800\n')", "42601", "invalid Unicode surrogate pair at or near \"\n\"", "31", ""},
+		{"E'\\uD800'\n'\\uDC00')", "42601", `invalid Unicode surrogate pair at or near "'"`, "31", ""},
+		{"E'a'\n'\\xff')", "22021", `invalid byte sequence for encoding "UTF8": 0xff`, "", ""},
+	}
+}
+
+func TestStringLiteralsPublic(t *testing.T) {
+	d := stuntgres.NewDriver()
+	db, other := openLocal(t, d, "strings"), openLocal(t, d, "strings")
+	if err := other.Ping(); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, db, "CREATE TABLE t(id INT,label TEXT,flag BOOL)")
+	want := [][]any{}
+	for i, tc := range stringLiteralValues() {
+		for _, prepared := range []bool{false, true} {
+			id := len(want) + 1
+			query := fmt.Sprintf("INSERT INTO t VALUES (%d,%s,TRUE)", id, tc.source)
+			var result sql.Result
+			var err error
+			if prepared {
+				var stmt *sql.Stmt
+				stmt, err = db.Prepare(query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, err = stmt.Exec()
+				stmt.Close()
+			} else {
+				result, err = db.Exec(query)
+			}
+			if err != nil {
+				t.Fatalf("case %d: %v", i, err)
+			}
+			if n, err := result.RowsAffected(); err != nil || n != 1 {
+				t.Fatalf("affected %d: %v", n, err)
+			}
+			want = append(want, []any{int64(id), tc.text, true})
+		}
+	}
+	wantTuples(t, other, "SELECT * FROM t ORDER BY id", want)
+	rows, err := db.Query("SELECT * FROM t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	types, err := rows.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range []string{"INT4", "TEXT", "BOOL"} {
+		if types[i].DatabaseTypeName() != name {
+			t.Fatalf("type %d: %s", i, types[i].DatabaseTypeName())
+		}
+	}
+	rows.Close()
+	stmt, err := db.Prepare(`SELECT id FROM t WHERE label=E'a\nb' ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := stmt.Query()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{1, 2} {
+		var got int64
+		if !r.Next() {
+			t.Fatal("missing WHERE row")
+		}
+		if err := r.Scan(&got); err != nil || got != id {
+			t.Fatalf("WHERE %d: %v", got, err)
+		}
+	}
+	if r.Next() || r.Err() != nil {
+		t.Fatal("unexpected WHERE rows")
+	}
+	r.Close()
+	stmt.Close()
+	stmt, err = db.Prepare(`INSERT INTO t VALUES ($1,$2,E'\164')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int64{100, 101} {
+		if _, err := stmt.Exec(id, `a\nb`); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stmt.Close()
+	wantTuples(t, other, "SELECT label,flag FROM t WHERE id=100", [][]any{{`a\nb`, true}})
+	execSQL(t, db, "CREATE TABLE inputs(id INT,big BIGINT,flag BOOL)")
+	for _, prepared := range []bool{false, true} {
+		q := `INSERT INTO inputs VALUES (E'\061',E'\062',E'\164')`
+		if prepared {
+			s, err := db.Prepare(q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = s.Exec()
+			s.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			execSQL(t, db, q)
+		}
+	}
+	wantTuples(t, db, "SELECT * FROM inputs", [][]any{{int64(1), int64(2), true}, {int64(1), int64(2), true}})
+	for _, tc := range []struct{ literal, typ, message string }{
+		{`E'\x71'`, "integer", `invalid input syntax for type integer: "q"`},
+		{`E'\x71'`, "bigint", `invalid input syntax for type bigint: "q"`},
+		{`E'\x71'`, "boolean", `invalid input syntax for type boolean: "q"`},
+	} {
+		column := map[string]string{"integer": "id", "bigint": "big", "boolean": "flag"}[tc.typ]
+		q := "INSERT INTO inputs (" + column + ") VALUES ('1'),(" + tc.literal + ")"
+		for _, prepared := range []bool{false, true} {
+			var err error
+			if prepared {
+				var s *sql.Stmt
+				s, err = db.Prepare(q)
+				if err == nil {
+					s.Close()
+					t.Fatal("invalid typed literal unexpectedly prepared")
+				}
+			} else {
+				_, err = db.Exec(q)
+			}
+			var got *stuntgres.Error
+			position := fmt.Sprint(utf8.RuneCountInString(q[:strings.Index(q, tc.literal)]) + 1)
+			if !errors.As(err, &got) || got.Code != "22P02" || got.Message != tc.message || got.Position != position || got.Hint != "" {
+				t.Fatalf("type diagnostic: %#v %v", got, err)
+			}
+		}
+		wantTuples(t, db, "SELECT * FROM inputs", [][]any{{int64(1), int64(2), true}, {int64(1), int64(2), true}})
+	}
+}
+
+func TestStringLiteralPublicDiagnostics(t *testing.T) {
+	d := stuntgres.NewDriver()
+	db, other := openLocal(t, d, "string-errors"), openLocal(t, d, "string-errors")
+	if err := other.Ping(); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, db, "CREATE TABLE t(label TEXT)")
+	execSQL(t, db, "INSERT INTO t VALUES ('seed')")
+	for _, tc := range stringLiteralErrors() {
+		for _, prefix := range []string{"", "/*é*/ "} {
+			position := tc.position
+			if prefix != "" && position != "" {
+				var n int
+				fmt.Sscan(position, &n)
+				position = fmt.Sprint(n + 6)
+			}
+			q := prefix + "INSERT INTO t VALUES (" + tc.source
+			for _, operation := range []string{"exec", "query", "prepare"} {
+				var err error
+				switch operation {
+				case "exec":
+					_, err = db.Exec(q)
+				case "query":
+					r, e := db.Query(q)
+					err = e
+					if r != nil {
+						r.Close()
+						t.Fatal("lexical failure yielded cursor")
+					}
+				case "prepare":
+					s, e := db.Prepare(q)
+					err = e
+					if s != nil {
+						s.Close()
+						t.Fatal("lexical failure yielded statement")
+					}
+				}
+				want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: position, Hint: tc.hint}
+				var got *stuntgres.Error
+				if !errors.As(err, &got) || *got != want || got.SQLState() != tc.code {
+					t.Fatalf("%s %q: %#v %v; want %#v", operation, q, got, err, want)
+				}
+			}
+		}
+		q := "INSERT INTO t VALUES ('valid'),(" + tc.source
+		if _, err := db.Exec(q); err == nil {
+			t.Fatalf("accepted %q", q)
+		}
+		if s, err := db.Prepare(q); err == nil {
+			s.Close()
+			t.Fatalf("prepared %q", q)
+		}
+		wantTuples(t, db, "SELECT * FROM t", [][]any{{"seed"}})
+		wantTuples(t, other, "SELECT * FROM t", [][]any{{"seed"}})
+	}
+	for _, tc := range []struct{ raw, message string }{{"\xff", "invalid UTF-8 in SQL"}, {"\x00", "NUL in SQL"}} {
+		q := "INSERT INTO t VALUES (E'" + tc.raw + "')"
+		for _, prepared := range []bool{false, true} {
+			var err error
+			if prepared {
+				s, e := db.Prepare(q)
+				err = e
+				if s != nil {
+					s.Close()
+				}
+			} else {
+				_, err = db.Exec(q)
+			}
+			want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: "25"}
+			var got *stuntgres.Error
+			if !errors.As(err, &got) || *got != want {
+				t.Fatalf("raw boundary: %#v %v", got, err)
+			}
+		}
+	}
+}

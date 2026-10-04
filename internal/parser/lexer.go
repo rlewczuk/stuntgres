@@ -115,9 +115,8 @@ func (l *lexer) skip(allowBlock bool) bool {
 	return newline
 }
 
-func (l *lexer) quoted(quote byte) (string, bool) {
-	// Newline-separated string segments form one token with one opener.
-	opener := l.current.pos.Offset
+func (l *lexer) quotedIdentifier() (string, bool) {
+	opener := l.offset
 	l.offset++
 	var b strings.Builder
 	for l.offset < len(l.input) {
@@ -127,8 +126,8 @@ func (l *lexer) quoted(quote byte) (string, bool) {
 			l.fail("42601", "NUL in quoted input")
 			return "", false
 		}
-		if c == quote {
-			if l.offset < len(l.input) && l.input[l.offset] == quote {
+		if c == '"' {
+			if l.offset < len(l.input) && l.input[l.offset] == '"' {
 				b.WriteByte(c)
 				l.offset++
 				continue
@@ -137,12 +136,195 @@ func (l *lexer) quoted(quote byte) (string, bool) {
 		}
 		b.WriteByte(c)
 	}
-	message := "unterminated quoted string"
-	if quote == '"' {
-		message = "unterminated quoted identifier"
-	}
-	l.failAt("42601", fmt.Sprintf("%s at or near \"%s\"", message, l.input[opener:]), opener)
+	l.scannerError("unterminated quoted identifier", opener, len(l.input))
 	return "", false
+}
+
+func hexDigit(c byte) int {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0')
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10
+	case c >= 'A' && c <= 'F':
+		return int(c-'A') + 10
+	}
+	return -1
+}
+
+func (l *lexer) scannerError(message string, start, end int) {
+	if start == len(l.input) {
+		message += " at end of input"
+	} else {
+		message += " at or near \"" + l.input[start:end] + "\""
+	}
+	l.failAt("42601", message, start)
+}
+
+func (l *lexer) unicodeEscape() (rune, bool) {
+	start := l.offset
+	width := 4
+	if l.input[start+1] == 'U' {
+		width = 8
+	}
+	l.offset += 2
+	var value uint32
+	for range width {
+		if l.offset == len(l.input) || hexDigit(l.input[l.offset]) < 0 {
+			l.failDiagnostic("22025", "invalid Unicode escape", `Unicode escapes must be \uXXXX or \UXXXXXXXX.`, start)
+			return 0, false
+		}
+		value = value*16 + uint32(hexDigit(l.input[l.offset]))
+		l.offset++
+	}
+	return rune(value), true
+}
+
+// stringLiteral shares one builder across all continued segments. Octal/hex
+// escapes are bytes; Unicode escapes are scalars. Verify bytes only at token end.
+func (l *lexer) stringLiteral(first int, escape bool) (string, bool) {
+	var b strings.Builder
+	for {
+		l.offset++
+		closed := false
+		for l.offset < len(l.input) {
+			start := l.offset
+			c := l.input[start]
+			l.offset++
+			if c == '\'' {
+				if l.offset < len(l.input) && l.input[l.offset] == '\'' {
+					b.WriteByte(c)
+					l.offset++
+					continue
+				}
+				closed = true
+				break
+			}
+			if !escape || c != '\\' {
+				b.WriteByte(c)
+				continue
+			}
+			if l.offset == len(l.input) {
+				break
+			}
+			c = l.input[l.offset]
+			if c == 'u' || c == 'U' {
+				l.offset = start
+				r, ok := l.unicodeEscape()
+				if !ok {
+					return "", false
+				}
+				if r >= 0xD800 && r <= 0xDBFF {
+					second := l.offset
+					if second+1 >= len(l.input) || l.input[second] != '\\' || (l.input[second+1] != 'u' && l.input[second+1] != 'U') {
+						end := second
+						if end < len(l.input) {
+							// PostgreSQL's unmatched surrogate rule matches one
+							// source byte, even inside a multibyte UTF8 character.
+							end++
+						}
+						l.scannerError("invalid Unicode surrogate pair", second, end)
+						return "", false
+					}
+					low, ok := l.unicodeEscape()
+					if !ok {
+						return "", false
+					}
+					if low < 0xDC00 || low > 0xDFFF {
+						l.scannerError("invalid Unicode surrogate pair", second, l.offset)
+						return "", false
+					}
+					r = 0x10000 + (r-0xD800)*0x400 + low - 0xDC00
+				} else if r >= 0xDC00 && r <= 0xDFFF {
+					l.scannerError("invalid Unicode surrogate pair", start, l.offset)
+					return "", false
+				}
+				if r <= 0 || r > utf8.MaxRune {
+					l.scannerError("invalid Unicode escape value", start, l.offset)
+					return "", false
+				}
+				b.WriteRune(r)
+				continue
+			}
+			l.offset++
+			if c >= '0' && c <= '7' {
+				value := int(c - '0')
+				for n := 1; n < 3 && l.offset < len(l.input) && l.input[l.offset] >= '0' && l.input[l.offset] <= '7'; n++ {
+					value = value*8 + int(l.input[l.offset]-'0')
+					l.offset++
+				}
+				b.WriteByte(byte(value))
+				continue
+			}
+			if c == 'x' && l.offset < len(l.input) && hexDigit(l.input[l.offset]) >= 0 {
+				value := hexDigit(l.input[l.offset])
+				l.offset++
+				if l.offset < len(l.input) && hexDigit(l.input[l.offset]) >= 0 {
+					value = value*16 + hexDigit(l.input[l.offset])
+					l.offset++
+				}
+				b.WriteByte(byte(value))
+				continue
+			}
+			switch c {
+			case 'b':
+				c = '\b'
+			case 'f':
+				c = '\f'
+			case 'n':
+				c = '\n'
+			case 'r':
+				c = '\r'
+			case 't':
+				c = '\t'
+			case 'v':
+				c = '\v'
+			}
+			b.WriteByte(c)
+		}
+		if !closed {
+			l.scannerError("unterminated quoted string", first, len(l.input))
+			return "", false
+		}
+		saved := l.offset
+		if !l.skip(false) || l.offset == len(l.input) || l.input[l.offset] != '\'' {
+			l.offset = saved
+			break
+		}
+	}
+	s := b.String()
+	if escape {
+		for i := 0; i < len(s); {
+			r, size := utf8.DecodeRuneInString(s[i:])
+			if s[i] == 0 || r == utf8.RuneError && size == 1 {
+				n := 1
+				switch c := s[i]; {
+				case c >= 0xC0 && c <= 0xDF:
+					n = 2
+				case c >= 0xE0 && c <= 0xEF:
+					n = 3
+				case c >= 0xF0 && c <= 0xF7:
+					n = 4
+				}
+				if n > len(s)-i {
+					n = len(s) - i
+				}
+				const digits = "0123456789abcdef"
+				var message strings.Builder
+				message.WriteString(`invalid byte sequence for encoding "UTF8":`)
+				for j := range n {
+					c := s[i+j]
+					message.WriteString(" 0x")
+					message.WriteByte(digits[c>>4])
+					message.WriteByte(digits[c&15])
+				}
+				l.failDiagnostic("22021", message.String(), "", -1)
+				return "", false
+			}
+			i += size
+		}
+	}
+	return s, true
 }
 func (l *lexer) parameter(s string) int { n, _ := strconv.ParseInt(s, 10, 32); return int(n) }
 func (l *lexer) Lex(v *sqlSymType) int {
@@ -164,7 +346,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	token := 0
 	switch {
 	case c == '"':
-		s, ok := l.quoted(c)
+		s, ok := l.quotedIdentifier()
 		if !ok {
 			return 0
 		}
@@ -174,27 +356,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 		l.current.text = truncateName(s)
 		token = IDENT
-	case c == '\'':
-		s, ok := l.quoted(c)
+	case c == '\'' || (c == 'e' || c == 'E') && start+1 < len(l.input) && l.input[start+1] == '\'':
+		escape := c != '\''
+		if escape {
+			l.offset++
+		}
+		s, ok := l.stringLiteral(start, escape)
 		if !ok {
 			return 0
-		}
-		l.current.raw = l.input[start:l.offset]
-		for {
-			saved := l.offset
-			newline := l.skip(false)
-			if l.err != nil {
-				return 0
-			}
-			if !newline || l.offset >= len(l.input) || l.input[l.offset] != '\'' {
-				l.offset = saved
-				break
-			}
-			next, ok := l.quoted(c)
-			if !ok {
-				return 0
-			}
-			s += next
 		}
 		l.current.text = s
 		token = STRING
@@ -246,7 +415,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			l.offset++
 		}
 		raw := fold(l.input[start:l.offset])
-		if l.offset < len(l.input) && ((raw == "e" || raw == "b" || raw == "x" || raw == "n") && l.input[l.offset] == '\'' || raw == "u" && strings.HasPrefix(l.input[l.offset:], "&")) {
+		if l.offset < len(l.input) && ((raw == "b" || raw == "x" || raw == "n") && l.input[l.offset] == '\'' || raw == "u" && strings.HasPrefix(l.input[l.offset:], "&")) {
 			l.fail("0A000", "special quoted syntax is unsupported")
 			return 0
 		}

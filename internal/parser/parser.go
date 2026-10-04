@@ -61,12 +61,20 @@ func (l *lexer) fail(code, message string) {
 }
 
 func (l *lexer) failAt(code, message string, offset int) {
+	l.failDiagnostic(code, message, "", offset)
+}
+
+// A negative offset deliberately omits Position (decoded encoding errors).
+func (l *lexer) failDiagnostic(code, message, hint string, offset int) {
 	if l.err == nil {
-		l.err = &sqlstate.Error{
+		e := &sqlstate.Error{
 			Severity: "ERROR", SeverityUnlocalized: "ERROR",
-			Code: code, Message: message,
-			Position: strconv.Itoa(utf8.RuneCountInString(l.input[:offset]) + 1),
+			Code: code, Message: message, Hint: hint,
 		}
+		if offset >= 0 {
+			e.Position = strconv.Itoa(utf8.RuneCountInString(l.input[:offset]) + 1)
+		}
+		l.err = e
 	}
 }
 

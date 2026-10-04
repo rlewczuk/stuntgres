@@ -411,3 +411,66 @@ func TestCatalogControlsReleaseLocksDuringIO(t *testing.T) {
 	}
 	wantTuples(t, other, "SELECT v FROM replaced", [][]any{{int64(99)}})
 }
+
+func TestStringLiteralControls(t *testing.T) {
+	ctx := context.Background()
+	d := stuntgres.NewDriver()
+	db, other := openLocal(t, d, "string-controls"), openLocal(t, d, "string-controls")
+	if err := other.Ping(); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, db, "CREATE TABLE t(id INT,label TEXT)")
+	execSQL(t, db, `INSERT INTO t VALUES (1,E'a\n\b\f\r\t\vO\'Brien\\tail'),(2,E'\303\251\uD83D\uDE00\uFFFF'),(3,E''),(4,NULL)`)
+	want := [][]any{{int64(1), "a\n\b\f\r\t\vO'Brien\\tail"}, {int64(2), "é😀\uFFFF"}, {int64(3), ""}, {int64(4), nil}}
+	held, err := other.Query("SELECT * FROM t ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	for _, pool := range []*sql.DB{db, other} {
+		wantTuples(t, pool, "SELECT * FROM t ORDER BY id", want)
+	}
+	for _, row := range want {
+		var id int64
+		var text any
+		if !held.Next() {
+			t.Fatal("snapshot lost row")
+		}
+		if err := held.Scan(&id, &text); err != nil || id != row[0] || text != row[1] {
+			t.Fatalf("snapshot %d %q: %v", id, text, err)
+		}
+	}
+	if held.Next() || held.Err() != nil {
+		t.Fatal("snapshot extra/error")
+	}
+	var again bytes.Buffer
+	if err := stuntgres.Dump(ctx, other, &again); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(dump.Bytes(), again.Bytes()) {
+		t.Fatal("dump changed")
+	}
+	for _, source := range []string{`E'\0')`, `E'\xff')`, `E'\u061')`, `E'abc\`} {
+		script := "CREATE TABLE replacement(label TEXT); INSERT INTO replacement VALUES ('valid'); INSERT INTO replacement VALUES (" + source
+		if err := stuntgres.Restore(ctx, db, strings.NewReader(script)); err == nil {
+			t.Fatal("bad Restore succeeded")
+		}
+		wantTuples(t, other, "SELECT * FROM t ORDER BY id", want)
+		_, err := db.Query("SELECT * FROM replacement")
+		sqlState(t, err, "42P01")
+	}
+	if err := stuntgres.Restore(ctx, db, strings.NewReader(`CREATE TABLE restored(label TEXT); INSERT INTO restored VALUES (E'a\nb'),(E'\xC3\xA9');`)); err != nil {
+		t.Fatal(err)
+	}
+	wantTuples(t, other, "SELECT * FROM restored", [][]any{{"a\nb"}, {"é"}})
+}

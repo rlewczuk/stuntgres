@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -98,7 +99,8 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (-9223372036854775809)", "22003"},
 		{"INSERT INTO t VALUES (1.0)", "0A000"}, {"INSERT INTO t VALUES (.1)", "0A000"},
 		{"INSERT INTO t VALUES (1e3)", "0A000"}, {"INSERT INTO t VALUES (1z)", "42601"},
-		{"INSERT INTO t VALUES (E'a')", "0A000"}, {"INSERT INTO t VALUES ($tag$a$tag$)", "0A000"},
+		{"INSERT INTO t VALUES (B'a')", "0A000"}, {"INSERT INTO t VALUES (X'a')", "0A000"},
+		{"INSERT INTO t VALUES (N'a')", "0A000"}, {"INSERT INTO t VALUES ($tag$a$tag$)", "0A000"},
 		{"INSERT INTO t VALUES (U&'a')", "0A000"}, {"CREATE TABLE U&\"t\" (x INT)", "0A000"},
 		{"CREATE TABLE t (x TIMESTAMP)", "0A000"}, {"CREATE TABLE t (x NUMERIC(8))", "0A000"},
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
@@ -191,5 +193,100 @@ func TestMarkersAndRepeatedParameters(t *testing.T) {
 	values := got[0].(*Insert).Rows[0]
 	if values[0].Kind != StringValue || values[0].Text != "$17" || values[1].Parameter != 2 || values[2].Parameter != 2 || values[3].Parameter != 1 {
 		t.Fatalf("values = %#v", values)
+	}
+}
+
+func TestEscapeStringDecoding(t *testing.T) {
+	for _, tc := range []struct{ source, want string }{
+		{`E''`, ""}, {`e'A'`, "A"}, {`E'\b\f\n\r\t\v'`, "\b\f\n\r\t\v"},
+		{`E'O\'Brien\\tail'`, "O'Brien\\tail"}, {`E'O''Brien'`, "O'Brien"},
+		{`E'\q\8\9\x\X'`, "q89xX"}, {"E'\\\n\\\r'", "\n\r"},
+		{`E'\101\12\1\1012'`, "A\n\x01A2"}, {`E'\x41\x4\x414'`, "A\x04A4"},
+		{`E'\303\251'`, "é"}, {`E'\xC3\xA9'`, "é"},
+		{`E'\u0061\U00000062'`, "ab"}, {`E'\u00612'`, "a2"},
+		{`E'\U0001F600'`, "😀"}, {`E'\uD83D\uDE00'`, "😀"},
+		{`E'\uD83D\U0000DE00'`, "😀"}, {`E'\U0000D83D\uDE00'`, "😀"},
+		{`E'\uFFFF\uFFFD'`, "\uFFFF\uFFFD"}, {`'\n'`, `\n`},
+		{`'O''Brien'`, "O'Brien"}, {"E'a'\n'\\n'", "a\n"},
+		{"E'a'\r'\\n'", "a\n"}, {"'a'\n'\\n'", `a\n`},
+		{"E'\\xC3'\n'\\xA9'", "é"}, {"E'a' -- comment\r'\\n'", "a\n"},
+	} {
+		t.Run(tc.source, func(t *testing.T) {
+			stmts, err := Parse("/*é*/ INSERT INTO t VALUES (" + tc.source + ")")
+			if err != nil {
+				t.Fatal(err)
+			}
+			v := stmts[0].(*Insert).Rows[0][0]
+			if v.Kind != StringValue || v.Text != tc.want || v.Pos != (Position{Offset: 29, Character: 29}) {
+				t.Fatalf("value = %#v, want %q at byte 29/character 29", v, tc.want)
+			}
+		})
+	}
+	if _, err := Parse("CREATE TABLE e (e TEXT)"); err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range []string{`E 'a'`, `E'a' 'b'`, "E'a' /*\n*/ 'b'", "E'a'\nE'b'"} {
+		if stmts, err := Parse("INSERT INTO t VALUES (" + source + ")"); err == nil || stmts != nil {
+			t.Fatalf("accepted noncontinuation %q: %#v, %v", source, stmts, err)
+		}
+	}
+}
+
+func TestEscapeStringDiagnostics(t *testing.T) {
+	const hint = `Unicode escapes must be \uXXXX or \UXXXXXXXX.`
+	for _, tc := range []struct{ source, code, message, position, hint string }{
+		{`E'\0')`, "22021", `invalid byte sequence for encoding "UTF8": 0x00`, "", ""},
+		{`E'\000')`, "22021", `invalid byte sequence for encoding "UTF8": 0x00`, "", ""},
+		{`E'\400')`, "22021", `invalid byte sequence for encoding "UTF8": 0x00`, "", ""},
+		{`E'\x00')`, "22021", `invalid byte sequence for encoding "UTF8": 0x00`, "", ""},
+		{`E'\777')`, "22021", `invalid byte sequence for encoding "UTF8": 0xff`, "", ""},
+		{`E'\xff')`, "22021", `invalid byte sequence for encoding "UTF8": 0xff`, "", ""},
+		{`E'\x80')`, "22021", `invalid byte sequence for encoding "UTF8": 0x80`, "", ""},
+		{`E'\xc3')`, "22021", `invalid byte sequence for encoding "UTF8": 0xc3`, "", ""},
+		{`E'ok\xc3x')`, "22021", `invalid byte sequence for encoding "UTF8": 0xc3 0x78`, "", ""},
+		{`E'\xc0\xaf')`, "22021", `invalid byte sequence for encoding "UTF8": 0xc0 0xaf`, "", ""},
+		{`E'\xed\xa0\x80')`, "22021", `invalid byte sequence for encoding "UTF8": 0xed 0xa0 0x80`, "", ""},
+		{`E'\xf4\x90\x80\x80')`, "22021", `invalid byte sequence for encoding "UTF8": 0xf4 0x90 0x80 0x80`, "", ""},
+		{`E'\u061')`, "22025", "invalid Unicode escape", "25", hint},
+		{`E'\U0061')`, "22025", "invalid Unicode escape", "25", hint},
+		{`E'\u0000')`, "42601", `invalid Unicode escape value at or near "\u0000"`, "25", ""},
+		{`E'\U00000000')`, "42601", `invalid Unicode escape value at or near "\U00000000"`, "25", ""},
+		{`E'\U00110000')`, "42601", `invalid Unicode escape value at or near "\U00110000"`, "25", ""},
+		{`E'\uDC00')`, "42601", `invalid Unicode surrogate pair at or near "\uDC00"`, "25", ""},
+		{`E'\uD800\u0061')`, "42601", `invalid Unicode surrogate pair at or near "\u0061"`, "31", ""},
+		{`E'\uD800\u0000')`, "42601", `invalid Unicode surrogate pair at or near "\u0000"`, "31", ""},
+		{`E'\uD800\U00110000')`, "42601", `invalid Unicode surrogate pair at or near "\U00110000"`, "31", ""},
+		{`E'\uD800\u061')`, "22025", "invalid Unicode escape", "31", hint},
+		{`E'\uD800x')`, "42601", `invalid Unicode surrogate pair at or near "x"`, "31", ""},
+		{`E'\uD800é')`, "42601", "invalid Unicode surrogate pair at or near \"\xc3\"", "31", ""},
+		{`E'\uD800😀')`, "42601", "invalid Unicode surrogate pair at or near \"\xf0\"", "31", ""},
+		{`E'\uD800')`, "42601", `invalid Unicode surrogate pair at or near "'"`, "31", ""},
+		{`E'\uD800`, "42601", "invalid Unicode surrogate pair at end of input", "31", ""},
+		{`E'abc`, "42601", `unterminated quoted string at or near "E'abc"`, "23", ""},
+		{`E'abc\`, "42601", `unterminated quoted string at or near "E'abc\"`, "23", ""},
+		{`E'abc\'`, "42601", `unterminated quoted string at or near "E'abc\'"`, "23", ""},
+		{"E'a'\n'b", "42601", "unterminated quoted string at or near \"E'a'\n'b\"", "23", ""},
+		{"E'\\uD800\n')", "42601", "invalid Unicode surrogate pair at or near \"\n\"", "31", ""},
+		{"E'\\uD800'\n'\\uDC00')", "42601", `invalid Unicode surrogate pair at or near "'"`, "31", ""},
+		{"E'a'\n'\\xff')", "22021", `invalid byte sequence for encoding "UTF8": 0xff`, "", ""},
+	} {
+		for _, prefix := range []string{"", "/*é*/ "} {
+			query := prefix + "INSERT INTO t VALUES (" + tc.source
+			position := tc.position
+			if position != "" && prefix != "" {
+				n, _ := strconv.Atoi(position)
+				position = strconv.Itoa(n + 6)
+			}
+			stmts, err := Parse(query)
+			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: position, Hint: tc.hint}
+			var got *sqlstate.Error
+			if stmts != nil || !errors.As(err, &got) || *got != want || got.SQLState() != tc.code {
+				t.Errorf("%q: %#v, %v; want %#v", query, got, err, want)
+			}
+			stmts, err = Parse("CREATE TABLE prior (x INT); " + query)
+			if err == nil || stmts != nil {
+				t.Errorf("partial script escaped rejection: %#v, %v", stmts, err)
+			}
+		}
 	}
 }
