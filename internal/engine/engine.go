@@ -230,10 +230,10 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 			for _, target := range s.Targets {
 				i, ok := b.relation.index[target.Name]
 				if !ok {
-					return b, insertError("42703", fmt.Sprintf("column %q of relation %q does not exist", target.Name, b.relation.name), target.Pos)
+					return b, insertError("42703", fmt.Sprintf("column \"%s\" of relation \"%s\" does not exist", target.Name, b.relation.name), target.Pos)
 				}
 				if seen[i] {
-					return b, insertError("42701", fmt.Sprintf("column %q specified more than once", target.Name), target.Pos)
+					return b, insertError("42701", fmt.Sprintf("column \"%s\" specified more than once", target.Name), target.Pos)
 				}
 				seen[i] = true
 				b.targets = append(b.targets, i)
@@ -401,7 +401,7 @@ func insertValueError(err error, column parser.Column, value parser.Value) error
 		case parser.Bool:
 			destination = "boolean"
 		}
-		sqlErr.Message = fmt.Sprintf("column %q is of type %s but expression is of type %s", column.Name, destination, source)
+		sqlErr.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, destination, source)
 		sqlErr.Hint = "You will need to rewrite or cast the expression."
 		sqlErr.Position = strconv.Itoa(value.Pos.Character)
 	case "22P02", "22003":

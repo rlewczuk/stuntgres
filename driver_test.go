@@ -828,6 +828,43 @@ func TestInsertImplicitShortDiagnostics(t *testing.T) {
 	}
 	assertImplicitErrorBoundary(t, got)
 }
+
+func TestInsertImplicitShortQuotedDiagnostics(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "implicit-quoted-diagnostics")
+	execSQL(t, db, `CREATE TABLE "t""é"("a""b" INT NOT NULL,label TEXT,flag BOOL)`)
+	execSQL(t, db, `INSERT INTO "t""é" VALUES(99,'sentinel',TRUE)`)
+	for _, tc := range []struct {
+		query, code, message, hint, token string
+	}{
+		{`INSERT INTO "t""é" VALUES(TRUE)`, "42804", `column "a"b" is of type integer but expression is of type boolean`, "You will need to rewrite or cast the expression.", "TRUE"},
+		{`INSERT INTO "t""é"("a""b","a""b") VALUES(1,2)`, "42701", `column "a"b" specified more than once`, "", `"a""b"`},
+		{`INSERT INTO "t""é"("m""issing") VALUES(1)`, "42703", `column "m"issing" of relation "t"é" does not exist`, "", `"m""issing"`},
+	} {
+		position := fmt.Sprint(utf8.RuneCountInString(tc.query[:strings.LastIndex(tc.query, tc.token)]) + 1)
+		for _, prepared := range []bool{false, true} {
+			var err error
+			if prepared {
+				stmt, prepareErr := db.Prepare(tc.query)
+				if prepareErr == nil {
+					stmt.Close()
+					t.Fatalf("%s: expected preparation failure", tc.query)
+				}
+				err = prepareErr
+			} else {
+				_, err = db.Exec(tc.query)
+			}
+			var got *stuntgres.Error
+			if !errors.As(err, &got) || got.Code != tc.code || got.Message != tc.message ||
+				got.Position != position || got.Hint != tc.hint || got.Detail != "" ||
+				got.Schema != "" || got.Table != "" || got.Column != "" {
+				t.Fatalf("%s (prepared=%v): diagnostic=%+v (%v)", tc.query, prepared, got, err)
+			}
+			assertImplicitErrorBoundary(t, got)
+			wantTuples(t, db, `SELECT * FROM "t""é" ORDER BY "a""b"`, [][]any{{int64(99), "sentinel", true}})
+		}
+	}
+}
+
 func TestInsertImplicitShortUnicodePosition(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), "implicit-unicode")
 	execSQL(t, db, "CREATE TABLE t(id INT,label TEXT)")

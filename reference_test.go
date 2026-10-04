@@ -822,6 +822,31 @@ func TestReferenceInsertImplicitShortDiagnostics(t *testing.T) {
 	p.step(t, referencePrepared(clipParameterError))
 	p.step(t, referenceSelect("SELECT * FROM clip", []string{"label", "flag", "required"}, []string{"TEXT", "BOOL", "INT4"}, [][]any{}))
 }
+
+func TestReferenceInsertImplicitShortQuotedDiagnostics(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec(`CREATE TABLE "t""é"("a""b" INT NOT NULL,label TEXT,flag BOOL)`, 0))
+	p.step(t, referenceExec(`INSERT INTO "t""é" VALUES(99,'sentinel',TRUE)`, 1))
+	for _, tc := range []struct {
+		query, code, message, hint, token string
+	}{
+		{`INSERT INTO "t""é" VALUES(TRUE)`, "42804", `column "a"b" is of type integer but expression is of type boolean`, "You will need to rewrite or cast the expression.", "TRUE"},
+		{`INSERT INTO "t""é"("a""b","a""b") VALUES(1,2)`, "42701", `column "a"b" specified more than once`, "", `"a""b"`},
+		{`INSERT INTO "t""é"("m""issing") VALUES(1)`, "42703", `column "m"issing" of relation "t"é" does not exist`, "", `"m""issing"`},
+	} {
+		position := referencePosition(utf8.RuneCountInString(tc.query[:strings.LastIndex(tc.query, tc.token)]) + 1)
+		step := referenceImplicitError(tc.query, referenceDiagnostic{
+			Code: tc.code, Message: tc.message, Hint: tc.hint, Position: position,
+		})
+		step.errorStage = "execute"
+		p.step(t, step)
+		p.step(t, referenceSelect(`SELECT * FROM "t""é" ORDER BY "a""b"`, []string{`a"b`, "label", "flag"}, []string{"INT4", "TEXT", "BOOL"}, [][]any{{int64(99), "sentinel", true}}))
+		step.errorStage = "prepare"
+		p.step(t, referencePrepared(step))
+		p.step(t, referenceSelect(`SELECT * FROM "t""é" ORDER BY "a""b"`, []string{`a"b`, "label", "flag"}, []string{"INT4", "TEXT", "BOOL"}, [][]any{{int64(99), "sentinel", true}}))
+	}
+}
+
 func TestReferenceInsertImplicitShortDumpRoundTrip(t *testing.T) {
 	p := newReferencePair(t)
 	if _, err := p.native.ExecContext(p.ctx, "CREATE TABLE t(id INT NOT NULL,label TEXT,flag BOOL)"); err != nil {

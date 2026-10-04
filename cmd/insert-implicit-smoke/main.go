@@ -171,6 +171,57 @@ func run() error {
 	if err = verify(first); err != nil {
 		return err
 	}
+	if _, err = first.ExecContext(ctx, `CREATE TABLE quoted("a""b" INT,label TEXT,flag BOOL)`); err != nil {
+		return err
+	}
+	if _, err = first.ExecContext(ctx, `INSERT INTO quoted VALUES(99,'sentinel',TRUE)`); err != nil {
+		return err
+	}
+	var quotedBefore bytes.Buffer
+	if err = stuntgres.Dump(ctx, first, &quotedBefore); err != nil {
+		return err
+	}
+	q = `/* é */ INSERT INTO quoted VALUES(TRUE)`
+	for _, prepared := range []bool{false, true} {
+		if prepared {
+			stmt, prepareErr := first.PrepareContext(ctx, q)
+			if prepareErr == nil {
+				stmt.Close()
+				return fmt.Errorf("quoted-column mismatch unexpectedly prepared")
+			}
+			err = prepareErr
+		} else {
+			_, err = first.ExecContext(ctx, q)
+		}
+		var quotedError *stuntgres.Error
+		if !errors.As(err, &quotedError) || quotedError.Code != "42804" ||
+			quotedError.Message != `column "a"b" is of type integer but expression is of type boolean` ||
+			quotedError.Position != strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "TRUE")])+1) ||
+			quotedError.Hint != "You will need to rewrite or cast the expression." || quotedError.Detail != "" ||
+			quotedError.Schema != "" || quotedError.Table != "" || quotedError.Column != "" ||
+			quotedError.Severity != "ERROR" || quotedError.SeverityUnlocalized != "ERROR" ||
+			quotedError.InternalPosition != "" || quotedError.InternalQuery != "" || quotedError.Context != "" ||
+			quotedError.DataType != "" || quotedError.Constraint != "" ||
+			quotedError.File != "" || quotedError.Line != "" || quotedError.Routine != "" {
+			return fmt.Errorf("quoted-column diagnostic (prepared=%v): %+v (%v)", prepared, quotedError, err)
+		}
+		var id int64
+		var label string
+		var flag bool
+		if err = second.QueryRowContext(ctx, `SELECT * FROM quoted`).Scan(&id, &label, &flag); err != nil {
+			return err
+		}
+		if id != 99 || label != "sentinel" || !flag {
+			return fmt.Errorf("quoted-column sentinel changed: %d %q %v", id, label, flag)
+		}
+		var quotedAfter bytes.Buffer
+		if err = stuntgres.Dump(ctx, second, &quotedAfter); err != nil {
+			return err
+		}
+		if !bytes.Equal(quotedBefore.Bytes(), quotedAfter.Bytes()) {
+			return fmt.Errorf("quoted-column mismatch changed complete catalog")
+		}
+	}
 	if _, err = first.ExecContext(ctx, "CREATE TABLE required(id INT,flag BOOL NOT NULL)"); err != nil {
 		return err
 	}
