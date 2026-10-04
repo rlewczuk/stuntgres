@@ -18,7 +18,11 @@ type ObjectAddress struct {
 	ObjectID OID
 	SubID    int32
 }
+// catalogOwner has nonzero size so distinct live engines have distinct tokens.
+type catalogOwner struct{ marker byte }
+
 type ObjectRef struct {
+	owner   *catalogOwner
 	Epoch   CatalogEpoch
 	Address ObjectAddress
 }
@@ -145,13 +149,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		return fmt.Errorf("stuntgres: invalid relation identity")
 	}
 	for i, c := range r.columns {
-		if r.attributes[i] != int32(i+1) || r.index[c.Name] != i {
+		offset, exists := r.index[c.Name]
+		if r.attributes[i] != int32(i+1) || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
-		}
-		for j := 0; j < i; j++ {
-			if r.columns[j].Name == c.Name {
-				return fmt.Errorf("stuntgres: duplicate relation column")
-			}
 		}
 	}
 	return nil
@@ -191,6 +191,7 @@ type CatalogStage struct {
 type PreparedCatalogPublication struct {
 	stage *CatalogStage
 	epoch CatalogEpoch
+	ctx   context.Context
 }
 
 func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
@@ -264,13 +265,17 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		}
 	}
 	s.lifecycle = catalogValidated
-	return &PreparedCatalogPublication{stage: s, epoch: s.base.Epoch()}, nil
+	return &PreparedCatalogPublication{stage: s, epoch: s.base.Epoch(), ctx: ctx}, nil
 }
 func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
 	s := p.stage
+	changes := ChangeSet{Definitions: make([]ObjectAddress, 0, len(s.descriptors))}
+	for a := range s.descriptors {
+		changes.Definitions = append(changes.Definitions, a)
+	}
 	for {
 		e.mu.Lock()
 		if s.lifecycle != catalogValidated {
@@ -315,13 +320,13 @@ func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token Publication
 			e.mu.Unlock()
 			continue
 		}
+		if err := p.ctx.Err(); err != nil {
+			e.mu.Unlock()
+			return ChangeSet{}, err
+		}
 		e.state = next
 		e.storage = storage
 		s.lifecycle = catalogPublished
-		changes := ChangeSet{}
-		for a := range s.descriptors {
-			changes.Definitions = append(changes.Definitions, a)
-		}
 		e.mu.Unlock()
 		return changes, nil
 	}
@@ -332,15 +337,18 @@ func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 	}
 }
 func (e *Engine) ValidateObjectRef(view CatalogRead, ref ObjectRef) error {
-	if view.owner != e || view.state == nil {
+	if e.owner == nil || view.owner != e || view.state == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
+	}
+	if ref.owner == nil || ref.owner != e.owner {
+		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if view.state.epoch != e.state.epoch || ref.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
-	d, ok := e.state.descriptors[ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID}]
+	d, ok := view.state.descriptors[ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID}]
 	if !ok {
 		return fmt.Errorf("stuntgres: catalog object is missing")
 	}
@@ -400,11 +408,17 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		if err := ctx.Err(); err != nil {
 			return ChangeSet{}, err
 		}
+		if replacement.Epoch() != e.state.epoch {
+			return ChangeSet{}, ErrCatalogReplaced
+		}
 		if err := copyRows(e.storage); err != nil {
 			return ChangeSet{}, err
 		}
 		if e.state.epoch == CatalogEpoch(math.MaxUint64) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
+		}
+		if err := ctx.Err(); err != nil {
+			return ChangeSet{}, err
 		}
 		next.epoch = e.state.epoch + 1
 		e.state = next
@@ -412,6 +426,10 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		return ChangeSet{Replacement: true}, nil
 	}
 	replacement.owner.mu.Lock()
+	if replacement.Epoch() != replacement.owner.state.epoch {
+		replacement.owner.mu.Unlock()
+		return ChangeSet{}, ErrCatalogReplaced
+	}
 	err := copyRows(replacement.owner.storage)
 	replacement.owner.mu.Unlock()
 	if err != nil {

@@ -58,7 +58,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{ns.name, r.name, append([]parser.Column(nil), r.columns...), storage.rows})
+		tables = append(tables, dumpRelation{ns.name, r.name, r.columns, storage.rows})
 	}
 	e.mu.Unlock()
 	sort.Slice(tables, func(i, j int) bool {

@@ -32,7 +32,9 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	view = e.CatalogRead()
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}}
 	e.mu.Lock()
-	d, ref, storage, err := e.resolveRelation(name)
+	ref, err := e.resolveReference(view, name)
+	d, _ := view.state.descriptors[ref.Address].(*relationDescriptor)
+	storage := e.storage[ref.Address]
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -190,11 +192,11 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
-	ref := ObjectRef{Epoch: view.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 1}}
+	ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 1}}
 	if err := e.ValidateObjectRef(view, ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.ValidateObjectRef(view, ObjectRef{Epoch: view.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 2}}); err == nil {
+	if err := e.ValidateObjectRef(view, ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384, SubID: 2}}); err == nil {
 		t.Fatal("invalid attribute number accepted")
 	}
 	stage := e.BeginCatalogStage(view)
@@ -413,5 +415,369 @@ func TestCatalogProviderRegistersBeforeInitialization(t *testing.T) {
 	var uninitialized Engine
 	if err := uninitialized.RegisterCatalogProvider(&initializationTestProvider{}); err == nil {
 		t.Fatal("zero-value Engine accepted registration")
+	}
+}
+
+func catalogRef(t *testing.T, e *Engine, view CatalogRead, name string) ObjectRef {
+	t.Helper()
+	e.mu.Lock()
+	ref, err := e.resolveReference(view, parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: name}}})
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ref
+}
+
+func TestCatalogReferenceProvenance(t *testing.T) {
+	a, b := New(), New()
+	for i, e := range []*Engine{a, b} {
+		run(t, e, "CREATE TABLE public.t (id INTEGER)")
+		run(t, e, "INSERT INTO public.t VALUES ($1)", int64((i+1)*11))
+	}
+	va, vb := a.CatalogRead(), b.CatalogRead()
+	ra, rb := catalogRef(t, a, va, "t"), catalogRef(t, b, vb, "t")
+	if ra.Address.ObjectID == 0 || ra.Address != rb.Address || ra.Epoch != rb.Epoch || ra == rb || ra.owner == nil || rb.owner == nil {
+		t.Fatalf("coincident identities lack provenance: %#v / %#v", ra, rb)
+	}
+	for _, tc := range []struct {
+		engine *Engine
+		view   CatalogRead
+		own, foreign ObjectRef
+		want int64
+	}{{a, va, ra, rb, 11}, {b, vb, rb, ra, 22}} {
+		if err := tc.engine.ValidateObjectRef(tc.view, tc.own); err != nil {
+			t.Fatal(err)
+		}
+		ownerless := tc.own
+		ownerless.owner = nil
+		for _, ref := range []ObjectRef{tc.foreign, ownerless} {
+			if err := tc.engine.ValidateObjectRef(tc.view, ref); err == nil || err.Error() != "stuntgres: foreign catalog reference" {
+				t.Fatalf("foreign reference: %v", err)
+			}
+		}
+		if err := tc.engine.ValidateObjectRef(va, tc.own); tc.engine == b && (err == nil || err.Error() != "stuntgres: foreign catalog view") {
+			t.Fatalf("foreign view: %v", err)
+		}
+		if tc.engine.CatalogRead().state != tc.view.state || catalogRef(t, tc.engine, tc.view, "t") != tc.own {
+			t.Fatal("rejected validation changed authority")
+		}
+		rows := tuples(run(t, tc.engine, "SELECT id FROM public.t"))
+		if len(rows) != 1 || rows[0][0] != tc.want {
+			t.Fatalf("instance rows: %v", rows)
+		}
+	}
+}
+
+func TestCatalogReferencesUseCoherentView(t *testing.T) {
+	e := New()
+	base := e.CatalogRead()
+	run(t, e, "CREATE TABLE public.committed (id INTEGER)")
+	current := e.CatalogRead()
+	ref := catalogRef(t, e, current, "committed")
+	if err := e.ValidateObjectRef(base, ref); err == nil || err.Error() != "stuntgres: catalog object is missing" {
+		t.Fatalf("old same-epoch view adopted later object: %v", err)
+	}
+	e.mu.Lock()
+	_, err := e.resolveReference(base, parser.ObjectName{Parts: []parser.Identifier{{Text: "committed"}}})
+	creation, creationErr := e.resolveCreation(base, parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "new"}}})
+	e.mu.Unlock()
+	state(t, err, "42P01")
+	if creationErr != nil || creation.owner != e.owner || creation.Epoch != base.Epoch() {
+		t.Fatalf("retained creation view: %#v, %v", creation, creationErr)
+	}
+	stage := e.BeginCatalogStage(base)
+	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: creation.Address, name: "private", revision: 1, columns: []parser.Column{{Name: "id", Type: parser.Int4}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
+	if err := stage.Create(d); err != nil {
+		t.Fatal(err)
+	}
+	view := e.stageRead(stage)
+	private := catalogRef(t, e, view, "private")
+	column := private
+	column.Address.SubID = 1
+	if err := e.ValidateObjectRef(view, column); err != nil {
+		t.Fatalf("private-stage column: %v", err)
+	}
+	if err := e.ValidateObjectRef(current, private); err == nil {
+		t.Fatal("private-stage ref escaped to committed view")
+	}
+	column.Address.SubID = 2
+	if err := e.ValidateObjectRef(view, column); err == nil {
+		t.Fatal("invalid private column accepted")
+	}
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+	if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != private.Address {
+		t.Fatalf("private publication: %#v, %v", changes, err)
+	}
+	if catalogRef(t, e, e.CatalogRead(), "private") != private || catalogRef(t, e, current, "committed") != ref {
+		t.Fatal("unrelated publication changed same-epoch identity")
+	}
+}
+
+func TestCatalogReplacementPreservesOwner(t *testing.T) {
+	source, target := New(), New()
+	run(t, source, "CREATE TABLE public.t (id INTEGER)")
+	run(t, source, "INSERT INTO public.t VALUES (99)")
+	run(t, target, "CREATE TABLE public.t (id INTEGER)")
+	run(t, target, "INSERT INTO public.t VALUES (11)")
+	sourceView, old := source.CatalogRead(), target.CatalogRead()
+	sourceRef, oldRef := catalogRef(t, source, sourceView, "t"), catalogRef(t, target, old, "t")
+	owner := target.owner
+	changes, err := target.ReplaceCatalog(context.Background(), sourceView)
+	if err != nil || !changes.Replacement || target.owner != owner || target.CatalogRead().Epoch() != old.Epoch()+1 {
+		t.Fatalf("replacement ownership: %#v, %v", changes, err)
+	}
+	newRef := catalogRef(t, target, target.CatalogRead(), "t")
+	if newRef.owner != owner || newRef.Address != sourceRef.Address {
+		t.Fatalf("replacement ref: %#v", newRef)
+	}
+	if err := target.ValidateObjectRef(target.CatalogRead(), oldRef); !errors.Is(err, ErrCatalogReplaced) {
+		t.Fatalf("old target ref: %v", err)
+	}
+	if err := target.ValidateObjectRef(target.CatalogRead(), sourceRef); err == nil || err.Error() != "stuntgres: foreign catalog reference" {
+		t.Fatalf("source adopted by target: %v", err)
+	}
+	if err := source.ValidateObjectRef(sourceView, sourceRef); err != nil {
+		t.Fatal(err)
+	}
+	before := target.CatalogRead()
+	stage := target.BeginCatalogStage(before)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := target.Restore(ctx, strings.NewReader("CREATE TABLE public.other (id INTEGER)")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled restore: %v", err)
+	}
+	if err := target.Restore(context.Background(), strings.NewReader("nonsense")); err == nil {
+		t.Fatal("bad restore accepted")
+	}
+	if target.owner != owner || target.CatalogRead().state != before.state {
+		t.Fatal("failed restore changed authority")
+	}
+	if err := target.ValidateObjectRef(before, newRef); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := target.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+		t.Fatalf("failed restore fenced eligible stage: %v", err)
+	}
+	if err := target.Reset(context.Background()); err != nil || target.owner != owner {
+		t.Fatalf("reset ownership: %v", err)
+	}
+	if err := source.Reset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	after := target.CatalogRead()
+	for _, receiver := range []*Engine{source, target} {
+		stateBefore := receiver.CatalogRead()
+		if _, err := receiver.ReplaceCatalog(context.Background(), sourceView); !errors.Is(err, ErrCatalogReplaced) {
+			t.Fatalf("stale source replacement: %v", err)
+		}
+		if receiver.CatalogRead().state != stateBefore.state {
+			t.Fatal("stale source changed target")
+		}
+	}
+	if target.CatalogRead().state != after.state {
+		t.Fatal("stale replacement changed target authority")
+	}
+	if _, ok := sourceView.Descriptor(sourceRef.Address); !ok {
+		t.Fatal("stale source view lost readable descriptor")
+	}
+}
+
+func TestCatalogCanceledPreparedPublication(t *testing.T) {
+	e := New()
+	base := e.CatalogRead()
+	stage := e.BeginCatalogStage(base)
+	d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: 20000}, name: "private", revision: 1}
+	if err := stage.Create(d); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	prepared, err := e.ValidateCatalogStage(ctx, stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || changes.Replacement || e.CatalogRead().state != base.state {
+		t.Fatalf("canceled publication changed authority: %#v, %v", changes, err)
+	}
+	e.DiscardCatalogStage(stage)
+}
+
+func TestCatalogRejectsMalformedColumnIndex(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		columns []parser.Column
+		index map[string]int
+	} {
+		{"missing first name", []parser.Column{{Name: "id", Type: parser.Int4}}, map[string]int{"other": 0}},
+		{"duplicate names", []parser.Column{{Name: "id", Type: parser.Int4}, {Name: "id", Type: parser.Int4}}, map[string]int{"id": 0, "other": 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+			base := e.CatalogRead()
+			stage := e.BeginCatalogStage(base)
+			attributes := make([]int32, len(tc.columns))
+			for i := range attributes {
+				attributes[i] = int32(i + 1)
+			}
+			d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "bad", revision: 1, columns: tc.columns, index: tc.index, attributes: attributes}
+			if err := stage.Create(d); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil || err.Error() != "stuntgres: invalid relation column identity" {
+				t.Fatalf("malformed column index: %v", err)
+			}
+			if e.CatalogRead().state != base.state {
+				t.Fatal("invalid descriptor changed committed state")
+			}
+		})
+	}
+}
+
+// cancelAfterPreflightContext delegates to a real cancellable context. Its
+// second successful Err observation cancels immediately after observing nil,
+// deterministically placing cancellation between preflight and row preparation.
+// It neither fabricates an error nor changes the underlying Done semantics.
+type cancelAfterPreflightContext struct {
+	context.Context
+	cancel context.CancelFunc
+	checks int
+}
+
+func (c *cancelAfterPreflightContext) Err() error {
+	err := c.Context.Err()
+	c.checks++
+	if c.checks == 2 && err == nil {
+		c.cancel()
+	}
+	return err
+}
+
+func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE public.t (id INTEGER)")
+	run(t, e, "INSERT INTO public.t VALUES (11)")
+	before := e.CatalogRead()
+	ref := catalogRef(t, e, before, "t")
+	owner := e.owner
+	storage := e.storage[ref.Address]
+	stage := e.BeginCatalogStage(before)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	preflight := &cancelAfterPreflightContext{Context: ctx, cancel: cancel}
+	changes, err := e.ReplaceCatalog(preflight, before)
+	if ctx.Err() != context.Canceled {
+		t.Fatal("preparation boundary did not cancel real context")
+	}
+	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
+		t.Fatalf("canceled self-replacement: changes=%#v error=%v", changes, err)
+	}
+	if e.owner != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || e.storage[ref.Address] != storage {
+		t.Fatal("canceled self-replacement changed owner/state/epoch/storage")
+	}
+	if err := e.ValidateObjectRef(before, ref); err != nil {
+		t.Fatal(err)
+	}
+	rows := tuples(run(t, e, "SELECT id FROM public.t"))
+	if len(rows) != 1 || rows[0][0] != int64(11) {
+		t.Fatalf("canceled replacement changed rows: %v", rows)
+	}
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+		t.Fatalf("canceled replacement fenced eligible stage: %v", err)
+	}
+}
+
+func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
+	for _, published := range []bool{false, true} {
+		t.Run(map[bool]string{false: "validated discard", true: "published replay"}[published], func(t *testing.T) {
+			e := New()
+			run(t, e, "CREATE TABLE public.sentinel (id INTEGER)")
+			run(t, e, "INSERT INTO public.sentinel VALUES (11)")
+			base := e.CatalogRead()
+			stage := e.BeginCatalogStage(base)
+			d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "p", revision: 1, columns: []parser.Column{{Name: "id", Type: parser.Int4}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
+			if err := stage.Create(d); err != nil {
+				t.Fatal(err)
+			}
+			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if published {
+				changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+				if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != d.address {
+					t.Fatalf("initial publication = %#v, %v", changes, err)
+				}
+				run(t, e, "INSERT INTO public.p VALUES (22)")
+			}
+			before := e.CatalogRead()
+			sentinel := catalogRef(t, e, before, "sentinel")
+			owner := e.owner
+			sentinelStorage := e.storage[sentinel.Address]
+			publishedStorage := e.storage[d.address]
+			storageCount := len(e.storage)
+			assertUnchanged := func() {
+				t.Helper()
+				if e.owner != owner || e.CatalogRead().state != before.state || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage) != storageCount || e.storage[sentinel.Address] != sentinelStorage || e.storage[d.address] != publishedStorage {
+					t.Fatal("lifecycle operation changed committed authority/storage")
+				}
+				rows := tuples(run(t, e, "SELECT id FROM public.sentinel"))
+				if len(rows) != 1 || rows[0][0] != int64(11) {
+					t.Fatalf("sentinel rows changed: %v", rows)
+				}
+				if published {
+					rows = tuples(run(t, e, "SELECT id FROM public.p"))
+					if len(rows) != 1 || rows[0][0] != int64(22) {
+						t.Fatalf("published rows changed: %v", rows)
+					}
+				} else if _, exists := before.Descriptor(d.address); exists || len(before.Lookup(NameKey{ClassID: RelationClassID, Namespace: d.namespace, Name: d.name})) != 0 {
+					t.Fatal("discarded descriptor/name was published")
+				}
+			}
+			assertOrdinaryError := func(err error) {
+				t.Helper()
+				var sqlError interface{ SQLState() string }
+				if err == nil || errors.As(err, &sqlError) {
+					t.Fatalf("want ordinary lifecycle error, got %v", err)
+				}
+			}
+			rejectPublication := func() {
+				t.Helper()
+				changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
+				assertOrdinaryError(err)
+				if len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
+					t.Fatalf("rejected publication emitted changes: %#v", changes)
+				}
+				assertUnchanged()
+			}
+			if published {
+				rejectPublication()
+			}
+			for range 2 {
+				e.DiscardCatalogStage(stage)
+				if published && stage.lifecycle != catalogPublished || !published && stage.lifecycle != catalogDiscarded {
+					t.Fatalf("discard lifecycle = %v", stage.lifecycle)
+				}
+				assertUnchanged()
+			}
+			rejectPublication()
+			assertOrdinaryError(stage.Create(d))
+			_, err = e.ValidateCatalogStage(context.Background(), stage)
+			assertOrdinaryError(err)
+			assertUnchanged()
+		})
 	}
 }

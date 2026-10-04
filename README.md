@@ -31,8 +31,9 @@ SELECT (* | column [, ...]) FROM [public.]name
        [WHERE column = value] [ORDER BY column [ASC | DESC]]
 type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
 value := signed-64-bit integer | 'string' | TRUE | FALSE | NULL | $n
+```
 
-Relation names accept one or two identifier components. Explicit `public.name` and unqualified `name` resolve to the same relation; unqualified references check `pg_catalog` before the built-in `public` namespace. SQL creation is supported only in `public`. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity; Reset/Restore replace the authority atomically and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
+Relation names accept one or two identifier components. Explicit `public.name` and unqualified `name` resolve to the same relation; unqualified references check `pg_catalog` before the built-in `public` namespace. SQL creation is supported only in `public`. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
 
 Unquoted names fold ASCII uppercase and truncate to 63 UTF-8-boundary bytes; quoted names preserve case and decode doubled quotes. A quoted identifier containing a dot is one component, e.g. `public."a.b"`. Strings use doubled apostrophes, literal backslashes and newline-separated adjacent-string concatenation. Whitespace, line comments and nested block comments are accepted. Parameters are 1-based `$n`, inferred from insert destinations or equality columns. Repeated parameters of one canonical destination type share a binding; gaps fail with `42P18`, mixed destination types with `0A000`. Named arguments and other parameter dialects are not supported.
 
@@ -55,6 +56,8 @@ func Restore(ctx context.Context, db *sql.DB, src io.Reader) error
 Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog` and `public` namespace descriptors while retaining database identity and existing pools. Dump writes deterministic, schema-then-relation-sorted PostgreSQL-compatible plain CREATE/INSERT SQL, with separately quoted schema/relation components, declaration-ordered columns and canonical literals. It is not complete `pg_dump` output, COPY, or catalog export.
 
 Restore accepts supported CREATE/INSERT scripts without parameters, builds a staging engine, then atomically **replaces** the descriptors, identity-keyed row storage and epoch, never merges. Empty input clears user relations. Read, parse, execution and cancellation errors leave original data untouched. Reset/Restore publication supersedes earlier completed writes. Existing SELECT snapshots remain valid across inserts and catalog replacement. Writer errors do not change the database.
+
+`go run ./cmd/smoke` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation before printing the documented four lines.
 
 ## Catalog-part agent workflow
 

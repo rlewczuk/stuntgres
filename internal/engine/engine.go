@@ -15,6 +15,7 @@ import (
 
 type Engine struct {
 	mu           sync.Mutex
+	owner        *catalogOwner
 	state        *catalogState
 	providers    map[OID]CatalogProvider
 	storage      map[ObjectAddress]*relationStorage
@@ -56,7 +57,7 @@ func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
 }
 
 func newEngine(providers []CatalogProvider) (*Engine, error) {
-	e := &Engine{providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
+	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
@@ -149,14 +150,14 @@ func objectNameRelation(n parser.ObjectName) string {
 	}
 	return n.Parts[len(n.Parts)-1].Text
 }
-func (e *Engine) namespaceForName(name parser.ObjectName, creation bool) (ObjectAddress, error) {
+func namespaceForName(view CatalogRead, name parser.ObjectName, creation bool) (ObjectAddress, error) {
 	if len(name.Parts) == 1 {
 		a := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-		if _, ok := e.state.descriptors[a]; ok {
+		if _, ok := view.state.descriptors[a]; ok {
 			return a, nil
 		}
 	} else if len(name.Parts) == 2 {
-		a, ok := e.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+		a, ok := view.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
 		if ok {
 			return a, nil
 		}
@@ -166,33 +167,6 @@ func (e *Engine) namespaceForName(name parser.ObjectName, creation bool) (Object
 		return ObjectAddress{}, nil
 	}
 	return ObjectAddress{}, nil
-}
-func (e *Engine) resolveRelation(name parser.ObjectName) (*relationDescriptor, ObjectRef, *relationStorage, error) {
-	relname := name.Parts[len(name.Parts)-1].Text
-	var a ObjectAddress
-	var ok bool
-	if len(name.Parts) == 1 {
-		pg := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-		a, ok = e.state.names[NameKey{ClassID: RelationClassID, Namespace: pg, Name: relname}]
-		if !ok {
-			pub := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-			a, ok = e.state.names[NameKey{ClassID: RelationClassID, Namespace: pub, Name: relname}]
-		}
-	} else {
-		ns, err := e.namespaceForName(name, false)
-		if err != nil {
-			return nil, ObjectRef{}, nil, err
-		}
-		a, ok = e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
-	}
-	if !ok {
-		return nil, ObjectRef{}, nil, &sqlstate.Error{Code: "42P01", Message: fmt.Sprintf("relation %q does not exist", objectNameText(name))}
-	}
-	d, valid := e.state.descriptors[a].(*relationDescriptor)
-	if !valid {
-		return nil, ObjectRef{}, nil, fmt.Errorf("stuntgres: invalid relation descriptor")
-	}
-	return d, ObjectRef{Epoch: e.state.epoch, Address: a}, e.storage[a], nil
 }
 func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	b := binding{predicate: -1, order: -1}
@@ -339,28 +313,65 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	}
 	return b, nil
 }
-func (e *Engine) resolveReference(view CatalogRead, name parser.ObjectName) (ObjectRef, error) {
-	if view.owner != e || view.state == nil {
-		return ObjectRef{}, fmt.Errorf("stuntgres: foreign catalog view")
+// Resolution helpers run under e.mu, using the supplied coherent view.
+func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
+	if e.owner == nil || view.owner != e || view.state == nil {
+		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	if view.state != e.state {
-		return ObjectRef{}, ErrCatalogReplaced
+	if view.Epoch() != e.state.epoch {
+		return ErrCatalogReplaced
 	}
-	_, ref, _, err := e.resolveRelation(name)
-	return ref, err
+	return nil
 }
-func (e *Engine) resolveCreation(view CatalogRead, name parser.ObjectName) (ObjectRef, error) {
-	if view.owner != e || view.state == nil {
-		return ObjectRef{}, fmt.Errorf("stuntgres: foreign catalog view")
+
+func (e *Engine) resolveReference(view CatalogRead, name parser.ObjectName) (ObjectRef, error) {
+	if err := e.validateCatalogViewLocked(view); err != nil {
+		return ObjectRef{}, err
 	}
-	ns, err := e.namespaceForName(name, true)
+	if len(name.Parts) < 1 || len(name.Parts) > 2 {
+		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
+	}
+	relname := name.Parts[len(name.Parts)-1].Text
+	var a ObjectAddress
+	var ok bool
+	if len(name.Parts) == 1 {
+		pg := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: pg, Name: relname}]
+		if !ok {
+			pub := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
+			a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: pub, Name: relname}]
+		}
+	} else {
+		ns, err := namespaceForName(view, name, false)
+		if err != nil {
+			return ObjectRef{}, err
+		}
+		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
+	}
+	if !ok {
+		return ObjectRef{}, &sqlstate.Error{Code: "42P01", Message: fmt.Sprintf("relation %q does not exist", objectNameText(name))}
+	}
+	if _, ok := view.state.descriptors[a].(*relationDescriptor); !ok {
+		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
+	}
+	return ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: a}, nil
+}
+
+func (e *Engine) resolveCreation(view CatalogRead, name parser.ObjectName) (ObjectRef, error) {
+	if err := e.validateCatalogViewLocked(view); err != nil {
+		return ObjectRef{}, err
+	}
+	if len(name.Parts) < 1 || len(name.Parts) > 2 {
+		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
+	}
+	ns, err := namespaceForName(view, name, true)
 	if err != nil {
 		return ObjectRef{}, err
 	}
 	if ns.ObjectID != PublicNamespaceOID {
 		return ObjectRef{}, &sqlstate.Error{Code: "0A000", Message: "creation outside public is unsupported"}
 	}
-	return ObjectRef{Epoch: view.Epoch(), Address: ns}, nil
+	return ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}, nil
 }
 func annotate(err error, table, column string) error {
 	var e *sqlstate.Error

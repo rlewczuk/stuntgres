@@ -153,12 +153,20 @@ func TestSnapshotSurvivesCatalogReplacement(t *testing.T) {
 			defer rows.Close()
 			execSQL(t, other, "INSERT INTO public.snap VALUES(3)")
 			if restore {
-				err = stuntgres.Restore(context.Background(), other, strings.NewReader("CREATE TABLE public.snap(v INT); INSERT INTO public.snap VALUES(99);"))
+				err = stuntgres.Restore(context.Background(), other, strings.NewReader("CREATE TABLE public.snap(replacement TEXT); INSERT INTO public.snap VALUES('99');"))
 			} else {
 				err = stuntgres.Reset(context.Background(), other)
 			}
 			if err != nil {
 				t.Fatal(err)
+			}
+			names, err := rows.Columns()
+			if err != nil || len(names) != 1 || names[0] != "v" {
+				t.Fatalf("retained column names = %v, error = %v", names, err)
+			}
+			types, err := rows.ColumnTypes()
+			if err != nil || len(types) != 1 || types[0].Name() != "v" || types[0].DatabaseTypeName() != "INT4" {
+				t.Fatalf("retained column types = %v, error = %v", types, err)
 			}
 			for _, want := range []int64{1, 2} {
 				if !rows.Next() {
@@ -179,7 +187,7 @@ func TestSnapshotSurvivesCatalogReplacement(t *testing.T) {
 				t.Fatal(err)
 			}
 			if restore {
-				wantTuples(t, other, "SELECT v FROM snap", [][]any{{int64(99)}})
+				wantTuples(t, other, "SELECT replacement FROM public.snap", [][]any{{"99"}})
 			} else {
 				_, err = other.Query("SELECT v FROM snap")
 				sqlState(t, err, "42P01")

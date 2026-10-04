@@ -245,9 +245,10 @@ func TestControlsRoundTripAndFailurePreservation(t *testing.T) {
 func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE public.t (id INTEGER)")
+	view := e.CatalogRead()
 	e.mu.Lock()
-	_, qualified, _, err := e.resolveRelation(parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}})
-	_, unqualified, _, err2 := e.resolveRelation(parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}})
+	qualified, err := e.resolveReference(view, parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}})
+	unqualified, err2 := e.resolveReference(view, parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}})
 	e.mu.Unlock()
 	if err != nil || err2 != nil || qualified != unqualified || qualified.Address.ObjectID == 0 {
 		t.Fatalf("qualified=%#v unqualified=%#v errors=%v,%v", qualified, unqualified, err, err2)

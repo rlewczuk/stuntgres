@@ -192,6 +192,9 @@ func run() error {
 	if err = verify(second); err != nil {
 		return err
 	}
+	if err = verifyCatalogOwners(); err != nil {
+		return err
+	}
 	fmt.Print("1 Ada true\n2 O'Brien false\nreset: 42P01\nrestore: 2 rows\n")
 	return nil
 }
