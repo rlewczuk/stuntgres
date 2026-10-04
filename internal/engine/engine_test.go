@@ -52,21 +52,22 @@ func state(t *testing.T, err error, want string) {
 		t.Fatalf("error %v, want SQLSTATE %s", err, want)
 	}
 }
-func TestQualifiedCreateDiagnosticsUseRelationComponent(t *testing.T) {
+func TestGenericCreateDiagnosticsHaveNoObjectFields(t *testing.T) {
 	e := New()
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}}
-	for _, stmt := range []parser.Statement{
-		&parser.CreateTable{Name: name},
-		&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Int4}, {Name: "id", Type: parser.Text}}},
-		&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Type(255)}}},
+	for _, tc := range []struct {
+		stmt          parser.Statement
+		code, message string
+	}{
+		{&parser.CreateTable{Name: name}, "42601", "table requires columns"},
+		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Int4}, {Name: "id", Type: parser.Text}}}, "42701", "duplicate column"},
+		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Type(255)}}}, "0A000", "unsupported column type"},
 	} {
-		_, err := e.Describe(stmt)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) {
-			t.Fatalf("%T: error %v", stmt, err)
-		}
-		if diagnostic.Schema != "public" || diagnostic.Table != "t" {
-			t.Errorf("%T: schema/table fields %q/%q", stmt, diagnostic.Schema, diagnostic.Table)
+		_, err := e.Describe(tc.stmt)
+		var got *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
+		if !errors.As(err, &got) || *got != want {
+			t.Fatalf("generic CREATE error = %#v (%v), want %#v", got, err, want)
 		}
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 func input(text string, t parser.Type) (driver.Value, error) {
 	if !utf8.ValidString(text) || strings.IndexByte(text, 0) >= 0 {
-		return nil, sqlError("22P02", "invalid textual input", "", "")
+		return nil, sqlError("22P02", "invalid textual input")
 	}
 	switch t {
 	case parser.Text:
@@ -33,11 +33,11 @@ func input(text string, t parser.Type) (driver.Value, error) {
 			typeName, bits = "bigint", 64
 		}
 		if !valid {
-			return nil, sqlError("22P02", fmt.Sprintf("invalid input syntax for type %s: \"%s\"", typeName, text), "", "")
+			return nil, sqlError("22P02", fmt.Sprintf("invalid input syntax for type %s: \"%s\"", typeName, text))
 		}
 		v, err := strconv.ParseInt(s, 10, bits)
 		if err != nil {
-			return nil, sqlError("22003", fmt.Sprintf("value \"%s\" is out of range for type %s", text, typeName), "", "")
+			return nil, sqlError("22003", fmt.Sprintf("value \"%s\" is out of range for type %s", text, typeName))
 		}
 		return v, nil
 	case parser.Bool:
@@ -60,9 +60,9 @@ func input(text string, t parser.Type) (driver.Value, error) {
 				}
 			}
 		}
-		return nil, sqlError("22P02", fmt.Sprintf("invalid input syntax for type boolean: \"%s\"", text), "", "")
+		return nil, sqlError("22P02", fmt.Sprintf("invalid input syntax for type boolean: \"%s\"", text))
 	}
-	return nil, sqlError("0A000", "unsupported type", "", "")
+	return nil, sqlError("0A000", "unsupported type")
 }
 func parameter(v driver.Value, t parser.Type) (driver.Value, error) {
 	switch v := v.(type) {
@@ -77,7 +77,7 @@ func parameter(v driver.Value, t parser.Type) (driver.Value, error) {
 	case bool:
 		return input(strconv.FormatBool(v), t)
 	}
-	return nil, sqlError("0A000", "unsupported parameter value", "", "")
+	return nil, sqlError("0A000", "unsupported parameter value")
 }
 func literal(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
 	mismatch := func() (driver.Value, error) {
@@ -85,7 +85,7 @@ func literal(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
 		if where {
 			code = "42883"
 		}
-		return nil, sqlError(code, "incompatible literal and column types", "", "")
+		return nil, sqlError(code, "incompatible literal and column types")
 	}
 	switch v.Kind {
 	case parser.NullValue:
@@ -98,7 +98,7 @@ func literal(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
 				if where {
 					return v.Integer, nil
 				}
-				return nil, sqlError("22003", "integer out of range", "", "")
+				return nil, sqlError("22003", "integer out of range")
 			}
 			return v.Integer, nil
 		}
@@ -118,7 +118,7 @@ func literal(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
 		}
 		return mismatch()
 	}
-	return nil, sqlError("0A000", "unsupported value", "", "")
+	return nil, sqlError("0A000", "unsupported value")
 }
 func failingRowDetail(row []driver.Value) string {
 	var b strings.Builder

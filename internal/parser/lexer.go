@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -104,7 +105,7 @@ func (l *lexer) skip(allowBlock bool) bool {
 				}
 			}
 			if depth != 0 {
-				l.failAt("42601", "unterminated comment", opener)
+				l.failAt("42601", fmt.Sprintf("unterminated /* comment at or near \"%s\"", l.input[opener:]), opener)
 				return newline
 			}
 			continue
@@ -115,7 +116,8 @@ func (l *lexer) skip(allowBlock bool) bool {
 }
 
 func (l *lexer) quoted(quote byte) (string, bool) {
-	opener := l.offset
+	// Newline-separated string segments form one token with one opener.
+	opener := l.current.pos.Offset
 	l.offset++
 	var b strings.Builder
 	for l.offset < len(l.input) {
@@ -139,7 +141,7 @@ func (l *lexer) quoted(quote byte) (string, bool) {
 	if quote == '"' {
 		message = "unterminated quoted identifier"
 	}
-	l.failAt("42601", message, opener)
+	l.failAt("42601", fmt.Sprintf("%s at or near \"%s\"", message, l.input[opener:]), opener)
 	return "", false
 }
 func (l *lexer) parameter(s string) int { n, _ := strconv.ParseInt(s, 10, 32); return int(n) }
@@ -167,7 +169,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 		if s == "" {
-			l.fail("42601", "zero-length delimited identifier")
+			l.fail("42601", fmt.Sprintf("zero-length delimited identifier at or near \"%s\"", l.input[start:l.offset]))
 			return 0
 		}
 		l.current.text = truncateName(s)

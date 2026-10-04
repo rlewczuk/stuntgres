@@ -6,8 +6,8 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"io"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"sync"
@@ -49,6 +49,85 @@ func TestErrorFieldsSyntax(t *testing.T) {
 	sqlState(t, prefixErr, "42601")
 	_, missingTableErr := db.Query("SELECT * FROM syntax_prefix")
 	sqlState(t, missingTableErr, "42P01")
+}
+
+func TestErrorFieldsEngine(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "engine_fields")
+	execSQL(t, db, "CREATE TABLE diagnostic_rows (id INT)")
+	for _, tc := range []struct {
+		query, code, message string
+	}{
+		{"SELECT * FROM missing", "42P01", `relation "missing" does not exist`},
+		{"SELECT missing FROM diagnostic_rows", "42703", `column "missing" does not exist`},
+		{"SELECT * FROM diagnostic_rows WHERE missing=1", "42703", `column "missing" does not exist`},
+		{"SELECT * FROM diagnostic_rows ORDER BY missing", "42703", `column "missing" does not exist`},
+		{"CREATE TABLE absent.t (id INT)", "3F000", `schema "absent" does not exist`},
+		{"CREATE TABLE pg_catalog.t (id INT)", "0A000", "creation outside public is unsupported"},
+	} {
+		for _, operation := range []string{"exec", "query", "prepare"} {
+			t.Run(operation+"/"+tc.query, func(t *testing.T) {
+				var err error
+				switch operation {
+				case "exec":
+					_, err = db.Exec(tc.query)
+				case "query":
+					rows, queryErr := db.Query(tc.query)
+					if rows != nil {
+						rows.Close()
+					}
+					err = queryErr
+				case "prepare":
+					stmt, prepareErr := db.Prepare(tc.query)
+					err = prepareErr
+					if stmt != nil {
+						if strings.HasPrefix(tc.query, "CREATE ") {
+							_, err = stmt.Exec()
+						}
+						stmt.Close()
+					}
+				}
+				var got *stuntgres.Error
+				want := stuntgres.Error{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR",
+					Code: tc.code, Message: tc.message,
+				}
+				if !errors.As(err, &got) || *got != want {
+					t.Fatalf("engine diagnostic = %#v (%v), want %#v", got, err, want)
+				}
+			})
+		}
+	}
+	for _, operation := range []string{"exec", "query", "prepared"} {
+		t.Run(operation+"/duplicate", func(t *testing.T) {
+			query := "CREATE TABLE diagnostic_rows (id INT)"
+			var err error
+			switch operation {
+			case "exec":
+				_, err = db.Exec(query)
+			case "query":
+				rows, queryErr := db.Query(query)
+				if rows != nil {
+					rows.Close()
+				}
+				err = queryErr
+			case "prepared":
+				stmt, prepareErr := db.Prepare(query)
+				if prepareErr != nil {
+					t.Fatal(prepareErr)
+				}
+				defer stmt.Close()
+				_, err = stmt.Exec()
+			}
+			var got *stuntgres.Error
+			want := stuntgres.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07",
+				Message: `relation "diagnostic_rows" already exists`,
+			}
+			if !errors.As(err, &got) || *got != want {
+				t.Fatalf("duplicate diagnostic = %#v (%v), want %#v", got, err, want)
+			}
+		})
+	}
 }
 
 func TestErrorFieldsPreservation(t *testing.T) {
@@ -732,29 +811,55 @@ func TestInsertImplicitShortBoundariesAndCancellation(t *testing.T) {
 	wantTuples(t, db, "SELECT * FROM t", [][]any{})
 }
 
-func TestParameterConversionErrorMetadata(t *testing.T) {
+func TestErrorFieldsConversion(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), "error_metadata")
 	execSQL(t, db, "CREATE TABLE diagnostics (id INT, flag BOOLEAN)")
-	stmt, err := db.Prepare("INSERT INTO diagnostics (flag,id) VALUES ($1,$2)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, insertErr := stmt.Exec("ambiguous", 1)
-	if err := stmt.Close(); err != nil {
-		t.Fatal(err)
-	}
-	_, queryErr := db.Query("SELECT id FROM diagnostics WHERE id = $1", "not an integer")
 	for _, tc := range []struct {
-		err      error
-		schema   string
-		table    string
-		column   string
-	}{{insertErr, "", "", ""}, {queryErr, "public", "diagnostics", "id"}} {
-		var sqlErr *stuntgres.Error
-		if !errors.As(tc.err, &sqlErr) || sqlErr.Code != "22P02" ||
-			sqlErr.Severity != "ERROR" || sqlErr.SeverityUnlocalized != "ERROR" ||
-			sqlErr.Schema != tc.schema || sqlErr.Table != tc.table || sqlErr.Column != tc.column {
-			t.Fatalf("parameter diagnostic: %#v (%v)", sqlErr, tc.err)
+		query, code, message string
+		args                 []any
+	}{
+		{"INSERT INTO diagnostics (flag,id) VALUES ($1,$2)", "22P02", `invalid input syntax for type boolean: "ambiguous"`, []any{"ambiguous", 1}},
+		{"SELECT id FROM diagnostics WHERE id=$1", "22P02", `invalid input syntax for type integer: "not an integer"`, []any{"not an integer"}},
+		{"SELECT id FROM diagnostics WHERE id=$1", "22003", `value "2147483648" is out of range for type integer`, []any{"2147483648"}},
+		{"SELECT id FROM diagnostics WHERE id='not an integer'", "22P02", `invalid input syntax for type integer: "not an integer"`, nil},
+		{"SELECT id FROM diagnostics WHERE id='2147483648'", "22003", `value "2147483648" is out of range for type integer`, nil},
+	} {
+		for _, prepared := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%t/%s/%s", prepared, tc.code, tc.query), func(t *testing.T) {
+				var err error
+				if prepared {
+					stmt, prepareErr := db.Prepare(tc.query)
+					err = prepareErr
+					if stmt != nil {
+						defer stmt.Close()
+						if strings.HasPrefix(tc.query, "SELECT ") {
+							rows, queryErr := stmt.Query(tc.args...)
+							if rows != nil {
+								rows.Close()
+							}
+							err = queryErr
+						} else {
+							_, err = stmt.Exec(tc.args...)
+						}
+					}
+				} else if strings.HasPrefix(tc.query, "SELECT ") {
+					rows, queryErr := db.Query(tc.query, tc.args...)
+					if rows != nil {
+						rows.Close()
+					}
+					err = queryErr
+				} else {
+					_, err = db.Exec(tc.query, tc.args...)
+				}
+				var got *stuntgres.Error
+				want := stuntgres.Error{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR",
+					Code: tc.code, Message: tc.message,
+				}
+				if !errors.As(err, &got) || *got != want {
+					t.Fatalf("conversion diagnostic = %#v (%v), want %#v", got, err, want)
+				}
+			})
 		}
 	}
 	wantTuples(t, db, "SELECT * FROM diagnostics", [][]any{})
@@ -822,22 +927,42 @@ func TestErrorFieldsRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := db.Exec("INSERT INTO diagnostic_rows VALUES (NULL,'bad')")
-	var got *stuntgres.Error
-	if !errors.As(err, &got) || got.Code != "23502" || got.Table != "diagnostic_rows" || got.Column != "id" || got.Detail != "Failing row contains (null, bad)." {
-		t.Fatalf("restored NOT NULL error = %#v (%v)", got, err)
+	check := func(err error, want stuntgres.Error) {
+		t.Helper()
+		var got *stuntgres.Error
+		if !errors.As(err, &got) || *got != want {
+			t.Fatalf("Restore diagnostic = %#v (%v), want %#v", got, err, want)
+		}
 	}
+	notNull := stuntgres.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
+		Message: `null value in column "id" of relation "diagnostic_rows" violates not-null constraint`,
+		Detail:  "Failing row contains (null, bad).", Schema: "public", Table: "diagnostic_rows", Column: "id",
+	}
+	check(err, notNull)
 	before := readTuples(t, db, "SELECT id,note FROM diagnostic_rows ORDER BY id")
 	err = stuntgres.Restore(context.Background(), db, bytes.NewBufferString("CREATE TABLE replacement (x TEXT); INSERT INTO replacement VALUES ('é', )"))
-	if !errors.As(err, &got) || got.Code != "42601" || got.Message != `syntax error at or near ")"` || got.Position != "73" {
-		t.Fatalf("malformed Restore diagnostic = %#v (%v)", got, err)
-	}
+	check(err, stuntgres.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601",
+		Message: `syntax error at or near ")"`, Position: "73",
+	})
 	after := readTuples(t, db, "SELECT id,note FROM diagnostic_rows ORDER BY id")
 	if !reflect.DeepEqual(before, after) || !reflect.DeepEqual(after, [][]any{{int64(7), "kept"}}) {
 		t.Fatalf("failed Restore changed data: before=%#v after=%#v", before, after)
 	}
-	if err := stuntgres.Restore(context.Background(), db, bytes.NewBufferString("CREATE TABLE staged (id INT NOT NULL); INSERT INTO staged VALUES (NULL)")); err == nil {
-		t.Fatal("NOT NULL Restore succeeded")
-	}
+	err = stuntgres.Restore(context.Background(), db, bytes.NewBufferString("CREATE TABLE staged (id INT NOT NULL); INSERT INTO staged VALUES (NULL)"))
+	check(err, stuntgres.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
+		Message: `null value in column "id" of relation "staged" violates not-null constraint`,
+		Detail:  "Failing row contains (null).", Schema: "public", Table: "staged", Column: "id",
+	})
+	err = stuntgres.Restore(context.Background(), db, bytes.NewBufferString("CREATE TABLE staged (id INT); INSERT INTO staged VALUES ($1)"))
+	check(err, stuntgres.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P02",
+		Message: "parameters are not allowed in restore",
+	})
+	_, err = db.Exec("INSERT INTO diagnostic_rows VALUES (NULL,'bad')")
+	check(err, notNull)
 	if rows := readTuples(t, db, "SELECT id,note FROM diagnostic_rows ORDER BY id"); !reflect.DeepEqual(rows, before) {
 		t.Fatalf("failed NOT NULL Restore changed data: %#v", rows)
 	}

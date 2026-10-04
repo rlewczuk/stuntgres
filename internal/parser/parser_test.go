@@ -140,13 +140,14 @@ func TestDiagnosticPositions(t *testing.T) {
 		{"INSERT INTO t VALUES ('😀', )", `syntax error at or near ")"`, "28"},
 		{"CREATE TABLE t (x INT", "syntax error at end of input", "22"},
 		{"CREATE TABLE t ()", `syntax error at or near ")"`, "17"},
-		{"/*é*/ /* never closed", "unterminated comment", "7"},
-		{"INSERT INTO t VALUES ('é", "unterminated quoted string", "23"},
-		{`SELECT * FROM "Bad`, "unterminated quoted identifier", "15"},
+		{"/*é*/ /* never closed", `unterminated /* comment at or near "/* never closed"`, "7"},
+		{"INSERT INTO t VALUES ('é", `unterminated quoted string at or near "'é"`, "23"},
+		{`SELECT * FROM "Bad`, `unterminated quoted identifier at or near ""Bad"`, "15"},
 		{"SELECT * FROM T WHERE X = )", `syntax error at or near ")"`, "27"},
 		{`SELECT * FROM t WHERE x "Quoted"`, `syntax error at or near ""Quoted""`, "25"},
 		{"SELECT * FROM T WHERE X TRUE", `syntax error at or near "TRUE"`, "25"},
-		{"INSERT INTO t VALUES ('first'\n 'later", "unterminated quoted string", "32"},
+		{"INSERT INTO t VALUES ('first'\n 'later", "unterminated quoted string at or near \"'first'\n 'later\"", "23"},
+		{`SELECT * FROM "" trailing`, `zero-length delimited identifier at or near """"`, "15"},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			_, err := Parse(tc.query)

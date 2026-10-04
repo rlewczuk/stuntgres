@@ -6,8 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"reflect"
 	"os"
+	"reflect"
 
 	"stuntgres"
 )
@@ -28,16 +28,92 @@ func run() error {
 	}
 	for _, operation := range []func(string) error{
 		func(q string) error { _, e := db.Exec(q); return e },
-		func(q string) error { _, e := db.Query(q); return e },
-		func(q string) error { _, e := db.Prepare(q); return e },
+		func(q string) error {
+			rows, e := db.Query(q)
+			if rows != nil {
+				rows.Close()
+			}
+			return e
+		},
+		func(q string) error {
+			stmt, e := db.Prepare(q)
+			if stmt != nil {
+				stmt.Close()
+			}
+			return e
+		},
 	} {
 		err := operation("INSERT INTO t VALUES ('é', )")
 		var got *stuntgres.Error
-		if !errors.As(fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", err)), &got) ||
-			got.Code != "42601" || got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" ||
-			got.Message != `syntax error at or near ")"` || got.Position != "28" ||
-			got.Detail != "" || got.Hint != "" || got.Schema != "" || got.Table != "" || got.Column != "" {
+		want := stuntgres.Error{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601",
+			Message: `syntax error at or near ")"`, Position: "28",
+		}
+		if !errors.As(fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", err)), &got) || *got != want {
 			return fmt.Errorf("unexpected syntax diagnostic: %#v (%v)", got, err)
+		}
+	}
+	for _, tc := range []struct {
+		query, message, position string
+	}{
+		{"/*é*/ /* never closed", `unterminated /* comment at or near "/* never closed"`, "7"},
+		{"INSERT INTO t VALUES ('é", `unterminated quoted string at or near "'é"`, "23"},
+		{`SELECT * FROM "Bad`, `unterminated quoted identifier at or near ""Bad"`, "15"},
+		{"INSERT INTO t VALUES ('first'\n 'later", "unterminated quoted string at or near \"'first'\n 'later\"", "23"},
+		{`SELECT * FROM "" trailing`, `zero-length delimited identifier at or near """"`, "15"},
+	} {
+		_, err := db.Exec(tc.query)
+		var got *stuntgres.Error
+		want := stuntgres.Error{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601",
+			Message: tc.message, Position: tc.position,
+		}
+		if !errors.As(err, &got) || *got != want {
+			return fmt.Errorf("unexpected lexical diagnostic: %#v (%v)", got, err)
+		}
+	}
+	_, err = db.Exec("CREATE TABLE diagnostic_rows (id INT)")
+	var duplicate *stuntgres.Error
+	wantDuplicate := stuntgres.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07",
+		Message: `relation "diagnostic_rows" already exists`,
+	}
+	if !errors.As(err, &duplicate) || *duplicate != wantDuplicate {
+		return fmt.Errorf("unexpected duplicate relation diagnostic: %#v (%v)", duplicate, err)
+	}
+	_, err = db.Query("SELECT * FROM missing")
+	var missing *stuntgres.Error
+	wantMissing := stuntgres.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01",
+		Message: `relation "missing" does not exist`,
+	}
+	if !errors.As(err, &missing) || *missing != wantMissing {
+		return fmt.Errorf("unexpected missing relation diagnostic: %#v (%v)", missing, err)
+	}
+	for _, query := range []string{
+		"INSERT INTO diagnostic_rows VALUES ($1,'bad')",
+		"SELECT id FROM diagnostic_rows WHERE id=$1",
+	} {
+		for _, prepared := range []bool{false, true} {
+			var conversionErr error
+			if prepared {
+				stmt, prepareErr := db.Prepare(query)
+				if prepareErr != nil {
+					return prepareErr
+				}
+				_, conversionErr = stmt.Exec("not an integer")
+				stmt.Close()
+			} else {
+				_, conversionErr = db.Exec(query, "not an integer")
+			}
+			var got *stuntgres.Error
+			want := stuntgres.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02",
+				Message: `invalid input syntax for type integer: "not an integer"`,
+			}
+			if !errors.As(conversionErr, &got) || *got != want {
+				return fmt.Errorf("unexpected conversion diagnostic: %#v (%v)", got, conversionErr)
+			}
 		}
 	}
 	checkNotNull := func(err error) error {
@@ -120,7 +196,11 @@ func run() error {
 		return fmt.Errorf("malformed Restore succeeded")
 	} else {
 		var got *stuntgres.Error
-		if !errors.As(err, &got) || got.Code != "42601" || got.Message != `syntax error at or near ")"` || got.Position != "73" {
+		want := stuntgres.Error{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601",
+			Message: `syntax error at or near ")"`, Position: "73",
+		}
+		if !errors.As(err, &got) || *got != want {
 			return fmt.Errorf("malformed Restore diagnostic: %#v (%v)", got, err)
 		}
 	}
@@ -130,6 +210,27 @@ func run() error {
 	}
 	if !reflect.DeepEqual(before, after) || !reflect.DeepEqual(after, [][]any{{int64(7), "kept"}}) {
 		return fmt.Errorf("failed Restore changed rows: before=%v after=%v", before, after)
+	}
+	err = stuntgres.Restore(context.Background(), db, bytes.NewBufferString("CREATE TABLE staged (id INT NOT NULL); INSERT INTO staged VALUES (NULL)"))
+	var staged *stuntgres.Error
+	wantStaged := stuntgres.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
+		Message: `null value in column "id" of relation "staged" violates not-null constraint`,
+		Detail:  "Failing row contains (null).", Schema: "public", Table: "staged", Column: "id",
+	}
+	if !errors.As(err, &staged) || *staged != wantStaged {
+		return fmt.Errorf("staged Restore diagnostic: %#v (%v)", staged, err)
+	}
+	_, err = db.Exec("INSERT INTO diagnostic_rows VALUES (NULL,'bad')")
+	if failure := checkNotNull(err); failure != nil {
+		return failure
+	}
+	after, err = readRows(db)
+	if err != nil {
+		return err
+	}
+	if !reflect.DeepEqual(before, after) {
+		return fmt.Errorf("staged Restore changed rows: before=%v after=%v", before, after)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

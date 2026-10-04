@@ -171,12 +171,12 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			for _, row := range s.Rows {
 				for _, v := range row {
 					if v.Kind == parser.ParameterValue {
-						return sqlError("42P02", "parameters are not allowed in restore", objectNameRelation(s.Name), "")
+						return sqlError("42P02", "parameters are not allowed in restore")
 					}
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE and INSERT", "", "")
+			return sqlError("0A000", "restore accepts only CREATE and INSERT")
 		}
 		if _, err = stage.Execute(ctx, stmt, nil); err != nil {
 			return err

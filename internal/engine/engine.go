@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -118,15 +117,11 @@ func (e *Engine) revisionLocked() (DefinitionRevision, error) {
 	return r, nil
 }
 
-func sqlError(code, message, table, column string) error {
-	e := &sqlstate.Error{
+func sqlError(code, message string) error {
+	return &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR",
-		Code: code, Message: message, Table: table, Column: column,
+		Code: code, Message: message,
 	}
-	if table != "" {
-		e.Schema = "public"
-	}
-	return e
 }
 func (e *Engine) Describe(stmt parser.Statement) (ParameterInfo, error) {
 	e.mu.Lock()
@@ -144,12 +139,6 @@ func objectNameText(n parser.ObjectName) string {
 	}
 	return strings.Join(parts, ".")
 }
-func objectNameRelation(n parser.ObjectName) string {
-	if len(n.Parts) == 0 {
-		return ""
-	}
-	return n.Parts[len(n.Parts)-1].Text
-}
 func namespaceForName(view CatalogRead, name parser.ObjectName, creation bool) (ObjectAddress, error) {
 	if len(name.Parts) == 1 {
 		a := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
@@ -162,7 +151,7 @@ func namespaceForName(view CatalogRead, name parser.ObjectName, creation bool) (
 			return a, nil
 		}
 		if creation {
-			return ObjectAddress{}, &sqlstate.Error{Code: "3F000", Message: fmt.Sprintf("schema %q does not exist", name.Parts[0].Text)}
+			return ObjectAddress{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", name.Parts[0].Text))
 		}
 		return ObjectAddress{}, nil
 	}
@@ -177,10 +166,10 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 			return err
 		}
 		if v.Parameter <= 0 {
-			return sqlError("42P02", "undefined parameter", "", c.Name)
+			return sqlError("42P02", "undefined parameter")
 		}
 		if t, ok := used[v.Parameter]; ok && t != c.Type {
-			return sqlError("0A000", "parameter reused with different destination types", "", c.Name)
+			return sqlError("0A000", "parameter reused with different destination types")
 		}
 		used[v.Parameter] = c.Type
 		if v.Parameter > b.parameters.Count {
@@ -191,23 +180,23 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	column := func(name string) (int, error) {
 		i, ok := b.relation.index[name]
 		if !ok {
-			return 0, &sqlstate.Error{Code: "42703", Message: fmt.Sprintf("column %q does not exist", name)}
+			return 0, sqlError("42703", fmt.Sprintf("column %q does not exist", name))
 		}
 		return i, nil
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
 		if len(s.Columns) == 0 {
-			return b, sqlError("42601", "table requires columns", objectNameRelation(s.Name), "")
+			return b, sqlError("42601", "table requires columns")
 		}
 		seen := map[string]bool{}
 		for _, c := range s.Columns {
 			if seen[c.Name] {
-				return b, sqlError("42701", "duplicate column", objectNameRelation(s.Name), c.Name)
+				return b, sqlError("42701", "duplicate column")
 			}
 			seen[c.Name] = true
 			if c.Type > parser.Bool {
-				return b, sqlError("0A000", "unsupported column type", objectNameRelation(s.Name), c.Name)
+				return b, sqlError("0A000", "unsupported column type")
 			}
 		}
 	case *parser.Insert:
@@ -281,7 +270,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 			for _, n := range s.Columns {
 				i, er := column(n)
 				if er != nil {
-					return b, &sqlstate.Error{Code: "42703", Message: fmt.Sprintf("column %q does not exist", n)}
+					return b, er
 				}
 				b.projection = append(b.projection, i)
 			}
@@ -289,23 +278,23 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		if s.Where != nil {
 			b.predicate, err = column(s.Where.Column)
 			if err != nil {
-				return b, &sqlstate.Error{Code: "42703", Message: fmt.Sprintf("column %q does not exist", s.Where.Column)}
+				return b, err
 			}
 			if err = bind(s.Where.Value, b.relation.columns[b.predicate], true); err != nil {
-				return b, annotate(err, b.relation.name, s.Where.Column)
+				return b, err
 			}
 		}
 		if s.Order != nil {
 			b.order, err = column(s.Order.Column)
 			if err != nil {
-				return b, &sqlstate.Error{Code: "42703", Message: fmt.Sprintf("column %q does not exist", s.Order.Column)}
+				return b, err
 			}
 		}
 	default:
-		return b, sqlError("0A000", "unsupported statement", "", "")
+		return b, sqlError("0A000", "unsupported statement")
 	}
 	if len(used) != b.parameters.Count {
-		return b, sqlError("42P18", "could not determine unused parameter type", "", "")
+		return b, sqlError("42P18", "could not determine unused parameter type")
 	}
 	b.parameters.Types = make([]parser.Type, b.parameters.Count)
 	for n, t := range used {
@@ -349,7 +338,7 @@ func (e *Engine) resolveReference(view CatalogRead, name parser.ObjectName) (Obj
 		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
 	}
 	if !ok {
-		return ObjectRef{}, &sqlstate.Error{Code: "42P01", Message: fmt.Sprintf("relation %q does not exist", objectNameText(name))}
+		return ObjectRef{}, sqlError("42P01", fmt.Sprintf("relation %q does not exist", objectNameText(name)))
 	}
 	if _, ok := view.state.descriptors[a].(*relationDescriptor); !ok {
 		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
@@ -369,26 +358,10 @@ func (e *Engine) resolveCreation(view CatalogRead, name parser.ObjectName) (Obje
 		return ObjectRef{}, err
 	}
 	if ns.ObjectID != PublicNamespaceOID {
-		return ObjectRef{}, &sqlstate.Error{Code: "0A000", Message: "creation outside public is unsupported"}
+		return ObjectRef{}, sqlError("0A000", "creation outside public is unsupported")
 	}
 	return ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}, nil
 }
-func annotate(err error, table, column string) error {
-	var e *sqlstate.Error
-	if errors.As(err, &e) {
-		if e.Table == "" && table != "" {
-			e.Table = table
-		}
-		if e.Column == "" && column != "" {
-			e.Column = column
-		}
-		if e.Schema == "" && table != "" && e.Table == table {
-			e.Schema = "public"
-		}
-	}
-	return err
-}
-
 
 func insertError(code, message string, pos parser.Position) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(pos.Character)}
@@ -399,7 +372,6 @@ func insertValueError(err error, column parser.Column, value parser.Value) error
 	if !ok {
 		return err
 	}
-	sqlErr.Schema, sqlErr.Table, sqlErr.Column = "", "", ""
 	switch sqlErr.Code {
 	case "42804":
 		source := "unknown"
@@ -435,14 +407,12 @@ func insertValueError(err error, column parser.Column, value parser.Value) error
 }
 
 func notNullError(table, column string, row []driver.Value) error {
-	err := sqlError("23502", fmt.Sprintf(
-		"null value in column \"%s\" of relation \"%s\" violates not-null constraint",
-		column, table,
-	), table, column)
-	err.(*sqlstate.Error).Detail = failingRowDetail(row)
-	return err
+	return &sqlstate.Error{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
+		Message: fmt.Sprintf("null value in column \"%s\" of relation \"%s\" violates not-null constraint", column, table),
+		Schema:  "public", Table: table, Column: column, Detail: failingRowDetail(row),
+	}
 }
-
 
 func prepareArgs(args []driver.NamedValue) ([]driver.Value, error) {
 	values := make([]driver.Value, len(args))
@@ -458,36 +428,16 @@ func prepareArgs(args []driver.NamedValue) ([]driver.Value, error) {
 			if _, ok := a.Value.(driver.Valuer); ok {
 				return nil, err
 			}
-			return nil, sqlError("0A000", "unsupported parameter value", "", "")
+			return nil, sqlError("0A000", "unsupported parameter value")
 		}
 		switch v.(type) {
 		case nil, int64, string, []byte, bool:
 		default:
-			return nil, sqlError("0A000", "unsupported parameter value", "", "")
+			return nil, sqlError("0A000", "unsupported parameter value")
 		}
 		values[i] = v
 	}
 	return values, nil
-}
-
-// parameterColumn identifies the first destination for diagnostics only.
-// Searching on error avoids extra metadata allocations in successful binding.
-func parameterColumn(stmt parser.Statement, b binding, number int) string {
-	switch s := stmt.(type) {
-	case *parser.Insert:
-		for _, row := range s.Rows {
-			for i, v := range row {
-				if v.Kind == parser.ParameterValue && v.Parameter == number {
-					return b.relation.columns[b.targets[i]].Name
-				}
-			}
-		}
-	case *parser.Select:
-		if s.Where != nil {
-			return s.Where.Column
-		}
-	}
-	return ""
 }
 
 func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
@@ -523,7 +473,7 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 		key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 		if _, exists := e.state.names[key]; exists {
 			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Code: "42P07", Message: fmt.Sprintf("relation %q already exists", key.Name)}
+			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
 		}
 		oid, er := e.allocateOIDLocked()
 		if er != nil {
@@ -555,7 +505,7 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 		}
 		_, er = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
 		if _, conflict := er.(CatalogConflict); conflict {
-			return Result{}, &sqlstate.Error{Code: "42P07", Message: fmt.Sprintf("relation %q already exists", key.Name)}
+			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
 		}
 		return Result{}, er
 	}
@@ -572,12 +522,8 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 	for i, v := range values {
 		canonical[i], err = parameter(v, b.parameters.Types[i])
 		if err != nil {
-			if _, isInsert := stmt.(*parser.Insert); isInsert {
-				e.mu.Unlock()
-				return Result{}, err
-			}
 			e.mu.Unlock()
-			return Result{}, annotate(err, b.relation.name, parameterColumn(stmt, b, i+1))
+			return Result{}, err
 		}
 	}
 	resolve := func(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
@@ -626,7 +572,7 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 			predicate, err = resolve(s.Where.Value, b.relation.columns[b.predicate].Type, true)
 			if err != nil {
 				e.mu.Unlock()
-				return Result{}, annotate(err, b.relation.name, s.Where.Column)
+				return Result{}, err
 			}
 		}
 		snap := &Snapshot{rows: b.storage.rows, projection: b.projection}
@@ -641,5 +587,5 @@ func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driv
 		return Result{Count: int64(snap.Len()), Columns: columns, Rows: snap}, nil
 	}
 	e.mu.Unlock()
-	return Result{}, sqlError("0A000", "unsupported statement", "", "")
+	return Result{}, sqlError("0A000", "unsupported statement")
 }
