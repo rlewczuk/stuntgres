@@ -1,64 +1,55 @@
-# PG18-ARCH-CATALOG-IDENTITY — Object identity, namespaces, and dependency contract
+# PG18-ARCH-CATALOG-IDENTITY — Object identity, namespaces, and dependencies
 
-## 1. Decision status, scope, and evidence
+## 1. Decision, scope and evidence
 
-This is the completed **design decision artifact**, not an implementation of catalog SQL. All signatures below are future internal contracts. No SQL, unit tests, reference tests, smoke commands, or production gates were executed for this design. The only deliverable is this file; the frozen plan remains unchanged.
+Use **one engine-owned descriptor authority**: names are indexes, storage follows identity, reads are immutable, DDL is privately staged, and prepared sources track object-sensitive validity. Reuse the parser/binder/executor/control seams; no alternate catalog, binder or DSN parser. This is design only: no SQL/code changes or runtime verification are claimed. SESSION, AUTHORIZATION, TX and LOCKING own settings, access algorithms, visibility/MVCC and scheduling. Cluster storage and downstream SQL syntax remain outside this part.
 
-Decision: extend the existing parser/engine/driver seams into **one engine-owned descriptor authority**, with identity-backed relation storage, immutable catalog reads, private staged changes, dependency-aware deletion, and object-sensitive prepared-plan validity. Names are indexes, never identity. There is no alternate catalog, binder, DSN interpretation, transaction store, or metadata synthesis path.
+PostgreSQL facts come first from the **18 manuals**: [schemas §5.10](https://www.postgresql.org/docs/18/ddl-schemas.html), [search_path/check_function_bodies](https://www.postgresql.org/docs/18/runtime-config-client.html), [dependencies §5.15](https://www.postgresql.org/docs/18/ddl-depend.html), [pg_depend §52.18](https://www.postgresql.org/docs/18/catalog-pg-depend.html), [OID types](https://www.postgresql.org/docs/18/datatype-oid.html), [identifier syntax](https://www.postgresql.org/docs/18/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS), [PREPARE Notes](https://www.postgresql.org/docs/18/sql-prepare.html), [diagnostic fields](https://www.postgresql.org/docs/18/protocol-error-fields.html), [SQLSTATEs](https://www.postgresql.org/docs/18/errcodes-appendix.html). These pages identify 18.6; the reference fixture remains **18.0 UTF8/C**, `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`. Only minor-specific differences require PG18-REF-ORACLE-18-6. Local PostgreSQL is 20devel, research-only; Ramsql is not a semantic oracle.
 
-Transaction visibility, MVCC, lock scheduling, session settings, ACL algorithms, cluster storage, and downstream SQL syntax are deliberately owned by their respective capability records. Their absence does not prevent settling catalog interfaces here; they are integration boundaries, not claims of completed prerequisites. The selected record has no prerequisites.
+Release C corroboration: [REL_18_0 namespace.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/catalog/namespace.c) (`preprocessNamespacePath`, `LookupExplicitNamespace`, `RangeVarGetCreationNamespace`), [dependency.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/catalog/dependency.c) (`findDependentObjects`, `reportDependentObjects`), [plancache.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/utils/cache/plancache.c) (`RevalidateCachedQuery`), [tupdesc.c](https://github.com/postgres/postgres/blob/REL_18_0/src/backend/access/common/tupdesc.c) (`equalRowTypes`). The last two establish fixed-result count/name/type/typmod/collation checks, not runtime observations here.
 
-### Evidence and version policy
+Current worktree seams, **not release semantic evidence**:
+- `internal/engine/engine.go` already owns state/providers/identity-keyed storage. `New`, `CatalogRead`, `describe`, `Execute`, `namespaceForName`, `resolveRelation` implement bounded public/pg_catalog behavior; Engine.tables no longer exists.
+- `internal/engine/catalog.go` already has address/ref/epoch/revision, descriptors/name indexes, providers, create stages, publication and replacement. Dependency graph, ALTER/DROP, signature keys and exact catalog projections remain extensions.
+- `internal/parser/ast.go` already uses ObjectName for CreateTable/Insert/Select; Identifier retains decoded Text/Pos, not quoting provenance. Preserve input normalization and whole-input rejection.
+- `conn.go` PrepareContext discards inferred binding/types, retaining AST/count; both `stmt.go` execution methods re-enter Execute. Selective caching/fixed-result validation remain future work.
+- `internal/engine/control.go` Reset/Restore use ReplaceCatalog; Dump captures descriptors/storage before I/O and quotes schema/name separately. Preserve Driver/exact opaque-DSN isolation, root native validation/release-before-I/O and snapshot/rows retention.
+- `internal/sqlstate/error.go` and `reference_test.go` already support full diagnostic records. Feature owners add exact fixtures and held-plan interleavings, not another transport.
 
-Repository anchors are relative to the assigned worktree, inspected during this design:
-
-- `internal/engine/engine.go:13-109,245-343`: `Engine.tables` is the single name-keyed authority; `table` holds columns/name/index/rows. `Describe/describe` performs binding. `Execute` repeats binding under `e.mu`, validates before publication, and captures SELECT rows plus copied result columns. Preserve this binder, coercion, cancellation, and synchronization seam.
-- `internal/parser/ast.go:18-49`, `internal/parser/grammar.y:47-85`, `internal/parser/lexer.go:49-66,154-164,231-251`: relation names are strings, positions are offsets, and identifier folding/quoted decoding/UTF8-safe 63-byte truncation already belong at input parsing.
-- `conn.go:51-110`, `stmt.go:11-48`: prepare currently discards binding and retains AST/count only; both prepared execution paths enter `conn.execute` and bind again. Selective caching requires intentional migration, not relabeling existing behavior.
-- `internal/engine/control.go:14-44,128-171`: Reset replaces the map, Dump captures under lock before I/O, Restore reads/parses/executes in an isolated engine before replacement. `internal/engine/snapshot.go:9-29` retains committed rows/projection independently of current authority.
-- `driver.go:17-58`, root `control.go:11-65`: exact opaque DSN within one Driver defines engine ownership; independent Drivers isolate engines. Native controls release their borrowed connection before I/O. Closing connections does not erase catalogs.
-- `internal/sqlstate/error.go:4-14`, `reference_test.go:17-64,84-125,145-215`: current transport has Code/Message/Schema/Table/Column; failure fixtures check only SQLSTATE, while success fixtures independently check rows/types/counts. Per-step prepare/close cannot witness a held plan across DDL.
-- `reference_helpers_test.go:20,57-88`: the reference runtime remains PostgreSQL **18.0**, UTF8/C, image `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, expected server version `180000`.
-- `control_test.go:97-183`: existing source specifies failed-restore sentinel preservation and ordered cursor survival; these are reusable test seams, not passing-test evidence from this session.
-
-Release semantics come from PostgreSQL 18 manuals, identified as **18.6** by supplied research: [schemas §5.10](https://www.postgresql.org/docs/18/ddl-schemas.html), [search_path/check_function_bodies §19.11.1](https://www.postgresql.org/docs/18/runtime-config-client.html#GUC-SEARCH-PATH), [dependencies §5.15](https://www.postgresql.org/docs/18/ddl-depend.html), [pg_depend §52.18](https://www.postgresql.org/docs/18/catalog-pg-depend.html), [OID identity §8.19](https://www.postgresql.org/docs/18/datatype-oid.html), [identifier syntax §4.1.1](https://www.postgresql.org/docs/18/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS), [catalog ownership §52.1](https://www.postgresql.org/docs/18/catalogs-overview.html), [PREPARE Notes](https://www.postgresql.org/docs/18/sql-prepare.html), [ALTER §5.7](https://www.postgresql.org/docs/18/ddl-alter.html), [diagnostic fields §54.8](https://www.postgresql.org/docs/18/protocol-error-fields.html), and [SQLSTATE Appendix A](https://www.postgresql.org/docs/18/errcodes-appendix.html). Only 18.6-specific differences consume `PG18-REF-ORACLE-18-6`; do not change the pinned runtime speculatively.
-
-Supplied research cites local PostgreSQL `configure.ac:20` as **20devel**, `objectaddress.h:23-32`, `namespace.c:655-708,886-904`, `dependency.c:1080-1177`, and `plancache.c:10-40,871-890`. These corroborate architecture only, not release diagnostics or observed runtime behavior. Ramsql's name-map schema is not a dependency/publication oracle and is not reused. Backlog ownership below follows the bounded records cited in research and the frozen plan; adjacent records are not implemented here.
-
-## 2. Identity and ownership invariants
-
-Future engine-local vocabulary:
+## 2. Identity and ownership
 
 ```go
 type OID uint32
 type CatalogEpoch uint64
 type DefinitionRevision uint64
 type ObjectAddress struct { ClassID OID; ObjectID OID; SubID int32 }
-type ObjectRef struct { Epoch CatalogEpoch; Address ObjectAddress }
+type catalogOwner struct { marker byte }
+type ObjectRef struct {
+    owner *catalogOwner
+    Epoch CatalogEpoch
+    Address ObjectAddress
+}
 ```
 
-1. An address identifies an object within a database engine and epoch. `ClassID` is the OID of the owning catalog, not an enum of object kinds. `SubID=0` names the whole object; column subobjects use stable attribute numbers. Mutable slice offsets are execution projections, not persistent column identity.
-2. Engine identity is an implicit domain of every internal read/ref/plan/stage. A ref from another engine cannot be consumed even if its numbers coincide. Constructors are engine-owned; reads/stages/plans retain that ownership. Neither metadata OIDs nor an `ObjectRef` alone authorize cross-engine attachment.
-3. Engine owns a nonzero OID allocator. Do not reuse an allocated OID in one epoch, including after drop. Skip registered fixed builtin OIDs; detect exhaustion before publication without wraparound/collision. Aborted allocations may leave gaps. Epoch/revision exhaustion also fails before mutation rather than making an old token valid.
-4. Rename or schema move preserves address, epoch, column SubIDs, and storage identity; it publishes a new immutable descriptor revision. Drop/recreate gets a different ref. Dropped attribute numbers are not reused or compacted; visible attribute order and storage layout are feature-owned mappings.
-5. Reset/Restore preserves Driver/engine identity but replaces catalog lifetime by incrementing epoch. Numeric OIDs in a replacement may coincide; old-epoch refs cannot validate. Exposed catalog OIDs omit the internal engine/epoch domain. Test generated identities for valid values and relationships, never another server's allocation sequence. Feature-registered fixed builtin OIDs remain exact.
-6. Published descriptors, bound definitions, metadata snapshots, and cursor metadata are immutable for their retained-view lifetime. Rename never mutates a descriptor already used by a reader. Bound stored expressions/views carry refs across rename/move; textual late-bound inputs resolve at analysis/execution as specified by their feature.
-7. The engine owns the address map, uniqueness/name indexes, forward/reverse dependency indexes, and storage keyed by relation identity. Features own descriptor content and validation rules, not competing writable stores. Every committed index/edge/storage entry refers to an object in that same authority, except intentional pinned/shared boundaries.
+ClassID is the owning catalog OID, not object kind. SubID is zero except stable column attribute numbers; dropped slots are never renumbered/reused. Rename/schema move preserves ref/storage/column identity and changes immutable descriptor revision; drop/recreate gets a different ref. Stored bound expressions/views retain identities, while late-bound text resolves again. Feature-owned storage/projection mappings are not persistent column identity.
 
-## 3. Normalized names and resolution scopes
+**Engine policies**, not universal PostgreSQL promises: all internal reads/refs/stages/plans belong to one engine even when numeric IDs coincide across Drivers. Allocate nonzero OIDs without reuse within an epoch; skip feature-registered fixed builtins, allow aborted gaps and fail exhaustion before mutation, without wrapping OIDs/epochs/revisions. Exposed OIDs omit engine/epoch; generated identities are tested relationally, fixed builtin IDs exactly. PostgreSQL's 4-byte OID is not a database-wide uniqueness guarantee.
 
-Future parser input:
+Engine holds one `owner *catalogOwner`, allocated once by `newEngine` and preserved across Reset/Restore. The nonzero-size token gives distinct live engines distinct comparable pointer identities; no UUID, global allocator/registry or second catalog. Only owner-bound engine/read/stage construction stamps refs. Copying a complete ref preserves provenance; reconstructing epoch/address does not. Nil owner is invalid at consumption; zero refs represent absence/error or the exclusive pending-temp result, never authority.
+
+Instance attachment remains standard-library Driver behavior: the **same Driver + identical exact opaque DSN** selects one Engine/owner across multiple `sql.Open` pools and all their connections. Different DSNs or Driver instances select independent Engines/owners, even with coincident addresses. Closing a connection/pool does not erase the instance; tokens are never per connection. A DSN can simply name the instance; no syntax/parser is added. Internal `DatabaseName` qualification is a separate native attachment property, not DSN parsing.
+
+At every ref-consuming boundary, reject invalid/foreign reads and nil/mismatched ref owner first with ordinary internal Go errors; then require ref/view/current engine epoch equality (old local lifetime gives ErrCatalogReplaced), and check address/existence/class-owned SubID against that coherent view. Descriptor/storage lookup, Alter/PlanDrop, stage/provider validation, temp/context/NamespaceAccess handoffs and retained plan dependencies must not strip provenance before validation or adopt a foreign ref by its coincident address. Same-epoch retained/private-stage reads check their own descriptors, not later committed state; publication separately checks current touched preconditions. Captured old-epoch reads/cursors remain readable but cannot authorize new execution/mutation.
+
+Engine alone owns address, name/uniqueness, forward/reverse edge indexes and identity-keyed storage. Features own descriptor content, bound definitions and pure validation. Published descriptors, retained catalog projections and cursor metadata never mutate under a reader. Shared identities/pg_shdepend require a separately assigned cluster owner/read domain, not per-engine duplication.
+
+## 3. Names and resolution
 
 ```go
 type Identifier struct { Text string; Pos Position }
 type ObjectName struct { Parts []Identifier }
-```
-
-`Parts` holds one through three individually normalized identifiers. Fold unquoted ASCII, decode doubled quotes, preserve quoted case, and truncate UTF8 safely at 63 bytes exactly once at lexer/input parsing. Resolver does not normalize again. Keep positions for each component and original SQL for diagnostics/reanalysis. `"A.B"."t"` has two components, not three. Textual reg* input reuses identifier parsing; do not split raw text on dots or concatenate components into one lookup string.
-
-CAT-CORE migrates `CreateTable.Name`, `Insert.Name`, and `Select.Name` together; column strings remain normalized strings until column syntax owners extend them. Baseline grammar whole-input rejection remains intact. Qualification is bounded to one/two-part public lookup initially; later owners enable three-part/special session forms through the same contract.
-
-```go
+type PathEntry struct { Name string; User bool; Temporary bool }
+type CreationTarget struct { Schema ObjectRef; PendingTemporary bool }
 type ResolutionContext struct {
     DatabaseName string
     CurrentUser string
@@ -67,42 +58,37 @@ type ResolutionContext struct {
     EnvironmentRevision uint64
     Access NamespaceAccess
 }
-type PathEntry struct { Name string; User bool; Temporary bool }
 type NamespaceAccess interface {
     CanUse(ObjectRef) bool
     CheckCreate(ObjectRef) error
 }
-```
-
-SESSION supplies a coherent context/path/environment revision; AUTHORIZATION supplies checks and diagnostics. `User` denotes the special `$user` entry, `Temporary` the special pg_temp entry, not literal quoted names. Native attachment supplies DatabaseName without parsing an opaque DSN. A missing temp ref is absence, never an allocator side effect of reference lookup. Special temp creation is delegated to its session/temp owner before ordinary catalog staging.
-
-Future resolver operations:
-
-```go
 ResolveReference(view CatalogRead, rc ResolutionContext, kind LookupKind,
     name parser.ObjectName) (ObjectRef, error)
 ResolveCreation(view CatalogRead, rc ResolutionContext, kind LookupKind,
-    name parser.ObjectName) (ObjectRef, error)
+    name parser.ObjectName) (CreationTarget, error)
 LookupCandidates(view CatalogRead, rc ResolutionContext, kind LookupKind,
     name parser.ObjectName) ([]ObjectRef, error)
 ```
 
-`LookupKind` distinguishes Relation, Type, Routine, Operator. `ResolveCreation` returns the destination **schema ref**, never an existing relation. Routine/operator analysis uses ordered candidates and the existing feature signature/type binder; it is not a second overload/coercion algorithm. Exact routine DDL supplies input-type signature keys. Reference resolution does not authorize DROP/ALTER; feature handlers check ownership and class-specific permissions after resolution.
+Parts has one to three individually normalized components: unquoted ASCII fold, quoted decoding/case preservation, UTF8-safe 63-byte truncation **once at input**, with component positions/original SQL retained. Never split decoded text on dots or concatenate a lookup key; `"A.B"."t"` has two components. Reg* features reuse tokenization, not one universal ObjectName grammar for signatures/types. Existing bounded grammar supports one/two-part names; later owners enable remaining forms.
 
-| Input/operation | Required behavior |
+SESSION supplies coherent context/environment; AUTHORIZATION supplies access/diagnostics; native attachment supplies DatabaseName without parsing DSNs. LookupKind distinguishes Relation, Type, Routine, Operator. Creation returns either a schema ref or `PendingTemporary=true` with zero Schema, never both. The creation caller asks the session/temp owner to initialize that destination, refreshes the coherent view/context and resolves again before allocating/staging the object; it never substitutes public. Reference lookup never initializes temp. Routine/operator candidates feed their feature signature/coercion binder; exact routine DDL supplies ordered input-type identities. DROP/ALTER ownership checks occur after resolution.
+
+| Operation | Rule |
 |---|---|
-| Qualified reference | Explicit schema only, no search-path fallback; check existence and USAGE. Missing relation remains command-specific 42P01, not a universal schema error. |
-| Unqualified reference | Expand special entries; silently omit missing/non-USAGE schemas; select first matching relation/type. Deduplicate schema identities preserving earliest position. |
-| Implicit lookup schemas | pg_catalog precedes explicit entries unless explicitly positioned. Session temp precedes pg_catalog for relation/type only. Never use temp for unqualified routine/operator lookup. |
-| Explicit pg_temp | Maps only to the current session's namespace. Do not cross-session attach or create on read. Explicit positioning is respected. |
-| `$user` | Expand using CurrentUser and include only an existing usable schema. Literal quoted spelling stays literal. |
-| Unqualified CREATE | First existing USAGE-usable **explicitly selected** schema after expansion; not implicit lookup schemas and not whichever schema already has this object name. Check CREATE there; denial must not fall through. No usable creation schema: 3F000. |
-| Qualified CREATE | Check explicit schema existence and CREATE permission, not generic lookup USAGE. Missing schema: 3F000. |
-| Three-part name | Database must equal attached DatabaseName; another database yields 0A000 without cross-attachment. |
+| Qualified reference | Explicit schema, no fallback; check existence/USAGE. Missing relation diagnostics are command-specific, normally 42P01. |
+| Unqualified reference | Expand special path entries; ignore missing/non-USAGE schemas; deduplicate by identity; first matching relation/type. |
+| Implicit path | pg_catalog first unless explicitly positioned; implicit session temp before it for relation/type only, never unqualified routine/operator. Explicit positions are respected. |
+| pg_temp | Decoded spelling aliases this session's temp namespace in path entries and explicit qualification, regardless of quoting. Reference lookup does not allocate; creation can return PendingTemporary for owner initialization. |
+| Unqualified CREATE | First effective explicitly selected destination: skip missing/non-USAGE ordinary schemas, but an uninitialized explicit pg_temp reserves the destination if no earlier usable schema won. Implicit lookup schemas never select creation. Check CREATE on the selected ordinary schema; denial never falls through. No usable/pending destination: 3F000. |
+| Qualified CREATE | Explicit schema existence then CREATE, not generic lookup USAGE; missing ordinary schema: 3F000. Qualified pg_temp delegates absent-temp initialization to its owner, not ordinary missing-schema failure. |
+| Three-part name | Attached database only; different database: 0A000, never cross-attachment. |
 
-Relations, sequences, indexes, views, materialized views, and foreign tables share schema/name uniqueness. Routine uniqueness also includes ordered input type identities; operator keys include operands. `NameKey` is an immutable comparable class-owned key encoding, with central uniqueness validation, not an ambiguous formatted string or universal `(schema,name)` rule. Quoting/63-byte normalization collisions go through ordinary uniqueness checks. Catalog objects without a schema use their class-defined global key rather than a fabricated public namespace.
+Classify PathEntry specials by **decoded spelling**, not quoting: `$user` expands CurrentUser in search_path, including `"$user"`; qualified `"$user".t` is an ordinary literal schema lookup. `pg_temp` aliases temp both in search_path and qualification, including quoted forms. Other quoted spelling/case rules remain unchanged. For path `missing,pg_temp,public` with no temp, references skip missing/uninitialized entries without allocation, while CREATE reserves temp rather than falling through to public; an earlier usable ordinary schema would win instead. User authorization **“Use PostgreSQL 18 rules”** supersedes exactly the prior quoted-literal special policy and missing-explicit-temp creation fallthrough. REL_18_0 namespace.c supplies the resolved semantics; no code implementation is claimed.
 
-## 4. Authoritative descriptors and metadata reads
+Relations/sequences/indexes/views/materialized views/foreign tables share schema/name uniqueness. Routine keys add ordered input types; operator keys add operands. NameKey is a feature-owned immutable comparable encoding, centrally validated; objects without namespaces use their class-global key, not fabricated public. Quoting/truncation collisions undergo normal uniqueness checks.
+
+## 4. Descriptors and catalog projections
 
 ```go
 type Descriptor interface {
@@ -127,15 +113,11 @@ type CatalogProvider interface {
 RegisterCatalogProvider(provider CatalogProvider) error
 ```
 
-These are internal engine contracts. `ObjectKind` is feature discrimination within the owning class. A class descriptor owns subobject details, allowing stable attribute-number lookup without a second column authority. `CatalogRead` is a coherent immutable retained view; returned descriptors/collections are borrowed read-only values valid for that lifetime. The acquiring engine/session owns retention; no pointer to mutable current maps may escape. Stage reads overlay the same view coherently.
+These specify the complete target contract; current CatalogRead is a concrete retained owner/state view, and current providers supply Validate only. Extend existing seams, do not introduce a parallel interface/store merely to match pseudocode. A class descriptor owns its subobject lookup; ObjectKind discriminates feature kinds within that class. Returned data is borrowed immutable for the retained read lifetime; stage reads coherently overlay the same authority.
 
-Provider registration occurs at engine initialization, rejects duplicate class IDs, and has no publication side effects. Providers validate purely against the supplied staged view. `CatalogRows` is a typed immutable snapshot using existing engine values and exact feature-supported columns. Provider callbacks never execute during final publication. Cache projections only with view/ref revisions; invalidation cannot make an old retained projection change under its reader.
+Registration occurs at initialization, rejects duplicate class IDs and has no publication side effects. Provider validation is pure; typed CatalogRows uses existing engine values and projects exact supported columns from the supplied view. SQL pg_class/pg_attribute/pg_namespace/pg_depend are projections, not separately writable/synthetic stores. Apply access filtering only where that SQL surface requires it, not an invented universal raw-catalog filter. Cache by view/ref revision. Initialize public/pg_catalog and supported fixed builtins through validation; unsupported objects/providers remain absent. No provider callback during final publication.
 
-Feature creation stages the descriptor, its bound definitions, edges, and storage. SQL pg_class/pg_attribute/pg_namespace/pg_depend readers project those same objects from one CatalogRead, with AUTHORIZATION filtering as required by their actual surface. They are not separately writable tables and do not synthesize pretend unsupported objects. Initialization registers public/pg_catalog and supported builtin identities through the same validation path. Unimplemented feature providers/kinds remain absent, not successful no-ops. Fixed OIDs are supplied only by the owning feature's exact contract.
-
-Database-local descriptors remain engine-owned. Cluster-shared identities and pg_shdepend require a separately assigned shared owner hook. Do not duplicate shared ownership in each engine or implement a cluster store here. Any future shared-reference provider must retain the proper ownership domain and coherent read context; this interface does not silently make database-local OIDs globally unique.
-
-## 5. Staged DDL and dependency traversal
+## 5. Staged DDL and deletion
 
 ```go
 type DependencyKind byte // n, a, i, P, S, e, x
@@ -144,50 +126,44 @@ type DependencyEdge struct {
     Referenced ObjectAddress
     Kind DependencyKind
 }
-// DropMode: Restrict or Cascade
-// Methods on the owner-private CatalogStage:
-Create(d Descriptor, edges []DependencyEdge) error
-Alter(ref ObjectRef, replacement Descriptor, edges []DependencyEdge) error
+type DependencyInput struct {
+    Dependent ObjectRef
+    Referenced ObjectRef
+    Kind DependencyKind
+}
+// DropMode: Restrict or Cascade; future methods on CatalogStage:
+Create(d Descriptor, edges []DependencyInput) error
+Alter(ref ObjectRef, replacement Descriptor, edges []DependencyInput) error
 PlanDrop(targets []ObjectRef, mode DropMode) (DropPlan, error)
 ApplyDrop(plan DropPlan) error
 ```
 
-Edges point **dependent → referenced**, with indexes in both directions. Exact duplicate edges collapse; distinct kinds between a pair remain. Persistent edges describe definitions, not transient prepared caches. Column dependencies address SubID, and whole-object deletion covers its subobjects. References to pinned objects may intentionally omit graph rows; pin protection is descriptor policy, not inferred from graph absence.
+Edges point dependent → referenced, with both indexes; deduplicate identical edges, retain different kinds. Whole-object deletion includes subobjects. Persistent edges describe definitions, never prepared caches. Pin protection is descriptor policy; omitted edges to pinned objects are intentional. Alter replaces all outgoing edges for its changed object/subobject scope without changing identity. Reject dangling/invalid/cross-owner endpoints, uniqueness collisions and unsupported changes centrally. Stage associated index/sequence/constraint changes from feature-owned refs, not matching names. Bound deparse uses current descriptor names but preserves declared view labels; prepared SQL is not rewritten.
 
-`Alter` supplies the complete replacement outgoing-edge set for the changed object/subobject scope. It cannot change address or epoch. Staging centrally rejects dangling endpoints, invalid subobjects/kinds, ownership-domain mismatches, uniqueness collisions, and unsupported changes before publication. Associated index/sequence/constraint changes come from feature-owned refs, never guessed from matching names. Rename does not rewrite prepared SQL. Stored bound definitions retain refs; display/deparse reads current names from the supplied view while preserving a view's declared output labels.
+Raw DependencyEdge/index addresses remain compact and engine-local. Stage input retains complete endpoint refs: validate owner, stage/base epoch, existence and subobjects in one coherent stage view, including endpoints created in that batch, **then** translate to stored addresses. Reject foreign/ownerless endpoints without adding edges or emitting events; never remint a foreign address as local. Namespace/signature/feature binding refs follow the same validation boundary before becoming local descriptor keys. Raw addresses returned by CatalogRead are local to that view, not portable credentials; local graph traversal and deliberate complete replacement may copy validated raw graph data.
 
-### State transitions
-
-| Operation | Private work | Commit effects | Failure effects |
-|---|---|---|---|
-| CREATE | Normalize/resolve creation schema; allocate; construct descriptor/storage/edges; validate staged view | One new identity plus name/index/metadata/storage/edge entries, definition ChangeSet | No committed object or invalidation; allocator gap permitted |
-| ALTER/rename/move | Resolve/fetch ref and revision; stage immutable replacement, all associated moves and edge changes; check destination collision | Same identity, new revision; old/new name keys replaced together, edge/index/metadata coherence | Original names/location/revisions/rows/edges intact |
-| DROP | Resolve all targets; preflight closure/permissions/reasons; prepare deletions and remove storage/index/incident edges | All closure objects/subobjects removed in one batch; changed/deleted refs invalidate plans | RESTRICT/ownership/cancellation failure leaves entire graph and data intact |
-
-Successful staging is not publication. Final validation/cancellation applies to the entire statement batch, including its rows. Unsupported alteration fails rather than publishing only the supported subset. `DropPlan` is tied to its stage/read preconditions, retains selected addresses and reasons, and cannot be replayed against changed authority without revalidation.
-
-### Deletion closure rules
-
-Use a worklist with visited address/reason sets to a fixed point; whole-object deletion subsumes its subobjects. Compute closure before deciding RESTRICT blockers, so explicit multi-target removal and automatically included objects do not falsely block each other. Retain reasons for diagnostics; order deletion safely within preflight, and handle cycles/shared descendants without repeated deletion or partial publication.
-
-| Kind | Referenced object deleted | Direct dependent deletion / boundaries |
+| Transition | Private stage → one publication | Failure |
 |---|---|---|
-| NORMAL `n` | Outside closure: RESTRICT blocker; CASCADE adds dependent | Allowed independently, subject to other edges/permissions |
-| AUTO `a` | Add dependent even under RESTRICT | Allowed; do not promote to containing owner |
-| INTERNAL `i` | Owner deletion includes implementation; dependency-driven implementation deletion promotes its owner | Reject direct implementation-only deletion; owner-directed diagnostic |
-| PartitionPrimary `P`, PartitionSecondary `S` | Include dependent when a parent is deleted | Require at least one partition parent in closure; never promote an unrelated parent because another dependency was removed. P selects preferred diagnostic parent, not stronger traversal permission. |
-| EXTENSION `e` | Extension-owner deletion includes member; dependency-driven member deletion follows owner semantics | Reject direct member-only deletion; preserve extension membership/serializer distinctions rather than treating it as an ordinary AUTO edge |
-| AutoExtension `x` | Include dependent on extension deletion even under RESTRICT | Independent dependent deletion allowed |
+| CREATE | Resolve schema, allocate, build descriptor/storage/edges, validate → new identity/indexes/metadata/storage | No committed fragment/event; allocator gap allowed |
+| ALTER/rename/move | Fetch ref/revision, replace descriptor/keys/edges and associated changes → same identity/new revision | Original names/location/rows/edges/revisions intact |
+| DROP | Resolve all targets, compute closure/permissions/reasons, prepare removals → entire closure/storage/incident edges gone | RESTRICT/ownership/cancellation leaves graph/data intact |
 
-Combine all edge kinds: an automatic path may permit inclusion but cannot erase INTERNAL/extension/partition restrictions. Pin protection applies even under CASCADE. After closure settles, a NORMAL blocker outside it yields 2BP01. All ownership restrictions and authorization checks precede applying any removal.
+Use fixed-point worklist/visited address-and-reason sets, with whole objects subsuming subobjects, cycles/shared descendants and complete preflight. Keep explicit, automatic, normal-cascade and reverse-promotion reasons. A NORMAL deletion requiring CASCADE blocks RESTRICT unless another explicit/automatic reason permits inclusion. Hypothetical CASCADE closure membership and reverse INTERNAL promotion alone are not automatic permission. DropPlan is stage/precondition-bound, never replayed against changed authority without validation.
 
-Concrete containment distinction: an FK has AUTO containment in its independently owned orders table and NORMAL reference to products. Dropping products CASCADE removes FK, **not orders**. A view's ON SELECT implementation rule has INTERNAL ownership; deleting a referenced base through that rule promotes removal to the view, recursively including dependent views. Do not implement generic backward containment traversal.
+| Edge | Referenced object removed | Direct dependent removal / boundary |
+|---|---|---|
+| NORMAL n | Requires CASCADE unless otherwise permitted by explicit/automatic closure | Independent removal allowed |
+| AUTO a | Automatic even under RESTRICT | Allowed; never promote containing owner |
+| INTERNAL i | Owner removal includes implementation; dependency-driven implementation removal promotes owner | Direct implementation-only removal rejected with owner-directed diagnostic |
+| Partition P/S | Any parent removal includes dependent | At least one partition parent must be removed; no unrelated-parent promotion. P only chooses preferred diagnostic parent. |
+| EXTENSION e | Member follows extension-owner semantics | Ordinary direct member-only removal rejected; preserve membership/serialization distinction |
+| AutoExtension x | Automatic on extension removal | Independent removal allowed; not extension membership |
 
-### Routine discovery limit
+Edge semantics combine: any valid automatic reason can allow RESTRICT inclusion, but **all** ownership/partition co-drop restrictions remain. Extension scripts/internal cleanup have feature-owned lifecycle exceptions, not generic permission bypasses. Pin protection applies even to CASCADE. Unsatisfied normal reasons yield 2BP01 before mutation. FK AUTO containment in orders plus NORMAL reference to products means products CASCADE removes FK, **not orders**. A view's INTERNAL ON SELECT rule promotes deletion to the view, recursively removing dependent views; never generic backward containment traversal.
 
-String/deferred routine bodies retain externally bound signature/property edges only. Optional creation-time body validation does not establish durable body dependencies. Never scan body strings or dynamic SQL to invent references. SQL-standard BEGIN ATOMIC bodies retain addresses actually bound at definition. Routine owners provide execution/revalidation and supported descriptor kinds. This distinguishes a surviving string routine that later fails or resolves a same-name recreation from an eager routine removed by CASCADE.
+String/deferred routines record externally bound signature/property edges only; optional creation validation adds no durable body-table edges. Never scan strings/dynamic SQL to invent dependencies. SQL-standard BEGIN ATOMIC records addresses actually bound at definition; routine owners supply execution/revalidation.
 
-## 6. Prepared source validity and rebinding
+## 6. Prepared validity and reanalysis
 
 ```go
 type PlanDependency struct {
@@ -203,24 +179,20 @@ type BoundPlan struct {
     Dependencies []PlanDependency
     EnvironmentRevision uint64
 }
-// Future Engine methods; both reuse describe's binder:
+// Engine methods reuse the existing binder:
 Prepare(ctx context.Context, view CatalogRead, rc ResolutionContext,
     source string, ast parser.Statement) (*BoundPlan, error)
 ExecutePrepared(ctx context.Context, view CatalogRead, rc ResolutionContext,
     plan *BoundPlan, args []driver.NamedValue) (Result, error)
 ```
 
-A prepared source is session-owned and retains original SQL, original parameter count/types, initial fixed result contract, and a replaceable complete bound representation. `ParameterInfo` reuses engine inference; type identities/typmod/collation metadata extend the same descriptor when owning features support them. database/sql and later SQL PREPARE use the same binder/validity contract, not independent dependency systems.
+Session owns original SQL/parameters/initial result contract and replaceable binding. Validity checks engine, epoch, ref existence, definition/statistics and relevant environment. Path changes/referenced DDL/statistics trigger lazy analysis; earlier-path same-name creation alone does **not** (PREPARE Notes). Unrelated catalog/row inserts do not invalidate definitions. Relevant namespace removal/replacement invalidates users. Conservative relevant role/access tracking is engine policy; PostgreSQL role/row-security reanalysis is conditional on row-security dependence.
 
-Validity checks engine domain, epoch, existence and definition/statistics revision of referenced refs, and relevant environment revision. Changes to path, current user/access environment or relevant namespace accessibility may trigger reanalysis. Namespace replacement/deletion must invalidate its users; merely adding an earlier-path relation is not a negative-name dependency or blanket environment change. Statistics have separate revisions; INSERT does not change a definition merely because rows changed. Unrelated catalog changes do not invalidate all sources.
+Foreign plan/ref ownership is an error, not a reanalysis/adoption trigger. Local epoch invalidation may trigger source reanalysis, which mints a complete current owner-bound binding through the shared resolver.
 
-State machine: **Unbound → Valid → NeedsReanalysis → Valid**, or **NeedsReanalysis → RebindError**; Close prevents later use. Replacement marks old epochs invalid. On next use, analyze original unchanged SQL against the current caller's coherent read/context, validate original parameters and fixed result contract, then install the complete new binding. Failure cannot execute stale pointers, mutate the public contract, or partially install dependencies. A later valid context/catalog can attempt reanalysis again; this is not an automatic statement retry policy.
+State: Unbound → Valid → NeedsReanalysis → Valid or RebindError; Close prevents reuse. Analyze unchanged original text with one current coherent view/context. Install only a complete successful binding; failure never executes stale pointers or mutates the public contract. Later use can reanalyze again, not automatically retry a statement. Public database/sql and SQL PREPARE retain parameter count/types and fixed result count/labels/type identity/typmod/collation when supported: incompatible shape gives **0A000**, `cached plan must not change result type`. Do not re-infer fixed parameters/NumInput. Direct statements analyze fresh; returned cursor metadata stays immutable. Prepared validity is ephemeral, never pg_depend and never a DROP RESTRICT blocker. Stored views follow identity; reanalyzed prepared text may fail or bind a new shadow.
 
-Public database/sql and SQL PREPARE are fixed-result consumers in this contract: preserve initial arity, labels, supported type identities/typmods/collations. An incompatible shape returns SQLSTATE 0A000, primary `cached plan must not change result type`. Parameters retain count/types; do not silently mutate `NumInput` or re-infer externally fixed parameter types. Direct statements analyze fresh. No adaptable internal consumer is introduced. Already returned cursor rows/types/labels stay immutable, including across catalog replacement.
-
-Prepared references are ephemeral validity dependencies, not pg_depend edges: prepared statements never block DROP RESTRICT. Stored views/expressions and prepared SQL are intentionally different: a view follows a renamed identity, whereas reanalysis of prepared original text can fail or choose a newly shadowing object.
-
-## 7. Transaction publication and replacement hooks
+## 7. Publication and native replacement
 
 ```go
 type PublicationToken struct { Epoch CatalogEpoch }
@@ -230,7 +202,7 @@ type ChangeSet struct {
     Namespaces []ObjectAddress
     Replacement bool
 }
-// CatalogStage and PreparedCatalogPublication are opaque, engine-owned.
+// Engine-owned opaque CatalogStage / PreparedCatalogPublication:
 BeginCatalogStage(base CatalogRead) *CatalogStage
 ValidateCatalogStage(ctx context.Context, stage *CatalogStage) (*PreparedCatalogPublication, error)
 PublishCatalog(prepared *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error)
@@ -238,132 +210,64 @@ DiscardCatalogStage(stage *CatalogStage)
 ReplaceCatalog(ctx context.Context, replacement CatalogRead) (ChangeSet, error)
 ```
 
-The stage is an owner-private overlay of the same descriptor authority, not a second writable catalog. It observes per-address revisions, touched uniqueness keys and dependency neighborhoods needed by deletion closure. This includes detecting a new dependent inserted after a drop preflight: reverse-edge preconditions cannot be limited to the target descriptor revision alone. Stage catalog/storage reads are coherent for their owner. The TX owner chooses base visibility, snapshot retention, transaction/savepoint attachment, rollback discard, and publish timing; LOCKING chooses scheduling. This design specifies none of their MVCC/isolation/retry algorithms.
+Stage is owner-private overlay, not another authority. Record observed descriptor revisions, uniqueness keys, graph neighborhoods and transaction-supplied storage preconditions, including dependents inserted after DROP preflight. TX selects base visibility, retention, savepoints/rollback and timing; LOCKING schedules. No MVCC/isolation/retry algorithm is specified.
 
-Lifecycle: **Open → Validated → Published** or **Open/Validated → Discarded**. Validation freezes/preallocates the complete batch and performs provider validation outside final publication. Mutating a stage after validation requires new validation, never reuse of an obsolete prepared publication. Publish is single-use. Discard is idempotent; using discarded/published stages is an internal lifecycle error, not fabricated SQLSTATE.
+Open → Validated → Published, or Open/Validated → Discarded. Validation freezes/preallocates the batch and calls pure providers outside final publication. Further mutation requires revalidation. Publish is single-use; Discard idempotent; invalid lifecycle is ordinary internal error. Under publication boundary recheck epoch/touched preconditions, then co-install rows/descriptors/keys/edges/indexes and invalidation: no I/O/callback/fallible partial mutation after final preflight. Definition changes include deletions, statistics only actual statistics, namespaces relevant changes, deduplicated. Private discard/failure emits no committed ChangeSet; validity checks cannot miss dropped refs if event delivery is deferred.
 
-Under the existing engine publication boundary, recheck token epoch, touched descriptors/keys/graph preconditions and row-storage preconditions supplied by the transaction owner. Then apply rows, descriptors, names, edges and lookup indexes as one indivisible batch. No external I/O, provider callback, or fallible partial mutation occurs after final preflight. Commit-visible invalidation follows successful installation and is co-published with the authority; lazy validity checks cannot miss a dropped ref even if event delivery is deferred. `Definitions` includes altered/deleted addresses, `Statistics` only statistics changes, `Namespaces` relevant namespace changes; lists deduplicate. Private changes/discard emit no committed ChangeSet.
+Touched conflict returns internal CatalogConflict before mutation, mapped by TX, never invented SQLSTATE/retry. Unrelated changes need not conflict solely due to global generation. Reset/Restore validates complete replacement then advances epoch and emits Replacement; Restore never merges. Isolated replacement identities install in target's new lifetime, not as cross-engine refs. Reset retains initialized supported builtins and clears user objects/data. Old-epoch stage fails ordinary ErrCatalogReplaced, `stuntgres: catalog replaced before publication`; failed/read-failing/canceled Restore preserves data/epoch/stage eligibility. CONTROL-TRANSACTIONS consumes fencing; SESSION cleans abandoned private transactions, not engine catalogs. Native/context/I/O errors remain ordinary Go errors.
 
-A touched-precondition mismatch yields internal `CatalogConflict` before mutation. Unrelated key/address changes do not conflict solely due to a global generation increment. TX maps conflicts to its operation-specific diagnostics; the catalog does not invent SQLSTATE or retry. Stage/plan ownership also fences cross-engine usage.
+Replacement is the deliberate complete-state transfer exception, not foreign-ref authorization: validate source contents in their source view, preserve the target owner, and install only a complete target state at the new epoch. Address-only descriptors/graph indexes need no token rewrite. Future stored definitions containing ObjectRef (including columns) must be rebuilt/reminted to the target owner/new epoch before publication. Source refs continue to authorize only their source Engine, never the target, even if numeric components coincide. Failed replacement preserves owner as well as epoch/state.
 
-Reset/Restore calls the same replacement boundary after complete successful staging. Replacement validates closure/index/metadata/storage integrity, installs one new epoch and emits `Replacement=true`; it never merges Restore with the target. The replacement read is from an isolated instance of the same engine machinery, with its identities installed in the target's new lifetime, not exposed as foreign-engine refs. Reset reinitializes supported builtin schema/provider state while clearing user objects/data. Epoch advancement occurs only after successful validation and cancellation preflight.
+Retained reads/cursors preserve old state; new readers see replacement. Dump captures one view then performs I/O outside locks, quotes components separately and uses feature serializers/dependency ordering; unsupported kinds cannot silently disappear from a complete dump.
 
-An old-epoch stage returns ordinary sentinel `ErrCatalogReplaced`, primary Go message `stuntgres: catalog replaced before publication`; it cannot resurrect previous data. `PG18-CONTROL-TRANSACTIONS` consumes that fencing boundary. Failed/read-failing/canceled Restore changes neither committed state nor epoch nor an otherwise eligible stage. Native adapter/context/I/O errors remain ordinary Go errors. SESSION cleans abandoned private transactions, not committed engine catalogs.
+## 8. Clean cutover and bounded owners
 
-Retained reads/cursors remain usable against their prior immutable lifetime. New readers get only replacement state. Dump captures one view then serializes outside target locks, quoting qualified components separately. Future serializers consume exact feature descriptors/dependency ordering; unsupported kinds cannot silently disappear from a purported complete dump. Root native-driver validation/release-before-I/O and Driver exact opaque-DSN lifetime stay unchanged.
+No caller/test changes in this part. Current CAT-CORE ObjectName/descriptor/storage/create/replacement subset is retained, not a pending name-map migration. Extend `catalog.go` and `engine.go` describe/Execute for graph/session/projections; migrate `conn.go` PrepareContext/execute and **both** stmt.go methods together. Migrate direct Engine Describe/Execute test helpers without weaker assertions; preserve Driver/native controls/snapshot lifetimes. Remove obsolete prepared rebind-every-use path, no aliases/shims or second binder.
 
-## 8. Clean cutover and session-sized backlog ownership
-
-No caller or test is changed by this design. Each future implementation session below owns a bounded public behavior and removes its obsolete path rather than keeping aliases/shims. Capability prerequisites govern execution order; this table is not a claim that adjacent records are ready.
-
-| Backlog owner | Concrete cutover / bounded outcome | Independent exit witness |
+| Backlog owner | Bounded extension | Witness |
 |---|---|---|
-| PG18-CAT-CORE | `ast.go` CreateTable/Insert/Select.Name, grammar CREATE/INSERT/FROM name actions, existing generated grammar; `engine.go` New/table/Describe/describe/Execute authority; `internal/engine/control.go` Reset/Dump/Restore migrated together. Register public/pg_catalog, stable baseline relation/column identities, read/stage/provider seams. Remove Engine.tables/table.name as authority. No CREATE SCHEMA, ACL commands, rename or MVCC. | W1, W3 normalization, W11 replacement; qualified public CREATE/INSERT and unqualified SELECT share one ref and preserve baseline coercion/atomicity. |
-| PG18-DDL-SCHEMA | Schema descriptors, schema DDL and stage uniqueness/dependencies, without alternate schema map | W2 qualification/isolation and W3 missing schema; exact pg_namespace projection when reader exists |
-| PG18-DDL-SEARCH-PATH | Session path expansion, kind-specific reference/creation context; compose SESSION/AUTHORIZATION | W2 path permutations/temp/$user; W3 no CREATE-permission fallthrough |
-| PG18-DDL-TABLE-CORE | Public drop target resolution, closure preflight and complete staged removals for supported kinds | W5 RESTRICT and W6 multi-target/containment as dependent features become available |
-| PG18-DDL-ALTER-RENAME | Relation/column stable identity, new revision/key replacement; bound-reference deparse | W4 identity/old-name failure/collision atomicity |
-| PG18-DDL-ALTER-SCHEMA | Stage relation and feature-associated identity moves and destination collision checks | W4 qualified names and surviving views; no name-guessed associated objects |
-| PG18-DDL-VIEW | View descriptor/bound query/INTERNAL implementation edges and serializer | W4 rename survival, W6 recursive view removal |
-| PG18-DDL-FOREIGN-KEY | Real FK descriptor, NORMAL referenced-key edge and AUTO containment; data enforcement owner | W5 exact RESTRICT diagnostics, W6 preserve independently owned orders |
-| PG18-ROUTINE-DROP | Exact signature keys, routine-owned diagnostic and drop graph integration | W7 argument-type restriction and independent overload identity |
-| PG18-ROUTINE-SQL-BODIES | Eager BEGIN ATOMIC vs string/deferred binding, external signature edges, execution/revalidation | W7 body-only table drop/recreation and no speculative dynamic-string edges |
-| PG18-DRIVER-PREPARED | Session-owned source/lifecycle, original parameters/result contract through shared binder | W8 held statement, Close/NumInput/compatible selected-column behavior |
-| PG18-DRIVER-PREPARED-REBIND | `conn.go` PrepareContext/execute; `stmt.go` ast/count/ExecContext/QueryContext to retained source/plan validity; engine shared binder returns dependencies. Remove unconditional prepared re-describe path. | W8 triggers/fixed result and W9 nontrigger; direct statements remain fresh |
-| PG18-CAT-PG-CLASS, PG18-CAT-PG-ATTRIBUTE, PG18-CAT-PG-NAMESPACE, PG18-CAT-PG-DEPEND | Each bounded record adds exact same-view projections over owning feature descriptors/edges, never another catalog | W1/W4/W6 addresses and metadata coherence, supported objects only, exact privilege filtering |
-| PG18-DRIVER-ERROR-FIELDS | Extend internal/sqlstate and root transport plus reference failure records; remove `engine.go` sqlError unconditional Schema=public. Features own wording/conditional fields. | W3/W5/W8 complete diagnostic records; no fabricated object/source fields |
-| PG18-TX-CORE | Consume coherent views/stages/publication only for assigned initial INSERT/SELECT behavior; later DDL owners compose these hooks | W10 publication, private discard and conflict preconditions; do not widen TX-CORE to all transactional DDL |
-| PG18-CONTROL-TRANSACTIONS | Bind stage epoch fencing to native replacement/abandoned transaction handling | W11 no stale resurrection and old cursor lifetime |
-| PG18-CONTROL-SCRIPTS | Feature serializers/dependency ordering through ordinary parser/executor and replacement; preserve root control validation | W11 round trip and failed Restore preservation, no lock over I/O |
+| PG18-CAT-CORE | Preserve baseline; deferred owner-provenance correction before DDL/session/temp/prepared consumers | W1, W11 |
+| PG18-DDL-SCHEMA / PG18-DDL-SEARCH-PATH | Schema DDL and coherent creation/reference/session/access context | W2–W3 |
+| PG18-DDL-TABLE-CORE | Public targets, closure/preflight/removals | W5–W6 |
+| PG18-DDL-ALTER-RENAME / PG18-DDL-ALTER-SCHEMA | Stable relation/column identities and associated staged moves | W4 |
+| PG18-DDL-VIEW / PG18-DDL-FOREIGN-KEY | Real definitions/edges/serializers; INTERNAL view vs AUTO FK containment | W4–W6 |
+| PG18-ROUTINE-DROP / PG18-ROUTINE-SQL-BODIES | Signature-specific drops; external/eager/deferred edges and execution | W7 |
+| PG18-DRIVER-PREPARED / PG18-DRIVER-PREPARED-REBIND | Retained source/lifecycle/parameters/result and selective binder validity | W8–W9 |
+| PG18-CAT-PG-CLASS / PG18-CAT-PG-ATTRIBUTE / PG18-CAT-PG-NAMESPACE / PG18-CAT-PG-DEPEND | Each owns exact same-view supported projections, not a store | W1, W4, W6, W10 |
+| PG18-DRIVER-ERROR-FIELDS | Preserve full transport/reference machinery; feature-specific diagnostics; remove inappropriate unconditional public annotation | W3, W5, W8 |
+| PG18-TX-CORE | Initial assigned INSERT/SELECT consumes hooks; later DDL owners compose them | W10 |
+| PG18-CONTROL-TRANSACTIONS / PG18-CONTROL-SCRIPTS | Epoch fencing; serializers/replacement, no lock across I/O | W11 |
 
-SESSION/TX-VISIBILITY/AUTHORIZATION/LOCKING contracts supply context/visibility/access/scheduling; partition/extension kinds remain dormant until their actual owners create those objects. Registering enum kinds does not implement their SQL.
+SESSION/TX-VISIBILITY/AUTHORIZATION/LOCKING compose their own contracts. Partition/extension edge kinds stay dormant until their actual feature owners create objects; enum registration does not implement SQL.
 
-Observed production migration hits: `engine.go:75,90,288`; `internal/engine/control.go:23,39-40,161,170`; `conn.go:61,82`. Engine tests also call Describe/Execute; migrate their helpers and direct calls at the owning implementation cutover, not by weakening assertions. Both stmt execution methods currently route through `conn.execute` and must move together. Search anew at implementation for `e\.tables|stage\.tables|\.Describe\(|\.Execute\(` in internal/conn.go/stmt.go, since future edits may add callers. Keep `driver.go` engine ownership, root `control.go` native validation, and snapshot/rows cursor retention intentionally unchanged except necessary type integration. Do not retain legacy name-map re-exports or a second binder for controls/tests.
+## 9. Independently expected acceptance
 
-## 9. Independent acceptance witnesses and diagnostics
+These are **future predetermined unit/public/reference outcomes**, not observed SQL. Assert each backend against independent expectations before parity. Use held physical sql.Conn/sql.Stmt for interleavings; per-step prepare/close is insufficient. Compare bags/multiplicities without ORDER BY, generated IDs relationally. Diagnostic fixtures independently record severity, five-character SQLSTATE, primary, DETAIL/HINT and conditional Schema/Table/Column/Datatype/Constraint/Position. Position is one-based original-source characters, not bytes; internal position needs internal query. Do not infer optional fields from prose or copy PostgreSQL C locations. Owning features capture unspecified fields/positions/wording from pinned 18.0 before final fixtures.
 
-The following are **predetermined future unit/public/reference scenarios**, not observations of executing SQL. Assert each backend against these expectations before parity. Use public direct and prepared database/sql where applicable, a held physical sql.Conn/sql.Stmt for multi-step interleavings, and the pinned serialized PostgreSQL 18.0 fixture. Do not replace a held-plan witness with prepare/close on every step. Without ORDER BY compare bags/multiplicity; explicit order is required for ordered cursor witnesses. Generated identifiers are checked relationally.
+| Witness | Expected positive/error/interleaving outcomes |
+|---|---|
+| **W1 identity/normalization** | CREATE public.t(id integer), INSERT 1 affects 1; qualified/unqualified SELECT both return [(1)], id/INT4 and one ref. Separate Drivers/exact DSNs isolate; reconnect same engine retains data. FOO and quoted "foo" collide (42P07); "Foo" differs; dotted quoted schema is one component; 63-byte truncation collisions reject normally. Rename preserves ref, drop/recreate differs; unit exhaustion/fixed-ID/deleted-slot boundaries never depend on another allocator sequence. |
+| **W2 schema shadowing** | a.t(v)=11/b.t(v)=22; a,b returns 11, b,a returns 22, a.t always 11 with v/INT4. CREATE under b,a targets b even when a has same name; missing,a ignores missing. Held sessions have independent paths. Units cover implicit/explicit pg_catalog/temp placement, no temp routine/operator candidates and deduplication. Quoted/unquoted decoded `$user` path expands the current usable user schema; qualified `"$user".t` remains literal. Quoted/unquoted decoded pg_temp aliases the same session temp in path/qualification. With path missing,pg_temp,public and no temp, reference lookup leaves temp absent; CREATE initializes through its owner and places the object in temp, not public. An earlier usable ordinary schema wins; sessions never share temp refs. |
+| **W3 resolution failures** | No usable/pending creation destination or missing explicit ordinary creation schema: 3F000 (expected primaries `no schema has been selected to create in`, `schema "missing" does not exist`, release-source expectations to confirm at implementation). Qualified missing pg_temp initializes through its owner rather than ordinary missing-schema failure. Missing relation 42P01, column 42703, duplicate relation 42P07, access/CREATE denial 42501, different database 0A000. Ignore inaccessible path entry, but chosen-schema CREATE denial cannot fall through. All failures/cancellation preserve committed state/events; context error stays ordinary. |
+| **W4 rename/move** | View v binds a.t(id)=1; relation/column rename and move to b preserve refs/edges/view declared output/data. New names work; old relation/column text fails 42P01/42703. Collision preserves names/location/rows/edges/revisions. Readers see complete old/new immutable view, TX choosing visibility. Prepared original SELECT id FROM a.t reanalysis may fail; SQL is not rewritten. |
+| **W5 RESTRICT** | Products referenced by orders_product_no_fkey on orders: DROP products RESTRICT gives ERROR/2BP01, primary `cannot drop table products because other objects depend on it`, DETAIL `constraint orders_product_no_fkey on table orders depends on table products`, HINT `Use DROP ... CASCADE to drop the dependent objects too.` Documented §5.15 strings; products/orders/FK/rows/indexes/edges intact. Optional fields need oracle fixture; multiple blockers have no invented portable order. |
+| **W6 CASCADE/ownership** | Products CASCADE removes products/FK, preserves orders ref/rows. v→products/w→v both disappear, unrelated schema names survive. DROP products,orders without CASCADE succeeds with blockers within explicit/automatic closure. Unit exact deletion set/no dangling edges, cycles/shared descendants, multi-edge union, AUTO/x independent deletion, INTERNAL owner promotion without automatic permission, direct INTERNAL/e rejection, P/S co-parent requirement/no unrelated promotion and pinned protection. Synthetic graphs do not claim SQL support. |
+| **W7 routines** | String SQL routine with user argument type/body table retains type/property edges, no body-table edge. Table RESTRICT may succeed with routine surviving; invocation fails 42P01 while missing, same-name recreation may restore it. Argument type remains dependency-aware. BEGIN ATOMIC records table edge: table RESTRICT 2BP01, CASCADE removes routine. check_function_bodies=off defers string validation without guessed edges; units assert exact edge sets/no scans. |
+| **W8 prepared triggers/fixed result** | Held SELECT v FROM t under a,b returns 11; path b,a next returns 22, v/INT4. Relevant DDL/statistics/environment forces analysis; invalid original text 42P01/42703, no stale refs after drop/recreate. Retain parameters and compatible output; SELECT * then ADD column gives 0A000/`cached plan must not change result type`. Unit count/name/type/typmod/collation checks, failure installs nothing, old cursor metadata intact. Prepared alone never blocks DROP. |
+| **W9 prepared nontrigger** | Path a,b only b.t=22: held statement returns 22; create a.t=11 without changing path/b.t: still 22, fresh direct SELECT 11. Rename b.t or change path triggers unchanged source to resolve a.t=11. Reject global invalidation, negative-name dependencies and binding every prepared use. |
+| **W10 publication** | Private stage reads coherent; discard/rollback/canceled validation emits no committed fragment/event. Successful batch is completely old/new, validity/read capture one view. Same absent key or same observed revision stages: first publishes, second CatalogConflict before mutation; unrelated keys may publish. New NORMAL dependent after DROP preflight changes reverse-edge precondition and must prevent dangling/remissed RESTRICT. Single-use publication enforced, no prescribed retry/isolation level. |
+| **W11 replacement** | Ordered cursor [(1),(2)] retains exactly those rows/metadata after INSERT 3 and Restore [(99)] or Reset; new readers see replacement/absence. Old-epoch stage ErrCatalogReplaced cannot resurrect data; prepared reanalyzes, old cursor survives. Corrupt/duplicate/dependency-invalid/read-failing/canceled Restore retains sentinel/epoch/eligible stage. Ordinary native/I/O/context errors; Dump never holds target lock over writer. Round trip logical data/metadata/edges, not generated OIDs; Reset retains supported builtins. |
 
-Diagnostic records independently represent severity, five-character SQLSTATE, primary English message, DETAIL/HINT, conditional Schema/Table/Column/Datatype/Constraint, and original-source Position. Positions are one-based characters, not bytes; internal position requires internal query. Do not copy PostgreSQL C file/line/routine into engine errors or infer optional fields from words in a message. Exact optional presence/absence and positions not established by supplied evidence must be captured from the pinned oracle by the owning feature before its acceptance fixture is finalized. That evidence work is required for downstream implementation, not an unfinished decision here.
+**W1 internal provenance unit witness (not PostgreSQL parity):** create independent A/B Engines, each with first user relation `public.t(id integer)`; insert 11 into A and 22 into B. Resolve refA/refB with each own valid read; assert nonzero equal addresses and equal epochs, without pinning an OID, but different complete refs/owners. B.ValidateObjectRef(readB, refA) and the reverse must reject foreign refs, not missing objects or ErrCatalogReplaced; each own ref succeeds. Rejections preserve state/read identity, epoch, descriptors/revisions, rows and committed events; SELECT still returns [(11)]/[(22)]. Reject nil-owner refs and foreign reads. A B stage rejects either foreign dependency endpoint before translation, accepts local/newly staged endpoints and valid local SubIDs, and rejects invalid SubIDs, without rejected-edge fragments/events.
 
-### W1 — Identity and normalization (positive/boundary)
+**W1 public multi-instance witness:** one Driver, opaque DSNs `instance-a`/`instance-b`, two simultaneously open pools per DSN and at least two held physical connections per instance. CREATE/INSERT t(11) through A1; A2 and the second A pool read [(11)], id/INT4. Before B creates t, SELECT there fails 42P01; B creates its own t(22), visible across B connections/pools, while A still returns [(11)]. Hold an A cursor, then native Reset/Restore B: only B's new readers change; A's rows and held cursor metadata remain intact. Closing/reopening a pool with the same Driver/DSN retains committed instance data. A second Driver using `instance-a` starts independently. This complements, not proves, the internal provenance unit witness.
 
-`CREATE TABLE public.t(id integer); INSERT INTO public.t VALUES(1);` has INSERT affected count 1. Both `SELECT id FROM public.t` and `SELECT id FROM t` return `[(1)]`, name `id`, type `INT4`. Unit resolution returns one ref, descriptor/index/column-address coherence, and identity-keyed storage. Separate Drivers/different exact DSNs cannot see t; reconnecting to the same engine can. Unquoted FOO collides with quoted `"foo"` (42P07), quoted `"Foo"` differs. `"A.B"."t"` selects one dotted schema identifier. Two overlong identifiers sharing a UTF8-safe 63-byte prefix collide; suffix text cannot bypass uniqueness. Drop/recreate differs from old ref; rename preserves it. Allocator exhaustion/reserved IDs and deleted attribute slots have unit boundary witnesses with no partial publication or wraparound.
+**W11 owner witness:** successful target replacement from a populated source preserves target token, advances target epoch once and yields newly resolved target-owner refs; old target refs give ErrCatalogReplaced, source refs give foreign-reference error and still validate in source. Reset preserves target token too. Failed/canceled Restore preserves owner/epoch/ref/stage eligibility. Future embedded stored-definition refs are all target-owner/new-epoch after transfer; retained old cursors remain immutable.
 
-### W2 — Schema shadowing and creation (positive/interleaving)
+Acceptance mapping: identity/normalization §§2–3→W1/W4/W11; namespace/DDL/reference §3→W2/W3/W9; authority/population §4→W1/W4/W6/W10; transitions/dependencies §5→W4–W7/W10; invalidation §6→W8/W9/W11; publication without MVCC §7→W10/W11; clean-cutover/backlog §8; diagnostics/discovery limits §§5/9. Feature-smoke commands: **none**—no catalog feature is implemented by this revision, and baseline smoke cannot prove proposed behavior. Root runs full gates and independent design review separately.
 
-With a.t(v integer)=11 and b.t(v integer)=22, path a,b yields `[(11)]`; path b,a yields `[(22)]`; a.t always yields `[(11)]`, metadata `v/INT4`. Under b,a, unqualified CREATE new places new in b even if a already has that name. Path missing,a ignores missing. Two held sessions with opposite paths get their independently expected rows, without one session mutating another's context.
+## 10. Revision history
 
-Unit path witnesses cover implicit pg_catalog ahead of explicit schemas, explicit pg_catalog position, implicit temp ahead of permanent relation/type, no temp routine/operator candidates, identity deduplication and `$user` existing/accessibility expansion. Explicit quoted dotted names are not special entries. Exact qualified/current-database lookup never cross-attaches. Assert schema identity/index ownership, not cross-server numeric IDs.
+Prior rationale remains: one identity authority, non-reused engine IDs, immutable descriptors, selective prepared validity and atomic publication, with no alternate store/binder/MVCC. Compatible revision supersedes obsolete name-map/string-AST/SQLSTATE-only seam descriptions and frozen-plan/prewalk/completion assertions with current implementation boundaries, release citations and reason-sensitive multi-edge deletion. Compaction preserves W1–W11 and backlog owners. Historical special-name conflict: prior §3 lines 77/98–99 and plan Approach 2 required quoted specials to remain literal and missing pg_temp creation to fall through. On 2026-10-04 the user explicitly selected **“Use PostgreSQL 18 rules”** for that exact conflict; §3 now supersedes only those rules with decoded-spelling specials and owner-mediated pending temporary creation. Qualified `$user` stays literal; reference lookup stays nonallocating. All other scope/acceptance and identity/dependency/prepared/publication decisions remain. This resolves design precedence, not the deferred implementation differences.
 
-### W3 — Resolution and privilege failures (failure/atomicity)
-
-Empty usable creation path: 3F000, expected primary `no schema has been selected to create in`. Missing explicit creation schema: 3F000, expected `schema "missing" does not exist`. These primary wordings are supplied research expectations, corroborated by development-source evidence, **not observed release diagnostics**; owning features confirm against pinned 18.0. Missing relation: 42P01; missing column: 42703; duplicate relation: 42P07; denied chosen-schema CREATE or explicit access: 42501; different database qualification: 0A000. Feature fixtures must pin command-specific primary wording/positions and conditional fields rather than use a universal lookup message.
-
-An inaccessible earlier path entry is ignored for unqualified reference. A USAGE-usable selected creation schema without CREATE must fail, not fall through to the next schema. After each failure, unit authority/name/storage/edge state and publication events are unchanged; public queries show original data only. Cancellation returns the ordinary context error at its adapter boundary, not a made-up SQLSTATE.
-
-### W4 — Rename/move with dependencies (positive/failure/interleaving)
-
-Bind view v to a.t(id) containing 1 and retain relation/column refs. Rename t→renamed, id→new_id, then move to b. New names return 1, relation and column refs are unchanged, view returns its original declared output/data, metadata uses current base names, graph endpoints remain addresses. Old relation text fails 42P01; old column text on the renamed relation fails 42703. A destination collision preserves original schema/name/rows/edges/revisions with no committed invalidation.
-
-A reader attached before publication sees a complete old view; a reader attached after sees a complete new view, never a new name key pointing to an old-name mutable descriptor. TX selects visibility. A stored view follows refs; a held prepared original `SELECT id FROM a.t` becomes invalid on relevant DDL and reanalysis can fail rather than rewriting SQL to the new names. Exact collision/rename diagnostics and positions are feature-specific pinned-oracle fixtures.
-
-### W5 — Documented RESTRICT diagnostic (failure)
-
-Products is referenced by `orders_product_no_fkey` on orders. `DROP TABLE products RESTRICT` yields:
-
-- severity `ERROR`, SQLSTATE `2BP01`;
-- primary `cannot drop table products because other objects depend on it`;
-- DETAIL `constraint orders_product_no_fkey on table orders depends on table products`;
-- HINT `Use DROP ... CASCADE to drop the dependent objects too.`
-
-These strings are specified in manual §5.15. Products, orders, FK, rows, indexes and both graph directions remain unchanged. Do not infer Schema/Table/Constraint or position presence from that DETAIL; the eventual exact SQL fixture captures their conditional values/absence independently. Multi-blocker diagnostics follow complete closure reasons; do not assert an invented portable graph traversal order.
-
-### W6 — CASCADE, multiple targets and ownership (positive/failure)
-
-Dropping products CASCADE removes products and its referring FK but preserves orders identity and rows. With v→products and w→v, both dependent views disappear recursively, while unrelated same-name relations in another schema remain. `DROP TABLE products,orders` without CASCADE succeeds if all blockers are inside explicit/automatic closure. Units assert the exact deletion set, incident edge removals and zero surviving dangling addresses.
-
-Synthetic graph witnesses cover cycles/shared descendants; AUTO/x direct removal preserves owners; INTERNAL view-rule promotion differs from AUTO FK containment; direct INTERNAL/e member removal is rejected with owner-directed diagnostics; P/S requires a parent in closure and does not promote unrelated parents; pinned descriptors resist CASCADE. Multiple edge kinds retain every restriction. Unit synthetic graphs specify algorithm invariants, not fake acceptance for unimplemented SQL kinds; feature owners later add real SQL and exact diagnostics.
-
-### W7 — Eager versus deferred routines (positive/failure)
-
-A string-bodied SQL routine with user-defined argument type and body-only table reference has type/property edges, no body-table edge. Table DROP RESTRICT may succeed with the routine surviving; invoking it with missing table fails (for this table lookup, 42P01 with feature-pinned message/context); same-name table recreation may restore invocation via fresh resolution. Dropping its argument type remains dependency-aware. Equivalent BEGIN ATOMIC binding records the table address: table RESTRICT fails 2BP01 and CASCADE removes the routine. `check_function_bodies=off` admits deferred validation but adds no guessed body dependency. Units assert exact eager/external edge sets and absence of string/dynamic-SQL scans.
-
-### W8 — Prepared triggers and fixed result (interleaving/failure)
-
-Hold `SELECT v FROM t` under a,b with a.t=11/b.t=22: first use yields 11; change path to b,a, next use yields 22 with `v/INT4`. Relevant definition/statistics/environment changes force lazy analysis; invalid original relation/column text fails 42P01/42703, never stale-pointer execution. Dropping/recreating cannot validate the old ref. Compatible selected-column definitions retain original parameter count/types and fixed output contract.
-
-Hold `SELECT * FROM t` on t(v integer), then add a column. Next use fails 0A000, primary `cached plan must not change result type`, rather than silently changing result metadata. This fixed-result expectation has research-only plancache corroboration and requires pinned-18.0 confirmation in PREPARED-REBIND. Unit shape comparison includes supported type/typmod/collation and the frozen driver label contract. Failed rebind installs nothing; returned old cursor metadata remains immutable. A prepared cache is not a persistent dependency: DROP RESTRICT cannot fail solely because a statement is prepared.
-
-### W9 — Prepared nontrigger shadowing (interleaving)
-
-Path a,b initially has only b.t=22. Prepare and execute `SELECT v FROM t`: 22. Create a.t=11 without changing path or b.t definition: the same held statement still yields 22. A fresh direct statement yields 11. Rename b.t or change path to force reanalysis: unchanged prepared unqualified source now resolves a.t and yields 11. This rejects unconditional generation invalidation, negative-name dependencies and the old bind-on-every-use implementation. Both backends get these independently specified outcomes.
-
-### W10 — Publication and concurrent graph changes (interleaving/failure)
-
-Stage create/rename/drop, inspect its coherent private catalog/rows, then discard/rollback or cancel validation: committed authority and ChangeSet remain unchanged. Successful publication shows complete old/new descriptor/name/edge/storage batches. A prepared executor's validity/read capture uses one coherent view, never an object revision from a different catalog read.
-
-Two stages claim the same absent uniqueness key: first publishes; second returns CatalogConflict before any mutation. Two stages alter the same observed revision conflict similarly. Unrelated keys/addresses may publish without a global-generation conflict. A drop stage preflights products while another stage adds a NORMAL dependent: publishing the drop must detect changed reverse-edge preconditions, not leave a dangling edge or evade RESTRICT. TX owns scheduling and diagnostic mapping; no automatic retry/serialization level is prescribed. Reusing a publication object fails its single-use lifecycle, and discard emits no committed events.
-
-### W11 — Native replacement and retained readers (interleaving/failure)
-
-Capture ordered cursor `[(1),(2)]`, insert 3 elsewhere, then Restore replacement containing 99 or Reset. Old cursor still returns exactly 1,2 and its original metadata; new readers see only `[(99)]` or missing user table after Reset. Old-epoch pending stage fails ErrCatalogReplaced with `stuntgres: catalog replaced before publication` and cannot resurrect data. Epoch-invalid prepared sources reanalyze; old cursors do not.
-
-Corrupt/duplicate/dependency-invalid/read-failing/canceled Restore leaves old sentinel data, epoch and otherwise eligible private stage intact. Reader/writer/context/native-driver errors stay ordinary Go errors. Dump captures one consistent view and performs writer calls without the target lock. Feature-qualified dump/restore round trips preserve logical metadata/data/dependency relationships, not generated numeric OIDs. Reset retains initialized supported builtin namespaces while clearing user objects.
-
-## 10. Acceptance coverage and observed design completion
-
-| Literal requirement | Settled contract | Independent witnesses |
-|---|---|---|
-| Identity versus names; normalization | §§2–3 refs, epoch/revision/SubID, input-only normalization | W1, W4, W11 |
-| Qualified/unqualified names, schema/search-path scopes, DDL/reference distinction | §3 resolver/context/creation and class-specific keys | W2–W3, W9 |
-| Authoritative descriptor/catalog ownership and population/read interfaces | §§2,4 immutable view/provider and exact same-view metadata | W1, W4, W6, W10 |
-| Create/alter/drop, indexes, dependency kinds, RESTRICT/CASCADE boundaries | §5 staged transitions and fixed-point closure | W4–W7, W10 |
-| Invalidation and stale prepared rebinding | §§6–7 selective dependencies, fixed parameters/results and committed changes | W8–W9, W11 |
-| Publication hooks without alternate catalog/binder or MVCC | §7 lifecycle, preconditions, co-publication/discard/replacement | W10–W11 |
-| Clean-cutover callsites and session-sized backlog symbols | §8 bounded owners, concrete current callers and obsolete paths | §8 exit witnesses |
-| Positive/failure/interleaving diagnostics; deferred routine limits | §9 exact documented RESTRICT fields, error ownership, oracle-capture boundary, eager/string distinction | W1–W11 |
-
-Artifact completeness is established by authorship and inspection against this matrix and the frozen plan, not source-text assertions or baseline smoke. Design smoke commands/evidence are empty as allowed by `kind=design` and frozen `smoke_commands=[]`. Full gates belong to the helper and are not claimed here.
-
-Prewalk: the starting session read the selected record, policies, research, frozen plan and relevant worktree code and initialized a concrete plan before its first deliverable write. Configured @smol routing is externally owned. No routing metadata proving a handoff, same-configuration resolution, or disabled override was supplied at authorship; no model/configuration was changed and no handoff is claimed. This absence is not a catalog-design blocker.
+2026-10-04 M1 compatible remedy: make the existing engine-bound invariant concrete with one opaque nonzero-size owner token per Engine, coherent owner/epoch/address validation and staged ref-to-address dependency conversion. Preserve SQL-visible OIDs and deliberate complete replacement, reminting future embedded refs into target ownership. Current ObjectRef/ValidateObjectRef lacks this provenance; coincident populated-engine acceptance is inferred possible from current control flow, **not executed or fixed in code**. PG18-CAT-CORE deferred remediation precedes dependent consumers (shared todo-conflict.md). User's multiple-instance/multiple-connection requirement is explicit through the existing exact-DSN/Driver attachment seam, not new parsing or per-connection tokens. Prior namespace authorization and unaffected W1–W11 remain unchanged; root needs fresh full verification/smoke/review after these document changes.
