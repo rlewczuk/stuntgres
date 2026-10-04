@@ -2,31 +2,36 @@
 
 ## 1. Decision status, scope, and evidence
 
-This is a **design decision artifact**, not implemented authorization, executable SQL support, or a passing-test report. This session creates only this document. It consumes [SESSION](PG18-ARCH-SESSION.md) and [CATALOG-IDENTITY](PG18-ARCH-CATALOG-IDENTITY.md); neither prerequisite is changed. Proposed Go vocabulary below belongs to future internal engine implementation, not presently available utilities.
+This is a **future design contract**, not implemented authorization or passing-test evidence. It consumes only [SESSION](PG18-ARCH-SESSION.md) and [CATALOG-IDENTITY](PG18-ARCH-CATALOG-IDENTITY.md); other architecture documents are not authoritative for this revision. Proposed interfaces extend the existing engine, not a new subsystem.
 
 Authorization composes the DSN Engine's cluster principal authority, the selected `DatabaseTarget`'s catalog `ObjectRef` authority, and one physical session's validated `RoleState`. It owns privilege evaluation, delegation semantics, and scoped effective identity. It does **not** own another catalog/store, role-command parser, expression evaluator, transaction visibility algorithm, lock manager, or routine frame stack. Unsupported classes/commands remain unsupported; registering masks is not implementing their substantive effects.
 
 ### Grounding and reusable seams
 
-Paths below refer to the repository; line anchors describe the inspected baseline, not promises that future edits preserve line numbers.
+Current code determines extension points; PostgreSQL 18 manuals and release C determine SQL semantics.
 
 | Evidence | Observed seam / decision consumed |
 |---|---|
 | `driver.go:17-58` | Exact opaque DSN maps to one Engine inside one Driver; Connect currently creates `conn{engine:e}`. Preserve this lifetime/isolation; never parse the DSN as credentials. |
 | `conn.go:12-117`; `stmt.go:11-48` | Prepare uses Describe; direct execution and both prepared methods share `conn.execute`. These are the one operation attachment and reevaluation boundary. |
-| `internal/engine/engine.go:45-189,245-343` | One binder resolves INSERT targets and SELECT projection/predicate/sort; executor stages complete INSERT rows and retains SELECT snapshots. Add requirements here, not a second binder/executor. Current string-keyed tables are migrated by catalog owners. |
+| `internal/engine/engine.go` Engine/describe/Execute; `catalog.go` CatalogRead/CatalogStage | Existing descriptor authority, identity-keyed storage, shared binder, staged INSERT and retained snapshots. Extend these paths with authorization; string-keyed Engine.tables is already gone. |
 | `internal/parser/ast.go:3-78`; `grammar.y:1-85`; `lexer.go:17-64` | Positioned closed statement set, whole-input parsing, unsupported registries, identifier folding/truncation. Command owners extend these paths, never SQL-substring recognition. |
 | `internal/engine/control.go:14-44,128-171`; root `control.go:11-65` | Reset/replacement and isolated Restore staging use native host authority; adapter releases borrowed connection before external I/O. No authorization-free alternate SQL executor. |
-| `internal/sqlstate/error.go:3-14`; `internal/engine/engine.go:42-44` | Shared error transport presently has Code/Message/Schema/Table/Column; its unconditional public schema annotation must be removed by diagnostic cutover, not treated as authorization evidence. |
-| `reference_test.go:17-130`; `reference_helpers_test.go:20,57-110` | Existing reference fixtures specify rows/types/counts and SQLSTATE, but per-step preparation closes statements and does not capture full diagnostics. Future consumers extend held-connection/statement and diagnostic coverage. |
-| `PG18-ARCH-SESSION.md:36-53,55-130` | Reuse `PrincipalRef`, `RoleState`, `AuthorizationAttachment`, `SessionResource`, `DatabaseTarget`, and pointer-owned `Session.Acquire(ctx) (*Operation,error)`. That committed pointer signature supersedes the prerequisite's frozen value-return proposal. |
-| `PG18-ARCH-CATALOG-IDENTITY.md:28-46,61-140,220-280` | Reuse stable object/column identity, coherent `CatalogRead`, `NamespaceAccess`, `CatalogStage`, shared-owner hooks, indivisible publication and invalidation. SESSION qualifies these by selected database target. |
+| `internal/sqlstate/error.go` Error; `engine.go` sqlError | Complete structured error fields already exist. sqlError still attaches public when table is nonempty; authorization must not copy that assumption into new denials. |
+| `reference_test.go` referenceDiagnostic/referenceAssertDiagnostic/referencePrepared | Structured diagnostic assertions already exist. Add authorization fixtures and held physical connection/statement transitions; per-step prepared cases do not prove invalidation. |
+| `PG18-ARCH-SESSION.md` §§2–3 | Reuse PrincipalRef, RoleState, AuthorizationAttachment, SessionResource, DatabaseTarget and pointer-owned `Acquire(ctx) (*Operation,error)`. |
+| `PG18-ARCH-CATALOG-IDENTITY.md` §§2–7 | Reuse provenance-bearing object/column identity, CatalogRead, NamespaceAccess, CatalogStage and indivisible publication/invalidation; SESSION adds selected-database qualification. Current refs do not yet implement the prerequisite's owner token. |
 
 Release behavior is grounded in PostgreSQL 18 manuals: [privileges §5.8 and Tables 5.1–5.2](https://www.postgresql.org/docs/18/ddl-priv.html), [membership §21.3](https://www.postgresql.org/docs/18/role-membership.html), [GRANT](https://www.postgresql.org/docs/18/sql-grant.html), [REVOKE](https://www.postgresql.org/docs/18/sql-revoke.html), [ALTER DEFAULT PRIVILEGES](https://www.postgresql.org/docs/18/sql-alterdefaultprivileges.html), [SET ROLE](https://www.postgresql.org/docs/18/sql-set-role.html), [SET SESSION AUTHORIZATION](https://www.postgresql.org/docs/18/sql-set-session-authorization.html), [RLS §5.9](https://www.postgresql.org/docs/18/ddl-rowsecurity.html), [CREATE POLICY and its command matrix](https://www.postgresql.org/docs/18/sql-createpolicy.html), [routine security](https://www.postgresql.org/docs/18/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY), [schemata](https://www.postgresql.org/docs/18/infoschema-schemata.html), [tables](https://www.postgresql.org/docs/18/infoschema-tables.html), [columns](https://www.postgresql.org/docs/18/infoschema-columns.html), [PREPARE](https://www.postgresql.org/docs/18/sql-prepare.html), and [SQLSTATE Appendix A](https://www.postgresql.org/docs/18/errcodes-appendix.html).
 
-Exact metadata predicates are corroborated by release-branch [`REL_18_STABLE/information_schema.sql`](https://raw.githubusercontent.com/postgres/postgres/REL_18_STABLE/src/backend/catalog/information_schema.sql): the authorization predicates in the `WHERE` clauses of `CREATE VIEW columns AS`, `CREATE VIEW schemata AS`, and `CREATE VIEW tables AS`. These view-level anchors avoid line-number drift on the release branch. This is source corroboration, not observed runtime results or a source snapshot pinned to the reference runtime's minor version. Local `/home/rlew/projects/stuntgres/src-ref/postgres` is **20devel**, research only: `src/backend/utils/adt/acl.c:78-80,5070-5118` corroborates separate membership traversal modes and lazy invalidation. Ramsql `engine/executor/engine.go:17-38,73-90` has agnostic memstore/name lookup, not reusable PostgreSQL authorization authority. Neither local source substitutes for the release oracle.
+Release source anchors (all [`REL_18_0`](https://github.com/postgres/postgres/tree/REL_18_0), matching the reference minor):
+- [`acl.c`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/adt/acl.c): `aclmask`, `roles_is_member_of`, `has_privs_of_role`, `member_can_set_role`, `is_admin_of_role`, `select_best_grantor` establish owner options, separate closures and grantor selection.
+- [`aclchk.c`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/aclchk.c): `restrict_and_check_grant`, `ExecGrant_Relation`, `SetDefaultACL`, `get_user_default_acl`, `aclcheck_error` establish warnings, relation/column grants, creator templates and ordinary diagnostics.
+- [`information_schema.sql`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/information_schema.sql): `columns`, `schemata`, `tables` WHERE clauses establish §6 masks and exclusions; no extra schema-USAGE predicate is present for tables/columns.
+- [`rowsecurity.c`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/rewrite/rowsecurity.c): `get_row_security_policies`, `add_security_quals`, `add_with_check_options` establish command placement, omitted-expression handling and default deny.
+- [`rls.c`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/utils/misc/rls.c): `check_enable_rls` establishes environment-dependent bypass, FORCE and row_security=off error, including when policy predicates would allow every row.
 
-The frozen selected record/research and bounded consumer-symbol mapping govern this artifact. Official `/docs/18/` pages identify manual **18.6**. Preserve the existing reference **18.0**, image `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, `server_version_num=180000`, UTF8/C. Minor-specific cases consume `PG18-REF-ORACLE-18-6`; do not invent a digest or upgrade unrelated fixtures. No runtime authorization SQL was executed during the original document-authoring phase. During later review remediation, targeted RLS oracle smoke observed the §10 W14 omitted-expression outcomes and representative INSERT violation SQLSTATE/English primary diagnostic against the pinned PostgreSQL 18.0 UTF8/C oracle, as disclosed in §11; this was not full diagnostic capture. The coordinator also ran baseline verification gates, including builds, tests, and smoke, separately from document authoring. The deliverable remains this document only, with no runtime authorization implementation or production/test-file changes; those gates do not establish implementation of the future authorization contracts.
+Manual `/docs/18/` identifies **18.6**; preserve reference **18.0**, UTF8/C, `server_version_num=180000`, image `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`. Minor-specific differences belong to PG18-REF-ORACLE-18-6; local 20devel is research only. Document author ran no SQL/verification. Root's targeted pinned-oracle observation established W13 direct SELECT and SQL PREPARE/EXECUTE stages; it is not database/sql unnamed-Parse parity or full diagnostic capture. Historical W14 observations were likewise limited. Baseline gates cannot prove future authorization.
 
 ## 2. Identity domains and immutable access interfaces
 
@@ -58,10 +63,11 @@ type MembershipEdge struct {
     Role, Member, Grantor PrincipalRef
     Admin, Inherit, Set bool
 }
+type DefaultACLKind uint8 // Tables, Sequences, Routines, Types, Schemas, LargeObjects
 type DefaultACLKey struct {
     Creator PrincipalRef
     Namespace ObjectRef // zero means selected-database-global template
-    Class OID // owning catalog class, not a parallel kind registry
+    Kind DefaultACLKind // default-privilege category, not catalog ClassID
 }
 type AccessRequirement struct {
     Object ObjectRef // whole object or stable column SubID
@@ -88,9 +94,9 @@ type AuthorizationView interface {
 func (op *Operation) Authorization() AuthorizationView
 ```
 
-`HasRole(member, role, mode)` includes self for membership/privilege/switch queries, then traverses unconditional, all-INHERIT, or all-SET paths respectively. Do not collapse them into one transitive boolean. `CanAdmin(actor, role)` asks for validated delegation under PostgreSQL's ADMIN/grantor rules; a role is **not** implicitly its own ADMIN holder. ADMIN is not an ordinary transitive ACL privilege. Special attributes SUPERUSER, LOGIN, CREATEDB, CREATEROLE and BYPASSRLS are read from the effective principal, not inherited as ordinary object rights. Membership changes require provenance/dependency evaluation, not only a reachability cache.
+`HasRole(member,role,mode)` includes self, then traverses unconditional, all-INHERIT or all-SET paths. `CanAdmin(actor,role)` applies ADMIN/grantor rules, not ordinary transitive ACL rights or implicit self-ADMIN. SUPERUSER/LOGIN/CREATEDB/CREATEROLE/BYPASSRLS come from the effective principal, never ordinary inheritance. Membership mutation evaluates provenance/dependencies as well as reachability.
 
-The engine supplies the view for a valid operation's coherent catalog/auth read and selected target. `Operation.Authorization()` and `Operation.Resolution().Access` refer to the **same view**. The one Authorization resource attachment retains validated session state and supplies views; EndSession releases it without deleting shared roles or executing SQL. The view's lifetime cannot exceed its owning operation/frame; returned slices/descriptors are immutable borrowed values.
+The engine binds one immutable view to the operation's coherent catalog/auth read and target: `Operation.Authorization()` equals `Operation.Resolution().Access`. One Authorization attachment owns validated session state; EndSession releases it, not shared roles or SQL effects. Borrowed slices/descriptors cannot outlive their operation/frame.
 
 `ACLGrantee{Public:true, Role:zero}` is PUBLIC. A real grantee has Public=false and a nonzero role. Reject other combinations. PUBLIC is neither a principal nor a membership endpoint. Grant-option bits must be a subset of ordinary privilege bits; PUBLIC cannot receive grant options. Explicit=false carries no user entries; explicit empty and absent ACL remain distinguishable. Foreign engine/target, zero role handles, stale refs or invalid lifecycle are internal errors at validated interfaces, never implicit owner/PUBLIC/superuser fallbacks. Missing-name SQL diagnostics come from the resolver before access evaluation. Predicate-only interfaces (`CanUse`, `Visible`, `HasRole`) operate on validated inputs, not untrusted handles with silent default allow.
 
@@ -126,13 +132,15 @@ Evaluation order: validate domain/ref/class; identify effective principal and in
 
 Creator default ACL templates are applied **once at creation**, under CurrentUser, into the object's initial ACL. They never retroactively affect existing ACLs. Inherited group templates are not creator templates unless the group is CurrentUser. Global templates can override built-in defaults; per-schema templates add to global defaults, never subtract them. A creation whose templates alter defaults materializes an explicit ACL. Descriptor owner, initial ACL and role-dependency payloads are staged and published together.
 
+User decision **2026-10-04, “Use PostgreSQL object categories”** supersedes only the former `DefaultACLKey.Class OID` rule: templates key by creator, namespace/global scope and bounded DefaultACLKind. Tables and sequences share pg_class yet have separate defaults; routines share one category (functions/procedures cannot have separate defaults), and Types includes domains. Catalog ClassID remains object identity, not this category. Only the six supported categories are accepted; no new catalog/kind registry. The key is future vocabulary, not a migration of an implemented template map.
+
 ## 4. State transitions, atomicity, and invalidation
 
 ### Mutation protocol
 
-All handlers resolve and validate the complete target set and authority/delegation dependencies, calculate immutable replacement payloads and touched revisions, then validate the complete catalog stage. Final installation co-publishes data/descriptors/ACLs/dependencies and invalidation through the existing catalog boundary. Failure, cancellation, invalid targets, RESTRICT refusal or revision exhaustion publishes **no partial state and no committed event**. Warning-bearing partial privilege grants are PostgreSQL's intentional eligible-mask result, not a partially installed failing statement.
+Resolve/preflight the complete target set and delegation dependencies; compute immutable replacements/touched revisions; validate the stage; co-publish data, descriptors, ACLs, dependencies and invalidation. Failure/cancellation/invalid targets/RESTRICT/revision exhaustion publishes **nothing and no committed event**. Warning-bearing eligible-mask grants are successful PostgreSQL results, not partial failures.
 
-Grant provenance/dependent authorization semantics belong to ACL/membership payloads; catalog dependency indexes remain catalog-owned. Shared role changes integrate the existing shared-owner authority, not a database-local replacement store. This protocol constrains atomicity without choosing TX visibility, locking, retries or MVCC algorithms.
+ACL/membership payloads own grant provenance; catalog owns dependency indexes/shared-owner hooks. No new store, TX visibility, locking, retry or MVCC algorithm is introduced.
 
 | Transition | Authority and resulting state |
 |---|---|
@@ -142,7 +150,7 @@ Grant provenance/dependent authorization semantics belong to ACL/membership payl
 | Membership GRANT | Distinct ADMIN delegation/GRANTED BY rules: actor must possess attributed grantor's authority; recorded non-bootstrap grantor must hold target ADMIN and remains a dependency. Superuser membership grant is attributed to bootstrap grantor. |
 | Object REVOKE | Remove only applicable grantor-attributed bits. GRANT OPTION FOR retains ordinary use; table revoke also removes corresponding column grants from that grantor; column revoke cannot subtract table rights. RESTRICT is default. CASCADE recomputes independent support instead of deleting every downstream entry indiscriminately. |
 | Partial nonowner grant/revoke | No object privilege at all can cause outright denial. Otherwise only eligible grant-option masks change; emit PostgreSQL warnings for requested unsupported masks as specified for ALL versus explicit privileges. Never silently grant everything, discard warnings, or turn a warning into failed Exec. |
-| ALTER DEFAULT PRIVILEGES | Change creator/class/global-or-namespace template. Authority for another creator follows membership eligibility, not assumed ownership of all future objects. Existing ACLs unchanged. Schema defaults are additive; schema REVOKE cannot subtract global/built-in grants. IN SCHEMA is invalid for SCHEMAS and LARGE OBJECTS. |
+| ALTER DEFAULT PRIVILEGES | Change creator/category/global-or-namespace template. Another creator requires CurrentUser's self/INHERIT-effective creator authority or superuser (`has_privs_of_role`), not MEMBER or SET eligibility alone. Existing ACLs unchanged; schema defaults add, never subtract global/built-in grants. IN SCHEMA is invalid for SCHEMAS/LARGE OBJECTS; column defaults are invalid. |
 | Ownership transfer | Inherited current-owner authority plus SET eligibility for new owner, or superuser, with class-specific requirements from the handler. Preserve ObjectRef; transfer owner ACL rights and dependencies atomically. ALL is not ownership. |
 | SET ROLE role | Check SessionUser's all-SET path or SessionUser superuser status, not CurrentUser. Change CurrentUser only; advance session environment revision; do not reload target login defaults or rewrite ResetRole. |
 | SET ROLE NONE / RESET ROLE | NONE selects SessionUser. RESET selects configured connection-time ResetRole, otherwise SessionUser. Restore baseline rather than last switch; peer sessions are unchanged. |
@@ -165,13 +173,13 @@ Publish this immutable, deduplicated payload alongside corresponding catalog cha
 
 Cache keys include Engine, DatabaseTarget/incarnation, catalog epoch, effective identity, relevant descriptor/auth revisions, and resolution environment. A cache may be conservative, but a global generation alone must not make unrelated staged changes conflict; use catalog's touched preconditions. TX selects visible versions and publication timing. Retained operations/Rows keep their coherent read; new operations see changes at TX-defined boundaries. Private/discarded changes emit no committed invalidation.
 
-Preparation retains resolved refs and bound requirements, **never permission tokens**. Describe checks its operation view; every Execute validates plan/ref validity and reevaluates applicable object/column rights before access/publication, rebuilding role-dependent RLS selection when needed. Role, membership, ACL, owner, policy or identity changes cannot leave a stale allowed decision in a newly acquired view. Replacement invalidates old refs by epoch. Retained result rows are not retroactively erased by revocation.
+Preparation retains resolved refs and bound requirements, **never permission tokens**. Describe binds/validates its coherent view and performs applicable lookup/RLS-setting preflight, but must not eagerly reject ordinary relation ACLs that PostgreSQL defers to execution. Every Execute validates plan/ref validity and reevaluates object/column rights before row evaluation/access/publication, rebuilding role-dependent RLS selection when needed (§5 precedence). Role/membership/ACL/owner/policy/identity changes cannot retain stale allowance. Replacement invalidates old refs by epoch; revocation does not erase retained Rows.
 
 Namespace USAGE is a lookup privilege: preserve PostgreSQL's documented previously-looked-up statement caveat. Do not promise fresh name lookup on every prepared execution or that schema USAGE revoke alone guarantees inaccessibility. This is distinct from mandatory reevaluation of relation/column ACLs at execution.
 
 ## 5. Checkpoints and diagnostic ownership
 
-The existing binder emits a deduplicated `[]AccessRequirement` for actual resolved uses, preserving source positions for the diagnostic owner. Deduplication combines equivalent ref/mode requirements, not owner checks with ordinary rights or unrelated column refs. Describe validates the operation view; Execute uses the same binder/plan authority and rechecks before effect. No test-only executor, alternate binder, permissive default view or control SQL bypass survives cutover.
+Extend the shared binder to emit deduplicated `[]AccessRequirement` for actual uses, retaining positions. Combine only equivalent ref/mode requirements; keep ownership and distinct columns separate. Describe/Execute follow §4; §9 removes alternate/default-allow paths.
 
 | Checkpoint | Required decision before effect |
 |---|---|
@@ -185,7 +193,7 @@ The existing binder emits a deduplicated `[]AccessRequirement` for actual resolv
 | DELETE | Table DELETE and SELECT on referenced read columns. |
 | TRUNCATE | Distinct table TRUNCATE right; no RLS row filtering. |
 | Callable routine / operator | Caller EXECUTE before routine entry/body effect; implementing function EXECUTE for operators. Existing resolver/signature binder chooses the routine. |
-| Policy / RLS | Owner authority for flags/policy DDL. Ordinary ACL first, then applicable RLS. REFERENCES and integrity exemptions affect RLS only, not ACL. |
+| Policy / RLS | Owner authority for flags/policy DDL. Applicability/setting preflight may precede ordinary ACL rejection; row access/modification requires ordinary privileges and applicable RLS. REFERENCES/integrity exemptions affect RLS only, not ACL. |
 | Metadata | Per-surface visibility over the same catalog/auth view. Exposure is never a DML authorization token. |
 
 Authorization constructs ordinary `42501 insufficient_privilege` denials with class-specific primary wording. Representative simple-relation denial: **`permission denied for table secret`**; schema: **`permission denied for schema auth_s`**; ownership: **`must be owner of table secret`**. A column-only denial may still report relation-level wording; do not invent a Column field because a column mask failed. No Schema/Table/Column fields are synthesized merely from refs. Primary messages are PostgreSQL English without the driver's `stuntgres: ` Error() prefix.
@@ -196,11 +204,13 @@ Authorization constructs ordinary `42501 insufficient_privilege` denials with cl
 | Resolver | Missing names, qualification and lookup precedence |
 | Authorization | Ordinary use/owner denial, delegation eligibility and grant warnings |
 | Feature command handler | Command-specific restrictions and scope rules |
-| RLS consumer | Policy violation / row_security setting diagnostics after ACL prerequisite |
+| RLS consumer | Applicability/row_security setting diagnostics at PostgreSQL's preflight phase; policy violations during authorized row enforcement |
 | PG18-DRIVER-ERROR-FIELDS | Structured severity, primary/detail/hint, positions, optional fields and notice transport; remove unconditional Schema=public |
 | Adapter/context/I/O/internal domain | Ordinary Go errors, not invented SQLSTATE |
 
 Appendix A establishes `42501`, `0LP01 invalid_grant_operation` and `2B000 dependent_privilege_descriptors_still_exist`; it does not establish every command's precedence or optional fields. Full English primary/detail/hint/severity/position/object-field presence and absence must be captured independently against pinned 18.0 by each consuming command before exact implementation acceptance. Exact unobserved membership/cascade/RLS/warning wording is **not** claimed here; local 20devel is not a fallback oracle. Warnings require diagnostic-owner notice transport, not silent discard or failed Exec.
+
+User decision **2026-10-04, “Follow PostgreSQL phase precedence”** supersedes unconditional ACL-before-RLS ordering in §§5/8/W13 and §4's eager Describe ordinary-relation ACL rejection. RLS never grants ordinary privileges; selection/preparation is not an access token. PostgreSQL rewrite [`fireRIRrules`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/rewrite/rewriteHandler.c) calls `get_row_security_policies`/`check_enable_rls` before executor [`InitPlan`/`ExecCheckPermissions`](https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/executor/execMain.c). Applicability/setting preflight may therefore reject during preparation before ordinary ACL checks at execution. Preserve these phases using the same coherent view, not a second binder/planner; ordinary requirements remain mandatory before row evaluation/access/modification.
 
 ## 6. Metadata visibility versus lookup/access
 
@@ -220,11 +230,11 @@ Providers retain the same `CatalogRead` and `AuthorizationView`; no mutable curr
 
 ## 7. Security-definer boundary
 
-`ForRoutine(ref,definer)` checks caller EXECUTE against the coherent current descriptor before body effect. Invoker returns caller authority. Definer supplies an immutable scoped view whose effective CurrentUser is the **current routine owner**, retaining Authenticated/SessionUser/ResetRole and definer restrictions. It does not mutate the session's stored RoleState. Routine owner/ref revisions participate in validity; a previously prepared call cannot retain an old owner's authority after transfer.
+`ForRoutine(ref,definer)` checks caller EXECUTE before body effect using the coherent descriptor (§2 validates the flag). Invoker retains caller authority; definer returns an immutable view with **current routine owner** as CurrentUser and unchanged Authenticated/SessionUser/ResetRole. Stored session state is untouched; owner/ref revisions invalidate stale authority.
 
-The `PG18-ARCH-ROUTINE-EXECUTION` frame owner installs the returned view, restores the exact caller view on success, nested return, SQL error and cancellation, and prevents scoped authority escaping its frame lifetime. An invoker called inside a definer inherits its caller's effective scoped authority; definer restrictions remain for that context. Authorization supplies the view and rejects role/session-authorization switches there, not another frame stack or invocation dispatcher.
+The future routine-frame owner installs/restores the exact caller view on normal/nested return, error and cancellation and prevents escape. Nested invokers inherit scoped identity and definer restrictions; authorization rejects role/session-authorization switches there. No frame stack or dispatcher is designed here.
 
-Settings and search_path save/restore are frame/settings-owned. Safe examples use trusted schemas followed by explicit pg_temp, but the implementation does not rewrite arbitrary paths or promise they are secure. Default PUBLIC EXECUTE remains until revoked explicitly. Policy subqueries use invoking authority except for explicit definer invocation; other view/security semantics remain their feature owner's contract.
+Frame/settings owners save/restore settings and search_path. Safe examples use trusted schemas then explicit pg_temp; never rewrite arbitrary paths or promise security. PUBLIC EXECUTE persists until revoked. Policy subqueries use invoking authority except explicit definer calls; other view semantics remain feature-owned.
 
 ## 8. RLS selection and expression/enforcement boundaries
 
@@ -248,9 +258,9 @@ type PolicySelection struct {
 
 Policy descriptors hold their table ref, command (including ALL), roles/PUBLIC, permissive flag, and shared bound Boolean USING/WITH CHECK expressions. Persist enabled and forced table flags separately from definitions. DISABLE preserves definitions. Flag/policy DDL requires owner authority. Policy refs and bound dependencies remain catalog-owned.
 
-`RowSecurity` returns immutable selection references, not evaluated rows or expressions. Caller must have passed ordinary ACL requirements. Disabled RLS, actual effective superuser/BYPASSRLS, or owner authority without FORCE bypass; FORCE removes ordinary owner bypass, never superuser/BYPASSRLS. `row_security=off` errors when applicable RLS would be applied, rather than proving expressions happen to allow all rows or granting bypass.
+`RowSecurity` returns immutable selection references, not evaluated rows or expressions, and may perform applicability/setting preflight before ordinary ACL rejection (§5). Consumers must pass ordinary ACL requirements before row evaluation/access/modification; selection cannot grant privileges. Disabled RLS, actual effective superuser/BYPASSRLS, or owner authority without FORCE bypass; FORCE removes ordinary owner bypass, never superuser/BYPASSRLS. `row_security=off` errors when applicable RLS would be applied, regardless of whether predicates would allow all rows.
 
-Select ALL and matching command policies whose roles are PUBLIC or INHERIT-applicable to effective identity. Within each command group: `(OR permissive) AND (AND restrictive)`; a policy with an omitted expression contributes no predicate. Permissive authority exists only when at least one applicable permissive policy contributes the expression needed for that policy use; otherwise deny (DefaultDeny/false), including when applicable policies omit every relevant expression. Restrictive policies never grant authority without permissive authority. Conjoin separate command groups, not one OR across SELECT and UPDATE. DefaultDeny records absence of a required group's permissive authority; selection still preserves grouping for the expression/enforcement consumer. An omitted WITH CHECK on ALL/UPDATE falls back to that policy's USING expression; if that USING is also omitted, neither contributes a predicate and the check denies. An explicitly supplied `true` expression does contribute a predicate and permits rows. INSERT policies cannot specify USING; SELECT/DELETE cannot specify WITH CHECK.
+Select ALL/matching-command policies for PUBLIC or INHERIT-applicable roles. Per group, combine `(OR permissive) AND (AND restrictive)`; conjoin different command groups. Omitted expressions contribute nothing: without a permissive expression for the required use, record DefaultDeny/false, even if policy descriptors exist. Restrictive-only cannot grant. ALL/UPDATE omitted WITH CHECK uses USING; both omitted therefore deny. Explicit `true` grants. INSERT forbids USING; SELECT/DELETE forbid WITH CHECK. Preserve groups for shared expression evaluation.
 
 USING true allows existing row; false/NULL silently suppresses it. WITH CHECK true permits proposed row; false/NULL aborts the **whole command**. Shared expression binder/evaluator supplies Boolean/NULL semantics, dependencies and errors; reject aggregate/window constructs. No authorization-local evaluator is allowed.
 
@@ -279,7 +289,7 @@ No production caller changes in this design session. Future implementations migr
 | `driver.go` connector.Connect | SESSION initializes validated admission, selected database, CONNECT and one Authorization attachment. Preserve exact DSN/Driver isolation. |
 | `conn.go` Close/Ping/PrepareContext/execute and legacy adapters | Consume pointer-owned Operation acquire/release and terminal lifecycle. Pass the same `*Operation` to Describe/Execute; release on all error/cancel paths. Session role transitions never mutate peers. |
 | `stmt.go` ExecContext/QueryContext and adapters | Stay on conn.execute; retain refs/requirements under prepared owner, never allow tokens. Reevaluate on held physical connection. |
-| `internal/engine/engine.go` Describe/describe/Execute | Extend existing binder with masks, source positions and semantic any-column uses; enforce before effect. CREATE stages owner/default ACL; INSERT/SELECT preserve existing atomicity/snapshots. Catalog foundation removes string table authority. |
+| `internal/engine/engine.go` Describe/describe/Execute; `catalog.go` descriptors/stages/providers | Extend current binder with masks, positions and any-column quantifiers; stage owner/default ACL with CREATE and enforce before effect. Preserve INSERT atomicity and retained SELECT snapshots. Extend the existing catalog authority, not obsolete string tables. |
 | `internal/parser/ast.go`, `grammar.y`, generated `grammar_gen.go`, `lexer.go` keywords/unsupported registries | Each command owner adds positioned grammar/types and removes only syntax it genuinely implements. Full-input rejection, identifier normalization and unsupported behavior remain. No substring parser. |
 | DDL/DML/query handlers as introduced | Consume central owner/use requirements and RLS hooks; no parallel privilege-operation capability. |
 | CatalogProvider metadata readers | Apply per-surface predicate to coherent authoritative projections. Do not create writable catalog mirrors. |
@@ -288,7 +298,7 @@ No production caller changes in this design session. Future implementations migr
 | `internal/engine/control.go` Reset/Restore replacement and stage.Execute; root `control.go` withEngine/Reset/Dump/Restore | Migrate with SESSION/CATALOG signatures and supported serializers; retain native host authority and release-before-I/O. Stage uses ordinary engine machinery, never an authorization-free SQL executor. Replacement validates supported persistent ACL dependencies in the same authority. |
 | Direct internal engine test helpers | Migrate with owning signature changes; no default-allow helpers or test-only binder. Tests are not edited here. |
 
-Implementation-time searches: `\.Describe\(|\.Execute\(|e\.tables|stage\.tables` across root driver/conn/stmt/control and internal engine; `unsupportedWords|unsupportedIdentifiers|statement:` across parser. These are future caller-inventory checks, **not commands executed here**. Host controls do not fabricate SQL authentication; future serializers must not silently lose supported ACL/default/policy state in purported complete round trips.
+Implementation-time inventory searches: `\.Describe\(|\.Execute\(|resolveRelation|namespaceForName|CatalogStage|ReplaceCatalog` across adapter/control/internal engine; `unsupportedWords|unsupportedIdentifiers|statement:` across parser. Host controls do not fabricate SQL authentication; serializers must preserve supported ACL/default/policy state in complete round trips.
 
 The frozen research maps bounded catalog records to the following consumer capabilities; the parent owns final scheduling/partitioning. Each row is a bounded future session exit, not permission to implement adjacent work now. W numbers refer to §10.
 
@@ -300,7 +310,7 @@ The frozen research maps bounded catalog records to the following consumer capab
 | PG18-ROLE-SWITCH | SET/NONE/RESET eligibility, configured reset baseline and isolated session views | W6–W7, W11; identities and held-plan decisions |
 | PG18-ROLE-GRANT / PG18-ROLE-GRANT-OBJECTS | Table/column and non-table masks, defaults materialization, PUBLIC/delegation and actual use | W2–W4, W8; supported class positive/negative operations |
 | PG18-ROLE-REVOKE / PG18-ROLE-REVOKE-OBJECTS | Grantor-specific removal, option-only revoke, dependencies/independent sources | W2, W4, W8, W11; exact surviving rights and warnings |
-| PG18-ROLE-DEFAULT-PRIVILEGES | Creator/class/global/schema templates, future-only and additive behavior | W9; old/new/later objects and creator switching |
+| PG18-ROLE-DEFAULT-PRIVILEGES | Creator/category/global/schema templates, future-only and additive behavior | W9; old/new/later objects, creator switching and table/sequence template separation |
 | PG18-ROLE-OWNERSHIP | Transfer/REASSIGN/DROP OWNED via catalog dependency authority | W5; stable identity, transferred ACLs, atomic denied transfer |
 | Existing DDL/DML/query symbols | Central checkpoint consumption, not a new parallel privilege subsystem | W10; per-operation semantic masks and atomicity |
 | PG18-INFO-SCHEMATA / PG18-INFO-TABLES / PG18-INFO-COLUMNS | Each exact authoritative projection and visibility predicate | W1–W3; exact exposed rows/column types |
@@ -364,6 +374,8 @@ Owner gives reader SELECT WITH GRANT OPTION; reader grants downstream under an e
 
 Owner creates old_t with row `(1)` before a schema default template grant. Apply creator/schema SELECT template; create new_t with `(2)`: reader old_t denies, new_t returns `[(2)]`. Revoke template; create later_t with `(3)`: new_t remains readable, later_t denies. Member creation without SET ROLE does not use group's templates; creation as group does. Schema-only routine default revoke cannot subtract global PUBLIC EXECUTE. Invalid scope/unauthorized template changes leave templates/revisions unchanged. Unit values distinguish absent object ACL, explicit empty and materialized creator effects.
 
+Category witness: for the same creator/schema, `ALTER DEFAULT PRIVILEGES ... GRANT SELECT ON TABLES TO reader_role` makes a later table readable but a later sequence's `has_sequence_privilege(...,'SELECT')` false. Separately grant default SELECT ON SEQUENCES: only later sequences gain it; revoke table default and verify later tables deny while later sequences still allow. Assert earlier objects unchanged and unit keys unequal despite common pg_class ClassID. Test all six category masks/scopes; functions/procedures share Routines, domains use Types. A SET-only/non-INHERIT member cannot change the creator's defaults until becoming that creator; INHERIT authority can. Denials preserve templates/revisions.
+
 ### W10 — Operation checkpoints and atomicity
 
 Use separate grants to isolate CREATE, owner ALTER/DROP, SELECT projection/read columns, INSERT assigned targets, UPDATE written/read columns, DELETE read columns and TRUNCATE. Unauthorized unqualified CREATE fails at selected schema without publishing or falling through; failing multi-target DROP leaves all targets. Unit manifests assert exact masks and any-column quantifiers, including columnless reads/row locking. Sequence/function use needs its own grant despite table INSERT. A denied multirow command/cancellation leaves sentinel rows and descriptor/auth revisions unchanged. Capture each command's error precedence/English fields independently rather than weakening fixture requirements.
@@ -378,7 +390,11 @@ Owner's definer routine with trusted path followed by pg_temp reads secret. Call
 
 ### W13 — RLS bypass, flags and default deny
 
-Table r(id integer) contains `(1),(2)`; reader has ordinary SELECT. ENABLE RLS with no policies gives reader `[]`, not ACL denial. Owner sees ordered `[(1),(2)]` unless FORCE; forced nonsuper owner sees `[]`. Actual superuser/BYPASSRLS still sees both. DISABLE restores ACL-visible rows without deleting policies. row_security=off errors when policy application is required, never grants bypass. TRUNCATE/REFERENCES/integrity exemptions do not override their ordinary ACL requirements. Revoke ordinary SELECT: ACL denial precedes policy selection. Unit flags/attributes distinguish inherited owner access from actual special attributes.
+Table r(id integer) contains `(1),(2)`; reader has ordinary SELECT. ENABLE RLS with no policies gives reader `[]`, not ACL denial. Owner sees ordered `[(1),(2)]` unless FORCE; forced nonsuper owner sees `[]`. Actual superuser/BYPASSRLS still sees both. DISABLE restores ACL-visible rows without deleting policies. row_security=off errors when policy application is required, never grants bypass. TRUNCATE/REFERENCES/integrity exemptions do not override their ordinary ACL requirements. Unit flags/attributes distinguish inherited owner access from actual special attributes.
+
+Root **observed on pinned PostgreSQL 18.0 UTF8/C**: with no reader SELECT on `auth_s.r`, schema USAGE, reader non-owner/non-superuser/non-BYPASSRLS and RLS enabled, `row_security=on` direct `SELECT id FROM auth_s.r` rejects **42501 / `permission denied for table r`**; SQL `PREPARE denied_on AS SELECT id FROM auth_s.r` succeeds, then `EXECUTE denied_on` rejects with that same ordinary denial. With `row_security=off`, direct SELECT and SQL PREPARE both reject **42501 / `query would be affected by row-level security policy for table "r"`** during applicability preflight. These observed SQL stages corroborate release source; no stuntgres authorization was exercised.
+
+Future independent fixtures must reproduce those stages and unchanged data/identity/ACL/policy/revision state, then separately capture public direct/prepared database/sql behavior and full diagnostic fields against both backends. Do not infer unnamed Parse or database/sql preparation behavior from SQL PREPARE alone. Repeat owner/FORCE and actual-superuser/BYPASSRLS cases without treating RLS bypass as an ACL grant; no protected row evaluation/access is allowed without ordinary rights.
 
 ### W14 — Policy selection, composition, filters and proposed checks
 
@@ -402,4 +418,4 @@ INSERT WITH CHECK(id=1) accepts 1 with affected count **1**. Multirow `(1),(2)` 
 | Clean-cutover production inventory and bounded backlog | §9 caller inventory/symbols with consumer exits; no parallel paths |
 | Independent positive/denial/transition scenarios | §10 W1–W14, each specified before parity; no runtime claim |
 
-The deliverable is complete as a design specification; runtime implementations remain the mapped consumer records. Other unobserved diagnostics and absent expression/TX/locking/routine artifacts are explicitly bounded **future consumer evidence/contracts**; the omitted-expression RLS behavior and representative INSERT violation SQLSTATE/English primary diagnostic above were observed against the pinned PostgreSQL 18.0 UTF8/C oracle. No permission is implied to fabricate other details or implement adjacent artifacts. No builds or full-suite tests are part of this remediation. Only this document is changed; production, permanent tests, prerequisites, catalog definitions/status and frozen selected plan are intentionally unchanged.
+This artifact specifies future consumer work, not working SQL. Exact unobserved diagnostics and expression/TX/locking/routine algorithms remain with the named owners. Production/tests/prerequisites remain unchanged; the living plan preserves prior rationale and records this revision. Root must run fresh full production gates and independent review; there is no implemented authorization feature smoke in this design-only revision.
