@@ -255,7 +255,7 @@ Paths/line ranges are ordinary current-source anchors, not frozen proof. Future 
 | `result.go` command adapter | Retain affected-count adapter, no query-stage write count inference |
 | Expression occurrences/parameterColumn/Predicate | Route all migrated query resolution/evaluation through EXPR-CORE and shared type parameter plans. Parser/general syntax belongs to its dedicated owner; never edit generated grammar directly |
 | INSERT/UPDATE/DELETE/MERGE RETURNING producers | Bind producer namespace, stage expression rows, Finish under TX, attach common result; no query action/TX subsystem |
-| `reference_test.go:23–98` referenceDiagnostic/referenceExtractDiagnostic/referenceAssertDiagnostic | Reuse complete-field independent fixtures, not alternate error envelope or SQLSTATE-only parity |
+| `reference/fixture_test.go` referenceDiagnostic/referenceExtractDiagnostic/referenceAssertDiagnostic | Reuse complete-field independent fixtures, not alternate error envelope or SQLSTATE-only parity |
 | `driver_test.go` Test sections around :270,:344,:382,:467 | Expand existing metadata, cancellation/closed object, native cursor and retained snapshot witness seams; baseline tests are not future-feature evidence |
 | `internal/engine/engine_test.go:28–46` run/tuples | Migrate direct Execute signature through its responsible owner; replace Result.Columns/Snapshot.Len/Values iteration with schema-width typed Next/export and explicit cleanup. No test-only legacy result shim |
 | `internal/engine/catalog_test.go:29,47,189,294` direct Engine.Execute callers | Migrate internal signature/admission and discarded-result cleanup with the responsible owner; retain catalog identity/replacement/concurrency assertions |

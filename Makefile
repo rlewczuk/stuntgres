@@ -7,7 +7,7 @@ test:
 	go test ./...
 
 reference:
-	go test -tags reference -run TestReference -count=1 -v .
+	go test -tags reference -run TestReference -count=1 -v ./reference
 
 smoke:
 	go test -count=1 -v ./smoke

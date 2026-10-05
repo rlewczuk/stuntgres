@@ -1,9 +1,8 @@
 //go:build reference
 
-package stuntgres_test
+package reference_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"github.com/lib/pq"
@@ -11,31 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
 
-func roleReferenceCleanup(t *testing.T, names []string) {
-	t.Helper()
-	// Registered before pair cleanup: physical handles and schema are gone first.
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		for _, name := range names {
-			if _, err := referenceAdmin.ExecContext(ctx, "DROP ROLE IF EXISTS "+pq.QuoteIdentifier(name)); err != nil {
-				t.Errorf("role cleanup %s: %v", name, err)
-			}
-		}
-	})
-}
-func roleReferenceError(query, code, message, detail string, prepared bool, stage string) referenceStep {
-	s := referenceErrorDiagnostic(query, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail})
-	s.prepared = prepared
-	s.errorStage = "execute"
-	if prepared {
-		s.errorStage = stage
-	}
-	return s
-}
 func TestReferenceRoleCreation(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		mode := "direct"

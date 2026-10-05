@@ -163,7 +163,7 @@ Native Reset/Restore preserve live settings and use default-on parsing;
 Dump excludes settings. Retained SHOW/SELECT snapshots outlive session end.
 
 Run `go test -count=1 -run '^TestSettingsSmoke$' ./smoke` and
-`go test -tags=reference -run '^TestReferenceSettings' -count=1 -v .`.
+`go test -tags=reference -run '^TestReferenceSettings' -count=1 -v ./reference`.
 The reference suite separately executes real PostgreSQL numeric/enum settings,
 non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
 placeholders are never claimed to validate native typed registrations.
@@ -236,7 +236,7 @@ Run `go test -count=1 -run '^TestSessionSmoke$' ./smoke` for asserted isolation,
 reuse/replacement, data survival, diagnostics, cancellation and native controls.
 Scoped checks: `go test -run '^TestSession' ./...`,
 `go test -race -run '^TestSession' ./...`, and the real pinned PostgreSQL suite
-`go test -tags=reference -run '^TestReferenceSession' -count=1 .`.
+`go test -tags=reference -run '^TestReferenceSession' -count=1 ./reference`.
 
 Session smoke asserts distinct session settings, prepared TEXT metadata and zero
 affected counts, preserved settings on pool reuse, restored defaults on physical
@@ -351,7 +351,7 @@ and native replacement/preservation. Go test reports the result.
 
 Scoped witnesses: `go test -run '^TestTransaction' -count=1 ./...`,
 `go test -race -run '^TestTransaction' -count=1 ./...`, and
-`go test -tags=reference -run '^TestReferenceTransaction' -count=1 -v .`.
+`go test -tags=reference -run '^TestReferenceTransaction' -count=1 -v ./reference`.
 These supplement, not replace, the full gates below. The real reference oracle
 remains pinned PostgreSQL **18.0 UTF8/C**; current official `/docs/18/` manuals
 identify **18.6**, and local **20devel** sources are research only. See
@@ -468,7 +468,7 @@ role cleanup. Go test reports the result.
 
 Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
 `go test -count=1 -run '^TestRoleSmoke$' ./smoke`, and the genuine pinned suite
-`go test -tags reference -run '^TestReferenceRole' -count=1 -v .`.
+`go test -tags reference -run '^TestReferenceRole' -count=1 -v ./reference`.
 
 ## Supported SQL
 
@@ -499,7 +499,7 @@ The same failure-only call guard applies at every named projection position: `SE
 
 NULLS ordering is admitted only when the next actual unquoted keyword token is FIRST or LAST (comments and case folding use the existing scanner). A one-token filter caches that token without rescanning. Invalid or quoted alternatives, or end of input after NULLS, leave the original keyword as the syntax error: `ORDER BY x NULLS bogus` reports `42601` at raw NULLS, not at bogus. The filter preserves original lexemes, character positions and scanner-error precedence; it neither changes keyword metadata nor enables explicit NULL ordering.
 
-Run `go test -count=1 -run '^TestIdentifierSmoke$' ./smoke` for direct/prepared contextual names, complete diagnostics and native control round trips. Go test reports the result. Pinned real-reference fixtures are `go test -tags reference -run '^TestReferenceIdentifier.*$' -count=1 -v .`; alias-valid queries deliberately assert PostgreSQL rows and native unsupported diagnostics separately.
+Run `go test -count=1 -run '^TestIdentifierSmoke$' ./smoke` for direct/prepared contextual names, complete diagnostics and native control round trips. Go test reports the result. Pinned real-reference fixtures are `go test -tags reference -run '^TestReferenceIdentifier.*$' -count=1 -v ./reference`; alias-valid queries deliberately assert PostgreSQL rows and native unsupported diagnostics separately.
 
 Unicode escaped constants `U&'\0041'` and quoted identifiers `U&"\0041"` decode to `A`, preserving quoted-name case. Four hexadecimal digits or `+` and six digits specify a scalar; adjacent high/low surrogate escapes combine (for example `U&'\D83D\DE00'` is 😀). Doubling the escape character yields it literally. Optional `UESCAPE '!'` selects exactly one byte other than hexadecimal digits, `+`, either quote or scanner whitespace; normally decoded E/dollar strings are also valid arguments. Bare newline-separated string segments concatenate before Unicode decoding. Names clip decoded UTF8 at 63 bytes without splitting a character. B/X/N strings remain unsupported.
 
@@ -548,7 +548,7 @@ retained raw cursors. Go test reports the result.
 
 Focused independent witnesses are `go test -run '^TestTypeCore.*$' -count=1 -v .`,
 `go test ./internal/sqltype ./internal/engine`, and the pinned real-reference
-`go test -tags reference -run '^TestReferenceTypeCore.*$' -count=1 -v .`.
+`go test -tags reference -run '^TestReferenceTypeCore.*$' -count=1 -v ./reference`.
 Dump uses descriptor-owned canonical SQL literals, and staged Restore uses the
 same binder/codecs before replacing the catalog once; existing snapshots retain
 their old values, types and column metadata.
@@ -577,7 +577,7 @@ Shared generic SQL diagnostics construct only severity, SQLSTATE and primary mes
 
 Invalid boolean strings retain the original decoded input in the PostgreSQL `22P02` primary message (for example, `invalid input syntax for type boolean: "o"`). Boolean WHERE string-literal failures now carry the one-based character Position of the source opener, as INSERT already does, including during actual preparation and on empty tables. Escapes and continued strings do not change that provenance. Bound parameters have no query Position or native portal Context; real PostgreSQL Bind errors independently retain lib/pq's parameter Context. No destination object identities are inferred.
 
-This bounded diagnostic change does not replace boolean parsing or native `database/sql` values: accepted aliases/unique prefixes, case/ASCII whitespace, TRUE/FALSE/NULL, bool/nil returns, and atomic INSERT and Dump/Reset/Restore behavior remain baseline regressions. Run `go test -count=1 -run '^TestBooleanDiagnosticsSmoke$' ./smoke` for complete native diagnostic, direct/prepared parameter, atomicity and control witnesses; Go test reports the result. The independent pinned-reference fixture is `go test -tags reference -run '^TestReferenceBooleanDiagnostics$' -count=1 -v .`.
+This bounded diagnostic change does not replace boolean parsing or native `database/sql` values: accepted aliases/unique prefixes, case/ASCII whitespace, TRUE/FALSE/NULL, bool/nil returns, and atomic INSERT and Dump/Reset/Restore behavior remain baseline regressions. Run `go test -count=1 -run '^TestBooleanDiagnosticsSmoke$' ./smoke` for complete native diagnostic, direct/prepared parameter, atomicity and control witnesses; Go test reports the result. The independent pinned-reference fixture is `go test -tags reference -run '^TestReferenceBooleanDiagnostics$' -count=1 -v ./reference`.
 
 Unterminated comments and quoted tokens report PostgreSQL-style English primary messages containing the raw input from the offending opener (`at or near "..."`), with a separate one-based character Position. Newline-separated string segments form one token, so an unterminated later segment points to the first literal opener and includes the continued raw suffix. A zero-length delimited identifier instead includes only its raw `""` token, not trailing SQL. Diagnostic text is not escaped as a Go string; multibyte characters do not turn Position into a byte offset.
 
@@ -587,7 +587,7 @@ Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Un
 
 The focused public proof is `go test -count=1 -run '^TestStringLiteralsSmoke$' ./smoke`; it asserts direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary. Go test reports the result.
 
-Pinned real-reference feature fixtures are `go test -tags reference -run '^TestReferenceStringLiterals$' -count=1 -v .` and `go test -tags reference -run '^TestReferenceStringLiteralDumpRoundTrip$' -count=1 -v .`.
+Pinned real-reference feature fixtures are `go test -tags reference -run '^TestReferenceStringLiterals$' -count=1 -v ./reference` and `go test -tags reference -run '^TestReferenceStringLiteralDumpRoundTrip$' -count=1 -v ./reference`.
 
 ## Native fixture controls
 
@@ -649,6 +649,9 @@ Dump/Reset/Restore and a second already-open pool. Run the catalog witness with
 Go test reports each test's pass or failure instead of standalone output labels.
 
 The explicitly enabled reference suite requires working Docker and image/module access. It uses one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
+
+Reference tests live in the dedicated `reference/` external test package and use only the public stuntgres API. Shared setup and helpers belong in `reference/fixture_test.go`; functional groups belong in separate test files of at most 750 lines each. `make reference` runs `go test -tags reference -run TestReference -count=1 -v ./reference`.
+The cohesive common fixture is exempt from the 750-line limit; it keeps container lifecycle, diagnostic assertions, notice connections and middleware recording together.
 
 Implicit INSERT diagnostic fixtures independently specify preparation versus execution failure stages, not just backend agreement. Native engine tests also use a test-owned context to deterministically cancel after row staging, during constraint checks, and immediately before publication, checking complete sentinel preservation and subsequent engine usability without sleeps or production hooks.
 

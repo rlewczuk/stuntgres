@@ -1,60 +1,17 @@
 //go:build reference
 
-package stuntgres_test
+package reference_test
 
 import (
 	"bytes"
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"fmt"
-	"github.com/lib/pq"
-	"github.com/ngrok/sqlmw"
 	"reflect"
 	"strings"
 	"stuntgres"
 	"testing"
 )
-
-type noticeReferenceDriver struct{ connector driver.Connector }
-
-func (d noticeReferenceDriver) OpenConnector(string) (driver.Connector, error) {
-	return d.connector, nil
-}
-func (d noticeReferenceDriver) Open(string) (driver.Conn, error) {
-	return d.connector.Connect(context.Background())
-}
-func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records *[]referenceDiagnostic) (*sql.DB, *sql.Conn, *referenceRecorder) {
-	t.Helper()
-	var connector driver.Connector
-	if postgres {
-		base, err := pq.NewConnector(referenceDSN)
-		if err != nil {
-			t.Fatal(err)
-		}
-		connector = pq.ConnectorWithNoticeHandler(base, func(n *pq.Error) { *records = append(*records, referenceExtractDiagnostic(t, n)) })
-	} else {
-		base, err := referenceMemoryDriver.OpenConnector("reference/" + t.Name())
-		if err != nil {
-			t.Fatal(err)
-		}
-		connector = base.(*stuntgres.Connector).WithNoticeHandler(func(n stuntgres.Error) { *records = append(*records, referenceExtractDiagnostic(t, &n)) })
-	}
-	wrapped := sqlmw.Driver(noticeReferenceDriver{connector}, referenceInterceptor{})
-	// sqlmw's DriverContext connector preserves direct and prepared recorder hooks.
-	configured, err := wrapped.(driver.DriverContext).OpenConnector("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	db := sql.OpenDB(configured)
-	t.Cleanup(func() { db.Close() })
-	c, err := db.Conn(p.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { c.Close() })
-	return db, c, &referenceRecorder{}
-}
 
 func referenceNoticeExecutionError(t *testing.T, ctx context.Context, c *sql.Conn, record *referenceRecorder, notices *[]referenceDiagnostic, s referenceStep) {
 	t.Helper()
@@ -276,7 +233,9 @@ func TestReferenceNoticesPermission(t *testing.T) {
 	if _, err = c.ExecContext(p.ctx, "RESET ROLE"); err != nil {
 		t.Fatal(err)
 	}
-	noticeRows(t, c)
+	referenceRunStep(t, p.ctx, c, &referenceRecorder{}, referenceSelect(
+		"SELECT * FROM notice_rows ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"},
+		[][]any{{int64(7), "kept"}}))
 }
 
 func TestReferenceNoticesQuery(t *testing.T) {

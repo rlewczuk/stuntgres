@@ -1,6 +1,6 @@
 //go:build reference
 
-package stuntgres_test
+package reference_test
 
 import (
 	"fmt"

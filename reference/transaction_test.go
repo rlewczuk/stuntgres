@@ -1,6 +1,6 @@
 //go:build reference
 
-package stuntgres_test
+package reference_test
 
 import (
 	"database/sql"
@@ -9,37 +9,6 @@ import (
 	"testing"
 )
 
-func referenceTransactionRows(prepared bool, q string, values ...int64) referenceStep {
-	rows := make([][]any, len(values))
-	for i, v := range values {
-		rows[i] = []any{v}
-	}
-	return referenceStep{query: q, prepared: prepared, selectRows: true, columns: []string{"v"}, types: []string{"INT4"}, rows: rows}
-}
-func referenceTransactionError(prepared bool, q string, want referenceDiagnostic) referenceStep {
-	return referenceStep{query: q, prepared: prepared, state: want.Code, diagnostic: &want}
-}
-func referenceTransactionAborted() referenceDiagnostic {
-	return referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}
-}
-func referenceTransactionNull() referenceDiagnostic {
-	return referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "v" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "v"}
-}
-func referenceTransactionValues(t *testing.T, rows *sql.Rows, want ...int64) {
-	t.Helper()
-	defer rows.Close()
-	columns, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(columns, []string{"v"}) {
-		t.Fatal(columns, err)
-	}
-	types, err := rows.ColumnTypes()
-	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "INT4" {
-		t.Fatal("metadata", types, err)
-	}
-	// As in referenceRunStep, assert SQL types and actual returned values;
-	// ScanType is adapter metadata, not a shared PostgreSQL type contract.
-	transactionRowValues(t, rows, want...)
-}
 func TestReferenceTransactionVisibilityRefreshAtomicity(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
