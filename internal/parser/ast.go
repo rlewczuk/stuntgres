@@ -199,6 +199,7 @@ func (e OperatorExpr) SourcePosition() Position  { return e.Pos }
 // Set uses setting-specific scalar text; Default is distinct from quoted text.
 type Set struct {
 	Name    Identifier
+	Local   bool
 	Default bool
 	Values  []string
 	Pos     Position

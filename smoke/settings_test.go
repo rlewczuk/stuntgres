@@ -444,18 +444,11 @@ func settingsRun() error {
 	if err = settingsTimeoutStages(ctx, a, b); err != nil {
 		return err
 	}
-	for _, tc := range []struct{ q, code, message string }{{"RESET server_encoding", "55P02", `parameter "server_encoding" cannot be changed`}, {"SET log_statement_stats TO garbage", "42501", `permission denied to set parameter "log_statement_stats"`}, {"SELECT set_config('demo.text','lost',true)", "0A000", "transaction-local settings are unsupported"}} {
+	for _, tc := range []struct{ q, code, message string }{{"RESET server_encoding", "55P02", `parameter "server_encoding" cannot be changed`}, {"SET log_statement_stats TO garbage", "42501", `permission denied to set parameter "log_statement_stats"`}} {
 		_, err = a.ExecContext(ctx, tc.q)
 		if err = settingsDiagnostic(err, tc.code, tc.message, ""); err != nil {
 			return err
 		}
-	}
-	_, err = a.ExecContext(ctx, "SET LOCAL demo.text TO lost")
-	if err = settingsFullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "transaction-local settings are unsupported", Position: "5"}); err != nil {
-		return err
-	}
-	if err = settingsTransactionSettings(ctx, a); err != nil {
-		return err
 	}
 	if err = settingsAuthenticatedAccess(ctx, d, a); err != nil {
 		return err
@@ -718,69 +711,6 @@ func settingsDefaultsAndUnitFailures(ctx context.Context, c *sql.Conn) error {
 		}
 	}
 	return nil
-}
-
-func settingsTransactionSettings(ctx context.Context, c *sql.Conn) error {
-	before, err := settingsIdentity(c)
-	if err != nil {
-		return err
-	}
-	var original string
-	if err = c.QueryRowContext(ctx, "SHOW demo.text").Scan(&original); err != nil {
-		return err
-	}
-	if err = settingsCommand(ctx, c, "SET demo.text TO retained", false, 0); err != nil {
-		return err
-	}
-	for _, query := range []string{
-		"SET demo.text TO lost", "RESET demo.text", "RESET ALL", "SHOW ALL",
-		"SELECT current_setting('demo.text')", "SELECT set_config('demo.text','lost',false)",
-	} {
-		for _, prepared := range []bool{false, true} {
-			var statement *sql.Stmt
-			if prepared {
-				statement, err = c.PrepareContext(ctx, query)
-				if err != nil {
-					return err
-				}
-			}
-			tx, beginErr := c.BeginTx(ctx, nil)
-			if beginErr != nil {
-				if statement != nil {
-					statement.Close()
-				}
-				return beginErr
-			}
-			if prepared {
-				bound := tx.StmtContext(ctx, statement)
-				_, err = bound.ExecContext(ctx)
-				bound.Close()
-				statement.Close()
-			} else {
-				_, err = tx.ExecContext(ctx, query)
-			}
-			if check := settingsDiagnostic(err, "0A000", "statement is unsupported in an explicit transaction", ""); check != nil {
-				tx.Rollback()
-				return check
-			}
-			_, err = tx.ExecContext(ctx, "SHOW demo.text")
-			if check := settingsDiagnostic(err, "25P02", "current transaction is aborted, commands ignored until end of transaction block", ""); check != nil {
-				tx.Rollback()
-				return check
-			}
-			if err = tx.Rollback(); err != nil {
-				return err
-			}
-			after, identityErr := settingsIdentity(c)
-			if identityErr != nil || after != before {
-				return fmt.Errorf("settings transaction changed physical identity: %v", identityErr)
-			}
-			if err = settingsScalar(ctx, c, "SHOW demo.text", "demo.text", "retained", false); err != nil {
-				return err
-			}
-		}
-	}
-	return settingsScalar(ctx, c, "SELECT set_config('demo.text',$1,false)", "set_config", original, false, original)
 }
 
 func settingsAuthenticatedAccess(ctx context.Context, d *stuntgres.Driver, admin *sql.Conn) error {

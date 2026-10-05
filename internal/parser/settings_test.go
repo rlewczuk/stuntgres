@@ -155,12 +155,9 @@ func TestSettingsRoleGrammarComposition(t *testing.T) {
 		}
 	}
 	for _, tc := range []struct{ query, message, position string }{
-		{"SET LOCAL application_name TO 'x'", "transaction-local settings are unsupported", "5"},
 		{"SET LOCAL ROLE reader", "SET ROLE is unsupported", "11"},
 		{"SET LOCAL ROLE TO reader", "SET ROLE is unsupported", "11"},
 		{"SET LOCAL ROLE = 'reader'", "SET ROLE is unsupported", "11"},
-		{"SET LOCAL role.deep.value TO 'x'", "transaction-local settings are unsupported", "5"},
-		{"SET LOCAL local TO 'x'", "transaction-local settings are unsupported", "5"},
 		{"SET ROLE reader", "SET ROLE is unsupported", "5"},
 		{"RESET ROLE", "RESET ROLE is unsupported", "7"},
 	} {

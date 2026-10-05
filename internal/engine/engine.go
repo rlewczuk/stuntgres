@@ -615,7 +615,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return result, err
 	case *parser.Set, *parser.Show, *parser.Reset:
-		result, err := e.executeSetting(op, stmt, count)
+		result, err := e.executeSetting(op, stmt, count, scope.implicit)
 		if err == nil {
 			scope.completed = true
 		}

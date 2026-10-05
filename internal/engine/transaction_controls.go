@@ -109,6 +109,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 			if commit {
 				old = t.ticket
 				t.ticket = nil
+				t.session.settings.finishTransaction(false)
 				t.clear()
 			}
 			return EndResult{}, err
@@ -161,6 +162,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	}
 	old = t.ticket
 	t.ticket = nil
+	t.session.settings.finishTransaction(committed)
 	t.clear()
 	if err != nil {
 		return EndResult{}, err

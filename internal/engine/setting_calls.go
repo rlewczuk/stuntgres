@@ -17,11 +17,11 @@ func settingColumns(typ *sqltype.Descriptor, names ...string) []ColumnDescriptor
 
 // describeSettingCall uses the same inference and literal binding as relations.
 // The caller holds e.mu over descriptor lookup and binding.
-func (e *Engine) describeSettingCall(ctx context.Context,s *parser.SettingCall) (ParameterInfo, []BoundExpr, error) {
+func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall) (ParameterInfo, []BoundExpr, error) {
 	if !(s.Name == "current_setting" && len(s.Args) == 1 || s.Name == "set_config" && len(s.Args) == 3) {
 		return ParameterInfo{}, nil, sqlError("0A000", "unsupported setting function signature")
 	}
-	binder := newExpressionBinder(ctx,e)
+	binder := newExpressionBinder(ctx, e)
 	bound := make([]BoundExpr, len(s.Args))
 	view := CatalogRead{owner: e, state: e.state}
 	for i, v := range s.Args {
@@ -34,7 +34,7 @@ func (e *Engine) describeSettingCall(ctx context.Context,s *parser.SettingCall) 
 			return ParameterInfo{}, nil, fmt.Errorf("stuntgres: missing setting argument type")
 		}
 		var err error
-		bound[i], err = binder.bind(v, expressionPolicy{context:assignmentContext,expected:typ.Usage(),mode:sqltype.Assignment})
+		bound[i], err = binder.bind(v, expressionPolicy{context: assignmentContext, expected: typ.Usage(), mode: sqltype.Assignment})
 		if err != nil {
 			return ParameterInfo{}, nil, err
 		}
@@ -44,7 +44,7 @@ func (e *Engine) describeSettingCall(ctx context.Context,s *parser.SettingCall) 
 }
 func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter) (Result, error) {
 	e.mu.Lock()
-	info, bound, err := e.describeSettingCall(op.ctx,s)
+	info, bound, err := e.describeSettingCall(op.ctx, s)
 	typ, typeOK := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 	e.mu.Unlock()
 	if err != nil {
@@ -71,7 +71,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		}
 	}
 	var inputs [3]sqltype.Value
-	evaluation:=EvalContext{Context:op.ctx,Parameters:frame}
+	evaluation := EvalContext{Context: op.ctx, Parameters: frame}
 	for i, v := range bound {
 		inputs[i], err = v.Eval(&evaluation)
 		if err != nil {
@@ -79,14 +79,21 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		}
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	owner := op.session.settings
+	locked := true
+	unlock := func() { op.session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
+	defer func() {
+		if locked {
+			unlock()
+		}
+	}()
 	owner.mu.Lock()
-	defer owner.mu.Unlock()
 	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
+	}
+	if owner.ended {
+		return Result{}, fmt.Errorf("stuntgres: settings attachment ended")
 	}
 	output := sqltype.Null(typ)
 	if s.Name == "current_setting" {
@@ -108,13 +115,11 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		if inputs[0].IsNull() {
 			return Result{}, sqlError("22004", "SET requires parameter name")
 		}
+		local := false
 		if !inputs[2].IsNull() {
-			local, err := inputs[2].Boolean()
+			local, err = inputs[2].Boolean()
 			if err != nil {
 				return Result{}, err
-			}
-			if local {
-				return Result{}, sqlError("0A000", "transaction-local settings are unsupported")
 			}
 		}
 		name, err := inputs[0].Text()
@@ -133,7 +138,9 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 			}
 			input = &text
 		}
-		value, err := e.applySetting(op, owner, d, input)
+		unlock()
+		locked = false
+		value, err := e.applySetting(op, owner, d, input, local)
 		if err != nil {
 			return Result{}, err
 		}

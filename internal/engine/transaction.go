@@ -80,6 +80,7 @@ func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
 		t.mu.Unlock()
 		return errors.New("stuntgres: foreign transaction session")
 	}
+	t.session.settings.finishTransaction(false)
 	t.clear()
 	ticket := t.ticket
 	t.ticket = nil
@@ -183,6 +184,7 @@ type StatementScope struct {
 	command            CommandID
 	ownWrites          map[ObjectAddress][]rowVersion
 	Expected           *StatementDescription
+	implicit           bool
 }
 
 type WriteStage struct {
@@ -273,6 +275,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	}
 	s.ticket = t.ticket
 	s.txRef = t.ref
+	s.implicit = t.state == TxImplicit
 	s.command = t.command
 	s.ownWrites = t.writes
 	e.mu.Lock()
@@ -289,7 +292,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	}
 	if t.state == TxActive {
 		switch stmt.(type) {
-		case *parser.Comment, *parser.AlterTableDropColumn, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Show, *parser.Reset, *parser.SettingCall:
+		case *parser.Comment, *parser.AlterTableDropColumn, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
 			return sqlError("0A000", "statement is unsupported in an explicit transaction")
 		}
 	}
@@ -455,10 +458,12 @@ func (s *StatementScope) Finish(err error) error {
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	var endedTicket *relationTicket
 	if t.state == TxImplicit {
+		t.session.settings.finishTransaction(err == nil)
 		endedTicket = t.ticket
 		t.ticket = nil
 		t.clear()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
+		t.session.settings.finishTransaction(false)
 		t.state = TxAborted
 		t.writes = nil
 		endedTicket = t.ticket

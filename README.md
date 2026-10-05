@@ -34,7 +34,7 @@ healthy sessions reusable, preserving physical identity and settings.
 Explicit physical close drains operations and releases only that session's
 owners; runtime abandonment cleanup is nondeterministic best effort.
 
-`SET [SESSION] name {TO | =} value`, `RESET name`, `RESET ALL`, `SHOW name`,
+`SET [SESSION | LOCAL] name {TO | =} value`, `RESET name`, `RESET ALL`, `SHOW name`,
 and `SHOW ALL` use the ordinary direct/prepared execution route. Names are
 ASCII-case-insensitive, including dotted custom names. SET values use the
 existing ordinary/`E'...'`/`U&'...'`/dollar-quoted literal lexer, identifiers, booleans, signed
@@ -83,11 +83,32 @@ Supported builtins are deliberately bounded:
 | log_statement_stats | off / privileged | Deny-only: all writes and individual RESET fail 42501; no logging activation |
 
 Prepared literals retain Prepare-time string mode; prepared SHOW/functions read
-Execute-time values. Timeout changes apply to the *next* command. Only the
+Execute-time values. To retain a literal prepared before LOCAL within a transaction,
+prepare it on that `sql.Tx` and execute the same handle: `Tx.Stmt` may reprepare
+a handle created on `sql.Conn` using the transaction's current string mode.
+Timeout changes apply to the *next* command. Only the
 engine's own timer returns 57014 `canceling statement due to statement timeout`;
 caller cancellation/deadlines remain ordinary context errors. Zero disables
 the timer. RESET ALL resets session-settable definitions and placeholders,
 skipping read-only and privileged definitions.
+
+Settings participate in whole transactions. SESSION (also plain SET) persists
+on commit and restores its pretransaction value on rollback or immediate abort.
+LOCAL expires on either end. SESSION followed by LOCAL commits the masked
+SESSION value; a subsequent SESSION or RESET supersedes that candidate.
+Committing an aborted transaction restores originals and returns the existing
+ordinary `pq: could not complete operation in a failed transaction` error,
+not a SQLSTATE diagnostic.
+RESET ALL operates on current explicit, resettable overrides: LOCAL DEFAULT
+is absent and skipped, whereas explicit text equal to the default is reset.
+`SET [SESSION | LOCAL] SCHEMA 'schema'` sets search_path to one quoted schema
+element; it does not check existence. Prepare is metadata-only.
+SQL LOCAL outside an explicit transaction warns with 25P01 before semantic
+validation and its effective value expires at implicit completion. Validated
+dotted placeholder names remain recognized in that physical session.
+Function set_config with true outside a transaction returns its transient,
+normalized value without that warning; the next command sees the original.
+Savepoints, TIME ZONE, NAMES, timezone and client_encoding remain unsupported.
 
 With `standard_conforming_strings=off`, a `U&'...'` string opener immediately
 fails with 0A000 `unsafe use of string constant with Unicode escapes`, before
@@ -148,12 +169,10 @@ knowledge. Registered custom definitions are typed from the outset and visible
 in SHOW ALL; they express session configuration storage, not invented planner
 or process effects.
 
-SET LOCAL and set_config(...,true) fail native-only 0A000 before mutation.
-These settings add no transaction restoration, role/grant authority, file defaults,
-ALTER SYSTEM, reload, server-start or shell-option effects. Existing role/ACL
-and driver READ COMMITTED capabilities remain separate. Explicit transactions
-reject SET/RESET/SHOW and the selected setting calls with native 0A000 before
-mutation; SET LOCAL is not a transaction restoration implementation.
+Settings restore on whole-transaction end and immediately when an explicit
+transaction aborts. They add no role/grant authority, file defaults, ALTER SYSTEM,
+reload, server-start or shell-option effects. Existing role/ACL capabilities
+remain separate.
 Unsupported builtin names (including work_mem/random_page_cost) remain 42704.
 The two selected calls do not introduce general functions, casts, aliases or
 expressions. NULL/parameters remain invalid **SET scalar syntax**; use
@@ -168,17 +187,17 @@ Run `go test -count=1 -run '^TestSettingsSmoke$' ./smoke` and
 The reference suite separately executes real PostgreSQL numeric/enum settings,
 non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
 placeholders are never claimed to validate native typed registrations.
-The native smoke also asserts direct/prepared explicit-transaction settings
-rejection, subsequent 25P02, rollback with unchanged settings on the same physical
-connection, and fixed read-only/deny-only access for both bootstrap postgres and
-an ordinary authenticated role. These assertions do not add transaction-local
-settings or privilege-grant mechanisms.
+The native smoke also asserts SESSION/LOCAL ordering, commit and rollback
+restoration, transactional RESET ALL, and aborted-transaction recovery on the
+same physical connection, plus fixed read-only/deny-only access for both
+bootstrap postgres and an ordinary authenticated role. These assertions do not
+add privilege-grant mechanisms.
 
 Settings smoke also asserts exact decimal subnormal handling and underflow
 rejection, typed boolean/string/integer/floating/enum settings, normalized units
 and bounds, SET/RESET/SHOW/SHOW ALL/current_setting/set_config behavior,
 prepare-time parser mode, healthy sessions after 57014 timeouts, 55P02/42501
-access failures and unsupported local scope (0A000), retained settings on reuse,
+access failures, transactional local scope, retained settings on reuse,
 and replacement defaults with surviving data. Go test reports the result.
 
 ### Notices and warnings
@@ -250,11 +269,11 @@ Go test reports the result.
 ### SQL and driver transactions (READ COMMITTED)
 
 `DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support the
-baseline INSERT and SELECT path and the single-target explicit AX utility below,
-including prepared execution. Default isolation
+baseline INSERT and SELECT path, transactional settings and the single-target
+explicit AX utility below, including prepared execution. Default isolation
 and explicit `sql.LevelReadCommitted` are supported, read-write only. CREATE
-tables **before** starting a block. SQL controls support the same INSERT/SELECT
-and AX path; savepoints, transactional DDL/settings, stronger isolation and
+tables **before** starting a block. SQL controls support the same INSERT/SELECT,
+settings and AX path; savepoints, transactional DDL, stronger isolation and
 future DML remain unsupported.
 Role creation/removal and SET/RESET SESSION AUTHORIZATION are likewise rejected
 with `0A000` inside an explicit transaction; this is a native capability limit,
@@ -292,6 +311,10 @@ installs a fresh healthy Active incarnation with command zero/default modes,
 no inherited private writes or locks. Failed-block SQL COMMIT rolls back
 successfully; COMMIT AND CHAIN likewise starts healthy work after discarding it.
 AND NO CHAIN and plain ends leave Idle; the next ordinary INSERT autocommits.
+Both SQL and Go ends resolve the same settings actions. COMMIT preserves SESSION
+changes and expires LOCAL; ROLLBACK and abort restore pretransaction values.
+CHAIN resolves those old actions before installing the next block, which inherits
+committed SESSION values but no LOCAL values or pending settings actions.
 Chain birth/ticket capacity is preflighted before old publication under a short
 replacement read fence, never a transaction-lifetime fence. Finished controls
 cannot be retracted by late cancellation/replacement or advance the next block.
@@ -387,7 +410,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid ordinary command/Prepare or SQL start after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE/ALTER/DROP TABLE, SET, RESET, SHOW or selected setting calls | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
+| Explicit CREATE/ALTER/DROP TABLE, schema, COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported isolation / read-only option | Ordinary `stuntgres: unsupported transaction isolation level` / `stuntgres: read-only transactions are unsupported`, before state change |
@@ -1088,7 +1111,7 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 `go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
 
 
-Three-part/database qualification, temporary-object creation, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/settings/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary-object creation, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 

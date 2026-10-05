@@ -236,7 +236,6 @@ func TestSettingsErrorsAndAtomicity(t *testing.T) {
 			{`SET "x..y" TO 'v'`, "42602", `invalid configuration parameter name "x..y"`, "", "Custom parameter names must be two or more simple identifiers separated by dots."},
 			{"SET absent_setting TO a,b", "22023", "SET absent_setting takes only one argument", "", ""},
 			{"SELECT set_config(NULL,'x',false)", "22004", "SET requires parameter name", "", ""},
-			{"SELECT set_config('demo.text','lost',true)", "0A000", "transaction-local settings are unsupported", "", ""},
 		} {
 			if prepared {
 				s, e := a.PrepareContext(context.Background(), tc.query)

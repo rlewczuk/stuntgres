@@ -622,6 +622,74 @@ type sessionSettings struct {
 	typed, defaultTyped map[string]settingValue
 	placeholders        map[string]bool
 	ended               bool
+	actions             map[string]settingAction
+}
+
+type settingOverride struct {
+	present bool
+	text    string
+	typed   settingValue
+}
+type settingAction struct {
+	original  settingOverride
+	candidate settingOverride
+	kind      uint8
+}
+
+const (
+	settingSession uint8 = iota
+	settingLocal
+	settingSessionLocal
+)
+
+func (s *sessionSettings) override(name string) settingOverride {
+	text, present := s.values[name]
+	return settingOverride{present: present, text: text, typed: s.typed[name]}
+}
+func (s *sessionSettings) restore(name string, v settingOverride) {
+	if v.present {
+		s.values[name] = v.text
+		s.typed[name] = v.typed
+	} else {
+		delete(s.values, name)
+		delete(s.typed, name)
+	}
+}
+func (s *sessionSettings) touch(name string, local bool) {
+	if s.actions == nil {
+		s.actions = make(map[string]settingAction)
+	}
+	a, exists := s.actions[name]
+	if !exists {
+		a.original = s.override(name)
+	}
+	if !local {
+		a.kind = settingSession
+		a.candidate = settingOverride{}
+	} else if !exists {
+		a.kind = settingLocal
+	} else if a.kind == settingSession {
+		a.kind = settingSessionLocal
+		a.candidate = s.override(name)
+	}
+	s.actions[name] = a
+}
+
+// finishTransaction runs under transaction admission; restoration never calls
+// providers, normalizers, parsers, or session/catalog publication locks.
+func (s *sessionSettings) finishTransaction(commit bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.ended {
+		for name, a := range s.actions {
+			if !commit || a.kind == settingLocal {
+				s.restore(name, a.original)
+			} else if a.kind == settingSessionLocal {
+				s.restore(name, a.candidate)
+			}
+		}
+	}
+	s.actions = nil
 }
 
 func (s *sessionSettings) initialize(ctx context.Context, definitions map[string]SettingDefinition, names []string, provider SessionDefaultProvider) error {
@@ -667,6 +735,7 @@ func (s *sessionSettings) EndSession(_ SessionToken, _ EndReason) error {
 	s.typed = nil
 	s.defaultTyped = nil
 	s.placeholders = nil
+	s.actions = nil
 	return nil
 }
 func (s *sessionSettings) value(name string) string {
@@ -706,9 +775,9 @@ func settingAccess(d SettingDefinition) error {
 	return nil
 }
 
-// applySetting is the single locked mutation path for SET, RESET and set_config.
-// A nil input resets; placeholder recognition publishes only after validation.
-func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDefinition, input *string) (string, error) {
+// applySetting stages callbacks without publication locks, then atomically
+// installs recognition, transaction action and effective typed/text override.
+func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDefinition, input *string, local bool) (string, error) {
 	if err := settingAccess(d); err != nil {
 		return "", err
 	}
@@ -725,9 +794,19 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 			return "", err
 		}
 	}
-	if err := op.ctx.Err(); err != nil {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	owner.mu.Lock()
+	defer owner.mu.Unlock()
+	op.session.mu.Lock()
+	defer op.session.mu.Unlock()
+	if err := publicationOperationLocked(e, op); err != nil {
 		return "", err
 	}
+	if owner.ended {
+		return "", errors.New("stuntgres: settings attachment ended")
+	}
+	owner.touch(d.Name, local)
 	if _, registered := e.settingsDefinitions[d.Name]; !registered {
 		owner.placeholders[d.Name] = true
 	}
@@ -744,24 +823,11 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 	return owner.value(d.Name), nil
 }
 
-func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int) (Result, error) {
+func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	owner := op.session.settings
-	owner.mu.Lock()
-	defer owner.mu.Unlock()
-	if owner.ended {
-		return Result{}, errors.New("stuntgres: settings attachment ended")
-	}
-	// Linearize setting publication and reads with terminal admission.
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
-	if err := publicationOperationLocked(e, op); err != nil {
-		return Result{}, err
-	}
 	var name string
 	var input *string
 	var all, write bool
@@ -769,6 +835,9 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int)
 	case *parser.Set:
 		name = s.Name.Text
 		write = true
+		if s.Local && implicit {
+			op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
+		}
 		if !s.Default {
 			if strings.EqualFold(name, "search_path") {
 				value := strings.Join(s.Values, ", ")
@@ -790,16 +859,36 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int)
 	default:
 		return Result{}, errors.New("stuntgres: invalid setting statement")
 	}
+	e.mu.Lock()
+	owner.mu.Lock()
+	op.session.mu.Lock()
+	locked := true
+	unlock := func() { op.session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
+	defer func() {
+		if locked {
+			unlock()
+		}
+	}()
+	if err := publicationOperationLocked(e, op); err != nil {
+		return Result{}, err
+	}
+	if owner.ended {
+		return Result{}, errors.New("stuntgres: settings attachment ended")
+	}
 	typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 	if all {
 		if write {
 			if err := op.ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			// Access checks prohibit non-session overrides. Clear both maps at
-			// the single publication point; retain placeholder knowledge.
-			clear(owner.values)
-			clear(owner.typed)
+			for key := range owner.values {
+				if d, ok := e.settingsDefinitions[key]; ok && d.Access != SettingSession {
+					continue
+				}
+				owner.touch(key, false)
+				delete(owner.values, key)
+				delete(owner.typed, key)
+			}
 			return Result{}, nil
 		}
 		rows := make([][]sqltype.Value, 0, len(e.settingsOrder))
@@ -820,7 +909,13 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int)
 		return Result{}, err
 	}
 	if write {
-		_, err = e.applySetting(op, owner, d, input)
+		local := false
+		if s, ok := stmt.(*parser.Set); ok {
+			local = s.Local
+		}
+		unlock()
+		locked = false
+		_, err = e.applySetting(op, owner, d, input, local)
 		return Result{}, err
 	}
 	if err := op.ctx.Err(); err != nil {

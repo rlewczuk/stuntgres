@@ -346,7 +346,7 @@ func TestTransactionOptionsAndExplicitUtilityBoundary(t *testing.T) {
 	}
 	_, err := a.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	transactionOrdinary(t, err, "stuntgres: read-only transactions are unsupported")
-	for _, q := range []string{"CREATE TABLE forbidden(v INT)", "SET application_name TO forbidden", "SHOW application_name"} {
+	for _, q := range []string{"CREATE TABLE forbidden(v INT)"} {
 		tx, err := a.BeginTx(ctx, nil)
 		if err != nil {
 			t.Fatal(err)

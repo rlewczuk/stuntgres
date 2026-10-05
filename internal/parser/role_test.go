@@ -171,12 +171,6 @@ func TestRoleLocalSettingBoundary(t *testing.T) {
 			t.Fatalf("%s: %#v", query, stmts[0])
 		}
 	}
-	stmts, err := Parse("SET LOCAL application_name TO retained")
-	var localDiagnostic *sqlstate.Error
-	wantLocal := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "transaction-local settings are unsupported", Position: "5"}
-	if !errors.As(err, &localDiagnostic) || *localDiagnostic != wantLocal || stmts != nil {
-		t.Fatalf("transaction-local modifier: statements=%#v diagnostic=%#v", stmts, err)
-	}
 	for _, query := range []string{"SET LOCAL TO", "SET LOCAL ="} {
 		stmts, err := Parse(query)
 		var got *sqlstate.Error
