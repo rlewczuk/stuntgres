@@ -459,15 +459,14 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 		}
 	}
 	roleIdentity(t, e, op, "typed_owner")
-	_, err = parser.Parse("CREATE TABLE unsupported_name(id NAME)")
-	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported column type", Position: "33"}
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
-		t.Fatal("NAME storage syntax", err)
-	}
 	// Host AST input also uses the same binder rejection, never NAME storage.
 	_, err = e.Execute(op, &parser.CreateTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unsupported_name"}}}, Columns: []parser.Column{{Name: "id", TypeName: parser.TypeName{Name: "name"}}}}, 0, nil)
 	state(t, err, "0A000")
+	_, err = e.Execute(op, statement(t, "SELECT id FROM unsupported_name"), 0, nil)
+	state(t, err, "42P01")
+	if got := tuples(roleExecute(t, e, op, "SELECT id FROM typed_owned")); !reflect.DeepEqual(got, [][]driver.Value{{int64(9)}}) {
+		t.Fatal("unsupported NAME creation changed restored sentinel", got)
+	}
 }
 
 func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
