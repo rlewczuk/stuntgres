@@ -27,7 +27,7 @@ func TestScriptAndLiterals(t *testing.T) {
 		t.Fatalf("statements = %d", len(statements))
 	}
 	create := statements[0].(*CreateTable)
-	if len(create.Name.Parts) != 1 || create.Name.Parts[0].Text != "Mixed;Name" || create.Columns[0].Name != "integer" || create.Columns[0].Nullable || create.Columns[1].Name != "a\"b" || !create.Columns[1].Nullable || create.Columns[3].TypeName.Name != "bigint" {
+	if len(create.Name.Parts) != 1 || create.Name.Parts[0].Text != "Mixed;Name" || create.Elements[0].Column.Name != "integer" || create.Elements[0].Column.Nullable || create.Elements[1].Column.Name != "a\"b" || !create.Elements[1].Column.Nullable || create.Elements[3].Column.TypeName.Name != "bigint" {
 		t.Fatalf("create = %#v", create)
 	}
 	insert := statements[1].(*Insert)
@@ -57,7 +57,7 @@ func TestIdentifierNormalization(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := statements[0].(*CreateTable)
-	if got.Name.Parts[0].Text != strings.Repeat("a", 62) || got.Columns[0].Name != strings.Repeat("A", 62) || got.Columns[1].Name != "École" || got.Columns[2].Name != "bigint" || got.Columns[3].Name != "values" {
+	if got.Name.Parts[0].Text != strings.Repeat("a", 62) || got.Elements[0].Column.Name != strings.Repeat("A", 62) || got.Elements[1].Column.Name != "École" || got.Elements[2].Column.Name != "bigint" || got.Elements[3].Column.Name != "values" {
 		t.Fatalf("normalized = %#v", got)
 	}
 }
@@ -88,7 +88,7 @@ func TestEmptyScripts(t *testing.T) {
 
 func TestParserErrorBoundaries(t *testing.T) {
 	cases := []struct{ query, code string }{
-		{"CREATE TABLE t ()", "42601"}, {"CREATE TABLE t (x INT", "42601"},
+		{"CREATE TABLE t (x INT", "42601"},
 		{"SELECT FROM t", "42601"}, {"SELECT * t", "42601"},
 		{"SELECT * FROM t; nonsense", "42601"}, {"INSERT INTO t VALUES ('a' 'b')", "42601"},
 		{"INSERT INTO t VALUES ('a' /*\n*/ 'b')", "42601"},
@@ -104,7 +104,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (1e+3)", "0A000"}, {"INSERT INTO t VALUES (1_000e3)", "0A000"},
 		{"INSERT INTO t VALUES (1E-3_000)", "0A000"},
 		{"INSERT INTO t VALUES (B'1010')", "0A000"},
-		{"CREATE TABLE t (x TIMESTAMP)", "0A000"}, {"CREATE TABLE t (x NUMERIC(8))", "0A000"},
+		{"CREATE TABLE t (x NUMERIC(8))", "0A000"},
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
 		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT * FROM t alias", "0A000"}, {"SELECT x alias FROM t", "0A000"},
@@ -203,7 +203,6 @@ func TestDiagnosticPositions(t *testing.T) {
 		{"INSERT INTO t VALUES ('a', )", `syntax error at or near ")"`, "28"},
 		{"INSERT INTO t VALUES ('😀', )", `syntax error at or near ")"`, "28"},
 		{"CREATE TABLE t (x INT", "syntax error at end of input", "22"},
-		{"CREATE TABLE t ()", `syntax error at or near ")"`, "17"},
 		{"/*é*/ /* never closed", `unterminated /* comment at or near "/* never closed"`, "7"},
 		{"INSERT INTO t VALUES ('é", `unterminated quoted string at or near "'é"`, "23"},
 		{`SELECT * FROM "Bad`, `unterminated quoted identifier at or near ""Bad"`, "15"},

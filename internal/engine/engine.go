@@ -182,7 +182,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.LockTable, *parser.CreateTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
+	case *parser.LockTable, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.IdentitySelect:
 		e.mu.Lock()
@@ -271,21 +271,59 @@ func (e *Engine) describe(ctx context.Context,stmt parser.Statement, auth Author
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
-		if len(s.Columns) == 0 {
-			return b, sqlError("42601", "table requires columns")
+		var columns []ColumnDescriptor
+		for _, element := range s.Elements {
+			if (element.Column == nil) == (element.Like == nil) {
+				return b, fmt.Errorf("stuntgres: invalid table element")
+			}
+			if c := element.Column; c != nil {
+				u, err := e.resolveType(c.TypeName)
+				if err != nil {
+					return b, err
+				}
+				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, Nullable: c.Nullable, NullabilityKnown: true})
+			} else {
+				like := element.Like
+				if len(like.Options) != 0 {
+					if like.Options[0].Pos.Character == 0 {
+						return b, sqlError("0A000", "LIKE options are unsupported")
+					}
+					return b, insertError("0A000", "LIKE options are unsupported", like.Options[0].Pos)
+				}
+				ref, err := e.resolveReference(auth, like.Name)
+				if err != nil {
+					if diagnostic, ok := err.(*sqlstate.Error); ok {
+						copy := *diagnostic
+						if copy.Code == "42P01" {
+							copy.Message = fmt.Sprintf(`relation "%s" does not exist`, objectNameText(like.Name))
+						}
+						copy.Position = ""
+						if pos := like.Name.Parts[0].Pos.Character; pos > 0 {
+							copy.Position = strconv.Itoa(pos)
+						}
+						err = &copy
+					}
+					return b, err
+				}
+				if err := auth.Check(AccessRequirement{Object: ref, Privileges: SelectPrivilege}); err != nil {
+					return b, err
+				}
+				source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				columns = append(columns, source.columns...)
+			}
 		}
-		seen := map[string]bool{}
-		for _, c := range s.Columns {
+		seen := make(map[string]bool, len(columns))
+		for _, c := range columns {
 			if seen[c.Name] {
 				return b, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, c.Name))
 			}
-			seen[c.Name] = true
-			u, err := e.resolveType(c.TypeName)
-			if err != nil {
-				return b, err
+			switch c.Name {
+			case "ctid", "xmin", "cmin", "xmax", "cmax", "tableoid":
+				return b, sqlError("42701", fmt.Sprintf("column name %q conflicts with a system column name", c.Name))
 			}
-			b.createColumns = append(b.createColumns, ColumnDescriptor{Name: c.Name, Usage: u, Nullable: c.Nullable, NullabilityKnown: true})
+			seen[c.Name] = true
 		}
+		b.createColumns = columns
 	case *parser.Insert:
 		var err error
 		b.ref, err = e.resolveReference(auth, s.Name)
@@ -585,6 +623,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	if s, ok := stmt.(*parser.DropTable); ok {
+		return e.dropTableLocked(scope, op, auth, s, count)
+	}
 	if s, ok := stmt.(*parser.CreateTable); ok {
 		if count != 0 {
 			e.mu.Unlock()
@@ -607,7 +648,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				op.existingRelationNotice(key.Name)
 				return Result{}, nil
 			}
-			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
+			return Result{}, sqlError("42P07", fmt.Sprintf("relation \"%s\" already exists", key.Name))
 		}
 		created, er := e.describe(ctx,s, auth)
 		if er != nil {
@@ -625,7 +666,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, er
 		}
 		addr := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
-		rd := &relationDescriptor{address: addr, namespace: ns, name: key.Name, revision: rev, owner: auth.state.CurrentUser, columns: created.createColumns, index: make(map[string]int, len(s.Columns)), attributes: make([]int32, len(s.Columns))}
+		rd := &relationDescriptor{address: addr, namespace: ns, name: key.Name, revision: rev, owner: auth.state.CurrentUser, columns: created.createColumns, index: make(map[string]int, len(created.createColumns)), attributes: make([]int32, len(created.createColumns))}
 		for i, c := range rd.columns {
 			rd.index[c.Name] = i
 			rd.attributes[i] = int32(i + 1)
@@ -682,7 +723,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					return Result{}, nil
 				}
 			}
-			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
+			return Result{}, sqlError("42P07", fmt.Sprintf("relation \"%s\" already exists", key.Name))
 		}
 		return Result{}, er
 	}

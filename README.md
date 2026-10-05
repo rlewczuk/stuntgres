@@ -198,8 +198,10 @@ applies to newly created physical connections only, never other connectors shari
 the same database. Ordinary sql.Open is silent (no default stderr logging).
 CREATE TABLE IF NOT EXISTS emits NOTICE/42P07 when the exact creation destination
 already exists, leaving its definition and data unchanged. Fresh creation is real
-and silent. Semantic column validation occurs at execution, after the existing
-relation check; malformed/unsupported syntax still fails during parsing.
+and silent. Semantic column/type/LIKE validation occurs at execution, after the
+existing relation check; malformed syntax still fails during parsing. An existing
+target skips unknown types, missing LIKE sources and valid but unsupported LIKE
+options, without claiming support for the skipped declaration.
 Current schema CREATE authorization is checked before either creation or an
 existing-relation skip, including a skip after a competing publication. A skip
 does not require ownership or ordinary table privileges and never changes the
@@ -322,7 +324,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid command or Prepare after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE, SET, RESET, SHOW or selected setting calls | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
+| Explicit CREATE/DROP TABLE, SET, RESET, SHOW or selected setting calls | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported isolation / read-only option | Ordinary `stuntgres: unsupported transaction isolation level` / `stuntgres: read-only transactions are unsupported`, before state change |
@@ -513,7 +515,9 @@ Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
 ## Supported SQL
 
 ```text
-CREATE TABLE [public.]name (column type [NULL | NOT NULL] [, ...])
+CREATE TABLE [IF NOT EXISTS] [public.]name ([element [, ...]])
+element := column type [NULL | NOT NULL] | LIKE [public.]source
+DROP TABLE [IF EXISTS] [public.]name [, ...] [RESTRICT | CASCADE]
 INSERT INTO [public.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | scalar [, ...]) FROM [public.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
@@ -523,6 +527,92 @@ scalar := unqualified column | value
 ```
 
 Relation names accept one or two identifier components. Explicit `public.name` and unqualified `name` resolve to the same relation; unqualified references check `pg_catalog` before the built-in `public` namespace. SQL creation is supported only in `public`. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
+
+### Ordinary table definitions and removal
+
+`CREATE TABLE z ()` is a real zero-column relation: direct/prepared `SELECT *`
+returns no columns and no rows for the newly created table. `LIKE z` is legal.
+There is no dummy column, `INSERT DEFAULT VALUES` remains unsupported, and
+`INSERT ... VALUES ()` is invalid syntax. Ordinary `oid` is a legal column;
+`ctid`, `xmin`, `cmin`, `xmax`, `cmax` and `tableoid` conflict with system names.
+
+Plain LIKE copies names, supported concrete types and NOT NULL in declaration
+order at its position among explicit columns. Multiple/interleaved LIKE clauses
+are allowed; duplicate expanded names fail `42701`. The destination has fresh
+identity/origins, current-user ownership, no copied rows or ACL, and no persistent
+dependency on its source. LIKE requires relation-level SELECT; column-only SELECT
+is insufficient. For example:
+
+```sql
+CREATE TABLE source (i INTEGER NOT NULL, s TEXT, f BOOLEAN);
+CREATE TABLE clone (lead BIGINT, LIKE source, tail TEXT);
+DROP TABLE source RESTRICT; -- clone remains independent and writable
+CREATE TABLE empty_shape ();
+```
+
+Valid `INCLUDING`/`EXCLUDING` option names (COMMENTS, COMPRESSION, CONSTRAINTS,
+DEFAULTS, GENERATED, IDENTITY, INDEXES, STATISTICS, STORAGE, ALL) are parsed, but
+new-table execution returns positioned `0A000`, `LIKE options are unsupported`.
+Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
+EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
+Unknown syntactically valid type names prepare successfully and fail execution
+with `42704`, `type "name" does not exist`, at the type's character position.
+Known single-name types outside INT4/INT8/TEXT/BOOL fail execution with `0A000`.
+Multiword families (DOUBLE PRECISION, CHARACTER/BIT VARYING, TIME/TIMESTAMP
+WITH/WITHOUT TIME ZONE and qualified INTERVAL fields), qualified type names,
+arrays and type modifiers remain parser-level `0A000` boundaries. Even an
+existing IF NOT EXISTS target cannot bypass these excluded syntax forms; the
+failure-only guards construct no executable family AST.
+
+Type keyword aliases are not quoted catalog names: `"integer"`, `"bigint"` and
+`"boolean"` fail with `42704`, while `"int4"`, `"int8"`, `"text"` and `"bool"`
+select the supported concrete types. Quoted case is significant (`"INT4"` is
+missing), and diagnostic names retain decoded quotes and backslashes without
+SQL or Go re-escaping. Genuine unsupported catalog names such as `"int2"` or
+`"numeric"` fail with `0A000`. Lowercase serial pseudo names, including quoted
+`"serial"`, remain a `0A000` CREATE-utility boundary rather than nonexistent
+types; uppercase quoted `"SERIAL"` is missing. No serial sequence or default
+is implemented.
+
+DROP preflights the entire explicit target group before one atomic catalog
+publication. A later missing or unauthorized target leaves every table intact.
+Duplicate resolved targets such as `a, public.a, a` remove one identity once.
+IF EXISTS emits per-missing-target NOTICE/00000 (`table "name" does not exist,
+skipping`, or `schema "name" does not exist, skipping`). DROP requires table
+owner, schema owner or superuser authority, not ordinary table privileges, and
+preserves current schema lookup/USAGE authorization.
+
+The supported inbound table-definition dependency set is explicitly **empty**.
+Default/explicit RESTRICT and CASCADE therefore remove the same explicit tables
+and their contained columns, storage and relation/column ACL records. Namespace,
+builtin types, owner roles and unrelated tables survive. Real DROP ROLE ownership
+and ACL blockers disappear with the removed definitions. LIKE clones, prepared
+statements and held cursors are not persistent dependents; held cursors retain old
+rows/metadata, while prepared executions rebind (absent table `42P01`,
+incompatible recreation `42703`). Foreign keys, views, indexes and sequences are
+external-only dependency controls, not native graph compatibility or a fabricated
+native `2BP01` table blocker. Explicit-transaction DDL remains unsupported.
+
+Dump emits expanded canonical declarations, including `()`, independently of a
+dropped LIKE source. Restore uses the same binder in isolated staging; failed
+LIKE/type/duplicate/option declarations preserve the target. DROP remains
+excluded from Restore scripts. Existing explicit-ACL Dump rejection is unchanged.
+The independent reference recorder preserves genuine zero-column cursor
+metadata as an empty result, distinct from no query result; consumed rows and
+cursor closure are checked for both native and PostgreSQL executions.
+Duplicate-relation `42P07` errors preserve decoded names inside literal outer
+quotes, including embedded quotes and backslashes, both for an existing target
+and for a competing publication. Failed CREATE preserves the winning definition
+and rows; utility preparation succeeds before the execution-time failure.
+
+Executable feature proof (Go test reports actual assertions):
+
+```sh
+go test -count=1 -v -run '^TestTableCore' ./internal/parser ./internal/engine .
+go test -count=1 -v -run '^TestCatalogDrop' ./internal/engine
+go test -tags reference -count=1 -v -run '^TestReferenceTableCore' ./reference
+go test -count=1 -v -run '^TestTableCoreSmoke$' ./smoke
+```
 
 Unquoted names fold ASCII uppercase and truncate to 63 UTF-8-boundary bytes; quoted names preserve case and decode doubled quotes. A quoted identifier containing a dot is one component, e.g. `public."a.b"`. Ordinary strings use doubled apostrophes and literal backslashes. `E'...'` (or lowercase `e`) additionally decodes escaped apostrophes/backslashes, `\b\f\n\r\t\v`, one-to-three octal digits, `\x` with one-to-two hex digits, and `\uXXXX`/`\UXXXXXXXX` Unicode scalars, including adjacent surrogate pairs. Unknown backslash escapes retain the following character. Octal/hex escapes produce bytes, and the complete decoded token must be valid UTF8 without NUL. Adjacent bare quoted segments concatenate only across whitespace containing LF or CR (line comments allowed, block comments excluded), inheriting the first segment's ordinary/escape mode; UTF8 bytes may span segments, surrogate pairs may not. Whitespace, line comments and nested block comments are accepted elsewhere. Parameters are 1-based `$n`, inferred from insert destinations or equality columns. Repeated parameters of one canonical destination type share a binding; gaps fail with `42P18`, mixed destination types with `0A000`. Named arguments and other parameter dialects are not supported.
 

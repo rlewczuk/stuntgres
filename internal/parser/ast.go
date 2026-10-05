@@ -5,8 +5,9 @@ type Statement interface{ statement() }
 
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
-	Name string
-	Pos  Position
+	Name   string
+	Pos    Position
+	Quoted bool
 }
 
 type Position struct{ Offset, Character int }
@@ -23,12 +24,45 @@ type Column struct {
 }
 type CreateTable struct {
 	Name        ObjectName
-	Columns     []Column
+	Elements    []TableElement
 	Pos         Position
 	IfNotExists bool
 }
 
 func (*CreateTable) statement() {}
+
+type TableElement struct {
+	Column *Column
+	Like   *TableLike
+	Pos    Position
+}
+
+type TableLike struct {
+	Name    ObjectName
+	Options []LikeOption
+}
+
+type LikeOption struct {
+	Name      string
+	Including bool
+	Pos       Position
+}
+
+type DropMode uint8
+
+const (
+	DropRestrict DropMode = iota
+	DropCascade
+)
+
+type DropTable struct {
+	Names    []ObjectName
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropTable) statement() {}
 
 type Insert struct {
 	Name    ObjectName

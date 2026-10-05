@@ -460,7 +460,7 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 	}
 	roleIdentity(t, e, op, "typed_owner")
 	// Host AST input also uses the same binder rejection, never NAME storage.
-	_, err = e.Execute(op, &parser.CreateTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unsupported_name"}}}, Columns: []parser.Column{{Name: "id", TypeName: parser.TypeName{Name: "name"}}}}, 0, nil)
+	_, err = e.Execute(op, &parser.CreateTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unsupported_name"}}}, Elements: []parser.TableElement{{Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "name"}}}}}, 0, nil)
 	state(t, err, "0A000")
 	_, err = e.Execute(op, statement(t, "SELECT id FROM unsupported_name"), 0, nil)
 	state(t, err, "42P01")

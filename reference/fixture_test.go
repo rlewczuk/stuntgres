@@ -463,7 +463,8 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 		}
 		captured = append(captured, converted)
 	}
-	capturedColumns := append([]string(nil), recorded.Columns...)
+	capturedColumns := make([]string, len(recorded.Columns))
+	copy(capturedColumns, recorded.Columns)
 	closed, closeErr := recorded.Closed, recorded.CloseErr
 	recorder.mu.Unlock()
 	if !reflect.DeepEqual(captured, expected) || !reflect.DeepEqual(capturedColumns, s.columns) {
@@ -711,7 +712,10 @@ func referenceRecordQuery(ctx context.Context, r *referenceRecorder, op *referen
 	r.mu.Lock()
 	op.Err = err
 	if err == nil && rows != nil {
-		op.Columns = append([]string(nil), rows.Columns()...)
+		// A successful zero-column cursor is distinct from no query result.
+		columns := rows.Columns()
+		op.Columns = make([]string, len(columns))
+		copy(op.Columns, columns)
 	}
 	r.mu.Unlock()
 	if err != nil {

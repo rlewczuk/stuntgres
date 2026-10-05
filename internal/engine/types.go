@@ -68,24 +68,62 @@ func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 // Called only by the existing binder against its current coherent catalog.
 func (e *Engine) resolveType(raw parser.TypeName) (sqltype.Usage, error) {
 	name := raw.Name
-	switch name {
-	case "integer":
-		name = "int4"
-	case "bigint":
-		name = "int8"
-	case "boolean":
-		name = "bool"
+	if !raw.Quoted {
+		switch name {
+		case "integer":
+			name = "int4"
+		case "bigint":
+			name = "int8"
+		case "boolean":
+			name = "bool"
+		}
 	}
 	view := CatalogRead{owner: e, state: e.state}
 	found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name})
 	if len(found) != 1 {
-		return sqltype.Usage{}, sqlError("0A000", "unsupported column type")
+		if unsupportedColumnType(raw) {
+			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
+		}
+		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, raw.Name))
 	}
 	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
 	if !d.Concrete() || d.ID() == sqltype.Name {
-		return sqltype.Usage{}, sqlError("0A000", "unsupported column type")
+		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	return d.Usage(), nil
 }
 
+func typeDiagnostic(raw parser.TypeName, code, message string) error {
+	if raw.Pos.Character > 0 {
+		return insertError(code, message, raw.Pos)
+	}
+	return sqlError(code, message)
+}
+
+// Recognized PostgreSQL types outside the concrete storage authority are a
+// capability boundary, not nonexistent names. Classification belongs to binding
+// so IF NOT EXISTS can skip it, never to the raw syntax parser.
+func unsupportedColumnType(raw parser.TypeName) bool {
+	switch raw.Name {
+	case "smallserial", "serial2", "serial", "serial4", "bigserial", "serial8":
+		// CREATE recognizes these utility pseudo names even when quoted.
+		return true
+	case "int2", "float4", "float8", "money", "char", "bpchar", "varchar",
+		"numeric", "bit", "varbit", "date", "time", "timetz", "timestamp",
+		"timestamptz", "interval", "bytea", "uuid", "json", "jsonb", "xml",
+		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
+		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
+		return true
+	}
+	if !raw.Quoted {
+		switch raw.Name {
+		case "smallint", "decimal", "dec", "real", "float", "double", "precision",
+			"character":
+			return true
+		}
+	}
+	return false
+}
+
 func (b binding) columns() []ColumnDescriptor { return b.results }
+

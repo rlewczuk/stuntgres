@@ -180,9 +180,9 @@ func TestGenericCreateDiagnosticsHaveNoObjectFields(t *testing.T) {
 		stmt          parser.Statement
 		code, message string
 	}{
-		{&parser.CreateTable{Name: name}, "42601", "table requires columns"},
-		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", TypeName: parser.TypeName{Name: "integer"}}, {Name: "id", TypeName: parser.TypeName{Name: "text"}}}}, "42701", `column "id" specified more than once`},
-		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", TypeName: parser.TypeName{Name: "unsupported"}}}}, "0A000", "unsupported column type"},
+		{&parser.CreateTable{Name: name, Elements: []parser.TableElement{{Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "integer"}}}, {Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "text"}}}}}, "42701", `column "id" specified more than once`},
+		{&parser.CreateTable{Name: name, Elements: []parser.TableElement{{Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "unsupported"}}}}}, "42704", `type "unsupported" does not exist`},
+		{&parser.CreateTable{Name: name, Elements: []parser.TableElement{{Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "name"}}}}}, "0A000", "unsupported column type"},
 	} {
 		if _, err := testDescribe(e, tc.stmt); err != nil {
 			t.Fatalf("CREATE preparation: %v", err)

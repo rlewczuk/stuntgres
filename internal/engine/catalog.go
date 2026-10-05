@@ -192,12 +192,18 @@ const (
 	catalogDiscarded
 )
 
+type catalogRemoval struct {
+	ref        ObjectRef
+	descriptor Descriptor
+}
+
 type CatalogStage struct {
 	owner        *Engine
 	base         CatalogRead
 	descriptors  map[ObjectAddress]Descriptor
 	names        map[NameKey]ObjectAddress
-	touched      map[NameKey]bool
+	touched      map[NameKey]ObjectAddress
+	removals     map[ObjectAddress]catalogRemoval
 	lifecycle    catalogLifecycle
 	invalid      error
 	authSession  *Session
@@ -211,7 +217,7 @@ type PreparedCatalogPublication struct {
 }
 
 func (e *Engine) BeginCatalogStage(base CatalogRead) *CatalogStage {
-	s := &CatalogStage{owner: e, base: base, descriptors: make(map[ObjectAddress]Descriptor), names: make(map[NameKey]ObjectAddress), touched: make(map[NameKey]bool)}
+	s := &CatalogStage{owner: e, base: base, descriptors: make(map[ObjectAddress]Descriptor), names: make(map[NameKey]ObjectAddress), touched: make(map[NameKey]ObjectAddress)}
 	if base.owner != e || base.state == nil {
 		s.invalid = fmt.Errorf("stuntgres: foreign catalog view")
 	}
@@ -235,7 +241,7 @@ func (s *CatalogStage) Create(d Descriptor) error {
 		return CatalogConflict{}
 	}
 	k := NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()}
-	s.touched[k] = true
+	s.touched[k] = ObjectAddress{}
 	if _, ok := s.base.state.names[k]; ok {
 		return CatalogConflict{}
 	}
@@ -246,6 +252,39 @@ func (s *CatalogStage) Create(d Descriptor) error {
 	s.names[k] = a
 	return nil
 }
+
+// Remove stages a whole user relation; references and observed identity belong
+// to this stage's coherent base. Inbound table-definition dependencies are
+// currently empty: namespace, type and owner references point outward.
+func (s *CatalogStage) Remove(ref ObjectRef) error {
+	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil {
+		return fmt.Errorf("stuntgres: invalid catalog stage")
+	}
+	if ref.Address.SubID != 0 {
+		return fmt.Errorf("stuntgres: whole relation required")
+	}
+	if err := s.owner.ValidateObjectRef(s.base, ref); err != nil {
+		return err
+	}
+	d := s.base.state.descriptors[ref.Address]
+	r, ok := d.(*relationDescriptor)
+	if !ok || ref.Address.ClassID != RelationClassID || r.namespace != (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}) {
+		return fmt.Errorf("stuntgres: only user relations can be removed")
+	}
+	if _, exists := s.removals[ref.Address]; exists {
+		return nil
+	}
+	key := NameKey{ClassID: ref.Address.ClassID, Namespace: r.namespace, Name: r.name}
+	if s.base.state.names[key] != ref.Address {
+		return CatalogConflict{}
+	}
+	if s.removals == nil {
+		s.removals = make(map[ObjectAddress]catalogRemoval)
+	}
+	s.removals[ref.Address] = catalogRemoval{ref: ref, descriptor: d}
+	s.touched[key] = ref.Address
+	return nil
+}
 func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	ds := make(map[ObjectAddress]Descriptor, len(s.base.state.descriptors)+len(s.descriptors))
 	ns := make(map[NameKey]ObjectAddress, len(s.base.state.names)+len(s.names))
@@ -254,6 +293,11 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	}
 	for k, v := range s.base.state.names {
 		ns[k] = v
+	}
+	for a, removal := range s.removals {
+		d := removal.descriptor
+		delete(ds, a)
+		delete(ns, NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()})
 	}
 	for k, v := range s.descriptors {
 		ds[k] = v
@@ -270,7 +314,10 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	view := e.stageRead(s)
+	var view CatalogRead
+	if len(s.descriptors) != 0 {
+		view = e.stageRead(s)
+	}
 	for _, d := range s.descriptors {
 		p := e.providers[d.Address().ClassID]
 		if p == nil {
@@ -300,8 +347,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
 	s := p.stage
-	changes := ChangeSet{Definitions: make([]ObjectAddress, 0, len(s.descriptors))}
+	changes := ChangeSet{Definitions: make([]ObjectAddress, 0, len(s.descriptors)+len(s.removals))}
 	for a := range s.descriptors {
+		changes.Definitions = append(changes.Definitions, a)
+	}
+	for a := range s.removals {
 		changes.Definitions = append(changes.Definitions, a)
 	}
 	for {
@@ -322,8 +372,16 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
-		for k := range s.touched {
-			if _, ok := current.names[k]; ok {
+		for k, observed := range s.touched {
+			if current.names[k] != observed {
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
+		}
+		for a, removal := range s.removals {
+			observed := removal.descriptor
+			d := current.descriptors[a]
+			if removal.ref.owner != e.owner || removal.ref.Epoch != current.epoch || removal.ref.Address != a || d == nil || d != observed || d.Revision() != observed.Revision() {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -333,6 +391,12 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		storage := make(map[ObjectAddress]*relationStorage, len(currentStorage)+len(s.descriptors))
 		for a, v := range currentStorage {
 			storage[a] = v
+		}
+		for a, removal := range s.removals {
+			d := removal.descriptor
+			delete(next.descriptors, a)
+			delete(next.names, NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()})
+			delete(storage, a)
 		}
 		for a, d := range s.descriptors {
 			next.descriptors[a] = d

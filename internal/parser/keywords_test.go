@@ -60,6 +60,13 @@ func TestKeywordContexts(t *testing.T) {
 	for _, k := range keywords {
 		for _, q := range []string{fmt.Sprintf("CREATE TABLE %s (x INT)", k.word), fmt.Sprintf("CREATE TABLE %s.t (x INT)", k.word), fmt.Sprintf("CREATE TABLE t (%s INT)", k.word)} {
 			got, err := Parse(q)
+			// LIKE now introduces a table element, not an ordinary column.
+			if k.word == "like" && q == "CREATE TABLE t (like INT)" {
+				if err != nil || len(got) != 1 || got[0].(*CreateTable).Elements[0].Like == nil {
+					t.Fatal(q, got, err)
+				}
+				continue
+			}
 			if k.columnName() {
 				if err != nil || len(got) != 1 {
 					t.Fatalf("%s: %v", q, err)

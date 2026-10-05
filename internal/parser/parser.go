@@ -182,7 +182,6 @@ func (l *lexer) deferUnsupported(tok lexeme, message string) {
 
 // These are capability boundaries in explicit grammar positions, not lexical
 // classifications. Quoted names never acquire keyword identity.
-var unsupportedTypes = wordSet("smallint int2 numeric decimal dec real float float4 float8 double precision money char character varchar bit varbit date time timestamp interval bytea uuid json jsonb xml serial bigserial smallserial serial2 serial4 serial8 name oid inet cidr macaddr macaddr8 point line lseg box path polygon circle tsvector tsquery record")
 var unsupportedCommands = wordSet("begin start commit rollback savepoint release abort end update delete merge truncate drop alter explain copy vacuum analyze analyse grant revoke with prepare execute deallocate discard listen notify unlisten reindex cluster refresh reset")
 var unsupportedCreateObjects = wordSet("temporary temp unlogged view index schema database sequence function procedure trigger")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning limit offset fetch group having window for using primary unique check references default constraint collate and or is in between like ilike similar")
@@ -212,21 +211,47 @@ func (l *lexer) call(callee, opener lexeme) {
 	}
 }
 
-func columnType(l sqlLexer, tok lexeme) (TypeName, bool) {
+func columnType(tok lexeme) TypeName {
+	if strings.HasPrefix(tok.raw, `"`) || strings.HasPrefix(tok.raw, `U&"`) || strings.HasPrefix(tok.raw, `u&"`) {
+		return TypeName{Name: tok.text, Pos: tok.pos, Quoted: true}
+	}
 	switch tok.text {
 	case "int4":
-		return TypeName{Name: "integer", Pos: tok.pos}, true
+		return TypeName{Name: "integer", Pos: tok.pos}
 	case "int8":
-		return TypeName{Name: "bigint", Pos: tok.pos}, true
+		return TypeName{Name: "bigint", Pos: tok.pos}
 	case "bool":
-		return TypeName{Name: "boolean", Pos: tok.pos}, true
+		return TypeName{Name: "boolean", Pos: tok.pos}
 	}
-	if unsupportedTypes[tok.text] {
-		l.(*lexer).failAt("0A000", "unsupported column type", tok.pos.Offset)
-	} else {
-		l.(*lexer).syntax(tok)
+	return TypeName{Name: tok.text, Pos: tok.pos}
+}
+
+func excludedTypeTail(first, tail lexeme) bool {
+	if first.keyword == nil || tail.keyword == nil {
+		return false
 	}
-	return TypeName{}, false
+	switch first.text {
+	case "double":
+		return tail.text == "precision"
+	case "character", "bit":
+		return tail.text == "varying"
+	case "time", "timestamp":
+		return tail.text == "with" || tail.text == "without"
+	case "interval":
+		switch tail.text {
+		case "year", "month", "day", "hour", "minute", "second":
+			return true
+		}
+	}
+	return false
+}
+
+func validLikeOption(name string) bool {
+	switch name {
+	case "comments", "compression", "constraints", "defaults", "generated", "identity", "indexes", "statistics", "storage", "all":
+		return true
+	}
+	return false
 }
 
 func settingCall(l sqlLexer, name lexeme, args []Expr) (Statement, bool) {

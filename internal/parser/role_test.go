@@ -67,7 +67,6 @@ func TestRoleGrammarFailureBoundaries(t *testing.T) {
 		{"CREATE ROLE with LOGIN", "42601", `syntax error at or near "with"`, "13"},
 		{"CREATE ROLE authorization LOGIN", "42601", `syntax error at or near "authorization"`, "13"},
 		{"SET SESSION AUTHORIZATION $1", "42601", `syntax error at or near "$1"`, "27"},
-		{"CREATE TABLE t(n NAME)", "0A000", "unsupported column type", "18"},
 	} {
 		_, err := Parse(tc.sql)
 		var got *sqlstate.Error
