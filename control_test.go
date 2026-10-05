@@ -598,3 +598,62 @@ func TestNumericLiteralsControlsAndCancellation(t *testing.T) {
 	}
 	check()
 }
+
+func TestBooleanDiagnosticsControls(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "boolean_controls")
+	ctx := context.Background()
+	execSQL(t, db, "CREATE TABLE b(id INT,flag BOOL)")
+	execSQL(t, db, "INSERT INTO b VALUES (99,TRUE),(100,FALSE),(101,NULL)")
+	want := [][]any{{int64(99), true}, {int64(100), false}, {int64(101), nil}}
+	cursor, err := db.Query("SELECT id,flag FROM b ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cursor.Close()
+	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE replacement(flag BOOL); INSERT INTO replacement VALUES (TRUE),('o');"))
+	wantBooleanDiagnostic(t, err, `invalid input syntax for type boolean: "o"`, "77")
+	wantTuples(t, db, "SELECT id,flag FROM b ORDER BY id", want)
+	wantBooleanMetadata(t, db, "SELECT flag FROM b")
+	_, err = db.Query("SELECT flag FROM replacement")
+	sqlState(t, err, "42P01")
+	var before bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &before); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(ctx, db, strings.NewReader(before.String())); err != nil {
+		t.Fatal(err)
+	}
+	wantTuples(t, db, "SELECT id,flag FROM b ORDER BY id", want)
+	wantBooleanMetadata(t, db, "SELECT flag FROM b")
+	var after bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &after); err != nil {
+		t.Fatal(err)
+	}
+	if before.String() != after.String() {
+		t.Fatal("boolean dump changed after round trip")
+	}
+	var old [][]any
+	for cursor.Next() {
+		var id, flag any
+		if err := cursor.Scan(&id, &flag); err != nil {
+			t.Fatal(err)
+		}
+		old = append(old, []any{id, flag})
+	}
+	if err := cursor.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(old) != len(want) {
+		t.Fatalf("retained cursor = %#v", old)
+	}
+	for i, row := range want {
+		if old[i][0] != row[0] || old[i][1] != row[1] {
+			t.Fatalf("retained cursor = %#v", old)
+		}
+	}
+	wantBooleanDiagnostic(t, booleanFailure(t, db, "SELECT id FROM b WHERE flag='o'", "query"),
+		`invalid input syntax for type boolean: "o"`, "29")
+}

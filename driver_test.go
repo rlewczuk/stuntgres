@@ -1852,3 +1852,231 @@ func TestNumericLiteralsSpellings(t *testing.T) {
 		assertNumericRows(t, rows, []string{"id", "b"}, []string{"INT4", "INT8"}, want)
 	}
 }
+
+// These expectations are literal fixtures, independent of the type-input formatter.
+var booleanInvalidInputs = []struct{ source, value, message string }{
+	{"'o'", "o", `invalid input syntax for type boolean: "o"`},
+	{"'O'", "O", `invalid input syntax for type boolean: "O"`},
+	{"'truth'", "truth", `invalid input syntax for type boolean: "truth"`},
+	{"''", "", `invalid input syntax for type boolean: ""`},
+	{"'   '", "   ", `invalid input syntax for type boolean: "   "`},
+	{"' o '", " o ", `invalid input syntax for type boolean: " o "`},
+	{"'2'", "2", `invalid input syntax for type boolean: "2"`},
+	{"'é'", "é", `invalid input syntax for type boolean: "é"`},
+	{`'a"b'`, `a"b`, `invalid input syntax for type boolean: "a"b"`},
+	{`'a\b'`, `a\b`, `invalid input syntax for type boolean: "a\b"`},
+	{"'a\nb'", "a\nb", "invalid input syntax for type boolean: \"a\nb\""},
+}
+
+func wantBooleanDiagnostic(t *testing.T, err error, message, position string) {
+	t.Helper()
+	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02",
+		Message: message, Position: position}
+	var origin *stuntgres.Error
+	for depth := range 3 {
+		var got *stuntgres.Error
+		var state interface{ SQLState() string }
+		if !errors.As(err, &got) || *got != want || !errors.As(err, &state) || state.SQLState() != "22P02" {
+			t.Fatalf("boolean diagnostic = %#v (%v), want %#v", got, err, want)
+		}
+		if depth == 0 {
+			origin = got
+		} else if got != origin {
+			t.Fatal("wrapping changed originating diagnostic")
+		}
+		err = fmt.Errorf("wrapper: %w", err)
+	}
+}
+
+func booleanFailure(t *testing.T, db *sql.DB, query, operation string, args ...any) error {
+	t.Helper()
+	switch operation {
+	case "exec":
+		result, err := db.Exec(query, args...)
+		if result != nil || err == nil {
+			t.Fatalf("Exec failure exposed result: %v, %v", result, err)
+		}
+		return err
+	case "query":
+		rows, err := db.Query(query, args...)
+		if rows != nil {
+			rows.Close()
+			t.Fatal("Query failure exposed rows")
+		}
+		return err
+	case "prepare":
+		stmt, err := db.PrepareContext(context.Background(), query)
+		if stmt != nil {
+			stmt.Close()
+			t.Fatal("invalid literal prepared successfully")
+		}
+		return err
+	case "prepared":
+		stmt, err := db.PrepareContext(context.Background(), query)
+		if err != nil {
+			t.Fatalf("parameter preparation: %v", err)
+		}
+		defer stmt.Close()
+		if strings.HasPrefix(query, "SELECT") {
+			rows, err := stmt.Query(args...)
+			if rows != nil {
+				rows.Close()
+				t.Fatal("prepared failure exposed rows")
+			}
+			return err
+		}
+		result, err := stmt.Exec(args...)
+		if result != nil || err == nil {
+			t.Fatalf("prepared failure exposed result: %v, %v", result, err)
+		}
+		return err
+	}
+	t.Fatalf("unknown operation %q", operation)
+	return nil
+}
+
+func TestBooleanDiagnosticsLiterals(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "boolean_literals")
+	execSQL(t, db, "CREATE TABLE b(id INT,flag BOOL)")
+	// Binding must fail even before there are any rows to evaluate.
+	wantBooleanDiagnostic(t, booleanFailure(t, db, "SELECT id FROM b WHERE flag='o'", "query"),
+		`invalid input syntax for type boolean: "o"`, "29")
+	execSQL(t, db, "INSERT INTO b VALUES (99,TRUE)")
+	for _, input := range booleanInvalidInputs {
+		for _, operation := range []string{"exec", "query", "prepare"} {
+			for _, query := range []struct{ sql, position string }{
+				{"INSERT INTO b VALUES (1," + input.source + ")", "25"},
+				{"SELECT id FROM b WHERE flag=" + input.source, "29"},
+			} {
+				wantBooleanDiagnostic(t, booleanFailure(t, db, query.sql, operation), input.message, query.position)
+				wantTuples(t, db, "SELECT id,flag FROM b", [][]any{{int64(99), true}})
+			}
+		}
+	}
+	for _, tc := range []struct{ query, message, position string }{
+		{"/*é*/ INSERT INTO b VALUES (1,'o')", `invalid input syntax for type boolean: "o"`, "31"},
+		{"/*é*/ SELECT id FROM b WHERE flag='o'", `invalid input syntax for type boolean: "o"`, "35"},
+		{`SELECT id FROM b WHERE flag=E'\x6f'`, `invalid input syntax for type boolean: "o"`, "29"},
+		{"SELECT id FROM b WHERE flag=$tag$o$tag$", `invalid input syntax for type boolean: "o"`, "29"},
+		{"SELECT id FROM b WHERE flag='tr'\n'uth'", `invalid input syntax for type boolean: "truth"`, "29"},
+	} {
+		for _, operation := range []string{"exec", "query", "prepare"} {
+			wantBooleanDiagnostic(t, booleanFailure(t, db, tc.query, operation), tc.message, tc.position)
+		}
+	}
+}
+
+func TestBooleanDiagnosticsParameters(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "boolean_parameters")
+	execSQL(t, db, "CREATE TABLE b(id INT,flag BOOL)")
+	execSQL(t, db, "INSERT INTO b VALUES (99,TRUE)")
+	for _, input := range booleanInvalidInputs {
+		for _, value := range []any{input.value, []byte(input.value)} {
+			for _, operation := range []string{"exec", "query", "prepared"} {
+				wantBooleanDiagnostic(t, booleanFailure(t, db, "INSERT INTO b VALUES ($1,$2)", operation, 1, value), input.message, "")
+				wantBooleanDiagnostic(t, booleanFailure(t, db, "SELECT id FROM b WHERE flag=$1", operation, value), input.message, "")
+				wantTuples(t, db, "SELECT id,flag FROM b", [][]any{{int64(99), true}})
+			}
+		}
+	}
+	execSQL(t, db, "CREATE TABLE repeated(flag BOOL)")
+	execSQL(t, db, "CREATE TABLE precedence(a BOOL,b BOOL)")
+	for _, operation := range []string{"exec", "prepared"} {
+		wantBooleanDiagnostic(t, booleanFailure(t, db, "INSERT INTO repeated VALUES ($1),($1)", operation, "o"),
+			`invalid input syntax for type boolean: "o"`, "")
+		wantBooleanDiagnostic(t, booleanFailure(t, db, "INSERT INTO precedence VALUES ($2,$1)", operation, "truth", "o"),
+			`invalid input syntax for type boolean: "truth"`, "")
+	}
+	wantTuples(t, db, "SELECT flag FROM repeated", [][]any{})
+	wantTuples(t, db, "SELECT a,b FROM precedence", [][]any{})
+}
+
+func wantBooleanMetadata(t *testing.T, db *sql.DB, query string) {
+	t.Helper()
+	rows, err := db.Query(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	types, err := rows.ColumnTypes()
+	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "BOOL" || types[0].ScanType() != reflect.TypeFor[bool]() {
+		t.Fatalf("boolean metadata = %#v, %v", types, err)
+	}
+}
+
+func TestBooleanDiagnosticsPreservation(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "boolean_preservation")
+	execSQL(t, db, "CREATE TABLE b(id INT,flag BOOL)")
+	stmt, err := db.Prepare("INSERT INTO b VALUES ($1,$2)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	for _, group := range []struct {
+		values []string
+		want   bool
+	}{
+		{[]string{"t", "tr", "tru", "true", "y", "ye", "yes", "on", "1", "TrUe", " YES ", "\tOn\n"}, true},
+		{[]string{"f", "fa", "fal", "fals", "false", "n", "no", "of", "off", "0", "FaLsE", " NO ", "\tOfF\n"}, false},
+	} {
+		for _, value := range group.values {
+			for _, prepared := range []bool{false, true} {
+				for _, arg := range []any{value, []byte(value)} {
+					if prepared {
+						_, err = stmt.Exec(1, arg)
+					} else {
+						_, err = db.Exec("INSERT INTO b VALUES ($1,$2)", 1, arg)
+					}
+					if err != nil {
+						t.Fatalf("accepted %q: %v", value, err)
+					}
+				}
+			}
+			rows := readTuples(t, db, "SELECT flag FROM b WHERE flag=$1", value)
+			for _, row := range rows {
+				if row[0] != group.want {
+					t.Fatalf("native bool changed: %#v", row)
+				}
+			}
+		}
+	}
+	execSQL(t, db, "CREATE TABLE native(flag BOOL)")
+	execSQL(t, db, "INSERT INTO native VALUES (TRUE),(FALSE),(NULL)")
+	for _, value := range []any{true, false, nil, int64(1), int64(0)} {
+		execSQL(t, db, "INSERT INTO native VALUES ($1)", value)
+	}
+	wantTuples(t, db, "SELECT flag FROM native ORDER BY flag", [][]any{{false}, {false}, {false}, {true}, {true}, {true}, {nil}, {nil}})
+	wantTuples(t, db, "SELECT flag FROM native WHERE flag=NULL", [][]any{})
+	wantBooleanMetadata(t, db, "SELECT flag FROM native")
+}
+
+func TestBooleanDiagnosticsAtomicity(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), "boolean_atomicity")
+	execSQL(t, db, "CREATE TABLE b(id INT,flag BOOL)")
+	execSQL(t, db, "INSERT INTO b VALUES (99,TRUE)")
+	for _, operation := range []string{"exec", "query", "prepare"} {
+		wantBooleanDiagnostic(t, booleanFailure(t, db, "INSERT INTO b VALUES (1,TRUE),(2,'o')", operation),
+			`invalid input syntax for type boolean: "o"`, "34")
+		wantTuples(t, db, "SELECT id,flag FROM b", [][]any{{int64(99), true}})
+		wantBooleanMetadata(t, db, "SELECT flag FROM b")
+	}
+	for _, operation := range []string{"exec", "query", "prepared"} {
+		wantBooleanDiagnostic(t, booleanFailure(t, db, "INSERT INTO b VALUES (1,TRUE),(2,$1)", operation, "o"),
+			`invalid input syntax for type boolean: "o"`, "")
+		wantTuples(t, db, "SELECT id,flag FROM b", [][]any{{int64(99), true}})
+	}
+	stmt, err := db.Prepare("INSERT INTO b VALUES ($1,$2)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	_, err = stmt.Exec(1, "o")
+	wantBooleanDiagnostic(t, err, `invalid input syntax for type boolean: "o"`, "")
+	for i, value := range []any{true, false, nil} {
+		if _, err := stmt.Exec(i+1, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wantTuples(t, db, "SELECT id,flag FROM b ORDER BY id",
+		[][]any{{int64(1), true}, {int64(2), false}, {int64(3), nil}, {int64(99), true}})
+}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -182,6 +183,12 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 				return nil
 			}
 			_, err := literal(v, c.Type, where)
+			if err != nil && where && c.Type == parser.Bool && v.Kind == parser.StringValue {
+				var diagnostic *sqlstate.Error
+				if errors.As(err, &diagnostic) && diagnostic.Code == "22P02" && diagnostic.Position == "" {
+					diagnostic.Position = strconv.Itoa(v.Pos.Character)
+				}
+			}
 			return err
 		}
 		if v.Parameter <= 0 {
