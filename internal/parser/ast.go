@@ -28,9 +28,10 @@ type Column struct {
 	Pos      Position
 }
 type CreateTable struct {
-	Name    ObjectName
-	Columns []Column
-	Pos     Position
+	Name        ObjectName
+	Columns     []Column
+	Pos         Position
+	IfNotExists bool
 }
 
 func (*CreateTable) statement() {}

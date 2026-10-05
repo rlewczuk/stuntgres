@@ -188,7 +188,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		default:
 			return sqlError("0A000", "restore accepts only CREATE and INSERT")
 		}
-		if _, err = stage.Execute(op, stmt, nil); err != nil {
+		_, err = stage.Execute(op, stmt, nil)
+		op.DetachNotices()
+		if err != nil {
 			return err
 		}
 	}

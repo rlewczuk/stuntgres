@@ -24,6 +24,7 @@ var keywords = map[string]int{
 	"integer": INTEGER, "int": INTEGER, "int4": INTEGER, "bigint": BIGINT, "int8": BIGINT,
 	"text": TEXT, "boolean": BOOLEAN, "bool": BOOLEAN,
 	"set": SET, "show": SHOW, "session": SESSION, "to": TO, "default": DEFAULT,
+	"if": IF, "exists": EXISTS,
 }
 
 // These tokens keep unsupported but PostgreSQL-valid types usable as ColId.

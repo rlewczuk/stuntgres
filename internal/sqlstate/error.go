@@ -1,6 +1,7 @@
 package sqlstate
 
-// Error is a PostgreSQL-compatible error with a five-character SQLSTATE.
+// Error is a PostgreSQL-compatible diagnostic with a five-character SQLSTATE.
+// It also carries nonfatal notices and warnings independently of returned errors.
 // Empty optional fields are absent. Positions are one-based character indexes.
 // InternalPosition requires InternalQuery; InternalQuery alone is permitted.
 // File, Line and Routine describe implementation-specific source locations.

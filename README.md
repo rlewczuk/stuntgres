@@ -24,7 +24,8 @@ The DSN is an **exact opaque string**, not a libpq connection string or network 
 
 ### Physical sessions
 
-Each physical connection has independent `application_name` state. Hold
+Each physical connection has independent `application_name` and
+`client_min_messages` state. Hold
 `*sql.Conn` to target that session; a `*sql.DB` may dispatch to any physical
 connection. Borrower Close returns it to the pool: healthy pool reuse preserves
 its settings and identity, without implicit RESET, DISCARD or rollback.
@@ -49,14 +50,14 @@ including signed forms, are unsupported (`0A000`) and cannot mutate settings.
 Quoted `'1_000'` and `'0x2a'` remain literal strings. This setting-specific
 boundary does not change the shared lexer's INSERT/SELECT numeric support.
 Values clip original UTF8 to 63 bytes before escaping nonprintable/non-ASCII
-bytes as lowercase literal `\xNN`. Clipping succeeds; the driver has no
-PostgreSQL NOTICE delivery channel.
+bytes as lowercase literal `\xNN`. Clipping succeeds and emits a structured
+NOTICE when a connector handler is configured and the session filter permits it.
 SET reuses the existing literal decoding rules below: for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
 This is not full PostgreSQL setting syntax: LOCAL, RESET, SHOW ALL, other
-built-ins, dotted custom GUCs and floating/exponent numbers remain
+built-ins besides client_min_messages, dotted custom GUCs and floating/exponent numbers remain
 unsupported. NULL, parameters and unquoted reserved TO are syntax errors;
 quoted "to" remains an identifier. Comma lists fail 22023 before setting lookup,
 with the supplied name retained in the diagnostic. Unknown undotted scalar
@@ -68,6 +69,52 @@ Dump excludes them. Anonymous retained SHOW/SELECT results outlive session end.
 Internal immutable setting definitions/default providers and exactly-once
 resource Attach/quiescent Detach are extension hooks, not implementations of
 these future resources.
+
+### Notices and warnings
+
+```go
+base, err := stuntgres.NewDriver().OpenConnector("example")
+if err != nil { return err }
+configured := base.(*stuntgres.Connector).WithNoticeHandler(func(n stuntgres.Error) {
+    // n is an owned value; retain it if needed. Optional fields remain conditional.
+    fmt.Println(n.Severity, n.Code, n.Message)
+})
+db := sql.OpenDB(configured)
+defer db.Close()
+```
+
+WithNoticeHandler returns an immutable copy; nil disables delivery. Configuration
+applies to newly created physical connections only, never other connectors sharing
+the same database. Ordinary sql.Open is silent (no default stderr logging).
+CREATE TABLE IF NOT EXISTS emits NOTICE/42P07 when the exact creation destination
+already exists, leaving its definition and data unchanged. Fresh creation is real
+and silent. Semantic column validation occurs at execution, after the existing
+relation check; malformed/unsupported syntax still fails during parsing.
+Cancellation detected before a same-name publication-conflict decision remains
+an ordinary context error, not duplicate-table failure or successful skipping;
+the winning table remains intact and the canceled loser emits no notice.
+Long application_name emits NOTICE/42622 with original and clipped text.
+
+SET/SHOW client_min_messages uses the same physical settings route, default
+notice. Case-insensitive values are debug5, debug4, debug3, debug2, debug1, log,
+notice, warning, error; debug canonicalizes to debug2 and info is also accepted.
+INFO always passes; errors remain returned errors at every threshold, never
+callbacks. Invalid values return 22023 with an available-values Hint without
+changing the setting. DEFAULT restores the captured physical default.
+
+Callbacks run synchronously in producer order after all engine locks and the
+operation lease are released, before command return; payload strings are immutable
+owned Go data. User code is not context-preemptible: cancellation during a callback
+does not undo committed execution or replace its result. Reenter through another
+already held physical connection or a separate pool with free capacity, **not**
+the same sql.Conn or an exhausted originating pool. Preparation emits no execution
+notices. Native controls do not serialize or deliver staging notices.
+No native DO/RAISE, warning-producing procedural SQL, COPY or asynchronous
+LISTEN/NOTIFY support is implied.
+
+`go run ./cmd/notices-smoke` exercises actual notices, filters, ownership,
+peer reentry and control round trips; sole successful output is `notices: ok`.
+
 
 Run `go run ./cmd/session-smoke` for asserted isolation, preparation, physical
 reuse/replacement, data survival, diagnostics, cancellation and native controls.
@@ -120,7 +167,7 @@ Preparation checks assignment compatibility; typed integer literals assigned to 
 
 That feature smoke exercises both direct execution and an actual prepared short INSERT, checks declaration-order metadata and statement atomicity, and retains a cursor across Reset/Restore. It also checks deterministic full-row Dump/Restore, successful hand-authored short-row Restore, and catalog preservation when a staged short INSERT omits a NOT NULL tail. Its single success line is printed only after those public API assertions pass.
 
-No configurable `search_path`, `CREATE SCHEMA`, schema-qualified creation outside `public`, three-part/database qualification, aliases, joins, expressions, functions, casts, constraints beyond nullability, defaults, serial, primary keys, IF NOT EXISTS, UPDATE/DELETE, RETURNING, multiple sort keys, explicit transactions, ACLs, or SQL catalog projections are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements are never silently ignored. Ordinary driver operations accept at most one statement; empty Exec succeeds and empty Query returns an empty cursor. Query may execute CREATE/INSERT; Exec may execute SELECT and reports selected count. LastInsertId is unsupported.
+No configurable `search_path`, `CREATE SCHEMA`, schema-qualified creation outside `public`, three-part/database qualification, aliases, joins, expressions, functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, explicit transactions, ACLs, or SQL catalog projections are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 

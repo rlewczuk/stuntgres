@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"sync"
 	"unicode/utf8"
 )
@@ -15,7 +16,7 @@ import (
 type SettingDefinition struct {
 	Name        string
 	BootDefault string
-	Normalize   func(string) (string, error)
+	Normalize   func(string) (string, *sqlstate.Error, error)
 	Column      parser.Column
 }
 
@@ -34,15 +35,17 @@ func (e *Engine) setting(name string) (SettingDefinition, error) {
 	}
 	return SettingDefinition{}, sqlError("42704", fmt.Sprintf(`unrecognized configuration parameter "%s"`, name))
 }
-func normalizeApplicationName(value string) (string, error) {
+func normalizeApplicationName(value string) (string, *sqlstate.Error, error) {
 	if !utf8.ValidString(value) {
-		return "", errors.New("stuntgres: invalid UTF-8 setting")
+		return "", nil, errors.New("stuntgres: invalid UTF-8 setting")
 	}
+	var notice *sqlstate.Error
 	if len(value) > 63 {
 		n := 63
 		for !utf8.RuneStart(value[n]) {
 			n--
 		}
+		notice = &sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: fmt.Sprintf(`identifier "%s" will be truncated to "%s"`, value, value[:n])}
 		value = value[:n]
 	}
 	printable := true
@@ -53,7 +56,7 @@ func normalizeApplicationName(value string) (string, error) {
 		}
 	}
 	if printable {
-		return value, nil
+		return value, notice, nil
 	}
 	const hex = "0123456789abcdef"
 	var b strings.Builder
@@ -67,7 +70,7 @@ func normalizeApplicationName(value string) (string, error) {
 			b.WriteByte(hex[c&15])
 		}
 	}
-	return b.String(), nil
+	return b.String(), notice, nil
 }
 
 type sessionSettings struct {
@@ -89,7 +92,7 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 				value = v
 			}
 		}
-		normalized, err := d.Normalize(value)
+		normalized, _, err := d.Normalize(value)
 		if err != nil {
 			return err
 		}
@@ -143,7 +146,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, args []dri
 			}
 			delete(owner.values, d.Name)
 		} else {
-			value, err := d.Normalize(s.Values[0])
+			value, notice, err := d.Normalize(s.Values[0])
 			if err != nil {
 				return Result{}, err
 			}
@@ -151,6 +154,9 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, args []dri
 				return Result{}, err
 			}
 			owner.values[d.Name] = value
+			if notice != nil {
+				op.emitNotice(levelNotice, *notice)
+			}
 		}
 		return Result{}, nil
 	case *parser.Show:

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/sqlstate"
 	"sync"
 )
 
@@ -87,12 +88,14 @@ type Session struct {
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
 type Operation struct {
-	self    *Operation
-	session *Session
-	ctx     context.Context
-	cancel  context.CancelFunc
-	done    bool
-	private bool
+	self            *Operation
+	session         *Session
+	ctx             context.Context
+	cancel          context.CancelFunc
+	done            bool
+	private         bool
+	notices         []sqlstate.Error
+	noticeThreshold noticeLevel
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {

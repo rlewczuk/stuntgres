@@ -11,9 +11,10 @@ import (
 )
 
 type conn struct {
-	session *engine.Session
-	cleanup runtime.Cleanup
-	closed  atomic.Bool
+	session       *engine.Session
+	cleanup       runtime.Cleanup
+	closed        atomic.Bool
+	noticeHandler func(Error)
 }
 
 type cleanupCapsule struct{ session *engine.Session }
@@ -128,7 +129,15 @@ func (c *conn) execute(ctx context.Context, s parser.Statement, args []driver.Na
 		}
 		return engine.Result{}, nil
 	}
-	return c.session.Engine().Execute(op, s, args)
+	r, err := c.session.Engine().Execute(op, s, args)
+	notices := op.DetachNotices()
+	op.Done()
+	if c.noticeHandler != nil {
+		for _, notice := range notices {
+			c.noticeHandler(notice)
+		}
+	}
+	return r, err
 }
 func (c *conn) ExecContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
 	defer runtime.KeepAlive(c)

@@ -59,7 +59,7 @@ func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
 
 func newEngine(providers []CatalogProvider) (*Engine, error) {
 	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
-	e.settingsDefinitions = map[string]SettingDefinition{applicationName.Name: applicationName}
+	e.settingsDefinitions = map[string]SettingDefinition{applicationName.Name: applicationName, clientMinMessages.Name: clientMinMessages}
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
@@ -131,7 +131,7 @@ func (e *Engine) Describe(op *Operation, stmt parser.Statement) (ParameterInfo, 
 		return ParameterInfo{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.Set:
+	case *parser.CreateTable, *parser.Set:
 		return ParameterInfo{}, nil
 	case *parser.Show:
 		_, err := e.setting(s.Name.Text)
@@ -211,7 +211,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		seen := map[string]bool{}
 		for _, c := range s.Columns {
 			if seen[c.Name] {
-				return b, sqlError("42701", "duplicate column")
+				return b, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, c.Name))
 			}
 			seen[c.Name] = true
 			if c.Type > parser.Bool {
@@ -464,6 +464,7 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
 	}
+	op.snapshotNoticeThreshold()
 	ctx := op.Context()
 	switch stmt.(type) {
 	case *parser.Set, *parser.Show:
@@ -479,12 +480,6 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 		return Result{}, err
 	}
 	if s, ok := stmt.(*parser.CreateTable); ok {
-		if _, er := e.describe(s); er != nil {
-			e.mu.Unlock()
-			return Result{}, er
-		}
-	}
-	if s, ok := stmt.(*parser.CreateTable); ok {
 		if len(values) != 0 {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", len(values))
@@ -498,7 +493,15 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 		key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 		if _, exists := e.state.names[key]; exists {
 			e.mu.Unlock()
+			if s.IfNotExists {
+				op.existingRelationNotice(key.Name)
+				return Result{}, nil
+			}
 			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
+		}
+		if _, er := e.describe(s); er != nil {
+			e.mu.Unlock()
+			return Result{}, er
 		}
 		oid, er := e.allocateOIDLocked()
 		if er != nil {
@@ -530,6 +533,25 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 		}
 		_, er = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
 		if _, conflict := er.(CatalogConflict); conflict {
+			if err := ctx.Err(); err != nil {
+				return Result{}, err
+			}
+			if s.IfNotExists {
+				e.mu.Lock()
+				current := CatalogRead{owner: e, state: e.state}
+				resolved, resolveErr := e.resolveCreation(current, s.Name)
+				_, exists := e.state.names[key]
+				same := resolveErr == nil && resolved.Address == ns && current.Epoch() == base.Epoch()
+				contextErr := ctx.Err()
+				e.mu.Unlock()
+				if contextErr != nil {
+					return Result{}, contextErr
+				}
+				if same && exists {
+					op.existingRelationNotice(key.Name)
+					return Result{}, nil
+				}
+			}
 			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
 		}
 		return Result{}, er

@@ -111,7 +111,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"SELECT * FROM t alias", "0A000"}, {"SELECT x alias FROM t", "0A000"},
 		{"SELECT x FROM t ORDER BY x, y", "0A000"}, {"SELECT f(x) FROM t", "0A000"},
 		{"SELECT x + 1 FROM t", "0A000"}, {"SELECT 1 FROM t", "0A000"},
-		{"CREATE TABLE IF NOT EXISTS t (x INT)", "0A000"}, {"CREATE TABLE t (x INT[])", "0A000"},
+		{"CREATE TABLE t (x INT[])", "0A000"},
 		{"SELECT * FROM t JOIN u ON t.x = u.x", "0A000"}, {"SELECT * FROM t WHERE x = 1::INT", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"UPDATE t SET x = 1", "0A000"}, {"DELETE FROM t", "0A000"}, {"BEGIN", "0A000"},
@@ -433,4 +433,24 @@ func TestNumericLiteralLexicalPrecedenceAndNativeLimits(t *testing.T) {
 	check("/*é*/ INSERT INTO t VALUES (0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "29")
 	check("/*😀*/ INSERT INTO t VALUES (0x_)", "42601", `invalid hexadecimal integer at or near "0x_"`, "29")
 	check("INSERT INTO t VALUES (1); INSERT INTO t VALUES (0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "49")
+}
+
+func TestNoticesCreateSyntax(t *testing.T) {
+	for _, q := range []string{"CREATE TABLE IF NOT EXISTS public.t(id INT)", "CREATE TABLE if(exists INT)", "CREATE TABLE exists(if TEXT)"} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		create, ok := statements[0].(*CreateTable)
+		if !ok {
+			t.Fatal(statements)
+		}
+		if create.IfNotExists != strings.Contains(q, "IF NOT EXISTS") {
+			t.Fatal(create)
+		}
+	}
+	statements, err := Parse("CREATE TABLE IF NOT EXISTS prefix(id INT) garbage")
+	if err == nil || len(statements) != 0 {
+		t.Fatal(statements, err)
+	}
 }

@@ -13,7 +13,7 @@ import (
 	"sync"
 )
 
-// Error reports a PostgreSQL SQLSTATE without depending on a network driver.
+// Error carries a PostgreSQL diagnostic, including nonfatal notices and warnings.
 type Error = sqlstate.Error
 
 // Driver owns independent databases named by exact, opaque DSN strings.
@@ -44,16 +44,26 @@ func (d *Driver) OpenConnector(name string) (driver.Connector, error) {
 		e = engine.New()
 		d.engines[name] = e
 	}
-	return &connector{owner: d, engine: e}, nil
+	return &Connector{owner: d, engine: e}, nil
 }
 
-type connector struct {
-	owner  *Driver
-	engine *engine.Engine
+// Connector configures new physical connections without changing existing ones.
+type Connector struct {
+	owner         *Driver
+	engine        *engine.Engine
+	noticeHandler func(Error)
 }
 
-func (c *connector) Driver() driver.Driver { return c.owner }
-func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
+// WithNoticeHandler returns an independent configuration. Nil disables delivery.
+// Handlers run synchronously after execution releases all locks and its lease.
+func (c *Connector) WithNoticeHandler(handler func(Error)) *Connector {
+	copy := *c
+	copy.noticeHandler = handler
+	return &copy
+}
+
+func (c *Connector) Driver() driver.Driver { return c.owner }
+func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -69,7 +79,7 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	native := &conn{session: session}
+	native := &conn{session: session, noticeHandler: c.noticeHandler}
 	native.cleanup = runtime.AddCleanup(native, cleanupSession, cleanupCapsule{session})
 	return native, nil
 }

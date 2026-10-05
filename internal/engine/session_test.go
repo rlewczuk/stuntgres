@@ -22,7 +22,10 @@ type defaultProvider struct {
 	err   error
 }
 
-func (p *defaultProvider) SessionDefault(context.Context, SettingDefinition) (string, bool, error) {
+func (p *defaultProvider) SessionDefault(_ context.Context, d SettingDefinition) (string, bool, error) {
+	if d.Name != "application_name" {
+		return "", false, p.err
+	}
 	return p.value, true, p.err
 }
 func sessionStart(t *testing.T, e *Engine, p SessionDefaultProvider) *Session {

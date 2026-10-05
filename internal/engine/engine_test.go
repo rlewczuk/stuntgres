@@ -98,10 +98,13 @@ func TestGenericCreateDiagnosticsHaveNoObjectFields(t *testing.T) {
 		code, message string
 	}{
 		{&parser.CreateTable{Name: name}, "42601", "table requires columns"},
-		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Int4}, {Name: "id", Type: parser.Text}}}, "42701", "duplicate column"},
+		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Int4}, {Name: "id", Type: parser.Text}}}, "42701", `column "id" specified more than once`},
 		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Type(255)}}}, "0A000", "unsupported column type"},
 	} {
-		_, err := testDescribe(e, tc.stmt)
+		if _, err := testDescribe(e, tc.stmt); err != nil {
+			t.Fatalf("CREATE preparation: %v", err)
+		}
+		_, err := testExecute(e, context.Background(), tc.stmt, nil)
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
 		if !errors.As(err, &got) || *got != want {
