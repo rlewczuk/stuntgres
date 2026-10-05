@@ -247,13 +247,17 @@ func TestKeywordLaterProjectionCalls(t *testing.T) {
 }
 
 func TestKeywordConditionalCreateTerminals(t *testing.T) {
-	l:=&lexer{input:"IF EXISTS"}
+	l := &lexer{input: "IF EXISTS"}
 	var v sqlSymType
-	for _,s:=range []struct{token int; word string; category keywordCategory}{
-		{IF,"if",Unreserved},{EXISTS,"exists",ColumnName},
+	for _, s := range []struct {
+		token    int
+		word     string
+		category keywordCategory
+	}{
+		{IF, "if", Unreserved}, {EXISTS, "exists", ColumnName},
 	} {
-		if token:=l.Lex(&v); token!=s.token || v.tok.keyword==nil || v.tok.keyword.word!=s.word || v.tok.keyword.category!=s.category || !v.tok.keyword.bareLabel {
-			t.Fatalf("%s token=%d lexeme=%+v error=%v",s.word,token,v.tok,l.err)
+		if token := l.Lex(&v); token != s.token || v.tok.keyword == nil || v.tok.keyword.word != s.word || v.tok.keyword.category != s.category || !v.tok.keyword.bareLabel {
+			t.Fatalf("%s token=%d lexeme=%+v error=%v", s.word, token, v.tok, l.err)
 		}
 	}
 }
