@@ -154,10 +154,7 @@ func TestReferenceTableCoreHeldCursorAndPreparedRebinding(t *testing.T) {
 				failed.Close()
 				t.Fatal("incompatible prepared query exposed rows")
 			}
-			want = referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: `column "id" does not exist`}
-			if backend.postgres {
-				want.Position = "8"
-			}
+			want = referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: `column "id" does not exist`, Position: "8"}
 			referenceAssertDiagnostic(t, err, &want)
 			labels, err := held.Columns()
 			if err != nil || !reflect.DeepEqual(labels, []string{"id"}) {
