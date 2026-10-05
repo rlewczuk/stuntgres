@@ -161,7 +161,7 @@ func run() error {
 		return err
 	}
 	for _, prepared := range []bool{false, true} {
-		for _, tc := range []struct{ input, want string }{{"+0002147483647", "2147483647"}, {"+0002147483648", "0002147483648"}, {"-0002147483648", "-0002147483648"}} {
+		for _, tc := range []struct{ input, want string }{{"+0002147483647", "2147483647"}, {"+0002147483648", "0002147483648"}, {"-0002147483648", "-0002147483648"}, {`E'a\nb'`, `a\x0ab`}} {
 			if err = exec(ctx, a, "SET application_name TO "+tc.input, prepared); err != nil {
 				return err
 			}

@@ -172,9 +172,9 @@ func (c *cancelAtErrCheck) Err() error {
 }
 
 func TestInsertImplicitShortStagedCancellation(t *testing.T) {
-	// Execute checks admission twice, then once per converted row, once per
-	// constraint row, and once immediately before the sole publication.
-	// Three valid short rows therefore reach checks 3–5, 6–8, and 9.
+	// Instrument only the admitted operation's execution context: session
+	// initialization and acquisition are complete before counting. Execute checks
+	// admission twice, rows at 3–5, constraints at 6–8, and publication at 9.
 	for _, tc := range []struct {
 		name  string
 		check int32
@@ -190,8 +190,14 @@ func TestInsertImplicitShortStagedCancellation(t *testing.T) {
 			run(t, e, "INSERT INTO t VALUES(99,'sentinel',TRUE)")
 			base, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			ctx := &cancelAtErrCheck{Context: base, cancel: cancel, at: tc.check}
-			_, err := e.Execute(ctx, statement(t, "INSERT INTO t VALUES(1,'one'),(2,'two'),(3,'three')"), nil)
+			op, cleanup, err := testOperation(e, base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cleanup()
+			ctx := &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: tc.check}
+			op.ctx = ctx
+			_, err = e.Execute(op, statement(t, "INSERT INTO t VALUES(1,'one'),(2,'two'),(3,'three')"), nil)
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("staged cancellation: %v", err)
 			}

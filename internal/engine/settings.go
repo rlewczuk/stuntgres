@@ -32,7 +32,7 @@ func (e *Engine) setting(name string) (SettingDefinition, error) {
 	if d, ok := e.settingsDefinitions[strings.ToLower(name)]; ok {
 		return d, nil
 	}
-	return SettingDefinition{}, sqlError("42704", fmt.Sprintf("unrecognized configuration parameter %q", name))
+	return SettingDefinition{}, sqlError("42704", fmt.Sprintf(`unrecognized configuration parameter "%s"`, name))
 }
 func normalizeApplicationName(value string) (string, error) {
 	if !utf8.ValidString(value) {

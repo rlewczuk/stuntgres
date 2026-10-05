@@ -65,6 +65,7 @@ func TestReferenceSession(t *testing.T) {
 						{"'" + strings.Repeat("a", 64) + "'", strings.Repeat("a", 63)},
 						{"'" + strings.Repeat("a", 62) + "é'", strings.Repeat("a", 62)},
 						{"'a\n\tb'", `a\x0a\x09b`}, {`"to"`, "to"},
+						{`E'a\nb'`, `a\x0ab`},
 					} {
 						run(a, referenceExec("SET application_name TO "+tc.input, 0))
 						show(a, tc.want)
@@ -80,6 +81,10 @@ func TestReferenceSession(t *testing.T) {
 					}{
 						{"SET SESSION absent_setting TO x", "42704", `unrecognized configuration parameter "absent_setting"`, "", "execute", false},
 						{"SHOW absent_setting", "42704", `unrecognized configuration parameter "absent_setting"`, "", "prepare", true},
+						{`SET "a""b" TO x`, "42704", `unrecognized configuration parameter "a"b"`, "", "execute", false},
+						{`SHOW "a""b"`, "42704", `unrecognized configuration parameter "a"b"`, "", "prepare", true},
+						{`SET "a\b" TO x`, "42704", `unrecognized configuration parameter "a\b"`, "", "execute", false},
+						{`SHOW "a\b"`, "42704", `unrecognized configuration parameter "a\b"`, "", "prepare", true},
 						{"SET application_name TO 'a','b'", "22023", "SET application_name takes only one argument", "", "execute", false},
 						{"SET absent_setting TO 'a','b'", "22023", "SET absent_setting takes only one argument", "", "execute", false},
 						{`SET "APPLICATION_NAME" TO 'a','b'`, "22023", "SET APPLICATION_NAME takes only one argument", "", "execute", false},

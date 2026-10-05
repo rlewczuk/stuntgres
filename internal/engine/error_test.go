@@ -63,7 +63,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 			winnerView = e.CatalogRead()
 		},
 	}
-	result, err := e.Execute(context.Background(), statement(t, "CREATE TABLE conflict_rows (lost INT)"), nil)
+	result, err := testExecute(e, context.Background(), statement(t, "CREATE TABLE conflict_rows (lost INT)"), nil)
 	var got *sqlstate.Error
 	want := sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07",

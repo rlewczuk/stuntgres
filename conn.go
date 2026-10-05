@@ -52,6 +52,9 @@ func (c *conn) ResetSession(ctx context.Context) error {
 		return err
 	}
 	if err := c.session.Reuse(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
 		c.session.RequestEnd(engine.InvalidConnection)
 		return driver.ErrBadConn
 	}

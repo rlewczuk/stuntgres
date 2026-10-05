@@ -29,13 +29,15 @@ Each physical connection has independent `application_name` state. Hold
 connection. Borrower Close returns it to the pool: healthy pool reuse preserves
 its settings and identity, without implicit RESET, DISCARD or rollback.
 Physical replacement starts with empty application_name and does not erase data.
-Canceled statements and normal SQL errors leave healthy sessions reusable.
+Canceled statements, canceled pool-reuse checks and normal SQL errors leave
+healthy sessions reusable, preserving physical identity and settings.
 Explicit physical close drains operations and releases only that session's
 owners; runtime abandonment cleanup is nondeterministic best effort.
 
 `SET [SESSION] application_name {TO | =} value` and `SHOW application_name`
-use the ordinary direct/prepared execution route. Values are standard quoted
-strings, identifiers, booleans, signed integer tokens or bare DEFAULT. DEFAULT
+use the ordinary direct/prepared execution route. Values are strings using the
+existing ordinary/`E'...'` literal lexer, identifiers, booleans, signed integer
+tokens or bare DEFAULT. DEFAULT
 restores the captured physical-session default; quoted 'DEFAULT' is literal.
 SHOW returns one string row with column application_name and type TEXT.
 Both SET and Exec of SHOW affect zero rows; SHOW snapshot cardinality is not a
@@ -45,13 +47,17 @@ leading zeros), with unary minus prepended and unary plus omitted.
 Values clip original UTF8 to 63 bytes before escaping nonprintable/non-ASCII
 bytes as lowercase literal `\xNN`. Clipping succeeds; the driver has no
 PostgreSQL NOTICE delivery channel.
+SET reuses the existing literal decoding rules below: for example,
+`SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
+literal `a\x0ab`. No second setting-specific string decoder is used.
 
 This is not full PostgreSQL setting syntax: LOCAL, RESET, SHOW ALL, other
-built-ins, dotted custom GUCs, floating/exponent numbers and E-strings remain
+built-ins, dotted custom GUCs and floating/exponent numbers remain
 unsupported. NULL, parameters and unquoted reserved TO are syntax errors;
 quoted "to" remains an identifier. Comma lists fail 22023 before setting lookup,
 with the supplied name retained in the diagnostic. Unknown undotted scalar
-names fail 42704. No logical database/admission/role or
+names fail 42704; messages interpolate decoded names between literal double
+quotes without Go string escaping. No logical database/admission/role or
 transaction features, named SQL prepared resources, cursors, temporary objects
 or advisory locks are implied. Native Reset/Restore preserve session settings;
 Dump excludes them. Anonymous retained SHOW/SELECT results outlive session end.

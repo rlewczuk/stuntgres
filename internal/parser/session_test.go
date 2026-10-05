@@ -15,6 +15,7 @@ func TestSessionGrammar(t *testing.T) {
 		{"SET application_name TO DEFAULT", &Set{Name: Identifier{Text: "application_name", Pos: Position{Offset: 4, Character: 5}}, Default: true, Pos: Position{Character: 1}}},
 		{"SET application_name TO 'DEFAULT'", &Set{Name: Identifier{Text: "application_name", Pos: Position{Offset: 4, Character: 5}}, Values: []string{"DEFAULT"}, Pos: Position{Character: 1}}},
 		{"SHOW application_name", &Show{Name: Identifier{Text: "application_name", Pos: Position{Offset: 5, Character: 6}}, Pos: Position{Character: 1}}},
+		{`SET application_name TO E'a\nb'`, &Set{Name: Identifier{Text: "application_name", Pos: Position{Offset: 4, Character: 5}}, Values: []string{"a\nb"}, Pos: Position{Character: 1}}},
 	} {
 		stmts, err := Parse(tc.query)
 		if err != nil || len(stmts) != 1 || !reflect.DeepEqual(stmts[0], tc.want) {
@@ -33,7 +34,7 @@ func TestSessionGrammar(t *testing.T) {
 			t.Fatalf("%q: %#v (%v)", tc.query, diagnostic, err)
 		}
 	}
-	for _, q := range []string{"SET LOCAL application_name TO x", "SET application_name TO 1.5", "SET application_name TO 1e2", "SET application_name TO E'x'", "SET custom.name TO x", "SHOW ALL", "RESET application_name", "SHOW application_name ignored", "SET application_name TO x; nonsense"} {
+	for _, q := range []string{"SET LOCAL application_name TO x", "SET application_name TO 1.5", "SET application_name TO 1e2", "SET custom.name TO x", "SHOW ALL", "RESET application_name", "SHOW application_name ignored", "SET application_name TO x; nonsense"} {
 		if _, err := Parse(q); err == nil {
 			t.Fatalf("accepted unsupported %q", q)
 		}

@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine"
 	"testing"
+	"time"
 )
 
 func sessionPool(t *testing.T, d *Driver, dsn string) *sql.DB {
@@ -201,6 +202,149 @@ func TestSessionPhysicalIsolationReuseAndReplacement(t *testing.T) {
 		t.Fatal(v, err)
 	}
 }
+
+// Cancel at Reuse's Err check, after ResetSession's initial check succeeds.
+// The error comes from a real cancellable context, not a fabricated return.
+type sessionResetCancelContext struct {
+	context.Context
+	cancel context.CancelFunc
+	checks int
+}
+
+func (c *sessionResetCancelContext) Err() error {
+	c.checks++
+	if c.checks == 2 {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestSessionResetCancellationBetweenChecks(t *testing.T) {
+	connector, err := NewDriver().OpenConnector("reset-cancellation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := connector.Connect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := raw.(*conn)
+	defer c.Close()
+	if _, err = c.ExecContext(context.Background(), "SET application_name TO retained", nil); err != nil {
+		t.Fatal(err)
+	}
+	peerRaw, err := connector.Connect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	peer := peerRaw.(*conn)
+	defer peer.Close()
+	peerToken := peer.session.Token()
+	if peerToken == c.session.Token() || peer.session.Engine() != c.session.Engine() {
+		t.Fatal("expected independent sessions on shared engine")
+	}
+	if _, err = peer.ExecContext(context.Background(), "SET application_name TO peer", nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range []string{"CREATE TABLE sentinel(v INT)", "INSERT INTO sentinel VALUES(7)"} {
+		if _, err = c.ExecContext(context.Background(), query, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	token := c.session.Token()
+	base, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ctx := &sessionResetCancelContext{Context: base, cancel: cancel}
+	if err = c.ResetSession(ctx); err != context.Canceled {
+		t.Fatalf("reset cancellation: %v", err)
+	}
+	if ctx.checks != 2 || base.Err() != context.Canceled {
+		t.Fatalf("cancellation boundary: checks=%d err=%v", ctx.checks, base.Err())
+	}
+	if c.session.Token() != token || !c.IsValid() || !c.session.IsLive() {
+		t.Fatal("reset cancellation changed physical identity or health")
+	}
+	if err = c.ResetSession(context.Background()); err != nil {
+		t.Fatal("subsequent reuse", err)
+	}
+	if err = c.Ping(context.Background()); err != nil {
+		t.Fatal("subsequent ping", err)
+	}
+	for _, tc := range []struct {
+		conn  *conn
+		query string
+		want  driver.Value
+	}{
+		{c, "SHOW application_name", "retained"},
+		{peer, "SHOW application_name", "peer"},
+		{c, "SELECT v FROM sentinel", int64(7)},
+		{peer, "SELECT v FROM sentinel", int64(7)},
+	} {
+		rows, err := tc.conn.QueryContext(context.Background(), tc.query, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		values := make([]driver.Value, 1)
+		err = rows.Next(values)
+		closeErr := rows.Close()
+		if err != nil || closeErr != nil || values[0] != tc.want {
+			t.Fatalf("%q retained value: %v next=%v close=%v", tc.query, values, err, closeErr)
+		}
+	}
+	if peer.session.Token() != peerToken || !peer.IsValid() {
+		t.Fatal("reset cancellation changed peer identity or health")
+	}
+}
+
+func TestSessionResetExpiredDeadline(t *testing.T) {
+	connector, err := NewDriver().OpenConnector("reset-deadline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := connector.Connect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := raw.(*conn)
+	defer c.Close()
+	if _, err = c.ExecContext(context.Background(), "SET application_name TO retained", nil); err != nil {
+		t.Fatal(err)
+	}
+	token := c.session.Token()
+	// A deadline in the past expires synchronously without sleeping or faking Err.
+	expired, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
+	defer cancel()
+	if expired.Err() != context.DeadlineExceeded {
+		t.Fatal("deadline context did not expire", expired.Err())
+	}
+	err = c.ResetSession(expired)
+	if err != context.DeadlineExceeded || errors.Is(err, driver.ErrBadConn) {
+		t.Fatalf("reset deadline classification: %v", err)
+	}
+	var diagnostic interface{ SQLState() string }
+	if errors.As(err, &diagnostic) {
+		t.Fatalf("deadline fabricated SQLSTATE: %v", err)
+	}
+	if c.session.Token() != token || !c.session.IsLive() || !c.IsValid() {
+		t.Fatal("reset deadline changed physical identity or health")
+	}
+	if err = c.ResetSession(context.Background()); err != nil {
+		t.Fatal("subsequent reset", err)
+	}
+	if err = c.Ping(context.Background()); err != nil {
+		t.Fatal("subsequent ping", err)
+	}
+	rows, err := c.QueryContext(context.Background(), "SHOW application_name", nil)
+	if err != nil {
+		t.Fatal("subsequent show", err)
+	}
+	defer rows.Close()
+	values := make([]driver.Value, 1)
+	if err = rows.Next(values); err != nil || values[0] != "retained" {
+		t.Fatalf("deadline retained setting: %v %v", values, err)
+	}
+}
+
 func TestSessionAdapterCancellationCleanupAndExhaustion(t *testing.T) {
 	ctx, cancelDial := context.WithCancel(context.Background())
 	d := NewDriver()
@@ -284,6 +428,10 @@ func TestSessionDiagnosticsAndPreparedLiveValue(t *testing.T) {
 		}{
 			{"SET absent_setting TO x", "42704", `unrecognized configuration parameter "absent_setting"`, "", false},
 			{"SHOW absent_setting", "42704", `unrecognized configuration parameter "absent_setting"`, "", true},
+			{`SET "a""b" TO x`, "42704", `unrecognized configuration parameter "a"b"`, "", false},
+			{`SHOW "a""b"`, "42704", `unrecognized configuration parameter "a"b"`, "", true},
+			{`SET "a\b" TO x`, "42704", `unrecognized configuration parameter "a\b"`, "", false},
+			{`SHOW "a\b"`, "42704", `unrecognized configuration parameter "a\b"`, "", true},
 			{"SET application_name TO 'a','b'", "22023", "SET application_name takes only one argument", "", false},
 			{"SET absent_setting TO 'a','b'", "22023", "SET absent_setting takes only one argument", "", false},
 			{`SET "APPLICATION_NAME" TO 'a','b'`, "22023", "SET APPLICATION_NAME takes only one argument", "", false},
