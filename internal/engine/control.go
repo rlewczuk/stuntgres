@@ -19,6 +19,39 @@ func (e *Engine) Reset(ctx context.Context) error {
 	return err
 }
 func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, `""`) + `"` }
+
+// Namespace ACL entry order and split entries do not affect reproducibility.
+// Principal/grantor references do: losing them would change DROP dependencies.
+func bootstrapNamespaceDumpable(d *namespaceDescriptor, bootstrap PrincipalRef) bool {
+	if d.owner != bootstrap || !d.acl.Explicit {
+		return false
+	}
+	publicRights := UsagePrivilege
+	if d.address.ObjectID == PublicNamespaceOID {
+		publicRights |= CreatePrivilege
+	}
+	var publicUse, publicOptions, ownerUse, ownerOptions Privileges
+	for _, entry := range d.acl.Entries {
+		if entry.Grantor != bootstrap {
+			return false
+		}
+		if entry.Grantee.Public {
+			if entry.Grantee.Role != (PrincipalRef{}) {
+				return false
+			}
+			publicUse |= entry.Privileges
+			publicOptions |= entry.GrantOptions
+		} else {
+			if entry.Grantee.Role != bootstrap {
+				return false
+			}
+			ownerUse |= entry.Privileges
+			ownerOptions |= entry.GrantOptions
+		}
+	}
+	return publicUse == publicRights && publicOptions == 0 &&
+		ownerUse == UsagePrivilege|CreatePrivilege && ownerOptions == UsagePrivilege|CreatePrivilege
+}
 func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if dst == nil {
 		return fmt.Errorf("stuntgres: nil dump writer")
@@ -32,16 +65,24 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		return err
 	}
 	type dumpRelation struct {
-		schema, name string
-		columns      []ColumnDescriptor
-		versions     []rowVersion
+		owner, schema, name string
+		columns             []ColumnDescriptor
+		versions            []rowVersion
 	}
 	tables := make([]dumpRelation, 0)
 	for a, d := range e.state.descriptors {
 		r, ok := d.(*relationDescriptor)
 		if !ok {
-			_, builtinType := d.(*typeDescriptor)
-			if d.Kind() == NamespaceObject || builtinType {
+			if _, builtinType := d.(*typeDescriptor); builtinType {
+				continue
+			}
+			if d.Kind() == NamespaceObject {
+				ns, valid := d.(*namespaceDescriptor)
+				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID) &&
+					!bootstrapNamespaceDumpable(ns, e.roles.names["postgres"]) {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace owner or ACL")
+				}
 				continue
 			}
 			e.mu.Unlock()
@@ -52,15 +93,27 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation namespace is missing")
 		}
+		if r.acl.Explicit || len(r.columnACL) != 0 {
+			e.mu.Unlock()
+			return fmt.Errorf("stuntgres: dump cannot serialize explicit relation or column ACL")
+		}
+		principal, err := (RoleRead{e, e.roles}).Descriptor(r.owner)
+		if err != nil {
+			e.mu.Unlock()
+			return err
+		}
 		storage := e.storage[a]
 		if storage == nil {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{ns.name, r.name, r.columns, storage.versions})
+		tables = append(tables, dumpRelation{principal.Name, ns.name, r.name, r.columns, storage.versions})
 	}
 	e.mu.Unlock()
 	sort.Slice(tables, func(i, j int) bool {
+		if tables[i].owner != tables[j].owner {
+			return tables[i].owner < tables[j].owner
+		}
 		if tables[i].schema != tables[j].schema {
 			return tables[i].schema < tables[j].schema
 		}
@@ -79,7 +132,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		return ctx.Err()
 	}
+	currentOwner := "postgres"
 	for _, t := range tables {
+		if t.owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
+				return err
+			}
+			currentOwner = t.owner
+		}
 		qualified := quoteIdentifier(t.schema) + "." + quoteIdentifier(t.name)
 		var line strings.Builder
 		line.WriteString("CREATE TABLE " + qualified + " (")
@@ -141,6 +201,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	stage := e.restoreStage()
 	data, err := io.ReadAll(contextReader{ctx, src})
 	if err != nil {
 		return err
@@ -152,7 +213,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err != nil {
 		return err
 	}
-	stage := New()
+	// The isolated role snapshot retains exact target identities for final remapping.
 	session, err := stage.StartSession(ctx, SessionStart{ID: 1})
 	if err != nil {
 		return err
@@ -166,6 +227,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
 		case *parser.CreateTable:
+		case *parser.SessionAuthorization:
+			if !s.OwnerDirective {
+				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives")
+			}
 		case *parser.Insert:
 			for _, row := range s.Rows {
 				for _, v := range row {
@@ -175,7 +240,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE and INSERT")
+			return sqlError("0A000", "restore accepts only CREATE, INSERT and SET SESSION AUTHORIZATION")
 		}
 		_, err = stage.Execute(op, stmt, 0, nil)
 		op.DetachNotices()

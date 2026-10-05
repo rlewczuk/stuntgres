@@ -103,7 +103,7 @@ func testExport(v sqltype.Value) driver.Value {
 			panic(err)
 		}
 		return n
-	case sqltype.Text:
+	case sqltype.Text, sqltype.Name:
 		s, err := v.Text()
 		if err != nil {
 			panic(err)
@@ -440,8 +440,8 @@ func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
 	run(t, e, "CREATE TABLE public.t (id INTEGER)")
 	view := e.CatalogRead()
 	e.mu.Lock()
-	qualified, err := e.resolveReference(view, parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}})
-	unqualified, err2 := e.resolveReference(view, parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}})
+	qualified, err := e.resolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}})
+	unqualified, err2 := e.resolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}})
 	e.mu.Unlock()
 	if err != nil || err2 != nil || qualified != unqualified || qualified.Address.ObjectID == 0 {
 		t.Fatalf("qualified=%#v unqualified=%#v errors=%v,%v", qualified, unqualified, err, err2)

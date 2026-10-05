@@ -56,13 +56,13 @@ SET reuses the existing literal decoding rules below: for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-This is not full PostgreSQL setting syntax: LOCAL, RESET, SHOW ALL, other
+This is not full PostgreSQL setting syntax: LOCAL, general RESET, SHOW ALL, other
 built-ins besides client_min_messages, dotted custom GUCs and floating/exponent numbers remain
 unsupported. NULL, parameters and unquoted reserved TO are syntax errors;
 quoted "to" remains an identifier. Comma lists fail 22023 before setting lookup,
 with the supplied name retained in the diagnostic. Unknown undotted scalar
 names fail 42704; messages interpolate decoded names between literal double
-quotes without Go string escaping. No logical database/admission/role,
+quotes without Go string escaping. No logical database/admission,
 named SQL prepared resources, cursors, temporary objects or advisory locks are
 implied. Native Reset/Restore preserve session settings;
 Dump excludes them. Anonymous retained SHOW/SELECT results outlive session end.
@@ -90,6 +90,12 @@ CREATE TABLE IF NOT EXISTS emits NOTICE/42P07 when the exact creation destinatio
 already exists, leaving its definition and data unchanged. Fresh creation is real
 and silent. Semantic column validation occurs at execution, after the existing
 relation check; malformed/unsupported syntax still fails during parsing.
+Current schema CREATE authorization is checked before either creation or an
+existing-relation skip, including a skip after a competing publication. A skip
+does not require ownership or ordinary table privileges and never changes the
+existing owner. Denied CREATE emits no skip notice. Session-authorization
+switching and reset preserve `client_min_messages`; notice-handler connector
+copies preserve the asserted authenticated role.
 Cancellation detected before a same-name publication-conflict decision remains
 an ordinary context error, not duplicate-table failure or successful skipping;
 the winning table remains intact and the canceled loser emits no notice.
@@ -141,6 +147,9 @@ baseline INSERT and SELECT path, including prepared execution. Default isolation
 and explicit `sql.LevelReadCommitted` are supported, read-write only. CREATE
 tables **before** BeginTx; SQL BEGIN/COMMIT/ROLLBACK, savepoints, transactional
 DDL/settings, stronger isolation and future DML remain unsupported.
+Role creation/removal and SET/RESET SESSION AUTHORIZATION are likewise rejected
+with `0A000` inside an explicit transaction; this is a native capability limit,
+not PostgreSQL parity. Read-only identity SELECT remains supported there.
 
 An explicit transaction sees its successful earlier writes; other physical
 sessions see only committed data. Each SELECT execution captures a fresh
@@ -255,6 +264,116 @@ identify **18.6**, and local **20devel** sources are research only. See
 [READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED)
 and [transactions](https://www.postgresql.org/docs/18/tutorial-transactions.html).
 
+## Roles and authorization
+
+Each engine starts with the trusted native `postgres` principal (LOGIN,
+superuser). `OpenConnector` uses it. Role identities are opaque, engine-owned
+and never reused after DROP, Reset or Restore. PUBLIC is an ACL grantee meaning
+all existing and future principals, not a role or membership endpoint.
+
+```text
+CREATE {ROLE | USER | GROUP} name [WITH] [LOGIN | NOLOGIN]
+DROP {ROLE | USER | GROUP} name [, ...]
+SET [SESSION] AUTHORIZATION {name | 'exact role name' | DEFAULT}
+RESET SESSION AUTHORIZATION
+SELECT {session_user | current_user} [, ...]
+```
+
+ROLE/GROUP default NOLOGIN; USER defaults LOGIN. Duplicate options fail `42601`
+at execution, duplicate names `42710`, missing DROP targets `42704`. DROP is
+statement-atomic across its list, rejects owner/ACL/persistent dependencies
+(`2BP01`), and removes membership endpoints through the internal authority.
+SQL role membership, SET ROLE, ALTER ROLE/GROUP, passwords, special role
+attributes and GRANT/REVOKE are not implemented; recognized adjacent syntax
+fails `0A000`, never successful no-ops. Role administration requires the
+effective superuser in this bounded foundation.
+
+SET/RESET change session_user and current_user together. Only the **originally
+authenticated** superuser may select another principal (including NOLOGIN);
+an ordinary authenticated role may select itself or reset/default only.
+Failed switches preserve both identities and application_name. Identity
+projections have NAME metadata, exact lowercase labels and one string row;
+prepared projections read execution-time identity. NAME is not a supported
+table column/storage type. Exec of identity SELECT reports one selected row;
+role and authorization commands affect zero rows.
+
+```go
+d := stuntgres.NewDriver()
+// First create LOGIN roles on the same exact opaque DSN using an admin pool.
+connector, err := d.OpenConnectorAs("my fixture", "application_owner")
+if err != nil { /* handle host assertion error */ }
+ownerPool := sql.OpenDB(connector)
+defer ownerPool.Close()
+```
+
+`OpenConnectorAs` is a **trusted host identity assertion, not password
+authentication**. It does not parse credentials or change DSN naming. The role
+argument is an exact decoded stored name (no SQL folding or truncation).
+Every physical Connect resolves and LOGIN-validates the requested role;
+empty/missing/NOLOGIN assertions return ordinary Go adapter errors, not
+network SQLSTATE. Healthy borrower reuse retains selected identity/settings;
+physical replacement starts with the connector's requested authenticator and
+fresh settings. Use held `*sql.Conn` handles for principal-specific operations.
+Two connectors with the same Driver/exact DSN share data, never session state.
+
+New tables belong to current_user and have owner use rights, with no PUBLIC
+table privileges. Central checks cover schema CREATE/USAGE, all actually used
+SELECT projection/predicate/order columns and assigned INSERT columns.
+Schema USAGE is checked during relation lookup, including preparation: qualified
+references to an inaccessible schema fail with `42501` / `permission denied for
+schema public` before column/input binding. Unqualified lookup omits inaccessible
+public, so an otherwise unresolved name fails with `42P01`; implicit pg_catalog
+lookup is preserved. Ordinary table/column ACLs remain execution-time checks:
+SELECT/INSERT preparation does not cache permission, and execution reevaluates
+the current principal, returning `42501` / `permission denied for table secret`
+without synthetic diagnostic object fields. Explicit internal empty ACLs remove
+ordinary owner use rights, not owner authority or implicit grant options.
+Shared ACL validation rejects grant options for PUBLIC at mutation, staging and
+import boundaries. SQL ACL mutation is not exposed.
+After successful namespace lookup, parse/binding literal type input and typed
+parameter input precede executor table permission checks, as at PostgreSQL's
+Parse/Bind boundaries.
+Immutable integer assignment casts fold during execution planning, after successful preparation
+but before executor permission checks: out-of-range INT4 constants yield
+`22003` (`integer out of range`), and invalid typed input can yield `22P02`
+before permission denial. Valid nonowner input is denied `42501` without
+mutation; executor checks precede protected row reads and runtime constraints.
+
+DROP dependency DETAIL preserves object and column identities, PostgreSQL
+relation-name quoting, raw decoded column names and object-identity order
+(not alphabetical description order). Failed batches preserve all roles and
+membership endpoints, including when a later target has an object dependency.
+Retained identity Rows keep their
+original NAME metadata and values across session switches and native Reset/Restore,
+while new execution observes the current session identity.
+NAME identity results use the same catalog-owned typed values and retained
+snapshots as ordinary rows (builtin OID 19); NAME table columns remain unsupported.
+
+**Bootstrap divergence from fresh PostgreSQL 18:** native public has an
+explicit host-convenience PUBLIC USAGE|CREATE ACL; pg_catalog has PUBLIC USAGE
+only. This is not PostgreSQL's fresh public CREATE default and not a generic
+default-allow. The reference harness recreates public, so ordinary-owner
+fixtures explicitly run `GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC` on
+the privileged PostgreSQL setup connection only.
+
+`go run ./cmd/role-smoke` checks direct/prepared aliases and diagnostics, NAME
+metadata, held prepared statements across switches, owner/nonowner isolation,
+genuinely distinct trusted authenticators, reuse/replacement, dependency
+failures and owner-preserving native controls before printing exactly:
+
+```text
+role creation: defaults aliases diagnostics ok
+role identity: NAME direct prepared isolated
+role authorization: owner=7 reader=42501
+trusted authentication: distinct principals preserved
+role controls: owners restored legacy accepted atomic failures
+role removal: dependencies rejected cleanup succeeded
+```
+
+Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
+`go test -run '^TestRoleSmoke$' ./cmd/role-smoke`, and the genuine pinned suite
+`go test -tags reference -run '^TestReferenceRole' -count=1 -v .`.
+
 ## Supported SQL
 
 ```text
@@ -357,7 +476,7 @@ Preparation checks assignment compatibility; typed integer literals assigned to 
 
 That feature smoke exercises both direct execution and an actual prepared short INSERT, checks declaration-order metadata and statement atomicity, and retains a cursor across Reset/Restore. It also checks deterministic full-row Dump/Restore, successful hand-authored short-row Restore, and catalog preservation when a staged short INSERT omits a NOT NULL tail. Its single success line is printed only after those public API assertions pass.
 
-No configurable `search_path`, `CREATE SCHEMA`, schema-qualified creation outside `public`, three-part/database qualification, aliases, joins, expressions, functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction controls/savepoints, transactional DDL/settings, stronger isolation, ACLs, or SQL catalog projections are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+No configurable `search_path`, `CREATE SCHEMA`, schema-qualified creation outside `public`, three-part/database qualification, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction controls/savepoints, transactional DDL/settings/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 
@@ -396,9 +515,13 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error
 ```
 
-Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog` and `public` namespace descriptors while retaining database identity and existing pools. Dump writes deterministic, schema-then-relation-sorted PostgreSQL-compatible plain CREATE/INSERT SQL, with separately quoted schema/relation components, declaration-ordered columns and canonical literals. It is not complete `pg_dump` output, COPY, or catalog export.
+Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. They are **host-authorized**, independently of a borrowed connection's effective principal. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog` and `public` namespace descriptors while retaining database identity, cluster roles, nonreuse counters, live identities/settings and existing pools. Dump captures before external I/O, groups deterministically by owner name then schema/relation, and writes quoted owner-switch directives plus PostgreSQL-compatible CREATE/INSERT SQL, declaration-ordered columns and canonical literals. Bootstrap-only dumps retain legacy CREATE/INSERT bytes without a redundant switch. Explicit relation/column ACLs cannot be serialized and cause a failure before output, rather than silent loss. Dump excludes role creation, passwords, membership and settings; it is not complete `pg_dump` output, COPY, or catalog export.
 
-Restore accepts supported CREATE/INSERT scripts without parameters, builds a staging engine, then atomically **replaces** the descriptors, identity-keyed row storage and epoch, never merges. Empty input clears user relations. Read, parse, execution and cancellation errors leave original data untouched. Reset/Restore publication supersedes earlier completed writes. Existing SELECT snapshots remain valid across inserts and catalog replacement. Writer errors do not change the database.
+Because Restore reproduces native builtin namespaces rather than serializing
+schema ownership or GRANT, Dump also rejects non-reproducible builtin namespace
+owner/ACL state before output. Comparison is semantic, not ACL entry order.
+
+Restore accepts supported CREATE/INSERT scripts without parameters and bounded SET SESSION AUTHORIZATION owner directives; legacy CREATE/INSERT-only scripts are bootstrap-owned. Referenced roles must already exist in the target engine. Restore captures a private role snapshot before input I/O, executes through the same SQL engine, remaps owners into the target principal authority, then atomically **replaces** descriptors, identity-keyed row storage and epoch, never merges or resets roles/live sessions. Missing owners (`22023`), dropped/recreated owners, read/parse/execution/cancellation errors leave original data untouched. Empty input clears user relations. Reset/Restore publication supersedes earlier completed writes; no target locks span external I/O. Existing SELECT and identity snapshots remain valid across inserts and catalog replacement. Writer errors do not change the database.
 
 `go run ./cmd/smoke` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation before printing the documented four lines.
 

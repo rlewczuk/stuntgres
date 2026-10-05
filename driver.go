@@ -34,6 +34,15 @@ func (d *Driver) Open(name string) (driver.Conn, error) {
 	return c.Connect(context.Background())
 }
 func (d *Driver) OpenConnector(name string) (driver.Connector, error) {
+	return d.OpenConnectorAs(name, "postgres")
+}
+
+// OpenConnectorAs asserts a trusted host-authenticated role, not a password.
+// The exact stored role name is revalidated on every physical connection.
+func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connector, error) {
+	if authenticatedRole == "" {
+		return nil, errors.New("stuntgres: empty authenticated role")
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.engines == nil {
@@ -44,14 +53,15 @@ func (d *Driver) OpenConnector(name string) (driver.Connector, error) {
 		e = engine.New()
 		d.engines[name] = e
 	}
-	return &Connector{owner: d, engine: e}, nil
+	return &Connector{owner: d, engine: e, authenticatedRole: authenticatedRole}, nil
 }
 
 // Connector configures new physical connections without changing existing ones.
 type Connector struct {
-	owner         *Driver
-	engine        *engine.Engine
-	noticeHandler func(Error)
+	owner             *Driver
+	engine            *engine.Engine
+	noticeHandler     func(Error)
+	authenticatedRole string
 }
 
 // WithNoticeHandler returns an independent configuration. Nil disables delivery.
@@ -75,7 +85,11 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	c.owner.lastSession++
 	id := c.owner.lastSession
 	c.owner.mu.Unlock()
-	session, err := c.engine.StartSession(ctx, engine.SessionStart{ID: id})
+	principal, err := c.engine.ResolveLogin(c.authenticatedRole)
+	if err != nil {
+		return nil, err
+	}
+	session, err := c.engine.StartSession(ctx, engine.SessionStart{ID: id, Authenticated: principal})
 	if err != nil {
 		return nil, err
 	}

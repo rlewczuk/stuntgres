@@ -171,6 +171,9 @@ var unsupportedCommands = wordSet("begin start commit rollback savepoint release
 var unsupportedCreateObjects = wordSet("temporary temp unlogged view index schema database sequence function procedure trigger")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning limit offset fetch group having window for using primary unique check references default constraint collate and or is in between like ilike similar")
 
+// LOGIN attributes are contextual role-option words, not PostgreSQL keywords.
+var unsupportedRoleOptions = wordSet("superuser nosuperuser createrole nocreaterole createdb nocreatedb inherit noinherit replication noreplication bypassrls nobypassrls password connection valid admin in role user group granted by")
+
 func (l *lexer) capability(tok lexeme, words map[string]bool, message string) {
 	if tok.keyword != nil && words[tok.text] {
 		l.failAt("0A000", message, tok.pos.Offset)

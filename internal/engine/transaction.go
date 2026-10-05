@@ -92,10 +92,10 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState) 
 		return errors.New("stuntgres: transaction identity exhausted")
 	}
 	session := op.session
-	session.mu.Lock()
-	defer session.mu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	session.mu.Lock()
+	defer session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return err
 	}
@@ -268,7 +268,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	}
 	if t.state == TxActive {
 		switch stmt.(type) {
-		case *parser.CreateTable, *parser.Set, *parser.Show:
+		case *parser.CreateTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Show:
 			return sqlError("0A000", "statement is unsupported in an explicit transaction")
 		}
 	}
@@ -375,8 +375,8 @@ func (s *StatementScope) Finish(err error) error {
 			}
 		} else {
 			session := s.op.session
-			session.mu.Lock()
 			e.mu.Lock()
+			session.mu.Lock()
 			err = publicationOperationLocked(e, s.op)
 			if err == nil && t.ref.epoch != e.state.epoch {
 				err = ErrCatalogReplaced
@@ -393,8 +393,8 @@ func (s *StatementScope) Finish(err error) error {
 					}
 				}
 			}
-			e.mu.Unlock()
 			session.mu.Unlock()
+			e.mu.Unlock()
 		}
 		if err == nil {
 			t.command++
@@ -534,10 +534,10 @@ func (v *VisibilityView) Catalog() CatalogRead { return v.read().catalog }
 func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion) error {
 	if len(writes) == 0 {
 		session := op.session
-		session.mu.Lock()
-		defer session.mu.Unlock()
 		e.mu.Lock()
 		defer e.mu.Unlock()
+		session.mu.Lock()
+		defer session.mu.Unlock()
 		if err := publicationOperationLocked(e, op); err != nil {
 			return err
 		}
@@ -585,8 +585,8 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			next[a] = dst
 		}
 		session := op.session
-		session.mu.Lock()
 		e.mu.Lock()
+		session.mu.Lock()
 		err := publicationOperationLocked(e, op)
 		if err == nil && ref.epoch != e.state.epoch {
 			err = ErrCatalogReplaced
@@ -595,8 +595,8 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
 		if err != nil {
-			e.mu.Unlock()
 			session.mu.Unlock()
+			e.mu.Unlock()
 			return err
 		}
 		changed := false
@@ -606,8 +606,8 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			}
 		}
 		if changed {
-			e.mu.Unlock()
 			session.mu.Unlock()
+			e.mu.Unlock()
 			continue
 		}
 		// All fallible work and allocations are complete. One critical section
@@ -620,8 +620,8 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			stores[a].versions = rows
 		}
 		e.commitSeq++
-		e.mu.Unlock()
 		session.mu.Unlock()
+		e.mu.Unlock()
 		return nil
 	}
 }

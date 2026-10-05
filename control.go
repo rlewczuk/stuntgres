@@ -56,7 +56,9 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Dump(ctx, dst) })
 }
 
-// Restore replaces the database only after an entire CREATE/INSERT script succeeds.
+// Restore atomically replaces the database after the entire bounded CREATE/INSERT
+// script, including named SET SESSION AUTHORIZATION owner directives, succeeds.
+// Roles named by owner directives must already exist in the target engine.
 // Arbitrarily blocking readers cannot be interrupted by context cancellation.
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {

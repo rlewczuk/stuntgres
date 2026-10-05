@@ -52,8 +52,9 @@ type SessionResource interface {
 	EndSession(SessionToken, EndReason) error
 }
 type SessionStart struct {
-	ID       SessionID
-	Defaults SessionDefaultProvider
+	ID            SessionID
+	Defaults      SessionDefaultProvider
+	Authenticated PrincipalRef
 }
 type sessionState uint8
 
@@ -85,6 +86,7 @@ type Session struct {
 	result        error
 	settings      *sessionSettings
 	transactions  *transactionOwner
+	authorization *sessionAuthorization
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -106,9 +108,27 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 	if start.ID == 0 {
 		return nil, errors.New("stuntgres: zero session identity")
 	}
+	e.mu.Lock()
+	authenticated := start.Authenticated
+	if authenticated == (PrincipalRef{}) {
+		authenticated = e.roles.names["postgres"]
+	}
+	role, authErr := (RoleRead{e, e.roles}).Descriptor(authenticated)
+	e.mu.Unlock()
+	if authErr != nil {
+		return nil, authErr
+	}
+	if !role.Login {
+		return nil, fmt.Errorf("stuntgres: role %q is not permitted to log in", role.Name)
+	}
 	s := &Session{token: SessionToken{e, start.ID}, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
 	s.cond = sync.NewCond(&s.mu)
 	op := s.operation(ctx, true)
+	auth := &sessionAuthorization{session: s, state: RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, revision: 1}
+	_, authErr = op.Attach(Authorization, auth)
+	if authErr == nil {
+		s.authorization = auth
+	}
 	owner := &sessionSettings{values: make(map[string]string), defaults: make(map[string]string)}
 	_, err := op.Attach(Settings, owner)
 	if err == nil {
@@ -116,10 +136,20 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 		err = owner.initialize(op.Context(), e.settingDefinitions(), start.Defaults)
 	}
 	if err == nil {
+		err = authErr
+	}
+	if err == nil {
 		transactions := &transactionOwner{session: s}
 		_, err = op.Attach(Transaction, transactions)
 		if err == nil {
 			s.transactions = transactions
+		}
+	}
+	e.mu.Lock()
+	if err == nil {
+		role, err = (RoleRead{e, e.roles}).Descriptor(authenticated)
+		if err == nil && !role.Login {
+			err = fmt.Errorf("stuntgres: role %q is not permitted to log in", role.Name)
 		}
 	}
 	s.mu.Lock()
@@ -143,6 +173,7 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 		e.sessionMu.Unlock()
 	}
 	s.mu.Unlock()
+	e.mu.Unlock()
 	if err != nil {
 		s.RequestEnd(InitFailure)
 	}

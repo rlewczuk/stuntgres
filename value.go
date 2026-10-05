@@ -16,10 +16,16 @@ import (
 func normalizeArguments(args []driver.NamedValue) ([]driver.Value, error) {
 	values := make([]driver.Value, len(args))
 	for i, a := range args {
-		if a.Name != "" { return nil, fmt.Errorf("stuntgres: named parameters are not supported") }
-		if a.Ordinal != i+1 { return nil, fmt.Errorf("stuntgres: parameter ordinal %d, want %d", a.Ordinal, i+1) }
+		if a.Name != "" {
+			return nil, fmt.Errorf("stuntgres: named parameters are not supported")
+		}
+		if a.Ordinal != i+1 {
+			return nil, fmt.Errorf("stuntgres: parameter ordinal %d, want %d", a.Ordinal, i+1)
+		}
 		v, err := driver.DefaultParameterConverter.ConvertValue(a.Value)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		switch v := v.(type) {
 		case nil, int64, string, bool:
 			values[i] = v
@@ -33,11 +39,16 @@ func normalizeArguments(args []driver.NamedValue) ([]driver.Value, error) {
 }
 
 func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage) (sqltype.Value, error) {
-	if err := ctx.Err(); err != nil { return sqltype.Value{}, err }
-	if raw == nil { return sqltype.Null(target.Type), ctx.Err() }
+	if err := ctx.Err(); err != nil {
+		return sqltype.Value{}, err
+	}
+	if raw == nil {
+		return sqltype.Null(target.Type), ctx.Err()
+	}
 	var text string
 	switch v := raw.(type) {
-	case string: text = v
+	case string:
+		text = v
 	case int64:
 		if target.Type.ID() == sqltype.Int8 || (target.Type.ID() == sqltype.Int4 && v >= -2147483648 && v <= 2147483647) {
 			return sqltype.Integer(target.Type, v)
@@ -45,7 +56,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		// Overflow retains the parameter input diagnostic, not assignment narrowing.
 		text = strconv.FormatInt(v, 10)
 	case bool:
-		if target.Type.ID() == sqltype.Bool { return sqltype.Boolean(target.Type, v), nil }
+		if target.Type.ID() == sqltype.Bool {
+			return sqltype.Boolean(target.Type, v), nil
+		}
 		text = strconv.FormatBool(v)
 	default:
 		return sqltype.Value{}, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported parameter value"}
@@ -59,7 +72,9 @@ func frameImporter(values []driver.Value) engine.FrameImporter {
 	return func(ctx context.Context, parameters engine.ParameterInfo, dst []sqltype.Value) error {
 		for i, raw := range values {
 			value, err := importParameter(ctx, raw, parameters.Types[i])
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			dst[i] = value
 		}
 		return nil
@@ -67,22 +82,34 @@ func frameImporter(values []driver.Value) engine.FrameImporter {
 }
 
 func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
-	if err := ctx.Err(); err != nil { return nil, err }
-	if !v.Type().Concrete() { return nil, fmt.Errorf("stuntgres: invalid result type") }
-	if v.IsNull() { return nil, nil }
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if !v.Type().Concrete() {
+		return nil, fmt.Errorf("stuntgres: invalid result type")
+	}
+	if v.IsNull() {
+		return nil, nil
+	}
 	switch v.Type().ID() {
-	case sqltype.Int4, sqltype.Int8: return v.Integer()
-	case sqltype.Text: return v.Text()
-	case sqltype.Bool: return v.Boolean()
+	case sqltype.Int4, sqltype.Int8:
+		return v.Integer()
+	case sqltype.Text, sqltype.Name:
+		return v.Text()
+	case sqltype.Bool:
+		return v.Boolean()
 	}
 	return nil, fmt.Errorf("stuntgres: unsupported result type")
 }
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
 	switch d.ID() {
-	case sqltype.Int4, sqltype.Int8: return reflect.TypeFor[int64]()
-	case sqltype.Text: return reflect.TypeFor[string]()
-	case sqltype.Bool: return reflect.TypeFor[bool]()
+	case sqltype.Int4, sqltype.Int8:
+		return reflect.TypeFor[int64]()
+	case sqltype.Text, sqltype.Name:
+		return reflect.TypeFor[string]()
+	case sqltype.Bool:
+		return reflect.TypeFor[bool]()
 	}
 	return nil
 }

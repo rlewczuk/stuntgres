@@ -6,7 +6,7 @@ type Statement interface{ statement() }
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
 	Name string
-	Pos Position
+	Pos  Position
 }
 
 type Position struct{ Offset, Character int }
@@ -58,7 +58,7 @@ func (*Select) statement() {}
 type Predicate struct {
 	Column string
 	Value  Value
-	Pos Position
+	Pos    Position
 }
 type Order struct {
 	Column string
@@ -99,3 +99,45 @@ type Show struct {
 }
 
 func (*Show) statement() {}
+
+type CreateRole struct {
+	Name         Identifier
+	Login        bool
+	OptionCount  int
+	SecondOption Position
+}
+
+func (*CreateRole) statement() {}
+
+type DropRole struct{ Names []string }
+
+func (*DropRole) statement() {}
+
+type SessionAuthorization struct {
+	Name           string
+	Default        bool
+	OwnerDirective bool
+}
+
+func (*SessionAuthorization) statement() {}
+
+type IdentitySelect struct{ Names []string }
+
+func (*IdentitySelect) statement() {}
+
+type roleOptionState struct {
+	count  int
+	login  bool
+	second Position
+}
+
+func (s roleOptionState) add(tok lexeme, login bool) roleOptionState {
+	s.count++
+	if s.count == 1 {
+		s.login = login
+	}
+	if s.count == 2 {
+		s.second = tok.pos
+	}
+	return s
+}

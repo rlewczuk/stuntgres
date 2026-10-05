@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"stuntgres/internal/sqltype"
 )
 
 type OID uint32
@@ -53,6 +54,8 @@ type namespaceDescriptor struct {
 	address  ObjectAddress
 	name     string
 	revision DefinitionRevision
+	owner    PrincipalRef
+	acl      ACLValue
 }
 
 func (d *namespaceDescriptor) Address() ObjectAddress       { return d.address }
@@ -68,6 +71,9 @@ type relationDescriptor struct {
 	columns            []ColumnDescriptor
 	index              map[string]int
 	attributes         []int32
+	owner              PrincipalRef
+	acl                ACLValue
+	columnACL          map[int32]ACLValue
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -153,7 +159,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if r.attributes[i] != int32(i+1) || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
 		}
-		if !c.Usage.Type.Concrete() {
+		if !c.Usage.Type.Concrete() || c.Usage.Type.ID() == sqltype.Name {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
@@ -187,13 +193,16 @@ const (
 )
 
 type CatalogStage struct {
-	owner       *Engine
-	base        CatalogRead
-	descriptors map[ObjectAddress]Descriptor
-	names       map[NameKey]ObjectAddress
-	touched     map[NameKey]bool
-	lifecycle   catalogLifecycle
-	invalid     error
+	owner        *Engine
+	base         CatalogRead
+	descriptors  map[ObjectAddress]Descriptor
+	names        map[NameKey]ObjectAddress
+	touched      map[NameKey]bool
+	lifecycle    catalogLifecycle
+	invalid      error
+	authSession  *Session
+	authRevision uint64
+	roleRevision uint64
 }
 type PreparedCatalogPublication struct {
 	stage *CatalogStage
@@ -270,6 +279,12 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		if err := p.Validate(view, d); err != nil {
 			return nil, err
 		}
+		e.mu.Lock()
+		authErr := validateACL(RoleRead{e, e.roles}, d)
+		e.mu.Unlock()
+		if authErr != nil {
+			return nil, authErr
+		}
 	}
 	s.lifecycle = catalogValidated
 	return &PreparedCatalogPublication{stage: s, epoch: s.base.Epoch(), ctx: ctx}, nil
@@ -328,34 +343,56 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		for k, a := range s.names {
 			next.names[k] = a
 		}
+		e.mu.Lock()
 		if op != nil {
 			op.session.mu.Lock()
 		}
-		e.mu.Lock()
 		if e.state != current {
-			e.mu.Unlock()
 			if op != nil {
 				op.session.mu.Unlock()
 			}
+			e.mu.Unlock()
 			continue
 		}
 		err := p.ctx.Err()
 		if err == nil && op != nil {
 			err = publicationOperationLocked(e, op)
 		}
-		if err != nil {
-			e.mu.Unlock()
-			if op != nil {
-				op.session.mu.Unlock()
+		if err == nil {
+			for _, d := range s.descriptors {
+				if err = validateACL(RoleRead{e, e.roles}, d); err != nil {
+					break
+				}
 			}
-			return ChangeSet{}, err
 		}
-		e.state = next
-		e.storage = storage
-		s.lifecycle = catalogPublished
-		e.mu.Unlock()
+		if err == nil && s.authSession != nil {
+			// SQL stages use the operation's session, already locked above.
+			if op == nil || s.authSession != op.session {
+				s.authSession.mu.Lock()
+			}
+			auth := s.authSession.authorization
+			valid := auth != nil && auth.revision == s.authRevision && e.roles.revision == s.roleRevision
+			if op == nil || s.authSession != op.session {
+				s.authSession.mu.Unlock()
+			}
+			if !valid {
+				err = fmt.Errorf("stuntgres: authorization changed before publication")
+			}
+		}
+		if err == nil {
+			err = p.ctx.Err()
+		}
+		if err == nil {
+			e.state = next
+			e.storage = storage
+			s.lifecycle = catalogPublished
+		}
 		if op != nil {
 			op.session.mu.Unlock()
+		}
+		e.mu.Unlock()
+		if err != nil {
+			return ChangeSet{}, err
 		}
 		return changes, nil
 	}
@@ -399,6 +436,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	if err := ctx.Err(); err != nil {
 		return ChangeSet{}, err
 	}
+	targetRoles := e.Roles()
 	for _, d := range replacement.state.descriptors {
 		p := e.providers[d.Address().ClassID]
 		if p == nil {
@@ -408,9 +446,9 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 			return ChangeSet{}, err
 		}
 	}
-	next := cloneCatalog(replacement.state)
-	relationAddresses := make([]ObjectAddress, 0, len(next.descriptors))
-	for a, d := range next.descriptors {
+	var next *catalogState
+	relationAddresses := make([]ObjectAddress, 0, len(replacement.state.descriptors))
+	for a, d := range replacement.state.descriptors {
 		if _, ok := d.(*relationDescriptor); ok {
 			relationAddresses = append(relationAddresses, a)
 		}
@@ -442,8 +480,14 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		if replacement.Epoch() != e.state.epoch {
 			return ChangeSet{}, ErrCatalogReplaced
 		}
+		next = cloneCatalog(replacement.state)
 		if err := copyRows(e.storage); err != nil {
 			return ChangeSet{}, err
+		}
+		for _, d := range next.descriptors {
+			if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
+				return ChangeSet{}, err
+			}
 		}
 		if e.state.epoch == CatalogEpoch(math.MaxUint64) {
 			return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
@@ -462,6 +506,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		return ChangeSet{}, ErrCatalogReplaced
 	}
 	err := copyRows(replacement.owner.storage)
+	sourceRoles := RoleRead{replacement.owner, replacement.owner.roles}
 	replacement.owner.mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
@@ -485,6 +530,15 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	}
 	if e.commitSeq == CommitSeq(^uint64(0)) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
+	}
+	next, err = e.remapCatalog(replacement.state, sourceRoles, targetRoles, replacement.owner.importTargets)
+	if err != nil {
+		return ChangeSet{}, err
+	}
+	for _, d := range next.descriptors {
+		if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
+			return ChangeSet{}, err
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return ChangeSet{}, err

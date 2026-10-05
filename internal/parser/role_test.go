@@ -1,0 +1,140 @@
+package parser
+
+import (
+	"errors"
+	"reflect"
+	"stuntgres/internal/sqlstate"
+	"testing"
+)
+
+func TestRoleGrammarAndIdentityProjection(t *testing.T) {
+	for _, tc := range []struct {
+		sql, name string
+		login     bool
+	}{
+		{"CREATE ROLE Foo", "foo", false},
+		{"CREATE USER Foo", "foo", true},
+		{"CREATE GROUP Foo", "foo", false},
+		{`CREATE ROLE "A" WITH LOGIN`, "A", true},
+		{"CREATE USER a NOLOGIN", "a", false},
+	} {
+		stmts, err := Parse(tc.sql)
+		if err != nil {
+			t.Fatal(tc.sql, err)
+		}
+		role := stmts[0].(*CreateRole)
+		if role.Name.Text != tc.name || role.Login != tc.login {
+			t.Fatal(role)
+		}
+	}
+	stmts, err := Parse("CREATE ROLE a LOGIN NOLOGIN; DROP USER a,a; SET SESSION AUTHORIZATION 'A'; RESET SESSION AUTHORIZATION; SELECT current_user,session_user,current_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	create := stmts[0].(*CreateRole)
+	if create.OptionCount != 2 || create.SecondOption.Character != 21 {
+		t.Fatal(create)
+	}
+	if !reflect.DeepEqual(stmts[1].(*DropRole).Names, []string{"a", "a"}) {
+		t.Fatal(stmts[1])
+	}
+	if stmts[2].(*SessionAuthorization).Name != "A" || !stmts[3].(*SessionAuthorization).Default {
+		t.Fatal(stmts)
+	}
+	if !reflect.DeepEqual(stmts[4].(*IdentitySelect).Names, []string{"current_user", "session_user", "current_user"}) {
+		t.Fatal(stmts[4])
+	}
+	if _, err := Parse("CREATE TABLE role(login INT,nologin TEXT,reset BOOL)"); err != nil {
+		t.Fatal("nonreserved identifier regression", err)
+	}
+}
+func TestRoleGrammarFailureBoundaries(t *testing.T) {
+	for _, tc := range []struct{ sql, code, message, position string }{
+		{"CREATE ROLE public", "42939", `role name "public" is reserved`, "13"},
+		{`CREATE USER "none"`, "42939", `role name "none" is reserved`, "13"},
+		{"CREATE GROUP none", "42939", `role name "none" is reserved`, "14"},
+		{"CREATE ROLE CURRENT_USER", "42939", "CURRENT_USER cannot be used as a role name here", "13"},
+		{"CREATE USER SESSION_USER", "42939", "SESSION_USER cannot be used as a role name here", "13"},
+		{"CREATE GROUP CURRENT_ROLE", "42939", "CURRENT_ROLE cannot be used as a role name here", "14"},
+		{"CREATE ROLE a WITH SUPERUSER", "0A000", "unsupported role option", "20"},
+		{"CREATE ROLE a PASSWORD 'p'", "0A000", "unsupported role option", "15"},
+		{"SET SESSION AUTHORIZATION $1", "42601", `syntax error at or near "$1"`, "27"},
+		{"CREATE TABLE t(n NAME)", "0A000", "unsupported column type", "18"},
+	} {
+		_, err := Parse(tc.sql)
+		var got *sqlstate.Error
+		if !errors.As(err, &got) {
+			t.Fatal(tc.sql, err)
+		}
+		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s got %#v want %#v", tc.sql, got, want)
+		}
+	}
+	for _, sql := range []string{"SELECT session_user()", "SELECT current_user FROM t", "SELECT current_user+1", "SELECT current_user AS renamed", "SET SESSION AUTHORIZATION a garbage", "DROP ROLE a CASCADE", "CREATE ROLE a; garbage"} {
+		if _, err := Parse(sql); err == nil {
+			t.Fatal("accepted unsupported suffix", sql)
+		}
+	}
+	for _, sql := range []string{`CREATE ROLE "PUBLIC"`, `CREATE USER "NONE"`} {
+		if _, err := Parse(sql); err != nil {
+			t.Fatal("quoted distinct reserved spelling", sql, err)
+		}
+	}
+}
+
+// PostgreSQL supports these commands; these are native capability exclusions,
+// not PostgreSQL error-parity expectations.
+func TestRoleExcludedCommands(t *testing.T) {
+	for _, tc := range []struct{ sql, message, position string }{
+		{"SET ROLE reader", "SET ROLE is unsupported", "5"},
+		{`SET ROLE "Reader"`, "SET ROLE is unsupported", "5"},
+		{"SET ROLE 'reader'", "SET ROLE is unsupported", "5"},
+		{"SET SESSION ROLE reader", "SET ROLE is unsupported", "13"},
+		{"SET SESSION ROLE 'reader'", "SET ROLE is unsupported", "13"},
+		{"SET LOCAL ROLE reader", "SET ROLE is unsupported", "11"},
+		{"SET LOCAL ROLE 'reader'", "SET ROLE is unsupported", "11"},
+		{"SET ROLE DEFAULT", "SET ROLE is unsupported", "5"},
+		{"SET SESSION ROLE DEFAULT", "SET ROLE is unsupported", "13"},
+		{"SET LOCAL ROLE DEFAULT", "SET ROLE is unsupported", "11"},
+		{"SET ROLE NONE", "SET ROLE is unsupported", "5"},
+		{"SET ROLE TO reader", "SET ROLE is unsupported", "5"},
+		{"SET ROLE = 'reader'", "SET ROLE is unsupported", "5"},
+		{"SET SESSION ROLE TO DEFAULT", "SET ROLE is unsupported", "13"},
+		{"SET LOCAL ROLE = NONE", "SET ROLE is unsupported", "11"},
+		{"RESET ROLE", "RESET ROLE is unsupported", "7"},
+		{"/* é */ SET ROLE reader", "SET ROLE is unsupported", "13"},
+		{"INSERT INTO sentinel VALUES(9); SET ROLE reader", "SET ROLE is unsupported", "37"},
+	} {
+		t.Run(tc.sql, func(t *testing.T) {
+			stmts, err := Parse(tc.sql)
+			var got *sqlstate.Error
+			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: tc.message, Position: tc.position}
+			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || stmts != nil {
+				t.Fatalf("statements=%#v diagnostic=%#v want=%#v", stmts, err, want)
+			}
+		})
+	}
+	for _, query := range []string{"SET ROLE", "SET SESSION ROLE", "SET LOCAL ROLE", "SET ROLE $1", "SET ROLE TO", "SET ROLE ="} {
+		stmts, err := Parse(query)
+		var got *sqlstate.Error
+		if !errors.As(err, &got) || got.Code != "42601" || stmts != nil {
+			t.Fatalf("malformed %s: statements=%#v diagnostic=%#v", query, stmts, err)
+		}
+	}
+	for _, query := range []string{
+		"CREATE TABLE role(role INT)",
+		"INSERT INTO role(role) VALUES(7)",
+		"SELECT role FROM role WHERE role=7 ORDER BY role",
+		"CREATE ROLE role",
+		"DROP ROLE role",
+		"SET SESSION AUTHORIZATION role",
+		"SHOW role",
+		"SET application_name TO 'SET ROLE reader'",
+		"/* SET ROLE reader */ SET application_name TO retained",
+	} {
+		if _, err := Parse(query); err != nil {
+			t.Fatalf("ordinary identifier/text %s: %v", query, err)
+		}
+	}
+}

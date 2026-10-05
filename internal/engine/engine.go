@@ -27,6 +27,10 @@ type Engine struct {
 	settingsDefinitions map[string]SettingDefinition
 	nextRow             uint64
 	commitSeq           CommitSeq
+	roles               *roleCatalog
+	nextPrincipal       uint64
+	importTargets       map[PrincipalRef]PrincipalRef
+	roleReferences      map[string][]PrincipalRef
 }
 type ParameterInfo struct {
 	Count int
@@ -69,6 +73,7 @@ func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
 
 func newEngine(providers []CatalogProvider) (*Engine, error) {
 	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
+	e.initializeRoles()
 	e.settingsDefinitions = map[string]SettingDefinition{applicationName.Name: applicationName, clientMinMessages.Name: clientMinMessages}
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
@@ -89,7 +94,13 @@ func newEngine(providers []CatalogProvider) (*Engine, error) {
 		oid  OID
 		name string
 	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PublicNamespaceOID, "public"}} {
-		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1}
+		rights := UsagePrivilege
+		if ns.oid == PublicNamespaceOID {
+			rights |= CreatePrivilege
+		}
+		bootstrap := e.roles.names["postgres"]
+		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: bootstrap,
+			acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: bootstrap, Grantee: ACLGrantee{Public: true}, Privileges: rights}, {Grantor: bootstrap, Grantee: ACLGrantee{Role: bootstrap}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege}}}}
 		e.state.descriptors[d.address] = d
 		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
 	}
@@ -157,8 +168,17 @@ func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (Statem
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateTable, *parser.Set:
+	case *parser.CreateTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set:
 		return StatementDescription{}, nil
+	case *parser.IdentitySelect:
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Name)
+		columns := make([]ColumnDescriptor, len(s.Names))
+		for i, name := range s.Names {
+			columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage()}
+		}
+		return StatementDescription{Results: columns}, nil
 	case *parser.Show:
 		d, err := e.setting(s.Name.Text)
 		if err != nil {
@@ -171,7 +191,11 @@ func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (Statem
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	b, err := e.describe(stmt)
+	auth, err := e.authorizationLocked(op)
+	if err != nil {
+		return StatementDescription{}, err
+	}
+	b, err := e.describe(stmt, auth)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -202,7 +226,7 @@ func namespaceForName(view CatalogRead, name parser.ObjectName, creation bool) (
 	}
 	return ObjectAddress{}, nil
 }
-func (e *Engine) describe(stmt parser.Statement) (binding, error) {
+func (e *Engine) describe(stmt parser.Statement, auth AuthorizationView) (binding, error) {
 	b := binding{predicate: -1, order: -1}
 	used := make(map[int]sqltype.Usage)
 	bind := func(v parser.Value, c ColumnDescriptor, mode sqltype.CoercionContext) (boundValue, error) {
@@ -247,7 +271,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		}
 	case *parser.Insert:
 		var err error
-		b.ref, err = e.resolveReference(CatalogRead{owner: e, state: e.state}, s.Name)
+		b.ref, err = e.resolveReference(auth, s.Name)
 		if err != nil {
 			return b, err
 		}
@@ -302,7 +326,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 		}
 	case *parser.Select:
 		var err error
-		b.ref, err = e.resolveReference(CatalogRead{owner: e, state: e.state}, s.Name)
+		b.ref, err = e.resolveReference(auth, s.Name)
 		if err != nil {
 			return b, err
 		}
@@ -378,7 +402,8 @@ func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
 	return nil
 }
 
-func (e *Engine) resolveReference(view CatalogRead, name parser.ObjectName) (ObjectRef, error) {
+func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
+	view := auth.catalog
 	if err := e.validateCatalogViewLocked(view); err != nil {
 		return ObjectRef{}, err
 	}
@@ -389,16 +414,40 @@ func (e *Engine) resolveReference(view CatalogRead, name parser.ObjectName) (Obj
 	var a ObjectAddress
 	var ok bool
 	if len(name.Parts) == 1 {
-		pg := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: pg, Name: relname}]
-		if !ok {
-			pub := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-			a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: pub, Name: relname}]
+		for _, oid := range [...]OID{PGCatalogNamespaceOID, PublicNamespaceOID} {
+			ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}
+			if oid != PGCatalogNamespaceOID {
+				if _, exists := view.state.descriptors[ns]; !exists {
+					continue
+				}
+				ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}
+				rights, err := auth.Effective(ref, false)
+				if err != nil {
+					return ObjectRef{}, err
+				}
+				if rights&UsagePrivilege == 0 {
+					continue
+				}
+			}
+			a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
+			if ok {
+				break
+			}
 		}
 	} else {
 		ns, err := namespaceForName(view, name, false)
 		if err != nil {
 			return ObjectRef{}, err
+		}
+		if ns != (ObjectAddress{}) {
+			if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}); err != nil {
+				if sqlErr, ok := err.(*sqlstate.Error); ok {
+					copy := *sqlErr
+					copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
+					return ObjectRef{}, &copy
+				}
+				return ObjectRef{}, err
+			}
 		}
 		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
 	}
@@ -489,11 +538,22 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	op.snapshotNoticeThreshold()
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.IdentitySelect:
+		result, err := e.executeRole(op, stmt, count)
+		if _, identity := stmt.(*parser.IdentitySelect); err == nil && !identity {
+			scope.completed = true
+		}
+		return result, err
 	case *parser.Set, *parser.Show:
 		return e.executeSetting(scope, stmt, count)
 	}
 	e.mu.Lock()
 	if err := ctx.Err(); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	auth, err := e.authorizationLocked(op)
+	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -507,6 +567,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, er
 		}
+		if er = auth.CheckCreate(nsref); er != nil {
+			e.mu.Unlock()
+			return Result{}, er
+		}
 		ns := nsref.Address
 		key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 		if _, exists := e.state.names[key]; exists {
@@ -517,7 +581,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
 		}
-		created, er := e.describe(s)
+		created, er := e.describe(s, auth)
 		if er != nil {
 			e.mu.Unlock()
 			return Result{}, er
@@ -533,7 +597,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, er
 		}
 		addr := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
-		rd := &relationDescriptor{address: addr, namespace: ns, name: key.Name, revision: rev, columns: created.createColumns, index: make(map[string]int, len(s.Columns)), attributes: make([]int32, len(s.Columns))}
+		rd := &relationDescriptor{address: addr, namespace: ns, name: key.Name, revision: rev, owner: auth.state.CurrentUser, columns: created.createColumns, index: make(map[string]int, len(s.Columns)), attributes: make([]int32, len(s.Columns))}
 		for i, c := range rd.columns {
 			rd.index[c.Name] = i
 			rd.attributes[i] = int32(i + 1)
@@ -542,6 +606,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		base := CatalogRead{owner: e, state: e.state}
 		stage := e.BeginCatalogStage(base)
+		stage.authSession = op.session
+		stage.authRevision = auth.revision
+		stage.roleRevision = auth.roles.state.revision
 		er = stage.Create(rd)
 		e.mu.Unlock()
 		if er != nil {
@@ -566,10 +633,21 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				resolved, resolveErr := e.resolveCreation(current, s.Name)
 				_, exists := e.state.names[key]
 				same := resolveErr == nil && resolved.Address == ns && current.Epoch() == base.Epoch()
+				var accessErr error
+				if same && exists {
+					currentAuth, authErr := e.authorizationLocked(op)
+					accessErr = authErr
+					if accessErr == nil {
+						accessErr = currentAuth.CheckCreate(resolved)
+					}
+				}
 				contextErr := ctx.Err()
 				e.mu.Unlock()
 				if contextErr != nil {
 					return Result{}, contextErr
+				}
+				if accessErr != nil {
+					return Result{}, accessErr
 				}
 				if same && exists {
 					op.existingRelationNotice(key.Name)
@@ -580,7 +658,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return Result{}, er
 	}
-	b, err := e.describe(stmt)
+	b, err := e.describe(stmt, auth)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -606,6 +684,27 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
+	_, inserting := stmt.(*parser.Insert)
+	if inserting {
+		// Fold immutable assignment casts before executor ACL checks, without
+		// allocating protected rows for unauthorized valid input.
+		for i, row := range b.expressions {
+			for j, expression := range row {
+				if expression.convert {
+					value, foldErr := expression.evaluate(ctx, canonical)
+					if foldErr != nil {
+						e.mu.Unlock()
+						return Result{}, insertValueError(foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j])
+					}
+					b.expressions[i][j] = boundValue{value: value}
+				}
+			}
+		}
+	}
+	if err = auth.checkBinding(b, inserting); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	switch s := stmt.(type) {
 	case *parser.Insert:
 		rows := make([][]sqltype.Value, len(s.Rows))
@@ -630,8 +729,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			rows[i] = row
 		}
 		// All supported expressions are literals or canonical parameters.
-		// Finish assignment conversion before executor constraint checks,
-		// so a deferred constant range failure is not masked by NOT NULL.
+		// Constant assignment casts have already folded before ACL checks;
+		// executor constraints must not mask their failures.
 		for _, row := range rows {
 			if err = ctx.Err(); err != nil {
 				e.mu.Unlock()

@@ -137,6 +137,8 @@ func (e *Engine) executeSetting(scope *StatementScope, stmt parser.Statement, co
 			return Result{}, err
 		}
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	owner := op.session.settings
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
@@ -144,7 +146,7 @@ func (e *Engine) executeSetting(scope *StatementScope, stmt parser.Statement, co
 		return Result{}, errors.New("stuntgres: settings attachment ended")
 	}
 	// Session utilities linearize with terminal admission before installing an
-	// override or capturing SHOW. They consume no catalog publication authority.
+	// override or capturing SHOW, using Engine -> Session lock order.
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
 	if err = publicationOperationLocked(e, op); err != nil {
@@ -167,9 +169,7 @@ func (e *Engine) executeSetting(scope *StatementScope, stmt parser.Statement, co
 		if !ok {
 			value = owner.defaults[d.Name]
 		}
-		e.mu.Lock()
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
-		e.mu.Unlock()
 		result := Result{Columns: []ColumnDescriptor{{Name: d.Name, Usage: typ.Usage()}}, Rows: anonymousSnapshot([][]sqltype.Value{{sqltype.String(typ, value)}}, []int{0})}
 		scope.completed = true
 		return result, nil
