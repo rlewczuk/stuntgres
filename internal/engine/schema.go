@@ -45,7 +45,7 @@ func (e *Engine) schemaTableLocked(ctx context.Context, auth AuthorizationView, 
 	if _, ok := stage.names[key]; ok {
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
-	b, err := e.describe(ctx, s, auth)
+	b, err := e.describe(ctx, s, auth, ObjectRef{})
 	if err != nil {
 		return err
 	}

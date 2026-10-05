@@ -229,7 +229,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	b, err := e.describe(op.ctx, stmt, auth)
+	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -242,7 +242,11 @@ func objectNameText(n parser.ObjectName) string {
 	}
 	return strings.Join(parts, ".")
 }
-func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView) (binding, error) {
+
+// requiredRef is the exact acquired relation for SELECT/INSERT. Name lookup
+// still validates current namespace authority, but cannot retarget that lock.
+// CREATE TABLE has no existing relation and supplies the zero reference.
+func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef) (binding, error) {
 	b := binding{order: -1}
 	binder := newExpressionBinder(ctx, e)
 	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
@@ -318,6 +322,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if err != nil {
 			return b, err
 		}
+		if b.ref != requiredRef {
+			return b, ErrCatalogReplaced
+		}
 		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
 		b.storage = e.storage[b.ref.Address]
 		if b.storage == nil {
@@ -372,6 +379,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		b.ref, err = e.resolveReference(auth, s.Name)
 		if err != nil {
 			return b, err
+		}
+		if b.ref != requiredRef {
+			return b, ErrCatalogReplaced
 		}
 		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
 		b.storage = e.storage[b.ref.Address]
@@ -712,7 +722,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return Result{}, er
 	}
-	b, err := e.describe(ctx, stmt, auth)
+	b, err := e.describe(ctx, stmt, auth, scope.lockedRef)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

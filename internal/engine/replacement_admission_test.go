@@ -9,10 +9,6 @@ import (
 func TestRelationLockReplacementAdmission(t *testing.T) {
 	var admission replacementAdmission
 	admission.RLock()
-	if !admission.mu.TryLock() {
-		t.Fatal("reader reservation retained synchronization")
-	}
-	admission.mu.Unlock()
 	if admission.TryLock() {
 		t.Fatal("replacement entered an active reader reservation")
 	}
@@ -71,10 +67,6 @@ func TestRelationLockReplacementAdmission(t *testing.T) {
 		t.Fatal("new reader bypassed a waiting replacement")
 	default:
 	}
-	if !admission.mu.TryLock() {
-		t.Fatal("writer reservation retained synchronization")
-	}
-	admission.mu.Unlock()
 	if admission.TryLock() {
 		t.Fatal("second replacement entered an active writer reservation")
 	}

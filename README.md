@@ -809,6 +809,19 @@ through rename/drop/Reset/Restore. Explicit transactions reject schema utilities
 before effects. Absent pg_temp references do not allocate; a pending temporary
 creation destination fails 0A000 rather than falling through to public.
 
+Within a native SELECT/INSERT or semantic Prepare, current authorized name
+resolution must equal the exact relation whose AS/RX lock was acquired. If an
+earlier search-path schema gains a same-shaped shadow while acquisition waits,
+native rejects with the ordinary `stuntgres: catalog replaced before publication`
+conflict before returning metadata, importing parameters, reading or writing.
+The caller may submit a new statement; the engine does not retry SQL. This is an
+explicit difference from observed pinned PostgreSQL: direct SELECT/INSERT and
+semantic SELECT Prepare reacquire the new shadow's lock; a warmed held SELECT
+continues using the originally locked relation. Native held handles also reject
+the within-statement mismatch; frozen signatures alone do not authorize an
+unlocked relation. No PostgreSQL outcome is asserted here for held INSERT or
+semantic INSERT Prepare in this shadow-creation sequence.
+
 Dump writes every persistent user schema, including empty schemas, before
 owner-grouped qualified tables and rows. Restore preserves independent schema
 and table owners through private stage-only CREATE TABLE destination authority.
