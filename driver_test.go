@@ -429,8 +429,13 @@ func TestCancellationTransactionsAndClosedObjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantTuples(t, db, "SELECT v FROM c", [][]any{})
-	_, err := db.BeginTx(context.Background(), nil)
-	sqlState(t, err, "0A000")
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
 	for _, q := range []string{"BEGIN", "START TRANSACTION", "COMMIT", "ROLLBACK", "SAVEPOINT x", "RELEASE x", "UPDATE c SET v=1", "SELECT v FROM c LIMIT 1"} {
 		_, err = db.Exec(q)
 		sqlState(t, err, "0A000")

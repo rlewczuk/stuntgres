@@ -328,6 +328,80 @@ func TestCatalogConcurrentReplacement(t *testing.T) {
 		})
 	}
 }
+
+func TestCatalogReplacementStatementBoundary(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		name := "implicit"
+		if explicit {
+			name = "explicit"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := New()
+			run(t, e, "CREATE TABLE t(id INT)")
+			op, cleanup, err := testOperation(e, context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cleanup()
+			var ref TxRef
+			if explicit {
+				ref, err = e.Begin(op, TxOptions{})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer scope.Finish(context.Canceled)
+			if _, err = scope.Execute(statement(t, "INSERT INTO t VALUES(1)"), 0, nil); err != nil {
+				t.Fatal(err)
+			}
+			replacement := e.CatalogRead()
+			if explicit {
+				if !e.replacementMu.TryLock() {
+					t.Fatal("explicit statement retained replacement admission")
+				}
+				e.replacementMu.Unlock()
+				if _, err = e.ReplaceCatalog(context.Background(), replacement); err != nil {
+					t.Fatal(err)
+				}
+				if err = scope.Finish(nil); !errors.Is(err, ErrCatalogReplaced) {
+					t.Fatalf("explicit statement escaped epoch fence: %v", err)
+				}
+				if _, err = e.Rollback(op, ref); err != nil {
+					t.Fatal(err)
+				}
+				if got := tuples(run(t, e, "SELECT id FROM t")); len(got) != 0 {
+					t.Fatalf("fenced private row published: %v", got)
+				}
+				return
+			}
+			if e.replacementMu.TryLock() {
+				e.replacementMu.Unlock()
+				t.Fatal("implicit statement did not retain replacement admission")
+			}
+			done := make(chan error, 1)
+			go func() {
+				_, err := e.ReplaceCatalog(context.Background(), replacement)
+				done <- err
+			}()
+			if err = scope.Finish(nil); err != nil {
+				t.Fatal(err)
+			}
+			if err = <-done; err != nil {
+				t.Fatal(err)
+			}
+			if e.CatalogRead().Epoch() != replacement.Epoch()+1 {
+				t.Fatal("replacement did not advance epoch once")
+			}
+			if got := tuples(run(t, e, "SELECT id FROM t")); len(got) != 1 || got[0][0] != int64(1) {
+				t.Fatalf("self replacement lost completed implicit row: %v", got)
+			}
+		})
+	}
+}
 func TestForeignCatalogReplacementOwnsRowBacking(t *testing.T) {
 	source, target := New(), New()
 	for _, sql := range []string{

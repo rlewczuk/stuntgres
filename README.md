@@ -62,9 +62,9 @@ unsupported. NULL, parameters and unquoted reserved TO are syntax errors;
 quoted "to" remains an identifier. Comma lists fail 22023 before setting lookup,
 with the supplied name retained in the diagnostic. Unknown undotted scalar
 names fail 42704; messages interpolate decoded names between literal double
-quotes without Go string escaping. No logical database/admission/role or
-transaction features, named SQL prepared resources, cursors, temporary objects
-or advisory locks are implied. Native Reset/Restore preserve session settings;
+quotes without Go string escaping. No logical database/admission/role,
+named SQL prepared resources, cursors, temporary objects or advisory locks are
+implied. Native Reset/Restore preserve session settings;
 Dump excludes them. Anonymous retained SHOW/SELECT results outlive session end.
 Internal immutable setting definitions/default providers and exactly-once
 resource Attach/quiescent Detach are extension hooks, not implementations of
@@ -133,6 +133,127 @@ pool reopen: data=7
 session failures: 42704 22023 42601
 session cancellation and controls: preserved
 ```
+
+### Driver transactions (READ COMMITTED)
+
+`DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support the
+baseline INSERT and SELECT path, including prepared execution. Default isolation
+and explicit `sql.LevelReadCommitted` are supported, read-write only. CREATE
+tables **before** BeginTx; SQL BEGIN/COMMIT/ROLLBACK, savepoints, transactional
+DDL/settings, stronger isolation and future DML remain unsupported.
+
+An explicit transaction sees its successful earlier writes; other physical
+sessions see only committed data. Each SELECT execution captures a fresh
+READ COMMITTED view, so a peer commit becomes visible to the next command,
+including a query prepared before that commit. Duplicate rows retain their
+multiplicity. Commit atomically publishes all staged relations, preserving peer
+commits; Rollback discards them. Every standalone statement commits independently.
+A failed multirow INSERT publishes none of that statement, without undoing earlier
+autocommit statements.
+
+Committed row vectors grow amortized rather than copying the entire relation on
+each INSERT. Captured visible prefixes never change; query views retain only the
+relation consumed by the current bounded SELECT, including that relation's own
+earlier private writes. Preparation performs metadata analysis, not row capture.
+Committed and private versions retain canonical typed values and their descriptor
+generations through the existing type foundation. Prepared handles retain the
+AST, source and parameter/result description, never a data view. Argument
+normalization remains at the driver boundary before transaction admission;
+execution imports a typed frame against the current coherent binding. Snapshot
+filtering/ordering and Dump use the type-owned operators and literal codecs.
+
+Admitted SQL errors, preparation/binding failures and statement cancellation
+abort an explicit transaction and discard its private writes. Valid subsequent
+commands are rejected before semantic analysis; malformed SQL still reports its
+original syntax error. Full Rollback succeeds; Commit of aborted work performs
+rollback and returns the ordinary failed-transaction error below. Empty SQL
+without arguments does no transaction work. Pre-canceled admission, closed
+statement/connection checks and adapter argument rejection do not abort prior
+successful private work.
+
+| Boundary | SQLSTATE / English diagnostic |
+|---|---|
+| Valid command or Prepare after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
+| Explicit CREATE, SET or SHOW | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
+| INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
+| Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
+| Unsupported isolation / read-only option | Ordinary `stuntgres: unsupported transaction isolation level` / `stuntgres: read-only transactions are unsupported`, before state change |
+| Nested raw driver BeginTx | Ordinary `stuntgres: transaction already active` |
+| Repeated raw handle end | Ordinary `stuntgres: transaction is done`; old handles cannot end a newer incarnation |
+| Internal foreign/zero / stale TxRef | Ordinary `stuntgres: foreign or missing transaction reference` / `stuntgres: stale transaction reference` |
+| Public sql.Tx repeated end/use | `sql.ErrTxDone`: `sql: transaction has already been committed or rolled back` |
+| Commit after aborted transaction | Ordinary `pq: could not complete operation in a failed transaction`, matching pinned lib/pq's adapter diagnostic, not `25P02` |
+| Successful native replacement fencing old transaction | Ordinary `stuntgres: catalog replaced before publication` (`ErrCatalogReplaced` internally); private work discarded, full Rollback remains available |
+| Closed connection / statement | Ordinary `stuntgres: connection is closed` / `stuntgres: statement is closed` |
+| Go cancellation / deadline | Ordinary `context.Canceled` / `context.DeadlineExceeded`, preserving `errors.Is`; database/sql automatic rollback can instead make Tx end report `sql.ErrTxDone` |
+
+Transaction SQL errors supply ERROR/nonlocalized ERROR. Optional diagnostic
+fields are absent unless stated above; native source fields do not claim
+PostgreSQL C provenance. Existing missing-relation diagnostics retain an absent
+native Position versus PostgreSQL's positioned diagnostic; reference fixtures
+assert each complete record before their declared position normalization.
+Operation, scope, stage and released-view authority errors are ordinary internal
+lifecycle errors, never fabricated SQLSTATE. Identity/command/frontier exhaustion
+fails before wrap or publication.
+
+database/sql owns BeginTx-context automatic rollback. Driver Commit/Rollback use
+fresh end-operation contexts: database/sql cancels its internal BeginTx context
+before invoking a healthy driver Commit. Raw driver Rollback is still available
+after BeginTx caller cancellation. Borrower `sql.Conn.Close`, stmt.Close and
+healthy ResetSession reuse are **not** physical transaction termination. Physical
+close, termination and best-effort abandonment drain operations and discard only
+that session's private effects. Committed data and peer settings survive.
+
+Dump serializes committed versions only, never transaction overlays.
+Reset/Restore waits for in-flight implicit INSERT/SELECT row work (including
+preparation) to finish before advancing the catalog epoch, then fences old explicit
+transactions from further execution/publication. Standalone CREATE validates
+providers without replacement or publication locks and revalidates its catalog
+epoch at installation; replacement during validation returns `ErrCatalogReplaced`.
+SET/SHOW do not retain row-work replacement admission or publish row writes.
+Their session preflight precedes setting installation/SHOW capture; once complete,
+later cancellation or catalog replacement does not turn that success into failure.
+Concurrent self catalog replacement preserves completed inserts without retrying SQL. Failed, canceled
+or read-failing Restore leaves eligible transactions and committed data unchanged.
+Captured native engine/driver results
+remain immutable across commit, rollback and replacement until Close; database/sql
+may close Tx-owned Rows at transaction end, so do not retain public Tx Rows past end.
+Publication and terminal admission share a final preflight: cancellation/end
+observed before installation publishes nothing; completed installation survives
+later cancellation. This is process-local atomic visibility, **not physical
+durability, WAL, crash recovery, a network server or PostgreSQL's physical MVCC**.
+
+Actual future-consumer seams are the persistent session Transaction owner,
+incarnation-qualified TxRef, StatementScope/Finish, current ResolutionCatalog,
+conditional AcquireDataView, immutable version WriteStage and indivisible end
+publication. INSERT/SELECT use the existing binder and identity-keyed storage;
+there is no parallel catalog/store, retrying SQL executor, or placeholder
+savepoint/SSI/provider implementation.
+
+Run `go run ./cmd/transaction-smoke` (in addition to `make smoke`, which retains
+the original baseline executable). It asserts direct/prepared visibility,
+rollback/commit, refreshed prepared reads, exact rows/types/counts, full
+23502/25P02 records, failed Commit/recovery, independent autocommit, cancellation
+and native replacement/preservation before printing:
+
+```text
+transaction visibility: direct prepared
+transaction rollback: discarded
+transaction commit: published
+read committed: refreshed
+transaction failures: 23502 25P02
+autocommit: independent
+transaction cancellation and controls: preserved
+```
+
+Scoped witnesses: `go test -run '^TestTransaction' -count=1 ./...`,
+`go test -race -run '^TestTransaction' -count=1 ./...`, and
+`go test -tags=reference -run '^TestReferenceTransaction' -count=1 -v .`.
+These supplement, not replace, the full gates below. The real reference oracle
+remains pinned PostgreSQL **18.0 UTF8/C**; current official `/docs/18/` manuals
+identify **18.6**, and local **20devel** sources are research only. See
+[READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED)
+and [transactions](https://www.postgresql.org/docs/18/tutorial-transactions.html).
 
 ## Supported SQL
 
@@ -236,7 +357,7 @@ Preparation checks assignment compatibility; typed integer literals assigned to 
 
 That feature smoke exercises both direct execution and an actual prepared short INSERT, checks declaration-order metadata and statement atomicity, and retains a cursor across Reset/Restore. It also checks deterministic full-row Dump/Restore, successful hand-authored short-row Restore, and catalog preservation when a staged short INSERT omits a NOT NULL tail. Its single success line is printed only after those public API assertions pass.
 
-No configurable `search_path`, `CREATE SCHEMA`, schema-qualified creation outside `public`, three-part/database qualification, aliases, joins, expressions, functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, explicit transactions, ACLs, or SQL catalog projections are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+No configurable `search_path`, `CREATE SCHEMA`, schema-qualified creation outside `public`, three-part/database qualification, aliases, joins, expressions, functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction controls/savepoints, transactional DDL/settings, stronger isolation, ACLs, or SQL catalog projections are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 
@@ -307,6 +428,7 @@ make generate   # pinned goyacc; checked-in parser generation
 make test       # Docker-free behavioral tests
 make reference  # real pinned PostgreSQL differential fixtures
 make smoke      # actual public database/sql and controls scenario
+go run ./cmd/transaction-smoke # direct/prepared transaction visibility and controls
 make bench      # fresh engine + connector + pool + Ping + Close, five runs
 go test -race ./...
 go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./...

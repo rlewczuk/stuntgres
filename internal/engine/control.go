@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) Reset(ctx context.Context) error {
@@ -35,7 +34,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	type dumpRelation struct {
 		schema, name string
 		columns      []ColumnDescriptor
-		rows         [][]sqltype.Value
+		versions     []rowVersion
 	}
 	tables := make([]dumpRelation, 0)
 	for a, d := range e.state.descriptors {
@@ -58,7 +57,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{ns.name, r.name, r.columns, storage.rows})
+		tables = append(tables, dumpRelation{ns.name, r.name, r.columns, storage.versions})
 	}
 	e.mu.Unlock()
 	sort.Slice(tables, func(i, j int) bool {
@@ -97,7 +96,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if err := emit(line.String()); err != nil {
 			return err
 		}
-		for _, row := range t.rows {
+		for _, version := range t.versions {
+			row := version.values
 			line.Reset()
 			line.WriteString("INSERT INTO " + qualified + " VALUES (")
 			for i, v := range row {

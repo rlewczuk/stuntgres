@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"runtime"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/engine"
@@ -30,20 +31,35 @@ func (s *stmt) check(ctx context.Context) error {
 	}
 	return nil
 }
+func (s *stmt) checkArguments(args []driver.NamedValue) error {
+	if len(args) != s.description.Parameters.Count {
+		return fmt.Errorf("stuntgres: got %d arguments, want %d", len(args), s.description.Parameters.Count)
+	}
+	return nil
+}
 func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
 	defer runtime.KeepAlive(s.conn)
 	if err := s.check(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.checkArguments(args); err != nil {
 		return nil, err
 	}
 	r, err := s.conn.execute(ctx, s.ast, args)
 	if err != nil {
 		return nil, err
 	}
+	if r.Rows != nil {
+		r.Rows.Close()
+	}
 	return result(r.Count), nil
 }
 func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
 	defer runtime.KeepAlive(s.conn)
 	if err := s.check(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.checkArguments(args); err != nil {
 		return nil, err
 	}
 	r, err := s.conn.execute(ctx, s.ast, args)

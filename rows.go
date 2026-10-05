@@ -28,7 +28,15 @@ func (r *rows) Columns() []string {
 	}
 	return names
 }
-func (r *rows) Close() error { r.closed = true; r.snapshot = nil; r.scratch=nil; return nil }
+func (r *rows) Close() error {
+	r.closed = true
+	if r.snapshot != nil {
+		r.snapshot.Close()
+		r.snapshot = nil
+	}
+	r.scratch = nil
+	return nil
+}
 func (r *rows) Next(dst []driver.Value) error {
 	if r.closed {
 		return io.EOF

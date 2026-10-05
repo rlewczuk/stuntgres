@@ -2,6 +2,7 @@ package stuntgres
 
 import (
 	"context"
+	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"runtime"
@@ -63,12 +64,27 @@ func (c *conn) ResetSession(ctx context.Context) error {
 }
 func (c *conn) IsValid() bool             { defer runtime.KeepAlive(c); return c.session.IsLive() }
 func (c *conn) Begin() (driver.Tx, error) { return c.BeginTx(context.Background(), driver.TxOptions{}) }
-func (c *conn) BeginTx(ctx context.Context, _ driver.TxOptions) (driver.Tx, error) {
+func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx, error) {
 	defer runtime.KeepAlive(c)
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
-	return nil, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "explicit transactions are unsupported"}
+	if options.Isolation != 0 && options.Isolation != driver.IsolationLevel(sql.LevelReadCommitted) {
+		return nil, errors.New("stuntgres: unsupported transaction isolation level")
+	}
+	if options.ReadOnly {
+		return nil, errors.New("stuntgres: read-only transactions are unsupported")
+	}
+	op, err := c.session.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer op.Done()
+	ref, err := c.session.Engine().Begin(op, engine.TxOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return &tx{conn: c, ref: ref}, nil
 }
 func parseOne(query string) (parser.Statement, error) {
 	ss, err := parser.Parse(query)
@@ -87,85 +103,83 @@ func (c *conn) Prepare(query string) (driver.Stmt, error) {
 	return c.PrepareContext(context.Background(), query)
 }
 func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
-	defer runtime.KeepAlive(c)
-	op, err := c.session.Acquire(ctx)
+	_, description, ast, err := c.request(ctx, query, nil, nil, true, true)
 	if err != nil {
 		return nil, err
 	}
-	defer op.Done()
-	if err := c.check(ctx); err != nil {
-		return nil, err
-	}
-	s, err := parseOne(query)
-	if err != nil {
-		return nil, err
-	}
-	description := engine.StatementDescription{}
-	if s != nil {
-		p, err := c.session.Engine().Describe(op, s)
-		if err != nil {
-			return nil, err
-		}
-		description = p
-	}
-	if err := c.check(ctx); err != nil {
-		return nil, err
-	}
-	return &stmt{conn: c, ast: s, source:query, description:description}, nil
+	return &stmt{conn: c, ast: ast, source: query, description: description}, nil
 }
-func (c *conn) execute(ctx context.Context, s parser.Statement, args []driver.NamedValue) (engine.Result, error) {
+
+// Direct parsing and prepared execution share one admitted completion boundary.
+// A prepared handle retains only its AST/description, never a visibility snapshot.
+func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool) (r engine.Result, description engine.StatementDescription, parsed parser.Statement, err error) {
 	defer runtime.KeepAlive(c)
+	if err = c.check(ctx); err != nil {
+		return
+	}
 	values, err := normalizeArguments(args)
-	if err != nil { return engine.Result{},err }
+	if err != nil {
+		return
+	}
 	op, err := c.session.Acquire(ctx)
 	if err != nil {
-		return engine.Result{}, err
+		return
 	}
 	defer op.Done()
-	if err := c.check(ctx); err != nil {
-		return engine.Result{}, err
+	scope, err := c.session.Engine().StartStatement(op)
+	if err != nil {
+		return
 	}
-	if s == nil {
+	defer func() {
+		err = scope.Finish(err)
+		if err != nil && r.Rows != nil {
+			r.Rows.Close()
+			r = engine.Result{}
+		}
+		notices := op.DetachNotices()
+		op.Done()
+		if c.noticeHandler != nil {
+			for _, notice := range notices {
+				c.noticeHandler(notice)
+			}
+		}
+	}()
+	if parse {
+		ast, err = parseOne(query)
+		if err != nil {
+			return
+		}
+	}
+	parsed = ast
+	if ast == nil {
 		if len(args) != 0 {
-			return engine.Result{}, errors.New("stuntgres: expected zero arguments")
+			err = errors.New("stuntgres: expected zero arguments")
 		}
-		return engine.Result{}, nil
+		return
 	}
-	r, err := c.session.Engine().Execute(op, s, len(values), frameImporter(values))
-	notices := op.DetachNotices()
-	op.Done()
-	if c.noticeHandler != nil {
-		for _, notice := range notices {
-			c.noticeHandler(notice)
-		}
+	if describe {
+		description, err = scope.Describe(ast)
+	} else {
+		r, err = scope.Execute(ast, len(values), frameImporter(values))
 	}
+	return
+}
+func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue) (engine.Result, error) {
+	r, _, _, err := c.request(ctx, "", ast, args, false, false)
 	return r, err
 }
-func (c *conn) ExecContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
-	defer runtime.KeepAlive(c)
-	if err := c.check(ctx); err != nil {
-		return nil, err
-	}
-	s, err := parseOne(q)
+func (c *conn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	r, _, _, err := c.request(ctx, query, nil, args, true, false)
 	if err != nil {
 		return nil, err
 	}
-	r, err := c.execute(ctx, s, args)
-	if err != nil {
-		return nil, err
+	if r.Rows != nil {
+		r.Rows.Close()
 	}
 	return result(r.Count), nil
 }
-func (c *conn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
-	defer runtime.KeepAlive(c)
-	if err := c.check(ctx); err != nil {
-		return nil, err
-	}
-	s, err := parseOne(q)
-	if err != nil {
-		return nil, err
-	}
-	r, err := c.execute(ctx, s, args)
+func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	r, _, _, err := c.request(ctx, query, nil, args, true, false)
 	if err != nil {
 		return nil, err
 	}

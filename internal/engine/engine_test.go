@@ -196,16 +196,17 @@ func (c *cancelAtErrCheck) Err() error {
 
 func TestInsertImplicitShortStagedCancellation(t *testing.T) {
 	// Instrument only the admitted operation's execution context: session
-	// initialization and acquisition finish first. Admission checks at 1–2;
-	// rows/typed expressions at 3–11, constraints at 12–14, publication at 15.
+	// initialization and acquisition finish first. Scope/executor admission
+	// checks at 1–6; rows/typed expressions at 7–15, constraints at 16–18,
+	// final publication at 22 after staging and Finish admission.
 	for _, tc := range []struct {
 		name  string
 		check int32
 	}{
-		{"after_first_staged_row", 6},
-		{"constraint_pass_start", 12},
-		{"during_constraint_pass", 13},
-		{"before_publication", 15},
+		{"after_first_staged_row", 10},
+		{"constraint_pass_start", 16},
+		{"during_constraint_pass", 17},
+		{"before_publication", 22},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()

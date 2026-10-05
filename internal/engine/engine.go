@@ -13,7 +13,9 @@ import (
 )
 
 type Engine struct {
-	mu                  sync.Mutex
+	mu sync.Mutex
+	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
+	replacementMu       sync.RWMutex
 	owner               *catalogOwner
 	state               *catalogState
 	providers           map[OID]CatalogProvider
@@ -23,6 +25,8 @@ type Engine struct {
 	sessionMu           sync.Mutex
 	sessions            map[SessionToken]*Session
 	settingsDefinitions map[string]SettingDefinition
+	nextRow             uint64
+	commitSeq           CommitSeq
 }
 type ParameterInfo struct {
 	Count int
@@ -140,7 +144,15 @@ func sqlError(code, message string) error {
 		Code: code, Message: message,
 	}
 }
-func (e *Engine) Describe(op *Operation, stmt parser.Statement) (StatementDescription, error) {
+func (e *Engine) Describe(op *Operation, stmt parser.Statement) (info StatementDescription, err error) {
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		return StatementDescription{}, err
+	}
+	defer func() { err = scope.Finish(err) }()
+	return scope.Describe(stmt)
+}
+func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (StatementDescription, error) {
 	if err := e.validateOperation(op); err != nil {
 		return StatementDescription{}, err
 	}
@@ -433,7 +445,22 @@ func notNullError(table, column string, row []sqltype.Value) error {
 // It must not invoke user code or external I/O under the engine mutex.
 type FrameImporter func(context.Context,ParameterInfo,[]sqltype.Value) error
 
-func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
+func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		return Result{}, err
+	}
+	defer func() {
+		err = scope.Finish(err)
+		if err != nil && result.Rows != nil {
+			result.Rows.Close()
+			result = Result{}
+		}
+	}()
+	return scope.Execute(stmt, count, importFrame)
+}
+func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
+	op := scope.op
 	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
 	}
@@ -441,7 +468,7 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, import
 	ctx := op.Context()
 	switch stmt.(type) {
 	case *parser.Set, *parser.Show:
-		return e.executeSetting(op, stmt, count)
+		return e.executeSetting(scope, stmt, count)
 	}
 	e.mu.Lock()
 	if err := ctx.Err(); err != nil {
@@ -500,7 +527,10 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, import
 			e.DiscardCatalogStage(stage)
 			return Result{}, er
 		}
-		_, er = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+		_, er = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: base.Epoch()})
+		if er == nil {
+			scope.completed = true
+		}
 		if _, conflict := er.(CatalogConflict); conflict {
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
@@ -578,10 +608,11 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, import
 				}
 			}
 		}
-		if err = ctx.Err(); err == nil {
-			b.storage.rows = append(b.storage.rows, rows...)
-		}
+		err = ctx.Err()
 		e.mu.Unlock()
+		if err == nil {
+			err = scope.Writes().Apply(b.ref, rows)
+		}
 		if err != nil {
 			return Result{}, err
 		}
@@ -595,10 +626,16 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, import
 				return Result{}, err
 			}
 		}
-		snap := &Snapshot{rows: b.storage.rows, projection: b.projection}
+		view, viewErr := scope.acquireDataViewLocked(e, b.ref)
+		if viewErr != nil {
+			e.mu.Unlock()
+			return Result{}, viewErr
+		}
+		snap := versionSnapshot(view, b.ref.Address, b.projection)
 		columns := b.columns()
 		e.mu.Unlock()
-		if err = snap.selectRows(ctx,b.predicate,predicate,b.equality,b.order,b.ordering,s.Order!=nil && s.Order.Desc); err != nil {
+		if err = snap.selectRows(ctx, b.predicate, predicate, b.equality, b.order, b.ordering, s.Order != nil && s.Order.Desc); err != nil {
+			snap.Close()
 			return Result{}, err
 		}
 		return Result{Count: int64(snap.Len()), Columns: columns, Rows: snap}, nil

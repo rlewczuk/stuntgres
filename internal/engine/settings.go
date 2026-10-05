@@ -110,7 +110,8 @@ func (s *sessionSettings) EndSession(_ SessionToken, _ EndReason) error {
 	s.values = nil
 	return nil
 }
-func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int) (Result, error) {
+func (e *Engine) executeSetting(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+	op := scope.op
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
 	}
@@ -128,35 +129,38 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int)
 	if err != nil {
 		return Result{}, err
 	}
+	var value string
+	var notice *sqlstate.Error
+	if s, ok := stmt.(*parser.Set); ok && !s.Default {
+		value, notice, err = d.Normalize(s.Values[0])
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	owner := op.session.settings
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
 	if owner.ended {
 		return Result{}, errors.New("stuntgres: settings attachment ended")
 	}
-	if err = op.ctx.Err(); err != nil {
+	// Session utilities linearize with terminal admission before installing an
+	// override or capturing SHOW. They consume no catalog publication authority.
+	op.session.mu.Lock()
+	defer op.session.mu.Unlock()
+	if err = publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
 	switch s := stmt.(type) {
 	case *parser.Set:
 		if s.Default {
-			if err = op.ctx.Err(); err != nil {
-				return Result{}, err
-			}
 			delete(owner.values, d.Name)
 		} else {
-			value, notice, err := d.Normalize(s.Values[0])
-			if err != nil {
-				return Result{}, err
-			}
-			if err = op.ctx.Err(); err != nil {
-				return Result{}, err
-			}
 			owner.values[d.Name] = value
 			if notice != nil {
 				op.emitNotice(levelNotice, *notice)
 			}
 		}
+		scope.completed = true
 		return Result{}, nil
 	case *parser.Show:
 		value, ok := owner.values[d.Name]
@@ -166,7 +170,9 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int)
 		e.mu.Lock()
 		typ, _ := (CatalogRead{owner:e,state:e.state}).LookupType(sqltype.Text)
 		e.mu.Unlock()
-		return Result{Columns: []ColumnDescriptor{{Name:d.Name,Usage:typ.Usage()}}, Rows: &Snapshot{rows: [][]sqltype.Value{{sqltype.String(typ,value)}}, projection: []int{0}}}, nil
+		result := Result{Columns: []ColumnDescriptor{{Name:d.Name,Usage:typ.Usage()}}, Rows: anonymousSnapshot([][]sqltype.Value{{sqltype.String(typ,value)}}, []int{0})}
+		scope.completed = true
+		return result, nil
 	}
 	return Result{}, errors.New("stuntgres: invalid setting statement")
 }

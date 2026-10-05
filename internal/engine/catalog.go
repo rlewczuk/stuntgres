@@ -17,6 +17,7 @@ type ObjectAddress struct {
 	ObjectID OID
 	SubID    int32
 }
+
 // catalogOwner has nonzero size so distinct live engines have distinct tokens.
 type catalogOwner struct{ marker byte }
 
@@ -25,7 +26,7 @@ type ObjectRef struct {
 	Epoch   CatalogEpoch
 	Address ObjectAddress
 }
-type relationStorage struct{ rows [][]sqltype.Value }
+type relationStorage struct{ versions []rowVersion }
 
 const (
 	NamespaceClassID      OID = 2615
@@ -274,6 +275,12 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	return &PreparedCatalogPublication{stage: s, epoch: s.base.Epoch(), ctx: ctx}, nil
 }
 func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+	return e.publishCatalog(nil, p, token)
+}
+func (e *Engine) publishCatalogOperation(op *Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+	return e.publishCatalog(op, p, token)
+}
+func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
@@ -321,19 +328,35 @@ func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token Publication
 		for k, a := range s.names {
 			next.names[k] = a
 		}
+		if op != nil {
+			op.session.mu.Lock()
+		}
 		e.mu.Lock()
 		if e.state != current {
 			e.mu.Unlock()
+			if op != nil {
+				op.session.mu.Unlock()
+			}
 			continue
 		}
-		if err := p.ctx.Err(); err != nil {
+		err := p.ctx.Err()
+		if err == nil && op != nil {
+			err = publicationOperationLocked(e, op)
+		}
+		if err != nil {
 			e.mu.Unlock()
+			if op != nil {
+				op.session.mu.Unlock()
+			}
 			return ChangeSet{}, err
 		}
 		e.state = next
 		e.storage = storage
 		s.lifecycle = catalogPublished
 		e.mu.Unlock()
+		if op != nil {
+			op.session.mu.Unlock()
+		}
 		return changes, nil
 	}
 }
@@ -398,17 +421,19 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
 			}
-			rows := source[a].rows
+			versions := source[a].versions
 			if replacement.owner != e {
-				// Row values are immutable, but live engines must not share the
-				// backing array into which INSERT appends new rows.
-				rows = append([][]sqltype.Value(nil), rows...)
+				versions = append([]rowVersion(nil), versions...)
 			}
-			storage[a] = &relationStorage{rows: rows}
+			// Captured prefixes/payloads are immutable. Foreign stores need their
+			// own append capacity because their engines publish independently.
+			storage[a] = &relationStorage{versions: versions}
 		}
 		return nil
 	}
 	if replacement.owner == e {
+		e.replacementMu.Lock()
+		defer e.replacementMu.Unlock()
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		if err := ctx.Err(); err != nil {
@@ -441,6 +466,12 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	if err != nil {
 		return ChangeSet{}, err
 	}
+	var imported uint64
+	for _, relation := range storage {
+		imported += uint64(len(relation.versions))
+	}
+	e.replacementMu.Lock()
+	defer e.replacementMu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -449,6 +480,26 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	if e.state.epoch == CatalogEpoch(math.MaxUint64) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: catalog epoch exhausted")
 	}
+	if imported > ^uint64(0)-e.nextRow {
+		return ChangeSet{}, fmt.Errorf("stuntgres: row identity exhausted")
+	}
+	if e.commitSeq == CommitSeq(^uint64(0)) {
+		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
+	}
+	if err := ctx.Err(); err != nil {
+		return ChangeSet{}, err
+	}
+	// Fresh engine-local identities/frontier for this replacement. Old snapshots
+	// retain source versions; no source payload or published entry is rewritten.
+	for _, relation := range storage {
+		for i := range relation.versions {
+			e.nextRow++
+			relation.versions[i].row = RowID(e.nextRow)
+			relation.versions[i].version = VersionID(e.nextRow)
+			relation.versions[i].born = e.commitSeq + 1
+		}
+	}
+	e.commitSeq++
 	next.epoch = e.state.epoch + 1
 	e.state = next
 	e.storage = storage

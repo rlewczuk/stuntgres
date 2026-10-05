@@ -84,6 +84,7 @@ type Session struct {
 	cleanupErrors []error
 	result        error
 	settings      *sessionSettings
+	transactions  *transactionOwner
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -113,6 +114,13 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 	if err == nil {
 		s.settings = owner
 		err = owner.initialize(op.Context(), e.settingDefinitions(), start.Defaults)
+	}
+	if err == nil {
+		transactions := &transactionOwner{session: s}
+		_, err = op.Attach(Transaction, transactions)
+		if err == nil {
+			s.transactions = transactions
+		}
 	}
 	s.mu.Lock()
 	if err == nil {

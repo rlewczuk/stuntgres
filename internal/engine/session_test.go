@@ -194,11 +194,17 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	op, _ := s.Acquire(context.Background())
+	if _, err = e.Begin(op, TxOptions{}); err != nil {
+		t.Fatal(err)
+	}
 	var order []ResourceKind
 	var mu sync.Mutex
-	for _, kind := range []ResourceKind{Authorization, AdvisorySession, Temporary, PreparedSQL, Cursors, Transaction} {
+	for _, kind := range []ResourceKind{Authorization, AdvisorySession, Temporary, PreparedSQL, Cursors} {
 		k := kind
 		owner := &sessionOwner{fn: func(_ SessionToken, _ EndReason) error {
+			if s.TransactionState() != TxIdle {
+				t.Error("transaction cleanup did not precede resources")
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			order = append(order, k)
@@ -240,7 +246,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if err = s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(order, []ResourceKind{Transaction, Cursors, PreparedSQL, Temporary, AdvisorySession, Authorization}) {
+	if !reflect.DeepEqual(order, []ResourceKind{Cursors, PreparedSQL, Temporary, AdvisorySession, Authorization}) {
 		t.Fatal(order)
 	}
 	if _, err = e.Execute(op, statement(t, "SHOW application_name"), 0, nil); err == nil {
