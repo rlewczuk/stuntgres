@@ -88,13 +88,4 @@ func (e *Engine) resolveType(raw parser.TypeName) (sqltype.Usage, error) {
 	return d.Usage(), nil
 }
 
-func (b binding) columns() []ColumnDescriptor {
-	if b.relation == nil {
-		return nil
-	}
-	columns := make([]ColumnDescriptor, len(b.projection))
-	for i, j := range b.projection {
-		columns[i] = b.relation.columns[j]
-	}
-	return columns
-}
+func (b binding) columns() []ColumnDescriptor { return b.results }

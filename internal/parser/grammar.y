@@ -10,11 +10,11 @@ package parser
  nullable bool
  targets []InsertTarget
  names []string
- rows [][]Value
- row []Value
+ rows [][]Expr
+ row []Expr
  value Value
+ expr Expr
  selectStmt *Select
- pred *Predicate
  order *Order
  desc bool
  objectName ObjectName
@@ -44,10 +44,10 @@ package parser
 %type <objectName> relation_name
 %type <names> names
 %type <rows> rows
-%type <row> row values call_args
+%type <row> row values call_args scalar_targets
 %type <value> value
+%type <expr> scalar target where
 %type <selectStmt> projection
-%type <pred> where
 %type <order> order
 %type <desc> direction
 %type <settingValues> setting_values
@@ -130,14 +130,15 @@ query_where: /* empty */ | WHERE name '=' query_value ;
 query_value: NUMBER | STRING | PARAM | TRUE | FALSE | NULL | '+' NUMBER | '-' NUMBER ;
 query_order: /* empty */ | ORDER BY name direction ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
-rows: row { $$ = [][]Value{$1} } | rows ',' row { $$ = append($1,$3) } ;
+rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' values ')' { $$ = $2 } ;
-values: value { $$ = []Value{$1} } | values ',' value { $$ = append($1,$3) } ;
+values: scalar { $$ = []Expr{$1} } | values ',' scalar { $$ = append($1,$3) } ;
+scalar: value { $$=LiteralExpr{Value:$1} }
+ | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} } ;
 value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | TRUE { $$ = Value{Kind:BooleanValue, Boolean:true, Pos:$1.pos} }
  | FALSE { $$ = Value{Kind:BooleanValue, Pos:$1.pos} }
  | STRING { $$ = Value{Kind:StringValue, Text:$1.text, Pos:$1.pos} }
- | PARAM { $$ = Value{Kind:ParameterValue, Parameter:sqllex.(*lexer).parameter($1.text), Pos:$1.pos} }
  | NUMBER { var ok bool; $$, ok = integerValue(sqllex,$1,""); if !ok { return 1 } }
  | '+' NUMBER { var ok bool; $$, ok = integerValue(sqllex,$2,"+"); if !ok { return 1 }; $$.Pos=$1.pos }
  | '-' NUMBER { var ok bool; $$, ok = integerValue(sqllex,$2,"-"); if !ok { return 1 }; $$.Pos=$1.pos }
@@ -152,24 +153,25 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | DEFAULT { sqllex.(*lexer).failAt("0A000","default values are unsupported",$1.pos.Offset); return 1 }
  | CAST '(' { sqllex.(*lexer).failAt("0A000","casts are unsupported",$1.pos.Offset); return 1 } ;
 select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=$5; $2.Order=$6; $2.Pos=$1.pos; $$=$2 }
+ | SELECT projection { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil }
  | SELECT projection FROM relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$5.pos.Offset); return 1 }
  | SELECT projection FROM relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$6.pos.Offset); return 1 }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | SELECT projection FROM relation_name where order suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
-projection: '*' { $$ = &Select{Star:true} } | names { $$ = &Select{Columns:$1} }
- | names bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
- | names AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 }
- | names ',' name '(' { sqllex.(*lexer).call($3,$4); return 1 }
- | names ',' KW_T '(' { sqllex.(*lexer).call($3,$4); return 1 }
- | names ',' AUTHORIZATION '(' { sqllex.(*lexer).call($3,$4); return 1 }
- | names ',' CAST '(' { sqllex.(*lexer).failAt("0A000","casts are unsupported",$3.pos.Offset); return 1 }
- | names '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
- | names '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
- | names '.' { sqllex.(*lexer).fail("0A000","qualified column references are unsupported"); return 1 }
- | value { sqllex.(*lexer).fail("0A000","literal projections are unsupported"); return 1 } ;
-where: /* empty */ { $$ = nil } | WHERE name '=' value { $$ = &Predicate{Column:$2.text, Value:$4, Pos:$3.pos} }
+target: name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+ | scalar { $$=$1 } ;
+scalar_targets: target { $$=[]Expr{$1} } | scalar_targets ',' target { $$=append($1,$3) } ;
+projection: '*' { $$ = &Select{Star:true} } | scalar_targets { $$ = &Select{Targets:$1} }
+ | scalar_targets bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
+ | scalar_targets AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 }
+ | scalar_targets '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
+ | scalar_targets '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
+ | scalar_targets '.' { sqllex.(*lexer).fail("0A000","qualified column references are unsupported"); return 1 } ;
+where: /* empty */ { $$ = nil }
+ | WHERE target { $$=$2 }
+ | WHERE name '=' scalar { $$ = OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:"=",Pos:$3.pos}}},Args:[]Expr{ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Pos:$2.pos},$4},Pos:$3.pos} }
  | WHERE name '>' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }
  | WHERE name '<' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }
  | WHERE name '!' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }

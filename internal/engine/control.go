@@ -234,8 +234,8 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.Insert:
 			for _, row := range s.Rows {
 				for _, v := range row {
-					if v.Kind == parser.ParameterValue {
-						return sqlError("42P02", "parameters are not allowed in restore")
+					if _,ok := v.(parser.ParameterExpr);ok {
+						return expressionError("42P02", "parameters are not allowed in restore",v.SourcePosition())
 					}
 				}
 			}

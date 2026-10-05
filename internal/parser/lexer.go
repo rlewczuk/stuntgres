@@ -447,7 +447,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 			return 0
 		}
 		if n == 0 {
-			l.fail("42P02", "parameter number must be positive")
+			l.fail("42P02", "there is no parameter $0")
 			return 0
 		}
 		l.current.text = s

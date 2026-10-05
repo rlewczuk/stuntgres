@@ -33,7 +33,7 @@ func (*CreateTable) statement() {}
 type Insert struct {
 	Name    ObjectName
 	Targets []InsertTarget
-	Rows    [][]Value
+	Rows    [][]Expr
 	Pos     Position
 }
 
@@ -47,19 +47,14 @@ func (*Insert) statement() {}
 type Select struct {
 	Name    ObjectName
 	Star    bool
-	Columns []string
-	Where   *Predicate
+	Targets []Expr
+	Where   Expr
 	Order   *Order
 	Pos     Position
 }
 
 func (*Select) statement() {}
 
-type Predicate struct {
-	Column string
-	Value  Value
-	Pos    Position
-}
 type Order struct {
 	Column string
 	Desc   bool
@@ -71,7 +66,6 @@ const (
 	IntegerValue
 	StringValue
 	BooleanValue
-	ParameterValue
 )
 
 type Value struct {
@@ -79,9 +73,26 @@ type Value struct {
 	Integer   int64
 	Text      string
 	Boolean   bool
-	Parameter int
 	Pos       Position
 }
+
+// Expr is the closed set of admitted scalar syntax occurrences.
+type Expr interface {
+	expression()
+	SourcePosition() Position
+}
+type LiteralExpr struct { Value Value }
+type ColumnExpr struct { Name ObjectName; Pos Position }
+type ParameterExpr struct { Number int; Pos Position }
+type OperatorExpr struct { Name ObjectName; Args []Expr; Pos Position }
+func (LiteralExpr) expression() {}
+func (ColumnExpr) expression() {}
+func (ParameterExpr) expression() {}
+func (OperatorExpr) expression() {}
+func (e LiteralExpr) SourcePosition() Position { return e.Value.Pos }
+func (e ColumnExpr) SourcePosition() Position { return e.Pos }
+func (e ParameterExpr) SourcePosition() Position { return e.Pos }
+func (e OperatorExpr) SourcePosition() Position { return e.Pos }
 
 // Set uses setting-specific scalar text; Default is distinct from quoted text.
 type Set struct {
@@ -153,7 +164,7 @@ func (*Reset) statement() {}
 
 type SettingCall struct {
 	Name string
-	Args []Value
+	Args []Expr
 	Pos  Position
 }
 

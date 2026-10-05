@@ -91,6 +91,8 @@ func TestErrorFieldsEngine(t *testing.T) {
 					Severity: "ERROR", SeverityUnlocalized: "ERROR",
 					Code: tc.code, Message: tc.message,
 				}
+				if tc.query=="SELECT missing FROM diagnostic_rows" { want.Position="8" }
+				if tc.query=="SELECT * FROM diagnostic_rows WHERE missing=1" { want.Position="37" }
 				if !errors.As(err, &got) || *got != want {
 					t.Fatalf("engine diagnostic = %#v (%v), want %#v", got, err, want)
 				}
@@ -1060,7 +1062,8 @@ func TestErrorFieldsRestore(t *testing.T) {
 	err = stuntgres.Restore(context.Background(), db, bytes.NewBufferString("CREATE TABLE staged (id INT); INSERT INTO staged VALUES ($1)"))
 	check(err, stuntgres.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P02",
-		Message: "parameters are not allowed in restore",
+		// The ASCII prefix before $1 is 57 characters; retain the occurrence.
+		Message: "parameters are not allowed in restore", Position: "58",
 	})
 	_, err = db.Exec("INSERT INTO diagnostic_rows VALUES (NULL,'bad')")
 	check(err, notNull)
@@ -1463,8 +1466,8 @@ func TestStringLiteralDollarParametersAndBoundaries(t *testing.T) {
 	execSQL(t, db, "INSERT INTO t VALUES ('seed')")
 	for _, tc := range []struct{ q, code, message, position string }{
 		{"INSERT INTO t VALUES$$v$$", "42601", `syntax error at or near "VALUES$$v$$"`, "15"},
-		{"INSERT INTO t VALUES ($0)", "42P02", "parameter number must be positive", "23"},
-		{"INSERT INTO t VALUES ($000)", "42P02", "parameter number must be positive", "23"},
+		{"INSERT INTO t VALUES ($0)", "42P02", "there is no parameter $0", "23"},
+		{"INSERT INTO t VALUES ($000)", "42P02", "there is no parameter $0", "23"},
 		{"INSERT INTO t VALUES ($1junk)", "42601", "invalid parameter", "23"},
 		{"INSERT INTO t VALUES ($9tag$)", "42601", "invalid parameter", "23"},
 		{"INSERT INTO t VALUES ($2147483648)", "42601", "parameter number too large", "23"},

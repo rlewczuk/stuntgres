@@ -84,7 +84,7 @@ func tuples(r Result) [][]driver.Value {
 	for i := range rows {
 		rows[i] = make([]driver.Value, len(r.Columns))
 		values := make([]sqltype.Value, len(r.Columns))
-		r.Rows.Values(i, values)
+		if err := r.Rows.Values(context.Background(),i, values);err!=nil { panic(err) }
 		for j, v := range values {
 			rows[i][j] = testExport(v)
 		}

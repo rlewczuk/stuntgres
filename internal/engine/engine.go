@@ -47,13 +47,14 @@ type binding struct {
 	storage       *relationStorage
 	ref           ObjectRef
 	targets       []int
-	projection    []int
-	predicate     int
+	projection    []BoundExpr
+	usedColumns   []int
+	filter        BoundExpr
+	results       []ColumnDescriptor
+	dependencies  []expressionDependency
 	order         int
 	parameters    ParameterInfo
-	expressions   [][]boundValue
-	whereValue    boundValue
-	equality      sqltype.Equality
+	expressions   [][]BoundExpr
 	ordering      sqltype.Comparison
 	createColumns []ColumnDescriptor
 }
@@ -206,7 +207,7 @@ func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (Statem
 	case *parser.SettingCall:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		info, _, err := e.describeSettingCall(s)
+		info, _, err := e.describeSettingCall(op.ctx,s)
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
@@ -218,7 +219,7 @@ func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (Statem
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	b, err := e.describe(stmt, auth)
+	b, err := e.describe(op.ctx,stmt, auth)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -249,11 +250,11 @@ func namespaceForName(view CatalogRead, name parser.ObjectName, creation bool) (
 	}
 	return ObjectAddress{}, nil
 }
-func (e *Engine) describe(stmt parser.Statement, auth AuthorizationView) (binding, error) {
-	b := binding{predicate: -1, order: -1}
-	inference := parameterInference{used: make(map[int]sqltype.Usage)}
-	bind := func(v parser.Value, c ColumnDescriptor, mode sqltype.CoercionContext) (boundValue, error) {
-		return inference.bind(e, v, c, mode)
+func (e *Engine) describe(ctx context.Context,stmt parser.Statement, auth AuthorizationView) (binding, error) {
+	b := binding{order: -1}
+	binder := newExpressionBinder(ctx,e)
+	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
+		return binder.bind(v, expressionPolicy{context:assignmentContext,expected:c.Usage,mode:mode})
 	}
 	column := func(name string) (int, error) {
 		i, ok := b.relation.index[name]
@@ -293,7 +294,7 @@ func (e *Engine) describe(stmt parser.Statement, auth AuthorizationView) (bindin
 		if len(s.Targets) == 0 {
 			width := len(s.Rows[0])
 			if width > len(b.relation.columns) {
-				return b, insertError("42601", "INSERT has more expressions than target columns", s.Rows[0][len(b.relation.columns)].Pos)
+				return b, insertError("42601", "INSERT has more expressions than target columns", s.Rows[0][len(b.relation.columns)].SourcePosition())
 			}
 			b.targets = make([]int, width)
 			for i := range b.targets {
@@ -313,18 +314,18 @@ func (e *Engine) describe(stmt parser.Statement, auth AuthorizationView) (bindin
 				b.targets = append(b.targets, i)
 			}
 		}
-		b.expressions = make([][]boundValue, len(s.Rows))
+		b.expressions = make([][]BoundExpr, len(s.Rows))
 		for rowIndex, row := range s.Rows {
 			if rowIndex > 0 && len(row) != len(s.Rows[0]) {
-				return b, insertError("42601", "VALUES lists must all be the same length", row[0].Pos)
+				return b, insertError("42601", "VALUES lists must all be the same length", row[0].SourcePosition())
 			}
 			if len(row) > len(b.targets) {
-				return b, insertError("42601", "INSERT has more expressions than target columns", row[len(b.targets)].Pos)
+				return b, insertError("42601", "INSERT has more expressions than target columns", row[len(b.targets)].SourcePosition())
 			}
 			if rowIndex == 0 && len(s.Targets) != 0 && len(row) < len(b.targets) {
 				return b, insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 			}
-			b.expressions[rowIndex] = make([]boundValue, len(row))
+			b.expressions[rowIndex] = make([]BoundExpr, len(row))
 			for j, v := range row {
 				c := b.relation.columns[b.targets[j]]
 				plan, err := bind(v, c, sqltype.Assignment)
@@ -345,57 +346,52 @@ func (e *Engine) describe(stmt parser.Statement, auth AuthorizationView) (bindin
 		if b.storage == nil {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		if s.Star {
-			b.projection = make([]int, len(b.relation.columns))
-			for i := range b.projection {
-				b.projection[i] = i
+		binder.relation, binder.ref = b.relation, b.ref
+		width:=len(s.Targets);if s.Star { width=len(b.relation.columns) }
+		b.projection=make([]BoundExpr,width)
+		b.results=make([]ColumnDescriptor,width)
+		for i:=range width {
+			if err:=ctx.Err();err!=nil { return b,err }
+			var expr BoundExpr
+			if s.Star { expr=binder.columnAt(i,parser.Position{Offset:-1}) } else {
+				var er error
+				expr,er=binder.bind(s.Targets[i],expressionPolicy{context:projectionContext})
+				if er!=nil { return b,er }
 			}
-		} else {
-			for _, n := range s.Columns {
-				i, er := column(n)
-				if er != nil {
-					return b, er
-				}
-				b.projection = append(b.projection, i)
-			}
+			b.projection[i]=expr
 		}
 		if s.Where != nil {
-			b.predicate, err = column(s.Where.Column)
-			if err != nil {
-				return b, err
-			}
-			b.whereValue, err = bind(s.Where.Value, b.relation.columns[b.predicate], sqltype.Implicit)
-			if err != nil {
-				return b, operatorError(err, b.relation.columns[b.predicate], s.Where)
-			}
-			right := b.whereValue.value.Type()
-			if s.Where.Value.Kind == parser.ParameterValue {
-				right = b.relation.columns[b.predicate].Usage.Type
-			}
-			boolean, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Bool)
-			b.equality, err = sqltype.BindEquality(b.relation.columns[b.predicate].Usage.Type, right, boolean)
-			if err != nil {
-				return b, operatorError(err, b.relation.columns[b.predicate], s.Where)
-			}
+			b.filter, err = binder.bind(s.Where, expressionPolicy{context:filterContext,expected:binder.typ(sqltype.Bool).Usage(),mode:sqltype.Implicit})
+			if err != nil { return b, err }
 		}
 		if s.Order != nil {
 			b.order, err = column(s.Order.Column)
 			if err != nil {
 				return b, err
 			}
+			binder.useColumn(b.order)
 			b.ordering, err = sqltype.BindComparison(b.relation.columns[b.order].Usage.Type, b.relation.columns[b.order].Usage.Type)
 			if err != nil {
 				return b, err
 			}
 		}
+		for i,expr:=range b.projection {
+			expr,err=binder.finalizeProjection(expr)
+			if err!=nil { return b,err }
+			b.projection[i]=expr
+			result:=ColumnDescriptor{Name:"?column?",Usage:expr.ResultUsage()}
+			if c,ok:=expr.(columnExpression);ok { result=b.relation.columns[c.slot] }
+			b.results[i]=result
+		}
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}
 	var err error
-	b.parameters, err = inference.finish()
+	b.parameters, err = binder.finish()
 	if err != nil {
 		return b, err
 	}
+	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
 	return b, nil
 }
 
@@ -489,12 +485,14 @@ func insertError(code, message string, pos parser.Position) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(pos.Character)}
 }
 
-func insertValueError(err error, column ColumnDescriptor, value parser.Value) error {
+func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error {
 	sqlErr, ok := err.(*sqlstate.Error)
 	if !ok {
 		return err
 	}
 	copy := *sqlErr
+	value := parser.Value{Pos:raw.SourcePosition()}
+	if literal,ok := raw.(parser.LiteralExpr);ok { value=literal.Value }
 	switch copy.Code {
 	case "42804":
 		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, strings.ToLower(column.Usage.Type.SQLName()), literalTypeName(value))
@@ -601,7 +599,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
 		}
-		created, er := e.describe(s, auth)
+		created, er := e.describe(ctx,s, auth)
 		if er != nil {
 			e.mu.Unlock()
 			return Result{}, er
@@ -678,7 +676,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return Result{}, er
 	}
-	b, err := e.describe(stmt, auth)
+	b, err := e.describe(ctx,stmt, auth)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -704,19 +702,23 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
+	var materialized [][]sqltype.Value
+	evaluation:=EvalContext{Context:ctx,Parameters:canonical}
 	_, inserting := stmt.(*parser.Insert)
 	if inserting {
 		// Fold immutable assignment casts before executor ACL checks, without
 		// allocating protected rows for unauthorized valid input.
 		for i, row := range b.expressions {
 			for j, expression := range row {
-				if expression.convert {
-					value, foldErr := expression.evaluate(ctx, canonical)
+				if _,converted:=expression.(coercionExpression);converted && !expression.Properties().ParameterDependent {
+					value, foldErr := expression.Eval(&evaluation)
 					if foldErr != nil {
 						e.mu.Unlock()
 						return Result{}, insertValueError(foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j])
 					}
-					b.expressions[i][j] = boundValue{value: value}
+					if materialized==nil { materialized=make([][]sqltype.Value,len(b.expressions)) }
+					if materialized[i]==nil { materialized[i]=make([]sqltype.Value,len(row)) }
+					materialized[i][j] = value
 				}
 			}
 		}
@@ -740,7 +742,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			for j, v := range source {
 				target := b.targets[j]
 				c := b.relation.columns[target]
-				row[target], err = b.expressions[i][j].evaluate(ctx, canonical)
+				if materialized!=nil && materialized[i]!=nil && materialized[i][j].Type()!=nil { row[target]=materialized[i][j] } else { row[target], err = b.expressions[i][j].Eval(&evaluation) }
 				if err != nil {
 					e.mu.Unlock()
 					return Result{}, insertValueError(err, c, v)
@@ -773,23 +775,16 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return Result{Count: int64(len(rows))}, nil
 	case *parser.Select:
-		var predicate sqltype.Value
-		if s.Where != nil {
-			predicate, err = b.whereValue.evaluate(ctx, canonical)
-			if err != nil {
-				e.mu.Unlock()
-				return Result{}, err
-			}
-		}
 		view, viewErr := scope.acquireDataViewLocked(e, b.ref)
 		if viewErr != nil {
 			e.mu.Unlock()
 			return Result{}, viewErr
 		}
 		snap := versionSnapshot(view, b.ref.Address, b.projection)
+		snap.parameters = canonical
 		columns := b.columns()
 		e.mu.Unlock()
-		if err = snap.selectRows(ctx, b.predicate, predicate, b.equality, b.order, b.ordering, s.Order != nil && s.Order.Desc); err != nil {
+		if err = snap.selectRows(ctx, b.filter, b.order, b.ordering, s.Order != nil && s.Order.Desc); err != nil {
 			snap.Close()
 			return Result{}, err
 		}

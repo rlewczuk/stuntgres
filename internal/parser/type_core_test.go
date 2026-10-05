@@ -12,5 +12,5 @@ func TestTypeCoreRawTypeNamesAndPositions(t *testing.T) {
  }
  statements,err=Parse("SELECT a FROM t WHERE a=TRUE")
  if err!=nil{t.Fatal(err)}
- if pos:=statements[0].(*Select).Where.Pos.Character;pos!=24{t.Fatal(pos)}
+ if pos:=statements[0].(*Select).Where.SourcePosition().Character;pos!=24{t.Fatal(pos)}
 }

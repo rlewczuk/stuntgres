@@ -475,10 +475,11 @@ Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
 ```text
 CREATE TABLE [public.]name (column type [NULL | NOT NULL] [, ...])
 INSERT INTO [public.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
-SELECT (* | column [, ...]) FROM [public.]name
-       [WHERE column = value] [ORDER BY column [ASC | DESC]]
+SELECT (* | scalar [, ...]) FROM [public.]name
+       [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
 type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n
+scalar := unqualified column | value
 ```
 
 Relation names accept one or two identifier components. Explicit `public.name` and unqualified `name` resolve to the same relation; unqualified references check `pg_catalog` before the built-in `public` namespace. SQL creation is supported only in `public`. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
@@ -523,6 +524,46 @@ including INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
 INT4/INT8 as `int64`, TEXT as `string`, BOOL as `bool`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
+
+Table SELECT targets and existing equality filters use one immutable typed
+expression binder/evaluator, also shared by INSERT and bounded setting arguments.
+Literal and parameter targets are named `?column?`; physical columns retain their
+names and origin metadata. Integer literals use INT4 in range and INT8 otherwise;
+unknown output strings, NULL and otherwise unconstrained parameters resolve to
+TEXT **after** filter analysis. Parameter occurrences retain their type at initial
+analysis: a target `$1` starts unresolved before WHERE. Thus
+`SELECT $1 FROM t WHERE id=$1` fails `42P08` with Detail `integer versus text`
+at the target, rather than projecting INT4; a later BOOL constraint similarly
+conflicts with TEXT fallback. `SELECT $1 FROM t` infers TEXT independent of the
+Go value, and `SELECT $1 FROM t WHERE s=$1` works when `s` is TEXT.
+Bare WHERE accepts BOOL columns/literals/parameters and contextual unknown
+NULL/strings (`'yes'`/`'no'`); concrete non-BOOL input fails `42804`. Only TRUE
+matches: FALSE and typed BOOL NULL/UNKNOWN do not. Existing equality remains
+column-left, literal/parameter-right; equality projection and general predicates
+are not admitted. FROM is still required outside the existing identity/settings
+special forms. No arithmetic, aliases, qualified column references, functions,
+casts or expanded comparison/logical syntax is enabled.
+
+Missing column and invalid SQL `$0` references fail during analysis with `42703`
+and `42P02`, respectively, at the occurrence's one-based character position.
+The first parameter gap fails `42P18` without a position in native direct/Prepare
+and PostgreSQL Prepare. PostgreSQL's zero-argument direct simple query instead
+rejects `SELECT $2 FROM t` with `42P02` at `$2`; this protocol boundary is asserted
+independently, not normalized into parity. Missing actual Go arguments remain
+ordinary adapter/count errors, not PostgreSQL protocol errors.
+Prepared executions retain fixed inferred usage and use fresh private
+values. Cursors retain captured multiplicity, imported parameters and metadata
+across appends, Reset and Restore; no row order is promised without ORDER BY.
+
+Run `go test -count=1 -v -run '^TestExpressionCoreSmoke$' ./smoke` for the public
+direct/prepared scalar, BOOL/NULL, diagnostic, retained-cursor/control and atomicity
+witness. Independent native/unit checks are
+`go test -count=1 -v -run '^TestExpressionCore.*$' .` and
+`go test -count=1 -v -run '^TestExpression.*$' ./internal/engine`;
+the real pinned reference is
+`go test -tags reference -count=1 -v -run '^TestReferenceExpressionCore.*$' ./reference`.
+Go test reports assertion failures or PASS; these commands require execution to
+establish verification.
 Normalized integer parameters targeting INT4/INT8 and Boolean parameters targeting
 BOOL use checked scalar imports without successful-value formatting or reparsing.
 They retain the inferred descriptor and cancellation checks; INT4 overflow keeps

@@ -499,8 +499,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if data.frontier != retainedFrontier || data.catalog.state != retainedCatalog || data.catalog.Epoch() != retainedEpoch {
 					t.Fatal("retained frontier/catalog metadata changed")
 				}
-				if retained[i].Len() != len(root) || !reflect.DeepEqual(retained[i].projection, []int{0}) {
-					t.Fatal("retained result length/projection changed")
+				if retained[i].Len() != len(root) {
+					t.Fatal("retained result length changed")
 				}
 				if len(data.committed) != 1 || !reflect.DeepEqual(data.committed[addresses[i]], records[i]) || !reflect.DeepEqual(current[:len(root)], records[i]) {
 					t.Fatal("retained or live prefix identities/birth/payload changed")

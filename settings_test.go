@@ -278,7 +278,7 @@ func TestSettingsErrorsAndAtomicity(t *testing.T) {
 				settingsDiagnostic(t, e, code, message, "", "", "")
 			}
 		}
-		for _, tc := range []struct{ q, code, message string }{{"SELECT current_setting($2)", "42P18", "could not determine unused parameter type"}, {"SELECT set_config($1,'v',$1)", "0A000", "parameter reused with different destination types"}} {
+		for _, tc := range []struct{ q, code, message string }{{"SELECT current_setting($2)", "42P18", "could not determine data type of parameter $1"}, {"SELECT set_config($1,'v',$1)", "0A000", "parameter reused with different destination types"}} {
 			_, err := a.PrepareContext(context.Background(), tc.q)
 			settingsDiagnostic(t, err, tc.code, tc.message, "", "", "")
 		}

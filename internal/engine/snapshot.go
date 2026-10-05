@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"sort"
+	"fmt"
+	"stuntgres/internal/parser"
 	"sync/atomic"
 
 	"stuntgres/internal/sqltype"
@@ -13,7 +15,9 @@ import (
 type Snapshot struct {
 	self       *Snapshot
 	rows       [][]sqltype.Value
-	projection []int
+	projection []BoundExpr
+	parameters []sqltype.Value
+	evaluation EvalContext
 	selection  []int
 	committed  []rowVersion
 	own        []rowVersion
@@ -22,11 +26,17 @@ type Snapshot struct {
 }
 
 func anonymousSnapshot(rows [][]sqltype.Value, projection []int) *Snapshot {
-	s := &Snapshot{rows: rows, projection: projection}
+	expressions := make([]BoundExpr,len(projection))
+	for i,slot := range projection {
+		var usage sqltype.Usage
+		if len(rows)>0 { usage=rows[0][slot].Type().Usage() }
+		expressions[i]=columnExpression{expressionInfo:expressionInfo{usage:usage,pos:parser.Position{Offset:-1},properties:ExprProperties{RowDependent:true}},scope:1,frame:1,slot:slot}
+	}
+	s := &Snapshot{rows: rows, projection: expressions}
 	s.self = s
 	return s
 }
-func versionSnapshot(view *VisibilityView, relation ObjectAddress, projection []int) *Snapshot {
+func versionSnapshot(view *VisibilityView, relation ObjectAddress, projection []BoundExpr) *Snapshot {
 	retained := view.Retain()
 	data := retained.read()
 	s := &Snapshot{view: retained, committed: data.committed[relation], own: data.own[relation], projection: projection}
@@ -45,6 +55,9 @@ func (s *Snapshot) Close() {
 		s.committed = nil
 		s.own = nil
 		s.selection = nil
+		s.projection = nil
+		s.parameters = nil
+		s.evaluation = EvalContext{}
 	}
 }
 func (s *Snapshot) rowCount() int { return len(s.rows) + len(s.committed) + len(s.own) }
@@ -71,39 +84,34 @@ func (s *Snapshot) Len() int {
 	}
 	return s.rowCount()
 }
-func (s *Snapshot) Values(index int, dst []sqltype.Value) {
-	if s.selection != nil {
-		index = s.selection[index]
+func (s *Snapshot) Values(ctx context.Context,index int, dst []sqltype.Value) error {
+	if s==nil || s.self!=s || s.closed.Load() || index<0 || index>=s.Len() || len(dst)!=len(s.projection) { return fmt.Errorf("stuntgres: invalid snapshot projection") }
+	if s.selection != nil { index=s.selection[index] }
+	s.evaluation = EvalContext{Context:ctx,Scope:1,Frame:1,Row:s.row(index),Parameters:s.parameters}
+	for i, expression := range s.projection {
+		value,err := expression.Eval(&s.evaluation)
+		if err!=nil { return err }
+		dst[i]=value
 	}
-	row := s.row(index)
-	for i, c := range s.projection {
-		dst[i] = row[c]
-	}
+	return ctx.Err()
 }
 
-func (s *Snapshot) selectRows(ctx context.Context, predicate int, value sqltype.Value, equality sqltype.Equality, order int, ordering sqltype.Comparison, desc bool) error {
-	if predicate >= 0 || order >= 0 {
+func (s *Snapshot) selectRows(ctx context.Context, predicate BoundExpr, order int, ordering sqltype.Comparison, desc bool) error {
+	if predicate != nil || order >= 0 {
 		s.selection = make([]int, 0, s.rowCount())
+		evaluation:=EvalContext{Context:ctx,Scope:1,Frame:1,Parameters:s.parameters}
 		for i := range s.rowCount() {
 			row := s.row(i)
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if predicate >= 0 {
-				result, err := equality.Evaluate(ctx, row[predicate], value)
-				if err != nil {
-					return err
-				}
-				if result.IsNull() {
-					continue
-				}
-				matches, err := result.Boolean()
-				if err != nil {
-					return err
-				}
-				if !matches {
-					continue
-				}
+			if predicate != nil {
+				evaluation.Row=row
+				result,err := predicate.Eval(&evaluation)
+				if err!=nil { return err }
+				truth,err := TruthOf(result)
+				if err!=nil { return err }
+				if truth!=True { continue }
 			}
 			s.selection = append(s.selection, i)
 		}

@@ -17,9 +17,9 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T){
  p,err:=e.Describe(op,statement(t,"INSERT INTO repeats VALUES($1,$2,$1)"));if err!=nil||p.Parameters.Count!=2||p.Parameters.Types[0].Type.ID()!=23||p.Parameters.Types[1].Type.ID()!=25{t.Fatal(p,err)}
  for _,q:=range []string{"INSERT INTO repeats VALUES($2147483647,'x',1)","INSERT INTO repeats VALUES($2,'x',$2)"}{_,err=e.Describe(op,statement(t,q));state(t,err,"42P18")}
  for _,q:=range []string{"INSERT INTO typed VALUES($1,$1,'x',TRUE)","INSERT INTO repeats VALUES($1,$1,1)"}{_,err=e.Describe(op,statement(t,q));state(t,err,"0A000")}
- run(t,e,"INSERT INTO typed VALUES(1,NULL,NULL,NULL)");old:=run(t,e,"SELECT * FROM typed");values:=make([]sqltype.Value,4);old.Rows.Values(0,values);for i,v:=range values{if v.Type()!=desc.Results[i].Usage.Type||v.IsNull()!=(i!=0){t.Fatal(v)}}
+ run(t,e,"INSERT INTO typed VALUES(1,NULL,NULL,NULL)");old:=run(t,e,"SELECT * FROM typed");values:=make([]sqltype.Value,4);if err=old.Rows.Values(context.Background(),0,values);err!=nil{t.Fatal(err)};for i,v:=range values{if v.Type()!=desc.Results[i].Usage.Type||v.IsNull()!=(i!=0){t.Fatal(v)}}
  ref:=ObjectRef{owner:e.owner,Epoch:view.Epoch(),Address:ObjectAddress{ClassID:TypeClassID,ObjectID:23}};other:=New();if err=other.ValidateObjectRef(other.CatalogRead(),ref);err==nil{t.Fatal("foreign type ref")}
- if err=e.Reset(context.Background());err!=nil{t.Fatal(err)};if err=e.ValidateObjectRef(view,ref);!errors.Is(err,ErrCatalogReplaced){t.Fatal(err)};current,_:=e.CatalogRead().LookupType(23);if current==desc.Results[0].Usage.Type{t.Fatal("reused type generation")};old.Rows.Values(0,values);if values[0].Type()!=desc.Results[0].Usage.Type{t.Fatal("retained type changed")}
+ if err=e.Reset(context.Background());err!=nil{t.Fatal(err)};if err=e.ValidateObjectRef(view,ref);!errors.Is(err,ErrCatalogReplaced){t.Fatal(err)};current,_:=e.CatalogRead().LookupType(23);if current==desc.Results[0].Usage.Type{t.Fatal("reused type generation")};if err=old.Rows.Values(context.Background(),0,values);err!=nil{t.Fatal(err)};if values[0].Type()!=desc.Results[0].Usage.Type{t.Fatal("retained type changed")}
 }
 
 func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {

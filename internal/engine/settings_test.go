@@ -83,7 +83,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 			}
 			values := make([]sqltype.Value, len(tc.names))
 			for i, row := range tc.rows {
-				result.Rows.Values(i, values)
+				if err := result.Rows.Values(context.Background(),i, values);err!=nil { t.Fatal(err) }
 				for j, want := range row {
 					if tc.null {
 						if !values[j].IsNull() || values[j].Type() != typ {
@@ -217,7 +217,7 @@ func TestSettingCapturedDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	r, err := e.Execute(op, &parser.SettingCall{Name: "set_config", Args: []parser.Value{{Kind: parser.StringValue, Text: "application_name"}, {Kind: parser.NullValue}, {Kind: parser.BooleanValue}}}, 0, nil)
+	r, err := e.Execute(op, &parser.SettingCall{Name: "set_config", Args: []parser.Expr{parser.LiteralExpr{Value:parser.Value{Kind: parser.StringValue, Text: "application_name"}}, parser.LiteralExpr{Value:parser.Value{Kind: parser.NullValue}}, parser.LiteralExpr{Value:parser.Value{Kind: parser.BooleanValue}}}}, 0, nil)
 	if err != nil || tuples(r)[0][0] != want {
 		t.Fatal(r, err)
 	}

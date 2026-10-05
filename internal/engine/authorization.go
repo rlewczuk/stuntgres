@@ -446,7 +446,7 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, insert bool) error {
-	mask, indices := SelectPrivilege, b.projection
+	mask, indices := SelectPrivilege, b.usedColumns
 	if insert {
 		mask, indices = InsertPrivilege, b.targets
 	}
@@ -457,7 +457,7 @@ func (v AuthorizationView) checkBinding(b binding, insert bool) error {
 	if whole&mask == mask {
 		return nil
 	}
-	if len(indices) == 0 && (insert || b.predicate < 0 && b.order < 0) {
+	if len(indices) == 0 {
 		return v.Check(AccessRequirement{Object: b.ref, Privileges: mask})
 	}
 	// The usual small relation needs no allocation to deduplicate actual uses.
@@ -484,18 +484,6 @@ func (v AuthorizationView) checkBinding(b binding, insert bool) error {
 	for _, index := range indices {
 		if err := check(index); err != nil {
 			return err
-		}
-	}
-	if !insert {
-		if b.predicate >= 0 {
-			if err := check(b.predicate); err != nil {
-				return err
-			}
-		}
-		if b.order >= 0 {
-			if err := check(b.order); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

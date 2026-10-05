@@ -47,7 +47,7 @@ func (r *rows) Next(dst []driver.Value) error {
 	if r.snapshot == nil || r.index >= r.snapshot.Len() {
 		return io.EOF
 	}
-	r.snapshot.Values(r.index, r.scratch)
+	if err := r.snapshot.Values(r.ctx, r.index, r.scratch); err != nil { return err }
 	for i, v := range r.scratch {
 		value, err := exportValue(r.ctx, v)
 		if err != nil {

@@ -75,7 +75,7 @@ func TestSettingParserOptions(t *testing.T) {
 		if standard {
 			want = `a\nb`
 		}
-		if row[0].Text != want || row[1].Text != "a\nb" {
+		if row[0].(LiteralExpr).Value.Text != want || row[1].(LiteralExpr).Value.Text != "a\nb" {
 			t.Fatal(standard, row)
 		}
 	}

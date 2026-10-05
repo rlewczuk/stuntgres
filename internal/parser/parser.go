@@ -229,15 +229,19 @@ func columnType(l sqlLexer, tok lexeme) (TypeName, bool) {
 	return TypeName{}, false
 }
 
-func settingCall(l sqlLexer, name lexeme, args []Value) (Statement, bool) {
+func settingCall(l sqlLexer, name lexeme, args []Expr) (Statement, bool) {
 	n := name.text
 	if n != "current_setting" && n != "set_config" {
 		l.(*lexer).failAt("0A000", "functions are unsupported", name.pos.Offset)
 		return nil, false
 	}
 	valid := n == "current_setting" && len(args) == 1 || n == "set_config" && len(args) == 3
-	for i, v := range args {
-		if v.Kind != NullValue && v.Kind != ParameterValue && v.Kind != StringValue && !(i == 2 && v.Kind == BooleanValue) {
+	for i, raw := range args {
+		switch v := raw.(type) {
+		case ParameterExpr:
+		case LiteralExpr:
+			if v.Value.Kind != NullValue && v.Value.Kind != StringValue && !(i == 2 && v.Value.Kind == BooleanValue) { valid = false }
+		default:
 			valid = false
 		}
 	}

@@ -451,7 +451,7 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 		t.Fatal("replacement reused type generation")
 	}
 	values := make([]sqltype.Value, 2)
-	retained.Rows.Values(0, values)
+	if err := retained.Rows.Values(context.Background(),0, values);err!=nil { t.Fatal(err) }
 	for i, value := range values {
 		text, err := value.Text()
 		if err != nil || value.Type() != typ || text != "typed_owner" || retained.Columns[i].Usage.Type != typ {

@@ -39,9 +39,9 @@ func TestReferenceCatalogCore(t *testing.T) {
 			Severity: "ERROR", SeverityUnlocalized: "ERROR",
 			Code: tc.state, Message: tc.message,
 		}
-		// The existing INSERT target binder owns this occurrence position.
-		// Current missing-relation/SELECT/CREATE producers have no native cursor.
-		if strings.HasPrefix(tc.query, "INSERT INTO public.t (missing_column)") {
+		// Scalar column occurrences and INSERT targets retain their locations.
+		// Missing-relation/CREATE producers remain intentionally unchanged.
+		if strings.HasPrefix(tc.query, "INSERT INTO public.t (missing_column)") || strings.HasPrefix(tc.query,"SELECT missing_column") {
 			native.Position = tc.pos
 		}
 		postgres := native

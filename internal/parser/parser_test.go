@@ -37,7 +37,7 @@ func TestScriptAndLiterals(t *testing.T) {
 	}
 	for i := range insert.Rows {
 		for j := range insert.Rows[i] {
-			got := insert.Rows[i][j]
+			got := insert.Rows[i][j].(LiteralExpr).Value
 			got.Pos = Position{}
 			if !reflect.DeepEqual(got, want[i][j]) {
 				t.Errorf("row %d value %d: %#v != %#v", i, j, got, want[i][j])
@@ -45,7 +45,7 @@ func TestScriptAndLiterals(t *testing.T) {
 		}
 	}
 	selectStmt := statements[2].(*Select)
-	if !reflect.DeepEqual(selectStmt.Columns, []string{"integer", "a\"b"}) || selectStmt.Where.Value.Parameter != 2 || selectStmt.Order.Column != "active" || !selectStmt.Order.Desc {
+	if selectStmt.Targets[0].(ColumnExpr).Name.Parts[0].Text!="integer" || selectStmt.Targets[1].(ColumnExpr).Name.Parts[0].Text!="a\"b" || selectStmt.Where.(OperatorExpr).Args[1].(ParameterExpr).Number != 2 || selectStmt.Order.Column != "active" || !selectStmt.Order.Desc {
 		t.Fatalf("select = %#v", selectStmt)
 	}
 }
@@ -109,7 +109,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT * FROM t alias", "0A000"}, {"SELECT x alias FROM t", "0A000"},
 		{"SELECT x FROM t ORDER BY x, y", "0A000"}, {"SELECT f(x) FROM t", "0A000"},
-		{"SELECT x + 1 FROM t", "0A000"}, {"SELECT 1 FROM t", "0A000"},
+		{"SELECT x + 1 FROM t", "0A000"}, {"SELECT 1", "0A000"},
 		{"CREATE TABLE t (x INT[])", "0A000"},
 		{"SELECT * FROM t JOIN u ON t.x = u.x", "0A000"}, {"SELECT * FROM t WHERE x = 1::INT", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
@@ -151,7 +151,7 @@ func TestDollarStrings(t *testing.T) {
 			if err != nil || len(statements) != 2 {
 				t.Fatalf("%q: %#v %v", q, statements, err)
 			}
-			value := statements[0].(*Insert).Rows[0][0]
+			value := statements[0].(*Insert).Rows[0][0].(LiteralExpr).Value
 			wantPos := Position{Offset: 22, Character: 23}
 			if prefix != "" {
 				wantPos = Position{Offset: 29, Character: 29}
@@ -253,7 +253,7 @@ func TestMarkersAndRepeatedParameters(t *testing.T) {
 		t.Fatal(err)
 	}
 	values := got[0].(*Insert).Rows[0]
-	if values[0].Kind != StringValue || values[0].Text != "$17" || values[1].Parameter != 2 || values[2].Parameter != 2 || values[3].Parameter != 1 {
+	if values[0].(LiteralExpr).Value.Kind != StringValue || values[0].(LiteralExpr).Value.Text != "$17" || values[1].(ParameterExpr).Number != 2 || values[2].(ParameterExpr).Number != 2 || values[3].(ParameterExpr).Number != 1 {
 		t.Fatalf("values = %#v", values)
 	}
 }
@@ -278,7 +278,7 @@ func TestEscapeStringDecoding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v := stmts[0].(*Insert).Rows[0][0]
+			v := stmts[0].(*Insert).Rows[0][0].(LiteralExpr).Value
 			if v.Kind != StringValue || v.Text != tc.want || v.Pos != (Position{Offset: 29, Character: 29}) {
 				t.Fatalf("value = %#v, want %q at byte 29/character 29", v, tc.want)
 			}
@@ -390,7 +390,7 @@ func TestNumericLiteralDecoding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := statements[0].(*Insert).Rows[0][0]
+			got := statements[0].(*Insert).Rows[0][0].(LiteralExpr).Value
 			if got.Kind != IntegerValue || got.Integer != c.want || got.Pos.Offset != 22 || got.Pos.Character != 23 {
 				t.Fatalf("value %#v, want %d at 23", got, c.want)
 			}
@@ -469,11 +469,11 @@ func TestUnicodeEscapesValuesAndPositions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%q: %v", tc.source, err)
 		}
-		v := statements[0].(*Insert).Rows[0][0]
+		v := statements[0].(*Insert).Rows[0][0].(LiteralExpr).Value
 		if v.Text != tc.want || v.Kind != StringValue || v.Pos != (Position{Offset: 29, Character: 29}) {
 			t.Fatalf("%q: %#v", tc.source, v)
 		}
-		if statements[0].(*Insert).Rows[0][1].Text != "tail" || len(statements) != 2 {
+		if statements[0].(*Insert).Rows[0][1].(LiteralExpr).Value.Text != "tail" || len(statements) != 2 {
 			t.Fatal("lookahead lost")
 		}
 	}
@@ -767,5 +767,34 @@ func TestUnicodeEscapesPendingQueryPrecedence(t *testing.T) {
 	}
 	if l.pendingMessage != "INSERT SELECT is unsupported" || l.pendingOffset != 14 {
 		t.Fatalf("first query did not establish the deferred capability: %q at %d", l.pendingMessage, l.pendingOffset)
+	}
+}
+
+func TestExpressionCoreRawOccurrences(t *testing.T) {
+	for _,q:=range []string{"SELECT id,1,2147483648,'x',TRUE,FALSE,NULL,$1 FROM t WHERE f","SELECT $1 FROM t WHERE id=$1","SELECT id FROM t WHERE NULL","SELECT id FROM t WHERE 'yes'"} {
+		statements,err:=Parse(q);if err!=nil { t.Fatal(q,err) }
+		s:=statements[0].(*Select)
+		if len(s.Targets)==0 || s.Where==nil { t.Fatal(s) }
+		for _,raw:=range s.Targets { if raw.SourcePosition().Offset<0 || raw.SourcePosition().Character<1 { t.Fatal(raw) } }
+	}
+	for _,q:=range []string{"SELECT 1","SELECT id=1 FROM t","SELECT id FROM t WHERE 1=1","SELECT id FROM t WHERE id=v","SELECT id FROM t WHERE $1=id","SELECT id FROM t WHERE TRUE AND FALSE"} {
+		if statements,err:=Parse(q);err==nil || len(statements)!=0 { t.Fatal("expanded scalar boundary",q,statements,err) }
+	}
+}
+
+func TestExpressionCoreNoFromFailurePrecedence(t *testing.T) {
+	for _,tc:=range []struct{query,code string}{
+		{"SELECT 1","0A000"},
+		{"SELECT 1;","0A000"},
+		{"SELECT * t","42601"},
+		{"SELECT 1; )","42601"},
+		{"CREATE TABLE staged(id INT); SELECT 1; )","42601"},
+		{"SELECT 1; SELECT FROM t","42601"},
+	} {
+		statements,err:=Parse(tc.query)
+		var diagnostic *sqlstate.Error
+		if len(statements)!=0 || !errors.As(err,&diagnostic) || diagnostic.Code!=tc.code {
+			t.Fatalf("%s: statements=%#v diagnostic=%#v (%v), want %s",tc.query,statements,diagnostic,err,tc.code)
+		}
 	}
 }
