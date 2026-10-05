@@ -18,6 +18,7 @@ type RoleDescriptor struct {
 	Ref              PrincipalRef
 	Name             string
 	Login, Superuser bool
+	Comment          string
 }
 type Membership struct {
 	Role, Member, Grantor PrincipalRef
@@ -278,7 +279,7 @@ type AuthorizationView struct {
 }
 
 // Statement-local Restore authority must cover both lock resolution and effects.
-// INSERT stamps no owner; named directives and session identity remain intact.
+// INSERT/COMMENT stamp no owner; named directives and session identity stay intact.
 func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Statement) (AuthorizationView, error) {
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -288,6 +289,17 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore insertion authority")
+		}
+		auth.state.CurrentUser = bootstrap.Ref
+	}
+	if op.restoreCommentAuthority {
+		comment, ok := stmt.(*parser.Comment)
+		if !ok || (comment.Kind != parser.CommentTable && comment.Kind != parser.CommentColumn && comment.Kind != parser.CommentSchema) {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
+		}
+		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment authority")
 		}
 		auth.state.CurrentUser = bootstrap.Ref
 	}
@@ -425,6 +437,9 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind := "table"
 		if d.Kind() == NamespaceObject {
 			kind = "schema"
+		}
+		if req.Object.Address.SubID > 0 && d.Kind() == RelationObject {
+			kind = "relation"
 		}
 		return sqlError("42501", fmt.Sprintf("must be owner of %s %s", kind, d.Name()))
 	}

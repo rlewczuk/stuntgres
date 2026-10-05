@@ -187,7 +187,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
+	case *parser.Comment, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.IdentitySelect:
 		e.mu.Lock()
@@ -465,6 +465,12 @@ func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
 }
 
 func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
+	return e.resolveRelationReference(auth, name, false)
+}
+
+// COMMENT utility lookup checks a qualified namespace before the relation and
+// reports namespace denial without the position attached by DML analysis.
+func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, comment bool) (ObjectRef, error) {
 	view := auth.catalog
 	if err := e.validateCatalogViewLocked(view); err != nil {
 		return ObjectRef{}, err
@@ -488,9 +494,12 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 		}
 	} else {
 		ns := view.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+		if comment && ns == (ObjectAddress{}) {
+			return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
+		}
 		if ns != (ObjectAddress{}) {
 			if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}); err != nil {
-				if sqlErr, ok := err.(*sqlstate.Error); ok {
+				if sqlErr, ok := err.(*sqlstate.Error); ok && !comment {
 					copy := *sqlErr
 					copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
 					return ObjectRef{}, &copy
@@ -585,6 +594,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.Comment:
+		result, err := e.executeComment(scope, stmt.(*parser.Comment), count)
+		if err == nil {
+			scope.completed = true
+		}
+		return result, err
 	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
 		result, err := e.executeSchema(op, stmt, count)
 		if err == nil {

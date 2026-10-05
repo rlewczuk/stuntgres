@@ -262,7 +262,9 @@ not PostgreSQL parity. Read-only identity SELECT remains supported there.
 #### Relation locks
 
 SELECT acquires transaction-owned ACCESS SHARE; INSERT acquires ROW EXCLUSIVE.
-These automatic modes coexist, including concurrent readers and writers.
+These automatic modes coexist, including concurrent readers and writers. COMMENT
+TABLE/COLUMN acquires internal SHARE UPDATE EXCLUSIVE at Execute (not Prepare):
+it coexists with AS/RX, but conflicts with another owner's SUE and AX.
 `LOCK TABLE <name> IN ACCESS EXCLUSIVE MODE` is the only explicit lock syntax:
 one existing optionally qualified/quoted table, no ONLY/list/star/default mode,
 NOWAIT or other modes. Execution requires an explicit driver transaction and the
@@ -270,7 +272,7 @@ current role's existing superuser authority. Ordinary SELECT/INSERT privileges
 or ownership alone do not authorize this bounded native path. PostgreSQL also
 supports additional AX privilege alternatives not modeled here.
 
-ACCESS EXCLUSIVE conflicts with both automatic modes and another transaction's
+ACCESS EXCLUSIVE conflicts with all automatic modes and another transaction's
 AX. Conflicting operations wait using their command context, with compatible
 cohorts and earlier incompatible waiter ordering. An owner can SELECT/INSERT
 under its own AX. SELECT captures its READ COMMITTED view after the wait: holder
@@ -519,6 +521,10 @@ Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
 element := column type [NULL | NOT NULL] | LIKE [schema.]source
 DROP TABLE [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
+COMMENT ON TABLE [schema.]name IS string_literal | NULL
+COMMENT ON COLUMN [schema.]table.column IS string_literal | NULL
+COMMENT ON SCHEMA name IS string_literal | NULL
+COMMENT ON ROLE name IS string_literal | NULL
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | scalar [, ...]) FROM [schema.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
@@ -528,6 +534,48 @@ scalar := unqualified column | value
 ```
 
 Relation names accept one or two identifier components. Qualified `schema.name` resolves only in that schema; unqualified references follow the session's effective search_path, with implicit `pg_catalog` first unless explicitly positioned. Unqualified creation chooses the first usable explicit destination and requires CREATE there, without falling through on denial. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
+
+### Object comments
+
+COMMENT stores one immutable UTF8 text per TABLE, COLUMN, SCHEMA or ROLE.
+Another command replaces it; NULL and the empty string remove it, while
+whitespace remains text. It affects zero rows and returns no columns or
+parameters. Names and literals use the ordinary positioned parser, including
+quoted dots, E/dollar/Unicode strings and parse-time string settings. Values
+cannot be expressions or parameters. COMMENT remains an unreserved identifier.
+
+TABLE/COLUMN lookup uses current search_path and schema USAGE. Missing columns
+are resolved before owner checks. Owners and effective superusers may comment
+local objects; ordinary grants do not substitute for ownership. Nonowner TABLE
+uses `must be owner of table t`, COLUMN `must be owner of relation t`, and
+SCHEMA `must be owner of schema s` (42501). ROLE uses real shared role authority:
+ordinary users cannot comment even themselves (CREATEROLE required); a superuser
+target requires SUPERUSER. This native role surface has no CREATEROLE/ADMIN SQL.
+Prepare caches syntax, never target identity or ownership; Execute resolves anew.
+Qualified TABLE/COLUMN targets in a missing schema fail `3F000`,
+`schema "s" does not exist`; a missing relation in an existing schema fails
+`42P01`. Schema-USAGE denial precedes relation/column lookup and has no Position
+field for COMMENT, unlike positioned DML analysis diagnostics.
+Serialized COMMENT waiters refresh immutable metadata at the original captured
+relation identity after lock grant; a prior comment does not count as replacement.
+Reset/Restore and drop/recreate still fence the old epoch/address, never retargeting
+a waiting command to an object with the same name.
+
+CatalogRead.Comment exposes local metadata at stable class/object/SubID addresses;
+RoleRead exposes shared text through RoleDescriptor.Comment. Native SQL description
+functions and pg_description/pg_shdescription queries are not implemented here.
+Dropping/recreating an object clears text, while schema rename/owner transfer
+preserves it. Plain LIKE does not copy comments. TYPE, DATABASE and other object
+kinds remain explicit unsupported capabilities. COMMENT in an explicit driver
+transaction returns native 0A000; PostgreSQL itself permits transactional COMMENT.
+
+Dump captures local comments with the same immutable snapshot as rows: schemas
+(including bootstrap overrides) in name order, then table/column text after CREATE
+in declaration order. Escape literals preserve apostrophes, backslashes, newlines
+and Unicode independently of destination string settings. No comments adds no
+bytes. Reset clears local text; Restore replaces it atomically. Both retain role
+comments, which are deliberately excluded from database Dump and Restore.
+
 
 ### Ordinary table definitions and removal
 
@@ -875,8 +923,8 @@ are rejected before output. Recreated public is an ordinary namespace with absen
 ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
-Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE, literal INSERT
-and named SET SESSION AUTHORIZATION owner directives; parameters and other SQL
+Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE, literal INSERT,
+database-local COMMENT and named SET SESSION AUTHORIZATION owner directives; parameters and other SQL
 are rejected. Legacy CREATE/INSERT-only scripts remain bootstrap-owned. Referenced
 roles must already exist in the target engine. Restore captures a private role
 snapshot before input I/O, starts an initialized private catalog, executes through
@@ -884,9 +932,11 @@ the same SQL engine, remaps owners into target principal authority, then atomica
 **replaces** descriptors, storage and epoch, never merges or resets roles/live
 sessions. Missing or dropped/recreated owners and read/parse/execution/cancellation
 errors leave original data untouched. Empty input clears user relations. No target
-locks span external I/O. Private operation-only CREATE destination and INSERT
-bootstrap authority preserve independent schema/table owners without grants or
-session identity changes; ordinary post-Restore SQL still enforces USAGE/CREATE.
+locks span external I/O. Private operation-only CREATE destination, INSERT and
+database-local COMMENT bootstrap authority preserve independent schema/table owners
+without grants or session identity changes. COMMENT's private marker covers lookup,
+lock resolution and mutation, is cleared after each statement, and never permits
+ROLE replay. Ordinary post-Restore SQL still enforces USAGE/CREATE and ownership.
 The shared object allocator skips live namespace and relation identities imported
 by Restore, so subsequent schema and table creation continues without collisions.
 Replacement does not rewind the destination's nonreuse counter.

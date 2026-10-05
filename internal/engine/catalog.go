@@ -57,6 +57,7 @@ type namespaceDescriptor struct {
 	revision DefinitionRevision
 	owner    PrincipalRef
 	acl      ACLValue
+	comment  string
 }
 
 func (d *namespaceDescriptor) Address() ObjectAddress       { return d.address }
@@ -75,6 +76,8 @@ type relationDescriptor struct {
 	owner              PrincipalRef
 	acl                ACLValue
 	columnACL          map[int32]ACLValue
+	comment            string
+	columnComments     map[int32]string
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -166,6 +169,11 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		typ, exists := v.LookupType(c.Usage.Type.ID())
 		if !exists || typ != c.Usage.Type || !typ.Concrete() || c.Usage != typ.Usage() {
 			return fmt.Errorf("stuntgres: invalid relation column type")
+		}
+	}
+	for sub, text := range r.columnComments {
+		if sub <= 0 || int(sub) > len(r.attributes) || r.attributes[sub-1] != sub || text == "" {
+			return fmt.Errorf("stuntgres: invalid relation column comment")
 		}
 	}
 	return nil

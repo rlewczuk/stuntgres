@@ -78,7 +78,7 @@ func lockAwait(t *testing.T, done <-chan error, want error) {
 	}
 }
 func TestRelationLockCompatibility(t *testing.T) {
-	modes := []relationLockMode{accessShare, rowExclusive, accessExclusive}
+	modes := []relationLockMode{accessShare, rowExclusive, accessExclusive, shareUpdateExclusive}
 	for _, held := range modes {
 		for _, request := range modes {
 			t.Run(fmt.Sprintf("%d/%d", held, request), func(t *testing.T) {
@@ -94,7 +94,7 @@ func TestRelationLockCompatibility(t *testing.T) {
 				}
 				done := make(chan error, 1)
 				go func() { done <- e.locks.acquire(context.Background(), b.transactions.ticket, ref, request) }()
-				compatible := held != accessExclusive && request != accessExclusive
+				compatible := held != accessExclusive && request != accessExclusive && !(held == shareUpdateExclusive && request == shareUpdateExclusive)
 				if compatible {
 					lockAwait(t, done, nil)
 				} else {
@@ -134,7 +134,7 @@ func TestRelationLockCompatibility(t *testing.T) {
 		if err := e.locks.acquire(context.Background(), &copy, ref, accessShare); err == nil {
 			t.Fatal("copied ticket accepted")
 		}
-		for _, mode := range []relationLockMode{0, 8, accessShare | rowExclusive} {
+		for _, mode := range []relationLockMode{0, 16, accessShare | rowExclusive} {
 			if err := e.locks.acquire(context.Background(), ticket, ref, mode); err == nil {
 				t.Fatal("invalid mode accepted")
 			}

@@ -14,6 +14,7 @@ const (
 	accessShare relationLockMode = 1 << iota
 	rowExclusive
 	accessExclusive
+	shareUpdateExclusive
 )
 
 type relationTicket struct {
@@ -64,7 +65,7 @@ func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	return t, nil
 }
 func lockConflict(a, b relationLockMode) bool {
-	return a&accessExclusive != 0 || b&accessExclusive != 0
+	return a&accessExclusive != 0 || b&accessExclusive != 0 || a&shareUpdateExclusive != 0 && b&shareUpdateExclusive != 0
 }
 func (m *relationLockManager) valid(t *relationTicket) bool {
 	return t != nil && t.manager == m && m.owners[t.ref] == t
@@ -149,7 +150,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
-	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (mode != accessShare && mode != rowExclusive && mode != accessExclusive) {
+	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}

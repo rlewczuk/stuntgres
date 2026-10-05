@@ -103,6 +103,7 @@ type Operation struct {
 	commandAdmission        bool
 	restoreTableDestination bool
 	restoreInsertAuthority  bool
+	restoreCommentAuthority bool
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {

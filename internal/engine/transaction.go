@@ -218,23 +218,24 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 // Binding uses current resolution metadata; data consumers explicitly acquire a
 // fresh READ COMMITTED view. Future consumers stage effects here, never in storage.
 type StatementScope struct {
-	self             *StatementScope
-	owner            *transactionOwner
-	op               *Operation
-	stage            WriteStage
-	view             *VisibilityView
-	finished         bool
-	result           error
-	worked           bool
-	completed        bool
-	replacementRead  bool
-	ticket           *relationTicket
-	lockedRef        ObjectRef
-	lockedDescriptor Descriptor
-	txRef            TxRef
-	command          CommandID
-	ownWrites        map[ObjectAddress][]rowVersion
-	Expected         *StatementDescription
+	self               *StatementScope
+	owner              *transactionOwner
+	op                 *Operation
+	stage              WriteStage
+	view               *VisibilityView
+	finished           bool
+	result             error
+	worked             bool
+	completed          bool
+	replacementRead    bool
+	ticket             *relationTicket
+	lockedRef          ObjectRef
+	lockedDescriptor   Descriptor
+	lockedIdentityOnly bool
+	txRef              TxRef
+	command            CommandID
+	ownWrites          map[ObjectAddress][]rowVersion
+	Expected           *StatementDescription
 }
 
 type WriteStage struct {
@@ -287,6 +288,12 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		case *parser.Insert, *parser.Select:
 			e.replacementMu.RLock()
 			s.replacementRead = true
+		case *parser.Comment:
+			c := stmt.(*parser.Comment)
+			if c.Kind == parser.CommentTable || c.Kind == parser.CommentColumn {
+				e.replacementMu.RLock()
+				s.replacementRead = true
+			}
 		}
 	}
 	t.mu.Lock()
@@ -324,7 +331,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	}
 	if t.state == TxActive {
 		switch stmt.(type) {
-		case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Show, *parser.Reset, *parser.SettingCall:
+		case *parser.Comment, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Show, *parser.Reset, *parser.SettingCall:
 			return sqlError("0A000", "statement is unsupported in an explicit transaction")
 		}
 	}
@@ -492,6 +499,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.ownWrites = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil
+	s.lockedIdentityOnly = false
 	s.finished = true
 	s.result = err
 	t.mu.Unlock()

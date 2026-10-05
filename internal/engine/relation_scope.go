@@ -16,6 +16,18 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	case *parser.Insert:
 		name = v.Name
 		mode = rowExclusive
+	case *parser.Comment:
+		if !execute || (v.Kind != parser.CommentTable && v.Kind != parser.CommentColumn) {
+			return nil
+		}
+		name = v.Name
+		if v.Kind == parser.CommentColumn {
+			if len(name.Parts) < 2 {
+				return sqlError("42601", "column name must be qualified")
+			}
+			name.Parts = name.Parts[:len(name.Parts)-1]
+		}
+		mode = shareUpdateExclusive
 	case *parser.LockTable:
 		if !execute {
 			return nil
@@ -40,7 +52,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
 	var ref ObjectRef
 	if err == nil {
-		ref, err = e.resolveReference(auth, name)
+		ref, err = e.resolveRelationReference(auth, name, mode == shareUpdateExclusive)
 	}
 	var descriptor Descriptor
 	if err == nil {
@@ -79,11 +91,24 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || e.state.descriptors[ref.Address] != descriptor {
+	current := e.state.descriptors[ref.Address]
+	if ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || current == nil {
+		return ErrCatalogReplaced
+	}
+	if mode == shareUpdateExclusive {
+		// A preceding COMMENT may publish a new immutable payload while this
+		// request waits. Consume that payload at the captured identity, never
+		// a fresh name lookup that could retarget a replacement relation.
+		if _, ok := current.(*relationDescriptor); !ok {
+			return ErrCatalogReplaced
+		}
+		descriptor = current
+	} else if current != descriptor {
 		return ErrCatalogReplaced
 	}
 	s.lockedRef = ref
 	s.lockedDescriptor = descriptor
+	s.lockedIdentityOnly = mode == shareUpdateExclusive
 	// Revalidate current role authority as well as the immutable relation identity.
 	auth, err = e.statementAuthorizationLocked(s.op, stmt)
 	if err != nil {
@@ -102,7 +127,18 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 }
 
 func (s *StatementScope) validateLockedRelation(e *Engine) error {
-	if s.lockedRef.owner != nil && (s.lockedRef.Epoch != e.state.epoch || e.state.descriptors[s.lockedRef.Address] != s.lockedDescriptor) {
+	if s.lockedRef.owner == nil {
+		return nil
+	}
+	if s.lockedRef.owner != e.owner || s.lockedRef.Epoch != e.state.epoch {
+		return ErrCatalogReplaced
+	}
+	current := e.state.descriptors[s.lockedRef.Address]
+	if s.lockedIdentityOnly {
+		if _, ok := current.(*relationDescriptor); !ok {
+			return ErrCatalogReplaced
+		}
+	} else if current != s.lockedDescriptor {
 		return ErrCatalogReplaced
 	}
 	return nil

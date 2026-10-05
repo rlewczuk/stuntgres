@@ -57,13 +57,16 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 }
 
 // Restore atomically replaces the database after supported CREATE/ALTER/DROP
-// SCHEMA, CREATE TABLE, literal INSERT and named owner directives succeed.
+// SCHEMA, CREATE TABLE, literal INSERT, database-local COMMENT and named owner
+// directives succeed. ROLE comments are shared authority metadata: Reset and
+// Restore retain them, and Dump deliberately excludes them.
 // Its initialized private catalog preserves legacy streams and reconstructs
 // bootstrap namespace lifecycle changes without synthesizing ACL grants.
 // Named owners must already exist. Private Restore-stage CREATE TABLE destination
 // authority preserves independent schema/table owners without adding ACL grants.
-// Private stage INSERT uses captured bootstrap authority without changing owner
-// directives or ordinary SQL authorization; INSERT stamps no object ownership.
+// Private stage INSERT and database-local COMMENT use validated captured bootstrap
+// authority without changing named owner directives, session identity or ordinary
+// SQL authorization. Neither command stamps ownership or synthesizes ACL grants.
 // Arbitrarily blocking readers cannot be interrupted by context cancellation.
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {

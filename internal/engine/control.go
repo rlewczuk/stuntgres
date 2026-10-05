@@ -68,10 +68,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		owner, schema, name string
 		columns             []ColumnDescriptor
 		versions            []rowVersion
+		comment             string
+		columnComments      map[int32]string
 	}
 	tables := make([]dumpRelation, 0)
 	type dumpSchema struct{ name, owner string }
 	var schemas []dumpSchema
+	type dumpComment struct{ name, text string }
+	var schemaComments []dumpComment
 	// Reconstruct bootstrap identity changes before creating ordinary namespaces.
 	// These statements run only in Restore's isolated catalog under bootstrap
 	// authority; ACLs are reproduced by normal owner-transfer semantics.
@@ -161,6 +165,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			if d.Kind() == NamespaceObject {
 				ns, valid := d.(*namespaceDescriptor)
+				if valid && ns.comment != "" {
+					schemaComments = append(schemaComments, dumpComment{ns.name, ns.comment})
+				}
 				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID) &&
 					!bootstrapNamespaceDumpable(ns) {
 					e.mu.Unlock()
@@ -202,7 +209,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{principal.Name, ns.name, r.name, r.columns, storage.versions})
+		tables = append(tables, dumpRelation{principal.Name, ns.name, r.name, r.columns, storage.versions, r.comment, r.columnComments})
 	}
 	e.mu.Unlock()
 	sort.Slice(tables, func(i, j int) bool {
@@ -238,6 +245,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	sort.Slice(schemaComments, func(i, j int) bool { return schemaComments[i].name < schemaComments[j].name })
+	for _, c := range schemaComments {
+		if err := emit("COMMENT ON SCHEMA " + quoteIdentifier(c.name) + " IS " + commentLiteral(c.text) + ";\n"); err != nil {
+			return err
+		}
+	}
 	currentOwner := "postgres"
 	for _, t := range tables {
 		if t.owner != currentOwner {
@@ -261,6 +274,18 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		line.WriteString(");\n")
 		if err := emit(line.String()); err != nil {
 			return err
+		}
+		if t.comment != "" {
+			if err := emit("COMMENT ON TABLE " + qualified + " IS " + commentLiteral(t.comment) + ";\n"); err != nil {
+				return err
+			}
+		}
+		for i, c := range t.columns {
+			if text := t.columnComments[int32(i+1)]; text != "" {
+				if err := emit("COMMENT ON COLUMN " + qualified + "." + quoteIdentifier(c.Name) + " IS " + commentLiteral(text) + ";\n"); err != nil {
+					return err
+				}
+			}
 		}
 		for _, version := range t.versions {
 			row := version.values
@@ -333,6 +358,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
 		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
+		case *parser.Comment:
+			if s.Kind == parser.CommentRole {
+				return sqlError("0A000", "restore accepts only database-local COMMENT targets")
+			}
 		case *parser.SessionAuthorization:
 			if !s.OwnerDirective {
 				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives")
@@ -340,13 +369,13 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.Insert:
 			for _, row := range s.Rows {
 				for _, v := range row {
-					if _,ok := v.(parser.ParameterExpr);ok {
-						return expressionError("42P02", "parameters are not allowed in restore",v.SourcePosition())
+					if _, ok := v.(parser.ParameterExpr); ok {
+						return expressionError("42P02", "parameters are not allowed in restore", v.SourcePosition())
 					}
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE, INSERT and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE, INSERT, database-local COMMENT and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
@@ -356,7 +385,12 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if _, ok := stmt.(*parser.Insert); ok {
 			op.restoreInsertAuthority = true
 		}
+		op.restoreCommentAuthority = false
+		if _, ok := stmt.(*parser.Comment); ok {
+			op.restoreCommentAuthority = true
+		}
 		_, err = stage.Execute(op, stmt, 0, nil)
+		op.restoreCommentAuthority = false
 		op.DetachNotices()
 		if err != nil {
 			return err
@@ -364,4 +398,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	}
 	_, err = e.ReplaceCatalog(ctx, stage.CatalogRead())
 	return err
+}
+
+// Explicit escape strings are independent of the destination string setting.
+func commentLiteral(text string) string {
+	return "E'" + strings.ReplaceAll(strings.ReplaceAll(text, "\\", "\\\\"), "'", "''") + "'"
 }
