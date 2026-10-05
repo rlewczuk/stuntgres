@@ -104,8 +104,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if i > 0 {
 					line.WriteString(", ")
 				}
-				literal, err := v.Type().SQLLiteral(ctx,v)
-				if err != nil { return err }
+				literal, err := v.Type().SQLLiteral(ctx, v)
+				if err != nil {
+					return err
+				}
 				line.WriteString(literal)
 			}
 			line.WriteString(");\n")

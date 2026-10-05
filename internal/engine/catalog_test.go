@@ -80,7 +80,7 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	base := e.CatalogRead()
 	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
 	makeDesc := func(oid OID, name string) *relationDescriptor {
-		return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage:testUsage(e,sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
+		return &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
 	}
 	first, second := e.BeginCatalogStage(base), e.BeginCatalogStage(base)
 	if err := first.Create(makeDesc(16384, "first")); err != nil {
@@ -168,7 +168,7 @@ func TestCatalogCanceledStageHasNoPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}, namespace: ns, name: "canceled", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage:testUsage(e,sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
+	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 16384}, namespace: ns, name: "canceled", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
@@ -238,7 +238,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 	prepare := func(name string) *PreparedCatalogPublication {
 		t.Helper()
 		stage := e.BeginCatalogStage(base)
-		d := &relationDescriptor{address: address, namespace: ns, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage:testUsage(e,sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
+		d := &relationDescriptor{address: address, namespace: ns, name: name, revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
@@ -562,7 +562,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 		t.Fatalf("retained creation view: %#v, %v", creation, creationErr)
 	}
 	stage := e.BeginCatalogStage(base)
-	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: creation.Address, name: "private", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage:testUsage(e,sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
+	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: creation.Address, name: "private", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -699,7 +699,9 @@ func TestCatalogRejectsMalformedColumnIndex(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := New()
 			base := e.CatalogRead()
-			for i:=range tc.columns { tc.columns[i].Usage=testUsage(e,sqltype.Int4) }
+			for i := range tc.columns {
+				tc.columns[i].Usage = testUsage(e, sqltype.Int4)
+			}
 			stage := e.BeginCatalogStage(base)
 			attributes := make([]int32, len(tc.columns))
 			for i := range attributes {
@@ -784,7 +786,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			run(t, e, "INSERT INTO public.sentinel VALUES (11)")
 			base := e.CatalogRead()
 			stage := e.BeginCatalogStage(base)
-			d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "p", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage:testUsage(e,sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
+			d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "p", revision: 1, columns: []ColumnDescriptor{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, index: map[string]int{"id": 0}, attributes: []int32{1}}
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
 			}

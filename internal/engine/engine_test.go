@@ -5,10 +5,10 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
-	"io"
 	"fmt"
-	"strconv"
+	"io"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -45,7 +45,7 @@ func testExecute(e *Engine, ctx context.Context, stmt parser.Statement, args []d
 		return Result{}, err
 	}
 	defer cleanup()
-	return testExecuteFrame(e,op,stmt,args)
+	return testExecuteFrame(e, op, stmt, args)
 }
 func testDescribe(e *Engine, stmt parser.Statement) (ParameterInfo, error) {
 	op, cleanup, err := testOperation(e, context.Background())
@@ -54,7 +54,7 @@ func testDescribe(e *Engine, stmt parser.Statement) (ParameterInfo, error) {
 	}
 	defer cleanup()
 	description, err := e.Describe(op, stmt)
-	return description.Parameters,err
+	return description.Parameters, err
 }
 func statement(t *testing.T, sql string) parser.Statement {
 	t.Helper()
@@ -83,24 +83,87 @@ func tuples(r Result) [][]driver.Value {
 	rows := make([][]driver.Value, r.Rows.Len())
 	for i := range rows {
 		rows[i] = make([]driver.Value, len(r.Columns))
-		values := make([]sqltype.Value,len(r.Columns))
-		r.Rows.Values(i,values)
-		for j,v := range values { rows[i][j]=testExport(v) }
+		values := make([]sqltype.Value, len(r.Columns))
+		r.Rows.Values(i, values)
+		for j, v := range values {
+			rows[i][j] = testExport(v)
+		}
 	}
 	return rows
 }
 
 func testExport(v sqltype.Value) driver.Value {
-	if v.IsNull() { return nil }
-	switch v.Type().ID() { case sqltype.Int4,sqltype.Int8:n,err:=v.Integer();if err!=nil{panic(err)};return n;case sqltype.Text:s,err:=v.Text();if err!=nil{panic(err)};return s;case sqltype.Bool:b,err:=v.Boolean();if err!=nil{panic(err)};return b }
+	if v.IsNull() {
+		return nil
+	}
+	switch v.Type().ID() {
+	case sqltype.Int4, sqltype.Int8:
+		n, err := v.Integer()
+		if err != nil {
+			panic(err)
+		}
+		return n
+	case sqltype.Text:
+		s, err := v.Text()
+		if err != nil {
+			panic(err)
+		}
+		return s
+	case sqltype.Bool:
+		b, err := v.Boolean()
+		if err != nil {
+			panic(err)
+		}
+		return b
+	}
 	panic("invalid test value")
 }
-func testUsage(e *Engine,id sqltype.ID) sqltype.Usage { d,ok:=e.CatalogRead().LookupType(id);if !ok{panic("missing type")};return d.Usage() }
-func testExecuteFrame(e *Engine,op *Operation,stmt parser.Statement,args []driver.NamedValue)(Result,error){
-	raw:=make([]driver.Value,len(args))
-	for i,a:=range args {if a.Name!=""||a.Ordinal!=i+1{return Result{},fmt.Errorf("invalid test argument")};v,err:=driver.DefaultParameterConverter.ConvertValue(a.Value);if err!=nil{return Result{},err};if b,ok:=v.([]byte);ok{v=string(b)};raw[i]=v}
-	return e.Execute(op,stmt,len(raw),func(ctx context.Context,p ParameterInfo,dst []sqltype.Value)error{
-		for i,v:=range raw {if v==nil{dst[i]=sqltype.Null(p.Types[i].Type);continue};var s string;switch v:=v.(type){case string:s=v;case int64:s=strconv.FormatInt(v,10);case bool:s=strconv.FormatBool(v);default:return sqlError("0A000","unsupported parameter value")};value,err:=p.Types[i].Type.Input(ctx,s,-1);if err!=nil{return err};dst[i]=value};return nil
+func testUsage(e *Engine, id sqltype.ID) sqltype.Usage {
+	d, ok := e.CatalogRead().LookupType(id)
+	if !ok {
+		panic("missing type")
+	}
+	return d.Usage()
+}
+func testExecuteFrame(e *Engine, op *Operation, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
+	raw := make([]driver.Value, len(args))
+	for i, a := range args {
+		if a.Name != "" || a.Ordinal != i+1 {
+			return Result{}, fmt.Errorf("invalid test argument")
+		}
+		v, err := driver.DefaultParameterConverter.ConvertValue(a.Value)
+		if err != nil {
+			return Result{}, err
+		}
+		if b, ok := v.([]byte); ok {
+			v = string(b)
+		}
+		raw[i] = v
+	}
+	return e.Execute(op, stmt, len(raw), func(ctx context.Context, p ParameterInfo, dst []sqltype.Value) error {
+		for i, v := range raw {
+			if v == nil {
+				dst[i] = sqltype.Null(p.Types[i].Type)
+				continue
+			}
+			var s string
+			switch v := v.(type) {
+			case string:
+				s = v
+			case int64:
+				s = strconv.FormatInt(v, 10)
+			case bool:
+				s = strconv.FormatBool(v)
+			default:
+				return sqlError("0A000", "unsupported parameter value")
+			}
+			value, err := p.Types[i].Type.Input(ctx, s, -1)
+			if err != nil {
+				return err
+			}
+			dst[i] = value
+		}
+		return nil
 	})
 }
 func state(t *testing.T, err error, want string) {
@@ -118,8 +181,8 @@ func TestGenericCreateDiagnosticsHaveNoObjectFields(t *testing.T) {
 		code, message string
 	}{
 		{&parser.CreateTable{Name: name}, "42601", "table requires columns"},
-		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", TypeName: parser.TypeName{Name:"integer"}}, {Name: "id", TypeName: parser.TypeName{Name:"text"}}}}, "42701", `column "id" specified more than once`},
-		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", TypeName: parser.TypeName{Name:"unsupported"}}}}, "0A000", "unsupported column type"},
+		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", TypeName: parser.TypeName{Name: "integer"}}, {Name: "id", TypeName: parser.TypeName{Name: "text"}}}}, "42701", `column "id" specified more than once`},
+		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", TypeName: parser.TypeName{Name: "unsupported"}}}}, "0A000", "unsupported column type"},
 	} {
 		if _, err := testDescribe(e, tc.stmt); err != nil {
 			t.Fatalf("CREATE preparation: %v", err)
@@ -139,7 +202,7 @@ func TestBindingAndSemanticValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Count != 2 || info.Types[0].Type.ID()!=sqltype.Int4 || info.Types[1].Type.ID()!=sqltype.Text {
+	if info.Count != 2 || info.Types[0].Type.ID() != sqltype.Int4 || info.Types[1].Type.ID() != sqltype.Text {
 		t.Fatalf("bad parameter types: %+v", info)
 	}
 	for _, c := range []struct{ sql, code string }{
@@ -169,7 +232,7 @@ func TestImplicitShortTargetDescribe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Count != 1 || info.Types[0].Type.ID()!=sqltype.Int4 {
+	if info.Count != 1 || info.Types[0].Type.ID() != sqltype.Int4 {
 		t.Fatalf("short target parameter info: %+v", info)
 	}
 	run(t, e, "INSERT INTO short_values VALUES ($1),($1)", 7)

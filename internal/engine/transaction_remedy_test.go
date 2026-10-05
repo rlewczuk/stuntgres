@@ -89,7 +89,8 @@ func TestTransactionUtilityCompletionBoundary(t *testing.T) {
 					t.Fatalf("setting got %q want %q", got, want)
 				}
 				if result.Rows != nil {
-					if result.Rows.Len() != 1 || result.Rows.row(0)[0] != "initial" {
+					value, err := result.Rows.row(0)[0].Text()
+					if result.Rows.Len() != 1 || err != nil || value != "initial" {
 						t.Fatal("SHOW capture changed")
 					}
 					result.Rows.Close()
@@ -131,7 +132,8 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			if changes > maxChanges || copied >= n {
 				t.Fatalf("N=%d roots=%d copied=%d", n, changes, copied)
 			}
-			if retained.Len() != 1 || retained.row(0)[0] != int64(1) {
+			value, err := retained.row(0)[0].Integer()
+			if retained.Len() != 1 || err != nil || value != 1 {
 				t.Fatal("append widened retained prefix")
 			}
 			for range n {
@@ -150,7 +152,8 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if own.Len() != n+1 || own.row(n)[0] != int64(2) || retained.Len() != 1 {
+			value, err = own.row(n)[0].Integer()
+			if own.Len() != n+1 || err != nil || value != 2 || retained.Len() != 1 {
 				t.Fatal("replacement lost retained relation-local roots")
 			}
 			t.Logf("N=%d backing-root changes=%d copied-prefix entries=%d retained committed relations=%d private relations=%d", n, changes, copied, len(data.committed), len(data.own))

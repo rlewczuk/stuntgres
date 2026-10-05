@@ -168,9 +168,9 @@ func (e *Engine) executeSetting(scope *StatementScope, stmt parser.Statement, co
 			value = owner.defaults[d.Name]
 		}
 		e.mu.Lock()
-		typ, _ := (CatalogRead{owner:e,state:e.state}).LookupType(sqltype.Text)
+		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 		e.mu.Unlock()
-		result := Result{Columns: []ColumnDescriptor{{Name:d.Name,Usage:typ.Usage()}}, Rows: anonymousSnapshot([][]sqltype.Value{{sqltype.String(typ,value)}}, []int{0})}
+		result := Result{Columns: []ColumnDescriptor{{Name: d.Name, Usage: typ.Usage()}}, Rows: anonymousSnapshot([][]sqltype.Value{{sqltype.String(typ, value)}}, []int{0})}
 		scope.completed = true
 		return result, nil
 	}

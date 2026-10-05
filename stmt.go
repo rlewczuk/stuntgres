@@ -6,17 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/parser"
 	"sync/atomic"
 )
 
 type stmt struct {
-	conn   *conn
-	ast    parser.Statement
-	source string
+	conn        *conn
+	ast         parser.Statement
+	source      string
 	description engine.StatementDescription
-	closed atomic.Bool
+	closed      atomic.Bool
 }
 
 func (s *stmt) Close() error  { defer runtime.KeepAlive(s.conn); s.closed.Store(true); return nil }

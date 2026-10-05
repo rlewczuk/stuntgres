@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-
-	"stuntgres/internal/sqltype"
 )
 
 type OID uint32
@@ -31,7 +29,7 @@ type relationStorage struct{ versions []rowVersion }
 const (
 	NamespaceClassID      OID = 2615
 	RelationClassID       OID = 1259
-	TypeClassID OID = 1247
+	TypeClassID           OID = 1247
 	PGCatalogNamespaceOID OID = 11
 	PublicNamespaceOID    OID = 2200
 )
@@ -155,7 +153,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if r.attributes[i] != int32(i+1) || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
 		}
-		if !c.Usage.Type.Concrete() { return fmt.Errorf("stuntgres: invalid relation column type") }
+		if !c.Usage.Type.Concrete() {
+			return fmt.Errorf("stuntgres: invalid relation column type")
+		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
 		if !exists || typ != c.Usage.Type || !typ.Concrete() || c.Usage != typ.Usage() {
 			return fmt.Errorf("stuntgres: invalid relation column type")

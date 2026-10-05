@@ -15,11 +15,11 @@ type rows struct {
 	snapshot *engine.Snapshot
 	index    int
 	closed   bool
-	scratch []sqltype.Value
+	scratch  []sqltype.Value
 }
 
 func newRows(ctx context.Context, r engine.Result) *rows {
-	return &rows{ctx: ctx, columns: r.Columns, snapshot: r.Rows, scratch:make([]sqltype.Value,len(r.Columns))}
+	return &rows{ctx: ctx, columns: r.Columns, snapshot: r.Rows, scratch: make([]sqltype.Value, len(r.Columns))}
 }
 func (r *rows) Columns() []string {
 	names := make([]string, len(r.columns))
@@ -48,17 +48,23 @@ func (r *rows) Next(dst []driver.Value) error {
 		return io.EOF
 	}
 	r.snapshot.Values(r.index, r.scratch)
-	for i,v := range r.scratch {
-		value, err := exportValue(r.ctx,v)
-		if err != nil { return err }
+	for i, v := range r.scratch {
+		value, err := exportValue(r.ctx, v)
+		if err != nil {
+			return err
+		}
 		dst[i] = value
 	}
 	r.index++
 	return nil
 }
-func (r *rows) ColumnTypeDatabaseTypeName(i int) string { return r.columns[i].Usage.Type.DatabaseName() }
+func (r *rows) ColumnTypeDatabaseTypeName(i int) string {
+	return r.columns[i].Usage.Type.DatabaseName()
+}
 func (r *rows) ColumnTypeScanType(i int) reflect.Type { return scanType(r.columns[i].Usage.Type) }
-func (r *rows) ColumnTypeNullable(i int) (bool, bool) { return r.columns[i].Nullable,r.columns[i].NullabilityKnown }
+func (r *rows) ColumnTypeNullable(i int) (bool, bool) {
+	return r.columns[i].Nullable, r.columns[i].NullabilityKnown
+}
 
 var _ driver.RowsColumnTypeDatabaseTypeName = (*rows)(nil)
 var _ driver.RowsColumnTypeScanType = (*rows)(nil)

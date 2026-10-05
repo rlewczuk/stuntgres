@@ -86,14 +86,24 @@ func (s *Snapshot) selectRows(ctx context.Context, predicate int, value sqltype.
 		s.selection = make([]int, 0, s.rowCount())
 		for i := range s.rowCount() {
 			row := s.row(i)
-			if err := ctx.Err(); err != nil { return err }
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if predicate >= 0 {
-				result, err := equality.Evaluate(ctx,row[predicate],value)
-				if err != nil { return err }
-				if result.IsNull() { continue }
+				result, err := equality.Evaluate(ctx, row[predicate], value)
+				if err != nil {
+					return err
+				}
+				if result.IsNull() {
+					continue
+				}
 				matches, err := result.Boolean()
-				if err != nil { return err }
-				if !matches { continue }
+				if err != nil {
+					return err
+				}
+				if !matches {
+					continue
+				}
 			}
 			s.selection = append(s.selection, i)
 		}
@@ -101,16 +111,29 @@ func (s *Snapshot) selectRows(ctx context.Context, predicate int, value sqltype.
 	if order >= 0 {
 		var sortErr error
 		sort.SliceStable(s.selection, func(i, j int) bool {
-			if sortErr != nil { return false }
+			if sortErr != nil {
+				return false
+			}
 			a, b := s.row(s.selection[i])[order], s.row(s.selection[j])[order]
-			if a.IsNull() { return !b.IsNull() && desc }
-			if b.IsNull() { return !desc }
+			if a.IsNull() {
+				return !b.IsNull() && desc
+			}
+			if b.IsNull() {
+				return !desc
+			}
 			comparison, err := ordering.Compare(ctx, a, b)
-			if err != nil { sortErr = err; return false }
-			if desc { return comparison > 0 }
+			if err != nil {
+				sortErr = err
+				return false
+			}
+			if desc {
+				return comparison > 0
+			}
 			return comparison < 0
 		})
-		if sortErr != nil { return sortErr }
+		if sortErr != nil {
+			return sortErr
+		}
 	}
 	return ctx.Err()
 }
