@@ -196,7 +196,13 @@ func referenceNormalize(v any) any {
 	}
 }
 
-func referenceRunStep(t *testing.T, ctx context.Context, db *sql.DB, recorder *referenceRecorder, s referenceStep) referenceObserved {
+type referenceExecutor interface {
+	PrepareContext(context.Context, string) (*sql.Stmt, error)
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, recorder *referenceRecorder, s referenceStep) referenceObserved {
 	t.Helper()
 	ctx = context.WithValue(ctx, referenceRecorderKey{}, recorder)
 	var stmt *sql.Stmt

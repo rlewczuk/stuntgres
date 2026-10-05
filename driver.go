@@ -6,6 +6,8 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
+	"runtime"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/sqlstate"
 	"sync"
@@ -17,8 +19,9 @@ type Error = sqlstate.Error
 // Driver owns independent databases named by exact, opaque DSN strings.
 // Databases live for the lifetime of their Driver, not their connections.
 type Driver struct {
-	mu      sync.Mutex
-	engines map[string]*engine.Engine
+	mu          sync.Mutex
+	engines     map[string]*engine.Engine
+	lastSession engine.SessionID
 }
 
 func NewDriver() *Driver { return &Driver{} }
@@ -54,7 +57,21 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &conn{engine: c.engine}, nil
+	c.owner.mu.Lock()
+	if c.owner.lastSession == ^engine.SessionID(0) {
+		c.owner.mu.Unlock()
+		return nil, errors.New("stuntgres: session identity exhausted")
+	}
+	c.owner.lastSession++
+	id := c.owner.lastSession
+	c.owner.mu.Unlock()
+	session, err := c.engine.StartSession(ctx, engine.SessionStart{ID: id})
+	if err != nil {
+		return nil, err
+	}
+	native := &conn{session: session}
+	native.cleanup = runtime.AddCleanup(native, cleanupSession, cleanupCapsule{session})
+	return native, nil
 }
 
 var _ driver.DriverContext = (*Driver)(nil)

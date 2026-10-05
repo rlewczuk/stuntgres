@@ -64,7 +64,7 @@ func runReferenceMain(m *testing.M) (code int) {
 	}
 	referenceContainerID = referenceContainer.GetContainerID()
 	fmt.Fprintf(os.Stderr, "reference container: %s\n", referenceContainerID)
-	referenceDSN, err = referenceContainer.ConnectionString(ctx, "sslmode=disable")
+	referenceDSN, err = referenceContainer.ConnectionString(ctx, "sslmode=disable", "application_name=")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "reference connection string: %v\n", err)
 		return

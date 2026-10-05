@@ -164,6 +164,16 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	stage := New()
+	session, err := stage.StartSession(ctx, SessionStart{ID: 1})
+	if err != nil {
+		return err
+	}
+	defer func() { session.RequestEnd(CleanClose); _ = session.WaitEnd(context.Background()) }()
+	op, err := session.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer op.Done()
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
 		case *parser.CreateTable:
@@ -178,7 +188,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		default:
 			return sqlError("0A000", "restore accepts only CREATE and INSERT")
 		}
-		if _, err = stage.Execute(ctx, stmt, nil); err != nil {
+		if _, err = stage.Execute(op, stmt, nil); err != nil {
 			return err
 		}
 	}

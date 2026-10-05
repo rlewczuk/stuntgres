@@ -22,6 +22,61 @@ func example() error {
 
 The DSN is an **exact opaque string**, not a libpq connection string or network address. Identical strings (including the empty string) within the same Driver share an engine; different strings or Driver instances are isolated. The registered `stuntgres` driver uses one default Driver. Engines live as long as their Driver, even after every connection or pool closes. Use `NewDriver().OpenConnector(name)` with `sql.OpenDB` for independently owned fixtures. Nothing is shared between processes or persisted across process exit.
 
+### Physical sessions
+
+Each physical connection has independent `application_name` state. Hold
+`*sql.Conn` to target that session; a `*sql.DB` may dispatch to any physical
+connection. Borrower Close returns it to the pool: healthy pool reuse preserves
+its settings and identity, without implicit RESET, DISCARD or rollback.
+Physical replacement starts with empty application_name and does not erase data.
+Canceled statements and normal SQL errors leave healthy sessions reusable.
+Explicit physical close drains operations and releases only that session's
+owners; runtime abandonment cleanup is nondeterministic best effort.
+
+`SET [SESSION] application_name {TO | =} value` and `SHOW application_name`
+use the ordinary direct/prepared execution route. Values are standard quoted
+strings, identifiers, booleans, signed integer tokens or bare DEFAULT. DEFAULT
+restores the captured physical-session default; quoted 'DEFAULT' is literal.
+SHOW returns one string row with column application_name and type TEXT.
+Both SET and Exec of SHOW affect zero rows; SHOW snapshot cardinality is not a
+command count. Unsigned decimal tokens fitting PostgreSQL's int32 scanner range
+are formatted canonically; larger tokens retain their original digits (including
+leading zeros), with unary minus prepended and unary plus omitted.
+Values clip original UTF8 to 63 bytes before escaping nonprintable/non-ASCII
+bytes as lowercase literal `\xNN`. Clipping succeeds; the driver has no
+PostgreSQL NOTICE delivery channel.
+
+This is not full PostgreSQL setting syntax: LOCAL, RESET, SHOW ALL, other
+built-ins, dotted custom GUCs, floating/exponent numbers and E-strings remain
+unsupported. NULL, parameters and unquoted reserved TO are syntax errors;
+quoted "to" remains an identifier. Comma lists fail 22023 before setting lookup,
+with the supplied name retained in the diagnostic. Unknown undotted scalar
+names fail 42704. No logical database/admission/role or
+transaction features, named SQL prepared resources, cursors, temporary objects
+or advisory locks are implied. Native Reset/Restore preserve session settings;
+Dump excludes them. Anonymous retained SHOW/SELECT results outlive session end.
+Internal immutable setting definitions/default providers and exactly-once
+resource Attach/quiescent Detach are extension hooks, not implementations of
+these future resources.
+
+Run `go run ./cmd/session-smoke` for asserted isolation, preparation, physical
+reuse/replacement, data survival, diagnostics, cancellation and native controls.
+Scoped checks: `go test -run '^TestSession' ./...`,
+`go test -race -run '^TestSession' ./...`, and the real pinned PostgreSQL suite
+`go test -tags=reference -run '^TestReferenceSession' -count=1 .`.
+
+Session smoke prints only these asserted success labels:
+
+```text
+session isolation: session-a session-b
+prepared settings: TEXT affected=0
+pool reuse: preserved
+physical replacement: default restored, data=7
+pool reopen: data=7
+session failures: 42704 22023 42601
+session cancellation and controls: preserved
+```
+
 ## Supported SQL
 
 ```text

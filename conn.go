@@ -4,29 +4,63 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"runtime"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/parser"
 	"sync/atomic"
 )
 
 type conn struct {
-	engine *engine.Engine
-	closed atomic.Bool
+	session *engine.Session
+	cleanup runtime.Cleanup
+	closed  atomic.Bool
 }
 
+type cleanupCapsule struct{ session *engine.Session }
+
+func cleanupSession(capsule cleanupCapsule) { capsule.session.RequestEnd(engine.Abandoned) }
+
 func (c *conn) check(ctx context.Context) error {
+	defer runtime.KeepAlive(c)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if c.closed.Load() {
+	if c.closed.Load() || !c.session.IsLive() {
 		return errors.New("stuntgres: connection is closed")
 	}
 	return nil
 }
-func (c *conn) Close() error                   { c.closed.Store(true); return nil }
-func (c *conn) Ping(ctx context.Context) error { return c.check(ctx) }
-func (c *conn) Begin() (driver.Tx, error)      { return c.BeginTx(context.Background(), driver.TxOptions{}) }
+func (c *conn) Close() error {
+	defer runtime.KeepAlive(c)
+	c.closed.Store(true)
+	c.cleanup.Stop()
+	c.session.RequestEnd(engine.CleanClose)
+	return c.session.WaitEnd(context.Background())
+}
+func (c *conn) Ping(ctx context.Context) error {
+	defer runtime.KeepAlive(c)
+	op, err := c.session.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer op.Done()
+	return op.Context().Err()
+}
+func (c *conn) ResetSession(ctx context.Context) error {
+	defer runtime.KeepAlive(c)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := c.session.Reuse(ctx); err != nil {
+		c.session.RequestEnd(engine.InvalidConnection)
+		return driver.ErrBadConn
+	}
+	return nil
+}
+func (c *conn) IsValid() bool             { defer runtime.KeepAlive(c); return c.session.IsLive() }
+func (c *conn) Begin() (driver.Tx, error) { return c.BeginTx(context.Background(), driver.TxOptions{}) }
 func (c *conn) BeginTx(ctx context.Context, _ driver.TxOptions) (driver.Tx, error) {
+	defer runtime.KeepAlive(c)
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
@@ -49,6 +83,12 @@ func (c *conn) Prepare(query string) (driver.Stmt, error) {
 	return c.PrepareContext(context.Background(), query)
 }
 func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
+	defer runtime.KeepAlive(c)
+	op, err := c.session.Acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer op.Done()
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
@@ -58,7 +98,7 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 	}
 	count := 0
 	if s != nil {
-		p, err := c.engine.Describe(s)
+		p, err := c.session.Engine().Describe(op, s)
 		if err != nil {
 			return nil, err
 		}
@@ -70,6 +110,12 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 	return &stmt{conn: c, ast: s, count: count}, nil
 }
 func (c *conn) execute(ctx context.Context, s parser.Statement, args []driver.NamedValue) (engine.Result, error) {
+	defer runtime.KeepAlive(c)
+	op, err := c.session.Acquire(ctx)
+	if err != nil {
+		return engine.Result{}, err
+	}
+	defer op.Done()
 	if err := c.check(ctx); err != nil {
 		return engine.Result{}, err
 	}
@@ -79,9 +125,10 @@ func (c *conn) execute(ctx context.Context, s parser.Statement, args []driver.Na
 		}
 		return engine.Result{}, nil
 	}
-	return c.engine.Execute(ctx, s, args)
+	return c.session.Engine().Execute(op, s, args)
 }
 func (c *conn) ExecContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Result, error) {
+	defer runtime.KeepAlive(c)
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
@@ -96,6 +143,7 @@ func (c *conn) ExecContext(ctx context.Context, q string, args []driver.NamedVal
 	return result(r.Count), nil
 }
 func (c *conn) QueryContext(ctx context.Context, q string, args []driver.NamedValue) (driver.Rows, error) {
+	defer runtime.KeepAlive(c)
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
@@ -128,3 +176,5 @@ var _ driver.ExecerContext = (*conn)(nil)
 var _ driver.QueryerContext = (*conn)(nil)
 var _ driver.ConnBeginTx = (*conn)(nil)
 var _ driver.Pinger = (*conn)(nil)
+var _ driver.SessionResetter = (*conn)(nil)
+var _ driver.Validator = (*conn)(nil)

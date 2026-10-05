@@ -15,6 +15,43 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
+var testSessionID atomic.Uint64
+
+func testOperation(e *Engine, ctx context.Context) (*Operation, func(), error) {
+	s, err := e.StartSession(ctx, SessionStart{ID: SessionID(testSessionID.Add(1))})
+	if err != nil {
+		return nil, nil, err
+	}
+	op, err := s.Acquire(ctx)
+	cleanup := func() {
+		if op != nil {
+			op.Done()
+		}
+		s.RequestEnd(CleanClose)
+		_ = s.WaitEnd(context.Background())
+	}
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	return op, cleanup, nil
+}
+func testExecute(e *Engine, ctx context.Context, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
+	op, cleanup, err := testOperation(e, ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	defer cleanup()
+	return e.Execute(op, stmt, args)
+}
+func testDescribe(e *Engine, stmt parser.Statement) (ParameterInfo, error) {
+	op, cleanup, err := testOperation(e, context.Background())
+	if err != nil {
+		return ParameterInfo{}, err
+	}
+	defer cleanup()
+	return e.Describe(op, stmt)
+}
 func statement(t *testing.T, sql string) parser.Statement {
 	t.Helper()
 	s, err := parser.Parse(sql)
@@ -32,7 +69,7 @@ func run(t *testing.T, e *Engine, sql string, args ...any) Result {
 	for i, v := range args {
 		named[i] = driver.NamedValue{Ordinal: i + 1, Value: v}
 	}
-	r, err := e.Execute(context.Background(), statement(t, sql), named)
+	r, err := testExecute(e, context.Background(), statement(t, sql), named)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +101,7 @@ func TestGenericCreateDiagnosticsHaveNoObjectFields(t *testing.T) {
 		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Int4}, {Name: "id", Type: parser.Text}}}, "42701", "duplicate column"},
 		{&parser.CreateTable{Name: name, Columns: []parser.Column{{Name: "id", Type: parser.Type(255)}}}, "0A000", "unsupported column type"},
 	} {
-		_, err := e.Describe(tc.stmt)
+		_, err := testDescribe(e, tc.stmt)
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
 		if !errors.As(err, &got) || *got != want {
@@ -75,7 +112,7 @@ func TestGenericCreateDiagnosticsHaveNoObjectFields(t *testing.T) {
 func TestBindingAndSemanticValidation(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t (a INTEGER, b TEXT, c INTEGER)")
-	info, err := e.Describe(statement(t, "INSERT INTO t VALUES ($1, $2, $1)"))
+	info, err := testDescribe(e, statement(t, "INSERT INTO t VALUES ($1, $2, $1)"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,11 +124,11 @@ func TestBindingAndSemanticValidation(t *testing.T) {
 		{"INSERT INTO t VALUES ($2, 'x', $2)", "42P18"}, {"INSERT INTO t VALUES ($1, $1, 1)", "0A000"}, {"INSERT INTO t (a,a) VALUES (1,2)", "42701"},
 		{"SELECT a FROM t WHERE a = TRUE", "42883"}, {"SELECT b FROM t WHERE b = 1", "42883"},
 	} {
-		t.Run(c.sql, func(t *testing.T) { _, err := e.Describe(statement(t, c.sql)); state(t, err, c.code) })
+		t.Run(c.sql, func(t *testing.T) { _, err := testDescribe(e, statement(t, c.sql)); state(t, err, c.code) })
 	}
 	s := statement(t, "INSERT INTO t VALUES ($1,$2,$1)")
 	for _, args := range [][]driver.NamedValue{{{Ordinal: 1, Value: 1}}, {{Ordinal: 2, Value: 1}, {Ordinal: 1, Value: "x"}}, {{Ordinal: 1, Name: "a", Value: 1}, {Ordinal: 2, Value: "x"}}} {
-		if _, err := e.Execute(context.Background(), s, args); err == nil {
+		if _, err := testExecute(e, context.Background(), s, args); err == nil {
 			t.Fatal("invalid arguments accepted")
 		}
 	}
@@ -105,7 +142,7 @@ func TestBindingAndSemanticValidation(t *testing.T) {
 func TestImplicitShortTargetDescribe(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE short_values (a INT, b TEXT)")
-	info, err := e.Describe(statement(t, "INSERT INTO short_values VALUES ($1)"))
+	info, err := testDescribe(e, statement(t, "INSERT INTO short_values VALUES ($1)"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,13 +228,13 @@ func TestCoercionsAndStatementAtomicity(t *testing.T) {
 		{"INSERT INTO t (i) VALUES (1),(2147483648)", "22003"}, {"INSERT INTO t (i) VALUES (1),('oops')", "22P02"}, {"INSERT INTO t (i) VALUES (1),(NULL)", "23502"},
 		{"INSERT INTO t (s) VALUES ('omitted required')", "23502"}, {"INSERT INTO t (i) VALUES (TRUE)", "42804"}, {"INSERT INTO t (i,b) VALUES (1,1)", "42804"}, {"INSERT INTO t (i,b) VALUES (1,'o')", "22P02"}, {"INSERT INTO t (i,n) VALUES (1,'9223372036854775808')", "22003"},
 	} {
-		_, err := e.Execute(context.Background(), statement(t, c.sql), nil)
+		_, err := testExecute(e, context.Background(), statement(t, c.sql), nil)
 		state(t, err, c.code)
 		if got := tuples(run(t, e, "SELECT * FROM t ORDER BY i DESC")); !reflect.DeepEqual(got, want) {
 			t.Fatalf("failed statement changed rows: %v", got)
 		}
 	}
-	_, err := e.Execute(context.Background(), statement(t, "INSERT INTO t (i) VALUES ($1)"), []driver.NamedValue{{Ordinal: 1, Value: 1.5}})
+	_, err := testExecute(e, context.Background(), statement(t, "INSERT INTO t (i) VALUES ($1)"), []driver.NamedValue{{Ordinal: 1, Value: 1.5}})
 	state(t, err, "0A000")
 	// WHERE integer literals use numeric comparison, not an int4 assignment cast.
 	if r := run(t, e, "SELECT i FROM t WHERE i = 2147483648"); r.Count != 0 {
@@ -289,7 +326,7 @@ func TestControlsRoundTripAndFailurePreservation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, operation := range []func() error{func() error { return copy.Reset(ctx) }, func() error { return copy.Restore(ctx, strings.NewReader("")) }, func() error {
-		_, err := copy.Execute(ctx, statement(t, `INSERT INTO "a table" VALUES ('lost',0,TRUE,3)`), nil)
+		_, err := testExecute(copy, ctx, statement(t, `INSERT INTO "a table" VALUES ('lost',0,TRUE,3)`), nil)
 		return err
 	}} {
 		if err := operation(); !errors.Is(err, context.Canceled) {
@@ -302,7 +339,7 @@ func TestControlsRoundTripAndFailurePreservation(t *testing.T) {
 	if err := copy.Restore(context.Background(), strings.NewReader(" -- empty\n /* script */ ")); err != nil {
 		t.Fatal(err)
 	}
-	_, err := copy.Describe(statement(t, `SELECT * FROM "a table"`))
+	_, err := testDescribe(copy, statement(t, `SELECT * FROM "a table"`))
 	state(t, err, "42P01")
 }
 func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
@@ -327,7 +364,7 @@ func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
 	}
 	run(t, e, `CREATE TABLE public."Foo" (id INTEGER)`)
 	run(t, e, "CREATE TABLE public.FOO (id INTEGER)")
-	if _, err = e.Execute(context.Background(), statement(t, `CREATE TABLE public."foo" (id INTEGER)`), nil); err == nil {
+	if _, err = testExecute(e, context.Background(), statement(t, `CREATE TABLE public."foo" (id INTEGER)`), nil); err == nil {
 		t.Fatal("normalized duplicate was accepted")
 	} else {
 		state(t, err, "42P07")
@@ -343,12 +380,12 @@ func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
 	longA := strings.Repeat("a", 61) + "éx"
 	longB := strings.Repeat("a", 61) + "éy"
 	run(t, e, "CREATE TABLE public."+longA+" (id INTEGER)")
-	if _, err = e.Execute(context.Background(), statement(t, "CREATE TABLE public."+longB+" (id INTEGER)"), nil); err == nil {
+	if _, err = testExecute(e, context.Background(), statement(t, "CREATE TABLE public."+longB+" (id INTEGER)"), nil); err == nil {
 		t.Fatal("UTF-8-truncated duplicate accepted")
 	} else {
 		state(t, err, "42P07")
 	}
-	if _, err = e.Execute(context.Background(), statement(t, `SELECT id FROM "A.B".t`), nil); err == nil {
+	if _, err = testExecute(e, context.Background(), statement(t, `SELECT id FROM "A.B".t`), nil); err == nil {
 		t.Fatal("dotted schema lookup unexpectedly succeeded")
 	} else {
 		state(t, err, "42P01")

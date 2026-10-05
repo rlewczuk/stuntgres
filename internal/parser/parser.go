@@ -86,6 +86,22 @@ func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
 	return Value{Kind: IntegerValue, Integer: n, Pos: tok.pos}, true
 }
 
+func settingInteger(text string, negative bool) string {
+	// PostgreSQL's scanner canonicalizes an unsigned int32 integer token.
+	// Larger decimal tokens retain their original spelling as NumericOnly text;
+	// the unary sign is applied separately, without broadening numeric syntax.
+	if n, err := strconv.ParseInt(text, 10, 32); err == nil {
+		if negative {
+			n = -n
+		}
+		return strconv.FormatInt(n, 10)
+	}
+	if negative {
+		return "-" + text
+	}
+	return text
+}
+
 func (l *lexer) fail(code, message string) {
 	l.failAt(code, message, l.current.pos.Offset)
 }

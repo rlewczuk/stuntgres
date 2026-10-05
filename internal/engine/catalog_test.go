@@ -26,7 +26,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.Execute(context.Background(), stmt[0], nil); err != nil {
+	if _, err = testExecute(e, context.Background(), stmt[0], nil); err != nil {
 		t.Fatal(err)
 	}
 	view = e.CatalogRead()
@@ -46,7 +46,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.Execute(context.Background(), q[0], nil); err != nil {
+	if _, err = testExecute(e, context.Background(), q[0], nil); err != nil {
 		t.Fatal(err)
 	}
 	if err = e.ValidateObjectRef(view, ref); err != nil {
@@ -188,7 +188,7 @@ func TestCatalogCanceledStageHasNoPublication(t *testing.T) {
 func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	e := New()
 	stmt, _ := parser.Parse("CREATE TABLE public.p (a INTEGER)")
-	if _, err := e.Execute(context.Background(), stmt[0], nil); err != nil {
+	if _, err := testExecute(e, context.Background(), stmt[0], nil); err != nil {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
@@ -293,7 +293,7 @@ func TestCatalogConcurrentReplacement(t *testing.T) {
 			go func() {
 				<-start
 				for i := 0; i < 200; i++ {
-					if _, err := source.Execute(context.Background(), insert, nil); err != nil {
+					if _, err := testExecute(source, context.Background(), insert, nil); err != nil {
 						done <- err
 						return
 					}
@@ -370,7 +370,7 @@ func (d initializationTestDescriptor) Address() ObjectAddress       { return d.a
 func (d initializationTestDescriptor) Revision() DefinitionRevision { return d.revision }
 func (initializationTestDescriptor) Namespace() ObjectAddress       { return ObjectAddress{} }
 func (d initializationTestDescriptor) Name() string                 { return d.name }
-func (initializationTestDescriptor) Kind() ObjectKind                { return NamespaceObject }
+func (initializationTestDescriptor) Kind() ObjectKind               { return NamespaceObject }
 
 type initializationTestProvider struct{ validated int }
 
@@ -441,10 +441,10 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 		t.Fatalf("coincident identities lack provenance: %#v / %#v", ra, rb)
 	}
 	for _, tc := range []struct {
-		engine *Engine
-		view   CatalogRead
+		engine       *Engine
+		view         CatalogRead
 		own, foreign ObjectRef
-		want int64
+		want         int64
 	}{{a, va, ra, rb, 11}, {b, vb, rb, ra, 22}} {
 		if err := tc.engine.ValidateObjectRef(tc.view, tc.own); err != nil {
 			t.Fatal(err)
@@ -614,10 +614,10 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 
 func TestCatalogRejectsMalformedColumnIndex(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name    string
 		columns []parser.Column
-		index map[string]int
-	} {
+		index   map[string]int
+	}{
 		{"missing first name", []parser.Column{{Name: "id", Type: parser.Int4}}, map[string]int{"other": 0}},
 		{"duplicate names", []parser.Column{{Name: "id", Type: parser.Int4}, {Name: "id", Type: parser.Int4}}, map[string]int{"id": 0, "other": 1}},
 	} {

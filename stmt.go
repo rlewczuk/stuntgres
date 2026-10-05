@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"runtime"
 	"stuntgres/internal/parser"
 	"sync/atomic"
 )
@@ -15,9 +16,10 @@ type stmt struct {
 	closed atomic.Bool
 }
 
-func (s *stmt) Close() error  { s.closed.Store(true); return nil }
-func (s *stmt) NumInput() int { return s.count }
+func (s *stmt) Close() error  { defer runtime.KeepAlive(s.conn); s.closed.Store(true); return nil }
+func (s *stmt) NumInput() int { defer runtime.KeepAlive(s.conn); return s.count }
 func (s *stmt) check(ctx context.Context) error {
+	defer runtime.KeepAlive(s.conn)
 	if err := s.conn.check(ctx); err != nil {
 		return err
 	}
@@ -27,6 +29,7 @@ func (s *stmt) check(ctx context.Context) error {
 	return nil
 }
 func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
+	defer runtime.KeepAlive(s.conn)
 	if err := s.check(ctx); err != nil {
 		return nil, err
 	}
@@ -37,6 +40,7 @@ func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 	return result(r.Count), nil
 }
 func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
+	defer runtime.KeepAlive(s.conn)
 	if err := s.check(ctx); err != nil {
 		return nil, err
 	}

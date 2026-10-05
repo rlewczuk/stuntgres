@@ -86,3 +86,20 @@ type Value struct {
 	Parameter int
 	Pos       Position
 }
+
+// Set uses setting-specific scalar text; Default is distinct from quoted text.
+type Set struct {
+	Name    Identifier
+	Default bool
+	Values  []string
+	Pos     Position
+}
+
+func (*Set) statement() {}
+
+type Show struct {
+	Name Identifier
+	Pos  Position
+}
+
+func (*Show) statement() {}

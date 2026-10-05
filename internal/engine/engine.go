@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"database/sql/driver"
 	"fmt"
 	"strconv"
@@ -13,13 +12,16 @@ import (
 )
 
 type Engine struct {
-	mu           sync.Mutex
-	owner        *catalogOwner
-	state        *catalogState
-	providers    map[OID]CatalogProvider
-	storage      map[ObjectAddress]*relationStorage
-	nextOID      OID
-	nextRevision DefinitionRevision
+	mu                  sync.Mutex
+	owner               *catalogOwner
+	state               *catalogState
+	providers           map[OID]CatalogProvider
+	storage             map[ObjectAddress]*relationStorage
+	nextOID             OID
+	nextRevision        DefinitionRevision
+	sessionMu           sync.Mutex
+	sessions            map[SessionToken]*Session
+	settingsDefinitions map[string]SettingDefinition
 }
 type ParameterInfo struct {
 	Count int
@@ -57,6 +59,7 @@ func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
 
 func newEngine(providers []CatalogProvider) (*Engine, error) {
 	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
+	e.settingsDefinitions = map[string]SettingDefinition{applicationName.Name: applicationName}
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
@@ -123,7 +126,17 @@ func sqlError(code, message string) error {
 		Code: code, Message: message,
 	}
 }
-func (e *Engine) Describe(stmt parser.Statement) (ParameterInfo, error) {
+func (e *Engine) Describe(op *Operation, stmt parser.Statement) (ParameterInfo, error) {
+	if err := e.validateOperation(op); err != nil {
+		return ParameterInfo{}, err
+	}
+	switch s := stmt.(type) {
+	case *parser.Set:
+		return ParameterInfo{}, nil
+	case *parser.Show:
+		_, err := e.setting(s.Name.Text)
+		return ParameterInfo{}, err
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	b, err := e.describe(stmt)
@@ -308,6 +321,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	}
 	return b, nil
 }
+
 // Resolution helpers run under e.mu, using the supplied coherent view.
 func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
 	if e.owner == nil || view.owner != e || view.state == nil {
@@ -446,9 +460,14 @@ func prepareArgs(args []driver.NamedValue) ([]driver.Value, error) {
 	return values, nil
 }
 
-func (e *Engine) Execute(ctx context.Context, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
-	if err := ctx.Err(); err != nil {
+func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
+	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
+	}
+	ctx := op.Context()
+	switch stmt.(type) {
+	case *parser.Set, *parser.Show:
+		return e.executeSetting(op, stmt, args)
 	}
 	values, err := prepareArgs(args)
 	if err != nil {

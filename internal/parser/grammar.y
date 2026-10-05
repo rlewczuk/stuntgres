@@ -18,15 +18,22 @@ package parser
  order *Order
  desc bool
  objectName ObjectName
+ settingValues []string
+ settingValue string
 }
 %token <tok> IDENT NUMBER STRING PARAM
 %token <tok> '+' '-'
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN UNSUP_TYPE UNSUP_IDENT UNSUP
+%token <tok> SET SHOW SESSION TO DEFAULT
+/* In SET scope position, SESSION wins over an empty optional scope.
+ * Elsewhere SESSION remains a nonreserved ordinary name. */
+%nonassoc EMPTY_SESSION_SCOPE
+%nonassoc SESSION
 /* A following '(' denotes an unsupported function, not a completed name list. */
 %nonassoc NAME_LIST
 %nonassoc '('
-%type <stmt> statement create insert select
+%type <stmt> statement create insert select set show
 %type <col> column
 %type <cols> columns
 %type <typ> type
@@ -42,13 +49,26 @@ package parser
 %type <pred> where
 %type <order> order
 %type <desc> direction
+%type <settingValues> setting_values
+%type <settingValue> setting_value
 %%
 script: separators optional_statements ;
 separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } ;
-statement: create | insert | select ;
+statement: create | insert | select | set | show ;
+set: SET optional_session name setting_assignment setting_values { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Values:$5,Pos:$1.pos} }
+ | SET optional_session name setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} } ;
+optional_session: /* empty */ %prec EMPTY_SESSION_SCOPE | SESSION ;
+setting_assignment: TO | '=' ;
+setting_values: setting_value { $$=[]string{$1} } | setting_values ',' setting_value { $$=append($1,$3) } ;
+setting_value: STRING { $$=$1.text } | name { $$=$1.text }
+ | TRUE { $$="true" } | FALSE { $$="false" }
+ | NUMBER { $$=settingInteger($1.text,false) }
+ | '+' NUMBER { $$=settingInteger($2.text,false) }
+ | '-' NUMBER { $$=settingInteger($2.text,true) } ;
+show: SHOW name { $$=&Show{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 create: CREATE TABLE relation_name '(' columns ')' { $$ = &CreateTable{Name:$3, Columns:$5, Pos:$1.pos} }
  | CREATE TABLE relation_name NOT { code:="42601"; if len($3.Parts)==1 && $3.Parts[0].Text=="if" { code="0A000" }; sqllex.(*lexer).fail(code,"unsupported CREATE syntax"); return 1 } ;
 columns: column { $$ = []Column{$1} } | columns ',' column { $$ = append($1,$3) } ;
@@ -88,7 +108,7 @@ where: /* empty */ { $$ = nil } | WHERE name '=' value { $$ = &Predicate{Column:
 order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$3.text, Desc:$4} }
  | ORDER BY name direction ',' { sqllex.(*lexer).fail("0A000","multiple sort keys are unsupported"); return 1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
-name: IDENT | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | UNSUP_TYPE | UNSUP_IDENT ;
+name: IDENT | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | UNSUP_TYPE | UNSUP_IDENT | SET | SHOW | SESSION ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }
