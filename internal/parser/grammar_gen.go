@@ -49,18 +49,22 @@ const INTEGER = 57366
 const BIGINT = 57367
 const TEXT = 57368
 const BOOLEAN = 57369
-const UNSUP_TYPE = 57370
-const UNSUP_IDENT = 57371
-const UNSUP = 57372
-const SET = 57373
-const SHOW = 57374
-const SESSION = 57375
-const TO = 57376
-const DEFAULT = 57377
-const IF = 57378
-const EXISTS = 57379
-const EMPTY_SESSION_SCOPE = 57380
-const NAME_LIST = 57381
+const KW_U = 57370
+const KW_C = 57371
+const KW_T = 57372
+const KW_R = 57373
+const AS = 57374
+const CAST = 57375
+const NULLS_LA = 57376
+const SET = 57377
+const SHOW = 57378
+const SESSION = 57379
+const TO = 57380
+const DEFAULT = 57381
+const IF = 57382
+const EXISTS = 57383
+const EMPTY_SESSION_SCOPE = 57384
+const NAME_LIST = 57385
 
 var sqlToknames = [...]string{
 	"$end",
@@ -72,6 +76,9 @@ var sqlToknames = [...]string{
 	"PARAM",
 	"'+'",
 	"'-'",
+	"'['",
+	"':'",
+	"'('",
 	"CREATE",
 	"TABLE",
 	"INSERT",
@@ -92,9 +99,13 @@ var sqlToknames = [...]string{
 	"BIGINT",
 	"TEXT",
 	"BOOLEAN",
-	"UNSUP_TYPE",
-	"UNSUP_IDENT",
-	"UNSUP",
+	"KW_U",
+	"KW_C",
+	"KW_T",
+	"KW_R",
+	"AS",
+	"CAST",
+	"NULLS_LA",
 	"SET",
 	"SHOW",
 	"SESSION",
@@ -104,7 +115,6 @@ var sqlToknames = [...]string{
 	"EXISTS",
 	"EMPTY_SESSION_SCOPE",
 	"NAME_LIST",
-	"'('",
 	"';'",
 	"'='",
 	"','",
@@ -112,6 +122,9 @@ var sqlToknames = [...]string{
 	"'*'",
 	"'/'",
 	"'.'",
+	"'>'",
+	"'<'",
+	"'!'",
 }
 
 var sqlStatenames = [...]string{}
@@ -128,149 +141,256 @@ var sqlExca = [...]int8{
 
 const sqlPrivate = 57344
 
-const sqlLast = 333
+const sqlLast = 711
 
-var sqlAct = [...]uint8{
-	53, 24, 113, 80, 94, 81, 51, 61, 62, 34,
-	31, 29, 30, 32, 33, 25, 3, 49, 111, 39,
-	72, 103, 144, 149, 57, 141, 140, 54, 26, 27,
-	28, 35, 36, 37, 38, 40, 41, 129, 42, 43,
-	44, 116, 115, 45, 46, 120, 63, 64, 68, 103,
-	102, 78, 22, 135, 18, 65, 12, 76, 13, 79,
-	114, 14, 75, 127, 74, 70, 83, 69, 48, 126,
-	125, 82, 34, 84, 137, 88, 90, 71, 96, 15,
-	16, 134, 39, 147, 148, 91, 2, 118, 55, 4,
-	110, 86, 119, 20, 35, 36, 37, 38, 40, 41,
-	19, 42, 43, 44, 82, 50, 45, 46, 122, 123,
-	121, 67, 128, 66, 77, 132, 131, 133, 47, 17,
-	5, 96, 1, 92, 146, 136, 117, 89, 82, 34,
-	21, 138, 139, 59, 60, 142, 132, 143, 130, 39,
-	112, 23, 132, 145, 105, 106, 107, 108, 109, 87,
-	73, 35, 36, 37, 38, 40, 41, 124, 42, 43,
-	44, 104, 11, 45, 46, 10, 9, 58, 8, 7,
-	56, 34, 31, 29, 30, 32, 33, 6, 0, 0,
-	0, 39, 0, 0, 0, 0, 0, 0, 0, 0,
-	26, 27, 28, 35, 36, 37, 38, 40, 41, 0,
-	42, 43, 44, 0, 0, 45, 46, 34, 99, 95,
-	0, 100, 101, 0, 0, 0, 0, 39, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 97, 98, 35,
-	36, 37, 38, 40, 41, 0, 42, 43, 44, 0,
-	93, 45, 46, 34, 99, 95, 0, 100, 101, 0,
-	0, 0, 0, 39, 0, 0, 0, 0, 0, 85,
-	0, 34, 0, 97, 98, 35, 36, 37, 38, 40,
-	41, 39, 42, 43, 44, 0, 0, 45, 46, 34,
-	0, 0, 0, 35, 36, 37, 38, 40, 41, 39,
-	42, 43, 44, 0, 0, 45, 46, 34, 0, 0,
-	0, 35, 36, 37, 38, 40, 41, 39, 42, 43,
-	44, 0, 0, 45, 46, 0, 0, 0, 0, 35,
-	36, 37, 38, 40, 41, 0, 42, 43, 44, 0,
-	0, 52, 46,
+var sqlAct = [...]int16{
+	67, 265, 202, 33, 137, 65, 223, 171, 152, 138,
+	146, 113, 3, 200, 104, 206, 34, 216, 63, 180,
+	261, 255, 254, 205, 204, 142, 209, 46, 180, 179,
+	264, 26, 140, 77, 62, 68, 117, 118, 54, 119,
+	53, 120, 121, 122, 123, 55, 124, 125, 126, 127,
+	128, 129, 49, 50, 51, 52, 47, 48, 115, 116,
+	132, 133, 100, 56, 57, 58, 130, 131, 59, 60,
+	280, 135, 110, 227, 114, 109, 227, 101, 136, 106,
+	285, 251, 278, 103, 263, 143, 243, 90, 91, 239,
+	94, 249, 225, 226, 257, 225, 226, 2, 266, 267,
+	148, 228, 213, 139, 228, 114, 108, 244, 147, 153,
+	163, 232, 144, 245, 246, 247, 141, 208, 29, 270,
+	271, 272, 276, 277, 64, 95, 46, 154, 155, 156,
+	160, 161, 92, 93, 283, 173, 203, 54, 229, 53,
+	275, 273, 274, 168, 55, 12, 199, 167, 159, 157,
+	158, 49, 50, 51, 52, 47, 48, 70, 46, 28,
+	69, 166, 56, 57, 58, 214, 215, 59, 60, 54,
+	102, 53, 107, 99, 165, 150, 55, 98, 108, 282,
+	218, 139, 217, 49, 50, 51, 52, 47, 48, 211,
+	219, 164, 210, 97, 56, 57, 58, 96, 269, 59,
+	60, 114, 151, 256, 235, 238, 237, 234, 231, 207,
+	153, 149, 230, 227, 240, 236, 134, 173, 241, 242,
+	61, 224, 248, 25, 250, 5, 1, 227, 169, 212,
+	139, 162, 225, 226, 252, 253, 222, 221, 30, 233,
+	258, 228, 201, 32, 259, 235, 225, 226, 260, 145,
+	105, 284, 279, 72, 186, 228, 235, 220, 46, 262,
+	181, 11, 74, 75, 268, 10, 9, 8, 81, 54,
+	281, 53, 80, 7, 6, 0, 55, 82, 83, 84,
+	85, 86, 87, 49, 50, 51, 52, 47, 48, 78,
+	79, 73, 89, 0, 56, 57, 58, 0, 88, 59,
+	60, 46, 0, 0, 0, 71, 0, 0, 0, 76,
+	117, 118, 54, 119, 53, 120, 121, 122, 123, 55,
+	124, 125, 126, 127, 128, 129, 49, 50, 51, 52,
+	47, 48, 115, 116, 132, 133, 0, 56, 57, 58,
+	130, 131, 59, 60, 46, 40, 38, 39, 41, 42,
+	0, 0, 0, 0, 0, 54, 0, 53, 0, 0,
+	0, 0, 55, 0, 0, 0, 35, 36, 37, 49,
+	50, 51, 52, 47, 48, 43, 0, 0, 45, 0,
+	56, 57, 58, 0, 44, 59, 60, 46, 40, 38,
+	39, 41, 42, 31, 0, 0, 0, 0, 54, 0,
+	53, 0, 0, 0, 0, 55, 0, 0, 0, 35,
+	36, 37, 49, 50, 51, 52, 47, 48, 43, 0,
+	0, 45, 0, 56, 57, 58, 0, 44, 59, 60,
+	46, 154, 155, 156, 160, 161, 0, 0, 0, 0,
+	0, 54, 0, 53, 0, 0, 0, 0, 55, 0,
+	0, 18, 159, 157, 158, 49, 50, 51, 52, 47,
+	48, 27, 0, 0, 0, 0, 56, 57, 58, 0,
+	0, 59, 60, 46, 176, 172, 0, 177, 178, 0,
+	19, 20, 21, 22, 54, 0, 53, 0, 0, 0,
+	0, 55, 23, 24, 0, 0, 174, 175, 49, 50,
+	51, 52, 47, 48, 0, 0, 0, 0, 0, 56,
+	57, 58, 0, 170, 59, 60, 46, 176, 172, 0,
+	177, 178, 0, 0, 0, 0, 0, 54, 0, 53,
+	0, 0, 0, 0, 55, 0, 0, 0, 0, 174,
+	175, 49, 50, 51, 52, 47, 48, 0, 46, 0,
+	0, 0, 56, 57, 58, 0, 148, 59, 60, 54,
+	0, 53, 108, 0, 0, 0, 55, 0, 0, 46,
+	0, 0, 0, 49, 50, 51, 52, 47, 48, 0,
+	54, 0, 53, 0, 56, 57, 58, 55, 0, 59,
+	60, 187, 0, 0, 49, 50, 51, 52, 47, 48,
+	111, 0, 192, 112, 191, 56, 57, 58, 0, 193,
+	59, 60, 0, 0, 0, 0, 182, 183, 184, 185,
+	188, 190, 189, 0, 0, 18, 0, 194, 195, 196,
+	0, 0, 197, 198, 13, 0, 14, 0, 0, 15,
+	0, 0, 0, 0, 0, 0, 0, 46, 0, 0,
+	0, 0, 0, 0, 19, 20, 21, 22, 54, 0,
+	53, 16, 17, 0, 0, 55, 23, 24, 46, 0,
+	4, 0, 49, 50, 51, 52, 47, 48, 0, 54,
+	0, 53, 0, 56, 57, 58, 55, 0, 59, 60,
+	0, 0, 0, 49, 50, 51, 52, 47, 48, 0,
+	0, 0, 0, 0, 56, 57, 58, 0, 0, 66,
+	60,
 }
 
 var sqlPact = [...]int16{
-	-32768, -32768, 46, -32768, -32768, 11, -32768, -32768, -32768, -32768,
-	-32768, -32768, 89, 80, 5, 33, 275, -32768, -32768, 293,
-	275, 72, -32768, 125, -1, 13, -32768, -32768, -32768, -32768,
-	-32768, -32768, 108, 106, -32768, -32768, -32768, -32768, -32768, -32768,
-	-32768, -32768, -32768, -32768, -32768, -32768, -32768, 275, -32768, -32768,
-	46, 23, 55, -29, 22, 275, 275, -32768, -32768, -32768,
-	-32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, 15, -32768,
-	275, 27, 257, 77, 275, 68, -32768, 203, -32768, -32768,
-	4, -32768, 118, 275, -31, -32768, 18, -4, -32768, 69,
-	-32768, 275, 0, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
-	105, 103, -32768, 275, 47, -32768, -32768, -32768, -32768, -32768,
-	21, 275, -8, -32768, 167, -32768, 275, -32768, 62, 9,
-	239, -32768, -32768, -32768, -32768, -32768, 51, 275, -32768, 18,
-	-20, -1, 13, -32768, 275, 167, -32768, -32768, -24, -32768,
-	-32768, 167, 63, -1, -32768, -1, -22, -32768, -32768, -32768,
+	-32768, -32768, 621, -32768, -32768, -18, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32768, 447, 102, 340, -8, 643, -32768, -32768,
+	-32768, -32768, -32768, -32768, -32768, -32768, -32768, 664, -32768, 643,
+	141, -32768, 254, 79, 113, -32768, -32768, -32768, -32768, -32768,
+	-32768, 192, 188, 165, -32768, 161, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
+	-32768, 643, -32768, -32768, 621, 158, 58, -41, 160, 643,
+	-32768, 565, -32768, 297, -32768, -32768, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
+	28, -32768, 643, -14, 23, 68, -32768, 544, 122, 154,
+	149, 135, 131, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32768, -32768, 469, -32768, -32768, -23, -32768, 587,
+	643, -42, -32768, 124, -32768, -28, -37, -32768, 88, 98,
+	-32768, -25, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
+	187, 184, 81, -32768, 643, 643, -32768, -32768, -32768, -34,
+	-32768, -32768, -32768, -32768, -32768, -32768, -32768, 177, 175, -32768,
+	643, 211, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, -32768, 126,
+	297, 60, -32768, 383, 88, 643, -32768, 69, 643, 426,
+	-32768, -32768, 197, 64, -32768, 57, 512, -32768, -32768, -32768,
+	-32768, -32768, 55, -32768, -32768, -32768, -32768, -32768, -32768, 643,
+	-32768, -32768, 124, -30, 79, 113, -32768, -32768, 73, 643,
+	-32768, -32768, -32768, 643, 383, -32768, -32768, -32768, -32768, -32768,
+	-32768, -32768, -32, -32768, -32768, 383, -32768, 62, -20, 75,
+	79, -32768, 79, 643, 114, 31, -32768, -32768, 75, -32768,
+	-32768, -32768, -32768, -32768, -32768, -32768, 174, 129, -32768, 47,
+	-32768, -32768, -32768, -32768, -32768, -32768,
 }
 
-var sqlPgo = [...]uint8{
-	0, 177, 169, 168, 166, 165, 162, 5, 3, 161,
-	157, 0, 150, 149, 6, 141, 140, 2, 138, 1,
-	130, 127, 126, 124, 123, 4, 122, 86, 16, 120,
-	119, 118, 114,
+var sqlPgo = [...]int16{
+	0, 274, 273, 267, 266, 265, 261, 9, 4, 260,
+	257, 0, 254, 253, 11, 145, 6, 10, 252, 251,
+	250, 249, 5, 243, 242, 2, 239, 3, 238, 231,
+	229, 1, 228, 7, 226, 97, 12, 225, 223, 220,
+	216, 211, 209, 205, 203, 202, 8, 198,
 }
 
 var sqlR1 = [...]int8{
-	0, 26, 27, 27, 28, 28, 30, 30, 29, 1,
-	1, 1, 1, 1, 5, 5, 31, 31, 32, 32,
-	24, 24, 25, 25, 25, 25, 25, 25, 25, 6,
-	2, 2, 8, 8, 7, 9, 9, 9, 9, 9,
-	10, 10, 10, 3, 12, 12, 13, 13, 15, 15,
-	16, 16, 17, 18, 18, 19, 19, 19, 19, 19,
-	19, 19, 19, 19, 19, 19, 19, 19, 4, 4,
-	20, 20, 20, 20, 20, 20, 20, 21, 21, 22,
-	22, 22, 23, 23, 23, 11, 11, 11, 11, 11,
-	11, 11, 11, 11, 11, 11, 11, 11, 14, 14,
-	14, 14,
+	0, 34, 35, 35, 36, 36, 38, 38, 37, 1,
+	1, 1, 1, 1, 1, 5, 5, 39, 39, 40,
+	40, 32, 32, 33, 33, 33, 33, 33, 33, 33,
+	6, 2, 2, 2, 8, 8, 7, 9, 9, 9,
+	9, 9, 10, 10, 10, 10, 10, 3, 3, 3,
+	3, 3, 20, 20, 21, 21, 17, 17, 41, 41,
+	41, 45, 45, 46, 46, 46, 46, 46, 46, 46,
+	46, 46, 42, 42, 43, 43, 47, 47, 47, 47,
+	47, 47, 47, 47, 44, 44, 23, 23, 24, 24,
+	25, 26, 26, 27, 27, 27, 27, 27, 27, 27,
+	27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
+	4, 4, 4, 4, 4, 28, 28, 28, 28, 28,
+	28, 28, 28, 28, 28, 28, 29, 29, 29, 29,
+	29, 29, 29, 30, 30, 30, 30, 18, 19, 31,
+	31, 31, 11, 11, 11, 11, 11, 11, 11, 11,
+	11, 11, 11, 11, 11, 11, 11, 12, 12, 12,
+	12, 12, 12, 12, 12, 12, 12, 12, 12, 15,
+	15, 15, 15, 15, 15, 15, 13, 13, 13, 13,
+	13, 13, 13, 13, 13, 13, 13, 13, 13, 14,
+	14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+	14, 14, 14, 14, 14, 14, 14, 14, 14, 16,
+	16, 16, 16, 22, 22, 22, 22,
 }
 
 var sqlR2 = [...]int8{
 	0, 2, 0, 2, 0, 2, 0, 3, 1, 1,
-	1, 1, 1, 1, 5, 5, 0, 1, 1, 1,
-	1, 3, 1, 1, 1, 1, 1, 2, 2, 2,
-	6, 9, 1, 3, 3, 1, 1, 1, 1, 1,
-	0, 1, 2, 6, 0, 3, 1, 3, 1, 3,
-	1, 3, 3, 1, 3, 1, 1, 1, 1, 1,
-	1, 2, 2, 2, 2, 2, 2, 2, 6, 5,
-	1, 1, 2, 2, 2, 2, 1, 0, 4, 0,
-	4, 5, 0, 1, 1, 1, 1, 1, 1, 1,
-	1, 1, 1, 1, 1, 1, 1, 1, 1, 3,
-	3, 5,
+	1, 1, 1, 1, 1, 5, 5, 0, 1, 1,
+	1, 1, 3, 1, 1, 1, 1, 1, 2, 2,
+	2, 6, 9, 2, 1, 3, 3, 1, 1, 1,
+	1, 1, 0, 1, 2, 1, 1, 6, 7, 5,
+	4, 7, 0, 3, 1, 3, 5, 3, 0, 1,
+	1, 1, 3, 1, 1, 1, 1, 1, 1, 1,
+	2, 2, 0, 2, 0, 4, 1, 1, 1, 1,
+	1, 1, 2, 2, 0, 4, 1, 3, 1, 3,
+	3, 1, 3, 1, 1, 1, 1, 1, 1, 2,
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 2,
+	6, 5, 6, 3, 7, 1, 1, 2, 3, 4,
+	4, 4, 2, 2, 2, 1, 0, 4, 3, 3,
+	3, 3, 3, 0, 4, 5, 6, 1, 1, 0,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 3, 3, 5,
 }
 
 var sqlChk = [...]int16{
-	-32768, -26, -27, -28, 43, -29, -1, -2, -3, -4,
-	-5, -6, 10, 12, 15, 33, 34, -30, 43, 11,
-	13, -20, 47, -15, -19, -11, 23, 24, 25, 6,
-	7, 5, 8, 9, 4, 26, 27, 28, 29, 14,
-	30, 31, 33, 34, 35, 38, 39, -31, 35, -11,
-	-27, -14, 38, -11, -14, 16, 45, -11, 42, 8,
-	9, 8, 9, 47, 48, 42, 5, 5, -11, -28,
-	42, 22, 49, -12, 42, -14, -11, -32, 36, 44,
-	-8, -7, -11, 39, -11, 2, 14, -13, -11, -21,
-	-11, 17, -24, 37, -25, 6, -11, 24, 25, 5,
-	8, 9, 46, 45, -9, 26, 27, 28, 29, 30,
-	-14, 49, -16, -17, 42, 46, 45, -22, 18, -11,
-	45, 5, 5, -7, -10, 23, 22, 42, -11, 45,
-	-18, -19, -11, -11, 19, 44, -25, 23, -8, -17,
-	46, 45, -11, -19, 46, -19, -23, 20, 21, 45,
+	-32768, -34, -35, -36, 49, -37, -1, -2, -3, -4,
+	-5, -6, -15, 13, 15, 18, 40, 41, 4, 33,
+	34, 35, 36, 45, 46, -38, 49, 14, -15, 16,
+	-28, 53, -23, -27, -11, 26, 27, 28, 6, 7,
+	5, 8, 9, 35, 44, 38, 4, 33, 34, 29,
+	30, 31, 32, 17, 15, 22, 40, 41, 42, 45,
+	46, -39, 42, -11, -35, -22, 45, -11, -22, 19,
+	16, 51, -13, 37, 8, 9, 55, -11, 35, 36,
+	18, 14, 23, 24, 25, 26, 27, 28, 44, 38,
+	8, 9, 53, 54, 11, 12, 5, 5, 12, 12,
+	-11, -36, 12, 25, 55, -20, -17, 12, 18, -22,
+	-11, 35, 38, -14, -11, 35, 36, 13, 14, 16,
+	18, 19, 20, 21, 23, 24, 25, 26, 27, 28,
+	43, 44, 37, 38, -40, 43, 50, -8, -7, -11,
+	46, -14, 2, 17, 44, -21, -17, -11, 12, -41,
+	53, -45, -46, -11, 5, 6, 7, 27, 28, 26,
+	8, 9, -29, -11, 37, 20, 12, 12, 12, -32,
+	44, -33, 6, -11, 27, 28, 5, 8, 9, 52,
+	51, -9, 29, 30, 31, 32, -12, 4, 33, 35,
+	34, 17, 15, 22, 40, 41, 42, 45, 46, -22,
+	55, -24, -25, 12, 52, 51, 52, -42, 19, 51,
+	5, 5, -30, 21, -11, -11, 51, 5, 5, -7,
+	-10, 26, 25, -16, 10, 35, 36, 16, 44, 12,
+	-14, -16, 51, -26, -27, -11, -17, -11, -43, 20,
+	-22, -46, -16, 22, 50, 56, 57, 58, -16, 34,
+	-33, 26, -8, -25, 52, 51, -44, 21, -11, -11,
+	-27, 52, -27, 22, 50, -31, 23, 24, -11, -47,
+	5, 6, 7, 27, 28, 26, 8, 9, 51, -18,
+	39, -31, 5, 5, -19, 33,
 }
 
-var sqlDef = [...]int8{
+var sqlDef = [...]int16{
 	2, -2, 4, 1, 3, 6, 8, 9, 10, 11,
-	12, 13, 0, 0, 0, 16, 0, 5, 2, 0,
-	0, 0, 70, 71, 76, 48, 55, 56, 57, 58,
-	59, 60, 0, 0, 85, 86, 87, 88, 89, 90,
-	91, 92, 93, 94, 95, 96, 97, 0, 17, 29,
-	4, 0, 96, 98, 44, 0, 0, 72, 73, 74,
-	75, 63, 64, 65, 66, 67, 61, 62, 0, 7,
-	0, 0, 0, 0, 0, 77, 49, 0, 18, 19,
-	0, 32, 0, 0, 99, 100, 0, 0, 46, 79,
-	69, 0, 14, 15, 20, 22, 23, 24, 25, 26,
-	0, 0, 30, 0, 40, 35, 36, 37, 38, 39,
-	0, 0, 43, 50, 0, 45, 0, 68, 0, 0,
-	0, 27, 28, 33, 34, 41, 0, 0, 101, 0,
-	0, 53, 0, 47, 0, 0, 21, 42, 0, 51,
-	52, 0, 82, 78, 31, 54, 80, 83, 84, 81,
+	12, 13, 14, 0, 0, 0, 17, 0, 169, 170,
+	171, 172, 173, 174, 175, 5, 2, 0, 33, 0,
+	0, 115, 116, 125, 86, 93, 94, 95, 96, 97,
+	98, 0, 0, 0, 108, 0, 142, 143, 144, 145,
+	146, 147, 148, 149, 150, 151, 152, 153, 154, 155,
+	156, 0, 18, 30, 4, 0, 155, 213, 52, 0,
+	113, 0, 117, 0, 122, 123, 124, 176, 177, 178,
+	179, 180, 181, 182, 183, 184, 185, 186, 187, 188,
+	101, 102, 103, 104, 107, 105, 99, 100, 106, 109,
+	0, 7, 0, 0, 0, 0, 50, 0, 58, 126,
+	87, 0, 0, 118, 189, 190, 191, 192, 193, 194,
+	195, 196, 197, 198, 199, 200, 201, 202, 203, 204,
+	205, 206, 207, 208, 0, 19, 20, 0, 34, 0,
+	0, 214, 215, 0, 49, 0, 0, 54, 0, 72,
+	59, 60, 61, 63, 64, 65, 66, 67, 68, 69,
+	0, 0, 133, 111, 0, 0, 119, 120, 121, 15,
+	16, 21, 23, 24, 25, 26, 27, 0, 0, 31,
+	0, 42, 37, 38, 39, 40, 41, 157, 158, 159,
+	160, 161, 162, 163, 164, 165, 166, 167, 168, 0,
+	0, 47, 88, 0, 53, 0, 57, 74, 0, 0,
+	70, 71, 110, 0, 112, 0, 0, 28, 29, 35,
+	36, 43, 0, 45, 46, 209, 210, 211, 212, 0,
+	216, 48, 0, 0, 91, 0, 51, 55, 84, 0,
+	73, 62, 114, 0, 0, 128, 129, 130, 131, 132,
+	22, 44, 0, 89, 90, 0, 56, 0, 0, 139,
+	127, 32, 92, 0, 0, 134, 140, 141, 139, 75,
+	76, 77, 78, 79, 80, 81, 0, 0, 135, 0,
+	137, 85, 82, 83, 136, 138,
 }
 
 var sqlTok1 = [...]int8{
 	1, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+	3, 3, 3, 58, 3, 3, 3, 3, 3, 3,
+	12, 52, 53, 8, 51, 9, 55, 54, 3, 3,
+	3, 3, 3, 3, 3, 3, 3, 3, 11, 49,
+	57, 50, 56, 3, 3, 3, 3, 3, 3, 3,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
-	42, 46, 47, 8, 45, 9, 49, 48, 3, 3,
-	3, 3, 3, 3, 3, 3, 3, 3, 3, 43,
-	3, 44,
+	3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+	3, 10,
 }
 
 var sqlTok2 = [...]int8{
-	2, 3, 4, 5, 6, 7, 10, 11, 12, 13,
-	14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-	24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
-	34, 35, 36, 37, 38, 39, 40, 41,
+	2, 3, 4, 5, 6, 7, 13, 14, 15, 16,
+	17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+	27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
+	37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
+	47, 48,
 }
 
 var sqlTok3 = [...]int8{
@@ -615,32 +735,35 @@ sqldefault:
 	case 8:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, sqlDollar[1].stmt)
+			if sqlDollar[1].stmt != nil {
+				sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, sqlDollar[1].stmt)
+			}
 		}
 	case 14:
-		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.stmt = &Set{Name: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Values: sqlDollar[5].settingValues, Pos: sqlDollar[1].tok.pos}
+			sqllex.(*lexer).capability(sqlDollar[1].tok, unsupportedCommands, "statement is unsupported")
+			return 1
 		}
 	case 15:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
+			sqlVAL.stmt = &Set{Name: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Values: sqlDollar[5].settingValues, Pos: sqlDollar[1].tok.pos}
+		}
+	case 16:
+		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
+		{
 			sqlVAL.stmt = &Set{Name: Identifier{Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}, Default: true, Pos: sqlDollar[1].tok.pos}
 		}
-	case 20:
+	case 21:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.settingValues = []string{sqlDollar[1].settingValue}
 		}
-	case 21:
+	case 22:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.settingValues = append(sqlDollar[1].settingValues, sqlDollar[3].settingValue)
-		}
-	case 22:
-		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
-		{
-			sqlVAL.settingValue = sqlDollar[1].tok.text
 		}
 	case 23:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
@@ -650,14 +773,19 @@ sqldefault:
 	case 24:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.settingValue = "true"
+			sqlVAL.settingValue = sqlDollar[1].tok.text
 		}
 	case 25:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.settingValue = "false"
+			sqlVAL.settingValue = "true"
 		}
 	case 26:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			sqlVAL.settingValue = "false"
+		}
+	case 27:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			var ok bool
@@ -666,7 +794,7 @@ sqldefault:
 				return 1
 			}
 		}
-	case 27:
+	case 28:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			var ok bool
@@ -675,7 +803,7 @@ sqldefault:
 				return 1
 			}
 		}
-	case 28:
+	case 29:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			var ok bool
@@ -684,163 +812,218 @@ sqldefault:
 				return 1
 			}
 		}
-	case 29:
+	case 30:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqlVAL.stmt = &Show{Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[1].tok.pos}
 		}
-	case 30:
+	case 31:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
 			sqlVAL.stmt = &CreateTable{Name: sqlDollar[3].objectName, Columns: sqlDollar[5].cols, Pos: sqlDollar[1].tok.pos}
 		}
-	case 31:
+	case 32:
 		sqlDollar = sqlS[sqlpt-9 : sqlpt+1]
 		{
 			sqlVAL.stmt = &CreateTable{Name: sqlDollar[6].objectName, Columns: sqlDollar[8].cols, Pos: sqlDollar[1].tok.pos, IfNotExists: true}
 		}
-	case 32:
+	case 33:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).capability(sqlDollar[2].tok, unsupportedCreateObjects, "CREATE syntax is unsupported")
+			return 1
+		}
+	case 34:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.cols = []Column{sqlDollar[1].col}
 		}
-	case 33:
+	case 35:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.cols = append(sqlDollar[1].cols, sqlDollar[3].col)
 		}
-	case 34:
+	case 36:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.col = Column{Name: sqlDollar[1].tok.text, Type: sqlDollar[2].typ, Nullable: sqlDollar[3].nullable, Pos: sqlDollar[1].tok.pos}
 		}
-	case 35:
+	case 37:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.typ = Int4
 		}
-	case 36:
+	case 38:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.typ = Int8
 		}
-	case 37:
+	case 39:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.typ = Text
 		}
-	case 38:
+	case 40:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.typ = Bool
 		}
-	case 39:
+	case 41:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqllex.(*lexer).fail("0A000", "unsupported column type")
-			return 1
+			var ok bool
+			sqlVAL.typ, ok = columnType(sqllex, sqlDollar[1].tok)
+			if !ok {
+				return 1
+			}
 		}
-	case 40:
+	case 42:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
 			sqlVAL.nullable = true
 		}
-	case 41:
+	case 43:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.nullable = true
 		}
-	case 42:
+	case 44:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqlVAL.nullable = false
 		}
-	case 43:
-		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
-		{
-			sqlVAL.stmt = &Insert{Name: sqlDollar[3].objectName, Targets: sqlDollar[4].targets, Rows: sqlDollar[6].rows, Pos: sqlDollar[1].tok.pos}
-		}
-	case 44:
-		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
-		{
-			sqlVAL.targets = nil
-		}
 	case 45:
-		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.targets = sqlDollar[2].targets
+			sqllex.(*lexer).capability(sqlDollar[1].tok, unsupportedSuffixes, "column constraints are unsupported")
+			return 1
 		}
 	case 46:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.targets = []InsertTarget{{Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}}
+			sqllex.(*lexer).failAt("0A000", "array types are unsupported", sqlDollar[1].tok.pos.Offset)
+			return 1
 		}
 	case 47:
+		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
+		{
+			sqlVAL.stmt = &Insert{Name: sqlDollar[3].objectName, Targets: sqlDollar[4].targets, Rows: sqlDollar[6].rows, Pos: sqlDollar[1].tok.pos}
+		}
+	case 48:
+		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
+		{
+			sqllex.(*lexer).capability(sqlDollar[7].tok, unsupportedSuffixes, "INSERT suffix is unsupported")
+			return 1
+		}
+	case 49:
+		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
+		{
+			sqllex.(*lexer).failAt("0A000", "INSERT defaults are unsupported", sqlDollar[5].tok.pos.Offset)
+			return 1
+		}
+	case 50:
+		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
+		{
+			sqllex.(*lexer).deferUnsupported(sqlDollar[4].tok, "INSERT SELECT is unsupported")
+			sqlVAL.stmt = nil
+		}
+	case 51:
+		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
+		{
+			sqllex.(*lexer).deferUnsupported(sqlDollar[7].tok, "INSERT SELECT is unsupported")
+			sqlVAL.stmt = nil
+		}
+	case 52:
+		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
+		{
+			sqlVAL.targets = nil
+		}
+	case 53:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			sqlVAL.targets = sqlDollar[2].targets
+		}
+	case 54:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			sqlVAL.targets = []InsertTarget{{Name: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}}
+		}
+	case 55:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.targets = append(sqlDollar[1].targets, InsertTarget{Name: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos})
 		}
-	case 48:
+	case 56:
+		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
+		{
+			sqlVAL.tok = sqlDollar[1].tok
+		}
+	case 57:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			sqlVAL.tok = sqlDollar[2].tok
+		}
+	case 86:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.names = []string{sqlDollar[1].tok.text}
 		}
-	case 49:
+	case 87:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.names = append(sqlDollar[1].names, sqlDollar[3].tok.text)
 		}
-	case 50:
+	case 88:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.rows = [][]Value{sqlDollar[1].row}
 		}
-	case 51:
+	case 89:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.rows = append(sqlDollar[1].rows, sqlDollar[3].row)
 		}
-	case 52:
+	case 90:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.row = sqlDollar[2].row
 		}
-	case 53:
+	case 91:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.row = []Value{sqlDollar[1].value}
 		}
-	case 54:
+	case 92:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.row = append(sqlDollar[1].row, sqlDollar[3].value)
 		}
-	case 55:
+	case 93:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.value = Value{Kind: NullValue, Pos: sqlDollar[1].tok.pos}
 		}
-	case 56:
+	case 94:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.value = Value{Kind: BooleanValue, Boolean: true, Pos: sqlDollar[1].tok.pos}
 		}
-	case 57:
+	case 95:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.value = Value{Kind: BooleanValue, Pos: sqlDollar[1].tok.pos}
 		}
-	case 58:
+	case 96:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.value = Value{Kind: StringValue, Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}
 		}
-	case 59:
+	case 97:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.value = Value{Kind: ParameterValue, Parameter: sqllex.(*lexer).parameter(sqlDollar[1].tok.text), Pos: sqlDollar[1].tok.pos}
 		}
-	case 60:
+	case 98:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			var ok bool
@@ -849,7 +1032,7 @@ sqldefault:
 				return 1
 			}
 		}
-	case 61:
+	case 99:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			var ok bool
@@ -859,7 +1042,7 @@ sqldefault:
 			}
 			sqlVAL.value.Pos = sqlDollar[1].tok.pos
 		}
-	case 62:
+	case 100:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			var ok bool
@@ -869,37 +1052,61 @@ sqldefault:
 			}
 			sqlVAL.value.Pos = sqlDollar[1].tok.pos
 		}
-	case 63:
+	case 101:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
 			return 1
 		}
-	case 64:
+	case 102:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
 			return 1
 		}
-	case 65:
+	case 103:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
 			return 1
 		}
-	case 66:
+	case 104:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
 			return 1
 		}
-	case 67:
+	case 105:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqllex.(*lexer).fail("0A000", "functions are unsupported")
+			sqllex.(*lexer).call(sqlDollar[1].tok, sqlDollar[2].tok)
 			return 1
 		}
-	case 68:
+	case 106:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).call(sqlDollar[1].tok, sqlDollar[2].tok)
+			return 1
+		}
+	case 107:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).failAt("0A000", "casts are unsupported", sqlDollar[2].tok.pos.Offset)
+			return 1
+		}
+	case 108:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			sqllex.(*lexer).failAt("0A000", "default values are unsupported", sqlDollar[1].tok.pos.Offset)
+			return 1
+		}
+	case 109:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).failAt("0A000", "casts are unsupported", sqlDollar[1].tok.pos.Offset)
+			return 1
+		}
+	case 110:
 		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
 		{
 			sqlDollar[2].selectStmt.Name = sqlDollar[4].objectName
@@ -908,110 +1115,232 @@ sqldefault:
 			sqlDollar[2].selectStmt.Pos = sqlDollar[1].tok.pos
 			sqlVAL.stmt = sqlDollar[2].selectStmt
 		}
-	case 69:
+	case 111:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			sqllex.(*lexer).fail("0A000", "table aliases are unsupported")
+			sqllex.(*lexer).failAt("0A000", "table aliases are unsupported", sqlDollar[5].tok.pos.Offset)
 			return 1
 		}
-	case 70:
+	case 112:
+		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
+		{
+			sqllex.(*lexer).failAt("0A000", "table aliases are unsupported", sqlDollar[6].tok.pos.Offset)
+			return 1
+		}
+	case 113:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			sqllex.(*lexer).failAt("0A000", "SELECT INTO is unsupported", sqlDollar[3].tok.pos.Offset)
+			return 1
+		}
+	case 114:
+		sqlDollar = sqlS[sqlpt-7 : sqlpt+1]
+		{
+			sqllex.(*lexer).capability(sqlDollar[7].tok, unsupportedSuffixes, "SELECT suffix is unsupported")
+			return 1
+		}
+	case 115:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.selectStmt = &Select{Star: true}
 		}
-	case 71:
+	case 116:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.selectStmt = &Select{Columns: sqlDollar[1].names}
 		}
-	case 72:
+	case 117:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqllex.(*lexer).fail("0A000", "projection aliases are unsupported")
+			sqllex.(*lexer).failAt("0A000", "projection aliases are unsupported", sqlDollar[2].tok.pos.Offset)
 			return 1
 		}
-	case 73:
-		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+	case 118:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqllex.(*lexer).fail("0A000", "functions are unsupported")
+			sqllex.(*lexer).failAt("0A000", "projection aliases are unsupported", sqlDollar[3].tok.pos.Offset)
 			return 1
 		}
-	case 74:
+	case 119:
+		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
+		{
+			sqllex.(*lexer).call(sqlDollar[3].tok, sqlDollar[4].tok)
+			return 1
+		}
+	case 120:
+		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
+		{
+			sqllex.(*lexer).call(sqlDollar[3].tok, sqlDollar[4].tok)
+			return 1
+		}
+	case 121:
+		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
+		{
+			sqllex.(*lexer).failAt("0A000", "casts are unsupported", sqlDollar[3].tok.pos.Offset)
+			return 1
+		}
+	case 122:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
 			return 1
 		}
-	case 75:
+	case 123:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "expressions are unsupported")
 			return 1
 		}
-	case 76:
+	case 124:
+		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
+		{
+			sqllex.(*lexer).fail("0A000", "qualified column references are unsupported")
+			return 1
+		}
+	case 125:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "literal projections are unsupported")
 			return 1
 		}
-	case 77:
+	case 126:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
 			sqlVAL.pred = nil
 		}
-	case 78:
+	case 127:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
 			sqlVAL.pred = &Predicate{Column: sqlDollar[2].tok.text, Value: sqlDollar[4].value}
 		}
-	case 79:
+	case 128:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			sqllex.(*lexer).fail("0A000", "comparison operator is unsupported")
+			return 1
+		}
+	case 129:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			sqllex.(*lexer).fail("0A000", "comparison operator is unsupported")
+			return 1
+		}
+	case 130:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			sqllex.(*lexer).fail("0A000", "comparison operator is unsupported")
+			return 1
+		}
+	case 131:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			if sqlDollar[3].tok.keyword != nil && (sqlDollar[3].tok.text == "isnull" || sqlDollar[3].tok.text == "notnull") {
+				sqllex.(*lexer).failAt("0A000", "expressions are unsupported", sqlDollar[3].tok.pos.Offset)
+			} else {
+				sqllex.(*lexer).capability(sqlDollar[3].tok, unsupportedSuffixes, "predicate syntax is unsupported")
+			}
+			return 1
+		}
+	case 132:
+		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
+		{
+			sqllex.(*lexer).capability(sqlDollar[3].tok, unsupportedSuffixes, "predicate syntax is unsupported")
+			return 1
+		}
+	case 133:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
 			sqlVAL.order = nil
 		}
-	case 80:
+	case 134:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
 			sqlVAL.order = &Order{Column: sqlDollar[3].tok.text, Desc: sqlDollar[4].desc}
 		}
-	case 81:
+	case 135:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "multiple sort keys are unsupported")
 			return 1
 		}
-	case 82:
+	case 136:
+		sqlDollar = sqlS[sqlpt-6 : sqlpt+1]
+		{
+			sqllex.(*lexer).failAt("0A000", "NULLS ordering is unsupported", sqlDollar[5].tok.pos.Offset)
+			return 1
+		}
+	case 138:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			if sqlDollar[1].tok.keyword == nil || (sqlDollar[1].tok.text != "first" && sqlDollar[1].tok.text != "last") {
+				sqllex.(*lexer).syntax(sqlDollar[1].tok)
+				return 1
+			}
+			sqlVAL.tok = sqlDollar[1].tok
+		}
+	case 139:
 		sqlDollar = sqlS[sqlpt-0 : sqlpt+1]
 		{
 			sqlVAL.desc = false
 		}
-	case 83:
+	case 140:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.desc = false
 		}
-	case 84:
+	case 141:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.desc = true
 		}
-	case 98:
+	case 176:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			if !sqlDollar[1].tok.keyword.label() {
+				sqllex.(*lexer).syntax(sqlDollar[1].tok)
+				return 1
+			}
+			sqlVAL.tok = sqlDollar[1].tok
+		}
+	case 177:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			if !sqlDollar[1].tok.keyword.label() {
+				if sqlDollar[1].tok.text == "isnull" || sqlDollar[1].tok.text == "notnull" {
+					sqllex.(*lexer).failAt("0A000", "expressions are unsupported", sqlDollar[1].tok.pos.Offset)
+				} else {
+					sqllex.(*lexer).syntax(sqlDollar[1].tok)
+				}
+				return 1
+			}
+			sqlVAL.tok = sqlDollar[1].tok
+		}
+	case 178:
+		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
+		{
+			if !sqlDollar[1].tok.keyword.label() {
+				sqllex.(*lexer).syntax(sqlDollar[1].tok)
+				return 1
+			}
+			sqlVAL.tok = sqlDollar[1].tok
+		}
+	case 213:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
 			sqlVAL.objectName = ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}}}
 		}
-	case 99:
+	case 214:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqlVAL.objectName = ObjectName{Parts: []Identifier{{Text: sqlDollar[1].tok.text, Pos: sqlDollar[1].tok.pos}, {Text: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos}}}
 		}
-	case 100:
+	case 215:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("42601", "incomplete relation name")
 			return 1
 		}
-	case 101:
+	case 216:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
 			sqllex.(*lexer).fail("0A000", "three-part relation names are unsupported")

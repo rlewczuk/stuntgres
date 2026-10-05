@@ -38,13 +38,18 @@ func Parse(query string) ([]Statement, error) {
 	if sqlParse(l) != 0 || l.err != nil {
 		return nil, l.err
 	}
+	if l.pendingMessage != "" {
+		l.failAt("0A000", l.pendingMessage, l.pendingOffset)
+		return nil, l.err
+	}
 	return l.statements, nil
 }
 
 type lexeme struct {
-	text string
-	raw  string
-	pos  Position
+	text    string
+	raw     string
+	pos     Position
+	keyword *keyword
 }
 
 func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
@@ -133,17 +138,64 @@ func (l *lexer) failDiagnostic(code, message, hint string, offset int) {
 	}
 }
 
-func (l *lexer) Error(message string) {
-	code := "42601"
-	if unsupportedWords[l.current.text] || strings.Contains("><![", l.current.text) && l.current.text != "" || l.current.text == "." || l.current.text == "::" || l.current.text == "select" || l.current.text == "into" {
-		code = "0A000"
+func (l *lexer) syntax(tok lexeme) {
+	message := "syntax error at end of input"
+	if tok.raw != "" {
+		message = fmt.Sprintf("syntax error at or near \"%s\"", tok.raw)
 	}
-	if code == "42601" {
-		if l.current.raw == "" {
-			message = "syntax error at end of input"
-		} else {
-			message = fmt.Sprintf("syntax error at or near \"%s\"", l.current.raw)
-		}
+	l.failAt("42601", message, tok.pos.Offset)
+}
+
+func (l *lexer) Error(_ string) { l.syntax(l.current) }
+
+func (l *lexer) deferUnsupported(tok lexeme, message string) {
+	if l.pendingMessage == "" {
+		l.pendingMessage, l.pendingOffset = message, tok.pos.Offset
 	}
-	l.fail(code, message)
+}
+
+// These are capability boundaries in explicit grammar positions, not lexical
+// classifications. Quoted names never acquire keyword identity.
+var unsupportedTypes = wordSet("smallint int2 numeric decimal dec real float float4 float8 double precision money char character varchar bit varbit date time timestamp interval bytea uuid json jsonb xml serial bigserial smallserial serial2 serial4 serial8 name oid inet cidr macaddr macaddr8 point line lseg box path polygon circle tsvector tsquery record")
+var unsupportedCommands = wordSet("begin start commit rollback savepoint release abort end update delete merge truncate drop alter explain copy vacuum analyze analyse grant revoke with prepare execute deallocate discard listen notify unlisten lock reindex cluster refresh reset")
+var unsupportedCreateObjects = wordSet("temporary temp unlogged view index schema database sequence function procedure trigger")
+var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning limit offset fetch group having window for using primary unique check references default constraint collate and or is in between like ilike similar")
+
+func (l *lexer) capability(tok lexeme, words map[string]bool, message string) {
+	if tok.keyword != nil && words[tok.text] {
+		l.failAt("0A000", message, tok.pos.Offset)
+	} else {
+		l.syntax(tok)
+	}
+}
+
+// These C-keywords have dedicated release expression productions, not generic
+// function-name legality. Recognizing the capability never executes a call.
+var specialCalls = wordSet("coalesce extract greatest grouping least normalize nullif overlay position row substring treat trim xmlconcat xmlelement xmlexists xmlforest xmlparse xmlpi xmlroot xmlserialize json json_array json_arrayagg json_exists json_object json_objectagg json_query json_scalar json_serialize json_value merge_action exists")
+
+func (l *lexer) call(callee, opener lexeme) {
+	if callee.keyword.typeFunctionName() {
+		l.failAt("0A000", "functions are unsupported", callee.pos.Offset)
+	} else if callee.keyword != nil && specialCalls[callee.text] {
+		l.failAt("0A000", "functions are unsupported", callee.pos.Offset)
+	} else {
+		l.syntax(opener) // The name was valid as ColId; '(' is not.
+	}
+}
+
+func columnType(l sqlLexer, tok lexeme) (Type, bool) {
+	switch tok.text {
+	case "int4":
+		return Int4, true
+	case "int8":
+		return Int8, true
+	case "bool":
+		return Bool, true
+	}
+	if unsupportedTypes[tok.text] {
+		l.(*lexer).failAt("0A000", "unsupported column type", tok.pos.Offset)
+	} else {
+		l.(*lexer).syntax(tok)
+	}
+	return 0, false
 }

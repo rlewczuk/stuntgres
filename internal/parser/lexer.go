@@ -15,25 +15,14 @@ type lexer struct {
 	current            lexeme
 	err                error
 	statements         []Statement
+	// Failure-only query recognition defers its capability error until the
+	// entire script is syntactically valid. It never publishes a query AST.
+	pendingMessage string
+	pendingOffset  int
+	lookaheadToken int
+	lookahead      lexeme
+	hasLookahead   bool
 }
-
-var keywords = map[string]int{
-	"create": CREATE, "table": TABLE, "insert": INSERT, "into": INTO, "values": VALUES,
-	"select": SELECT, "from": FROM, "where": WHERE, "order": ORDER, "by": BY,
-	"asc": ASC, "desc": DESC, "not": NOT, "null": NULL, "true": TRUE, "false": FALSE,
-	"integer": INTEGER, "int": INTEGER, "int4": INTEGER, "bigint": BIGINT, "int8": BIGINT,
-	"text": TEXT, "boolean": BOOLEAN, "bool": BOOLEAN,
-	"set": SET, "show": SHOW, "session": SESSION, "to": TO, "default": DEFAULT,
-	"if": IF, "exists": EXISTS,
-}
-
-// These tokens keep unsupported but PostgreSQL-valid types usable as ColId.
-var unsupportedTypes = wordSet("smallint int2 numeric decimal dec real float float4 float8 double precision money char character varchar bit varbit date time timestamp interval bytea uuid json jsonb xml serial bigserial smallserial serial2 serial4 serial8 name oid inet cidr macaddr macaddr8 point line lseg box path polygon circle tsvector tsquery record")
-var unsupportedWords = wordSet("begin start commit rollback savepoint release abort end transaction update delete merge truncate drop alter explain copy vacuum analyze grant revoke with union intersect except join inner left right full cross natural on as returning limit offset fetch group having distinct all window over for using nulls first last primary key unique check references default constraint if exists temporary temp unlogged view index schema database sequence function procedure trigger cast collate conflict do set reset show prepare execute deallocate discard listen notify unlisten lock reindex cluster refresh values and or is in between like ilike similar any some not case when then else array")
-
-// Nonreserved keywords remain legal unquoted identifiers. Reserved words
-// (e.g. AS, JOIN and DEFAULT) do not acquire identifier semantics here.
-var unsupportedIdentifiers = wordSet("begin start commit rollback savepoint release abort end transaction update delete merge truncate drop alter explain copy vacuum analyze grant revoke first last temporary temp unlogged view index schema database sequence function procedure trigger if key conflict do set reset show prepare execute deallocate discard listen notify unlisten lock reindex cluster refresh between exists")
 
 func wordSet(words string) map[string]bool {
 	m := make(map[string]bool)
@@ -329,7 +318,38 @@ func (l *lexer) stringLiteral(first int, escape bool) (string, bool) {
 	return s, true
 }
 func (l *lexer) parameter(s string) int { n, _ := strconv.ParseInt(s, 10, 32); return int(n) }
+
+// PostgreSQL's base_yylex recognizes NULLS ordering only when the next real
+// token is FIRST/LAST. Cache that token rather than scanning it twice; restore
+// current so parser diagnostics still identify the token being returned.
 func (l *lexer) Lex(v *sqlSymType) int {
+	if l.err != nil {
+		return 0
+	}
+	var token int
+	if l.hasLookahead {
+		token, l.current = l.lookaheadToken, l.lookahead
+		l.hasLookahead = false
+		v.tok = l.current
+	} else {
+		token = l.scanToken(v)
+	}
+	if l.err != nil || token != KW_U || l.current.keyword == nil || l.current.text != "nulls" {
+		return token
+	}
+	nulls := l.current
+	nextToken := l.scanToken(v)
+	if l.err != nil {
+		return 0
+	}
+	l.lookaheadToken, l.lookahead, l.hasLookahead = nextToken, l.current, true
+	if l.current.keyword != nil && (l.current.text == "first" || l.current.text == "last") {
+		token = NULLS_LA
+	}
+	l.current, v.tok = nulls, nulls
+	return token
+}
+func (l *lexer) scanToken(v *sqlSymType) int {
 	if l.err != nil {
 		return 0
 	}
@@ -432,14 +452,21 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 		l.current.text = truncateName(raw)
-		if t, ok := keywords[raw]; ok {
-			token = t
-		} else if unsupportedTypes[raw] {
-			token = UNSUP_TYPE
-		} else if unsupportedIdentifiers[raw] {
-			token = UNSUP_IDENT
-		} else if unsupportedWords[raw] {
-			token = UNSUP
+		l.current.keyword = lookupKeyword(raw)
+		if k := l.current.keyword; k != nil {
+			token = k.token
+			if token == 0 {
+				switch k.category {
+				case Unreserved:
+					token = KW_U
+				case ColumnName:
+					token = KW_C
+				case TypeFunctionName:
+					token = KW_T
+				case Reserved:
+					token = KW_R
+				}
+			}
 		} else {
 			token = IDENT
 		}
