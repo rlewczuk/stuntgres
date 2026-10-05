@@ -80,6 +80,11 @@ const SESSION_USER = 57395
 const CURRENT_USER = 57396
 const CURRENT_ROLE = 57397
 const NAME_LIST = 57398
+const LOCK = 57399
+const ACCESS = 57400
+const EXCLUSIVE = 57401
+const MODE = 57402
+const IN = 57403
 
 var sqlToknames = [...]string{
 	"$end",

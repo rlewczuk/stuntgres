@@ -30,10 +30,11 @@ package parser
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
 %token <tok> IF EXISTS
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
+%token <tok> LOCK ACCESS EXCLUSIVE MODE IN
 /* '(' selects a function path, not a completed ordinary name/name list. */
 %nonassoc NAME_LIST
 %nonassoc '('
-%type <stmt> statement create insert select set show reset create_role drop_role session_authorization identity_select excluded_role
+%type <stmt> statement create insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table
 %type <col> column
 %type <cols> columns
 %type <typ> type
@@ -62,9 +63,34 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | insert | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role
+statement: create | insert | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role | lock_table
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
+lock_table: LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE { $$=&LockTable{Name:$3,Pos:$1.pos} }
+ | LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE lock_nowait { sqllex.(*lexer).deferUnsupported($1,"LOCK options are unsupported"); $$=nil }
+ | LOCK TABLE relation_name { sqllex.(*lexer).deferUnsupported($1,"LOCK requires explicit ACCESS EXCLUSIVE MODE"); $$=nil }
+ | LOCK TABLE relation_name lock_nowait { sqllex.(*lexer).deferUnsupported($1,"LOCK options are unsupported"); $$=nil }
+ | LOCK TABLE relation_name IN excluded_lock_mode MODE optional_lock_nowait { sqllex.(*lexer).deferUnsupported($1,"LOCK mode is unsupported"); $$=nil }
+ | LOCK TABLE relation_name ',' excluded_lock_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK target lists are unsupported"); $$=nil }
+ | LOCK TABLE relation_name '*' lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK descendants are unsupported"); $$=nil }
+ | LOCK TABLE lock_only relation_name optional_lock_star lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK ONLY is unsupported"); $$=nil }
+ | LOCK excluded_lock_target lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK requires TABLE and explicit ACCESS EXCLUSIVE MODE"); $$=nil } ;
+/* Failure-only release forms: no option-bearing executable AST. Consume the
+ * complete input so malformed suffixes retain their syntax diagnostics. */
+excluded_lock_targets: excluded_lock_target | excluded_lock_targets ',' excluded_lock_target ;
+excluded_lock_target: relation_name optional_lock_star | lock_only relation_name optional_lock_star ;
+optional_lock_star: /* empty */ | '*' ;
+lock_more_targets: /* empty */ | ',' excluded_lock_targets ;
+lock_options: optional_lock_nowait | IN lock_any_mode MODE optional_lock_nowait ;
+optional_lock_nowait: /* empty */ | lock_nowait ;
+lock_any_mode: ACCESS EXCLUSIVE | excluded_lock_mode ;
+excluded_lock_mode: ACCESS lock_share | lock_row lock_share | lock_row EXCLUSIVE
+ | lock_share | lock_share lock_update EXCLUSIVE | lock_share lock_row EXCLUSIVE | EXCLUSIVE ;
+lock_share: KW_U { if $1.text!="share" { sqllex.(*lexer).syntax($1); return 1 } } ;
+lock_row: KW_C { if $1.text!="row" { sqllex.(*lexer).syntax($1); return 1 } } ;
+lock_update: KW_U { if $1.text!="update" { sqllex.(*lexer).syntax($1); return 1 } } ;
+lock_only: KW_R { if $1.text!="only" { sqllex.(*lexer).syntax($1); return 1 } } ;
+lock_nowait: KW_U { if $1.text!="nowait" { sqllex.(*lexer).syntax($1); return 1 } } ;
 set: SET set_name setting_assignment setting_values { $$=&Set{Name:$2.identifier(),Values:$4,Pos:$1.pos} }
  | SET set_name setting_assignment DEFAULT { $$=&Set{Name:$2.identifier(),Default:true,Pos:$1.pos} }
  | SET SESSION set_name setting_assignment setting_values { $$=&Set{Name:$3.identifier(),Values:$5,Pos:$1.pos} }
@@ -184,19 +210,20 @@ nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP ;
+setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE ;
 name: setting_word | ROLE | LOCAL ;
-type_name: IDENT | KW_U | KW_T | KW_C | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION ;
+type_name: IDENT | KW_U | KW_T | KW_C | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE ;
 generic_word: generic_word_without_with | WITH ;
-generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION ;
+generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
 bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | KW_T { if !$1.keyword.label() { if $1.text=="isnull" || $1.text=="notnull" { sqllex.(*lexer).failAt("0A000","expressions are unsupported",$1.pos.Offset) } else { sqllex.(*lexer).syntax($1) }; return 1 }; $$=$1 }
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
+ | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | USER ;
-col_label: name | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | USER | GROUP | WITH ;
-suffix: KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER ;
+col_label: name | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | USER | GROUP | WITH | IN ;
+suffix: KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }

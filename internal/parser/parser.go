@@ -183,7 +183,7 @@ func (l *lexer) deferUnsupported(tok lexeme, message string) {
 // These are capability boundaries in explicit grammar positions, not lexical
 // classifications. Quoted names never acquire keyword identity.
 var unsupportedTypes = wordSet("smallint int2 numeric decimal dec real float float4 float8 double precision money char character varchar bit varbit date time timestamp interval bytea uuid json jsonb xml serial bigserial smallserial serial2 serial4 serial8 name oid inet cidr macaddr macaddr8 point line lseg box path polygon circle tsvector tsquery record")
-var unsupportedCommands = wordSet("begin start commit rollback savepoint release abort end update delete merge truncate drop alter explain copy vacuum analyze analyse grant revoke with prepare execute deallocate discard listen notify unlisten lock reindex cluster refresh reset")
+var unsupportedCommands = wordSet("begin start commit rollback savepoint release abort end update delete merge truncate drop alter explain copy vacuum analyze analyse grant revoke with prepare execute deallocate discard listen notify unlisten reindex cluster refresh reset")
 var unsupportedCreateObjects = wordSet("temporary temp unlogged view index schema database sequence function procedure trigger")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning limit offset fetch group having window for using primary unique check references default constraint collate and or is in between like ilike similar")
 

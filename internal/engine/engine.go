@@ -13,9 +13,10 @@ import (
 )
 
 type Engine struct {
-	mu sync.Mutex
+	mu    sync.Mutex
+	locks *relationLockManager
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
-	replacementMu       sync.RWMutex
+	replacementMu       replacementAdmission
 	owner               *catalogOwner
 	state               *catalogState
 	providers           map[OID]CatalogProvider
@@ -84,6 +85,7 @@ func NewWithSettings(definitions []SettingDefinition) *Engine {
 
 func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*Engine, error) {
 	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
+	e.locks = newRelationLockManager(e)
 	e.initializeRoles()
 	e.initializeSettings(definitions)
 	for _, p := range providers {
@@ -174,12 +176,13 @@ func (e *Engine) Describe(op *Operation, stmt parser.Statement) (info StatementD
 	defer func() { err = scope.Finish(err) }()
 	return scope.Describe(stmt)
 }
-func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (StatementDescription, error) {
+func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement) (StatementDescription, error) {
+	op := scope.op
 	if err := e.validateOperation(op); err != nil {
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
+	case *parser.LockTable, *parser.CreateTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.IdentitySelect:
 		e.mu.Lock()
@@ -215,6 +218,9 @@ func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (Statem
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if err := scope.validateLockedRelation(e); err != nil {
+		return StatementDescription{}, err
+	}
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		return StatementDescription{}, err
@@ -566,6 +572,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return result, err
 	}
 	e.mu.Lock()
+	if err := scope.validateLockedRelation(e); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		e.mu.Unlock()
 		return Result{}, err

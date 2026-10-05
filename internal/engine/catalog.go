@@ -430,6 +430,12 @@ func (e *Engine) ValidateObjectRef(view CatalogRead, ref ObjectRef) error {
 	return nil
 }
 func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (ChangeSet, error) {
+	var installed CatalogEpoch
+	defer func() {
+		if installed != 0 {
+			e.locks.fence(installed)
+		}
+	}()
 	if replacement.state == nil || replacement.owner == nil {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid replacement catalog")
 	}
@@ -498,6 +504,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		next.epoch = e.state.epoch + 1
 		e.state = next
 		e.storage = storage
+		installed = next.epoch
 		return ChangeSet{Replacement: true}, nil
 	}
 	replacement.owner.mu.Lock()
@@ -557,6 +564,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	next.epoch = e.state.epoch + 1
 	e.state = next
 	e.storage = storage
+	installed = next.epoch
 	return ChangeSet{Replacement: true}, nil
 }
 func cloneCatalog(s *catalogState) *catalogState {

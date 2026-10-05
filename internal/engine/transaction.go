@@ -54,13 +54,15 @@ type rowVersion struct {
 }
 
 type transactionOwner struct {
-	mu      sync.Mutex
-	session *Session
-	state   TxState
-	ref     TxRef
-	next    TxID
-	command CommandID
-	writes  map[ObjectAddress][]rowVersion
+	admission sync.Mutex
+	ticket    *relationTicket
+	mu        sync.Mutex
+	session   *Session
+	state     TxState
+	ref       TxRef
+	next      TxID
+	command   CommandID
+	writes    map[ObjectAddress][]rowVersion
 }
 
 func (t *transactionOwner) clear() {
@@ -71,12 +73,18 @@ func (t *transactionOwner) clear() {
 }
 
 func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
+	t.admission.Lock()
+	defer t.admission.Unlock()
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if token != t.session.token {
+		t.mu.Unlock()
 		return errors.New("stuntgres: foreign transaction session")
 	}
 	t.clear()
+	ticket := t.ticket
+	t.ticket = nil
+	t.mu.Unlock()
+	t.session.Engine().locks.end(ticket)
 	return nil
 }
 
@@ -116,8 +124,10 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 		return TxRef{}, err
 	}
 	t := op.session.transactions
+	t.admission.Lock()
+	defer t.admission.Unlock()
 	t.mu.Lock()
-	defer t.mu.Unlock()
+	defer func() { t.mu.Unlock() }()
 	if err := e.validateOperation(op); err != nil {
 		return TxRef{}, err
 	}
@@ -127,7 +137,16 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 	if err := e.beginLocked(op, t, TxActive); err != nil {
 		return TxRef{}, err
 	}
-	return t.ref, nil
+	ref := t.ref
+	t.mu.Unlock()
+	ticket, err := e.locks.register(ref)
+	t.mu.Lock()
+	if err != nil {
+		t.clear()
+		return TxRef{}, err
+	}
+	t.ticket = ticket
+	return ref, nil
 }
 
 func (t *transactionOwner) validate(ref TxRef) error {
@@ -145,11 +164,16 @@ func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
 		return EndResult{}, err
 	}
 	t := op.session.transactions
+	t.admission.Lock()
+	defer t.admission.Unlock()
 	t.mu.Lock()
-	defer t.mu.Unlock()
+	var ticket *relationTicket
+	defer func() { t.mu.Unlock(); e.locks.end(ticket) }()
 	if err := t.validate(ref); err != nil {
 		return EndResult{}, err
 	}
+	ticket = t.ticket
+	t.ticket = nil
 	t.clear()
 	return EndResult{}, nil
 }
@@ -160,14 +184,18 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 		return EndResult{}, admissionErr
 	}
 	t := op.session.transactions
+	t.admission.Lock()
+	defer t.admission.Unlock()
 	t.mu.Lock()
-	defer t.mu.Unlock()
+	var ticket *relationTicket
+	defer func() { t.mu.Unlock(); e.locks.end(ticket) }()
 	if err := t.validate(ref); err != nil {
 		return EndResult{}, err
 	}
 	// An admitted commit failure ends this incarnation. Invalid references and
 	// copied/done operations above never discard another transaction's work.
-	defer t.clear()
+	ticket = t.ticket
+	defer func() { t.ticket = nil; t.clear() }()
 	if err := e.validateOperation(op); err != nil {
 		return EndResult{}, err
 	}
@@ -190,16 +218,22 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 // Binding uses current resolution metadata; data consumers explicitly acquire a
 // fresh READ COMMITTED view. Future consumers stage effects here, never in storage.
 type StatementScope struct {
-	self            *StatementScope
-	owner           *transactionOwner
-	op              *Operation
-	stage           WriteStage
-	view            *VisibilityView
-	finished        bool
-	result          error
-	worked          bool
-	completed       bool
-	replacementRead bool
+	self             *StatementScope
+	owner            *transactionOwner
+	op               *Operation
+	stage            WriteStage
+	view             *VisibilityView
+	finished         bool
+	result           error
+	worked           bool
+	completed        bool
+	replacementRead  bool
+	ticket           *relationTicket
+	lockedRef        ObjectRef
+	lockedDescriptor Descriptor
+	txRef            TxRef
+	command          CommandID
+	ownWrites        map[ObjectAddress][]rowVersion
 }
 
 type WriteStage struct {
@@ -213,9 +247,9 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 		return nil, err
 	}
 	t := op.session.transactions
-	t.mu.Lock()
+	t.admission.Lock()
 	if err := e.validateOperation(op); err != nil {
-		t.mu.Unlock()
+		t.admission.Unlock()
 		return nil, err
 	}
 	s := &StatementScope{owner: t, op: op}
@@ -242,18 +276,39 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	s.worked = true
 	t := s.owner
 	e := s.op.session.Engine()
-	if t.state == TxIdle {
-		// Only callback-free row work retains replacement admission. CREATE
-		// validates providers outside publication locks; a provider may Reset.
+	// Admission serializes this session, so the idle classification stays valid
+	// while reserving replacement admission outside transaction synchronization.
+	t.mu.Lock()
+	idle := t.state == TxIdle
+	t.mu.Unlock()
+	if idle {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Select:
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		}
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.state == TxIdle {
 		if err := e.beginLocked(s.op, t, TxImplicit); err != nil {
 			return err
 		}
 	}
+	if t.ticket == nil && t.state != TxAborted {
+		ref := t.ref
+		t.mu.Unlock()
+		ticket, err := e.locks.register(ref)
+		t.mu.Lock()
+		if err != nil {
+			return err
+		}
+		t.ticket = ticket
+	}
+	s.ticket = t.ticket
+	s.txRef = t.ref
+	s.command = t.command
+	s.ownWrites = t.writes
 	e.mu.Lock()
 	stale := t.ref.epoch != e.state.epoch
 	e.mu.Unlock()
@@ -294,6 +349,8 @@ func (w *WriteStage) Apply(ref ObjectRef, rows [][]sqltype.Value) error {
 	if err := s.active(); err != nil {
 		return err
 	}
+	s.owner.mu.Lock()
+	defer s.owner.mu.Unlock()
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
@@ -342,13 +399,25 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if err := s.gate(stmt); err != nil {
 		return StatementDescription{}, err
 	}
-	return s.op.session.Engine().describeOperation(s.op, stmt)
+	if err := s.acquireRelation(stmt, false); err != nil {
+		return StatementDescription{}, err
+	}
+	return s.op.session.Engine().describeOperation(s, stmt)
 }
 
 func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
 	// Adapter argument normalization precedes scope admission.
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
+	}
+	if _, ok := stmt.(*parser.LockTable); ok && count != 0 {
+		return Result{}, errors.New("stuntgres: LOCK TABLE takes no arguments")
+	}
+	if err := s.acquireRelation(stmt, true); err != nil {
+		return Result{}, err
+	}
+	if _, ok := stmt.(*parser.LockTable); ok {
+		return Result{}, nil
 	}
 	return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
 }
@@ -362,6 +431,7 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	t := s.owner
 	e := s.op.session.Engine()
+	t.mu.Lock()
 	// Parsing can fail before classification; admitted failures still abort
 	// explicit work. Completed row/catalog/session utilities have already passed
 	// their installation preflight; later cancellation cannot retract success.
@@ -402,24 +472,34 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	var endedTicket *relationTicket
 	if t.state == TxImplicit {
+		endedTicket = t.ticket
+		t.ticket = nil
 		t.clear()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
 		t.state = TxAborted
 		t.writes = nil
+		endedTicket = t.ticket
+		t.ticket = nil
 	}
 	if s.view != nil {
 		s.view.Release()
 		s.view = nil
 	}
 	s.stage.rows = nil
+	s.ownWrites = nil
+	s.ticket = nil
+	s.lockedDescriptor = nil
+	s.finished = true
+	s.result = err
+	t.mu.Unlock()
 	if s.replacementRead {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
 	}
-	s.finished = true
-	s.result = err
-	t.mu.Unlock()
+	e.locks.end(endedTicket)
+	t.admission.Unlock()
 	return err
 }
 
@@ -451,6 +531,8 @@ func (s *StatementScope) AcquireDataView(ref ObjectRef) (*VisibilityView, error)
 	if err := s.active(); err != nil {
 		return nil, err
 	}
+	s.owner.mu.Lock()
+	defer s.owner.mu.Unlock()
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return nil, errors.New("stuntgres: inactive data view scope")
 	}
@@ -464,7 +546,7 @@ func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ObjectRef) (*Visib
 	if ref.owner != e.owner {
 		return nil, errors.New("stuntgres: foreign catalog reference")
 	}
-	if ref.Epoch != e.state.epoch || s.owner.ref.epoch != e.state.epoch {
+	if ref.Epoch != e.state.epoch || s.txRef.epoch != e.state.epoch {
 		return nil, ErrCatalogReplaced
 	}
 	storage := e.storage[ref.Address]
@@ -480,15 +562,15 @@ func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ObjectRef) (*Visib
 		}
 		return s.view, nil
 	}
-	if s.owner.ref.epoch != e.state.epoch {
+	if s.txRef.epoch != e.state.epoch {
 		return nil, ErrCatalogReplaced
 	}
 	data := &visibilityData{
-		tx: s.owner.ref, command: s.owner.command, frontier: e.commitSeq,
+		tx: s.txRef, command: s.command, frontier: e.commitSeq,
 		catalog:   CatalogRead{owner: e, state: e.state},
 		committed: map[ObjectAddress][]rowVersion{ref.Address: storage.versions},
 	}
-	if rows := s.owner.writes[ref.Address]; len(rows) != 0 {
+	if rows := s.ownWrites[ref.Address]; len(rows) != 0 {
 		data.own = map[ObjectAddress][]rowVersion{ref.Address: rows}
 	}
 	s.view = newVisibilityView(data)

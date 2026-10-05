@@ -55,6 +55,13 @@ type Select struct {
 
 func (*Select) statement() {}
 
+type LockTable struct {
+	Name ObjectName
+	Pos  Position
+}
+
+func (*LockTable) statement() {}
+
 type Order struct {
 	Column string
 	Desc   bool

@@ -247,13 +247,48 @@ Go test reports the result.
 ### Driver transactions (READ COMMITTED)
 
 `DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support the
-baseline INSERT and SELECT path, including prepared execution. Default isolation
+baseline INSERT and SELECT path and the single-target explicit AX utility below,
+including prepared execution. Default isolation
 and explicit `sql.LevelReadCommitted` are supported, read-write only. CREATE
 tables **before** BeginTx; SQL BEGIN/COMMIT/ROLLBACK, savepoints, transactional
 DDL/settings, stronger isolation and future DML remain unsupported.
 Role creation/removal and SET/RESET SESSION AUTHORIZATION are likewise rejected
 with `0A000` inside an explicit transaction; this is a native capability limit,
 not PostgreSQL parity. Read-only identity SELECT remains supported there.
+
+#### Relation locks
+
+SELECT acquires transaction-owned ACCESS SHARE; INSERT acquires ROW EXCLUSIVE.
+These automatic modes coexist, including concurrent readers and writers.
+`LOCK TABLE <name> IN ACCESS EXCLUSIVE MODE` is the only explicit lock syntax:
+one existing optionally qualified/quoted table, no ONLY/list/star/default mode,
+NOWAIT or other modes. Execution requires an explicit driver transaction and the
+current role's existing superuser authority. Ordinary SELECT/INSERT privileges
+or ownership alone do not authorize this bounded native path. PostgreSQL also
+supports additional AX privilege alternatives not modeled here.
+
+ACCESS EXCLUSIVE conflicts with both automatic modes and another transaction's
+AX. Conflicting operations wait using their command context, with compatible
+cohorts and earlier incompatible waiter ordering. An owner can SELECT/INSERT
+under its own AX. SELECT captures its READ COMMITTED view after the wait: holder
+commits are visible, holder rollbacks are absent. Explicit locks survive
+statement/Rows close, until commit/rollback, admitted failure or physical end.
+Failures immediately discard private writes and release all holds, even before
+the client rolls back the aborted transaction. Implicit completion publishes
+first and releases afterward. Canceled pending requests are removed and wake
+eligible successors; caller interruption remains an ordinary context error.
+
+Semantic SELECT/INSERT Prepare acquires the same AS/RX as execution. Implicit
+Prepare releases at completion; explicit Prepare retains until transaction end
+or failure, not stmt.Close. Preparation captures no data snapshot or future
+authority. LOCK Prepare is metadata-only (zero parameters/results); Execute
+performs block/name/current-role checks and acquires AX, affecting zero rows.
+Outside a block it returns `25P01`, `LOCK TABLE can only be used in transaction
+blocks`, before lookup. Missing targets use `42P01`; ordinary-role AX denial is
+`42501`, `permission denied for table t`. There is no lock timeout setting,
+upgrade/deadlock detection, row/advisory locking or lock introspection. Use caller
+deadlines to bound conflicting operations; conflicting conversion cycles are
+not protected by deadlock detection.
 
 An explicit transaction sees its successful earlier writes; other physical
 sessions see only committed data. Each SELECT execution captures a fresh
@@ -318,9 +353,14 @@ close, termination and best-effort abandonment drain operations and discard only
 that session's private effects. Committed data and peer settings survive.
 
 Dump serializes committed versions only, never transaction overlays.
-Reset/Restore waits for in-flight implicit INSERT/SELECT row work (including
-preparation) to finish before advancing the catalog epoch, then fences old explicit
-transactions from further execution/publication. Standalone CREATE validates
+Reset/Restore waits for admitted implicit row work, including transaction birth,
+immediate lock grants, binding and publication. Replacement admission is a
+logical reservation, not a mutex held across lock-manager calls. Only an actually
+queued SQL lock request relinquishes that reservation; after grant it readmits
+and revalidates the original relation and epoch before proceeding. Successful replacement
+advances the epoch and retires old holders/waiters without waiting for an AX owner
+to release; stale work fails with `ErrCatalogReplaced`. Old explicit
+transactions cannot execute/publish afterward. Standalone CREATE validates
 providers without replacement or publication locks and revalidates its catalog
 epoch at installation; replacement during validation returns `ErrCatalogReplaced`.
 SET/RESET/SHOW and selected setting calls do not retain row-work replacement admission or publish row writes.
