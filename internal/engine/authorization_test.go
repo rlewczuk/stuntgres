@@ -339,9 +339,16 @@ func TestAuthorizationCancellationAtRoleInstall(t *testing.T) {
 	}
 }
 
-type roleInitGate struct{ entered, release chan struct{} }
+type roleInitGate struct {
+	entered, release chan struct{}
+	calls            map[string]int
+}
 
 func (g *roleInitGate) SessionDefault(ctx context.Context, d SettingDefinition) (string, bool, error) {
+	g.calls[d.Name]++
+	if d.Name != "application_name" {
+		return "", false, nil
+	}
 	close(g.entered)
 	select {
 	case <-g.release:
@@ -350,13 +357,33 @@ func (g *roleInitGate) SessionDefault(ctx context.Context, d SettingDefinition) 
 		return "", false, ctx.Err()
 	}
 }
+
+func TestAuthorizationInitializationDefaults(t *testing.T) {
+	e := New()
+	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{}), calls: make(map[string]int)}
+	close(gate.release)
+	s := sessionStart(t, e, gate)
+	sessionValue(t, s, "initial")
+	sessionSQL(t, s, "SET application_name TO changed")
+	sessionSQL(t, s, "SET application_name TO DEFAULT")
+	sessionValue(t, s, "initial")
+	for _, query := range []string{"SHOW client_min_messages", "SET client_min_messages TO warning", "SET client_min_messages TO DEFAULT", "SHOW client_min_messages"} {
+		r := sessionSQL(t, s, query)
+		if strings.HasPrefix(query, "SHOW") && !reflect.DeepEqual(tuples(r), [][]driver.Value{{"notice"}}) {
+			t.Fatal("integrated boot default was not captured", r, tuples(r))
+		}
+	}
+	if !reflect.DeepEqual(gate.calls, map[string]int{"application_name": 1, "client_min_messages": 1}) {
+		t.Fatal("provider must run once for each definition", gate.calls)
+	}
+}
 func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 	e := New()
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, admin, "CREATE USER pending")
 	role, _ := e.Roles().Lookup("pending")
-	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{})}
+	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{}), calls: make(map[string]int)}
 	type outcome struct {
 		session *Session
 		err     error
@@ -388,6 +415,10 @@ func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 	}
 	roleExecute(t, e, admin, "DROP ROLE pending")
 	roleExecute(t, e, admin, "CREATE USER pending")
+	recreated, ok := e.Roles().Lookup("pending")
+	if !ok || recreated.Ref == role.Ref {
+		t.Fatal("drop/recreate did not replace the authenticated principal", recreated)
+	}
 	close(gate.release)
 	released = true
 	select {
@@ -398,6 +429,9 @@ func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("initialization did not finish")
+	}
+	if !reflect.DeepEqual(gate.calls, map[string]int{"application_name": 1, "client_min_messages": 1}) {
+		t.Fatal("provider did not complete every definition before the stale-role fence", gate.calls)
 	}
 	e.sessionMu.Lock()
 	defer e.sessionMu.Unlock()

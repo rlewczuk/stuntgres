@@ -41,7 +41,7 @@ package parser
 %type <cols> columns
 %type <typ> type
 %type <nullable> nullability
-%type <tok> name setting_name role_name role_option_word type_name bare_label col_label generic_word suffix unsupported_query nulls_keyword nulls_position
+%type <tok> name setting_name role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with suffix unsupported_query nulls_keyword nulls_position
 %type <targets> insert_columns insert_targets
 %type <objectName> relation_name
 %type <names> names
@@ -69,7 +69,13 @@ statement: create | insert | select | set | show | create_role | drop_role | ses
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | RESET { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
 set: SET optional_session setting_name setting_assignment setting_values { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Values:$5,Pos:$1.pos} }
- | SET optional_session setting_name setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} } ;
+ | SET optional_session setting_name setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} }
+ /* LOCAL remains an ordinary setting name when followed by TO or '='.
+  * Factor it here so SET LOCAL ROLE needs no shift/empty-scope conflict. */
+ | SET LOCAL setting_assignment setting_values { $$=&Set{Name:Identifier{Text:$2.text,Pos:$2.pos},Values:$4,Pos:$1.pos} }
+ | SET LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$2.text,Pos:$2.pos},Default:true,Pos:$1.pos} }
+ | SET SESSION LOCAL setting_assignment setting_values { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Values:$5,Pos:$1.pos} }
+ | SET SESSION LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} } ;
 optional_session: /* empty */ %prec EMPTY_SESSION_SCOPE | SESSION ;
 setting_assignment: TO | '=' ;
 setting_values: setting_value { $$=[]string{$1} } | setting_values ',' setting_value { $$=append($1,$3) } ;
@@ -158,10 +164,11 @@ order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$
 nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
-setting_name: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | INSERT | BY | SET | SHOW | SESSION | IF | EXISTS | DROP | RESET | LOCAL ;
-name: setting_name | ROLE ;
+setting_name: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | INSERT | BY | SET | SHOW | SESSION | IF | EXISTS | DROP | RESET ;
+name: setting_name | ROLE | LOCAL ;
 type_name: IDENT | KW_U | KW_T | KW_C | VALUES | INSERT | BY | SET | SHOW | SESSION | IF | EXISTS | DROP | RESET | LOCAL | ROLE | AUTHORIZATION ;
-generic_word: IDENT | KW_U | KW_C | KW_T | KW_R | IF | EXISTS | LOCAL | AUTHORIZATION | WITH ;
+generic_word: generic_word_without_with | WITH ;
+generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | IF | EXISTS | LOCAL | AUTHORIZATION ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
 bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | KW_T { if !$1.keyword.label() { if $1.text=="isnull" || $1.text=="notnull" { sqllex.(*lexer).failAt("0A000","expressions are unsupported",$1.pos.Offset) } else { sqllex.(*lexer).syntax($1) }; return 1 }; $$=$1 }
@@ -184,7 +191,8 @@ role_options: /* empty */ { $$=roleOptionState{} }
     if unsupportedRoleOptions[fold($2.raw)] { sqllex.(*lexer).failAt("0A000","unsupported role option",$2.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1
    }
  } ;
-role_option_word: generic_word | ROLE | USER | GROUP | DROP | RESET | BY ;
+/* WITH is a reserved introducer, never a role option after optional_with. */
+role_option_word: generic_word_without_with | ROLE | USER | GROUP | DROP | RESET | BY ;
 role_name: name {
  if $1.text=="public" || $1.text=="none" { sqllex.(*lexer).failAt("42939","role name \""+$1.text+"\" is reserved",$1.pos.Offset); return 1 }; $$=$1
  }
@@ -196,7 +204,10 @@ create_role: CREATE role_kind role_name optional_with role_options {
  if $5.count>0 { login=$5.login }
  $$=&CreateRole{Name:Identifier{Text:$3.text,Pos:$3.pos},Login:login,OptionCount:$5.count,SecondOption:$5.second}
  } ;
-drop_role: DROP role_kind names { $$=&DropRole{Names:$3} } ;
+/* IF remains a name unless followed by EXISTS; that lookahead cannot continue
+ * an ordinary comma-list. Defer exclusion so malformed suffixes stay 42601. */
+drop_role: DROP role_kind names { $$=&DropRole{Names:$3} }
+ | DROP role_kind IF EXISTS names { sqllex.(*lexer).deferUnsupported($3,"DROP ROLE IF EXISTS is unsupported"); $$=nil } ;
 session_authorization: SET SESSION AUTHORIZATION name { $$=&SessionAuthorization{Name:$4.text,OwnerDirective:true} }
  | SET SESSION AUTHORIZATION STRING { $$=&SessionAuthorization{Name:$4.text,OwnerDirective:true} }
  | SET SESSION AUTHORIZATION DEFAULT { $$=&SessionAuthorization{Default:true} }

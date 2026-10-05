@@ -442,3 +442,137 @@ func TestRoleConnectorNoticeConfigurationPreservesAuthentication(t *testing.T) {
 		t.Fatal("handler configuration leaked to base connector", notices)
 	}
 }
+
+// These expectations describe the native capability boundary, not PostgreSQL
+// error parity: PostgreSQL implements IF EXISTS, but does not accept CASCADE.
+func TestRoleDropConditionalBoundary(t *testing.T) {
+	ctx := context.Background()
+	db := rolePool(t, NewDriver(), "role-drop-conditional-boundary", "postgres")
+	c, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	peer, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.Close()
+	for _, query := range []string{
+		"CREATE ROLE reader", "CREATE TABLE sentinel(id INT)",
+		"SET application_name TO retained",
+	} {
+		rolePublicCommand(t, c, query, 0, false)
+	}
+	rolePublicCommand(t, c, "INSERT INTO sentinel VALUES(7)", 1, false)
+	rolePublicCommand(t, peer, "SET SESSION AUTHORIZATION reader", 0, false)
+	rolePublicCommand(t, peer, "SET application_name TO peer", 0, false)
+	assertUnchanged := func() {
+		t.Helper()
+		rolePublicIdentity(t, c, "postgres", nil)
+		rolePublicIdentity(t, peer, "reader", nil)
+		var value int64
+		if err := c.QueryRowContext(ctx, "SELECT id FROM sentinel").Scan(&value); err != nil || value != 7 {
+			t.Fatalf("sentinel=%d want 7: %v", value, err)
+		}
+		for _, check := range []struct {
+			conn *sql.Conn
+			want string
+		}{{c, "retained"}, {peer, "peer"}} {
+			var got string
+			if err := check.conn.QueryRowContext(ctx, "SHOW application_name").Scan(&got); err != nil || got != check.want {
+				t.Fatalf("setting=%q want %q: %v", got, check.want, err)
+			}
+		}
+		// Resolve the target anew; the peer's retained identity alone would not
+		// prove that an excluded DROP left the live role authority unchanged.
+		rolePublicCommand(t, c, "SET SESSION AUTHORIZATION reader", 0, false)
+		rolePublicIdentity(t, c, "reader", nil)
+		rolePublicCommand(t, c, "RESET SESSION AUTHORIZATION", 0, false)
+	}
+	for _, tc := range []struct{ query, code, message, position string }{
+		{"DROP ROLE IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{"DROP USER IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{"DROP GROUP IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "12"},
+		{`DROP ROLE IF EXISTS if,exists,"if","exists","Reader"`, "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{`DROP USER IF EXISTS "if",exists`, "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{`DROP GROUP IF EXISTS if,"exists"`, "0A000", "DROP ROLE IF EXISTS is unsupported", "12"},
+		{"DROP ROLE IF EXISTS absent", "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{"/* é */ DROP ROLE IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "19"},
+		{"INSERT INTO sentinel VALUES(9); DROP ROLE IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "43"},
+		{"INSERT INTO sentinel VALUES(9); DROP USER IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "43"},
+		{"INSERT INTO sentinel VALUES(9); DROP GROUP IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "44"},
+		{"CREATE ROLE leaked; DROP USER IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "31"},
+		{"DROP ROLE IF EXISTS", "42601", "syntax error at end of input", "20"},
+		{"DROP USER IF EXISTS", "42601", "syntax error at end of input", "20"},
+		{"DROP GROUP IF EXISTS", "42601", "syntax error at end of input", "21"},
+		{"DROP ROLE IF reader", "42601", `syntax error at or near "reader"`, "14"},
+		{"DROP ROLE IF EXISTS ,reader", "42601", `syntax error at or near ","`, "21"},
+		{"DROP ROLE IF EXISTS reader,", "42601", "syntax error at end of input", "28"},
+		{"DROP ROLE IF EXISTS 'reader'", "42601", `syntax error at or near "'reader'"`, "21"},
+		{"DROP ROLE IF EXISTS $1", "42601", `syntax error at or near "$1"`, "21"},
+		{"DROP ROLE IF EXISTS reader CASCADE", "42601", `syntax error at or near "CASCADE"`, "28"},
+		{"DROP ROLE reader CASCADE", "42601", `syntax error at or near "CASCADE"`, "18"},
+		{"DROP USER reader CASCADE", "42601", `syntax error at or near "CASCADE"`, "18"},
+		{"DROP GROUP reader CASCADE", "42601", `syntax error at or near "CASCADE"`, "19"},
+	} {
+		for _, prepared := range []bool{false, true} {
+			mode := "direct"
+			if prepared {
+				mode = "prepare"
+			}
+			t.Run(mode+"/"+tc.query, func(t *testing.T) {
+				var err error
+				if prepared {
+					stmt, prepareErr := c.PrepareContext(ctx, tc.query)
+					if stmt != nil {
+						stmt.Close()
+						t.Fatal("failure-only syntax produced an executable statement")
+					}
+					err = prepareErr
+				} else {
+					result, execErr := c.ExecContext(ctx, tc.query)
+					if result != nil {
+						t.Fatal("failure-only syntax produced an execution result")
+					}
+					err = execErr
+				}
+				var got *Error
+				want := &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position}
+				if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
+					t.Fatalf("diagnostic=%#v want=%#v", err, want)
+				}
+				assertUnchanged()
+				_, err = c.ExecContext(ctx, "DROP ROLE leaked")
+				rolePublicDiagnostic(t, err, "42704", `role "leaked" does not exist`)
+			})
+		}
+	}
+	// Execute ordinary keyword targets through every alias in direct and
+	// prepared mode, including duplicate decoded targets and quoted uppercase.
+	for _, prepared := range []bool{false, true} {
+		for _, kind := range []string{"ROLE", "USER", "GROUP"} {
+			for _, tc := range []struct {
+				targets string
+				removed []string
+			}{
+				{"if", []string{"if"}},
+				{"exists", []string{"exists"}},
+				{`"if"`, []string{"if"}},
+				{`"exists"`, []string{"exists"}},
+				{`if,exists,"if","exists","IF","EXISTS"`, []string{"if", "exists", `"IF"`, `"EXISTS"`}},
+			} {
+				for _, query := range []string{`CREATE ROLE if`, `CREATE ROLE exists`, `CREATE ROLE "IF"`, `CREATE ROLE "EXISTS"`} {
+					rolePublicCommand(t, c, query, 0, prepared)
+				}
+				rolePublicCommand(t, c, "DROP "+kind+" "+tc.targets, 0, prepared)
+				// Recreating every removed target proves successful DROP was
+				// substantive; reset the fixture for the next spelling.
+				for _, name := range tc.removed {
+					rolePublicCommand(t, c, "CREATE ROLE "+name, 0, prepared)
+				}
+				rolePublicCommand(t, c, `DROP ROLE if,exists,"IF","EXISTS"`, 0, prepared)
+			}
+		}
+	}
+}

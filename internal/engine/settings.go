@@ -19,8 +19,9 @@ type SettingDefinition struct {
 	Normalize   func(string) (string, *sqlstate.Error, error)
 }
 
-// SessionDefaultProvider is evaluated once at physical initialization. Absence
-// selects the definition's boot default; DEFAULT restores that captured value.
+// SessionDefaultProvider is evaluated once per definition at physical
+// initialization, in unspecified order. Absence selects that definition's boot
+// default; DEFAULT restores the captured value without calling the provider again.
 type SessionDefaultProvider interface {
 	SessionDefault(context.Context, SettingDefinition) (string, bool, error)
 }

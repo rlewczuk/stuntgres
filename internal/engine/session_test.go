@@ -24,7 +24,7 @@ type defaultProvider struct {
 
 func (p *defaultProvider) SessionDefault(_ context.Context, d SettingDefinition) (string, bool, error) {
 	if d.Name != "application_name" {
-		return "", false, p.err
+		return "", false, nil
 	}
 	return p.value, true, p.err
 }

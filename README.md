@@ -56,15 +56,19 @@ SET reuses the existing literal decoding rules below: for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-This is not full PostgreSQL setting syntax: LOCAL, general RESET, SHOW ALL, other
+This is not full PostgreSQL setting syntax: LOCAL scope, general RESET, SHOW ALL, other
 built-ins besides client_min_messages, dotted custom GUCs and floating/exponent numbers remain
 unsupported. NULL, parameters and unquoted reserved TO are syntax errors;
 quoted "to" remains an identifier. Comma lists fail 22023 before setting lookup,
 with the supplied name retained in the diagnostic. Unknown undotted scalar
 names fail 42704; messages interpolate decoded names between literal double
-quotes without Go string escaping. No logical database/admission,
-named SQL prepared resources, cursors, temporary objects or advisory locks are
-implied. Native Reset/Restore preserve session settings;
+quotes without Go string escaping.
+The nonreserved name `local` still parses in `SET local TO value` and
+`SET SESSION local = value` (then fails unknown-setting lookup with `42704`);
+it is not silently interpreted as LOCAL scope or SET ROLE.
+No logical database/admission, named SQL prepared resources, cursors,
+temporary objects or advisory locks are implied. Native Reset/Restore
+preserve session settings;
 Dump excludes them. Anonymous retained SHOW/SELECT results outlive session end.
 Internal immutable setting definitions/default providers and exactly-once
 resource Attach/quiescent Detach are extension hooks, not implementations of
@@ -287,6 +291,14 @@ SQL role membership, SET ROLE, ALTER ROLE/GROUP, passwords, special role
 attributes and GRANT/REVOKE are not implemented; recognized adjacent syntax
 fails `0A000`, never successful no-ops. Role administration requires the
 effective superuser in this bounded foundation.
+Valid `DROP {ROLE | USER | GROUP} IF EXISTS name [, ...]` is likewise excluded:
+it fails positioned `0A000` at `IF` before any script statement executes,
+including when every target is absent. Ordinary unquoted or quoted role names
+`if` and `exists` remain valid. Malformed conditional drops and `CASCADE`
+(which is not PostgreSQL role-drop syntax) fail `42601`, not a capability error.
+Role names reuse PostgreSQL's ordinary column-name keyword categories;
+nonreserved `local`, `session` and `role` remain names. Reserved `WITH` is
+only an optional option introducer, not a role name or a repeated option.
 
 SET/RESET change session_user and current_user together. Only the **originally
 authenticated** superuser may select another principal (including NOLOGIN);

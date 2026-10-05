@@ -17,6 +17,10 @@ func TestRoleGrammarAndIdentityProjection(t *testing.T) {
 		{"CREATE GROUP Foo", "foo", false},
 		{`CREATE ROLE "A" WITH LOGIN`, "A", true},
 		{"CREATE USER a NOLOGIN", "a", false},
+		{"CREATE ROLE local WITH LOGIN", "local", true},
+		{"CREATE ROLE session NOLOGIN", "session", false},
+		{"CREATE ROLE role WITH NOLOGIN", "role", false},
+		{`CREATE ROLE "with" WITH LOGIN`, "with", true},
 	} {
 		stmts, err := Parse(tc.sql)
 		if err != nil {
@@ -58,6 +62,10 @@ func TestRoleGrammarFailureBoundaries(t *testing.T) {
 		{"CREATE GROUP CURRENT_ROLE", "42939", "CURRENT_ROLE cannot be used as a role name here", "14"},
 		{"CREATE ROLE a WITH SUPERUSER", "0A000", "unsupported role option", "20"},
 		{"CREATE ROLE a PASSWORD 'p'", "0A000", "unsupported role option", "15"},
+		{"CREATE ROLE a WITH WITH LOGIN", "42601", `syntax error at or near "WITH"`, "20"},
+		{"CREATE ROLE a LOGIN WITH NOLOGIN", "42601", `syntax error at or near "WITH"`, "21"},
+		{"CREATE ROLE with LOGIN", "42601", `syntax error at or near "with"`, "13"},
+		{"CREATE ROLE authorization LOGIN", "42601", `syntax error at or near "authorization"`, "13"},
 		{"SET SESSION AUTHORIZATION $1", "42601", `syntax error at or near "$1"`, "27"},
 		{"CREATE TABLE t(n NAME)", "0A000", "unsupported column type", "18"},
 	} {
@@ -135,6 +143,116 @@ func TestRoleExcludedCommands(t *testing.T) {
 	} {
 		if _, err := Parse(query); err != nil {
 			t.Fatalf("ordinary identifier/text %s: %v", query, err)
+		}
+	}
+}
+
+func TestRoleLocalSettingBoundary(t *testing.T) {
+	for _, query := range []string{
+		"SET LOCAL TO retained", "SET LOCAL = retained",
+		"SET SESSION LOCAL TO retained", "SET SESSION LOCAL = retained",
+		`SET "local" TO retained`,
+	} {
+		stmts, err := Parse(query)
+		if err != nil || len(stmts) != 1 {
+			t.Fatalf("%s: statements=%#v error=%v", query, stmts, err)
+		}
+		set, ok := stmts[0].(*Set)
+		if !ok || set.Name.Text != "local" || set.Default || !reflect.DeepEqual(set.Values, []string{"retained"}) {
+			t.Fatalf("%s: %#v", query, stmts[0])
+		}
+	}
+	for _, query := range []string{"SET LOCAL TO DEFAULT", "SET SESSION LOCAL = DEFAULT"} {
+		stmts, err := Parse(query)
+		if err != nil || len(stmts) != 1 {
+			t.Fatalf("%s: statements=%#v error=%v", query, stmts, err)
+		}
+		set, ok := stmts[0].(*Set)
+		if !ok || set.Name.Text != "local" || !set.Default || len(set.Values) != 0 {
+			t.Fatalf("%s: %#v", query, stmts[0])
+		}
+	}
+	for _, query := range []string{"SET LOCAL application_name TO retained", "SET LOCAL TO", "SET LOCAL ="} {
+		stmts, err := Parse(query)
+		var got *sqlstate.Error
+		if !errors.As(err, &got) || got.Code != "42601" || stmts != nil {
+			t.Fatalf("%s: statements=%#v diagnostic=%#v", query, stmts, err)
+		}
+	}
+}
+
+func TestRoleKeywordNames(t *testing.T) {
+	for _, k := range keywords {
+		if !k.columnName() || k.word == "none" {
+			continue
+		}
+		for _, query := range []string{"CREATE ROLE " + k.word + " WITH LOGIN", "DROP ROLE " + k.word, "SET SESSION AUTHORIZATION " + k.word} {
+			stmts, err := Parse(query)
+			if err != nil || len(stmts) != 1 {
+				t.Fatalf("nonreserved role name %s: statements=%#v error=%v", query, stmts, err)
+			}
+		}
+	}
+}
+
+// Conditional role removal is valid PostgreSQL syntax, but is only recognized
+// here to reject it. Invalid conditional syntax must not acquire that category.
+func TestRoleDropConditionalBoundary(t *testing.T) {
+	for _, tc := range []struct{ sql, code, message, position string }{
+		{"DROP ROLE IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{"DROP USER IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{"DROP GROUP IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "12"},
+		{`DROP ROLE IF EXISTS if,exists,"if","exists","Reader"`, "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{`DROP USER IF EXISTS "if",exists`, "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{`DROP GROUP IF EXISTS if,"exists"`, "0A000", "DROP ROLE IF EXISTS is unsupported", "12"},
+		{"DROP ROLE IF EXISTS absent", "0A000", "DROP ROLE IF EXISTS is unsupported", "11"},
+		{"/* é */ DROP ROLE IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "19"},
+		{"INSERT INTO sentinel VALUES(9); DROP ROLE IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "43"},
+		{"INSERT INTO sentinel VALUES(9); DROP USER IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "43"},
+		{"INSERT INTO sentinel VALUES(9); DROP GROUP IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "44"},
+		{"CREATE ROLE leaked; DROP USER IF EXISTS reader", "0A000", "DROP ROLE IF EXISTS is unsupported", "31"},
+		{"DROP ROLE IF EXISTS", "42601", "syntax error at end of input", "20"},
+		{"DROP USER IF EXISTS", "42601", "syntax error at end of input", "20"},
+		{"DROP GROUP IF EXISTS", "42601", "syntax error at end of input", "21"},
+		{"DROP ROLE IF reader", "42601", `syntax error at or near "reader"`, "14"},
+		{"DROP ROLE IF EXISTS ,reader", "42601", `syntax error at or near ","`, "21"},
+		{"DROP ROLE IF EXISTS reader,", "42601", "syntax error at end of input", "28"},
+		{"DROP ROLE IF EXISTS 'reader'", "42601", `syntax error at or near "'reader'"`, "21"},
+		{"DROP ROLE IF EXISTS $1", "42601", `syntax error at or near "$1"`, "21"},
+		{"DROP ROLE IF EXISTS reader CASCADE", "42601", `syntax error at or near "CASCADE"`, "28"},
+		{"DROP ROLE reader CASCADE", "42601", `syntax error at or near "CASCADE"`, "18"},
+		{"DROP USER reader CASCADE", "42601", `syntax error at or near "CASCADE"`, "18"},
+		{"DROP GROUP reader CASCADE", "42601", `syntax error at or near "CASCADE"`, "19"},
+	} {
+		t.Run(tc.sql, func(t *testing.T) {
+			stmts, err := Parse(tc.sql)
+			var got *sqlstate.Error
+			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position}
+			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || stmts != nil {
+				t.Fatalf("statements=%#v diagnostic=%#v want=%#v", stmts, err, want)
+			}
+		})
+	}
+	for _, kind := range []string{"ROLE", "USER", "GROUP"} {
+		for _, tc := range []struct {
+			targets string
+			names   []string
+		}{
+			{"if", []string{"if"}},
+			{"exists", []string{"exists"}},
+			{`"if"`, []string{"if"}},
+			{`"exists"`, []string{"exists"}},
+			{`if,exists,"if","exists","IF","EXISTS"`, []string{"if", "exists", "if", "exists", "IF", "EXISTS"}},
+		} {
+			query := "DROP " + kind + " " + tc.targets
+			stmts, err := Parse(query)
+			if err != nil || len(stmts) != 1 {
+				t.Fatalf("%s: statements=%#v error=%v", query, stmts, err)
+			}
+			drop, ok := stmts[0].(*DropRole)
+			if !ok || !reflect.DeepEqual(drop.Names, tc.names) {
+				t.Fatalf("%s: %#v", query, stmts[0])
+			}
 		}
 	}
 }
