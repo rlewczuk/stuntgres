@@ -27,7 +27,7 @@ func normalizeArguments(args []driver.NamedValue) ([]driver.Value, error) {
 			return nil, err
 		}
 		switch v := v.(type) {
-		case nil, int64, string, bool:
+		case nil, int64, float64, string, bool:
 			values[i] = v
 		case []byte:
 			values[i] = string(v)
@@ -55,6 +55,8 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		}
 		// Overflow retains the parameter input diagnostic, not assignment narrowing.
 		text = strconv.FormatInt(v, 10)
+	case float64:
+		text = strconv.FormatFloat(v, 'f', -1, 64)
 	case bool:
 		if target.Type.ID() == sqltype.Bool {
 			return sqltype.Boolean(target.Type, v), nil
@@ -94,6 +96,8 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 	switch v.Type().ID() {
 	case sqltype.Int4, sqltype.Int8:
 		return v.Integer()
+	case sqltype.Float4, sqltype.Float8:
+		return v.Float()
 	case sqltype.Text, sqltype.Name:
 		return v.Text()
 	case sqltype.Bool:
@@ -106,6 +110,8 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 	switch d.ID() {
 	case sqltype.Int4, sqltype.Int8:
 		return reflect.TypeFor[int64]()
+	case sqltype.Float4, sqltype.Float8:
+		return reflect.TypeFor[float64]()
 	case sqltype.Text, sqltype.Name:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:

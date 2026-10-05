@@ -20,6 +20,8 @@ const (
 	Int8    ID = 20
 	Int4    ID = 23
 	Text    ID = 25
+	Float4  ID = 700
+	Float8  ID = 701
 	Unknown ID = 705
 )
 
@@ -75,17 +77,20 @@ func Builtins() []*Descriptor {
 		{Int8, "int8", "BIGINT", "INT8"},
 		{Int4, "int4", "INTEGER", "INT4"},
 		{Text, "text", "TEXT", "TEXT"},
+		{Float4, "float4", "REAL", "FLOAT4"},
+		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8"},
 		{Unknown, "unknown", "", ""},
 	}
 }
 
 // Zero Value is invalid, not NULL. All payloads are inline or immutable strings.
 type Value struct {
-	typ     *Descriptor
-	null    bool
-	integer int64
-	boolean bool
-	text    string
+	typ      *Descriptor
+	null     bool
+	integer  int64
+	floating float64
+	boolean  bool
+	text     string
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -188,6 +193,8 @@ func (d *Descriptor) Input(ctx context.Context, text string, typmod int32) (Valu
 		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for type boolean: \"%s\"", text))
 	case Int4, Int8:
 		return d.integerInput(text)
+	case Float4, Float8:
+		return d.floatInput(text)
 	}
 	return Value{}, fmt.Errorf("missing input provider")
 }
@@ -300,6 +307,8 @@ func (d *Descriptor) Output(ctx context.Context, v Value) (string, error) {
 	switch d.id {
 	case Int4, Int8:
 		return strconv.FormatInt(v.integer, 10), nil
+	case Float4, Float8:
+		return floatOutput(v.floating, d.id), nil
 	case Text, Name:
 		return v.text, nil
 	case Bool:
@@ -323,6 +332,12 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	switch d.id {
 	case Text, Name:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
+	case Float4, Float8:
+		text, err := d.Output(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
 	case Bool:
 		if v.boolean {
 			return "TRUE", nil
@@ -348,6 +363,7 @@ const (
 	integerConversion
 	viaIO
 	booleanText
+	floatConversion
 )
 
 type CoercionPlan struct {
@@ -369,6 +385,14 @@ var baselineCasts = [...]castSpec{
 	{Int4, Text, Assignment, viaIO},
 	{Int8, Text, Assignment, viaIO},
 	{Bool, Text, Assignment, booleanText},
+	{Int4, Float4, Implicit, floatConversion},
+	{Int4, Float8, Implicit, floatConversion},
+	{Int8, Float4, Implicit, floatConversion},
+	{Int8, Float8, Implicit, floatConversion},
+	{Float4, Float8, Implicit, floatConversion},
+	{Float8, Float4, Assignment, floatConversion},
+	{Float4, Text, Assignment, viaIO},
+	{Float8, Text, Assignment, viaIO},
 }
 
 // PlanCoercion admits only bounded directional edges, never transitive casts.
@@ -403,6 +427,15 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 		return v, nil
 	case integerConversion:
 		return Integer(p.target.Type, v.integer)
+	case floatConversion:
+		n := v.floating
+		if v.typ.id == Int4 || v.typ.id == Int8 {
+			n = float64(v.integer)
+			if p.target.Type.id == Float4 {
+				n = float64(float32(v.integer))
+			}
+		}
+		return Float(p.target.Type, n)
 	case viaIO:
 		text, err := p.source.Type.Output(ctx, v)
 		if err != nil {
@@ -423,6 +456,9 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
 	}
+	if (isFloat(left.id) && numericFloatOperand(right.id)) || (isFloat(right.id) && numericFloatOperand(left.id)) {
+		return p, nil
+	}
 	if left == right || (left.id == Int4 || left.id == Int8) && (right.id == Int4 || right.id == Int8) {
 		return p, nil
 	}
@@ -434,6 +470,9 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 	}
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return 0, fmt.Errorf("invalid comparison values")
+	}
+	if isFloat(p.left.id) || isFloat(p.right.id) {
+		return compareFloats(floatOperand(a), floatOperand(b)), nil
 	}
 	switch p.left.id {
 	case Int4, Int8:

@@ -77,7 +77,7 @@ func TestTableCoreOptionsAndBoundaries(t *testing.T) {
 }
 
 func TestTableCoreExcludedTypeSyntaxNeverSkips(t *testing.T) {
-	for _, declaration := range []string{"DOUBLE PRECISION", "CHARACTER VARYING", "BIT VARYING", "TIME WITH TIME ZONE", "TIMESTAMP WITHOUT TIME ZONE", "INTERVAL YEAR TO MONTH", "public.int4", "INT(4)", "INT[]"} {
+	for _, declaration := range []string{"CHARACTER VARYING", "BIT VARYING", "TIME WITH TIME ZONE", "TIMESTAMP WITHOUT TIME ZONE", "INTERVAL YEAR TO MONTH", "public.int4", "INT(4)", "INT[]"} {
 		_, err := Parse("CREATE TABLE IF NOT EXISTS t (id " + declaration + ")")
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
@@ -113,7 +113,6 @@ func TestTableCoreTypeTailSourceLocations(t *testing.T) {
 	// The type begins at character 19; an arbitrary nine-character type's
 	// following token begins at 29. Exercise each suffix/type-tail overlap.
 	for _, tc := range []struct{ declaration, code, position string }{
-		{"DOUBLE PRECISION", "0A000", "19"},
 		{"TIME WITH TIME ZONE", "0A000", "19"},
 		{"arbitrary ISNULL", "42601", "29"},
 		{"arbitrary LIKE", "42601", "29"},

@@ -46,11 +46,11 @@ package parser
  * '(' selects a function path, not a completed ordinary name/name list. */
 %nonassoc NAME_LIST
 %nonassoc '+' '-' INTO KW_R COLUMN ALL DEFAULT ON USER GROUP IN
-%nonassoc '('
 /* KW_T, LIKE and WITH also start suffixes. Shift an adjacent type tail before
  * completing a single type name: known excluded families use their first type
  * location, while arbitrary tails are syntax errors at the second token. */
 %nonassoc TYPE_NAME
+%nonassoc '('
 %nonassoc KW_T IS LIKE WITH
 %type <stmt> statement create drop_table insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema
 %type <col> column
@@ -193,8 +193,8 @@ drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASC
 column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Nullable:$3, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
- /* Failure-only family guards: no multiword TypeName or executable feature. */
- | type_name type_name { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
+ | type_name '(' { if $1.keyword==nil || $1.text!="float" { sqllex.(*lexer).failAt("0A000","type modifiers are unsupported",$2.pos.Offset); return 1 }; sqllex.(*lexer).floatPrecision=true } NUMBER ')' { var ok bool; $$,ok=floatType(sqllex,$1,$4); if !ok { return 1 }; sqllex.(*lexer).floatPrecision=false }
+ | type_name type_name { if $1.keyword!=nil && $2.keyword!=nil && $1.text=="double" && $2.text=="precision" { $$=TypeName{Name:"double precision",Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
  | type_name '.' { sqllex.(*lexer).failAt("0A000","qualified types are unsupported",$1.pos.Offset); return 1 } ;
 nullability: /* empty */ { $$ = true } | NULL { $$ = true } | NOT NULL { $$ = false }

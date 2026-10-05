@@ -528,7 +528,7 @@ COMMENT ON ROLE name IS string_literal | NULL
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | scalar [, ...]) FROM [schema.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
-type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
+type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n
 scalar := unqualified column | value
 ```
@@ -615,12 +615,13 @@ Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
 EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT4/INT8/TEXT/BOOL fail execution with `0A000`.
-Multiword families (DOUBLE PRECISION, CHARACTER/BIT VARYING, TIME/TIMESTAMP
+Known single-name types outside INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8 fail execution
+with `0A000`. Excluded multiword families (CHARACTER/BIT VARYING, TIME/TIMESTAMP
 WITH/WITHOUT TIME ZONE and qualified INTERVAL fields), qualified type names,
-arrays and type modifiers remain parser-level `0A000` boundaries. Even an
-existing IF NOT EXISTS target cannot bypass these excluded syntax forms; the
-failure-only guards construct no executable family AST.
+arrays and type modifiers other than the selected FLOAT(p) precision selector
+remain parser-level `0A000` boundaries. Even an existing IF NOT EXISTS target
+cannot bypass these excluded syntax forms; the failure-only guards construct
+no executable family AST. DOUBLE PRECISION and valid FLOAT(p) are supported.
 
 Type keyword aliases are not quoted catalog names: `"integer"`, `"bigint"` and
 `"boolean"` fail with `42704`, while `"int4"`, `"int8"`, `"text"` and `"bool"`
@@ -699,10 +700,10 @@ These ordinary-string defaults correspond to standard_conforming_strings=on.
 With the session setting off, ordinary strings use that same escape decoder;
 E strings always use it. Native Restore always uses the default-on parser.
 
-Types are int4/int8/text/bool. Values returned to Go are `int64`, `string`, `bool`, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other. WHERE typed comparisons do not use those assignment casts. Parameters support nil, integer, string, bytes and bool after standard `database/sql` conversion, not floating point or timestamps. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int4/int8/text/bool/float4/float8. Values returned to Go are `int64`, `string`, `bool`, `float64`, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes and bool after standard `database/sql` conversion, not timestamps. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-INT8 20, INT4 23, TEXT 25; analysis-only UNKNOWN 705), concrete nullable values,
+INT8 20, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -710,8 +711,67 @@ kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
 including INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-INT4/INT8 as `int64`, TEXT as `string`, BOOL as `bool`, and typed NULL as nil.
+INT4/INT8 as `int64`, TEXT as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
+
+REAL/FLOAT4 store IEEE binary32; DOUBLE PRECISION/FLOAT8 and bare FLOAT store
+binary64. FLOAT(p) selects REAL for binary precision 1–24 and DOUBLE PRECISION
+for 25–53, without a per-value typmod. Out-of-range precision fails `22023`
+at the precision token, even for CREATE TABLE IF NOT EXISTS. Quoted `"float4"`
+and `"float8"` are catalog names; quoted keyword aliases such as `"real"` are
+not aliases. Result DatabaseTypeName is FLOAT4/FLOAT8, ScanType is float64,
+including NULL/empty results; no fictitious DecimalSize or Length is reported.
+
+Use quoted decimal inputs or positional binds: `INSERT INTO f VALUES('0.1')`.
+Fractional/exponent SQL numeric tokens, arithmetic and casts remain unsupported.
+Text REAL input rounds directly to binary32 (not through binary64):
+`'7.038531e-26'` stores bits 0x15ae43fd. Bound float32 is already widened by
+database/sql; bound float64 is serialized as pq-compatible decimal parameter
+text and parsed according to its SQL destination, not its Go kind. Finite
+overflow or nonzero input rounded to zero fails `22003`; nonzero subnormals
+are accepted. Bad syntax fails `22P02`, preserving the original input; range
+errors quote the recognized numeric prefix. Literal errors point to the quote,
+while native parameter errors have no Position/Context.
+
+Portable input accepts decimal numbers, C-ASCII whitespace at the ends,
+case-insensitive NaN, Inf/Infinity and signed infinities. Host strtof/strtod
+extensions such as hex floats, signed NaN or NaN payloads are not admitted
+natively and are not claimed portable PostgreSQL parity. NaNs compare equal
+and sort above all non-NaNs, including Infinity; signed zeros compare equal
+but retain their sign. Known integer operands of float equality convert to
+binary64, whereas unknown strings/parameters contextualize to the column:
+REAL `'16777216'` does not equal integer 16777217 but does equal quoted
+`'16777217'` after binary32 rounding.
+
+Output is PostgreSQL's default shortest-precise decimal with **open** rounding
+boundaries (not plain Go shortest ties-to-even output), canonical
+NaN/Infinity/-Infinity/-0, at most 9/17 significant digits. REAL uses fixed
+notation at display exponents [-4,6), double at [-4,15); otherwise signed
+lowercase `e` with at least two exponent digits. Selection of legacy
+extra_float_digits output modes is not implemented. Dump quotes every float
+output and emits canonical REAL/DOUBLE PRECISION declarations, so Restore
+roundtrips payloads and specials through the existing supported grammar.
+Native REAL export is the exact widened stored binary32; pq instead parses
+the decimal output as binary64. Thus REAL `'0.1'` returns
+0.10000000149011612 natively and 0.1 through pq; reference assertions preserve
+this adapter distinction before comparing binary32 semantics. That comparison
+must decode independently specified output text directly at 32 bits: narrowing
+pq's binary64 export can double-round. For REAL `'7.038531e-26'`, native storage
+has bits 0x15ae43fd, but narrowing pq's returned binary64 to binary32 produces
+0x15ae43fe. Both adapter outputs are asserted separately, not normalized away.
+
+Executable float acceptance (commands must run to establish verification):
+
+```sh
+go test -count=1 -v -run '^TestFloat.*$' ./internal/sqltype .
+go test -count=1 -v ./internal/parser
+go test -tags reference -count=1 -v -run '^TestReferenceFloat.*$' ./reference
+go test -count=1 -v -run '^TestFloatSmoke$' ./smoke
+```
+
+These assert exact release output/bit witnesses, precision/metadata, independently
+expected native/pq values, direct/prepared binds and diagnostics, NaN bags and
+ordering, later-tuple atomicity, cancellation and retained control snapshots.
 
 Table SELECT targets and existing equality filters use one immutable typed
 expression binder/evaluator, also shared by INSERT and bounded setting arguments.

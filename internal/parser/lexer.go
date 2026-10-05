@@ -27,6 +27,7 @@ type lexer struct {
 	lookahead      rawToken
 	hasLookahead   bool
 	rawUnicode     bool
+	floatPrecision bool
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.
@@ -452,6 +453,9 @@ func (l *lexer) scan(v *sqlSymType) int {
 		}
 		l.current.text = s
 		token = PARAM
+	case l.floatPrecision && c == '.' && start+1 < len(l.input) && digit(l.input[start+1]):
+		l.floatNumericSyntax(start)
+		return 0
 	case digit(c):
 		if !l.integerToken(start) {
 			return 0
@@ -493,7 +497,12 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.fail("42601", "NUL in SQL")
 			return 0
 		}
-		if c == '.' && l.offset < len(l.input) && digit(l.input[l.offset]) {
+		if l.floatPrecision && c == '.' && l.offset < len(l.input) && l.input[l.offset] == '.' {
+			// The release scanner returns one DOT_DOT token after numericfail
+			// throws both dots back. Keep its complete diagnostic spelling.
+			l.current.text = ".."
+			l.offset++
+		} else if c == '.' && l.offset < len(l.input) && digit(l.input[l.offset]) {
 			l.fail("0A000", "non-integer literal is unsupported")
 			return 0
 		}
@@ -738,6 +747,15 @@ func (l *lexer) integerToken(start int) bool {
 	// integer junk such as 1efoo. Hexadecimal e is already a valid digit.
 	if end == decimalEnd || reason != "" && decimalEnd < len(l.input) && (l.input[decimalEnd] == 'e' || l.input[decimalEnd] == 'E') {
 		if decimalEnd < len(l.input) && l.input[decimalEnd] == '.' {
+			if l.floatPrecision && decimalEnd+1 < len(l.input) && l.input[decimalEnd+1] == '.' {
+				// Release numericfail throws back both dots and returns Iconst.
+				l.offset = decimalEnd
+				return true
+			}
+			if l.floatPrecision {
+				l.floatNumericSyntax(start)
+				return false
+			}
 			l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
 			return false
 		}
@@ -758,6 +776,10 @@ func (l *lexer) integerToken(start int) bool {
 				// but not a longer identifier/separator suffix. Signed
 				// exponents also need the real_junk match beyond the sign.
 				if realJunkEnd == exponentEnd && exponentEnd >= end {
+					if l.floatPrecision {
+						l.failAt("42601", "syntax error at or near \""+l.input[start:exponentEnd]+"\"", start)
+						return false
+					}
 					l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
 					return false
 				}
@@ -776,4 +798,58 @@ func (l *lexer) integerToken(start int) bool {
 		return false
 	}
 	return true
+}
+
+// FLOAT precision takes an Iconst, not a decimal/exponent numeric token. Keep
+// its complete offending token for syntax diagnostics without enabling numeric
+// scalar expressions elsewhere.
+func (l *lexer) floatNumericSyntax(start int) {
+	end := start
+	if digit(l.input[end]) {
+		end = digitEnd(l.input, end+1, 10)
+	}
+	if end < len(l.input) && l.input[end] == '.' {
+		end++
+		if end < len(l.input) && digit(l.input[end]) {
+			end = digitEnd(l.input, end+1, 10)
+		}
+	}
+	numericEnd := end
+	junk := false
+	// numeric_junk can outmatch a real token, or tie a complete exponent
+	// (where the earlier real rule wins). Preserve the scanner's longest match.
+	if end < len(l.input) && initial(l.input[end]) {
+		junk = true
+		for end < len(l.input) && continuation(l.input[end]) {
+			end++
+		}
+	}
+	if numericEnd < len(l.input) && (l.input[numericEnd] == 'e' || l.input[numericEnd] == 'E') {
+		exponent := numericEnd + 1
+		signed := exponent < len(l.input) && (l.input[exponent] == '+' || l.input[exponent] == '-')
+		if signed {
+			exponent++
+		}
+		if exponent < len(l.input) && digit(l.input[exponent]) {
+			realEnd := digitEnd(l.input, exponent+1, 10)
+			realJunk := false
+			if realEnd < len(l.input) && initial(l.input[realEnd]) {
+				realJunk = true
+				for realEnd < len(l.input) && continuation(l.input[realEnd]) {
+					realEnd++
+				}
+			}
+			if realEnd >= end {
+				end, junk = realEnd, realJunk
+			}
+		} else if signed && exponent > end {
+			// realfail consumes the incomplete exponent including its sign.
+			end, junk = exponent, true
+		}
+	}
+	if junk {
+		l.failAt("42601", "trailing junk after numeric literal at or near \""+l.input[start:end]+"\"", start)
+	} else {
+		l.failAt("42601", "syntax error at or near \""+l.input[start:end]+"\"", start)
+	}
 }

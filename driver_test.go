@@ -91,8 +91,12 @@ func TestErrorFieldsEngine(t *testing.T) {
 					Severity: "ERROR", SeverityUnlocalized: "ERROR",
 					Code: tc.code, Message: tc.message, Position: tc.position,
 				}
-				if tc.query=="SELECT missing FROM diagnostic_rows" { want.Position="8" }
-				if tc.query=="SELECT * FROM diagnostic_rows WHERE missing=1" { want.Position="37" }
+				if tc.query == "SELECT missing FROM diagnostic_rows" {
+					want.Position = "8"
+				}
+				if tc.query == "SELECT * FROM diagnostic_rows WHERE missing=1" {
+					want.Position = "37"
+				}
 				if !errors.As(err, &got) || *got != want {
 					t.Fatalf("engine diagnostic = %#v (%v), want %#v", got, err, want)
 				}
@@ -315,7 +319,7 @@ func TestTypedValuesAndAtomicInsert(t *testing.T) {
 		{"INSERT INTO typed(i) VALUES (NULL)", "23502", nil},
 		{"INSERT INTO typed(i) VALUES (1),(2147483648)", "22003", nil},
 		{"INSERT INTO typed(i,flag) VALUES (1,'o')", "22P02", nil},
-		{"INSERT INTO typed(i) VALUES ($1)", "0A000", []any{1.5}},
+		{"INSERT INTO typed(i) VALUES ($1)", "22P02", []any{1.5}},
 	} {
 		_, err := db.Exec(tc.query, tc.args...)
 		sqlState(t, err, tc.state)

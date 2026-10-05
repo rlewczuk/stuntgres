@@ -76,6 +76,10 @@ func (e *Engine) resolveType(raw parser.TypeName) (sqltype.Usage, error) {
 			name = "int8"
 		case "boolean":
 			name = "bool"
+		case "real":
+			name = "float4"
+		case "float", "double precision":
+			name = "float8"
 		}
 	}
 	view := CatalogRead{owner: e, state: e.state}
@@ -108,7 +112,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	case "smallserial", "serial2", "serial", "serial4", "bigserial", "serial8":
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
-	case "int2", "float4", "float8", "money", "char", "bpchar", "varchar",
+	case "int2", "money", "char", "bpchar", "varchar",
 		"numeric", "bit", "varbit", "date", "time", "timetz", "timestamp",
 		"timestamptz", "interval", "bytea", "uuid", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
@@ -117,7 +121,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	}
 	if !raw.Quoted {
 		switch raw.Name {
-		case "smallint", "decimal", "dec", "real", "float", "double", "precision",
+		case "smallint", "decimal", "dec", "double", "precision",
 			"character":
 			return true
 		}
@@ -126,4 +130,3 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 }
 
 func (b binding) columns() []ColumnDescriptor { return b.results }
-

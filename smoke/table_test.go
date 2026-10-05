@@ -183,9 +183,9 @@ func TestTableCoreSmoke(t *testing.T) {
 		}
 	}
 	notices = nil
-	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS source(i DOUBLE PRECISION)")
+	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS source(i CHARACTER VARYING)")
 	diagnostic(err, "0A000")
-	excluded, err := db.PrepareContext(ctx, "CREATE TABLE IF NOT EXISTS source(i DOUBLE PRECISION)")
+	excluded, err := db.PrepareContext(ctx, "CREATE TABLE IF NOT EXISTS source(i CHARACTER VARYING)")
 	if excluded != nil {
 		excluded.Close()
 		t.Fatal("excluded family syntax exposed a prepared statement")

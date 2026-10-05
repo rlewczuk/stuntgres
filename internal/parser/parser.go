@@ -227,13 +227,37 @@ func columnType(tok lexeme) TypeName {
 	return TypeName{Name: tok.text, Pos: tok.pos}
 }
 
+func floatType(l sqlLexer, name, precision lexeme) (TypeName, bool) {
+	raw := columnType(name)
+	n, err := strconv.ParseUint(strings.ReplaceAll(precision.text, "_", ""), 0, 31)
+	// Decimal precision with leading zero is still decimal, not Go octal.
+	if !strings.HasPrefix(precision.text, "0x") && !strings.HasPrefix(precision.text, "0X") && !strings.HasPrefix(precision.text, "0o") && !strings.HasPrefix(precision.text, "0O") && !strings.HasPrefix(precision.text, "0b") && !strings.HasPrefix(precision.text, "0B") {
+		n, err = strconv.ParseUint(strings.ReplaceAll(precision.text, "_", ""), 10, 31)
+	}
+	if err != nil {
+		l.(*lexer).syntax(precision)
+		return raw, false
+	}
+	if n == 0 {
+		l.(*lexer).failAt("22023", "precision for type float must be at least 1 bit", precision.pos.Offset)
+		return raw, false
+	}
+	if n > 53 {
+		l.(*lexer).failAt("22023", "precision for type float must be less than 54 bits", precision.pos.Offset)
+		return raw, false
+	}
+	raw.Name = "float8"
+	if n <= 24 {
+		raw.Name = "float4"
+	}
+	return raw, true
+}
+
 func excludedTypeTail(first, tail lexeme) bool {
 	if first.keyword == nil || tail.keyword == nil {
 		return false
 	}
 	switch first.text {
-	case "double":
-		return tail.text == "precision"
 	case "character", "bit":
 		return tail.text == "varying"
 	case "time", "timestamp":

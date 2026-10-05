@@ -258,7 +258,7 @@ func TestTableCoreQuotedTypeNamesResolveRawCatalogNames(t *testing.T) {
 			t.Fatal(name, got, err, want)
 		}
 	}
-	for _, name := range []string{"int2", "numeric", "name", "bpchar", "float8", "serial", "smallserial", "bigserial"} {
+	for _, name := range []string{"int2", "numeric", "name", "bpchar", "serial", "smallserial", "bigserial"} {
 		_, err := testExecute(e, context.Background(), statement(t, `CREATE TABLE bad (id "`+name+`")`), nil)
 		state(t, err, "0A000")
 	}

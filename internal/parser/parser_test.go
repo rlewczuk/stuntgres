@@ -45,7 +45,7 @@ func TestScriptAndLiterals(t *testing.T) {
 		}
 	}
 	selectStmt := statements[2].(*Select)
-	if selectStmt.Targets[0].(ColumnExpr).Name.Parts[0].Text!="integer" || selectStmt.Targets[1].(ColumnExpr).Name.Parts[0].Text!="a\"b" || selectStmt.Where.(OperatorExpr).Args[1].(ParameterExpr).Number != 2 || selectStmt.Order.Column != "active" || !selectStmt.Order.Desc {
+	if selectStmt.Targets[0].(ColumnExpr).Name.Parts[0].Text != "integer" || selectStmt.Targets[1].(ColumnExpr).Name.Parts[0].Text != "a\"b" || selectStmt.Where.(OperatorExpr).Args[1].(ParameterExpr).Number != 2 || selectStmt.Order.Column != "active" || !selectStmt.Order.Desc {
 		t.Fatalf("select = %#v", selectStmt)
 	}
 }
@@ -770,30 +770,100 @@ func TestUnicodeEscapesPendingQueryPrecedence(t *testing.T) {
 }
 
 func TestExpressionCoreRawOccurrences(t *testing.T) {
-	for _,q:=range []string{"SELECT id,1,2147483648,'x',TRUE,FALSE,NULL,$1 FROM t WHERE f","SELECT $1 FROM t WHERE id=$1","SELECT id FROM t WHERE NULL","SELECT id FROM t WHERE 'yes'"} {
-		statements,err:=Parse(q);if err!=nil { t.Fatal(q,err) }
-		s:=statements[0].(*Select)
-		if len(s.Targets)==0 || s.Where==nil { t.Fatal(s) }
-		for _,raw:=range s.Targets { if raw.SourcePosition().Offset<0 || raw.SourcePosition().Character<1 { t.Fatal(raw) } }
+	for _, q := range []string{"SELECT id,1,2147483648,'x',TRUE,FALSE,NULL,$1 FROM t WHERE f", "SELECT $1 FROM t WHERE id=$1", "SELECT id FROM t WHERE NULL", "SELECT id FROM t WHERE 'yes'"} {
+		statements, err := Parse(q)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		s := statements[0].(*Select)
+		if len(s.Targets) == 0 || s.Where == nil {
+			t.Fatal(s)
+		}
+		for _, raw := range s.Targets {
+			if raw.SourcePosition().Offset < 0 || raw.SourcePosition().Character < 1 {
+				t.Fatal(raw)
+			}
+		}
 	}
-	for _,q:=range []string{"SELECT 1","SELECT id=1 FROM t","SELECT id FROM t WHERE 1=1","SELECT id FROM t WHERE id=v","SELECT id FROM t WHERE $1=id","SELECT id FROM t WHERE TRUE AND FALSE"} {
-		if statements,err:=Parse(q);err==nil || len(statements)!=0 { t.Fatal("expanded scalar boundary",q,statements,err) }
+	for _, q := range []string{"SELECT 1", "SELECT id=1 FROM t", "SELECT id FROM t WHERE 1=1", "SELECT id FROM t WHERE id=v", "SELECT id FROM t WHERE $1=id", "SELECT id FROM t WHERE TRUE AND FALSE"} {
+		if statements, err := Parse(q); err == nil || len(statements) != 0 {
+			t.Fatal("expanded scalar boundary", q, statements, err)
+		}
 	}
 }
 
 func TestExpressionCoreNoFromFailurePrecedence(t *testing.T) {
-	for _,tc:=range []struct{query,code string}{
-		{"SELECT 1","0A000"},
-		{"SELECT 1;","0A000"},
-		{"SELECT * t","42601"},
-		{"SELECT 1; )","42601"},
-		{"CREATE TABLE staged(id INT); SELECT 1; )","42601"},
-		{"SELECT 1; SELECT FROM t","42601"},
+	for _, tc := range []struct{ query, code string }{
+		{"SELECT 1", "0A000"},
+		{"SELECT 1;", "0A000"},
+		{"SELECT * t", "42601"},
+		{"SELECT 1; )", "42601"},
+		{"CREATE TABLE staged(id INT); SELECT 1; )", "42601"},
+		{"SELECT 1; SELECT FROM t", "42601"},
 	} {
-		statements,err:=Parse(tc.query)
+		statements, err := Parse(tc.query)
 		var diagnostic *sqlstate.Error
-		if len(statements)!=0 || !errors.As(err,&diagnostic) || diagnostic.Code!=tc.code {
-			t.Fatalf("%s: statements=%#v diagnostic=%#v (%v), want %s",tc.query,statements,diagnostic,err,tc.code)
+		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
+			t.Fatalf("%s: statements=%#v diagnostic=%#v (%v), want %s", tc.query, statements, diagnostic, err, tc.code)
 		}
+	}
+}
+
+func TestFloatDeclarations(t *testing.T) {
+	for _, tc := range []struct {
+		sql, name string
+		quoted    bool
+	}{{"REAL", "real", false}, {"FLOAT", "float", false}, {"FLOAT(1)", "float4", false}, {"FLOAT(24)", "float4", false}, {"FLOAT(25)", "float8", false}, {"FLOAT(53)", "float8", false}, {"DOUBLE PRECISION", "double precision", false}, {`"float4"`, "float4", true}, {`"real"`, "real", true}} {
+		stmts, err := Parse("CREATE TABLE f(x " + tc.sql + ")")
+		if err != nil {
+			t.Fatal(tc, err)
+		}
+		got := stmts[0].(*CreateTable).Elements[0].Column.TypeName
+		if got.Name != tc.name || got.Quoted != tc.quoted {
+			t.Fatal(tc, got)
+		}
+	}
+	for _, tc := range []struct{ precision, code, message string }{{"0", "22023", "precision for type float must be at least 1 bit"}, {"54", "22023", "precision for type float must be less than 54 bits"}, {"-1", "42601", `syntax error at or near "-"`}, {"1.5", "42601", `syntax error at or near "1.5"`}, {"2147483648", "42601", `syntax error at or near "2147483648"`}} {
+		_, err := Parse("CREATE TABLE f(x FLOAT(" + tc.precision + "))")
+		var got *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: "24"}
+		if !errors.As(err, &got) || *got != want {
+			t.Fatalf("%s: %#v want %#v", tc.precision, got, want)
+		}
+	}
+	_, err := Parse("CREATE TABLE IF NOT EXISTS f(x FLOAT(0))")
+	var got *sqlstate.Error
+	if !errors.As(err, &got) || got.Code != "22023" {
+		t.Fatal(err)
+	}
+}
+
+func TestFloatPrecisionScannerPrecedence(t *testing.T) {
+	for _, spelling := range []string{"1.5junk", ".5junk", "1.5e+", ".5e-", "1.5e", "1.5e+3junk", "1.5_", "1.5e+3_"} {
+		_, err := Parse("CREATE TABLE f(x FLOAT(" + spelling + "))")
+		var got *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `trailing junk after numeric literal at or near "` + spelling + `"`, Position: "24"}
+		if !errors.As(err, &got) || *got != want {
+			t.Fatalf("%s: %#v want %#v", spelling, got, want)
+		}
+	}
+	for _, spelling := range []string{".5", "1.5e+3"} {
+		_, err := Parse("CREATE TABLE f(x FLOAT(" + spelling + "))")
+		var got *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near "` + spelling + `"`, Position: "24"}
+		if !errors.As(err, &got) || *got != want {
+			t.Fatal(got, want)
+		}
+	}
+	_, err := Parse("CREATE TABLE f(x FLOAT(1..5))")
+	var got *sqlstate.Error
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near ".."`, Position: "25"}
+	if !errors.As(err, &got) || *got != want {
+		t.Fatal(got, want)
+	}
+	// The precision-only scanner treatment must not admit numeric scalars.
+	_, err = Parse("INSERT INTO f VALUES(1.5)")
+	if !errors.As(err, &got) || got.Code != "0A000" {
+		t.Fatal(err)
 	}
 }
