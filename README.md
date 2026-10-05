@@ -24,55 +24,164 @@ The DSN is an **exact opaque string**, not a libpq connection string or network 
 
 ### Physical sessions
 
-Each physical connection has independent `application_name` and
-`client_min_messages` state. Hold
+Each physical connection has independent typed session-setting state. Hold
 `*sql.Conn` to target that session; a `*sql.DB` may dispatch to any physical
 connection. Borrower Close returns it to the pool: healthy pool reuse preserves
 its settings and identity, without implicit RESET, DISCARD or rollback.
-Physical replacement starts with empty application_name and does not erase data.
+Physical replacement starts with captured defaults and does not erase data.
 Canceled statements, canceled pool-reuse checks and normal SQL errors leave
 healthy sessions reusable, preserving physical identity and settings.
 Explicit physical close drains operations and releases only that session's
 owners; runtime abandonment cleanup is nondeterministic best effort.
 
-`SET [SESSION] application_name {TO | =} value` and `SHOW application_name`
-use the ordinary direct/prepared execution route. Values are strings using the
+`SET [SESSION] name {TO | =} value`, `RESET name`, `RESET ALL`, `SHOW name`,
+and `SHOW ALL` use the ordinary direct/prepared execution route. Names are
+ASCII-case-insensitive, including dotted custom names. SET values use the
 existing ordinary/`E'...'`/`U&'...'`/dollar-quoted literal lexer, identifiers, booleans, signed
-decimal-digit integer tokens or bare DEFAULT. DEFAULT
-restores the captured physical-session default; quoted 'DEFAULT' is literal.
-SHOW returns one string row with column application_name and type TEXT.
-Both SET and Exec of SHOW affect zero rows; SHOW snapshot cardinality is not a
-command count. Unsigned decimal tokens fitting PostgreSQL's int32 scanner range
+decimal-digit integer tokens or bare DEFAULT. DEFAULT and RESET restore
+the captured physical-session default; quoted 'DEFAULT' is literal text.
+SHOW returns one string row with the canonical setting-name TEXT column.
+SHOW ALL returns sorted `name,setting,description` TEXT columns for the exact
+supported registry, **not** PostgreSQL's entire parameter catalog.
+SET/RESET and Exec of SHOW affect zero rows. The selected FROM-less calls
+`SELECT current_setting(text)` and `SELECT set_config(text,text,boolean)`
+return one nullable TEXT row, with affected count one for Exec.
+Function arguments accept strings, NULL, booleans in the third position,
+and positional parameters through the existing binder. NULL current_setting
+returns SQL NULL; NULL set_config name fails 22004; NULL value resets;
+NULL is_local means false. Same-type repeated parameters work, gaps fail
+42P18 and mixed-type repeated parameters remain unsupported 0A000.
+Unsigned decimal tokens fitting PostgreSQL's int32 scanner range
 are formatted canonically; larger tokens retain their original digits (including
 leading zeros), with unary minus prepended and unary plus omitted.
 Unquoted radix-prefixed and underscore-separated numeric setting values,
 including signed forms, are unsupported (`0A000`) and cannot mutate settings.
-Quoted `'1_000'` and `'0x2a'` remain literal strings. This setting-specific
-boundary does not change the shared lexer's INSERT/SELECT numeric support.
-Values clip original UTF8 to 63 bytes before escaping nonprintable/non-ASCII
+Quoted `'0x2a'`, fractions and exponents reach the full typed setting input
+rules; quoted `'1_000'` is valid text but invalid numeric configuration input.
+Unquoted floating/exponent SET syntax remains unsupported. These deliberate
+setting-grammar boundaries do not change INSERT/SELECT numeric support.
+The application_name value clips original UTF8 to 63 bytes before escaping nonprintable/non-ASCII
 bytes as lowercase literal `\xNN`. Clipping succeeds and emits a structured
 NOTICE when a connector handler is configured and the session filter permits it.
 SET reuses the existing literal decoding rules below: for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-This is not full PostgreSQL setting syntax: LOCAL scope, general RESET, SHOW ALL, other
-built-ins besides client_min_messages, dotted custom GUCs and floating/exponent numbers remain
-unsupported. NULL, parameters and unquoted reserved TO are syntax errors;
-quoted "to" remains an identifier. Comma lists fail 22023 before setting lookup,
-with the supplied name retained in the diagnostic. Unknown undotted scalar
-names fail 42704; messages interpolate decoded names between literal double
-quotes without Go string escaping.
-The nonreserved name `local` still parses in `SET local TO value` and
-`SET SESSION local = value` (then fails unknown-setting lookup with `42704`);
-it is not silently interpreted as LOCAL scope or SET ROLE.
-No logical database/admission, named SQL prepared resources, cursors,
-temporary objects or advisory locks are implied. Native Reset/Restore
-preserve session settings;
-Dump excludes them. Anonymous retained SHOW/SELECT results outlive session end.
-Internal immutable setting definitions/default providers and exactly-once
-resource Attach/quiescent Detach are extension hooks, not implementations of
-these future resources.
+Supported builtins are deliberately bounded:
+
+| Name | Default / access | Actual behavior |
+| --- | --- | --- |
+| application_name | empty / session | Normalized descriptive session value |
+| client_min_messages | notice / session | Filters structured connector notices; debug aliases debug2 |
+| standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
+| statement_timeout | 0 / session | Millisecond command-admission timer covering parse, Prepare and Execute |
+| server_encoding | UTF8 / read-only | Actual UTF8 invariant; writes and individual RESET fail 55P02 |
+| log_statement_stats | off / privileged | Deny-only: all writes and individual RESET fail 42501; no logging activation |
+
+Prepared literals retain Prepare-time string mode; prepared SHOW/functions read
+Execute-time values. Timeout changes apply to the *next* command. Only the
+engine's own timer returns 57014 `canceling statement due to statement timeout`;
+caller cancellation/deadlines remain ordinary context errors. Zero disables
+the timer. RESET ALL resets session-settable definitions and placeholders,
+skipping read-only and privileged definitions.
+
+With `standard_conforming_strings=off`, a `U&'...'` string opener immediately
+fails with 0A000 `unsafe use of string constant with Unicode escapes`, before
+reading its body or UESCAPE clause. The Detail explains the off-mode restriction;
+Position identifies the initial U in characters, not UTF8 bytes. Unicode escaped
+identifiers (`U&"..."`) remain allowed. E and dollar strings are independent of
+this mode. Preparing a Unicode string while on captures its decoded value:
+switching off before Execute does not reparse or reject that prepared literal.
+
+Before the first `OpenConnector`, register custom typed session configuration:
+
+```go
+d := stuntgres.NewDriver()
+err := d.RegisterSetting(stuntgres.SettingDefinition{
+    Name: "demo.memory", Description: "Session memory budget",
+    Type: stuntgres.SettingInteger, Unit: stuntgres.SettingKilobytes,
+    Default: "1024", IntegerMin: 0, IntegerMax: 2147483647,
+})
+// Handle err, then use d.OpenConnector and sql.OpenDB.
+```
+
+`SettingBoolean`, `SettingString`, `SettingInteger`, `SettingFloating`, and
+`SettingEnum` use shared input/default/display rules. Access is
+`SettingSession`, `SettingReadOnly`, or deny-only `SettingPrivileged`.
+Numeric bounds are inclusive and explicit: zero/zero means exactly zero.
+Enums copy `EnumValues` and display registered canonical spellings.
+Numeric units are `SettingUnitNone`, `SettingBytes`, `SettingKilobytes`,
+`SettingMegabytes`, `SettingMilliseconds`, `SettingSeconds`, `SettingMinutes`.
+Memory inputs accept case-sensitive B/kB/MB/GB/TB, time inputs us/ms/s/min/h/d.
+Integer fractions use ties-to-even rounding with PostgreSQL unit conversion;
+floating display uses six significant digits. Registry publication is immutable
+and frozen at first Engine construction, even without Ping, and stays frozen
+after pools close. Different Drivers isolate registrations.
+Registration rejects irrelevant numeric bounds, units on nonnumeric kinds,
+invalid UTF8/NUL metadata, nonfinite floating bounds and duplicate enum values.
+Definitions and enum slices are owned copies. The globally sql-registered Driver
+cannot be configured retroactively; use NewDriver, RegisterSetting, OpenConnector
+and sql.OpenDB in that order for custom definitions.
+
+Numeric text follows PostgreSQL's prefix rules: integer `010` is octal8, while
+`010.5` falls back to decimal input and rounds to10; `08.5` and `0x1p0` do not
+trigger integer fallback. Exact hexadecimal subnormals such as `0x1p-1074` and
+exact decimal subnormals are accepted for floating settings: decimal digits of
+`5^1023` followed by `e-1023` represent exactly `2^-1023` and display as
+`1.11254e-308`. Inexact subnormal rounding, nonzero values rounded to zero,
+NaN and overflow reject; defaults follow the same exactness rule.
+Infinity reaches the registered finite bounds and reports a range diagnostic
+using PostgreSQL's canonical `Infinity` / `-Infinity` spelling, regardless of
+the accepted input alias (`inf`, `Infinity`, or case variants).
+Invalid numeric input never publishes an override. The native BOOL argument
+importer reports 22P02 with empty Position/Context; real PostgreSQL Bind adds its
+portal-parameter Context. Literal BOOL errors instead identify the SQL literal.
+
+Unknown valid dotted SET/set_config names create session-local text placeholders
+with empty reset defaults, hidden from SHOW ALL. RESET can create a placeholder;
+SHOW/current_setting never create one. Physical replacement drops placeholder
+knowledge. Registered custom definitions are typed from the outset and visible
+in SHOW ALL; they express session configuration storage, not invented planner
+or process effects.
+
+SET LOCAL and set_config(...,true) fail native-only 0A000 before mutation.
+These settings add no transaction restoration, role/grant authority, file defaults,
+ALTER SYSTEM, reload, server-start or shell-option effects. Existing role/ACL
+and driver READ COMMITTED capabilities remain separate. Explicit transactions
+reject SET/RESET/SHOW and the selected setting calls with native 0A000 before
+mutation; SET LOCAL is not a transaction restoration implementation.
+Unsupported builtin names (including work_mem/search_path/random_page_cost) remain 42704.
+The two selected calls do not introduce general functions, casts, aliases or
+expressions. NULL/parameters remain invalid **SET scalar syntax**; use
+set_config for bound values. Comma lists fail 22023 before lookup.
+The nonreserved name local remains a parameter name in `SET local TO value`
+and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
+Native Reset/Restore preserve live settings and use default-on parsing;
+Dump excludes settings. Retained SHOW/SELECT snapshots outlive session end.
+
+Run `go run ./cmd/settings-smoke` and
+`go test -tags=reference -run '^TestReferenceSettings' -count=1 -v .`.
+The reference suite separately executes real PostgreSQL numeric/enum settings,
+non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
+placeholders are never claimed to validate native typed registrations.
+The native smoke also asserts direct/prepared explicit-transaction settings
+rejection, subsequent 25P02, rollback with unchanged settings on the same physical
+connection, and fixed read-only/deny-only access for both bootstrap postgres and
+an ordinary authenticated role. These checks precede the existing access label;
+they do not add transaction-local settings or privilege-grant mechanisms.
+
+Settings smoke prints after the corresponding independent assertions:
+
+```text
+settings exact decimal subnormal: SET set_config defaults=1.11254e-308, underflow rejected
+typed settings: bool string integer floating enum
+setting units and bounds: normalized
+settings SQL: SET RESET SHOW SHOW ALL current_setting set_config
+settings parser mode: captured at prepare
+settings timeout: 57014, session healthy
+settings access: 55P02 42501, unsupported local=0A000
+settings lifecycle: reuse retained, replacement defaults, data=7
+```
 
 ### Notices and warnings
 
@@ -187,7 +296,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid command or Prepare after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE, SET or SHOW | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
+| Explicit CREATE, SET, RESET, SHOW or selected setting calls | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported isolation / read-only option | Ordinary `stuntgres: unsupported transaction isolation level` / `stuntgres: read-only transactions are unsupported`, before state change |
@@ -223,7 +332,7 @@ preparation) to finish before advancing the catalog epoch, then fences old expli
 transactions from further execution/publication. Standalone CREATE validates
 providers without replacement or publication locks and revalidates its catalog
 epoch at installation; replacement during validation returns `ErrCatalogReplaced`.
-SET/SHOW do not retain row-work replacement admission or publish row writes.
+SET/RESET/SHOW and selected setting calls do not retain row-work replacement admission or publish row writes.
 Their session preflight precedes setting installation/SHOW capture; once complete,
 later cancellation or catalog replacement does not turn that success into failure.
 Concurrent self catalog replacement preserves completed inserts without retrying SQL. Failed, canceled
@@ -417,7 +526,7 @@ NULLS ordering is admitted only when the next actual unquoted keyword token is F
 
 Run `go run ./cmd/identifier-smoke` for direct/prepared contextual names, complete diagnostics and native control round trips. It prints exactly `identifiers: categories, contexts, diagnostics and round trips OK` only after all assertions succeed. Pinned real-reference fixtures are `go test -tags reference -run '^TestReferenceIdentifier.*$' -count=1 -v .`; alias-valid queries deliberately assert PostgreSQL rows and native unsupported diagnostics separately.
 
-Unicode escaped constants `U&'\0041'` and quoted identifiers `U&"\0041"` decode to `A`, preserving quoted-name case. Four hexadecimal digits or `+` and six digits specify a scalar; adjacent high/low surrogate escapes combine (for example `U&'\D83D\DE00'` is 😀). Doubling the escape character yields it literally. Optional `UESCAPE '!'` selects exactly one byte other than hexadecimal digits, `+`, either quote or scanner whitespace; normally decoded E/dollar strings are also valid arguments. Bare newline-separated string segments concatenate before Unicode decoding. Names clip decoded UTF8 at 63 bytes without splitting a character. Standard-conforming strings are fixed behavior here, not a configurable GUC; B/X/N strings remain unsupported.
+Unicode escaped constants `U&'\0041'` and quoted identifiers `U&"\0041"` decode to `A`, preserving quoted-name case. Four hexadecimal digits or `+` and six digits specify a scalar; adjacent high/low surrogate escapes combine (for example `U&'\D83D\DE00'` is 😀). Doubling the escape character yields it literally. Optional `UESCAPE '!'` selects exactly one byte other than hexadecimal digits, `+`, either quote or scanner whitespace; normally decoded E/dollar strings are also valid arguments. Bare newline-separated string segments concatenate before Unicode decoding. Names clip decoded UTF8 at 63 bytes without splitting a character. B/X/N strings remain unsupported.
 
 U& malformed digits, invalid scalar/surrogate values and invalid UESCAPE arguments report `42601`; malformed digits include Hint `Unicode escapes must be \XXXX or \+XXXXXX.` This differs from malformed E-string Unicode's `22025`. Decoder positions follow PostgreSQL's dequoted/concatenated-body arithmetic, so doubled quotes or removed continuation separators can make the cursor precede the raw escape. Raw lookahead lexical failures and UESCAPE argument validation take precedence over body decoding.
 
@@ -426,6 +535,9 @@ Run `go run ./cmd/unicode-escapes-smoke` for direct/prepared Unicode values/name
 ```text
 Unicode escaped constants and identifiers: ok
 ```
+These ordinary-string defaults correspond to standard_conforming_strings=on.
+With the session setting off, ordinary strings use that same escape decoder;
+E strings always use it. Native Restore always uses the default-on parser.
 
 Types are int4/int8/text/bool. Values returned to Go are `int64`, `string`, `bool`, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other. WHERE typed comparisons do not use those assignment casts. Parameters support nil, integer, string, bytes and bool after standard `database/sql` conversion, not floating point or timestamps. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
@@ -504,7 +616,7 @@ Unterminated comments and quoted tokens report PostgreSQL-style English primary 
 
 INSERT target-resolution and assignment diagnostics interpolate decoded identifiers between literal double quotes, matching PostgreSQL diagnostic prose rather than Go escaping or SQL identifier quoting. The feature smoke includes an embedded-quote column mismatch and checks its exact diagnostic and complete sentinel preservation.
 
-Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source and retains existing type-input behavior. B/X/N strings and configurable string GUCs remain unsupported. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
+Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source and retains existing type-input behavior. B/X/N strings remain unsupported; `standard_conforming_strings` is configurable as documented above. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
 
 The focused public proof is `go run ./cmd/string-literals-smoke`; after checking direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary it prints exactly:
 

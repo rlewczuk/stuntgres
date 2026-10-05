@@ -91,14 +91,16 @@ type Session struct {
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
 type Operation struct {
-	self            *Operation
-	session         *Session
-	ctx             context.Context
-	cancel          context.CancelFunc
-	done            bool
-	private         bool
-	notices         []sqlstate.Error
-	noticeThreshold noticeLevel
+	self             *Operation
+	session          *Session
+	ctx              context.Context
+	cancel           context.CancelFunc
+	done             bool
+	private          bool
+	notices          []sqlstate.Error
+	noticeThreshold  noticeLevel
+	timerCancel      context.CancelFunc
+	commandAdmission bool
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {
@@ -133,7 +135,7 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 	_, err := op.Attach(Settings, owner)
 	if err == nil {
 		s.settings = owner
-		err = owner.initialize(op.Context(), e.settingDefinitions(), start.Defaults)
+		err = owner.initialize(op.Context(), e.settingDefinitions(), e.settingsOrder, start.Defaults)
 	}
 	if err == nil {
 		err = authErr
@@ -223,6 +225,9 @@ func (op *Operation) Done() {
 	op.done = true
 	delete(s.operations, op)
 	op.cancel()
+	if op.timerCancel != nil {
+		op.timerCancel()
+	}
 	s.leases--
 	s.cond.Broadcast()
 }

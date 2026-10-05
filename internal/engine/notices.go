@@ -23,7 +23,7 @@ const (
 	levelError
 )
 
-var clientMinMessages = SettingDefinition{Name: "client_min_messages", BootDefault: "notice", Normalize: normalizeClientMinMessages}
+var clientMinMessages = SettingDefinition{Name: "client_min_messages", Type: SettingEnum, BootDefault: "notice", Description: "Sets the message levels that are sent to the client.", EnumValues: []string{"debug5", "debug4", "debug3", "debug2", "debug1", "log", "notice", "warning", "error"}, Normalize: normalizeClientMinMessages}
 
 func messageLevel(value string) (noticeLevel, bool) {
 	switch value {

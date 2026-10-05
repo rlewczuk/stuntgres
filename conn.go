@@ -86,8 +86,8 @@ func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx
 	}
 	return &tx{conn: c, ref: ref}, nil
 }
-func parseOne(query string) (parser.Statement, error) {
-	ss, err := parser.Parse(query)
+func parseOne(query string, options parser.Options) (parser.Statement, error) {
+	ss, err := parser.ParseWithOptions(query, options)
 	if err != nil {
 		return nil, err
 	}
@@ -121,17 +121,19 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	if err != nil {
 		return
 	}
-	op, err := c.session.Acquire(ctx)
+	op, options, err := c.session.AcquireCommand(ctx)
 	if err != nil {
 		return
 	}
 	defer op.Done()
 	scope, err := c.session.Engine().StartStatement(op)
 	if err != nil {
+		err = op.CommandError(err)
 		return
 	}
 	defer func() {
 		err = scope.Finish(err)
+		err = op.CommandError(err)
 		if err != nil && r.Rows != nil {
 			r.Rows.Close()
 			r = engine.Result{}
@@ -145,7 +147,7 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 		}
 	}()
 	if parse {
-		ast, err = parseOne(query)
+		ast, err = parseOne(query, options)
 		if err != nil {
 			return
 		}

@@ -96,6 +96,7 @@ func (*Set) statement() {}
 type Show struct {
 	Name Identifier
 	Pos  Position
+	All  bool
 }
 
 func (*Show) statement() {}
@@ -141,3 +142,18 @@ func (s roleOptionState) add(tok lexeme, login bool) roleOptionState {
 	}
 	return s
 }
+type Reset struct {
+	Name Identifier
+	All  bool
+	Pos  Position
+}
+
+func (*Reset) statement() {}
+
+type SettingCall struct {
+	Name string
+	Args []Value
+	Pos  Position
+}
+
+func (*SettingCall) statement() {}

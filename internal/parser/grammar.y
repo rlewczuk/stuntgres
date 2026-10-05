@@ -21,32 +21,33 @@ package parser
  settingValues []string
  settingValue string
  roleOptions roleOptionState
+ settingName settingName
 }
 %token <tok> IDENT NUMBER STRING PARAM
 %token <tok> '+' '-' '[' ':' '(' '='
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
-%token <tok> SET SHOW SESSION LOCAL TO DEFAULT
+%token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
 %token <tok> IF EXISTS
-%token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION RESET SESSION_USER CURRENT_USER CURRENT_ROLE
-/* In SET scope position, SESSION wins over an empty optional scope.
- * Elsewhere SESSION remains a nonreserved ordinary name. */
+%token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
+/* SET scope keywords win over an empty optional scope. */
 %nonassoc EMPTY_SESSION_SCOPE
-%nonassoc SESSION
-/* A following '(' denotes an unsupported function, not a completed name list. */
+%nonassoc SESSION LOCAL
+/* '(' selects a function path, not a completed ordinary name/name list. */
 %nonassoc NAME_LIST
 %nonassoc '('
-%type <stmt> statement create insert select set show create_role drop_role session_authorization identity_select excluded_role
+%type <stmt> statement create insert select set show reset create_role drop_role session_authorization identity_select excluded_role
 %type <col> column
 %type <cols> columns
 %type <typ> type
 %type <nullable> nullability
-%type <tok> name setting_name role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with suffix unsupported_query nulls_keyword nulls_position
+%type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with suffix unsupported_query nulls_keyword nulls_position
+%type <settingName> setting_name set_name local_setting_name
 %type <targets> insert_columns insert_targets
 %type <objectName> relation_name
 %type <names> names
 %type <rows> rows
-%type <row> row values
+%type <row> row values call_args
 %type <value> value
 %type <selectStmt> projection
 %type <pred> where
@@ -64,27 +65,43 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | insert | select | set | show | create_role | drop_role | session_authorization | identity_select | excluded_role
+statement: create | insert | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | RESET { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
-set: SET optional_session setting_name setting_assignment setting_values { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Values:$5,Pos:$1.pos} }
- | SET optional_session setting_name setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} }
- /* LOCAL remains an ordinary setting name when followed by TO or '='.
-  * Factor it here so SET LOCAL ROLE needs no shift/empty-scope conflict. */
+ | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
+set: SET optional_session set_name setting_assignment setting_values { $$=&Set{Name:$3.identifier(),Values:$5,Pos:$1.pos} }
+ | SET optional_session set_name setting_assignment DEFAULT { $$=&Set{Name:$3.identifier(),Default:true,Pos:$1.pos} }
+ /* LOCAL as a parameter name is distinct from transaction-local scope. */
  | SET LOCAL setting_assignment setting_values { $$=&Set{Name:Identifier{Text:$2.text,Pos:$2.pos},Values:$4,Pos:$1.pos} }
  | SET LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$2.text,Pos:$2.pos},Default:true,Pos:$1.pos} }
  | SET SESSION LOCAL setting_assignment setting_values { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Values:$5,Pos:$1.pos} }
- | SET SESSION LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} } ;
+ | SET SESSION LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} }
+ | SET LOCAL local_setting_name setting_assignment setting_values { sqllex.(*lexer).failAt("0A000","transaction-local settings are unsupported",$2.pos.Offset); return 1 }
+ | SET LOCAL local_setting_name setting_assignment DEFAULT { sqllex.(*lexer).failAt("0A000","transaction-local settings are unsupported",$2.pos.Offset); return 1 } ;
 optional_session: /* empty */ %prec EMPTY_SESSION_SCOPE | SESSION ;
 setting_assignment: TO | '=' ;
 setting_values: setting_value { $$=[]string{$1} } | setting_values ',' setting_value { $$=append($1,$3) } ;
 setting_value: STRING { $$=$1.text } | name { $$=$1.text }
  | TRUE { $$="true" } | FALSE { $$="false" }
+ | ON { $$=$1.text }
  | NUMBER { var ok bool; $$, ok=settingInteger(sqllex,$1,false); if !ok { return 1 } }
  | '+' NUMBER { var ok bool; $$, ok=settingInteger(sqllex,$2,false); if !ok { return 1 } }
  | '-' NUMBER { var ok bool; $$, ok=settingInteger(sqllex,$2,true); if !ok { return 1 } } ;
-show: SHOW name { $$=&Show{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
+show: SHOW setting_name { $$=&Show{Name:$2.identifier(),Pos:$1.pos} }
+ | SHOW ALL { $$=&Show{All:true,Pos:$1.pos} } ;
+reset: RESET set_name { $$=&Reset{Name:$2.identifier(),Pos:$1.pos} }
+ | RESET LOCAL { $$=&Reset{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | RESET ALL { $$=&Reset{All:true,Pos:$1.pos} } ;
+setting_name: name { $$=settingName{first:$1} }
+ | setting_name '.' name { $$=$1; if $$.parts==nil { $$.parts=[]string{$$.first.text,$3.text} } else { $$.parts=append($$.parts,$3.text) } } ;
+set_name: setting_word { $$=settingName{first:$1} }
+ | LOCAL '.' name { $$=settingName{first:$1,parts:[]string{$1.text,$3.text}} }
+ | ROLE '.' name { $$=settingName{first:$1,parts:[]string{$1.text,$3.text}} }
+ | set_name '.' name { $$=$1; if $$.parts==nil { $$.parts=[]string{$$.first.text,$3.text} } else { $$.parts=append($$.parts,$3.text) } } ;
+/* An undotted ROLE after SET LOCAL belongs only to the excluded role command,
+ * never to the setting-name reduction. Dotted ROLE and ordinary LOCAL remain
+ * parameter names, and ROLE stays name-eligible everywhere else. */
+local_setting_name: set_name { $$=$1 }
+ | LOCAL { $$=settingName{first:$1} } ;
 create: CREATE TABLE relation_name '(' columns ')' { $$ = &CreateTable{Name:$3, Columns:$5, Pos:$1.pos} }
  | CREATE TABLE IF NOT EXISTS relation_name '(' columns ')' { $$ = &CreateTable{Name:$6, Columns:$8, Pos:$1.pos, IfNotExists:true} }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
@@ -140,7 +157,9 @@ select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=
  | SELECT projection FROM relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$5.pos.Offset); return 1 }
  | SELECT projection FROM relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$6.pos.Offset); return 1 }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
- | SELECT projection FROM relation_name where order suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 } ;
+ | SELECT projection FROM relation_name where order suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
+ | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } } ;
+call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 projection: '*' { $$ = &Select{Star:true} } | names { $$ = &Select{Columns:$1} }
  | names bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
  | names AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 }
@@ -164,18 +183,20 @@ order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$
 nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
-setting_name: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | INSERT | BY | SET | SHOW | SESSION | IF | EXISTS | DROP | RESET ;
-name: setting_name | ROLE | LOCAL ;
-type_name: IDENT | KW_U | KW_T | KW_C | VALUES | INSERT | BY | SET | SHOW | SESSION | IF | EXISTS | DROP | RESET | LOCAL | ROLE | AUTHORIZATION ;
+/* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
+setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP ;
+name: setting_word | ROLE | LOCAL ;
+type_name: IDENT | KW_U | KW_T | KW_C | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION ;
 generic_word: generic_word_without_with | WITH ;
-generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | IF | EXISTS | LOCAL | AUTHORIZATION ;
+generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
 bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | KW_T { if !$1.keyword.label() { if $1.text=="isnull" || $1.text=="notnull" { sqllex.(*lexer).failAt("0A000","expressions are unsupported",$1.pos.Offset) } else { sqllex.(*lexer).syntax($1) }; return 1 }; $$=$1 }
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
- | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | USER ;
-col_label: name | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | USER | GROUP | WITH ;
-suffix: KW_T | KW_R | INTO | DEFAULT | GROUP | WITH | USER ;
+ | ON { sqllex.(*lexer).syntax($1); return 1 }
+ | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | USER ;
+col_label: name | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | USER | GROUP | WITH ;
+suffix: KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }

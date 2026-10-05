@@ -3,6 +3,7 @@ package parser
 //go:generate go run golang.org/x/tools/cmd/goyacc@v0.50.0 -l -p sql -o grammar_gen.go -v /dev/null grammar.y
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,7 +15,22 @@ import (
 // Parse consumes a complete SQL script. Execution policy (including the
 // single-statement limit for normal driver calls) belongs to the caller.
 func Parse(query string) ([]Statement, error) {
-	l := &lexer{input: query}
+	return ParseWithOptions(query, Options{StandardConformingStrings: true})
+}
+
+// Options are captured per parse; prepared literals retain that parse's mode.
+type Options struct {
+	StandardConformingStrings bool
+	Context                   context.Context
+}
+
+func ParseWithOptions(query string, options Options) ([]Statement, error) {
+	l := &lexer{input: query, options: options, backslashEscapes: !options.StandardConformingStrings}
+	if options.Context != nil {
+		if err := options.Context.Err(); err != nil {
+			return nil, err
+		}
+	}
 	invalidOffset := -1
 	if !utf8.ValidString(query) {
 		for offset := 0; offset < len(query); {
@@ -199,11 +215,11 @@ func (l *lexer) call(callee, opener lexeme) {
 func columnType(l sqlLexer, tok lexeme) (TypeName, bool) {
 	switch tok.text {
 	case "int4":
-		return TypeName{Name:"integer",Pos:tok.pos}, true
+		return TypeName{Name: "integer", Pos: tok.pos}, true
 	case "int8":
-		return TypeName{Name:"bigint",Pos:tok.pos}, true
+		return TypeName{Name: "bigint", Pos: tok.pos}, true
 	case "bool":
-		return TypeName{Name:"boolean",Pos:tok.pos}, true
+		return TypeName{Name: "boolean", Pos: tok.pos}, true
 	}
 	if unsupportedTypes[tok.text] {
 		l.(*lexer).failAt("0A000", "unsupported column type", tok.pos.Offset)
@@ -211,4 +227,38 @@ func columnType(l sqlLexer, tok lexeme) (TypeName, bool) {
 		l.(*lexer).syntax(tok)
 	}
 	return TypeName{}, false
+}
+
+func settingCall(l sqlLexer, name lexeme, args []Value) (Statement, bool) {
+	n := name.text
+	if n != "current_setting" && n != "set_config" {
+		l.(*lexer).failAt("0A000", "functions are unsupported", name.pos.Offset)
+		return nil, false
+	}
+	valid := n == "current_setting" && len(args) == 1 || n == "set_config" && len(args) == 3
+	for i, v := range args {
+		if v.Kind != NullValue && v.Kind != ParameterValue && v.Kind != StringValue && !(i == 2 && v.Kind == BooleanValue) {
+			valid = false
+		}
+	}
+	if !valid {
+		l.(*lexer).failAt("0A000", "unsupported setting function signature", name.pos.Offset)
+		return nil, false
+	}
+	return &SettingCall{Name: n, Args: args, Pos: name.pos}, true
+}
+
+// Accumulate dotted names and join once, avoiding quadratic concatenation.
+// Ordinary one-component settings do not allocate an intermediate slice.
+type settingName struct {
+	first lexeme
+	parts []string
+}
+
+func (n settingName) identifier() Identifier {
+	text := n.first.text
+	if n.parts != nil {
+		text = strings.Join(n.parts, ".")
+	}
+	return Identifier{Text: text, Pos: n.first.pos}
 }

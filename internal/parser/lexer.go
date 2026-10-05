@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
 )
 
@@ -15,6 +16,10 @@ type lexer struct {
 	current            lexeme
 	err                error
 	statements         []Statement
+	options            Options
+	// The raw scanner defaults to standard strings; only explicit parse options
+	// enable legacy backslash escapes and prohibit Unicode string openers.
+	backslashEscapes bool
 	// Failure-only query recognition defers its capability error until the
 	// entire script is syntactically valid. It never publishes a query AST.
 	pendingMessage string
@@ -327,6 +332,12 @@ func (l *lexer) stringLiteral(first int, escape bool) (string, bool) {
 func (l *lexer) parameter(s string) int { n, _ := strconv.ParseInt(s, 10, 32); return int(n) }
 func (l *lexer) scan(v *sqlSymType) int {
 	l.rawUnicode = false
+	if l.options.Context != nil {
+		if err := l.options.Context.Err(); err != nil {
+			l.err = err
+			return 0
+		}
+	}
 	if l.err != nil {
 		return 0
 	}
@@ -345,6 +356,11 @@ func (l *lexer) scan(v *sqlSymType) int {
 	token := 0
 	switch {
 	case (c == 'u' || c == 'U') && start+2 < len(l.input) && l.input[start+1] == '&' && (l.input[start+2] == '\'' || l.input[start+2] == '"'):
+		if l.input[start+2] == '\'' && l.backslashEscapes {
+			l.failAt("0A000", "unsafe use of string constant with Unicode escapes", start)
+			l.err.(*sqlstate.Error).Detail = `String constants with Unicode escapes cannot be used when "standard_conforming_strings" is off.`
+			return 0
+		}
 		l.rawUnicode = true
 		l.offset += 2
 		var s string
@@ -375,12 +391,15 @@ func (l *lexer) scan(v *sqlSymType) int {
 		}
 		l.current.text = truncateName(s)
 		token = IDENT
+		if s == "current_setting" || s == "set_config" {
+			token = SETTING_FUNC
+		}
 	case c == '\'' || (c == 'e' || c == 'E') && start+1 < len(l.input) && l.input[start+1] == '\'':
 		escape := c != '\''
 		if escape {
 			l.offset++
 		}
-		s, ok := l.stringLiteral(start, escape)
+		s, ok := l.stringLiteral(start, escape || l.backslashEscapes)
 		if !ok {
 			return 0
 		}
@@ -506,6 +525,12 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		return 0
 	}
 	token := l.nextRaw()
+	if l.options.Context != nil {
+		if err := l.options.Context.Err(); err != nil {
+			l.err = err
+			return 0
+		}
+	}
 	if l.err == nil && token.code == KW_U && token.lexeme.keyword != nil && token.lexeme.text == "nulls" {
 		// NULLS and Unicode filtering share one raw-token cache. Neither
 		// lookahead decodes Unicode bodies or changes keyword identity.
@@ -549,6 +574,24 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			text = truncateName(text)
 		}
 		token.lexeme.text = text
+	}
+	switch token.lexeme.text {
+	case "current_setting", "set_config":
+		if token.code == IDENT {
+			token.code = SETTING_FUNC
+		}
+	case "reset":
+		if token.lexeme.keyword != nil {
+			token.code = RESET
+		}
+	case "all":
+		if token.lexeme.keyword != nil {
+			token.code = ALL
+		}
+	case "local":
+		if token.lexeme.keyword != nil {
+			token.code = LOCAL
+		}
 	}
 	l.current = token.lexeme
 	v.tok = token.lexeme

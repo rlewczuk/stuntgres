@@ -19,9 +19,11 @@ type Error = sqlstate.Error
 // Driver owns independent databases named by exact, opaque DSN strings.
 // Databases live for the lifetime of their Driver, not their connections.
 type Driver struct {
-	mu          sync.Mutex
-	engines     map[string]*engine.Engine
-	lastSession engine.SessionID
+	mu             sync.Mutex
+	engines        map[string]*engine.Engine
+	lastSession    engine.SessionID
+	settings       []engine.SettingDefinition
+	settingsFrozen bool
 }
 
 func NewDriver() *Driver { return &Driver{} }
@@ -50,7 +52,8 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	}
 	e := d.engines[name]
 	if e == nil {
-		e = engine.New()
+		e = engine.NewWithSettings(d.settings)
+		d.settingsFrozen = true
 		d.engines[name] = e
 	}
 	return &Connector{owner: d, engine: e, authenticatedRole: authenticatedRole}, nil

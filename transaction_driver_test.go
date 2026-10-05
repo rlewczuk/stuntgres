@@ -313,3 +313,61 @@ func TestTransactionRawArgumentRejectionDoesNotAbort(t *testing.T) {
 	}
 	transactionRawValues(t, rows, 1)
 }
+
+func TestSettingsTransactionUtilityBoundary(t *testing.T) {
+	ctx := context.Background()
+	c := transactionRaw(t, NewDriver(), t.Name())
+	transactionRawExec(t, c, "SET application_name TO 'retained'")
+	for _, query := range []string{
+		"RESET application_name", "RESET ALL", "SHOW ALL",
+		"SELECT current_setting('application_name')",
+		"SELECT set_config('application_name','changed',false)",
+	} {
+		for _, mode := range []string{"direct", "prepared", "prepare-in-transaction"} {
+			t.Run(query+"/"+mode, func(t *testing.T) {
+				var statement driver.Stmt
+				var err error
+				if mode == "prepared" {
+					statement, err = c.PrepareContext(ctx, query)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer statement.Close()
+				}
+				tx, err := c.BeginTx(ctx, driver.TxOptions{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				switch mode {
+				case "direct":
+					_, err = c.ExecContext(ctx, query, nil)
+				case "prepared":
+					_, err = statement.(driver.StmtExecContext).ExecContext(ctx, nil)
+				case "prepare-in-transaction":
+					statement, err = c.PrepareContext(ctx, query)
+					if statement != nil {
+						statement.Close()
+					}
+				}
+				settingsDiagnostic(t, err, "0A000", "statement is unsupported in an explicit transaction", "", "", "")
+				if c.session.TransactionState() != engine.TxAborted {
+					t.Fatal("utility failure did not abort admitted transaction")
+				}
+				_, err = c.ExecContext(ctx, "SHOW application_name", nil)
+				settingsDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block", "", "", "")
+				if err = tx.Rollback(); err != nil {
+					t.Fatal(err)
+				}
+				rows, err := c.QueryContext(ctx, "SHOW application_name", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer rows.Close()
+				value := make([]driver.Value, 1)
+				if err = rows.Next(value); err != nil || value[0] != "retained" {
+					t.Fatal(value, err)
+				}
+			})
+		}
+	}
+}

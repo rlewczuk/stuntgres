@@ -31,6 +31,7 @@ type Engine struct {
 	nextPrincipal       uint64
 	importTargets       map[PrincipalRef]PrincipalRef
 	roleReferences      map[string][]PrincipalRef
+	settingsOrder       []string
 }
 type ParameterInfo struct {
 	Count int
@@ -58,7 +59,7 @@ type binding struct {
 }
 
 func New() *Engine {
-	e, err := newEngine(nil)
+	e, err := newEngine(nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -68,13 +69,22 @@ func New() *Engine {
 // NewWithCatalogProviders registers feature-owned catalog providers before
 // installing the builtin namespace descriptors.
 func NewWithCatalogProviders(providers ...CatalogProvider) (*Engine, error) {
-	return newEngine(providers)
+	return newEngine(providers, nil)
 }
 
-func newEngine(providers []CatalogProvider) (*Engine, error) {
+// NewWithSettings consumes definitions validated before driver publication.
+func NewWithSettings(definitions []SettingDefinition) *Engine {
+	e, err := newEngine(nil, definitions)
+	if err != nil {
+		panic(err)
+	}
+	return e
+}
+
+func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*Engine, error) {
 	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
 	e.initializeRoles()
-	e.settingsDefinitions = map[string]SettingDefinition{applicationName.Name: applicationName, clientMinMessages.Name: clientMinMessages}
+	e.initializeSettings(definitions)
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
@@ -168,7 +178,7 @@ func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (Statem
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set:
+	case *parser.CreateTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.IdentitySelect:
 		e.mu.Lock()
@@ -180,14 +190,27 @@ func (e *Engine) describeOperation(op *Operation, stmt parser.Statement) (Statem
 		}
 		return StatementDescription{Results: columns}, nil
 	case *parser.Show:
-		d, err := e.setting(s.Name.Text)
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		op.session.settings.mu.Lock()
+		defer op.session.settings.mu.Unlock()
+		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
+		if s.All {
+			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
+		}
+		d, err := e.sessionSetting(op.session.settings, s.Name.Text, false)
 		if err != nil {
 			return StatementDescription{}, err
 		}
+		return StatementDescription{Results: settingColumns(typ, d.Name)}, nil
+	case *parser.SettingCall:
 		e.mu.Lock()
+		defer e.mu.Unlock()
+		info, _, err := e.describeSettingCall(s)
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
-		e.mu.Unlock()
-		return StatementDescription{Results: []ColumnDescriptor{{Name: d.Name, Usage: typ.Usage()}}}, nil
+		columns := settingColumns(typ, s.Name)
+		columns[0].Nullable = true
+		return StatementDescription{Parameters: info, Results: columns}, err
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -228,22 +251,9 @@ func namespaceForName(view CatalogRead, name parser.ObjectName, creation bool) (
 }
 func (e *Engine) describe(stmt parser.Statement, auth AuthorizationView) (binding, error) {
 	b := binding{predicate: -1, order: -1}
-	used := make(map[int]sqltype.Usage)
+	inference := parameterInference{used: make(map[int]sqltype.Usage)}
 	bind := func(v parser.Value, c ColumnDescriptor, mode sqltype.CoercionContext) (boundValue, error) {
-		if v.Kind != parser.ParameterValue {
-			return e.bindValue(v, c.Usage, mode)
-		}
-		if v.Parameter <= 0 {
-			return boundValue{}, sqlError("42P02", "undefined parameter")
-		}
-		if t, ok := used[v.Parameter]; ok && t.Type != c.Usage.Type {
-			return boundValue{}, sqlError("0A000", "parameter reused with different destination types")
-		}
-		used[v.Parameter] = c.Usage
-		if v.Parameter > b.parameters.Count {
-			b.parameters.Count = v.Parameter
-		}
-		return boundValue{parameter: v.Parameter}, nil
+		return inference.bind(e, v, c, mode)
 	}
 	column := func(name string) (int, error) {
 		i, ok := b.relation.index[name]
@@ -381,12 +391,10 @@ func (e *Engine) describe(stmt parser.Statement, auth AuthorizationView) (bindin
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}
-	if len(used) != b.parameters.Count {
-		return b, sqlError("42P18", "could not determine unused parameter type")
-	}
-	b.parameters.Types = make([]sqltype.Usage, b.parameters.Count)
-	for n, t := range used {
-		b.parameters.Types[n-1] = t
+	var err error
+	b.parameters, err = inference.finish()
+	if err != nil {
+		return b, err
 	}
 	return b, nil
 }
@@ -535,7 +543,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
 	}
-	op.snapshotNoticeThreshold()
+	if !op.commandAdmission {
+		op.snapshotNoticeThreshold()
+	}
 	ctx := op.Context()
 	switch stmt.(type) {
 	case *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.IdentitySelect:
@@ -544,8 +554,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.Set, *parser.Show:
-		return e.executeSetting(scope, stmt, count)
+	case *parser.Set, *parser.Show, *parser.Reset:
+		result, err := e.executeSetting(op, stmt, count)
+		if err == nil {
+			scope.completed = true
+		}
+		return result, err
+	case *parser.SettingCall:
+		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame)
+		if err == nil {
+			scope.completed = true
+		}
+		return result, err
 	}
 	e.mu.Lock()
 	if err := ctx.Err(); err != nil {
@@ -672,6 +692,19 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if importFrame == nil {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
+<<<<<<< HEAD
+=======
+		}
+		if err = importFrame(ctx, b.parameters, canonical); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		for i, v := range canonical {
+			if v.Type() != b.parameters.Types[i].Type {
+				e.mu.Unlock()
+				return Result{}, fmt.Errorf("stuntgres: invalid parameter frame")
+			}
+>>>>>>> 7fb3fb3 (Implement PG18-ADMIN-SETTINGS-CORE: Session setting registry and SQL access)
 		}
 		if err = importFrame(ctx, b.parameters, canonical); err != nil {
 			e.mu.Unlock()
@@ -770,7 +803,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		columns := b.columns()
 		e.mu.Unlock()
 		if err = snap.selectRows(ctx, b.predicate, predicate, b.equality, b.order, b.ordering, s.Order != nil && s.Order.Desc); err != nil {
+<<<<<<< HEAD
 			snap.Close()
+=======
+>>>>>>> 7fb3fb3 (Implement PG18-ADMIN-SETTINGS-CORE: Session setting registry and SQL access)
 			return Result{}, err
 		}
 		return Result{Count: int64(snap.Len()), Columns: columns, Rows: snap}, nil

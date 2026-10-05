@@ -4,33 +4,180 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
+	"sort"
+	"strconv"
 	"strings"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"sync"
 	"unicode/utf8"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+)
+
+type SettingType uint8
+
+const (
+	SettingBoolean SettingType = iota
+	SettingString
+	SettingInteger
+	SettingFloating
+	SettingEnum
+)
+
+type SettingAccess uint8
+
+const (
+	SettingSession SettingAccess = iota
+	SettingReadOnly
+	SettingPrivileged
+)
+
+type SettingUnit uint8
+
+const (
+	SettingUnitNone SettingUnit = iota
+	SettingBytes
+	SettingKilobytes
+	SettingMegabytes
+	SettingMilliseconds
+	SettingSeconds
+	SettingMinutes
 )
 
 // SettingDefinition is immutable shared metadata, never session value storage.
 type SettingDefinition struct {
-	Name        string
-	BootDefault string
-	Normalize   func(string) (string, *sqlstate.Error, error)
+	Name, Description, BootDefault string
+	Type                           SettingType
+	Access                         SettingAccess
+	Unit                           SettingUnit
+	IntegerMin, IntegerMax         int32
+	FloatMin, FloatMax             float64
+	EnumValues                     []string
+	// Normalize is reserved for builtin behavior; registration has no callbacks.
+	Normalize func(string) (string, *sqlstate.Error, error)
+	bootValue settingValue
 }
 
-// SessionDefaultProvider is evaluated once per definition at physical
-// initialization, in unspecified order. Absence selects that definition's boot
-// default; DEFAULT restores the captured value without calling the provider again.
+// SessionDefaultProvider is evaluated once per definition at physical creation.
+// DEFAULT and RESET restore that captured default, not a live provider value.
 type SessionDefaultProvider interface {
 	SessionDefault(context.Context, SettingDefinition) (string, bool, error)
 }
 
-var applicationName = SettingDefinition{Name: "application_name", Normalize: normalizeApplicationName}
+var applicationName = SettingDefinition{
+	Name: "application_name", Type: SettingString,
+	Description: "Sets the application name to be reported in statistics and logs.",
+	Normalize:   normalizeApplicationName,
+}
+var builtinSettings = []SettingDefinition{
+	applicationName,
+	clientMinMessages,
+	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},
+	{Name: "server_encoding", Type: SettingString, Access: SettingReadOnly, BootDefault: "UTF8", Description: "Shows the server (database) character set encoding."},
+	{Name: "standard_conforming_strings", Type: SettingBoolean, BootDefault: "on", Description: "Causes '...' strings to treat backslashes literally."},
+	{Name: "statement_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any statement."},
+}
+
+func RegistrationError(message string) error { return errors.New("stuntgres: " + message) }
+
+func settingFold(s string) string {
+	for i := range len(s) {
+		if s[i] >= 'A' && s[i] <= 'Z' {
+			b := []byte(s)
+			for j := i; j < len(b); j++ {
+				if b[j] >= 'A' && b[j] <= 'Z' {
+					b[j] += 'a' - 'A'
+				}
+			}
+			return string(b)
+		}
+	}
+	return s
+}
+
+func customName(name string) bool {
+	if !utf8.ValidString(name) || !strings.Contains(name, ".") {
+		return false
+	}
+	for _, part := range strings.Split(name, ".") {
+		if part == "" {
+			return false
+		}
+		for i := range len(part) {
+			c := part[i]
+			if !(c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 128 || i > 0 && (c >= '0' && c <= '9' || c == '$')) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// ValidateSetting returns an owned definition without publishing partial state.
+func ValidateSetting(d SettingDefinition) (SettingDefinition, error) {
+	d.Name = settingFold(d.Name)
+	if !customName(d.Name) || d.Type > SettingEnum || d.Access > SettingPrivileged || d.Unit > SettingMinutes || !utf8.ValidString(d.Description) || strings.IndexByte(d.Description, 0) >= 0 {
+		return d, RegistrationError("invalid setting definition")
+	}
+	if d.Unit != SettingUnitNone && d.Type != SettingInteger && d.Type != SettingFloating {
+		return d, RegistrationError("units require a numeric setting")
+	}
+	if d.Type == SettingInteger && d.IntegerMin > d.IntegerMax || d.Type == SettingFloating && (math.IsNaN(d.FloatMin) || math.IsNaN(d.FloatMax) || math.IsInf(d.FloatMin, 0) || math.IsInf(d.FloatMax, 0) || d.FloatMin > d.FloatMax) {
+		return d, RegistrationError("invalid setting bounds")
+	}
+	if d.Type != SettingInteger && (d.IntegerMin != 0 || d.IntegerMax != 0) || d.Type != SettingFloating && (d.FloatMin != 0 || d.FloatMax != 0) {
+		return d, RegistrationError("bounds require the corresponding numeric setting type")
+	}
+	d.EnumValues = append([]string(nil), d.EnumValues...)
+	if d.Type == SettingEnum {
+		if len(d.EnumValues) == 0 {
+			return d, RegistrationError("empty setting enum")
+		}
+		seen := make(map[string]bool, len(d.EnumValues))
+		for _, value := range d.EnumValues {
+			key := settingFold(value)
+			if value == "" || !utf8.ValidString(value) || strings.IndexByte(value, 0) >= 0 || seen[key] {
+				return d, RegistrationError("invalid setting enum")
+			}
+			seen[key] = true
+		}
+	} else if len(d.EnumValues) != 0 {
+		return d, RegistrationError("enum values require an enum setting")
+	}
+	v, err := d.parse(d.BootDefault)
+	if err != nil {
+		return d, RegistrationError("invalid setting default: " + err.Error())
+	}
+	d.bootValue = v
+	d.BootDefault = d.format(v)
+	return d, nil
+}
+
+func (e *Engine) initializeSettings(defs []SettingDefinition) {
+	e.settingsDefinitions = make(map[string]SettingDefinition, len(builtinSettings)+len(defs))
+	for i, list := range [][]SettingDefinition{builtinSettings, defs} {
+		for _, d := range list {
+			if i == 0 {
+				v, err := d.parse(d.BootDefault)
+				if err != nil {
+					panic(err)
+				} // Builtin definitions are source-owned constants.
+				d.bootValue = v
+				d.BootDefault = d.format(v)
+			}
+			e.settingsDefinitions[d.Name] = d
+			e.settingsOrder = append(e.settingsOrder, d.Name)
+		}
+	}
+	sort.Strings(e.settingsOrder)
+}
 
 func (e *Engine) settingDefinitions() map[string]SettingDefinition { return e.settingsDefinitions }
 func (e *Engine) setting(name string) (SettingDefinition, error) {
-	if d, ok := e.settingsDefinitions[strings.ToLower(name)]; ok {
+	if d, ok := e.settingsDefinitions[settingFold(name)]; ok {
 		return d, nil
 	}
 	return SettingDefinition{}, sqlError("42704", fmt.Sprintf(`unrecognized configuration parameter "%s"`, name))
@@ -73,33 +220,432 @@ func normalizeApplicationName(value string) (string, *sqlstate.Error, error) {
 	return b.String(), notice, nil
 }
 
-type sessionSettings struct {
-	mu       sync.Mutex
-	defaults map[string]string
-	values   map[string]string
-	ended    bool
+type settingValue struct {
+	text    string
+	number  float64
+	boolean bool
 }
 
-func (s *sessionSettings) initialize(ctx context.Context, definitions map[string]SettingDefinition, provider SessionDefaultProvider) error {
-	for _, d := range definitions {
-		value := d.BootDefault
+func settingDiagnostic(message, hint string) error {
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: message, Hint: hint}
+}
+func (d SettingDefinition) invalid(input, hint string) error {
+	return settingDiagnostic(fmt.Sprintf(`invalid value for parameter "%s": "%s"`, d.Name, input), hint)
+}
+
+func (d SettingDefinition) parse(input string) (settingValue, error) {
+	v := settingValue{}
+	switch d.Type {
+	case SettingString:
+		if !utf8.ValidString(input) || strings.IndexByte(input, 0) >= 0 {
+			return v, errors.New("stuntgres: invalid UTF-8 or NUL setting")
+		}
+		v.text = input
+		if d.Normalize != nil {
+			var err error
+			v.text, _, err = d.Normalize(input)
+			return v, err
+		}
+		return v, nil
+	case SettingBoolean:
+		s := settingFold(input)
+		if s == "1" {
+			v.boolean = true
+			return v, nil
+		}
+		if s == "0" {
+			return v, nil
+		}
+		if s != "" && s != "o" {
+			for _, word := range []string{"true", "yes", "on"} {
+				if strings.HasPrefix(word, s) {
+					v.boolean = true
+					return v, nil
+				}
+			}
+			for _, word := range []string{"false", "no", "off"} {
+				if strings.HasPrefix(word, s) {
+					return v, nil
+				}
+			}
+		}
+		return v, settingDiagnostic(fmt.Sprintf(`parameter "%s" requires a Boolean value`, d.Name), "")
+	case SettingEnum:
+		key := settingFold(input)
+		if d.Normalize != nil {
+			var err error
+			v.text, _, err = d.Normalize(input)
+			return v, err
+		}
+		for _, word := range d.EnumValues {
+			if settingFold(word) == key {
+				v.text = word
+				return v, nil
+			}
+		}
+		return v, d.invalid(input, "Available values: "+strings.Join(d.EnumValues, ", ")+".")
+	}
+	number, suffix, ok := settingNumber(input, d.Type == SettingInteger)
+	if !ok {
+		return v, d.invalid(input, "")
+	}
+	if d.Unit != SettingUnitNone {
+		number, ok = convertSettingUnit(number, suffix, d.Unit)
+		if !ok {
+			return v, d.invalid(input, unitHint(d.Unit))
+		}
+	} else if suffix != "" {
+		return v, d.invalid(input, "")
+	}
+	if d.Type == SettingInteger {
+		number = math.RoundToEven(number)
+		if number == 0 {
+			number = 0
+		} // Integer negative zero displays as zero.
+		if math.IsInf(number, 0) || number < math.MinInt32 || number > math.MaxInt32 {
+			return v, d.invalid(input, "Value exceeds integer range.")
+		}
+		if number < float64(d.IntegerMin) || number > float64(d.IntegerMax) {
+			return v, settingDiagnostic(fmt.Sprintf(`%s%s is outside the valid range for parameter "%s" (%d%s .. %d%s)`, strconv.FormatFloat(number, 'f', 0, 64), baseUnitLabel(d.Unit), d.Name, d.IntegerMin, baseUnitLabel(d.Unit), d.IntegerMax, baseUnitLabel(d.Unit)), "")
+		}
+	} else if number < d.FloatMin || number > d.FloatMax {
+		return v, settingDiagnostic(fmt.Sprintf(`%s%s is outside the valid range for parameter "%s" (%s%s .. %s%s)`, settingRealText(number), baseUnitLabel(d.Unit), d.Name, settingRealText(d.FloatMin), baseUnitLabel(d.Unit), settingRealText(d.FloatMax), baseUnitLabel(d.Unit)), "")
+	}
+	v.number = number
+	return v, nil
+}
+
+func settingRealText(n float64) string {
+	if math.IsInf(n, 1) {
+		return "Infinity"
+	}
+	if math.IsInf(n, -1) {
+		return "-Infinity"
+	}
+	return strconv.FormatFloat(n, 'g', 6, 64)
+}
+
+// Scan the numeric prefix separately from its unit. Integer input first uses
+// strtol(base 0), falling back to strtod for fractions/exponents or overflow.
+func settingNumber(input string, integer bool) (float64, string, bool) {
+	s := strings.TrimLeft(input, " \t\n\r\v\f")
+	if s == "" {
+		return 0, "", false
+	}
+	i := 0
+	if s[i] == '+' || s[i] == '-' {
+		i++
+		if i == len(s) {
+			return 0, "", false
+		}
+	}
+	if integer {
+		// strtol's actual stopping point matters: 08.5 and 0x1p0 do not
+		// trigger its decimal-point/e fallback, whereas 010.5 does.
+		base, start := 10, i
+		if s[i] == '0' {
+			base = 8
+			if i+2 < len(s) && (s[i+1] == 'x' || s[i+1] == 'X') && settingDigit(s[i+2]) >= 0 {
+				base = 16
+				start = i + 2
+			}
+		}
+		end := start
+		for end < len(s) {
+			digit := settingDigit(s[end])
+			if digit < 0 || digit >= base {
+				break
+			}
+			end++
+		}
+		if end == start {
+			if input[0] != '.' && input[0] != 'e' && input[0] != 'E' {
+				return 0, "", false
+			}
+		} else {
+			n, err := strconv.ParseInt(s[:end], 0, 64)
+			overflow := false
+			if err != nil {
+				ne, yes := err.(*strconv.NumError)
+				if !yes || ne.Err != strconv.ErrRange {
+					return 0, "", false
+				}
+				overflow = true
+			}
+			if !overflow && (end == len(s) || s[end] != '.' && s[end] != 'e' && s[end] != 'E') {
+				return float64(n), strings.Trim(s[end:], " \t\n\r\v\f"), true
+			}
+		}
+	}
+	if !integer && (s[i] == 'i' || s[i] == 'I') {
+		for _, word := range []string{"infinity", "inf"} {
+			if len(s)-i >= len(word) && strings.EqualFold(s[i:i+len(word)], word) {
+				sign := 1
+				if s[0] == '-' {
+					sign = -1
+				}
+				return math.Inf(sign), strings.Trim(s[i+len(word):], " \t\n\r\v\f"), true
+			}
+		}
+	}
+	start := i
+	numberStart := i
+	hex := i+2 <= len(s) && s[i] == '0' && (s[i+1] == 'x' || s[i+1] == 'X')
+	if hex {
+		i += 2
+		start = i
+	}
+	digit := func(c byte) bool {
+		return c >= '0' && c <= '9' || hex && (c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F')
+	}
+	for i < len(s) && digit(s[i]) {
+		i++
+	}
+	digits := i - start
+	if i < len(s) && s[i] == '.' {
+		i++
+		start = i
+		for i < len(s) && digit(s[i]) {
+			i++
+		}
+		digits += i - start
+	}
+	if digits == 0 {
+		if hex {
+			return 0, strings.Trim(s[numberStart+1:], " \t\n\r\v\f"), true
+		}
+		return 0, "", false
+	}
+	mantissaEnd := i
+	if i < len(s) && (!hex && (s[i] == 'e' || s[i] == 'E') || hex && (s[i] == 'p' || s[i] == 'P')) {
+		i++
+		if i < len(s) && (s[i] == '+' || s[i] == '-') {
+			i++
+		}
+		start = i
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			i++
+		}
+		if i == start {
+			i = mantissaEnd
+		}
+	}
+	token := s[:i]
+	suffix := strings.Trim(s[i:], " \t\n\r\v\f")
+	if hex && !strings.ContainsAny(token, "pP") {
+		token += "p0"
+	}
+	n, err := strconv.ParseFloat(token, 64)
+	if err != nil {
+		return 0, "", false
+	}
+	if n != 0 && math.Abs(n) < 0x1p-1022 {
+		exact := false
+		if hex {
+			exact = exactHexSubnormal(s[:mantissaEnd], token[mantissaEnd+1:])
+		} else {
+			// Only the exceptional decimal-subnormal path needs arbitrary
+			// precision: strtod reports ERANGE if conversion discarded bits.
+			var decimal, binary big.Rat
+			_, valid := decimal.SetString(token)
+			exact = valid && decimal.Cmp(binary.SetFloat64(n)) == 0
+		}
+		if !exact {
+			return 0, "", false
+		}
+	}
+	// Go does not report all strtod underflows. Reject a nonzero mantissa
+	// rounded to zero, rather than silently accepting a different setting.
+	if n == 0 {
+		for _, c := range s[:mantissaEnd] {
+			if c >= '1' && c <= '9' || hex && (c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+				return 0, "", false
+			}
+		}
+	}
+	return n, suffix, err == nil && !math.IsNaN(n)
+}
+
+func settingDigit(c byte) int {
+	switch {
+	case c >= '0' && c <= '9':
+		return int(c - '0')
+	case c >= 'a' && c <= 'f':
+		return int(c-'a') + 10
+	case c >= 'A' && c <= 'F':
+		return int(c-'A') + 10
+	}
+	return -1
+}
+
+// strtod accepts exact hexadecimal subnormals, but reports ERANGE when a
+// nonzero bit below the 2^-1074 grid was lost to rounding.
+func exactHexSubnormal(mantissa, exponent string) bool {
+	exp, err := strconv.ParseInt(exponent, 10, 64)
+	if err != nil {
+		return false
+	}
+	if mantissa[0] == '+' || mantissa[0] == '-' {
+		mantissa = mantissa[1:]
+	}
+	mantissa = mantissa[2:]
+	integerDigits := strings.IndexByte(mantissa, '.')
+	if integerDigits < 0 {
+		integerDigits = len(mantissa)
+	}
+	position, last, nibble := 0, -1, 0
+	for i := range len(mantissa) {
+		if mantissa[i] == '.' {
+			continue
+		}
+		digit := settingDigit(mantissa[i])
+		if digit > 0 {
+			last = position
+			nibble = digit
+		}
+		position++
+	}
+	if last < 0 {
+		return true
+	}
+	exp += 4 * int64(integerDigits-last-1)
+	for nibble&1 == 0 {
+		exp++
+		nibble >>= 1
+	}
+	return exp >= -1074
+}
+
+type unitEntry struct {
+	name   string
+	factor float64
+}
+
+var memoryUnits = []unitEntry{{"TB", 1 << 40}, {"GB", 1 << 30}, {"MB", 1 << 20}, {"kB", 1 << 10}, {"B", 1}}
+var timeUnits = []unitEntry{{"d", 86400000000}, {"h", 3600000000}, {"min", 60000000}, {"s", 1000000}, {"ms", 1000}, {"us", 1}}
+
+func unitTable(u SettingUnit) ([]unitEntry, float64, string) {
+	switch u {
+	case SettingBytes:
+		return memoryUnits, 1, "B"
+	case SettingKilobytes:
+		return memoryUnits, 1024, "kB"
+	case SettingMegabytes:
+		return memoryUnits, 1 << 20, "MB"
+	case SettingMilliseconds:
+		return timeUnits, 1000, "ms"
+	case SettingSeconds:
+		return timeUnits, 1000000, "s"
+	case SettingMinutes:
+		return timeUnits, 60000000, "min"
+	}
+	return nil, 1, ""
+}
+func baseUnitLabel(u SettingUnit) string {
+	_, _, name := unitTable(u)
+	if name != "" {
+		return " " + name
+	}
+	return ""
+}
+func unitHint(u SettingUnit) string {
+	if u <= SettingMegabytes {
+		return `Valid units for this parameter are "B", "kB", "MB", "GB", and "TB".`
+	}
+	return `Valid units for this parameter are "us", "ms", "s", "min", "h", and "d".`
+}
+func convertSettingUnit(n float64, suffix string, u SettingUnit) (float64, bool) {
+	table, base, _ := unitTable(u)
+	if suffix == "" {
+		return n, true
+	}
+	for i, unit := range table {
+		if unit.name == suffix {
+			n *= unit.factor / base
+			if i+1 < len(table) {
+				smaller := table[i+1].factor / base
+				n = math.RoundToEven(n/smaller) * smaller
+			}
+			return n, true
+		}
+	}
+	return 0, false
+}
+func (d SettingDefinition) format(v settingValue) string {
+	switch d.Type {
+	case SettingBoolean:
+		if v.boolean {
+			return "on"
+		}
+		return "off"
+	case SettingString, SettingEnum:
+		return v.text
+	}
+	n := v.number
+	suffix := ""
+	if d.Unit != SettingUnitNone && n > 0 {
+		table, base, _ := unitTable(d.Unit)
+		for _, unit := range table {
+			q := v.number / (unit.factor / base)
+			if d.Type == SettingFloating {
+				n = q
+				suffix = unit.name
+				if q > 0 && math.Abs(math.RoundToEven(q)/q-1) <= 1e-8 {
+					break
+				}
+			} else if q == math.Trunc(q) {
+				n = q
+				suffix = unit.name
+				break
+			}
+		}
+	}
+	if d.Type == SettingInteger {
+		return strconv.FormatFloat(n, 'f', 0, 64) + suffix
+	}
+	return settingRealText(n) + suffix
+}
+
+type sessionSettings struct {
+	mu               sync.Mutex
+	defaults, values map[string]string
+	// typed contains only overrides; captured defaults never require reparsing.
+	typed, defaultTyped map[string]settingValue
+	placeholders        map[string]bool
+	ended               bool
+}
+
+func (s *sessionSettings) initialize(ctx context.Context, definitions map[string]SettingDefinition, names []string, provider SessionDefaultProvider) error {
+	s.typed = make(map[string]settingValue)
+	s.defaultTyped = make(map[string]settingValue)
+	s.placeholders = make(map[string]bool)
+	for _, name := range names {
+		d := definitions[name]
+		v := d.bootValue
+		normalized := d.BootDefault
 		if provider != nil {
-			v, present, err := provider.SessionDefault(ctx, d)
+			copy := d
+			copy.EnumValues = append([]string(nil), d.EnumValues...)
+			input, present, err := provider.SessionDefault(ctx, copy)
 			if err != nil {
 				return err
 			}
 			if present {
-				value = v
+				v, err = d.parse(input)
+				if err != nil {
+					return err
+				}
+				normalized = d.format(v)
 			}
 		}
-		normalized, _, err := d.Normalize(value)
-		if err != nil {
-			return err
+		if (d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != d.BootDefault {
+			return RegistrationError("default provider cannot change " + d.Name)
 		}
-		if err = ctx.Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return err
 		}
 		s.defaults[d.Name] = normalized
+		s.defaultTyped[d.Name] = v
 	}
 	return nil
 }
@@ -109,34 +655,89 @@ func (s *sessionSettings) EndSession(_ SessionToken, _ EndReason) error {
 	s.ended = true
 	s.defaults = nil
 	s.values = nil
+	s.typed = nil
+	s.defaultTyped = nil
+	s.placeholders = nil
 	return nil
 }
-func (e *Engine) executeSetting(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
-	op := scope.op
+func (s *sessionSettings) value(name string) string {
+	if v, ok := s.values[name]; ok {
+		return v
+	}
+	return s.defaults[name]
+}
+func (s *sessionSettings) typedValue(name string) settingValue {
+	if v, ok := s.typed[name]; ok {
+		return v
+	}
+	return s.defaultTyped[name]
+}
+func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (SettingDefinition, error) {
+	key := settingFold(name)
+	if d, ok := e.settingsDefinitions[key]; ok {
+		return d, nil
+	}
+	if !s.placeholders[key] {
+		if !create || !strings.Contains(name, ".") {
+			return e.setting(name)
+		}
+		if !customName(name) {
+			return SettingDefinition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: "Custom parameter names must be two or more simple identifiers separated by dots."}
+		}
+	}
+	return SettingDefinition{Name: key, Type: SettingString}, nil
+}
+func settingAccess(d SettingDefinition) error {
+	switch d.Access {
+	case SettingReadOnly:
+		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed`, d.Name))
+	case SettingPrivileged:
+		return sqlError("42501", fmt.Sprintf(`permission denied to set parameter "%s"`, d.Name))
+	}
+	return nil
+}
+
+// applySetting is the single locked mutation path for SET, RESET and set_config.
+// A nil input resets; placeholder recognition publishes only after validation.
+func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDefinition, input *string) (string, error) {
+	if err := settingAccess(d); err != nil {
+		return "", err
+	}
+	var v settingValue
+	var notice *sqlstate.Error
+	if input != nil {
+		var err error
+		if d.Normalize != nil {
+			v.text, notice, err = d.Normalize(*input)
+		} else {
+			v, err = d.parse(*input)
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	if err := op.ctx.Err(); err != nil {
+		return "", err
+	}
+	if _, registered := e.settingsDefinitions[d.Name]; !registered {
+		owner.placeholders[d.Name] = true
+	}
+	if input == nil {
+		delete(owner.values, d.Name)
+		delete(owner.typed, d.Name)
+	} else {
+		owner.values[d.Name] = d.format(v)
+		owner.typed[d.Name] = v
+	}
+	if notice != nil {
+		op.emitNotice(levelNotice, *notice)
+	}
+	return owner.value(d.Name), nil
+}
+
+func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
-	}
-	var name string
-	switch s := stmt.(type) {
-	case *parser.Set:
-		name = s.Name.Text
-		if !s.Default && len(s.Values) != 1 {
-			return Result{}, sqlError("22023", "SET "+name+" takes only one argument")
-		}
-	case *parser.Show:
-		name = s.Name.Text
-	}
-	d, err := e.setting(name)
-	if err != nil {
-		return Result{}, err
-	}
-	var value string
-	var notice *sqlstate.Error
-	if s, ok := stmt.(*parser.Set); ok && !s.Default {
-		value, notice, err = d.Normalize(s.Values[0])
-		if err != nil {
-			return Result{}, err
-		}
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -146,34 +747,70 @@ func (e *Engine) executeSetting(scope *StatementScope, stmt parser.Statement, co
 	if owner.ended {
 		return Result{}, errors.New("stuntgres: settings attachment ended")
 	}
-	// Session utilities linearize with terminal admission before installing an
-	// override or capturing SHOW, using Engine -> Session lock order.
+	// Linearize setting publication and reads with terminal admission.
 	op.session.mu.Lock()
 	defer op.session.mu.Unlock()
-	if err = publicationOperationLocked(e, op); err != nil {
+	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
+	var name string
+	var input *string
+	var all, write bool
 	switch s := stmt.(type) {
 	case *parser.Set:
-		if s.Default {
-			delete(owner.values, d.Name)
-		} else {
-			owner.values[d.Name] = value
-			if notice != nil {
-				op.emitNotice(levelNotice, *notice)
+		name = s.Name.Text
+		write = true
+		if !s.Default {
+			if len(s.Values) != 1 {
+				return Result{}, sqlError("22023", "SET "+name+" takes only one argument")
 			}
+			input = &s.Values[0]
 		}
-		scope.completed = true
-		return Result{}, nil
+	case *parser.Reset:
+		name = s.Name.Text
+		write = true
+		all = s.All
 	case *parser.Show:
-		value, ok := owner.values[d.Name]
-		if !ok {
-			value = owner.defaults[d.Name]
-		}
-		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
-		result := Result{Columns: []ColumnDescriptor{{Name: d.Name, Usage: typ.Usage()}}, Rows: anonymousSnapshot([][]sqltype.Value{{sqltype.String(typ, value)}}, []int{0})}
-		scope.completed = true
-		return result, nil
+		name = s.Name.Text
+		all = s.All
+	default:
+		return Result{}, errors.New("stuntgres: invalid setting statement")
 	}
-	return Result{}, errors.New("stuntgres: invalid setting statement")
+	typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
+	if all {
+		if write {
+			if err := op.ctx.Err(); err != nil {
+				return Result{}, err
+			}
+			// Access checks prohibit non-session overrides. Clear both maps at
+			// the single publication point; retain placeholder knowledge.
+			clear(owner.values)
+			clear(owner.typed)
+			return Result{}, nil
+		}
+		rows := make([][]sqltype.Value, 0, len(e.settingsOrder))
+		for _, key := range e.settingsOrder {
+			if err := op.ctx.Err(); err != nil {
+				return Result{}, err
+			}
+			d := e.settingsDefinitions[key]
+			rows = append(rows, []sqltype.Value{sqltype.String(typ, key), sqltype.String(typ, owner.value(key)), sqltype.String(typ, d.Description)})
+		}
+		if err := op.ctx.Err(); err != nil {
+			return Result{}, err
+		}
+		return Result{Columns: settingColumns(typ, "name", "setting", "description"), Rows: &Snapshot{rows: rows, projection: []int{0, 1, 2}}}, nil
+	}
+	d, err := e.sessionSetting(owner, name, write)
+	if err != nil {
+		return Result{}, err
+	}
+	if write {
+		_, err = e.applySetting(op, owner, d, input)
+		return Result{}, err
+	}
+	if err := op.ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	return Result{Columns: settingColumns(typ, d.Name), Rows: &Snapshot{rows: [][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, projection: []int{0}}}, nil
 }
