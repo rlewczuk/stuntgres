@@ -36,14 +36,18 @@ owners; runtime abandonment cleanup is nondeterministic best effort.
 
 `SET [SESSION] application_name {TO | =} value` and `SHOW application_name`
 use the ordinary direct/prepared execution route. Values are strings using the
-existing ordinary/`E'...'` literal lexer, identifiers, booleans, signed integer
-tokens or bare DEFAULT. DEFAULT
+existing ordinary/`E'...'` literal lexer, identifiers, booleans, signed
+decimal-digit integer tokens or bare DEFAULT. DEFAULT
 restores the captured physical-session default; quoted 'DEFAULT' is literal.
 SHOW returns one string row with column application_name and type TEXT.
 Both SET and Exec of SHOW affect zero rows; SHOW snapshot cardinality is not a
 command count. Unsigned decimal tokens fitting PostgreSQL's int32 scanner range
 are formatted canonically; larger tokens retain their original digits (including
 leading zeros), with unary minus prepended and unary plus omitted.
+Unquoted radix-prefixed and underscore-separated numeric setting values,
+including signed forms, are unsupported (`0A000`) and cannot mutate settings.
+Quoted `'1_000'` and `'0x2a'` remain literal strings. This setting-specific
+boundary does not change the shared lexer's INSERT/SELECT numeric support.
 Values clip original UTF8 to 63 bytes before escaping nonprintable/non-ASCII
 bytes as lowercase literal `\xNN`. Clipping succeeds; the driver has no
 PostgreSQL NOTICE delivery channel.

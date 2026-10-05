@@ -40,3 +40,31 @@ func TestSessionGrammar(t *testing.T) {
 		}
 	}
 }
+
+func TestSessionDecimalIntegerBoundary(t *testing.T) {
+	for _, scalar := range []string{"1_000", "0x2a", "0O_1_2", "0b0", "0x7FFF_FFFF"} {
+		for _, sign := range []string{"", "+", "-"} {
+			query := "SET application_name TO " + sign + scalar
+			_, err := Parse(query)
+			position := "25"
+			if sign != "" {
+				position = "26"
+			}
+			var got *sqlstate.Error
+			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "non-decimal setting integers are unsupported", Position: position}
+			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
+				t.Fatalf("%q: %#v want %#v (%v)", query, got, want, err)
+			}
+		}
+	}
+	for _, text := range []string{"1_000", "0x2a"} {
+		stmts, err := Parse("SET application_name TO '" + text + "'")
+		if err != nil || len(stmts) != 1 {
+			t.Fatal(stmts, err)
+		}
+		got := stmts[0].(*Set)
+		if !reflect.DeepEqual(got.Values, []string{text}) {
+			t.Fatalf("quoted value changed: %v", got.Values)
+		}
+	}
+}

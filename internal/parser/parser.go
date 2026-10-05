@@ -86,7 +86,16 @@ func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
 	return Value{Kind: IntegerValue, Integer: n, Pos: tok.pos}, true
 }
 
-func settingInteger(text string, negative bool) string {
+func settingInteger(l sqlLexer, tok lexeme, negative bool) (string, bool) {
+	text := tok.text
+	// NUMBER is shared with INSERT/SELECT, which also accept radix/separator
+	// spellings. Settings deliberately support decimal digits only.
+	for i := range text {
+		if text[i] < '0' || text[i] > '9' {
+			l.(*lexer).failAt("0A000", "non-decimal setting integers are unsupported", tok.pos.Offset)
+			return "", false
+		}
+	}
 	// PostgreSQL's scanner canonicalizes an unsigned int32 integer token.
 	// Larger decimal tokens retain their original spelling as NumericOnly text;
 	// the unary sign is applied separately, without broadening numeric syntax.
@@ -94,12 +103,12 @@ func settingInteger(text string, negative bool) string {
 		if negative {
 			n = -n
 		}
-		return strconv.FormatInt(n, 10)
+		return strconv.FormatInt(n, 10), true
 	}
 	if negative {
-		return "-" + text
+		return "-" + text, true
 	}
-	return text
+	return text, true
 }
 
 func (l *lexer) fail(code, message string) {

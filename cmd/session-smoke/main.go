@@ -161,7 +161,12 @@ func run() error {
 		return err
 	}
 	for _, prepared := range []bool{false, true} {
-		for _, tc := range []struct{ input, want string }{{"+0002147483647", "2147483647"}, {"+0002147483648", "0002147483648"}, {"-0002147483648", "-0002147483648"}, {`E'a\nb'`, `a\x0ab`}} {
+		for _, tc := range []struct{ input, want string }{
+			{"+0002147483647", "2147483647"}, {"+0002147483648", "0002147483648"},
+			{"-0002147483648", "-0002147483648"}, {`E'a\nb'`, `a\x0ab`},
+			{"'1_000'", "1_000"}, {"'0x2a'", "0x2a"},
+			{"'+0O_1_2'", "+0O_1_2"}, {"'-0b0'", "-0b0"},
+		} {
 			if err = exec(ctx, a, "SET application_name TO "+tc.input, prepared); err != nil {
 				return err
 			}
@@ -175,6 +180,40 @@ func run() error {
 	}
 	if err = exec(ctx, a, "SET application_name TO 'session-a'", false); err != nil {
 		return err
+	}
+	for _, prepared := range []bool{false, true} {
+		for _, tc := range []struct{ scalar, position string }{
+			{"1_000", "25"}, {"0x2a", "25"}, {"+0O_1_2", "26"},
+			{"-0b0", "26"}, {"0x7FFF_FFFF", "25"},
+		} {
+			query := "SET application_name TO " + tc.scalar
+			var failure error
+			if prepared {
+				s, prepareErr := a.PrepareContext(ctx, query)
+				failure = prepareErr
+				if s != nil {
+					s.Close()
+					return fmt.Errorf("unsupported numeric setting prepared: %s", query)
+				}
+			} else {
+				_, failure = a.ExecContext(ctx, query)
+			}
+			if err = diagnostic(failure, "0A000", "non-decimal setting integers are unsupported", tc.position); err != nil {
+				return err
+			}
+			if err = show(ctx, a, "session-a", prepared); err != nil {
+				return err
+			}
+			if err = show(ctx, b, "session-b", prepared); err != nil {
+				return err
+			}
+			if err = sentinel(ctx, a); err != nil {
+				return err
+			}
+			if err = sentinel(ctx, b); err != nil {
+				return err
+			}
+		}
 	}
 	fmt.Println("session isolation: session-a session-b")
 	fmt.Println("prepared settings: TEXT affected=0")

@@ -98,6 +98,76 @@ func sessionSet(t *testing.T, c *sql.Conn, q string, prepared bool) {
 		t.Fatal(n, err)
 	}
 }
+
+func TestSessionDecimalIntegerBoundary(t *testing.T) {
+	ctx := context.Background()
+	db := sessionPool(t, NewDriver(), "setting-decimal-boundary")
+	a, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	b, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	owner, peer := nativeSession(t, a), nativeSession(t, b)
+	ownerToken, peerToken := owner.Token(), peer.Token()
+	for _, query := range []string{"CREATE TABLE sentinel(v INT)", "INSERT INTO sentinel VALUES(7)"} {
+		if _, err = a.ExecContext(ctx, query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sessionSet(t, b, "SET application_name TO peer", false)
+	assertState := func(want string, prepared bool) {
+		t.Helper()
+		sessionShow(t, a, want, prepared)
+		sessionShow(t, b, "peer", prepared)
+		for _, c := range []*sql.Conn{a, b} {
+			var value int64
+			if err := c.QueryRowContext(ctx, "SELECT v FROM sentinel").Scan(&value); err != nil || value != 7 {
+				t.Fatalf("sentinel changed: %d %v", value, err)
+			}
+		}
+		if owner.Token() != ownerToken || peer.Token() != peerToken || !owner.IsLive() || !peer.IsLive() {
+			t.Fatal("numeric boundary changed physical identity or health")
+		}
+	}
+	for _, prepared := range []bool{false, true} {
+		sessionSet(t, a, "SET application_name TO retained", prepared)
+		for _, scalar := range []string{"1_000", "0x2a", "0O_1_2", "0b0", "0x7FFF_FFFF"} {
+			for _, sign := range []string{"", "+", "-"} {
+				query := "SET application_name TO " + sign + scalar
+				var failure error
+				if prepared {
+					s, err := a.PrepareContext(ctx, query)
+					failure = err
+					if s != nil {
+						s.Close()
+						t.Fatalf("unsupported numeric setting prepared: %q", query)
+					}
+				} else {
+					_, failure = a.ExecContext(ctx, query)
+				}
+				position := "25"
+				if sign != "" {
+					position = "26"
+				}
+				var got *Error
+				want := &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "non-decimal setting integers are unsupported", Position: position}
+				if !errors.As(failure, &got) || !reflect.DeepEqual(got, want) {
+					t.Fatalf("prepared=%v %q: %#v want %#v (%v)", prepared, query, got, want, failure)
+				}
+				assertState("retained", prepared)
+			}
+		}
+		for _, text := range []string{"1_000", "0x2a"} {
+			sessionSet(t, a, "SET application_name TO '"+text+"'", prepared)
+			assertState(text, prepared)
+		}
+	}
+}
 func TestSessionPhysicalIsolationReuseAndReplacement(t *testing.T) {
 	ctx := context.Background()
 	d := NewDriver()

@@ -65,9 +65,9 @@ setting_assignment: TO | '=' ;
 setting_values: setting_value { $$=[]string{$1} } | setting_values ',' setting_value { $$=append($1,$3) } ;
 setting_value: STRING { $$=$1.text } | name { $$=$1.text }
  | TRUE { $$="true" } | FALSE { $$="false" }
- | NUMBER { $$=settingInteger($1.text,false) }
- | '+' NUMBER { $$=settingInteger($2.text,false) }
- | '-' NUMBER { $$=settingInteger($2.text,true) } ;
+ | NUMBER { var ok bool; $$, ok=settingInteger(sqllex,$1,false); if !ok { return 1 } }
+ | '+' NUMBER { var ok bool; $$, ok=settingInteger(sqllex,$2,false); if !ok { return 1 } }
+ | '-' NUMBER { var ok bool; $$, ok=settingInteger(sqllex,$2,true); if !ok { return 1 } } ;
 show: SHOW name { $$=&Show{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} } ;
 create: CREATE TABLE relation_name '(' columns ')' { $$ = &CreateTable{Name:$3, Columns:$5, Pos:$1.pos} }
  | CREATE TABLE relation_name NOT { code:="42601"; if len($3.Parts)==1 && $3.Parts[0].Text=="if" { code="0A000" }; sqllex.(*lexer).fail(code,"unsupported CREATE syntax"); return 1 } ;

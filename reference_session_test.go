@@ -66,6 +66,8 @@ func TestReferenceSession(t *testing.T) {
 						{"'" + strings.Repeat("a", 62) + "é'", strings.Repeat("a", 62)},
 						{"'a\n\tb'", `a\x0a\x09b`}, {`"to"`, "to"},
 						{`E'a\nb'`, `a\x0ab`},
+						{"'1_000'", "1_000"}, {"'0x2a'", "0x2a"},
+						{"'+0O_1_2'", "+0O_1_2"}, {"'-0b0'", "-0b0"},
 					} {
 						run(a, referenceExec("SET application_name TO "+tc.input, 0))
 						show(a, tc.want)

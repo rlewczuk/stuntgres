@@ -649,17 +649,29 @@ sqldefault:
 	case 26:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.settingValue = settingInteger(sqlDollar[1].tok.text, false)
+			var ok bool
+			sqlVAL.settingValue, ok = settingInteger(sqllex, sqlDollar[1].tok, false)
+			if !ok {
+				return 1
+			}
 		}
 	case 27:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.settingValue = settingInteger(sqlDollar[2].tok.text, false)
+			var ok bool
+			sqlVAL.settingValue, ok = settingInteger(sqllex, sqlDollar[2].tok, false)
+			if !ok {
+				return 1
+			}
 		}
 	case 28:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.settingValue = settingInteger(sqlDollar[2].tok.text, true)
+			var ok bool
+			sqlVAL.settingValue, ok = settingInteger(sqllex, sqlDollar[2].tok, true)
+			if !ok {
+				return 1
+			}
 		}
 	case 29:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
