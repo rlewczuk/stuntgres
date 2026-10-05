@@ -789,3 +789,52 @@ func roleReferenceError(query, code, message, detail string, prepared bool, stag
 	}
 	return s
 }
+
+type controlsReferenceFixture struct {
+	pair     *referencePair
+	db       *sql.DB
+	a, b     *sql.Conn
+	notices  *[]referenceDiagnostic
+	recorder *referenceRecorder
+}
+
+func newControlsReferenceFixture(t *testing.T, pair *referencePair, postgres bool) controlsReferenceFixture {
+	t.Helper()
+	notices := new([]referenceDiagnostic)
+	db, a, recorder := noticeReferencePool(t, pair, postgres, notices)
+	// The peer comes from this exact notice connector/DSN, not the parent
+	// pair: subtest names otherwise select a different embedded engine.
+	b, err := db.Conn(pair.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { a.ExecContext(context.Background(), "ROLLBACK"); b.Close() })
+	return controlsReferenceFixture{pair: pair, db: db, a: a, b: b, notices: notices, recorder: recorder}
+}
+
+func controlsReferenceDiagnostic(code, message string) referenceDiagnostic {
+	return referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
+}
+
+func (f controlsReferenceFixture) noticesWant(t *testing.T, code, message string) {
+	t.Helper()
+	var want []referenceDiagnostic
+	if code != "" {
+		n := controlsReferenceDiagnostic(code, message)
+		n.Severity, n.SeverityUnlocalized = "WARNING", "WARNING"
+		want = []referenceDiagnostic{n}
+	}
+	if len(*f.notices) != len(want) || (len(want) > 0 && !reflect.DeepEqual(*f.notices, want)) {
+		t.Fatalf("notices got %#v want %#v", *f.notices, want)
+	}
+	*f.notices = nil
+}
+
+func (f controlsReferenceFixture) exec(t *testing.T, x referenceExecutor, query string, prepared bool, count int64) {
+	t.Helper()
+	referenceRunStep(t, f.pair.ctx, x, f.recorder, referenceStep{query: query, prepared: prepared, affected: count})
+}
+func (f controlsReferenceFixture) rows(t *testing.T, x referenceExecutor, values ...int64) {
+	t.Helper()
+	referenceRunStep(t, f.pair.ctx, x, f.recorder, referenceTransactionRows(false, "SELECT v FROM t ORDER BY v", values...))
+}

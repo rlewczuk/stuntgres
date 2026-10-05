@@ -120,33 +120,13 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 	if options.ReadOnly {
 		return TxRef{}, errors.New("stuntgres: read-only transactions are unsupported")
 	}
-	if err := e.validateOperation(op); err != nil {
+	if err := e.transactionAdmission(op); err != nil {
 		return TxRef{}, err
 	}
 	t := op.session.transactions
 	t.admission.Lock()
 	defer t.admission.Unlock()
-	t.mu.Lock()
-	defer func() { t.mu.Unlock() }()
-	if err := e.validateOperation(op); err != nil {
-		return TxRef{}, err
-	}
-	if t.state != TxIdle {
-		return TxRef{}, errors.New("stuntgres: transaction already active")
-	}
-	if err := e.beginLocked(op, t, TxActive); err != nil {
-		return TxRef{}, err
-	}
-	ref := t.ref
-	t.mu.Unlock()
-	ticket, err := e.locks.register(ref)
-	t.mu.Lock()
-	if err != nil {
-		t.clear()
-		return TxRef{}, err
-	}
-	t.ticket = ticket
-	return ref, nil
+	return e.beginAdmitted(op, t)
 }
 
 func (t *transactionOwner) validate(ref TxRef) error {
@@ -160,58 +140,24 @@ func (t *transactionOwner) validate(ref TxRef) error {
 }
 
 func (e *Engine) Rollback(op *Operation, ref TxRef) (EndResult, error) {
-	if err := e.validateOperation(op); err != nil {
+	if err := e.transactionAdmission(op); err != nil {
 		return EndResult{}, err
 	}
 	t := op.session.transactions
 	t.admission.Lock()
 	defer t.admission.Unlock()
-	t.mu.Lock()
-	var ticket *relationTicket
-	defer func() { t.mu.Unlock(); e.locks.end(ticket) }()
-	if err := t.validate(ref); err != nil {
-		return EndResult{}, err
-	}
-	ticket = t.ticket
-	t.ticket = nil
-	t.clear()
-	return EndResult{}, nil
+	return e.endAdmitted(op, t, ref, false, false, false)
 }
 
 func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
-	admissionErr := e.validateOperation(op)
+	admissionErr := e.transactionAdmission(op)
 	if admissionErr != nil && !errors.Is(admissionErr, context.Canceled) && !errors.Is(admissionErr, context.DeadlineExceeded) {
 		return EndResult{}, admissionErr
 	}
 	t := op.session.transactions
 	t.admission.Lock()
 	defer t.admission.Unlock()
-	t.mu.Lock()
-	var ticket *relationTicket
-	defer func() { t.mu.Unlock(); e.locks.end(ticket) }()
-	if err := t.validate(ref); err != nil {
-		return EndResult{}, err
-	}
-	// An admitted commit failure ends this incarnation. Invalid references and
-	// copied/done operations above never discard another transaction's work.
-	ticket = t.ticket
-	defer func() { t.ticket = nil; t.clear() }()
-	if err := e.validateOperation(op); err != nil {
-		return EndResult{}, err
-	}
-	e.mu.Lock()
-	stale := ref.epoch != e.state.epoch
-	e.mu.Unlock()
-	if stale {
-		return EndResult{}, ErrCatalogReplaced
-	}
-	if t.state == TxAborted {
-		return EndResult{}, nil
-	}
-	if err := e.publishWrites(op, ref, t.writes); err != nil {
-		return EndResult{}, err
-	}
-	return EndResult{Committed: true}, nil
+	return e.endAdmitted(op, t, ref, true, false, false)
 }
 
 // StatementScope serializes one session's statement, from parsing through Finish.
@@ -227,6 +173,7 @@ type StatementScope struct {
 	result             error
 	worked             bool
 	completed          bool
+	controlOutcome     controlOutcome
 	replacementRead    bool
 	ticket             *relationTicket
 	lockedRef          ObjectRef
@@ -245,12 +192,12 @@ type WriteStage struct {
 }
 
 func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
-	if err := e.validateOperation(op); err != nil {
+	if err := e.transactionAdmission(op); err != nil {
 		return nil, err
 	}
 	t := op.session.transactions
 	t.admission.Lock()
-	if err := e.validateOperation(op); err != nil {
+	if err := e.transactionAdmission(op); err != nil {
 		t.admission.Unlock()
 		return nil, err
 	}
@@ -276,6 +223,17 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return nil
 	}
 	s.worked = true
+	if control, ok := stmt.(*parser.TransactionControl); ok {
+		s.owner.mu.Lock()
+		defer s.owner.mu.Unlock()
+		if err := s.op.session.Engine().endPreflight(s.op); err != nil {
+			return err
+		}
+		if control.Kind == parser.KindStart && s.owner.state == TxAborted {
+			return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
+		}
+		return nil
+	}
 	t := s.owner
 	e := s.op.session.Engine()
 	// Admission serializes this session, so the idle classification stays valid
@@ -407,6 +365,10 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if err := s.gate(stmt); err != nil {
 		return StatementDescription{}, err
 	}
+	if _, ok := stmt.(*parser.TransactionControl); ok {
+		s.controlOutcome = controlDescribed
+		return StatementDescription{}, nil
+	}
 	if err := s.acquireRelation(stmt, false); err != nil {
 		return StatementDescription{}, err
 	}
@@ -417,6 +379,9 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	// Adapter argument normalization precedes scope admission.
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
+	}
+	if control, ok := stmt.(*parser.TransactionControl); ok {
+		return s.executeControl(control, count)
 	}
 	if _, ok := stmt.(*parser.LockTable); ok && count != 0 {
 		return Result{}, errors.New("stuntgres: LOCK TABLE takes no arguments")
@@ -436,6 +401,14 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	if s.finished {
 		return s.result
+	}
+	if s.controlOutcome == controlExecuted || (s.controlOutcome == controlDescribed && err == nil) {
+		// A control has no stage/view. In particular, do not advance or recheck
+		// the new incarnation installed by CHAIN after its linearization.
+		s.finished = true
+		s.result = nil
+		s.owner.admission.Unlock()
+		return nil
 	}
 	t := s.owner
 	e := s.op.session.Engine()

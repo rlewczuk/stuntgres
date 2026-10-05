@@ -117,6 +117,23 @@ type Comment struct {
 
 func (*Comment) statement() {}
 
+type TransactionControlKind uint8
+
+const (
+	KindStart TransactionControlKind = iota
+	KindCommit
+	KindRollback
+)
+
+// TransactionControl contains only executable default-mode controls.
+type TransactionControl struct {
+	Kind  TransactionControlKind
+	Chain bool
+	Pos   Position
+}
+
+func (*TransactionControl) statement() {}
+
 type Order struct {
 	Column string
 	Desc   bool

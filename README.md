@@ -247,17 +247,75 @@ replacement with surviving data, data retention after pool reopening,
 42704/22023/42601 diagnostics, and cancellation/control preservation.
 Go test reports the result.
 
-### Driver transactions (READ COMMITTED)
+### SQL and driver transactions (READ COMMITTED)
 
 `DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support the
 baseline INSERT and SELECT path and the single-target explicit AX utility below,
 including prepared execution. Default isolation
 and explicit `sql.LevelReadCommitted` are supported, read-write only. CREATE
-tables **before** BeginTx; SQL BEGIN/COMMIT/ROLLBACK, savepoints, transactional
-DDL/settings, stronger isolation and future DML remain unsupported.
+tables **before** starting a block. SQL controls support the same INSERT/SELECT
+and AX path; savepoints, transactional DDL/settings, stronger isolation and
+future DML remain unsupported.
 Role creation/removal and SET/RESET SESSION AUTHORIZATION are likewise rejected
 with `0A000` inside an explicit transaction; this is a native capability limit,
 not PostgreSQL parity. Read-only identity SELECT remains supported there.
+
+Supported whole-input SQL syntax (one statement per public call):
+
+```sql
+BEGIN [WORK | TRANSACTION]
+START TRANSACTION
+(COMMIT | END | ROLLBACK | ABORT) [WORK | TRANSACTION] [AND [NO] CHAIN]
+```
+
+Starts use default READ COMMITTED/read-write only. Complete transaction-mode
+clauses, including explicit SQL READ COMMITTED or READ WRITE, are recognized but
+fail native `0A000`, `transaction modes are unsupported`, at the first mode.
+Malformed clauses and suffixes retain `42601`; PostgreSQL supports valid modes,
+so this is a native capability boundary, not PostgreSQL rejection parity.
+Complete SAVEPOINT/RELEASE/ROLLBACK TO and two-phase PREPARE TRANSACTION/
+COMMIT PREPARED/ROLLBACK PREPARED similarly fail `0A000` without effects.
+
+SQL BEGIN groups private writes on the physical session. Redundant BEGIN/START
+succeeds with count zero and WARNING `25001`, `there is already a transaction in
+progress`, retaining that incarnation and its writes/holds. COMMIT/END publishes
+the entire batch; ROLLBACK/ABORT discards it. Plain ends and AND NO CHAIN outside a
+block succeed with count zero and WARNING `25P01`, `there is no transaction in
+progress`. Outside AND CHAIN fails ERROR `25P01`, `COMMIT AND CHAIN can only be
+used in transaction blocks` or `ROLLBACK AND CHAIN can only be used in transaction
+blocks` (canonical text also for END/ABORT). Successful controls have no
+parameters/results and affected count zero. State warnings/errors have exact
+WARNING/ERROR and nonlocalized severity; optional diagnostic fields are absent.
+
+AND CHAIN ends the old block, releases its holds **after publication**, and
+installs a fresh healthy Active incarnation with command zero/default modes,
+no inherited private writes or locks. Failed-block SQL COMMIT rolls back
+successfully; COMMIT AND CHAIN likewise starts healthy work after discarding it.
+AND NO CHAIN and plain ends leave Idle; the next ordinary INSERT autocommits.
+Chain birth/ticket capacity is preflighted before old publication under a short
+replacement read fence, never a transaction-lifetime fence. Finished controls
+cannot be retracted by late cancellation/replacement or advance the next block.
+
+Actual `PrepareContext` of a control has no effects/notices/publication/release;
+execution evaluates the current block state, not the state at preparation.
+Start Prepare in Aborted fails `25P02`; end Prepare in Aborted succeeds but
+ordinary commands remain `25P02` until that handle executes. Idle end-chain
+Prepare succeeds; its execution fails `25P01` if still Idle. Malformed SQL is
+parsed first, including in Aborted blocks.
+
+Pin a `sql.Conn` for SQL blocks and explicitly end **before returning it to its
+pool**. Borrower Close and healthy ResetSession preserve the block. GoTx handles
+are incarnation-qualified: SQL COMMIT AND CHAIN, or SQL end then BEGIN, makes an
+old Go Commit/Rollback fail `stuntgres: stale transaction reference` without
+ending newer work. This intentionally differs from pinned lib/pq: its old
+GoTx.Commit after SQL COMMIT AND CHAIN issues an unqualified end and publishes
+the newer block. Do not mix these lifetimes expecting pq's behavior.
+
+Run `go test -count=1 -v -timeout=60s -run '^TestTransactionControlsSmoke$' ./smoke`
+for public direct/held-prepared peer visibility, recovery, aliases, chains and
+complete warning/error/count/INT4 assertions. Independent real PostgreSQL
+coverage is selected by `go test -tags=reference -count=1 -v -timeout=60s
+-run '^TestReferenceTransactionControls' ./reference`.
 
 #### Relation locks
 
@@ -267,7 +325,7 @@ TABLE/COLUMN acquires internal SHARE UPDATE EXCLUSIVE at Execute (not Prepare):
 it coexists with AS/RX, but conflicts with another owner's SUE and AX.
 `LOCK TABLE <name> IN ACCESS EXCLUSIVE MODE` is the only explicit lock syntax:
 one existing optionally qualified/quoted table, no ONLY/list/star/default mode,
-NOWAIT or other modes. Execution requires an explicit driver transaction and the
+NOWAIT or other modes. Execution requires an explicit SQL or driver block and the
 current role's existing superuser authority. Ordinary SELECT/INSERT privileges
 or ownership alone do not authorize this bounded native path. PostgreSQL also
 supports additional AX privilege alternatives not modeled here.
@@ -318,15 +376,17 @@ filtering/ordering and Dump use the type-owned operators and literal codecs.
 Admitted SQL errors, preparation/binding failures and statement cancellation
 abort an explicit transaction and discard its private writes. Valid subsequent
 commands are rejected before semantic analysis; malformed SQL still reports its
-original syntax error. Full Rollback succeeds; Commit of aborted work performs
-rollback and returns the ordinary failed-transaction error below. Empty SQL
+original syntax error. Full SQL/Go Rollback succeeds. SQL COMMIT of aborted work
+successfully rolls back with count zero; Go Commit instead returns the ordinary
+failed-transaction error below. Valid SQL ends (including their Prepare) remain
+recovery-eligible in Aborted; SQL starts still fail `25P02`. Empty SQL
 without arguments does no transaction work. Pre-canceled admission, closed
 statement/connection checks and adapter argument rejection do not abort prior
 successful private work.
 
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
-| Valid command or Prepare after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
+| Valid ordinary command/Prepare or SQL start after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
 | Explicit CREATE/DROP TABLE, SET, RESET, SHOW or selected setting calls | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
@@ -335,7 +395,7 @@ successful private work.
 | Repeated raw handle end | Ordinary `stuntgres: transaction is done`; old handles cannot end a newer incarnation |
 | Internal foreign/zero / stale TxRef | Ordinary `stuntgres: foreign or missing transaction reference` / `stuntgres: stale transaction reference` |
 | Public sql.Tx repeated end/use | `sql.ErrTxDone`: `sql: transaction has already been committed or rolled back` |
-| Commit after aborted transaction | Ordinary `pq: could not complete operation in a failed transaction`, matching pinned lib/pq's adapter diagnostic, not `25P02` |
+| Go Commit after aborted transaction | Ordinary `pq: could not complete operation in a failed transaction`, matching pinned lib/pq's adapter diagnostic, not `25P02`; SQL COMMIT succeeds by rollback |
 | Successful native replacement fencing old transaction | Ordinary `stuntgres: catalog replaced before publication` (`ErrCatalogReplaced` internally); private work discarded, full Rollback remains available |
 | Closed connection / statement | Ordinary `stuntgres: connection is closed` / `stuntgres: statement is closed` |
 | Go cancellation / deadline | Ordinary `context.Canceled` / `context.DeadlineExceeded`, preserving `errors.Is`; database/sql automatic rollback can instead make Tx end report `sql.ErrTxDone` |
@@ -943,7 +1003,7 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 `go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
 
 
-Three-part/database qualification, temporary-object creation, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction controls/savepoints, transactional DDL/settings/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary-object creation, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/settings/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 
