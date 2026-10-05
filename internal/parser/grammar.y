@@ -31,7 +31,7 @@ package parser
  table *CreateTable
 }
 %token <tok> IDENT NUMBER STRING PARAM
-%token <tok> '+' '-' '[' ':' '(' '='
+%token <tok> '+' '-' '[' ':' '(' '=' ','
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
@@ -55,7 +55,7 @@ package parser
 %nonassoc TYPE_NAME
 %nonassoc '('
 %nonassoc KW_T IS LIKE WITH
-%type <stmt> statement create drop_table insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> statement create drop_table alter_drop_column alter_drop_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <col> column
 %type <elements> elements optional_elements
 %type <element> element
@@ -70,6 +70,9 @@ package parser
 %type <settingName> setting_name set_name local_setting_name
 %type <targets> insert_columns insert_targets
 %type <objectName> relation_name
+%type <objectName> alter_relation
+%type <desc> optional_column drop_if_exists
+%type <tok> alter_action
 %type <names> names
 %type <rows> rows
 %type <row> row values call_args scalar_targets
@@ -101,10 +104,9 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | drop_table | insert | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | drop_table | alter_drop_column | insert | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
- | ALTER TABLE { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER ROLE { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER USER { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -227,6 +229,18 @@ drop_table: DROP TABLE relation_names drop_mode { $$=&DropTable{Names:$3,Mode:$4
  | DROP TABLE IF EXISTS relation_names drop_mode { $$=&DropTable{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
 relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relation_name { $$=append($1,$3) } ;
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
+alter_drop_column: alter_drop_single { $$=$1 }
+ | alter_drop_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
+ | ALTER TABLE alter_relation alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 }
+ | ALTER TABLE lock_only relation_name alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$5.pos.Offset); return 1 }
+ | ALTER TABLE lock_only '(' relation_name ')' alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$7.pos.Offset); return 1 } ;
+alter_drop_single: ALTER TABLE alter_relation DROP optional_column drop_if_exists name drop_mode { $$=&AlterTableDropColumn{Name:$3,Column:Identifier{Text:$7.text,Pos:$7.pos},IfExists:$6,Mode:$8,Pos:$1.pos} }
+ | ALTER TABLE lock_only relation_name DROP optional_column drop_if_exists name drop_mode { $$=&AlterTableDropColumn{Name:$4,Column:Identifier{Text:$8.text,Pos:$8.pos},IfExists:$7,Mode:$9,Only:true,Pos:$1.pos} }
+ | ALTER TABLE lock_only '(' relation_name ')' DROP optional_column drop_if_exists name drop_mode { $$=&AlterTableDropColumn{Name:$5,Column:Identifier{Text:$10.text,Pos:$10.pos},IfExists:$9,Mode:$11,Only:true,Pos:$1.pos} } ;
+alter_relation: relation_name { $$=$1 } | relation_name '*' { $$=$1 } ;
+optional_column: /* empty */ { $$=false } | KW_R { if $1.text!="column" { sqllex.(*lexer).syntax($1); return 1 }; $$=true } ;
+drop_if_exists: /* empty */ { $$=false } | IF EXISTS { $$=true } ;
+alter_action: generic_word | ALTER | RENAME | OWNER | SET ;
 column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Nullable:$3, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
@@ -240,7 +254,7 @@ nullability: /* empty */ { $$ = true } | NULL { $$ = true } | NOT NULL { $$ = fa
  | '(' { sqllex.(*lexer).failAt("0A000","type modifiers are unsupported",$1.pos.Offset); return 1 } ;
 insert: INSERT INTO relation_name insert_columns VALUES rows { $$ = &Insert{Name:$3, Targets:$4, Rows:$6, Pos:$1.pos} }
  | INSERT INTO relation_name insert_columns VALUES rows suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
- | INSERT INTO relation_name insert_columns DEFAULT { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$5.pos.Offset); return 1 }
+ | INSERT INTO relation_name insert_columns DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$5.pos.Offset); return 1 }; $$=&Insert{Name:$3,Targets:$4,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} }
  | INSERT INTO relation_name unsupported_query { sqllex.(*lexer).deferUnsupported($4,"INSERT SELECT is unsupported"); $$=nil }
  | INSERT INTO relation_name '(' insert_targets ')' unsupported_query { sqllex.(*lexer).deferUnsupported($7,"INSERT SELECT is unsupported"); $$=nil } ;
 insert_columns: /* empty */ { $$ = nil } | '(' insert_targets ')' { $$ = $2 } ;

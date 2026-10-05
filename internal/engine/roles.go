@@ -235,7 +235,12 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 		if dep.address.SubID != 0 {
 			// getObjectDescription interpolates the raw attribute name; only
 			// getRelationDescription applies diagnostic identifier quoting.
-			kind = "column " + relation.columns[dep.address.SubID-1].Name + " of table "
+			for slot, attribute := range relation.attributes {
+				if attribute == dep.address.SubID {
+					kind = "column " + relation.columns[slot].Name + " of table "
+					break
+				}
+			}
 		}
 	}
 	prefix := "privileges for "

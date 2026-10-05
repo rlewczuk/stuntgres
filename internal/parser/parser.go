@@ -22,6 +22,8 @@ func Parse(query string) ([]Statement, error) {
 type Options struct {
 	StandardConformingStrings bool
 	Context                   context.Context
+	// RestoreDefaultValues is private canonical-control syntax, not SQL defaults.
+	RestoreDefaultValues bool
 }
 
 func ParseWithOptions(query string, options Options) ([]Statement, error) {

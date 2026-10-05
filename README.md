@@ -387,7 +387,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid ordinary command/Prepare or SQL start after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE/DROP TABLE, SET, RESET, SHOW or selected setting calls | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
+| Explicit CREATE/ALTER/DROP TABLE, SET, RESET, SHOW or selected setting calls | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported isolation / read-only option | Ordinary `stuntgres: unsupported transaction isolation level` / `stuntgres: read-only transactions are unsupported`, before state change |
@@ -420,9 +420,17 @@ that session's private effects. Committed data and peer settings survive.
 Dump serializes committed versions only, never transaction overlays.
 Reset/Restore waits for admitted implicit row work, including transaction birth,
 immediate lock grants, binding and publication. Replacement admission is a
-logical reservation, not a mutex held across lock-manager calls. Only an actually
-queued SQL lock request relinquishes that reservation; after grant it readmits
-and revalidates the original relation and epoch before proceeding. Successful replacement
+logical reservation, not a mutex held across lock-manager calls. A queued row
+lock request relinquishes that reservation; after grant it readmits and revalidates
+the original relation and epoch. ALTER TABLE relinquishes replacement admission
+before provider validation and guards the exact descriptor/storage at installation.
+If a queued ALTER's name resolves to a different relation after AX is granted
+(for example, a newly created search_path shadow), execution returns
+`ErrCatalogReplaced` before column lookup, skip notices or publication. It never
+alters an unlocked shadow or retries acquisition. Same-identity revisions remain
+valid through the coherent grant-time descriptor; pinned PostgreSQL instead
+re-resolves the utility target and acquires the shadow's AX before altering it.
+Successful replacement
 advances the epoch and retires old holders/waiters without waiting for an AX owner
 to release; stale work fails with `ErrCatalogReplaced`. Old explicit
 transactions cannot execute/publish afterward. Standalone CREATE validates
@@ -585,6 +593,7 @@ COMMENT ON TABLE [schema.]name IS string_literal | NULL
 COMMENT ON COLUMN [schema.]table.column IS string_literal | NULL
 COMMENT ON SCHEMA name IS string_literal | NULL
 COMMENT ON ROLE name IS string_literal | NULL
+ALTER TABLE [ONLY] [schema.]name DROP [COLUMN] [IF EXISTS] column [RESTRICT | CASCADE]
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | scalar [, ...]) FROM [schema.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
@@ -719,6 +728,82 @@ excluded from Restore scripts. Existing explicit-ACL Dump rejection is unchanged
 The independent reference recorder preserves genuine zero-column cursor
 metadata as an empty result, distinct from no query result; consumed rows and
 cursor closure are checked for both native and PostgreSQL executions.
+
+### Single-action column removal
+
+`ALTER TABLE t DROP [COLUMN] [IF EXISTS] name [RESTRICT | CASCADE]`
+removes one live column and its stored cells atomically. Ordinary `t`, `t*`,
+`ONLY t` and `ONLY(t)` operate on supported standalone tables. No action lists,
+other ALTER TABLE actions, inheritance or partition definition support is added.
+The table's effective owner or superuser is required; unlike DROP TABLE, schema
+ownership alone does not authorize ALTER. Execution takes ACCESS EXCLUSIVE and
+waits for existing readers/writers; utility Prepare is metadata-only. Cancellation
+removes a waiting request without changing the table. A committed preceding INSERT
+is retained, and later INSERTs use the new dense visible shape.
+Queued SELECT, INSERT and subsequent DROP bind the current definition for the
+exact originally acquired relation reference after their lock grants. A definition
+revision alone is not replacement; actual removal/drop-recreate or Reset/Restore
+still fences the old identity, without substituting another table by name.
+
+Surviving columns keep their catalog attribute/origin identities; visible result
+slots compact without renumbering those identities. Retained Rows keep old values
+and metadata.
+Surviving column grants and role-dependency diagnostics resolve those stable
+attribute identities back to live column names, not dense slot numbers.
+New direct/prepared queries omit the dropped column. Previously
+prepared explicit survivor queries rebind successfully; dropped-column queries
+fail `42703`, and a changed-width prepared star fails the existing `0A000`,
+`cached plan must not change result type` signature boundary. ALTER remains
+unsupported in native explicit transactions (`0A000`, aborting the block);
+PostgreSQL transactional DDL is an external-only reference witness.
+Missing expression-column diagnostics interpolate decoded quoted identifiers
+literally, including embedded quotes/backslashes, with character-based positions
+when direct or retained/new prepared queries rebind after DROP.
+
+The actual supported dependent set is column nullability, column ACL payload and
+column comments. DROP removes exactly the selected attribute's comment, retaining
+table and survivor comments keyed by stable attribute IDs. Canonical Dump emits
+survivor comments by column name; Reset/Restore preserves those comments even
+though the restored declaration has fresh dense attribute IDs.
+There are no native index, CHECK, FK, view or hierarchy descriptors and no external
+inbound definition dependencies. Thus native RESTRICT/default and CASCADE remove
+the same selected column only, preserving independent tables and LIKE clones.
+Real PostgreSQL-only tests witness automatic local constraint/index removal,
+external RESTRICT failure/CASCADE closure, inheritance and partition behavior;
+these are not advertised as native capabilities.
+
+Missing columns fail `42703`, `column "missing" of relation "t" does not exist`;
+IF EXISTS emits a `00000` NOTICE ending `, skipping` with no descriptor or row
+change, after ownership checks. Fixed system names ctid/xmin/cmin/xmax/cmax/tableoid
+fail `0A000`, `cannot drop system column "ctid"`, even with IF EXISTS. Modern `oid`
+is an ordinary user column. All failures leave the original shape and data intact.
+
+Dump serializes the final live CREATE/INSERT shape, never ALTER history. Dropping
+every column retains row multiplicity: CREATE TABLE `()` is followed by one
+canonical `INSERT INTO ... DEFAULT VALUES;` per empty row. Restore alone enables
+a private positioned parser marker and requires exactly zero live columns and no
+target list; it runs the common insertion path with genuine empty rows, not default
+evaluation. Public DEFAULT VALUES remains `0A000` (`INSERT defaults are unsupported`);
+`VALUES ()` remains a syntax error. ALTER TABLE is not admitted to Restore scripts.
+Explicit ACL Dump rejection remains unchanged.
+
+Owner-bearing feature controls exercise an ordinary owner of both a nonpublic
+schema and its table, direct/prepared DROP, canonical owner directives, restored
+owner authority and replay of the same dump on PostgreSQL. A separate distinct
+schema/table-owner Restore fixture checks preserved ownership and schema-owner
+denial after compaction. An ordinary distinct table owner still needs namespace
+USAGE for qualified public SQL: native GRANT is not added, and Dump does not
+silently discard explicit ACLs. PostgreSQL-only fixture grants provide its real
+destination authority for replaying the distinct-owner dump.
+
+Executable public feature witnesses (Go test reports actual pass/failure):
+
+```sh
+go test -count=1 -v -run '^TestAlterDropColumnSmoke$' ./smoke
+go test -count=1 -v -run '^TestAlterDropColumnZeroColumnControlsSmoke$' ./smoke
+go test -tags reference -count=1 -v -run '^TestReferenceAlterDropColumn' ./reference
+```
+
 Duplicate-relation `42P07` errors preserve decoded names inside literal outer
 quotes, including embedded quotes and backslashes, both for an existing target
 and for a competing publication. Failed CREATE preserves the winning definition

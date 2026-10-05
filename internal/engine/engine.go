@@ -187,7 +187,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.Comment, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
+	case *parser.Comment, *parser.AlterTableDropColumn, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.IdentitySelect:
 		e.mu.Lock()
@@ -310,8 +310,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			if seen[c.Name] {
 				return b, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, c.Name))
 			}
-			switch c.Name {
-			case "ctid", "xmin", "cmin", "xmax", "cmax", "tableoid":
+			if isSystemColumn(c.Name) {
 				return b, sqlError("42701", fmt.Sprintf("column name %q conflicts with a system column name", c.Name))
 			}
 			seen[c.Name] = true
@@ -330,6 +329,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		b.storage = e.storage[b.ref.Address]
 		if b.storage == nil {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
+		}
+		if s.RestoreDefaultValues && (len(b.relation.columns) != 0 || len(s.Targets) != 0 || len(s.Rows) != 1 || len(s.Rows[0]) != 0) {
+			return b, sqlError("0A000", "restore DEFAULT VALUES requires a zero-column table")
 		}
 		if len(s.Targets) == 0 {
 			width := len(s.Rows[0])
@@ -638,6 +640,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
+	}
+	if s, ok := stmt.(*parser.AlterTableDropColumn); ok {
+		return e.alterDropColumnLocked(scope, op, auth, s, count)
+	}
+	if s, ok := stmt.(*parser.Insert); ok && s.RestoreDefaultValues && !op.restoreInsertAuthority {
+		e.mu.Unlock()
+		return Result{}, sqlError("0A000", "INSERT defaults are unsupported")
 	}
 	if s, ok := stmt.(*parser.DropTable); ok {
 		return e.dropTableLocked(scope, op, auth, s, count)

@@ -9,6 +9,7 @@ import (
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) error {
 	var name parser.ObjectName
 	var mode relationLockMode
+	ownerOnly := false
 	switch v := stmt.(type) {
 	case *parser.Select:
 		name = v.Name
@@ -28,6 +29,11 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 			name.Parts = name.Parts[:len(name.Parts)-1]
 		}
 		mode = shareUpdateExclusive
+	case *parser.AlterTableDropColumn:
+		if !execute { return nil }
+		name = v.Name
+		mode = accessExclusive
+		ownerOnly = true
 	case *parser.LockTable:
 		if !execute {
 			return nil
@@ -54,10 +60,10 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	if err == nil {
 		ref, err = e.resolveRelationReference(auth, name, mode == shareUpdateExclusive)
 	}
-	var descriptor Descriptor
 	if err == nil {
-		descriptor = e.state.descriptors[ref.Address]
-		if mode == accessExclusive {
+		if ownerOnly {
+			err = auth.Check(AccessRequirement{Object:ref, OwnerOnly:true})
+		} else if mode == accessExclusive {
 			actor, roleErr := auth.roles.Descriptor(auth.state.CurrentUser)
 			if roleErr != nil {
 				err = roleErr
@@ -67,6 +73,12 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 		}
 	}
 	e.mu.Unlock()
+	// Catalog provider validation may call Reset; ALTER must not retain a
+	// replacement read admission across validation or publication.
+	if ownerOnly && s.replacementRead {
+		e.replacementMu.RUnlock()
+		s.replacementRead = false
+	}
 	if err != nil {
 		return err
 	}
@@ -85,36 +97,28 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	implicit := s.owner.state == TxImplicit
 	txref := s.owner.ref
 	s.owner.mu.Unlock()
-	if implicit && !s.replacementRead {
+	if implicit && !ownerOnly && !s.replacementRead {
 		e.replacementMu.RLock()
 		s.replacementRead = true
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	current := e.state.descriptors[ref.Address]
-	if ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || current == nil {
-		return ErrCatalogReplaced
-	}
-	if mode == shareUpdateExclusive {
-		// A preceding COMMENT may publish a new immutable payload while this
-		// request waits. Consume that payload at the captured identity, never
-		// a fresh name lookup that could retarget a replacement relation.
-		if _, ok := current.(*relationDescriptor); !ok {
-			return ErrCatalogReplaced
-		}
-		descriptor = current
-	} else if current != descriptor {
+	descriptor, live := e.state.descriptors[ref.Address].(*relationDescriptor)
+	if ref.owner != e.owner || ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || !live {
 		return ErrCatalogReplaced
 	}
 	s.lockedRef = ref
 	s.lockedDescriptor = descriptor
 	s.lockedIdentityOnly = mode == shareUpdateExclusive
-	// Revalidate current role authority as well as the immutable relation identity.
+	// Definition evolution while waiting is valid for this exact relation.
+	// Pin the grant-time descriptor and revalidate current role authority.
 	auth, err = e.statementAuthorizationLocked(s.op, stmt)
 	if err != nil {
 		return err
 	}
-	if mode == accessExclusive {
+	if ownerOnly {
+		return auth.Check(AccessRequirement{Object:ref, OwnerOnly:true})
+	} else if mode == accessExclusive {
 		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 		if err != nil {
 			return err

@@ -86,6 +86,13 @@ func (d *relationDescriptor) Namespace() ObjectAddress     { return d.namespace 
 func (d *relationDescriptor) Name() string                 { return d.name }
 func (*relationDescriptor) Kind() ObjectKind               { return RelationObject }
 
+func (d *relationDescriptor) hasAttribute(sub int32) bool {
+	for _, live := range d.attributes {
+		if live == sub { return true }
+	}
+	return false
+}
+
 type NameKey struct {
 	ClassID   OID
 	Namespace ObjectAddress
@@ -160,7 +167,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	}
 	for i, c := range r.columns {
 		offset, exists := r.index[c.Name]
-		if r.attributes[i] != int32(i+1) || !exists || offset != i {
+		if r.attributes[i] <= 0 || i > 0 && r.attributes[i] <= r.attributes[i-1] || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
 		}
 		if !c.Usage.Type.Concrete() || c.Usage.Type.ID() == sqltype.Name {
@@ -172,7 +179,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 	}
 	for sub, text := range r.columnComments {
-		if sub <= 0 || int(sub) > len(r.attributes) || r.attributes[sub-1] != sub || text == "" {
+		if !r.hasAttribute(sub) || text == "" {
 			return fmt.Errorf("stuntgres: invalid relation column comment")
 		}
 	}
@@ -206,6 +213,11 @@ type catalogRemoval struct {
 	descriptor Descriptor
 }
 
+type catalogRowShape struct {
+	original *relationStorage
+	replacement *relationStorage
+}
+
 type CatalogStage struct {
 	owner              *Engine
 	base               CatalogRead
@@ -213,6 +225,7 @@ type CatalogStage struct {
 	names              map[NameKey]ObjectAddress
 	touched            map[NameKey]ObjectAddress
 	removals           map[ObjectAddress]catalogRemoval
+	rowShapes map[ObjectAddress]catalogRowShape
 	oldNames           map[NameKey]bool
 	lifecycle          catalogLifecycle
 	invalid            error
@@ -284,6 +297,35 @@ func (s *CatalogStage) Replace(d Descriptor) error {
 	s.touched[newKey] = s.base.state.names[newKey]
 	s.descriptors[d.Address()] = d
 	s.names[newKey] = d.Address()
+	return nil
+}
+
+// alterRelation couples a same-identity revision with an immutable storage root.
+func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *relationDescriptor, original, replacement *relationStorage) error {
+	if s == nil || s.owner == nil || s.lifecycle != catalogOpen || s.invalid != nil {
+		return fmt.Errorf("stuntgres: invalid catalog stage")
+	}
+	e := s.owner
+	e.mu.Lock()
+	if err := e.validateObjectRefLocked(s.base, ref); err != nil { e.mu.Unlock(); return err }
+	old, ok := s.base.state.descriptors[ref.Address].(*relationDescriptor)
+	if !ok || ref.Address.SubID != 0 || d == nil || d.address != old.address || d.namespace != old.namespace || d.name != old.name || old.revision == DefinitionRevision(^uint64(0)) || d.revision != old.revision+1 || original == nil || replacement == nil || e.storage[ref.Address] != original {
+		e.mu.Unlock()
+		return CatalogConflict{}
+	}
+	if len(original.versions) != len(replacement.versions) { e.mu.Unlock(); return CatalogConflict{} }
+	beforeRows := original.versions
+	e.mu.Unlock()
+	for i, row := range replacement.versions {
+		if err := ctx.Err(); err != nil { return err }
+		before := beforeRows[i]
+		if len(row.values) != len(d.columns) || row.row != before.row || row.version != before.version || row.born != before.born {
+			return fmt.Errorf("stuntgres: invalid altered row identity")
+		}
+	}
+	if err := s.Replace(d); err != nil { return err }
+	if s.rowShapes == nil { s.rowShapes = make(map[ObjectAddress]catalogRowShape) }
+	s.rowShapes[ref.Address] = catalogRowShape{original, replacement}
 	return nil
 }
 
@@ -482,6 +524,12 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				return ChangeSet{}, CatalogConflict{}
 			}
 		}
+		for a, shape := range s.rowShapes {
+			if currentStorage[a] != shape.original || len(shape.original.versions) != len(shape.replacement.versions) {
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
+		}
 		e.mu.Unlock()
 		next := cloneCatalog(current)
 		storage := make(map[ObjectAddress]*relationStorage, len(currentStorage)+len(s.descriptors))
@@ -503,6 +551,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				storage[a] = &relationStorage{}
 			}
 		}
+		for a, shape := range s.rowShapes { storage[a] = shape.replacement }
 		for k, a := range s.names {
 			next.names[k] = a
 		}
@@ -516,6 +565,13 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			e.mu.Unlock()
 			continue
+		}
+		for a, shape := range s.rowShapes {
+			if e.storage[a] != shape.original || len(shape.original.versions) != len(shape.replacement.versions) {
+				if op != nil { op.session.mu.Unlock() }
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
 		}
 		err := p.ctx.Err()
 		if err == nil && op != nil {
@@ -592,7 +648,7 @@ func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ObjectRef) error 
 	}
 	if ref.Address.SubID > 0 {
 		r, ok := d.(*relationDescriptor)
-		if !ok || int(ref.Address.SubID) > len(r.attributes) {
+		if !ok || !r.hasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid catalog subobject")
 		}
 	}

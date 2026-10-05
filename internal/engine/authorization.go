@@ -368,7 +368,7 @@ func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
 	}
 	if ref.Address.SubID > 0 {
 		r, ok := d.(*relationDescriptor)
-		if !ok || int(ref.Address.SubID) > len(r.attributes) {
+		if !ok || !r.hasAttribute(ref.Address.SubID) {
 			return nil, fmt.Errorf("stuntgres: invalid authorization column")
 		}
 	}
@@ -503,7 +503,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 	}
 	for sub, a := range cols {
 		relation, ok := d.(*relationDescriptor)
-		if !ok || sub <= 0 || int(sub) > len(relation.attributes) {
+		if !ok || sub <= 0 || !relation.hasAttribute(sub) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
 		if err := check(a); err != nil {
@@ -600,7 +600,7 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl ACLValue) 
 		n.acl = acl
 		next = &n
 	case *relationDescriptor:
-		if ref.Address.SubID < 0 || int(ref.Address.SubID) > len(d.attributes) {
+		if ref.Address.SubID < 0 || ref.Address.SubID > 0 && !d.hasAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
 		n := *d

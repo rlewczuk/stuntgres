@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 // Called with e.mu held; every return releases it. Preflight the whole group
@@ -102,5 +103,108 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	for _, notice := range notices {
 		op.emitNotice(levelNotice, notice)
 	}
+	return Result{}, nil
+}
+
+func isSystemColumn(name string) bool {
+	switch name {
+	case "ctid", "xmin", "cmin", "xmax", "cmax", "tableoid":
+		return true
+	}
+	return false
+}
+
+// Called with e.mu held. The supported dependent set is column nullability
+// and column ACLs; no native external definition providers exist.
+func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTableDropColumn, count int) (Result, error) {
+	if count != 0 {
+		e.mu.Unlock()
+		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+	}
+	if s.Mode != parser.DropRestrict && s.Mode != parser.DropCascade {
+		e.mu.Unlock()
+		return Result{}, fmt.Errorf("stuntgres: invalid column drop")
+	}
+	ref, err := e.resolveReference(auth, s.Name)
+	// Resolution may change while AX waits (for example, a new search_path
+	// shadow). Never operate on a relation other than the acquired resource.
+	if err == nil && ref != scope.lockedRef {
+		err = ErrCatalogReplaced
+	}
+	if err == nil { err = auth.Check(AccessRequirement{Object:ref, OwnerOnly:true}) }
+	if err != nil { e.mu.Unlock(); return Result{}, err }
+	old := scope.lockedDescriptor.(*relationDescriptor)
+	if isSystemColumn(s.Column.Text) {
+		e.mu.Unlock()
+		return Result{}, sqlError("0A000", fmt.Sprintf(`cannot drop system column "%s"`, s.Column.Text))
+	}
+	slot, exists := old.index[s.Column.Text]
+	if !exists {
+		if !s.IfExists {
+			e.mu.Unlock()
+			return Result{}, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.name))
+		}
+		op.session.mu.Lock()
+		err = publicationOperationLocked(e, op)
+		op.session.mu.Unlock()
+		if err == nil { err = op.Context().Err() }
+		if err == nil { scope.completed = true }
+		e.mu.Unlock()
+		if err != nil { return Result{}, err }
+		op.emitNotice(levelNotice, sqlstate.Error{Severity:"NOTICE", SeverityUnlocalized:"NOTICE", Code:"00000", Message:fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, s.Column.Text, old.name)})
+		return Result{}, nil
+	}
+	if old.revision == DefinitionRevision(^uint64(0)) {
+		e.mu.Unlock()
+		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+	}
+	original := e.storage[ref.Address]
+	if original == nil { e.mu.Unlock(); return Result{}, fmt.Errorf("stuntgres: relation storage is missing") }
+	originalVersions := original.versions
+	stage := e.BeginCatalogStage(auth.catalog)
+	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	e.mu.Unlock()
+	defer e.DiscardCatalogStage(stage)
+	next := *old
+	next.revision++
+	next.columns = make([]ColumnDescriptor, 0, len(old.columns)-1)
+	next.attributes = make([]int32, 0, len(old.attributes)-1)
+	next.index = make(map[string]int, len(old.index)-1)
+	for i, column := range old.columns {
+		if err := op.Context().Err(); err != nil { return Result{}, err }
+		if i == slot { continue }
+		next.index[column.Name] = len(next.columns)
+		next.columns = append(next.columns, column)
+		next.attributes = append(next.attributes, old.attributes[i])
+	}
+	next.columnACL = nil
+	for sub, acl := range old.columnACL {
+		if err := op.Context().Err(); err != nil { return Result{}, err }
+		if sub == old.attributes[slot] { continue }
+		if next.columnACL == nil { next.columnACL = make(map[int32]ACLValue, len(old.columnACL)) }
+		next.columnACL[sub] = acl
+	}
+	next.columnComments = nil
+	for sub, text := range old.columnComments {
+		if err := op.Context().Err(); err != nil { return Result{}, err }
+		if sub == old.attributes[slot] { continue }
+		if next.columnComments == nil { next.columnComments = make(map[int32]string, len(old.columnComments)) }
+		next.columnComments[sub] = text
+	}
+	replacement := &relationStorage{versions:make([]rowVersion, len(originalVersions))}
+	for i, row := range originalVersions {
+		if err := op.Context().Err(); err != nil { return Result{}, err }
+		if len(row.values) != len(old.columns) { return Result{}, fmt.Errorf("stuntgres: invalid original row width") }
+		values := make([]sqltype.Value, len(next.columns))
+		copy(values, row.values[:slot])
+		copy(values[slot:], row.values[slot+1:])
+		row.values = values
+		replacement.versions[i] = row
+	}
+	if err := stage.alterRelation(op.Context(), ref, &next, original, replacement); err != nil { return Result{}, err }
+	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
+	if err != nil { return Result{}, err }
+	if _, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch:ref.Epoch}); err != nil { return Result{}, err }
+	scope.completed = true
 	return Result{}, nil
 }

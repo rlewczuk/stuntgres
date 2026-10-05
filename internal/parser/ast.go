@@ -66,11 +66,23 @@ type DropTable struct {
 
 func (*DropTable) statement() {}
 
+type AlterTableDropColumn struct {
+	Name ObjectName
+	Column Identifier
+	IfExists bool
+	Mode DropMode
+	Only bool
+	Pos Position
+}
+
+func (*AlterTableDropColumn) statement() {}
+
 type Insert struct {
 	Name    ObjectName
 	Targets []InsertTarget
 	Rows    [][]Expr
 	Pos     Position
+	RestoreDefaultValues bool
 }
 
 type InsertTarget struct {

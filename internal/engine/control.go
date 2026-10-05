@@ -67,6 +67,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	type dumpRelation struct {
 		owner, schema, name string
 		columns             []ColumnDescriptor
+		attributes          []int32
 		versions            []rowVersion
 		comment             string
 		columnComments      map[int32]string
@@ -209,7 +210,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{principal.Name, ns.name, r.name, r.columns, storage.versions, r.comment, r.columnComments})
+		tables = append(tables, dumpRelation{principal.Name, ns.name, r.name, r.columns, r.attributes, storage.versions, r.comment, r.columnComments})
 	}
 	e.mu.Unlock()
 	sort.Slice(tables, func(i, j int) bool {
@@ -281,7 +282,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 		for i, c := range t.columns {
-			if text := t.columnComments[int32(i+1)]; text != "" {
+			if text := t.columnComments[t.attributes[i]]; text != "" {
 				if err := emit("COMMENT ON COLUMN " + qualified + "." + quoteIdentifier(c.Name) + " IS " + commentLiteral(text) + ";\n"); err != nil {
 					return err
 				}
@@ -290,6 +291,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		for _, version := range t.versions {
 			row := version.values
 			line.Reset()
+			if len(t.columns) == 0 {
+				if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil { return err }
+				continue
+			}
 			line.WriteString("INSERT INTO " + qualified + " VALUES (")
 			for i, v := range row {
 				if i > 0 {
@@ -340,7 +345,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	statements, err := parser.Parse(string(data))
+	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context:ctx, StandardConformingStrings:true, RestoreDefaultValues:true})
 	if err != nil {
 		return err
 	}

@@ -92,7 +92,7 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr)(BoundExpr,error){
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr)(BoundExpr,error){
  if b.relation==nil || len(raw.Name.Parts)!=1{return nil,fmt.Errorf("stuntgres: column outside expression scope")}
- name:=raw.Name.Parts[0].Text;i,ok:=b.relation.index[name];if !ok{return nil,expressionError("42703",fmt.Sprintf("column %q does not exist",name),raw.Pos)}
+ name:=raw.Name.Parts[0].Text;i,ok:=b.relation.index[name];if !ok{return nil,expressionError("42703",fmt.Sprintf(`column "%s" does not exist`,name),raw.Pos)}
  return b.columnAt(i,raw.Pos),nil
 }
 func (b *expressionBinder) useColumn(i int) ObjectRef {
