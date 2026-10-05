@@ -17,11 +17,11 @@ type lexer struct {
 	statements         []Statement
 	// Failure-only query recognition defers its capability error until the
 	// entire script is syntactically valid. It never publishes a query AST.
-	pendingMessage     string
-	pendingOffset      int
-	lookahead          rawToken
-	hasLookahead       bool
-	rawUnicode         bool
+	pendingMessage string
+	pendingOffset  int
+	lookahead      rawToken
+	hasLookahead   bool
+	rawUnicode     bool
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.

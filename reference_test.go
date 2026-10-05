@@ -1426,6 +1426,8 @@ func TestReferenceUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
 	p := newReferencePair(t)
 	p.step(t, referenceExec("CREATE TABLE t(x TEXT NOT NULL)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES ('seed')", 1))
+	p.step(t, referenceExec("CREATE TABLE source_rows(x TEXT)", 0))
+	p.step(t, referenceExec("INSERT INTO source_rows VALUES ('source')", 1))
 	check := func(q string, diag referenceDiagnostic) {
 		t.Helper()
 		for _, op := range []string{"exec", "query", "prepare"} {
@@ -1440,6 +1442,7 @@ func TestReferenceUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
 			}
 			p.step(t, s)
 			p.step(t, referenceSelect("SELECT * FROM t", []string{"x"}, []string{"TEXT"}, [][]any{{"seed"}}))
+			p.step(t, referenceSelect("SELECT * FROM source_rows", []string{"x"}, []string{"TEXT"}, [][]any{{"source"}}))
 		}
 	}
 	for _, tc := range unicodeEscapeErrors() {
@@ -1453,6 +1456,10 @@ func TestReferenceUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
 		n, _ := strconv.Atoi(tc.position)
 		check("INSERT INTO t VALUES ('valid'),("+tc.source, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: strconv.Itoa(n + 10), Hint: tc.hint})
 	}
+	check(`INSERT INTO t SELECT x FROM source_rows; INSERT INTO t VALUES (U&'\061')`, referenceDiagnostic{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601",
+		Message: "invalid Unicode escape", Position: "67", Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`,
+	})
 	for _, tc := range []struct{ q, message, position, hint string }{
 		{`CREATE TABLE U&"a""\061"(x TEXT)`, "invalid Unicode escape", "19", `Unicode escapes must be \XXXX or \+XXXXXX.`},
 		{`SELECT * FROM U&"a""😀\061"`, "invalid Unicode escape", "22", `Unicode escapes must be \XXXX or \+XXXXXX.`},
@@ -1562,4 +1569,69 @@ func TestReferenceUnicodeEscapesDumpRoundTrip(t *testing.T) {
 	if !bytes.Equal(dump.Bytes(), again.Bytes()) {
 		t.Fatal("redump changed")
 	}
+}
+
+func TestReferenceUnicodeEscapesComposition(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec("CREATE TABLE t(x TEXT)", 0))
+	p.step(t, referenceExec("INSERT INTO t VALUES ('z'),(NULL),('a')", 3))
+	for _, tc := range unicodeEscapeCompositionCases() {
+		if tc.code != "42601" {
+			continue
+		}
+		for _, op := range []string{"exec", "query", "prepare"} {
+			t.Run(op+"/"+tc.query, func(t *testing.T) {
+				s := referenceErrorDiagnostic(tc.query, referenceDiagnostic{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code,
+					Message: tc.message, Position: tc.position, Hint: tc.hint,
+				})
+				s.errorStage = "execute"
+				if op == "query" {
+					s.selectRows = true
+				}
+				if op == "prepare" {
+					s.prepared = true
+					s.errorStage = "prepare"
+				}
+				p.step(t, s)
+				p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"TEXT"}, [][]any{{"a"}, {"z"}, {nil}}))
+			})
+		}
+	}
+	// PostgreSQL's valid NULL ordering and the native capability boundary
+	// are independent outcomes, not normalized into fictitious parity.
+	for _, tc := range []struct {
+		query, position string
+		rows            [][]any
+	}{
+		{`SELECT x FROM t ORDER BY U&"\0078" NULLS FIRST`, "36", [][]any{{nil}, {"a"}, {"z"}}},
+		{`SELECT x FROM t ORDER BY U&"\0078" DESC NULLS LAST`, "41", [][]any{{"z"}, {"a"}, {nil}}},
+	} {
+		for _, prepared := range []bool{false, true} {
+			native := referenceErrorDiagnostic(tc.query, referenceDiagnostic{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000",
+				Message: "NULLS ordering is unsupported", Position: tc.position,
+			})
+			native.prepared, native.selectRows, native.errorStage = prepared, true, "execute"
+			if prepared {
+				native.errorStage = "prepare"
+			}
+			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
+			pg := referenceSelect(tc.query, []string{"x"}, []string{"TEXT"}, tc.rows)
+			pg.prepared = prepared
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
+			p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"TEXT"}, [][]any{{"a"}, {"z"}, {nil}}))
+		}
+	}
+	supported := referenceSelect(`SELECT x FROM t ORDER BY U&"\0078"`, []string{"x"}, []string{"TEXT"}, [][]any{{"a"}, {"z"}, {nil}})
+	p.step(t, supported)
+	p.step(t, referencePrepared(supported))
+	p.step(t, referenceExec(`CREATE TABLE U&"UESCAPE"(id INT,U&"FIRST" TEXT)`, 0))
+	p.step(t, referenceExec(`INSERT INTO U&"UESCAPE"(id,U&"FIRST") VALUES (1,U&'\0041')`, 1))
+	p.step(t, referencePrepared(referenceExec(`INSERT INTO "UESCAPE"(id,"FIRST") VALUES (2,U&'\+01F600')`, 1)))
+	keywordRows := [][]any{{int64(1), "A"}, {int64(2), "😀"}}
+	keywordSelect := referenceSelect(`SELECT id,U&"FIRST" FROM U&"UESCAPE" ORDER BY id`, []string{"id", "FIRST"}, []string{"INT4", "TEXT"}, keywordRows)
+	p.step(t, keywordSelect)
+	p.step(t, referencePrepared(keywordSelect))
+	p.step(t, referenceSelect(`SELECT id,"FIRST" FROM "UESCAPE" ORDER BY id`, []string{"id", "FIRST"}, []string{"INT4", "TEXT"}, keywordRows))
 }

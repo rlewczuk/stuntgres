@@ -487,6 +487,7 @@ func TestUnicodeEscapesValuesAndPositions(t *testing.T) {
 func TestUnicodeEscapesNamesAndRawLookahead(t *testing.T) {
 	for _, tc := range []struct{ source, want string }{
 		{`U&"\0041"`, "A"}, {`U&"select"`, "select"}, {`U&"a\002eb"`, "a.b"},
+		{`U&"UESCAPE"`, "UESCAPE"}, {`U&"FIRST"`, "FIRST"}, {`U&"NULLS"`, "NULLS"},
 		{`U&"!0042" UESCAPE '!'`, "B"},
 		{`U&"a""b\0022c"`, `a"b"c`}, {`U&"\+01F600"`, "😀"},
 		{`U&"` + strings.Repeat(`\0061`, 64) + `"`, strings.Repeat("a", 63)},
@@ -635,5 +636,136 @@ func TestUnicodeEscapesUESCAPERawValidation(t *testing.T) {
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "UESCAPE must be followed by a simple string literal at end of input", Position: "36"}
 	if s != nil || !errors.As(err, &got) || *got != want {
 		t.Fatalf("EOF: %#v %v want %#v", got, err, want)
+	}
+}
+
+func TestUnicodeEscapesComposedRawCache(t *testing.T) {
+	type expectedToken struct {
+		code               int
+		text, raw, keyword string
+		character, scanned int
+		cached             bool
+	}
+	for _, tc := range []struct {
+		input  string
+		tokens []expectedToken
+	}{
+		{`U&'A' NULLS FIRST`, []expectedToken{
+			{STRING, "A", `U&'A'`, "", 1, 11, true},
+			{NULLS_LA, "nulls", "NULLS", "nulls", 7, 17, true},
+			{KW_U, "first", "FIRST", "first", 13, 17, false},
+			{0, "", "", "", 18, 17, false}, {0, "", "", "", 18, 17, false},
+		}},
+		{`NULLS U&'A'`, []expectedToken{
+			{KW_U, "nulls", "NULLS", "nulls", 1, 11, true},
+			{STRING, "A", `U&'A'`, "", 7, 11, true},
+			{0, "", "", "", 12, 11, false}, {0, "", "", "", 12, 11, false},
+		}},
+		{`U&"UESCAPE" U&"FIRST"`, []expectedToken{
+			{IDENT, "UESCAPE", `U&"UESCAPE"`, "", 1, 21, true},
+			{IDENT, "FIRST", `U&"FIRST"`, "", 13, 21, true},
+			{0, "", "", "", 22, 21, false}, {0, "", "", "", 22, 21, false},
+		}},
+		{`U&'A' U&"UESCAPE"`, []expectedToken{
+			{STRING, "A", `U&'A'`, "", 1, 17, true},
+			{IDENT, "UESCAPE", `U&"UESCAPE"`, "", 7, 17, true},
+			{0, "", "", "", 18, 17, false}, {0, "", "", "", 18, 17, false},
+		}},
+		{`NULLS U&"FIRST"`, []expectedToken{
+			{KW_U, "nulls", "NULLS", "nulls", 1, 15, true},
+			{IDENT, "FIRST", `U&"FIRST"`, "", 7, 15, true},
+			{0, "", "", "", 16, 15, false}, {0, "", "", "", 16, 15, false},
+		}},
+		{`U&"NULLS" FIRST`, []expectedToken{
+			{IDENT, "NULLS", `U&"NULLS"`, "", 1, 15, true},
+			{KW_U, "first", "FIRST", "first", 11, 15, false},
+			{0, "", "", "", 16, 15, false}, {0, "", "", "", 16, 15, false},
+		}},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			l := &lexer{input: tc.input}
+			var v sqlSymType
+			for i, want := range tc.tokens {
+				code := l.Lex(&v)
+				pos := Position{Offset: want.character - 1, Character: want.character}
+				if l.err != nil || code != want.code || v.tok.text != want.text || v.tok.raw != want.raw || v.tok.pos != pos || l.current != v.tok || l.offset != want.scanned || l.hasLookahead != want.cached {
+					t.Fatalf("token %d: %d %#v current %#v scanned %d cached %v %v; want %#v", i, code, v.tok, l.current, l.offset, l.hasLookahead, l.err, want)
+				}
+				if want.keyword == "" {
+					if v.tok.keyword != nil {
+						t.Fatalf("token %d acquired keyword %#v", i, v.tok.keyword)
+					}
+				} else if v.tok.keyword == nil || v.tok.keyword.word != want.keyword || v.tok.keyword.category != Unreserved {
+					t.Fatalf("token %d lost unreserved keyword %q: %#v", i, want.keyword, v.tok.keyword)
+				}
+				if want.cached && i+1 < len(tc.tokens) {
+					next := tc.tokens[i+1]
+					if l.lookahead.lexeme.raw != next.raw || l.lookahead.lexeme.pos != (Position{Offset: next.character - 1, Character: next.character}) {
+						t.Fatalf("token %d cached wrong source evidence: %#v", i, l.lookahead)
+					}
+				}
+			}
+		})
+	}
+	for _, tc := range []struct {
+		input                                     string
+		prefix                                    bool
+		nullsCharacter, unicodeCharacter, scanned int
+		position                                  string
+	}{
+		{`NULLS U&'\061'`, false, 1, 7, 14, "10"},
+		{`U&'A' NULLS U&'\061'`, true, 7, 13, 20, "16"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			l := &lexer{input: tc.input}
+			var v sqlSymType
+			if tc.prefix {
+				if code := l.Lex(&v); code != STRING || l.err != nil || l.current != v.tok || v.tok.text != "A" || v.tok.raw != `U&'A'` || v.tok.keyword != nil || v.tok.pos != (Position{Offset: 0, Character: 1}) || !l.hasLookahead || l.lookahead.lexeme.raw != "NULLS" || l.offset != 11 {
+					t.Fatalf("Unicode did not cache raw NULLS: %#v %#v %v", v.tok, l.lookahead, l.err)
+				}
+			}
+			if code := l.Lex(&v); code != KW_U || l.err != nil || l.current != v.tok || v.tok.text != "nulls" || v.tok.raw != "NULLS" || v.tok.pos != (Position{Offset: tc.nullsCharacter - 1, Character: tc.nullsCharacter}) || v.tok.keyword == nil || v.tok.keyword.word != "nulls" || v.tok.keyword.category != Unreserved || l.offset != tc.scanned {
+				t.Fatalf("NULLS prematurely decoded raw lookahead: %#v %v", v.tok, l.err)
+			}
+			if !l.hasLookahead || !l.lookahead.unicode || l.lookahead.code != STRING || l.lookahead.lexeme.text != `\061` || l.lookahead.lexeme.raw != `U&'\061'` || l.lookahead.lexeme.keyword != nil || l.lookahead.lexeme.pos != (Position{Offset: tc.unicodeCharacter - 1, Character: tc.unicodeCharacter}) {
+				t.Fatalf("malformed U token not retained raw: %#v", l.lookahead)
+			}
+			code := l.Lex(&v)
+			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid Unicode escape", Position: tc.position, Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`}
+			var got *sqlstate.Error
+			if code != 0 || !errors.As(l.err, &got) || *got != want || got.SQLState() != want.Code {
+				t.Fatalf("cached Unicode decode: code %d %#v %v; want %#v", code, got, l.err, want)
+			}
+		})
+	}
+}
+
+func TestUnicodeEscapesCompositionDiagnostics(t *testing.T) {
+	for _, tc := range []struct{ query, code, message, position, hint string }{
+		{`SELECT x FROM t ORDER BY x NULLS U&"FIRST"`, "42601", `syntax error at or near "NULLS"`, "28", ""},
+		{`SELECT x FROM t ORDER BY U&"\0078" NULLS FIRST`, "0A000", "NULLS ordering is unsupported", "36", ""},
+		{`SELECT x FROM t ORDER BY U&"\0078" DESC NULLS LAST`, "0A000", "NULLS ordering is unsupported", "41", ""},
+		{`INSERT INTO t SELECT x FROM source_rows; INSERT INTO t VALUES (U&'\061')`, "42601", "invalid Unicode escape", "67", `Unicode escapes must be \XXXX or \+XXXXXX.`},
+	} {
+		statements, err := Parse(tc.query)
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position, Hint: tc.hint}
+		var got *sqlstate.Error
+		if statements != nil || !errors.As(err, &got) || *got != want || got.SQLState() != want.Code {
+			t.Fatalf("%q: %#v %v statements %#v; want %#v", tc.query, got, err, statements, want)
+		}
+	}
+}
+
+func TestUnicodeEscapesPendingQueryPrecedence(t *testing.T) {
+	const query = `INSERT INTO t SELECT x FROM source_rows; INSERT INTO t VALUES (U&'\061')`
+	l := &lexer{input: query}
+	result := sqlParse(l)
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid Unicode escape", Position: "67", Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`}
+	var got *sqlstate.Error
+	if result == 0 || !errors.As(l.err, &got) || *got != want || got.SQLState() != want.Code || len(l.statements) != 0 {
+		t.Fatalf("pending-query parse result %d, statements %#v, error %#v %v; want %#v", result, l.statements, got, l.err, want)
+	}
+	if l.pendingMessage != "INSERT SELECT is unsupported" || l.pendingOffset != 14 {
+		t.Fatalf("first query did not establish the deferred capability: %q at %d", l.pendingMessage, l.pendingOffset)
 	}
 }

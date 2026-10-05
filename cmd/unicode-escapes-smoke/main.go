@@ -203,6 +203,12 @@ func run() error {
 	if err := exec("INSERT INTO t VALUES ('seed')", false, 1); err != nil {
 		return err
 	}
+	if err := exec("CREATE TABLE source_rows(x TEXT)", false, 0); err != nil {
+		return err
+	}
+	if err := exec("INSERT INTO source_rows VALUES ('source')", false, 1); err != nil {
+		return err
+	}
 	check := func(q, message, position, hint string) error {
 		for _, op := range []string{"exec", "query", "prepare"} {
 			var err error
@@ -245,6 +251,8 @@ func run() error {
 		{`INSERT INTO t VALUES (U&'\061' /*`, `unterminated /* comment at or near "/*"`, "32", ""},
 		{`INSERT INTO t VALUES ('valid'),(U&'\061')`, "invalid Unicode escape", "36", hint},
 		{`CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'\061')`, "invalid Unicode escape", "58", hint},
+		{`SELECT x FROM t ORDER BY x NULLS U&"FIRST"`, `syntax error at or near "NULLS"`, "28", ""},
+		{`INSERT INTO t SELECT x FROM source_rows; INSERT INTO t VALUES (U&'\061')`, "invalid Unicode escape", "67", hint},
 	} {
 		if err := check(tc.q, tc.message, tc.position, tc.hint); err != nil {
 			return err
@@ -255,6 +263,13 @@ func run() error {
 				return err
 			}
 			if err := verifyRows(r, []string{"x"}, []string{"TEXT"}, [][]any{{"seed"}}); err != nil {
+				return err
+			}
+			source, err := db.QueryContext(ctx, "SELECT x FROM source_rows")
+			if err != nil {
+				return err
+			}
+			if err := verifyRows(source, []string{"x"}, []string{"TEXT"}, [][]any{{"source"}}); err != nil {
 				return err
 			}
 		}
