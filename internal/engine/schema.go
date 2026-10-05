@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 func schemaReserved(name string) error {
@@ -55,7 +56,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			}
 		}
 	}
-	b, err := e.describe(op.Context(), s, auth, ObjectRef{})
+	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, sqltype.InputEnvironment{}, op, nil)
 	if err != nil {
 		return err
 	}
@@ -73,6 +74,21 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		d.attributes[i] = int32(i + 1)
 		d.columns[i].OriginTable = uint32(oid)
 		d.columns[i].OriginAttribute = int16(i + 1)
+	}
+	// PostgreSQL resolves raw column modifiers again while building the
+	// relation descriptor, without a parser state/source position.
+	for _, element := range s.Elements {
+		if column := element.Column; column != nil && column.TypeName.Precision != nil {
+			i := d.index[column.Name]
+			usage, warning, err := d.columns[i].Usage.Type.ResolveModifier(*column.TypeName.Precision)
+			if err != nil {
+				return err
+			}
+			d.columns[i].Usage = usage
+			if warning != nil {
+				op.emitNotice(levelWarning, *warning)
+			}
+		}
 	}
 	return stage.Create(d)
 }

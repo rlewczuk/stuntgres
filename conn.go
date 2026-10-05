@@ -162,6 +162,8 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	if describe {
 		description, err = scope.Describe(ast)
 	} else {
+		// Signature and immutable timestamp scalars travel together; execution
+		// still resolves the current catalog and imports a fresh parameter frame.
 		scope.Expected = expected
 		r, err = scope.Execute(ast, len(values), frameImporter(values))
 	}

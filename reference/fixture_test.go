@@ -315,6 +315,10 @@ func referenceCheckDiagnostic(t *testing.T, err error, s referenceStep, stage st
 
 func referenceNormalize(v any) any {
 	switch value := v.(type) {
+	case time.Time:
+		// pq and native may use different zero-offset Location pointers.
+		// Preserve instant/civil precision while removing pointer identity.
+		return value.Round(0).UTC()
 	case []byte:
 		return string(value)
 	case int:
@@ -386,17 +390,20 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	} else {
 		rows, err = db.QueryContext(ctx, s.query, s.args...)
 	}
+	if rows != nil {
+		// State/diagnostic assertions may Fatal even when Query succeeds.
+		// Register cursor cleanup first; it must precede statement cleanup.
+		defer rows.Close()
+	}
 	stage := "execute"
 	state := referenceState(t, err, s.state)
 	if err != nil {
 		if rows != nil {
-			rows.Close()
 			t.Fatal("failed Query exposed a cursor")
 		}
 		diag := referenceCheckDiagnostic(t, err, s, stage)
 		return referenceObserved{state: state, diagnostic: diag, errorStage: stage}
 	}
-	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
 		t.Fatal(err)

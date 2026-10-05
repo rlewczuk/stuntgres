@@ -73,7 +73,7 @@ func TestSchemaLockedBindingShadowCreation(t *testing.T) {
 							if insert {
 								count = 1
 							}
-							r, executeErr := scope.Execute(ast, count, func(_ context.Context, info ParameterInfo, frame []sqltype.Value) error {
+							r, executeErr := scope.Execute(ast, count, func(_ context.Context, info ParameterInfo, frame []sqltype.Value, _ sqltype.InputEnvironment) error {
 								out.imported = true
 								var importErr error
 								frame[0], importErr = sqltype.Integer(info.Types[0].Type, 11)

@@ -7,9 +7,11 @@ type Statement interface{ statement() }
 
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
-	Name   string
-	Pos    Position
-	Quoted bool
+	Name         string
+	Pos          Position
+	Quoted       bool
+	Precision    *int32
+	PrecisionPos Position
 }
 
 type Position struct{ Offset, Character int }
@@ -67,21 +69,21 @@ type DropTable struct {
 func (*DropTable) statement() {}
 
 type AlterTableDropColumn struct {
-	Name ObjectName
-	Column Identifier
+	Name     ObjectName
+	Column   Identifier
 	IfExists bool
-	Mode DropMode
-	Only bool
-	Pos Position
+	Mode     DropMode
+	Only     bool
+	Pos      Position
 }
 
 func (*AlterTableDropColumn) statement() {}
 
 type Insert struct {
-	Name    ObjectName
-	Targets []InsertTarget
-	Rows    [][]Expr
-	Pos     Position
+	Name                 ObjectName
+	Targets              []InsertTarget
+	Rows                 [][]Expr
+	Pos                  Position
 	RestoreDefaultValues bool
 }
 
@@ -173,6 +175,11 @@ type Expr interface {
 	SourcePosition() Position
 }
 type LiteralExpr struct{ Value Value }
+type TypedLiteralExpr struct {
+	TypeName TypeName
+	Text     string
+	Pos      Position
+}
 type ColumnExpr struct {
 	Name ObjectName
 	Pos  Position
@@ -187,14 +194,16 @@ type OperatorExpr struct {
 	Pos  Position
 }
 
-func (LiteralExpr) expression()                  {}
-func (ColumnExpr) expression()                   {}
-func (ParameterExpr) expression()                {}
-func (OperatorExpr) expression()                 {}
-func (e LiteralExpr) SourcePosition() Position   { return e.Value.Pos }
-func (e ColumnExpr) SourcePosition() Position    { return e.Pos }
-func (e ParameterExpr) SourcePosition() Position { return e.Pos }
-func (e OperatorExpr) SourcePosition() Position  { return e.Pos }
+func (LiteralExpr) expression()                     {}
+func (TypedLiteralExpr) expression()                {}
+func (ColumnExpr) expression()                      {}
+func (ParameterExpr) expression()                   {}
+func (OperatorExpr) expression()                    {}
+func (e LiteralExpr) SourcePosition() Position      { return e.Value.Pos }
+func (e TypedLiteralExpr) SourcePosition() Position { return e.Pos }
+func (e ColumnExpr) SourcePosition() Position       { return e.Pos }
+func (e ParameterExpr) SourcePosition() Position    { return e.Pos }
+func (e OperatorExpr) SourcePosition() Position     { return e.Pos }
 
 // Set uses setting-specific scalar text; Default is distinct from quoted text.
 type Set struct {

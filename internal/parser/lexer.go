@@ -28,6 +28,10 @@ type lexer struct {
 	hasLookahead   bool
 	rawUnicode     bool
 	floatPrecision bool
+	// Lexical evidence only: preserve numeric capability diagnostics outside a
+	// timestamp modifier, whose unsigned-Iconst grammar requires syntax errors.
+	timestampLead     bool
+	timestampModifier bool
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.
@@ -498,12 +502,11 @@ func (l *lexer) scan(v *sqlSymType) int {
 			return 0
 		}
 		if l.floatPrecision && c == '.' && l.offset < len(l.input) && l.input[l.offset] == '.' {
-			// The release scanner returns one DOT_DOT token after numericfail
-			// throws both dots back. Keep its complete diagnostic spelling.
+			// Preserve master's complete DOT_DOT diagnostic spelling.
 			l.current.text = ".."
 			l.offset++
 		} else if c == '.' && l.offset < len(l.input) && digit(l.input[l.offset]) {
-			l.fail("0A000", "non-integer literal is unsupported")
+			l.nonintegerDiagnostic(start, "non-integer literal is unsupported")
 			return 0
 		}
 		if c == ':' && l.offset < len(l.input) && l.input[l.offset] == ':' {
@@ -604,6 +607,13 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	l.current = token.lexeme
 	v.tok = token.lexeme
+	if token.code == int('(') && l.timestampLead {
+		l.timestampModifier = true
+	}
+	if token.code == int(')') || token.code == int(',') || token.code == int(';') {
+		l.timestampModifier = false
+	}
+	l.timestampLead = token.code == TIMESTAMP || token.code == IDENT && columnType(token.lexeme).Quoted && token.lexeme.text == "timestamp"
 	return token.code
 }
 
@@ -756,7 +766,7 @@ func (l *lexer) integerToken(start int) bool {
 				l.floatNumericSyntax(start)
 				return false
 			}
-			l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
+			l.nonintegerDiagnostic(start, "non-decimal-integer literal is unsupported")
 			return false
 		}
 		if decimalEnd < len(l.input) && (l.input[decimalEnd] == 'e' || l.input[decimalEnd] == 'E') {
@@ -780,7 +790,7 @@ func (l *lexer) integerToken(start int) bool {
 						l.failAt("42601", "syntax error at or near \""+l.input[start:exponentEnd]+"\"", start)
 						return false
 					}
-					l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
+					l.nonintegerDiagnostic(start, "non-decimal-integer literal is unsupported")
 					return false
 				}
 				if realJunkEnd > end {
@@ -852,4 +862,31 @@ func (l *lexer) floatNumericSyntax(start int) {
 	} else {
 		l.failAt("42601", "syntax error at or near \""+l.input[start:end]+"\"", start)
 	}
+}
+
+func (l *lexer) nonintegerDiagnostic(start int, message string) {
+	if !l.timestampModifier {
+		l.failAt("0A000", message, start)
+		return
+	}
+	end := start
+	for end < len(l.input) && (digit(l.input[end]) || l.input[end] == '_') {
+		end++
+	}
+	if end < len(l.input) && l.input[end] == '.' {
+		end++
+		for end < len(l.input) && (digit(l.input[end]) || l.input[end] == '_') {
+			end++
+		}
+	}
+	if end < len(l.input) && (l.input[end] == 'e' || l.input[end] == 'E') {
+		end++
+		if end < len(l.input) && (l.input[end] == '+' || l.input[end] == '-') {
+			end++
+		}
+		for end < len(l.input) && (digit(l.input[end]) || l.input[end] == '_') {
+			end++
+		}
+	}
+	l.failAt("42601", fmt.Sprintf("syntax error at or near \"%s\"", l.input[start:end]), start)
 }

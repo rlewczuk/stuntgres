@@ -15,14 +15,15 @@ import (
 type ID uint32
 
 const (
-	Bool    ID = 16
-	Name    ID = 19 // Result identity only; not admitted as a stored column type.
-	Int8    ID = 20
-	Int4    ID = 23
-	Text    ID = 25
-	Float4  ID = 700
-	Float8  ID = 701
-	Unknown ID = 705
+	Bool      ID = 16
+	Name      ID = 19 // Result identity only; not admitted as a stored column type.
+	Int8      ID = 20
+	Int4      ID = 23
+	Text      ID = 25
+	Float4    ID = 700
+	Float8    ID = 701
+	Unknown   ID = 705
+	Timestamp ID = 1114
 )
 
 type CollationDerivation uint8
@@ -56,9 +57,15 @@ type Descriptor struct {
 	name, sql, database string
 }
 
-func (d *Descriptor) ID() ID               { return d.id }
-func (d *Descriptor) Name() string         { return d.name }
-func (d *Descriptor) SQLName() string      { return d.sql }
+func (d *Descriptor) ID() ID          { return d.id }
+func (d *Descriptor) Name() string    { return d.name }
+func (d *Descriptor) SQLName() string { return d.sql }
+func (d *Descriptor) DiagnosticName() string {
+	if d.id == Timestamp {
+		return "timestamp without time zone"
+	}
+	return strings.ToLower(d.sql)
+}
 func (d *Descriptor) DatabaseName() string { return d.database }
 func (d *Descriptor) Concrete() bool       { return d != nil && d.id != 0 && d.id != Unknown }
 func (d *Descriptor) Usage() Usage {
@@ -79,6 +86,7 @@ func Builtins() []*Descriptor {
 		{Text, "text", "TEXT", "TEXT"},
 		{Float4, "float4", "REAL", "FLOAT4"},
 		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8"},
+		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
 		{Unknown, "unknown", "", ""},
 	}
 }
@@ -158,16 +166,22 @@ func trim(s string) string {
 }
 
 func (d *Descriptor) Input(ctx context.Context, text string, typmod int32) (Value, error) {
+	return d.InputWithEnvironment(ctx, text, typmod, InputEnvironment{})
+}
+
+func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typmod int32, env InputEnvironment) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
-	if !d.Concrete() || typmod != -1 {
+	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
 	}
 	if !utf8.ValidString(text) || strings.IndexByte(text, 0) >= 0 {
 		return Value{}, failure("22P02", "invalid textual input")
 	}
 	switch d.id {
+	case Timestamp:
+		return d.timestampInput(text, typmod, env)
 	case Text:
 		return String(d, text), nil
 	case Bool:
@@ -305,6 +319,8 @@ func (d *Descriptor) Output(ctx context.Context, v Value) (string, error) {
 		return "", fmt.Errorf("invalid output value")
 	}
 	switch d.id {
+	case Timestamp:
+		return timestampOutput(v.integer), nil
 	case Int4, Int8:
 		return strconv.FormatInt(v.integer, 10), nil
 	case Float4, Float8:
@@ -330,6 +346,11 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "NULL", nil
 	}
 	switch d.id {
+	case Timestamp:
+		if v.integer == timestampEnd {
+			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
+		}
+		return "'" + timestampOutput(v.integer) + "'", nil
 	case Text, Name:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case Float4, Float8:
@@ -398,7 +419,7 @@ var baselineCasts = [...]castSpec{
 // PlanCoercion admits only bounded directional edges, never transitive casts.
 func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, error) {
 	p := CoercionPlan{source: source, target: target}
-	if !source.Type.Concrete() || !target.Type.Concrete() || source != source.Type.Usage() || target != target.Type.Usage() {
+	if !source.Valid() || !target.Valid() {
 		return p, fmt.Errorf("invalid coercion usage")
 	}
 	if source.Type == target.Type {
@@ -424,6 +445,9 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 	}
 	switch p.method {
 	case identity:
+		if p.target.Type.id == Timestamp {
+			v.integer = roundTimestamp(v.integer, p.target.Typmod)
+		}
 		return v, nil
 	case integerConversion:
 		return Integer(p.target.Type, v.integer)
@@ -475,7 +499,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 		return compareFloats(floatOperand(a), floatOperand(b)), nil
 	}
 	switch p.left.id {
-	case Int4, Int8:
+	case Int4, Int8, Timestamp:
 		if a.integer < b.integer {
 			return -1, nil
 		}

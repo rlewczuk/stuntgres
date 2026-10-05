@@ -174,7 +174,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
-		if !exists || typ != c.Usage.Type || !typ.Concrete() || c.Usage != typ.Usage() {
+		if !exists || typ != c.Usage.Type || !typ.Concrete() || !c.Usage.Valid() {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 	}

@@ -84,7 +84,9 @@ func tuples(r Result) [][]driver.Value {
 	for i := range rows {
 		rows[i] = make([]driver.Value, len(r.Columns))
 		values := make([]sqltype.Value, len(r.Columns))
-		if err := r.Rows.Values(context.Background(),i, values);err!=nil { panic(err) }
+		if err := r.Rows.Values(context.Background(), i, values); err != nil {
+			panic(err)
+		}
 		for j, v := range values {
 			rows[i][j] = testExport(v)
 		}
@@ -140,7 +142,7 @@ func testExecuteFrame(e *Engine, op *Operation, stmt parser.Statement, args []dr
 		}
 		raw[i] = v
 	}
-	return e.Execute(op, stmt, len(raw), func(ctx context.Context, p ParameterInfo, dst []sqltype.Value) error {
+	return e.Execute(op, stmt, len(raw), func(ctx context.Context, p ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
 		for i, v := range raw {
 			if v == nil {
 				dst[i] = sqltype.Null(p.Types[i].Type)
@@ -157,7 +159,7 @@ func testExecuteFrame(e *Engine, op *Operation, stmt parser.Statement, args []dr
 			default:
 				return sqlError("0A000", "unsupported parameter value")
 			}
-			value, err := p.Types[i].Type.Input(ctx, s, -1)
+			value, err := p.Types[i].Type.InputWithEnvironment(ctx, s, -1, input)
 			if err != nil {
 				return err
 			}

@@ -58,6 +58,7 @@ type binding struct {
 	expressions   [][]BoundExpr
 	ordering      sqltype.Comparison
 	createColumns []ColumnDescriptor
+	timestamps    []timestampConstant
 }
 
 func New() *Engine {
@@ -215,7 +216,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.SettingCall:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		info, _, err := e.describeSettingCall(op.ctx, s)
+		info, _, err := e.describeSettingCall(op.ctx, s, scope.input, op)
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
@@ -230,11 +231,11 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef)
+	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef, scope.input, op, nil)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	return StatementDescription{Parameters: b.parameters, Results: b.columns()}, nil
+	return StatementDescription{Parameters: b.parameters, Results: b.columns(), timestamps: b.timestamps}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -247,9 +248,9 @@ func objectNameText(n parser.ObjectName) string {
 // requiredRef is the exact acquired relation for SELECT/INSERT. Name lookup
 // still validates current namespace authority, but cannot retarget that lock.
 // CREATE TABLE has no existing relation and supplies the zero reference.
-func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef) (binding, error) {
+func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) (binding, error) {
 	b := binding{order: -1}
-	binder := newExpressionBinder(ctx, e)
+	binder := newExpressionBinder(ctx, e, input, op, expected)
 	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
 		return binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: mode})
 	}
@@ -268,7 +269,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				return b, fmt.Errorf("stuntgres: invalid table element")
 			}
 			if c := element.Column; c != nil {
-				u, err := e.resolveType(c.TypeName)
+				u, err := e.resolveType(c.TypeName, op)
 				if err != nil {
 					return b, err
 				}
@@ -438,6 +439,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 			b.projection[i] = expr
 			result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
+			if !s.Star {
+				if _, ok := s.Targets[i].(parser.TypedLiteralExpr); ok {
+					result.Name = "timestamp"
+				}
+			}
 			if c, ok := expr.(columnExpression); ok {
 				result = b.relation.columns[c.slot]
 			}
@@ -452,6 +458,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		return b, err
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
+	b.timestamps = binder.timestamps
 	return b, nil
 }
 
@@ -545,7 +552,11 @@ func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error
 	}
 	switch copy.Code {
 	case "42804":
-		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, strings.ToLower(column.Usage.Type.SQLName()), literalTypeName(value))
+		source := literalTypeName(value)
+		if _, ok := raw.(parser.TypedLiteralExpr); ok {
+			source = "timestamp without time zone"
+		}
+		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, column.Usage.Type.DiagnosticName(), source)
 		copy.Hint = "You will need to rewrite or cast the expression."
 		copy.Position = strconv.Itoa(value.Pos.Character)
 	case "22P02", "22003":
@@ -570,7 +581,7 @@ func notNullError(schema, table, column string, row []sqltype.Value) error {
 
 // FrameImporter runs only codec conversion of already owned adapter values.
 // It must not invoke user code or external I/O under the engine mutex.
-type FrameImporter func(context.Context, ParameterInfo, []sqltype.Value) error
+type FrameImporter func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error
 
 func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
 	scope, err := e.StartStatement(op)
@@ -621,7 +632,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return result, err
 	case *parser.SettingCall:
-		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame)
+		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame, scope.input)
 		if err == nil {
 			scope.completed = true
 		}
@@ -747,7 +758,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return Result{}, er
 	}
-	b, err := e.describe(ctx, stmt, auth, scope.lockedRef)
+	b, err := e.describe(ctx, stmt, auth, scope.lockedRef, scope.input, op, scope.Expected)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -768,7 +779,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
 		}
-		if err = importFrame(ctx, b.parameters, canonical); err != nil {
+		if err = importFrame(ctx, b.parameters, canonical, scope.input); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

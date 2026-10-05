@@ -2,6 +2,9 @@ package engine
 
 import (
 	"fmt"
+	"strconv"
+
+	"stuntgres/internal/sqlstate"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -18,6 +21,14 @@ type ColumnDescriptor struct {
 type StatementDescription struct {
 	Parameters ParameterInfo
 	Results    []ColumnDescriptor
+	// Immutable scalar captures, never descriptors, execution plans or frames.
+	timestamps []timestampConstant
+}
+
+type timestampConstant struct {
+	offset int
+	scalar int64
+	typmod int32
 }
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
@@ -66,7 +77,7 @@ func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 }
 
 // Called only by the existing binder against its current coherent catalog.
-func (e *Engine) resolveType(raw parser.TypeName) (sqltype.Usage, error) {
+func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted {
 		switch name {
@@ -94,7 +105,22 @@ func (e *Engine) resolveType(raw parser.TypeName) (sqltype.Usage, error) {
 	if !d.Concrete() || d.ID() == sqltype.Name {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
-	return d.Usage(), nil
+	u := d.Usage()
+	if raw.Precision != nil {
+		var warning *sqlstate.Error
+		var err error
+		u, warning, err = d.ResolveModifier(*raw.Precision)
+		if err != nil {
+			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
+		}
+		if warning != nil && op != nil {
+			if raw.Pos.Character > 0 {
+				warning.Position = strconv.Itoa(raw.Pos.Character)
+			}
+			op.emitNotice(levelWarning, *warning)
+		}
+	}
+	return u, nil
 }
 
 func typeDiagnostic(raw parser.TypeName, code, message string) error {
@@ -113,7 +139,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
 	case "int2", "money", "char", "bpchar", "varchar",
-		"numeric", "bit", "varbit", "date", "time", "timetz", "timestamp",
+		"numeric", "bit", "varbit", "date", "time", "timetz",
 		"timestamptz", "interval", "bytea", "uuid", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":

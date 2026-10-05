@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -172,6 +173,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	if chain {
 		t.ref = next
 		t.state = TxActive
+		t.start = time.Now().UTC()
 		t.ticket = candidate
 		candidate = nil
 	}

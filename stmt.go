@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 )
 
+// Retains raw syntax and immutable description/scalar captures, not a bound
+// execution plan. Current catalog/ACLs and parameter frames rebind on every use.
 type stmt struct {
 	conn        *conn
 	ast         parser.Statement

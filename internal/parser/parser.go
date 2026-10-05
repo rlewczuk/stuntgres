@@ -255,6 +255,36 @@ func floatType(l sqlLexer, name, precision lexeme) (TypeName, bool) {
 	return raw, true
 }
 
+func timestampPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) {
+	text := strings.ReplaceAll(tok.text, "_", "")
+	base := 10
+	if len(text) > 2 && text[0] == '0' && strings.ContainsRune("xXoObB", rune(text[1])) {
+		base = 0
+	}
+	if negative {
+		text = "-" + text
+	}
+	n, err := strconv.ParseInt(text, base, 32)
+	if err != nil {
+		l.(*lexer).syntax(tok)
+		return TypeName{}, false
+	}
+	p := int32(n)
+	return TypeName{Precision: &p, PrecisionPos: tok.pos}, true
+}
+func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
+	raw := columnType(tok)
+	if tok.keyword != nil && tok.text == "float" {
+		l.(*lexer).floatPrecision = true
+		return raw, true
+	}
+	if !raw.Quoted || raw.Name != "timestamp" {
+		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
+		return TypeName{}, false
+	}
+	return raw, true
+}
+
 func excludedTypeTail(first, tail lexeme) bool {
 	if first.keyword == nil || tail.keyword == nil {
 		return false
@@ -291,6 +321,7 @@ func settingCall(l sqlLexer, name lexeme, args []Expr) (Statement, bool) {
 	for i, raw := range args {
 		switch v := raw.(type) {
 		case ParameterExpr:
+		case TypedLiteralExpr:
 		case LiteralExpr:
 			if v.Value.Kind != NullValue && v.Value.Kind != StringValue && !(i == 2 && v.Value.Kind == BooleanValue) {
 				valid = false

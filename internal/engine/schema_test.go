@@ -462,7 +462,10 @@ func TestSchemaPreparedSignatureBeforeImporter(t *testing.T) {
 	}
 	scope.Expected = &expected
 	called := false
-	_, err = scope.Execute(ast, 1, func(context.Context, ParameterInfo, []sqltype.Value) error { called = true; return nil })
+	_, err = scope.Execute(ast, 1, func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+		called = true
+		return nil
+	})
 	if finish := scope.Finish(err); finish == nil || called {
 		t.Fatal("signature imported or succeeded", finish, called)
 	}

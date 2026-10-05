@@ -30,7 +30,7 @@ func TestTypeCoreAdapterOwnershipAndErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	bytes[0] = 'X'
-	v, err := importParameter(ctx, values[0], text.Usage())
+	v, err := importParameter(ctx, values[0], text.Usage(), sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestTypeCoreAdapterOwnershipAndErrors(t *testing.T) {
 	if err != nil || exported != "owned" {
 		t.Fatal(exported, err)
 	}
-	v, err = importParameter(ctx, int64(7), integer.Usage())
+	v, err = importParameter(ctx, int64(7), integer.Usage(), sqltype.InputEnvironment{})
 	if err != nil || v.Type() != integer {
 		t.Fatal(v, err)
 	}
@@ -93,7 +93,7 @@ func TestTypeCoreScalarImports(t *testing.T) {
 				t.Fatal("missing target type")
 			}
 			usage := target.Usage()
-			v, err := importParameter(ctx, tc.raw, usage)
+			v, err := importParameter(ctx, tc.raw, usage, sqltype.InputEnvironment{})
 			if err != nil || v.Type() != target || v.IsNull() {
 				t.Fatal(v, err)
 			}
@@ -114,14 +114,14 @@ func TestTypeCoreScalarImports(t *testing.T) {
 			var imported sqltype.Value
 			var importErr error
 			allocs := testing.AllocsPerRun(1000, func() {
-				imported, importErr = importParameter(ctx, tc.raw, usage)
+				imported, importErr = importParameter(ctx, tc.raw, usage, sqltype.InputEnvironment{})
 			})
 			if importErr != nil || imported.Type() != target || allocs != 0 {
 				t.Fatalf("scalar import: type=%v error=%v allocations=%g", imported.Type(), importErr, allocs)
 			}
 			canceled, cancel := context.WithCancel(ctx)
 			cancel()
-			if _, err := importParameter(canceled, tc.raw, usage); !errors.Is(err, context.Canceled) {
+			if _, err := importParameter(canceled, tc.raw, usage, sqltype.InputEnvironment{}); !errors.Is(err, context.Canceled) {
 				t.Fatalf("canceled scalar import: %v", err)
 			}
 		})
@@ -137,7 +137,7 @@ func TestTypeCoreScalarImports(t *testing.T) {
 		{2147483648, `value "2147483648" is out of range for type integer`},
 		{-2147483649, `value "-2147483649" is out of range for type integer`},
 	} {
-		_, err := importParameter(ctx, tc.raw, target.Usage())
+		_, err := importParameter(ctx, tc.raw, target.Usage(), sqltype.InputEnvironment{})
 		var got *Error
 		want := Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: tc.message}
 		if !errors.As(err, &got) || *got != want {
@@ -156,7 +156,7 @@ func TestFloatAdapterImports(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v, err := importParameter(ctx, normalized[0], target.Usage())
+			v, err := importParameter(ctx, normalized[0], target.Usage(), sqltype.InputEnvironment{})
 			if err != nil || v.Type() != target {
 				t.Fatal(v, err)
 			}

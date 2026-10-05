@@ -3,6 +3,8 @@ package parser
 import (
 	"errors"
 	"reflect"
+	"strconv"
+	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -77,7 +79,7 @@ func TestTableCoreOptionsAndBoundaries(t *testing.T) {
 }
 
 func TestTableCoreExcludedTypeSyntaxNeverSkips(t *testing.T) {
-	for _, declaration := range []string{"CHARACTER VARYING", "BIT VARYING", "TIME WITH TIME ZONE", "TIMESTAMP WITHOUT TIME ZONE", "INTERVAL YEAR TO MONTH", "public.int4", "INT(4)", "INT[]"} {
+	for _, declaration := range []string{"CHARACTER VARYING", "BIT VARYING", "TIME WITH TIME ZONE", "TIMESTAMP WITH TIME ZONE", "INTERVAL YEAR TO MONTH", "public.int4", "INT(4)", "INT[]"} {
 		_, err := Parse("CREATE TABLE IF NOT EXISTS t (id " + declaration + ")")
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
@@ -123,5 +125,42 @@ func TestTableCoreTypeTailSourceLocations(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Position != tc.position {
 			t.Fatal(tc.declaration, err)
 		}
+	}
+}
+
+func TestTableCoreFloatTimestampModifierCoexistence(t *testing.T) {
+	q := `/*é*/ CREATE TABLE t(a FLOAT(24),b U&"time\0073tamp"(-1),c FLOAT(25),d TIMESTAMP(3) WITHOUT TIME ZONE,e "timestamp"(+7),f DOUBLE PRECISION)`
+	statements, err := Parse(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	elements := statements[0].(*CreateTable).Elements
+	for i, want := range []struct {
+		name      string
+		precision *int32
+		quoted    bool
+	}{{"float4", nil, false}, {"timestamp", new(int32(-1)), true}, {"float8", nil, false}, {"timestamp", new(int32(3)), false}, {"timestamp", new(int32(7)), true}, {"double precision", nil, false}} {
+		got := elements[i].Column.TypeName
+		if got.Name != want.name || got.Quoted != want.quoted || !reflect.DeepEqual(got.Precision, want.precision) {
+			t.Fatal(i, got, want)
+		}
+	}
+	for _, tc := range []struct{ declaration, token string }{
+		{"FLOAT(+1)", "+"}, {"FLOAT(-1)", "-"}, {"FLOAT(1.5)", "1.5"},
+		{`U&"time\0073tamp"(1.5)`, "1.5"},
+	} {
+		q := `/*é*/ CREATE TABLE t(a "timestamp"(-1),b ` + tc.declaration + `)`
+		_, err := Parse(q)
+		var got *sqlstate.Error
+		offset := strings.LastIndex(q, tc.token)
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near "` + tc.token + `"`, Position: strconv.Itoa(len([]rune(q[:offset])) + 1)}
+		if !errors.As(err, &got) || *got != want {
+			t.Fatal(q, got, err, want)
+		}
+	}
+	_, err = Parse(`CREATE TABLE t(a FLOAT(24),b "timestamp"(3)); SELECT 1.5 FROM t`)
+	var got *sqlstate.Error
+	if !errors.As(err, &got) || got.Code != "0A000" {
+		t.Fatal("modifier context leaked into scalar input", err)
 	}
 }

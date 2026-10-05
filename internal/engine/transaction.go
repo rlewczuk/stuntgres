@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -63,6 +64,7 @@ type transactionOwner struct {
 	next      TxID
 	command   CommandID
 	writes    map[ObjectAddress][]rowVersion
+	start     time.Time
 }
 
 func (t *transactionOwner) clear() {
@@ -70,6 +72,7 @@ func (t *transactionOwner) clear() {
 	t.ref = TxRef{}
 	t.command = 0
 	t.writes = nil
+	t.start = time.Time{}
 }
 
 func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
@@ -111,6 +114,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState) 
 	t.next++
 	t.ref = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t}
 	t.state = state
+	t.start = time.Now().UTC()
 	return nil
 }
 
@@ -185,6 +189,7 @@ type StatementScope struct {
 	ownWrites          map[ObjectAddress][]rowVersion
 	Expected           *StatementDescription
 	implicit           bool
+	input              sqltype.InputEnvironment
 }
 
 type WriteStage struct {
@@ -276,6 +281,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	s.ticket = t.ticket
 	s.txRef = t.ref
 	s.implicit = t.state == TxImplicit
+	s.input = sqltype.InputEnvironment{TransactionStart: t.start}
 	s.command = t.command
 	s.ownWrites = t.writes
 	e.mu.Lock()

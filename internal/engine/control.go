@@ -267,7 +267,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if i > 0 {
 				line.WriteString(", ")
 			}
-			line.WriteString(quoteIdentifier(c.Name) + " " + c.Usage.Type.SQLName())
+			declaration, err := c.Usage.Declaration()
+			if err != nil {
+				return err
+			}
+			line.WriteString(quoteIdentifier(c.Name) + " " + declaration)
 			if !c.Nullable {
 				line.WriteString(" NOT NULL")
 			}
@@ -292,7 +296,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			row := version.values
 			line.Reset()
 			if len(t.columns) == 0 {
-				if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil { return err }
+				if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil {
+					return err
+				}
 				continue
 			}
 			line.WriteString("INSERT INTO " + qualified + " VALUES (")
@@ -345,7 +351,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context:ctx, StandardConformingStrings:true, RestoreDefaultValues:true})
+	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, RestoreDefaultValues: true})
 	if err != nil {
 		return err
 	}
@@ -374,8 +380,12 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.Insert:
 			for _, row := range s.Rows {
 				for _, v := range row {
-					if _, ok := v.(parser.ParameterExpr); ok {
+					switch v.(type) {
+					case parser.ParameterExpr:
 						return expressionError("42P02", "parameters are not allowed in restore", v.SourcePosition())
+					case parser.LiteralExpr, parser.TypedLiteralExpr:
+					default:
+						return fmt.Errorf("stuntgres: invalid restore scalar")
 					}
 				}
 			}

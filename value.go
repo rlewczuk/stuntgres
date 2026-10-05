@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func normalizeArguments(args []driver.NamedValue) ([]driver.Value, error) {
 			return nil, err
 		}
 		switch v := v.(type) {
-		case nil, int64, float64, string, bool:
+		case nil, int64, float64, string, bool, time.Time:
 			values[i] = v
 		case []byte:
 			values[i] = string(v)
@@ -38,7 +39,7 @@ func normalizeArguments(args []driver.NamedValue) ([]driver.Value, error) {
 	return values, nil
 }
 
-func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage) (sqltype.Value, error) {
+func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage, input sqltype.InputEnvironment) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -47,6 +48,12 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 	}
 	var text string
 	switch v := raw.(type) {
+	case time.Time:
+		if target.Type.ID() == sqltype.Timestamp {
+			return sqltype.TimestampFromTime(target.Type, v)
+		}
+		// Preserve the existing text-input policy for other SQL destinations.
+		text = v.Format("2006-01-02 15:04:05.999999999Z07:00")
 	case string:
 		text = v
 	case int64:
@@ -65,15 +72,15 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 	default:
 		return sqltype.Value{}, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported parameter value"}
 	}
-	return target.Type.Input(ctx, text, -1)
+	return target.Type.InputWithEnvironment(ctx, text, -1, input)
 }
 
 // Only checked scalar imports and codecs run in this callback. Values are already owned and no user code
 // runs under the coherent bind/import/evaluate publication critical section.
 func frameImporter(values []driver.Value) engine.FrameImporter {
-	return func(ctx context.Context, parameters engine.ParameterInfo, dst []sqltype.Value) error {
+	return func(ctx context.Context, parameters engine.ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
 		for i, raw := range values {
-			value, err := importParameter(ctx, raw, parameters.Types[i])
+			value, err := importParameter(ctx, raw, parameters.Types[i], input)
 			if err != nil {
 				return err
 			}
@@ -94,6 +101,18 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 		return nil, nil
 	}
 	switch v.Type().ID() {
+	case sqltype.Timestamp:
+		n, err := v.Timestamp()
+		if err != nil {
+			return nil, err
+		}
+		if n == sqltype.TimestampNegativeInfinity {
+			return []byte("-infinity"), nil
+		}
+		if n == sqltype.TimestampPositiveInfinity {
+			return []byte("infinity"), nil
+		}
+		return v.TimestampTime()
 	case sqltype.Int4, sqltype.Int8:
 		return v.Integer()
 	case sqltype.Float4, sqltype.Float8:
@@ -108,6 +127,8 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
 	switch d.ID() {
+	case sqltype.Timestamp:
+		return reflect.TypeFor[time.Time]()
 	case sqltype.Int4, sqltype.Int8:
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:

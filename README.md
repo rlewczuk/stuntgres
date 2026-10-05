@@ -621,8 +621,10 @@ ALTER TABLE [ONLY] [schema.]name DROP [COLUMN] [IF EXISTS] column [RESTRICT | CA
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | scalar [, ...]) FROM [schema.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
-type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
-value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n
+type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
+       | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
+       | TIMESTAMP [(precision)] [WITHOUT TIME ZONE]
+value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | TIMESTAMP [(precision)] [WITHOUT TIME ZONE] 'input'
 scalar := unqualified column | value
 ```
 
@@ -708,13 +710,14 @@ Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
 EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8 fail execution
-with `0A000`. Excluded multiword families (CHARACTER/BIT VARYING, TIME/TIMESTAMP
-WITH/WITHOUT TIME ZONE and qualified INTERVAL fields), qualified type names,
-arrays and type modifiers other than the selected FLOAT(p) precision selector
-remain parser-level `0A000` boundaries. Even an existing IF NOT EXISTS target
-cannot bypass these excluded syntax forms; the failure-only guards construct
-no executable family AST. DOUBLE PRECISION and valid FLOAT(p) are supported.
+Known single-name types outside INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8/TIMESTAMP fail
+execution with `0A000`. Excluded multiword families (CHARACTER/BIT VARYING,
+TIME WITH/WITHOUT TIME ZONE, TIMESTAMP WITH TIME ZONE and qualified INTERVAL
+fields), qualified type names, arrays and modifiers other than FLOAT(p) and
+timestamp precision remain parser-level `0A000` boundaries. Timestamp precision
+has its own bounded integer grammar. Even an existing IF NOT EXISTS target
+cannot bypass excluded syntax forms; failure-only guards construct no executable
+family AST. DOUBLE PRECISION and valid FLOAT(p) are supported.
 
 Type keyword aliases are not quoted catalog names: `"integer"`, `"bigint"` and
 `"boolean"` fail with `42704`, while `"int4"`, `"int8"`, `"text"` and `"bool"`
@@ -869,10 +872,10 @@ These ordinary-string defaults correspond to standard_conforming_strings=on.
 With the session setting off, ordinary strings use that same escape decoder;
 E strings always use it. Native Restore always uses the default-on parser.
 
-Types are int4/int8/text/bool/float4/float8. Values returned to Go are `int64`, `string`, `bool`, `float64`, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes and bool after standard `database/sql` conversion, not timestamps. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int4/int8/text/bool/float4/float8 and timestamp without time zone. Values returned to Go are `int64`, `string`, `bool`, `float64`, finite timestamp `time.Time`, owned infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-INT8 20, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701; analysis-only UNKNOWN 705), concrete nullable values,
+INT8 20, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, TIMESTAMP 1114; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -880,7 +883,9 @@ kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
 including INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-INT4/INT8 as `int64`, TEXT as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`, and typed NULL as nil.
+INT4/INT8 as `int64`, TEXT as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+finite TIMESTAMP as `time.Time`, infinity as fresh
+`[]byte("infinity")` / `[]byte("-infinity")`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
 
 REAL/FLOAT4 store IEEE binary32; DOUBLE PRECISION/FLOAT8 and bare FLOAT store
@@ -944,7 +949,8 @@ ordering, later-tuple atomicity, cancellation and retained control snapshots.
 
 Table SELECT targets and existing equality filters use one immutable typed
 expression binder/evaluator, also shared by INSERT and bounded setting arguments.
-Literal and parameter targets are named `?column?`; physical columns retain their
+Untyped literal and parameter targets are named `?column?`; explicitly typed timestamp
+targets are named `timestamp`; physical columns retain their
 names and origin metadata. Integer literals use INT4 in range and INT8 otherwise;
 unknown output strings, NULL and otherwise unconstrained parameters resolve to
 TEXT **after** filter analysis. Parameter occurrences retain their type at initial
@@ -1010,6 +1016,227 @@ Focused independent witnesses are `go test -run '^TestTypeCore.*$' -count=1 -v .
 Dump uses descriptor-owned canonical SQL literals, and staged Restore uses the
 same binder/codecs before replacing the catalog once; existing snapshots retain
 their old values, types and column metadata.
+
+### Timestamp without time zone
+
+`TIMESTAMP`, `TIMESTAMP(p)` and their explicit `WITHOUT TIME ZONE` forms
+work in table declarations and typed literals in the existing scalar positions.
+Omitted precision is typmod -1; explicit 0–6 is retained in column/result metadata
+and native Dump. Plain LIKE copies that precision. The quoted catalog type
+`"timestamp"` also admits a bounded signed integer modifier. Ordinary `-1`/`+1`,
+empty/multiple/noninteger modifiers are syntax errors; quoted negative precision
+reaches the type provider and fails `22023`. Greater precision succeeds with
+WARNING `22023`, for example `TIMESTAMP(7) precision reduced to maximum allowed, 6`,
+and effective precision 6. Typed-literal warnings occur at initial analysis/Prepare,
+not every held execution; CREATE warnings/errors occur at utility execution.
+Column declarations resolve the raw modifier again while building the relation
+descriptor, so excess precision emits two execution warnings: the first with
+the declaration position, then one without a position.
+An authorized existing IF NOT EXISTS table skips semantic precision validation,
+not malformed syntax. `client_min_messages=error` filters these warnings.
+Unicode-escaped quoted identifiers resolving to `"timestamp"` use the same
+modifier rule. Timestamp-related keywords retain their release identifier and
+bare-label categories. A cast applied to a typed timestamp literal remains a
+positioned `0A000` unsupported cast, not an executable expression.
+
+Input combines dates and times using fixed **MDY** ambiguous ordering, and output
+is fixed **ISO** civil date/time with a space, seconds, trimmed fractional zeros
+and no offset. Supported families include ISO dates/space or T separators,
+full/abbreviated text months and mixed delimiters, MDY slash/dash/dot dates,
+compact dates/times, short-year pivot 00–69→2000–2069 / 70–99→1970–1999,
+ordinal year/day and Julian day (including fractions), colon times, AM/PM,
+recognized weekday/noise tokens, AD/BC, `epoch`, and infinities. Four-digit `0000`
+is invalid; 1 BC is exported as astronomical Go year 0. Invalid Gregorian dates
+are rejected, not normalized; valid `24:00:00` and `23:59:60` carry to the next day.
+Accepted numeric labels are Julian `j` / `jd` / `julian` and the ISO `T`
+separator. Interval-like `y`, `m`, `d`, `h`, `mm`, `s`, `dow`, `doy`,
+`isodow` and `isoyear` labels are not timestamp input fields and fail rather
+than silently constructing a date/time.
+Recognized but unsupported unit labels still preserve numeric-error precedence:
+`y 2147483648` fails field-range `22008`, whereas `y 1` is malformed `22007`.
+An intervening `at`/`on` does not consume a pending label. Julian labels likewise
+survive noise, weekday/era/meridian and ordinary zone fields (`J on UTC 2451187`
+is January 8, 1999). ISO `T` preserves numeric prefix overflow before duplicate
+time rejection; a punctuated zone immediately after pending `T` is not a named
+zone input (`1999-01-08 T America/Bogus` is malformed, not unknown-zone `22023`).
+Numeric zone suffixes, all release Default abbreviations, case-insensitive IANA
+names/aliases and admitted POSIX indications are validated then **ignored**:
+`TIMESTAMP WITHOUT TIME ZONE '2004-10-19 10:23:54+02'` remains 10:23:54.
+DST gap/fold fields likewise remain civil fields. Arbitrary trailing suffixes are
+not discarded. POSIX rule strings are subject to timestamp token boundaries:
+comma-separated rules/angle-bracket names are not interchangeable with SET TIMEZONE.
+Unbracketed POSIX standard/daylight names may be one or two characters; they
+have no artificial three-character minimum. POSIX offset seconds admit 60,
+unlike numeric ISO zone seconds. Thus `1999-01-08 04:05:06.1e2` is valid:
+the tokenizer separates fraction `.1` from POSIX zone `e2`, retaining civil
+04:05:06.1 rather than interpreting an exponent. The fractional-field helper
+itself accepts digits only after the dot; whole-input tokenization is distinct.
+Recognition uses the immutable PostgreSQL REL_18_0/IANA 2025b name index without
+host-zone-file I/O or offset/transition conversion.
+The `dst` modifier is admitted with a fixed standard abbreviation or numeric
+zone, in either order, without changing civil fields (`PST dst`, `dst +02`).
+It conflicts with fixed daylight abbreviations such as `EDT`; dynamic names
+such as `MSK`, full IANA/POSIX zones, duplicate modifiers and a modifier without
+a zone are invalid. A full punctuated zone is looked up before duplicate-zone
+rejection: unknown `America/Bogus` after `UTC` still fails `22023`, while a
+known second zone fails `22007`. DST/daylight fields also participate in the
+delimited-date completion mask: leading `PST` is exempt as TZ, leading `EDT`
+or `PST dst` is not; separately decoded textual-month dates remain distinct.
+Combined fields are interpreted sequentially: `January 8 040506-8 1999`
+fails `22007` because the date is incomplete when that compact numeric field
+is encountered. Compact time with a completed date and textual colon-time
+forms remain supported.
+Numeric dispatch also depends on previously decoded date and time bits, not
+width alone: `January 8 04:05:06 120000 PST` retains year 120000 and civil clock
+04:05:06. An overflowing year in that ordering is field-range `22008`.
+Small ordinary numeric date fields can supply a fraction before their date
+role is assigned: `1999 1 8.5` means January 8 at midnight plus .5 seconds.
+This does not admit every dotted field ordering: `1999 1.5 8` and
+`1999 1.1 8` are malformed (`22007`), not fractional-month equivalents.
+A later clock replaces that fraction; a fraction after an already decoded
+clock replaces its fractional seconds. Full numeric-field length controls
+short-year interpretation (`January 8 99.1` is year 0099, not 1999).
+Compact clocks follow release summation semantics: `250000` carries into the
+next day at 01:00, `049900` becomes 05:39, and `040599` becomes 04:06:39.
+Colon clocks still reject hour 25, minute 99 and second 99. AM/PM validation
+precedes compact carry, and the final summed value must remain in finite range.
+Ordinal day 366 is accepted in either year/day spelling: `1999.366` and
+`1999 366` roll into 2000-01-01, while `2000.366` is 2000-12-31.
+The converted civil date is then checked against the finite timestamp range.
+Only ordinal values 1–366 claim the day-of-year field. In `1999 367`, the
+second numeric token falls back to a month, whose range is validated before
+rejecting the incomplete date: `22008` with a DateStyle hint. In contrast,
+`1999.367` fails the delimited-date completion rule first (`22007`, no hint).
+Only present year/month/day fields are validated; missing fields do not
+invent zero-valued calendar errors.
+Weekday vocabulary includes `weds`; a stated weekday does not validate calendar
+agreement with the numeric date.
+Julian integer and decimal fields are decoded separately: `J2451187.1`
+is exactly 1999-01-08 02:24:00. A present fractional suffix supplies the time
+even when zero, so `J2451187.0 04:05:06` is a duplicate-time error.
+A pending Julian label also admits an empty integer before a fraction:
+`J .1` is Julian day zero plus .1 day (4714-11-24 BC at 02:24), while
+`J .` is that date at midnight. Both claim the time field and reject an
+additional clock; ordinary numeric-date parsing still requires an integer.
+A colon time may end with a decimal point (`04:05:06.` means zero fraction);
+bare compact or Julian trailing dots follow different lexical branches and
+are invalid. Malformed fields fail `22007`, overflowing date/time integers
+fail `22008`, and overflowing numeric zone components fail `22009`.
+
+Fractional seconds first round to microseconds with binary floating-point ties-to-even.
+Julian fractions instead multiply the separately decoded fraction by a day's
+microseconds and truncate to integer microseconds, matching the release codec.
+Own typed-literal precision and destination precision are separate later sizing
+stages, rounding signed microseconds away from the 2000-01-01 epoch on ties:
+p0 rounds 2000-01-01 00:00:00.5 up, but 1999-12-31 23:59:59.5 down.
+Comparisons never resize the right input to a column's precision. Finite input spans
+4714-11-24 BC through 294276-12-31; rounding its last microsecond can produce finite
+294277-01-01, although direct external input of that date fails. Dump represents this
+rounded endpoint with `TIMESTAMP(0) '294276-12-31 23:59:59.999999'`, so staged Restore
+reconstructs it through the ordinary parser/input/sizing path even into a p6 column.
+
+Native `now`, `today`, `tomorrow` and `yesterday` strings use the transaction-owned
+UTC civil start, captured once for an explicit/implicit transaction. All rows and
+statements in one explicit transaction share it. Prepared timestamp constants,
+including contextual quoted inputs, freeze when analyzed; string/byte parameters
+are read afresh at execution using that execution transaction's start.
+SQL BEGIN and native BeginTx use the same clock owner. COMMIT/ROLLBACK AND CHAIN,
+including recovery by COMMIT AND CHAIN from an aborted block, capture a fresh
+UTC start for the new incarnation; redundant BEGIN and control Prepare do not
+reset it. Plain COMMIT/ROLLBACK clear it before the next implicit transaction.
+Independent public, codec/engine and pinned reference assertions retain both
+the floating-point and timestamp contracts after integration.
+Run `go test -count=1 -v -run '^TestTimestampSQLTransactionChainSmoke$' ./smoke`
+for literal/parameter clock stability, relative civil dates and fresh chain/end
+boundaries; `go test -tags reference -count=1 -v -run '^TestReferenceTimestampSQLTransactionChainClock$' ./reference`
+asserts these relationships separately on each backend, not absolute clock parity.
+Freezing belongs to each physical driver preparation, not to SQL text in a
+pool-wide cache. Reuse the same Conn-prepared handle to retain a constant;
+`Tx.StmtContext` of that handle performs a new physical preparation and captures
+the new transaction's start. Native table DDL remains unsupported (`0A000`)
+inside explicit transactions; timestamp INSERT errors retain normal abort
+semantics.
+`now` already supplies date, time and a zone field; `allballs` supplies time
+and a zone field. An additional zone therefore conflicts in either token order
+(`now UTC`, `UTC now`, or `1999-01-08 allballs UTC` are invalid).
+Date-first `1999-01-08 allballs` is valid midnight; `allballs` alone lacks a date.
+`epoch` and signed/unsigned infinity are decoded within the same whole-input
+field loop: `on epoch`, `epoch at`, `on +InFiNiTy` and `- InFiNiTy at` are valid.
+They reserve date, time and zone fields; conflicting fields in either order
+are rejected rather than discarded after the first special token.
+Core date/time words (including all special values) stay core tokens before
+adjacent digits or plus signs; they are not reinterpreted as POSIX zone names.
+For example, a completed date/time followed by `now1` or `now+2` is invalid,
+while genuine short POSIX names such as `e2` retain their ignored-zone behavior.
+This is context-sensitive: standalone `today+2` is a valid date and numeric
+zone, with the same UTC civil midnight as `today`, not an adjacency blacklist.
+Delimited and dotted-ordinal dates must complete the global date-field mask:
+prior clock/`allballs`, weekday, AD/BC or AM/PM fields make that branch invalid;
+only ordinal and timezone fields are excluded from its completion test.
+For example, `Friday 1999-01-08` is invalid, but separately decoded text-month
+fields in `Friday January 8 1999` remain valid. Partial numeric date context
+can complete normally (`1999 01-08`). This is token-branch-specific, not a
+blanket ban on every date/time field permutation.
+The global date mask is shared, but textual-month interpretation is local to
+each delimited field: `January 08-1999` and `1999-Jan-08` are valid, whereas
+`January 1999-08` and `Jan 1999/08` overflow the day field with a DateStyle hint.
+Outer numeric MONTH can become DAY when a textual month follows, provided no
+DAY or prior textual month is present and the numeric field is 1–31. Any YEAR
+is retained: `1999 8 January` is valid, but `99 January 1999` is a duplicate-month
+syntax error without a DateStyle hint. This does not change delimited-field
+local textual-month interpretation.
+Delimited dates admit a single trailing separator and interior repetitions
+(`1999-01-08-`, `1999//01//08`), but reject separator-only trailing runs
+(`1999-01-08--`, `1999/01/08//`).
+Numeric and alphabetic date components use the release's single-character
+advancement (`1999-Jan08` decodes as January 8). Additional components are
+decoded before completion is rejected, so an overflowing fourth integer is
+a field-range error, not an early component-count syntax error.
+The textual pass rejects unknown words before numeric overflow:
+`2147483648-xxx-08` yields 22007 without a hint. Throwaway `at`/`on` skip only
+that first pass and remain for numeric decoding: `2147483648-at-08` and
+`2147483648-on-08` yield field-range 22008 without a hint, while ordinary
+`1999-at-08` and `1999-on-08` are malformed. Tokens retain borrowed input
+spelling; ASCII case-insensitive comparisons (including sorted zone lookup)
+avoid allocating lowercase copies on successful mixed-case input, including
+months, weekdays, era/meridian and Julian labels, noise words and special values.
+Whitespace following a sign stays in the borrowed input span; numeric-zone and
+signed-infinity consumers trim it locally without concatenating a token copy.
+Token budgets count the sign, non-whitespace tail and terminator, not the gap.
+All ASCII whitespace forms retain numeric-zone bounds (`- 16` fails `22009`).
+The 25-field limit is checked before discarding subsequent punctuation; trailing
+whitespace is harmless, but punctuation after field 25 is malformed. ASCII DEL
+is not a punctuation delimiter and is rejected with the entire original input.
+Day-relative inputs still allow an ordinary clock and one zone.
+Finite output/ScanType is `time.Time` at zero offset, including BC/wide years;
+infinity is owned bytes and NULL is nil without losing TIMESTAMP metadata.
+`time.Time` parameters import their original Date/Clock/Nanosecond civil fields,
+validating the numeric offset within ±15:59:59 before ignoring its effect;
+there is no conversion of the instant to UTC. Offsets of ±16 hours fail with
+22009, including when the civil year also exceeds the finite timestamp range.
+A serialized date-year integer overflow precedes zone decoding instead (22008,
+without a DateStyle hint). On failure, diagnostics include the original parameter
+text, including unrounded nanoseconds, offset seconds and BC spelling. Formatting
+is failure-only; successful civil imports do not allocate a timestamp string.
+
+Literal diagnostics include the quoted input's rune position; precision diagnostics
+use the type opener. Parameter input diagnostics omit native Position/Context.
+Malformed/date/time/range/zone errors publish no partial INSERT or Restore
+replacement. Retained cursors keep original values, precision and origin metadata
+across append/Reset/Restore; exported infinity buffers cannot mutate stored values.
+
+No timestamp-with-time-zone type, DateStyle/TimeZone settings, temporal functions,
+casts, no-FROM SELECT or broader expression syntax is enabled by this feature.
+DMY/YMD setting-dependent interpretations are not native defaults.
+Run `go test -count=1 -v -run '^TestTimestampSmoke$' ./smoke` for the feature smoke,
+`go test -count=1 -v -run '^TestTimestamp.*$' .` for public acceptance, and
+`go test -tags reference -count=1 -v -run '^TestReferenceTimestamp.*$' ./reference`
+for independently expected real PostgreSQL 18.0 scenarios.
+Codec corner cases and allocation assertions can be selected with
+`go test -count=1 -v -run '^TestTimestamp.*$' ./internal/sqltype`;
+`go test -count=1 -v -run '^TestTimestamp.*Allocations$' ./internal/sqltype`
+includes signed-whitespace and revised numeric/prefix/DST branches.
+
 
 Integer SQL constants accept decimal and case-insensitive binary `0b`, octal `0o`, or hexadecimal `0x` prefixes. Single underscores may separate digits; radix constants may also have one underscore immediately after the prefix (`0B_1_010`, `0O_1_2`, `0X_A` all equal 10). Decimal leading zeros remain decimal (`010` is 10, `08` is 8). Unary signs may be separated from the number by whitespace/comments. Values must fit signed int64, including `-0x8000_0000_0000_0000`; int4 assignment additionally checks its own range. Malformed digits, separators and trailing identifier junk fail the entire statement with PostgreSQL English `42601` diagnostics pointing to the number's first character (not its sign).
 

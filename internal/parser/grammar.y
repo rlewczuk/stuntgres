@@ -34,6 +34,7 @@ package parser
 %token <tok> '+' '-' '[' ':' '(' '=' ','
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
+%token <tok> TIMESTAMP WITHOUT TIME ZONE
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
 %token <tok> IF EXISTS
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
@@ -54,7 +55,7 @@ package parser
  * location, while arbitrary tails are syntax errors at the second token. */
 %nonassoc TYPE_NAME
 %nonassoc '('
-%nonassoc KW_T IS LIKE WITH
+%nonassoc KW_T IS LIKE WITH WITHOUT
 %type <stmt> statement create drop_table alter_drop_column alter_drop_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <col> column
 %type <elements> elements optional_elements
@@ -64,7 +65,7 @@ package parser
 %type <tok> like_option_name
 %type <objectNames> relation_names
 %type <dropMode> drop_mode
-%type <typ> type
+%type <typ> type timestamp_type generic_precision type_modifier_head
 %type <nullable> nullability
 %type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with suffix unsupported_query nulls_keyword nulls_position
 %type <settingName> setting_name set_name local_setting_name
@@ -247,10 +248,23 @@ alter_action: generic_word | ALTER | RENAME | OWNER | SET ;
 column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Nullable:$3, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
- | type_name '(' { if $1.keyword==nil || $1.text!="float" { sqllex.(*lexer).failAt("0A000","type modifiers are unsupported",$2.pos.Offset); return 1 }; sqllex.(*lexer).floatPrecision=true } NUMBER ')' { var ok bool; $$,ok=floatType(sqllex,$1,$4); if !ok { return 1 }; sqllex.(*lexer).floatPrecision=false }
+ | timestamp_type { $$=$1 }
+ | type_modifier_head generic_precision ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Precision=$2.Precision;$$.PrecisionPos=$2.PrecisionPos } }
  | type_name type_name { if $1.keyword!=nil && $2.keyword!=nil && $1.text=="double" && $2.text=="precision" { $$=TypeName{Name:"double precision",Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
  | type_name '.' { sqllex.(*lexer).failAt("0A000","qualified types are unsupported",$1.pos.Offset); return 1 } ;
+/* FLOAT and quoted timestamp share the generic modifier opener, but retain
+ * their distinct unsigned and signed precision contracts. */
+type_modifier_head: type_name '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2);if !ok{return 1}} ;
+timestamp_type: TIMESTAMP %prec TYPE_NAME { $$=TypeName{Name:"timestamp",Pos:$1.pos} }
+ | TIMESTAMP '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=timestampPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timestamp";$$.Pos=$1.pos}
+ | TIMESTAMP WITHOUT TIME ZONE {$$=TypeName{Name:"timestamp",Pos:$1.pos}}
+ | TIMESTAMP '(' NUMBER ')' WITHOUT TIME ZONE {var ok bool;$$,ok=timestampPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timestamp";$$.Pos=$1.pos}
+ | TIMESTAMP WITH {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1}
+ | TIMESTAMP '(' NUMBER ')' WITH {if _,ok:=timestampPrecision(sqllex,$3,false);!ok{return 1};sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1} ;
+generic_precision: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=timestampPrecision(sqllex,$1,false)};if !ok{return 1}}
+ | '-' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=timestampPrecision(sqllex,$3,true);if !ok{return 1};$$.PrecisionPos=$1.pos}
+ | '+' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=timestampPrecision(sqllex,$3,false);if !ok{return 1};$$.PrecisionPos=$1.pos} ;
 nullability: /* empty */ { $$ = true } | NULL { $$ = true } | NOT NULL { $$ = false }
  | suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
  | '[' { sqllex.(*lexer).failAt("0A000","array types are unsupported",$1.pos.Offset); return 1 }
@@ -279,7 +293,9 @@ rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' values ')' { $$ = $2 } ;
 values: scalar { $$ = []Expr{$1} } | values ',' scalar { $$ = append($1,$3) } ;
 scalar: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
- | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} } ;
+ | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
+ | timestamp_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
+ | scalar ':' {sqllex.(*lexer).failAt("0A000","casts are unsupported",$2.pos.Offset);return 1} ;
 value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | TRUE { $$ = Value{Kind:BooleanValue, Boolean:true, Pos:$1.pos} }
  | FALSE { $$ = Value{Kind:BooleanValue, Pos:$1.pos} }
@@ -296,7 +312,6 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | IS '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | LIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | AUTHORIZATION '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | value ':' { sqllex.(*lexer).failAt("0A000","casts are unsupported",$2.pos.Offset); return 1 }
  | DEFAULT { sqllex.(*lexer).failAt("0A000","default values are unsupported",$1.pos.Offset); return 1 }
  | CAST '(' { sqllex.(*lexer).failAt("0A000","casts are unsupported",$1.pos.Offset); return 1 } ;
 select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=$5; $2.Order=$6; $2.Pos=$1.pos; $$=$2 }
@@ -331,12 +346,12 @@ nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | transaction_name ;
+setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | transaction_name ;
 name: setting_word | ROLE | LOCAL ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | KW_U | KW_T | KW_C | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | transaction_name ;
+type_name: IDENT | KW_U | KW_T | KW_C | WITHOUT | TIME | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | transaction_name ;
 generic_word: generic_word_without_with | WITH ;
-generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | ONLY | DEFERRABLE ;
+generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | ONLY | DEFERRABLE ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
 bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | LIKE { $$=$1 }
