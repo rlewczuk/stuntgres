@@ -142,6 +142,7 @@ func (s roleOptionState) add(tok lexeme, login bool) roleOptionState {
 	}
 	return s
 }
+
 type Reset struct {
 	Name Identifier
 	All  bool

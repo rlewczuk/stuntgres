@@ -46,6 +46,9 @@ supported registry, **not** PostgreSQL's entire parameter catalog.
 SET/RESET and Exec of SHOW affect zero rows. The selected FROM-less calls
 `SELECT current_setting(text)` and `SELECT set_config(text,text,boolean)`
 return one nullable TEXT row, with affected count one for Exec.
+SHOW, SHOW ALL and setting-function rows own immutable anonymous snapshots:
+statement completion releases the implicit transaction, not the returned rows.
+Later setting changes or physical-session teardown do not change captured values.
 Function arguments accept strings, NULL, booleans in the third position,
 and positional parameters through the existing binder. NULL current_setting
 returns SQL NULL; NULL set_config name fails 22004; NULL value resets;

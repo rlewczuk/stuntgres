@@ -30,9 +30,6 @@ package parser
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
 %token <tok> IF EXISTS
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
-/* SET scope keywords win over an empty optional scope. */
-%nonassoc EMPTY_SESSION_SCOPE
-%nonassoc SESSION LOCAL
 /* '(' selects a function path, not a completed ordinary name/name list. */
 %nonassoc NAME_LIST
 %nonassoc '('
@@ -68,8 +65,10 @@ accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.
 statement: create | insert | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 } ;
-set: SET optional_session set_name setting_assignment setting_values { $$=&Set{Name:$3.identifier(),Values:$5,Pos:$1.pos} }
- | SET optional_session set_name setting_assignment DEFAULT { $$=&Set{Name:$3.identifier(),Default:true,Pos:$1.pos} }
+set: SET set_name setting_assignment setting_values { $$=&Set{Name:$2.identifier(),Values:$4,Pos:$1.pos} }
+ | SET set_name setting_assignment DEFAULT { $$=&Set{Name:$2.identifier(),Default:true,Pos:$1.pos} }
+ | SET SESSION set_name setting_assignment setting_values { $$=&Set{Name:$3.identifier(),Values:$5,Pos:$1.pos} }
+ | SET SESSION set_name setting_assignment DEFAULT { $$=&Set{Name:$3.identifier(),Default:true,Pos:$1.pos} }
  /* LOCAL as a parameter name is distinct from transaction-local scope. */
  | SET LOCAL setting_assignment setting_values { $$=&Set{Name:Identifier{Text:$2.text,Pos:$2.pos},Values:$4,Pos:$1.pos} }
  | SET LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$2.text,Pos:$2.pos},Default:true,Pos:$1.pos} }
@@ -77,7 +76,6 @@ set: SET optional_session set_name setting_assignment setting_values { $$=&Set{N
  | SET SESSION LOCAL setting_assignment DEFAULT { $$=&Set{Name:Identifier{Text:$3.text,Pos:$3.pos},Default:true,Pos:$1.pos} }
  | SET LOCAL local_setting_name setting_assignment setting_values { sqllex.(*lexer).failAt("0A000","transaction-local settings are unsupported",$2.pos.Offset); return 1 }
  | SET LOCAL local_setting_name setting_assignment DEFAULT { sqllex.(*lexer).failAt("0A000","transaction-local settings are unsupported",$2.pos.Offset); return 1 } ;
-optional_session: /* empty */ %prec EMPTY_SESSION_SCOPE | SESSION ;
 setting_assignment: TO | '=' ;
 setting_values: setting_value { $$=[]string{$1} } | setting_values ',' setting_value { $$=append($1,$3) } ;
 setting_value: STRING { $$=$1.text } | name { $$=$1.text }
@@ -238,7 +236,8 @@ session_authorization: SET SESSION AUTHORIZATION name { $$=&SessionAuthorization
  | RESET SESSION AUTHORIZATION { $$=&SessionAuthorization{Default:true} } ;
 /* Recognize adjacent role commands only to reject them before creating an AST.
  * ROLE remains nonreserved in ordinary identifier positions. */
-excluded_role: SET optional_session ROLE excluded_role_assignment excluded_role_target { sqllex.(*lexer).failAt("0A000","SET ROLE is unsupported",$3.pos.Offset); return 1 }
+excluded_role: SET ROLE excluded_role_assignment excluded_role_target { sqllex.(*lexer).failAt("0A000","SET ROLE is unsupported",$2.pos.Offset); return 1 }
+ | SET SESSION ROLE excluded_role_assignment excluded_role_target { sqllex.(*lexer).failAt("0A000","SET ROLE is unsupported",$3.pos.Offset); return 1 }
  | SET LOCAL ROLE excluded_role_assignment excluded_role_target { sqllex.(*lexer).failAt("0A000","SET ROLE is unsupported",$3.pos.Offset); return 1 }
  | RESET ROLE { sqllex.(*lexer).failAt("0A000","RESET ROLE is unsupported",$2.pos.Offset); return 1 } ;
 excluded_role_assignment: /* empty */ | setting_assignment ;

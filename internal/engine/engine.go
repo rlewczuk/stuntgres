@@ -692,19 +692,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if importFrame == nil {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
-<<<<<<< HEAD
-=======
-		}
-		if err = importFrame(ctx, b.parameters, canonical); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-		for i, v := range canonical {
-			if v.Type() != b.parameters.Types[i].Type {
-				e.mu.Unlock()
-				return Result{}, fmt.Errorf("stuntgres: invalid parameter frame")
-			}
->>>>>>> 7fb3fb3 (Implement PG18-ADMIN-SETTINGS-CORE: Session setting registry and SQL access)
 		}
 		if err = importFrame(ctx, b.parameters, canonical); err != nil {
 			e.mu.Unlock()
@@ -803,10 +790,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		columns := b.columns()
 		e.mu.Unlock()
 		if err = snap.selectRows(ctx, b.predicate, predicate, b.equality, b.order, b.ordering, s.Order != nil && s.Order.Desc); err != nil {
-<<<<<<< HEAD
 			snap.Close()
-=======
->>>>>>> 7fb3fb3 (Implement PG18-ADMIN-SETTINGS-CORE: Session setting registry and SQL access)
 			return Result{}, err
 		}
 		return Result{Count: int64(snap.Len()), Columns: columns, Rows: snap}, nil

@@ -8,9 +8,102 @@ import (
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
 )
+
+func TestSettingUtilitySnapshotOwnership(t *testing.T) {
+	all := [][]string{
+		{"application_name", "initial", "Sets the application name to be reported in statistics and logs."},
+		{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
+		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
+		{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
+		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},
+		{"statement_timeout", "0", "Sets the maximum allowed duration of any statement."},
+	}
+	for _, tc := range []struct {
+		query    string
+		names    []string
+		rows     [][]string
+		count    int64
+		nullable bool
+		null     bool
+	}{
+		{"SHOW application_name", []string{"application_name"}, [][]string{{"initial"}}, 0, false, false},
+		{"SHOW ALL", []string{"name", "setting", "description"}, all, 0, false, false},
+		{"SELECT current_setting('application_name')", []string{"current_setting"}, [][]string{{"initial"}}, 1, true, false},
+		{"SELECT current_setting(NULL)", []string{"current_setting"}, [][]string{{""}}, 1, true, true},
+		{"SELECT set_config('application_name','changed',false)", []string{"set_config"}, [][]string{{"changed"}}, 1, true, false},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			e := New()
+			s := sessionStart(t, e, nil)
+			sessionSQL(t, s, "SET application_name TO initial")
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			op, err := s.Acquire(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer op.Done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, execErr := scope.Execute(statement(t, tc.query), 0, nil)
+			finishErr := scope.Finish(execErr)
+			if execErr != nil || finishErr != nil {
+				t.Fatal(execErr, finishErr)
+			}
+			if !scope.completed || s.transactions.state != TxIdle {
+				t.Fatal("utility did not complete and clear its implicit transaction")
+			}
+			if result.Rows == nil {
+				t.Fatal("missing utility snapshot")
+			}
+			defer result.Rows.Close()
+			if result.Rows.self != result.Rows || result.Rows.Len() != len(tc.rows) || result.Count != tc.count || len(result.Columns) != len(tc.names) {
+				t.Fatalf("invalid snapshot ownership, cardinality or metadata: %+v", result)
+			}
+			typ, _ := e.CatalogRead().LookupType(sqltype.Text)
+			for i, column := range result.Columns {
+				if column.Name != tc.names[i] || column.Usage.Type != typ || column.Nullable != tc.nullable {
+					t.Fatalf("column %d: %+v", i, column)
+				}
+			}
+			// Completion releases the command, not the anonymous result owner.
+			// Later cancellation, settings changes and teardown cannot erase it.
+			cancel()
+			op.Done()
+			sessionSQL(t, s, "RESET ALL")
+			s.RequestEnd(CleanClose)
+			if err := s.WaitEnd(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			values := make([]sqltype.Value, len(tc.names))
+			for i, row := range tc.rows {
+				result.Rows.Values(i, values)
+				for j, want := range row {
+					if tc.null {
+						if !values[j].IsNull() || values[j].Type() != typ {
+							t.Fatal("lost typed NULL result")
+						}
+						continue
+					}
+					got, err := values[j].Text()
+					if err != nil || got != want {
+						t.Fatalf("row %d column %d: %q %v, want %q", i, j, got, err, want)
+					}
+				}
+			}
+			result.Rows.Close()
+			if result.Rows.Len() != 0 {
+				t.Fatal("Close did not release anonymous rows")
+			}
+		})
+	}
+}
 
 func TestSettingTypedInput(t *testing.T) {
 	for _, tc := range []struct {

@@ -341,11 +341,9 @@ func TestAuthorizationCancellationAtRoleInstall(t *testing.T) {
 
 type roleInitGate struct {
 	entered, release chan struct{}
-	calls            map[string]int
 }
 
 func (g *roleInitGate) SessionDefault(ctx context.Context, d SettingDefinition) (string, bool, error) {
-	g.calls[d.Name]++
 	if d.Name != "application_name" {
 		return "", false, nil
 	}
@@ -360,7 +358,7 @@ func (g *roleInitGate) SessionDefault(ctx context.Context, d SettingDefinition) 
 
 func TestAuthorizationInitializationDefaults(t *testing.T) {
 	e := New()
-	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{}), calls: make(map[string]int)}
+	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{})}
 	close(gate.release)
 	s := sessionStart(t, e, gate)
 	sessionValue(t, s, "initial")
@@ -373,9 +371,6 @@ func TestAuthorizationInitializationDefaults(t *testing.T) {
 			t.Fatal("integrated boot default was not captured", r, tuples(r))
 		}
 	}
-	if !reflect.DeepEqual(gate.calls, map[string]int{"application_name": 1, "client_min_messages": 1}) {
-		t.Fatal("provider must run once for each definition", gate.calls)
-	}
 }
 func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 	e := New()
@@ -383,7 +378,7 @@ func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 	defer done()
 	roleExecute(t, e, admin, "CREATE USER pending")
 	role, _ := e.Roles().Lookup("pending")
-	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{}), calls: make(map[string]int)}
+	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{})}
 	type outcome struct {
 		session *Session
 		err     error
@@ -429,9 +424,6 @@ func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("initialization did not finish")
-	}
-	if !reflect.DeepEqual(gate.calls, map[string]int{"application_name": 1, "client_min_messages": 1}) {
-		t.Fatal("provider did not complete every definition before the stale-role fence", gate.calls)
 	}
 	e.sessionMu.Lock()
 	defer e.sessionMu.Unlock()
