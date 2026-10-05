@@ -1080,6 +1080,35 @@ func stringLiteralValues() []struct{ source, text string } {
 		{"E'\\xC3'\n'\\xA9'", "é"}, {"E'a' -- continue\r'\\n'", "a\n"},
 		{`'O''Brien\n'`, `O'Brien\n`}, {"'a'\n'\\n'", `a\n`},
 		{"E'\\\n\\\r'", "\n\r"},
+		{`$$a;'b$$`, "a;'b"}, {`$$$$`, ""}, {`$tag$$tag$`, ""},
+		{`$tag$a$TAG$b$tag$`, "a$TAG$b"}, {`$tag$a$junk$tag$`, "a$junk"},
+		{`$_9$é😀$_9$`, "é😀"}, {`$é$unicode$é$`, "unicode"},
+		{"$Tag_9$first\nsecond; O'Brien\\tail $1 $$ $other$x$other$$Tag_9$", "first\nsecond; O'Brien\\tail $1 $$ $other$x$other$"},
+		{"$$/* comment */ -- not comment\n$1; CREATE TABLE phantom(x INT); \\n$$", "/* comment */ -- not comment\n$1; CREATE TABLE phantom(x INT); \\n"},
+		{"$" + strings.Repeat("a", 64) + "$long$" + strings.Repeat("a", 64) + "$", "long"},
+		{"$" + strings.Repeat("a", 64) + "$a$" + strings.Repeat("a", 63) + "b$$" + strings.Repeat("a", 64) + "$", "a$" + strings.Repeat("a", 63) + "b$"},
+	}
+}
+
+func assertStringLiteralMetadata(t *testing.T, db *sql.DB, query string, names, types []string) {
+	t.Helper()
+	rows, err := db.Query(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	columns, err := rows.Columns()
+	if err != nil || !reflect.DeepEqual(columns, names) {
+		t.Fatalf("columns %v: %v; want %v", columns, err, names)
+	}
+	metadata, err := rows.ColumnTypes()
+	if err != nil || len(metadata) != len(types) {
+		t.Fatalf("metadata width: %v", err)
+	}
+	for i, typ := range types {
+		if metadata[i].DatabaseTypeName() != typ {
+			t.Fatalf("type %d: %s, want %s", i, metadata[i].DatabaseTypeName(), typ)
+		}
 	}
 }
 
@@ -1120,6 +1149,15 @@ func stringLiteralErrors() []struct{ source, code, message, position, hint strin
 		{"E'\\uD800\n')", "42601", "invalid Unicode surrogate pair at or near \"\n\"", "31", ""},
 		{"E'\\uD800'\n'\\uDC00')", "42601", `invalid Unicode surrogate pair at or near "'"`, "31", ""},
 		{"E'a'\n'\\xff')", "22021", `invalid byte sequence for encoding "UTF8": 0xff`, "", ""},
+		{"$$a)", "42601", `unterminated dollar-quoted string at or near "$$a)"`, "23", ""},
+		{"$Tag$a$tag$)", "42601", `unterminated dollar-quoted string at or near "$Tag$a$tag$)"`, "23", ""},
+		{"$tag$first\nsecond)", "42601", "unterminated dollar-quoted string at or near \"$tag$first\nsecond)\"", "23", ""},
+		{"$)", "42601", `syntax error at or near "$"`, "23", ""},
+		{"$tag)", "42601", `syntax error at or near "$"`, "23", ""},
+		{"$_9)", "42601", `syntax error at or near "$"`, "23", ""},
+		{"$tag-name$)", "42601", `syntax error at or near "$"`, "23", ""},
+		{"$", "42601", `syntax error at or near "$"`, "23", ""},
+		{"$tag", "42601", `syntax error at or near "$"`, "23", ""},
 	}
 }
 
@@ -1156,22 +1194,37 @@ func TestStringLiteralsPublic(t *testing.T) {
 			}
 			want = append(want, []any{int64(id), tc.text, true})
 		}
-	}
-	wantTuples(t, other, "SELECT * FROM t ORDER BY id", want)
-	rows, err := db.Query("SELECT * FROM t")
-	if err != nil {
-		t.Fatal(err)
-	}
-	types, err := rows.ColumnTypes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i, name := range []string{"INT4", "TEXT", "BOOL"} {
-		if types[i].DatabaseTypeName() != name {
-			t.Fatalf("type %d: %s", i, types[i].DatabaseTypeName())
+		if tc.source == `$$a;'b$$` {
+			q := `SELECT id FROM t WHERE label=$$a;'b$$ ORDER BY id`
+			wantTuples(t, db, q, [][]any{{int64(2*i + 1)}, {int64(2*i + 2)}})
+			s, err := db.Prepare(q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r, err := s.Query()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, wantID := range []int64{int64(2*i + 1), int64(2*i + 2)} {
+				var id int64
+				if !r.Next() {
+					t.Fatal("missing dollar WHERE row")
+				}
+				if err := r.Scan(&id); err != nil || id != wantID {
+					t.Fatalf("dollar WHERE %d: %v", id, err)
+				}
+			}
+			if r.Next() || r.Err() != nil {
+				t.Fatal("extra dollar WHERE row")
+			}
+			r.Close()
+			s.Close()
 		}
 	}
-	rows.Close()
+	_, err := db.Query("SELECT * FROM phantom")
+	sqlState(t, err, "42P01")
+	wantTuples(t, other, "SELECT * FROM t ORDER BY id", want)
+	assertStringLiteralMetadata(t, db, "SELECT * FROM t ORDER BY id", []string{"id", "label", "flag"}, []string{"INT4", "TEXT", "BOOL"})
 	stmt, err := db.Prepare(`SELECT id FROM t WHERE label=E'a\nb' ORDER BY id`)
 	if err != nil {
 		t.Fatal(err)
@@ -1261,7 +1314,7 @@ func TestStringLiteralPublicDiagnostics(t *testing.T) {
 	execSQL(t, db, "CREATE TABLE t(label TEXT)")
 	execSQL(t, db, "INSERT INTO t VALUES ('seed')")
 	for _, tc := range stringLiteralErrors() {
-		for _, prefix := range []string{"", "/*é*/ "} {
+		for _, prefix := range []string{"", "/*é*/ ", "/*😀*/ "} {
 			position := tc.position
 			if prefix != "" && position != "" {
 				var n int
@@ -1273,7 +1326,11 @@ func TestStringLiteralPublicDiagnostics(t *testing.T) {
 				var err error
 				switch operation {
 				case "exec":
-					_, err = db.Exec(q)
+					result, e := db.Exec(q)
+					err = e
+					if result != nil {
+						t.Fatal("lexical failure yielded result")
+					}
 				case "query":
 					r, e := db.Query(q)
 					err = e
@@ -1327,6 +1384,132 @@ func TestStringLiteralPublicDiagnostics(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestStringLiteralDollarParametersAndBoundaries(t *testing.T) {
+	ctx := context.Background()
+	db := openLocal(t, stuntgres.NewDriver(), "dollar-boundaries")
+	execSQL(t, db, "CREATE TABLE dollar_params(id INT,label TEXT)")
+	for i, prepared := range []bool{false, true} {
+		q := `INSERT INTO dollar_params VALUES ($1,$tag$$2;$tag$)`
+		var result sql.Result
+		var err error
+		if prepared {
+			s, e := db.PrepareContext(ctx, q)
+			if e != nil {
+				t.Fatal(e)
+			}
+			result, err = s.ExecContext(ctx, 7+i)
+			s.Close()
+		} else {
+			result, err = db.ExecContext(ctx, q, 7+i)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, e := result.RowsAffected(); e != nil || n != 1 {
+			t.Fatalf("affected %d: %v", n, e)
+		}
+	}
+	wantTuples(t, db, "SELECT * FROM dollar_params ORDER BY id", [][]any{{int64(7), "$2;"}, {int64(8), "$2;"}})
+	assertStringLiteralMetadata(t, db, "SELECT * FROM dollar_params ORDER BY id", []string{"id", "label"}, []string{"INT4", "TEXT"})
+	s, err := db.Prepare(`SELECT id FROM dollar_params WHERE label=$$ $1 $$ ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := s.Query()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Next() || r.Err() != nil {
+		t.Fatal("unexpected parameter-body match")
+	}
+	r.Close()
+	if _, err := s.Query(1); err == nil {
+		t.Fatal("body parameter accepted argument")
+	} else {
+		var state interface{ SQLState() string }
+		if errors.As(err, &state) {
+			t.Fatalf("argument boundary fabricated SQLSTATE: %v", err)
+		}
+	}
+	s.Close()
+	execSQL(t, db, "CREATE TABLE separated(x$tag$x$tag$ TEXT)")
+	for _, prepared := range []bool{false, true} {
+		q := `INSERT INTO separated(x$tag$x$tag$) VALUES ($$v$$)`
+		if prepared {
+			s, err := db.Prepare(q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := s.Exec()
+			s.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n, err := result.RowsAffected(); err != nil || n != 1 {
+				t.Fatalf("affected %d: %v", n, err)
+			}
+		} else {
+			execSQL(t, db, q)
+		}
+	}
+	wantTuples(t, db, "SELECT x$tag$x$tag$ FROM separated ORDER BY x$tag$x$tag$", [][]any{{"v"}, {"v"}})
+	assertStringLiteralMetadata(t, db, "SELECT x$tag$x$tag$ FROM separated ORDER BY x$tag$x$tag$", []string{"x$tag$x$tag$"}, []string{"TEXT"})
+	execSQL(t, db, "CREATE TABLE t(label TEXT)")
+	execSQL(t, db, "INSERT INTO t VALUES ('seed')")
+	for _, tc := range []struct{ q, code, message, position string }{
+		{"INSERT INTO t VALUES$$v$$", "42601", `syntax error at or near "VALUES$$v$$"`, "15"},
+		{"INSERT INTO t VALUES ($0)", "42P02", "parameter number must be positive", "23"},
+		{"INSERT INTO t VALUES ($000)", "42P02", "parameter number must be positive", "23"},
+		{"INSERT INTO t VALUES ($1junk)", "42601", "invalid parameter", "23"},
+		{"INSERT INTO t VALUES ($9tag$)", "42601", "invalid parameter", "23"},
+		{"INSERT INTO t VALUES ($2147483648)", "42601", "parameter number too large", "23"},
+		{"INSERT INTO t VALUES ('valid'),($Tag$a$tag$)", "42601", `unterminated dollar-quoted string at or near "$Tag$a$tag$)"`, "33"},
+		{"CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES ($$a)", "42601", `unterminated dollar-quoted string at or near "$$a)"`, "55"},
+	} {
+		for _, prepare := range []bool{false, true} {
+			var err error
+			if prepare {
+				s, e := db.Prepare(tc.q)
+				err = e
+				if s != nil {
+					s.Close()
+					t.Fatal("invalid SQL yielded statement")
+				}
+			} else {
+				result, e := db.Exec(tc.q)
+				err = e
+				if result != nil {
+					t.Fatal("invalid SQL yielded result")
+				}
+			}
+			want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position}
+			var got *stuntgres.Error
+			if !errors.As(err, &got) || *got != want || got.SQLState() != tc.code {
+				t.Fatalf("%q: %#v %v; want %#v", tc.q, got, err, want)
+			}
+			wantTuples(t, db, "SELECT * FROM t", [][]any{{"seed"}})
+		}
+	}
+	_, err = db.Query("SELECT * FROM fresh")
+	sqlState(t, err, "42P01")
+	_, err = db.Query("SELECT * FROM phantom")
+	sqlState(t, err, "42P01")
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := db.ExecContext(canceled, `INSERT INTO t VALUES ($$canceled$$)`); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled direct: %v", err)
+	}
+	s, err = db.Prepare(`INSERT INTO t VALUES ($$canceled$$)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err := s.ExecContext(canceled); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled prepared: %v", err)
+	}
+	wantTuples(t, db, "SELECT * FROM t", [][]any{{"seed"}})
 }
 
 // These expectations come from the PostgreSQL numeric lexical contract, not

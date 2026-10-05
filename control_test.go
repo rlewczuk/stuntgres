@@ -422,6 +422,8 @@ func TestStringLiteralControls(t *testing.T) {
 	execSQL(t, db, "CREATE TABLE t(id INT,label TEXT)")
 	execSQL(t, db, `INSERT INTO t VALUES (1,E'a\n\b\f\r\t\vO\'Brien\\tail'),(2,E'\303\251\uD83D\uDE00\uFFFF'),(3,E''),(4,NULL)`)
 	want := [][]any{{int64(1), "a\n\b\f\r\t\vO'Brien\\tail"}, {int64(2), "é😀\uFFFF"}, {int64(3), ""}, {int64(4), nil}}
+	execSQL(t, db, "INSERT INTO t VALUES (5,$$a;'b$$),(6,$T$first\nsecond; O'Brien\\tail $1 $other$x$other$$T$),(7,$$$$),(8,$_9$é😀$_9$)")
+	want = append(want, []any{int64(5), "a;'b"}, []any{int64(6), "first\nsecond; O'Brien\\tail $1 $other$x$other$"}, []any{int64(7), ""}, []any{int64(8), "é😀"})
 	held, err := other.Query("SELECT * FROM t ORDER BY id")
 	if err != nil {
 		t.Fatal(err)
@@ -439,6 +441,7 @@ func TestStringLiteralControls(t *testing.T) {
 	}
 	for _, pool := range []*sql.DB{db, other} {
 		wantTuples(t, pool, "SELECT * FROM t ORDER BY id", want)
+		assertStringLiteralMetadata(t, pool, "SELECT * FROM t ORDER BY id", []string{"id", "label"}, []string{"INT4", "TEXT"})
 	}
 	for _, row := range want {
 		var id int64
@@ -460,6 +463,47 @@ func TestStringLiteralControls(t *testing.T) {
 	if !bytes.Equal(dump.Bytes(), again.Bytes()) {
 		t.Fatal("dump changed")
 	}
+	if !strings.Contains(dump.String(), "'a;''b'") {
+		t.Fatalf("dump did not use ordinary quotes: %s", dump.String())
+	}
+	snapshot, err := other.Query("SELECT * FROM t ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snapshot.Close()
+	for _, suffix := range []string{"$Tag$a$tag$);", "$$a"} {
+		script := "CREATE TABLE replacement(label TEXT); INSERT INTO replacement VALUES (" + suffix
+		err := stuntgres.Restore(ctx, db, strings.NewReader(script))
+		wantErr := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "unterminated dollar-quoted string at or near \"" + suffix + "\"", Position: "71"}
+		var got *stuntgres.Error
+		if !errors.As(err, &got) || *got != wantErr || got.SQLState() != "42601" {
+			t.Fatalf("Restore: %#v %v, want %#v", got, err, wantErr)
+		}
+		for _, pool := range []*sql.DB{db, other} {
+			wantTuples(t, pool, "SELECT * FROM t ORDER BY id", want)
+		}
+		_, err = db.Query("SELECT * FROM replacement")
+		sqlState(t, err, "42P01")
+	}
+	for _, row := range want {
+		var id int64
+		var text any
+		if !snapshot.Next() {
+			t.Fatal("failed Restore lost snapshot")
+		}
+		if err := snapshot.Scan(&id, &text); err != nil || id != row[0] || text != row[1] {
+			t.Fatalf("snapshot %d %v: %v", id, text, err)
+		}
+	}
+	if snapshot.Next() || snapshot.Err() != nil {
+		t.Fatal("snapshot extra/error")
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := stuntgres.Restore(canceled, db, strings.NewReader("CREATE TABLE canceled(x TEXT); INSERT INTO canceled VALUES ($$v$$)")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled Restore: %v", err)
+	}
+	wantTuples(t, other, "SELECT * FROM t ORDER BY id", want)
 	for _, source := range []string{`E'\0')`, `E'\xff')`, `E'\u061')`, `E'abc\`} {
 		script := "CREATE TABLE replacement(label TEXT); INSERT INTO replacement VALUES ('valid'); INSERT INTO replacement VALUES (" + source
 		if err := stuntgres.Restore(ctx, db, strings.NewReader(script)); err == nil {
@@ -473,6 +517,11 @@ func TestStringLiteralControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantTuples(t, other, "SELECT * FROM restored", [][]any{{"a\nb"}, {"é"}})
+	if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE restored(id INT,label TEXT); INSERT INTO restored VALUES (1,$$a;'b$$),(2,$T$first\nsecond; $other$x$other$$T$);")); err != nil {
+		t.Fatal(err)
+	}
+	wantTuples(t, other, "SELECT * FROM restored ORDER BY id", [][]any{{int64(1), "a;'b"}, {int64(2), "first\nsecond; $other$x$other$"}})
+	assertStringLiteralMetadata(t, other, "SELECT * FROM restored ORDER BY id", []string{"id", "label"}, []string{"INT4", "TEXT"})
 }
 
 func TestNumericLiteralsControlsAndCancellation(t *testing.T) {

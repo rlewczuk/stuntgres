@@ -100,7 +100,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (1.0)", "0A000"}, {"INSERT INTO t VALUES (.1)", "0A000"},
 		{"INSERT INTO t VALUES (1e3)", "0A000"}, {"INSERT INTO t VALUES (1z)", "42601"},
 		{"INSERT INTO t VALUES (B'a')", "0A000"}, {"INSERT INTO t VALUES (X'a')", "0A000"},
-		{"INSERT INTO t VALUES (N'a')", "0A000"}, {"INSERT INTO t VALUES ($tag$a$tag$)", "0A000"},
+		{"INSERT INTO t VALUES (N'a')", "0A000"},
 		{"INSERT INTO t VALUES (1e+3)", "0A000"}, {"INSERT INTO t VALUES (1_000e3)", "0A000"},
 		{"INSERT INTO t VALUES (1E-3_000)", "0A000"},
 		{"INSERT INTO t VALUES (B'1010')", "0A000"},
@@ -133,6 +133,66 @@ func TestParserErrorBoundaries(t *testing.T) {
 				t.Fatalf("partial script returned: %#v", got)
 			}
 		})
+	}
+}
+
+func TestDollarStrings(t *testing.T) {
+	tag := "$" + strings.Repeat("a", 64) + "$"
+	for _, tc := range []struct{ source, text string }{
+		{`$$a;'b$$`, "a;'b"}, {`$$$$`, ""}, {`$tag$$tag$`, ""},
+		{`$tag$a$TAG$b$tag$`, "a$TAG$b"}, {`$tag$a$junk$tag$`, "a$junk"},
+		{`$_9$é😀$_9$`, "é😀"}, {`$é$unicode$é$`, "unicode"},
+		{"$T$first\nsecond; $1 \\tail$T$", "first\nsecond; $1 \\tail"},
+		{tag + "long" + tag, "long"},
+		{tag + "a$" + strings.Repeat("a", 63) + "b$" + tag, "a$" + strings.Repeat("a", 63) + "b$"},
+	} {
+		for _, prefix := range []string{"", "/*é*/ "} {
+			q := prefix + "INSERT INTO t VALUES (" + tc.source + "); SELECT * FROM t"
+			statements, err := Parse(q)
+			if err != nil || len(statements) != 2 {
+				t.Fatalf("%q: %#v %v", q, statements, err)
+			}
+			value := statements[0].(*Insert).Rows[0][0]
+			wantPos := Position{Offset: 22, Character: 23}
+			if prefix != "" {
+				wantPos = Position{Offset: 29, Character: 29}
+			}
+			if value.Kind != StringValue || value.Text != tc.text || value.Pos != wantPos {
+				t.Fatalf("value %#v, want %q at %#v", value, tc.text, wantPos)
+			}
+			l := lexer{input: tc.source}
+			var sym sqlSymType
+			if l.Lex(&sym) != STRING || sym.tok.raw != tc.source || sym.tok.text != tc.text {
+				t.Fatalf("raw token %#v", sym.tok)
+			}
+		}
+	}
+	for _, tc := range []struct{ source, message string }{
+		{"$$a)", `unterminated dollar-quoted string at or near "$$a)"`},
+		{"$Tag$a$tag$)", `unterminated dollar-quoted string at or near "$Tag$a$tag$)"`},
+		{"$tag$first\nsecond)", "unterminated dollar-quoted string at or near \"$tag$first\nsecond)\""},
+		{"$", `syntax error at or near "$"`}, {"$tag", `syntax error at or near "$"`},
+		{"$_9)", `syntax error at or near "$"`}, {"$tag-name$)", `syntax error at or near "$"`},
+	} {
+		for _, prefix := range []string{"", "/*é*/ ", "/*😀*/ "} {
+			statements, err := Parse(prefix + "INSERT INTO t VALUES (" + tc.source)
+			position := "23"
+			if prefix != "" {
+				position = "29"
+			}
+			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: position}
+			var got *sqlstate.Error
+			if statements != nil || !errors.As(err, &got) || *got != want || got.SQLState() != "42601" {
+				t.Fatalf("diagnostic %#v %v, want %#v", got, err, want)
+			}
+		}
+	}
+	l := lexer{input: "VALUES$$v$$ x$tag$x$tag$"}
+	var sym sqlSymType
+	for _, want := range []string{"VALUES$$v$$", "x$tag$x$tag$"} {
+		if l.Lex(&sym) != IDENT || sym.tok.raw != want {
+			t.Fatalf("identifier %#v", sym.tok)
+		}
 	}
 }
 

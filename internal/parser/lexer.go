@@ -370,9 +370,30 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		token = STRING
 	case c == '$':
 		l.offset++
-		if l.offset < len(l.input) && (l.input[l.offset] == '$' || initial(l.input[l.offset])) {
-			l.fail("0A000", "dollar quoting is unsupported")
-			return 0
+		end := l.offset
+		if end < len(l.input) && initial(l.input[end]) {
+			end++
+			for end < len(l.input) && (initial(l.input[end]) || digit(l.input[end])) {
+				end++
+			}
+		}
+		if end < len(l.input) && l.input[end] == '$' {
+			delimiter := l.input[start : end+1]
+			bodyStart := end + 1
+			close := strings.Index(l.input[bodyStart:], delimiter)
+			if close < 0 {
+				l.scannerError("unterminated dollar-quoted string", start, len(l.input))
+				return 0
+			}
+			l.current.text = l.input[bodyStart : bodyStart+close]
+			l.offset = bodyStart + close + len(delimiter)
+			token = STRING
+			break
+		}
+		if l.offset == len(l.input) || !digit(l.input[l.offset]) {
+			l.current.text = "$"
+			token = int('$')
+			break
 		}
 		begin := l.offset
 		for l.offset < len(l.input) && digit(l.input[l.offset]) {

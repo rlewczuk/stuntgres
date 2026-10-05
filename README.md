@@ -36,7 +36,7 @@ owners; runtime abandonment cleanup is nondeterministic best effort.
 
 `SET [SESSION] application_name {TO | =} value` and `SHOW application_name`
 use the ordinary direct/prepared execution route. Values are strings using the
-existing ordinary/`E'...'` literal lexer, identifiers, booleans, signed
+existing ordinary/`E'...'`/dollar-quoted literal lexer, identifiers, booleans, signed
 decimal-digit integer tokens or bare DEFAULT. DEFAULT
 restores the captured physical-session default; quoted 'DEFAULT' is literal.
 SHOW returns one string row with column application_name and type TEXT.
@@ -95,12 +95,14 @@ INSERT INTO [public.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | column [, ...]) FROM [public.]name
        [WHERE column = value] [ORDER BY column [ASC | DESC]]
 type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
-value := signed-64-bit integer | 'string' | E'escape string' | TRUE | FALSE | NULL | $n
+value := signed-64-bit integer | 'string' | E'escape string' | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n
 ```
 
 Relation names accept one or two identifier components. Explicit `public.name` and unqualified `name` resolve to the same relation; unqualified references check `pg_catalog` before the built-in `public` namespace. SQL creation is supported only in `public`. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
 
 Unquoted names fold ASCII uppercase and truncate to 63 UTF-8-boundary bytes; quoted names preserve case and decode doubled quotes. A quoted identifier containing a dot is one component, e.g. `public."a.b"`. Ordinary strings use doubled apostrophes and literal backslashes. `E'...'` (or lowercase `e`) additionally decodes escaped apostrophes/backslashes, `\b\f\n\r\t\v`, one-to-three octal digits, `\x` with one-to-two hex digits, and `\uXXXX`/`\UXXXXXXXX` Unicode scalars, including adjacent surrogate pairs. Unknown backslash escapes retain the following character. Octal/hex escapes produce bytes, and the complete decoded token must be valid UTF8 without NUL. Adjacent bare quoted segments concatenate only across whitespace containing LF or CR (line comments allowed, block comments excluded), inheriting the first segment's ordinary/escape mode; UTF8 bytes may span segments, surrogate pairs may not. Whitespace, line comments and nested block comments are accepted elsewhere. Parameters are 1-based `$n`, inferred from insert destinations or equality columns. Repeated parameters of one canonical destination type share a binding; gaps fail with `42P18`, mixed destination types with `0A000`. Named arguments and other parameter dialects are not supported.
+
+Dollar-quoted strings preserve their bodies exactly: apostrophes, backslashes, newlines, comments, semicolons and `$1` are text, not escapes, statements or parameters. `$$...$$` uses an empty tag; nonempty tags follow unquoted identifier spelling except that `$` is forbidden in the tag. Delimiters match case-sensitively, without folding or the identifier length limit. Separate a dollar literal from a preceding identifier/keyword with whitespace or punctuation: `VALUES$$v$$` is one identifier, not `VALUES` plus a string. A complete opener without an identical closer reports `42601`, `unterminated dollar-quoted string at or near "..."`, quoting the raw suffix and pointing to the opener's character position. An incomplete nonparameter opener such as `$tag` is instead syntax near `$`; digit-prefixed `$n` remains a parameter.
 
 Types are int4/int8/text/bool. Values returned to Go are `int64`, `string`, `bool`, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other. WHERE typed comparisons do not use those assignment casts. Parameters support nil, integer, string, bytes and bool after standard `database/sql` conversion, not floating point or timestamps. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
@@ -130,9 +132,9 @@ Unterminated comments and quoted tokens report PostgreSQL-style English primary 
 
 INSERT target-resolution and assignment diagnostics interpolate decoded identifiers between literal double quotes, matching PostgreSQL diagnostic prose rather than Go escaping or SQL identifier quoting. The feature smoke includes an embedded-quote column mismatch and checks its exact diagnostic and complete sentinel preservation.
 
-Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source and retains existing type-input behavior. Separate `U&`, dollar quoting, B/X/N strings and configurable string GUCs remain unsupported. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
+Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source and retains existing type-input behavior. Separate `U&`, B/X/N strings and configurable string GUCs remain unsupported. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
 
-The focused public proof is `go run ./cmd/string-literals-smoke`; after checking direct/prepared values, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore and the raw SQL boundary it prints exactly:
+The focused public proof is `go run ./cmd/string-literals-smoke`; after checking direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary it prints exactly:
 
 ```text
 strings: direct/prepared escape round trips
@@ -140,6 +142,7 @@ strings: diagnostics and positions
 strings: statement atomicity
 strings: dump/reset/restore shared pools
 strings: raw SQL boundary preserved
+strings: dollar quotes, tags and parameter separation
 ```
 
 Pinned real-reference feature fixtures are `go test -tags reference -run '^TestReferenceStringLiterals$' -count=1 -v .` and `go test -tags reference -run '^TestReferenceStringLiteralDumpRoundTrip$' -count=1 -v .`.
