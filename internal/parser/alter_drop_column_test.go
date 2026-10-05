@@ -7,11 +7,17 @@ import (
 )
 
 func TestAlterDropColumnSyntax(t *testing.T) {
- for _, q := range []string{`ALTER TABLE t DROP b`, `ALTER TABLE t DROP COLUMN b RESTRICT`, `ALTER TABLE t* DROP COLUMN IF EXISTS b CASCADE`, `ALTER TABLE ONLY t DROP b`, `ALTER TABLE ONLY(t) DROP COLUMN b`, `ALTER TABLE "S"."T" DROP COLUMN "COLUMN"`} {
+ for _, q := range []string{`ALTER TABLE t DROP b`, `ALTER TABLE t DROP COLUMN b RESTRICT`, `ALTER TABLE t* DROP COLUMN IF EXISTS b CASCADE`, `ALTER TABLE ONLY t DROP b`, `ALTER TABLE ONLY(t) DROP COLUMN b`, `ALTER TABLE "S"."T" DROP COLUMN "COLUMN"`, `ALTER TABLE t DROP "column"`, `ALTER TABLE t DROP COLUMN "column"`} {
   statements, err := Parse(q)
   if err != nil || len(statements) != 1 { t.Fatal(q, statements, err) }
   s, ok := statements[0].(*AlterTableDropColumn)
   if !ok || s.Pos.Character != 1 || s.Column.Pos.Character == 0 { t.Fatal(q, s) }
+  switch q {
+  case `ALTER TABLE "S"."T" DROP COLUMN "COLUMN"`:
+   if s.Column.Text!="COLUMN" { t.Fatal("quoted keyword target changed",s.Column) }
+  case `ALTER TABLE t DROP "column"`, `ALTER TABLE t DROP COLUMN "column"`:
+   if s.Column.Text!="column" { t.Fatal("quoted keyword target changed",s.Column) }
+  }
  }
  for _, q := range []string{`ALTER TABLE t DROP COLUMN )`, `ALTER TABLE t DROP b, DROP c`, `ALTER TABLE t DROP b garbage`, `ALTER TABLE ONLY(t DROP b`, `ALTER TABLE t DROP COLUMN b; SELECT * FROM`} {
   if s, err := Parse(q); err == nil || s != nil { t.Fatal("accepted incomplete input", q, s, err) }

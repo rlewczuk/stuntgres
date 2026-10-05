@@ -114,8 +114,8 @@ func isSystemColumn(name string) bool {
 	return false
 }
 
-// Called with e.mu held. The supported dependent set is column nullability
-// and column ACLs; no native external definition providers exist.
+// Called with e.mu held. The supported dependent set is column nullability,
+// ACLs and comments; no native external definition providers exist.
 func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTableDropColumn, count int) (Result, error) {
 	if count != 0 {
 		e.mu.Unlock()
@@ -177,19 +177,23 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 		next.columns = append(next.columns, column)
 		next.attributes = append(next.attributes, old.attributes[i])
 	}
-	next.columnACL = nil
-	for sub, acl := range old.columnACL {
-		if err := op.Context().Err(); err != nil { return Result{}, err }
-		if sub == old.attributes[slot] { continue }
-		if next.columnACL == nil { next.columnACL = make(map[int32]ACLValue, len(old.columnACL)) }
-		next.columnACL[sub] = acl
+	if _, exists := old.columnACL[old.attributes[slot]]; exists {
+		next.columnACL = nil
+		for sub, acl := range old.columnACL {
+			if err := op.Context().Err(); err != nil { return Result{}, err }
+			if sub == old.attributes[slot] { continue }
+			if next.columnACL == nil { next.columnACL = make(map[int32]ACLValue, len(old.columnACL)-1) }
+			next.columnACL[sub] = acl
+		}
 	}
-	next.columnComments = nil
-	for sub, text := range old.columnComments {
-		if err := op.Context().Err(); err != nil { return Result{}, err }
-		if sub == old.attributes[slot] { continue }
-		if next.columnComments == nil { next.columnComments = make(map[int32]string, len(old.columnComments)) }
-		next.columnComments[sub] = text
+	if _, exists := old.columnComments[old.attributes[slot]]; exists {
+		next.columnComments = nil
+		for sub, text := range old.columnComments {
+			if err := op.Context().Err(); err != nil { return Result{}, err }
+			if sub == old.attributes[slot] { continue }
+			if next.columnComments == nil { next.columnComments = make(map[int32]string, len(old.columnComments)-1) }
+			next.columnComments[sub] = text
+		}
 	}
 	replacement := &relationStorage{versions:make([]rowVersion, len(originalVersions))}
 	for i, row := range originalVersions {

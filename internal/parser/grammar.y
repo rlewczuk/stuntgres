@@ -238,7 +238,7 @@ alter_drop_single: ALTER TABLE alter_relation DROP optional_column drop_if_exist
  | ALTER TABLE lock_only relation_name DROP optional_column drop_if_exists name drop_mode { $$=&AlterTableDropColumn{Name:$4,Column:Identifier{Text:$8.text,Pos:$8.pos},IfExists:$7,Mode:$9,Only:true,Pos:$1.pos} }
  | ALTER TABLE lock_only '(' relation_name ')' DROP optional_column drop_if_exists name drop_mode { $$=&AlterTableDropColumn{Name:$5,Column:Identifier{Text:$10.text,Pos:$10.pos},IfExists:$9,Mode:$11,Only:true,Pos:$1.pos} } ;
 alter_relation: relation_name { $$=$1 } | relation_name '*' { $$=$1 } ;
-optional_column: /* empty */ { $$=false } | KW_R { if $1.text!="column" { sqllex.(*lexer).syntax($1); return 1 }; $$=true } ;
+optional_column: /* empty */ { $$=false } | COLUMN { $$=true } ;
 drop_if_exists: /* empty */ { $$=false } | IF EXISTS { $$=true } ;
 alter_action: generic_word | ALTER | RENAME | OWNER | SET ;
 column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Nullable:$3, Pos:$1.pos} } ;

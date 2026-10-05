@@ -602,8 +602,20 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			err = p.ctx.Err()
 		}
 		if err == nil {
+			// Staged replacements may advance revisions without reserving from
+			// the allocator. Commit its frontier with the successful publication.
+			nextRevision := e.nextRevision
+			for _, d := range s.descriptors {
+				if revision := d.Revision(); revision >= nextRevision {
+					nextRevision = revision
+					if nextRevision != DefinitionRevision(math.MaxUint64) {
+						nextRevision++
+					}
+				}
+			}
 			e.state = next
 			e.storage = storage
+			e.nextRevision = nextRevision
 			s.lifecycle = catalogPublished
 		}
 		if op != nil {

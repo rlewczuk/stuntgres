@@ -78,6 +78,18 @@ func TestAlterDropColumnSmoke(t *testing.T){
  if err=stuntgres.Reset(ctx,db);err!=nil{t.Fatal(err)};if err=stuntgres.Restore(ctx,db,bytes.NewReader(commentDump.Bytes()));err!=nil{t.Fatal(err)}
  var commentsAgain bytes.Buffer;if err=stuntgres.Dump(ctx,db,&commentsAgain);err!=nil||commentsAgain.String()!=commentDump.String(){t.Fatal(err,commentsAgain.String())}
  rows,err=db.Query("SELECT * FROM comment_smoke");if err!=nil{t.Fatal(err)};alterDropSmokeRows(t,rows,[]string{"a","c"},[]string{"INT4","INT8"},[][]any{{int64(1),int64(9)}})
+ frontierUtility:=func(q string){t.Helper();result,e:=db.Exec(q);if e!=nil{t.Fatal(q,e)};if n,e:=result.RowsAffected();e!=nil||n!=0{t.Fatal(q,n,e)}}
+ frontierUtility("CREATE TABLE frontier_smoke(a INT,b TEXT,c BIGINT,d INT)")
+ alterDropSmokeExec(t,db,"INSERT INTO frontier_smoke VALUES(1,'removed',9,4)")
+ frontierUtility("ALTER TABLE frontier_smoke DROP b");frontierUtility("ALTER TABLE frontier_smoke DROP d")
+ frontierUtility("COMMENT ON TABLE frontier_smoke IS 'frontier table'")
+ frontierComment,err:=db.Prepare("COMMENT ON COLUMN frontier_smoke.c IS 'frontier column'");if err!=nil{t.Fatal(err)}
+ frontierResult,err:=frontierComment.Exec();frontierComment.Close();if err!=nil{t.Fatal(err)};if n,e:=frontierResult.RowsAffected();e!=nil||n!=0{t.Fatal(n,e)}
+ checkFrontier:=func(){t.Helper();r,e:=db.Query("SELECT * FROM frontier_smoke");if e!=nil{t.Fatal(e)};alterDropSmokeRows(t,r,[]string{"a","c"},[]string{"INT4","INT8"},[][]any{{int64(1),int64(9)}})};checkFrontier()
+ var frontierDump bytes.Buffer;if err=stuntgres.Dump(ctx,db,&frontierDump);err!=nil{t.Fatal(err)}
+ for _,literal:=range []string{`CREATE TABLE "public"."frontier_smoke" ("a" INTEGER, "c" BIGINT);`,`COMMENT ON TABLE "public"."frontier_smoke" IS E'frontier table';`,`COMMENT ON COLUMN "public"."frontier_smoke"."c" IS E'frontier column';`}{if !strings.Contains(frontierDump.String(),literal){t.Fatal("frontier canonical metadata",literal,frontierDump.String())}}
+ if err=stuntgres.Reset(ctx,db);err!=nil{t.Fatal(err)};if err=stuntgres.Restore(ctx,db,bytes.NewReader(frontierDump.Bytes()));err!=nil{t.Fatal(err)};checkFrontier()
+ var frontierAgain bytes.Buffer;if err=stuntgres.Dump(ctx,db,&frontierAgain);err!=nil||frontierAgain.String()!=frontierDump.String(){t.Fatal(err,frontierAgain.String())}
 }
 
 func TestAlterDropColumnZeroColumnControlsSmoke(t *testing.T){
