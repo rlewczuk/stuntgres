@@ -193,19 +193,19 @@ func (l *lexer) call(callee, opener lexeme) {
 	}
 }
 
-func columnType(l sqlLexer, tok lexeme) (Type, bool) {
+func columnType(l sqlLexer, tok lexeme) (TypeName, bool) {
 	switch tok.text {
 	case "int4":
-		return Int4, true
+		return TypeName{Name:"integer",Pos:tok.pos}, true
 	case "int8":
-		return Int8, true
+		return TypeName{Name:"bigint",Pos:tok.pos}, true
 	case "bool":
-		return Bool, true
+		return TypeName{Name:"boolean",Pos:tok.pos}, true
 	}
 	if unsupportedTypes[tok.text] {
 		l.(*lexer).failAt("0A000", "unsupported column type", tok.pos.Offset)
 	} else {
 		l.(*lexer).syntax(tok)
 	}
-	return 0, false
+	return TypeName{}, false
 }

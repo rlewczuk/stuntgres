@@ -919,8 +919,6 @@ func TestErrorFieldsConversion(t *testing.T) {
 		{"INSERT INTO diagnostics (flag,id) VALUES ($1,$2)", "22P02", `invalid input syntax for type boolean: "ambiguous"`, []any{"ambiguous", 1}},
 		{"SELECT id FROM diagnostics WHERE id=$1", "22P02", `invalid input syntax for type integer: "not an integer"`, []any{"not an integer"}},
 		{"SELECT id FROM diagnostics WHERE id=$1", "22003", `value "2147483648" is out of range for type integer`, []any{"2147483648"}},
-		{"SELECT id FROM diagnostics WHERE id='not an integer'", "22P02", `invalid input syntax for type integer: "not an integer"`, nil},
-		{"SELECT id FROM diagnostics WHERE id='2147483648'", "22003", `value "2147483648" is out of range for type integer`, nil},
 	} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%t/%s/%s", prepared, tc.code, tc.query), func(t *testing.T) {

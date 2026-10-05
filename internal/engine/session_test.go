@@ -6,7 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
-	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 	"sync"
 	"testing"
 )
@@ -49,7 +49,7 @@ func sessionSQL(t *testing.T, s *Session, q string) Result {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	r, err := s.Engine().Execute(op, statement(t, q), nil)
+	r, err := s.Engine().Execute(op, statement(t, q), 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func sessionSQL(t *testing.T, s *Session, q string) Result {
 func sessionValue(t *testing.T, s *Session, want string) {
 	t.Helper()
 	r := sessionSQL(t, s, "SHOW application_name")
-	if r.Count != 0 || !reflect.DeepEqual(r.Columns, []parser.Column{{Name: "application_name", Type: parser.Text}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
+	if r.Count != 0 || !reflect.DeepEqual(r.Columns, []ColumnDescriptor{{Name: "application_name", Usage:testUsage(s.Engine(),sqltype.Text)}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
 		t.Fatalf("SHOW count=%d %+v %v want count=0 value=%q", r.Count, r.Columns, tuples(r), want)
 	}
 }
@@ -243,7 +243,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if !reflect.DeepEqual(order, []ResourceKind{Transaction, Cursors, PreparedSQL, Temporary, AdvisorySession, Authorization}) {
 		t.Fatal(order)
 	}
-	if _, err = e.Execute(op, statement(t, "SHOW application_name"), nil); err == nil {
+	if _, err = e.Execute(op, statement(t, "SHOW application_name"), 0, nil); err == nil {
 		t.Fatal("done lease")
 	}
 	if _, err = New().Describe(op, statement(t, "SHOW application_name")); err == nil {
@@ -288,7 +288,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.Execute(op, statement(t, "SET application_name TO lost"), nil); !errors.Is(err, context.Canceled) {
+	if _, err = e.Execute(op, statement(t, "SET application_name TO lost"), 0, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	op.Done()

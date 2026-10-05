@@ -1,0 +1,79 @@
+package engine
+
+import (
+	"fmt"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+type ColumnDescriptor struct {
+	Name string
+	Usage sqltype.Usage
+	Nullable, NullabilityKnown bool
+	OriginTable uint32
+	OriginAttribute int16
+}
+
+type StatementDescription struct {
+	Parameters ParameterInfo
+	Results []ColumnDescriptor
+}
+
+// Catalog wrappers retain the existing class/namespace/revision/epoch ownership
+// seam. A sqltype ID is a projection, not an authorization token.
+type typeDescriptor struct { typ *sqltype.Descriptor }
+
+func (d *typeDescriptor) Address() ObjectAddress {
+	return ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.ID())}
+}
+func (*typeDescriptor) Revision() DefinitionRevision { return 1 }
+func (*typeDescriptor) Namespace() ObjectAddress {
+	return ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+}
+func (d *typeDescriptor) Name() string { return d.typ.Name() }
+func (*typeDescriptor) Kind() ObjectKind { return TypeObject }
+
+type typeProvider struct{}
+
+func (typeProvider) ClassID() OID { return TypeClassID }
+func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
+	t, ok := descriptor.(*typeDescriptor)
+	if !ok || t.typ == nil || t.typ.ID() == 0 { return fmt.Errorf("stuntgres: invalid type descriptor") }
+	ns, ok := view.Descriptor(descriptor.Namespace())
+	if !ok || ns.Kind() != NamespaceObject { return fmt.Errorf("stuntgres: type namespace is missing") }
+	found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: descriptor.Namespace(), Name: descriptor.Name()})
+	if len(found) != 1 || found[0] != descriptor.Address() { return fmt.Errorf("stuntgres: invalid type identity") }
+	return nil
+}
+
+func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
+	d, ok := r.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(id)})
+	if !ok { return nil, false }
+	t, ok := d.(*typeDescriptor)
+	if !ok { return nil, false }
+	return t.typ, true
+}
+
+// Called only by the existing binder against its current coherent catalog.
+func (e *Engine) resolveType(raw parser.TypeName) (sqltype.Usage, error) {
+	name := raw.Name
+	switch name {
+	case "integer": name = "int4"
+	case "bigint": name = "int8"
+	case "boolean": name = "bool"
+	}
+	view := CatalogRead{owner: e, state: e.state}
+	found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name})
+	if len(found) != 1 { return sqltype.Usage{}, sqlError("0A000", "unsupported column type") }
+	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
+	if !d.Concrete() { return sqltype.Usage{}, sqlError("0A000", "unsupported column type") }
+	return d.Usage(), nil
+}
+
+func (b binding) columns() []ColumnDescriptor {
+	if b.relation == nil { return nil }
+	columns := make([]ColumnDescriptor, len(b.projection))
+	for i, j := range b.projection { columns[i] = b.relation.columns[j] }
+	return columns
+}

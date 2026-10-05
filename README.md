@@ -177,9 +177,54 @@ Unicode escaped constants and identifiers: ok
 
 Types are int4/int8/text/bool. Values returned to Go are `int64`, `string`, `bool`, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other. WHERE typed comparisons do not use those assignment casts. Parameters support nil, integer, string, bytes and bool after standard `database/sql` conversion, not floating point or timestamps. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
+The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
+INT8 20, INT4 23, TEXT 25; analysis-only UNKNOWN 705), concrete nullable values,
+and bound assignment/comparison providers. The parser retains raw type syntax;
+the engine resolves it and publishes parameter/result descriptions with column
+origins. Prepared types come from destination columns, never the Go argument
+kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
+and mixed-destination reuse remains the bounded native `0A000` limitation,
+including INT4/INT8 reuse. Each execution imports an owned private typed frame
+against the current coherent binding. Driver adapters detach bytes and export
+INT4/INT8 as `int64`, TEXT as `string`, BOOL as `bool`, and typed NULL as nil.
+NULL still retains its concrete metadata identity.
+Normalized integer parameters targeting INT4/INT8 and Boolean parameters targeting
+BOOL use checked scalar imports without successful-value formatting or reparsing.
+They retain the inferred descriptor and cancellation checks; INT4 overflow keeps
+the textual-input diagnostic rather than the assignment-narrowing diagnostic.
+
+Integer textual input (quoted constants and string/byte parameters) accepts
+optional signs, leading/trailing C whitespace, decimal leading zeros, radix
+prefixes and single digit separators, including `0x_FF`, `0o17`, `0b10_10` and
+`1_000`. Malformed input is `22P02`; width overflow is `22003`. Parsing order
+matters: `2147483648x` is malformed integer input, but a sufficiently long
+overflowing digit prefix can fail range before trailing junk. Non-ASCII
+whitespace is not C whitespace. Boolean input supports case-insensitive unique
+prefixes of true/yes/on and false/no/off, plus 1/0. Boolean codec text output is
+t/f; Boolean assignment to TEXT is true/false, independently of driver output.
+Integer WHERE literals compare across widths without assignment narrowing:
+`int4_column = 2147483648` is valid and matches nothing, while a parameter in
+that predicate retains INT4 input and rejects the same overflowing bound text.
+
+`go run ./cmd/type-core-smoke` exercises public direct/prepared inference,
+codecs, exact diagnostics and phases, metadata, byte ownership, multirow
+atomicity, cancellation and four-kind native round trips with retained raw
+cursors. It prints exactly:
+
+```text
+typed core: inference, codecs, metadata, atomicity and native round trips OK
+```
+
+Focused independent witnesses are `go test -run '^TestTypeCore.*$' -count=1 -v .`,
+`go test ./internal/sqltype ./internal/engine`, and the pinned real-reference
+`go test -tags reference -run '^TestReferenceTypeCore.*$' -count=1 -v .`.
+Dump uses descriptor-owned canonical SQL literals, and staged Restore uses the
+same binder/codecs before replacing the catalog once; existing snapshots retain
+their old values, types and column metadata.
+
 Integer SQL constants accept decimal and case-insensitive binary `0b`, octal `0o`, or hexadecimal `0x` prefixes. Single underscores may separate digits; radix constants may also have one underscore immediately after the prefix (`0B_1_010`, `0O_1_2`, `0X_A` all equal 10). Decimal leading zeros remain decimal (`010` is 10, `08` is 8). Unary signs may be separated from the number by whitespace/comments. Values must fit signed int64, including `-0x8000_0000_0000_0000`; int4 assignment additionally checks its own range. Malformed digits, separators and trailing identifier junk fail the entire statement with PostgreSQL English `42601` diagnostics pointing to the number's first character (not its sign).
 
-This is not PostgreSQL's full numeric inference: lexically valid constants outside signed int64 retain the native `22003` / `integer literal out of range` capability boundary, while PostgreSQL can infer exact `numeric` values. Fractional/exponent numeric constants and bit-string constants remain unsupported (`0A000`); quoted strings and textual parameters do not acquire radix/separator input semantics. Dump emits canonical decimal integers, and Restore accepts the supported integer spellings. Run `go run ./cmd/numeric-literals-smoke` for the public feature contract; it prints exactly `numeric literals: ok` only after its assertions succeed.
+This is not PostgreSQL's full numeric inference: lexically valid constants outside signed int64 retain the native `22003` / `integer literal out of range` capability boundary, while PostgreSQL can infer exact `numeric` values. Fractional/exponent numeric constants and bit-string constants remain unsupported (`0A000`). SQL integer constants and integer textual input have distinct lexical/input diagnostics, though both support the baseline radix/separator forms. Dump emits canonical decimal integers, and Restore accepts the supported integer spellings. Run `go run ./cmd/numeric-literals-smoke` for the public feature contract; it prints exactly `numeric literals: ok` only after its assertions succeed.
 
 Lexical errors take precedence over the unsupported-valid-exponent boundary: `1e3` and `1e+3` remain unsupported, but `1e3foo`, `1e3_`, `1_000e3__0` and `1e+3foo` fail with `42601`, quoting the complete malformed numeric token.
 

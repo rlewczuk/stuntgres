@@ -210,6 +210,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	if s.prepared {
 		stmt, err = db.PrepareContext(ctx, s.query)
 		if err != nil {
+			if stmt != nil { stmt.Close(); t.Fatal("failed Prepare exposed a statement") }
 			stage := "prepare"
 			diag := referenceCheckDiagnostic(t, err, s, stage)
 			return referenceObserved{state: referenceState(t, err, s.state), diagnostic: diag, errorStage: stage}
@@ -251,6 +252,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	stage := "execute"
 	state := referenceState(t, err, s.state)
 	if err != nil {
+		if rows != nil { rows.Close(); t.Fatal("failed Query exposed a cursor") }
 		diag := referenceCheckDiagnostic(t, err, s, stage)
 		return referenceObserved{state: state, diagnostic: diag, errorStage: stage}
 	}

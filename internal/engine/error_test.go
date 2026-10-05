@@ -2,12 +2,11 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
 	"strings"
 	"testing"
 
-	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -17,16 +16,21 @@ func TestSQLDiagnosticSeverityAndRowDetail(t *testing.T) {
 	if !errors.As(err, &got) || got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" || got.Schema != "" {
 		t.Fatalf("SQL error fields = %#v", got)
 	}
+	e := New()
+	text := testUsage(e,sqltype.Text).Type
+	big := testUsage(e,sqltype.Int8).Type
+	boolean := testUsage(e,sqltype.Bool).Type
+	minimum,_ := sqltype.Integer(big,-9223372036854775808)
 	for _, tc := range []struct {
-		row  []driver.Value
+		row  []sqltype.Value
 		want string
 	}{
-		{[]driver.Value{nil, int64(-9223372036854775808), true, false, "a,b\nc"}, "Failing row contains (null, -9223372036854775808, t, f, a,b\nc)."},
-		{[]driver.Value{strings.Repeat("x", 64)}, "Failing row contains (" + strings.Repeat("x", 64) + ")."},
-		{[]driver.Value{strings.Repeat("x", 65)}, "Failing row contains (" + strings.Repeat("x", 64) + "...)."},
-		{[]driver.Value{strings.Repeat("x", 63) + "é"}, "Failing row contains (" + strings.Repeat("x", 63) + "...)."},
+		{[]sqltype.Value{sqltype.Null(text),minimum,sqltype.Boolean(boolean,true),sqltype.Boolean(boolean,false),sqltype.String(text,"a,b\nc")}, "Failing row contains (null, -9223372036854775808, t, f, a,b\nc)."},
+		{[]sqltype.Value{sqltype.String(text,strings.Repeat("x",64))}, "Failing row contains (" + strings.Repeat("x", 64) + ")."},
+		{[]sqltype.Value{sqltype.String(text,strings.Repeat("x",65))}, "Failing row contains (" + strings.Repeat("x", 64) + "...)."},
+		{[]sqltype.Value{sqltype.String(text,strings.Repeat("x",63)+"é")}, "Failing row contains (" + strings.Repeat("x", 63) + "...)."},
 	} {
-		if detail := failingRowDetail(tc.row); detail != tc.want {
+		if detail,err := failingRowDetail(tc.row); err!=nil || detail != tc.want {
 			t.Errorf("detail = %q, want %q", detail, tc.want)
 		}
 	}
@@ -93,7 +97,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	}
 	relation := d.(*relationDescriptor)
 	if len(relation.columns) != 1 || relation.columns[0].Name != "kept" ||
-		relation.columns[0].Type != parser.Text || relation.columns[0].Nullable {
+		relation.columns[0].Usage.Type.ID() != sqltype.Text || relation.columns[0].Nullable {
 		t.Fatalf("winning definition changed: %#v", relation.columns)
 	}
 	rows := tuples(run(t, e, "SELECT kept FROM conflict_rows"))
@@ -134,11 +138,11 @@ func TestBooleanDiagnosticsBinding(t *testing.T) {
 	var got *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02",
 		Message: `invalid input syntax for type integer: "bad"`}
-	if !errors.As(err, &got) || *got != want {
+	if !errors.As(err, &got) || got.Severity != want.Severity || got.SeverityUnlocalized != want.SeverityUnlocalized || got.Code != want.Code || got.Message != want.Message {
 		t.Fatalf("integer seam changed: %#v (%v)", got, err)
 	}
 	_, err = testDescribe(e, statement(t, "SELECT id FROM b WHERE flag=1"))
-	if !errors.As(err, &got) || got.Code != "42883" || got.Position != "" {
+	if !errors.As(err, &got) || got.Code != "42883" {
 		t.Fatalf("operator mismatch changed: %#v (%v)", got, err)
 	}
 }

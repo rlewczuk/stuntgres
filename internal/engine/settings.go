@@ -2,12 +2,12 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 	"sync"
 	"unicode/utf8"
 )
@@ -17,7 +17,6 @@ type SettingDefinition struct {
 	Name        string
 	BootDefault string
 	Normalize   func(string) (string, *sqlstate.Error, error)
-	Column      parser.Column
 }
 
 // SessionDefaultProvider is evaluated once at physical initialization. Absence
@@ -26,7 +25,7 @@ type SessionDefaultProvider interface {
 	SessionDefault(context.Context, SettingDefinition) (string, bool, error)
 }
 
-var applicationName = SettingDefinition{Name: "application_name", Normalize: normalizeApplicationName, Column: parser.Column{Name: "application_name", Type: parser.Text}}
+var applicationName = SettingDefinition{Name: "application_name", Normalize: normalizeApplicationName}
 
 func (e *Engine) settingDefinitions() map[string]SettingDefinition { return e.settingsDefinitions }
 func (e *Engine) setting(name string) (SettingDefinition, error) {
@@ -111,8 +110,8 @@ func (s *sessionSettings) EndSession(_ SessionToken, _ EndReason) error {
 	s.values = nil
 	return nil
 }
-func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
-	if len(args) != 0 {
+func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int) (Result, error) {
+	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
 	}
 	var name string
@@ -164,7 +163,10 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, args []dri
 		if !ok {
 			value = owner.defaults[d.Name]
 		}
-		return Result{Columns: []parser.Column{d.Column}, Rows: &Snapshot{rows: [][]driver.Value{{value}}, projection: []int{0}}}, nil
+		e.mu.Lock()
+		typ, _ := (CatalogRead{owner:e,state:e.state}).LookupType(sqltype.Text)
+		e.mu.Unlock()
+		return Result{Columns: []ColumnDescriptor{{Name:d.Name,Usage:typ.Usage()}}, Rows: &Snapshot{rows: [][]sqltype.Value{{sqltype.String(typ,value)}}, projection: []int{0}}}, nil
 	}
 	return Result{}, errors.New("stuntgres: invalid setting statement")
 }

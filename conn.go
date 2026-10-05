@@ -100,21 +100,23 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 	if err != nil {
 		return nil, err
 	}
-	count := 0
+	description := engine.StatementDescription{}
 	if s != nil {
 		p, err := c.session.Engine().Describe(op, s)
 		if err != nil {
 			return nil, err
 		}
-		count = p.Count
+		description = p
 	}
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
-	return &stmt{conn: c, ast: s, count: count}, nil
+	return &stmt{conn: c, ast: s, source:query, description:description}, nil
 }
 func (c *conn) execute(ctx context.Context, s parser.Statement, args []driver.NamedValue) (engine.Result, error) {
 	defer runtime.KeepAlive(c)
+	values, err := normalizeArguments(args)
+	if err != nil { return engine.Result{},err }
 	op, err := c.session.Acquire(ctx)
 	if err != nil {
 		return engine.Result{}, err
@@ -129,7 +131,7 @@ func (c *conn) execute(ctx context.Context, s parser.Statement, args []driver.Na
 		}
 		return engine.Result{}, nil
 	}
-	r, err := c.session.Engine().Execute(op, s, args)
+	r, err := c.session.Engine().Execute(op, s, len(values), frameImporter(values))
 	notices := op.DetachNotices()
 	op.Done()
 	if c.noticeHandler != nil {

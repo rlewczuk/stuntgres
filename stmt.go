@@ -6,18 +6,20 @@ import (
 	"errors"
 	"runtime"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/engine"
 	"sync/atomic"
 )
 
 type stmt struct {
 	conn   *conn
 	ast    parser.Statement
-	count  int
+	source string
+	description engine.StatementDescription
 	closed atomic.Bool
 }
 
 func (s *stmt) Close() error  { defer runtime.KeepAlive(s.conn); s.closed.Store(true); return nil }
-func (s *stmt) NumInput() int { defer runtime.KeepAlive(s.conn); return s.count }
+func (s *stmt) NumInput() int { defer runtime.KeepAlive(s.conn); return s.description.Parameters.Count }
 func (s *stmt) check(ctx context.Context) error {
 	defer runtime.KeepAlive(s.conn)
 	if err := s.conn.check(ctx); err != nil {

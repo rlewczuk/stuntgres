@@ -2,14 +2,13 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"fmt"
 	"io"
 	"sort"
-	"strconv"
 	"strings"
 
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) Reset(ctx context.Context) error {
@@ -35,14 +34,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	type dumpRelation struct {
 		schema, name string
-		columns      []parser.Column
-		rows         [][]driver.Value
+		columns      []ColumnDescriptor
+		rows         [][]sqltype.Value
 	}
 	tables := make([]dumpRelation, 0)
 	for a, d := range e.state.descriptors {
 		r, ok := d.(*relationDescriptor)
 		if !ok {
-			if d.Kind() == NamespaceObject {
+			_, builtinType := d.(*typeDescriptor)
+			if d.Kind() == NamespaceObject || builtinType {
 				continue
 			}
 			e.mu.Unlock()
@@ -88,7 +88,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if i > 0 {
 				line.WriteString(", ")
 			}
-			line.WriteString(quoteIdentifier(c.Name) + " " + c.Type.SQL())
+			line.WriteString(quoteIdentifier(c.Name) + " " + c.Usage.Type.SQLName())
 			if !c.Nullable {
 				line.WriteString(" NOT NULL")
 			}
@@ -104,22 +104,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if i > 0 {
 					line.WriteString(", ")
 				}
-				switch v := v.(type) {
-				case nil:
-					line.WriteString("NULL")
-				case int64:
-					line.WriteString(strconv.FormatInt(v, 10))
-				case bool:
-					if v {
-						line.WriteString("TRUE")
-					} else {
-						line.WriteString("FALSE")
-					}
-				case string:
-					line.WriteByte('\'')
-					line.WriteString(strings.ReplaceAll(v, "'", "''"))
-					line.WriteByte('\'')
-				}
+				literal, err := v.Type().SQLLiteral(ctx,v)
+				if err != nil { return err }
+				line.WriteString(literal)
 			}
 			line.WriteString(");\n")
 			if err := emit(line.String()); err != nil {
@@ -188,7 +175,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		default:
 			return sqlError("0A000", "restore accepts only CREATE and INSERT")
 		}
-		_, err = stage.Execute(op, stmt, nil)
+		_, err = stage.Execute(op, stmt, 0, nil)
 		op.DetachNotices()
 		if err != nil {
 			return err

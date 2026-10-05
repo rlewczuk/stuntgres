@@ -2,90 +2,58 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"sort"
+
+	"stuntgres/internal/sqltype"
 )
 
-// Snapshot retains immutable committed rows at the statement's capture point.
-// A nil selection means every captured row, without an index allocation.
+// Snapshot retains immutable committed rows and their captured count. A nil
+// selection means every captured row, without an index allocation.
 type Snapshot struct {
-	rows       [][]driver.Value
+	rows [][]sqltype.Value
 	projection []int
-	selection  []int
+	selection []int
 }
 
 func (s *Snapshot) Len() int {
-	if s.selection != nil {
-		return len(s.selection)
-	}
+	if s.selection != nil { return len(s.selection) }
 	return len(s.rows)
 }
-func (s *Snapshot) Values(index int, dst []driver.Value) {
-	if s.selection != nil {
-		index = s.selection[index]
-	}
+func (s *Snapshot) Values(index int, dst []sqltype.Value) {
+	if s.selection != nil { index = s.selection[index] }
 	row := s.rows[index]
-	for i, c := range s.projection {
-		dst[i] = row[c]
-	}
+	for i, column := range s.projection { dst[i] = row[column] }
 }
-func compare(a, b driver.Value) int {
-	switch a := a.(type) {
-	case int64:
-		v := b.(int64)
-		if a < v {
-			return -1
-		}
-		if a > v {
-			return 1
-		}
-	case string:
-		v := b.(string)
-		if a < v {
-			return -1
-		}
-		if a > v {
-			return 1
-		}
-	case bool:
-		v := b.(bool)
-		if !a && v {
-			return -1
-		}
-		if a && !v {
-			return 1
-		}
-	}
-	return 0
-}
-func (s *Snapshot) selectRows(ctx context.Context, predicate int, value driver.Value, order int, desc bool) error {
+
+func (s *Snapshot) selectRows(ctx context.Context, predicate int, value sqltype.Value, equality sqltype.Equality, order int, ordering sqltype.Comparison, desc bool) error {
 	if predicate >= 0 || order >= 0 {
 		s.selection = make([]int, 0, len(s.rows))
 		for i, row := range s.rows {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if predicate >= 0 && (value == nil || row[predicate] == nil || compare(row[predicate], value) != 0) {
-				continue
+			if err := ctx.Err(); err != nil { return err }
+			if predicate >= 0 {
+				result, err := equality.Evaluate(ctx,row[predicate],value)
+				if err != nil { return err }
+				if result.IsNull() { continue }
+				matches, err := result.Boolean()
+				if err != nil { return err }
+				if !matches { continue }
 			}
 			s.selection = append(s.selection, i)
 		}
 	}
 	if order >= 0 {
+		var sortErr error
 		sort.SliceStable(s.selection, func(i, j int) bool {
+			if sortErr != nil { return false }
 			a, b := s.rows[s.selection[i]][order], s.rows[s.selection[j]][order]
-			if a == nil {
-				return b != nil && desc
-			}
-			if b == nil {
-				return !desc
-			}
-			c := compare(a, b)
-			if desc {
-				return c > 0
-			}
-			return c < 0
+			if a.IsNull() { return !b.IsNull() && desc }
+			if b.IsNull() { return !desc }
+			comparison, err := ordering.Compare(ctx, a, b)
+			if err != nil { sortErr = err; return false }
+			if desc { return comparison > 0 }
+			return comparison < 0
 		})
+		if sortErr != nil { return sortErr }
 	}
 	return ctx.Err()
 }

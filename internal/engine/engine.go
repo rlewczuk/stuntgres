@@ -1,8 +1,7 @@
 package engine
 
 import (
-	"database/sql/driver"
-	"errors"
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,6 +9,7 @@ import (
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 type Engine struct {
@@ -26,11 +26,11 @@ type Engine struct {
 }
 type ParameterInfo struct {
 	Count int
-	Types []parser.Type
+	Types []sqltype.Usage
 }
 type Result struct {
 	Count   int64
-	Columns []parser.Column
+	Columns []ColumnDescriptor
 	Rows    *Snapshot
 }
 type binding struct {
@@ -42,6 +42,11 @@ type binding struct {
 	predicate  int
 	order      int
 	parameters ParameterInfo
+	expressions [][]boundValue
+	whereValue boundValue
+	equality sqltype.Equality
+	ordering sqltype.Comparison
+	createColumns []ColumnDescriptor
 }
 
 func New() *Engine {
@@ -72,6 +77,9 @@ func newEngine(providers []CatalogProvider) (*Engine, error) {
 	if err := e.RegisterCatalogProvider(relationProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(typeProvider{}); err != nil {
+		return nil, err
+	}
 	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
 	for _, ns := range []struct {
 		oid  OID
@@ -80,6 +88,11 @@ func newEngine(providers []CatalogProvider) (*Engine, error) {
 		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1}
 		e.state.descriptors[d.address] = d
 		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
+	}
+	for _, typ := range sqltype.Builtins() {
+		d := &typeDescriptor{typ:typ}
+		e.state.descriptors[d.Address()] = d
+		e.state.names[NameKey{ClassID:TypeClassID,Namespace:d.Namespace(),Name:d.Name()}] = d.Address()
 	}
 	view := CatalogRead{owner: e, state: e.state}
 	for _, d := range e.state.descriptors {
@@ -127,24 +140,28 @@ func sqlError(code, message string) error {
 		Code: code, Message: message,
 	}
 }
-func (e *Engine) Describe(op *Operation, stmt parser.Statement) (ParameterInfo, error) {
+func (e *Engine) Describe(op *Operation, stmt parser.Statement) (StatementDescription, error) {
 	if err := e.validateOperation(op); err != nil {
-		return ParameterInfo{}, err
+		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable, *parser.Set:
-		return ParameterInfo{}, nil
+		return StatementDescription{}, nil
 	case *parser.Show:
-		_, err := e.setting(s.Name.Text)
-		return ParameterInfo{}, err
+		d, err := e.setting(s.Name.Text)
+		if err != nil { return StatementDescription{}, err }
+		e.mu.Lock()
+		typ, _ := (CatalogRead{owner:e,state:e.state}).LookupType(sqltype.Text)
+		e.mu.Unlock()
+		return StatementDescription{Results:[]ColumnDescriptor{{Name:d.Name,Usage:typ.Usage()}}}, nil
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	b, err := e.describe(stmt)
 	if err != nil {
-		return ParameterInfo{}, err
+		return StatementDescription{}, err
 	}
-	return b.parameters, nil
+	return StatementDescription{Parameters:b.parameters,Results:b.columns()}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -173,35 +190,20 @@ func namespaceForName(view CatalogRead, name parser.ObjectName, creation bool) (
 }
 func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	b := binding{predicate: -1, order: -1}
-	used := make(map[int]parser.Type)
-	bind := func(v parser.Value, c parser.Column, where bool) error {
+	used := make(map[int]sqltype.Usage)
+	bind := func(v parser.Value, c ColumnDescriptor, mode sqltype.CoercionContext) (boundValue,error) {
 		if v.Kind != parser.ParameterValue {
-			// Integer-to-int4 assignment is type-compatible. Its range check
-			// belongs to execution, not preparation; unknown string input
-			// still runs during binding below.
-			if !where && v.Kind == parser.IntegerValue && c.Type == parser.Int4 {
-				return nil
-			}
-			_, err := literal(v, c.Type, where)
-			if err != nil && where && c.Type == parser.Bool && v.Kind == parser.StringValue {
-				var diagnostic *sqlstate.Error
-				if errors.As(err, &diagnostic) && diagnostic.Code == "22P02" && diagnostic.Position == "" {
-					diagnostic.Position = strconv.Itoa(v.Pos.Character)
-				}
-			}
-			return err
+			return e.bindValue(v, c.Usage, mode)
 		}
 		if v.Parameter <= 0 {
-			return sqlError("42P02", "undefined parameter")
+			return boundValue{},sqlError("42P02", "undefined parameter")
 		}
-		if t, ok := used[v.Parameter]; ok && t != c.Type {
-			return sqlError("0A000", "parameter reused with different destination types")
+		if t, ok := used[v.Parameter]; ok && t.Type != c.Usage.Type {
+			return boundValue{},sqlError("0A000", "parameter reused with different destination types")
 		}
-		used[v.Parameter] = c.Type
-		if v.Parameter > b.parameters.Count {
-			b.parameters.Count = v.Parameter
-		}
-		return nil
+		used[v.Parameter] = c.Usage
+		if v.Parameter > b.parameters.Count { b.parameters.Count = v.Parameter }
+		return boundValue{parameter:v.Parameter},nil
 	}
 	column := func(name string) (int, error) {
 		i, ok := b.relation.index[name]
@@ -221,9 +223,9 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 				return b, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, c.Name))
 			}
 			seen[c.Name] = true
-			if c.Type > parser.Bool {
-				return b, sqlError("0A000", "unsupported column type")
-			}
+			u, err := e.resolveType(c.TypeName)
+			if err != nil { return b,err }
+			b.createColumns = append(b.createColumns,ColumnDescriptor{Name:c.Name,Usage:u,Nullable:c.Nullable,NullabilityKnown:true})
 		}
 	case *parser.Insert:
 		var err error
@@ -259,6 +261,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 				b.targets = append(b.targets, i)
 			}
 		}
+		b.expressions = make([][]boundValue,len(s.Rows))
 		for rowIndex, row := range s.Rows {
 			if rowIndex > 0 && len(row) != len(s.Rows[0]) {
 				return b, insertError("42601", "VALUES lists must all be the same length", row[0].Pos)
@@ -269,11 +272,12 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 			if rowIndex == 0 && len(s.Targets) != 0 && len(row) < len(b.targets) {
 				return b, insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 			}
+			b.expressions[rowIndex] = make([]boundValue,len(row))
 			for j, v := range row {
 				c := b.relation.columns[b.targets[j]]
-				if err := bind(v, c, false); err != nil {
-					return b, insertValueError(err, c, v)
-				}
+				plan, err := bind(v,c,sqltype.Assignment)
+				if err != nil { return b,insertValueError(err,c,v) }
+				b.expressions[rowIndex][j] = plan
 			}
 		}
 	case *parser.Select:
@@ -306,15 +310,21 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 			if err != nil {
 				return b, err
 			}
-			if err = bind(s.Where.Value, b.relation.columns[b.predicate], true); err != nil {
-				return b, err
-			}
+			b.whereValue, err = bind(s.Where.Value,b.relation.columns[b.predicate],sqltype.Implicit)
+			if err != nil { return b,operatorError(err,b.relation.columns[b.predicate],s.Where) }
+			right := b.whereValue.value.Type()
+			if s.Where.Value.Kind==parser.ParameterValue { right=b.relation.columns[b.predicate].Usage.Type }
+			boolean, _ := (CatalogRead{owner:e,state:e.state}).LookupType(sqltype.Bool)
+			b.equality, err = sqltype.BindEquality(b.relation.columns[b.predicate].Usage.Type,right,boolean)
+			if err != nil { return b,operatorError(err,b.relation.columns[b.predicate],s.Where) }
 		}
 		if s.Order != nil {
 			b.order, err = column(s.Order.Column)
 			if err != nil {
 				return b, err
 			}
+			b.ordering, err = sqltype.BindComparison(b.relation.columns[b.order].Usage.Type,b.relation.columns[b.order].Usage.Type)
+			if err != nil { return b,err }
 		}
 	default:
 		return b, sqlError("0A000", "unsupported statement")
@@ -322,7 +332,7 @@ func (e *Engine) describe(stmt parser.Statement) (binding, error) {
 	if len(used) != b.parameters.Count {
 		return b, sqlError("42P18", "could not determine unused parameter type")
 	}
-	b.parameters.Types = make([]parser.Type, b.parameters.Count)
+	b.parameters.Types = make([]sqltype.Usage, b.parameters.Count)
 	for n, t := range used {
 		b.parameters.Types[n-1] = t
 	}
@@ -394,80 +404,36 @@ func insertError(code, message string, pos parser.Position) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(pos.Character)}
 }
 
-func insertValueError(err error, column parser.Column, value parser.Value) error {
+func insertValueError(err error, column ColumnDescriptor, value parser.Value) error {
 	sqlErr, ok := err.(*sqlstate.Error)
-	if !ok {
-		return err
-	}
-	switch sqlErr.Code {
+	if !ok { return err }
+	copy := *sqlErr
+	switch copy.Code {
 	case "42804":
-		source := "unknown"
-		switch value.Kind {
-		case parser.IntegerValue:
-			source = "integer"
-			if value.Integer < -2147483648 || value.Integer > 2147483647 {
-				source = "bigint"
-			}
-		case parser.StringValue:
-			source = "text"
-		case parser.BooleanValue:
-			source = "boolean"
-		}
-		destination := "integer"
-		switch column.Type {
-		case parser.Int8:
-			destination = "bigint"
-		case parser.Text:
-			destination = "text"
-		case parser.Bool:
-			destination = "boolean"
-		}
-		sqlErr.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, destination, source)
-		sqlErr.Hint = "You will need to rewrite or cast the expression."
-		sqlErr.Position = strconv.Itoa(value.Pos.Character)
+		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s",column.Name,strings.ToLower(column.Usage.Type.SQLName()),literalTypeName(value))
+		copy.Hint = "You will need to rewrite or cast the expression."
+		copy.Position = strconv.Itoa(value.Pos.Character)
 	case "22P02", "22003":
-		if value.Kind == parser.StringValue {
-			sqlErr.Position = strconv.Itoa(value.Pos.Character)
-		}
+		if value.Kind == parser.StringValue { copy.Position = strconv.Itoa(value.Pos.Character) }
 	}
-	return sqlErr
+	return &copy
 }
 
-func notNullError(table, column string, row []driver.Value) error {
+func notNullError(table, column string, row []sqltype.Value) error {
+	detail, err := failingRowDetail(row)
+	if err != nil { return err }
 	return &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
 		Message: fmt.Sprintf("null value in column \"%s\" of relation \"%s\" violates not-null constraint", column, table),
-		Schema:  "public", Table: table, Column: column, Detail: failingRowDetail(row),
+		Schema: "public", Table: table, Column: column, Detail: detail,
 	}
 }
 
-func prepareArgs(args []driver.NamedValue) ([]driver.Value, error) {
-	values := make([]driver.Value, len(args))
-	for i, a := range args {
-		if a.Name != "" {
-			return nil, fmt.Errorf("stuntgres: named parameters are not supported")
-		}
-		if a.Ordinal != i+1 {
-			return nil, fmt.Errorf("stuntgres: parameter ordinal %d, want %d", a.Ordinal, i+1)
-		}
-		v, err := driver.DefaultParameterConverter.ConvertValue(a.Value)
-		if err != nil {
-			if _, ok := a.Value.(driver.Valuer); ok {
-				return nil, err
-			}
-			return nil, sqlError("0A000", "unsupported parameter value")
-		}
-		switch v.(type) {
-		case nil, int64, string, []byte, bool:
-		default:
-			return nil, sqlError("0A000", "unsupported parameter value")
-		}
-		values[i] = v
-	}
-	return values, nil
-}
+// FrameImporter runs only codec conversion of already owned adapter values.
+// It must not invoke user code or external I/O under the engine mutex.
+type FrameImporter func(context.Context,ParameterInfo,[]sqltype.Value) error
 
-func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
+func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
 	if err := e.validateOperation(op); err != nil {
 		return Result{}, err
 	}
@@ -475,21 +441,17 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 	ctx := op.Context()
 	switch stmt.(type) {
 	case *parser.Set, *parser.Show:
-		return e.executeSetting(op, stmt, args)
-	}
-	values, err := prepareArgs(args)
-	if err != nil {
-		return Result{}, err
+		return e.executeSetting(op, stmt, count)
 	}
 	e.mu.Lock()
-	if err = ctx.Err(); err != nil {
+	if err := ctx.Err(); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
 	if s, ok := stmt.(*parser.CreateTable); ok {
-		if len(values) != 0 {
+		if count != 0 {
 			e.mu.Unlock()
-			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", len(values))
+			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 		}
 		nsref, er := e.resolveCreation(CatalogRead{owner: e, state: e.state}, s.Name)
 		if er != nil {
@@ -506,10 +468,8 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 			}
 			return Result{}, sqlError("42P07", fmt.Sprintf("relation %q already exists", key.Name))
 		}
-		if _, er := e.describe(s); er != nil {
-			e.mu.Unlock()
-			return Result{}, er
-		}
+		created, er := e.describe(s)
+		if er != nil { e.mu.Unlock(); return Result{},er }
 		oid, er := e.allocateOIDLocked()
 		if er != nil {
 			e.mu.Unlock()
@@ -521,10 +481,12 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 			return Result{}, er
 		}
 		addr := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
-		rd := &relationDescriptor{address: addr, namespace: ns, name: key.Name, revision: rev, columns: append([]parser.Column(nil), s.Columns...), index: make(map[string]int, len(s.Columns)), attributes: make([]int32, len(s.Columns))}
+		rd := &relationDescriptor{address: addr, namespace: ns, name: key.Name, revision: rev, columns: created.createColumns, index: make(map[string]int, len(s.Columns)), attributes: make([]int32, len(s.Columns))}
 		for i, c := range rd.columns {
 			rd.index[c.Name] = i
 			rd.attributes[i] = int32(i + 1)
+			rd.columns[i].OriginTable = uint32(oid)
+			rd.columns[i].OriginAttribute = int16(i+1)
 		}
 		base := CatalogRead{owner: e, state: e.state}
 		stage := e.BeginCatalogStage(base)
@@ -568,37 +530,32 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if len(values) != b.parameters.Count {
+	if count != b.parameters.Count {
 		e.mu.Unlock()
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", len(values), b.parameters.Count)
+		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.parameters.Count)
 	}
-	canonical := make([]driver.Value, len(values))
-	for i, v := range values {
-		canonical[i], err = parameter(v, b.parameters.Types[i])
-		if err != nil {
-			e.mu.Unlock()
-			return Result{}, err
+	canonical := make([]sqltype.Value,count)
+	if count != 0 {
+		if importFrame == nil { e.mu.Unlock(); return Result{},fmt.Errorf("stuntgres: missing parameter importer") }
+		if err = importFrame(ctx,b.parameters,canonical); err != nil { e.mu.Unlock(); return Result{},err }
+		for i,v := range canonical {
+			if v.Type()!=b.parameters.Types[i].Type { e.mu.Unlock(); return Result{},fmt.Errorf("stuntgres: invalid parameter frame") }
 		}
-	}
-	resolve := func(v parser.Value, t parser.Type, where bool) (driver.Value, error) {
-		if v.Kind == parser.ParameterValue {
-			return canonical[v.Parameter-1], nil
-		}
-		return literal(v, t, where)
 	}
 	switch s := stmt.(type) {
 	case *parser.Insert:
-		rows := make([][]driver.Value, len(s.Rows))
+		rows := make([][]sqltype.Value, len(s.Rows))
 		for i, source := range s.Rows {
 			if err = ctx.Err(); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
-			row := make([]driver.Value, len(b.relation.columns))
+			row := make([]sqltype.Value,len(b.relation.columns))
+			for j,c := range b.relation.columns { row[j]=sqltype.Null(c.Usage.Type) }
 			for j, v := range source {
 				target := b.targets[j]
 				c := b.relation.columns[target]
-				row[target], err = resolve(v, c.Type, false)
+				row[target], err = b.expressions[i][j].evaluate(ctx,canonical)
 				if err != nil {
 					e.mu.Unlock()
 					return Result{}, insertValueError(err, c, v)
@@ -615,7 +572,7 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 				return Result{}, err
 			}
 			for j, c := range b.relation.columns {
-				if row[j] == nil && !c.Nullable {
+				if row[j].IsNull() && !c.Nullable {
 					e.mu.Unlock()
 					return Result{}, notNullError(b.relation.name, c.Name, row)
 				}
@@ -630,21 +587,18 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, args []driver.Nam
 		}
 		return Result{Count: int64(len(rows))}, nil
 	case *parser.Select:
-		var predicate driver.Value
+		var predicate sqltype.Value
 		if s.Where != nil {
-			predicate, err = resolve(s.Where.Value, b.relation.columns[b.predicate].Type, true)
+			predicate, err = b.whereValue.evaluate(ctx,canonical)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
 		}
 		snap := &Snapshot{rows: b.storage.rows, projection: b.projection}
-		columns := make([]parser.Column, len(b.projection))
-		for i, j := range b.projection {
-			columns[i] = b.relation.columns[j]
-		}
+		columns := b.columns()
 		e.mu.Unlock()
-		if err = snap.selectRows(ctx, b.predicate, predicate, b.order, s.Order != nil && s.Order.Desc); err != nil {
+		if err = snap.selectRows(ctx,b.predicate,predicate,b.equality,b.order,b.ordering,s.Order!=nil && s.Order.Desc); err != nil {
 			return Result{}, err
 		}
 		return Result{Count: int64(snap.Len()), Columns: columns, Rows: snap}, nil

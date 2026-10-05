@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
 )
@@ -82,7 +83,7 @@ func TestNoticesCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	r, err := e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS notice_rows(id INT,id TEXT)"), nil)
+	r, err := e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS notice_rows(id INT,id TEXT)"), 0, nil)
 	if err != nil || r.Count != 0 {
 		t.Fatal(r, err)
 	}
@@ -100,7 +101,7 @@ func TestNoticesCommands(t *testing.T) {
 	if !reflect.DeepEqual(tuples(got), [][]driver.Value{{int64(7), "kept"}}) {
 		t.Fatal(tuples(got))
 	}
-	_, err = e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS fresh(id INT,id TEXT)"), nil)
+	_, err = e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS fresh(id INT,id TEXT)"), 0, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42701", Message: `column "id" specified more than once`}) {
 		t.Fatal(err)
@@ -120,7 +121,7 @@ func TestNoticesPublicationConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	r, err := e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS conflict_rows(lost INT)"), nil)
+	r, err := e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS conflict_rows(lost INT)"), 0, nil)
 	if err != nil || r.Count != 0 {
 		t.Fatal(r, err)
 	}
@@ -132,7 +133,7 @@ func TestNoticesPublicationConflict(t *testing.T) {
 		t.Fatal("winner catalog replaced")
 	}
 	got := run(t, e, "SELECT kept FROM conflict_rows")
-	if len(got.Columns) != 1 || got.Columns[0].Type != parser.Text || got.Columns[0].Nullable || !reflect.DeepEqual(tuples(got), [][]driver.Value{{"winner"}}) {
+	if len(got.Columns) != 1 || got.Columns[0].Usage.Type.ID() != sqltype.Text || got.Columns[0].Nullable || !reflect.DeepEqual(tuples(got), [][]driver.Value{{"winner"}}) {
 		t.Fatal(got, tuples(got))
 	}
 }
@@ -160,7 +161,7 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			result, err := e.Execute(op, statement(t, "CREATE TABLE "+clause+"conflict_rows(lost INT)"), nil)
+			result, err := e.Execute(op, statement(t, "CREATE TABLE "+clause+"conflict_rows(lost INT)"), 0, nil)
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("canceled losing CREATE returned %v, want context.Canceled", err)
 			}
@@ -182,7 +183,7 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 				t.Fatal("losing CREATE published descriptor or storage")
 			}
 			got := run(t, e, "SELECT kept FROM conflict_rows")
-			if len(got.Columns) != 1 || got.Columns[0].Type != parser.Text || got.Columns[0].Nullable ||
+			if len(got.Columns) != 1 || got.Columns[0].Usage.Type.ID() != sqltype.Text || got.Columns[0].Nullable ||
 				!reflect.DeepEqual(tuples(got), [][]driver.Value{{"winner"}}) {
 				t.Fatal("winner definition/data changed", got, tuples(got))
 			}
@@ -234,7 +235,7 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	stmt := statement(t, "CREATE TABLE IF NOT EXISTS conflict_rows(lost INT)")
 	returned := make(chan error, 1)
 	go func() {
-		_, err := e.Execute(op, stmt, nil)
+		_, err := e.Execute(op, stmt, 0, nil)
 		returned <- err
 	}()
 	select {
@@ -272,7 +273,7 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 		t.Fatal("losing CREATE published descriptor or storage")
 	}
 	got := run(t, e, "SELECT kept FROM conflict_rows")
-	if len(got.Columns) != 1 || got.Columns[0].Type != parser.Text || got.Columns[0].Nullable ||
+	if len(got.Columns) != 1 || got.Columns[0].Usage.Type.ID() != sqltype.Text || got.Columns[0].Nullable ||
 		!reflect.DeepEqual(tuples(got), [][]driver.Value{{"winner"}}) {
 		t.Fatal("winner definition/data changed", got, tuples(got))
 	}
@@ -286,11 +287,11 @@ func TestNoticesErrorCarriage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	_, err = e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS error_rows(id INT)"), nil)
+	_, err = e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS error_rows(id INT)"), 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = e.Execute(op, statement(t, "CREATE TABLE error_rows(id INT)"), nil)
+	_, err = e.Execute(op, statement(t, "CREATE TABLE error_rows(id INT)"), 0, nil)
 	state(t, err, "42P07")
 	want := []sqlstate.Error{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: `relation "error_rows" already exists, skipping`}}
 	if got := op.DetachNotices(); !reflect.DeepEqual(got, want) {
@@ -324,15 +325,15 @@ func TestNoticesCapturedDefaults(t *testing.T) {
 	}
 	defer op.Done()
 	for _, q := range []string{"SET client_min_messages TO notice", "SET client_min_messages TO DEFAULT"} {
-		if _, err = e.Execute(op, statement(t, q), nil); err != nil {
+		if _, err = e.Execute(op, statement(t, q), 0, nil); err != nil {
 			t.Fatal(err)
 		}
 	}
-	r, err := e.Execute(op, statement(t, "SHOW client_min_messages"), nil)
+	r, err := e.Execute(op, statement(t, "SHOW client_min_messages"), 0, nil)
 	if err != nil || !reflect.DeepEqual(tuples(r), [][]driver.Value{{"warning"}}) {
 		t.Fatal(r, err)
 	}
-	r, err = e.Execute(op, statement(t, "SHOW application_name"), nil)
+	r, err = e.Execute(op, statement(t, "SHOW application_name"), 0, nil)
 	if err != nil || !reflect.DeepEqual(tuples(r), [][]driver.Value{{strings.Repeat("a", 63)}}) || op.DetachNotices() != nil {
 		t.Fatal(r, err)
 	}
@@ -351,7 +352,7 @@ func TestNoticesPublicationReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	_, err = e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS epoch_rows(lost INT)"), nil)
+	_, err = e.Execute(op, statement(t, "CREATE TABLE IF NOT EXISTS epoch_rows(lost INT)"), 0, nil)
 	if !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal("replacement became skip", err)
 	}

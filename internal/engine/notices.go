@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"unicode/utf8"
 )
@@ -24,7 +23,7 @@ const (
 	levelError
 )
 
-var clientMinMessages = SettingDefinition{Name: "client_min_messages", BootDefault: "notice", Normalize: normalizeClientMinMessages, Column: parser.Column{Name: "client_min_messages", Type: parser.Text}}
+var clientMinMessages = SettingDefinition{Name: "client_min_messages", BootDefault: "notice", Normalize: normalizeClientMinMessages}
 
 func messageLevel(value string) (noticeLevel, bool) {
 	switch value {

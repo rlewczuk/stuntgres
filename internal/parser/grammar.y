@@ -6,7 +6,7 @@ package parser
  stmt Statement
  col Column
  cols []Column
- typ Type
+ typ TypeName
  nullable bool
  targets []InsertTarget
  names []string
@@ -22,7 +22,7 @@ package parser
  settingValue string
 }
 %token <tok> IDENT NUMBER STRING PARAM
-%token <tok> '+' '-' '[' ':' '('
+%token <tok> '+' '-' '[' ':' '(' '='
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> SET SHOW SESSION TO DEFAULT
@@ -75,8 +75,8 @@ create: CREATE TABLE relation_name '(' columns ')' { $$ = &CreateTable{Name:$3, 
  | CREATE TABLE IF NOT EXISTS relation_name '(' columns ')' { $$ = &CreateTable{Name:$6, Columns:$8, Pos:$1.pos, IfNotExists:true} }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 columns: column { $$ = []Column{$1} } | columns ',' column { $$ = append($1,$3) } ;
-column: name type nullability { $$ = Column{Name:$1.text, Type:$2, Nullable:$3, Pos:$1.pos} } ;
-type: INTEGER { $$ = Int4 } | BIGINT { $$ = Int8 } | TEXT { $$ = Text } | BOOLEAN { $$ = Bool }
+column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Nullable:$3, Pos:$1.pos} } ;
+type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name { var ok bool; $$,ok=columnType(sqllex,$1); if !ok { return 1 } } ;
 nullability: /* empty */ { $$ = true } | NULL { $$ = true } | NOT NULL { $$ = false }
  | suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
@@ -136,7 +136,7 @@ projection: '*' { $$ = &Select{Star:true} } | names { $$ = &Select{Columns:$1} }
  | names '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
  | names '.' { sqllex.(*lexer).fail("0A000","qualified column references are unsupported"); return 1 }
  | value { sqllex.(*lexer).fail("0A000","literal projections are unsupported"); return 1 } ;
-where: /* empty */ { $$ = nil } | WHERE name '=' value { $$ = &Predicate{Column:$2.text, Value:$4} }
+where: /* empty */ { $$ = nil } | WHERE name '=' value { $$ = &Predicate{Column:$2.text, Value:$4, Pos:$3.pos} }
  | WHERE name '>' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }
  | WHERE name '<' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }
  | WHERE name '!' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }

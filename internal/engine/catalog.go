@@ -2,12 +2,11 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
 	"fmt"
 	"math"
 
-	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 type OID uint32
@@ -26,11 +25,12 @@ type ObjectRef struct {
 	Epoch   CatalogEpoch
 	Address ObjectAddress
 }
-type relationStorage struct{ rows [][]driver.Value }
+type relationStorage struct{ rows [][]sqltype.Value }
 
 const (
 	NamespaceClassID      OID = 2615
 	RelationClassID       OID = 1259
+	TypeClassID OID = 1247
 	PGCatalogNamespaceOID OID = 11
 	PublicNamespaceOID    OID = 2200
 )
@@ -40,6 +40,7 @@ type ObjectKind uint8
 const (
 	NamespaceObject ObjectKind = iota + 1
 	RelationObject
+	TypeObject
 )
 
 type Descriptor interface {
@@ -65,7 +66,7 @@ type relationDescriptor struct {
 	address, namespace ObjectAddress
 	name               string
 	revision           DefinitionRevision
-	columns            []parser.Column
+	columns            []ColumnDescriptor
 	index              map[string]int
 	attributes         []int32
 }
@@ -152,6 +153,11 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		offset, exists := r.index[c.Name]
 		if r.attributes[i] != int32(i+1) || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
+		}
+		if !c.Usage.Type.Concrete() { return fmt.Errorf("stuntgres: invalid relation column type") }
+		typ, exists := v.LookupType(c.Usage.Type.ID())
+		if !exists || typ != c.Usage.Type || !typ.Concrete() || c.Usage != typ.Usage() {
+			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 	}
 	return nil
@@ -396,7 +402,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 			if replacement.owner != e {
 				// Row values are immutable, but live engines must not share the
 				// backing array into which INSERT appends new rows.
-				rows = append([][]driver.Value(nil), rows...)
+				rows = append([][]sqltype.Value(nil), rows...)
 			}
 			storage[a] = &relationStorage{rows: rows}
 		}

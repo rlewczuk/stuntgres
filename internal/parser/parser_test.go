@@ -27,7 +27,7 @@ func TestScriptAndLiterals(t *testing.T) {
 		t.Fatalf("statements = %d", len(statements))
 	}
 	create := statements[0].(*CreateTable)
-	if len(create.Name.Parts) != 1 || create.Name.Parts[0].Text != "Mixed;Name" || create.Columns[0].Name != "integer" || create.Columns[0].Nullable || create.Columns[1].Name != "a\"b" || !create.Columns[1].Nullable || create.Columns[3].Type != Int8 {
+	if len(create.Name.Parts) != 1 || create.Name.Parts[0].Text != "Mixed;Name" || create.Columns[0].Name != "integer" || create.Columns[0].Nullable || create.Columns[1].Name != "a\"b" || !create.Columns[1].Nullable || create.Columns[3].TypeName.Name != "bigint" {
 		t.Fatalf("create = %#v", create)
 	}
 	insert := statements[1].(*Insert)

@@ -3,17 +3,11 @@ package parser
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
-type Type uint8
-
-const (
-	Int4 Type = iota
-	Int8
-	Text
-	Bool
-)
-
-func (t Type) SQL() string          { return [...]string{"INTEGER", "BIGINT", "TEXT", "BOOLEAN"}[t] }
-func (t Type) DatabaseType() string { return [...]string{"INT4", "INT8", "TEXT", "BOOL"}[t] }
+// TypeName is syntax, not a resolved catalog type.
+type TypeName struct {
+	Name string
+	Pos Position
+}
 
 type Position struct{ Offset, Character int }
 type Identifier struct {
@@ -23,7 +17,7 @@ type Identifier struct {
 type ObjectName struct{ Parts []Identifier }
 type Column struct {
 	Name     string
-	Type     Type
+	TypeName TypeName
 	Nullable bool
 	Pos      Position
 }
@@ -64,6 +58,7 @@ func (*Select) statement() {}
 type Predicate struct {
 	Column string
 	Value  Value
+	Pos Position
 }
 type Order struct {
 	Column string
