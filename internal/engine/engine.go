@@ -84,7 +84,8 @@ func NewWithSettings(definitions []SettingDefinition) *Engine {
 }
 
 func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*Engine, error) {
-	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 1}
+	// Builtin descriptors use revision 1; allocations start beyond that frontier.
+	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
 	e.locks = newRelationLockManager(e)
 	e.initializeRoles()
 	e.initializeSettings(definitions)
@@ -665,7 +666,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		stage.authSession = op.session
 		stage.authRevision = auth.revision
 		stage.roleRevision = auth.roles.state.revision
-		er = e.schemaTableLocked(ctx, auth, stage, s, ns, auth.state.CurrentUser)
+		er = e.schemaTableLocked(op, auth, stage, s, ns, auth.state.CurrentUser)
 		e.mu.Unlock()
 		if er != nil {
 			return Result{}, er

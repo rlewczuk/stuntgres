@@ -289,10 +289,20 @@ func (s *CatalogStage) removeObject(ref ObjectRef, namespace bool) error {
 	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
+	s.owner.mu.Lock()
+	defer s.owner.mu.Unlock()
+	return s.removeObjectLocked(ref, namespace)
+}
+
+// removeObjectLocked requires the owning engine mutex, including validation.
+func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
+	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil {
+		return fmt.Errorf("stuntgres: invalid catalog stage")
+	}
 	if ref.Address.SubID != 0 {
 		return fmt.Errorf("stuntgres: whole object required")
 	}
-	if err := s.owner.ValidateObjectRef(s.base, ref); err != nil {
+	if err := s.owner.validateObjectRefLocked(s.base, ref); err != nil {
 		return err
 	}
 	d := s.base.state.descriptors[ref.Address]
@@ -548,14 +558,20 @@ func (e *Engine) DiscardCatalogStage(s *CatalogStage) {
 	}
 }
 func (e *Engine) ValidateObjectRef(view CatalogRead, ref ObjectRef) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.validateObjectRefLocked(view, ref)
+}
+
+// validateObjectRefLocked preserves live epoch and provenance checks without
+// reacquiring synchronization when called from catalog mutation preflight.
+func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ObjectRef) error {
 	if e.owner == nil || view.owner != e || view.state == nil {
 		return fmt.Errorf("stuntgres: foreign catalog view")
 	}
 	if ref.owner == nil || ref.owner != e.owner {
 		return fmt.Errorf("stuntgres: foreign catalog reference")
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	if view.state.epoch != e.state.epoch || ref.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
@@ -635,9 +651,16 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		if err := copyRows(e.storage); err != nil {
 			return ChangeSet{}, err
 		}
+		nextRevision := e.nextRevision
 		for _, d := range next.descriptors {
 			if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
 				return ChangeSet{}, err
+			}
+			if revision := d.Revision(); revision >= nextRevision {
+				nextRevision = revision
+				if nextRevision != DefinitionRevision(math.MaxUint64) {
+					nextRevision++
+				}
 			}
 		}
 		if e.state.epoch == CatalogEpoch(math.MaxUint64) {
@@ -649,6 +672,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		next.epoch = e.state.epoch + 1
 		e.state = next
 		e.storage = storage
+		e.nextRevision = nextRevision
 		installed = next.epoch
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -687,9 +711,16 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	if err != nil {
 		return ChangeSet{}, err
 	}
+	nextRevision := e.nextRevision
 	for _, d := range next.descriptors {
 		if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
 			return ChangeSet{}, err
+		}
+		if revision := d.Revision(); revision >= nextRevision {
+			nextRevision = revision
+			if nextRevision != DefinitionRevision(math.MaxUint64) {
+				nextRevision++
+			}
 		}
 	}
 	if err := ctx.Err(); err != nil {
@@ -709,6 +740,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	next.epoch = e.state.epoch + 1
 	e.state = next
 	e.storage = storage
+	e.nextRevision = nextRevision
 	installed = next.epoch
 	return ChangeSet{Replacement: true}, nil
 }

@@ -16,10 +16,10 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 	ns := schemaRef(t, e, "s")
 	table := roleTableRef(t, e, "s.t")
 	stage := e.BeginCatalogStage(base)
-	if err := stage.Remove(ns.Address); err != nil {
+	if err := stage.removeObject(ns, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := stage.Remove(table.Address); err != nil {
+	if err := stage.Remove(table); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -68,11 +68,13 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE SCHEMA s CREATE TABLE t(id INT)")
 	run(t, e, "INSERT INTO s.t VALUES(7)")
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
 	// Real catalog fixture, never permission to expose system table creation SQL.
 	e.mu.Lock()
 	auth := catalogAuthorization(e, CatalogRead{e, e.state})
 	stage := e.BeginCatalogStage(auth.catalog)
-	err := e.schemaTableLocked(context.Background(), auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, e.roles.names["postgres"])
+	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, e.roles.names["postgres"])
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

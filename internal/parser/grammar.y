@@ -326,6 +326,7 @@ identity_names: identity_name { $$=[]string{$1.text} } | identity_names ',' iden
 identity_select: SELECT identity_names { $$=&IdentitySelect{Names:$2} } ;
 schema_owner: name | CURRENT_USER | CURRENT_ROLE | SESSION_USER ;
 schema_table: CREATE TABLE relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$3,Elements:$5,Pos:$1.pos} }
+ | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$6,Elements:$8,Pos:$1.pos,IfNotExists:true} }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 schema_tables: /* empty */ { $$=nil } | schema_tables schema_table { $$=append($1,$2) }
  | schema_tables KW_R { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 } ;

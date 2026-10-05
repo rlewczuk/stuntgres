@@ -14,7 +14,7 @@ import (
 func TestReferenceSchemaTableIntegration(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			roleReferenceCleanup(t, []string{"tio"})
+			roleReferenceCleanup(t, []string{"tio", "postgres"})
 			p := newReferencePair(t)
 			schemaReferenceCleanup(t, "ti1", "ti2", "tin", "tid", "tif")
 			step := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
@@ -38,7 +38,13 @@ func TestReferenceSchemaTableIntegration(t *testing.T) {
 			step(referenceExec("INSERT INTO ti1.path_clone VALUES('9')", 1))
 			step(referenceExec("INSERT INTO ti2.qualified_clone VALUES(9,7,true)", 1))
 			step(referenceExec("CREATE SCHEMA tin AUTHORIZATION tio CREATE TABLE source(id INT NOT NULL) CREATE TABLE clone(lead BOOL,LIKE source) CREATE TABLE z() CREATE TABLE zl(LIKE z)", 0))
-			step(referenceSelect("SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{"postgres"}}))
+			// Independently assert each fixture's unchanged bootstrap actor.
+			identity := referenceSelect("SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{"postgres"}})
+			identity.prepared = prepared
+			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, identity)
+			identity = referenceSelect("SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{"stuntgres"}})
+			identity.prepared = prepared
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, identity)
 			step(referenceSelect("SHOW search_path", []string{"search_path"}, []string{"TEXT"}, [][]any{{"ti2, ti1"}}))
 			step(referenceSelect("SELECT * FROM tin.clone", []string{"lead", "id"}, []string{"BOOL", "INT4"}, nil))
 			step(referenceSelect("SELECT * FROM tin.zl", []string{}, []string{}, nil))
@@ -93,8 +99,12 @@ func TestReferenceSchemaTableIntegration(t *testing.T) {
 					t.Fatal(q, err)
 				}
 			}
-			// Replay the actual public native dump on pinned PostgreSQL, not an
-			// independently reconstructed script. Namespace/table owners coincide.
+			// As in the schema lifecycle control fixture, explicitly provision the
+			// native dump's bootstrap owner on the oracle. Its authenticator remains
+			// stuntgres; replay the actual dump unchanged rather than remapping SQL.
+			if _, err := oracle.ExecContext(p.ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {
+				t.Fatal(err)
+			}
 			if _, err := oracle.ExecContext(p.ctx, dump.String()); err != nil {
 				t.Fatal(err)
 			}

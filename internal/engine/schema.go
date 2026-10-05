@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -36,16 +35,27 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (PrincipalR
 	}
 	return role.Ref, nil
 }
-func (e *Engine) schemaTableLocked(ctx context.Context, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef) error {
+func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef) error {
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}
-	if _, ok := stage.base.state.names[key]; ok {
+	_, baseExists := stage.base.state.names[key]
+	_, stagedExists := stage.names[key]
+	if baseExists || stagedExists {
+		if s.IfNotExists {
+			op.existingRelationNotice(name)
+			return nil
+		}
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
-	if _, ok := stage.names[key]; ok {
-		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
+	if len(stage.descriptors) != 0 {
+		for _, element := range s.Elements {
+			if element.Like != nil {
+				auth.catalog = e.stageRead(stage)
+				break
+			}
+		}
 	}
-	b, err := e.describe(ctx, s, auth, ObjectRef{})
+	b, err := e.describe(op.Context(), s, auth, ObjectRef{})
 	if err != nil {
 		return err
 	}
@@ -187,13 +197,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement) (*Catal
 			if len(table.Name.Parts) == 2 && table.Name.Parts[0].Text != name {
 				return nil, sqlError("42P15", fmt.Sprintf("CREATE specifies a schema (%s) different from the one being created (%s)", table.Name.Parts[0].Text, name))
 			}
-			for _, element := range table.Elements {
-				if element.Like != nil {
-					auth.catalog = e.stageRead(stage)
-					break
-				}
-			}
-			if err = e.schemaTableLocked(op.Context(), auth, stage, table, ns.address, owner); err != nil {
+			if err = e.schemaTableLocked(op, auth, stage, table, ns.address, owner); err != nil {
 				return nil, err
 			}
 		}
@@ -295,12 +299,12 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement) (*Catal
 			}
 		}
 		for _, r := range dependent {
-			if err = stage.Remove(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: r.address}); err != nil {
+			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: r.address}, false); err != nil {
 				return nil, err
 			}
 		}
 		for _, d := range schemas {
-			if err = stage.removeObject(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}, true); err != nil {
+			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: d.address}, true); err != nil {
 				return nil, err
 			}
 		}

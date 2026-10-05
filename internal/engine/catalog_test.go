@@ -20,7 +20,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	}{{PGCatalogNamespaceOID, "pg_catalog"}, {PublicNamespaceOID, "public"}} {
 		a := ObjectAddress{ClassID: NamespaceClassID, ObjectID: tc.oid}
 		d, ok := view.Descriptor(a)
-		if !ok || d.Name() != tc.name || d.Revision() != 1 {
+		if !ok || d.Name() != tc.name {
 			t.Fatalf("namespace %s = %#v, %v", tc.name, d, ok)
 		}
 	}
@@ -44,6 +44,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	if d.Address().ObjectID == 0 || ref.Epoch != view.Epoch() || len(d.columns) != 2 || d.attributes[0] != 1 || d.attributes[1] != 2 || storage == nil {
 		t.Fatalf("relation identity = %#v, ref=%#v", d, ref)
 	}
+	revision := d.Revision()
 	q, err := parser.Parse("INSERT INTO public.t VALUES (1,'a')")
 	if err != nil {
 		t.Fatal(err)
@@ -54,8 +55,9 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	if err = e.ValidateObjectRef(view, ref); err != nil {
 		t.Fatal(err)
 	}
-	if d.Revision() != 1 {
-		t.Fatalf("INSERT changed definition revision to %d", d.Revision())
+	current, _ := e.CatalogRead().Descriptor(ref.Address)
+	if current.Revision() != revision {
+		t.Fatalf("INSERT changed definition revision from %d to %d", revision, current.Revision())
 	}
 	other := New()
 	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {

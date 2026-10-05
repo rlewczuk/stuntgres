@@ -105,13 +105,12 @@ func TestSchemaNamesNestedAtomicity(t *testing.T) {
 			t.Fatal("wrong nested owner")
 		}
 	}
-	for _, tc := range []struct{ q, code string }{{"CREATE SCHEMA fail CREATE TABLE t(id INT) CREATE TABLE t(id INT)", "42P07"}, {"CREATE SCHEMA fail CREATE TABLE other.t(id INT)", "42P15"}, {"CREATE SCHEMA pg_bad", "42939"}} {
+	for _, tc := range []struct{ q, code string }{{"CREATE SCHEMA fail CREATE TABLE t(id INT) CREATE TABLE t(id INT)", "42P07"}, {"CREATE SCHEMA fail CREATE TABLE t(id INT) CREATE TABLE u(id unknown_type)", "42704"}, {"CREATE SCHEMA fail CREATE TABLE other.t(id INT)", "42P15"}, {"CREATE SCHEMA pg_bad", "42939"}} {
 		schemaFail(t, e, op, tc.q, tc.code)
 	}
-	for _, q := range []string{"CREATE SCHEMA fail CREATE TABLE t(id INT) CREATE TABLE u(id unknown_type)", "CREATE SCHEMA fail CREATE VIEW v AS SELECT id FROM t", "CREATE SCHEMA IF NOT EXISTS fail CREATE TABLE t(id INT)", "CREATE SCHEMA fail INSERT INTO t VALUES(1)"} {
-		before := e.CatalogRead()
+	for _, q := range []string{"CREATE SCHEMA fail CREATE VIEW v AS SELECT id FROM t", "CREATE SCHEMA IF NOT EXISTS fail CREATE TABLE t(id INT)", "CREATE SCHEMA fail INSERT INTO t VALUES(1)"} {
 		ss, err := parser.Parse(q)
-		if err == nil || ss != nil || e.CatalogRead().state != before.state {
+		if err == nil || ss != nil {
 			t.Fatal("unsupported nested statement", q, ss, err)
 		}
 	}
