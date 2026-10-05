@@ -23,12 +23,16 @@ func roleExecute(t *testing.T, e *Engine, op *Operation, sql string) Result {
 }
 func roleError(t *testing.T, e *Engine, op *Operation, sql, code, message, detail string) {
 	t.Helper()
+	roleErrorPosition(t, e, op, sql, code, message, detail, "")
+}
+func roleErrorPosition(t *testing.T, e *Engine, op *Operation, sql, code, message, detail, position string) {
+	t.Helper()
 	_, err := e.Execute(op, statement(t, sql), 0, nil)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) {
 		t.Fatalf("%s: %T %v", sql, err, err)
 	}
-	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
+	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail, Position: position}
 	if !reflect.DeepEqual(d, want) {
 		t.Fatalf("%s: %#v want %#v", sql, d, want)
 	}

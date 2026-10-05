@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/parser"
 )
 
 // PrincipalRef is an engine-owned identity, never a portable numeric OID.
@@ -208,6 +209,54 @@ type ACLValue struct {
 	Explicit bool
 	Entries  []ACLEntry
 }
+
+// schemaACLOwner follows aclnewowner: transfer both ownership references and
+// combine grants that acquire the same grantor/grantee, without mutating the
+// retained descriptor. NULL and explicitly empty ACLs stay distinct.
+func schemaACLOwner(acl ACLValue, old, next PrincipalRef) ACLValue {
+	if !acl.Explicit || len(acl.Entries) == 0 {
+		return acl
+	}
+	out := ACLValue{Explicit: true, Entries: append([]ACLEntry(nil), acl.Entries...)}
+	newPresent := false
+	for i := range out.Entries {
+		entry := &out.Entries[i]
+		if entry.Grantor == old {
+			entry.Grantor = next
+		} else if entry.Grantor == next {
+			newPresent = true
+		}
+		if !entry.Grantee.Public {
+			if entry.Grantee.Role == old {
+				entry.Grantee.Role = next
+			} else if entry.Grantee.Role == next {
+				newPresent = true
+			}
+		}
+	}
+	if newPresent {
+		dst := 0
+		for i := range out.Entries {
+			entry := out.Entries[i]
+			if entry.Privileges|entry.GrantOptions == 0 {
+				continue
+			}
+			for j := i + 1; j < len(out.Entries); j++ {
+				other := &out.Entries[j]
+				if other.Grantor == entry.Grantor && other.Grantee == entry.Grantee {
+					entry.Privileges |= other.Privileges
+					entry.GrantOptions |= other.GrantOptions
+					other.Privileges, other.GrantOptions = 0, 0
+				}
+			}
+			out.Entries[dst] = entry
+			dst++
+		}
+		out.Entries = out.Entries[:dst]
+	}
+	return out
+}
+
 type AccessRequirement struct {
 	Object     ObjectRef
 	Privileges Privileges
@@ -223,6 +272,26 @@ type AuthorizationView struct {
 	roles    RoleRead
 	state    RoleState
 	revision uint64
+	settings *sessionSettings
+	// Nested schema elements prepend their enclosing namespace without changing settings.
+	pathPrefix ObjectAddress
+}
+
+// Statement-local Restore authority must cover both lock resolution and effects.
+// INSERT stamps no owner; named directives and session identity remain intact.
+func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Statement) (AuthorizationView, error) {
+	auth, err := e.authorizationLocked(op)
+	if err != nil {
+		return AuthorizationView{}, err
+	}
+	if _, insert := stmt.(*parser.Insert); insert && op.restoreInsertAuthority {
+		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore insertion authority")
+		}
+		auth.state.CurrentUser = bootstrap.Ref
+	}
+	return auth, nil
 }
 
 func (v AuthorizationView) Roles() RoleRead { return v.roles }
@@ -260,7 +329,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 			return AuthorizationView{}, err
 		}
 	}
-	return AuthorizationView{e, CatalogRead{e, e.state}, r, a.state, a.revision}, nil
+	return AuthorizationView{engine: e, catalog: CatalogRead{e, e.state}, roles: r, state: a.state, revision: a.revision, settings: s.settings}, nil
 }
 func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	switch d := d.(type) {

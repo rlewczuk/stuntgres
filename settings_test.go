@@ -401,6 +401,7 @@ func TestSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 	}
 	expected := map[string][2]string{"application_name": {"", "Sets the application name to be reported in statistics and logs."}, "log_statement_stats": {"off", "Writes cumulative performance statistics to the server log."}, "server_encoding": {"UTF8", "Shows the server (database) character set encoding."}, "standard_conforming_strings": {"on", "Causes '...' strings to treat backslashes literally."}, "statement_timeout": {"0", "Sets the maximum allowed duration of any statement."}}
 	expected["client_min_messages"] = [2]string{"notice", "Sets the message levels that are sent to the client."}
+	expected["search_path"] = [2]string{`"$user", public`, "Sets the schema search order for names that are not schema-qualified."}
 	for _, v := range settingsDefinitionsForTest() {
 		value := v.Default
 		switch v.Name {
@@ -1181,7 +1182,7 @@ func TestSettingsShowAllCurrentOverrides(t *testing.T) {
 				delete(expected, name)
 			}
 		}
-		if rows.Err() != nil || len(expected) != 0 || count != 6+len(settingsDefinitionsForTest()) {
+		if rows.Err() != nil || len(expected) != 0 || count != 7+len(settingsDefinitionsForTest()) {
 			t.Fatal(rows.Err(), expected, count)
 		}
 		rows.Close()

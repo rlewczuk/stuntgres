@@ -55,14 +55,14 @@ func TestErrorFieldsEngine(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), "engine_fields")
 	execSQL(t, db, "CREATE TABLE diagnostic_rows (id INT)")
 	for _, tc := range []struct {
-		query, code, message string
+		query, code, message, position string
 	}{
-		{"SELECT * FROM missing", "42P01", `relation "missing" does not exist`},
-		{"SELECT missing FROM diagnostic_rows", "42703", `column "missing" does not exist`},
-		{"SELECT * FROM diagnostic_rows WHERE missing=1", "42703", `column "missing" does not exist`},
-		{"SELECT * FROM diagnostic_rows ORDER BY missing", "42703", `column "missing" does not exist`},
-		{"CREATE TABLE absent.t (id INT)", "3F000", `schema "absent" does not exist`},
-		{"CREATE TABLE pg_catalog.t (id INT)", "0A000", "creation outside public is unsupported"},
+		{"SELECT * FROM missing", "42P01", `relation "missing" does not exist`, ""},
+		{"SELECT missing FROM diagnostic_rows", "42703", `column "missing" does not exist`, ""},
+		{"SELECT * FROM diagnostic_rows WHERE missing=1", "42703", `column "missing" does not exist`, ""},
+		{"SELECT * FROM diagnostic_rows ORDER BY missing", "42703", `column "missing" does not exist`, ""},
+		{"CREATE TABLE absent.t (id INT)", "3F000", `schema "absent" does not exist`, "14"},
+		{"CREATE TABLE pg_catalog.t (id INT)", "0A000", "system schema creation is unsupported", "14"},
 	} {
 		for _, operation := range []string{"exec", "query", "prepare"} {
 			t.Run(operation+"/"+tc.query, func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestErrorFieldsEngine(t *testing.T) {
 				var got *stuntgres.Error
 				want := stuntgres.Error{
 					Severity: "ERROR", SeverityUnlocalized: "ERROR",
-					Code: tc.code, Message: tc.message,
+					Code: tc.code, Message: tc.message, Position: tc.position,
 				}
 				if tc.query=="SELECT missing FROM diagnostic_rows" { want.Position="8" }
 				if tc.query=="SELECT * FROM diagnostic_rows WHERE missing=1" { want.Position="37" }

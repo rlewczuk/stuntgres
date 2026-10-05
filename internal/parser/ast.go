@@ -1,5 +1,7 @@
 package parser
 
+import "strings"
+
 // Statement is the closed set of supported statements.
 type Statement interface{ statement() }
 
@@ -210,3 +212,68 @@ type SettingCall struct {
 }
 
 func (*SettingCall) statement() {}
+
+type CreateSchema struct {
+	Name                  string
+	Authorization         string
+	AuthorizationIdentity bool
+	IfNotExists           bool
+	Tables                []*CreateTable
+}
+
+func (*CreateSchema) statement() {}
+
+type AlterSchema struct {
+	Name          string
+	NewName       string
+	Owner         string
+	OwnerIdentity bool
+}
+
+func (*AlterSchema) statement() {}
+
+type DropSchema struct {
+	Names    []string
+	IfExists bool
+	Cascade  bool
+}
+
+func (*DropSchema) statement() {}
+
+type settingList struct {
+	values       []string
+	stringValues []bool
+}
+type settingAtom struct {
+	text     string
+	isString bool
+}
+
+func settingIdentifier(value string) string {
+	safe := value != ""
+	for i := range len(value) {
+		c := value[i]
+		if !(c == '_' || c >= 'a' && c <= 'z' || i > 0 && c >= '0' && c <= '9') {
+			safe = false
+			break
+		}
+	}
+	if keyword := lookupKeyword(value); keyword != nil && keyword.category != Unreserved {
+		safe = false
+	}
+	if safe {
+		return value
+	}
+	return "\"" + strings.ReplaceAll(value, "\"", "\"\"") + "\""
+}
+func parsedSet(name Identifier, list settingList, pos Position) *Set {
+	values := list.values
+	if strings.EqualFold(name.Text, "search_path") {
+		for i, isString := range list.stringValues {
+			if isString {
+				values[i] = settingIdentifier(values[i])
+			}
+		}
+	}
+	return &Set{Name: name, Values: values, Pos: pos}
+}

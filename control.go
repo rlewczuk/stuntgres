@@ -56,9 +56,14 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Dump(ctx, dst) })
 }
 
-// Restore atomically replaces the database after the entire bounded CREATE/INSERT
-// script, including named SET SESSION AUTHORIZATION owner directives, succeeds.
-// Roles named by owner directives must already exist in the target engine.
+// Restore atomically replaces the database after supported CREATE/ALTER/DROP
+// SCHEMA, CREATE TABLE, literal INSERT and named owner directives succeed.
+// Its initialized private catalog preserves legacy streams and reconstructs
+// bootstrap namespace lifecycle changes without synthesizing ACL grants.
+// Named owners must already exist. Private Restore-stage CREATE TABLE destination
+// authority preserves independent schema/table owners without adding ACL grants.
+// Private stage INSERT uses captured bootstrap authority without changing owner
+// directives or ordinary SQL authorization; INSERT stamps no object ownership.
 // Arbitrarily blocking readers cannot be interrupted by context cancellation.
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {

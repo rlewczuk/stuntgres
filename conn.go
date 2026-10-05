@@ -103,7 +103,7 @@ func (c *conn) Prepare(query string) (driver.Stmt, error) {
 	return c.PrepareContext(context.Background(), query)
 }
 func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
-	_, description, ast, err := c.request(ctx, query, nil, nil, true, true)
+	_, description, ast, err := c.request(ctx, query, nil, nil, true, true, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 
 // Direct parsing and prepared execution share one admitted completion boundary.
 // A prepared handle retains only its AST/description, never a visibility snapshot.
-func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool) (r engine.Result, description engine.StatementDescription, parsed parser.Statement, err error) {
+func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool, expected *engine.StatementDescription) (r engine.Result, description engine.StatementDescription, parsed parser.Statement, err error) {
 	defer runtime.KeepAlive(c)
 	if err = c.check(ctx); err != nil {
 		return
@@ -162,16 +162,17 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	if describe {
 		description, err = scope.Describe(ast)
 	} else {
+		scope.Expected = expected
 		r, err = scope.Execute(ast, len(values), frameImporter(values))
 	}
 	return
 }
-func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue) (engine.Result, error) {
-	r, _, _, err := c.request(ctx, "", ast, args, false, false)
+func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue, expected *engine.StatementDescription) (engine.Result, error) {
+	r, _, _, err := c.request(ctx, "", ast, args, false, false, expected)
 	return r, err
 }
 func (c *conn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	r, _, _, err := c.request(ctx, query, nil, args, true, false)
+	r, _, _, err := c.request(ctx, query, nil, args, true, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 	return result(r.Count), nil
 }
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	r, _, _, err := c.request(ctx, query, nil, args, true, false)
+	r, _, _, err := c.request(ctx, query, nil, args, true, false, nil)
 	if err != nil {
 		return nil, err
 	}

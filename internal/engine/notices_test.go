@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"stuntgres/internal/parser"
@@ -393,16 +394,25 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 		t.Fatal("switch reset notice filter", got)
 	}
 	namespace := ObjectRef{owner: e.owner, Epoch: before.Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true}); err != nil {
+	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	before = e.CatalogRead()
 	if _, err := e.Describe(op, skip); err != nil {
 		t.Fatal("CREATE authorization is execution-time", err)
 	}
-	roleError(t, e, op, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)", "42501", "permission denied for schema public", "")
+	roleErrorPosition(t, e, op, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)", "42501", "permission denied for schema public", "", "28")
 	if op.DetachNotices() != nil || e.CatalogRead().state != before.state {
 		t.Fatal("denied skip emitted notice or mutated catalog")
+	}
+	// Revoking USAGE removes public from the unqualified destination path.
+	if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true}); err != nil {
+		t.Fatal(err)
+	}
+	before = e.CatalogRead()
+	roleErrorPosition(t, e, op, "CREATE TABLE IF NOT EXISTS notice_secret(id INT,id TEXT)", "3F000", "no schema has been selected to create in", "", "28")
+	if op.DetachNotices() != nil || e.CatalogRead().state != before.state {
+		t.Fatal("unselected skip emitted notice or mutated catalog")
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	result := roleExecute(t, e, op, "SELECT id FROM notice_secret")
@@ -412,32 +422,44 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 }
 
 func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
-	e := New()
-	admin, adminDone := roleOperation(t, e, "postgres")
-	defer adminDone()
-	roleExecute(t, e, admin, "CREATE USER losing_creator")
-	loser, loserDone := roleOperation(t, e, "losing_creator")
-	defer loserDone()
-	var winner CatalogRead
-	e.providers[RelationClassID] = &publicationConflictProvider{
-		CatalogProvider: e.providers[RelationClassID],
-		publishWinner: func(Descriptor) {
-			roleExecute(t, e, admin, "CREATE TABLE contested_notice(id INT)")
-			roleExecute(t, e, admin, "INSERT INTO contested_notice VALUES(7)")
-			view := e.CatalogRead()
-			namespace := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
-			if err := e.SetObjectACL(context.Background(), namespace, ACLValue{Explicit: true}); err != nil {
-				t.Fatal(err)
+	for _, usage := range []bool{true, false} {
+		t.Run(fmt.Sprintf("usage=%t", usage), func(t *testing.T) {
+			e := New()
+			admin, adminDone := roleOperation(t, e, "postgres")
+			defer adminDone()
+			roleExecute(t, e, admin, "CREATE USER losing_creator")
+			loser, loserDone := roleOperation(t, e, "losing_creator")
+			defer loserDone()
+			var winner CatalogRead
+			e.providers[RelationClassID] = &publicationConflictProvider{
+				CatalogProvider: e.providers[RelationClassID],
+				publishWinner: func(Descriptor) {
+					roleExecute(t, e, admin, "CREATE TABLE contested_notice(id INT)")
+					roleExecute(t, e, admin, "INSERT INTO contested_notice VALUES(7)")
+					view := e.CatalogRead()
+					namespace := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+					acl := ACLValue{Explicit: true}
+					if usage {
+						acl.Entries = []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}}
+					}
+					if err := e.SetObjectACL(context.Background(), namespace, acl); err != nil {
+						t.Fatal(err)
+					}
+					winner = e.CatalogRead()
+				},
 			}
-			winner = e.CatalogRead()
-		},
-	}
-	roleError(t, e, loser, "CREATE TABLE IF NOT EXISTS contested_notice(lost TEXT)", "42501", "permission denied for schema public", "")
-	if loser.DetachNotices() != nil || e.CatalogRead().state != winner.state {
-		t.Fatal("unauthorized conflict became skip or changed winner")
-	}
-	result := roleExecute(t, e, admin, "SELECT id FROM contested_notice")
-	if !reflect.DeepEqual(tuples(result), [][]driver.Value{{int64(7)}}) {
-		t.Fatal(tuples(result))
+			code, message := "3F000", "no schema has been selected to create in"
+			if usage {
+				code, message = "42501", "permission denied for schema public"
+			}
+			roleErrorPosition(t, e, loser, "CREATE TABLE IF NOT EXISTS contested_notice(lost TEXT)", code, message, "", "28")
+			if loser.DetachNotices() != nil || e.CatalogRead().state != winner.state {
+				t.Fatal("unauthorized conflict became skip or changed winner")
+			}
+			result := roleExecute(t, e, admin, "SELECT id FROM contested_notice")
+			if !reflect.DeepEqual(tuples(result), [][]driver.Value{{int64(7)}}) {
+				t.Fatal(tuples(result))
+			}
+		})
 	}
 }

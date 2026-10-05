@@ -75,6 +75,7 @@ var applicationName = SettingDefinition{
 var builtinSettings = []SettingDefinition{
 	applicationName,
 	clientMinMessages,
+	{Name: "search_path", Type: SettingString, BootDefault: `"$user", public`, Description: "Sets the schema search order for names that are not schema-qualified."},
 	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},
 	{Name: "server_encoding", Type: SettingString, Access: SettingReadOnly, BootDefault: "UTF8", Description: "Shows the server (database) character set encoding."},
 	{Name: "standard_conforming_strings", Type: SettingBoolean, BootDefault: "on", Description: "Causes '...' strings to treat backslashes literally."},
@@ -224,6 +225,7 @@ type settingValue struct {
 	text    string
 	number  float64
 	boolean bool
+	path    []string
 }
 
 func settingDiagnostic(message, hint string) error {
@@ -241,6 +243,13 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 			return v, errors.New("stuntgres: invalid UTF-8 or NUL setting")
 		}
 		v.text = input
+		if d.Name == "search_path" {
+			var err error
+			v.path, err = parseSearchPath(input)
+			if err != nil {
+				return settingValue{}, err
+			}
+		}
 		if d.Normalize != nil {
 			var err error
 			v.text, _, err = d.Normalize(input)
@@ -761,10 +770,15 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int)
 		name = s.Name.Text
 		write = true
 		if !s.Default {
-			if len(s.Values) != 1 {
-				return Result{}, sqlError("22023", "SET "+name+" takes only one argument")
+			if strings.EqualFold(name, "search_path") {
+				value := strings.Join(s.Values, ", ")
+				input = &value
+			} else {
+				if len(s.Values) != 1 {
+					return Result{}, sqlError("22023", "SET "+name+" takes only one argument")
+				}
+				input = &s.Values[0]
 			}
-			input = &s.Values[0]
 		}
 	case *parser.Reset:
 		name = s.Name.Text

@@ -183,7 +183,7 @@ func (l *lexer) deferUnsupported(tok lexeme, message string) {
 // These are capability boundaries in explicit grammar positions, not lexical
 // classifications. Quoted names never acquire keyword identity.
 var unsupportedCommands = wordSet("begin start commit rollback savepoint release abort end update delete merge truncate drop alter explain copy vacuum analyze analyse grant revoke with prepare execute deallocate discard listen notify unlisten reindex cluster refresh reset")
-var unsupportedCreateObjects = wordSet("temporary temp unlogged view index schema database sequence function procedure trigger")
+var unsupportedCreateObjects = wordSet("temporary temp unlogged view index database sequence function procedure trigger")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning limit offset fetch group having window for using primary unique check references default constraint collate and or is in between like ilike similar")
 
 // LOGIN attributes are contextual role-option words, not PostgreSQL keywords.
@@ -265,7 +265,9 @@ func settingCall(l sqlLexer, name lexeme, args []Expr) (Statement, bool) {
 		switch v := raw.(type) {
 		case ParameterExpr:
 		case LiteralExpr:
-			if v.Value.Kind != NullValue && v.Value.Kind != StringValue && !(i == 2 && v.Value.Kind == BooleanValue) { valid = false }
+			if v.Value.Kind != NullValue && v.Value.Kind != StringValue && !(i == 2 && v.Value.Kind == BooleanValue) {
+				valid = false
+			}
 		default:
 			valid = false
 		}

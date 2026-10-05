@@ -37,7 +37,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := e.statementAuthorizationLocked(s.op, stmt)
 	var ref ObjectRef
 	if err == nil {
 		ref, err = e.resolveReference(auth, name)
@@ -85,7 +85,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	s.lockedRef = ref
 	s.lockedDescriptor = descriptor
 	// Revalidate current role authority as well as the immutable relation identity.
-	auth, err = e.authorizationLocked(s.op)
+	auth, err = e.statementAuthorizationLocked(s.op, stmt)
 	if err != nil {
 		return err
 	}

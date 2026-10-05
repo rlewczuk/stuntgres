@@ -39,9 +39,9 @@ func TestReferenceCatalogCore(t *testing.T) {
 			Severity: "ERROR", SeverityUnlocalized: "ERROR",
 			Code: tc.state, Message: tc.message,
 		}
-		// Scalar column occurrences and INSERT targets retain their locations.
-		// Missing-relation/CREATE producers remain intentionally unchanged.
-		if strings.HasPrefix(tc.query, "INSERT INTO public.t (missing_column)") || strings.HasPrefix(tc.query,"SELECT missing_column") {
+		// CREATE destinations, scalar column occurrences and INSERT targets
+		// retain occurrence positions. Missing-relation producers are unchanged.
+		if strings.HasPrefix(tc.query, "CREATE TABLE ") || strings.HasPrefix(tc.query, "INSERT INTO public.t (missing_column)") || strings.HasPrefix(tc.query, "SELECT missing_column") {
 			native.Position = tc.pos
 		}
 		postgres := native

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -144,6 +145,29 @@ func TestCatalogAllocatorAndProviderBoundaries(t *testing.T) {
 	e.nextOID = PGCatalogNamespaceOID
 	if n, err := e.allocateOIDLocked(); err != nil || n != PGCatalogNamespaceOID+1 {
 		t.Fatalf("reserved OID skip: %d %v", n, err)
+	}
+	for _, class := range []OID{NamespaceClassID, RelationClassID} {
+		t.Run(fmt.Sprint(class), func(t *testing.T) {
+			e := New()
+			last := ^OID(0)
+			address := ObjectAddress{ClassID: class, ObjectID: last}
+			// Exercise terminal occupancy through the allocator's actual catalog
+			// seam; exhaustion must not wrap, reuse or publish anything.
+			e.state = cloneCatalog(e.state)
+			if class == NamespaceClassID {
+				e.state.descriptors[address] = &namespaceDescriptor{address: address, name: "last", revision: 1, owner: e.roles.names["postgres"]}
+			} else {
+				e.state.descriptors[address] = &relationDescriptor{address: address, name: "last", revision: 1, owner: e.roles.names["postgres"], namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}
+			}
+			before := e.state
+			e.nextOID = last
+			if _, err := e.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" || e.nextOID != 0 || e.state != before {
+				t.Fatal("occupied terminal OID did not exhaust without publication", err)
+			}
+			if _, err := e.allocateOIDLocked(); err == nil || e.nextOID != 0 || e.state != before {
+				t.Fatal("exhausted allocator reused identity", err)
+			}
+		})
 	}
 	e.nextOID = 0
 	if _, err := e.allocateOIDLocked(); err == nil || err.Error() != "stuntgres: catalog object identity exhausted" {
@@ -564,7 +588,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	}
 	e.mu.Lock()
 	_, err := e.resolveReference(catalogAuthorization(e, base), parser.ObjectName{Parts: []parser.Identifier{{Text: "committed"}}})
-	creation, creationErr := e.resolveCreation(base, parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "new"}}})
+	creation, creationErr := e.creationNamespace(catalogAuthorization(e, base), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "new"}}})
 	e.mu.Unlock()
 	state(t, err, "42P01")
 	if creationErr != nil || creation.owner != e.owner || creation.Epoch != base.Epoch() {

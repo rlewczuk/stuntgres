@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"stuntgres/internal/sqltype"
 )
 
@@ -198,17 +199,19 @@ type catalogRemoval struct {
 }
 
 type CatalogStage struct {
-	owner        *Engine
-	base         CatalogRead
-	descriptors  map[ObjectAddress]Descriptor
-	names        map[NameKey]ObjectAddress
-	touched      map[NameKey]ObjectAddress
-	removals     map[ObjectAddress]catalogRemoval
-	lifecycle    catalogLifecycle
-	invalid      error
-	authSession  *Session
-	authRevision uint64
-	roleRevision uint64
+	owner              *Engine
+	base               CatalogRead
+	descriptors        map[ObjectAddress]Descriptor
+	names              map[NameKey]ObjectAddress
+	touched            map[NameKey]ObjectAddress
+	removals           map[ObjectAddress]catalogRemoval
+	oldNames           map[NameKey]bool
+	lifecycle          catalogLifecycle
+	invalid            error
+	authSession        *Session
+	authRevision       uint64
+	roleRevision       uint64
+	schemaCascadeNames []string
 }
 type PreparedCatalogPublication struct {
 	stage *CatalogStage
@@ -252,29 +255,63 @@ func (s *CatalogStage) Create(d Descriptor) error {
 	s.names[k] = a
 	return nil
 }
+func (s *CatalogStage) Replace(d Descriptor) error {
+	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil || d == nil {
+		return fmt.Errorf("stuntgres: invalid catalog stage")
+	}
+	old, ok := s.base.Descriptor(d.Address())
+	if !ok {
+		return CatalogConflict{}
+	}
+	oldKey := NameKey{ClassID: old.Address().ClassID, Namespace: old.Namespace(), Name: old.Name()}
+	newKey := NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}
+	if a, exists := s.base.state.names[newKey]; exists && a != d.Address() {
+		return CatalogConflict{}
+	}
+	if s.oldNames == nil {
+		s.oldNames = make(map[NameKey]bool)
+	}
+	s.oldNames[oldKey] = true
+	s.touched[oldKey] = s.base.state.names[oldKey]
+	s.touched[newKey] = s.base.state.names[newKey]
+	s.descriptors[d.Address()] = d
+	s.names[newKey] = d.Address()
+	return nil
+}
 
-// Remove stages a whole user relation; references and observed identity belong
-// to this stage's coherent base. Inbound table-definition dependencies are
-// currently empty: namespace, type and owner references point outward.
+// Remove stages a whole user relation with its coherent observed identity.
 func (s *CatalogStage) Remove(ref ObjectRef) error {
+	return s.removeObject(ref, false)
+}
+
+// Schema closure uses the same removal authority for namespaces and relations.
+func (s *CatalogStage) removeObject(ref ObjectRef, namespace bool) error {
 	if s == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
 	if ref.Address.SubID != 0 {
-		return fmt.Errorf("stuntgres: whole relation required")
+		return fmt.Errorf("stuntgres: whole object required")
 	}
 	if err := s.owner.ValidateObjectRef(s.base, ref); err != nil {
 		return err
 	}
 	d := s.base.state.descriptors[ref.Address]
-	r, ok := d.(*relationDescriptor)
-	if !ok || ref.Address.ClassID != RelationClassID || r.namespace != (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}) {
+	switch d.(type) {
+	case *relationDescriptor:
+		if ref.Address.ClassID != RelationClassID {
+			return fmt.Errorf("stuntgres: only user relations can be removed")
+		}
+	case *namespaceDescriptor:
+		if !namespace || ref.Address.ClassID != NamespaceClassID {
+			return fmt.Errorf("stuntgres: only user relations can be removed")
+		}
+	default:
 		return fmt.Errorf("stuntgres: only user relations can be removed")
 	}
 	if _, exists := s.removals[ref.Address]; exists {
 		return nil
 	}
-	key := NameKey{ClassID: ref.Address.ClassID, Namespace: r.namespace, Name: r.name}
+	key := NameKey{ClassID: ref.Address.ClassID, Namespace: d.Namespace(), Name: d.Name()}
 	if s.base.state.names[key] != ref.Address {
 		return CatalogConflict{}
 	}
@@ -298,6 +335,9 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 		d := removal.descriptor
 		delete(ds, a)
 		delete(ns, NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()})
+	}
+	for k := range s.oldNames {
+		delete(ns, k)
 	}
 	for k, v := range s.descriptors {
 		ds[k] = v
@@ -354,6 +394,21 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 	for a := range s.removals {
 		changes.Definitions = append(changes.Definitions, a)
 	}
+	sort.Slice(changes.Definitions, func(i, j int) bool {
+		a, b := changes.Definitions[i], changes.Definitions[j]
+		if a.ClassID != b.ClassID {
+			return a.ClassID < b.ClassID
+		}
+		if a.ObjectID != b.ObjectID {
+			return a.ObjectID < b.ObjectID
+		}
+		return a.SubID < b.SubID
+	})
+	for _, a := range changes.Definitions {
+		if a.ClassID == NamespaceClassID {
+			changes.Namespaces = append(changes.Namespaces, a)
+		}
+	}
 	for {
 		e.mu.Lock()
 		if s.lifecycle != catalogValidated {
@@ -366,8 +421,31 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			e.mu.Unlock()
 			return ChangeSet{}, ErrCatalogReplaced
 		}
+		for _, d := range s.descriptors {
+			ns := d.Namespace()
+			if ns != (ObjectAddress{}) && s.descriptors[ns] == nil && current.descriptors[ns] != s.base.state.descriptors[ns] {
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
+		}
+		for a := range s.removals {
+			if a.ClassID == NamespaceClassID {
+				for address, d := range current.descriptors {
+					if _, removed := s.removals[address]; d.Namespace() == a && (!removed || d != s.base.state.descriptors[address]) {
+						e.mu.Unlock()
+						return ChangeSet{}, CatalogConflict{}
+					}
+				}
+			}
+		}
 		for a := range s.descriptors {
-			if _, ok := current.descriptors[a]; ok {
+			if current.descriptors[a] != s.base.state.descriptors[a] {
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
+		}
+		for a := range s.removals {
+			if current.descriptors[a] != s.base.state.descriptors[a] {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -398,9 +476,12 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			delete(next.names, NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()})
 			delete(storage, a)
 		}
+		for k := range s.oldNames {
+			delete(next.names, k)
+		}
 		for a, d := range s.descriptors {
 			next.descriptors[a] = d
-			if _, ok := d.(*relationDescriptor); ok {
+			if _, ok := d.(*relationDescriptor); ok && storage[a] == nil {
 				storage[a] = &relationStorage{}
 			}
 		}

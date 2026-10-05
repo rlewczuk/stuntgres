@@ -45,7 +45,7 @@ func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 	if err := s.checkArguments(args); err != nil {
 		return nil, err
 	}
-	r, err := s.conn.execute(ctx, s.ast, args)
+	r, err := s.conn.execute(ctx, s.ast, args, &s.description)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 	if err := s.checkArguments(args); err != nil {
 		return nil, err
 	}
-	r, err := s.conn.execute(ctx, s.ast, args)
+	r, err := s.conn.execute(ctx, s.ast, args, &s.description)
 	if err != nil {
 		return nil, err
 	}

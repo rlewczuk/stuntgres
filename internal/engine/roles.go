@@ -34,17 +34,30 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 		row := make([]sqltype.Value, len(s.Names))
 		projection := make([]int, len(s.Names))
 		for i, name := range s.Names {
-			ref := v.state.CurrentUser
-			if name == "session_user" {
-				ref = v.state.SessionUser
+			var value sqltype.Value
+			if name == "current_schema" {
+				path, _, err := e.explicitPath(v)
+				if err != nil {
+					return Result{}, err
+				}
+				value = sqltype.Null(typ)
+				if len(path) > 0 {
+					value = sqltype.String(typ, v.catalog.state.descriptors[path[0]].Name())
+				}
+			} else {
+				ref := v.state.CurrentUser
+				if name == "session_user" {
+					ref = v.state.SessionUser
+				}
+				d, err := v.roles.Descriptor(ref)
+				if err != nil {
+					return Result{}, err
+				}
+				value = sqltype.String(typ, d.Name)
 			}
-			d, err := v.roles.Descriptor(ref)
-			if err != nil {
-				return Result{}, err
-			}
-			row[i] = sqltype.String(typ, d.Name)
+			row[i] = value
 			projection[i] = i
-			columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage()}
+			columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage(), Nullable: name == "current_schema", NullabilityKnown: name == "current_schema"}
 		}
 		return Result{Columns: columns, Rows: anonymousSnapshot([][]sqltype.Value{row}, projection), Count: 1}, nil
 	case *parser.SessionAuthorization:
@@ -190,7 +203,24 @@ func dependencyIdentifier(name string) string {
 	}
 }
 
-func dependencyDescription(view CatalogRead, dep roleDependency) string {
+func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor) string {
+	name := dependencyIdentifier(relation.name)
+	path, err := auth.engine.referencePath(auth)
+	if err == nil {
+		for _, ns := range path {
+			if a, ok := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relation.name}]; ok {
+				if a == relation.address {
+					return name
+				}
+				break
+			}
+		}
+	}
+	return dependencyIdentifier(auth.catalog.state.descriptors[relation.namespace].Name()) + "." + name
+}
+
+func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
+	view := auth.catalog
 	if dep.description != "" {
 		return dep.description
 	}
@@ -201,16 +231,7 @@ func dependencyDescription(view CatalogRead, dep roleDependency) string {
 	kind := "schema "
 	if relation, ok := d.(*relationDescriptor); ok {
 		kind = "table "
-		// Both supported namespaces are on the fixed search path. Relations
-		// shadowed by pg_catalog need qualification to identify the object.
-		if relation.namespace.ObjectID == PublicNamespaceOID {
-			pg := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
-			if _, shadowed := view.state.names[NameKey{ClassID: RelationClassID, Namespace: pg, Name: relation.name}]; shadowed {
-				name = "public." + name
-			}
-		} else if relation.namespace.ObjectID != PGCatalogNamespaceOID {
-			name = dependencyIdentifier(view.state.descriptors[relation.namespace].Name()) + "." + name
-		}
+		name = relationDiagnosticName(auth, relation)
 		if dep.address.SubID != 0 {
 			// getObjectDescription interpolates the raw attribute name; only
 			// getRelationDescription applies diagnostic identifier quoting.
@@ -294,7 +315,7 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 			})
 			details := make([]string, len(dependencies))
 			for i, dep := range dependencies {
-				details[i] = dependencyDescription(v.catalog, dep)
+				details[i] = dependencyDescription(v, dep)
 			}
 			return Result{}, roleDiagnostic("2BP01", fmt.Sprintf("role \"%s\" cannot be dropped because some objects depend on it", d.Name), strings.Join(details, "\n"))
 		}

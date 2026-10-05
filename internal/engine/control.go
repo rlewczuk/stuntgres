@@ -22,8 +22,8 @@ func quoteIdentifier(s string) string { return `"` + strings.ReplaceAll(s, `"`, 
 
 // Namespace ACL entry order and split entries do not affect reproducibility.
 // Principal/grantor references do: losing them would change DROP dependencies.
-func bootstrapNamespaceDumpable(d *namespaceDescriptor, bootstrap PrincipalRef) bool {
-	if d.owner != bootstrap || !d.acl.Explicit {
+func bootstrapNamespaceDumpable(d *namespaceDescriptor) bool {
+	if !d.acl.Explicit {
 		return false
 	}
 	publicRights := UsagePrivilege
@@ -32,7 +32,7 @@ func bootstrapNamespaceDumpable(d *namespaceDescriptor, bootstrap PrincipalRef) 
 	}
 	var publicUse, publicOptions, ownerUse, ownerOptions Privileges
 	for _, entry := range d.acl.Entries {
-		if entry.Grantor != bootstrap {
+		if entry.Grantor != d.owner {
 			return false
 		}
 		if entry.Grantee.Public {
@@ -42,7 +42,7 @@ func bootstrapNamespaceDumpable(d *namespaceDescriptor, bootstrap PrincipalRef) 
 			publicUse |= entry.Privileges
 			publicOptions |= entry.GrantOptions
 		} else {
-			if entry.Grantee.Role != bootstrap {
+			if entry.Grantee.Role != d.owner {
 				return false
 			}
 			ownerUse |= entry.Privileges
@@ -70,6 +70,89 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		versions            []rowVersion
 	}
 	tables := make([]dumpRelation, 0)
+	type dumpSchema struct{ name, owner string }
+	var schemas []dumpSchema
+	// Reconstruct bootstrap identity changes before creating ordinary namespaces.
+	// These statements run only in Restore's isolated catalog under bootstrap
+	// authority; ACLs are reproduced by normal owner-transfer semantics.
+	var preamble []string
+	type builtinSchema struct {
+		original, name, owner string
+		moved                 bool
+	}
+	var builtins []builtinSchema
+	for _, b := range []struct {
+		oid  OID
+		name string
+	}{{PublicNamespaceOID, "public"}, {PGCatalogNamespaceOID, "pg_catalog"}} {
+		d, exists := e.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: b.oid}]
+		if !exists {
+			preamble = append(preamble, "DROP SCHEMA "+quoteIdentifier(b.name)+";\n")
+			continue
+		}
+		ns := d.(*namespaceDescriptor)
+		role, err := (RoleRead{e, e.roles}).Descriptor(ns.owner)
+		if err != nil {
+			e.mu.Unlock()
+			return err
+		}
+		builtins = append(builtins, builtinSchema{original: b.name, name: ns.name, owner: role.Name})
+	}
+	remaining := 0
+	for i := range builtins {
+		builtins[i].moved = builtins[i].name == builtins[i].original
+		if !builtins[i].moved {
+			remaining++
+		}
+	}
+	for remaining > 0 {
+		progress := false
+		for i := range builtins {
+			b := &builtins[i]
+			if b.moved {
+				continue
+			}
+			occupied := false
+			for j := range builtins {
+				if !builtins[j].moved && builtins[j].original == b.name {
+					occupied = true
+				}
+			}
+			if occupied {
+				continue
+			}
+			preamble = append(preamble, "ALTER SCHEMA "+quoteIdentifier(b.original)+" RENAME TO "+quoteIdentifier(b.name)+";\n")
+			b.moved = true
+			remaining--
+			progress = true
+		}
+		if progress {
+			continue
+		}
+		// A cycle needs a free ordinary spelling, never a reserved pg_ name.
+		for i := range builtins {
+			b := &builtins[i]
+			if b.moved {
+				continue
+			}
+			var temporary string
+			for suffix := 0; ; suffix++ {
+				candidate := fmt.Sprintf("stuntgres_restore_namespace_%d_%d", i, suffix)
+				if _, exists := e.state.names[NameKey{ClassID: NamespaceClassID, Name: candidate}]; !exists {
+					temporary = candidate
+					break
+				}
+			}
+			preamble = append(preamble, "ALTER SCHEMA "+quoteIdentifier(b.original)+" RENAME TO "+quoteIdentifier(temporary)+";\n")
+			b.original = temporary
+			break
+		}
+	}
+	for _, b := range builtins {
+		if b.owner != "postgres" {
+			preamble = append(preamble, "ALTER SCHEMA "+quoteIdentifier(b.name)+" OWNER TO "+quoteIdentifier(b.owner)+";\n")
+		}
+	}
 	for a, d := range e.state.descriptors {
 		r, ok := d.(*relationDescriptor)
 		if !ok {
@@ -79,9 +162,21 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if d.Kind() == NamespaceObject {
 				ns, valid := d.(*namespaceDescriptor)
 				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID) &&
-					!bootstrapNamespaceDumpable(ns, e.roles.names["postgres"]) {
+					!bootstrapNamespaceDumpable(ns) {
 					e.mu.Unlock()
-					return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace owner or ACL")
+					return fmt.Errorf("stuntgres: dump cannot serialize changed builtin namespace ACL")
+				}
+				if valid && a.ObjectID != PublicNamespaceOID && a.ObjectID != PGCatalogNamespaceOID {
+					if ns.acl.Explicit {
+						e.mu.Unlock()
+						return fmt.Errorf("stuntgres: dump cannot serialize explicit namespace ACL")
+					}
+					role, err := (RoleRead{e, e.roles}).Descriptor(ns.owner)
+					if err != nil {
+						e.mu.Unlock()
+						return err
+					}
+					schemas = append(schemas, dumpSchema{ns.name, role.Name})
 				}
 				continue
 			}
@@ -131,6 +226,17 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return io.ErrShortWrite
 		}
 		return ctx.Err()
+	}
+	for _, line := range preamble {
+		if err := emit(line); err != nil {
+			return err
+		}
+	}
+	sort.Slice(schemas, func(i, j int) bool { return schemas[i].name < schemas[j].name })
+	for _, s := range schemas {
+		if err := emit("CREATE SCHEMA " + quoteIdentifier(s.name) + " AUTHORIZATION " + quoteIdentifier(s.owner) + ";\n"); err != nil {
+			return err
+		}
 	}
 	currentOwner := "postgres"
 	for _, t := range tables {
@@ -226,7 +332,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	defer op.Done()
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
-		case *parser.CreateTable:
+		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
 		case *parser.SessionAuthorization:
 			if !s.OwnerDirective {
 				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives")
@@ -240,7 +346,15 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE, INSERT and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE, INSERT and SET SESSION AUTHORIZATION")
+		}
+		op.restoreTableDestination = false
+		if _, ok := stmt.(*parser.CreateTable); ok {
+			op.restoreTableDestination = true
+		}
+		op.restoreInsertAuthority = false
+		if _, ok := stmt.(*parser.Insert); ok {
+			op.restoreInsertAuthority = true
 		}
 		_, err = stage.Execute(op, stmt, 0, nil)
 		op.DetachNotices()

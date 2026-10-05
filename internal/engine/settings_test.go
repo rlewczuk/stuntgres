@@ -18,6 +18,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"application_name", "initial", "Sets the application name to be reported in statistics and logs."},
 		{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
 		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
+		{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
 		{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
 		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},
 		{"statement_timeout", "0", "Sets the maximum allowed duration of any statement."},

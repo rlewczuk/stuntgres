@@ -76,6 +76,7 @@ Supported builtins are deliberately bounded:
 | --- | --- | --- |
 | application_name | empty / session | Normalized descriptive session value |
 | client_min_messages | notice / session | Filters structured connector notices; debug aliases debug2 |
+| search_path | `"$user", public` / session | Stored explicit path; effective lookup skips absent/inaccessible schemas and expands current user |
 | standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
 | statement_timeout | 0 / session | Millisecond command-admission timer covering parse, Prepare and Execute |
 | server_encoding | UTF8 / read-only | Actual UTF8 invariant; writes and individual RESET fail 55P02 |
@@ -153,10 +154,10 @@ ALTER SYSTEM, reload, server-start or shell-option effects. Existing role/ACL
 and driver READ COMMITTED capabilities remain separate. Explicit transactions
 reject SET/RESET/SHOW and the selected setting calls with native 0A000 before
 mutation; SET LOCAL is not a transaction restoration implementation.
-Unsupported builtin names (including work_mem/search_path/random_page_cost) remain 42704.
+Unsupported builtin names (including work_mem/random_page_cost) remain 42704.
 The two selected calls do not introduce general functions, casts, aliases or
 expressions. NULL/parameters remain invalid **SET scalar syntax**; use
-set_config for bound values. Comma lists fail 22023 before lookup.
+set_config for bound values. Comma lists are supported for search_path; other settings reject multiple values with 22023.
 The nonreserved name local remains a parameter name in `SET local TO value`
 and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
 Native Reset/Restore preserve live settings and use default-on parsing;
@@ -515,18 +516,18 @@ Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
 ## Supported SQL
 
 ```text
-CREATE TABLE [IF NOT EXISTS] [public.]name ([element [, ...]])
-element := column type [NULL | NOT NULL] | LIKE [public.]source
-DROP TABLE [IF EXISTS] [public.]name [, ...] [RESTRICT | CASCADE]
-INSERT INTO [public.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
-SELECT (* | scalar [, ...]) FROM [public.]name
+CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
+element := column type [NULL | NOT NULL] | LIKE [schema.]source
+DROP TABLE [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
+INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
+SELECT (* | scalar [, ...]) FROM [schema.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
 type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n
 scalar := unqualified column | value
 ```
 
-Relation names accept one or two identifier components. Explicit `public.name` and unqualified `name` resolve to the same relation; unqualified references check `pg_catalog` before the built-in `public` namespace. SQL creation is supported only in `public`. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
+Relation names accept one or two identifier components. Qualified `schema.name` resolves only in that schema; unqualified references follow the session's effective search_path, with implicit `pg_catalog` first unless explicitly positioned. Unqualified creation chooses the first usable explicit destination and requires CREATE there, without falling through on denial. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
 
 ### Ordinary table definitions and removal
 
@@ -541,7 +542,16 @@ order at its position among explicit columns. Multiple/interleaved LIKE clauses
 are allowed; duplicate expanded names fail `42701`. The destination has fresh
 identity/origins, current-user ownership, no copied rows or ACL, and no persistent
 dependency on its source. LIKE requires relation-level SELECT; column-only SELECT
-is insufficient. For example:
+is insufficient.
+
+Qualified LIKE sources use that schema's USAGE checks; unqualified sources follow
+the effective search path independently of the destination. Nested CREATE TABLE
+elements in CREATE SCHEMA support the same ordered elements and zero-column shape.
+They bind against preceding staged tables as the enclosing schema owner, with that
+schema prepended to a local path. The caller's identity and stored path do not
+change; inaccessible or non-SELECT sources fail the entire schema construction.
+
+For example:
 
 ```sql
 CREATE TABLE source (i INTEGER NOT NULL, s TEXT, f BOOLEAN);
@@ -738,7 +748,81 @@ Preparation checks assignment compatibility; typed integer literals assigned to 
 
 That feature smoke exercises both direct execution and an actual prepared short INSERT, checks declaration-order metadata and statement atomicity, and retains a cursor across Reset/Restore. It also checks deterministic full-row Dump/Restore, successful hand-authored short-row Restore, and catalog preservation when a staged short INSERT omits a NOT NULL tail. Go test reports whether those public API assertions pass.
 
-No configurable `search_path`, `CREATE SCHEMA`, schema-qualified creation outside `public`, three-part/database qualification, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction controls/savepoints, transactional DDL/settings/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+### Schemas and search path
+
+`CREATE SCHEMA name [AUTHORIZATION role]`, authorization-only name inference,
+`IF NOT EXISTS`, `ALTER SCHEMA name RENAME TO name`, `ALTER SCHEMA name OWNER TO role`,
+and comma-list `DROP SCHEMA [IF EXISTS] ... [RESTRICT|CASCADE]` are supported.
+CREATE SCHEMA can contain contiguous CREATE TABLE elements (no intervening
+semicolons). All elements publish atomically and belong to the designated
+schema owner. Other nested commands are not supported. Rename preserves
+identities and storage; RESTRICT leaves dependents intact and CASCADE removes
+the selected namespaces and their contained supported tables.
+Conditional schema notices retain PostgreSQL diagnostics: CREATE IF NOT EXISTS
+uses NOTICE 42P06; DROP IF EXISTS for a missing schema uses NOTICE 00000.
+CREATE TABLE destination errors retain the target's one-based AST character
+position, including an empty effective path and schema CREATE denial.
+
+
+Qualified CREATE TABLE, SELECT and INSERT keep quoted name components distinct.
+`search_path` is a physical-session setting, default `"$user", public`, shared
+by SET/SHOW/RESET/current_setting/set_config. Missing and inaccessible entries
+are skipped, decoded `$user` expands current_user, duplicate namespaces are
+ignored, and pg_catalog is implicit first unless explicitly positioned.
+`SELECT current_schema` and `SELECT current_schema()` return one NAME value,
+NULL when no usable explicit namespace exists. Empty paths still permit
+qualified references but unqualified creation fails 3F000. SQL SET renders each
+string list element as a minimally quoted identifier: `SET search_path TO 'sp1,'`
+stores `"sp1,"`, a single schema name, and `SET search_path TO ''` stores `""`,
+an unusable empty name. Raw `set_config('search_path','',false)` instead stores
+an empty path. Malformed raw identifier lists, such as `set_config` input `sp1,`,
+fail 22023 without changing the previous value. Renaming a schema does not
+rewrite stored search_path text.
+
+New schemas have no PUBLIC rights. Owners have schema USAGE/CREATE; relation
+SELECT/INSERT is independently checked. Qualified creation requires CREATE,
+not USAGE. Unqualified creation chooses the first usable explicit namespace,
+then checks CREATE without fallback. Database CREATE grants are not implemented:
+standalone schema provisioning and rename require effective superuser authority.
+The fixed native error label `stuntgres` in `permission denied for database
+stuntgres` is diagnostic-only, not an attached database or DSN interpretation.
+Native public retains the existing PUBLIC USAGE|CREATE convenience divergence.
+Owner transfer updates the schema owner and its explicit ACL, not contained table ownership.
+Pinned PostgreSQL 18.0 permits superuser transfer to ordinary NOLOGIN roles
+without database CREATE and same-owner no-ops; this observed behavior takes
+precedence over the ALTER SCHEMA manual's destination-CREATE wording.
+
+Schema owner transfer also substitutes explicit ACL grantor/grantee ownership
+references and merges colliding grants atomically, without changing retained
+snapshots, unrelated grants or absent versus explicit-empty ACL semantics.
+Held INSERT rebinding from INT4 to TEXT is an explicit bounded difference:
+native rejects `0A000 cached plan must not change parameter type` before
+parameter import/write; pinned PostgreSQL retains the INT4 parameter and
+assignment-coerces the value into TEXT (held Exec9 succeeds with text `9`).
+
+Prepared handles retain ASTs and frozen result/parameter signatures. Compatible
+path changes re-resolve; incompatible rebinding fails 0A000 before importing
+parameters or publishing writes. This is not PostgreSQL's complete cached-plan
+invalidation model: unchanged-path shadow creation and cached namespace-USAGE
+caveats are not reproduced. Retained Rows keep original values and metadata
+through rename/drop/Reset/Restore. Explicit transactions reject schema utilities
+before effects. Absent pg_temp references do not allocate; a pending temporary
+creation destination fails 0A000 rather than falling through to public.
+
+Dump writes every persistent user schema, including empty schemas, before
+owner-grouped qualified tables and rows. Restore preserves independent schema
+and table owners through private stage-only CREATE TABLE destination authority.
+Private Restore INSERT uses captured bootstrap authority without stamping owners
+or changing named owner directives/session identity; ordinary SQL INSERT retains
+normal USAGE/table ACL checks. No ACL grants are synthesized or retained.
+Unsupported explicit namespace,
+table or column ACLs fail Dump before any output. Invalid Restore leaves the
+target catalog untouched. Bootstrap-only public dump bytes remain unchanged.
+Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
+`go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
+
+
+Three-part/database qualification, temporary-object creation, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction controls/savepoints, transactional DDL/settings/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 
@@ -770,11 +854,29 @@ func Restore(ctx context.Context, db *sql.DB, src io.Reader) error
 
 Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. They are **host-authorized**, independently of a borrowed connection's effective principal. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog` and `public` namespace descriptors while retaining database identity, cluster roles, nonreuse counters, live identities/settings and existing pools. Dump captures before external I/O, groups deterministically by owner name then schema/relation, and writes quoted owner-switch directives plus PostgreSQL-compatible CREATE/INSERT SQL, declaration-ordered columns and canonical literals. Bootstrap-only dumps retain legacy CREATE/INSERT bytes without a redundant switch. Explicit relation/column ACLs cannot be serialized and cause a failure before output, rather than silent loss. Dump excludes role creation, passwords, membership and settings; it is not complete `pg_dump` output, COPY, or catalog export.
 
-Because Restore reproduces native builtin namespaces rather than serializing
-schema ownership or GRANT, Dump also rejects non-reproducible builtin namespace
-owner/ACL state before output. Comparison is semantic, not ACL entry order.
+Dump reconstructs renamed, absent and recreated bootstrap namespaces using ordinary
+DROP/ALTER SCHEMA SQL before user schemas and tables. Retained builtin ACLs must
+equal their canonical bootstrap rights with both grantor and owner-grantee
+transformed to the current owner; arbitrary explicit ACLs remain unsupported and
+are rejected before output. Recreated public is an ordinary namespace with absent
+ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
+their exact legacy bytes.
 
-Restore accepts supported CREATE/INSERT scripts without parameters and bounded SET SESSION AUTHORIZATION owner directives; legacy CREATE/INSERT-only scripts are bootstrap-owned. Referenced roles must already exist in the target engine. Restore captures a private role snapshot before input I/O, executes through the same SQL engine, remaps owners into the target principal authority, then atomically **replaces** descriptors, identity-keyed row storage and epoch, never merges or resets roles/live sessions. Missing owners (`22023`), dropped/recreated owners, read/parse/execution/cancellation errors leave original data untouched. Empty input clears user relations. Reset/Restore publication supersedes earlier completed writes; no target locks span external I/O. Existing SELECT and identity snapshots remain valid across inserts and catalog replacement. Writer errors do not change the database.
+Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE, literal INSERT
+and named SET SESSION AUTHORIZATION owner directives; parameters and other SQL
+are rejected. Legacy CREATE/INSERT-only scripts remain bootstrap-owned. Referenced
+roles must already exist in the target engine. Restore captures a private role
+snapshot before input I/O, starts an initialized private catalog, executes through
+the same SQL engine, remaps owners into target principal authority, then atomically
+**replaces** descriptors, storage and epoch, never merges or resets roles/live
+sessions. Missing or dropped/recreated owners and read/parse/execution/cancellation
+errors leave original data untouched. Empty input clears user relations. No target
+locks span external I/O. Private operation-only CREATE destination and INSERT
+bootstrap authority preserve independent schema/table owners without grants or
+session identity changes; ordinary post-Restore SQL still enforces USAGE/CREATE.
+The shared object allocator skips live namespace and relation identities imported
+by Restore, so subsequent schema and table creation continues without collisions.
+Replacement does not rewind the destination's nonreuse counter.
 
 `go test -count=1 -run '^TestCatalogOwnersPublicWitness$' ./smoke` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.
 

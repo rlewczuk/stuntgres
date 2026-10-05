@@ -147,9 +147,13 @@ func (e *Engine) allocateOIDLocked() (OID, error) {
 		if n == NamespaceClassID || n == RelationClassID || n == PGCatalogNamespaceOID || n == PublicNamespaceOID {
 			continue
 		}
-		if _, ok := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: n}]; !ok {
-			return n, nil
+		if _, ok := e.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: n}]; ok {
+			continue
 		}
+		if _, ok := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: n}]; ok {
+			continue
+		}
+		return n, nil
 	}
 	return 0, fmt.Errorf("stuntgres: catalog object identity exhausted")
 }
@@ -182,7 +186,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.LockTable, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
+	case *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.IdentitySelect:
 		e.mu.Lock()
@@ -190,7 +194,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Name)
 		columns := make([]ColumnDescriptor, len(s.Names))
 		for i, name := range s.Names {
-			columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage()}
+			columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage(), Nullable: name == "current_schema", NullabilityKnown: name == "current_schema"}
 		}
 		return StatementDescription{Results: columns}, nil
 	case *parser.Show:
@@ -210,7 +214,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.SettingCall:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		info, _, err := e.describeSettingCall(op.ctx,s)
+		info, _, err := e.describeSettingCall(op.ctx, s)
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
@@ -225,7 +229,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	b, err := e.describe(op.ctx,stmt, auth)
+	b, err := e.describe(op.ctx, stmt, auth)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -238,34 +242,16 @@ func objectNameText(n parser.ObjectName) string {
 	}
 	return strings.Join(parts, ".")
 }
-func namespaceForName(view CatalogRead, name parser.ObjectName, creation bool) (ObjectAddress, error) {
-	if len(name.Parts) == 1 {
-		a := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}
-		if _, ok := view.state.descriptors[a]; ok {
-			return a, nil
-		}
-	} else if len(name.Parts) == 2 {
-		a, ok := view.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
-		if ok {
-			return a, nil
-		}
-		if creation {
-			return ObjectAddress{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", name.Parts[0].Text))
-		}
-		return ObjectAddress{}, nil
-	}
-	return ObjectAddress{}, nil
-}
-func (e *Engine) describe(ctx context.Context,stmt parser.Statement, auth AuthorizationView) (binding, error) {
+func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView) (binding, error) {
 	b := binding{order: -1}
-	binder := newExpressionBinder(ctx,e)
+	binder := newExpressionBinder(ctx, e)
 	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
-		return binder.bind(v, expressionPolicy{context:assignmentContext,expected:c.Usage,mode:mode})
+		return binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: mode})
 	}
 	column := func(name string) (int, error) {
 		i, ok := b.relation.index[name]
 		if !ok {
-			return 0, sqlError("42703", fmt.Sprintf("column %q does not exist", name))
+			return 0, sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, name))
 		}
 		return i, nil
 	}
@@ -309,7 +295,9 @@ func (e *Engine) describe(ctx context.Context,stmt parser.Statement, auth Author
 					return b, err
 				}
 				source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
-				columns = append(columns, source.columns...)
+				for _, c := range source.columns {
+					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
+				}
 			}
 		}
 		seen := make(map[string]bool, len(columns))
@@ -391,22 +379,33 @@ func (e *Engine) describe(ctx context.Context,stmt parser.Statement, auth Author
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
 		}
 		binder.relation, binder.ref = b.relation, b.ref
-		width:=len(s.Targets);if s.Star { width=len(b.relation.columns) }
-		b.projection=make([]BoundExpr,width)
-		b.results=make([]ColumnDescriptor,width)
-		for i:=range width {
-			if err:=ctx.Err();err!=nil { return b,err }
-			var expr BoundExpr
-			if s.Star { expr=binder.columnAt(i,parser.Position{Offset:-1}) } else {
-				var er error
-				expr,er=binder.bind(s.Targets[i],expressionPolicy{context:projectionContext})
-				if er!=nil { return b,er }
+		width := len(s.Targets)
+		if s.Star {
+			width = len(b.relation.columns)
+		}
+		b.projection = make([]BoundExpr, width)
+		b.results = make([]ColumnDescriptor, width)
+		for i := range width {
+			if err := ctx.Err(); err != nil {
+				return b, err
 			}
-			b.projection[i]=expr
+			var expr BoundExpr
+			if s.Star {
+				expr = binder.columnAt(i, parser.Position{Offset: -1})
+			} else {
+				var er error
+				expr, er = binder.bind(s.Targets[i], expressionPolicy{context: projectionContext})
+				if er != nil {
+					return b, er
+				}
+			}
+			b.projection[i] = expr
 		}
 		if s.Where != nil {
-			b.filter, err = binder.bind(s.Where, expressionPolicy{context:filterContext,expected:binder.typ(sqltype.Bool).Usage(),mode:sqltype.Implicit})
-			if err != nil { return b, err }
+			b.filter, err = binder.bind(s.Where, expressionPolicy{context: filterContext, expected: binder.typ(sqltype.Bool).Usage(), mode: sqltype.Implicit})
+			if err != nil {
+				return b, err
+			}
 		}
 		if s.Order != nil {
 			b.order, err = column(s.Order.Column)
@@ -419,13 +418,17 @@ func (e *Engine) describe(ctx context.Context,stmt parser.Statement, auth Author
 				return b, err
 			}
 		}
-		for i,expr:=range b.projection {
-			expr,err=binder.finalizeProjection(expr)
-			if err!=nil { return b,err }
-			b.projection[i]=expr
-			result:=ColumnDescriptor{Name:"?column?",Usage:expr.ResultUsage()}
-			if c,ok:=expr.(columnExpression);ok { result=b.relation.columns[c.slot] }
-			b.results[i]=result
+		for i, expr := range b.projection {
+			expr, err = binder.finalizeProjection(expr)
+			if err != nil {
+				return b, err
+			}
+			b.projection[i] = expr
+			result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
+			if c, ok := expr.(columnExpression); ok {
+				result = b.relation.columns[c.slot]
+			}
+			b.results[i] = result
 		}
 	default:
 		return b, sqlError("0A000", "unsupported statement")
@@ -462,31 +465,18 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 	var a ObjectAddress
 	var ok bool
 	if len(name.Parts) == 1 {
-		for _, oid := range [...]OID{PGCatalogNamespaceOID, PublicNamespaceOID} {
-			ns := ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}
-			if oid != PGCatalogNamespaceOID {
-				if _, exists := view.state.descriptors[ns]; !exists {
-					continue
-				}
-				ref := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}
-				rights, err := auth.Effective(ref, false)
-				if err != nil {
-					return ObjectRef{}, err
-				}
-				if rights&UsagePrivilege == 0 {
-					continue
-				}
-			}
+		path, err := e.referencePath(auth)
+		if err != nil {
+			return ObjectRef{}, err
+		}
+		for _, ns := range path {
 			a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
 			if ok {
 				break
 			}
 		}
 	} else {
-		ns, err := namespaceForName(view, name, false)
-		if err != nil {
-			return ObjectRef{}, err
-		}
+		ns := view.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
 		if ns != (ObjectAddress{}) {
 			if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}); err != nil {
 				if sqlErr, ok := err.(*sqlstate.Error); ok {
@@ -500,7 +490,7 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
 	}
 	if !ok {
-		return ObjectRef{}, sqlError("42P01", fmt.Sprintf("relation %q does not exist", objectNameText(name)))
+		return ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
 	}
 	if _, ok := view.state.descriptors[a].(*relationDescriptor); !ok {
 		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
@@ -508,25 +498,17 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 	return ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: a}, nil
 }
 
-func (e *Engine) resolveCreation(view CatalogRead, name parser.ObjectName) (ObjectRef, error) {
-	if err := e.validateCatalogViewLocked(view); err != nil {
-		return ObjectRef{}, err
-	}
-	if len(name.Parts) < 1 || len(name.Parts) > 2 {
-		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
-	}
-	ns, err := namespaceForName(view, name, true)
-	if err != nil {
-		return ObjectRef{}, err
-	}
-	if ns.ObjectID != PublicNamespaceOID {
-		return ObjectRef{}, sqlError("0A000", "creation outside public is unsupported")
-	}
-	return ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}, nil
-}
-
 func insertError(code, message string, pos parser.Position) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: strconv.Itoa(pos.Character)}
+}
+
+func creationError(err error, name parser.ObjectName) error {
+	if diagnostic, ok := err.(*sqlstate.Error); ok && len(name.Parts) > 0 {
+		copy := *diagnostic
+		copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
+		return &copy
+	}
+	return err
 }
 
 func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error {
@@ -535,8 +517,10 @@ func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error
 		return err
 	}
 	copy := *sqlErr
-	value := parser.Value{Pos:raw.SourcePosition()}
-	if literal,ok := raw.(parser.LiteralExpr);ok { value=literal.Value }
+	value := parser.Value{Pos: raw.SourcePosition()}
+	if literal, ok := raw.(parser.LiteralExpr); ok {
+		value = literal.Value
+	}
 	switch copy.Code {
 	case "42804":
 		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, strings.ToLower(column.Usage.Type.SQLName()), literalTypeName(value))
@@ -550,7 +534,7 @@ func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error
 	return &copy
 }
 
-func notNullError(table, column string, row []sqltype.Value) error {
+func notNullError(schema, table, column string, row []sqltype.Value) error {
 	detail, err := failingRowDetail(row)
 	if err != nil {
 		return err
@@ -558,7 +542,7 @@ func notNullError(table, column string, row []sqltype.Value) error {
 	return &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
 		Message: fmt.Sprintf("null value in column \"%s\" of relation \"%s\" violates not-null constraint", column, table),
-		Schema:  "public", Table: table, Column: column, Detail: detail,
+		Schema:  schema, Table: table, Column: column, Detail: detail,
 	}
 }
 
@@ -590,6 +574,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
+		result, err := e.executeSchema(op, stmt, count)
+		if err == nil {
+			scope.completed = true
+		}
+		return result, err
 	case *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.IdentitySelect:
 		result, err := e.executeRole(op, stmt, count)
 		if _, identity := stmt.(*parser.IdentitySelect); err == nil && !identity {
@@ -618,7 +608,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.statementAuthorizationLocked(op, stmt)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -631,14 +621,24 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 		}
-		nsref, er := e.resolveCreation(CatalogRead{owner: e, state: e.state}, s.Name)
+		nsref, er := e.creationNamespace(auth, s.Name)
 		if er != nil {
 			e.mu.Unlock()
-			return Result{}, er
+			return Result{}, creationError(er, s.Name)
+		}
+		if op.restoreTableDestination {
+			bootstrap, er := auth.roles.Descriptor(auth.state.Authenticated)
+			if er != nil || !bootstrap.Superuser || e.importTargets == nil {
+				e.mu.Unlock()
+				return Result{}, fmt.Errorf("stuntgres: invalid trusted restore destination authority")
+			}
 		}
 		if er = auth.CheckCreate(nsref); er != nil {
-			e.mu.Unlock()
-			return Result{}, er
+			denied, ok := er.(*sqlstate.Error)
+			if !op.restoreTableDestination || !ok || denied.Code != "42501" {
+				e.mu.Unlock()
+				return Result{}, creationError(er, s.Name)
+			}
 		}
 		ns := nsref.Address
 		key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
@@ -648,37 +648,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				op.existingRelationNotice(key.Name)
 				return Result{}, nil
 			}
-			return Result{}, sqlError("42P07", fmt.Sprintf("relation \"%s\" already exists", key.Name))
-		}
-		created, er := e.describe(ctx,s, auth)
-		if er != nil {
-			e.mu.Unlock()
-			return Result{}, er
-		}
-		oid, er := e.allocateOIDLocked()
-		if er != nil {
-			e.mu.Unlock()
-			return Result{}, er
-		}
-		rev, er := e.revisionLocked()
-		if er != nil {
-			e.mu.Unlock()
-			return Result{}, er
-		}
-		addr := ObjectAddress{ClassID: RelationClassID, ObjectID: oid}
-		rd := &relationDescriptor{address: addr, namespace: ns, name: key.Name, revision: rev, owner: auth.state.CurrentUser, columns: created.createColumns, index: make(map[string]int, len(created.createColumns)), attributes: make([]int32, len(created.createColumns))}
-		for i, c := range rd.columns {
-			rd.index[c.Name] = i
-			rd.attributes[i] = int32(i + 1)
-			rd.columns[i].OriginTable = uint32(oid)
-			rd.columns[i].OriginAttribute = int16(i + 1)
+			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 		}
 		base := CatalogRead{owner: e, state: e.state}
 		stage := e.BeginCatalogStage(base)
 		stage.authSession = op.session
 		stage.authRevision = auth.revision
 		stage.roleRevision = auth.roles.state.revision
-		er = stage.Create(rd)
+		er = e.schemaTableLocked(ctx, auth, stage, s, ns, auth.state.CurrentUser)
 		e.mu.Unlock()
 		if er != nil {
 			return Result{}, er
@@ -699,38 +676,52 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if s.IfNotExists {
 				e.mu.Lock()
 				current := CatalogRead{owner: e, state: e.state}
-				resolved, resolveErr := e.resolveCreation(current, s.Name)
+				currentAuth, authErr := e.authorizationLocked(op)
+				if authErr != nil {
+					contextErr := ctx.Err()
+					e.mu.Unlock()
+					if contextErr != nil {
+						return Result{}, contextErr
+					}
+					return Result{}, authErr
+				}
+				resolved, resolveErr := e.creationNamespace(currentAuth, s.Name)
 				_, exists := e.state.names[key]
 				same := resolveErr == nil && resolved.Address == ns && current.Epoch() == base.Epoch()
 				var accessErr error
 				if same && exists {
-					currentAuth, authErr := e.authorizationLocked(op)
-					accessErr = authErr
-					if accessErr == nil {
-						accessErr = currentAuth.CheckCreate(resolved)
-					}
+					accessErr = currentAuth.CheckCreate(resolved)
 				}
 				contextErr := ctx.Err()
 				e.mu.Unlock()
 				if contextErr != nil {
 					return Result{}, contextErr
 				}
+				if resolveErr != nil {
+					return Result{}, creationError(resolveErr, s.Name)
+				}
 				if accessErr != nil {
-					return Result{}, accessErr
+					return Result{}, creationError(accessErr, s.Name)
 				}
 				if same && exists {
 					op.existingRelationNotice(key.Name)
 					return Result{}, nil
 				}
 			}
-			return Result{}, sqlError("42P07", fmt.Sprintf("relation \"%s\" already exists", key.Name))
+			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 		}
 		return Result{}, er
 	}
-	b, err := e.describe(ctx,stmt, auth)
+	b, err := e.describe(ctx, stmt, auth)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
+	}
+	if scope.Expected != nil {
+		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: b.columns()}); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
 	}
 	if count != b.parameters.Count {
 		e.mu.Unlock()
@@ -754,21 +745,25 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	}
 	var materialized [][]sqltype.Value
-	evaluation:=EvalContext{Context:ctx,Parameters:canonical}
+	evaluation := EvalContext{Context: ctx, Parameters: canonical}
 	_, inserting := stmt.(*parser.Insert)
 	if inserting {
 		// Fold immutable assignment casts before executor ACL checks, without
 		// allocating protected rows for unauthorized valid input.
 		for i, row := range b.expressions {
 			for j, expression := range row {
-				if _,converted:=expression.(coercionExpression);converted && !expression.Properties().ParameterDependent {
+				if _, converted := expression.(coercionExpression); converted && !expression.Properties().ParameterDependent {
 					value, foldErr := expression.Eval(&evaluation)
 					if foldErr != nil {
 						e.mu.Unlock()
 						return Result{}, insertValueError(foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j])
 					}
-					if materialized==nil { materialized=make([][]sqltype.Value,len(b.expressions)) }
-					if materialized[i]==nil { materialized[i]=make([]sqltype.Value,len(row)) }
+					if materialized == nil {
+						materialized = make([][]sqltype.Value, len(b.expressions))
+					}
+					if materialized[i] == nil {
+						materialized[i] = make([]sqltype.Value, len(row))
+					}
 					materialized[i][j] = value
 				}
 			}
@@ -793,7 +788,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			for j, v := range source {
 				target := b.targets[j]
 				c := b.relation.columns[target]
-				if materialized!=nil && materialized[i]!=nil && materialized[i][j].Type()!=nil { row[target]=materialized[i][j] } else { row[target], err = b.expressions[i][j].Eval(&evaluation) }
+				if materialized != nil && materialized[i] != nil && materialized[i][j].Type() != nil {
+					row[target] = materialized[i][j]
+				} else {
+					row[target], err = b.expressions[i][j].Eval(&evaluation)
+				}
 				if err != nil {
 					e.mu.Unlock()
 					return Result{}, insertValueError(err, c, v)
@@ -811,8 +810,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			for j, c := range b.relation.columns {
 				if row[j].IsNull() && !c.Nullable {
+					schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 					e.mu.Unlock()
-					return Result{}, notNullError(b.relation.name, c.Name, row)
+					return Result{}, notNullError(schema, b.relation.name, c.Name, row)
 				}
 			}
 		}

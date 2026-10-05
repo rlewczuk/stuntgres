@@ -29,8 +29,8 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		kind, missing := "table", name.Parts[len(name.Parts)-1].Text
 		if len(name.Parts) == 2 {
-			ns, _ := namespaceForName(auth.catalog, name, false)
-			if ns == (ObjectAddress{}) {
+			_, exists := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+			if !exists {
 				kind, missing = "schema", name.Parts[0].Text
 			}
 		}

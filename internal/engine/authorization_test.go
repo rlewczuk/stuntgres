@@ -120,7 +120,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION future")
-	roleError(t, e, op, "CREATE TABLE forbidden(id INT)", "42501", "permission denied for schema public", "")
+	roleErrorPosition(t, e, op, "CREATE TABLE forbidden(id INT)", "42501", "permission denied for schema public", "", "14")
 }
 
 func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
@@ -476,6 +476,9 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "CREATE ROLE namespace_owner")
+	// A raw descriptor-owner rewrite without the matching ACL substitution is
+	// genuinely unrepresentable. Normal ALTER OWNER's canonical transform is
+	// accepted and roundtripped by TestSchemaPublicLifecycleControls.
 	owner, _ := e.Roles().Lookup("namespace_owner")
 	replacement := cloneCatalog(e.state)
 	ns := *replacement.descriptors[namespace.Address].(*namespaceDescriptor)
@@ -485,7 +488,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
-		t.Fatal("changed namespace owner silently lost", err, dump.String())
+		t.Fatal("inconsistent namespace owner/ACL silently lost", err, dump.String())
 	}
 }
 

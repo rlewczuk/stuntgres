@@ -181,7 +181,12 @@ func TestNoticesCommands(t *testing.T) {
 			if err = execute("CREATE TABLE IF NOT EXISTS notice_rows(id INT)"); err != nil || len(notices) != 2 {
 				t.Fatal(err, notices)
 			}
-			noticeError(t, execute("CREATE TABLE IF NOT EXISTS missing_schema.x(id INT)"), "3F000", `schema "missing_schema" does not exist`, "")
+			err = execute("CREATE TABLE IF NOT EXISTS missing_schema.x(id INT)")
+			var missing *stuntgres.Error
+			wantMissing := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "3F000", Message: `schema "missing_schema" does not exist`, Position: "28"}
+			if !errors.As(err, &missing) || *missing != wantMissing {
+				t.Fatalf("missing schema diagnostic %#v, want %#v", missing, wantMissing)
+			}
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			_, err = c.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS canceled(id INT)")

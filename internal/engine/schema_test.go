@@ -1,0 +1,478 @@
+package engine
+
+import (
+	"bytes"
+	"context"
+	"database/sql/driver"
+	"errors"
+	"reflect"
+	"strings"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func schemaRef(t *testing.T, e *Engine, name string) ObjectRef {
+	t.Helper()
+	v := e.CatalogRead()
+	a := v.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
+	if a == (ObjectAddress{}) {
+		t.Fatal("missing namespace", name)
+	}
+	return ObjectRef{owner: e.owner, Epoch: v.Epoch(), Address: a}
+}
+func schemaFail(t *testing.T, e *Engine, op *Operation, q, code string) {
+	t.Helper()
+	before := e.CatalogRead()
+	storage := e.storage
+	_, err := e.Execute(op, statement(t, q), 0, nil)
+	state(t, err, code)
+	if e.CatalogRead().state != before.state || !reflect.DeepEqual(e.storage, storage) {
+		t.Fatal("failure published catalog/storage", q)
+	}
+}
+func TestSchemaLifecycleIdentityAndAtomicBatch(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	for _, q := range []string{"CREATE SCHEMA s1 CREATE TABLE t(id INT)", "CREATE SCHEMA s2 CREATE TABLE t(id INT)", "INSERT INTO s1.t VALUES(7)", "INSERT INTO s2.t VALUES(9)"} {
+		roleExecute(t, e, op, q)
+	}
+	ns := schemaRef(t, e, "s1")
+	table := roleTableRef(t, e, "s1.t")
+	store := e.storage[table.Address]
+	old := e.CatalogRead()
+	roleExecute(t, e, op, "SET search_path TO s1,s2")
+	roleExecute(t, e, op, "ALTER SCHEMA s1 RENAME TO renamed")
+	if got := schemaRef(t, e, "renamed"); got != ns {
+		t.Fatal("rename changed identity", got, ns)
+	}
+	if got := roleTableRef(t, e, "renamed.t"); got != table || e.storage[got.Address] != store {
+		t.Fatal("rename changed table/storage")
+	}
+	if old.state.descriptors[ns.Address].Name() != "s1" {
+		t.Fatal("mutated retained descriptor")
+	}
+	if got := tuples(roleExecute(t, e, op, "SHOW search_path")); !reflect.DeepEqual(got, [][]driver.Value{{"s1, s2"}}) {
+		t.Fatal(got)
+	}
+	schemaFail(t, e, op, "DROP SCHEMA renamed", "2BP01")
+	schemaFail(t, e, op, "DROP SCHEMA renamed,absent CASCADE", "3F000")
+	retained := roleExecute(t, e, op, "SELECT id FROM renamed.t")
+	roleExecute(t, e, op, "DROP SCHEMA renamed,renamed CASCADE")
+	if _, ok := e.storage[table.Address]; ok {
+		t.Fatal("orphan storage")
+	}
+	if got := tuples(retained); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
+		t.Fatal(got)
+	}
+	if got := tuples(roleExecute(t, e, op, "SELECT id FROM s2.t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(9)}}) {
+		t.Fatal(got)
+	}
+	roleExecute(t, e, op, "CREATE SCHEMA renamed")
+	if schemaRef(t, e, "renamed").Address == ns.Address {
+		t.Fatal("reused namespace identity")
+	}
+	notices := op.DetachNotices()
+	if len(notices) != 1 || notices[0].Code != "00000" || notices[0].Message != "drop cascades to table renamed.t" {
+		t.Fatal(notices)
+	}
+	roleExecute(t, e, op, "CREATE SCHEMA IF NOT EXISTS renamed")
+	roleExecute(t, e, op, "DROP SCHEMA IF EXISTS absent")
+	notices = op.DetachNotices()
+	if len(notices) != 2 || notices[0].Code != "42P06" || notices[1].Code != "00000" {
+		t.Fatal(notices)
+	}
+}
+func TestSchemaNamesNestedAtomicity(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	roleExecute(t, e, op, "CREATE USER owner")
+	beforeRole := op.RoleState()
+	roleExecute(t, e, op, `CREATE SCHEMA "dot.schema" AUTHORIZATION owner CREATE TABLE "dot.schema"."t,quote"(id INT) CREATE TABLE u(note TEXT)`)
+	if op.RoleState() != beforeRole {
+		t.Fatal("nested changed caller")
+	}
+	ns := schemaRef(t, e, "dot.schema")
+	owner, _ := e.Roles().Lookup("owner")
+	if e.state.descriptors[ns.Address].(*namespaceDescriptor).owner != owner.Ref {
+		t.Fatal("wrong schema owner")
+	}
+	for _, q := range []string{`"dot.schema"."t,quote"`, `"dot.schema".u`} {
+		if e.state.descriptors[roleTableRef(t, e, q).Address].(*relationDescriptor).owner != owner.Ref {
+			t.Fatal("wrong nested owner")
+		}
+	}
+	for _, tc := range []struct{ q, code string }{{"CREATE SCHEMA fail CREATE TABLE t(id INT) CREATE TABLE t(id INT)", "42P07"}, {"CREATE SCHEMA fail CREATE TABLE other.t(id INT)", "42P15"}, {"CREATE SCHEMA pg_bad", "42939"}} {
+		schemaFail(t, e, op, tc.q, tc.code)
+	}
+	for _, q := range []string{"CREATE SCHEMA fail CREATE TABLE t(id INT) CREATE TABLE u(id unknown_type)", "CREATE SCHEMA fail CREATE VIEW v AS SELECT id FROM t", "CREATE SCHEMA IF NOT EXISTS fail CREATE TABLE t(id INT)", "CREATE SCHEMA fail INSERT INTO t VALUES(1)"} {
+		before := e.CatalogRead()
+		ss, err := parser.Parse(q)
+		if err == nil || ss != nil || e.CatalogRead().state != before.state {
+			t.Fatal("unsupported nested statement", q, ss, err)
+		}
+	}
+	_, err := e.Execute(op, statement(t, "CREATE TABLE absent.t(id INT)"), 0, nil)
+	state(t, err, "3F000")
+	_, err = e.Describe(op, statement(t, "SELECT id FROM absent.t"))
+	state(t, err, "42P01")
+}
+
+func TestSchemaIdentifierNormalization(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	for _, tc := range []struct{ sql, name string }{{"FOLDED", "folded"}, {`"PG_allowed"`, "PG_allowed"}, {`"quote""schema"`, "quote\"schema"}} {
+		roleExecute(t, e, op, "CREATE SCHEMA "+tc.sql+" CREATE TABLE t(id INT)")
+		schemaRef(t, e, tc.name)
+		roleExecute(t, e, op, "INSERT INTO "+tc.sql+".t VALUES(13)")
+		if got := tuples(roleExecute(t, e, op, "SELECT id FROM "+tc.sql+".t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(13)}}) {
+			t.Fatal(tc, got)
+		}
+	}
+	long := strings.Repeat("é", 40)
+	normalized := strings.Repeat("é", 31)
+	roleExecute(t, e, op, `CREATE SCHEMA "`+long+`" CREATE TABLE t(id INT)`)
+	ref := schemaRef(t, e, normalized)
+	if len(e.state.descriptors[ref.Address].Name()) != 62 {
+		t.Fatal("split UTF8 or wrong identifier bound")
+	}
+	roleExecute(t, e, op, `INSERT INTO "`+normalized+`".t VALUES(17)`)
+	roleExecute(t, e, op, `SELECT set_config('search_path','"`+long+`"',false)`)
+	if got := tuples(roleExecute(t, e, op, "SELECT current_schema")); !reflect.DeepEqual(got, [][]driver.Value{{normalized}}) {
+		t.Fatal(got)
+	}
+	if got := tuples(roleExecute(t, e, op, "SELECT id FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(17)}}) {
+		t.Fatal(got)
+	}
+	schemaFail(t, e, op, `CREATE SCHEMA "`+long+`x"`, "42P06")
+}
+
+type schemaDefaults struct{ path string }
+
+func (d *schemaDefaults) SessionDefault(_ context.Context, definition SettingDefinition) (string, bool, error) {
+	if definition.Name == "search_path" {
+		return d.path, true, nil
+	}
+	return "", false, nil
+}
+func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE SCHEMA s1 CREATE TABLE t(id INT)")
+	run(t, e, "CREATE SCHEMA s2 CREATE TABLE t(id INT)")
+	run(t, e, "INSERT INTO s1.t VALUES(7)")
+	run(t, e, "INSERT INTO s2.t VALUES(9)")
+	defaults := &schemaDefaults{path: "s1,s2"}
+	a := sessionStart(t, e, defaults)
+	defaults.path = "s2,s1"
+	b := sessionStart(t, e, defaults)
+	check := func(s *Session, q string, want driver.Value) {
+		t.Helper()
+		got := tuples(sessionSQL(t, s, q))
+		if !reflect.DeepEqual(got, [][]driver.Value{{want}}) {
+			t.Fatal(q, got, want)
+		}
+	}
+	check(a, "SELECT id FROM t", int64(7))
+	check(b, "SELECT id FROM t", int64(9))
+	check(a, "SELECT current_schema()", "s1")
+	sessionSQL(t, a, "SET search_path TO missing,s2,s2,s1")
+	check(a, "SELECT id FROM t", int64(9))
+	check(b, "SELECT current_schema", "s2")
+	sessionSQL(t, a, "RESET search_path")
+	check(a, "SHOW search_path", "s1,s2")
+	sessionSQL(t, a, "SET search_path TO ''")
+	check(a, "SELECT current_schema", nil)
+	op, err := a.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemaFail(t, e, op, "CREATE TABLE no_destination(id INT)", "3F000")
+	_, err = e.Execute(op, statement(t, "SELECT set_config('search_path','s1,',false)"), 0, nil)
+	state(t, err, "22023")
+	op.Done()
+	check(a, "SHOW search_path", `""`)
+	sessionSQL(t, a, "SET search_path TO 's1,'")
+	check(a, "SHOW search_path", `"s1,"`)
+	check(a, "SELECT current_schema", nil)
+	check(a, "SELECT set_config('search_path','',false)", "")
+	check(a, "SHOW search_path", "")
+	check(a, "SELECT current_schema", nil)
+	sessionSQL(t, a, `CREATE SCHEMA "s1," CREATE TABLE t(id INT)`)
+	sessionSQL(t, a, `INSERT INTO "s1,".t VALUES(11)`)
+	sessionSQL(t, a, "SET search_path TO 's1,'")
+	check(a, "SHOW search_path", `"s1,"`)
+	check(a, "SELECT id FROM t", int64(11))
+	check(a, "SELECT id FROM s1.t", int64(7))
+	sessionSQL(t, a, `SET search_path TO "lowercase","A.B",public`)
+	check(a, "SHOW search_path", `lowercase, "A.B", public`)
+	check(a, "SELECT current_schema", "public")
+	for _, raw := range []string{`""`, `"", s2`} {
+		check(a, "SELECT set_config('search_path','"+raw+"',false)", raw)
+		check(a, "SHOW search_path", raw)
+		if raw == `""` {
+			check(a, "SELECT current_schema", nil)
+		} else {
+			check(a, "SELECT current_schema", "s2")
+			check(a, "SELECT id FROM t", int64(9))
+		}
+	}
+	sessionSQL(t, a, "SET search_path TO '',s2")
+	check(a, "SHOW search_path", `"", s2`)
+	check(a, "SELECT id FROM t", int64(9))
+	sessionSQL(t, a, "SET search_path TO s2")
+	op, err = a.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.Execute(op, statement(t, "SELECT set_config('search_path','s1,',false)"), 0, nil)
+	state(t, err, "22023")
+	op.Done()
+	check(a, "SHOW search_path", "s2")
+	check(a, "SELECT current_setting('search_path')", "s2")
+	check(a, "SELECT current_schema", "s2")
+	check(a, "SELECT id FROM t", int64(9))
+	check(b, "SHOW search_path", "s2,s1")
+	check(b, "SELECT id FROM t", int64(9))
+	sessionSQL(t, a, "RESET ALL")
+	check(a, "SHOW search_path", "s1,s2")
+	sessionSQL(t, a, "SET search_path TO pg_temp,public")
+	check(a, "SELECT current_schema", "public")
+	op, err = a.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemaFail(t, e, op, "CREATE TABLE pending(id INT)", "0A000")
+	op.Done()
+	sessionSQL(t, a, "SET search_path TO s1,pg_temp,public")
+	sessionSQL(t, a, "CREATE TABLE earlier(id INT)")
+	roleTableRef(t, e, "s1.earlier")
+	for _, tc := range []struct {
+		input string
+		want  []string
+	}{{`"dot.name", "comma,name", "quote""name"`, []string{"dot.name", "comma,name", "quote\"name"}}, {`"$user", public`, []string{"$user", "public"}}, {`""`, []string{""}}, {`"", s2`, []string{"", "s2"}}, {"", nil}, {`a"b`, []string{`a"b`}}} {
+		got, err := parseSearchPath(tc.input)
+		if err != nil || !reflect.DeepEqual(got, tc.want) {
+			t.Fatal(tc, got, err)
+		}
+	}
+	for _, input := range []string{",", "s1,", `"unterminated`, `a b`} {
+		_, err := parseSearchPath(input)
+		state(t, err, "22023")
+	}
+}
+
+func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
+	e := New()
+	admin, done := roleOperation(t, e, "postgres")
+	defer done()
+	for _, q := range []string{"CREATE USER owner", "CREATE USER reader", "CREATE SCHEMA owned AUTHORIZATION owner CREATE TABLE t(id INT)", "CREATE SCHEMA usable", "CREATE SCHEMA create_only"} {
+		roleExecute(t, e, admin, q)
+	}
+	owner, _ := e.Roles().Lookup("owner")
+	reader, _ := e.Roles().Lookup("reader")
+	roleExecute(t, e, admin, "SET SESSION AUTHORIZATION owner")
+	roleExecute(t, e, admin, "CREATE TABLE owned.u(id INT)")
+	roleExecute(t, e, admin, "INSERT INTO owned.t VALUES(7)")
+	roleError(t, e, admin, "CREATE SCHEMA denied", "42501", "permission denied for database stuntgres", "")
+	roleError(t, e, admin, "ALTER SCHEMA owned RENAME TO renamed", "42501", "permission denied for database stuntgres", "")
+	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO owner")
+	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
+	bootstrap := e.roles.names["postgres"]
+	for _, tc := range []struct {
+		name   string
+		rights Privileges
+	}{{"usable", UsagePrivilege}, {"create_only", CreatePrivilege}} {
+		if err := e.SetObjectACL(context.Background(), schemaRef(t, e, tc.name), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: bootstrap, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: tc.rights}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	roleExecute(t, e, admin, "SET SESSION AUTHORIZATION reader")
+	roleExecute(t, e, admin, "CREATE TABLE create_only.t(id INT)")
+	roleExecute(t, e, admin, "SET search_path TO owned,usable,public")
+	if got := tuples(roleExecute(t, e, admin, "SELECT current_schema")); !reflect.DeepEqual(got, [][]driver.Value{{"usable"}}) {
+		t.Fatal(got)
+	}
+	schemaFail(t, e, admin, "CREATE TABLE no_fallback(id INT)", "42501")
+	roleErrorPosition(t, e, admin, "CREATE TABLE no_fallback(id INT)", "42501", "permission denied for schema usable", "", "14")
+	roleErrorPosition(t, e, admin, "/* é */ CREATE TABLE usable.denied(id INT)", "42501", "permission denied for schema usable", "", "22")
+	roleExecute(t, e, admin, "SET search_path TO ''")
+	roleErrorPosition(t, e, admin, "CREATE TABLE no_destination(id INT)", "3F000", "no schema has been selected to create in", "", "14")
+	roleErrorPosition(t, e, admin, "/* é */ CREATE TABLE no_destination(id INT)", "3F000", "no schema has been selected to create in", "", "22")
+	_, err := e.Describe(admin, statement(t, "SELECT missing FROM owned.t"))
+	state(t, err, "42501")
+	_, err = e.Describe(admin, statement(t, "INSERT INTO create_only.t VALUES('invalid')"))
+	state(t, err, "42501")
+	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
+	table := roleTableRef(t, e, "owned.t")
+	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO reader")
+	if e.state.descriptors[table.Address].(*relationDescriptor).owner != owner.Ref {
+		t.Fatal("schema transfer changed table owner")
+	}
+	schemaFail(t, e, admin, "ALTER SCHEMA owned OWNER TO absent", "42704")
+	var out bytes.Buffer
+	if err = e.Dump(context.Background(), &out); err == nil || out.Len() != 0 {
+		t.Fatal("ACL dump wrote output", err, out.String())
+	}
+	roleExecute(t, e, admin, "SET SESSION AUTHORIZATION reader")
+	roleExecute(t, e, admin, "DROP SCHEMA owned CASCADE")
+}
+
+func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE USER schema_owner")
+	run(t, e, "CREATE USER table_owner")
+	run(t, e, "CREATE USER later_owner")
+	script := `CREATE SCHEMA empty AUTHORIZATION schema_owner; CREATE SCHEMA mixed AUTHORIZATION schema_owner; SET SESSION AUTHORIZATION table_owner; CREATE TABLE mixed.t(id INT NOT NULL,note TEXT,flag BOOL,big BIGINT); INSERT INTO mixed.t VALUES(7,NULL,true,9223372036854775807);`
+	script += `CREATE TABLE mixed.u(id INT); INSERT INTO mixed.u VALUES(8); SET SESSION AUTHORIZATION schema_owner; CREATE TABLE mixed.owned(id INT); INSERT INTO mixed.owned VALUES(9); SET SESSION AUTHORIZATION table_owner; CREATE TABLE mixed.more(id INT); INSERT INTO mixed.more VALUES(11); SET SESSION AUTHORIZATION later_owner; CREATE TABLE mixed.v(id INT); INSERT INTO mixed.v VALUES(9);`
+	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
+		t.Fatal(err)
+	}
+	ns := schemaRef(t, e, "mixed")
+	table := roleTableRef(t, e, "mixed.t")
+	owner, _ := e.Roles().Lookup("schema_owner")
+	tableOwner, _ := e.Roles().Lookup("table_owner")
+	laterOwner, _ := e.Roles().Lookup("later_owner")
+	rolesBefore := e.roles
+	s := sessionStart(t, e, nil)
+	sessionSQL(t, s, "SET search_path TO mixed")
+	if d := e.state.descriptors[ns.Address].(*namespaceDescriptor); d.owner != owner.Ref || d.acl.Explicit {
+		t.Fatal("schema authority/ACL", d)
+	}
+	if d := e.state.descriptors[table.Address].(*relationDescriptor); d.owner != tableOwner.Ref || d.acl.Explicit {
+		t.Fatal("table authority/ACL", d)
+	}
+	for _, tc := range []struct {
+		name  string
+		owner PrincipalRef
+	}{{"mixed.u", tableOwner.Ref}, {"mixed.v", laterOwner.Ref}, {"mixed.owned", owner.Ref}, {"mixed.more", tableOwner.Ref}} {
+		d := e.state.descriptors[roleTableRef(t, e, tc.name).Address].(*relationDescriptor)
+		if d.owner != tc.owner || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
+			t.Fatal("owner grouping leaked insertion authority/ACL", d)
+		}
+	}
+	assertMixed := func() {
+		t.Helper()
+		ns := schemaRef(t, e, "mixed")
+		empty := schemaRef(t, e, "empty")
+		for _, a := range []ObjectAddress{ns.Address, empty.Address} {
+			d := e.state.descriptors[a].(*namespaceDescriptor)
+			if d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
+				t.Fatal("namespace owner/ACL", d)
+			}
+		}
+		d := e.state.descriptors[roleTableRef(t, e, "mixed.t").Address].(*relationDescriptor)
+		if d.owner != tableOwner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
+			t.Fatal("table owner/ACL", d)
+		}
+		result := run(t, e, "SELECT * FROM mixed.t")
+		names := []string{"id", "note", "flag", "big"}
+		types := []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Bool, sqltype.Int8}
+		if len(result.Columns) != len(names) {
+			t.Fatal("mixed metadata width", result.Columns)
+		}
+		for i, c := range result.Columns {
+			if c.Name != names[i] || c.Usage.Type.ID() != types[i] || !c.NullabilityKnown || c.Nullable != (i != 0) {
+				t.Fatal("mixed metadata", result.Columns)
+			}
+		}
+		if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(7), nil, true, int64(9223372036854775807)}}) {
+			t.Fatal(got)
+		}
+	}
+	assertMixed()
+	held := run(t, e, "SELECT * FROM mixed.t")
+	var dump bytes.Buffer
+	if err := e.Dump(context.Background(), &dump); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(dump.String(), `CREATE SCHEMA "empty" AUTHORIZATION "schema_owner";`) {
+		t.Fatal(dump.String())
+	}
+	before := e.CatalogRead()
+	for _, bad := range []string{"CREATE SCHEMA x AUTHORIZATION absent;", "CREATE SCHEMA x AUTHORIZATION schema_owner; SET SESSION AUTHORIZATION table_owner; CREATE TABLE x.t(id INT); INSERT INTO x.t VALUES(17); INSERT INTO missing VALUES(1);", "CREATE SCHEMA x; CREATE TABLE x.t(id INT); CREATE TABLE x.t(id INT);"} {
+		if err := e.Restore(context.Background(), strings.NewReader(bad)); err == nil || e.CatalogRead().state != before.state {
+			t.Fatal("failed restore changed target", bad, err)
+		}
+	}
+	if err := e.Reset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	fresh := roleTableRef(t, e, "mixed.t")
+	if fresh.Epoch == table.Epoch {
+		t.Fatal("replacement reused epoch")
+	}
+	if d := e.state.descriptors[schemaRef(t, e, "mixed").Address].(*namespaceDescriptor); d.owner != owner.Ref || d.acl.Explicit || len(d.acl.Entries) != 0 {
+		t.Fatal("roundtrip schema owner/ACL", d)
+	}
+	for _, tc := range []struct {
+		name  string
+		owner PrincipalRef
+		value int64
+	}{{"mixed.u", tableOwner.Ref, 8}, {"mixed.v", laterOwner.Ref, 9}, {"mixed.owned", owner.Ref, 9}, {"mixed.more", tableOwner.Ref, 11}} {
+		d := e.state.descriptors[roleTableRef(t, e, tc.name).Address].(*relationDescriptor)
+		if d.owner != tc.owner || d.acl.Explicit || len(d.acl.Entries) != 0 || len(d.columnACL) != 0 {
+			t.Fatal("roundtrip owner/ACL", d)
+		}
+		if got := tuples(run(t, e, "SELECT id FROM "+tc.name)); !reflect.DeepEqual(got, [][]driver.Value{{tc.value}}) {
+			t.Fatal(got)
+		}
+	}
+	assertMixed()
+	if e.roles != rolesBefore {
+		t.Fatal("controls changed captured roles")
+	}
+	if got := tuples(sessionSQL(t, s, "SHOW search_path")); !reflect.DeepEqual(got, [][]driver.Value{{"mixed"}}) {
+		t.Fatal("controls changed path", got)
+	}
+	if got := tuples(held); !reflect.DeepEqual(got, [][]driver.Value{{int64(7), nil, true, int64(9223372036854775807)}}) {
+		t.Fatal(got)
+	}
+	op, done := roleOperation(t, e, "table_owner")
+	defer done()
+	schemaFail(t, e, op, "CREATE TABLE mixed.denied(id INT)", "42501")
+	_, err := e.Describe(op, statement(t, "SELECT id FROM mixed.t"))
+	state(t, err, "42501")
+	_, err = e.Describe(op, statement(t, "INSERT INTO mixed.t VALUES(19,NULL,true,1)"))
+	state(t, err, "42501")
+	schemaFail(t, e, op, "INSERT INTO mixed.t VALUES(19,NULL,true,1)", "42501")
+}
+
+func TestSchemaPreparedSignatureBeforeImporter(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	for _, q := range []string{"CREATE SCHEMA s1 CREATE TABLE t(id INT)", "CREATE SCHEMA s2 CREATE TABLE t(id TEXT)", "SET search_path TO s1"} {
+		roleExecute(t, e, op, q)
+	}
+	ast := statement(t, "INSERT INTO t VALUES($1)")
+	expected, err := e.Describe(op, ast)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roleExecute(t, e, op, "SET search_path TO s2")
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope.Expected = &expected
+	called := false
+	_, err = scope.Execute(ast, 1, func(context.Context, ParameterInfo, []sqltype.Value) error { called = true; return nil })
+	if finish := scope.Finish(err); finish == nil || called {
+		t.Fatal("signature imported or succeeded", finish, called)
+	}
+	var diagnostic *sqlstate.Error
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cached plan must not change parameter type"}
+	if !errors.As(err, &diagnostic) || *diagnostic != want {
+		t.Fatalf("diagnostic %#v (%v) want %#v", diagnostic, err, want)
+	}
+	if got := tuples(roleExecute(t, e, op, "SELECT * FROM s2.t")); len(got) != 0 {
+		t.Fatal(got)
+	}
+}
