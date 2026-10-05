@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"context"
@@ -8,20 +8,19 @@ import (
 	"fmt"
 	"math"
 	"math/big"
-	"os"
 	"reflect"
 	"strings"
 	"stuntgres"
+	"testing"
 	"time"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestSettingsSmoke(t *testing.T) {
+	if err := settingsRun(); err != nil {
+		t.Fatal(err)
 	}
 }
-func definitions() []stuntgres.SettingDefinition {
+func settingsDefinitions() []stuntgres.SettingDefinition {
 	return []stuntgres.SettingDefinition{
 		{Name: "demo.flag", Type: stuntgres.SettingBoolean, Default: "off", Description: "flag"},
 		{Name: "demo.text", Type: stuntgres.SettingString, Default: "seed", Description: "text"},
@@ -38,7 +37,7 @@ func definitions() []stuntgres.SettingDefinition {
 		{Name: "edge.real", Type: stuntgres.SettingFloating, Default: "0", FloatMin: -200, FloatMax: 200, Description: "real prefix"},
 	}
 }
-func command(ctx context.Context, c *sql.Conn, q string, prepared bool, count int64, args ...any) error {
+func settingsCommand(ctx context.Context, c *sql.Conn, q string, prepared bool, count int64, args ...any) error {
 	var r sql.Result
 	var err error
 	if prepared {
@@ -63,7 +62,7 @@ func command(ctx context.Context, c *sql.Conn, q string, prepared bool, count in
 	}
 	return nil
 }
-func scalar(ctx context.Context, c *sql.Conn, q, column string, want any, prepared bool, args ...any) error {
+func settingsScalar(ctx context.Context, c *sql.Conn, q, column string, want any, prepared bool, args ...any) error {
 	var r *sql.Rows
 	var err error
 	if prepared {
@@ -110,22 +109,22 @@ func scalar(ctx context.Context, c *sql.Conn, q, column string, want any, prepar
 	}
 	return r.Close()
 }
-func diagnostic(err error, code, message, hint string) error {
-	return fullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Hint: hint})
+func settingsDiagnostic(err error, code, message, hint string) error {
+	return settingsFullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Hint: hint})
 }
-func fullDiagnostic(err error, want stuntgres.Error) error {
+func settingsFullDiagnostic(err error, want stuntgres.Error) error {
 	var d *stuntgres.Error
 	if !errors.As(err, &d) || *d != want {
 		return fmt.Errorf("diagnostic got %#v (%v) want %#v", d, err, want)
 	}
 	return nil
 }
-func identity(c *sql.Conn) (any, error) {
+func settingsIdentity(c *sql.Conn) (any, error) {
 	var v any
 	err := c.Raw(func(raw any) error { v = raw; return nil })
 	return v, err
 }
-func sentinel(ctx context.Context, c *sql.Conn) error {
+func settingsSentinel(ctx context.Context, c *sql.Conn) error {
 	rows, err := c.QueryContext(ctx, "SELECT v FROM sentinel")
 	if err != nil {
 		return err
@@ -143,7 +142,7 @@ func sentinel(ctx context.Context, c *sql.Conn) error {
 	}
 	return nil
 }
-func exactDecimalSubnormal(ctx context.Context) error {
+func settingsExactDecimalSubnormal(ctx context.Context) error {
 	digits := new(big.Int).Exp(big.NewInt(5), big.NewInt(1023), nil)
 	exact := digits.String() + "e-1023"
 	inexact := new(big.Int).Add(digits, big.NewInt(1)).String() + "e-1023"
@@ -163,50 +162,49 @@ func exactDecimalSubnormal(ctx context.Context) error {
 	}
 	defer c.Close()
 	for _, prepared := range []bool{false, true} {
-		if err = scalar(ctx, c, "SHOW demo.exact", "demo.exact", "1.11254e-308", prepared); err != nil {
+		if err = settingsScalar(ctx, c, "SHOW demo.exact", "demo.exact", "1.11254e-308", prepared); err != nil {
 			return err
 		}
-		if err = command(ctx, c, "SET demo.exact TO '"+exact+"'", prepared, 0); err != nil {
+		if err = settingsCommand(ctx, c, "SET demo.exact TO '"+exact+"'", prepared, 0); err != nil {
 			return err
 		}
-		if err = scalar(ctx, c, "SHOW demo.exact", "demo.exact", "1.11254e-308", prepared); err != nil {
+		if err = settingsScalar(ctx, c, "SHOW demo.exact", "demo.exact", "1.11254e-308", prepared); err != nil {
 			return err
 		}
-		if err = scalar(ctx, c, "SELECT set_config($1,$2,false)", "set_config", "1.11254e-308", prepared, "demo.exact", exact); err != nil {
+		if err = settingsScalar(ctx, c, "SELECT set_config($1,$2,false)", "set_config", "1.11254e-308", prepared, "demo.exact", exact); err != nil {
 			return err
 		}
 		for _, input := range []string{inexact, "1e-320", "1e-999"} {
 			for _, q := range []string{"SET demo.exact TO '" + input + "'", "SELECT set_config('demo.exact','" + input + "',false)"} {
-				e := command(ctx, c, q, prepared, 0)
-				if err = diagnostic(e, "22023", `invalid value for parameter "demo.exact": "`+input+`"`, ""); err != nil {
+				e := settingsCommand(ctx, c, q, prepared, 0)
+				if err = settingsDiagnostic(e, "22023", `invalid value for parameter "demo.exact": "`+input+`"`, ""); err != nil {
 					return err
 				}
-				if err = scalar(ctx, c, "SHOW demo.exact", "demo.exact", "1.11254e-308", prepared); err != nil {
+				if err = settingsScalar(ctx, c, "SHOW demo.exact", "demo.exact", "1.11254e-308", prepared); err != nil {
 					return err
 				}
 			}
 		}
-		if err = command(ctx, c, "SET demo.exact TO '1'", prepared, 0); err != nil {
+		if err = settingsCommand(ctx, c, "SET demo.exact TO '1'", prepared, 0); err != nil {
 			return err
 		}
-		if err = command(ctx, c, "RESET demo.exact", prepared, 0); err != nil {
+		if err = settingsCommand(ctx, c, "RESET demo.exact", prepared, 0); err != nil {
 			return err
 		}
-		if err = scalar(ctx, c, "SHOW demo.exact", "demo.exact", "1.11254e-308", prepared); err != nil {
+		if err = settingsScalar(ctx, c, "SHOW demo.exact", "demo.exact", "1.11254e-308", prepared); err != nil {
 			return err
 		}
 	}
-	fmt.Println("settings exact decimal subnormal: SET set_config defaults=1.11254e-308, underflow rejected")
 	return nil
 }
-func run() error {
+func settingsRun() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	if err := exactDecimalSubnormal(ctx); err != nil {
+	if err := settingsExactDecimalSubnormal(ctx); err != nil {
 		return err
 	}
 	d := stuntgres.NewDriver()
-	for _, v := range definitions() {
+	for _, v := range settingsDefinitions() {
 		if err := d.RegisterSetting(v); err != nil {
 			return err
 		}
@@ -255,10 +253,10 @@ func run() error {
 	if len(notices) != 0 {
 		return errors.New("default initialization emitted a notice")
 	}
-	if err = command(ctx, a, "CREATE TABLE sentinel(v INT NOT NULL)", false, 0); err != nil {
+	if err = settingsCommand(ctx, a, "CREATE TABLE sentinel(v INT NOT NULL)", false, 0); err != nil {
 		return err
 	}
-	if err = command(ctx, a, "INSERT INTO sentinel VALUES(7)", false, 1); err != nil {
+	if err = settingsCommand(ctx, a, "INSERT INTO sentinel VALUES(7)", false, 1); err != nil {
 		return err
 	}
 	for _, prepared := range []bool{false, true} {
@@ -268,16 +266,16 @@ func run() error {
 			{"edge.count", "010", "8"}, {"edge.count", "0xA", "10"}, {"edge.count", "010.5", "10"}, {"edge.count", "010e1", "100"}, {"edge.count", "0x1.8p1", "3"}, {"edge.count", ".5", "0"}, {"edge.count", "9223372036854775808e-18", "9"},
 			{"edge.real", "010", "10"}, {"edge.real", "08.5", "8.5"}, {"edge.real", "0x1p0", "1"}, {"edge.real", "-.5", "-0.5"}, {"edge.real", " .5", "0.5"}, {"edge.real", "0e-999", "0"}, {"edge.real", "0x1p-1074", "4.94066e-324"},
 		} {
-			if err = command(ctx, a, "SET "+strings.ToUpper(tc.name)+" TO '"+tc.input+"'", prepared, 0); err != nil {
+			if err = settingsCommand(ctx, a, "SET "+strings.ToUpper(tc.name)+" TO '"+tc.input+"'", prepared, 0); err != nil {
 				return err
 			}
-			if err = scalar(ctx, a, "SHOW "+tc.name, tc.name, tc.want, prepared); err != nil {
+			if err = settingsScalar(ctx, a, "SHOW "+tc.name, tc.name, tc.want, prepared); err != nil {
 				return err
 			}
-			if err = scalar(ctx, a, "SELECT current_setting($1)", "current_setting", tc.want, prepared, tc.name); err != nil {
+			if err = settingsScalar(ctx, a, "SELECT current_setting($1)", "current_setting", tc.want, prepared, tc.name); err != nil {
 				return err
 			}
-			if err = scalar(ctx, a, "SELECT set_config($1,$2,$3)", "set_config", tc.want, prepared, tc.name, tc.input, false); err != nil {
+			if err = settingsScalar(ctx, a, "SELECT set_config($1,$2,$3)", "set_config", tc.want, prepared, tc.name, tc.input, false); err != nil {
 				return err
 			}
 		}
@@ -289,14 +287,14 @@ func run() error {
 				inputs = append(inputs, "1e-320", "0x1.1p-1074")
 			}
 			for _, input := range inputs {
-				if err = scalar(ctx, a, "SELECT set_config($1,'1',false)", "set_config", "1", prepared, name); err != nil {
+				if err = settingsScalar(ctx, a, "SELECT set_config($1,'1',false)", "set_config", "1", prepared, name); err != nil {
 					return err
 				}
-				e := command(ctx, a, "SELECT set_config($1,$2,false)", prepared, 1, name, input)
-				if err = diagnostic(e, "22023", `invalid value for parameter "`+name+`": "`+input+`"`, ""); err != nil {
+				e := settingsCommand(ctx, a, "SELECT set_config($1,$2,false)", prepared, 1, name, input)
+				if err = settingsDiagnostic(e, "22023", `invalid value for parameter "`+name+`": "`+input+`"`, ""); err != nil {
 					return err
 				}
-				if err = scalar(ctx, a, "SHOW "+name, name, "1", prepared); err != nil {
+				if err = settingsScalar(ctx, a, "SHOW "+name, name, "1", prepared); err != nil {
 					return err
 				}
 			}
@@ -306,39 +304,39 @@ func run() error {
 			if input == "-inf" {
 				prefix = "-Infinity"
 			}
-			e := command(ctx, a, "SELECT set_config('demo.ratio',$1,false)", prepared, 1, input)
-			if err = diagnostic(e, "22023", prefix+` is outside the valid range for parameter "demo.ratio" (0 .. 10)`, ""); err != nil {
+			e := settingsCommand(ctx, a, "SELECT set_config('demo.ratio',$1,false)", prepared, 1, input)
+			if err = settingsDiagnostic(e, "22023", prefix+` is outside the valid range for parameter "demo.ratio" (0 .. 10)`, ""); err != nil {
 				return err
 			}
-			if err = scalar(ctx, a, "SHOW demo.ratio", "demo.ratio", "2.12346", prepared); err != nil {
+			if err = settingsScalar(ctx, a, "SHOW demo.ratio", "demo.ratio", "2.12346", prepared); err != nil {
 				return err
 			}
 		}
-		if err = command(ctx, a, "RESET ALL", prepared, 0); err != nil {
+		if err = settingsCommand(ctx, a, "RESET ALL", prepared, 0); err != nil {
 			return err
 		}
-		if err = scalar(ctx, a, "SELECT current_setting(NULL)", "current_setting", nil, prepared); err != nil {
+		if err = settingsScalar(ctx, a, "SELECT current_setting(NULL)", "current_setting", nil, prepared); err != nil {
 			return err
 		}
-		if err = scalar(ctx, a, "SELECT set_config('demo.text',NULL,NULL)", "set_config", "seed", prepared); err != nil {
+		if err = settingsScalar(ctx, a, "SELECT set_config('demo.text',NULL,NULL)", "set_config", "seed", prepared); err != nil {
 			return err
 		}
-		if err = command(ctx, a, "SELECT current_setting('demo.text')", prepared, 1); err != nil {
+		if err = settingsCommand(ctx, a, "SELECT current_setting('demo.text')", prepared, 1); err != nil {
 			return err
 		}
-		e := command(ctx, a, "SELECT set_config($1,$2,$3)", prepared, 1, "application_name", "changed", "maybe")
-		if err = diagnostic(e, "22P02", `invalid input syntax for type boolean: "maybe"`, ""); err != nil {
+		e := settingsCommand(ctx, a, "SELECT set_config($1,$2,$3)", prepared, 1, "application_name", "changed", "maybe")
+		if err = settingsDiagnostic(e, "22P02", `invalid input syntax for type boolean: "maybe"`, ""); err != nil {
 			return err
 		}
 	}
-	if err = scalar(ctx, b, "SHOW demo.text", "demo.text", "seed", false); err != nil {
+	if err = settingsScalar(ctx, b, "SHOW demo.text", "demo.text", "seed", false); err != nil {
 		return err
 	}
 	_, err = a.ExecContext(ctx, "SET demo.count TO '11'")
-	if err = diagnostic(err, "22023", `11 is outside the valid range for parameter "demo.count" (-10 .. 10)`, ""); err != nil {
+	if err = settingsDiagnostic(err, "22023", `11 is outside the valid range for parameter "demo.count" (-10 .. 10)`, ""); err != nil {
 		return err
 	}
-	if err = command(ctx, a, "SET demo.placeholder TO private", true, 0); err != nil {
+	if err = settingsCommand(ctx, a, "SET demo.placeholder TO private", true, 0); err != nil {
 		return err
 	}
 	rows, err := a.QueryContext(ctx, "SHOW ALL")
@@ -357,7 +355,7 @@ func run() error {
 		"log_statement_stats": {"off", "Writes cumulative performance statistics to the server log."}, "server_encoding": {"UTF8", "Shows the server (database) character set encoding."},
 		"standard_conforming_strings": {"on", "Causes '...' strings to treat backslashes literally."}, "statement_timeout": {"0", "Sets the maximum allowed duration of any statement."},
 	}
-	for _, v := range definitions() {
+	for _, v := range settingsDefinitions() {
 		value := v.Default
 		switch v.Name {
 		case "demo.memory":
@@ -394,14 +392,14 @@ func run() error {
 	notice := stuntgres.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: `identifier "` + original + `" will be truncated to "` + clipped + `"`}
 	for _, prepared := range []bool{false, true} {
 		for _, threshold := range []string{"notice", "warning", "error"} {
-			if err = command(ctx, a, "SET client_min_messages TO "+threshold, false, 0); err != nil {
+			if err = settingsCommand(ctx, a, "SET client_min_messages TO "+threshold, false, 0); err != nil {
 				return err
 			}
 			before := len(notices)
-			if err = command(ctx, a, "SET application_name TO '"+original+"'", prepared, 0); err != nil {
+			if err = settingsCommand(ctx, a, "SET application_name TO '"+original+"'", prepared, 0); err != nil {
 				return err
 			}
-			if err = scalar(ctx, a, "SELECT set_config($1,$2,false)", "set_config", clipped, prepared, "application_name", original); err != nil {
+			if err = settingsScalar(ctx, a, "SELECT set_config($1,$2,false)", "set_config", clipped, prepared, "application_name", original); err != nil {
 				return err
 			}
 			count := 0
@@ -416,61 +414,55 @@ func run() error {
 					return fmt.Errorf("notice %#v want %#v", n, notice)
 				}
 			}
-			if err = scalar(ctx, a, "SHOW application_name", "application_name", clipped, false); err != nil {
+			if err = settingsScalar(ctx, a, "SHOW application_name", "application_name", clipped, false); err != nil {
 				return err
 			}
 		}
 	}
-	if err = command(ctx, a, "RESET client_min_messages", false, 0); err != nil {
+	if err = settingsCommand(ctx, a, "RESET client_min_messages", false, 0); err != nil {
 		return err
 	}
 	before := len(notices)
 	for _, q := range []string{"SET application_name TO DEFAULT", "RESET application_name"} {
-		if err = command(ctx, a, q, true, 0); err != nil {
+		if err = settingsCommand(ctx, a, q, true, 0); err != nil {
 			return err
 		}
 	}
-	if err = scalar(ctx, a, "SELECT set_config('application_name',NULL,false)", "set_config", "", true); err != nil {
+	if err = settingsScalar(ctx, a, "SELECT set_config('application_name',NULL,false)", "set_config", "", true); err != nil {
 		return err
 	}
 	if len(notices) != before {
 		return errors.New("default reset emitted notice")
 	}
-	if err = defaultsAndUnitFailures(ctx, a); err != nil {
+	if err = settingsDefaultsAndUnitFailures(ctx, a); err != nil {
 		return err
 	}
-	fmt.Println("typed settings: bool string integer floating enum")
-	fmt.Println("setting units and bounds: normalized")
-	fmt.Println("settings SQL: SET RESET SHOW SHOW ALL current_setting set_config")
-	if err = parserMode(ctx, a); err != nil {
+	if err = settingsParserMode(ctx, a); err != nil {
 		return err
 	}
-	fmt.Println("settings parser mode: captured at prepare")
-	if err = timeoutStages(ctx, a, b); err != nil {
+	if err = settingsTimeoutStages(ctx, a, b); err != nil {
 		return err
 	}
-	fmt.Println("settings timeout: 57014, session healthy")
 	for _, tc := range []struct{ q, code, message string }{{"RESET server_encoding", "55P02", `parameter "server_encoding" cannot be changed`}, {"SET log_statement_stats TO garbage", "42501", `permission denied to set parameter "log_statement_stats"`}, {"SELECT set_config('demo.text','lost',true)", "0A000", "transaction-local settings are unsupported"}} {
 		_, err = a.ExecContext(ctx, tc.q)
-		if err = diagnostic(err, tc.code, tc.message, ""); err != nil {
+		if err = settingsDiagnostic(err, tc.code, tc.message, ""); err != nil {
 			return err
 		}
 	}
 	_, err = a.ExecContext(ctx, "SET LOCAL demo.text TO lost")
-	if err = fullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "transaction-local settings are unsupported", Position: "5"}); err != nil {
+	if err = settingsFullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "transaction-local settings are unsupported", Position: "5"}); err != nil {
 		return err
 	}
-	if err = transactionSettings(ctx, a); err != nil {
+	if err = settingsTransactionSettings(ctx, a); err != nil {
 		return err
 	}
-	if err = authenticatedAccess(ctx, d, a); err != nil {
+	if err = settingsAuthenticatedAccess(ctx, d, a); err != nil {
 		return err
 	}
-	fmt.Println("settings access: 55P02 42501, unsupported local=0A000")
-	if err = command(ctx, a, "SET demo.text TO retained", false, 0); err != nil {
+	if err = settingsCommand(ctx, a, "SET demo.text TO retained", false, 0); err != nil {
 		return err
 	}
-	beforeID, err := identity(a)
+	beforeID, err := settingsIdentity(a)
 	if err != nil {
 		return err
 	}
@@ -479,11 +471,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	afterID, err := identity(a)
+	afterID, err := settingsIdentity(a)
 	if err != nil || afterID != beforeID {
 		return fmt.Errorf("reuse identity %v", err)
 	}
-	if err = scalar(ctx, a, "SHOW demo.text", "demo.text", "retained", false); err != nil {
+	if err = settingsScalar(ctx, a, "SHOW demo.text", "demo.text", "retained", false); err != nil {
 		return err
 	}
 	if err = a.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
@@ -494,28 +486,27 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	afterID, err = identity(a)
+	afterID, err = settingsIdentity(a)
 	if err != nil || afterID == beforeID {
 		return fmt.Errorf("replacement identity %v", err)
 	}
-	if err = scalar(ctx, a, "SHOW demo.text", "demo.text", "seed", false); err != nil {
+	if err = settingsScalar(ctx, a, "SHOW demo.text", "demo.text", "seed", false); err != nil {
 		return err
 	}
 	_, err = a.ExecContext(ctx, "SHOW demo.placeholder")
-	if err = diagnostic(err, "42704", `unrecognized configuration parameter "demo.placeholder"`, ""); err != nil {
+	if err = settingsDiagnostic(err, "42704", `unrecognized configuration parameter "demo.placeholder"`, ""); err != nil {
 		return err
 	}
-	if err = scalar(ctx, b, "SHOW demo.text", "demo.text", "seed", false); err != nil {
+	if err = settingsScalar(ctx, b, "SHOW demo.text", "demo.text", "seed", false); err != nil {
 		return err
 	}
-	if err = sentinel(ctx, a); err != nil {
+	if err = settingsSentinel(ctx, a); err != nil {
 		return err
 	}
-	fmt.Println("settings lifecycle: reuse retained, replacement defaults, data=7")
 	return nil
 }
-func parserMode(ctx context.Context, c *sql.Conn) error {
-	if err := command(ctx, c, "CREATE TABLE literals(id INT,v TEXT)", false, 0); err != nil {
+func settingsParserMode(ctx context.Context, c *sql.Conn) error {
+	if err := settingsCommand(ctx, c, "CREATE TABLE literals(id INT,v TEXT)", false, 0); err != nil {
 		return err
 	}
 	captured, err := c.PrepareContext(ctx, `INSERT INTO literals VALUES(1,U&'\0061')`)
@@ -533,7 +524,7 @@ func parserMode(ctx context.Context, c *sql.Conn) error {
 		return err
 	}
 	defer call.Close()
-	if err = command(ctx, c, "SET standard_conforming_strings TO off", false, 0); err != nil {
+	if err = settingsCommand(ctx, c, "SET standard_conforming_strings TO off", false, 0); err != nil {
 		return err
 	}
 	for _, tc := range []struct{ q, position string }{{`SET application_name TO U&'\0061'`, "25"}, {`SELECT current_setting(U&'application_name')`, "24"}, {`SET application_name TO U&'\ZZZZ' UESCAPE '0'`, "25"}, {`SET application_name TO U&'unterminated`, "25"}, {`/*é*/ SET application_name TO U&'\0061'`, "31"}, {`INSERT INTO literals VALUES(9,U&'\0061')`, "31"}} {
@@ -548,27 +539,27 @@ func parserMode(ctx context.Context, c *sql.Conn) error {
 			} else {
 				_, err = c.ExecContext(ctx, tc.q)
 			}
-			if err = fullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsafe use of string constant with Unicode escapes", Detail: `String constants with Unicode escapes cannot be used when "standard_conforming_strings" is off.`, Position: tc.position}); err != nil {
+			if err = settingsFullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsafe use of string constant with Unicode escapes", Detail: `String constants with Unicode escapes cannot be used when "standard_conforming_strings" is off.`, Position: tc.position}); err != nil {
 				return err
 			}
-			if err = scalar(ctx, c, "SHOW application_name", "application_name", "", false); err != nil {
+			if err = settingsScalar(ctx, c, "SHOW application_name", "application_name", "", false); err != nil {
 				return err
 			}
 		}
 	}
-	if err = command(ctx, c, `SET U&"application_name" TO 'x'`, false, 0); err != nil {
+	if err = settingsCommand(ctx, c, `SET U&"application_name" TO 'x'`, false, 0); err != nil {
 		return err
 	}
-	if err = command(ctx, c, `SET application_name TO E'a\nb'`, false, 0); err != nil {
+	if err = settingsCommand(ctx, c, `SET application_name TO E'a\nb'`, false, 0); err != nil {
 		return err
 	}
-	if err = scalar(ctx, c, "SHOW application_name", "application_name", `a\x0ab`, false); err != nil {
+	if err = settingsScalar(ctx, c, "SHOW application_name", "application_name", `a\x0ab`, false); err != nil {
 		return err
 	}
-	if err = command(ctx, c, `SET application_name TO $$a\nb$$`, false, 0); err != nil {
+	if err = settingsCommand(ctx, c, `SET application_name TO $$a\nb$$`, false, 0); err != nil {
 		return err
 	}
-	if err = scalar(ctx, c, "SHOW application_name", "application_name", `a\nb`, false); err != nil {
+	if err = settingsScalar(ctx, c, "SHOW application_name", "application_name", `a\nb`, false); err != nil {
 		return err
 	}
 	for _, s := range []*sql.Stmt{setting, call, captured} {
@@ -576,7 +567,7 @@ func parserMode(ctx context.Context, c *sql.Conn) error {
 			return err
 		}
 	}
-	if err = scalar(ctx, c, "SHOW application_name", "application_name", "a", false); err != nil {
+	if err = settingsScalar(ctx, c, "SHOW application_name", "application_name", "a", false); err != nil {
 		return err
 	}
 	off, err := c.PrepareContext(ctx, `INSERT INTO literals VALUES(2,'a\nb')`)
@@ -584,18 +575,18 @@ func parserMode(ctx context.Context, c *sql.Conn) error {
 		return err
 	}
 	defer off.Close()
-	if err = command(ctx, c, "SET standard_conforming_strings TO on", false, 0); err != nil {
+	if err = settingsCommand(ctx, c, "SET standard_conforming_strings TO on", false, 0); err != nil {
 		return err
 	}
 	if _, err = off.ExecContext(ctx); err != nil {
 		return err
 	}
-	if err = scalar(ctx, c, "SELECT v FROM literals WHERE id=1", "v", "a", false); err != nil {
+	if err = settingsScalar(ctx, c, "SELECT v FROM literals WHERE id=1", "v", "a", false); err != nil {
 		return err
 	}
-	return scalar(ctx, c, "SELECT v FROM literals WHERE id=2", "v", "a\nb", false)
+	return settingsScalar(ctx, c, "SELECT v FROM literals WHERE id=2", "v", "a\nb", false)
 }
-func timeoutStages(ctx context.Context, a, b *sql.Conn) error {
+func settingsTimeoutStages(ctx context.Context, a, b *sql.Conn) error {
 	retained, err := a.QueryContext(ctx, "SELECT v FROM sentinel")
 	if err != nil {
 		return err
@@ -614,7 +605,7 @@ func timeoutStages(ctx context.Context, a, b *sql.Conn) error {
 					return err
 				}
 			}
-			if err = command(ctx, a, "SET statement_timeout TO '1ms'", false, 0); err != nil {
+			if err = settingsCommand(ctx, a, "SET statement_timeout TO '1ms'", false, 0); err != nil {
 				return err
 			}
 			switch stage {
@@ -630,7 +621,7 @@ func timeoutStages(ctx context.Context, a, b *sql.Conn) error {
 			}
 			var d *stuntgres.Error
 			if errors.As(err, &d) && d.Code == "57014" {
-				if err = diagnostic(err, "57014", "canceling statement due to statement timeout", ""); err != nil {
+				if err = settingsDiagnostic(err, "57014", "canceling statement due to statement timeout", ""); err != nil {
 					return err
 				}
 				timedOut = true
@@ -641,10 +632,10 @@ func timeoutStages(ctx context.Context, a, b *sql.Conn) error {
 			} else if !errors.As(err, &d) || d.Code != "23502" {
 				return fmt.Errorf("timeout %s unexpected %v", stage, err)
 			}
-			if err = command(ctx, a, "RESET statement_timeout", false, 0); err != nil {
+			if err = settingsCommand(ctx, a, "RESET statement_timeout", false, 0); err != nil {
 				return err
 			}
-			if err = sentinel(ctx, a); err != nil {
+			if err = settingsSentinel(ctx, a); err != nil {
 				return err
 			}
 			if timedOut {
@@ -654,7 +645,7 @@ func timeoutStages(ctx context.Context, a, b *sql.Conn) error {
 		if !timedOut {
 			return fmt.Errorf("bounded real %s workload did not time out", stage)
 		}
-		if err = scalar(ctx, b, "SHOW statement_timeout", "statement_timeout", "0", false); err != nil {
+		if err = settingsScalar(ctx, b, "SHOW statement_timeout", "statement_timeout", "0", false); err != nil {
 			return err
 		}
 	}
@@ -674,12 +665,12 @@ func timeoutStages(ctx context.Context, a, b *sql.Conn) error {
 	if !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("caller cancellation %v", err)
 	}
-	return scalar(ctx, a, "SHOW statement_timeout", "statement_timeout", "0", false)
+	return settingsScalar(ctx, a, "SHOW statement_timeout", "statement_timeout", "0", false)
 }
 
-func defaultsAndUnitFailures(ctx context.Context, c *sql.Conn) error {
+func settingsDefaultsAndUnitFailures(ctx context.Context, c *sql.Conn) error {
 	for _, prepared := range []bool{false, true} {
-		for _, def := range definitions() {
+		for _, def := range settingsDefinitions() {
 			want := def.Default
 			switch def.Name {
 			case "demo.memory":
@@ -690,17 +681,17 @@ func defaultsAndUnitFailures(ctx context.Context, c *sql.Conn) error {
 				want = "1s"
 			}
 			if def.Access == stuntgres.SettingSession {
-				if err := command(ctx, c, "SET "+def.Name+" TO DEFAULT", prepared, 0); err != nil {
+				if err := settingsCommand(ctx, c, "SET "+def.Name+" TO DEFAULT", prepared, 0); err != nil {
 					return err
 				}
-				if err := command(ctx, c, "RESET "+def.Name, prepared, 0); err != nil {
+				if err := settingsCommand(ctx, c, "RESET "+def.Name, prepared, 0); err != nil {
 					return err
 				}
-				if err := scalar(ctx, c, "SELECT set_config($1,NULL,NULL)", "set_config", want, prepared, def.Name); err != nil {
+				if err := settingsScalar(ctx, c, "SELECT set_config($1,NULL,NULL)", "set_config", want, prepared, def.Name); err != nil {
 					return err
 				}
 			}
-			if err := scalar(ctx, c, "SHOW "+def.Name, def.Name, want, prepared); err != nil {
+			if err := settingsScalar(ctx, c, "SHOW "+def.Name, def.Name, want, prepared); err != nil {
 				return err
 			}
 		}
@@ -713,23 +704,23 @@ func defaultsAndUnitFailures(ctx context.Context, c *sql.Conn) error {
 			{"demo.real_time", "11s", `11 s is outside the valid range for parameter "demo.real_time" (0 s .. 10 s)`, "", "1s"},
 			{"demo.mode", "bad", `invalid value for parameter "demo.mode": "bad"`, "Available values: safe, fast.", "safe"},
 		} {
-			err := command(ctx, c, "SELECT set_config($1,$2,false)", prepared, 1, tc.name, tc.input)
-			if err = diagnostic(err, "22023", tc.message, tc.hint); err != nil {
+			err := settingsCommand(ctx, c, "SELECT set_config($1,$2,false)", prepared, 1, tc.name, tc.input)
+			if err = settingsDiagnostic(err, "22023", tc.message, tc.hint); err != nil {
 				return err
 			}
-			if err = scalar(ctx, c, "SHOW "+tc.name, tc.name, tc.want, prepared); err != nil {
+			if err = settingsScalar(ctx, c, "SHOW "+tc.name, tc.name, tc.want, prepared); err != nil {
 				return err
 			}
 		}
-		if err := command(ctx, c, "RESET ALL", prepared, 0); err != nil {
+		if err := settingsCommand(ctx, c, "RESET ALL", prepared, 0); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func transactionSettings(ctx context.Context, c *sql.Conn) error {
-	before, err := identity(c)
+func settingsTransactionSettings(ctx context.Context, c *sql.Conn) error {
+	before, err := settingsIdentity(c)
 	if err != nil {
 		return err
 	}
@@ -737,7 +728,7 @@ func transactionSettings(ctx context.Context, c *sql.Conn) error {
 	if err = c.QueryRowContext(ctx, "SHOW demo.text").Scan(&original); err != nil {
 		return err
 	}
-	if err = command(ctx, c, "SET demo.text TO retained", false, 0); err != nil {
+	if err = settingsCommand(ctx, c, "SET demo.text TO retained", false, 0); err != nil {
 		return err
 	}
 	for _, query := range []string{
@@ -767,32 +758,32 @@ func transactionSettings(ctx context.Context, c *sql.Conn) error {
 			} else {
 				_, err = tx.ExecContext(ctx, query)
 			}
-			if check := diagnostic(err, "0A000", "statement is unsupported in an explicit transaction", ""); check != nil {
+			if check := settingsDiagnostic(err, "0A000", "statement is unsupported in an explicit transaction", ""); check != nil {
 				tx.Rollback()
 				return check
 			}
 			_, err = tx.ExecContext(ctx, "SHOW demo.text")
-			if check := diagnostic(err, "25P02", "current transaction is aborted, commands ignored until end of transaction block", ""); check != nil {
+			if check := settingsDiagnostic(err, "25P02", "current transaction is aborted, commands ignored until end of transaction block", ""); check != nil {
 				tx.Rollback()
 				return check
 			}
 			if err = tx.Rollback(); err != nil {
 				return err
 			}
-			after, identityErr := identity(c)
+			after, identityErr := settingsIdentity(c)
 			if identityErr != nil || after != before {
 				return fmt.Errorf("settings transaction changed physical identity: %v", identityErr)
 			}
-			if err = scalar(ctx, c, "SHOW demo.text", "demo.text", "retained", false); err != nil {
+			if err = settingsScalar(ctx, c, "SHOW demo.text", "demo.text", "retained", false); err != nil {
 				return err
 			}
 		}
 	}
-	return scalar(ctx, c, "SELECT set_config('demo.text',$1,false)", "set_config", original, false, original)
+	return settingsScalar(ctx, c, "SELECT set_config('demo.text',$1,false)", "set_config", original, false, original)
 }
 
-func authenticatedAccess(ctx context.Context, d *stuntgres.Driver, admin *sql.Conn) error {
-	if err := command(ctx, admin, "CREATE USER settings_reader", false, 0); err != nil {
+func settingsAuthenticatedAccess(ctx context.Context, d *stuntgres.Driver, admin *sql.Conn) error {
+	if err := settingsCommand(ctx, admin, "CREATE USER settings_reader", false, 0); err != nil {
 		return err
 	}
 	connector, err := d.OpenConnectorAs("settings-smoke", "settings_reader")
@@ -830,11 +821,11 @@ func authenticatedAccess(ctx context.Context, d *stuntgres.Driver, admin *sql.Co
 					"RESET " + definition.name,
 					"SELECT set_config('" + definition.name + "','garbage',false)",
 				} {
-					err = command(ctx, principal.conn, query, prepared, 0)
-					if err = diagnostic(err, definition.code, definition.message, ""); err != nil {
+					err = settingsCommand(ctx, principal.conn, query, prepared, 0)
+					if err = settingsDiagnostic(err, definition.code, definition.message, ""); err != nil {
 						return err
 					}
-					if err = scalar(ctx, principal.conn, "SHOW "+definition.name, definition.name, definition.value, prepared); err != nil {
+					if err = settingsScalar(ctx, principal.conn, "SHOW "+definition.name, definition.name, definition.value, prepared); err != nil {
 						return err
 					}
 				}

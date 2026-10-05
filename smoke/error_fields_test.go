@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -6,13 +6,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
+	"testing"
 
 	"stuntgres"
 )
 
-func run() error {
+func errorFieldsRun() error {
 	driver := stuntgres.NewDriver()
 	connector, err := driver.OpenConnector("error-fields-smoke")
 	if err != nil {
@@ -188,7 +188,7 @@ func run() error {
 	if failure := checkNotNull(err); failure != nil {
 		return failure
 	}
-	before, err := readRows(db)
+	before, err := errorFieldsReadRows(db)
 	if err != nil {
 		return err
 	}
@@ -204,7 +204,7 @@ func run() error {
 			return fmt.Errorf("malformed Restore diagnostic: %#v (%v)", got, err)
 		}
 	}
-	after, err := readRows(db)
+	after, err := errorFieldsReadRows(db)
 	if err != nil {
 		return err
 	}
@@ -225,7 +225,7 @@ func run() error {
 	if failure := checkNotNull(err); failure != nil {
 		return failure
 	}
-	after, err = readRows(db)
+	after, err = errorFieldsReadRows(db)
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func run() error {
 	return nil
 }
 
-func readRows(db *sql.DB) ([][]any, error) {
+func errorFieldsReadRows(db *sql.DB) ([][]any, error) {
 	rows, err := db.Query("SELECT id,note FROM diagnostic_rows ORDER BY id")
 	if err != nil {
 		return nil, err
@@ -269,10 +269,8 @@ func readRows(db *sql.DB) ([][]any, error) {
 	return result, nil
 }
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestErrorFieldsSmoke(t *testing.T) {
+	if err := errorFieldsRun(); err != nil {
+		t.Fatal(err)
 	}
-	fmt.Fprint(os.Stdout, "error fields: ok\n")
 }

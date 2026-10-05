@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -7,22 +7,21 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
+	"testing"
 
 	"stuntgres"
 )
 
 const roleDSN = "roles / exact? user=x"
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestRoleSmoke(t *testing.T) {
+	if err := roleRun(); err != nil {
+		t.Fatal(err)
 	}
 }
-func command(ctx context.Context, c *sql.Conn, query string, count int64, prepared bool) error {
+func roleCommand(ctx context.Context, c *sql.Conn, query string, count int64, prepared bool) error {
 	var result sql.Result
 	var err error
 	if prepared {
@@ -47,7 +46,7 @@ func command(ctx context.Context, c *sql.Conn, query string, count int64, prepar
 	}
 	return nil
 }
-func diagnostic(err error, code, message, detail string) error {
+func roleDiagnostic(err error, code, message, detail string) error {
 	var d *stuntgres.Error
 	if !errors.As(err, &d) || d.Code != code || d.Message != message || d.Detail != detail ||
 		d.Severity != "ERROR" || d.SeverityUnlocalized != "ERROR" || d.Hint != "" ||
@@ -56,10 +55,10 @@ func diagnostic(err error, code, message, detail string) error {
 	}
 	return nil
 }
-func denied(ctx context.Context, c *sql.Conn, query, code, message, detail string, prepared bool) error {
-	return diagnostic(command(ctx, c, query, 0, prepared), code, message, detail)
+func roleDenied(ctx context.Context, c *sql.Conn, query, code, message, detail string, prepared bool) error {
+	return roleDiagnostic(roleCommand(ctx, c, query, 0, prepared), code, message, detail)
 }
-func identities(ctx context.Context, c *sql.Conn, want string, held *sql.Stmt) error {
+func roleIdentities(ctx context.Context, c *sql.Conn, want string, held *sql.Stmt) error {
 	var rows *sql.Rows
 	var err error
 	if held != nil {
@@ -102,7 +101,7 @@ func identities(ctx context.Context, c *sql.Conn, want string, held *sql.Stmt) e
 	}
 	return rows.Err()
 }
-func secret(ctx context.Context, c *sql.Conn, held *sql.Stmt) error {
+func roleSecret(ctx context.Context, c *sql.Conn, held *sql.Stmt) error {
 	var rows *sql.Rows
 	var err error
 	if held != nil {
@@ -133,7 +132,7 @@ func secret(ctx context.Context, c *sql.Conn, held *sql.Stmt) error {
 	}
 	return rows.Err()
 }
-func creation(ctx context.Context, d *stuntgres.Driver, admin *sql.Conn) error {
+func roleCreation(ctx context.Context, d *stuntgres.Driver, admin *sql.Conn) error {
 	for _, prepared := range []bool{false, true} {
 		suffix := "direct"
 		if prepared {
@@ -144,7 +143,7 @@ func creation(ctx context.Context, d *stuntgres.Driver, admin *sql.Conn) error {
 			"CREATE GROUP group_" + suffix, "CREATE ROLE login_" + suffix + " WITH LOGIN",
 			"CREATE USER nolog_" + suffix + " NOLOGIN",
 		} {
-			if err := command(ctx, admin, query, 0, prepared); err != nil {
+			if err := roleCommand(ctx, admin, query, 0, prepared); err != nil {
 				return err
 			}
 		}
@@ -169,29 +168,29 @@ func creation(ctx context.Context, d *stuntgres.Driver, admin *sql.Conn) error {
 				return fmt.Errorf("NOLOGIN %s admitted", name)
 			}
 		}
-		if err := denied(ctx, admin, "CREATE ROLE role_"+suffix, "42710", "role \"role_"+suffix+"\" already exists", "", prepared); err != nil {
+		if err := roleDenied(ctx, admin, "CREATE ROLE role_"+suffix, "42710", "role \"role_"+suffix+"\" already exists", "", prepared); err != nil {
 			return err
 		}
 		for _, query := range []string{"DROP ROLE role_" + suffix, "DROP USER user_" + suffix, "DROP GROUP group_" + suffix} {
-			if err := command(ctx, admin, query, 0, prepared); err != nil {
+			if err := roleCommand(ctx, admin, query, 0, prepared); err != nil {
 				return err
 			}
 		}
-		if err := denied(ctx, admin, "DROP ROLE role_"+suffix, "42704", "role \"role_"+suffix+"\" does not exist", "", prepared); err != nil {
+		if err := roleDenied(ctx, admin, "DROP ROLE role_"+suffix, "42704", "role \"role_"+suffix+"\" does not exist", "", prepared); err != nil {
 			return err
 		}
 	}
 	for _, query := range []string{"CREATE USER role_owner", "CREATE USER role_reader", "CREATE ROLE no_login"} {
-		if err := command(ctx, admin, query, 0, false); err != nil {
+		if err := roleCommand(ctx, admin, query, 0, false); err != nil {
 			return err
 		}
 	}
-	if err := denied(ctx, admin, "CREATE ROLE unsupported WITH SUPERUSER", "0A000", "unsupported role option", "", false); err != nil {
+	if err := roleDenied(ctx, admin, "CREATE ROLE unsupported WITH SUPERUSER", "0A000", "unsupported role option", "", false); err != nil {
 		return err
 	}
-	return denied(ctx, admin, "DROP ROLE unsupported", "42704", `role "unsupported" does not exist`, "", false)
+	return roleDenied(ctx, admin, "DROP ROLE unsupported", "42704", `role "unsupported" does not exist`, "", false)
 }
-func trusted(ctx context.Context, d *stuntgres.Driver) error {
+func roleTrusted(ctx context.Context, d *stuntgres.Driver) error {
 	ownerConnector, err := d.OpenConnectorAs(roleDSN, "role_owner")
 	if err != nil {
 		return err
@@ -214,33 +213,33 @@ func trusted(ctx context.Context, d *stuntgres.Driver) error {
 		return err
 	}
 	defer reader.Close()
-	if err := identities(ctx, owner, "role_owner", nil); err != nil {
+	if err := roleIdentities(ctx, owner, "role_owner", nil); err != nil {
 		return err
 	}
-	if err := identities(ctx, reader, "role_reader", nil); err != nil {
+	if err := roleIdentities(ctx, reader, "role_reader", nil); err != nil {
 		return err
 	}
-	if err := denied(ctx, reader, "SET SESSION AUTHORIZATION role_owner", "42501", `permission denied to set session authorization "role_owner"`, "", true); err != nil {
+	if err := roleDenied(ctx, reader, "SET SESSION AUTHORIZATION role_owner", "42501", `permission denied to set session authorization "role_owner"`, "", true); err != nil {
 		return err
 	}
-	if err := denied(ctx, owner, "SET SESSION AUTHORIZATION role_reader", "42501", `permission denied to set session authorization "role_reader"`, "", false); err != nil {
+	if err := roleDenied(ctx, owner, "SET SESSION AUTHORIZATION role_reader", "42501", `permission denied to set session authorization "role_reader"`, "", false); err != nil {
 		return err
 	}
 	for _, query := range []string{"SET SESSION AUTHORIZATION role_owner", "SET SESSION AUTHORIZATION DEFAULT", "RESET SESSION AUTHORIZATION"} {
-		if err := command(ctx, owner, query, 0, true); err != nil {
+		if err := roleCommand(ctx, owner, query, 0, true); err != nil {
 			return err
 		}
-		if err := identities(ctx, owner, "role_owner", nil); err != nil {
+		if err := roleIdentities(ctx, owner, "role_owner", nil); err != nil {
 			return err
 		}
-		if err := identities(ctx, reader, "role_reader", nil); err != nil {
+		if err := roleIdentities(ctx, reader, "role_reader", nil); err != nil {
 			return err
 		}
 	}
-	if err := secret(ctx, owner, nil); err != nil {
+	if err := roleSecret(ctx, owner, nil); err != nil {
 		return err
 	}
-	if err := diagnostic(secret(ctx, reader, nil), "42501", "permission denied for table secret", ""); err != nil {
+	if err := roleDiagnostic(roleSecret(ctx, reader, nil), "42501", "permission denied for table secret", ""); err != nil {
 		return err
 	}
 	if err := owner.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
@@ -251,12 +250,12 @@ func trusted(ctx context.Context, d *stuntgres.Driver) error {
 	if err != nil {
 		return err
 	}
-	if err := identities(ctx, owner, "role_owner", nil); err != nil {
+	if err := roleIdentities(ctx, owner, "role_owner", nil); err != nil {
 		return err
 	}
-	return identities(ctx, reader, "role_reader", nil)
+	return roleIdentities(ctx, reader, "role_reader", nil)
 }
-func reuse(ctx context.Context, d *stuntgres.Driver) error {
+func roleReuse(ctx context.Context, d *stuntgres.Driver) error {
 	connector, err := d.OpenConnector(roleDSN)
 	if err != nil {
 		return err
@@ -269,7 +268,7 @@ func reuse(ctx context.Context, d *stuntgres.Driver) error {
 		return err
 	}
 	defer func() { c.Close() }()
-	if err := command(ctx, c, "SET SESSION AUTHORIZATION role_owner", 0, false); err != nil {
+	if err := roleCommand(ctx, c, "SET SESSION AUTHORIZATION role_owner", 0, false); err != nil {
 		return err
 	}
 	c.Close()
@@ -277,7 +276,7 @@ func reuse(ctx context.Context, d *stuntgres.Driver) error {
 	if err != nil {
 		return err
 	}
-	if err := identities(ctx, c, "role_owner", nil); err != nil {
+	if err := roleIdentities(ctx, c, "role_owner", nil); err != nil {
 		return err
 	}
 	if err := c.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
@@ -288,9 +287,9 @@ func reuse(ctx context.Context, d *stuntgres.Driver) error {
 	if err != nil {
 		return err
 	}
-	return identities(ctx, c, "postgres", nil)
+	return roleIdentities(ctx, c, "postgres", nil)
 }
-func run() error {
+func roleRun() error {
 	ctx := context.Background()
 	d := stuntgres.NewDriver()
 	connector, err := d.OpenConnector(roleDSN)
@@ -309,7 +308,7 @@ func run() error {
 		return err
 	}
 	defer b.Close()
-	if err := creation(ctx, d, a); err != nil {
+	if err := roleCreation(ctx, d, a); err != nil {
 		return err
 	}
 	heldIdentity, err := a.PrepareContext(ctx, "SELECT session_user,current_user")
@@ -318,48 +317,48 @@ func run() error {
 	}
 	defer heldIdentity.Close()
 	for _, query := range []string{"SET SESSION AUTHORIZATION no_login", "SET SESSION AUTHORIZATION DEFAULT", "RESET SESSION AUTHORIZATION"} {
-		if err := command(ctx, a, query, 0, false); err != nil {
+		if err := roleCommand(ctx, a, query, 0, false); err != nil {
 			return err
 		}
 		want := "postgres"
 		if strings.HasSuffix(query, "no_login") {
 			want = "no_login"
 		}
-		if err := identities(ctx, a, want, heldIdentity); err != nil {
+		if err := roleIdentities(ctx, a, want, heldIdentity); err != nil {
 			return err
 		}
-		if err := identities(ctx, b, "postgres", nil); err != nil {
+		if err := roleIdentities(ctx, b, "postgres", nil); err != nil {
 			return err
 		}
 	}
 	for _, prepared := range []bool{false, true} {
-		if err := command(ctx, a, "SELECT current_user", 1, prepared); err != nil {
+		if err := roleCommand(ctx, a, "SELECT current_user", 1, prepared); err != nil {
 			return err
 		}
 	}
-	if err := command(ctx, a, "SET SESSION AUTHORIZATION role_owner", 0, false); err != nil {
+	if err := roleCommand(ctx, a, "SET SESSION AUTHORIZATION role_owner", 0, false); err != nil {
 		return err
 	}
-	if err := command(ctx, b, "SET SESSION AUTHORIZATION role_reader", 0, true); err != nil {
+	if err := roleCommand(ctx, b, "SET SESSION AUTHORIZATION role_reader", 0, true); err != nil {
 		return err
 	}
-	if err := identities(ctx, a, "role_owner", nil); err != nil {
+	if err := roleIdentities(ctx, a, "role_owner", nil); err != nil {
 		return err
 	}
-	if err := identities(ctx, b, "role_reader", nil); err != nil {
+	if err := roleIdentities(ctx, b, "role_reader", nil); err != nil {
 		return err
 	}
-	if err := command(ctx, a, "CREATE TABLE secret(id INT)", 0, false); err != nil {
+	if err := roleCommand(ctx, a, "CREATE TABLE secret(id INT)", 0, false); err != nil {
 		return err
 	}
-	if err := command(ctx, a, "INSERT INTO secret VALUES(7)", 1, true); err != nil {
+	if err := roleCommand(ctx, a, "INSERT INTO secret VALUES(7)", 1, true); err != nil {
 		return err
 	}
-	if err := secret(ctx, a, nil); err != nil {
+	if err := roleSecret(ctx, a, nil); err != nil {
 		return err
 	}
 	for _, query := range []string{"SELECT id FROM secret", "INSERT INTO secret VALUES(9)"} {
-		if err := denied(ctx, b, query, "42501", "permission denied for table secret", "", true); err != nil {
+		if err := roleDenied(ctx, b, query, "42501", "permission denied for table secret", "", true); err != nil {
 			return err
 		}
 	}
@@ -368,31 +367,31 @@ func run() error {
 		return err
 	}
 	defer heldSecret.Close()
-	if err := command(ctx, a, "SET SESSION AUTHORIZATION role_reader", 0, false); err != nil {
+	if err := roleCommand(ctx, a, "SET SESSION AUTHORIZATION role_reader", 0, false); err != nil {
 		return err
 	}
-	if err := diagnostic(secret(ctx, a, heldSecret), "42501", "permission denied for table secret", ""); err != nil {
+	if err := roleDiagnostic(roleSecret(ctx, a, heldSecret), "42501", "permission denied for table secret", ""); err != nil {
 		return err
 	}
-	if err := command(ctx, a, "SET SESSION AUTHORIZATION role_owner", 0, false); err != nil {
+	if err := roleCommand(ctx, a, "SET SESSION AUTHORIZATION role_owner", 0, false); err != nil {
 		return err
 	}
-	if err := secret(ctx, a, heldSecret); err != nil {
+	if err := roleSecret(ctx, a, heldSecret); err != nil {
 		return err
 	}
-	if err := trusted(ctx, d); err != nil {
+	if err := roleTrusted(ctx, d); err != nil {
 		return err
 	}
-	if err := reuse(ctx, d); err != nil {
+	if err := roleReuse(ctx, d); err != nil {
 		return err
 	}
-	if err := command(ctx, a, "RESET SESSION AUTHORIZATION", 0, false); err != nil {
+	if err := roleCommand(ctx, a, "RESET SESSION AUTHORIZATION", 0, false); err != nil {
 		return err
 	}
-	if err := denied(ctx, a, "DROP ROLE role_owner", "2BP01", `role "role_owner" cannot be dropped because some objects depend on it`, "owner of table secret", false); err != nil {
+	if err := roleDenied(ctx, a, "DROP ROLE role_owner", "2BP01", `role "role_owner" cannot be dropped because some objects depend on it`, "owner of table secret", false); err != nil {
 		return err
 	}
-	if err := command(ctx, a, "SET application_name TO retained", 0, false); err != nil {
+	if err := roleCommand(ctx, a, "SET application_name TO retained", 0, false); err != nil {
 		return err
 	}
 	// These controls borrow an ordinary reader session, not an SQL superuser.
@@ -412,32 +411,32 @@ func run() error {
 	if err := stuntgres.Reset(ctx, controls); err != nil {
 		return err
 	}
-	if err := identities(ctx, b, "role_reader", nil); err != nil {
+	if err := roleIdentities(ctx, b, "role_reader", nil); err != nil {
 		return err
 	}
 	if err := stuntgres.Restore(ctx, controls, strings.NewReader(dump.String())); err != nil {
 		return err
 	}
-	if err := denied(ctx, a, "DROP ROLE role_owner", "2BP01", `role "role_owner" cannot be dropped because some objects depend on it`, "owner of table secret", true); err != nil {
+	if err := roleDenied(ctx, a, "DROP ROLE role_owner", "2BP01", `role "role_owner" cannot be dropped because some objects depend on it`, "owner of table secret", true); err != nil {
 		return err
 	}
-	if err := command(ctx, a, "SET SESSION AUTHORIZATION role_owner", 0, false); err != nil {
+	if err := roleCommand(ctx, a, "SET SESSION AUTHORIZATION role_owner", 0, false); err != nil {
 		return err
 	}
-	if err := secret(ctx, a, nil); err != nil {
+	if err := roleSecret(ctx, a, nil); err != nil {
 		return err
 	}
 	var setting string
 	if err := a.QueryRowContext(ctx, "SHOW application_name").Scan(&setting); err != nil || setting != "retained" {
 		return fmt.Errorf("control setting %q %v", setting, err)
 	}
-	if err := diagnostic(stuntgres.Restore(ctx, controls, strings.NewReader("SET SESSION AUTHORIZATION 'absent'; CREATE TABLE bad(id INT);")), "22023", `role "absent" does not exist`, ""); err != nil {
+	if err := roleDiagnostic(stuntgres.Restore(ctx, controls, strings.NewReader("SET SESSION AUTHORIZATION 'absent'; CREATE TABLE bad(id INT);")), "22023", `role "absent" does not exist`, ""); err != nil {
 		return err
 	}
-	if err := secret(ctx, a, nil); err != nil {
+	if err := roleSecret(ctx, a, nil); err != nil {
 		return err
 	}
-	if err := command(ctx, a, "RESET SESSION AUTHORIZATION", 0, false); err != nil {
+	if err := roleCommand(ctx, a, "RESET SESSION AUTHORIZATION", 0, false); err != nil {
 		return err
 	}
 	if err := stuntgres.Restore(ctx, controls, strings.NewReader("CREATE TABLE legacy(id INT); INSERT INTO legacy VALUES(8);")); err != nil {
@@ -450,13 +449,13 @@ func run() error {
 	if err := stuntgres.Reset(ctx, controls); err != nil {
 		return err
 	}
-	if err := command(ctx, b, "RESET SESSION AUTHORIZATION", 0, false); err != nil {
+	if err := roleCommand(ctx, b, "RESET SESSION AUTHORIZATION", 0, false); err != nil {
 		return err
 	}
-	if err := command(ctx, a, "DROP ROLE role_owner", 0, true); err != nil {
+	if err := roleCommand(ctx, a, "DROP ROLE role_owner", 0, true); err != nil {
 		return err
 	}
-	if err := denied(ctx, a, "DROP ROLE role_owner", "42704", `role "role_owner" does not exist`, "", false); err != nil {
+	if err := roleDenied(ctx, a, "DROP ROLE role_owner", "42704", `role "role_owner" does not exist`, "", false); err != nil {
 		return err
 	}
 	isolatedConnector, err := stuntgres.NewDriver().OpenConnector(roleDSN)
@@ -465,7 +464,7 @@ func run() error {
 	}
 	isolated := sql.OpenDB(isolatedConnector)
 	defer isolated.Close()
-	if err := diagnostic(func() error { _, err := isolated.ExecContext(ctx, "SET SESSION AUTHORIZATION role_reader"); return err }(), "22023", `role "role_reader" does not exist`, ""); err != nil {
+	if err := roleDiagnostic(func() error { _, err := isolated.ExecContext(ctx, "SET SESSION AUTHORIZATION role_reader"); return err }(), "22023", `role "role_reader" does not exist`, ""); err != nil {
 		return err
 	}
 	otherConnector, err := d.OpenConnector(roleDSN + " ")
@@ -477,11 +476,5 @@ func run() error {
 	if _, err := other.ExecContext(ctx, "SET SESSION AUTHORIZATION role_reader"); err == nil {
 		return errors.New("opaque DSN identity isolation failed")
 	}
-	fmt.Println("role creation: defaults aliases diagnostics ok")
-	fmt.Println("role identity: NAME direct prepared isolated")
-	fmt.Println("role authorization: owner=7 reader=42501")
-	fmt.Println("trusted authentication: distinct principals preserved")
-	fmt.Println("role controls: owners restored legacy accepted atomic failures")
-	fmt.Println("role removal: dependencies rejected cleanup succeeded")
 	return nil
 }

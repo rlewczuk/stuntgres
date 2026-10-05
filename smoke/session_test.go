@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -7,18 +7,17 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"stuntgres"
+	"testing"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestSessionSmoke(t *testing.T) {
+	if err := sessionRun(); err != nil {
+		t.Fatal(err)
 	}
 }
-func exec(ctx context.Context, c *sql.Conn, q string, prepared bool) error {
+func sessionExec(ctx context.Context, c *sql.Conn, q string, prepared bool) error {
 	var r sql.Result
 	var err error
 	if prepared {
@@ -44,8 +43,8 @@ func exec(ctx context.Context, c *sql.Conn, q string, prepared bool) error {
 	}
 	return nil
 }
-func show(ctx context.Context, c *sql.Conn, want string, prepared bool) error {
-	if err := exec(ctx, c, "SHOW application_name", prepared); err != nil {
+func sessionShow(ctx context.Context, c *sql.Conn, want string, prepared bool) error {
+	if err := sessionExec(ctx, c, "SHOW application_name", prepared); err != nil {
 		return err
 	}
 	var rows *sql.Rows
@@ -91,7 +90,7 @@ func show(ctx context.Context, c *sql.Conn, want string, prepared bool) error {
 	}
 	return rows.Err()
 }
-func sentinel(ctx context.Context, c *sql.Conn) error {
+func sessionSentinel(ctx context.Context, c *sql.Conn) error {
 	var v int64
 	if err := c.QueryRowContext(ctx, "SELECT v FROM sentinel").Scan(&v); err != nil {
 		return err
@@ -101,12 +100,12 @@ func sentinel(ctx context.Context, c *sql.Conn) error {
 	}
 	return nil
 }
-func identity(c *sql.Conn) (any, error) {
+func sessionIdentity(c *sql.Conn) (any, error) {
 	var object any
 	err := c.Raw(func(raw any) error { object = raw; return nil })
 	return object, err
 }
-func diagnostic(err error, code, message, position string) error {
+func sessionDiagnostic(err error, code, message, position string) error {
 	var got *stuntgres.Error
 	if !errors.As(err, &got) {
 		return fmt.Errorf("missing diagnostic: %v", err)
@@ -117,7 +116,7 @@ func diagnostic(err error, code, message, position string) error {
 	}
 	return nil
 }
-func run() error {
+func sessionRun() error {
 	ctx := context.Background()
 	d := stuntgres.NewDriver()
 	connector, err := d.OpenConnector("session-smoke")
@@ -136,10 +135,10 @@ func run() error {
 		return err
 	}
 	defer b.Close()
-	if err = show(ctx, a, "", false); err != nil {
+	if err = sessionShow(ctx, a, "", false); err != nil {
 		return err
 	}
-	if err = show(ctx, b, "", true); err != nil {
+	if err = sessionShow(ctx, b, "", true); err != nil {
 		return err
 	}
 	if _, err = a.ExecContext(ctx, "CREATE TABLE sentinel(v INT)"); err != nil {
@@ -148,16 +147,16 @@ func run() error {
 	if _, err = a.ExecContext(ctx, "INSERT INTO sentinel VALUES(7)"); err != nil {
 		return err
 	}
-	if err = exec(ctx, a, "SET SESSION application_name TO 'session-a'", false); err != nil {
+	if err = sessionExec(ctx, a, "SET SESSION application_name TO 'session-a'", false); err != nil {
 		return err
 	}
-	if err = exec(ctx, b, "SET application_name = 'session-b'", true); err != nil {
+	if err = sessionExec(ctx, b, "SET application_name = 'session-b'", true); err != nil {
 		return err
 	}
-	if err = show(ctx, a, "session-a", true); err != nil {
+	if err = sessionShow(ctx, a, "session-a", true); err != nil {
 		return err
 	}
-	if err = show(ctx, b, "session-b", false); err != nil {
+	if err = sessionShow(ctx, b, "session-b", false); err != nil {
 		return err
 	}
 	for _, prepared := range []bool{false, true} {
@@ -167,18 +166,18 @@ func run() error {
 			{"'1_000'", "1_000"}, {"'0x2a'", "0x2a"},
 			{"'+0O_1_2'", "+0O_1_2"}, {"'-0b0'", "-0b0"},
 		} {
-			if err = exec(ctx, a, "SET application_name TO "+tc.input, prepared); err != nil {
+			if err = sessionExec(ctx, a, "SET application_name TO "+tc.input, prepared); err != nil {
 				return err
 			}
-			if err = show(ctx, a, tc.want, prepared); err != nil {
+			if err = sessionShow(ctx, a, tc.want, prepared); err != nil {
 				return err
 			}
-			if err = show(ctx, b, "session-b", prepared); err != nil {
+			if err = sessionShow(ctx, b, "session-b", prepared); err != nil {
 				return err
 			}
 		}
 	}
-	if err = exec(ctx, a, "SET application_name TO 'session-a'", false); err != nil {
+	if err = sessionExec(ctx, a, "SET application_name TO 'session-a'", false); err != nil {
 		return err
 	}
 	for _, prepared := range []bool{false, true} {
@@ -198,25 +197,23 @@ func run() error {
 			} else {
 				_, failure = a.ExecContext(ctx, query)
 			}
-			if err = diagnostic(failure, "0A000", "non-decimal setting integers are unsupported", tc.position); err != nil {
+			if err = sessionDiagnostic(failure, "0A000", "non-decimal setting integers are unsupported", tc.position); err != nil {
 				return err
 			}
-			if err = show(ctx, a, "session-a", prepared); err != nil {
+			if err = sessionShow(ctx, a, "session-a", prepared); err != nil {
 				return err
 			}
-			if err = show(ctx, b, "session-b", prepared); err != nil {
+			if err = sessionShow(ctx, b, "session-b", prepared); err != nil {
 				return err
 			}
-			if err = sentinel(ctx, a); err != nil {
+			if err = sessionSentinel(ctx, a); err != nil {
 				return err
 			}
-			if err = sentinel(ctx, b); err != nil {
+			if err = sessionSentinel(ctx, b); err != nil {
 				return err
 			}
 		}
 	}
-	fmt.Println("session isolation: session-a session-b")
-	fmt.Println("prepared settings: TEXT affected=0")
 	pool := sql.OpenDB(connector)
 	pool.SetMaxOpenConns(1)
 	pool.SetMaxIdleConns(1)
@@ -225,11 +222,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	old, err := identity(p)
+	old, err := sessionIdentity(p)
 	if err != nil {
 		return err
 	}
-	if err = exec(ctx, p, "SET application_name TO pooled", false); err != nil {
+	if err = sessionExec(ctx, p, "SET application_name TO pooled", false); err != nil {
 		return err
 	}
 	if err = p.Close(); err != nil {
@@ -239,17 +236,16 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	same, err := identity(p)
+	same, err := sessionIdentity(p)
 	if err != nil {
 		return err
 	}
 	if old != same {
 		return errors.New("reuse replaced physical identity")
 	}
-	if err = show(ctx, p, "pooled", true); err != nil {
+	if err = sessionShow(ctx, p, "pooled", true); err != nil {
 		return err
 	}
-	fmt.Println("pool reuse: preserved")
 	if err = p.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
 		return fmt.Errorf("invalidation: %v", err)
 	}
@@ -258,23 +254,22 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	fresh, err := identity(p)
+	fresh, err := sessionIdentity(p)
 	if err != nil {
 		return err
 	}
 	if fresh == old {
 		return errors.New("replacement retained identity")
 	}
-	if err = show(ctx, p, "", false); err != nil {
+	if err = sessionShow(ctx, p, "", false); err != nil {
 		return err
 	}
-	if err = sentinel(ctx, p); err != nil {
+	if err = sessionSentinel(ctx, p); err != nil {
 		return err
 	}
-	if err = show(ctx, b, "session-b", true); err != nil {
+	if err = sessionShow(ctx, b, "session-b", true); err != nil {
 		return err
 	}
-	fmt.Println("physical replacement: default restored, data=7")
 	for _, tc := range []struct{ query, code, message, position string }{
 		{"SET absent_setting TO x", "42704", `unrecognized configuration parameter "absent_setting"`, ""},
 		{"SHOW absent_setting", "42704", `unrecognized configuration parameter "absent_setting"`, ""},
@@ -287,10 +282,10 @@ func run() error {
 		{"CREATE TABLE invalid_to(to BOOL)", "42601", `syntax error at or near "to"`, "25"},
 	} {
 		_, failure := a.ExecContext(ctx, tc.query)
-		if err = diagnostic(failure, tc.code, tc.message, tc.position); err != nil {
+		if err = sessionDiagnostic(failure, tc.code, tc.message, tc.position); err != nil {
 			return err
 		}
-		if err = show(ctx, a, "session-a", false); err != nil {
+		if err = sessionShow(ctx, a, "session-a", false); err != nil {
 			return err
 		}
 	}
@@ -299,7 +294,7 @@ func run() error {
 	if _, err = a.ExecContext(canceled, "SET application_name TO lost"); !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("cancellation: %v", err)
 	}
-	if err = show(ctx, a, "session-a", true); err != nil {
+	if err = sessionShow(ctx, a, "session-a", true); err != nil {
 		return err
 	}
 	var dump bytes.Buffer
@@ -309,16 +304,16 @@ func run() error {
 	if err = stuntgres.Reset(ctx, db); err != nil {
 		return err
 	}
-	if err = show(ctx, a, "session-a", false); err != nil {
+	if err = sessionShow(ctx, a, "session-a", false); err != nil {
 		return err
 	}
 	if err = stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
 		return err
 	}
-	if err = show(ctx, b, "session-b", true); err != nil {
+	if err = sessionShow(ctx, b, "session-b", true); err != nil {
 		return err
 	}
-	if err = sentinel(ctx, b); err != nil {
+	if err = sessionSentinel(ctx, b); err != nil {
 		return err
 	}
 	if err = p.Close(); err != nil {
@@ -343,14 +338,11 @@ func run() error {
 		return err
 	}
 	defer p.Close()
-	if err = sentinel(ctx, p); err != nil {
+	if err = sessionSentinel(ctx, p); err != nil {
 		return err
 	}
-	if err = show(ctx, p, "", false); err != nil {
+	if err = sessionShow(ctx, p, "", false); err != nil {
 		return err
 	}
-	fmt.Println("pool reopen: data=7")
-	fmt.Println("session failures: 42704 22023 42601")
-	fmt.Println("session cancellation and controls: preserved")
 	return nil
 }

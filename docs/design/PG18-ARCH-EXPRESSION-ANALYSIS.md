@@ -292,7 +292,7 @@ COALESCE coercion units use predefined type-owned plans: first child is nonnull 
 
 **W7 — one seam (A6/A7).** Review all §8 callers and §9 owners: typed nodes/source/properties/dependencies/errors, validated frames, explicit truth/legality policies, one finalization and no alternative migrated evaluator. Catalog validity and metadata stay prerequisite-owned; no scalar stage computes grouping/correlation iteration/publication.
 
-`smoke_commands=[]`: design changes enable no runtime expression behavior; running W1–W5 against current narrow grammar is not a feature smoke. Root still runs fresh **full utility verification**, including existing public smoke (`go run ./cmd/smoke` from assigned worktree; existing four-line public assertion output), real reference/race/dependency/benchmark gates, then independent review. Baseline passing evidence cannot prove future expressions. Future implementation owners supply executable smoke argv for their new features and record expected versus observed results.
+`smoke_commands=[]`: design changes enable no runtime expression behavior; running W1–W5 against current narrow grammar is not a feature smoke. Root still runs fresh **full utility verification**, including existing public smoke (`go test -count=1 -v ./smoke` from assigned worktree; public API assertions reported through Go tests), real reference/race/dependency/benchmark gates, then independent review. Baseline passing evidence cannot prove future expressions. Future implementation owners supply executable smoke argv for their new features and record expected versus observed results.
 
 ## 11. Sources and revision rationale
 

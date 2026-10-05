@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -6,13 +6,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"stuntgres"
+	"testing"
 	"time"
 )
 
-func run() error {
+func noticesRun() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	base, err := stuntgres.NewDriver().OpenConnector("notices-smoke")
@@ -243,12 +243,10 @@ func run() error {
 	if callbackErr != nil {
 		return callbackErr
 	}
-	fmt.Println("notices: ok")
 	return nil
 }
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestNoticesSmoke(t *testing.T) {
+	if err := noticesRun(); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -6,12 +6,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"stuntgres"
+	"testing"
 )
 
-func affected(result sql.Result, err error, want int64) error {
+func identifierAffected(result sql.Result, err error, want int64) error {
 	if err != nil {
 		return err
 	}
@@ -27,7 +27,7 @@ func affected(result sql.Result, err error, want int64) error {
 	}
 	return nil
 }
-func checkRows(rows *sql.Rows, err error, columns, types []string, want [][]any) error {
+func identifierCheckRows(rows *sql.Rows, err error, columns, types []string, want [][]any) error {
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func checkRows(rows *sql.Rows, err error, columns, types []string, want [][]any)
 	}
 	return rows.Close()
 }
-func diagnostic(err error, code, message, position string) error {
+func identifierDiagnostic(err error, code, message, position string) error {
 	var got *stuntgres.Error
 	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: position}
 	if !errors.As(err, &got) || *got != want {
@@ -76,7 +76,7 @@ func diagnostic(err error, code, message, position string) error {
 	}
 	return nil
 }
-func run() error {
+func identifierRun() error {
 	d := stuntgres.NewDriver()
 	connector, err := d.OpenConnector("identifier-smoke")
 	if err != nil {
@@ -89,7 +89,7 @@ func run() error {
 	}
 	exec := func(q string, want int64, args ...any) error {
 		r, e := db.Exec(q, args...)
-		return affected(r, e, want)
+		return identifierAffected(r, e, want)
 	}
 	if err := exec("CREATE TABLE abort (by INT, between TEXT, values BOOL, integer BIGINT, char TEXT)", 0); err != nil {
 		return err
@@ -102,7 +102,7 @@ func run() error {
 	want := [][]any{{int64(2), "two", false, int64(20), "b"}}
 	query := "SELECT by,between,values,integer,char FROM public.abort WHERE by=2 ORDER BY by DESC"
 	rows, e := db.Query(query)
-	if err := checkRows(rows, e, columns, types, want); err != nil {
+	if err := identifierCheckRows(rows, e, columns, types, want); err != nil {
 		return err
 	}
 	stmt, err := db.Prepare("INSERT INTO abort (by,between,values,integer,char) VALUES ($1,$2,$3,$4,$5)")
@@ -111,7 +111,7 @@ func run() error {
 	}
 	r, e := stmt.Exec(3, "three", true, 30, "c")
 	stmt.Close()
-	if err := affected(r, e, 1); err != nil {
+	if err := identifierAffected(r, e, 1); err != nil {
 		return err
 	}
 	stmt, err = db.Prepare("SELECT by,between,values,integer,char FROM abort WHERE by=$1 ORDER BY by DESC")
@@ -119,7 +119,7 @@ func run() error {
 		return err
 	}
 	rows, e = stmt.Query(2)
-	if err := checkRows(rows, e, columns, types, want); err != nil {
+	if err := identifierCheckRows(rows, e, columns, types, want); err != nil {
 		stmt.Close()
 		return err
 	}
@@ -133,7 +133,7 @@ func run() error {
 	}
 	r, e = stmt.Exec()
 	stmt.Close()
-	if err := affected(r, e, 0); err != nil {
+	if err := identifierAffected(r, e, 0); err != nil {
 		return err
 	}
 	for _, q := range []string{"INSERT INTO insert (by) VALUES (7)", `CREATE TABLE "select" ("join" INT, "authorization" TEXT, "a""b" BOOL)`, `INSERT INTO "select" VALUES (7,'kept',TRUE)`} {
@@ -146,11 +146,11 @@ func run() error {
 		}
 	}
 	rows, e = db.Query("SELECT by FROM insert ORDER BY by")
-	if err := checkRows(rows, e, []string{"by"}, []string{"INT4"}, [][]any{{int64(7)}}); err != nil {
+	if err := identifierCheckRows(rows, e, []string{"by"}, []string{"INT4"}, [][]any{{int64(7)}}); err != nil {
 		return err
 	}
 	rows, e = db.Query(`SELECT "join","authorization","a""b" FROM "select" ORDER BY "join"`)
-	if err := checkRows(rows, e, []string{"join", "authorization", "a\"b"}, []string{"INT4", "TEXT", "BOOL"}, [][]any{{int64(7), "kept", true}}); err != nil {
+	if err := identifierCheckRows(rows, e, []string{"join", "authorization", "a\"b"}, []string{"INT4", "TEXT", "BOOL"}, [][]any{{int64(7), "kept", true}}); err != nil {
 		return err
 	}
 	for _, operation := range []func(string) error{
@@ -174,14 +174,14 @@ func run() error {
 			{"CREATE TABLE select (x INT)", "select", "14"}, {"CREATE TABLE SELECT (x INT)", "SELECT", "14"}, {"/*é*/ CREATE TABLE SELECT (x INT)", "SELECT", "20"}, {"CREATE TABLE t (authorization INT)", "authorization", "17"}, {"SELECT select FROM abort", "select", "8"},
 			{"INSERT INTO t (select) VALUES (1)", "VALUES", "24"},
 		} {
-			if err := diagnostic(operation(s.q), "42601", fmt.Sprintf("syntax error at or near \"%s\"", s.word), s.pos); err != nil {
+			if err := identifierDiagnostic(operation(s.q), "42601", fmt.Sprintf("syntax error at or near \"%s\"", s.word), s.pos); err != nil {
 				return err
 			}
 		}
 		for _, s := range []struct{ label, code, msg, pos string }{
 			{"check", "0A000", "projection aliases are unsupported", "11"}, {"authorization", "0A000", "projection aliases are unsupported", "11"}, {"AS char", "0A000", "projection aliases are unsupported", "14"}, {"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
 		} {
-			if err := diagnostic(operation("SELECT by "+s.label+" FROM insert"), s.code, s.msg, s.pos); err != nil {
+			if err := identifierDiagnostic(operation("SELECT by "+s.label+" FROM insert"), s.code, s.msg, s.pos); err != nil {
 				return err
 			}
 		}
@@ -197,7 +197,7 @@ func run() error {
 	}
 	defer old.Close()
 	err = stuntgres.Restore(ctx, db, bytes.NewBufferString("CREATE TABLE staged (x INT); CREATE TABLE select (x INT)"))
-	if err := diagnostic(err, "42601", "syntax error at or near \"select\"", "43"); err != nil {
+	if err := identifierDiagnostic(err, "42601", "syntax error at or near \"select\"", "43"); err != nil {
 		return err
 	}
 	var unchanged bytes.Buffer
@@ -213,11 +213,11 @@ func run() error {
 	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
 		return err
 	}
-	if err := checkRows(old, nil, columns, types, want); err != nil {
+	if err := identifierCheckRows(old, nil, columns, types, want); err != nil {
 		return err
 	}
 	rows, e = db.Query(query)
-	if err := checkRows(rows, e, columns, types, want); err != nil {
+	if err := identifierCheckRows(rows, e, columns, types, want); err != nil {
 		return err
 	}
 	var redump bytes.Buffer
@@ -229,23 +229,19 @@ func run() error {
 	}
 	return nil
 }
-func main() {
-	if err := qualifiedNames(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestIdentifierSmoke(t *testing.T) {
+	if err := identifierQualifiedNames(); err != nil {
+		t.Fatal(err)
 	}
-	if err := contextualCapabilities(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	if err := identifierContextualCapabilities(); err != nil {
+		t.Fatal(err)
 	}
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	if err := identifierRun(); err != nil {
+		t.Fatal(err)
 	}
-	fmt.Println("identifiers: categories, contexts, diagnostics and round trips OK")
 }
 
-func qualifiedNames() error {
+func identifierQualifiedNames() error {
 	d := stuntgres.NewDriver()
 	c, err := d.OpenConnector("identifier-qualified")
 	if err != nil {
@@ -270,7 +266,7 @@ func qualifiedNames() error {
 			r, err = stmt.Exec()
 			stmt.Close()
 		}
-		if err := affected(r, err, 0); err != nil {
+		if err := identifierAffected(r, err, 0); err != nil {
 			return err
 		}
 		stmt, err := db.Prepare("INSERT INTO public." + name + " (x) VALUES ($1)")
@@ -279,12 +275,12 @@ func qualifiedNames() error {
 		}
 		r, err = stmt.Exec(7 + i)
 		stmt.Close()
-		if err := affected(r, err, 1); err != nil {
+		if err := identifierAffected(r, err, 1); err != nil {
 			return err
 		}
 		q = "SELECT x FROM public." + name + " WHERE x=$1 ORDER BY x"
 		rows, err := db.Query(q, 7+i)
-		if err := checkRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7 + i)}}); err != nil {
+		if err := identifierCheckRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7 + i)}}); err != nil {
 			return err
 		}
 		stmt, err = db.Prepare(q)
@@ -292,20 +288,20 @@ func qualifiedNames() error {
 			return err
 		}
 		rows, err = stmt.Query(7 + i)
-		if err := checkRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7 + i)}}); err != nil {
+		if err := identifierCheckRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7 + i)}}); err != nil {
 			stmt.Close()
 			return err
 		}
 		stmt.Close()
 		rows, err = db.Query("SELECT x FROM \"" + name + "\" ORDER BY x")
-		if err := checkRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7 + i)}}); err != nil {
+		if err := identifierCheckRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7 + i)}}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func contextualCapabilities() error {
+func identifierContextualCapabilities() error {
 	d := stuntgres.NewDriver()
 	c, err := d.OpenConnector("identifier-contexts")
 	if err != nil {
@@ -358,15 +354,15 @@ func contextualCapabilities() error {
 				return err
 			},
 		} {
-			if err := diagnostic(op(s.q), s.code, s.msg, s.pos); err != nil {
+			if err := identifierDiagnostic(op(s.q), s.code, s.msg, s.pos); err != nil {
 				return err
 			}
 		}
 	}
 	rows, err := db.Query("SELECT x FROM t ORDER BY x")
-	if err := checkRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{}); err != nil {
+	if err := identifierCheckRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{}); err != nil {
 		return err
 	}
 	rows, err = db.Query("SELECT x FROM source_rows ORDER BY x")
-	return checkRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}})
+	return identifierCheckRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}})
 }

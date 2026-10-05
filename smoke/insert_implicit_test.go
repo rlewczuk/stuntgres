@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -6,23 +6,22 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"strings"
+	"testing"
 	"unicode/utf8"
 
 	"stuntgres"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestInsertImplicitSmoke(t *testing.T) {
+	if err := insertImplicitRun(); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func run() error {
+func insertImplicitRun() error {
 	ctx := context.Background()
 	driver := stuntgres.NewDriver()
 	connector, err := driver.OpenConnector("insert-implicit-smoke")
@@ -308,6 +307,5 @@ func run() error {
 	if restoredID != 8 || restoredLabel.Valid {
 		return fmt.Errorf("hand-authored short restore: id=%d label=%+v", restoredID, restoredLabel)
 	}
-	fmt.Print("implicit short INSERT: rows, diagnostics, metadata, atomicity, snapshot and dump/restore OK\n")
 	return nil
 }

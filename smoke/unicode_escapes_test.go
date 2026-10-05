@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -6,21 +6,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
+	"testing"
 
 	"stuntgres"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestUnicodeEscapesSmoke(t *testing.T) {
+	if err := unicodeEscapesRun(); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func diagnostic(err error, message, position, hint string) error {
+func unicodeEscapesDiagnostic(err error, message, position, hint string) error {
 	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: message, Position: position, Hint: hint}
 	var got *stuntgres.Error
 	if !errors.As(err, &got) || *got != want || got.SQLState() != want.Code {
@@ -29,7 +28,7 @@ func diagnostic(err error, message, position, hint string) error {
 	return nil
 }
 
-func ordinaryCanceled(err error) error {
+func unicodeEscapesOrdinaryCanceled(err error) error {
 	var state interface{ SQLState() string }
 	if !errors.Is(err, context.Canceled) || errors.As(err, &state) {
 		return fmt.Errorf("ordinary cancellation: %v", err)
@@ -37,7 +36,7 @@ func ordinaryCanceled(err error) error {
 	return nil
 }
 
-func verifyRows(rows *sql.Rows, names, types []string, want [][]any) error {
+func unicodeEscapesVerifyRows(rows *sql.Rows, names, types []string, want [][]any) error {
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil || !reflect.DeepEqual(columns, names) {
@@ -76,7 +75,7 @@ func verifyRows(rows *sql.Rows, names, types []string, want [][]any) error {
 	return nil
 }
 
-func run() error {
+func unicodeEscapesRun() error {
 	ctx := context.Background()
 	d := stuntgres.NewDriver()
 	connector, err := d.OpenConnector("unicode-escapes-smoke")
@@ -150,7 +149,7 @@ func run() error {
 			r.Close()
 			return fmt.Errorf("Unicode id lost NOT NULL metadata")
 		}
-		return verifyRows(r, []string{"id", "😀"}, []string{"INT4", "TEXT"}, want)
+		return unicodeEscapesVerifyRows(r, []string{"id", "😀"}, []string{"INT4", "TEXT"}, want)
 	}
 	for _, db := range []*sql.DB{first, second} {
 		if err := verify(db); err != nil {
@@ -161,7 +160,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := verifyRows(escapedRows, []string{"id", "😀"}, []string{"INT4", "TEXT"}, want); err != nil {
+	if err := unicodeEscapesVerifyRows(escapedRows, []string{"id", "😀"}, []string{"INT4", "TEXT"}, want); err != nil {
 		return err
 	}
 	for _, prepared := range []bool{false, true} {
@@ -174,13 +173,13 @@ func run() error {
 			}
 			rows, err = s.QueryContext(ctx)
 			if err == nil {
-				err = verifyRows(rows, []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}})
+				err = unicodeEscapesVerifyRows(rows, []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}})
 			}
 			s.Close()
 		} else {
 			rows, err = first.QueryContext(ctx, q)
 			if err == nil {
-				err = verifyRows(rows, []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}})
+				err = unicodeEscapesVerifyRows(rows, []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}})
 			}
 		}
 		if err != nil {
@@ -234,7 +233,7 @@ func run() error {
 					return fmt.Errorf("bad SQL prepared")
 				}
 			}
-			if err := diagnostic(err, message, position, hint); err != nil {
+			if err := unicodeEscapesDiagnostic(err, message, position, hint); err != nil {
 				return fmt.Errorf("%s %q: %w", op, q, err)
 			}
 		}
@@ -262,14 +261,14 @@ func run() error {
 			if err != nil {
 				return err
 			}
-			if err := verifyRows(r, []string{"x"}, []string{"TEXT"}, [][]any{{"seed"}}); err != nil {
+			if err := unicodeEscapesVerifyRows(r, []string{"x"}, []string{"TEXT"}, [][]any{{"seed"}}); err != nil {
 				return err
 			}
 			source, err := db.QueryContext(ctx, "SELECT x FROM source_rows")
 			if err != nil {
 				return err
 			}
-			if err := verifyRows(source, []string{"x"}, []string{"TEXT"}, [][]any{{"source"}}); err != nil {
+			if err := unicodeEscapesVerifyRows(source, []string{"x"}, []string{"TEXT"}, [][]any{{"source"}}); err != nil {
 				return err
 			}
 		}
@@ -289,7 +288,7 @@ func run() error {
 	}
 	defer held.Close()
 	bad := `CREATE TABLE staged(x TEXT); INSERT INTO staged VALUES ('valid'); INSERT INTO staged VALUES (U&'\061')`
-	if err := diagnostic(stuntgres.Restore(ctx, first, bytes.NewBufferString(bad)), "invalid Unicode escape", "97", hint); err != nil {
+	if err := unicodeEscapesDiagnostic(stuntgres.Restore(ctx, first, bytes.NewBufferString(bad)), "invalid Unicode escape", "97", hint); err != nil {
 		return err
 	}
 	if err := verify(second); err != nil {
@@ -322,7 +321,7 @@ func run() error {
 			return err
 		}
 	}
-	if err := verifyRows(held, []string{"id", "😀"}, []string{"INT4", "TEXT"}, want); err != nil {
+	if err := unicodeEscapesVerifyRows(held, []string{"id", "😀"}, []string{"INT4", "TEXT"}, want); err != nil {
 		return err
 	}
 	var again bytes.Buffer
@@ -340,15 +339,14 @@ func run() error {
 	}
 	_, err = s.ExecContext(canceled)
 	s.Close()
-	if err := ordinaryCanceled(err); err != nil {
+	if err := unicodeEscapesOrdinaryCanceled(err); err != nil {
 		return err
 	}
-	if err := ordinaryCanceled(stuntgres.Restore(canceled, first, bytes.NewReader(dump.Bytes()))); err != nil {
+	if err := unicodeEscapesOrdinaryCanceled(stuntgres.Restore(canceled, first, bytes.NewReader(dump.Bytes()))); err != nil {
 		return err
 	}
 	if err := verify(second); err != nil {
 		return err
 	}
-	fmt.Println("Unicode escaped constants and identifiers: ok")
 	return nil
 }

@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -6,20 +6,19 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
+	"testing"
 
 	"stuntgres"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestStringLiteralsSmoke(t *testing.T) {
+	if err := stringLiteralsRun(); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func run() error {
+func stringLiteralsRun() error {
 	ctx := context.Background()
 	d := stuntgres.NewDriver()
 	connector, err := d.OpenConnector("string-literals-smoke")
@@ -307,16 +306,6 @@ func run() error {
 			return fmt.Errorf("restored extra rows/error")
 		}
 		rows.Close()
-	}
-	for _, line := range []string{
-		"strings: direct/prepared escape round trips",
-		"strings: diagnostics and positions",
-		"strings: statement atomicity",
-		"strings: dump/reset/restore shared pools",
-		"strings: raw SQL boundary preserved",
-		"strings: dollar quotes, tags and parameter separation",
-	} {
-		fmt.Println(line)
 	}
 	return nil
 }

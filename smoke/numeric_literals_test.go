@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -6,22 +6,20 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
+	"testing"
 
 	"stuntgres"
 )
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestNumericLiteralsSmoke(t *testing.T) {
+	if err := numericLiteralsRun(); err != nil {
+		t.Fatal(err)
 	}
-	fmt.Print("numeric literals: ok\n")
 }
 
-func diagnostic(err error, code, message, position string) error {
+func numericLiteralsDiagnostic(err error, code, message, position string) error {
 	var got *stuntgres.Error
 	want := &stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: position}
 	if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
@@ -30,7 +28,7 @@ func diagnostic(err error, code, message, position string) error {
 	return nil
 }
 
-func checkRows(rows *sql.Rows, names, types []string, want [][]any) error {
+func numericLiteralsCheckRows(rows *sql.Rows, names, types []string, want [][]any) error {
 	defer rows.Close()
 	gotNames, err := rows.Columns()
 	if err != nil {
@@ -69,7 +67,7 @@ func checkRows(rows *sql.Rows, names, types []string, want [][]any) error {
 	return nil
 }
 
-func run() error {
+func numericLiteralsRun() error {
 	ctx := context.Background()
 	connector, err := stuntgres.NewDriver().OpenConnector("numeric-literals-smoke")
 	if err != nil {
@@ -118,7 +116,7 @@ func run() error {
 		if e != nil {
 			return e
 		}
-		return checkRows(rows, names, types, want)
+		return numericLiteralsCheckRows(rows, names, types, want)
 	}
 	for _, prepared := range []bool{false, true} {
 		if err := stuntgres.Reset(ctx, db); err != nil {
@@ -203,7 +201,7 @@ func run() error {
 					return fmt.Errorf("failed Prepare returned statement")
 				}
 			}
-			if err := diagnostic(e, "42601", c.message, c.position); err != nil {
+			if err := numericLiteralsDiagnostic(e, "42601", c.message, c.position); err != nil {
 				return err
 			}
 			if err := unchanged(); err != nil {
@@ -216,7 +214,7 @@ func run() error {
 	}
 	// Actual sentinel second-row atomicity, independent of the positional table.
 	_, err = db.ExecContext(ctx, "INSERT INTO sentinel VALUES (1),(0b2)")
-	if err := diagnostic(err, "42601", `trailing junk after numeric literal at or near "0b2"`, "34"); err != nil {
+	if err := numericLiteralsDiagnostic(err, "42601", `trailing junk after numeric literal at or near "0b2"`, "34"); err != nil {
 		return err
 	}
 	if err := unchanged(); err != nil {
@@ -235,7 +233,7 @@ func run() error {
 		} else {
 			_, err = db.ExecContext(ctx, assignment)
 		}
-		if err := diagnostic(err, "22003", "integer out of range", ""); err != nil {
+		if err := numericLiteralsDiagnostic(err, "22003", "integer out of range", ""); err != nil {
 			return err
 		}
 		if err := unchanged(); err != nil {
@@ -244,7 +242,7 @@ func run() error {
 	}
 	// Native-only capability boundary, deliberately not PostgreSQL parity.
 	_, err = db.ExecContext(ctx, "INSERT INTO t VALUES (0x8000000000000000)")
-	if err := diagnostic(err, "22003", "integer literal out of range", "23"); err != nil {
+	if err := numericLiteralsDiagnostic(err, "22003", "integer literal out of range", "23"); err != nil {
 		return err
 	}
 	var dump bytes.Buffer
@@ -265,13 +263,13 @@ func run() error {
 	}
 	defer held.Close()
 	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE staged(x INT); INSERT INTO staged VALUES (1); INSERT INTO staged VALUES (0b2)"))
-	if err := diagnostic(err, "42601", `trailing junk after numeric literal at or near "0b2"`, "87"); err != nil {
+	if err := numericLiteralsDiagnostic(err, "42601", `trailing junk after numeric literal at or near "0b2"`, "87"); err != nil {
 		return err
 	}
 	if err := unchanged(); err != nil {
 		return err
 	}
-	if err := checkRows(held, []string{"id", "b"}, []string{"INT4", "INT8"}, endpoints); err != nil {
+	if err := numericLiteralsCheckRows(held, []string{"id", "b"}, []string{"INT4", "INT8"}, endpoints); err != nil {
 		return err
 	}
 	if err := stuntgres.Reset(ctx, db); err != nil {

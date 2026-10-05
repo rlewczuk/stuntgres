@@ -10,7 +10,7 @@ reference:
 	go test -tags reference -run TestReference -count=1 -v .
 
 smoke:
-	go run ./cmd/smoke
+	go test -count=1 -v ./smoke
 
 bench:
 	go test -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .

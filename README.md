@@ -162,7 +162,7 @@ and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
 Native Reset/Restore preserve live settings and use default-on parsing;
 Dump excludes settings. Retained SHOW/SELECT snapshots outlive session end.
 
-Run `go run ./cmd/settings-smoke` and
+Run `go test -count=1 -run '^TestSettingsSmoke$' ./smoke` and
 `go test -tags=reference -run '^TestReferenceSettings' -count=1 -v .`.
 The reference suite separately executes real PostgreSQL numeric/enum settings,
 non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
@@ -170,21 +170,15 @@ placeholders are never claimed to validate native typed registrations.
 The native smoke also asserts direct/prepared explicit-transaction settings
 rejection, subsequent 25P02, rollback with unchanged settings on the same physical
 connection, and fixed read-only/deny-only access for both bootstrap postgres and
-an ordinary authenticated role. These checks precede the existing access label;
-they do not add transaction-local settings or privilege-grant mechanisms.
+an ordinary authenticated role. These assertions do not add transaction-local
+settings or privilege-grant mechanisms.
 
-Settings smoke prints after the corresponding independent assertions:
-
-```text
-settings exact decimal subnormal: SET set_config defaults=1.11254e-308, underflow rejected
-typed settings: bool string integer floating enum
-setting units and bounds: normalized
-settings SQL: SET RESET SHOW SHOW ALL current_setting set_config
-settings parser mode: captured at prepare
-settings timeout: 57014, session healthy
-settings access: 55P02 42501, unsupported local=0A000
-settings lifecycle: reuse retained, replacement defaults, data=7
-```
+Settings smoke also asserts exact decimal subnormal handling and underflow
+rejection, typed boolean/string/integer/floating/enum settings, normalized units
+and bounds, SET/RESET/SHOW/SHOW ALL/current_setting/set_config behavior,
+prepare-time parser mode, healthy sessions after 57014 timeouts, 55P02/42501
+access failures and unsupported local scope (0A000), retained settings on reuse,
+and replacement defaults with surviving data. Go test reports the result.
 
 ### Notices and warnings
 
@@ -234,27 +228,21 @@ notices. Native controls do not serialize or deliver staging notices.
 No native DO/RAISE, warning-producing procedural SQL, COPY or asynchronous
 LISTEN/NOTIFY support is implied.
 
-`go run ./cmd/notices-smoke` exercises actual notices, filters, ownership,
-peer reentry and control round trips; sole successful output is `notices: ok`.
+`go test -count=1 -run '^TestNoticesSmoke$' ./smoke` exercises actual notices,
+filters, ownership, peer reentry and control round trips; Go test reports the result.
 
 
-Run `go run ./cmd/session-smoke` for asserted isolation, preparation, physical
+Run `go test -count=1 -run '^TestSessionSmoke$' ./smoke` for asserted isolation, preparation, physical
 reuse/replacement, data survival, diagnostics, cancellation and native controls.
 Scoped checks: `go test -run '^TestSession' ./...`,
 `go test -race -run '^TestSession' ./...`, and the real pinned PostgreSQL suite
 `go test -tags=reference -run '^TestReferenceSession' -count=1 .`.
 
-Session smoke prints only these asserted success labels:
-
-```text
-session isolation: session-a session-b
-prepared settings: TEXT affected=0
-pool reuse: preserved
-physical replacement: default restored, data=7
-pool reopen: data=7
-session failures: 42704 22023 42601
-session cancellation and controls: preserved
-```
+Session smoke asserts distinct session settings, prepared TEXT metadata and zero
+affected counts, preserved settings on pool reuse, restored defaults on physical
+replacement with surviving data, data retention after pool reopening,
+42704/22023/42601 diagnostics, and cancellation/control preservation.
+Go test reports the result.
 
 ### Driver transactions (READ COMMITTED)
 
@@ -355,21 +343,11 @@ publication. INSERT/SELECT use the existing binder and identity-keyed storage;
 there is no parallel catalog/store, retrying SQL executor, or placeholder
 savepoint/SSI/provider implementation.
 
-Run `go run ./cmd/transaction-smoke` (in addition to `make smoke`, which retains
-the original baseline executable). It asserts direct/prepared visibility,
+Run `go test -count=1 -run '^TestTransactionSmoke$' ./smoke` (also included in
+`make smoke` and `make test`). It asserts direct/prepared visibility,
 rollback/commit, refreshed prepared reads, exact rows/types/counts, full
 23502/25P02 records, failed Commit/recovery, independent autocommit, cancellation
-and native replacement/preservation before printing:
-
-```text
-transaction visibility: direct prepared
-transaction rollback: discarded
-transaction commit: published
-read committed: refreshed
-transaction failures: 23502 25P02
-autocommit: independent
-transaction cancellation and controls: preserved
-```
+and native replacement/preservation. Go test reports the result.
 
 Scoped witnesses: `go test -run '^TestTransaction' -count=1 ./...`,
 `go test -race -run '^TestTransaction' -count=1 ./...`, and
@@ -480,22 +458,16 @@ default-allow. The reference harness recreates public, so ordinary-owner
 fixtures explicitly run `GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC` on
 the privileged PostgreSQL setup connection only.
 
-`go run ./cmd/role-smoke` checks direct/prepared aliases and diagnostics, NAME
-metadata, held prepared statements across switches, owner/nonowner isolation,
-genuinely distinct trusted authenticators, reuse/replacement, dependency
-failures and owner-preserving native controls before printing exactly:
-
-```text
-role creation: defaults aliases diagnostics ok
-role identity: NAME direct prepared isolated
-role authorization: owner=7 reader=42501
-trusted authentication: distinct principals preserved
-role controls: owners restored legacy accepted atomic failures
-role removal: dependencies rejected cleanup succeeded
-```
+`go test -count=1 -run '^TestRoleSmoke$' ./smoke` checks direct/prepared aliases
+and diagnostics, NAME metadata, held prepared statements across switches,
+owner/nonowner isolation, genuinely distinct trusted authenticators,
+reuse/replacement, dependency failures and owner-preserving native controls.
+It asserts role creation defaults, owner access versus 42501 rejection,
+owner restoration, legacy control acceptance, atomic failures and successful
+role cleanup. Go test reports the result.
 
 Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
-`go test -run '^TestRoleSmoke$' ./cmd/role-smoke`, and the genuine pinned suite
+`go test -count=1 -run '^TestRoleSmoke$' ./smoke`, and the genuine pinned suite
 `go test -tags reference -run '^TestReferenceRole' -count=1 -v .`.
 
 ## Supported SQL
@@ -527,17 +499,13 @@ The same failure-only call guard applies at every named projection position: `SE
 
 NULLS ordering is admitted only when the next actual unquoted keyword token is FIRST or LAST (comments and case folding use the existing scanner). A one-token filter caches that token without rescanning. Invalid or quoted alternatives, or end of input after NULLS, leave the original keyword as the syntax error: `ORDER BY x NULLS bogus` reports `42601` at raw NULLS, not at bogus. The filter preserves original lexemes, character positions and scanner-error precedence; it neither changes keyword metadata nor enables explicit NULL ordering.
 
-Run `go run ./cmd/identifier-smoke` for direct/prepared contextual names, complete diagnostics and native control round trips. It prints exactly `identifiers: categories, contexts, diagnostics and round trips OK` only after all assertions succeed. Pinned real-reference fixtures are `go test -tags reference -run '^TestReferenceIdentifier.*$' -count=1 -v .`; alias-valid queries deliberately assert PostgreSQL rows and native unsupported diagnostics separately.
+Run `go test -count=1 -run '^TestIdentifierSmoke$' ./smoke` for direct/prepared contextual names, complete diagnostics and native control round trips. Go test reports the result. Pinned real-reference fixtures are `go test -tags reference -run '^TestReferenceIdentifier.*$' -count=1 -v .`; alias-valid queries deliberately assert PostgreSQL rows and native unsupported diagnostics separately.
 
 Unicode escaped constants `U&'\0041'` and quoted identifiers `U&"\0041"` decode to `A`, preserving quoted-name case. Four hexadecimal digits or `+` and six digits specify a scalar; adjacent high/low surrogate escapes combine (for example `U&'\D83D\DE00'` is 😀). Doubling the escape character yields it literally. Optional `UESCAPE '!'` selects exactly one byte other than hexadecimal digits, `+`, either quote or scanner whitespace; normally decoded E/dollar strings are also valid arguments. Bare newline-separated string segments concatenate before Unicode decoding. Names clip decoded UTF8 at 63 bytes without splitting a character. B/X/N strings remain unsupported.
 
 U& malformed digits, invalid scalar/surrogate values and invalid UESCAPE arguments report `42601`; malformed digits include Hint `Unicode escapes must be \XXXX or \+XXXXXX.` This differs from malformed E-string Unicode's `22025`. Decoder positions follow PostgreSQL's dequoted/concatenated-body arithmetic, so doubled quotes or removed continuation separators can make the cursor precede the raw escape. Raw lookahead lexical failures and UESCAPE argument validation take precedence over body decoding.
 
-Run `go run ./cmd/unicode-escapes-smoke` for direct/prepared Unicode values/names, complete diagnostics, two-pool atomicity, cancellation and native-control round trips. It prints only:
-
-```text
-Unicode escaped constants and identifiers: ok
-```
+Run `go test -count=1 -run '^TestUnicodeEscapesSmoke$' ./smoke` for direct/prepared Unicode values/names, complete diagnostics, two-pool atomicity, cancellation and native-control round trips. Go test reports the result.
 These ordinary-string defaults correspond to standard_conforming_strings=on.
 With the session setting off, ordinary strings use that same escape decoder;
 E strings always use it. Native Restore always uses the default-on parser.
@@ -573,14 +541,10 @@ Integer WHERE literals compare across widths without assignment narrowing:
 `int4_column = 2147483648` is valid and matches nothing, while a parameter in
 that predicate retains INT4 input and rejects the same overflowing bound text.
 
-`go run ./cmd/type-core-smoke` exercises public direct/prepared inference,
-codecs, exact diagnostics and phases, metadata, byte ownership, multirow
-atomicity, cancellation and four-kind native round trips with retained raw
-cursors. It prints exactly:
-
-```text
-typed core: inference, codecs, metadata, atomicity and native round trips OK
-```
+`go test -count=1 -run '^TestTypeCoreSmoke$' ./smoke` exercises public
+direct/prepared inference, codecs, exact diagnostics and phases, metadata, byte
+ownership, multirow atomicity, cancellation and four-kind native round trips with
+retained raw cursors. Go test reports the result.
 
 Focused independent witnesses are `go test -run '^TestTypeCore.*$' -count=1 -v .`,
 `go test ./internal/sqltype ./internal/engine`, and the pinned real-reference
@@ -591,29 +555,29 @@ their old values, types and column metadata.
 
 Integer SQL constants accept decimal and case-insensitive binary `0b`, octal `0o`, or hexadecimal `0x` prefixes. Single underscores may separate digits; radix constants may also have one underscore immediately after the prefix (`0B_1_010`, `0O_1_2`, `0X_A` all equal 10). Decimal leading zeros remain decimal (`010` is 10, `08` is 8). Unary signs may be separated from the number by whitespace/comments. Values must fit signed int64, including `-0x8000_0000_0000_0000`; int4 assignment additionally checks its own range. Malformed digits, separators and trailing identifier junk fail the entire statement with PostgreSQL English `42601` diagnostics pointing to the number's first character (not its sign).
 
-This is not PostgreSQL's full numeric inference: lexically valid constants outside signed int64 retain the native `22003` / `integer literal out of range` capability boundary, while PostgreSQL can infer exact `numeric` values. Fractional/exponent numeric constants and bit-string constants remain unsupported (`0A000`). SQL integer constants and integer textual input have distinct lexical/input diagnostics, though both support the baseline radix/separator forms. Dump emits canonical decimal integers, and Restore accepts the supported integer spellings. Run `go run ./cmd/numeric-literals-smoke` for the public feature contract; it prints exactly `numeric literals: ok` only after its assertions succeed.
+This is not PostgreSQL's full numeric inference: lexically valid constants outside signed int64 retain the native `22003` / `integer literal out of range` capability boundary, while PostgreSQL can infer exact `numeric` values. Fractional/exponent numeric constants and bit-string constants remain unsupported (`0A000`). SQL integer constants and integer textual input have distinct lexical/input diagnostics, though both support the baseline radix/separator forms. Dump emits canonical decimal integers, and Restore accepts the supported integer spellings. Run `go test -count=1 -run '^TestNumericLiteralsSmoke$' ./smoke` for the public feature contract; Go test reports the result.
 
 Lexical errors take precedence over the unsupported-valid-exponent boundary: `1e3` and `1e+3` remain unsupported, but `1e3foo`, `1e3_`, `1_000e3__0` and `1e+3foo` fail with `42601`, quoting the complete malformed numeric token.
 
 Radix and separated constants follow the same prepared assignment contract as decimal integers: `INSERT INTO t VALUES (1),(0x8000_0000)` into an INT4 column prepares successfully, then execution fails with `22003` / `integer out of range` and publishes neither row. The numeric feature smoke checks this boundary through both direct and prepared execution.
 
-For an INSERT without a target list, uniform VALUES rows may supply any positive number of leading declaration-order columns up to the table width; omitted supported columns receive NULL (the supported DDL has no declared-default expressions). Every VALUES row must have the same width. Explicit target lists retain their stated order and must match row width. Conversion, arity and NOT NULL failures publish no rows from the statement. The public feature smoke is `go run ./cmd/insert-implicit-smoke`.
+For an INSERT without a target list, uniform VALUES rows may supply any positive number of leading declaration-order columns up to the table width; omitted supported columns receive NULL (the supported DDL has no declared-default expressions). Every VALUES row must have the same width. Explicit target lists retain their stated order and must match row width. Conversion, arity and NOT NULL failures publish no rows from the statement. The public feature smoke is `go test -count=1 -run '^TestInsertImplicitSmoke$' ./smoke`.
 
 Preparation checks assignment compatibility; typed integer literals assigned to INT4 are range-checked during execution, before NOT NULL checks. Thus preparing a short INSERT containing `2147483648` succeeds, but executing it fails with `22003` (`integer out of range`) without publishing rows. Unknown quoted numeric strings still run the destination input function during preparation and retain their input-specific diagnostic and cursor position.
 
-That feature smoke exercises both direct execution and an actual prepared short INSERT, checks declaration-order metadata and statement atomicity, and retains a cursor across Reset/Restore. It also checks deterministic full-row Dump/Restore, successful hand-authored short-row Restore, and catalog preservation when a staged short INSERT omits a NOT NULL tail. Its single success line is printed only after those public API assertions pass.
+That feature smoke exercises both direct execution and an actual prepared short INSERT, checks declaration-order metadata and statement atomicity, and retains a cursor across Reset/Restore. It also checks deterministic full-row Dump/Restore, successful hand-authored short-row Restore, and catalog preservation when a staged short INSERT omits a NOT NULL tail. Go test reports whether those public API assertions pass.
 
 No configurable `search_path`, `CREATE SCHEMA`, schema-qualified creation outside `public`, three-part/database qualification, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction controls/savepoints, transactional DDL/settings/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 
-Native SQL failures supply both severity fields as `ERROR`, including parser, missing-object and duplicate-object failures; naming an object in the primary message does not imply an object diagnostic field. The error-fields feature smoke is `go run ./cmd/error-fields-smoke`: it checks exact syntax and engine diagnostics, direct/prepared NOT NULL failures, statement atomicity, wrapping, ordinary context cancellation and native control round trips, and prints only `error fields: ok` after those checks succeed. Reference-only permission, procedural and SQL cancellation witnesses exercise PostgreSQL diagnostic transport expectations, not native implementations of those unsupported features.
+Native SQL failures supply both severity fields as `ERROR`, including parser, missing-object and duplicate-object failures; naming an object in the primary message does not imply an object diagnostic field. The error-fields feature smoke is `go test -count=1 -run '^TestErrorFieldsSmoke$' ./smoke`: it checks exact syntax and engine diagnostics, direct/prepared NOT NULL failures, statement atomicity, wrapping, ordinary context cancellation and native control round trips. Go test reports the result. Reference-only permission, procedural and SQL cancellation witnesses exercise PostgreSQL diagnostic transport expectations, not native implementations of those unsupported features.
 
 Shared generic SQL diagnostics construct only severity, SQLSTATE and primary message; they never infer object identities. In particular, input/range conversion errors (`22P02`/`22003`) do not infer Schema, Table or Column from a destination or WHERE predicate. Condition-specific producers explicitly own their additional fields: the supported NOT NULL failure (`23502`) supplies its schema/table/column and failing-row Detail. This distinction follows PostgreSQL's [conditional error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html); clients must not infer the presence of one object field from another.
 
 Invalid boolean strings retain the original decoded input in the PostgreSQL `22P02` primary message (for example, `invalid input syntax for type boolean: "o"`). Boolean WHERE string-literal failures now carry the one-based character Position of the source opener, as INSERT already does, including during actual preparation and on empty tables. Escapes and continued strings do not change that provenance. Bound parameters have no query Position or native portal Context; real PostgreSQL Bind errors independently retain lib/pq's parameter Context. No destination object identities are inferred.
 
-This bounded diagnostic change does not replace boolean parsing or native `database/sql` values: accepted aliases/unique prefixes, case/ASCII whitespace, TRUE/FALSE/NULL, bool/nil returns, and atomic INSERT and Dump/Reset/Restore behavior remain baseline regressions. Run `go run ./cmd/boolean-diagnostics-smoke` for complete native diagnostic, direct/prepared parameter, atomicity and control witnesses; it prints only `boolean diagnostics: ok` after all assertions succeed. The independent pinned-reference fixture is `go test -tags reference -run '^TestReferenceBooleanDiagnostics$' -count=1 -v .`.
+This bounded diagnostic change does not replace boolean parsing or native `database/sql` values: accepted aliases/unique prefixes, case/ASCII whitespace, TRUE/FALSE/NULL, bool/nil returns, and atomic INSERT and Dump/Reset/Restore behavior remain baseline regressions. Run `go test -count=1 -run '^TestBooleanDiagnosticsSmoke$' ./smoke` for complete native diagnostic, direct/prepared parameter, atomicity and control witnesses; Go test reports the result. The independent pinned-reference fixture is `go test -tags reference -run '^TestReferenceBooleanDiagnostics$' -count=1 -v .`.
 
 Unterminated comments and quoted tokens report PostgreSQL-style English primary messages containing the raw input from the offending opener (`at or near "..."`), with a separate one-based character Position. Newline-separated string segments form one token, so an unterminated later segment points to the first literal opener and includes the continued raw suffix. A zero-length delimited identifier instead includes only its raw `""` token, not trailing SQL. Diagnostic text is not escaped as a Go string; multibyte characters do not turn Position into a byte offset.
 
@@ -621,16 +585,7 @@ INSERT target-resolution and assignment diagnostics interpolate decoded identifi
 
 Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source and retains existing type-input behavior. B/X/N strings remain unsupported; `standard_conforming_strings` is configurable as documented above. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
 
-The focused public proof is `go run ./cmd/string-literals-smoke`; after checking direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary it prints exactly:
-
-```text
-strings: direct/prepared escape round trips
-strings: diagnostics and positions
-strings: statement atomicity
-strings: dump/reset/restore shared pools
-strings: raw SQL boundary preserved
-strings: dollar quotes, tags and parameter separation
-```
+The focused public proof is `go test -count=1 -run '^TestStringLiteralsSmoke$' ./smoke`; it asserts direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary. Go test reports the result.
 
 Pinned real-reference feature fixtures are `go test -tags reference -run '^TestReferenceStringLiterals$' -count=1 -v .` and `go test -tags reference -run '^TestReferenceStringLiteralDumpRoundTrip$' -count=1 -v .`.
 
@@ -650,7 +605,7 @@ owner/ACL state before output. Comparison is semantic, not ACL entry order.
 
 Restore accepts supported CREATE/INSERT scripts without parameters and bounded SET SESSION AUTHORIZATION owner directives; legacy CREATE/INSERT-only scripts are bootstrap-owned. Referenced roles must already exist in the target engine. Restore captures a private role snapshot before input I/O, executes through the same SQL engine, remaps owners into the target principal authority, then atomically **replaces** descriptors, identity-keyed row storage and epoch, never merges or resets roles/live sessions. Missing owners (`22023`), dropped/recreated owners, read/parse/execution/cancellation errors leave original data untouched. Empty input clears user relations. Reset/Restore publication supersedes earlier completed writes; no target locks span external I/O. Existing SELECT and identity snapshots remain valid across inserts and catalog replacement. Writer errors do not change the database.
 
-`go run ./cmd/smoke` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation before printing the documented four lines.
+`go test -count=1 -run '^TestCatalogOwnersPublicWitness$' ./smoke` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.
 
 ## Catalog-part agent workflow
 
@@ -675,10 +630,10 @@ python3 .omp/bin/implement_part.py select --repo "$PWD" PG18-ARCH-CATALOG-IDENTI
 
 ```sh
 make generate   # pinned goyacc; checked-in parser generation
-make test       # Docker-free behavioral tests
+make test       # Docker-free behavioral tests, including the smoke package
 make reference  # real pinned PostgreSQL differential fixtures
-make smoke      # actual public database/sql and controls scenario
-go run ./cmd/transaction-smoke # direct/prepared transaction visibility and controls
+make smoke      # all public database/sql and controls smoke tests, uncached and verbose
+go test -count=1 -run '^TestTransactionSmoke$' ./smoke # direct/prepared transaction visibility and controls
 make bench      # fresh engine + connector + pool + Ping + Close, five runs
 go test -race ./...
 go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./...
@@ -686,14 +641,12 @@ go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./...
 
 Every nonblank production dependency entry must be `stuntgres` or start with `stuntgres/`. goyacc is a generation tool, not a runtime dependency. lib/pq, sqlmw and testcontainers are test-only. Benchmark startup target is below 1,000,000 ns/op; report observed allocations and timings, not a timing-sensitive test assertion.
 
-The public smoke verifies rows, metadata, affected counts, Dump/Reset/Restore and a second already-open pool, then prints exactly:
-
-```text
-1 Ada true
-2 O'Brien false
-reset: 42P01
-restore: 2 rows
-```
+The public smoke tests live in `smoke/*_test.go` and are also part of `make test`.
+`make smoke` runs the entire package with `go test -count=1 -v ./smoke`.
+The baseline `TestSmoke` verifies rows, metadata, affected counts,
+Dump/Reset/Restore and a second already-open pool. Run the catalog witness with
+`go test -count=1 -run '^TestCatalogOwnersPublicWitness$' ./smoke`.
+Go test reports each test's pass or failure instead of standalone output labels.
 
 The explicitly enabled reference suite requires working Docker and image/module access. It uses one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
 

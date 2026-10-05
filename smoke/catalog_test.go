@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"context"
@@ -7,10 +7,17 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"testing"
 	"time"
 
 	"stuntgres"
 )
+
+func TestCatalogOwnersPublicWitness(t *testing.T) {
+	if err := verifyCatalogOwners(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // verifyCatalogOwners exercises native instance attachment with live physical
 // connections. It deliberately uses opaque DSNs, not a new DSN syntax.

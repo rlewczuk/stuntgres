@@ -6,7 +6,7 @@
 - `internal/parser`: handwritten PostgreSQL-oriented lexer, goyacc grammar/checked-in generated parser and closed CREATE/INSERT/SELECT/SET/RESET/SHOW/setting-call AST. Parse entire input, never execute a prefix while ignoring a suffix. Source positions and parameter indices belong in AST, not SQL substring counting. Ordinary-string mode and command context are per-call options, never globals.
 - `internal/engine`: synchronized process-local catalog, immutable committed values, statement-atomic execution, parameter inference, snapshots and lifecycle publication.
 - `internal/sqlstate`: shared error contract; root Error aliases it. SQLState is the compatibility interface, not concrete pq.Error.
-- `cmd/smoke`: real public API proof; production imports are standard library/module only.
+- `smoke/*_test.go`: real public API proof; production imports are standard library/module only.
 
 Production must have zero external dependencies. goyacc is generation-only; lib/pq, sqlmw and testcontainers stay in tests. Keep engine/parser independent of root adapters. Reuse these seams rather than introduce alternative binders or storage paths.
 
@@ -32,9 +32,9 @@ go test -race ./...
 go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./...
 ```
 
-Make commands expand respectively to `go generate ./internal/parser`, `go test ./...`, `go test -tags reference -run TestReference -count=1 -v .`, `go run ./cmd/smoke`, and `go test -run '^$' -bench '^BenchmarkOpenDatabase$' -benchmem -count=5 .`. Generation uses `golang.org/x/tools/cmd/goyacc@v0.50.0`; checked-in output must compile. Production dependency output may contain only this module's paths. Benchmark actual fresh engines through Ping and Close, not merely lazy sql.Open; report ns/op and allocations against <1ms target.
+Make commands expand respectively to `go generate ./internal/parser`, `go test ./...`, `go test -tags reference -run TestReference -count=1 -v .`, `go test -count=1 -v ./smoke`, and `go test -run '^$' -bench '^BenchmarkOpenDatabase$' -benchmem -count=5 .`. Generation uses `golang.org/x/tools/cmd/goyacc@v0.50.0`; checked-in output must compile. Production dependency output may contain only this module's paths. Benchmark actual fresh engines through Ping and Close, not merely lazy sql.Open; report ns/op and allocations against <1ms target.
 
-Tests must specify expected outcomes independently, not parity alone. Cover consumer-visible boundaries, errors, atomicity, parameter direct/prepared behavior, cursor metadata/cancellation/EOF, shared pools and isolated instances, and destructive-control round trips/failures. Public smoke must print README's exact four lines only after verifying every assertion. Do not replace actual behavior with mocks or test source text/wiring counts.
+Tests must specify expected outcomes independently, not parity alone. Cover consumer-visible boundaries, errors, atomicity, parameter direct/prepared behavior, cursor metadata/cancellation/EOF, shared pools and isolated instances, and destructive-control round trips/failures. Public smoke assertions run as unit tests in `smoke/*_test.go`, with failures and success reported by Go test rather than printed success labels. Do not replace actual behavior with mocks or test source text/wiring counts.
 
 Reference tests live in one external root test package gated by `reference`. One bounded-lifecycle PostgreSQL 18.0 container serves serialized fixtures; pin README's image digest and UTF8/C locale. Reset public schema before/after fixtures with privileged unwrapped pq; close case handles/rows first. Use sqlmw wrapping memory and pq for execution, record through context on both direct/prepared hooks and own copied row buffers, retaining a native memory pool for controls. Do not compare implementation call counts. Docker/image failures in an explicitly enabled suite must be visible, never skipped or mocked.
 

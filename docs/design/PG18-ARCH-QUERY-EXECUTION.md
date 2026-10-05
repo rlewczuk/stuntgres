@@ -392,7 +392,7 @@ This design adds **no executable feature smoke** (`smoke_commands=[]`). Do not r
 bash /home/rlew/projects/stuntgres/stuntgres/.omp/bin/implement-part.sh verify PG18-ARCH-QUERY-EXECUTION --repo /home/rlew/projects/stuntgres/stuntgres
 ```
 
-The utility runs in the assigned worktree and records full gates. Existing public baseline smoke is `go run ./cmd/smoke` from that worktree and must retain its existing assertions/output; it proves no future join, window, recursive or RETURNING behavior. Docker/image/network failures are failures, never skips/mocks. No verification result is asserted here.
+The utility runs in the assigned worktree and records full gates. Existing public smoke is `go test -count=1 -v ./smoke` from that worktree and must retain its existing assertions; it proves no future join, window, recursive or RETURNING behavior. Docker/image/network failures are failures, never skips/mocks. No verification result is asserted here.
 
 Independent design review must check every acceptance mapping, declarations/layout invariants, no eager/demand contradiction, all migrated callers including discarded results, producer/TX separation, exact owners and complete independently specified future witnesses. Future owners capture exact additional English/SQLSTATE/location fields against pinned runtime before claiming feature acceptance. This is an evidence obligation, not missing permission to invent fields. No material design question remains: initial eager finite/no-fragment precedence is preserved; public streaming supersession, if needed, is a later explicit design decision.
 

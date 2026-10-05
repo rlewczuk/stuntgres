@@ -1,4 +1,4 @@
-package main
+package smoke_test
 
 import (
 	"bytes"
@@ -6,14 +6,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
+	"testing"
 
 	"stuntgres"
 )
 
-func diagnostic(err error, message, position string) error {
+func booleanDiagnosticsDiagnostic(err error, message, position string) error {
 	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: message, Position: position}
 	var origin *stuntgres.Error
 	for depth := range 3 {
@@ -32,7 +32,7 @@ func diagnostic(err error, message, position string) error {
 	return nil
 }
 
-func values(db *sql.DB, want [][]any) error {
+func booleanDiagnosticsValues(db *sql.DB, want [][]any) error {
 	rows, err := db.Query("SELECT id,flag FROM b ORDER BY id")
 	if err != nil {
 		return err
@@ -62,7 +62,7 @@ func values(db *sql.DB, want [][]any) error {
 	return nil
 }
 
-func run() error {
+func booleanDiagnosticsRun() error {
 	connector, err := stuntgres.NewDriver().OpenConnector("boolean-diagnostics-smoke")
 	if err != nil {
 		return err
@@ -82,7 +82,7 @@ func run() error {
 		rows.Close()
 		return fmt.Errorf("invalid WHERE exposed rows")
 	}
-	if err := diagnostic(err, invalid, "29"); err != nil {
+	if err := booleanDiagnosticsDiagnostic(err, invalid, "29"); err != nil {
 		return err
 	}
 	if _, err := db.Exec("INSERT INTO b VALUES (99,TRUE)"); err != nil {
@@ -119,10 +119,10 @@ func run() error {
 					return fmt.Errorf("invalid literal prepared successfully")
 				}
 			}
-			if err := diagnostic(failure, invalid, tc.position); err != nil {
+			if err := booleanDiagnosticsDiagnostic(failure, invalid, tc.position); err != nil {
 				return err
 			}
-			if err := values(db, sentinel); err != nil {
+			if err := booleanDiagnosticsValues(db, sentinel); err != nil {
 				return err
 			}
 		}
@@ -152,11 +152,11 @@ func run() error {
 				} else {
 					_, failure = db.Exec(query, input.value)
 				}
-				if err := diagnostic(failure, input.message, ""); err != nil {
+				if err := booleanDiagnosticsDiagnostic(failure, input.message, ""); err != nil {
 					stmt.Close()
 					return err
 				}
-				if err := values(db, sentinel); err != nil {
+				if err := booleanDiagnosticsValues(db, sentinel); err != nil {
 					stmt.Close()
 					return err
 				}
@@ -170,7 +170,7 @@ func run() error {
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(1, "o")
-	if err := diagnostic(err, invalid, ""); err != nil {
+	if err := booleanDiagnosticsDiagnostic(err, invalid, ""); err != nil {
 		return err
 	}
 	for i, value := range []any{true, false, nil, []byte("tr"), " \tOfF\n"} {
@@ -182,7 +182,7 @@ func run() error {
 		return err
 	}
 	want := [][]any{{int64(1), true}, {int64(2), false}, {int64(3), nil}, {int64(4), true}, {int64(5), false}, {int64(6), true}, {int64(7), false}, {int64(8), nil}, {int64(99), true}}
-	if err := values(db, want); err != nil {
+	if err := booleanDiagnosticsValues(db, want); err != nil {
 		return err
 	}
 	cursor, err := db.Query("SELECT id,flag FROM b ORDER BY id")
@@ -192,10 +192,10 @@ func run() error {
 	defer cursor.Close()
 	ctx := context.Background()
 	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE replacement(flag BOOL); INSERT INTO replacement VALUES (TRUE),('o');"))
-	if err := diagnostic(err, invalid, "77"); err != nil {
+	if err := booleanDiagnosticsDiagnostic(err, invalid, "77"); err != nil {
 		return err
 	}
-	if err := values(db, want); err != nil {
+	if err := booleanDiagnosticsValues(db, want); err != nil {
 		return err
 	}
 	rows, err = db.Query("SELECT flag FROM replacement")
@@ -216,7 +216,7 @@ func run() error {
 	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
 		return err
 	}
-	if err := values(db, want); err != nil {
+	if err := booleanDiagnosticsValues(db, want); err != nil {
 		return err
 	}
 	if err := stuntgres.Dump(ctx, db, &redump); err != nil {
@@ -243,10 +243,8 @@ func run() error {
 	return nil
 }
 
-func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func TestBooleanDiagnosticsSmoke(t *testing.T) {
+	if err := booleanDiagnosticsRun(); err != nil {
+		t.Fatal(err)
 	}
-	fmt.Println("boolean diagnostics: ok")
 }
