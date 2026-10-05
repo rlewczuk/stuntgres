@@ -148,7 +148,11 @@ func TestReferenceSettingsLocalSQLControls(t *testing.T) {
 							run(localReferenceSelect("SHOW application_name", "application_name", "l"))
 							if aborted {
 								run(settingsReferenceError("SET absent_setting='x'", "42704", `unrecognized configuration parameter "absent_setting"`, "", ""))
-								run(settingsReferenceError("SET application_name='unreachable'", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "", ""))
+								unreachable := settingsReferenceError("SET application_name='unreachable'", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "", "")
+								if prepared {
+									unreachable.errorStage = "prepare"
+								}
+								run(unreachable)
 							}
 							q := end
 							if chain {

@@ -96,9 +96,10 @@ Settings participate in whole transactions. SESSION (also plain SET) persists
 on commit and restores its pretransaction value on rollback or immediate abort.
 LOCAL expires on either end. SESSION followed by LOCAL commits the masked
 SESSION value; a subsequent SESSION or RESET supersedes that candidate.
-Committing an aborted transaction restores originals and returns the existing
-ordinary `pq: could not complete operation in a failed transaction` error,
-not a SQLSTATE diagnostic.
+Go `sql.Tx.Commit` on an aborted transaction restores originals and returns
+the existing ordinary `pq: could not complete operation in a failed transaction`
+error, not a SQLSTATE diagnostic. SQL COMMIT/END succeeds by rollback while
+restoring the same original settings.
 RESET ALL operates on current explicit, resettable overrides: LOCAL DEFAULT
 is absent and skipped, whereas explicit text equal to the default is reset.
 `SET [SESSION | LOCAL] SCHEMA 'schema'` sets search_path to one quoted schema
