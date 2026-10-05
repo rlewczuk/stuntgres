@@ -132,7 +132,17 @@ func (l *lexer) failDiagnostic(code, message, hint string, offset int) {
 			Code: code, Message: message, Hint: hint,
 		}
 		if offset >= 0 {
-			e.Position = strconv.Itoa(utf8.RuneCountInString(l.input[:offset]) + 1)
+			// Unicode decoding can place the release-derived byte limit inside
+			// a source rune after dequoting/continuation. Count rune starts in
+			// the complete input, including the rune crossing that limit.
+			position := 1
+			for start := range l.input {
+				if start >= offset {
+					break
+				}
+				position++
+			}
+			e.Position = strconv.Itoa(position)
 		}
 		l.err = e
 	}

@@ -37,7 +37,7 @@ owners; runtime abandonment cleanup is nondeterministic best effort.
 
 `SET [SESSION] application_name {TO | =} value` and `SHOW application_name`
 use the ordinary direct/prepared execution route. Values are strings using the
-existing ordinary/`E'...'`/dollar-quoted literal lexer, identifiers, booleans, signed
+existing ordinary/`E'...'`/`U&'...'`/dollar-quoted literal lexer, identifiers, booleans, signed
 decimal-digit integer tokens or bare DEFAULT. DEFAULT
 restores the captured physical-session default; quoted 'DEFAULT' is literal.
 SHOW returns one string row with column application_name and type TEXT.
@@ -142,7 +142,7 @@ INSERT INTO [public.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | column [, ...]) FROM [public.]name
        [WHERE column = value] [ORDER BY column [ASC | DESC]]
 type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
-value := signed-64-bit integer | 'string' | E'escape string' | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n
+value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n
 ```
 
 Relation names accept one or two identifier components. Explicit `public.name` and unqualified `name` resolve to the same relation; unqualified references check `pg_catalog` before the built-in `public` namespace. SQL creation is supported only in `public`. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
@@ -164,6 +164,16 @@ The same failure-only call guard applies at every named projection position: `SE
 NULLS ordering is admitted only when the next actual unquoted keyword token is FIRST or LAST (comments and case folding use the existing scanner). A one-token filter caches that token without rescanning. Invalid or quoted alternatives, or end of input after NULLS, leave the original keyword as the syntax error: `ORDER BY x NULLS bogus` reports `42601` at raw NULLS, not at bogus. The filter preserves original lexemes, character positions and scanner-error precedence; it neither changes keyword metadata nor enables explicit NULL ordering.
 
 Run `go run ./cmd/identifier-smoke` for direct/prepared contextual names, complete diagnostics and native control round trips. It prints exactly `identifiers: categories, contexts, diagnostics and round trips OK` only after all assertions succeed. Pinned real-reference fixtures are `go test -tags reference -run '^TestReferenceIdentifier.*$' -count=1 -v .`; alias-valid queries deliberately assert PostgreSQL rows and native unsupported diagnostics separately.
+
+Unicode escaped constants `U&'\0041'` and quoted identifiers `U&"\0041"` decode to `A`, preserving quoted-name case. Four hexadecimal digits or `+` and six digits specify a scalar; adjacent high/low surrogate escapes combine (for example `U&'\D83D\DE00'` is 😀). Doubling the escape character yields it literally. Optional `UESCAPE '!'` selects exactly one byte other than hexadecimal digits, `+`, either quote or scanner whitespace; normally decoded E/dollar strings are also valid arguments. Bare newline-separated string segments concatenate before Unicode decoding. Names clip decoded UTF8 at 63 bytes without splitting a character. Standard-conforming strings are fixed behavior here, not a configurable GUC; B/X/N strings remain unsupported.
+
+U& malformed digits, invalid scalar/surrogate values and invalid UESCAPE arguments report `42601`; malformed digits include Hint `Unicode escapes must be \XXXX or \+XXXXXX.` This differs from malformed E-string Unicode's `22025`. Decoder positions follow PostgreSQL's dequoted/concatenated-body arithmetic, so doubled quotes or removed continuation separators can make the cursor precede the raw escape. Raw lookahead lexical failures and UESCAPE argument validation take precedence over body decoding.
+
+Run `go run ./cmd/unicode-escapes-smoke` for direct/prepared Unicode values/names, complete diagnostics, two-pool atomicity, cancellation and native-control round trips. It prints only:
+
+```text
+Unicode escaped constants and identifiers: ok
+```
 
 Types are int4/int8/text/bool. Values returned to Go are `int64`, `string`, `bool`, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other. WHERE typed comparisons do not use those assignment casts. Parameters support nil, integer, string, bytes and bool after standard `database/sql` conversion, not floating point or timestamps. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
@@ -197,7 +207,7 @@ Unterminated comments and quoted tokens report PostgreSQL-style English primary 
 
 INSERT target-resolution and assignment diagnostics interpolate decoded identifiers between literal double quotes, matching PostgreSQL diagnostic prose rather than Go escaping or SQL identifier quoting. The feature smoke includes an embedded-quote column mismatch and checks its exact diagnostic and complete sentinel preservation.
 
-Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source and retains existing type-input behavior. Separate `U&`, B/X/N strings and configurable string GUCs remain unsupported. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
+Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source and retains existing type-input behavior. B/X/N strings and configurable string GUCs remain unsupported. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
 
 The focused public proof is `go run ./cmd/string-literals-smoke`; after checking direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary it prints exactly:
 

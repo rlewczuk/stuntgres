@@ -17,11 +17,19 @@ type lexer struct {
 	statements         []Statement
 	// Failure-only query recognition defers its capability error until the
 	// entire script is syntactically valid. It never publishes a query AST.
-	pendingMessage string
-	pendingOffset  int
-	lookaheadToken int
-	lookahead      lexeme
-	hasLookahead   bool
+	pendingMessage     string
+	pendingOffset      int
+	lookahead          rawToken
+	hasLookahead       bool
+	rawUnicode         bool
+}
+
+// rawToken retains scanner evidence independently of the parser-facing token.
+// Presence is separate from code so end-of-input can be buffered.
+type rawToken struct {
+	code    int
+	lexeme  lexeme
+	unicode bool
 }
 
 func wordSet(words string) map[string]bool {
@@ -106,8 +114,7 @@ func (l *lexer) skip(allowBlock bool) bool {
 	return newline
 }
 
-func (l *lexer) quotedIdentifier() (string, bool) {
-	opener := l.offset
+func (l *lexer) quotedIdentifier(opener int) (string, bool) {
 	l.offset++
 	var b strings.Builder
 	for l.offset < len(l.input) {
@@ -318,38 +325,8 @@ func (l *lexer) stringLiteral(first int, escape bool) (string, bool) {
 	return s, true
 }
 func (l *lexer) parameter(s string) int { n, _ := strconv.ParseInt(s, 10, 32); return int(n) }
-
-// PostgreSQL's base_yylex recognizes NULLS ordering only when the next real
-// token is FIRST/LAST. Cache that token rather than scanning it twice; restore
-// current so parser diagnostics still identify the token being returned.
-func (l *lexer) Lex(v *sqlSymType) int {
-	if l.err != nil {
-		return 0
-	}
-	var token int
-	if l.hasLookahead {
-		token, l.current = l.lookaheadToken, l.lookahead
-		l.hasLookahead = false
-		v.tok = l.current
-	} else {
-		token = l.scanToken(v)
-	}
-	if l.err != nil || token != KW_U || l.current.keyword == nil || l.current.text != "nulls" {
-		return token
-	}
-	nulls := l.current
-	nextToken := l.scanToken(v)
-	if l.err != nil {
-		return 0
-	}
-	l.lookaheadToken, l.lookahead, l.hasLookahead = nextToken, l.current, true
-	if l.current.keyword != nil && (l.current.text == "first" || l.current.text == "last") {
-		token = NULLS_LA
-	}
-	l.current, v.tok = nulls, nulls
-	return token
-}
-func (l *lexer) scanToken(v *sqlSymType) int {
+func (l *lexer) scan(v *sqlSymType) int {
+	l.rawUnicode = false
 	if l.err != nil {
 		return 0
 	}
@@ -367,8 +344,28 @@ func (l *lexer) scanToken(v *sqlSymType) int {
 	c := l.input[start]
 	token := 0
 	switch {
+	case (c == 'u' || c == 'U') && start+2 < len(l.input) && l.input[start+1] == '&' && (l.input[start+2] == '\'' || l.input[start+2] == '"'):
+		l.rawUnicode = true
+		l.offset += 2
+		var s string
+		var ok bool
+		if l.input[l.offset] == '\'' {
+			s, ok = l.stringLiteral(start, false)
+			token = STRING
+		} else {
+			s, ok = l.quotedIdentifier(start)
+			token = IDENT
+			if ok && s == "" {
+				l.scannerError("zero-length delimited identifier", start, l.offset)
+				return 0
+			}
+		}
+		if !ok {
+			return 0
+		}
+		l.current.text = s
 	case c == '"':
-		s, ok := l.quotedIdentifier()
+		s, ok := l.quotedIdentifier(start)
 		if !ok {
 			return 0
 		}
@@ -492,6 +489,140 @@ func (l *lexer) scanToken(v *sqlSymType) int {
 	}
 	v.tok = l.current
 	return token
+}
+
+func (l *lexer) nextRaw() rawToken {
+	if l.hasLookahead {
+		l.hasLookahead = false
+		return l.lookahead
+	}
+	var v sqlSymType
+	code := l.scan(&v)
+	return rawToken{code: code, lexeme: l.current, unicode: l.rawUnicode}
+}
+
+func (l *lexer) Lex(v *sqlSymType) int {
+	if l.err != nil {
+		return 0
+	}
+	token := l.nextRaw()
+	if l.err == nil && token.code == KW_U && token.lexeme.keyword != nil && token.lexeme.text == "nulls" {
+		// NULLS and Unicode filtering share one raw-token cache. Neither
+		// lookahead decodes Unicode bodies or changes keyword identity.
+		next := l.nextRaw()
+		if l.err != nil {
+			return 0
+		}
+		l.lookahead, l.hasLookahead = next, true
+		if next.lexeme.keyword != nil && (next.lexeme.text == "first" || next.lexeme.text == "last") {
+			token.code = NULLS_LA
+		}
+	} else if token.unicode && l.err == nil {
+		next := l.nextRaw()
+		if l.err != nil {
+			return 0
+		}
+		escape := byte('\\')
+		if next.lexeme.keyword != nil && next.lexeme.text == "uescape" {
+			arg := l.nextRaw()
+			if l.err != nil {
+				return 0
+			}
+			if arg.code != STRING || arg.unicode {
+				l.scannerError("UESCAPE must be followed by a simple string literal", arg.lexeme.pos.Offset, arg.lexeme.pos.Offset+len(arg.lexeme.raw))
+				return 0
+			}
+			s := arg.lexeme.text
+			if len(s) != 1 || hexDigit(s[0]) >= 0 || s[0] == '+' || s[0] == '\'' || s[0] == '"' || space(s[0]) {
+				l.scannerError("invalid Unicode escape character", arg.lexeme.pos.Offset, arg.lexeme.pos.Offset+len(arg.lexeme.raw))
+				return 0
+			}
+			escape = s[0]
+		} else {
+			l.lookahead, l.hasLookahead = next, true
+		}
+		text, ok := l.decodeUnicode(token.lexeme.text, escape, token.lexeme.pos.Offset)
+		if !ok {
+			return 0
+		}
+		if token.code == IDENT {
+			text = truncateName(text)
+		}
+		token.lexeme.text = text
+	}
+	l.current = token.lexeme
+	v.tok = token.lexeme
+	return token.code
+}
+
+// PostgreSQL positions Unicode-filter errors in the dequoted, concatenated
+// body, not with a raw-source escape map. Keep that intentional cursor drift.
+func (l *lexer) decodeUnicode(body string, escape byte, opener int) (string, bool) {
+	first := strings.IndexByte(body, escape)
+	if first < 0 {
+		return body, true
+	}
+	var b strings.Builder
+	b.Grow(len(body))
+	b.WriteString(body[:first])
+	var high rune
+	fail := func(message, hint string, i int) (string, bool) {
+		l.failDiagnostic("42601", message, hint, opener+3+i)
+		return "", false
+	}
+	for i := first; i < len(body); {
+		start := i
+		if body[i] != escape {
+			if high != 0 {
+				return fail("invalid Unicode surrogate pair", "", i)
+			}
+			b.WriteByte(body[i])
+			i++
+			continue
+		}
+		i++
+		if i < len(body) && body[i] == escape {
+			if high != 0 {
+				return fail("invalid Unicode surrogate pair", "", start)
+			}
+			b.WriteByte(escape)
+			i++
+			continue
+		}
+		width := 4
+		if i < len(body) && body[i] == '+' {
+			width = 6
+			i++
+		}
+		var value rune
+		for range width {
+			if i == len(body) || hexDigit(body[i]) < 0 {
+				return fail("invalid Unicode escape", `Unicode escapes must be \XXXX or \+XXXXXX.`, start)
+			}
+			value = value*16 + rune(hexDigit(body[i]))
+			i++
+		}
+		if value == 0 || value > utf8.MaxRune {
+			return fail("invalid Unicode escape value", "", start)
+		}
+		if high != 0 {
+			if value < 0xDC00 || value > 0xDFFF {
+				return fail("invalid Unicode surrogate pair", "", start)
+			}
+			b.WriteRune(0x10000 + (high-0xD800)*0x400 + value - 0xDC00)
+			high = 0
+		} else if value >= 0xD800 && value <= 0xDBFF {
+			high = value
+		} else if value >= 0xDC00 && value <= 0xDFFF {
+			return fail("invalid Unicode surrogate pair", "", start)
+		} else {
+			b.WriteRune(value)
+		}
+	}
+	if high != 0 {
+		return fail("invalid Unicode surrogate pair", "", len(body))
+	}
+	return b.String(), true
 }
 
 func numericDigit(c byte) uint64 {

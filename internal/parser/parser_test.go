@@ -104,7 +104,6 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (1e+3)", "0A000"}, {"INSERT INTO t VALUES (1_000e3)", "0A000"},
 		{"INSERT INTO t VALUES (1E-3_000)", "0A000"},
 		{"INSERT INTO t VALUES (B'1010')", "0A000"},
-		{"INSERT INTO t VALUES (U&'a')", "0A000"}, {"CREATE TABLE U&\"t\" (x INT)", "0A000"},
 		{"CREATE TABLE t (x TIMESTAMP)", "0A000"}, {"CREATE TABLE t (x NUMERIC(8))", "0A000"},
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
 		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
@@ -452,5 +451,189 @@ func TestNoticesCreateSyntax(t *testing.T) {
 	statements, err := Parse("CREATE TABLE IF NOT EXISTS prefix(id INT) garbage")
 	if err == nil || len(statements) != 0 {
 		t.Fatal(statements, err)
+	}
+}
+
+func TestUnicodeEscapesValuesAndPositions(t *testing.T) {
+	for _, tc := range []struct{ source, want string }{
+		{`U&'\0041'`, "A"}, {`u&'\+01f600'`, "😀"}, {`U&'\D83D\DE00'`, "😀"},
+		{`U&'\+00D83D\DE00'`, "😀"}, {`U&'\D83D\+00DE00'`, "😀"},
+		{`U&'\+00D83D\+00DE00'`, "😀"}, {`U&'\D800\DC00'`, "\U00010000"},
+		{`U&'\DBFF\DFFF'`, "\U0010FFFF"}, {`U&'\D7FF\E000\FFFF'`, "\uD7FF\uE000\uFFFF"},
+		{`U&'\00410'`, "A0"}, {`U&'\+0000410'`, "A0"}, {`U&'O''Brien\\'`, "O'Brien\\"},
+		{`U&'!0041!!\0041' UESCAPE E'!'`, `A!\0041`},
+		{`U&'!0041' /*x*/ UESCAPE $$!$$`, "A"}, {`U&''`, ""},
+		{"U&'\\00'\n'41'", "A"}, {"U&'\\D83D' --x\r'\\DE00'", "😀"},
+	} {
+		statements, err := Parse("/*é*/ INSERT INTO t VALUES (" + tc.source + ",'tail'); SELECT * FROM t ORDER BY x")
+		if err != nil {
+			t.Fatalf("%q: %v", tc.source, err)
+		}
+		v := statements[0].(*Insert).Rows[0][0]
+		if v.Text != tc.want || v.Kind != StringValue || v.Pos != (Position{Offset: 29, Character: 29}) {
+			t.Fatalf("%q: %#v", tc.source, v)
+		}
+		if statements[0].(*Insert).Rows[0][1].Text != "tail" || len(statements) != 2 {
+			t.Fatal("lookahead lost")
+		}
+	}
+	for _, source := range []string{`U &'a'`, `U& 'a'`, `U&'a' 'b'`, "U&'a'\nU&'b'", "U&'a'\nE'b'", "U&'a' /*\n*/ 'b'"} {
+		if stmts, err := Parse("INSERT INTO t VALUES (" + source + ")"); err == nil || stmts != nil {
+			t.Fatalf("accepted %q", source)
+		}
+	}
+}
+
+func TestUnicodeEscapesNamesAndRawLookahead(t *testing.T) {
+	for _, tc := range []struct{ source, want string }{
+		{`U&"\0041"`, "A"}, {`U&"select"`, "select"}, {`U&"a\002eb"`, "a.b"},
+		{`U&"!0042" UESCAPE '!'`, "B"},
+		{`U&"a""b\0022c"`, `a"b"c`}, {`U&"\+01F600"`, "😀"},
+		{`U&"` + strings.Repeat(`\0061`, 64) + `"`, strings.Repeat("a", 63)},
+		{`U&"` + strings.Repeat("a", 62) + `\00e9"`, strings.Repeat("a", 62)},
+		{`U&"` + strings.Repeat("a", 59) + `\+01f600"`, strings.Repeat("a", 59) + "😀"},
+	} {
+		s, err := Parse("CREATE TABLE " + tc.source + "(x TEXT)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := s[0].(*CreateTable).Name.Parts[0]
+		if id.Text != tc.want || id.Pos != (Position{Offset: 13, Character: 14}) {
+			t.Fatalf("name %#v want %q", id, tc.want)
+		}
+	}
+	// Inspect the raw/filtered boundary including cached EOF and quoted UESCAPE.
+	l := &lexer{input: `U&'A' "UESCAPE" U&'B'`}
+	var v sqlSymType
+	for i, want := range []struct {
+		code      int
+		text, raw string
+		character int
+	}{
+		{STRING, "A", `U&'A'`, 1}, {IDENT, "UESCAPE", `"UESCAPE"`, 7}, {STRING, "B", `U&'B'`, 17}, {0, "", "", 22}, {0, "", "", 22},
+	} {
+		code := l.Lex(&v)
+		if code != want.code || v.tok.text != want.text || v.tok.raw != want.raw || v.tok.pos.Character != want.character || l.err != nil {
+			t.Fatalf("token %d: %d %#v %v", i, code, v.tok, l.err)
+		}
+	}
+}
+
+func TestUnicodeEscapesDiagnostics(t *testing.T) {
+	const h = `Unicode escapes must be \XXXX or \+XXXXXX.`
+	for _, tc := range []struct{ query, message, position, hint string }{
+		{`INSERT INTO t VALUES (U&'\061')`, "invalid Unicode escape", "26", h},
+		{`INSERT INTO t VALUES (U&'\+0061')`, "invalid Unicode escape", "26", h},
+		{`INSERT INTO t VALUES (U&'\0000')`, "invalid Unicode escape value", "26", ""},
+		{`INSERT INTO t VALUES (U&'\+110000')`, "invalid Unicode escape value", "26", ""},
+		{`INSERT INTO t VALUES (U&'\DC00')`, "invalid Unicode surrogate pair", "26", ""},
+		{`INSERT INTO t VALUES (U&'\D800')`, "invalid Unicode surrogate pair", "31", ""},
+		{`INSERT INTO t VALUES (U&'\D800\061')`, "invalid Unicode escape", "31", h},
+		{`INSERT INTO t VALUES (U&'\D800\+110000')`, "invalid Unicode escape value", "31", ""},
+		{`INSERT INTO t VALUES (U&'a''\061')`, "invalid Unicode escape", "28", h},
+		{`INSERT INTO t VALUES (U&'a''😀\061')`, "invalid Unicode escape", "30", h},
+		{"INSERT INTO t VALUES (U&'a'\n'😀x\\061')", "invalid Unicode escape", "31", h},
+		{`SELECT * FROM U&"a""😀\061"`, "invalid Unicode escape", "22", h},
+		{`CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'a''😀\061')`, "invalid Unicode escape", "62", h},
+		{"INSERT INTO t VALUES (U&'a'\n'\\061')", "invalid Unicode escape", "27", h},
+		{`CREATE TABLE U&"a""\061"(x TEXT)`, "invalid Unicode escape", "19", h},
+		{`INSERT INTO t VALUES (U&'\061' UESCAPE '+')`, `invalid Unicode escape character at or near "'+'"`, "40", ""},
+		{`INSERT INTO t VALUES (U&'x' UESCAPE U&'\061')`, `UESCAPE must be followed by a simple string literal at or near "U&'\061'"`, "37", ""},
+		{`INSERT INTO t VALUES (U&'\061' /*`, `unterminated /* comment at or near "/*"`, "32", ""},
+		{`CREATE TABLE U&""(x TEXT)`, `zero-length delimited identifier at or near "U&"""`, "14", ""},
+		{`CREATE TABLE U&"abc`, `unterminated quoted identifier at or near "U&"abc"`, "14", ""},
+		{`CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'\061')`, "invalid Unicode escape", "58", h},
+	} {
+		for _, prefix := range []string{"", "/*é*/ ", "/*😀*/ "} {
+			n, _ := strconv.Atoi(tc.position)
+			if prefix != "" {
+				n += 6
+			}
+			s, err := Parse(prefix + tc.query)
+			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: tc.message, Position: strconv.Itoa(n), Hint: tc.hint}
+			var got *sqlstate.Error
+			if s != nil || !errors.As(err, &got) || *got != want {
+				t.Fatalf("%q: %#v %v want %#v", prefix+tc.query, got, err, want)
+			}
+		}
+	}
+	// Every digit boundary is checked, including incomplete and nonhex escapes.
+	for _, width := range []int{4, 6} {
+		for i := range width {
+			for _, tail := range []string{"", "G"} {
+				escape := `\`
+				if width == 6 {
+					escape += "+"
+				}
+				q := "INSERT INTO t VALUES (U&'" + escape + strings.Repeat("0", i) + tail + "')"
+				_, err := Parse(q)
+				var got *sqlstate.Error
+				if !errors.As(err, &got) || got.Code != "42601" || got.Message != "invalid Unicode escape" || got.Position != "26" || got.Hint != h {
+					t.Fatalf("%q: %v", q, err)
+				}
+			}
+		}
+	}
+}
+
+func TestUnicodeEscapesDiagnosticByteLimits(t *testing.T) {
+	// The emoji occupies bytes [1,5). Each interior byte limit counts its
+	// complete source rune once; a limit at its start does not count it.
+	for _, tc := range []struct {
+		name     string
+		limit    int
+		position string
+	}{
+		{"rune start", 1, "2"},
+		{"one byte overlap", 2, "3"},
+		{"two byte overlap", 3, "3"},
+		{"three byte overlap", 4, "3"},
+		{"full rune boundary", 5, "3"},
+		{"EOF", 6, "4"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			l := &lexer{input: "a😀z"}
+			l.failDiagnostic("42601", "invalid Unicode escape", `Unicode escapes must be \XXXX or \+XXXXXX.`, tc.limit)
+			want := sqlstate.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR",
+				Code: "42601", Message: "invalid Unicode escape",
+				Position: tc.position, Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`,
+			}
+			var got *sqlstate.Error
+			if !errors.As(l.err, &got) || *got != want || got.SQLState() != want.Code {
+				t.Fatalf("byte limit %d: %#v %v; want %#v", tc.limit, got, l.err, want)
+			}
+		})
+	}
+}
+
+func TestUnicodeEscapesUESCAPERawValidation(t *testing.T) {
+	forbidden := []string{"''", "'ab'", "'é'", "'😀'", "'+'", "''''", "'\"'", "' '", `E'\t'`, `E'\n'`, `E'\r'`, `E'\f'`, `E'\v'`}
+	for _, c := range "0123456789abcdefABCDEF" {
+		forbidden = append(forbidden, "'"+string(c)+"'")
+	}
+	for _, raw := range forbidden {
+		q := "INSERT INTO t VALUES (U&'x' UESCAPE " + raw + ")"
+		s, err := Parse(q)
+		var got *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid Unicode escape character at or near \"" + raw + "\"", Position: "37"}
+		if s != nil || !errors.As(err, &got) || *got != want {
+			t.Fatalf("%q: %#v %v want %#v", q, got, err, want)
+		}
+	}
+	for _, raw := range []string{"$1", "1", `"!"`, `U&'\061'`, `U&"\061"`} {
+		q := "INSERT INTO t VALUES (U&'x' UESCAPE " + raw + ")"
+		s, err := Parse(q)
+		var got *sqlstate.Error
+		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "UESCAPE must be followed by a simple string literal at or near \"" + raw + "\"", Position: "37"}
+		if s != nil || !errors.As(err, &got) || *got != want {
+			t.Fatalf("raw argument %q: %#v %v want %#v", raw, got, err, want)
+		}
+	}
+	s, err := Parse("INSERT INTO t VALUES (U&'x' UESCAPE")
+	var got *sqlstate.Error
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "UESCAPE must be followed by a simple string literal at end of input", Position: "36"}
+	if s != nil || !errors.As(err, &got) || *got != want {
+		t.Fatalf("EOF: %#v %v want %#v", got, err, want)
 	}
 }

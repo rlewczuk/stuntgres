@@ -2080,3 +2080,448 @@ func TestBooleanDiagnosticsAtomicity(t *testing.T) {
 	wantTuples(t, db, "SELECT id,flag FROM b ORDER BY id",
 		[][]any{{int64(1), true}, {int64(2), false}, {int64(3), nil}, {int64(99), true}})
 }
+
+// Unicode expectations are literal release specifications, not decoder output.
+func unicodeEscapeValues() []struct{ source, text string } {
+	return []struct{ source, text string }{
+		{`U&'\0041'`, "A"}, {`u&'\+01f600'`, "😀"},
+		{`U&'\D83D\DE00'`, "😀"}, {`U&'\+00D83D\+00DE00'`, "😀"},
+		{`U&'\D83D\+00DE00'`, "😀"}, {`U&'\+00D83D\DE00'`, "😀"},
+		{`U&'\D800\DC00'`, "\U00010000"}, {`U&'\DBFF\DFFF'`, "\U0010FFFF"},
+		{`U&'\+10FFFF'`, "\U0010FFFF"}, {`U&'\D7FF\E000\FFFF'`, "\uD7FF\uE000\uFFFF"},
+		{`U&'\0001'`, "\x01"}, {`U&'\00410'`, "A0"}, {`U&'\+0000410'`, "A0"},
+		{`U&'a\\b'`, `a\b`}, {`U&'O''Brien'`, "O'Brien"},
+		{`U&'!0041!+01F600!!\0041' UESCAPE '!'`, `A😀!\0041`},
+		{`U&'g0041gg' UESCAPE 'g'`, "Ag"},
+		{`U&'/0041//' UESCAPE '/'`, "A/"}, {`U&'_0041__' UESCAPE '_'`, "A_"},
+		{`U&'\0041\\' UESCAPE '\'`, `A\`},
+		{`U&'!0041' UESCAPE E'!'`, "A"}, {`U&'!0041' UESCAPE $$!$$`, "A"},
+		{`U&'!0041' /*a*/ uescape /*b*/ '!'`, "A"}, {`U&''`, ""},
+		{"U&'\\D83D'\n'\\DE00'", "😀"}, {"U&'\\00'\r'41'", "A"},
+		{"U&'\\00' -- continued\n'41'", "A"}, {`U&'$1'`, "$1"},
+	}
+}
+
+func unicodeEscapeErrors() []struct{ source, message, position, hint string } {
+	const h = `Unicode escapes must be \XXXX or \+XXXXXX.`
+	out := []struct{ source, message, position, hint string }{
+		{`U&'\061')`, "invalid Unicode escape", "26", h},
+		{`U&'\+0061')`, "invalid Unicode escape", "26", h},
+		{`U&'\00GG')`, "invalid Unicode escape", "26", h},
+		{`U&'\0000')`, "invalid Unicode escape value", "26", ""},
+		{`U&'\+000000')`, "invalid Unicode escape value", "26", ""},
+		{`U&'\+110000')`, "invalid Unicode escape value", "26", ""},
+		{`U&'\DC00')`, "invalid Unicode surrogate pair", "26", ""},
+		{`U&'\DFFF')`, "invalid Unicode surrogate pair", "26", ""},
+		{`U&'\D800')`, "invalid Unicode surrogate pair", "31", ""},
+		{`U&'\DBFF')`, "invalid Unicode surrogate pair", "31", ""},
+		{`U&'\D800x')`, "invalid Unicode surrogate pair", "31", ""},
+		{`U&'\D800\0041')`, "invalid Unicode surrogate pair", "31", ""},
+		{`U&'\D800\D800')`, "invalid Unicode surrogate pair", "31", ""},
+		{`U&'\D800\\')`, "invalid Unicode surrogate pair", "31", ""},
+		{`U&'\+00D800')`, "invalid Unicode surrogate pair", "34", ""},
+		{`U&'\D800\+110000')`, "invalid Unicode escape value", "31", ""},
+		{`U&'\D800\061')`, "invalid Unicode escape", "31", h},
+		{`U&'a''\061')`, "invalid Unicode escape", "28", h},
+		{`U&'a''😀\061')`, "invalid Unicode escape", "30", h},
+		{"U&'a'\n'😀x\\061')", "invalid Unicode escape", "31", h},
+		{"U&'a'\n'\\061')", "invalid Unicode escape", "27", h},
+		{"U&'\\D800'\n'x')", "invalid Unicode surrogate pair", "31", ""},
+		{`U&'é\061')`, "invalid Unicode escape", "27", h},
+		{`U&'x' UESCAPE +)`, `UESCAPE must be followed by a simple string literal at or near "+"`, "37", ""},
+		{`U&'x' UESCAPE`, "UESCAPE must be followed by a simple string literal at end of input", "36", ""},
+		{`U&'\061' UESCAPE '+' )`, `invalid Unicode escape character at or near "'+'"`, "40", ""},
+		{`U&'\061' /*`, `unterminated /* comment at or near "/*"`, "32", ""},
+		{`U&'\061' 'oops`, `unterminated quoted string at or near "'oops"`, "32", ""},
+		{`U&'x' UESCAPE U&'\061')`, `UESCAPE must be followed by a simple string literal at or near "U&'\061'"`, "37", ""},
+		{`U&'abc`, `unterminated quoted string at or near "U&'abc"`, "23", ""},
+		{"U&'a'\n'b", "unterminated quoted string at or near \"U&'a'\n'b\"", "23", ""},
+		{`U&'\')`, "invalid Unicode escape", "26", h},
+		{`U&'x' UESCAPE E'oops`, `unterminated quoted string at or near "E'oops"`, "37", ""},
+		{`U&'x' UESCAPE $$oops`, `unterminated dollar-quoted string at or near "$$oops"`, "37", ""},
+	}
+	forbidden := []string{"''", "'ab'", "'é'", "'😀'", "'+'", "''''", "'\"'", "' '", `E'\t'`, `E'\n'`, `E'\r'`, `E'\f'`, `E'\v'`}
+	for _, c := range "0123456789abcdefABCDEF" {
+		forbidden = append(forbidden, "'"+string(c)+"'")
+	}
+	for _, raw := range forbidden {
+		out = append(out, struct{ source, message, position, hint string }{
+			"U&'x' UESCAPE " + raw + ")", "invalid Unicode escape character at or near \"" + raw + "\"", "37", "",
+		})
+	}
+	for _, raw := range []string{"$1", "1", `"!"`, `U&"\061"`} {
+		out = append(out, struct{ source, message, position, hint string }{
+			"U&'x' UESCAPE " + raw + ")", "UESCAPE must be followed by a simple string literal at or near \"" + raw + "\"", "37", "",
+		})
+	}
+	for _, width := range []int{4, 6} {
+		for i := range width {
+			for _, tail := range []string{"", "G"} {
+				escape := `\`
+				if width == 6 {
+					escape += "+"
+				}
+				out = append(out, struct{ source, message, position, hint string }{
+					"U&'" + escape + strings.Repeat("0", i) + tail + "')", "invalid Unicode escape", "26", h,
+				})
+			}
+		}
+	}
+	return out
+}
+
+func TestUnicodeEscapesPublic(t *testing.T) {
+	d := stuntgres.NewDriver()
+	db, other := openLocal(t, d, "unicode-values"), openLocal(t, d, "unicode-values")
+	execSQL(t, db, "CREATE TABLE t(id INT,label TEXT)")
+	want := [][]any{}
+	for i, tc := range unicodeEscapeValues() {
+		for _, prepared := range []bool{false, true} {
+			q := fmt.Sprintf("INSERT INTO t VALUES (%d,%s)", len(want)+1, tc.source)
+			var result sql.Result
+			var err error
+			if prepared {
+				s, e := db.Prepare(q)
+				if e != nil {
+					t.Fatal(e)
+				}
+				result, err = s.Exec()
+				s.Close()
+			} else {
+				result, err = db.Exec(q)
+			}
+			if err != nil {
+				t.Fatalf("%q: %v", q, err)
+			}
+			if n, e := result.RowsAffected(); e != nil || n != 1 {
+				t.Fatalf("affected %d: %v", n, e)
+			}
+			want = append(want, []any{int64(len(want) + 1), tc.text})
+		}
+		q := "SELECT id FROM t WHERE label=" + tc.source + " ORDER BY id"
+		ids := [][]any{}
+		for _, row := range want {
+			if row[1] == tc.text {
+				ids = append(ids, []any{row[0]})
+			}
+		}
+		wantTuples(t, other, q, ids)
+		s, err := db.Prepare(q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := s.Query()
+		if err != nil {
+			s.Close()
+			t.Fatal(err)
+		}
+		got := [][]any{}
+		for r.Next() {
+			var id int64
+			if err := r.Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, []any{id})
+		}
+		if r.Err() != nil || !reflect.DeepEqual(got, ids) {
+			t.Fatalf("WHERE case %d: %v %v", i, got, r.Err())
+		}
+		r.Close()
+		s.Close()
+	}
+	wantTuples(t, other, "SELECT * FROM t ORDER BY id", want)
+	assertStringLiteralMetadata(t, db, "SELECT * FROM t", []string{"id", "label"}, []string{"INT4", "TEXT"})
+	s, err := db.Prepare(`INSERT INTO t VALUES ($1,$2)`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Exec(100, `\0041`); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	wantTuples(t, db, "SELECT label FROM t WHERE id=100", [][]any{{`\0041`}})
+	execSQL(t, db, `SET application_name TO U&'\0041'`)
+	wantTuples(t, db, "SHOW application_name", [][]any{{"A"}})
+}
+
+func TestUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
+	d := stuntgres.NewDriver()
+	db, other := openLocal(t, d, "unicode-errors"), openLocal(t, d, "unicode-errors")
+	execSQL(t, db, "CREATE TABLE t(x TEXT NOT NULL)")
+	execSQL(t, db, "INSERT INTO t VALUES ('seed')")
+	check := func(q string, message, position, hint string) {
+		t.Helper()
+		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: message, Position: position, Hint: hint}
+		for _, op := range []string{"exec", "query", "prepare"} {
+			var err error
+			switch op {
+			case "exec":
+				_, err = db.Exec(q)
+			case "query":
+				var r *sql.Rows
+				r, err = db.Query(q)
+				if r != nil {
+					r.Close()
+					t.Fatal("bad query returned cursor")
+				}
+			case "prepare":
+				var s *sql.Stmt
+				s, err = db.Prepare(q)
+				if s != nil {
+					s.Close()
+					t.Fatal("bad syntax prepared")
+				}
+			}
+			var got *stuntgres.Error
+			if !errors.As(err, &got) || *got != want || got.SQLState() != "42601" {
+				t.Fatalf("%s %q: %#v %v want %#v", op, q, got, err, want)
+			}
+		}
+	}
+	for _, tc := range unicodeEscapeErrors() {
+		for _, prefix := range []string{"", "/*é*/ ", "/*😀*/ "} {
+			n := 0
+			fmt.Sscan(tc.position, &n)
+			if prefix != "" {
+				n += 6
+			}
+			check(prefix+"INSERT INTO t VALUES ("+tc.source, tc.message, fmt.Sprint(n), tc.hint)
+		}
+		n := 0
+		fmt.Sscan(tc.position, &n)
+		check("INSERT INTO t VALUES ('valid'),("+tc.source, tc.message, fmt.Sprint(n+10), tc.hint)
+		for _, pool := range []*sql.DB{db, other} {
+			wantTuples(t, pool, "SELECT * FROM t", [][]any{{"seed"}})
+		}
+	}
+	check(`CREATE TABLE U&"a""\061"(x TEXT)`, "invalid Unicode escape", "19", `Unicode escapes must be \XXXX or \+XXXXXX.`)
+	check(`SELECT * FROM U&"a""😀\061"`, "invalid Unicode escape", "22", `Unicode escapes must be \XXXX or \+XXXXXX.`)
+	check(`CREATE TABLE U&""(x TEXT)`, `zero-length delimited identifier at or near "U&"""`, "14", "")
+	check(`CREATE TABLE U&"abc`, `unterminated quoted identifier at or near "U&"abc"`, "14", "")
+	check(`CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'\061')`, "invalid Unicode escape", "58", `Unicode escapes must be \XXXX or \+XXXXXX.`)
+	check(`CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'a''😀\061')`, "invalid Unicode escape", "62", `Unicode escapes must be \XXXX or \+XXXXXX.`)
+	for _, pool := range []*sql.DB{db, other} {
+		wantTuples(t, pool, "SELECT * FROM t", [][]any{{"seed"}})
+	}
+	_, err := other.Query("SELECT * FROM fresh")
+	sqlState(t, err, "42P01")
+}
+
+func unicodeEscapeNames() []struct{ source, name string } {
+	return []struct{ source, name string }{
+		{`U&"\0041"`, "A"}, {`U&"select"`, "select"}, {`U&"a\002eb"`, "a.b"},
+		{`U&"!0042" UESCAPE '!'`, "B"},
+		{`U&"a""b\0022c"`, `a"b"c`}, {`U&"\+01F600"`, "😀"},
+		{`U&"` + strings.Repeat(`\0061`, 63) + `"`, strings.Repeat("a", 63)},
+		{`U&"` + strings.Repeat(`\0062`, 64) + `"`, strings.Repeat("b", 63)},
+		{`U&"` + strings.Repeat("c", 62) + `\00e9"`, strings.Repeat("c", 62)},
+		{`U&"` + strings.Repeat("d", 59) + `\+01f600"`, strings.Repeat("d", 59) + "😀"},
+	}
+}
+
+func TestUnicodeEscapesNames(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		db := openLocal(t, stuntgres.NewDriver(), fmt.Sprint("unicode-names-", prepared))
+		exec := func(q string, affected int64) {
+			t.Helper()
+			var result sql.Result
+			var err error
+			if prepared {
+				s, e := db.Prepare(q)
+				if e != nil {
+					t.Fatal(e)
+				}
+				result, err = s.Exec()
+				s.Close()
+			} else {
+				result, err = db.Exec(q)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n, e := result.RowsAffected(); e != nil || n != affected {
+				t.Fatalf("affected %d: %v", n, e)
+			}
+		}
+		for _, tc := range unicodeEscapeNames() {
+			quoted := `"` + strings.ReplaceAll(tc.name, `"`, `""`) + `"`
+			exec("CREATE TABLE "+tc.source+`(id INT,U&"\+01F600" TEXT)`, 0)
+			exec("INSERT INTO "+tc.source+` VALUES (1,U&'\0041')`, 1)
+			exec("INSERT INTO "+quoted+` VALUES (2,U&'\D83D\DE00')`, 1)
+			q := "SELECT * FROM " + quoted + " ORDER BY id"
+			wantTuples(t, db, q, [][]any{{int64(1), "A"}, {int64(2), "😀"}})
+			assertStringLiteralMetadata(t, db, q, []string{"id", "😀"}, []string{"INT4", "TEXT"})
+			s, err := db.Prepare("SELECT * FROM " + tc.source + " ORDER BY id")
+			if err != nil {
+				t.Fatal(err)
+			}
+			r, err := s.Query()
+			if err != nil {
+				s.Close()
+				t.Fatal(err)
+			}
+			for _, text := range []string{"A", "😀"} {
+				var id int64
+				var got string
+				if !r.Next() {
+					t.Fatal("missing name row")
+				}
+				if err := r.Scan(&id, &got); err != nil || got != text {
+					t.Fatalf("name row %q: %v", got, err)
+				}
+			}
+			if r.Next() || r.Err() != nil {
+				t.Fatal("name cursor suffix")
+			}
+			r.Close()
+			s.Close()
+		}
+		_, err := db.Query("SELECT * FROM a")
+		var got *stuntgres.Error
+		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "a" does not exist`}
+		if !errors.As(err, &got) || *got != want {
+			t.Fatalf("quoted case %#v %v", got, err)
+		}
+		_, err = db.Exec(`CREATE TABLE U&"` + strings.Repeat(`\0062`, 65) + `"(x TEXT)`)
+		want = stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P07", Message: `relation "` + strings.Repeat("b", 63) + `" already exists`}
+		if !errors.As(err, &got) || *got != want {
+			t.Fatalf("clipped collision %#v %v", got, err)
+		}
+		wantTuples(t, db, `SELECT * FROM U&"\0070ublic".U&"\0041" ORDER BY id`, [][]any{{int64(1), "A"}, {int64(2), "😀"}})
+	}
+}
+
+func TestUnicodeEscapesControlsCancellation(t *testing.T) {
+	ctx := context.Background()
+	d := stuntgres.NewDriver()
+	db, other := openLocal(t, d, "unicode-controls"), openLocal(t, d, "unicode-controls")
+	execSQL(t, db, `CREATE TABLE U&"\0041"(id INT NOT NULL,U&"\+01F600" TEXT)`)
+	execSQL(t, db, `INSERT INTO "A" VALUES (1,U&'\0041'),(2,U&'\+01F600'),(3,U&''),(4,NULL),(5,U&'O''Brien\\\0001')`)
+	want := [][]any{{int64(1), "A"}, {int64(2), "😀"}, {int64(3), ""}, {int64(4), nil}, {int64(5), "O'Brien\\\x01"}}
+	check := func() {
+		t.Helper()
+		for _, pool := range []*sql.DB{db, other} {
+			wantTuples(t, pool, `SELECT * FROM "A" ORDER BY id`, want)
+		}
+		assertStringLiteralMetadata(t, db, `SELECT * FROM "A"`, []string{"id", "😀"}, []string{"INT4", "TEXT"})
+	}
+	held, err := other.Query(`SELECT * FROM "A" ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	bad := `CREATE TABLE staged(x TEXT); INSERT INTO staged VALUES ('valid'); INSERT INTO staged VALUES (U&'\061')`
+	err = stuntgres.Restore(ctx, db, strings.NewReader(bad))
+	var got *stuntgres.Error
+	expected := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid Unicode escape", Position: "97", Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`}
+	if !errors.As(err, &got) || *got != expected {
+		t.Fatalf("Restore %#v %v want %#v", got, err, expected)
+	}
+	err = stuntgres.Restore(ctx, db, strings.NewReader(`CREATE TABLE staged(x TEXT); INSERT INTO staged VALUES ('valid'); INSERT INTO staged VALUES (U&'a''😀\061')`))
+	expected.Position = "101"
+	if !errors.As(err, &got) || *got != expected {
+		t.Fatalf("drifted multibyte Restore %#v %v want %#v", got, err, expected)
+	}
+	check()
+	_, err = db.Query("SELECT * FROM staged")
+	sqlState(t, err, "42P01")
+	rows, err := db.Query(`SELECT * FROM "A"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	types, err := rows.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nullable, known := types[0].Nullable()
+	rows.Close()
+	if !known || nullable {
+		t.Fatal("Restore failure changed nullability")
+	}
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(dump.String(), "U&") || !strings.Contains(dump.String(), `"A"`) || !strings.Contains(dump.String(), `"😀"`) {
+		t.Fatalf("noncanonical dump %s", dump.String())
+	}
+	if err := stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	check()
+	var again bytes.Buffer
+	if err := stuntgres.Dump(ctx, other, &again); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(dump.Bytes(), again.Bytes()) {
+		t.Fatal("redump changed")
+	}
+	old := [][]any{}
+	for held.Next() {
+		var id int64
+		var text any
+		if err := held.Scan(&id, &text); err != nil {
+			t.Fatal(err)
+		}
+		old = append(old, []any{id, text})
+	}
+	if held.Err() != nil || !reflect.DeepEqual(old, want) {
+		t.Fatalf("retained %v %v", old, held.Err())
+	}
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	ordinary := func(err error, want error) {
+		t.Helper()
+		var state interface{ SQLState() string }
+		var sqlerr *stuntgres.Error
+		if !errors.Is(err, want) || errors.As(err, &state) || errors.As(err, &sqlerr) {
+			t.Fatalf("ordinary boundary %v", err)
+		}
+	}
+	_, err = db.ExecContext(canceled, `INSERT INTO "A" VALUES (6,U&'\0041')`)
+	ordinary(err, context.Canceled)
+	r, err := db.QueryContext(canceled, `SELECT * FROM U&"\0041"`)
+	if r != nil {
+		r.Close()
+		t.Fatal("canceled cursor")
+	}
+	ordinary(err, context.Canceled)
+	s, err := db.PrepareContext(canceled, `INSERT INTO "A" VALUES (6,U&'\0041')`)
+	if s != nil {
+		s.Close()
+		t.Fatal("canceled prepare")
+	}
+	ordinary(err, context.Canceled)
+	for _, q := range []string{`INSERT INTO "A" VALUES (6,U&'\0041')`, `SELECT * FROM U&"\0041"`} {
+		s, err := db.Prepare(q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = s.ExecContext(canceled)
+		ordinary(err, context.Canceled)
+		r, err = s.QueryContext(canceled)
+		if r != nil {
+			r.Close()
+			t.Fatal("canceled prepared cursor")
+		}
+		ordinary(err, context.Canceled)
+		s.Close()
+	}
+	ordinary(stuntgres.Dump(canceled, db, io.Discard), context.Canceled)
+	ordinary(stuntgres.Reset(canceled, db), context.Canceled)
+	ordinary(stuntgres.Restore(canceled, db, bytes.NewReader(dump.Bytes())), context.Canceled)
+	reading, stop := context.WithCancel(ctx)
+	defer stop()
+	ordinary(stuntgres.Restore(reading, db, &cancelReader{cancel: stop}), context.Canceled)
+	failure := errors.New("unicode control I/O")
+	ordinary(stuntgres.Restore(ctx, db, failingReader{failure}), failure)
+	ordinary(stuntgres.Dump(ctx, db, failingWriter{failure}), failure)
+	check()
+	if err := stuntgres.Restore(ctx, db, strings.NewReader(`CREATE TABLE U&"\0041"(id INT NOT NULL,U&"\+01F600" TEXT); INSERT INTO U&"\0041" VALUES (1,U&'\0041'),(2,U&'\D83D\DE00'),(3,U&''),(4,NULL),(5,U&'O''Brien\\\0001')`)); err != nil {
+		t.Fatal(err)
+	}
+	check()
+}
