@@ -228,7 +228,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 	name := dependencyIdentifier(d.Name())
 	kind := "schema "
 	if relation, ok := d.(*relationDescriptor); ok {
-		kind = "table "
+		kind = relationDiagnosticKind(relation) + " "
 		name = relationDiagnosticName(auth, relation)
 		if dep.address.SubID != 0 {
 			// getObjectDescription interpolates the raw attribute name; only

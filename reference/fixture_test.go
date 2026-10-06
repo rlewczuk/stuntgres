@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"runtime"
 	"strconv"
 	"stuntgres"
 	"sync"
@@ -28,6 +29,8 @@ var referenceContainer *postgres.PostgresContainer
 var referenceAdmin *sql.DB
 var referenceDSN, referenceContainerID string
 var referenceMemoryDriver = stuntgres.NewDriver()
+
+// Tests run serially; one test can create multiple pairs before its cleanup.
 
 func TestMain(m *testing.M) {
 	code := runReferenceMain(m)
@@ -92,9 +95,21 @@ func runReferenceMain(m *testing.M) (code int) {
 		fmt.Fprintf(os.Stderr, "reference configuration mismatch: version=%q encoding=%q locale=%q\n", version, encoding, locale)
 		return
 	}
+	// initdb names its superuser stuntgres. Native dumps independently name their
+	// bootstrap owner postgres; replay must preserve that owner, not rewrite SQL.
+	if _, err = referenceAdmin.ExecContext(ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {
+		fmt.Fprintf(os.Stderr, "reference native bootstrap owner: %v\n", err)
+		return
+	}
 	sql.Register("stuntgres_reference_memory", sqlmw.Driver(referenceMemoryDriver, referenceInterceptor{}))
 	sql.Register("stuntgres_reference_postgres", sqlmw.Driver(&pq.Driver{}, referenceInterceptor{}))
 	code = m.Run()
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cleanupCancel()
+	if _, err = referenceAdmin.ExecContext(cleanupCtx, "DROP OWNED BY postgres CASCADE; DROP ROLE postgres"); err != nil {
+		fmt.Fprintf(os.Stderr, "reference native bootstrap cleanup: %v\n", err)
+		code = 1
+	}
 	return
 }
 
@@ -114,6 +129,9 @@ func newReferencePair(t *testing.T) *referencePair {
 	reset := func() {
 		resetCtx, resetCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer resetCancel()
+		// A replay can return a pooled connection authenticated as postgres.
+		// Session authorization is physical-session state; clear every such handle.
+		referenceAdmin.SetMaxIdleConns(0)
 		if _, err := referenceAdmin.ExecContext(resetCtx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"); err != nil {
 			t.Errorf("reference schema reset: %v", err)
 		}
@@ -580,6 +598,39 @@ func roleReferenceCleanup(t *testing.T, names []string) {
 			}
 		}
 	})
+}
+
+func referenceSequenceRows(t *testing.T, rows *sql.Rows, label string, want int64) {
+	t.Helper()
+	defer rows.Close()
+	columns, err := rows.Columns()
+	if err != nil || !reflect.DeepEqual(columns, []string{label}) {
+		t.Fatal("sequence columns", columns, err)
+	}
+	types, err := rows.ColumnTypes()
+	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "INT8" {
+		t.Fatal("sequence metadata", types, err)
+	}
+	transactionRowValues(t, rows, want)
+}
+
+// Use the independently captured local OID, never a shared table/name fixture:
+// rename/drop changes names while an already executing operation keeps its OID.
+func referenceSequenceWaitBehind(t *testing.T, ctx context.Context, waiter, holder int, oid int64) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	for {
+		var waiting bool
+		err := referenceAdmin.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='relation' AND relation=$3::oid AND mode='RowExclusiveLock' AND NOT granted) AND $2 = ANY(pg_blocking_pids($1))`, waiter, holder, oid).Scan(&waiting)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			return
+		}
+		runtime.Gosched()
+	}
 }
 
 func referenceTransactionRows(prepared bool, q string, values ...int64) referenceStep {

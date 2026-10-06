@@ -192,6 +192,12 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 }
 func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
+	case *parser.CreateSequence:
+		return "CREATE SEQUENCE"
+	case *parser.AlterSequence:
+		return "ALTER SEQUENCE"
+	case *parser.DropSequence:
+		return "DROP SEQUENCE"
 	case *parser.Insert:
 		return "INSERT"
 	case *parser.Update:
@@ -245,6 +251,9 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	return nil
 }
 func explicitUtility(stmt parser.Statement) bool {
+	if c, ok := stmt.(*parser.Comment); ok && c.Kind == parser.CommentSequence {
+		return false
+	}
 	switch stmt.(type) {
 	case *parser.Comment, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true

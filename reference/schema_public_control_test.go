@@ -26,7 +26,7 @@ func TestReferenceSchemaPublicLifecycleControls(t *testing.T) {
 		{"transferred_collision", "ALTER SCHEMA public RENAME TO replay_public; ALTER SCHEMA replay_public OWNER TO replay_owner; CREATE SCHEMA public AUTHORIZATION replay_other; SET SESSION AUTHORIZATION replay_other; CREATE TABLE public.t(id INT NOT NULL); INSERT INTO public.t VALUES(7); RESET SESSION AUTHORIZATION;", "public", "replay_other", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			roleReferenceCleanup(t, []string{"replay_owner", "replay_other", "postgres"})
+			roleReferenceCleanup(t, []string{"replay_owner", "replay_other"})
 			p := newReferencePair(t)
 			schemaReferenceCleanup(t, "replay_public", "replay_other_schema")
 			// Repair the controlled bootstrap name before newReferencePair's unconditional
@@ -36,9 +36,9 @@ func TestReferenceSchemaPublicLifecycleControls(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			// Supply the dump's native bootstrap principal explicitly on the oracle;
-			// its fixture authenticator is stuntgres, not postgres. Replay SQL unchanged.
-			for _, q := range []string{"CREATE ROLE postgres SUPERUSER NOLOGIN", "ALTER SCHEMA public OWNER TO postgres"} {
+			// The shared fixture supplies the native owner; keep the authenticator
+			// stuntgres and replay SQL unchanged.
+			for _, q := range []string{"ALTER SCHEMA public OWNER TO postgres"} {
 				if _, err := referenceAdmin.ExecContext(p.ctx, q); err != nil {
 					t.Fatal(q, err)
 				}

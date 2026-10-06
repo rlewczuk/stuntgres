@@ -12,13 +12,19 @@ type LogicalNode interface {
 	logicalNode()
 	Schema() []ColumnDescriptor
 }
-type BoundQuery struct{ Root LogicalNode }
+type BoundQuery struct {
+	Root           LogicalNode
+	regclassOutput bool
+}
 type RowCursor interface {
 	Schema() []ColumnDescriptor
 	Next(context.Context, []sqltype.Value) (bool, error)
 	Close() error
 }
-type RowResult interface{ RowCursor }
+type RowResult interface {
+	RowCursor
+	RegclassText(sqltype.Value) (string, error)
+}
 
 type querySchema []ColumnDescriptor
 
@@ -154,8 +160,19 @@ type querySource struct {
 	singleton      bool
 	anonymous      [][]sqltype.Value
 	visible        []int
+	scope          *StatementScope
 }
 
+func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
+	g := e.sequenceGeneratorLocked(scope, ref.Address)
+	if g == nil {
+		return nil, fmt.Errorf("stuntgres: sequence state missing")
+	}
+	i := relation.columns[0].Usage.Type
+	last, _ := sqltype.Integer(i, g.last)
+	log, _ := sqltype.Integer(i, 0)
+	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.columns[2].Usage.Type, g.called)}}}, nil
+}
 func (s *querySource) count() int {
 	if s.anonymous != nil {
 		return len(s.anonymous)
@@ -289,7 +306,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
 		rows := make([][]sqltype.Value, len(n.rows))
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters}
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, sequenceScope: state.source.scope}
 		for i, expressions := range n.rows {
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
@@ -314,6 +331,9 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		return indexedStage{source: state.source, schema: n.Schema()}, nil
 	case *sourceNode:
+		if state.source != nil && state.source.anonymous != nil && n.ref == state.source.ref {
+			return indexedStage{source: state.source, schema: n.Schema()}, nil
+		}
 		if state.source == nil || state.source.view == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
 		}
@@ -328,7 +348,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return indexedStage{}, err
 		}
 		selection := make([]int, 0, child.count())
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters}
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, sequenceScope: state.source.scope}
 		for i := range child.count() {
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
@@ -392,7 +412,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		child.schema = n.Schema()
 		child.expressions = n.expressions
-		child.evaluation = EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters}
+		child.evaluation = EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, sequenceScope: state.source.scope}
 		return child, nil
 	default:
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid logical query node")
@@ -458,6 +478,7 @@ type finalRows struct {
 	source            *querySource
 	selection, slots  []int
 	values            []sqltype.Value
+	regclassOutput    map[string]string
 	anonymous         [][]sqltype.Value
 	count, position   int
 	terminal          error
@@ -470,6 +491,17 @@ func newFinalRows(schema []ColumnDescriptor, count int) *finalRows {
 	return r
 }
 func (r *finalRows) Schema() []ColumnDescriptor { return r.schema }
+func (r *finalRows) RegclassText(v sqltype.Value) (string, error) {
+	key, err := v.Text()
+	if err != nil {
+		return "", err
+	}
+	text, ok := r.regclassOutput[key]
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
+	}
+	return text, nil
+}
 func (r *finalRows) release() {
 	if r.source != nil {
 		r.source.close()
@@ -477,6 +509,7 @@ func (r *finalRows) release() {
 	}
 	r.selection, r.slots, r.values = nil, nil, nil
 	r.anonymous = nil
+	r.regclassOutput = nil
 }
 func (r *finalRows) fail(err error) (bool, error) {
 	r.terminal = err

@@ -76,6 +76,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		root = &sortNode{querySchema: root.Schema(), child: root, slot: slot, comparison: cmp, desc: s.Order.Desc}
 	}
 	results := make([]ColumnDescriptor, width)
+	regclassOutput := false
 	for i, expr := range projection {
 		if !contextual {
 			var err error
@@ -86,6 +87,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			projection[i] = expr
 		}
 		result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
+		regclassOutput = regclassOutput || (result.Usage.Type != nil && result.Usage.Type.ID() == sqltype.Regclass)
 		if !s.Star {
 			result.Name, _ = expressionName(s.Targets[i], expr.ResultUsage())
 		}
@@ -97,7 +99,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		}
 		results[i] = result
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}, regclassOutput: regclassOutput}, nil
 }
 
 func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor) (BoundExpr, error) {

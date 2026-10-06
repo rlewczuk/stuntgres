@@ -14,7 +14,7 @@ import (
 func TestReferenceSchemaTableIntegration(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			roleReferenceCleanup(t, []string{"tio", "postgres"})
+			roleReferenceCleanup(t, []string{"tio"})
 			p := newReferencePair(t)
 			schemaReferenceCleanup(t, "ti1", "ti2", "tin", "tid", "tif")
 			step := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
@@ -99,12 +99,8 @@ func TestReferenceSchemaTableIntegration(t *testing.T) {
 					t.Fatal(q, err)
 				}
 			}
-			// As in the schema lifecycle control fixture, explicitly provision the
-			// native dump's bootstrap owner on the oracle. Its authenticator remains
-			// stuntgres; replay the actual dump unchanged rather than remapping SQL.
-			if _, err := oracle.ExecContext(p.ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {
-				t.Fatal(err)
-			}
+			// The shared fixture supplies the dump's native bootstrap owner.
+			// Its authenticator remains stuntgres; replay the bytes unchanged.
 			if _, err := oracle.ExecContext(p.ctx, dump.String()); err != nil {
 				t.Fatal(err)
 			}

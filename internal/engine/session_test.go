@@ -103,8 +103,14 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(dump.String(), "SET") || strings.Contains(dump.String(), "retained") {
-		t.Fatal(dump.String())
+	restored := New()
+	if err := restored.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+		t.Fatal(err)
+	}
+	fresh := sessionStart(t, restored, &defaultProvider{value: "fresh-default"})
+	sessionValue(t, fresh, "fresh-default")
+	if got := tuples(sessionSQL(t, fresh, "SELECT * FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
+		t.Fatal("dump lost sentinel data", got)
 	}
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)

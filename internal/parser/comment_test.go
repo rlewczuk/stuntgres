@@ -16,6 +16,8 @@ func TestCommentGrammar(t *testing.T) {
 		null  bool
 	}{
 		{`COMMENT ON TABLE T IS 'first'`, CommentTable, 1, "first", false},
+		{`COMMENT ON SEQUENCE "s.dot"."seq.dot" IS 'generator'`, CommentSequence, 2, "generator", false},
+		{`COMMENT ON SEQUENCE seq IS NULL`, CommentSequence, 1, "", true},
 		{`COMMENT ON COLUMN "s.dot"."t.dot"."c.dot" IS E'quote\' slash\\\n雪'`, CommentColumn, 3, "quote' slash\\\n雪", false},
 		{`COMMENT ON COLUMN c IS NULL`, CommentColumn, 1, "", true},
 		{`COMMENT ON SCHEMA public IS $$line
@@ -40,7 +42,7 @@ func TestCommentGrammar(t *testing.T) {
 			t.Fatalf("%s: %v %#v", q, stmts, err)
 		}
 	}
-	for _, kind := range []string{"TYPE", "DATABASE", "INDEX", "SEQUENCE", "VIEW"} {
+	for _, kind := range []string{"TYPE", "DATABASE", "INDEX", "VIEW"} {
 		_, err := Parse("COMMENT ON " + kind + " target IS 'x'")
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "0A000" {

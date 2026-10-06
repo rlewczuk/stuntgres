@@ -119,6 +119,11 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 		err = nil
 	}
 	if err == nil {
+		if _, ok := stmt.(*parser.LockTable); ok {
+			err = tableKind(auth.catalog.state.descriptors[ref.Address].(*relationDescriptor), "lock")
+		}
+	}
+	if err == nil {
 		if ownerOnly {
 			if ref.owner != nil {
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
@@ -187,7 +192,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	descriptor, live := e.state.descriptors[ref.Address].(*relationDescriptor)
+	descriptor, live := e.sequenceCatalogLocked(s.owner.sequences).state.descriptors[ref.Address].(*relationDescriptor)
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || !live {
 		return ErrCatalogReplaced
 	}
@@ -198,6 +203,9 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 		s.lockedDescriptor = descriptor
 		switch stmt.(type) {
 		case *parser.Delete, *parser.Update:
+			if descriptor.relationKind != tableRelation {
+				break
+			}
 			s.lockedStorage = e.storage[ref.Address]
 			if s.lockedStorage == nil {
 				return errors.New("stuntgres: relation storage is missing")
@@ -232,7 +240,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 }
 
 func (s *StatementScope) validateLockedRelation(e *Engine) error {
-	if s.sourceRef.owner != nil && (s.sourceRef.owner != e.owner || s.sourceRef.Epoch != e.state.epoch || e.state.descriptors[s.sourceRef.Address] != s.sourceDescriptor) {
+	if s.sourceRef.owner != nil && (s.sourceRef.owner != e.owner || s.sourceRef.Epoch != e.state.epoch || e.sequenceCatalogLocked(s.owner.sequences).state.descriptors[s.sourceRef.Address] != s.sourceDescriptor) {
 		return ErrCatalogReplaced
 	}
 	if s.lockedRef.owner == nil {
@@ -241,7 +249,7 @@ func (s *StatementScope) validateLockedRelation(e *Engine) error {
 	if s.lockedRef.owner != e.owner || s.lockedRef.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
-	current := e.state.descriptors[s.lockedRef.Address]
+	current := e.sequenceCatalogLocked(s.owner.sequences).state.descriptors[s.lockedRef.Address]
 	if s.lockedIdentityOnly {
 		if _, ok := current.(*relationDescriptor); !ok {
 			return ErrCatalogReplaced

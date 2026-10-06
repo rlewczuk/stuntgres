@@ -54,6 +54,7 @@ const (
 	shareUpdateExclusive
 	rowUpdate
 	noKeyUpdate
+	shareRowExclusive
 )
 
 // Row zero is the relation resource; logical rows use their stable RowID.
@@ -115,7 +116,11 @@ func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 }
 func lockConflict(a, b relationLockMode) bool {
 	rowModes := rowUpdate | noKeyUpdate
-	return a&rowModes != 0 && b&rowModes != 0 || a&accessExclusive != 0 || b&accessExclusive != 0 || a&shareUpdateExclusive != 0 && b&shareUpdateExclusive != 0
+	if a&rowModes != 0 && b&rowModes != 0 || a&accessExclusive != 0 || b&accessExclusive != 0 {
+		return true
+	}
+	srxConflicts := rowExclusive | shareUpdateExclusive | shareRowExclusive
+	return a&shareRowExclusive != 0 && b&srxConflicts != 0 || b&shareRowExclusive != 0 && a&srxConflicts != 0 || a&shareUpdateExclusive != 0 && b&shareUpdateExclusive != 0
 }
 func (m *relationLockManager) valid(t *relationTicket) bool {
 	return t != nil && t.manager == m && m.owners[t.ref] == t
@@ -215,7 +220,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
-	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive) {
+	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}

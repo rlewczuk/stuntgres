@@ -19,8 +19,9 @@ ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
 Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
-defaults, supported parameter-free scalar/default-request INSERT (including
-integer arithmetic), database-local COMMENT and named SET SESSION AUTHORIZATION
+defaults, CREATE SEQUENCE, supported parameter-free scalar/default-request INSERT
+(including integer arithmetic), database-local COMMENT, generated sequence OWNED BY
+associations, SELECT setval(name,value,is_called), and named SET SESSION AUTHORIZATION
 owner directives. Parameters are recursively rejected, and other SQL remains
 excluded. Legacy CREATE/INSERT-only scripts remain bootstrap-owned. Referenced
 roles must already exist in the target engine. Restore captures a private role
@@ -37,5 +38,14 @@ ROLE replay. Ordinary post-Restore SQL still enforces USAGE/CREATE and ownership
 The shared object allocator skips live namespace and relation identities imported
 by Restore, so subsequent schema and table creation continues without collisions.
 Replacement does not rewind the destination's nonreuse counter.
+
+Dump excludes TEMP sequences and records persistent sequence options, owner,
+comment, OWNED BY association and generator high-water/called state. Restore
+installs new persistent generator identities atomically; it does not serialize
+session currval/lastval or unused cache tails. Reset/Restore preserve exact live
+caller-owned TEMP sequences and their physical-session state, while persistent
+prepared analysis retains its separate catalog-epoch fence. Sequence row results
+already returned remain immutable. Native log_cnt is always zero: no controls
+promise physical WAL, crash recovery or cache durability.
 
 `go test -count=1 -run '^TestCatalogOwnersPublicWitness$' ./smoke` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.

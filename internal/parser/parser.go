@@ -237,9 +237,9 @@ func (l *lexer) deferUnsupported(tok lexeme, message string) {
 // These are capability boundaries in explicit grammar positions, not lexical
 // classifications. Quoted names never acquire keyword identity.
 var unsupportedCommands = wordSet("merge truncate drop alter explain copy vacuum analyze analyse grant revoke with execute deallocate discard listen notify unlisten reindex cluster refresh reset")
-var unsupportedCreateObjects = wordSet("temporary temp unlogged view index database sequence function procedure trigger")
+var unsupportedCreateObjects = wordSet("temporary temp unlogged view index database function procedure trigger")
 var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning limit offset fetch group having window for using primary unique check references default constraint collate in between like ilike similar")
-var unsupportedCommentKinds = wordSet("type database index sequence view collation conversion extension language publication subscription tablespace trigger policy rule statistics")
+var unsupportedCommentKinds = wordSet("type database index view collation conversion extension language publication subscription tablespace trigger policy rule statistics")
 
 // LOGIN attributes are contextual role-option words, not PostgreSQL keywords.
 var unsupportedRoleOptions = wordSet("superuser nosuperuser createrole nocreaterole createdb nocreatedb inherit noinherit replication noreplication bypassrls nobypassrls password connection valid admin in role user group granted by")

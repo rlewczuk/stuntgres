@@ -80,6 +80,7 @@ type transactionOwner struct {
 	snapshotSet    bool
 	frontier       CommitSeq
 	roots          map[ObjectAddress]transactionRoot
+	sequences *sequenceChanges
 }
 
 func (t *transactionOwner) clear() {
@@ -92,6 +93,7 @@ func (t *transactionOwner) clear() {
 	t.snapshotSet = false
 	t.frontier = 0
 	t.roots = nil
+	t.sequences = nil
 }
 
 func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
@@ -108,6 +110,7 @@ func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
 	t.ticket = nil
 	t.mu.Unlock()
 	t.session.Engine().locks.end(ticket)
+	t.session.Engine().endSequenceSession(t.session)
 	return nil
 }
 
@@ -232,6 +235,7 @@ type StatementScope struct {
 	implicit           bool
 	input              sqltype.InputEnvironment
 	output             sqltype.OutputEnvironment
+	sequences          *sequenceChanges
 }
 
 type WriteStage struct {
@@ -541,6 +545,9 @@ func (s *StatementScope) Finish(err error) error {
 		err = e.validateOperation(s.op)
 	}
 	if err == nil && s.worked {
+		if s.sequences != nil {
+			t.sequences = s.sequences
+		}
 		if t.state == TxImplicit {
 			if !s.completed {
 				err = e.publishWrites(s.op, t.ref, s.stage.rows, s.stage.deletes)
@@ -588,6 +595,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.deletes = nil
 		t.roots = nil
 		t.frontier = 0
+		t.sequences = nil
 		endedTicket = t.ticket
 		t.ticket = nil
 	}
@@ -628,3 +636,4 @@ func publicationOperationLocked(e *Engine, op *Operation) error {
 	}
 	return op.ctx.Err()
 }
+

@@ -22,8 +22,10 @@ type ColumnDescriptor struct {
 type StatementDescription struct {
 	Parameters ParameterInfo
 	Results    []ColumnDescriptor
-	// Immutable scalar captures, never descriptors, execution plans or frames.
+	// Temporal captures and public signatures are immutable. The private sequence
+	// cell publishes complete analyzed literal groups under Engine.mu.
 	temporals []temporalConstant
+	sequences *sequenceAnalysis
 }
 
 type temporalConstant struct {

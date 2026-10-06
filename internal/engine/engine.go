@@ -22,6 +22,7 @@ type Engine struct {
 	state               *catalogState
 	providers           map[OID]CatalogProvider
 	storage             map[ObjectAddress]*relationStorage
+	sequences           map[ObjectAddress]*sequenceGenerator
 	nextOID             OID
 	nextRevision        DefinitionRevision
 	sessionMu           sync.Mutex
@@ -64,6 +65,7 @@ type binding struct {
 	defaults       []BoundExpr
 	temporals      []temporalConstant
 	predicate      BoundExpr
+	sequenceConstants []sequenceConstant
 }
 
 func New() *Engine {
@@ -93,6 +95,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{owner: &catalogOwner{}, providers: map[OID]CatalogProvider{}, storage: map[ObjectAddress]*relationStorage{}, nextOID: 16384, nextRevision: 2}
 	e.locks = newRelationLockManager(e)
+	e.sequences = make(map[ObjectAddress]*sequenceGenerator)
 	e.initializeRoles()
 	e.initializeSettings(definitions)
 	for _, p := range providers {
@@ -195,6 +198,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	switch s := stmt.(type) {
 	case *parser.Comment, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
+	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
+		return StatementDescription{}, nil
 	case *parser.IdentitySelect:
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -247,7 +252,15 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if b.query != nil && !b.commandQuery {
 		results = b.query.Root.Schema()
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, temporals: b.temporals}, nil
+	analysis, err := e.sequenceAnalysisLocked(auth, b.sequenceConstants)
+	if err != nil {
+		return StatementDescription{}, err
+	}
+	var cell *sequenceAnalysis
+	if len(analysis.constants) != 0 {
+		cell = &analysis
+	}
+	return StatementDescription{Parameters: b.parameters, Results: results, temporals: b.temporals, sequences: cell}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -294,6 +307,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				if err != nil {
 					return b, err
 				}
+				if u.Type.ID() == sqltype.Regclass {
+					return b, typeDiagnostic(c.TypeName, "0A000", "unsupported column type")
+				}
 				declaration, err := bindCreateColumnDeclaration(c, table)
 				if err != nil {
 					return b, err
@@ -327,6 +343,13 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					return b, err
 				}
 				source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				if err := tableKind(source, "like"); err != nil {
+					diagnostic := err.(*sqlstate.Error)
+					if pos := like.Name.Parts[0].Pos.Character; pos > 0 {
+						diagnostic.Position = strconv.Itoa(pos)
+					}
+					return b, diagnostic
+				}
 				offset := len(columns)
 				start := len(inherited)
 				for _, constraint := range source.notNullConstraints {
@@ -366,9 +389,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.ref != requiredRef {
 			return b, ErrCatalogReplaced
 		}
-		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
 		b.storage = e.storage[b.ref.Address]
-		if b.storage == nil {
+		if b.storage == nil && b.relation.relationKind == tableRelation {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
 		}
 		if len(s.Targets) == 0 && s.Source == nil {
@@ -459,9 +482,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.ref != requiredRef {
 			return b, ErrCatalogReplaced
 		}
-		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
 		b.storage = e.storage[b.ref.Address]
-		if b.storage == nil {
+		if b.storage == nil && b.relation.relationKind == tableRelation {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
 		}
 		binder.relation, binder.ref = b.relation, b.ref
@@ -499,8 +522,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			if b.ref != requiredRef {
 				return b, ErrCatalogReplaced
 			}
-			b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+			b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
 			b.storage = e.storage[b.ref.Address]
+			if b.storage == nil && b.relation.relationKind == tableRelation {
+				return b, fmt.Errorf("stuntgres: relation storage is missing")
+			}
 			binder.relation, binder.ref = b.relation, b.ref
 		} else {
 			if requiredRef != (ObjectRef{}) {
@@ -523,6 +549,8 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		return b, err
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
+	b.sequenceConstants = binder.sequenceConstants
+	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.temporals = binder.temporals
 	return b, nil
 }
@@ -578,6 +606,12 @@ func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.Ob
 		}
 	} else {
 		ns := view.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+		if name.Parts[0].Text == "pg_temp" {
+			ns = temporaryNamespace(auth)
+		}
+		if d, exists := view.state.descriptors[ns].(*namespaceDescriptor); exists && d.temporary != (SessionToken{}) && (auth.session == nil || d.temporary != auth.session.token) {
+			return ObjectRef{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", d.name))
+		}
 		if comment && ns == (ObjectAddress{}) {
 			return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
 		}

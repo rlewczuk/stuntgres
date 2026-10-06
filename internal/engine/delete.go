@@ -201,7 +201,7 @@ func (s *StatementScope) deleteSource(b binding, source *querySource, parameters
 		return Result{}, ErrCatalogReplaced
 	}
 	ctx := s.op.Context()
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters}
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, sequenceScope: s}
 	var count int64
 	for i := range source.count() {
 		if err := ctx.Err(); err != nil {

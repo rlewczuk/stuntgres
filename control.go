@@ -43,12 +43,18 @@ func withEngine(ctx context.Context, db *sql.DB, fn func(*engine.Engine) error) 
 	return fn(e)
 }
 
-// Reset atomically clears the named database, retaining its process-local identity.
+// Reset atomically clears persistent objects, retaining database identity,
+// roles, session settings and live session-private temporary sequences.
 func Reset(ctx context.Context, db *sql.DB) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
 }
 
-// Dump writes a consistent PostgreSQL-compatible plain SQL/INSERT snapshot.
+// Dump writes a consistent PostgreSQL-compatible persistent SQL snapshot,
+// including sequence options, ownership, comments and called generator state.
+// Named owners must already exist in the destination. Each relation owner group
+// explicitly selects its session authorization, including the bootstrap owner;
+// all tables precede sequence OWNED BY associations that depend on them.
+// Session-private temporary objects and pending session caches are not serialized.
 func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
@@ -56,14 +62,15 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	return withEngine(ctx, db, func(e *engine.Engine) error { return e.Dump(ctx, dst) })
 }
 
-// Restore atomically replaces the database after supported CREATE/ALTER/DROP
-// SCHEMA, CREATE TABLE, parameter-free scalar INSERT (including integer
-// arithmetic), database-local COMMENT and named owner directives succeed.
+// Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
+// SCHEMA, CREATE TABLE/SEQUENCE, parameter-free scalar INSERT (including integer
+// arithmetic), database-local COMMENT, sequence OWNED BY associations, generated
+// SELECT setval(name,value,is_called), and named owner directives succeed.
 // Parameters are recursively rejected; other statements remain excluded.
-// ROLE comments are shared authority metadata: Reset and
-// Restore retain them, and Dump deliberately excludes them.
-// INSERT query sources are rejected before trusted execution; Dump emits only
-// canonical literal VALUES for data produced by ordinary query INSERT.
+// ROLE comments are shared authority metadata: Reset and Restore preserve them,
+// and Dump excludes them. Query INSERT sources are deliberately not Restore
+// syntax; Dump emits canonical literal VALUES.
+// Caller-owned temporary sequences remain live and are excluded by Dump.
 // Its initialized private catalog preserves legacy streams and reconstructs
 // bootstrap namespace lifecycle changes without synthesizing ACL grants.
 // Named owners must already exist. Private Restore-stage CREATE TABLE destination

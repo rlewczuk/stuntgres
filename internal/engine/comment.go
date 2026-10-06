@@ -115,6 +115,13 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 			return nil, fmt.Errorf("stuntgres: COMMENT relation lock is missing")
 		}
 		relation := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		operation := "comment table"
+		if s.Kind == parser.CommentColumn {
+			operation = "comment column"
+		}
+		if err := tableKind(relation, operation); err != nil {
+			return nil, err
+		}
 		if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: relation.namespace}); err != nil {
 			return nil, err
 		}

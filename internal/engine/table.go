@@ -9,8 +9,7 @@ import (
 )
 
 // Called with e.mu held; every return releases it. Preflight the whole group
-// before staging removals. There are no supported inbound table-definition
-// dependencies, so RESTRICT and CASCADE have the same closure.
+// and its stable-column AUTO sequence dependencies before publication.
 func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.DropTable, count int) (Result, error) {
 	if count != 0 {
 		e.mu.Unlock()
@@ -57,6 +56,11 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			})
 			continue
 		}
+		relation := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		if relation.relationKind != tableRelation {
+			e.mu.Unlock()
+			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: "Use DROP SEQUENCE to remove a sequence."}
+		}
 		if seen[ref.Address] {
 			continue
 		}
@@ -91,6 +95,13 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			return Result{}, err
 		}
 	}
+	targets := make([]ObjectAddress, len(refs))
+	for i, ref := range refs {
+		targets[i] = ref.Address
+	}
+	if err := scope.stageOwnedSequences(stage, targets); err != nil {
+		return Result{}, err
+	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
 		return Result{}, err
@@ -114,8 +125,8 @@ func isSystemColumn(name string) bool {
 	return false
 }
 
-// Called with e.mu held. The supported dependent set is column nullability,
-// ACLs and comments; no native external definition providers exist.
+// Called with e.mu held. Column nullability, ACLs, comments and dependent
+// sequences follow stable attribute identity through column compaction.
 func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTableDropColumn, count int) (Result, error) {
 	if count != 0 {
 		e.mu.Unlock()
@@ -139,6 +150,10 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, err
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
+	if err := tableKind(old, "DROP COLUMN"); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	if isSystemColumn(s.Column.Text) {
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", fmt.Sprintf(`cannot drop system column "%s"`, s.Column.Text))
@@ -263,6 +278,11 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 		replacement.versions[i] = row
 	}
 	if err := stage.alterRelation(op.Context(), ref, &next, original, replacement, len(originalVersions), originalGeneration, originalEnds); err != nil {
+		return Result{}, err
+	}
+	target := ref.Address
+	target.SubID = old.attributes[slot]
+	if err := scope.stageOwnedSequences(stage, []ObjectAddress{target}); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

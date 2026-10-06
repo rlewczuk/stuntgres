@@ -454,8 +454,19 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err != nil {
 		t.Fatal("semantic bootstrap ACL rejected", err)
 	}
-	if dump.String() != "CREATE TABLE \"public\".\"sentinel\" (\"id\" INTEGER);\n" {
-		t.Fatal(dump.String())
+	restored := New()
+	if err := restored.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal("restore semantic bootstrap ACL dump", err)
+	}
+	read, readDone := roleOperation(t, restored, "postgres")
+	defer readDone()
+	roleExecute(t, restored, read, "INSERT INTO sentinel VALUES(7)")
+	if got := tuples(roleExecute(t, restored, read, "SELECT * FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
+		t.Fatal("restored sentinel behavior", got)
+	}
+	ref := roleTableRef(t, restored, "sentinel")
+	if restored.state.descriptors[ref.Address].(*relationDescriptor).owner != restored.roles.names["postgres"] {
+		t.Fatal("dump did not preserve sentinel owner")
 	}
 	changed := ACLValue{Explicit: true, Entries: []ACLEntry{
 		{Grantor: bootstrap, Grantee: ACLGrantee{Role: bootstrap}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege},

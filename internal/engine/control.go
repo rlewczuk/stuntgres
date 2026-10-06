@@ -79,6 +79,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	tables := make([]dumpRelation, 0)
 	type dumpSchema struct{ name, owner string }
 	var schemas []dumpSchema
+	var sequences []dumpSequence
 	type dumpComment struct{ name, text string }
 	var schemaComments []dumpComment
 	// Reconstruct bootstrap identity changes before creating ordinary namespaces.
@@ -170,6 +171,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			if d.Kind() == NamespaceObject {
 				ns, valid := d.(*namespaceDescriptor)
+				if valid && ns.temporary != (SessionToken{}) {
+					continue
+				}
 				if valid && ns.comment != "" {
 					schemaComments = append(schemaComments, dumpComment{ns.name, ns.comment})
 				}
@@ -200,6 +204,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation namespace is missing")
 		}
+		if ns.temporary != (SessionToken{}) {
+			continue
+		}
 		if r.acl.Explicit || len(r.columnACL) != 0 {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: dump cannot serialize explicit relation or column ACL")
@@ -208,6 +215,32 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if err != nil {
 			e.mu.Unlock()
 			return err
+		}
+		if r.relationKind == sequenceRelation {
+			g := e.sequences[a]
+			if g == nil {
+				e.mu.Unlock()
+				return fmt.Errorf("stuntgres: sequence state missing")
+			}
+			sequence := dumpSequence{owner: principal.Name, schema: ns.name, name: r.name, options: *r.sequence, state: *g, comment: r.comment}
+			if owned := r.sequence.owned; owned != (ObjectAddress{}) {
+				tableAddress := owned
+				tableAddress.SubID = 0
+				table, ok := e.state.descriptors[tableAddress].(*relationDescriptor)
+				if !ok {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: sequence ownership target missing")
+				}
+				tableSchema := e.state.descriptors[table.namespace].Name()
+				sequence.ownedTable = quoteIdentifier(tableSchema) + "." + quoteIdentifier(table.name)
+				for i, sub := range table.attributes {
+					if sub == owned.SubID {
+						sequence.ownedColumn = table.columns[i].Name
+					}
+				}
+			}
+			sequences = append(sequences, sequence)
+			continue
 		}
 		storage := e.storage[a]
 		if storage == nil {
@@ -256,7 +289,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
-	currentOwner := "postgres"
+	// The interpreter need not be logged in as the native bootstrap owner.
+	// Establish even the first group's owner before creating dependent objects.
+	currentOwner := ""
 	for _, t := range tables {
 		if t.owner != currentOwner {
 			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
@@ -336,6 +371,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 	}
+	for _, line := range sequenceDumpStatements(sequences) {
+		if err := emit(line); err != nil {
+			return err
+		}
+	}
 	return ctx.Err()
 }
 
@@ -387,6 +427,18 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
 		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
+		case *parser.CreateSequence:
+			if s.Persistence == "temporary" {
+				return sqlError("0A000", "restore cannot stage non-retractable effects")
+			}
+		case *parser.AlterSequence:
+			if s.Action != "" || len(s.Options) != 1 || s.Options[0].Name != "owned" {
+				return sqlError("0A000", "restore accepts only generated sequence ownership")
+			}
+		case *parser.Select:
+			if !restoreSequenceState(s) {
+				return sqlError("0A000", "restore accepts only generated sequence state")
+			}
 		case *parser.Comment:
 			if s.Kind == parser.CommentRole {
 				return sqlError("0A000", "restore accepts only database-local COMMENT targets")
@@ -407,10 +459,13 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE, INSERT, database-local COMMENT and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE, INSERT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateSequence); ok {
 			op.restoreTableDestination = true
 		}
 		op.restoreInsertAuthority = false

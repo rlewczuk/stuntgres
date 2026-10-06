@@ -163,7 +163,7 @@ or replace database contents. Those controls require a native stuntgres pool.
 - [SQL dialect and compatibility limits](docs/DIALECT.md): check support before
   using PostgreSQL-specific behavior.
 - [SQL reference](docs/SQL.md): topic guides for queries, table definitions,
-  expressions, types, identifiers, and literals.
+  sequences, expressions, types, identifiers, and literals.
 - [Driver lifecycle and notices](docs/DRIVER.md), [session settings](docs/SETTINGS.md),
   and [transactions and locks](docs/TRANSACTIONS.md).
 - [Roles, authorization and schemas](docs/AUTHORIZATION.md).
@@ -207,6 +207,3 @@ Report bugs and feature requests through this repository's issue tracker.
 Include a minimal reproducer, Go and stuntgres versions, the SQL and parameters,
 and the expected and actual results. For compatibility reports, include the
 behavior observed on PostgreSQL 18 and any SQLSTATE diagnostic.
-
-Support channels and response-time commitments are not documented yet; this
-section is reserved for those details.

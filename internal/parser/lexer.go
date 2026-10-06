@@ -403,6 +403,8 @@ func (l *lexer) scan(v *sqlSymType) int {
 		token = IDENT
 		if s == "current_setting" || s == "set_config" {
 			token = SETTING_FUNC
+		} else if s == "nextval" || s == "currval" || s == "lastval" || s == "setval" {
+			token = SEQUENCE_FUNC
 		}
 	case c == '\'' || (c == 'e' || c == 'E') && start+1 < len(l.input) && l.input[start+1] == '\'':
 		escape := c != '\''
@@ -646,6 +648,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	case "current_setting", "set_config":
 		if token.code == IDENT {
 			token.code = SETTING_FUNC
+		}
+	case "nextval", "currval", "lastval", "setval":
+		if token.code == IDENT {
+			token.code = SEQUENCE_FUNC
 		}
 	case "reset":
 		if token.lexeme.keyword != nil {

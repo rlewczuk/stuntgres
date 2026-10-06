@@ -113,6 +113,9 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+		if p.Volatility > properties.Volatility {
+			properties.Volatility = p.Volatility
+		}
 		if parameter, ok := arg.(parameterExpression); ok && parameter.usage.Type == nil {
 			b.anyParameters = append(b.anyParameters, parameter)
 		}

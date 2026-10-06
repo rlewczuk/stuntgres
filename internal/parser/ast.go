@@ -55,6 +55,60 @@ type CreateTable struct {
 
 func (*CreateTable) statement() {}
 
+type SequenceOption struct {
+	Name  string
+	Value int64
+	Type  TypeName
+	Owned ObjectName
+	Pos   Position
+}
+type CreateSequence struct {
+	Name        ObjectName
+	Options     []SequenceOption
+	Persistence string
+	IfNotExists bool
+	Pos         Position
+}
+
+func (*CreateSequence) statement() {}
+
+type AlterSequence struct {
+	Name     ObjectName
+	Options  []SequenceOption
+	Action   string
+	Target   Identifier
+	OwnerIdentity bool
+	IfExists bool
+	Pos      Position
+}
+
+func (*AlterSequence) statement() {}
+
+type DropSequence struct {
+	Names    []ObjectName
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropSequence) statement() {}
+
+type CallExpr struct {
+	Name Identifier
+	Args []Expr
+}
+
+func (CallExpr) expression()                {}
+func (e CallExpr) SourcePosition() Position { return e.Name.Pos }
+
+type RegclassExpr struct {
+	Child Expr
+	Pos   Position
+}
+
+func (RegclassExpr) expression()                {}
+func (e RegclassExpr) SourcePosition() Position { return e.Pos }
+
 type TableElement struct {
 	Column  *Column
 	Like    *TableLike
@@ -226,6 +280,9 @@ func (s *Select) IsSingleton() bool {
 	if len(s.Name.Parts) != 0 || s.Star || s.Where != nil || s.Order != nil || len(s.Targets) == 0 {
 		return false
 	}
+	if sequenceProjection(s) {
+		return true
+	}
 	for _, target := range s.Targets {
 		call, ok := target.(FunctionExpr)
 		if !ok || !singletonArgument(call) {
@@ -287,6 +344,7 @@ const (
 	CommentColumn
 	CommentSchema
 	CommentRole
+	CommentSequence
 )
 
 type Comment struct {

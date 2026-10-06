@@ -101,7 +101,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	return stage.Create(d)
 }
-func (e *Engine) executeSchema(op *Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
+func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -112,6 +112,13 @@ func (e *Engine) executeSchema(op *Operation, stmt parser.Statement, count int, 
 		return Result{}, err
 	}
 	defer e.DiscardCatalogStage(stage)
+	for a := range stage.removals {
+		if r, ok := stage.base.state.descriptors[a].(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+			if err := scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, accessExclusive); err != nil {
+				return Result{}, err
+			}
+		}
+	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
 		return Result{}, err
@@ -314,13 +321,13 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			details := make([]string, len(dependent))
 			for i, r := range dependent {
 				ns := auth.catalog.state.descriptors[r.namespace].Name()
-				details[i] = "table " + relationDiagnosticName(auth, r) + " depends on schema " + dependencyIdentifier(ns)
+				details[i] = relationDiagnosticKind(r) + " " + relationDiagnosticName(auth, r) + " depends on schema " + dependencyIdentifier(ns)
 			}
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 		}
 		if s.Cascade {
 			for _, r := range dependent {
-				stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to table "+relationDiagnosticName(auth, r))
+				stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+relationDiagnosticKind(r)+" "+relationDiagnosticName(auth, r))
 			}
 		}
 		for _, r := range dependent {

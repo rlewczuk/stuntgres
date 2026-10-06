@@ -188,6 +188,9 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		p.RowDependent = p.RowDependent || right.Properties().RowDependent
 		p.ParameterDependent = p.ParameterDependent || right.Properties().ParameterDependent
 		p.StageDependent = p.StageDependent || right.Properties().StageDependent
+		if volatility := right.Properties().Volatility; volatility > p.Volatility {
+			p.Volatility = volatility
+		}
 		return distinctExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), left, right, equality, raw.Kind == parser.IsNotDistinct}, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid predicate kind")

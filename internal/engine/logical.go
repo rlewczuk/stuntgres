@@ -52,6 +52,9 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
+		if p.Volatility > properties.Volatility {
+			properties.Volatility = p.Volatility
+		}
 	}
 	// Children already retain their earliest positions. Combining those cached
 	// positions avoids walking raw subtrees again for every parent in a chain.

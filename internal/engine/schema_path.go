@@ -102,6 +102,10 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, er
 			name = d.Name
 		}
 		if name == "pg_temp" {
+			if a := temporaryNamespace(auth); a != (ObjectAddress{}) {
+				result = append(result, a)
+				continue
+			}
 			if len(result) == 0 {
 				pendingTemp = true
 			}
@@ -109,6 +113,9 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, er
 		}
 		a, ok := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
 		if !ok {
+			continue
+		}
+		if ns, ok := auth.catalog.state.descriptors[a].(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
 			continue
 		}
 		duplicate := false
@@ -138,12 +145,28 @@ func (e *Engine) referencePath(auth AuthorizationView) ([]ObjectAddress, error) 
 		return nil, err
 	}
 	catalog := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
+	foundCatalog := false
 	for _, a := range path {
 		if a == catalog {
-			return path, nil
+			foundCatalog = true
+			break
 		}
 	}
-	return append([]ObjectAddress{catalog}, path...), nil
+	if !foundCatalog {
+		path = append([]ObjectAddress{catalog}, path...)
+	}
+	if temp := temporaryNamespace(auth); temp != (ObjectAddress{}) {
+		found := false
+		for _, a := range path {
+			if a == temp {
+				found = true
+			}
+		}
+		if !found {
+			path = append([]ObjectAddress{temp}, path...)
+		}
+	}
+	return path, nil
 }
 func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
 	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {

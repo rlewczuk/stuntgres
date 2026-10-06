@@ -71,23 +71,27 @@ type resourceEntry struct {
 	owner  SessionResource
 }
 type Session struct {
-	mu            sync.Mutex
-	cond          *sync.Cond
-	token         SessionToken
-	state         sessionState
-	completed     chan struct{}
-	leases        int
-	operations    map[*Operation]struct{}
-	detaching     bool
-	serial        uint64
-	resources     [resourceKinds]*resourceEntry
-	removed       map[ResourceHandle]bool
-	reason        EndReason
-	cleanupErrors []error
-	result        error
-	settings      *sessionSettings
-	transactions  *transactionOwner
-	authorization *sessionAuthorization
+	mu                 sync.Mutex
+	cond               *sync.Cond
+	token              SessionToken
+	state              sessionState
+	completed          chan struct{}
+	leases             int
+	operations         map[*Operation]struct{}
+	detaching          bool
+	serial             uint64
+	resources          [resourceKinds]*resourceEntry
+	removed            map[ResourceHandle]bool
+	reason             EndReason
+	cleanupErrors      []error
+	result             error
+	settings           *sessionSettings
+	transactions       *transactionOwner
+	authorization      *sessionAuthorization
+	sequences          map[ObjectAddress]*sequenceMemory
+	lastSequence       ObjectAddress
+	temporaryNamespace ObjectAddress
+	sequencePath       sequencePathCache
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.

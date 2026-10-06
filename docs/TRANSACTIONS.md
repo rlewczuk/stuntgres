@@ -10,11 +10,29 @@ name in settings. Default Go isolation honors the session default; explicit
 override it. Go `ReadOnly: false` explicitly requests read-write access. SQL
 omitted modes inherit session defaults. INSERT (VALUES or SELECT), scalar UPDATE,
 SELECT, DELETE, settings and the single-target AX utility are supported, including
-prepared execution. CREATE tables before a block; transactional DDL, savepoints,
-SERIALIZABLE/SSI and DEFERRABLE safe snapshots remain unsupported.
+prepared execution. CREATE tables before a block; sequence DDL and COMMENT ON
+SEQUENCE are the bounded transactional DDL exceptions. Other transactional DDL,
+savepoints, SERIALIZABLE/SSI and DEFERRABLE safe snapshots remain unsupported.
 In read-write explicit blocks, role creation/removal and SET/RESET SESSION
 AUTHORIZATION retain native `0A000` capability boundaries, not PostgreSQL parity.
 Identity SELECT remains supported in both access modes.
+
+Sequence nextval/setval and session currval/lastval are immediate, non-MVCC state:
+REPEATABLE READ retains its table snapshot, not a frozen generator. Ordinary
+allocation and setval survive rollback and later row-expression errors.
+ALTER SEQUENCE RESTART instead stages a private generator replacement, blocks
+peer functions (including cache hits), and commits or rolls back atomically
+with table INSERT/UPDATE/DELETE through the shared row-publication frontier.
+UPDATE evaluates its RHS once after actual row-lock wait/recheck, using the
+initiating statement's sequence scope; it never replays sequence effects.
+
+CREATE/ALTER OWNED BY acquires transaction-owned AccessShare on the owning table,
+retained to transaction end; the dependency cannot publish behind a conflicting
+table AccessExclusive holder. Read-only blocks reject persistent sequence DDL
+and actual persistent nextval/setval calls. Function checks occur after sequence
+opening and ACL checks but before cached-tail use, bounds or mutation. Reading
+sequence rows, currval/lastval and caller-owned TEMP sequence mutations remain
+allowed; TEMP sequences do not imply TEMP table support.
 
 Supported whole-input SQL syntax (one statement per public call):
 

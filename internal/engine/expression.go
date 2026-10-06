@@ -13,14 +13,18 @@ import (
 
 type Volatility uint8
 
-const Immutable Volatility = 0
+const (
+	Immutable Volatility = iota
+	Stable
+	Volatile
+)
 
 type ExprProperties struct {
 	Volatility                                       Volatility
 	RowDependent, ParameterDependent, StageDependent bool
 }
 
-// Every admitted node is immutable. Dependence does not imply volatility.
+// Dependence and volatility propagate independently through bound expressions.
 type BoundExpr interface {
 	boundExpression()
 	ResultUsage() sqltype.Usage
@@ -29,10 +33,11 @@ type BoundExpr interface {
 	Eval(*EvalContext) (sqltype.Value, error)
 }
 type EvalContext struct {
-	Context      context.Context
-	Scope, Frame uint32
-	Row          []sqltype.Value
-	Parameters   []sqltype.Value
+	Context       context.Context
+	Scope, Frame  uint32
+	Row           []sqltype.Value
+	Parameters    []sqltype.Value
+	sequenceScope *StatementScope
 }
 type expressionInfo struct {
 	usage      sqltype.Usage
@@ -312,6 +317,24 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.left, e.right = left, right
 			return e, true, nil
 		}
+	case sequenceCallExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercions(c, arg)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.args = args
+			return e, true, nil
+		}
 	case nullCountExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {
@@ -375,6 +398,7 @@ const (
 	projectionContext expressionContext = iota
 	filterContext
 	assignmentContext
+	functionArgumentContext
 )
 
 type expressionPolicy struct {
@@ -408,6 +432,7 @@ type expressionBinder struct {
 	targetName       string
 	targetAlias      string
 	defaultConsumer  bool
+	sequenceConstants []sequenceConstant
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -557,6 +582,18 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
+	case parser.CallExpr:
+		var err error
+		node, err = b.bindSequenceCall(r)
+		if err != nil {
+			return nil, err
+		}
+	case parser.RegclassExpr:
+		var err error
+		node, _, err = b.bindRegclass(r.Child)
+		if err != nil {
+			return nil, err
+		}
 	case parser.ColumnExpr:
 		if b.defaultConsumer {
 			return nil, expressionError("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
@@ -677,7 +714,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	if policy.booleanConstruct != "" && node.ResultUsage().Type.ID() != sqltype.Bool {
 		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
 	}
-	if policy.context == assignmentContext && node.ResultUsage() != policy.expected {
+	if (policy.context == assignmentContext || policy.context == functionArgumentContext) && node.ResultUsage() != policy.expected {
 		plan, err := sqltype.PlanCoercion(node.ResultUsage(), policy.expected, policy.mode)
 		if err != nil {
 			// Retain the resolved source for the assignment caller's diagnostic.
@@ -781,6 +818,10 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 		return r.Name.Parts[0].Text, true
 	case parser.FunctionExpr:
 		return r.Name.Parts[0].Text, true
+	case parser.CallExpr:
+		return r.Name.Text, true
+	case parser.RegclassExpr:
+		return "regclass", false
 	case parser.CastExpr:
 		if r.Syntax == parser.FunctionCast {
 			return r.Callee, true
@@ -908,7 +949,7 @@ func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand
 		return comparisonOperand{raw: raw}, nil
 	}
 	switch raw.(type) {
-	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.OperatorExpr:
+	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
@@ -995,6 +1036,9 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	p.RowDependent = p.RowDependent || rp.RowDependent
 	p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 	p.StageDependent = p.StageDependent || rp.StageDependent
+	if rp.Volatility > p.Volatility {
+		p.Volatility = rp.Volatility
+	}
 	return comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), l, r, predicate, raw.Name.Parts[0].Text}, nil
 }
 

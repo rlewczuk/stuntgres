@@ -23,7 +23,11 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 	if ref.attachment.state != TxActive && ref.attachment.state != TxImplicit {
 		return errors.New("stuntgres: inactive publication transaction")
 	}
-	if len(writes) == 0 && len(deletes) == 0 {
+	return e.publishRows(op, ref, writes, deletes, ref.attachment.sequences)
+}
+
+func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *sequenceChanges) error {
+	if len(writes) == 0 && len(deletes) == 0 && c == nil {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		op.session.mu.Lock()
@@ -37,11 +41,40 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 		return nil
 	}
 	for {
+		var nextCatalog *catalogState
+		var err error
+		if c != nil {
+			nextCatalog, err = e.prepareSequenceCatalog(op.Context(), c)
+			if err != nil {
+				return err
+			}
+		}
 		prepared := make([]rowPublication, 0, len(writes)+len(deletes))
 		e.mu.Lock()
 		if ref.epoch != e.state.epoch {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
+		}
+		current, frontier := e.state, e.commitSeq
+		var nextSequences map[ObjectAddress]*sequenceGenerator
+		var nextStorage map[ObjectAddress]*relationStorage
+		if c != nil {
+			if c.cachedBase != current {
+				e.mu.Unlock()
+				continue
+			}
+			if err = e.sequencePreflightLocked(c); err != nil {
+				e.mu.Unlock()
+				return err
+			}
+			nextSequences = make(map[ObjectAddress]*sequenceGenerator, len(e.sequences)+len(c.generators))
+			for a, g := range e.sequences {
+				nextSequences[a] = g
+			}
+			nextStorage = make(map[ObjectAddress]*relationStorage, len(e.storage))
+			for a, store := range e.storage {
+				nextStorage[a] = store
+			}
 		}
 		capture := func(a ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
 			store := e.storage[a]
@@ -52,7 +85,6 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			prepared = append(prepared, rowPublication{address: a, store: store, relation: relation, root: store.versions, writes: rows, ends: store.ends, deletion: deletion, generation: store.generation, singleSlot: -1})
 			return nil
 		}
-		var err error
 		for a, rows := range writes {
 			if err = capture(a, rows, deletes[a]); err != nil {
 				break
@@ -71,6 +103,31 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 		e.mu.Unlock()
 		if err != nil {
 			return err
+		}
+		if c != nil {
+			for a, d := range c.descriptors {
+				if d == nil {
+					delete(nextSequences, a)
+					delete(nextStorage, a)
+				}
+				if a.ClassID == NamespaceClassID && current.descriptors[a] != d {
+					detached := *nextCatalog
+					nextCatalog = &detached
+				}
+			}
+			for a, g := range c.generators {
+				if nextCatalog.descriptors[a] != nil {
+					nextSequences[a] = g
+				}
+			}
+			for a, d := range c.descriptors {
+				if a.ClassID == NamespaceClassID && current.descriptors[a] != d {
+					if err := nextCatalog.advanceNamespaceGeneration(); err != nil {
+						return err
+					}
+					break
+				}
+			}
 		}
 		for i := range prepared {
 			p := &prepared[i]
@@ -175,7 +232,7 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 		if err == nil && e.commitSeq == CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := false
+		changed := c != nil && (e.state != current || e.commitSeq != frontier)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage[p.address] != p.store || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
@@ -192,6 +249,9 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 					break
 				}
 			}
+		}
+		if err == nil && !changed && c != nil {
+			err = e.sequencePreflightLocked(c)
 		}
 		if err != nil {
 			session.mu.Unlock()
@@ -224,6 +284,16 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			}
 			p.store.versions = p.next
 			p.store.generation++
+		}
+		if c != nil {
+			e.sequences = nextSequences
+			e.storage = nextStorage
+			e.state = nextCatalog
+			for a, d := range c.descriptors {
+				if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
+					session.temporaryNamespace = a
+				}
+			}
 		}
 		e.commitSeq++
 		session.mu.Unlock()

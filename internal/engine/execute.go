@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strconv"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,14 +18,19 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
+		return e.executeSequenceDDL(scope, stmt, count)
 	case *parser.Comment:
+		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
+			return e.executeSequenceComment(scope, c, count)
+		}
 		result, err := e.executeComment(scope, stmt.(*parser.Comment), count)
 		if err == nil {
 			scope.completed = true
 		}
 		return result, err
 	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
-		result, err := e.executeSchema(op, stmt, count, scope.input)
+		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true
 		}
@@ -173,7 +179,22 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return Result{}, er
 	}
-	b, err := e.describe(ctx, stmt, auth, scope.lockedRef, scope.input, op, scope.Expected)
+	expected := scope.Expected
+	var candidate StatementDescription
+	valid := true
+	if expected != nil {
+		valid, err = e.sequenceAnalysisValidLocked(auth, expected.sequences)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		candidate = *expected
+		if !valid {
+			candidate.sequences = nil
+		}
+		expected = &candidate
+	}
+	b, err := e.describe(ctx, stmt, auth, scope.lockedRef, scope.input, op, expected)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -190,6 +211,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results}); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
+		}
+		if err = e.pinSequenceReplacementLocked(auth, scope.Expected.sequences, b.sequenceConstants); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		if !valid {
+			analysis, err := e.sequenceAnalysisLocked(auth, b.sequenceConstants)
+			if err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+			*scope.Expected.sequences = analysis
 		}
 	}
 	if count != b.parameters.Count {
@@ -211,11 +244,24 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				e.mu.Unlock()
 				return Result{}, fmt.Errorf("stuntgres: invalid parameter frame")
 			}
+			if !v.IsNull() && v.Type().ID() == sqltype.Regclass {
+				text, inputErr := v.Text()
+				if inputErr != nil {
+					e.mu.Unlock()
+					return Result{}, inputErr
+				}
+				ref, inputErr := e.regclassLocked(auth, text)
+				if inputErr != nil {
+					e.mu.Unlock()
+					return Result{}, sequenceInputError(inputErr, parser.Position{}, "", i+1)
+				}
+				canonical[i] = sqltype.String(v.Type(), strconv.FormatUint(uint64(ref.Address.ObjectID), 10))
+			}
 		}
 	}
 	expressions := b.expressions
 	expressionsChanged := false
-	evaluation := EvalContext{Context: ctx, Parameters: canonical}
+	evaluation := EvalContext{Context: ctx, Parameters: canonical, sequenceScope: scope}
 	_, inserting := stmt.(*parser.Insert)
 	if inserting {
 		// Preflight frame-only conversions before executor ACL/constraints.
@@ -300,6 +346,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 	}
+	switch stmt.(type) {
+	case *parser.Insert, *parser.Update, *parser.Delete:
+		if err := tableKind(b.relation, "change"); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
 	if err = auth.checkBinding(b, stmt); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -327,7 +380,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if s.Source != nil {
 			var source *querySource
 			var view *VisibilityView
-			if b.sourceRelation != nil {
+			if b.sourceRelation != nil && b.sourceRelation.relationKind == sequenceRelation {
+				source, err = e.captureSequenceSourceLocked(scope, b.sourceRef, b.sourceRelation)
+				if err != nil {
+					e.mu.Unlock()
+					return Result{}, err
+				}
+			} else if b.sourceRelation != nil {
 				var viewErr error
 				view, viewErr = scope.acquireDataViewLocked(e, b.sourceRef)
 				if viewErr != nil {
@@ -342,9 +401,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if err != nil {
 					return Result{}, err
 				}
-			} else {
+			} else if source == nil {
 				source = &querySource{singleton: s.Source.Select != nil && b.sourceRelation == nil}
 			}
+			source.scope = scope
 			b.query = &BoundQuery{Root: queryRoot}
 			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.output)
 			if queryErr != nil {
@@ -358,10 +418,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			return Result{Count: int64(len(rows))}, nil
 		}
+		e.mu.Unlock()
 		rows := make([][]sqltype.Value, len(s.Rows))
 		for i, source := range s.Rows {
 			if err = ctx.Err(); err != nil {
-				e.mu.Unlock()
 				return Result{}, err
 			}
 			row := make([]sqltype.Value, len(b.relation.columns))
@@ -379,7 +439,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					if expression != nil && row[j].Type() != nil {
 						row[j], err = expression.Eval(&evaluation)
 						if err != nil {
-							e.mu.Unlock()
 							return Result{}, err
 						}
 					}
@@ -393,7 +452,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				c := b.relation.columns[target]
 				row[target], err = expressions[i][j].Eval(&evaluation)
 				if err != nil {
-					e.mu.Unlock()
 					return Result{}, insertValueError(auth.catalog, err, c, v, nil)
 				}
 			}
@@ -404,19 +462,16 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		// execute per row after authorization, before staged write publication.
 		for _, row := range rows {
 			if err = ctx.Err(); err != nil {
-				e.mu.Unlock()
 				return Result{}, err
 			}
 			for j, c := range b.relation.columns {
 				if row[j].IsNull() && !c.Nullable {
 					schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
-					e.mu.Unlock()
 					return Result{}, notNullError(schema, b.relation.name, c.Name, row, scope.output)
 				}
 			}
 		}
 		err = ctx.Err()
-		e.mu.Unlock()
 		if err == nil {
 			err = scope.Writes().Apply(b.ref, rows)
 		}
@@ -436,6 +491,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if s.IsSingleton() {
 			source = &querySource{singleton: true}
 			e.mu.Unlock()
+		} else if b.relation.relationKind == sequenceRelation {
+			source, err = e.captureSequenceSourceLocked(scope, b.ref, b.relation)
+			e.mu.Unlock()
+			if err != nil {
+				return Result{}, err
+			}
 		} else {
 			view, viewErr := scope.acquireDataViewLocked(e, b.ref)
 			if viewErr != nil {
@@ -448,9 +509,16 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, err
 			}
 		}
+		source.scope = scope
 		rows, count, queryErr := finalizeQuery(ctx, queryRoot, source, canonical)
 		if queryErr != nil {
 			return Result{}, queryErr
+		}
+		if b.query.regclassOutput && count != 0 {
+			if err := e.captureRegclassOutput(op, rows.(*finalRows)); err != nil {
+				rows.Close()
+				return Result{}, err
+			}
 		}
 		return Result{Count: int64(count), Rows: rows}, nil
 	}

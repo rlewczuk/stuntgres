@@ -33,6 +33,15 @@ Go test reports each test's pass or failure instead of standalone output labels.
 
 The explicitly enabled reference suite requires working Docker and image/module access. It uses one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
 
+The shared fixture provisions native bootstrap owner `postgres` as a separate
+NOLOGIN superuser for the container lifetime, with bounded startup and cleanup.
+PostgreSQL callers still authenticate as `stuntgres`; native callers retain
+`postgres`. Dump replay executes the unchanged owner-bearing stream, including
+its first explicit owner directive, so schema/table/sequence owners are not
+silently remapped. Pooled administrative session state is discarded before
+schema resets. Sequence queue witnesses observe the captured local OID and
+actual blocker, not a hard-coded relation name or sleep-based timing.
+
 Reference tests live in the dedicated `reference/` external test package and use only the public stuntgres API. Shared setup and helpers belong in `reference/fixture_test.go`; functional groups belong in separate test files of at most 750 lines each. `make reference` runs these fixtures uncached, with `VERBOSE=1` available for diagnostics.
 The cohesive common fixture is exempt from the 750-line limit; it keeps container lifecycle, diagnostic assertions, notice connections and middleware recording together.
 

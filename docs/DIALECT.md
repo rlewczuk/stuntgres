@@ -14,12 +14,17 @@ parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;
 `SELECT FROM source` retains table occurrence/filter semantics. These do not
 expand standalone SELECT or standalone VALUES. Explicit targets match source
 schema width; implicit targets map first N live columns. Omitted columns use
-declared defaults or typed NULL and enforce NOT NULL; serial/sequences remain
-excluded with separate real-PG witnesses.
+declared defaults or typed NULL and enforce NOT NULL; serial remains excluded
+with separate real-PG witnesses. Sequence calls are supported in the bounded
+scalar consumers below, not in declared DEFAULT expressions.
 Already-supported casts and null/truth/distinct predicates, DATE and BYTEA are
 preserved in INSERT sources. Shared SELECT analysis retains current cast result
 names. Recursive conversion preflight uses the imported execution frame, outside
 the engine lock and before source capture; analyzed query nodes remain immutable.
+Selected sequence calls also work in INSERT SELECT/VALUES producers through
+that same binder and StatementScope; sequence FROM sources capture the same
+three-value row as ordinary SELECT. Cast preflight visits sequence arguments
+without evaluating the sequence call. Prepare consumes no sequence values.
 
 Plain or parenthesized undecorated VALUES remains destination-context input.
 VALUES with one ORDER BY output ordinal, implicit `columnN` name or unary-plus
@@ -198,8 +203,9 @@ Dump serializes expression structure/captured temporal input without Eval and
 existing rows explicitly. Restore uses the same binder and public DEFAULT
 requests, staging atomically. Temporal 'now' input captures CREATE's operation
 clock; no new volatile producer, general function, subquery, cast family or arithmetic
-operator/type is implied. Serial, identity, ALTER DEFAULT and UPDATE DEFAULT remain excluded. Independent PostgreSQL-only
-sequence/volatile witnesses are labeled adjacent SQL boundaries; disk/WAL,
+operator/type is implied. Serial, identity, ALTER DEFAULT and UPDATE DEFAULT remain excluded.
+Sequence/volatile calls remain excluded specifically from declared DEFAULT expressions,
+even when constant NULL could otherwise eliminate the call; disk/WAL,
 network protocol, native ABI extensions and external pg_dump/custom archives
 are specifically non-engine mechanisms, never permission for successful stubs.
 Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
@@ -755,9 +761,9 @@ not native successful no-ops. Physical pg_dump/server disk/network mechanisms
 are outside native Reset/Dump/Restore. Smoke:
 `make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1`.
 
-DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. The current inbound table-definition dependency set is empty, so both drop modes remove the same explicitly selected tables/contained metadata/storage/ACLs, not schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
+DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. Both modes remove selected tables and AUTO-dependent owned sequences, plus contained metadata/storage/ACLs; neither removes schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
 
-ALTER TABLE also supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] action, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact; descriptor+storage publish through one guarded CatalogStage, checking original storage root/observed length/deletion-root identity against concurrent row publication. Native dependencies are named NOT NULL/ACL/comments only, with empty external inbound set; indexes/views/FKs/hierarchy and transactional DDL are explicit external-only reference witnesses. Explicit native transactions exclude ALTER TABLE. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
+ALTER TABLE also supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] action, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact; descriptor+storage publish through one guarded CatalogStage, checking original storage root/observed length/deletion-root identity against concurrent row publication. Native dependencies are named NOT NULL/ACL/comments and AUTO-dependent sequences keyed by stable attribute SubID. Indexes/views/FKs/hierarchy and transactional table DDL remain external-only witnesses. Explicit native transactions exclude ALTER TABLE. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
 The optional ALTER DROP COLUMN keyword consumes the shared dedicated COLUMN token used by COMMENT, not legacy KW_R text matching. Quoted keyword targets remain decoded IDENT names; preserve keyword categories and positioned parser errors when integrating grammar changes.
 Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion per row through common Insert. DEFAULT VALUES also applies declared defaults/typed NULL for nonzero-column tables; VALUES() remains invalid syntax. Restore does not accept ALTER TABLE history. Feature smoke: `make smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'`.
 
@@ -873,5 +879,91 @@ live settings and shared role effects are not authorized by these witnesses.
 
 Trusted Restore INSERT and database-local COMMENT use local validated captured-bootstrap AuthorizationViews, never session identity mutation. COMMENT authority covers qualified lookup, lock resolution and metadata mutation, is restricted to local targets and is cleared after each statement. Named CREATE owner groups remain intact; per-statement private markers cannot affect public Prepare/INSERT/COMMENT or persist schema/table ACL grants.
 
-Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported defaults, INSERT with supported parameter-free scalar/default-request forms (including integer arithmetic), database-local COMMENT and named SET SESSION AUTHORIZATION only. Nested parameters remain rejected recursively. Dump reconstructs bootstrap identity/name/owner changes before user objects; retained canonical builtin ACLs transform owner grantor/grantee, recreated public has absent ACL, and unchanged bootstrap retains legacy bytes. Local schema comments follow schema creation, table/column comments follow CREATE before INSERT under owner groups. Arbitrary explicit ACL serialization stays unsupported. Held INSERT rebinding INT4→TEXT rejects native 0A000 before importer/write; pinned PostgreSQL retains INT4 parameters and assignment-coerces to TEXT, an explicitly asserted difference.
+Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported defaults, CREATE SEQUENCE, INSERT with supported parameter-free scalar/default-request forms (including integer arithmetic), database-local COMMENT, generated sequence OWNED BY associations and SELECT setval(name,value,is_called), and named SET SESSION AUTHORIZATION only. Nested parameters remain rejected recursively. Dump reconstructs bootstrap identity/name/owner changes before user objects; retained canonical builtin ACLs transform owner grantor/grantee, recreated public has absent ACL, and unchanged bootstrap retains legacy bytes. Local schema comments follow schema creation, table/column comments follow CREATE before INSERT under owner groups. Arbitrary explicit ACL serialization stays unsupported. Held INSERT rebinding INT4→TEXT rejects native 0A000 before importer/write; pinned PostgreSQL retains INT4 parameters and assignment-coerces to TEXT, an explicitly asserted difference.
 
+
+## Sequences
+
+Sequence objects support the PostgreSQL18 CREATE/ALTER/DROP option and administrative forms documented in the [SQL reference](SQL.md#sequences), including TEMP/UNLOGGED, optional BY/WITH, CREATE/ALTER RESTART, NO MINVALUE/MAXVALUE/CYCLE, OWNED BY, IF [NOT] EXISTS and grouped DROP. RESTART sets the current uncalled value, not configured START: CREATE START 5 RESTART 9 returns 9 first, and a later bare ALTER RESTART returns 5. Numeric options are integral and bounded by the declared smallint/integer/bigint type; function results always use INT8. Constant-space reservation arithmetic handles large CACHE and int64 extremes without allocating cached arrays. CYCLE wraps on reservation boundaries and can repeat values; it is not a uniqueness constraint.
+
+Sequence OWNER TO supports role names and CURRENT_ROLE/CURRENT_USER/SESSION_USER
+identity operands; quoted identity spellings remain literal role names.
+Same-owner requests need no renewed destination schema CREATE. Genuine ownership
+changes by a non-superuser retain destination-role/schema checks; superuser
+transfers bypass those transition checks. Actual linked-sequence owner changes
+remain forbidden; successful transfers remap owner grantor/grantee identities
+while preserving unrelated grants and same-owner requests preserve ACL/state.
+
+The four selected sequence functions and minimal regclass casts reuse the common typed scalar binder/eager evaluator. Literal regclass lookup happens at Prepare with character positions. Nonnull regclass parameters become canonical OIDs during coherent Execute parameter import, before zero-row evaluation, runtime NULL checks or nested function effects; input errors retain portal Context without a literal Position. Numeric/dash inputs require no existing relation. NULL arguments are strict and do not open a sequence. Exact session-before-use, missing/wrong-kind, option, bound, ACL and NOTICE diagnostics have independent pinned-release fixtures. This does not admit arbitrary relationless SELECT, user-defined functions or general casts.
+
+Both `value::regclass` and `CAST(value AS regclass)` are admitted through the shared cast syntax alongside the existing bounded explicit-cast matrix above; unsupported source/target pairs retain that matrix's diagnostics. Regclass (OID2205) is a sequence expression/result identity, not an admitted stored column type. Valid sequence CREATE prepares without namespace permission checks. At execution, schema CREATE denial has no Position; ordinary CREATE validates options first, while IF NOT EXISTS checks namespace authority before skipping an existing relation or validating options. Literal regclass schema USAGE denial remains an analysis/Prepare error positioned at the input literal.
+
+Standalone selected regclass projections use the `regclass` column label and
+PostgreSQL name output: visible names are unqualified, shadowed/off-path names
+are schema-qualified, and identifier quoting uses the shared keyword inventory.
+Missing nonzero OIDs display decimal text; zero displays `-`. The common result
+exporter uses an immutable execution output snapshot without replacing internal
+typed OID datums or adding general OID casts/catalog queries.
+
+Sequence metadata, transactional generator replacements and INSERT/UPDATE/DELETE row versions publish together at Finish/COMMIT through the same immutable prepare/validate/install frontier. Ordinary nextval/setval effects and physical-session memories are outside rollback. RX protects demanded nonnull function calls; ALTER uses SRX and administrative rename/schema changes use AX. Sequence row reads use AS and retain captured data/types through subsequent changes. Native log_cnt0 intentionally differs from PostgreSQL WAL prelogging counters; tests assert both independently.
+
+Sequence DDL and COMMENT ON SEQUENCE are the bounded exception to the general explicit-transaction DDL exclusion above. TEMP sequence namespaces are session-private, shadow persistent relations, and survive persistent Reset/Restore until physical end. Controls preserve settings/roles/temp memories, exclude TEMP objects from Dump, serialize effective persistent options and called state, and reject invalid staged replacement atomically.
+
+Prepared sequence SQL is source, not a permanently retained regclass datum.
+Its complete literal group reanalyzes through the existing binder at Execute
+start on sequence relation-plan stamp, effective namespace changes or namespace
+catalog invalidation. An
+already-running function retains its analyzed OID across a queued RX wait.
+Rename/move missing original names
+fail42P01 without allocation; ordinary SQL DROP/recreation may resolve a new
+identity. Numeric OIDs retain their bits and missing opening failsXX000.
+Ordinary generator changes and relation shadow creation alone preserve held
+analysis. Explicit sequence options rewrite even unchanged values; actual
+owner/persistence transitions and sequence ACL publications invalidate.
+OWNED BY-only, same-owner and same-persistence forms preserve the stamp;
+bare ALTER SEQUENCE without an action or option is a syntax error.
+Effective paths compare ordered namespace identities/implicit flags,
+not raw setting text; unchanged execution reuses the session path cache.
+Namespace publications invalidate both that cache and held sequence analysis,
+even with an unchanged effective path, through an independent bounded scalar
+without consuming descriptor revisions. Exhaustion rejects publication
+atomically, including namespace ACL updates and schema drop closures; native
+catalog replacement retains its separate epoch authority.
+First committed TEMP namespace insertion uses this same checked authority before
+catalog/generator/row/session installation. Rollback or relation-only creation
+in an existing TEMP namespace does not publish a namespace event. Physical
+EndSession retires native logical TEMP ownership without namespace invalidation
+or epoch advance: PostgreSQL RemoveTempRelations preserves the namespace tuple
+for backend-slot reuse. Native retirement installs detached coherent state;
+previously captured catalog views and result rows remain immutable.
+Temporal captures, parameter/result signatures and returned cursors remain
+immutable. Native persistent Reset/Restore keeps its separate epoch-fence
+contract; exact live caller-owned TEMP provenance alone may refresh.
+Native sequence-only reanalysis preserves existing Prepare-time dynamic temporal
+captures. PostgreSQL full-query reanalysis can recapture `TIMESTAMP 'now'` at
+its reanalysis transaction start; this is an independently asserted bounded
+native temporal distinction, not full prepared-query parity or a general
+temporal cutover. Static temporal values and parameter/result/sequence contracts
+remain exact.
+
+RX is demand-driven after once-only argument evaluation. A queued rename
+continues opening/allocating the original OID; the next held Execute reanalyzes
+the original missing name and fails42P01. Queued DROP instead fails the running
+opening withXX000/no Position, followed by42P01 with literal Position on the
+next Execute. No function arguments or prior allocations are replayed.
+Filtered/zero-row targets do not open/lock a sequence. These four strict builtins
+simplify a known constant NULL argument to typed INT8 NULL, eliminating even
+volatile sibling arguments; a runtime column NULL retains once-only nested
+argument effects but skips the outer sequence opening/RX. This bounded rule is
+not a generic SQL function optimizer.
+
+Sequence DDL/restart and transactional INSERT/DELETE publish their catalog,
+generator, appended-row and deletion-end roots atomically at one commit frontier.
+DELETE predicates use the same sequence argument/preflight/demand contracts as
+other scalar consumers; demanded nextval/setval effects survive row rollback.
+DELETE of a sequence itself fails at execution with `42809` / `cannot change
+sequence "s"` before predicate allocation. Retained row results and new
+INSERT SELECT/Dump consumers respectively retain their captured snapshot and
+observe only live survivors. Feature smoke:
+`make smoke RUN='^TestSequenceDeleteCompositionSmoke$' VERBOSE=1` (also a
+`TestSequenceSmoke` subtest).

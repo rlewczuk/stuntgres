@@ -27,6 +27,18 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
+	action := "ALTER COLUMN ... SET NOT NULL"
+	switch s.Action {
+	case parser.DropNotNull:
+		action = "ALTER COLUMN ... DROP NOT NULL"
+	case parser.AddNotNull:
+		action = "ADD CONSTRAINT"
+	case parser.DropConstraint:
+		action = "DROP CONSTRAINT"
+	}
+	if err := tableKind(old, action); err != nil {
+		return fail(err)
+	}
 	slot := -1
 	constraintIndex := -1
 	if s.Action == parser.DropConstraint {

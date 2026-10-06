@@ -61,12 +61,13 @@ type Descriptor interface {
 	Kind() ObjectKind
 }
 type namespaceDescriptor struct {
-	address  ObjectAddress
-	name     string
-	revision DefinitionRevision
-	owner    PrincipalRef
-	acl      ACLValue
-	comment  string
+	address   ObjectAddress
+	name      string
+	revision  DefinitionRevision
+	owner     PrincipalRef
+	acl       ACLValue
+	comment   string
+	temporary SessionToken
 }
 
 func (d *namespaceDescriptor) Address() ObjectAddress       { return d.address }
@@ -79,6 +80,7 @@ type relationDescriptor struct {
 	address, namespace ObjectAddress
 	name               string
 	revision           DefinitionRevision
+	sequencePlanStamp  DefinitionRevision
 	columns            []ColumnDescriptor
 	index              map[string]int
 	attributes         []int32
@@ -89,6 +91,8 @@ type relationDescriptor struct {
 	columnComments     map[int32]string
 	notNullConstraints []notNullConstraint
 	defaults           map[int32]columnDefault
+	relationKind       relationKind
+	sequence           *sequenceOptions
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -117,9 +121,10 @@ type NameKey struct {
 	Name      string
 }
 type catalogState struct {
-	epoch       CatalogEpoch
-	descriptors map[ObjectAddress]Descriptor
-	names       map[NameKey]ObjectAddress
+	epoch               CatalogEpoch
+	namespaceGeneration uint64
+	descriptors         map[ObjectAddress]Descriptor
+	names               map[NameKey]ObjectAddress
 }
 type CatalogRead struct {
 	owner *Engine
@@ -195,6 +200,23 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if !exists || typ != c.Usage.Type || !typ.Concrete() || !c.Usage.Valid() {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
+	}
+	if r.relationKind == sequenceRelation {
+		if r.sequencePlanStamp == 0 || r.sequence == nil || len(r.columns) != 3 || r.columns[0].Name != "last_value" || r.columns[1].Name != "log_cnt" || r.columns[2].Name != "is_called" || r.columns[0].Usage.Type.ID() != sqltype.Int8 || r.columns[1].Usage.Type.ID() != sqltype.Int8 || r.columns[2].Usage.Type.ID() != sqltype.Bool {
+			return fmt.Errorf("stuntgres: invalid sequence descriptor")
+		}
+		if _, _, err := bindSequenceOptions(r.sequence, sequenceGenerator{last: r.sequence.start}, nil); err != nil {
+			return err
+		}
+		if owned := r.sequence.owned; owned != (ObjectAddress{}) {
+			tableAddress := owned
+			tableAddress.SubID = 0
+			table, ok := v.state.descriptors[tableAddress].(*relationDescriptor)
+			if !ok || table.relationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.owner != r.owner || table.namespace != r.namespace {
+				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
+			}
+		}
+		return nil
 	}
 	names := make(map[string]bool, len(r.notNullConstraints))
 	attrs := make(map[int32]bool, len(r.notNullConstraints))
@@ -476,7 +498,7 @@ func (e *Engine) stageRead(s *CatalogStage) CatalogRead {
 	for k, v := range s.names {
 		ns[k] = v
 	}
-	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), descriptors: ds, names: ns}}
+	return CatalogRead{owner: e, state: &catalogState{epoch: s.base.Epoch(), namespaceGeneration: s.base.state.namespaceGeneration, descriptors: ds, names: ns}}
 }
 func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*PreparedCatalogPublication, error) {
 	if s == nil || s.owner != e || s.lifecycle != catalogOpen || s.invalid != nil {
@@ -626,7 +648,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		}
 		for a, d := range s.descriptors {
 			next.descriptors[a] = d
-			if _, ok := d.(*relationDescriptor); ok && storage[a] == nil {
+			if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == tableRelation && storage[a] == nil {
 				storage[a] = &relationStorage{}
 			}
 		}
@@ -685,11 +707,23 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			err = p.ctx.Err()
 		}
 		if err == nil {
+			namespaceChanged := false
+			for a := range s.descriptors {
+				namespaceChanged = namespaceChanged || a.ClassID == NamespaceClassID
+			}
+			for a := range s.removals {
+				namespaceChanged = namespaceChanged || a.ClassID == NamespaceClassID
+			}
+			if namespaceChanged {
+				err = next.advanceNamespaceGeneration()
+			}
+		}
+		if err == nil {
 			// Staged replacements may advance revisions without reserving from
 			// the allocator. Commit its frontier with the successful publication.
 			nextRevision := e.nextRevision
 			for _, d := range s.descriptors {
-				if revision := d.Revision(); revision >= nextRevision {
+				if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
 					nextRevision = revision
 					if nextRevision != DefinitionRevision(math.MaxUint64) {
 						nextRevision++
@@ -698,6 +732,9 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			e.state = next
 			e.storage = storage
+			for a := range s.removals {
+				delete(e.sequences, a)
+			}
 			e.nextRevision = nextRevision
 			s.lifecycle = catalogPublished
 		}
@@ -775,11 +812,12 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	var next *catalogState
 	relationAddresses := make([]ObjectAddress, 0, len(replacement.state.descriptors))
 	for a, d := range replacement.state.descriptors {
-		if _, ok := d.(*relationDescriptor); ok {
+		if r, ok := d.(*relationDescriptor); ok && r.relationKind == tableRelation {
 			relationAddresses = append(relationAddresses, a)
 		}
 	}
 	storage := make(map[ObjectAddress]*relationStorage, len(relationAddresses))
+	var sequences map[ObjectAddress]*sequenceGenerator
 	copyRows := func(source map[ObjectAddress]*relationStorage, frontier CommitSeq) error {
 		for _, a := range relationAddresses {
 			if source[a] == nil {
@@ -813,12 +851,20 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		if err := copyRows(e.storage, e.commitSeq); err != nil {
 			return ChangeSet{}, err
 		}
+		var sequenceErr error
+		sequences, sequenceErr = copySequenceState(e, replacement)
+		if sequenceErr != nil {
+			return ChangeSet{}, sequenceErr
+		}
+		if err := e.preserveTemporaryLocked(next, storage, sequences); err != nil {
+			return ChangeSet{}, err
+		}
 		nextRevision := e.nextRevision
 		for _, d := range next.descriptors {
 			if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
 				return ChangeSet{}, err
 			}
-			if revision := d.Revision(); revision >= nextRevision {
+			if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
 				nextRevision = revision
 				if nextRevision != DefinitionRevision(math.MaxUint64) {
 					nextRevision++
@@ -849,6 +895,8 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		next.epoch = e.state.epoch + 1
 		e.state = next
 		e.storage = storage
+		e.sequences = sequences
+		e.clearPersistentSequenceMemoryLocked()
 		e.nextRevision = nextRevision
 		installed = next.epoch
 		return ChangeSet{Replacement: true}, nil
@@ -859,6 +907,10 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		return ChangeSet{}, ErrCatalogReplaced
 	}
 	err := copyRows(replacement.owner.storage, replacement.owner.commitSeq)
+	sourceFrontier := replacement.owner.commitSeq
+	if err == nil {
+		sequences, err = copySequenceState(replacement.owner, replacement)
+	}
 	sourceRoles := RoleRead{replacement.owner, replacement.owner.roles}
 	replacement.owner.mu.Unlock()
 	if err != nil {
@@ -891,12 +943,15 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	if err != nil {
 		return ChangeSet{}, err
 	}
+	if err = e.preserveTemporaryLocked(next, storage, sequences); err != nil {
+		return ChangeSet{}, err
+	}
 	nextRevision := e.nextRevision
 	for _, d := range next.descriptors {
 		if err := validateACL(RoleRead{e, e.roles}, d); err != nil {
 			return ChangeSet{}, err
 		}
-		if revision := d.Revision(); revision >= nextRevision {
+		if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
 			nextRevision = revision
 			if nextRevision != DefinitionRevision(math.MaxUint64) {
 				nextRevision++
@@ -925,6 +980,8 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 	next.epoch = e.state.epoch + 1
 	e.state = next
 	e.storage = storage
+	e.sequences = sequences
+	e.clearPersistentSequenceMemoryLocked()
 	e.nextRevision = nextRevision
 	return nil
 }
@@ -943,7 +1000,7 @@ func (e *Engine) remintStorageLocked(storage map[ObjectAddress]*relationStorage)
 }
 
 func cloneCatalog(s *catalogState) *catalogState {
-	n := &catalogState{epoch: s.epoch, descriptors: make(map[ObjectAddress]Descriptor, len(s.descriptors)), names: make(map[NameKey]ObjectAddress, len(s.names))}
+	n := &catalogState{epoch: s.epoch, namespaceGeneration: s.namespaceGeneration, descriptors: make(map[ObjectAddress]Descriptor, len(s.descriptors)), names: make(map[NameKey]ObjectAddress, len(s.names))}
 	for k, v := range s.descriptors {
 		n.descriptors[k] = v
 	}
@@ -951,6 +1008,16 @@ func cloneCatalog(s *catalogState) *catalogState {
 		n.names[k] = v
 	}
 	return n
+}
+
+// Namespace cache invalidation is independent of descriptor revision allocation.
+// Advance only the unpublished catalog so exhaustion cannot publish any effects.
+func (s *catalogState) advanceNamespaceGeneration() error {
+	if s.namespaceGeneration == math.MaxUint64 {
+		return fmt.Errorf("stuntgres: namespace invalidation generation exhausted")
+	}
+	s.namespaceGeneration++
+	return nil
 }
 func (e *Engine) RegisterCatalogProvider(p CatalogProvider) error {
 	if p == nil {
@@ -973,4 +1040,12 @@ func (e *Engine) RegisterCatalogProvider(p CatalogProvider) error {
 	}
 	e.providers[id] = p
 	return nil
+}
+
+func descriptorRevisionFrontier(d Descriptor) DefinitionRevision {
+	revision := d.Revision()
+	if relation, ok := d.(*relationDescriptor); ok && relation.sequencePlanStamp > revision {
+		revision = relation.sequencePlanStamp
+	}
+	return revision
 }

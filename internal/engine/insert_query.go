@@ -38,7 +38,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			if err != nil {
 				return err
 			}
-			out.sourceRelation = e.state.descriptors[out.sourceRef.Address].(*relationDescriptor)
+			out.sourceRelation = auth.catalog.state.descriptors[out.sourceRef.Address].(*relationDescriptor)
 			binder.relation, binder.ref = out.sourceRelation, out.sourceRef
 		}
 		query, err = binder.bindSelect(sel, true)

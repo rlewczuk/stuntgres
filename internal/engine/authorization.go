@@ -278,6 +278,7 @@ type AuthorizationView struct {
 	settings *sessionSettings
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	pathPrefix ObjectAddress
+	session    *Session
 }
 
 // Statement-local Restore authority must cover both lock resolution and effects.
@@ -343,7 +344,11 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 			return AuthorizationView{}, err
 		}
 	}
-	return AuthorizationView{engine: e, catalog: CatalogRead{e, e.state}, roles: r, state: a.state, revision: a.revision, settings: s.settings}, nil
+	view := CatalogRead{e, e.state}
+	if s.transactions != nil {
+		view = e.sequenceCatalogLocked(s.transactions.sequences)
+	}
+	return AuthorizationView{engine: e, catalog: view, roles: r, state: a.state, revision: a.revision, settings: s.settings, session: s}, nil
 }
 func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 	switch d := d.(type) {
@@ -357,6 +362,9 @@ func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 func classPrivileges(d Descriptor) Privileges {
 	if d.Kind() == NamespaceObject {
 		return UsagePrivilege | CreatePrivilege
+	}
+	if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+		return SelectPrivilege | UsagePrivilege | UpdatePrivilege
 	}
 	return SelectPrivilege | InsertPrivilege | DeletePrivilege | UpdatePrivilege
 }
@@ -442,6 +450,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		kind := "table"
 		if d.Kind() == NamespaceObject {
 			kind = "schema"
+		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+			kind = "sequence"
 		}
 		if req.Object.Address.SubID > 0 && d.Kind() == RelationObject {
 			kind = "relation"
@@ -465,6 +475,8 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	kind := "table"
 	if d.Kind() == NamespaceObject {
 		kind = "schema"
+	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+		kind = "sequence"
 	}
 	return sqlError("42501", fmt.Sprintf("permission denied for %s %s", kind, d.Name()))
 }
@@ -539,7 +551,7 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
-	if b.relation == nil && b.query != nil {
+	if b.relation == nil {
 		return nil
 	}
 	switch stmt.(type) {
@@ -572,6 +584,9 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 	}
 }
 func (v AuthorizationView) checkColumns(b binding, mask Privileges, indices []int) error {
+	if b.relation.relationKind == sequenceRelation {
+		return v.Check(AccessRequirement{Object: b.ref, Privileges: mask})
+	}
 	whole, err := v.Effective(b.ref, false)
 	if err != nil {
 		return err
@@ -683,6 +698,18 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ObjectRef, acl ACLValue) 
 	roles := advanceRoleRevision(e.roles)
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if n, ok := next.(*relationDescriptor); ok && n.relationKind == sequenceRelation && ref.Address.SubID == 0 {
+		stamp, err := e.revisionLocked()
+		if err != nil {
+			return err
+		}
+		n.sequencePlanStamp = stamp
+	}
+	if _, ok := next.(*namespaceDescriptor); ok {
+		if err := state.advanceNamespaceGeneration(); err != nil {
+			return err
+		}
 	}
 	e.state = state
 	e.roles = roles

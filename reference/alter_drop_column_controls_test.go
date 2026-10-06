@@ -12,7 +12,7 @@ import (
 )
 
 func TestReferenceAlterDropColumnControls(t *testing.T) {
-	roleReferenceCleanup(t, []string{"drop_table_owner", "postgres"})
+	roleReferenceCleanup(t, []string{"drop_table_owner"})
 	p := newReferencePair(t)
 	schemaReferenceCleanup(t, "S")
 	p.step(t, referenceExec("CREATE USER drop_table_owner", 0))
@@ -60,11 +60,8 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 		if _, err = oracle.ExecContext(p.ctx, `DROP SCHEMA "S" CASCADE; DROP TABLE z`); err != nil {
 			t.Fatal(err)
 		}
-		// Provision the native bootstrap owner as in schema_table_integration; the
-		// oracle authenticates as stuntgres. Replay the canonical bytes unchanged.
-		if _, err = oracle.ExecContext(p.ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {
-			t.Fatal(err)
-		}
+		// The shared fixture supplies postgres independently of the stuntgres
+		// authenticator. Replay the canonical owner-bearing bytes unchanged.
 		if _, err = oracle.ExecContext(p.ctx, dump.String()); err != nil {
 			t.Fatal("real PostgreSQL rejected same owner-bearing live dump", err)
 		}

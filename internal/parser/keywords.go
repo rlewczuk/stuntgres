@@ -46,6 +46,22 @@ func lookupKeyword(word string) *keyword {
 	return nil
 }
 
+// IdentifierNeedsQuotes follows PostgreSQL's identifier output rules, using
+// the same keyword inventory as input rather than a second display inventory.
+func IdentifierNeedsQuotes(name string) bool {
+	if name == "" || !(name[0] >= 'a' && name[0] <= 'z' || name[0] == '_') {
+		return true
+	}
+	for i := 1; i < len(name); i++ {
+		c := name[i]
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_') {
+			return true
+		}
+	}
+	k := lookupKeyword(name)
+	return k != nil && k.category != Unreserved
+}
+
 // Syntax terminals live in the same inventory; zero means a category terminal.
 var keywords = [...]keyword{
 	{"abort", Unreserved, true, ABORT},
@@ -88,7 +104,7 @@ var keywords = [...]keyword{
 	{"both", Reserved, true, 0},
 	{"breadth", Unreserved, true, 0},
 	{"by", Unreserved, true, BY},
-	{"cache", Unreserved, true, 0},
+	{"cache", Unreserved, true, CACHE},
 	{"call", Unreserved, true, 0},
 	{"called", Unreserved, true, 0},
 	{"cascade", Unreserved, true, CASCADE},
@@ -140,7 +156,7 @@ var keywords = [...]keyword{
 	{"current_timestamp", Reserved, true, 0},
 	{"current_user", Reserved, true, CURRENT_USER},
 	{"cursor", Unreserved, true, 0},
-	{"cycle", Unreserved, true, 0},
+	{"cycle", Unreserved, true, CYCLE},
 	{"data", Unreserved, true, 0},
 	{"database", Unreserved, true, 0},
 	{"day", Unreserved, false, 0},
@@ -233,7 +249,7 @@ var keywords = [...]keyword{
 	{"in", Reserved, true, IN},
 	{"include", Unreserved, true, 0},
 	{"including", Unreserved, true, INCLUDING},
-	{"increment", Unreserved, true, 0},
+	{"increment", Unreserved, true, INCREMENT},
 	{"indent", Unreserved, true, 0},
 	{"index", Unreserved, true, 0},
 	{"indexes", Unreserved, true, 0},
@@ -291,17 +307,17 @@ var keywords = [...]keyword{
 	{"location", Unreserved, true, 0},
 	{"lock", Unreserved, true, LOCK},
 	{"locked", Unreserved, true, 0},
-	{"logged", Unreserved, true, 0},
+	{"logged", Unreserved, true, LOGGED},
 	{"mapping", Unreserved, true, 0},
 	{"match", Unreserved, true, 0},
 	{"matched", Unreserved, true, 0},
 	{"materialized", Unreserved, true, 0},
-	{"maxvalue", Unreserved, true, 0},
+	{"maxvalue", Unreserved, true, MAXVALUE},
 	{"merge", Unreserved, true, 0},
 	{"merge_action", ColumnName, true, 0},
 	{"method", Unreserved, true, 0},
 	{"minute", Unreserved, false, 0},
-	{"minvalue", Unreserved, true, 0},
+	{"minvalue", Unreserved, true, MINVALUE},
 	{"mode", Unreserved, true, MODE},
 	{"month", Unreserved, false, 0},
 	{"move", Unreserved, true, 0},
@@ -353,7 +369,7 @@ var keywords = [...]keyword{
 	{"overlaps", TypeFunctionName, false, 0},
 	{"overlay", ColumnName, true, 0},
 	{"overriding", Unreserved, true, 0},
-	{"owned", Unreserved, true, 0},
+	{"owned", Unreserved, true, OWNED},
 	{"owner", Unreserved, true, OWNER},
 	{"parallel", Unreserved, true, 0},
 	{"parameter", Unreserved, true, 0},
@@ -401,7 +417,7 @@ var keywords = [...]keyword{
 	{"replace", Unreserved, true, 0},
 	{"replica", Unreserved, true, 0},
 	{"reset", Unreserved, true, RESET},
-	{"restart", Unreserved, true, 0},
+	{"restart", Unreserved, true, RESTART},
 	{"restrict", Unreserved, true, RESTRICT},
 	{"return", Unreserved, true, 0},
 	{"returning", Reserved, false, 0},
@@ -425,7 +441,7 @@ var keywords = [...]keyword{
 	{"second", Unreserved, false, 0},
 	{"security", Unreserved, true, 0},
 	{"select", Reserved, true, SELECT},
-	{"sequence", Unreserved, true, 0},
+	{"sequence", Unreserved, true, SEQUENCE},
 	{"sequences", Unreserved, true, 0},
 	{"serializable", Unreserved, true, SERIALIZABLE},
 	{"server", Unreserved, true, 0},
@@ -468,9 +484,9 @@ var keywords = [...]keyword{
 	{"tablesample", TypeFunctionName, true, 0},
 	{"tablespace", Unreserved, true, 0},
 	{"target", Unreserved, true, 0},
-	{"temp", Unreserved, true, 0},
+	{"temp", Unreserved, true, TEMP},
 	{"template", Unreserved, true, 0},
-	{"temporary", Unreserved, true, 0},
+	{"temporary", Unreserved, true, TEMP},
 	{"text", Unreserved, true, TEXT},
 	{"then", Reserved, true, 0},
 	{"ties", Unreserved, true, 0},
@@ -497,7 +513,7 @@ var keywords = [...]keyword{
 	{"unique", Reserved, true, 0},
 	{"unknown", Unreserved, true, UNKNOWN},
 	{"unlisten", Unreserved, true, 0},
-	{"unlogged", Unreserved, true, 0},
+	{"unlogged", Unreserved, true, UNLOGGED},
 	{"until", Unreserved, true, 0},
 	{"update", Unreserved, true, UPDATE},
 	{"user", Reserved, true, USER},

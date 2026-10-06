@@ -32,6 +32,7 @@ const (
 	Time      ID = 1083
 	Timestamp ID = 1114
 	Numeric   ID = 1700
+	Regclass  ID = 2205
 	UUID      ID = 2950
 )
 
@@ -113,6 +114,7 @@ func Builtins() []*Descriptor {
 		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
 		{Numeric, "numeric", "NUMERIC", "NUMERIC"},
 		{UUID, "uuid", "UUID", "UUID"},
+		{Regclass, "regclass", "REGCLASS", "REGCLASS"},
 		{Unknown, "unknown", "", ""},
 	}
 }
@@ -158,7 +160,7 @@ func Boolean(d *Descriptor, b bool) Value {
 	return Value{typ: d, boolean: b}
 }
 func String(d *Descriptor, s string) Value {
-	if d == nil || (!IsCharacter(d.id) && d.id != Name) {
+	if d == nil || (!IsCharacter(d.id) && d.id != Name && d.id != Regclass) {
 		panic("invalid string descriptor")
 	}
 	return Value{typ: d, text: s}
@@ -176,7 +178,7 @@ func (v Value) Boolean() (bool, error) {
 	return v.boolean, nil
 }
 func (v Value) Text() (string, error) {
-	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && v.typ.id != Name) {
+	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && v.typ.id != Name && v.typ.id != Regclass) {
 		return "", fmt.Errorf("not a text value")
 	}
 	return v.text, nil
@@ -231,6 +233,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.civilInput(text, typmod, env)
 	case Text, BPChar, VarChar:
 		return sizeCharacter(String(d, text), typmod, false)
+	case Regclass:
+		return String(d, text), nil
 	case Bool:
 		s := strings.ToLower(trim(text))
 		if s == "1" {
@@ -389,7 +393,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return strconv.FormatInt(v.integer, 10), nil
 	case Float4, Float8:
 		return floatOutput(v.floating, d.id), nil
-	case Text, BPChar, VarChar, Name:
+	case Text, BPChar, VarChar, Name, Regclass:
 		return v.text, nil
 	case Bool:
 		if v.boolean {
@@ -423,7 +427,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
 		}
 		return "'" + timestampOutput(v.integer) + "'", nil
-	case Text, BPChar, VarChar, Name:
+	case Text, BPChar, VarChar, Name, Regclass:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)

@@ -61,6 +61,143 @@ default_expression := value | comparison | (logical_target)
                     | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
 
+## Sequences
+
+`CREATE [TEMPORARY | TEMP | UNLOGGED] SEQUENCE [IF NOT EXISTS] name` supports
+`AS SMALLINT|INTEGER|BIGINT`, `INCREMENT [BY] n`, `[NO] MINVALUE`,
+`[NO] MAXVALUE`, `START [WITH] n`, `RESTART [WITH n]`, `CACHE n`,
+`[NO] CYCLE` and `OWNED BY table.column|NONE`. ALTER SEQUENCE supports these options,
+`RENAME TO`, `OWNER TO role|CURRENT_ROLE|CURRENT_USER|SESSION_USER`, `SET SCHEMA`, and
+`SET LOGGED|UNLOGGED`; DROP supports grouped targets, IF EXISTS and
+RESTRICT/CASCADE. Sequence and table names share one relation namespace.
+OWNED BY is a stable-column AUTO dependency: dropping its column or table
+also drops the sequence, even under RESTRICT. Direct sequence drop never
+drops its table. COMMENT ON SEQUENCE is database-local metadata. Quoted owner
+spellings designate literal role names rather than session identity operands.
+Same-owner OWNER TO does not require renewed schema CREATE; superuser ownership
+transfers bypass destination schema CREATE. Ordinary genuine transfers retain
+destination-role and schema authority checks. An OWNED BY-linked sequence cannot
+change owners independently of its table; successful transfers remap owner ACL
+identities while preserving unrelated grants.
+
+START configures the value used by a later bare RESTART; RESTART sets the current
+uncalled value without changing that configured START. For example, CREATE
+SEQUENCE s START 5 RESTART 9 first returns 9, while a later ALTER SEQUENCE s
+RESTART first returns 5. Bare CREATE RESTART uses the configured START too.
+ALTER START alone does not reset the current generator. The default ascending
+BIGINT sequence returns 1 then 2; descending defaults start at the type's
+maximum descending bound (-1). Bounds and CYCLE use MINVALUE/MAXVALUE, not START.
+
+currval before local nextval and lastval before any local nextval fail with
+55000. Two-argument or true setval makes the next nextval advance and updates
+local currval; false setval makes nextval return the exact supplied value without
+changing currval. setval does not select a different sequence for lastval.
+
+`nextval(regclass)`, `currval(regclass)`, `lastval()`,
+`setval(regclass,bigint)` and `setval(regclass,bigint,boolean)` return INT8,
+including for smallint/integer sequences. They work in existing scalar
+SELECT/INSERT positions and selected relationless SELECT targets.
+The selected explicit `::regclass` / `CAST(... AS regclass)` syntax does
+not introduce general casts. Preparation consumes no values. Prepared sequence
+SQL retains a coherent group of analyzed regclass literals until a dependency
+or effective namespace path changes; then the existing binder analyzes the
+original source again. Rename/move can therefore fail with42P01 without
+allocating, and DROP/recreation can resolve a new same-name sequence. Nonnull
+regclass parameters resolve to OIDs at each execution's parameter-import boundary,
+before zero-row evaluation, runtime NULL checks or nested function effects.
+Symbolic input errors retain portal parameter Context without a literal Position.
+Numeric and `-` input remains valid without an existing relation; separately
+retained numeric regclass/OID identity follows rename/move and never adopts a recreated name.
+Standalone selected regclass casts have column label `regclass` and export
+the visible relation name, or a schema-qualified name when shadowed/off-path,
+with PostgreSQL identifier quoting. Missing nonzero OIDs export decimal text;
+OID zero exports `-`. Internal datums remain typed OIDs, and result presentation
+is captured before Rows is returned, so later DDL cannot change retained output.
+Missing overloads report PostgreSQL's positioned signature and cast hint.
+Ordinary nextval/currval/lastval/setval and newly created relation shadows alone
+do not invalidate a held literal. Sequence options (even unchanged explicit
+values), actual owner/persistence transitions and relation ACL publication do.
+OWNED BY-only and same-owner/same-persistence commands do not. Bare ALTER SEQUENCE
+without an action or option is a syntax error.
+Equivalent search_path text preserves the analyzed identity when its effective
+namespace identities and implicit flags are unchanged. Namespace catalog events
+(including unrelated schema publication, namespace ACL changes or a peer's first
+committed temporary namespace insertion) instead
+reanalyze the held sequence group even if that effective path is unchanged.
+Creating another sequence in an existing temporary namespace or rolling back
+its first creation emits no committed namespace event. Physical-session end
+retires native session-owned temporary objects without a namespace callback or
+global epoch fence; PostgreSQL backend cleanup preserves its temporary namespace
+tuple for reuse.
+Reanalysis preserves
+temporal captures, parameter contracts, result metadata and returned cursors.
+This bounded native reanalysis preserves existing Prepare-time dynamic temporal
+captures (for example `TIMESTAMP 'now'`). PostgreSQL full-query reanalysis may
+recapture such a scalar at the reanalysis transaction's start; independent
+fixtures assert that distinction rather than false dynamic-value parity.
+Native persistent Reset/Restore remains an epoch fence, not PostgreSQL
+DROP+CREATE reanalysis; only exact live caller-owned temporary provenance can
+refresh across that fence.
+An already-running call waiting for RX retains its analyzed OID: queued rename
+continues on the original sequence, while queued DROP fails its opening with
+XX000/no Position. The **next** held execution reanalyzes the original missing
+name and fails42P01 at its literal. Argument evaluation is never replayed.
+RX is demand-driven, not acquired for filtered/zero-row targets or a strict
+NULL call. A known constant NULL eliminates these four strict builtin calls,
+including volatile sibling arguments; runtime column NULL instead preserves
+once-only nested argument effects and skips the outer sequence opening.
+
+Ordinary allocation and setval are immediately visible and never rolled
+back, even if a later scalar error prevents row publication. currval and
+lastval belong to the physical session, as do cached reservations.
+Returning a connection to its pool preserves them; physical close loses
+unused reserved values. Peer setval does not discard already reserved
+tails. Transactional ALTER/restart publishes a fresh generation at commit
+and blocks peer sequence functions (including cache hits); rollback keeps
+the old global generator. CREATE/DROP and sequence comments are likewise
+transactional without expanding other transactional DDL.
+
+TEMP sequences shadow persistent names only for their creating physical
+session, accept its `pg_temp` alias, and disappear at physical end.
+Native Reset/Restore retain live temporary sequences and their local state.
+They are excluded from Dump. LOGGED/UNLOGGED preserve SQL options but do
+not claim WAL, replication or disk durability in this in-process engine.
+
+Reading a sequence returns one captured nonnull row with
+`last_value INT8, log_cnt INT8, is_called BOOL`; native log_cnt is always0
+because there is no physical WAL prelogging. last_value is the reserved
+high-water mark, not necessarily the last number returned. Dump records
+all effective options, association, owner, comment and called state;
+Restore atomically installs new persistent generator identities and never
+serializes session currval/lastval or pending cache tails.
+
+Central ACL rules use USAGE **or** UPDATE for nextval, SELECT **or** USAGE
+for currval/lastval, UPDATE for setval and SELECT for the sequence row.
+Every execution rechecks rights, including held prepared/cache paths.
+Owners/schema owners and explicit/absent ACLs follow existing catalog rules.
+
+Schema CREATE denial for a valid sequence utility occurs at execution with no
+Position, not during Prepare. Ordinary CREATE validates options first;
+IF NOT EXISTS checks namespace authority before skipping or validating options.
+Literal regclass schema USAGE lookup remains an analysis/Prepare check with the
+input's character Position. Both `::regclass` and `CAST(... AS regclass)` use
+the shared cast routing; other casts retain positioned unsupported diagnostics.
+
+Feature commands: `make smoke RUN='^TestSequenceSmoke$' VERBOSE=1`,
+`make test RUN='^TestSequence' VERBOSE=1`, and
+`make reference RUN='^TestReferenceSequence' VERBOSE=1`.
+The sequence families include an exact concurrent CACHE1 bag, CACHE7
+distinctness, CHAIN/failed-commit/physical-end/replacement cleanup, the full
+USAGE/SELECT/UPDATE matrix, operation-specific wrong-kind records, and
+control failure atomicity. The public smoke exercises physical-end TEMP
+cleanup as well as normal SQL and native-control round trips.
+Prepared regression commands: `make test RUN='^TestSequencePrepared' VERBOSE=1`
+and `make reference RUN='^TestReferenceSequencePrepared' VERBOSE=1`.
+These distinguish analyzed SQL from retained identity and exercise rename,
+schema/path/shadow/ACL/options, numeric drop/recreation, rollback and queued
+authority, coherent multi-literal groups and native temp-only replacement.
+
+
 ## Unsupported surface
 
-Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, casts outside the bounded baseline and character-family sets, constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation, or SQL catalog projections are not supported. SQL transaction controls, RU/RC/RR modes, read-only access, CHAIN and current/default transactional settings described in [transactions](TRANSACTIONS.md) are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary tables (TEMP sequences are supported), SELECT aliases/qualified columns, joins, generic expressions/functions, casts outside the bounded baseline/character-family/selected regclass sets, constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, savepoints, two-phase commit, transactional table/schema DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation, or SQL catalog projections are not supported. Declared DEFAULT expressions remain bounded and reject sequence calls, including calls with constant NULL arguments; sequence support does not widen that consumer. SQL transaction controls, RU/RC/RR modes, read-only access, CHAIN and current/default transactional settings described in [transactions](TRANSACTIONS.md) are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
