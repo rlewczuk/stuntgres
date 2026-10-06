@@ -52,6 +52,8 @@ func TestLogicalPrecedenceAndLocations(t *testing.T) {
 		t.Fatal(n.Right.SourcePosition())
 	}
 	parse(`SELECT "or" AND "and" FROM "not"`)
+	parse("SELECT a::BOOL AND b FROM t")
+	parse("SELECT id FROM t WHERE (id)=1")
 }
 
 func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
@@ -67,11 +69,11 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 		keywordDiagnostic(t, tc.q, "42601", tc.message, tc.position)
 	}
 	for _, q := range []string{
-		"SELECT TRUE AND FALSE", "SELECT id FROM t WHERE (id)=1",
+		"SELECT TRUE AND FALSE",
 		"SELECT id=1=TRUE FROM t", "SELECT (id=1)=TRUE FROM t",
 		"INSERT INTO t VALUES(TRUE AND FALSE)", "INSERT INTO t VALUES(NOT TRUE)",
 		"INSERT INTO t SELECT TRUE AND FALSE FROM t", "SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
-		"SELECT a AND b AS result FROM t", "SELECT a AND b result FROM t", "SELECT t.a AND b FROM t", "SELECT a::BOOL AND b FROM t",
+		"SELECT a AND b AS result FROM t", "SELECT a AND b result FROM t", "SELECT t.a AND b FROM t",
 		"SELECT a+1 AND b FROM t", "SELECT f(a) AND b FROM t", "SELECT a FROM t ORDER BY a AND b",
 		"CREATE TABLE or(a BOOL)", "SELECT or FROM t", "INSERT INTO t VALUES(1); SELECT TRUE AND FROM t",
 	} {

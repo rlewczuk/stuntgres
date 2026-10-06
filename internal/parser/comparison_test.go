@@ -45,6 +45,11 @@ func TestCompareOpsGrammarAndPositions(t *testing.T) {
 	if _, err := Parse("SELECT i /*a*/ <= /*b*/ j FROM t WHERE j<>i"); err != nil {
 		t.Fatal(err)
 	}
+	for _, q := range []string{"SELECT i::INT<j FROM t", "SELECT (i)<(j) FROM t", "SELECT id FROM t WHERE (id)=1"} {
+		if _, err := Parse(q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
 }
 
 func TestCompareOpsExcludedSyntax(t *testing.T) {
@@ -52,7 +57,7 @@ func TestCompareOpsExcludedSyntax(t *testing.T) {
 		"SELECT i < = j FROM t", "SELECT i ! = j FROM t", "SELECT i < /*x*/ = j FROM t",
 		"SELECT i<j<1 FROM t", "SELECT i<j AS x FROM t",
 		"SELECT i<j x FROM t", "SELECT i<j", "SELECT i<j FROM t garbage", "SELECT i<j FROM t; garbage",
-		"SELECT i::INT<j FROM t", "INSERT INTO t VALUES(1<2)", "SET x TO 1<2",
+		"INSERT INTO t VALUES(1<2)", "SET x TO 1<2",
 	} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
 			t.Fatal(q, statements, err)

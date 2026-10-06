@@ -14,6 +14,8 @@ func TestReferenceCastExplicitIntegratedExpressions(t *testing.T) {
 		referenceSelect("SELECT num_nulls(NULL::int4),num_nonnulls(int4('42'::text))", []string{"num_nulls", "num_nonnulls"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}}),
 		referenceSelect("SELECT i::text IS NULL,i::bool IS TRUE,i::int8 IS DISTINCT FROM 0,0 IS NOT DISTINCT FROM i::int8 FROM t ORDER BY id", []string{"?column?", "?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{false, true, true, false}, {false, false, false, true}, {true, false, true, false}}),
 		referenceSelect("SELECT NULL::int4 IS DISTINCT FROM i::int4,i::int4 IS DISTINCT FROM NULL FROM t ORDER BY id", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}, {true, true}, {false, false}}),
+		referenceSelect("SELECT b::BOOL AND b,i::INT<id,(i)<(id) FROM t ORDER BY id", []string{"?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, false, false}, {false, true, true}, {nil, nil, nil}}),
+		referenceSelect("SELECT id FROM t WHERE (id)=1", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}),
 	} {
 		castReferenceBoth(t, p, step)
 		castReferenceBoth(t, p, referencePrepared(step))

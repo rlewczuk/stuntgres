@@ -1564,6 +1564,10 @@ operands, Boolean leaves, and selected null-count arguments. They do not admit l
 INSERT/settings or selected calls as Boolean/comparison leaves. The selected
 null-count-only no-FROM form may use literal/parameter cast arguments; a standalone
 cast still requires FROM.
+Grouping applies to existing scalar operands, including columns: `(id)=1` and
+`(i)<(j)` are admitted, with or without a cast. It does not turn a comparison or
+logical expression into a scalar comparison operand: `(id=1)=TRUE` and comparison
+chaining remain excluded.
 
 `CAST(expression AS type)`, `expression::type` and `int4(expression)`,
 `int8(expression)`, `text(expression)`, `bool(expression)` execute through the

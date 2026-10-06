@@ -26,6 +26,8 @@ func TestCastExplicitIntegratedExpressions(t *testing.T) {
 		_, err = db.Prepare(q)
 		typeCoreDiagnostic(t, err, want)
 	}
+	compareOpsDirectPrepared(t, db, "SELECT b::BOOL AND b,i::INT<id,(i)<(id) FROM t ORDER BY id", []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, false, false}, {false, true, true}, {nil, nil, nil}})
+	compareOpsDirectPrepared(t, db, "SELECT id FROM t WHERE (id)=1", []string{"INT4"}, [][]any{{int64(1)}})
 	execSQL(t, db, "CREATE TABLE e(i INT4)")
 	for _, q := range []string{
 		"SELECT i>int4('oops'::text) FROM e",

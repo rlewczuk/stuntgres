@@ -151,6 +151,9 @@ Assignment/implicit policies do not gain these explicit edges.
 Baseline casts remain scalar leaves in existing comparisons, null/Boolean
 predicates, Boolean expressions and selected null-count arguments. Selected null-count-only no-FROM projections
 may use literal/parameter cast arguments; standalone casts still require FROM.
+Scalar grouping also admits existing column operands, e.g. `(id)=1` and `(i)<(j)`.
+It does not admit comparison/logical operands such as `(id=1)=TRUE`, comparison
+chaining, or logical/comparison INSERT/settings expressions.
 First standard/postfix parameter casts establish source type, later casts convert
 it; int4/int8/bool unknown parameter calls are42725, text($1) infers TEXT.
 Standard/postfix names preserve strong column/function names, otherwise target
