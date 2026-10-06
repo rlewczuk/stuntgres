@@ -16,7 +16,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	precision := int32(3)
 	first := sqltype.InputEnvironment{TransactionStart: time.Date(2003, 7, 7, 4, 5, 6, 499500000, time.UTC)}
 	later := sqltype.InputEnvironment{TransactionStart: time.Date(2004, 8, 8, 12, 13, 14, 123456000, time.UTC)}
-	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "time", Precision: &precision, Pos: parser.Position{Offset: 7, Character: 8}}, Text: "now", Pos: parser.Position{Offset: 15, Character: 16}}
+	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "time", Modifiers: []parser.TypeModifier{{Integer: &precision}}, Pos: parser.Position{Offset: 7, Character: 8}}, Text: "now", Pos: parser.Position{Offset: 15, Character: 16}}
 	stamp := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp", Pos: parser.Position{Offset: 30, Character: 31}}, Text: "now", Pos: parser.Position{Offset: 40, Character: 41}}
 	b := newExpressionBinder(ctx, e, first, nil, nil)
 	for _, expr := range []parser.Expr{raw, stamp} {
