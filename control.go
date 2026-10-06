@@ -57,8 +57,10 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 }
 
 // Restore atomically replaces the database after supported CREATE/ALTER/DROP
-// SCHEMA, CREATE TABLE, literal INSERT, database-local COMMENT and named owner
-// directives succeed. ROLE comments are shared authority metadata: Reset and
+// SCHEMA, CREATE TABLE, parameter-free scalar INSERT (including integer
+// arithmetic), database-local COMMENT and named owner directives succeed.
+// Parameters are recursively rejected; other statements remain excluded.
+// ROLE comments are shared authority metadata: Reset and
 // Restore retain them, and Dump deliberately excludes them.
 // INSERT query sources are rejected before trusted execution; Dump emits only
 // canonical literal VALUES for data produced by ordinary query INSERT.

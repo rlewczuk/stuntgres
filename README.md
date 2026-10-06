@@ -885,6 +885,10 @@ nullability metadata stays conservative.
 Calls work in table SELECT projections and nested selected arguments. SELECT
 without FROM is supported only when every target is rooted in a selected call,
 with literal/parameter/nested-call arguments and no columns or extra clauses.
+Former signed numeric literals remain valid arguments. Computed arithmetic does
+not: table-backed calls fail native0A000 at the operator, while no-FROM calls
+fail the existing `SELECT without FROM is unsupported` admission check at
+SELECT (character1), before function binding.
 Both forms use the same binder, typed execution and finalized query pipeline:
 
 ```sql
@@ -1796,8 +1800,9 @@ apply the predicate to the cast result, not to a multiword type name.
 Scalar comparisons bind more tightly than these predicates, which bind above
 NOT, AND and OR: `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection
 and WHERE. Ordinary `v=NULL` remains UNKNOWN and selects no rows; no
-transform_null_equals behavior is added. Existing scalar-only comparison operands
-and comparison-chaining restrictions remain. General functions, nonbaseline casts, aliases,
+transform_null_equals behavior is added. Comparison and predicate operands
+admit bounded INT4/INT8 arithmetic and existing baseline casts; comparison
+chaining remains excluded. General functions, nonbaseline casts, aliases,
 row/composite tests and no-FROM scalar SELECT remain excluded except for the
 selected null-count call roots described above. Those calls remain standalone
 projection roots, not predicate operands; predicates remain excluded from their
@@ -2460,9 +2465,11 @@ are rejected before output. Recreated public is an ordinary namespace with absen
 ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
-Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE, literal INSERT,
-database-local COMMENT and named SET SESSION AUTHORIZATION owner directives; parameters and other SQL
-are rejected. Legacy CREATE/INSERT-only scripts remain bootstrap-owned. Referenced
+Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE, supported
+parameter-free scalar INSERT (including integer arithmetic), database-local
+COMMENT and named SET SESSION AUTHORIZATION owner directives. Parameters are
+recursively rejected, and other SQL remains excluded. Legacy CREATE/INSERT-only
+scripts remain bootstrap-owned. Referenced
 roles must already exist in the target engine. Restore captures a private role
 snapshot before input I/O, starts an initialized private catalog, executes through
 the same SQL engine, remaps owners into target principal authority, then atomically

@@ -53,7 +53,15 @@ func TestLogicalPrecedenceAndLocations(t *testing.T) {
 	}
 	parse(`SELECT "or" AND "and" FROM "not"`)
 	parse("SELECT a::BOOL AND b FROM t")
-	parse("SELECT id FROM t WHERE (id)=1")
+	s = parse("SELECT a+1 AND b FROM t")
+	n = logical(s.Targets[0], LogicalAnd)
+	if arithmetic, ok := n.Left.(OperatorExpr); !ok || arithmetic.Name.Parts[0].Text != "+" {
+		t.Fatal(n.Left)
+	}
+	s = parse("SELECT id FROM t WHERE (id)=1")
+	if comparison, ok := s.Where.(OperatorExpr); !ok || comparison.Name.Parts[0].Text != "=" {
+		t.Fatal(s.Where)
+	}
 }
 
 func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
@@ -74,7 +82,7 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 		"INSERT INTO t VALUES(TRUE AND FALSE)", "INSERT INTO t VALUES(NOT TRUE)",
 		"INSERT INTO t SELECT TRUE AND FALSE FROM t RETURNING a", "SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
 		"SELECT a AND b AS result FROM t", "SELECT a AND b result FROM t", "SELECT t.a AND b FROM t",
-		"SELECT a+1 AND b FROM t", "SELECT f(a) AND b FROM t", "SELECT a FROM t ORDER BY a AND b",
+		"SELECT f(a) AND b FROM t", "SELECT a FROM t ORDER BY a AND b",
 		"CREATE TABLE or(a BOOL)", "SELECT or FROM t", "INSERT INTO t VALUES(1); SELECT TRUE AND FROM t",
 	} {
 		stmts, err := Parse(q)

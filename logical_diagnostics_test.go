@@ -23,6 +23,7 @@ func TestLogicalOperandDiagnosticsAndBoundaries(t *testing.T) {
 		{"SELECT NOT tm FROM t", stuntgres.Error{Code: "42804", Message: "argument of NOT must be type boolean, not type time without time zone", Position: "12"}},
 		{"SELECT id FROM t WHERE TRUE AND 1", stuntgres.Error{Code: "42804", Message: "argument of AND must be type boolean, not type integer", Position: "33"}},
 		{"INSERT INTO t(id) SELECT TRUE AND FALSE FROM t", stuntgres.Error{Code: "42804", Message: `column "id" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: "26"}},
+		{"SELECT a+1 AND a FROM t", stuntgres.Error{Code: "42883", Message: "operator does not exist: boolean + integer", Position: "9", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}},
 	} {
 		rows, err := db.Query(tc.q)
 		if rows != nil {
@@ -43,7 +44,7 @@ func TestLogicalOperandDiagnosticsAndBoundaries(t *testing.T) {
 		"INSERT INTO t(id) VALUES(TRUE AND FALSE)", "INSERT INTO t(id) VALUES(NOT TRUE)",
 		"SELECT current_setting(TRUE AND FALSE)",
 		"SELECT a AND a AS result FROM t", "SELECT t.a AND a FROM t",
-		"SELECT a+1 AND a FROM t", "SELECT f(a) AND a FROM t", "SELECT a FROM t ORDER BY a AND a",
+		"SELECT f(a) AND a FROM t", "SELECT a FROM t ORDER BY a AND a",
 	} {
 		rows, err := db.Query(q)
 		if rows != nil {

@@ -55,3 +55,54 @@ func TestReferenceArithmeticCombinedOperatorBoundary(t *testing.T) {
 	p.step(t, referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
 	p.step(t, referenceSelect("SELECT i% -1 FROM t", []string{"?column?"}, []string{"INT4"}, [][]any{{int64(0)}}))
 }
+
+// Arithmetic syntax is admitted inside logical operands; a Boolean input must
+// fail operator resolution independently of whether the table contains rows.
+func TestReferenceArithmeticLogicalOperandDiagnostics(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec("CREATE TABLE t(a BOOL)", 0))
+	for _, populated := range []bool{false, true} {
+		if populated {
+			p.step(t, referenceExec("INSERT INTO t VALUES(TRUE)", 1))
+		}
+		step := referenceImplicitError("SELECT a+1 AND a FROM t", referenceDiagnostic{Code: "42883", Message: "operator does not exist: boolean + integer", Position: "9", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})
+		step.selectRows = true
+		step.errorStage = "execute"
+		p.step(t, step)
+		step.errorStage = "prepare"
+		p.step(t, referencePrepared(step))
+	}
+}
+
+func TestReferenceArithmeticTruthTestContextualDiagnostics(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec("CREATE TABLE t(i INT,b BIGINT)", 0))
+	for _, populated := range []bool{false, true} {
+		if populated {
+			p.step(t, referenceExec("INSERT INTO t VALUES(7,7),(NULL,NULL)", 2))
+		}
+		for _, predicate := range []string{"IS TRUE", "IS NOT TRUE", "IS FALSE", "IS NOT FALSE", "IS UNKNOWN", "IS NOT UNKNOWN"} {
+			for _, operand := range []struct{ column, diagnostic string }{{"i", "integer"}, {"b", "bigint"}} {
+				for _, tc := range []struct{ prefix, suffix, position string }{
+					{"SELECT " + operand.column + "+1 ", " FROM t", "8"},
+					{"SELECT (" + operand.column + "+1) ", " FROM t", "9"},
+					{"SELECT /*é*/ " + operand.column + "+1 ", " FROM t", "14"},
+					{"SELECT /*é*/ (" + operand.column + "+1) ", " FROM t", "15"},
+					{"SELECT " + operand.column + " FROM t WHERE " + operand.column + "+1 ", "", "23"},
+					{"SELECT " + operand.column + " FROM t WHERE (" + operand.column + "+1) ", "", "24"},
+					{"SELECT " + operand.column + " FROM t WHERE /*é*/ " + operand.column + "+1 ", "", "29"},
+					{"SELECT " + operand.column + " FROM t WHERE /*é*/ (" + operand.column + "+1) ", "", "30"},
+					{"SELECT /*é*/ " + operand.column + " FROM t WHERE " + operand.column + "+1 ", "", "29"},
+					{"SELECT /*é*/ " + operand.column + " FROM t WHERE (" + operand.column + "+1) ", "", "30"},
+				} {
+					step := referenceImplicitError(tc.prefix+predicate+tc.suffix, referenceDiagnostic{Code: "42804", Message: "argument of " + predicate + " must be type boolean, not type " + operand.diagnostic, Position: tc.position})
+					step.selectRows = true
+					step.errorStage = "execute"
+					p.step(t, step)
+					step.errorStage = "prepare"
+					p.step(t, referencePrepared(step))
+				}
+			}
+		}
+	}
+}

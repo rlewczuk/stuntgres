@@ -209,9 +209,11 @@ native support, and ordinary NULL is a single null argument. Calls remain exclud
 from INSERT, WHERE and setting arguments. General calls, qualification, aliases,
 nonbaseline casts, arithmetic, DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
 remain exclusions rather than PostgreSQL diagnostic-parity claims.
-Computed arithmetic in selected null-count arguments fails native0A000
+Computed arithmetic in table-backed selected null-count arguments fails native0A000
 `arithmetic in null-count arguments is unsupported` at the operator, including
-nested calls and the singleton no-FROM form. Former signed numeric literal
+nested calls. Computed arguments in the singleton no-FROM form instead fail
+the existing admission check with0A000 `SELECT without FROM is unsupported`
+at SELECT (character1), before function binding. Former signed numeric literal
 inputs remain admitted; arithmetic does not broaden this selected call surface.
 Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`;
 independent reference: `make reference RUN='^TestReferenceNullCount' VERBOSE=1`.

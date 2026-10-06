@@ -135,7 +135,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		names := [...]string{"IS TRUE", "IS NOT TRUE", "IS FALSE", "IS NOT FALSE", "IS UNKNOWN", "IS NOT UNKNOWN"}
 		index := int(raw.Kind - parser.IsTrue)
 		if child.ResultUsage().Type != boolUsage.Type {
-			return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], child.ResultUsage().Type.DiagnosticName()), raw.Left.SourcePosition())
+			return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], child.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw.Left))
 		}
 		truth := [...]Truth{True, True, False, False, Unknown, Unknown}
 		return truthTestExpression{b.info(boolUsage, raw.Pos, child.Properties()), child, truth[index], index%2 == 1}, nil
