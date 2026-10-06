@@ -896,7 +896,6 @@ func TestInsertImplicitShortBoundariesAndCancellation(t *testing.T) {
 		{"CREATE TABLE defaults(id INT DEFAULT 1)", "0A000"},
 		{"INSERT INTO t VALUES(DEFAULT)", "0A000"},
 		{"INSERT INTO t DEFAULT VALUES", "0A000"},
-		{"INSERT INTO t SELECT 1", "0A000"},
 		{"INSERT INTO t VALUES(1) RETURNING id", "0A000"},
 		{"INSERT INTO t VALUES()", "42601"},
 		{"INSERT INTO t VALUES($2)", "42P18"},

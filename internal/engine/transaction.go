@@ -183,6 +183,8 @@ type StatementScope struct {
 	ticket             *relationTicket
 	lockedRef          ObjectRef
 	lockedDescriptor   Descriptor
+	sourceRef          ObjectRef
+	sourceDescriptor   Descriptor
 	lockedIdentityOnly bool
 	txRef              TxRef
 	command            CommandID
@@ -358,6 +360,9 @@ func (w *WriteStage) Apply(ref ObjectRef, rows [][]sqltype.Value) error {
 		if len(row) != len(relation.columns) {
 			return errors.New("stuntgres: invalid staged row width")
 		}
+	}
+	if len(rows) == 0 {
+		return nil
 	}
 	n := uint64(len(rows))
 	if n > ^uint64(0)-e.nextRow {

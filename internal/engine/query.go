@@ -30,6 +30,10 @@ type sourceNode struct {
 	ref ObjectRef
 }
 type singletonNode struct{ querySchema }
+type valuesNode struct {
+	querySchema
+	rows [][]BoundExpr
+}
 type filterNode struct {
 	querySchema
 	child     LogicalNode
@@ -57,6 +61,34 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	switch n := node.(type) {
 	case *sourceNode, *singletonNode:
 		return n, nil
+	case *valuesNode:
+		var rows [][]BoundExpr
+		for i, row := range n.rows {
+			var expressions []BoundExpr
+			for j, expression := range row {
+				folded, changed, err := preflightCoercions(c, expression)
+				if err != nil {
+					return nil, err
+				}
+				if changed {
+					if expressions == nil {
+						expressions = append([]BoundExpr(nil), row...)
+					}
+					expressions[j] = folded
+				}
+			}
+			if expressions != nil {
+				if rows == nil {
+					rows = append([][]BoundExpr(nil), n.rows...)
+				}
+				rows[i] = expressions
+			}
+		}
+		if rows != nil {
+			copy := *n
+			copy.rows = rows
+			return &copy, nil
+		}
 	case *filterNode:
 		predicate, changed, err := preflightCoercions(c, n.predicate)
 		if err != nil {
@@ -120,6 +152,7 @@ type querySource struct {
 	ref            ObjectRef
 	committed, own []rowVersion
 	singleton      bool
+	anonymous      [][]sqltype.Value
 }
 
 func captureQuerySource(view *VisibilityView, ref ObjectRef) *querySource {
@@ -128,12 +161,18 @@ func captureQuerySource(view *VisibilityView, ref ObjectRef) *querySource {
 	return &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address]}
 }
 func (s *querySource) count() int {
+	if s.anonymous != nil {
+		return len(s.anonymous)
+	}
 	if s.singleton {
 		return 1
 	}
 	return len(s.committed) + len(s.own)
 }
 func (s *querySource) row(i int) []sqltype.Value {
+	if s.anonymous != nil {
+		return s.anonymous[i]
+	}
 	if s.singleton {
 		return nil
 	}
@@ -148,6 +187,7 @@ func (s *querySource) close() {
 	}
 	s.view = nil
 	s.committed, s.own = nil, nil
+	s.anonymous = nil
 }
 
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
@@ -235,6 +275,30 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
+	case *valuesNode:
+		if state.source == nil || state.source.view != nil {
+			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
+		}
+		rows := make([][]sqltype.Value, len(n.rows))
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters}
+		for i, expressions := range n.rows {
+			if err := ctx.Err(); err != nil {
+				return indexedStage{}, err
+			}
+			rows[i] = make([]sqltype.Value, len(n.Schema()))
+			for j, expr := range expressions {
+				value, err := expr.Eval(&evaluation)
+				if err != nil {
+					return indexedStage{}, err
+				}
+				if value.Type() != n.Schema()[j].Usage.Type {
+					return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query value")
+				}
+				rows[i][j] = value
+			}
+		}
+		state.source.anonymous = rows
+		return indexedStage{source: state.source, schema: n.Schema()}, nil
 	case *singletonNode:
 		if state.source == nil || !state.source.singleton || state.source.view != nil || state.source.ref != (ObjectRef{}) || len(state.source.committed) != 0 || len(state.source.own) != 0 {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid singleton query source")

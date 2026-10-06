@@ -26,6 +26,7 @@ package parser
  call FunctionExpr
  predicate PredicateKind
  selectStmt *Select
+ insertSource *InsertSource
  order *Order
  desc bool
  objectName ObjectName
@@ -41,7 +42,7 @@ package parser
 %token <tok> DATE_MODIFIER_NUMBER
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL
-%token <tok> '+' '-' '[' ':' '(' '=' '<' '>' ','
+%token <tok> '+' '-' '[' ':' '(' '=' '<' '>' ',' '*'
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
@@ -97,10 +98,10 @@ package parser
 %type <notNull> table_not_null
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
-%type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with generic_word_without_exists generic_word_base suffix unsupported_query nulls_keyword nulls_position
+%type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
 %type <tok> cast_function
 %type <settingName> setting_name set_name local_setting_name
-%type <targets> insert_columns insert_targets
+%type <targets> insert_targets
 %type <objectName> relation_name
 %type <alterTarget> alter_target rename_target
 %type <desc> optional_column
@@ -115,6 +116,9 @@ package parser
 %type <call> function_args
 %type <predicate> truth_kind
 %type <selectStmt> projection
+%type <insertSource> insert_input
+%type <selectStmt> insert_select
+%type <order> values_order
 %type <order> order
 %type <desc> direction
 %type <settingValues> setting_values
@@ -355,24 +359,29 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
-insert: INSERT INTO relation_name insert_columns VALUES rows { $$ = &Insert{Name:$3, Targets:$4, Rows:$6, Pos:$1.pos} }
- | INSERT INTO relation_name insert_columns VALUES rows suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
- | INSERT INTO relation_name insert_columns DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$5.pos.Offset); return 1 }; $$=&Insert{Name:$3,Targets:$4,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} }
- | INSERT INTO relation_name unsupported_query { sqllex.(*lexer).deferUnsupported($4,"INSERT SELECT is unsupported"); $$=nil }
- | INSERT INTO relation_name '(' insert_targets ')' unsupported_query { sqllex.(*lexer).deferUnsupported($7,"INSERT SELECT is unsupported"); $$=nil } ;
-insert_columns: /* empty */ { $$ = nil } | '(' insert_targets ')' { $$ = $2 } ;
+insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1.pos) }
+ | INSERT INTO relation_name '(' insert_targets ')' insert_input { $$=insertStatement($3,$5,$7,$1.pos) }
+ | INSERT INTO relation_name insert_input suffix { sqllex.(*lexer).capability($5,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
+ | INSERT INTO relation_name '(' insert_targets ')' insert_input suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
+ | INSERT INTO relation_name DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$4.pos.Offset); return 1 }; $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} }
+ | INSERT INTO relation_name '(' insert_targets ')' DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$7.pos.Offset); return 1 }; $$=&Insert{Name:$3,Targets:$5,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} } ;
 insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
-/* Failure-only query input recognition, not an executable SELECT expansion.
- * In INSERT, (SELECT) is a query input, not a reserved column name. Continue
- * parsing so that a trailing VALUES (or any other malformed suffix) wins. */
-unsupported_query: SELECT query_projection query_from query_where query_order { $$=$1 }
- | '(' unsupported_query ')' { $$=$2 } ;
-query_projection: /* empty */ | '*' | query_targets ;
-query_targets: query_target | query_targets ',' query_target ;
-query_target: projection_target ;
-query_from: /* empty */ | FROM relation_name ;
-query_where: /* empty */ | WHERE target_or ;
-query_order: /* empty */ | ORDER BY name direction ;
+insert_input: VALUES rows values_order { $$=&InsertSource{Rows:$2,Order:$3} }
+ | insert_select { $$=&InsertSource{Select:$1} }
+ | '(' insert_input ')' { $$=$2 } ;
+insert_select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=$5; $2.Order=$6; $2.Pos=$1.pos; $$=$2 }
+ | SELECT projection { $2.Pos=$1.pos; $$=$2 }
+ | SELECT FROM relation_name where order { $$=&Select{Name:$3,Where:$4,Order:$5,Pos:$1.pos} }
+ | SELECT { $$=&Select{Pos:$1.pos} } ;
+values_order: /* empty */ { $$=nil }
+ | ORDER BY name direction { $$=&Order{Column:$3.text,Pos:$3.pos,Desc:$4} }
+ | ORDER BY NUMBER direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NumericValue,Text:$3.text,Pos:$3.pos},Real:$3.numeric},Pos:$3.pos,Desc:$4} }
+ | ORDER BY '+' NUMBER direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NumericValue,Text:$4.text,Pos:$4.pos},Sign:"+",Real:$4.numeric},Pos:$3.pos,Desc:$5} }
+ | ORDER BY '-' NUMBER direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NumericValue,Text:$4.text,Pos:$4.pos},Sign:"-",Real:$4.numeric},Pos:$3.pos,Desc:$5} }
+ | ORDER BY STRING direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:StringValue,Text:$3.text,Pos:$3.pos}},Pos:$3.pos,Desc:$4} }
+ | ORDER BY TRUE direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:BooleanValue,Boolean:true,Pos:$3.pos}},Pos:$3.pos,Desc:$4} }
+ | ORDER BY FALSE direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:BooleanValue,Pos:$3.pos}},Pos:$3.pos,Desc:$4} }
+ | ORDER BY NULL direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NullValue,Pos:$3.pos}},Pos:$3.pos,Desc:$4} } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' values ')' { $$ = $2 } ;
@@ -453,7 +462,7 @@ scalar_targets: projection_target { $$=[]Expr{$1} } | scalar_targets ',' project
 truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
  | FALSE { $$=IsFalse } | NOT FALSE { $$=IsNotFalse }
  | UNKNOWN { $$=IsUnknown } | NOT UNKNOWN { $$=IsNotUnknown } ;
-projection: '*' { $$ = &Select{Star:true} } | scalar_targets { $$ = &Select{Targets:$1} }
+projection: '*' { $$ = &Select{Star:true,StarPos:$1.pos} } | scalar_targets { $$ = &Select{Targets:$1} }
  | scalar_targets bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
  | scalar_targets AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 }
  | scalar_targets '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }

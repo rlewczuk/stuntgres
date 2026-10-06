@@ -530,6 +530,16 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, insert bool) error {
+	if err := v.checkRelationBinding(b, insert); err != nil {
+		return err
+	}
+	if insert && b.sourceRelation != nil {
+		return v.checkRelationBinding(binding{ref: b.sourceRef, relation: b.sourceRelation, usedColumns: b.usedColumns}, false)
+	}
+	return nil
+}
+
+func (v AuthorizationView) checkRelationBinding(b binding, insert bool) error {
 	if !insert && b.relation == nil && b.query != nil {
 		return nil
 	}
@@ -545,6 +555,19 @@ func (v AuthorizationView) checkBinding(b binding, insert bool) error {
 		return nil
 	}
 	if len(indices) == 0 {
+		// An empty SELECT/INSERT manifest still needs authority, but any
+		// live column can supply it. Attribute IDs survive dense-slot edits.
+		for _, attribute := range b.relation.attributes {
+			ref := b.ref
+			ref.Address.SubID = attribute
+			rights, err := v.Effective(ref, false)
+			if err != nil {
+				return err
+			}
+			if rights&mask == mask {
+				return nil
+			}
+		}
 		return v.Check(AccessRequirement{Object: b.ref, Privileges: mask})
 	}
 	// The usual small relation needs no allocation to deduplicate actual uses.

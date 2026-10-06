@@ -185,13 +185,13 @@ func TestReferenceIdentifierQualifiedNames(t *testing.T) {
 
 func TestReferenceIdentifierInsertQueries(t *testing.T) {
 	for _, s := range []struct {
-		q, pos string
-		row    any
+		q   string
+		row any
 	}{
-		{"INSERT INTO t (SELECT)", "16", nil},
-		{"INSERT INTO t SELECT x FROM source_rows", "15", int64(7)},
-		{"INSERT INTO t ((SELECT x FROM source_rows WHERE x=7 ORDER BY x))", "17", int64(7)},
-		{"INSERT INTO t (x) SELECT x FROM source_rows", "19", int64(7)},
+		{"INSERT INTO t (SELECT)", nil},
+		{"INSERT INTO t SELECT x FROM source_rows", int64(7)},
+		{"INSERT INTO t ((SELECT x FROM source_rows WHERE x=7 ORDER BY x))", int64(7)},
+		{"INSERT INTO t (x) SELECT x FROM source_rows", int64(7)},
 	} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%t", s.q, prepared), func(t *testing.T) {
@@ -199,19 +199,11 @@ func TestReferenceIdentifierInsertQueries(t *testing.T) {
 				p.step(t, referenceExec("CREATE TABLE t (x INT)", 0))
 				p.step(t, referenceExec("CREATE TABLE source_rows (x INT)", 0))
 				p.step(t, referenceExec("INSERT INTO source_rows VALUES (7)", 1))
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, nil))
-				native := referenceErrorDiagnostic(s.q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "INSERT SELECT is unsupported", Position: s.pos})
-				native.prepared = prepared
-				native.errorStage = "execute"
-				if prepared {
-					native.errorStage = "prepare"
-				}
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-				pg := referenceExec(s.q, 1)
-				pg.prepared = prepared
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, nil))
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, [][]any{{s.row}}))
+				p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, nil))
+				step := referenceExec(s.q, 1)
+				step.prepared = prepared
+				p.step(t, step)
+				p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, [][]any{{s.row}}))
 			})
 		}
 	}

@@ -143,9 +143,16 @@ func TestKeywordInsertQueries(t *testing.T) {
 		{"INSERT INTO t ((SELECT x FROM source_rows WHERE x=7 ORDER BY x))", "17"},
 		{"INSERT INTO t (x) SELECT x FROM source_rows", "19"},
 	} {
-		keywordDiagnostic(t, s.q, "0A000", "INSERT SELECT is unsupported", s.pos)
+		statements, err := Parse(s.q)
+		if err != nil || len(statements) != 1 || statements[0].(*Insert).Source == nil {
+			t.Fatal(s.q, statements, err)
+		}
+		source := statements[0].(*Insert).Source.Select
+		if source == nil || fmt.Sprint(source.Pos.Character) != s.pos {
+			t.Fatal("source occurrence lost", s.q, source)
+		}
 	}
-	// The pending capability must never conceal a later statement's syntax.
+	// A valid query prefix must never conceal a later statement's syntax.
 	keywordDiagnostic(t, "INSERT INTO t (SELECT); CREATE TABLE select (x INT)", "42601", "syntax error at or near \"select\"", "38")
 }
 

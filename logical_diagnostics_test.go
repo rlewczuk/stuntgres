@@ -22,6 +22,7 @@ func TestLogicalOperandDiagnosticsAndBoundaries(t *testing.T) {
 		{"SELECT TRUE OR n FROM t", stuntgres.Error{Code: "42804", Message: "argument of OR must be type boolean, not type numeric", Position: "16"}},
 		{"SELECT NOT tm FROM t", stuntgres.Error{Code: "42804", Message: "argument of NOT must be type boolean, not type time without time zone", Position: "12"}},
 		{"SELECT id FROM t WHERE TRUE AND 1", stuntgres.Error{Code: "42804", Message: "argument of AND must be type boolean, not type integer", Position: "33"}},
+		{"INSERT INTO t(id) SELECT TRUE AND FALSE FROM t", stuntgres.Error{Code: "42804", Message: `column "id" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: "26"}},
 	} {
 		rows, err := db.Query(tc.q)
 		if rows != nil {
@@ -40,7 +41,7 @@ func TestLogicalOperandDiagnosticsAndBoundaries(t *testing.T) {
 		"SELECT TRUE AND FALSE", "SELECT id=1=TRUE FROM t",
 		"SELECT (id=1)=TRUE FROM t",
 		"INSERT INTO t(id) VALUES(TRUE AND FALSE)", "INSERT INTO t(id) VALUES(NOT TRUE)",
-		"INSERT INTO t(id) SELECT TRUE AND FALSE FROM t", "SELECT current_setting(TRUE AND FALSE)",
+		"SELECT current_setting(TRUE AND FALSE)",
 		"SELECT a AND a AS result FROM t", "SELECT t.a AND a FROM t",
 		"SELECT a+1 AND a FROM t", "SELECT f(a) AND a FROM t", "SELECT a FROM t ORDER BY a AND a",
 	} {

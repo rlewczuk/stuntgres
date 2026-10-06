@@ -8,6 +8,75 @@ development instructions.
 
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
 
+INSERT additionally accepts SELECT sources with the existing projection/filter/
+one-column sort surface, parenthesized sources and INSERT-only no-FROM literal/
+parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;
+`SELECT FROM source` retains table occurrence/filter semantics. These do not
+expand standalone SELECT or standalone VALUES. Explicit targets match source
+schema width; implicit targets map first N live columns. Omitted columns use the
+current typed-NULL initialization seam and enforce NOT NULL; native declared
+defaults/DEFAULT/serial/sequences remain excluded with separate real-PG witnesses.
+Already-supported casts and null/truth/distinct predicates, DATE and BYTEA are
+preserved in INSERT sources. Shared SELECT analysis retains current cast result
+names. Recursive conversion preflight uses the imported execution frame, outside
+the engine lock and before source capture; analyzed query nodes remain immutable.
+
+Plain or parenthesized undecorated VALUES remains destination-context input.
+VALUES with one ORDER BY output ordinal, implicit `columnN` name or unary-plus
+numeric constant uses the common query source, column-wise common typing and
+implicit coercion before destination assignment. Only unsigned integer tokens
+within int32 are output positions (also after unary minus); larger tokens,
+fractions/exponents, strings, BOOL and NULL are non-integer raw constants.
+Thus `-2147483648` is not an ordinal despite its signed value fitting int32.
+Unary-plus numbers such as `+2`, `+1.5` and `+2147483648` are validated constant
+expressions, never ordinals; every source occurrence has the same key and no
+peer order is promised. General ORDER expressions remain excluded.
+Raw parsing retains these constants and consumes the entire script. Target
+relation/column analysis and VALUES width/common typing precede ORDER diagnostics;
+a later raw syntax error wins before any analysis or prefix effects.
+Unknown-only columns become TEXT; known TEXT does not
+gain integer input semantics. Decorated VALUES assignment mismatch has42804/
+rewrite-or-cast Hint/no Position (generated output Var); SELECT output assignment,
+VALUES common-type/width and ORDER key diagnostics keep their own occurrence
+positions. Mixed numeric columns use existing directional implicit casts, not
+text-export/reparse or a transitive cast graph.
+Missing VALUES ORDER names retain42703 and the key's original Position. A
+bounded, case-sensitive character-distance search of this source's generated
+names supplies a `*VALUES*.columnN` Hint for one or two nearest candidates;
+three-way ties or distant names have no Hint. This does not extend ordinary
+relation name resolution or its diagnostics.
+
+Query INSERT has command-only metadata, exact zero/one/many occurrence counts,
+fresh prepared source binding and a frozen self-source including earlier own
+transaction writes. Both relation identities are retained: target RX first,
+source AS second, independent target INSERT/source SELECT column manifests
+(including WHERE/hidden ORDER). Empty SELECT/INSERT column manifests require
+table rights or the corresponding privilege on any live column, even for a
+zero-row source; dropped-column grants do not qualify. Eager source evaluation is unlocked; one complete
+converted/constraint-checked batch reaches atomic WriteStage publication, and
+ordinary cancellation/epoch errors keep their existing adapter boundaries.
+Target-list names and duplicates are checked before source lookup/acquisition;
+a missing or blocked source cannot mask a target-list diagnostic. Required
+cursor cleanup and a final cancellation check also veto an otherwise complete
+batch before publication.
+Dump serializes persisted typed rows as literal VALUES. Restore rejects nonnil
+query INSERT sources0A000 before trusted execution; canonical Dump roundtrips
+and retained result ownership remain supported. Native public SQL/API ACL mutation
+is absent: exact positive column grants use the internal consumer seam in units,
+while reference-only GRANT witnesses identify this boundary explicitly.
+
+Feature smoke: `make smoke RUN='^TestInsertSelectSmoke$' VERBOSE=1`.
+Combined real-oracle feature reference (not a PostgreSQL-only empty regex):
+`make reference RUN='^TestReferenceInsertSelect' VERBOSE=1`.
+INSERT SELECT preserves raw unknown string/NULL and unresolved parameter output
+occurrences until destination assignment; ordinary standalone SELECT still owns
+its existing TEXT fallback. An output occurrence unresolved before a later WHERE
+inference cannot be globally retagged: an incompatible destination reports42P08
+at that occurrence. Already-known INT4 outputs may assignment-cast to BIGINT
+without changing the input parameter type; per-target NUMERIC/time/timestamp
+typmods size each value independently.
+
+
 Scalar comparisons admit `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=`; `!=` is the
 `<>` alias. Both operands may be existing scalar literals, parameters or columns.
 Every result is BOOL (`?column?`, native bool ScanType, no physical-column origin),

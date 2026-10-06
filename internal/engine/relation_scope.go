@@ -10,6 +10,21 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) error {
+	if insert, ok := stmt.(*parser.Insert); ok && insert.Source != nil && insert.Source.Select != nil && len(insert.Source.Select.Name.Parts) != 0 {
+		if err := s.acquireRelationTarget(stmt, execute, false); err != nil {
+			return err
+		}
+		// PostgreSQL validates explicit target identifiers before opening the
+		// source, so a blocked/missing source cannot mask a bad target list.
+		if err := bindInsertTargets(s.lockedDescriptor.(*relationDescriptor), insert.Targets, nil); err != nil {
+			return err
+		}
+		return s.acquireRelationTarget(insert.Source.Select, execute, true)
+	}
+	return s.acquireRelationTarget(stmt, execute, false)
+}
+
+func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, source bool) error {
 	var name parser.ObjectName
 	var mode relationLockMode
 	ownerOnly := false
@@ -170,9 +185,13 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || !live {
 		return ErrCatalogReplaced
 	}
-	s.lockedRef = ref
-	s.lockedDescriptor = descriptor
-	s.lockedIdentityOnly = mode == shareUpdateExclusive
+	if source {
+		s.sourceRef, s.sourceDescriptor = ref, descriptor
+	} else {
+		s.lockedRef = ref
+		s.lockedDescriptor = descriptor
+		s.lockedIdentityOnly = mode == shareUpdateExclusive
+	}
 	// Definition evolution while waiting is valid for this exact relation.
 	// Pin the grant-time descriptor and revalidate current role authority.
 	auth, err = e.statementAuthorizationLocked(s.op, stmt)
@@ -200,6 +219,9 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 }
 
 func (s *StatementScope) validateLockedRelation(e *Engine) error {
+	if s.sourceRef.owner != nil && (s.sourceRef.owner != e.owner || s.sourceRef.Epoch != e.state.epoch || e.state.descriptors[s.sourceRef.Address] != s.sourceDescriptor) {
+		return ErrCatalogReplaced
+	}
 	if s.lockedRef.owner == nil {
 		return nil
 	}

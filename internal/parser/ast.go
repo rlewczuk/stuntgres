@@ -156,6 +156,7 @@ type Insert struct {
 	Name                 ObjectName
 	Targets              []InsertTarget
 	Rows                 [][]Expr
+	Source               *InsertSource
 	Pos                  Position
 	RestoreDefaultValues bool
 }
@@ -167,9 +168,28 @@ type InsertTarget struct {
 
 func (*Insert) statement() {}
 
+// Undecorated VALUES stays destination-context input, even in parentheses.
+// Only decorated VALUES is represented as a query source.
+type InsertSource struct {
+	Select *Select
+	Rows   [][]Expr
+	Order  *Order
+}
+
+func insertStatement(name ObjectName, targets []InsertTarget, source *InsertSource, pos Position) *Insert {
+	stmt := &Insert{Name: name, Targets: targets, Pos: pos}
+	if source.Select == nil && source.Order == nil {
+		stmt.Rows = source.Rows
+	} else {
+		stmt.Source = source
+	}
+	return stmt
+}
+
 type Select struct {
 	Name    ObjectName
 	Star    bool
+	StarPos Position
 	Targets []Expr
 	Where   Expr
 	Order   *Order
@@ -258,10 +278,44 @@ type TransactionControl struct {
 func (*TransactionControl) statement() {}
 
 type Order struct {
-	Column string
-	Pos    Position
-	Desc   bool
+	Column   string
+	Constant *OrderConstant
+	Pos      Position
+	Desc     bool
 }
+
+// OrderConstant retains VALUES ORDER syntax until analysis. Numeric tokens keep
+// their unsigned spelling and lexical real/integer class separately from sign.
+type OrderConstant struct {
+	Value Value
+	Sign  string
+	Real  bool
+}
+
+func (c OrderConstant) Ordinal() (int64, bool) {
+	if c.Value.Kind != NumericValue || c.Sign == "+" {
+		return 0, false
+	}
+	v := numberValue(lexeme{text: c.Value.Text, numeric: c.Real, pos: c.Value.Pos}, "")
+	if v.Kind != IntegerValue || v.Integer > 2147483647 {
+		return 0, false
+	}
+	if c.Sign == "-" {
+		return -v.Integer, true
+	}
+	return v.Integer, true
+}
+
+// NumericLiteral uses ordinary numeric input classification only during analysis.
+// Numeric unary plus is identity; it must still bind and validate the operand.
+func (c OrderConstant) NumericLiteral() LiteralExpr {
+	sign := c.Sign
+	if sign == "+" {
+		sign = ""
+	}
+	return LiteralExpr{Value: numberValue(lexeme{text: c.Value.Text, numeric: c.Real, pos: c.Value.Pos}, sign)}
+}
+
 type ValueKind uint8
 
 const (

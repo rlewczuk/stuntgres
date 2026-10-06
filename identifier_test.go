@@ -398,25 +398,32 @@ func TestIdentifierInsertQueries(t *testing.T) {
 	execSQL(t, db, "CREATE TABLE t (x INT)")
 	execSQL(t, db, "CREATE TABLE source_rows (x INT)")
 	execSQL(t, db, "INSERT INTO source_rows VALUES (7)")
-	for _, s := range []struct{ q, pos string }{{"INSERT INTO t (SELECT)", "16"}, {"INSERT INTO t SELECT x FROM source_rows", "15"}, {"INSERT INTO t ((SELECT x FROM source_rows WHERE x=7 ORDER BY x))", "17"}, {"INSERT INTO t (x) SELECT x FROM source_rows", "19"}} {
+	for _, q := range []string{"INSERT INTO t (SELECT)", "INSERT INTO t SELECT x FROM source_rows", "INSERT INTO t ((SELECT x FROM source_rows WHERE x=7 ORDER BY x))", "INSERT INTO t (x) SELECT x FROM source_rows"} {
 		for _, prepare := range []bool{false, true} {
 			var err error
+			var result sql.Result
 			if prepare {
 				var stmt *sql.Stmt
-				stmt, err = db.Prepare(s.q)
-				if stmt != nil {
-					stmt.Close()
+				stmt, err = db.Prepare(q)
+				if err != nil {
+					t.Fatal(err)
 				}
+				result, err = stmt.Exec()
+				stmt.Close()
 			} else {
-				_, err = db.Exec(s.q)
+				result, err = db.Exec(q)
 			}
-			if err := identifierDiagnostic(err, "0A000", "INSERT SELECT is unsupported", s.pos); err != nil {
-				t.Fatal(err)
+			if err != nil {
+				t.Fatal(q, err)
+			}
+			count, err := result.RowsAffected()
+			if err != nil || count != 1 {
+				t.Fatal(q, count, err)
 			}
 		}
 	}
 	rows, err := db.Query("SELECT x FROM t ORDER BY x")
-	if err := identifierRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{}); err != nil {
+	if err := identifierRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(7)}, {int64(7)}, {int64(7)}, {int64(7)}, {int64(7)}, {nil}, {nil}}); err != nil {
 		t.Fatal(err)
 	}
 }

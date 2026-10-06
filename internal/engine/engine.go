@@ -44,18 +44,21 @@ type Result struct {
 	Rows  RowResult
 }
 type binding struct {
-	relation      *relationDescriptor
-	storage       *relationStorage
-	ref           ObjectRef
-	targets       []int
-	usedColumns   []int
-	query         *BoundQuery
-	dependencies  []expressionDependency
-	parameters    ParameterInfo
-	expressions   [][]BoundExpr
-	createColumns []ColumnDescriptor
-	createNotNull []notNullConstraint
-	temporals     []temporalConstant
+	relation       *relationDescriptor
+	storage        *relationStorage
+	ref            ObjectRef
+	targets        []int
+	usedColumns    []int
+	query          *BoundQuery
+	sourceRef      ObjectRef
+	sourceRelation *relationDescriptor
+	commandQuery   bool
+	dependencies   []expressionDependency
+	parameters     ParameterInfo
+	expressions    [][]BoundExpr
+	createColumns  []ColumnDescriptor
+	createNotNull  []notNullConstraint
+	temporals      []temporalConstant
 }
 
 func New() *Engine {
@@ -232,8 +235,11 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
+	if b.sourceRef != scope.sourceRef {
+		return StatementDescription{}, ErrCatalogReplaced
+	}
 	var results []ColumnDescriptor
-	if b.query != nil {
+	if b.query != nil && !b.commandQuery {
 		results = b.query.Root.Schema()
 	}
 	return StatementDescription{Parameters: b.parameters, Results: results, temporals: b.temporals}, nil
@@ -351,7 +357,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if s.RestoreDefaultValues && (len(b.relation.columns) != 0 || len(s.Targets) != 0 || len(s.Rows) != 1 || len(s.Rows[0]) != 0) {
 			return b, sqlError("0A000", "restore DEFAULT VALUES requires a zero-column table")
 		}
-		if len(s.Targets) == 0 {
+		if len(s.Targets) == 0 && s.Source == nil {
 			width := len(s.Rows[0])
 			if width > len(b.relation.columns) {
 				return b, insertError("42601", "INSERT has more expressions than target columns", s.Rows[0][len(b.relation.columns)].SourcePosition())
@@ -361,18 +367,16 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				b.targets[i] = i
 			}
 		} else {
-			seen := make(map[int]bool, len(s.Targets))
-			for _, target := range s.Targets {
-				i, ok := b.relation.index[target.Name]
-				if !ok {
-					return b, insertError("42703", fmt.Sprintf("column \"%s\" of relation \"%s\" does not exist", target.Name, b.relation.name), target.Pos)
-				}
-				if seen[i] {
-					return b, insertError("42701", fmt.Sprintf("column \"%s\" specified more than once", target.Name), target.Pos)
-				}
-				seen[i] = true
-				b.targets = append(b.targets, i)
+			b.targets = make([]int, len(s.Targets))
+			if err := bindInsertTargets(b.relation, s.Targets, b.targets); err != nil {
+				return b, err
 			}
+		}
+		if s.Source != nil {
+			if err := e.bindInsertSource(&b, binder, auth, s); err != nil {
+				return b, err
+			}
+			break
 		}
 		b.expressions = make([][]BoundExpr, len(s.Rows))
 		for rowIndex, row := range s.Rows {
@@ -397,11 +401,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 	case *parser.Select:
 		var err error
-		if s.IsSingleton() {
-			if requiredRef != (ObjectRef{}) {
-				return b, ErrCatalogReplaced
-			}
-		} else {
+		if len(s.Name.Parts) != 0 {
 			b.ref, err = e.resolveReference(auth, s.Name)
 			if err != nil {
 				return b, err
@@ -411,78 +411,19 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 			b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
 			b.storage = e.storage[b.ref.Address]
-			if b.storage == nil {
-				return b, fmt.Errorf("stuntgres: relation storage is missing")
-			}
 			binder.relation, binder.ref = b.relation, b.ref
+		} else {
+			if requiredRef != (ObjectRef{}) {
+				return b, ErrCatalogReplaced
+			}
+			if !s.IsSingleton() {
+				return b, sqlError("0A000", "SELECT without FROM is unsupported")
+			}
 		}
-		width := len(s.Targets)
-		if s.Star {
-			width = len(b.relation.columns)
+		b.query, err = binder.bindSelect(s, false)
+		if err != nil {
+			return b, err
 		}
-		projection := make([]BoundExpr, width)
-		results := make([]ColumnDescriptor, width)
-		var root LogicalNode = &singletonNode{}
-		if b.relation != nil {
-			root = &sourceNode{querySchema: b.relation.columns, ref: b.ref}
-		}
-		for i := range width {
-			if err := ctx.Err(); err != nil {
-				return b, err
-			}
-			var expr BoundExpr
-			if s.Star {
-				expr = binder.columnAt(i, parser.Position{Offset: -1})
-			} else {
-				var er error
-				expr, er = binder.bind(s.Targets[i], expressionPolicy{context: projectionContext})
-				if er != nil {
-					return b, er
-				}
-			}
-			projection[i] = expr
-		}
-		if s.Where != nil {
-			filter, bindErr := binder.bind(s.Where, expressionPolicy{context: filterContext, expected: binder.typ(sqltype.Bool).Usage(), mode: sqltype.Implicit})
-			err = bindErr
-			if err != nil {
-				return b, err
-			}
-			root = &filterNode{querySchema: root.Schema(), child: root, predicate: filter}
-		}
-		if s.Order != nil {
-			expr, bindErr := binder.column(parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: s.Order.Column, Pos: s.Order.Pos}}}, Pos: s.Order.Pos})
-			err = bindErr
-			if err != nil {
-				return b, err
-			}
-			order := expr.(columnExpression).slot
-			ordering, bindErr := sqltype.BindComparison(b.relation.columns[order].Usage.Type, b.relation.columns[order].Usage.Type)
-			err = bindErr
-			if err != nil {
-				return b, err
-			}
-			root = &sortNode{querySchema: root.Schema(), child: root, slot: order, comparison: ordering, desc: s.Order.Desc}
-		}
-		for i, expr := range projection {
-			expr, err = binder.finalizeProjection(expr)
-			if err != nil {
-				return b, err
-			}
-			projection[i] = expr
-			result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
-			if !s.Star {
-				result.Name, _ = expressionName(s.Targets[i], expr.ResultUsage())
-			}
-			if c, ok := expr.(columnExpression); ok {
-				result = b.relation.columns[c.slot]
-				if !s.Star {
-					result.Name, _ = expressionName(s.Targets[i], expr.ResultUsage())
-				}
-			}
-			results[i] = result
-		}
-		b.query = &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}}
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}
@@ -829,9 +770,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	if b.sourceRef != scope.sourceRef {
+		e.mu.Unlock()
+		return Result{}, ErrCatalogReplaced
+	}
 	if scope.Expected != nil {
 		var results []ColumnDescriptor
-		if b.query != nil {
+		if b.query != nil && !b.commandQuery {
 			results = b.query.Root.Schema()
 		}
 		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results}); err != nil {
@@ -864,7 +809,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	expressionsChanged := false
 	evaluation := EvalContext{Context: ctx, Parameters: canonical}
 	var queryRoot LogicalNode
-	if _, selecting := stmt.(*parser.Select); selecting {
+	if b.query != nil {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
@@ -924,6 +869,31 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	switch s := stmt.(type) {
 	case *parser.Insert:
+		if s.Source != nil {
+			source := &querySource{singleton: s.Source.Select != nil && b.sourceRelation == nil}
+			if b.sourceRelation != nil {
+				view, viewErr := scope.acquireDataViewLocked(e, b.sourceRef)
+				if viewErr != nil {
+					e.mu.Unlock()
+					return Result{}, viewErr
+				}
+				source = captureQuerySource(view, b.sourceRef)
+			}
+			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+			e.mu.Unlock()
+			b.query = &BoundQuery{Root: queryRoot}
+			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema)
+			if queryErr != nil {
+				return Result{}, queryErr
+			}
+			if err := ctx.Err(); err != nil {
+				return Result{}, err
+			}
+			if err := scope.Writes().Apply(b.ref, rows); err != nil {
+				return Result{}, err
+			}
+			return Result{Count: int64(len(rows))}, nil
+		}
 		rows := make([][]sqltype.Value, len(s.Rows))
 		for i, source := range s.Rows {
 			if err = ctx.Err(); err != nil {

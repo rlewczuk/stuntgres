@@ -353,9 +353,6 @@ func identifierContextualCapabilities() error {
 		{"SELECT x, x, abs(x) FROM t", "0A000", "functions are unsupported", "14"},
 		{"SELECT x FROM t ORDER BY x NULLS FIRST", "0A000", "NULLS ordering is unsupported", "28"},
 		{"SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "28"},
-		{"INSERT INTO t (SELECT)", "0A000", "INSERT SELECT is unsupported", "16"},
-		{"INSERT INTO t SELECT x FROM source_rows", "0A000", "INSERT SELECT is unsupported", "15"},
-		{"INSERT INTO t (x) SELECT x FROM source_rows", "0A000", "INSERT SELECT is unsupported", "19"},
 	} {
 		for _, op := range []func(string) error{
 			func(q string) error { _, err := db.Exec(q); return err },
@@ -379,8 +376,29 @@ func identifierContextualCapabilities() error {
 			}
 		}
 	}
+	for _, q := range []string{"INSERT INTO t (SELECT)", "INSERT INTO t SELECT x FROM source_rows", "INSERT INTO t (x) SELECT x FROM source_rows"} {
+		result, err := db.Exec(q)
+		if err != nil {
+			return err
+		}
+		if count, err := result.RowsAffected(); err != nil || count != 1 {
+			return fmt.Errorf("%s count=%d: %v", q, count, err)
+		}
+		stmt, err := db.Prepare(q)
+		if err != nil {
+			return err
+		}
+		result, err = stmt.Exec()
+		stmt.Close()
+		if err != nil {
+			return err
+		}
+		if count, err := result.RowsAffected(); err != nil || count != 1 {
+			return fmt.Errorf("%s prepared count=%d: %v", q, count, err)
+		}
+	}
 	rows, err := db.Query("SELECT x FROM t ORDER BY x")
-	if err := identifierCheckRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{}); err != nil {
+	if err := identifierCheckRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(7)}, {int64(7)}, {int64(7)}, {nil}, {nil}}); err != nil {
 		return err
 	}
 	rows, err = db.Query("SELECT x FROM source_rows ORDER BY x")

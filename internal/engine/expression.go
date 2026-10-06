@@ -380,8 +380,11 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error)
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
-	if b.relation == nil || len(raw.Name.Parts) != 1 {
+	if len(raw.Name.Parts) != 1 {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
+	}
+	if b.relation == nil {
+		return nil, expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Name.Parts[0].Text), raw.Pos)
 	}
 	name := raw.Name.Parts[0].Text
 	i, ok := b.relation.index[name]

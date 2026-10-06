@@ -73,8 +73,12 @@ type lexeme struct {
 }
 
 func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
+	return numberValue(tok, sign), true
+}
+
+func numberValue(tok lexeme, sign string) Value {
 	if tok.numeric {
-		return Value{Kind: NumericValue, Text: sign + tok.text, Pos: tok.pos}, true
+		return Value{Kind: NumericValue, Text: sign + tok.text, Pos: tok.pos}
 	}
 	base, offset := uint64(10), 0
 	if len(tok.text) > 2 && tok.text[0] == '0' {
@@ -98,7 +102,7 @@ func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
 		}
 		d := numericDigit(tok.text[offset])
 		if magnitude > (limit-d)/base {
-			return Value{Kind: NumericValue, Text: sign + tok.text, Pos: tok.pos}, true
+			return Value{Kind: NumericValue, Text: sign + tok.text, Pos: tok.pos}
 		}
 		magnitude = magnitude*base + d
 	}
@@ -110,7 +114,7 @@ func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
 	} else {
 		n = int64(magnitude)
 	}
-	return Value{Kind: IntegerValue, Integer: n, Pos: tok.pos}, true
+	return Value{Kind: IntegerValue, Integer: n, Pos: tok.pos}
 }
 
 func settingInteger(l sqlLexer, tok lexeme, negative bool) (string, bool) {

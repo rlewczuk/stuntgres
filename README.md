@@ -611,6 +611,9 @@ Two connectors with the same Driver/exact DSN share data, never session state.
 New tables belong to current_user and have owner use rights, with no PUBLIC
 table privileges. Central checks cover schema CREATE/USAGE, all actually used
 SELECT projection/predicate/order columns and assigned INSERT columns.
+When that SELECT or INSERT column manifest is empty, table privileges or the
+corresponding privilege on **any live column** suffice. Empty/filtered sources
+still require authorization; grants on dropped columns never qualify.
 Schema USAGE is checked during relation lookup, including preparation: qualified
 references to an inaccessible schema fail with `42501` / `permission denied for
 schema public` before column/input binding. Unqualified lookup omits inaccessible
@@ -678,6 +681,10 @@ ALTER TABLE target ADD [CONSTRAINT name] NOT NULL column
 ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
+INSERT INTO [schema.]name [(column [, ...])] SELECT [projection_target [, ...]]
+       [FROM [schema.]name [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]]
+INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
+       ORDER BY (positive_output_ordinal | columnN | +numeric_constant) [ASC | DESC]
 SELECT (* | projection_target [, ...]) FROM [schema.]name
        [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]
 SELECT null_count_call [, null_count_call ...]
@@ -694,6 +701,81 @@ logical_predicate := logical_target
 projection_target := logical_target | null_count_call
 call_argument := scalar | null_count_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
+```
+
+### INSERT from query — change note
+
+INSERT now accepts SELECT sources through the common query pipeline, including
+parenthesized sources and INSERT-only no-FROM projections such as `SELECT '1'`,
+`SELECT NULL` and `SELECT $1`. The target is not part of the source namespace.
+Star expansion and output width/type checks happen during analysis, even if the
+source is empty. An explicit target list requires the same number of expressions;
+without a list, the source maps the first N declared live columns. Omitted
+nullable columns become typed NULL; existing NOT NULL constraints still apply.
+Declared defaults, DEFAULT expressions, sequences and serial remain unsupported
+native subsystems, not successful no-ops. Real PostgreSQL declared-default
+behavior is separately witnessed in the reference suite.
+
+```sql
+CREATE TABLE source_rows(i INT, label TEXT);
+INSERT INTO source_rows VALUES (1,'one'),(1,'one'),(2,NULL);
+CREATE TABLE destination(label TEXT, i BIGINT, flag BOOL);
+INSERT INTO destination(i,label)
+  SELECT i,label FROM source_rows ORDER BY i;
+```
+
+This inserts three occurrences (including both duplicates), converts INT4 to
+INT8 and fills `flag` with NULL. Zero, one and many selected rows have exact
+RowsAffected counts. No RETURNING is implied: direct/prepared Query of INSERT
+has no columns or data rows; Exec exposes only the successful command count.
+Prepare is effect-free, and reused statements freshly bind and read the current
+source rather than caching source data.
+Already-supported casts, null/truth/distinct predicates, DATE and BYTEA remain
+available in query sources. SELECT result names retain the existing cast naming
+rules. Source and assignment conversions use the same recursive, execution-private
+preflight as ordinary SELECT, outside the engine lock and before source capture.
+
+Plain `VALUES ('1')` and `(VALUES ('1'))` retain destination-context typing.
+Adding the supported one-key ORDER BY makes VALUES a query source: each column
+gets a common type first, with all-unknown columns becoming TEXT. Consequently
+`INSERT INTO integer_target VALUES ('1') ORDER BY 1` fails 42804 with the rewrite/
+cast Hint and no Position; it does not silently reparse known TEXT as integer.
+ORDER BY uses an output ordinal, an implicit `columnN` name or a unary-plus
+numeric constant, not a destination column name. Unsigned integer tokens within
+int32 are ordinals, including after minus; `2147483648` and `-2147483648` instead
+give 42601 / `non-integer constant in ORDER BY`. Unary-plus keys such as `+2`
+and `+1.5` are validated numeric expressions with all rows tied, never ordinals.
+Duplicate occurrences and NULL sort placement for column/ordinal keys are retained.
+ORDER analysis follows target validation and VALUES width/common typing. Raw
+parsing always consumes the complete script first, so later syntax errors take
+precedence over ORDER analysis errors and prevent effects from a valid prefix.
+These VALUES/no-FROM forms do not add standalone VALUES or ordinary no-FROM SELECT.
+WITH/CTE, aliases, joins, general casts/functions, LIMIT and locking decorations,
+RETURNING and ON CONFLICT remain outside this part's surface.
+
+The target RX lock is acquired before source AS; target INSERT and source SELECT
+authority (projection, WHERE and hidden ORDER columns) are independently checked.
+Self-insert reads a frozen prefix including earlier own transaction writes, never
+this command's newly assembled batch. Source scanning, sorting and conversion run
+outside the engine mutex; a failed cast, constraint, source evaluation, cancellation
+or publication fence cannot publish a partial batch. Existing explicit-transaction
+failure/rollback and other-session visibility rules are unchanged.
+
+Dump records persisted destination values as canonical literal VALUES, not query
+provenance. Restore roundtrips that output but deliberately rejects SELECT and
+decorated VALUES INSERT source scripts with native 0A000 before trusted execution.
+Held native result cursors keep their original schema/data across failed Restore,
+successful replacement and Reset. These host controls are not PostgreSQL physical
+pg_dump, disk durability or wire-server APIs.
+
+Feature checks (run from the repository root):
+
+```sh
+make test PACKAGES=./internal/parser RUN='^TestInsertSelect' VERBOSE=1
+make test PACKAGES=./internal/engine RUN='^TestInsertSelect' VERBOSE=1
+make test PACKAGES=. RUN='^TestInsertSelect' VERBOSE=1
+make reference RUN='^TestReferenceInsertSelect' VERBOSE=1
+make smoke RUN='^TestInsertSelectSmoke$' VERBOSE=1
 ```
 
 ### Null argument counts
@@ -1205,7 +1287,7 @@ Identifier classification uses the complete PostgreSQL 18 release keyword invent
 
 IF and EXISTS retain their release unreserved and column-name categories, respectively, even when their syntax tokens implement `CREATE TABLE IF NOT EXISTS`. Both remain usable as unquoted identifiers and bare labels in the corresponding contexts; dedicated syntax recognition does not change their keyword metadata.
 
-INSERT query inputs remain unsupported, including parenthesized SELECT inputs. Their bounded grammar recognition does not execute a query or publish data: a recognized query produces `0A000` only after the whole script is syntactically valid. In `INSERT INTO t (select) VALUES (1)`, `(select)` is a parenthesized zero-target SELECT rather than a target column, and the following raw `VALUES` is the syntax error (`42601`, character position 24).
+INSERT query inputs execute the selected SELECT/query-VALUES surface above, including parenthesized SELECT inputs. Parsing still consumes the complete script before execution. In `INSERT INTO t (select) VALUES (1)`, `(select)` is a parenthesized zero-target SELECT rather than a target column, and the following raw `VALUES` is the syntax error (`42601`, character position 24). `(SELECT)` alone is an INSERT-only one-occurrence zero-width source: omitted nullable targets initialize to NULL; an explicit nonempty target list fails the ordinary width check.
 
 Generic function-name recognition follows the distinct IDENT/unreserved/type-or-function-name rule, not column-name legality: `between(x)` is malformed, while ordinary/U/T call names and separately recognized built-in constructs such as COALESCE remain unsupported (`0A000`), except the four baseline type-function casts documented below and the selected null-count functions. No general function or special expression is executed by this recognition. DEFAULT is a valid bare projection label but still an unsupported alias. ISNULL/NOTNULL execute as scalar null-test predicates in table SELECT; explicit `ORDER BY x NULLS FIRST/LAST` remains recognized but unsupported, and quoted operator spellings remain ordinary names/labels. Failure boundaries retain complete positioned diagnostics without global keyword-to-error promotion.
 

@@ -384,6 +384,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives")
 			}
 		case *parser.Insert:
+			if s.Source != nil {
+				return sqlError("0A000", "restore INSERT query sources are unsupported")
+			}
 			for _, row := range s.Rows {
 				for _, v := range row {
 					if err := restoreScalar(v); err != nil {

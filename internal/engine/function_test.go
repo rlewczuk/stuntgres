@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"reflect"
 	"strconv"
@@ -277,7 +278,11 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 	}
 	result.Rows.Close()
 	roleError(t, e, op, "SELECT num_nulls(num_nonnulls(v),f) FROM secret", "42501", "permission denied for table secret", "")
-	roleError(t, e, op, "SELECT num_nulls(NULL) FROM secret", "42501", "permission denied for table secret", "")
+	result = roleExecute(t, e, op, "SELECT num_nulls(NULL) FROM secret")
+	if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}}) {
+		t.Fatal(got)
+	}
+	result.Rows.Close()
 	result = roleExecute(t, e, op, "SELECT num_nulls(NULL)")
 	if result.Count != 1 {
 		t.Fatal(result.Count)

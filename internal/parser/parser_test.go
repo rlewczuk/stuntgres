@@ -758,11 +758,11 @@ func TestUnicodeEscapesPendingQueryPrecedence(t *testing.T) {
 	result := sqlParse(l)
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid Unicode escape", Position: "67", Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`}
 	var got *sqlstate.Error
-	if result == 0 || !errors.As(l.err, &got) || *got != want || got.SQLState() != want.Code || len(l.statements) != 0 {
+	if result == 0 || !errors.As(l.err, &got) || *got != want || got.SQLState() != want.Code || len(l.statements) != 1 || l.statements[0].(*Insert).Source == nil {
 		t.Fatalf("pending-query parse result %d, statements %#v, error %#v %v; want %#v", result, l.statements, got, l.err, want)
 	}
-	if l.pendingMessage != "INSERT SELECT is unsupported" || l.pendingOffset != 14 {
-		t.Fatalf("first query did not establish the deferred capability: %q at %d", l.pendingMessage, l.pendingOffset)
+	if l.pendingMessage != "" {
+		t.Fatalf("supported query established a deferred capability: %q", l.pendingMessage)
 	}
 }
 

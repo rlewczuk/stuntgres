@@ -60,6 +60,8 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 // SCHEMA, CREATE TABLE, literal INSERT, database-local COMMENT and named owner
 // directives succeed. ROLE comments are shared authority metadata: Reset and
 // Restore retain them, and Dump deliberately excludes them.
+// INSERT query sources are rejected before trusted execution; Dump emits only
+// canonical literal VALUES for data produced by ordinary query INSERT.
 // Its initialized private catalog preserves legacy streams and reconstructs
 // bootstrap namespace lifecycle changes without synthesizing ACL grants.
 // Named owners must already exist. Private Restore-stage CREATE TABLE destination
