@@ -467,6 +467,12 @@ Character casts infer only unresolved parameters from the target; known characte
 occurrences convert from their fixed source identity. Earlier unknown occurrences
 and mixed INSERT inference boundaries are not rewritten. Diagnostic spelling is
 `character`/`character varying`, distinct from catalog/metadata/Dump spelling.
+Ordinary INSERT assignment failures use the resolved cast's descriptor rather
+than its SQL alias spelling, matching INSERT SELECT assignment diagnostics.
+Assigning BPCHAR/CHAR or VARCHAR casts to an INT column fails with `42804`,
+source type `character` or `character varying`, the rewrite-or-cast Hint and the
+source expression's character position. Direct execution and preparation reject
+the assignment before changing destination rows; this does not add cast edges.
 Ordered INSERT source VALUES classifies BPCHAR/VARCHAR with the existing string
 family. Its row-order common-type rules and implicit conversions remain in use;
 BPCHAR-to-TEXT trims ASCII tails, VARCHAR-to-TEXT preserves them. Target sizing

@@ -224,6 +224,53 @@ func TestCharacterSmoke(t *testing.T) {
 			t.Fatal("canonical character diagnostic", prepared, got, diagnosticError, want)
 		}
 	}
+	exec("CREATE TABLE dst(i INT)")
+	exec("INSERT INTO dst VALUES(9)")
+	exec("CREATE TABLE src(c CHAR(2),v VARCHAR(2))")
+	exec("INSERT INTO src VALUES('a','a')")
+	for _, tc := range []struct {
+		cast, diagnostic, column string
+	}{
+		{"bpchar(2)", "character", "c"},
+		{"char(2)", "character", "c"},
+		{"varchar(2)", "character varying", "v"},
+	} {
+		for _, sourceQuery := range []bool{false, true} {
+			for _, prepared := range []bool{false, true} {
+				q := "/*é🙂*/ INSERT INTO dst VALUES(CAST('a' AS " + tc.cast + "))"
+				if sourceQuery {
+					q = "/*é🙂*/ INSERT INTO dst SELECT " + tc.column + " FROM src"
+				}
+				var diagnosticError error
+				if prepared {
+					stmt, e := db.PrepareContext(ctx, q)
+					diagnosticError = e
+					if stmt != nil {
+						stmt.Close()
+						t.Fatal("incompatible character assignment exposed handle")
+					}
+				} else {
+					result, e := db.ExecContext(ctx, q)
+					diagnosticError = e
+					if result != nil {
+						t.Fatal("incompatible character assignment exposed result")
+					}
+				}
+				var got *stuntgres.Error
+				want := stuntgres.Error{
+					Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804",
+					Message: `column "i" is of type integer but expression is of type ` + tc.diagnostic,
+					Hint:    "You will need to rewrite or cast the expression.", Position: "31",
+				}
+				if !errors.As(diagnosticError, &got) || *got != want {
+					t.Fatal("resolved INSERT source diagnostic", q, prepared, got, diagnosticError, want)
+				}
+				check("SELECT i FROM dst", [][]any{{int64(9)}})
+			}
+		}
+	}
+	exec("DROP TABLE src")
+	exec("DROP TABLE dst")
 	rows, err = db.QueryContext(ctx, "SELECT CAST(NULL AS char(2)) FROM c WHERE id=1")
 	if err != nil {
 		t.Fatal(err)

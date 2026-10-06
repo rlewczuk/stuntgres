@@ -222,3 +222,65 @@ func TestReferenceCharacterParameterReview(t *testing.T) {
 	t.Run("postgres", func(t *testing.T) { characterParameterReviewValues(t, p, p.postgres) })
 	characterParameterReviewErrors(t, p, false)
 }
+
+// Root's independent pinned18 capture confirmed the exact records and stages.
+func characterInsertCastDiagnosticWitnesses(t *testing.T, postgresOnly bool) {
+	p := newReferencePair(t)
+	run := func(s referenceStep) {
+		t.Helper()
+		if postgresOnly {
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
+		} else {
+			p.step(t, s)
+		}
+	}
+	run(referenceExec("CREATE TABLE dst(i INT)", 0))
+	run(referenceExec("INSERT INTO dst VALUES(9)", 1))
+	run(referenceExec("CREATE TABLE src(c CHAR(2),v VARCHAR(2))", 0))
+	run(referenceExec("INSERT INTO src VALUES('a','a')", 1))
+	for _, tc := range []struct{ cast, diagnostic, column string }{
+		{"bpchar(2)", "character", "c"},
+		{"char(2)", "character", "c"},
+		{"varchar(2)", "character varying", "v"},
+	} {
+		for _, sourceQuery := range []bool{false, true} {
+			for _, prepared := range []bool{false, true} {
+				t.Run(tc.cast+"/source="+strconv.FormatBool(sourceQuery)+"/prepared="+strconv.FormatBool(prepared), func(t *testing.T) {
+					q := "/*é🙂*/ INSERT INTO dst VALUES(CAST('a' AS " + tc.cast + "))"
+					offset := strings.Index(q, "CAST(")
+					if sourceQuery {
+						q = "/*é🙂*/ INSERT INTO dst SELECT " + tc.column + " FROM src"
+						offset = strings.Index(q, " SELECT ") + len(" SELECT ")
+					}
+					d := referenceDiagnostic{
+						Code:     "42804",
+						Message:  `column "i" is of type integer but expression is of type ` + tc.diagnostic,
+						Hint:     "You will need to rewrite or cast the expression.",
+						Position: strconv.Itoa(utf8.RuneCountInString(q[:offset]) + 1),
+					}
+					if postgresOnly {
+						characterOracleExec(t, p, q, prepared, true, d)
+					} else {
+						s := referenceImplicitError(q, d)
+						s.errorStage = "execute"
+						if prepared {
+							s = referencePrepared(s)
+							s.errorStage = "prepare"
+						}
+						run(s)
+					}
+					run(referenceSelect("SELECT i FROM dst", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
+					t.Logf("query=%q prepared=%t source-query=%t expected-42804=%#v unchanged-sentinel=9", q, prepared, sourceQuery, d)
+				})
+			}
+		}
+	}
+}
+
+// This capture entrypoint executes SQL only on the configured pinned PostgreSQL.
+func TestReferenceCharacterInsertCastDiagnosticOracle(t *testing.T) {
+	characterInsertCastDiagnosticWitnesses(t, true)
+}
+func TestReferenceCharacterInsertCastDiagnostics(t *testing.T) {
+	characterInsertCastDiagnosticWitnesses(t, false)
+}

@@ -178,3 +178,55 @@ func TestCharacterReviewDiagnosticNamesAndUnknownOccurrences(t *testing.T) {
 		}
 	}
 }
+
+// Root's independent pinned18 oracle confirmed all ordinary/source error routes.
+func TestCharacterInsertCastDiagnosticNames(t *testing.T) {
+	for _, tc := range []struct {
+		cast, diagnostic, column string
+	}{
+		{"bpchar(2)", "character", "c"},
+		{"char(2)", "character", "c"},
+		{"varchar(2)", "character varying", "v"},
+	} {
+		for _, sourceQuery := range []bool{false, true} {
+			for _, prepared := range []bool{false, true} {
+				t.Run(tc.cast+"/source="+strconv.FormatBool(sourceQuery)+"/prepared="+strconv.FormatBool(prepared), func(t *testing.T) {
+					db := openLocal(t, stuntgres.NewDriver(), t.Name())
+					execSQL(t, db, "CREATE TABLE dst(i INT)")
+					execSQL(t, db, "INSERT INTO dst VALUES(9)")
+					execSQL(t, db, "CREATE TABLE src(c CHAR(2),v VARCHAR(2))")
+					execSQL(t, db, "INSERT INTO src VALUES('a','a')")
+					q := "/*é🙂*/ INSERT INTO dst VALUES(CAST('a' AS " + tc.cast + "))"
+					offset := strings.Index(q, "CAST(")
+					if sourceQuery {
+						q = "/*é🙂*/ INSERT INTO dst SELECT " + tc.column + " FROM src"
+						offset = strings.Index(q, " SELECT ") + len(" SELECT ")
+					}
+					want := stuntgres.Error{
+						Code:     "42804",
+						Message:  `column "i" is of type integer but expression is of type ` + tc.diagnostic,
+						Hint:     "You will need to rewrite or cast the expression.",
+						Position: strconv.Itoa(utf8.RuneCountInString(q[:offset]) + 1),
+					}
+					var err error
+					if prepared {
+						stmt, e := db.Prepare(q)
+						err = e
+						if stmt != nil {
+							stmt.Close()
+							t.Fatal("invalid assignment exposed prepared handle")
+						}
+					} else {
+						result, e := db.Exec(q)
+						err = e
+						if result != nil {
+							t.Fatal("invalid assignment exposed result")
+						}
+					}
+					typeCoreDiagnostic(t, err, want)
+					wantTuples(t, db, "SELECT i FROM dst", [][]any{{int64(9)}})
+				})
+			}
+		}
+	}
+}

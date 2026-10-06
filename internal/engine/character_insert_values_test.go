@@ -128,3 +128,30 @@ func TestCharacterSourceValuesCrossIdentityTypmods(t *testing.T) {
 		})
 	}
 }
+
+func TestCharacterInsertCastResolvedSourceDiagnostic(t *testing.T) {
+	e := New()
+	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
+	for _, tc := range []struct {
+		cast, diagnostic string
+		id               sqltype.ID
+	}{
+		{"bpchar(2)", "character", sqltype.BPChar},
+		{"char(2)", "character", sqltype.BPChar},
+		{"varchar(2)", "character varying", sqltype.VarChar},
+	} {
+		t.Run(tc.cast, func(t *testing.T) {
+			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+			raw := statement(t, "/*é🙂*/ INSERT INTO dst VALUES(CAST('a' AS "+tc.cast+"))").(*parser.Insert).Rows[0][0]
+			node, err := b.bind(raw, expressionPolicy{context: assignmentContext, expected: integer.Usage(), mode: sqltype.Assignment})
+			if node == nil || err == nil || node.ResultUsage().Type.ID() != tc.id || node.ResultUsage().Typmod != 6 {
+				t.Fatal("resolved source lost at assignment failure", node, err)
+			}
+			err = insertValueError(e.CatalogRead(), err, ColumnDescriptor{Name: "i", Usage: integer.Usage()}, raw, node.ResultUsage().Type)
+			d, ok := err.(*sqlstate.Error)
+			if !ok || d.Code != "42804" || d.Message != `column "i" is of type integer but expression is of type `+tc.diagnostic || d.Hint != "You will need to rewrite or cast the expression." || d.Position != "31" {
+				t.Fatal("resolved source diagnostic", err)
+			}
+		})
+	}
+}

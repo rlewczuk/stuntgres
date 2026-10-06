@@ -397,7 +397,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				c := b.relation.columns[b.targets[j]]
 				plan, err := bind(v, c, sqltype.Assignment)
 				if err != nil {
-					return b, insertValueError(auth.catalog, err, c, v)
+					var source *sqltype.Descriptor
+					if plan != nil {
+						source = plan.ResultUsage().Type
+					}
+					return b, insertValueError(auth.catalog, err, c, v, source)
 				}
 				b.expressions[rowIndex][j] = plan
 			}
@@ -567,7 +571,7 @@ func creationError(err error, name parser.ObjectName) error {
 	return err
 }
 
-func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw parser.Expr) error {
+func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw parser.Expr, sourceType *sqltype.Descriptor) error {
 	sqlErr, ok := err.(*sqlstate.Error)
 	if !ok {
 		return err
@@ -582,25 +586,18 @@ func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw 
 		if strings.HasPrefix(copy.Message, "column \"") {
 			return &copy
 		}
-		source := literalTypeName(value)
-		if literal, ok := raw.(parser.TypedLiteralExpr); ok {
-			found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: literal.TypeName.Name})
-			if len(found) == 1 {
-				if typ, ok := view.LookupType(sqltype.ID(found[0].ObjectID)); ok {
-					source = typ.DiagnosticName()
+		var source string
+		if sourceType != nil {
+			source = sourceType.DiagnosticName()
+		} else {
+			source = literalTypeName(value)
+			if literal, ok := raw.(parser.TypedLiteralExpr); ok {
+				found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: literal.TypeName.Name})
+				if len(found) == 1 {
+					if typ, ok := view.LookupType(sqltype.ID(found[0].ObjectID)); ok {
+						source = typ.DiagnosticName()
+					}
 				}
-			}
-		}
-		if cast, ok := raw.(parser.CastExpr); ok {
-			switch cast.TypeName.Name {
-			case "int", "int4", "integer":
-				source = "integer"
-			case "int8", "bigint":
-				source = "bigint"
-			case "bool", "boolean":
-				source = "boolean"
-			default:
-				source = cast.TypeName.Name
 			}
 		}
 		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, column.Usage.Type.DiagnosticName(), source)
@@ -901,7 +898,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 				if foldErr != nil {
 					e.mu.Unlock()
-					return Result{}, insertValueError(auth.catalog, foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j])
+					return Result{}, insertValueError(auth.catalog, foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j], nil)
 				}
 				if changed {
 					if privateRow == nil {
@@ -1013,7 +1010,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				row[target], err = expressions[i][j].Eval(&evaluation)
 				if err != nil {
 					e.mu.Unlock()
-					return Result{}, insertValueError(auth.catalog, err, c, v)
+					return Result{}, insertValueError(auth.catalog, err, c, v, nil)
 				}
 			}
 			rows[i] = row

@@ -599,14 +599,15 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	if policy.context == assignmentContext && node.ResultUsage() != policy.expected {
 		plan, err := sqltype.PlanCoercion(node.ResultUsage(), policy.expected, policy.mode)
 		if err != nil {
+			// Retain the resolved source for the assignment caller's diagnostic.
 			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && policy.column != "" {
 				copy := *d
 				copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", policy.column, policy.expected.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())
 				copy.Hint = "You will need to rewrite or cast the expression."
 				copy.Position = strconv.Itoa(parser.ExpressionStart(raw).Character)
-				return nil, &copy
+				return node, &copy
 			}
-			return nil, err
+			return node, err
 		}
 		node = coercionExpression{b.info(policy.expected, raw.SourcePosition(), node.Properties()), node, plan}
 	}
