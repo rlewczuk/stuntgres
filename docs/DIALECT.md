@@ -153,6 +153,34 @@ input is42601; script prefixes do not execute on these full-input rejections.
 Public smoke: `make smoke RUN='^TestNotNull(Smoke|ControlsSmoke)$' VERBOSE=1`.
 
 
+Standalone ALTER TABLE RENAME [COLUMN] old TO new and RENAME TO new support
+relation-level IF EXISTS. Both table and column targets accept qualified/path
+names and t*/ONLY t/ONLY(t) markers for standalone tables. These syntax markers
+do not imply inheritance or partition hierarchy support.
+Destinations are single identifiers. Rename is count-zero OwnerOnly AX, with
+CREATE on the containing namespace additionally required for table rename.
+Prepare has no binding/authorization/lock/notice effects. Missing IF EXISTS
+relations, including absent qualified namespaces, emit one NOTICE00000 naming
+the unqualified relation; existing-table missing columns still fail42703.
+Self/colliding column names fail42701; relation collisions fail42P07, atomically.
+System source names fail0A000; system destinations fail42701. Modern oid remains
+an ordinary user column. Utility diagnostics have no parse-analysis Position.
+
+Renames preserve full relation/attribute identity, unchanged storage backing,
+NOT NULL names and stable-attribute links, ACLs and comments. Published
+descriptors and retained Rows are immutable. Prepared ASTs rebind original SQL
+names rather than rewriting strings: old columns42703, old relations42P01,
+changed star output labels0A000 cached-result-type error. Retained old-table SELECT
+has Position15 on both native and pinned PostgreSQL: reanalysis preserves the
+original relation-name occurrence. Cached-plan logical Context is empty on both
+backends; C Routine is not a logical diagnostic field.
+Canonical Dump emits current names/labels/comments/constraints, not ALTER history.
+RENAME CONSTRAINT belongs to constraint/index metadata work; stored view/FK/index,
+row-type, hierarchy and transactional-DDL effects are PostgreSQL-only witnesses,
+not native successful no-ops. Physical pg_dump/server disk/network mechanisms
+are outside native Reset/Dump/Restore. Smoke:
+`make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1`.
+
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. The current inbound table-definition dependency set is empty, so both drop modes remove the same explicitly selected tables/contained metadata/storage/ACLs, not schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
 
 ALTER TABLE also supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] action, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact; descriptor+storage publish through one guarded CatalogStage, checking original storage root/observed length against concurrent inserts. Native dependencies are named NOT NULL/ACL/comments only, with empty external inbound set; indexes/views/FKs/hierarchy and transactional DDL are explicit external-only reference witnesses. Explicit native transactions exclude ALTER TABLE. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.

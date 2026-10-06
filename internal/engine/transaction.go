@@ -298,7 +298,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	}
 	if t.state == TxActive {
 		switch stmt.(type) {
-		case *parser.Comment, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
+		case *parser.Comment, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
 			return sqlError("0A000", "statement is unsupported in an explicit transaction")
 		}
 	}

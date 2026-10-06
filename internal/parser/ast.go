@@ -99,6 +99,26 @@ type AlterTableDropColumn struct {
 
 func (*AlterTableDropColumn) statement() {}
 
+type AlterTableRenameColumn struct {
+	Name     ObjectName
+	Column   Identifier
+	NewName  Identifier
+	IfExists bool
+	Only     bool
+	Pos      Position
+}
+
+func (*AlterTableRenameColumn) statement() {}
+
+type AlterTableRenameTable struct {
+	Name     ObjectName
+	NewName  Identifier
+	IfExists bool
+	Pos      Position
+}
+
+func (*AlterTableRenameTable) statement() {}
+
 type NotNullAction uint8
 
 const (
@@ -122,8 +142,9 @@ type AlterTableNotNull struct {
 func (*AlterTableNotNull) statement() {}
 
 type alterTarget struct {
-	Name ObjectName
-	Only bool
+	Name     ObjectName
+	Only     bool
+	IfExists bool
 }
 
 type dropTarget struct {

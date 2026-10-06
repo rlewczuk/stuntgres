@@ -1008,13 +1008,59 @@ make smoke RUN='^TestNotNullSmoke$' VERBOSE=1
 make smoke RUN='^TestNotNullControlsSmoke$' VERBOSE=1
 ```
 
+### Identity-preserving table and column renames
+
+`ALTER TABLE [IF EXISTS] t RENAME [COLUMN] old TO new` and
+`ALTER TABLE [IF EXISTS] t RENAME TO new` relabel existing objects without moving
+or rewriting rows. Both table and column targets accept `t*`, `ONLY t` and
+`ONLY(t)` for standalone tables; these markers do not add hierarchy semantics.
+Destinations are one identifier, not schema-qualified. Collisions, including
+renaming to the current name, fail atomically (`42701` column, `42P07` relation).
+Missing columns fail
+`42703`, `column "old" does not exist`; fixed system columns cannot be renamed.
+New names resolve immediately and old names fail with undefined-name diagnostics.
+
+Both forms require the table owner or effective superuser, not merely the schema
+owner. Table rename additionally requires CREATE on its containing schema;
+column rename does not. Execution acquires ACCESS EXCLUSIVE with the existing
+lock timeout, cancellation, grant-time identity and publication fences. Prepare
+does not resolve targets, authorize, lock, emit notices or mutate data. IF EXISTS
+applies only to the relation: missing targets (including absent qualified schemas)
+return count zero and one `00000` NOTICE naming the unqualified relation.
+It does not suppress missing-column or collision errors.
+
+Relation OID/namespace and sparse attribute/origin identities remain stable;
+only the immutable definition revision and selected label/name change. Row
+storage, NOT NULL constraint names and attribute links, ownership, ACLs and
+table/column comments remain attached. Retained Rows preserve original labels
+and values. Retained prepared SQL is reanalyzed, not textually rewritten:
+renamed explicit columns fail `42703`, old table names fail `42P01` with the
+original relation-name character Position (15 in `SELECT * FROM t`), and a
+renamed output label in SELECT star fails `0A000`,
+`cached plan must not change result type`. Unchanged projections and omitted-target
+INSERT survive column relabeling; fresh prepares expose current result labels.
+
+Dump serializes current qualified CREATE/INSERT/COMMENT names and unchanged
+named NOT NULL constraints, never ALTER history. Reset/Restore round trips values,
+metadata and comments through existing native controls; explicit ACL serialization
+remains rejected rather than silently losing grants. These are process-local
+controls, not pg_dump, physical storage durability or network protocol support.
+Views, foreign keys, indexes, CHECKs, row types and inheritance have no native
+stored-definition descriptors; PostgreSQL reference witnesses exercise view/FK
+dependency preservation, hierarchy and transactional DDL separately. Native
+explicit-transaction ALTER and RENAME CONSTRAINT remain unsupported.
+
+```sh
+make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1
+```
+
 ### Single-action column removal
 
 `ALTER TABLE t DROP [COLUMN] [IF EXISTS] name [RESTRICT | CASCADE]`
 removes one live column and its stored cells atomically. Ordinary `t`, `t*`,
 `ONLY t` and `ONLY(t)` operate on supported standalone tables. No action lists,
 inheritance or partition definitions are supported; the other selected ALTER
-actions are the NOT NULL utilities above.
+actions are the NOT NULL utilities and standalone renames above.
 The table's effective owner or superuser is required; unlike DROP TABLE, schema
 ownership alone does not authorize ALTER. Execution takes ACCESS EXCLUSIVE and
 waits for existing readers/writers; utility Prepare is metadata-only. Cancellation

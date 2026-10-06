@@ -1,0 +1,138 @@
+package engine
+
+import (
+	"context"
+	"database/sql/driver"
+	"reflect"
+	"sync"
+	"testing"
+	"time"
+)
+
+// Ordinary table owner in a separately owned namespace: USAGE and CREATE are
+// independent host grants, so CREATE can be revoked without hiding the source.
+func renameAuthorityFixture(t *testing.T) (*Engine, *Session, *Session, ObjectRef, ACLValue) {
+	t.Helper()
+	e := New()
+	admin, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	sessionSQL(t, admin, "CREATE USER rename_transition_owner")
+	sessionSQL(t, admin, "CREATE SCHEMA protected")
+	actor, _ := e.Roles().Lookup("rename_transition_owner")
+	view := e.CatalogRead()
+	address := view.state.names[NameKey{ClassID: NamespaceClassID, Name: "protected"}]
+	ns := ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: address}
+	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: view.state.descriptors[address].(*namespaceDescriptor).owner, Grantee: ACLGrantee{Role: actor.Ref}, Privileges: UsagePrivilege | CreatePrivilege}}}
+	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
+		t.Fatal(err)
+	}
+	sessionSQL(t, owner, "SET SESSION AUTHORIZATION rename_transition_owner")
+	sessionSQL(t, owner, "CREATE TABLE protected.t(a INT CONSTRAINT nn NOT NULL,b TEXT)")
+	sessionSQL(t, owner, "INSERT INTO protected.t VALUES(7,'keep')")
+	return e, admin, owner, ns, acl
+}
+
+func TestAlterRenameAuthorityWaitTransition(t *testing.T) {
+	e, admin, owner, ns, acl := renameAuthorityFixture(t)
+	ref := roleTableRef(t, e, "protected.t")
+	old := e.state.descriptors[ref.Address]
+	storage := e.storage[ref.Address]
+	tx := transactionBegin(t, admin)
+	sessionSQL(t, admin, "LOCK TABLE protected.t IN ACCESS EXCLUSIVE MODE")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := lockAsync(e, owner, ctx, "ALTER TABLE protected.t RENAME TO renamed", false)
+	lockPending(t, e, 1)
+	acl.Entries[0].Privileges = UsagePrivilege
+	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
+		t.Fatal(err)
+	}
+	frontier := e.nextRevision
+	transactionEnd(t, admin, tx, false)
+	// The confirmed waiter must recheck CREATE after its AX grant.
+	select {
+	case err := <-done:
+		renameWantError(t, err, "42501", "permission denied for schema protected")
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	lockEmpty(t, e)
+	if roleTableRef(t, e, "protected.t") != ref || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || e.nextRevision != frontier {
+		t.Fatal("grant-time denial changed source or frontier")
+	}
+	if _, exists := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: "renamed"}]; exists {
+		t.Fatal("grant-time denial published destination")
+	}
+	result := sessionSQL(t, owner, "SELECT * FROM protected.t")
+	if !reflect.DeepEqual(tuples(result), [][]driver.Value{{int64(7), "keep"}}) {
+		t.Fatal("denial changed rows")
+	}
+	sessionSQL(t, owner, "ALTER TABLE protected.t RENAME a TO renamed_column")
+	lockEmpty(t, e)
+}
+
+func TestAlterRenameAuthorityValidationTransition(t *testing.T) {
+	e, _, owner, ns, acl := renameAuthorityFixture(t)
+	ref := roleTableRef(t, e, "protected.t")
+	old := e.state.descriptors[ref.Address]
+	storage := e.storage[ref.Address]
+	oldNamespace := e.state.descriptors[ns.Address]
+	acl.Entries[0].Privileges = UsagePrivilege
+	var once sync.Once
+	provider := e.providers[RelationClassID]
+	var frontier DefinitionRevision
+	e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+		once.Do(func() {
+			if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
+				t.Fatal(err)
+			}
+			frontier = e.nextRevision
+		})
+	}}
+	op, err := owner.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.Execute(op, statement(t, "ALTER TABLE protected.t RENAME TO renamed"), 0, nil)
+	op.Done()
+	if err != (CatalogConflict{}) {
+		t.Fatalf("namespace revision fence got %T %v, want CatalogConflict", err, err)
+	}
+	if e.state.descriptors[ns.Address] == oldNamespace || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || e.nextRevision != frontier || roleTableRef(t, e, "protected.t") != ref {
+		t.Fatal("namespace change not retained or failed rename published effects")
+	}
+	if _, exists := e.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: "renamed"}]; exists {
+		t.Fatal("validation denial published destination")
+	}
+	lockEmpty(t, e)
+}
+
+func TestAlterRenameIfExistsUnauthorizedNamespace(t *testing.T) {
+	e, _, owner, ns, _ := renameAuthorityFixture(t)
+	if err := e.SetObjectACL(context.Background(), ns, ACLValue{Explicit: true}); err != nil {
+		t.Fatal(err)
+	}
+	ref := roleTableRef(t, e, "protected.t")
+	old := e.state.descriptors[ref.Address]
+	storage := e.storage[ref.Address]
+	frontier := e.nextRevision
+	op, err := owner.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	for _, q := range []string{"ALTER TABLE IF EXISTS protected.missing RENAME a TO b", "ALTER TABLE IF EXISTS protected.missing RENAME TO renamed"} {
+		stmt := statement(t, q)
+		if _, err = e.Describe(op, stmt); err != nil {
+			t.Fatal("conditional utility Prepare checked namespace", err)
+		}
+		_, err = e.Execute(op, stmt, 0, nil)
+		renameWantError(t, err, "42501", "permission denied for schema protected")
+		if notices := op.DetachNotices(); len(notices) != 0 {
+			t.Fatal("unauthorized namespace emitted skip notice", notices)
+		}
+	}
+	if e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || e.nextRevision != frontier {
+		t.Fatal("unauthorized conditional mutated source")
+	}
+	lockEmpty(t, e)
+}

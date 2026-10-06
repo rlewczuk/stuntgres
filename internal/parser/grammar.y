@@ -64,7 +64,7 @@ package parser
 %nonassoc TYPE_NAME
 %nonassoc '('
 %nonassoc KW_T IS LIKE WITH WITHOUT
-%type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single alter_rename_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <col> column
 %type <elements> elements optional_elements
 %type <element> element
@@ -79,12 +79,11 @@ package parser
 %type <notNull> table_not_null
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
-%type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with suffix unsupported_query nulls_keyword nulls_position
+%type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with generic_word_without_exists generic_word_base suffix unsupported_query nulls_keyword nulls_position
 %type <settingName> setting_name set_name local_setting_name
 %type <targets> insert_columns insert_targets
 %type <objectName> relation_name
-%type <objectName> alter_relation
-%type <alterTarget> alter_target
+%type <alterTarget> alter_target rename_target
 %type <desc> optional_column
 %type <dropTarget> drop_target
 %type <tok> alter_action
@@ -257,6 +256,8 @@ relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relat
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 alter_drop_column: alter_drop_single { $$=$1 }
  | alter_nn_single { $$=$1 }
+ | alter_rename_single { $$=$1 }
+ | alter_rename_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_nn_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_drop_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | ALTER TABLE alter_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
@@ -269,15 +270,22 @@ alter_nn_single: ALTER TABLE alter_target ALTER optional_column name SET NOT NUL
  | ALTER TABLE alter_target ADD name { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 }
  | ALTER TABLE alter_target ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 }
  | ALTER TABLE alter_target ALTER optional_column name KW_U { if $7.text!="type" { sqllex.(*lexer).syntax($7);return 1 };sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
-alter_target: alter_relation { $$=alterTarget{Name:$1} }
+alter_rename_single: ALTER TABLE rename_target RENAME TO name { $$=&AlterTableRenameTable{Name:$3.Name,NewName:Identifier{Text:$6.text,Pos:$6.pos},IfExists:$3.IfExists,Pos:$1.pos} }
+ | ALTER TABLE rename_target RENAME optional_column name TO name { $$=&AlterTableRenameColumn{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},NewName:Identifier{Text:$8.text,Pos:$8.pos},Only:$3.Only,IfExists:$3.IfExists,Pos:$1.pos} }
+ | ALTER TABLE rename_target RENAME CONSTRAINT name TO name { sqllex.(*lexer).deferUnsupported($5,"RENAME CONSTRAINT is unsupported"); $$=nil } ;
+rename_target: alter_target {$$=$1}
+ | IF EXISTS alter_target {$$=$3;$$.IfExists=true} ;
+alter_target: relation_name { $$=alterTarget{Name:$1} }
+ | relation_name '*' { $$=alterTarget{Name:$1} }
  | ONLY relation_name { $$=alterTarget{Name:$2,Only:true} }
  | ONLY '(' relation_name ')' { $$=alterTarget{Name:$3,Only:true} } ;
-alter_relation: relation_name { $$=$1 } | relation_name '*' { $$=$1 } ;
 optional_column: /* empty */ { $$=false } | COLUMN { $$=true } ;
 /* Share the IF prefix with eligible names: DROP if and IF EXISTS both parse. */
 drop_target: name { $$=dropTarget{Name:Identifier{Text:$1.text,Pos:$1.pos}} }
  | IF EXISTS name { $$=dropTarget{Name:Identifier{Text:$3.text,Pos:$3.pos},IfExists:true} } ;
-alter_action: generic_word | RENAME | OWNER | SET ;
+/* EXISTS cannot start an ALTER action: retain it for IF EXISTS lookahead,
+ * rather than competing with an unqualified relation literally named if. */
+alter_action: generic_word_without_exists | OWNER | SET ;
 column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Constraints:$3, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
@@ -413,8 +421,10 @@ setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAM
 name: setting_word | ROLE | LOCAL ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ADD | INHERITS | transaction_name ;
-generic_word: generic_word_without_with | WITH ;
-generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | OR | ONLY | DEFERRABLE | CONSTRAINT ;
+generic_word: generic_word_without_exists | EXISTS ;
+generic_word_without_exists: generic_word_base | WITH ;
+generic_word_without_with: generic_word_base | EXISTS ;
+generic_word_base: IDENT | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | OR | ONLY | DEFERRABLE | CONSTRAINT ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
 bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | LIKE { $$=$1 }
