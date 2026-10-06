@@ -30,10 +30,11 @@ type lexer struct {
 	floatPrecision bool
 	// Temporal keyword forms retain their unsigned-Iconst grammar; generic
 	// descriptor modifiers retain numeric spellings for subsequent int4 input.
-	temporalLead      bool
-	temporalModifier  bool
-	genericModifier   bool
-	multipleModifiers bool
+	temporalLead        bool
+	temporalModifier    bool
+	genericModifier     bool
+	dateLiteralModifier bool // Distinguishes raw DATE precision from cast operands.
+	multipleModifiers   bool
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.
@@ -635,6 +636,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = LOCAL
 		}
 	}
+	if l.dateLiteralModifier {
+		switch token.code {
+		case NUMBER:
+			token.code = DATE_MODIFIER_NUMBER
+		case int('+'), int('-'), int(')'):
+		default:
+			l.syntax(token.lexeme)
+			return 0
+		}
+	}
 	l.current = token.lexeme
 	v.tok = token.lexeme
 	if token.code == int('(') && l.temporalLead {
@@ -644,6 +655,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.temporalModifier = false
 		if token.code != int(',') {
 			l.genericModifier = false
+			l.dateLiteralModifier = false
 			l.multipleModifiers = false
 		}
 	}

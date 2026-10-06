@@ -17,6 +17,8 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 		target                      sqltype.ID
 		text, destination, identity string
 	}{
+		{"date", sqltype.Int4, "2000-01-01", "integer", "date"},
+		{"date", sqltype.Time, "2000-01-01", "time without time zone", "date"},
 		{"time", sqltype.Int4, "04:05", "integer", "time without time zone"},
 		{"time", sqltype.Timestamp, "04:05", "timestamp without time zone", "time without time zone"},
 		{"timestamp", sqltype.Time, "2003-07-07", "time without time zone", "timestamp without time zone"},
@@ -33,7 +35,7 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 			if err == nil {
 				t.Fatal("incompatible assignment accepted")
 			}
-			got := insertValueError(err, ColumnDescriptor{Name: "v", Usage: d.Usage()}, raw)
+			got := insertValueError(e.CatalogRead(), err, ColumnDescriptor{Name: "v", Usage: d.Usage()}, raw)
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "column \"v\" is of type " + tc.destination + " but expression is of type " + tc.identity, Hint: "You will need to rewrite or cast the expression.", Position: "30"}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("got %#v want %#v", got, want)

@@ -65,6 +65,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.ID() == sqltype.Timestamp {
 			return sqltype.TimestampFromTime(target.Type, v)
 		}
+		if target.Type.ID() == sqltype.Date {
+			return sqltype.DateFromTime(target.Type, v)
+		}
 		// Preserve the existing text-input policy for other SQL destinations.
 		text = v.Format("2006-01-02 15:04:05.999999999Z07:00")
 	case string:
@@ -123,7 +126,7 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 			return nil, err
 		}
 		return []byte(raw), nil
-	case sqltype.UUID, sqltype.Time, sqltype.Numeric:
+	case sqltype.UUID, sqltype.Time, sqltype.Numeric, sqltype.Date:
 		return v.Type().Output(ctx, v)
 	case sqltype.Timestamp:
 		n, err := v.Timestamp()
@@ -159,7 +162,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
-	case sqltype.Text, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Numeric:
+	case sqltype.Text, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Numeric, sqltype.Date:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:
 		return reflect.TypeFor[bool]()

@@ -37,6 +37,8 @@ package parser
  table *CreateTable
 }
 %token <tok> IDENT NUMBER STRING PARAM
+/* Parser-private numeric continuation for DATE literals, never a keyword. */
+%token <tok> DATE_MODIFIER_NUMBER
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL
 %token <tok> '+' '-' '[' ':' '(' '=' '<' '>' ','
@@ -89,7 +91,7 @@ package parser
 %type <tok> like_option_name
 %type <objectNames> relation_names
 %type <dropMode> drop_mode
-%type <typ> type temporal_type generic_precision generic_modifiers type_modifier_head
+%type <typ> type temporal_type generic_precision generic_modifiers type_modifier_head date_literal_precision
 %type <constraints> nullability column_constraints
 %type <constraint> column_constraint
 %type <notNull> table_not_null
@@ -378,12 +380,21 @@ values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$
 scalar: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
  | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
+ /* DATE is an IDENT (also when quoted). TIME/TIMESTAMP STRING continuations
+  * belong exclusively to temporal_type, not the ordinary name reduction. */
+ | IDENT STRING { if $1.text!="date" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
  | '(' scalar ')' { $$=$2 }
  | CAST '(' scalar AS type ')' { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} }
- | cast_function scalar ')' { $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} } ;
+ | cast_function scalar ')' { $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
+ | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}} ;
+/* Share the call opener, but retain raw DATE modifiers instead of reducing
+ * them as scalar literals (which would convert overflowing numbers too early). */
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
+date_literal_precision: DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$1,false);if !ok{return 1}}
+ | '-' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
+ | '+' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos} ;
 value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | TRUE { $$ = Value{Kind:BooleanValue, Boolean:true, Pos:$1.pos} }
  | FALSE { $$ = Value{Kind:BooleanValue, Pos:$1.pos} }

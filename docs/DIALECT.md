@@ -6,7 +6,7 @@ development instructions.
 
 ## Supported surface and limits
 
-CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
+CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
 
 Scalar comparisons admit `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=`; `!=` is the
 `<>` alias. Both operands may be existing scalar literals, parameters or columns.
@@ -14,7 +14,7 @@ Every result is BOOL (`?column?`, native bool ScanType, no physical-column origi
 including empty results; either NULL yields typed BOOL NULL/UNKNOWN, which WHERE
 does not keep. INT2/INT4/INT8 compare exactly across widths without narrowing or
 floating-point conversion. Existing NAME/TEXT, BOOL, FLOAT4/8, exact NUMERIC,
-UUID, BYTEA and same-type TIME/TIMESTAMP providers keep their existing admission and
+UUID, BYTEA and same-type DATE/TIME/TIMESTAMP providers keep their existing admission and
 ordering (C text order, FALSE before TRUE); no cross-temporal casts are added.
 Unknown quoted strings/NULL take a known peer's type; two unknowns choose TEXT.
 Known TEXT is not implicitly integer/BOOL. Parameter occurrences copy their
@@ -225,7 +225,51 @@ SELECT execution uses one eager finite source/filter/sort/projection pipeline an
 
 Analyzed SELECT/INSERT missing-relation errors retain the first relation identifier's one-based character Position (for example, `SELECT id FROM t` gives42P01/`relation "t" does not exist`/16, or22 with an intervening `/*é*/ ` comment). The same normal analysis wrapper handles pre-lock and binder lookup; copied diagnostics preserve every other field and utility COMMENT/ALTER/LOCK/DROP records remain independently owned. Shared malformed-input witnesses use `SELECT id FROM t WHERE` →42601/`syntax error at end of input`/23 rather than treating PostgreSQL's legal empty-target SELECT prefix as shared syntax.
 
-TIME has OID1083 and canonical string output/ScanType, preserving distinct `24:00:00` (pq instead anchors time.Time to Jan1/Jan2 year0). Precision0–6 uses fractional ties-to-even microseconds then half-up sizing; above6 warns22023/clamps, keyword negative precision is42601, quoted `"time"(-1)` is22023. Colon/compact clocks, AMPM, limited optional validated dates/Julian/T/noise, numeric/abbreviation/full-zone inputs and now/allballs are supported. Zones never shift the written clock; historically varying full names require a date, fixed names do not. All REL_18_0 IANA2025b names/aliases are classified through compiled historical TZif offsets without runtime zone I/O. Constants freeze at analysis, parameters use execution transaction start; current environment is UTC. Same-type equality/order/NULL and native Dump/Restore use existing providers/staging; timetz/DATE/functions/casts/session zone settings remain excluded. Feature smoke: `make smoke RUN='^TestTimeSmoke$' VERBOSE=1`; real reference: `go test -tags reference -count=1 -timeout=60s -v -run '^TestReferenceTime.*$' ./reference`.
+DATE (OID1082) stores civil days with proleptic Gregorian bounds 4714-11-24 BC
+through 5874897-12-31, plus infinities. Native output/ScanType is string, including
+expanded years, BC and infinities; typed NULL remains DATE/nil. pq exports finite
+time.Time and default infinity []byte, with time.Time ScanType. DATE has no
+precision: modifiers fail42601 at the type name, during CREATE execution or
+typed-literal analysis, before integer conversion or unary-plus validation of
+parsed modifiers (`date(3.0)`, `date(2147483648)`, `date(+3)`). Parser syntax
+errors still precede type resolution; other types' modifier rules are unchanged.
+Incompatible typed DATE assignments fail42804 during analysis/Prepare and name
+the source `date`, not `date without time zone`; TIME/TIMESTAMP retain their
+`without time zone` diagnostic names. Failed assignments preserve stored rows.
+`date` remains an ordinary identifier; `"date"` is legal.
+DATE modifier literals retain raw numeric spellings on a parser-private,
+per-call continuation distinct from ordinary cast operands; no DATE keyword
+or function-style DATE cast is introduced. Baseline int4/int8/text/bool calls
+and standard/postfix cast parsing remain unchanged; DATE casts still fail0A000.
+ISO/month-name/compact/ordinal/Julian inputs, BC, epoch, fixed MDY and relative
+now/today/yesterday/tomorrow reuse the shared civil decoder. Validated clocks/zones
+never shift or carry the date; time.Time binds preserve their location's Y/M/D,
+including Go year0 as1BC. The date domain is independent of TIMESTAMP's range.
+Successful Go imports ignore clock/zone fields without validating or converting
+them. On a civil-range failure only, the22008 primary includes the failed
+temporal spelling, e.g. `date out of range: "5874898-01-01 00:00:00Z"`;
+fractional seconds, numeric offset seconds and trailing ` BC` are preserved.
+AD/BC numeric years beyond INT32 fail with the earlier `date/time field value
+out of range` primary, before final DATE-domain range validation.
+Pinned pq's BC time.Time encoder uses AddDate and normalizes year0 February29
+to March1; native DATE preserves that leap day. Textual BC input avoids this
+adapter limitation; independent reference expectations distinguish the bind paths.
+Prepared typed/contextual constants freeze; bound values use execution-owned
+transaction-start UTC. Malformed22007, calendar/range22008 and zone failures
+retain English messages, original input and character-positioned literal errors;
+native parameters have no Position/Context. Comparisons order civil days with
+infinities and default NULL order. Dump/Restore quotes canonical values and
+preserves snapshots/atomicity. Captured database/sql ColumnType values remain
+usable after EOF/Close; database/sql itself rejects new ColumnTypes calls on
+closed Rows. Native DATE/TIME and DATE/TIMESTAMP comparisons reject42883;
+PostgreSQL independently supports DATE/TIMESTAMP comparison operators, including
+midnight equality, civil-day ordering, infinities and SQL NULL propagation.
+No cross-temporal casts/settings/arithmetic, CURRENT_DATE or no-FROM SELECT are
+added. Smoke:
+`make smoke RUN='^TestDateSmoke$' VERBOSE=1`; independent pinned reference:
+`make reference RUN='^TestReferenceDate' VERBOSE=1`.
+
+TIME has OID1083 and canonical string output/ScanType, preserving distinct `24:00:00` (pq instead anchors time.Time to Jan1/Jan2 year0). Precision0–6 uses fractional ties-to-even microseconds then half-up sizing; above6 warns22023/clamps, keyword negative precision is42601, quoted `"time"(-1)` is22023. Colon/compact clocks, AMPM, limited optional validated dates/Julian/T/noise, numeric/abbreviation/full-zone inputs and now/allballs are supported. Zones never shift the written clock; historically varying full names require a date, fixed names do not. All REL_18_0 IANA2025b names/aliases are classified through compiled historical TZif offsets without runtime zone I/O. Constants freeze at analysis, parameters use execution transaction start; current environment is UTC. Same-type equality/order/NULL and native Dump/Restore use existing providers/staging; timetz/functions/casts/session zone settings remain excluded. Feature smoke: `make smoke RUN='^TestTimeSmoke$' VERBOSE=1`; real reference: `go test -tags reference -count=1 -timeout=60s -v -run '^TestReferenceTime.*$' ./reference`.
 
 TIME ignores recognized `on`/`at` noise, but rejects standalone weekday tokens (`04:05 on Monday` is22007). Unknown full-zone names produce22023 with a lowercased token in the primary diagnostic (`America/Bogus` becomes `america/bogus`); the original input remains intact in malformed-input diagnostics.
 

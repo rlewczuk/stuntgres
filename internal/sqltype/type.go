@@ -25,6 +25,7 @@ const (
 	Float4    ID = 700
 	Float8    ID = 701
 	Unknown   ID = 705
+	Date      ID = 1082
 	Time      ID = 1083
 	Timestamp ID = 1114
 	Numeric   ID = 1700
@@ -96,6 +97,7 @@ func Builtins() []*Descriptor {
 		{Text, "text", "TEXT", "TEXT"},
 		{Float4, "float4", "REAL", "FLOAT4"},
 		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8"},
+		{Date, "date", "DATE", "DATE"},
 		{Time, "time", "TIME", "TIME"},
 		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
 		{Numeric, "numeric", "NUMERIC", "NUMERIC"},
@@ -204,12 +206,14 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.byteaInput(text)
 	case UUID:
 		return d.uuidInput(text)
+	case Date:
+		return d.civilInput(text, typmod, env)
 	case Time:
 		return d.timeInput(text, typmod, env)
 	case Numeric:
 		return d.numericInput(text, typmod)
 	case Timestamp:
-		return d.timestampInput(text, typmod, env)
+		return d.civilInput(text, typmod, env)
 	case Text:
 		return String(d, text), nil
 	case Bool:
@@ -358,6 +362,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return byteaOutput(v.text, env.ByteaOutput)
 	case UUID:
 		return uuidOutput(v.uuid), nil
+	case Date:
+		return dateOutput(v.integer), nil
 	case Time:
 		return timeOutput(v.integer), nil
 	case Numeric:
@@ -393,6 +399,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return byteaHex(v.text, true), nil
 	case UUID:
 		return "'" + uuidOutput(v.uuid) + "'", nil
+	case Date:
+		return "'" + dateOutput(v.integer) + "'", nil
 	case Time:
 		return "'" + timeOutput(v.integer) + "'", nil
 	case Timestamp:
@@ -626,7 +634,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 				return 1, nil
 			}
 		}
-	case Int2, Int4, Int8, Timestamp, Time:
+	case Int2, Int4, Int8, Timestamp, Time, Date:
 		if a.integer < b.integer {
 			return -1, nil
 		}

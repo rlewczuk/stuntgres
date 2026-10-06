@@ -224,6 +224,10 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func (l *lexer) castFunction(callee, opener lexeme) bool {
 	switch callee.text {
+	case "date":
+		l.genericModifier = true
+		l.dateLiteralModifier = true
+		return true
 	case "int4", "int8", "text", "bool":
 		return true
 	case "integer", "bigint", "boolean", "int":
@@ -327,7 +331,7 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).floatPrecision = true
 		return raw, true
 	}
-	if raw.Name != "bytea" && raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
+	if raw.Name != "bytea" && raw.Name != "date" && raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
 		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
 		return TypeName{}, false
 	}

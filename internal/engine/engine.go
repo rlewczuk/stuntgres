@@ -390,7 +390,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				c := b.relation.columns[b.targets[j]]
 				plan, err := bind(v, c, sqltype.Assignment)
 				if err != nil {
-					return b, insertValueError(err, c, v)
+					return b, insertValueError(auth.catalog, err, c, v)
 				}
 				b.expressions[rowIndex][j] = plan
 			}
@@ -584,7 +584,7 @@ func creationError(err error, name parser.ObjectName) error {
 	return err
 }
 
-func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error {
+func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw parser.Expr) error {
 	sqlErr, ok := err.(*sqlstate.Error)
 	if !ok {
 		return err
@@ -598,7 +598,12 @@ func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error
 	case "42804":
 		source := literalTypeName(value)
 		if literal, ok := raw.(parser.TypedLiteralExpr); ok {
-			source = literal.TypeName.Name + " without time zone"
+			found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: literal.TypeName.Name})
+			if len(found) == 1 {
+				if typ, ok := view.LookupType(sqltype.ID(found[0].ObjectID)); ok {
+					source = typ.DiagnosticName()
+				}
+			}
 		}
 		if cast, ok := raw.(parser.CastExpr); ok {
 			switch cast.TypeName.Name {
@@ -895,7 +900,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 				if foldErr != nil {
 					e.mu.Unlock()
-					return Result{}, insertValueError(foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j])
+					return Result{}, insertValueError(auth.catalog, foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j])
 				}
 				if changed {
 					if privateRow == nil {
@@ -935,7 +940,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				row[target], err = expressions[i][j].Eval(&evaluation)
 				if err != nil {
 					e.mu.Unlock()
-					return Result{}, insertValueError(err, c, v)
+					return Result{}, insertValueError(auth.catalog, err, c, v)
 				}
 			}
 			rows[i] = row

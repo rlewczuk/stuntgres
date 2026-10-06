@@ -112,13 +112,10 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
-	if d.ID() == sqltype.Bytea && len(raw.Modifiers) > 0 {
-		// BYTEA has no typmod input: reject before validating any operands.
-		_, _, err := d.ResolveModifiers()
-		if diagnostic, ok := err.(*sqlstate.Error); ok {
-			return sqltype.Usage{}, typeDiagnostic(raw, diagnostic.Code, diagnostic.Message)
+	if len(raw.Modifiers) > 0 {
+		if err := d.CheckModifierSupport(); err != nil {
+			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
 		}
-		return sqltype.Usage{}, err
 	}
 	modifiers := make([]int32, len(raw.Modifiers))
 	for i, modifier := range raw.Modifiers {
@@ -177,7 +174,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
 	case "money", "char", "bpchar", "varchar",
-		"bit", "varbit", "date", "timetz",
+		"bit", "varbit", "timetz",
 		"timestamptz", "interval", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
