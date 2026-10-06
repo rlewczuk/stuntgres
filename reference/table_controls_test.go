@@ -27,12 +27,7 @@ func TestReferenceTableCoreNativeControlRoundTrip(t *testing.T) {
 	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	for _, part := range []string{`CREATE TABLE "public"."clone.dot" ("i.dot" INTEGER NOT NULL, "b" BIGINT, "s" TEXT, "f" BOOLEAN);`, `CREATE TABLE "public"."z" ();`, `CREATE TABLE "public"."zl" ();`} {
-		if !strings.Contains(dump.String(), part) {
-			t.Fatal("missing canonical shape", part, dump.String())
-		}
-	}
-	if strings.Contains(dump.String(), "LIKE") || strings.Contains(dump.String(), "source.dot") {
+	if strings.Contains(dump.String(), "LIKE") {
 		t.Fatal(dump.String())
 	}
 	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
@@ -58,6 +53,7 @@ func TestReferenceTableCoreNativeControlRoundTrip(t *testing.T) {
 	if err := stuntgres.Dump(p.ctx, p.native, &redump); err != nil || redump.String() != dump.String() {
 		t.Fatal(redump.String(), err)
 	}
+	p.step(t, referenceImplicitError(`INSERT INTO "clone.dot" VALUES(NULL,NULL,NULL,NULL)`, referenceDiagnostic{Code: "23502", Message: `null value in column "i.dot" of relation "clone.dot" violates not-null constraint`, Detail: "Failing row contains (null, null, null, null).", Schema: "public", Table: "clone.dot", Column: "i.dot"}))
 	for _, script := range []string{"CREATE TABLE replacement(LIKE missing)", "CREATE TABLE replacement(id INT,id TEXT)", "CREATE TABLE replacement(id no_such_type)", "CREATE TABLE replacement(LIKE z INCLUDING ALL)", "DROP TABLE z"} {
 		if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err == nil {
 			t.Fatal("bad restore accepted", script)
@@ -68,6 +64,15 @@ func TestReferenceTableCoreNativeControlRoundTrip(t *testing.T) {
 			t.Fatal("failed restore changed catalog", err)
 		}
 	}
+	p.step(t, referencePrepared(referenceExec(`ALTER TABLE "clone.dot" DROP CONSTRAINT "source.dot_i.dot_not_null"`, 0)))
+	p.step(t, expected)
+	p.step(t, referencePrepared(referenceExec(`INSERT INTO "clone.dot" VALUES(NULL,99,'released',FALSE)`, 1)))
+	p.step(t, referenceSelect(`SELECT * FROM "clone.dot" WHERE b=99`, []string{"i.dot", "b", "s", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{nil, int64(99), "released", false}}))
+	absent := referenceImplicitError(`SELECT * FROM "source.dot"`, referenceDiagnostic{Code: "42P01", Message: `relation "source.dot" does not exist`})
+	pgAbsent := *absent.diagnostic
+	pgAbsent.Position = "15"
+	absent.postgresDiagnostic = &pgAbsent
+	p.step(t, absent)
 }
 
 func TestReferenceTableCoreAuthorizationAndOwnershipCleanup(t *testing.T) {

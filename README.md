@@ -632,13 +632,19 @@ Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
 
 ```text
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
-element := column type [NULL | NOT NULL] | LIKE [schema.]source
+element := column type [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL]...
+         | [CONSTRAINT name] NOT NULL column | LIKE [schema.]source
 DROP TABLE [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 COMMENT ON TABLE [schema.]name IS string_literal | NULL
 COMMENT ON COLUMN [schema.]table.column IS string_literal | NULL
 COMMENT ON SCHEMA name IS string_literal | NULL
 COMMENT ON ROLE name IS string_literal | NULL
 ALTER TABLE [ONLY] [schema.]name DROP [COLUMN] [IF EXISTS] column [RESTRICT | CASCADE]
+ALTER TABLE target ALTER [COLUMN] column SET NOT NULL
+ALTER TABLE target ALTER [COLUMN] column DROP NOT NULL
+ALTER TABLE target ADD [CONSTRAINT name] NOT NULL column
+ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
+target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | scalar [, ...]) FROM [schema.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
@@ -742,12 +748,13 @@ There is no dummy column, `INSERT DEFAULT VALUES` remains unsupported, and
 `INSERT ... VALUES ()` is invalid syntax. Ordinary `oid` is a legal column;
 `ctid`, `xmin`, `cmin`, `xmax`, `cmax` and `tableoid` conflict with system names.
 
-Plain LIKE copies names, supported concrete types and NOT NULL in declaration
-order at its position among explicit columns. Multiple/interleaved LIKE clauses
-are allowed; duplicate expanded names fail `42701`. The destination has fresh
-identity/origins, current-user ownership, no copied rows or ACL, and no persistent
-dependency on its source. LIKE requires relation-level SELECT; column-only SELECT
-is insufficient.
+Plain LIKE copies column names and supported concrete types in declaration
+order, and named NOT NULL identities at the LIKE element's position. Copied
+constraints are processed in source constraint-name order, as in PostgreSQL.
+Multiple/interleaved LIKE clauses are allowed; duplicate expanded names fail `42701`. The destination
+has fresh relation/attribute identities, current-user ownership, no copied rows
+or ACL, and no persistent dependency on its source. LIKE requires relation-level
+SELECT; column-only SELECT is insufficient.
 
 Qualified LIKE sources use that schema's USAGE checks; unqualified sources follow
 the effective search path independently of the destination. Nested CREATE TABLE
@@ -818,12 +825,101 @@ The independent reference recorder preserves genuine zero-column cursor
 metadata as an empty result, distinct from no query result; consumed rows and
 cursor closure are checked for both native and PostgreSQL executions.
 
+### NOT NULL constraints
+
+Both column `a INT [CONSTRAINT nn] NOT NULL` and table-form
+`[CONSTRAINT nn] NOT NULL a` are supported (the table form has no parentheses).
+Table constraints can precede their columns. `NULL`, including named NULL, is
+nullable syntax, not a stored constraint. Repeated compatible declarations
+merge into one identity; an explicit name replaces a pending generated name.
+Conflicting NULL/NOT NULL declarations within one column definition fail
+`42601` at the conflicting token. Column-local declarations are validated before
+table constraints: differently named column NOT NULL duplicates reproduce the
+pinned PostgreSQL 18.0 `XX000`, even when a table constraint precedes the column.
+Table-level NOT NULL can enforce a column declared NULL in either element order;
+only NOT NULL identities participate in that merge. Different names in that
+merge use `42601`. Duplicate explicit names on different columns fail `42710`.
+Named/unnamed CREATE table constraints targeting a system column, such as ctid,
+fail `0A000`, `cannot add not-null constraint on system column "ctid"`, rather
+than reporting a missing ordinary column.
+
+An unnamed constraint gets a PostgreSQL-style UTF8-safe 63-byte
+`table_column_not_null` name, with numeric suffixes avoiding every constraint
+name in its namespace, including preceding nested CREATE SCHEMA tables and
+already-selected names in the current command. Allocation follows the original
+column/table/LIKE element order after merging later declarations for the same
+column; future explicit names are not reserved. For example,
+`CREATE TABLE t(a INT NOT NULL,b INT CONSTRAINT t_a_not_null NOT NULL)` fails
+`23505` for `pg_constraint_conrelid_contypid_conname_index`, with Schema
+`pg_catalog`, Table `pg_constraint`, and Constraint equal to that index name.
+Detail is `Key (conrelid, contypid, conname)=(OID, 0, t_a_not_null) already exists.`,
+where OID is the actual locally allocated candidate relation ID, not a fixed
+cross-server value. No table is published. Reversing these column declarations
+succeeds and generates `t_a_not_null1` for `a`.
+Explicit names are relation-local and can be reused on another table. Names
+stay attached to stable attribute identities through schema renames and dense
+DROP COLUMN compaction. DROP COLUMN removes only its own NOT NULL identity.
+LIKE copies the names onto fresh destination attributes; source ALTER/DROP
+never weakens the clone.
+
+Single-action SET/DROP NOT NULL and ADD/DROP CONSTRAINT use owner-authorized
+ACCESS EXCLUSIVE execution; Prepare has no locks, validation scans, notices or
+name allocation. SET/ADD validates visible committed rows first. Old NULL gives
+`23502`, `column "a" of relation "t" contains null values`, with schema/table/
+column fields and no failing-row Detail or Constraint field. INSERT NULL gives
+`23502`, `null value in column "a" of relation "t" violates not-null constraint`,
+with a failing-row Detail and the same object fields even for named constraints.
+Multirow failure publishes no rows. Failed ALTER leaves descriptor, names,
+nullability and data intact; successful ALTER changes metadata only, retaining
+row storage and immutable snapshots.
+
+Compatible repeated SET/ADD preserves the original name and is a count-zero
+no-op. DROP NOT NULL is also a no-op when already nullable. DROP CONSTRAINT
+removes that identity and makes its column nullable. Missing names give `42704`;
+IF EXISTS emits `00000` NOTICE `constraint "name" of relation "t" does not exist,
+skipping`, after authorization, without allocating a revision. Every selected
+utility returns zero affected rows. Retained prepared SELECT and parameterized
+INSERT handles use current nullability across SET/ADD/DROP without a
+cached-result-type failure: bound nil fails while enforced and succeeds after
+DROP. Native metadata reports known nullability and INT4's int64 ScanType;
+the pinned pq adapter reports int32 ScanType but no Nullable capability.
+Table/schema owner distinctions, namespace USAGE and final
+context/session/epoch/revision/row-length fences still apply.
+
+Dump emits canonical quoted `CONSTRAINT name NOT NULL` declarations, including
+generated names, not ALTER history. Isolated Restore uses the common CREATE/
+INSERT binder, preserving names/data/nullability/ownership/comments; failed
+declarations or NULL insertion preserve the target. Explicit-ACL Dump rejection
+and ordinary context/I/O errors are unchanged.
+
+UPDATE has no native executor; inheritance has no native hierarchy/merge
+mechanism; NOT VALID/VALIDATE/NO INHERIT have no native deferred validation or
+hierarchy flags. They are explicit `0A000` boundaries, not successful no-ops.
+Native failure-only INHERITS recognition accepts one complete parent list after
+either CREATE TABLE form, including qualified/quoted/multiple parents, and
+rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
+unclosed, malformed or repeated clauses and extra tails are `42601`; complete
+input rejection prevents earlier statements in the same script taking effect.
+CHECK, primary keys, domains and general ALTER action lists remain excluded.
+Explicit-transaction DDL remains `0A000` and aborts the native block. Independent
+PostgreSQL-only tests witness actual UPDATE enforcement, inherited OR nullability,
+inherited-drop rejection, NO INHERIT, CHECK unknown acceptance, deferred
+validation, and transactional DDL rollback. These are not native engine claims.
+
+Public feature smokes:
+
+```sh
+make smoke RUN='^TestNotNullSmoke$' VERBOSE=1
+make smoke RUN='^TestNotNullControlsSmoke$' VERBOSE=1
+```
+
 ### Single-action column removal
 
 `ALTER TABLE t DROP [COLUMN] [IF EXISTS] name [RESTRICT | CASCADE]`
 removes one live column and its stored cells atomically. Ordinary `t`, `t*`,
 `ONLY t` and `ONLY(t)` operate on supported standalone tables. No action lists,
-other ALTER TABLE actions, inheritance or partition definition support is added.
+inheritance or partition definitions are supported; the other selected ALTER
+actions are the NOT NULL utilities above.
 The table's effective owner or superuser is required; unlike DROP TABLE, schema
 ownership alone does not authorize ALTER. Execution takes ACCESS EXCLUSIVE and
 waits for existing readers/writers; utility Prepare is metadata-only. Cancellation
@@ -849,8 +945,9 @@ Missing expression-column diagnostics interpolate decoded quoted identifiers
 literally, including embedded quotes/backslashes, with character-based positions
 when direct or retained/new prepared queries rebind after DROP.
 
-The actual supported dependent set is column nullability, column ACL payload and
-column comments. DROP removes exactly the selected attribute's comment, retaining
+The actual supported dependent set is named NOT NULL constraints, column ACL
+payload and column comments. DROP removes exactly the selected attribute's
+constraint and comment, retaining
 table and survivor comments keyed by stable attribute IDs. Canonical Dump emits
 survivor comments by column name; Reset/Restore preserves those comments even
 though the restored declaration has fresh dense attribute IDs.
@@ -1623,7 +1720,7 @@ SQL errors support `errors.As` into `interface { SQLState() string }`; exported 
 
 Native SQL failures supply both severity fields as `ERROR`, including parser, missing-object and duplicate-object failures; naming an object in the primary message does not imply an object diagnostic field. The error-fields feature smoke is `go test -count=1 -run '^TestErrorFieldsSmoke$' ./smoke`: it checks exact syntax and engine diagnostics, direct/prepared NOT NULL failures, statement atomicity, wrapping, ordinary context cancellation and native control round trips. Go test reports the result. Reference-only permission, procedural and SQL cancellation witnesses exercise PostgreSQL diagnostic transport expectations, not native implementations of those unsupported features.
 
-Shared generic SQL diagnostics construct only severity, SQLSTATE and primary message; they never infer object identities. In particular, input/range conversion errors (`22P02`/`22003`) do not infer Schema, Table or Column from a destination or WHERE predicate. Condition-specific producers explicitly own their additional fields: the supported NOT NULL failure (`23502`) supplies its schema/table/column and failing-row Detail. This distinction follows PostgreSQL's [conditional error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html); clients must not infer the presence of one object field from another.
+Shared generic SQL diagnostics construct only severity, SQLSTATE and primary message; they never infer object identities. In particular, input/range conversion errors (`22P02`/`22003`) do not infer Schema, Table or Column from a destination or WHERE predicate. Condition-specific NOT NULL producers (`23502`) supply schema/table/column: INSERT includes failing-row Detail, while SET/ADD existing-row validation has no Detail. Even a named constraint leaves the Constraint field empty. This distinction follows PostgreSQL's [conditional error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html); clients must not infer the presence of one object field from another.
 
 Invalid boolean strings retain the original decoded input in the PostgreSQL `22P02` primary message (for example, `invalid input syntax for type boolean: "o"`). Boolean WHERE string-literal failures now carry the one-based character Position of the source opener, as INSERT already does, including during actual preparation and on empty tables. Escapes and continued strings do not change that provenance. Bound parameters have no query Position or native portal Context; real PostgreSQL Bind errors independently retain lib/pq's parameter Context. No destination object identities are inferred.
 

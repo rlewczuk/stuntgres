@@ -131,8 +131,13 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 	if err == nil && ref != scope.lockedRef {
 		err = ErrCatalogReplaced
 	}
-	if err == nil { err = auth.Check(AccessRequirement{Object:ref, OwnerOnly:true}) }
-	if err != nil { e.mu.Unlock(); return Result{}, err }
+	if err == nil {
+		err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+	}
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
 	if isSystemColumn(s.Column.Text) {
 		e.mu.Unlock()
@@ -147,11 +152,17 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 		op.session.mu.Lock()
 		err = publicationOperationLocked(e, op)
 		op.session.mu.Unlock()
-		if err == nil { err = op.Context().Err() }
-		if err == nil { scope.completed = true }
+		if err == nil {
+			err = op.Context().Err()
+		}
+		if err == nil {
+			scope.completed = true
+		}
 		e.mu.Unlock()
-		if err != nil { return Result{}, err }
-		op.emitNotice(levelNotice, sqlstate.Error{Severity:"NOTICE", SeverityUnlocalized:"NOTICE", Code:"00000", Message:fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, s.Column.Text, old.name)})
+		if err != nil {
+			return Result{}, err
+		}
+		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, s.Column.Text, old.name)})
 		return Result{}, nil
 	}
 	if old.revision == DefinitionRevision(^uint64(0)) {
@@ -159,7 +170,10 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
 	original := e.storage[ref.Address]
-	if original == nil { e.mu.Unlock(); return Result{}, fmt.Errorf("stuntgres: relation storage is missing") }
+	if original == nil {
+		e.mu.Unlock()
+		return Result{}, fmt.Errorf("stuntgres: relation storage is missing")
+	}
 	originalVersions := original.versions
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
@@ -171,44 +185,76 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 	next.attributes = make([]int32, 0, len(old.attributes)-1)
 	next.index = make(map[string]int, len(old.index)-1)
 	for i, column := range old.columns {
-		if err := op.Context().Err(); err != nil { return Result{}, err }
-		if i == slot { continue }
+		if err := op.Context().Err(); err != nil {
+			return Result{}, err
+		}
+		if i == slot {
+			continue
+		}
 		next.index[column.Name] = len(next.columns)
 		next.columns = append(next.columns, column)
 		next.attributes = append(next.attributes, old.attributes[i])
 	}
+	next.notNullConstraints = nil
+	for _, constraint := range old.notNullConstraints {
+		if constraint.Attribute != old.attributes[slot] {
+			next.notNullConstraints = append(next.notNullConstraints, constraint)
+		}
+	}
 	if _, exists := old.columnACL[old.attributes[slot]]; exists {
 		next.columnACL = nil
 		for sub, acl := range old.columnACL {
-			if err := op.Context().Err(); err != nil { return Result{}, err }
-			if sub == old.attributes[slot] { continue }
-			if next.columnACL == nil { next.columnACL = make(map[int32]ACLValue, len(old.columnACL)-1) }
+			if err := op.Context().Err(); err != nil {
+				return Result{}, err
+			}
+			if sub == old.attributes[slot] {
+				continue
+			}
+			if next.columnACL == nil {
+				next.columnACL = make(map[int32]ACLValue, len(old.columnACL)-1)
+			}
 			next.columnACL[sub] = acl
 		}
 	}
 	if _, exists := old.columnComments[old.attributes[slot]]; exists {
 		next.columnComments = nil
 		for sub, text := range old.columnComments {
-			if err := op.Context().Err(); err != nil { return Result{}, err }
-			if sub == old.attributes[slot] { continue }
-			if next.columnComments == nil { next.columnComments = make(map[int32]string, len(old.columnComments)-1) }
+			if err := op.Context().Err(); err != nil {
+				return Result{}, err
+			}
+			if sub == old.attributes[slot] {
+				continue
+			}
+			if next.columnComments == nil {
+				next.columnComments = make(map[int32]string, len(old.columnComments)-1)
+			}
 			next.columnComments[sub] = text
 		}
 	}
-	replacement := &relationStorage{versions:make([]rowVersion, len(originalVersions))}
+	replacement := &relationStorage{versions: make([]rowVersion, len(originalVersions))}
 	for i, row := range originalVersions {
-		if err := op.Context().Err(); err != nil { return Result{}, err }
-		if len(row.values) != len(old.columns) { return Result{}, fmt.Errorf("stuntgres: invalid original row width") }
+		if err := op.Context().Err(); err != nil {
+			return Result{}, err
+		}
+		if len(row.values) != len(old.columns) {
+			return Result{}, fmt.Errorf("stuntgres: invalid original row width")
+		}
 		values := make([]sqltype.Value, len(next.columns))
 		copy(values, row.values[:slot])
 		copy(values[slot:], row.values[slot+1:])
 		row.values = values
 		replacement.versions[i] = row
 	}
-	if err := stage.alterRelation(op.Context(), ref, &next, original, replacement); err != nil { return Result{}, err }
+	if err := stage.alterRelation(op.Context(), ref, &next, original, replacement, len(originalVersions)); err != nil {
+		return Result{}, err
+	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
-	if err != nil { return Result{}, err }
-	if _, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch:ref.Epoch}); err != nil { return Result{}, err }
+	if err != nil {
+		return Result{}, err
+	}
+	if _, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
+		return Result{}, err
+	}
 	scope.completed = true
 	return Result{}, nil
 }

@@ -75,7 +75,7 @@ func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ObjectRef, *rel
 		replacement.versions[i] = row
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	if err := stage.alterRelation(context.Background(), ref, &next, original, replacement); err != nil {
+	if err := stage.alterRelation(context.Background(), ref, &next, original, replacement, len(original.versions)); err != nil {
 		t.Fatal(err)
 	}
 	return stage, ref, old

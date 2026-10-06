@@ -40,6 +40,13 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 		name = v.Name
 		mode = accessExclusive
 		ownerOnly = true
+	case *parser.AlterTableNotNull:
+		if !execute {
+			return nil
+		}
+		name = v.Name
+		mode = accessExclusive
+		ownerOnly = true
 	case *parser.LockTable:
 		if !execute {
 			return nil

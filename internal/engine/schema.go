@@ -48,13 +48,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		}
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
-	if len(stage.descriptors) != 0 {
-		for _, element := range s.Elements {
-			if element.Like != nil {
-				auth.catalog = e.stageRead(stage)
-				break
-			}
-		}
+	auth.catalog = stage.base
+	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
+		auth.catalog = e.stageRead(stage)
 	}
 	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, sqltype.InputEnvironment{}, op, nil)
 	if err != nil {
@@ -74,6 +70,10 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		d.attributes[i] = int32(i + 1)
 		d.columns[i].OriginTable = uint32(oid)
 		d.columns[i].OriginAttribute = int16(i + 1)
+	}
+	d.notNullConstraints = b.createNotNull
+	if err := nameCreateNotNull(d, auth.catalog); err != nil {
+		return err
 	}
 	// PostgreSQL resolves raw column modifiers again while building the
 	// relation descriptor, without a parser state/source position.

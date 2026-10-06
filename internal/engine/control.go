@@ -71,6 +71,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		versions            []rowVersion
 		comment             string
 		columnComments      map[int32]string
+		notNullConstraints  []notNullConstraint
 	}
 	tables := make([]dumpRelation, 0)
 	type dumpSchema struct{ name, owner string }
@@ -210,7 +211,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{principal.Name, ns.name, r.name, r.columns, r.attributes, storage.versions, r.comment, r.columnComments})
+		tables = append(tables, dumpRelation{principal.Name, ns.name, r.name, r.columns, r.attributes, storage.versions, r.comment, r.columnComments, r.notNullConstraints})
 	}
 	e.mu.Unlock()
 	sort.Slice(tables, func(i, j int) bool {
@@ -273,7 +274,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			line.WriteString(quoteIdentifier(c.Name) + " " + declaration)
 			if !c.Nullable {
-				line.WriteString(" NOT NULL")
+				for _, constraint := range t.notNullConstraints {
+					if constraint.Attribute == t.attributes[i] {
+						line.WriteString(" CONSTRAINT " + quoteIdentifier(constraint.Name) + " NOT NULL")
+						break
+					}
+				}
 			}
 		}
 		line.WriteString(");\n")

@@ -1,0 +1,253 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"stuntgres/internal/sqlstate"
+	"testing"
+	"time"
+)
+
+func TestNotNullAXWaitCancellationAndEnd(t *testing.T) {
+	for _, ending := range []bool{false, true} {
+		e := New()
+		a := sessionStart(t, e, nil)
+		b := sessionStart(t, e, nil)
+		sessionSQL(t, a, "CREATE TABLE t(a INT)")
+		ref := roleTableRef(t, e, "t")
+		old := e.state.descriptors[ref.Address]
+		tx := transactionBegin(t, a)
+		sessionSQL(t, a, "INSERT INTO t VALUES(7)")
+		ctx, cancel := context.WithCancel(context.Background())
+		done := lockAsync(e, b, ctx, "ALTER TABLE t ALTER a SET NOT NULL", false)
+		lockPending(t, e, 1)
+		if ending {
+			b.RequestEnd(CleanClose)
+		} else {
+			cancel()
+		}
+		lockAwait(t, done, context.Canceled)
+		cancel()
+		lockPending(t, e, 0)
+		if e.state.descriptors[ref.Address] != old {
+			t.Fatal("canceled waiter changed schema")
+		}
+		transactionEnd(t, a, tx, true)
+		lockEmpty(t, e)
+		if !ending {
+			sessionSQL(t, b, "ALTER TABLE t ALTER a SET NOT NULL")
+			sessionSQL(t, b, "ALTER TABLE t DROP CONSTRAINT t_a_not_null")
+			lockEmpty(t, e)
+		}
+	}
+}
+
+func TestNotNullAXGrantTimeDescriptorAndRetargetFence(t *testing.T) {
+	for _, kind := range []string{"revision", "shadow", "reset", "restore", "recreate"} {
+		t.Run(kind, func(t *testing.T) {
+			e := New()
+			a := sessionStart(t, e, nil)
+			b := sessionStart(t, e, nil)
+			sessionSQL(t, a, "CREATE SCHEMA shadow")
+			sessionSQL(t, a, "CREATE TABLE t(a INT)")
+			sessionSQL(t, a, "INSERT INTO t VALUES(7)")
+			if kind == "shadow" {
+				sessionSQL(t, b, "SET search_path TO shadow,public")
+			}
+			ref := roleTableRef(t, e, "t")
+			tx := transactionBegin(t, a)
+			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+			done := lockAsync(e, b, context.Background(), "ALTER TABLE t ADD CONSTRAINT requested NOT NULL a", false)
+			lockPending(t, e, 1)
+			switch kind {
+			case "revision":
+				stage, ref, _ := notNullMetadataStage(t, e)
+				prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
+					t.Fatal(err)
+				}
+			case "shadow":
+				run(t, e, "CREATE TABLE shadow.t(a INT)")
+			case "reset":
+				if err := e.Reset(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+			case "restore":
+				if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(a INT);INSERT INTO t VALUES(91)")); err != nil {
+					t.Fatal(err)
+				}
+			case "recreate":
+				run(t, e, "DROP TABLE t")
+				run(t, e, "CREATE TABLE t(a INT)")
+			}
+			if kind == "reset" || kind == "restore" {
+				lockAwait(t, done, ErrCatalogReplaced)
+				transactionEnd(t, a, tx, false)
+			} else {
+				transactionEnd(t, a, tx, false)
+				if kind == "revision" {
+					lockAwait(t, done, nil)
+					d := e.state.descriptors[ref.Address].(*relationDescriptor)
+					if len(d.notNullConstraints) != 1 || d.notNullConstraints[0].Name != "t_a_not_null" {
+						t.Fatal(d)
+					}
+				} else {
+					lockAwait(t, done, ErrCatalogReplaced)
+				}
+			}
+			lockEmpty(t, e)
+		})
+	}
+}
+
+func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE t(a INT)")
+	values := strings.Repeat("(7),", 128)
+	run(t, e, "INSERT INTO t VALUES"+strings.TrimSuffix(values, ","))
+	ref := roleTableRef(t, e, "t")
+	old := e.state.descriptors[ref.Address]
+	storage := e.storage[ref.Address]
+	ctx, cancel := context.WithCancel(context.Background())
+	op, done, err := testOperation(e, ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	defer cancel()
+	op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
+	_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), 0, nil)
+	if !errors.Is(err, context.Canceled) || e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage {
+		t.Fatal(err)
+	}
+	maximum := *old.(*relationDescriptor)
+	maximum.revision = DefinitionRevision(^uint64(0))
+	stage := e.BeginCatalogStage(e.CatalogRead())
+	if err = stage.Replace(&maximum); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = testExecute(e, context.Background(), statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), nil)
+	if err == nil || err.Error() != "stuntgres: definition revision exhausted" || e.state.descriptors[ref.Address] != &maximum || e.storage[ref.Address] != storage {
+		t.Fatal(err)
+	}
+}
+
+func TestNotNullOwnerOnlyACLAndNamespace(t *testing.T) {
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	roleExecute(t, e, op, "CREATE USER reader")
+	roleExecute(t, e, op, "CREATE USER schema_owner")
+	roleExecute(t, e, op, "CREATE SCHEMA s AUTHORIZATION schema_owner")
+	roleExecute(t, e, op, "CREATE TABLE s.t(a INT)")
+	ref := roleTableRef(t, e, "s.t")
+	old := e.state.descriptors[ref.Address]
+	owner := op.RoleState().CurrentUser
+	reader, _ := e.Roles().Lookup("reader")
+	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+		t.Fatal(err)
+	}
+	old = e.state.descriptors[ref.Address]
+	for _, role := range []string{"schema_owner", "reader"} {
+		roleExecute(t, e, op, "SET SESSION AUTHORIZATION "+role)
+		_, err := e.Execute(op, statement(t, "ALTER TABLE s.t ALTER a SET NOT NULL"), 0, nil)
+		var got *sqlstate.Error
+		if !errors.As(err, &got) || got.Code != "42501" || e.state.descriptors[ref.Address] != old {
+			t.Fatal(got, err)
+		}
+		if role == "schema_owner" && got.Message != "must be owner of table t" {
+			t.Fatal(got)
+		}
+		if role == "reader" && got.Message != "permission denied for schema s" {
+			t.Fatal(got)
+		}
+		roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
+	}
+	// Public grants give DML authority, never ALTER ownership.
+	roleExecute(t, e, op, "CREATE TABLE public.t(a INT)")
+	ref = roleTableRef(t, e, "public.t")
+	if err := e.SetObjectACL(context.Background(), ref, ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: owner, Grantee: ACLGrantee{Role: reader.Ref}, Privileges: SelectPrivilege | InsertPrivilege}}}); err != nil {
+		t.Fatal(err)
+	}
+	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
+	roleExecute(t, e, op, "INSERT INTO public.t VALUES(7)")
+	_, err := e.Execute(op, statement(t, "ALTER TABLE public.t ADD NOT NULL a"), 0, nil)
+	var got *sqlstate.Error
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "must be owner of table t"}
+	if !errors.As(err, &got) || *got != want {
+		t.Fatal(got, err)
+	}
+	roleExecute(t, e, op, "CREATE TABLE owned(a INT)")
+	roleExecute(t, e, op, "ALTER TABLE owned ALTER a SET NOT NULL")
+	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
+	roleExecute(t, e, op, "ALTER TABLE public.t ALTER a SET NOT NULL")
+}
+
+func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
+	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ALTER a DROP NOT NULL", "ALTER TABLE t ADD NOT NULL a", "ALTER TABLE t DROP CONSTRAINT IF EXISTS missing"} {
+		t.Run(q, func(t *testing.T) {
+			e := New()
+			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			sessionSQL(t, a, "CREATE TABLE t(a INT)")
+			sessionSQL(t, b, "SET lock_timeout='80ms'")
+			ref := roleTableRef(t, e, "t")
+			old := e.state.descriptors[ref.Address]
+			tx := transactionBegin(t, a)
+			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+			done := lockAsync(e, b, context.Background(), q, false)
+			lockPending(t, e, 1)
+			select {
+			case err := <-done:
+				waitsDiagnostic(t, err, "55P03", "canceling statement due to lock timeout")
+			case <-time.After(5 * time.Second):
+				t.Fatal("NOT NULL AX waiter did not time out")
+			}
+			lockPending(t, e, 0)
+			if e.state.descriptors[ref.Address] != old {
+				t.Fatal("timed-out utility mutated descriptor")
+			}
+			transactionEnd(t, a, tx, false)
+			sessionSQL(t, b, q)
+			lockEmpty(t, e)
+		})
+	}
+}
+
+func TestNotNullIntegratedAXWaitWithNowaitPeer(t *testing.T) {
+	e := New()
+	a, b, c := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
+	sessionSQL(t, a, "CREATE TABLE t(a INT)")
+	ta, tc := transactionBegin(t, a), transactionBegin(t, c)
+	sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := lockAsync(e, b, ctx, "ALTER TABLE t ALTER a SET NOT NULL", false)
+	lockPending(t, e, 1)
+	op, err := c.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = testExecuteFrame(e, op, statement(t, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE NOWAIT"), nil)
+	op.Done()
+	waitsDiagnostic(t, err, "55P03", `could not obtain lock on relation "t"`)
+	lockPending(t, e, 1)
+	transactionEnd(t, c, tc, false)
+	cancel()
+	lockAwait(t, done, context.Canceled)
+	transactionEnd(t, a, ta, false)
+	lockEmpty(t, e)
+	sessionSQL(t, b, "ALTER TABLE t ALTER a SET NOT NULL")
+	sessionSQL(t, b, "ALTER TABLE t DROP CONSTRAINT t_a_not_null")
+	lockEmpty(t, e)
+}

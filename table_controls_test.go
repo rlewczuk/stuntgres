@@ -26,12 +26,7 @@ func TestTableCoreControlsExpandedLikeAndZeroShape(t *testing.T) {
 	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
 		t.Fatal(err)
 	}
-	for _, part := range []string{`CREATE TABLE "public"."clone.dot" ("i.dot" INTEGER NOT NULL, "b" BIGINT, "s" TEXT, "f" BOOLEAN);`, `CREATE TABLE "public"."z" ();`, `CREATE TABLE "public"."zl" ();`} {
-		if !strings.Contains(dump.String(), part) {
-			t.Fatal("missing canonical declaration", part, dump.String())
-		}
-	}
-	if strings.Contains(dump.String(), "LIKE") || strings.Contains(dump.String(), "source.dot") {
+	if strings.Contains(dump.String(), "LIKE") {
 		t.Fatal(dump.String())
 	}
 	if err := stuntgres.Reset(ctx, db); err != nil {
@@ -44,6 +39,9 @@ func TestTableCoreControlsExpandedLikeAndZeroShape(t *testing.T) {
 	}
 	want := [][]any{{int64(7), int64(9223372036854775807), text, true}, {int64(8), nil, nil, nil}}
 	wantTuples(t, db, `SELECT * FROM "clone.dot" ORDER BY "i.dot"`, want)
+	alterDropMetadata(t, db, false, `SELECT * FROM "clone.dot"`, []string{"i.dot", "b", "s", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, []bool{false, true, true, true}, 2)
+	_, err = db.Exec(`INSERT INTO "clone.dot" VALUES(NULL,NULL,NULL,NULL)`)
+	sqlState(t, err, "23502")
 	for _, z := range []string{"z", "zl"} {
 		tableCoreMetadata(t, db, true, "SELECT * FROM "+z, []string{}, []string{}, []bool{})
 	}
@@ -61,6 +59,14 @@ func TestTableCoreControlsExpandedLikeAndZeroShape(t *testing.T) {
 			t.Fatal("failed restore changed target", err, redump.String())
 		}
 	}
+	// Observe identity and source absence through public behavior, not dump bytes.
+	tableCoreExec(t, db, true, `ALTER TABLE "clone.dot" DROP CONSTRAINT "source.dot_i.dot_not_null"`, 0)
+	alterDropMetadata(t, db, true, `SELECT * FROM "clone.dot"`, []string{"i.dot", "b", "s", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, []bool{true, true, true, true}, 2)
+	wantTuples(t, db, `SELECT * FROM "clone.dot" ORDER BY "i.dot"`, want)
+	tableCoreExec(t, db, true, `INSERT INTO "clone.dot" VALUES(NULL,99,'released',FALSE)`, 1)
+	wantTuples(t, db, `SELECT * FROM "clone.dot" WHERE b=99`, [][]any{{nil, int64(99), "released", false}})
+	_, err = db.Query(`SELECT * FROM "source.dot"`)
+	notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "source.dot" does not exist`})
 }
 func TestTableCorePublicNoticesSemanticSkipAndRoleCleanup(t *testing.T) {
 	d := stuntgres.NewDriver()

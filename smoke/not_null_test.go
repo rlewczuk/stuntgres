@@ -1,0 +1,238 @@
+package smoke_test
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"stuntgres"
+	"testing"
+)
+
+func notNullSmokeExec(t *testing.T, db *sql.DB, prepared bool, q string, count int64, args ...any) {
+	t.Helper()
+	var result sql.Result
+	var err error
+	if prepared {
+		s, e := db.Prepare(q)
+		if e != nil {
+			t.Fatal(q, e)
+		}
+		result, err = s.Exec(args...)
+		s.Close()
+	} else {
+		result, err = db.Exec(q, args...)
+	}
+	if err != nil {
+		t.Fatal(q, err)
+	}
+	n, err := result.RowsAffected()
+	if err != nil || n != count {
+		t.Fatal(q, n, err)
+	}
+}
+func notNullSmokeDiagnostic(t *testing.T, err error, want stuntgres.Error) {
+	t.Helper()
+	want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+	var got *stuntgres.Error
+	if !errors.As(err, &got) || *got != want {
+		t.Fatal(got, err, want)
+	}
+}
+func notNullSmokeQuery(t *testing.T, db *sql.DB, q string, names, types []string, nullable []bool, want [][]any) {
+	t.Helper()
+	rows, err := db.Query(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	labels, err := rows.Columns()
+	if err != nil || !reflect.DeepEqual(labels, names) {
+		t.Fatal(labels, err)
+	}
+	metadata, err := rows.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, c := range metadata {
+		null, known := c.Nullable()
+		scan := map[string]reflect.Type{"INT4": reflect.TypeFor[int64](), "INT8": reflect.TypeFor[int64](), "TEXT": reflect.TypeFor[string](), "BOOL": reflect.TypeFor[bool]()}[types[i]]
+		if c.DatabaseTypeName() != types[i] || !known || null != nullable[i] || c.ScanType() != scan {
+			t.Fatal(c, null, known)
+		}
+	}
+	got := make([][]any, 0)
+	for rows.Next() {
+		row := make([]any, len(names))
+		dest := make([]any, len(row))
+		for i := range row {
+			dest[i] = &row[i]
+		}
+		if err = rows.Scan(dest...); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, row)
+	}
+	if err = rows.Err(); err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatal(got, err, want)
+	}
+}
+
+func TestNotNullSmoke(t *testing.T) {
+	var notices []stuntgres.Error
+	db := alterDropSmokePool(t, &notices)
+	if err := db.PingContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	exec := func(q string, count int64, args ...any) { notNullSmokeExec(t, db, false, q, count, args...) }
+	exec("CREATE TABLE t(a INT NULL,b TEXT,CONSTRAINT nn NOT NULL a)", 0)
+	notNullSmokeExec(t, db, true, "INSERT INTO t VALUES($1,$2)", 1, 7, nil)
+	want := stuntgres.Error{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null, bad).", Schema: "public", Table: "t", Column: "a"}
+	_, err := db.Exec("INSERT INTO t VALUES(8,'valid'),(NULL,'bad')")
+	notNullSmokeDiagnostic(t, err, want)
+	stmt, err := db.Prepare("INSERT INTO t VALUES($1,$2)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = stmt.Exec(nil, "bad")
+	stmt.Close()
+	notNullSmokeDiagnostic(t, err, want)
+	notNullSmokeQuery(t, db, "SELECT * FROM t", []string{"a", "b"}, []string{"INT4", "TEXT"}, []bool{false, true}, [][]any{{int64(7), nil}})
+	exec("ALTER TABLE t DROP CONSTRAINT nn", 0)
+	exec("INSERT INTO t VALUES(NULL,'keep')", 1)
+	_, err = db.Exec("ALTER TABLE t ADD CONSTRAINT nn NOT NULL a")
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `column "a" of relation "t" contains null values`, Schema: "public", Table: "t", Column: "a"})
+	exec("CREATE TABLE valid(a INT)", 0)
+	exec("INSERT INTO valid VALUES(7)", 1)
+	validInsert, err := db.Prepare("INSERT INTO valid VALUES($1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer validInsert.Close()
+	notNullSmokeExec(t, db, true, "ALTER TABLE valid ALTER a SET NOT NULL", 0)
+	_, err = validInsert.Exec(nil)
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "a" of relation "valid" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "valid", Column: "a"})
+	notNullSmokeQuery(t, db, "SELECT * FROM valid", []string{"a"}, []string{"INT4"}, []bool{false}, [][]any{{int64(7)}})
+	exec("ALTER TABLE valid DROP CONSTRAINT valid_a_not_null", 0)
+	nilResult, err := validInsert.Exec(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nilCount, countErr := nilResult.RowsAffected()
+	if countErr != nil || nilCount != 1 {
+		t.Fatal(nilCount, countErr)
+	}
+	notNullSmokeQuery(t, db, "SELECT * FROM valid ORDER BY a", []string{"a"}, []string{"INT4"}, []bool{true}, [][]any{{int64(7)}, {nil}})
+	exec("CREATE TABLE occupied(x INT CONSTRAINT generated_a_not_null NOT NULL)", 0)
+	exec("CREATE TABLE generated(a INT NOT NULL)", 0)
+	exec("CREATE TABLE clone(LIKE generated)", 0)
+	exec("ALTER TABLE generated DROP CONSTRAINT generated_a_not_null1", 0)
+	exec("INSERT INTO generated VALUES(NULL)", 1)
+	_, err = db.Exec("INSERT INTO clone VALUES(NULL)")
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "a" of relation "clone" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "clone", Column: "a"})
+	exec("ALTER TABLE clone DROP CONSTRAINT generated_a_not_null1", 0)
+	_, err = db.Exec("CREATE TABLE sequential(a INT NOT NULL,b INT CONSTRAINT sequential_a_not_null NOT NULL)")
+	notNullSmokeNameCollision(t, err, "sequential_a_not_null")
+	_, err = db.Query("SELECT * FROM sequential")
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "sequential" does not exist`})
+	notNullSmokeExec(t, db, true, "CREATE TABLE sequential(b INT CONSTRAINT sequential_a_not_null NOT NULL,a INT NOT NULL)", 0)
+	exec("ALTER TABLE sequential DROP CONSTRAINT sequential_a_not_null1", 0)
+	exec("ALTER TABLE sequential DROP CONSTRAINT sequential_a_not_null", 0)
+	_, err = db.Exec("CREATE TABLE system_target(a INT,NOT NULL ctid)")
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: `cannot add not-null constraint on system column "ctid"`})
+	_, err = db.Query("SELECT * FROM system_target")
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "system_target" does not exist`})
+	for _, tc := range []struct{ q, token, message string }{{"UPDATE t SET a=NULL", "UPDATE", "statement is unsupported"}, {"ALTER TABLE t ADD NOT NULL a NOT VALID", "NOT VALID", "NOT NULL modifiers are unsupported"}} {
+		_, err = db.Exec(tc.q)
+		notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: tc.message, Position: strconv.Itoa(strings.Index(tc.q, tc.token) + 1)})
+	}
+	exec("ALTER TABLE t DROP CONSTRAINT IF EXISTS absent", 0)
+	wantNotice := []stuntgres.Error{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `constraint "absent" of relation "t" does not exist, skipping`}}
+	if !reflect.DeepEqual(notices, wantNotice) {
+		t.Fatal(notices)
+	}
+}
+
+func TestNotNullControlsSmoke(t *testing.T) {
+	var notices []stuntgres.Error
+	db := alterDropSmokePool(t, &notices)
+	ctx := context.Background()
+	notNullSmokeExec(t, db, false, `CREATE TABLE "t"(a INT CONSTRAINT "n""é" NOT NULL,b BIGINT,s TEXT,f BOOL)`, 0)
+	text := "O'Brien\n\\tail"
+	notNullSmokeExec(t, db, true, "INSERT INTO t VALUES($1,$2,$3,$4)", 1, 7, int64(9223372036854775807), text, true)
+	notNullSmokeExec(t, db, false, "INSERT INTO t VALUES(8,NULL,NULL,NULL)", 1)
+	notNullSmokeExec(t, db, false, "COMMENT ON TABLE t IS 'persistent'", 0)
+	notNullSmokeExec(t, db, false, "CREATE TABLE generated(a INT NOT NULL)", 0)
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(dump.String(), `CONSTRAINT "n""é" NOT NULL`) || !strings.Contains(dump.String(), `CONSTRAINT "generated_a_not_null" NOT NULL`) {
+		t.Fatal(dump.String())
+	}
+	if err := stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	_, err := db.Query("SELECT * FROM t")
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`})
+	if err = stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	notNullSmokeQuery(t, db, "SELECT * FROM t ORDER BY a", []string{"a", "b", "s", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, []bool{false, true, true, true}, [][]any{{int64(7), int64(9223372036854775807), text, true}, {int64(8), nil, nil, nil}})
+	var redump bytes.Buffer
+	if err = stuntgres.Dump(ctx, db, &redump); err != nil || dump.String() != redump.String() {
+		t.Fatal(err, redump.String())
+	}
+	notNullSmokeExec(t, db, false, `ALTER TABLE t DROP CONSTRAINT "n""é"`, 0)
+	notNullSmokeExec(t, db, true, "ALTER TABLE generated DROP CONSTRAINT generated_a_not_null", 0)
+	notNullSmokeExec(t, db, false, "CREATE TABLE sentinel(v INT)", 0)
+	notNullSmokeExec(t, db, false, "INSERT INTO sentinel VALUES(91)", 1)
+	held, err := db.Query("SELECT * FROM sentinel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE replacement(a INT CONSTRAINT nn NOT NULL);INSERT INTO replacement VALUES(NULL)"))
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "a" of relation "replacement" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "replacement", Column: "a"})
+	if !held.Next() {
+		t.Fatal(held.Err())
+	}
+	var value int64
+	if err = held.Scan(&value); err != nil || value != 91 {
+		t.Fatal(value, err)
+	}
+	held.Close()
+	notNullSmokeQuery(t, db, "SELECT * FROM sentinel", []string{"v"}, []string{"INT4"}, []bool{true}, [][]any{{int64(91)}})
+	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE replacement(a INT NOT NULL,b INT CONSTRAINT replacement_a_not_null NOT NULL)"))
+	notNullSmokeNameCollision(t, err, "replacement_a_not_null")
+	notNullSmokeQuery(t, db, "SELECT * FROM sentinel", []string{"v"}, []string{"INT4"}, []bool{true}, [][]any{{int64(91)}})
+}
+
+func notNullSmokeNameCollision(t *testing.T, err error, name string) {
+	t.Helper()
+	var got *stuntgres.Error
+	if !errors.As(err, &got) {
+		t.Fatal(err)
+	}
+	const prefix = "Key (conrelid, contypid, conname)=("
+	suffix := ", 0, " + name + ") already exists."
+	token, ok := strings.CutPrefix(got.Detail, prefix)
+	if !ok {
+		t.Fatal(got.Detail)
+	}
+	token, ok = strings.CutSuffix(token, suffix)
+	oid, parseErr := strconv.ParseUint(token, 10, 32)
+	if !ok || parseErr != nil || oid == 0 || strconv.FormatUint(oid, 10) != token {
+		t.Fatal(got.Detail)
+	}
+	normalized := *got
+	normalized.Detail = prefix + "<OID>" + suffix
+	notNullSmokeDiagnostic(t, &normalized, stuntgres.Error{
+		Code: "23505", Message: `duplicate key value violates unique constraint "pg_constraint_conrelid_contypid_conname_index"`,
+		Detail: prefix + "<OID>" + suffix, Schema: "pg_catalog", Table: "pg_constraint",
+		Constraint: "pg_constraint_conrelid_contypid_conname_index",
+	})
+}

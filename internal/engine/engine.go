@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +54,7 @@ type binding struct {
 	parameters    ParameterInfo
 	expressions   [][]BoundExpr
 	createColumns []ColumnDescriptor
+	createNotNull []notNullConstraint
 	temporals     []temporalConstant
 }
 
@@ -183,7 +185,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.Comment, *parser.AlterTableDropColumn, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
+	case *parser.Comment, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.IdentitySelect:
 		e.mu.Lock()
@@ -256,16 +258,30 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
 		var columns []ColumnDescriptor
-		for _, element := range s.Elements {
-			if (element.Column == nil) == (element.Like == nil) {
+		var inherited []createLikeConstraint
+		for elementIndex, element := range s.Elements {
+			kinds := 0
+			if element.Column != nil {
+				kinds++
+			}
+			if element.Like != nil {
+				kinds++
+			}
+			if element.NotNull != nil {
+				kinds++
+			}
+			if kinds != 1 {
 				return b, fmt.Errorf("stuntgres: invalid table element")
+			}
+			if element.NotNull != nil {
+				continue
 			}
 			if c := element.Column; c != nil {
 				u, err := e.resolveType(c.TypeName, op)
 				if err != nil {
 					return b, err
 				}
-				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, Nullable: c.Nullable, NullabilityKnown: true})
+				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, Nullable: true, NullabilityKnown: true})
 			} else {
 				like := element.Like
 				if len(like.Options) != 0 {
@@ -293,22 +309,31 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					return b, err
 				}
 				source := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				offset := len(columns)
+				start := len(inherited)
+				for _, constraint := range source.notNullConstraints {
+					for i, attribute := range source.attributes {
+						if constraint.Attribute == attribute {
+							inherited = append(inherited, createLikeConstraint{Element: elementIndex, notNullConstraint: notNullConstraint{Name: constraint.Name, Attribute: int32(offset + i + 1)}})
+							break
+						}
+					}
+				}
+				// PostgreSQL copies via its relation/type/name constraint index.
+				slices.SortFunc(inherited[start:], func(a, b createLikeConstraint) int {
+					return strings.Compare(a.Name, b.Name)
+				})
 				for _, c := range source.columns {
 					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
 				}
 			}
 		}
-		seen := make(map[string]bool, len(columns))
-		for _, c := range columns {
-			if seen[c.Name] {
-				return b, sqlError("42701", fmt.Sprintf(`column "%s" specified more than once`, c.Name))
-			}
-			if isSystemColumn(c.Name) {
-				return b, sqlError("42701", fmt.Sprintf("column name %q conflicts with a system column name", c.Name))
-			}
-			seen[c.Name] = true
-		}
 		b.createColumns = columns
+		var err error
+		b.createNotNull, err = bindCreateNotNull(s, columns, inherited)
+		if err != nil {
+			return b, err
+		}
 	case *parser.Insert:
 		var err error
 		b.ref, err = e.resolveReference(auth, s.Name)
@@ -659,6 +684,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if s, ok := stmt.(*parser.AlterTableDropColumn); ok {
 		return e.alterDropColumnLocked(scope, op, auth, s, count)
+	}
+	if s, ok := stmt.(*parser.AlterTableNotNull); ok {
+		return e.alterNotNullLocked(scope, op, auth, s, count)
 	}
 	if s, ok := stmt.(*parser.Insert); ok && s.RestoreDefaultValues && !op.restoreInsertAuthority {
 		e.mu.Unlock()

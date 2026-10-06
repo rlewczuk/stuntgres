@@ -12,7 +12,11 @@ package parser
  objectNames []ObjectName
  dropMode DropMode
  typ TypeName
- nullable bool
+ constraints []ColumnConstraint
+ constraint ColumnConstraint
+ notNull *NotNullConstraint
+ alterTarget alterTarget
+ dropTarget dropTarget
  targets []InsertTarget
  names []string
  rows [][]Expr
@@ -42,22 +46,24 @@ package parser
 %token <tok> LOCK ACCESS EXCLUSIVE MODE IN
 %token <tok> LIKE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA
 %token <tok> COMMENT COLUMN IS
+%token <tok> CONSTRAINT ADD INHERITS
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 /* Reduce a scalar/name only after checking failure-only continuations.
  * Arithmetic remains unsupported; WHERE name suffix keeps its positioned
  * predicate diagnostic rather than reducing to a completed bare scalar.
+ * Dedicated CONSTRAINT retains KW_R's contextual continuation precedence.
  * '(' selects a function path, not a completed ordinary name/name list. */
 %nonassoc NAME_LIST
-%nonassoc '+' '-' INTO KW_R COLUMN ALL DEFAULT ON USER GROUP IN AND SAVEPOINT
+%nonassoc '+' '-' INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP IN AND SAVEPOINT
 /* KW_T, LIKE and WITH also start suffixes. Shift an adjacent type tail before
  * completing a single type name: known excluded families use their first type
  * location, while arbitrary tails are syntax errors at the second token. */
 %nonassoc TYPE_NAME
 %nonassoc '('
 %nonassoc KW_T IS LIKE WITH WITHOUT
-%type <stmt> statement create drop_table alter_drop_column alter_drop_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <col> column
 %type <elements> elements optional_elements
 %type <element> element
@@ -67,13 +73,19 @@ package parser
 %type <objectNames> relation_names
 %type <dropMode> drop_mode
 %type <typ> type temporal_type generic_precision generic_modifiers type_modifier_head
-%type <nullable> nullability
+%type <constraints> nullability column_constraints
+%type <constraint> column_constraint
+%type <notNull> table_not_null
+%type <tok> nn_modifier nn_inherit
+%type <tok> column_suffix
 %type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with suffix unsupported_query nulls_keyword nulls_position
 %type <settingName> setting_name set_name local_setting_name
 %type <targets> insert_columns insert_targets
 %type <objectName> relation_name
 %type <objectName> alter_relation
-%type <desc> optional_column drop_if_exists
+%type <alterTarget> alter_target
+%type <desc> optional_column
+%type <dropTarget> drop_target
 %type <tok> alter_action
 %type <names> names
 %type <rows> rows
@@ -219,13 +231,20 @@ set_name: setting_word { $$=settingName{first:$1} }
  * parameter names, and ROLE stays name-eligible everywhere else. */
 local_setting_name: set_name { $$=$1 }
  | LOCAL { $$=settingName{first:$1} } ;
-create: CREATE TABLE relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos} }
- | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true} }
+create_table: CREATE TABLE relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos} }
+ | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true} } ;
+create: create_table { $$=$1 }
+ | create_table INHERITS '(' relation_names ')' { sqllex.(*lexer).deferUnsupported($2,"table inheritance is unsupported"); $$=nil }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 optional_elements: /* empty */ { $$=nil } | elements { $$=$1 } ;
 elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($1,$3) } ;
 element: column { c:=$1; $$=TableElement{Column:&c,Pos:c.Pos} }
- | LIKE relation_name like_options { $$=TableElement{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos} } ;
+ | LIKE relation_name like_options { $$=TableElement{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos} }
+ | table_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} } ;
+table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
+ | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} }
+ | table_not_null NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
+ | table_not_null NO nn_inherit { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 } ;
 like_options: /* empty */ { $$=nil } | like_options like_option { $$=append($1,$2) } ;
 like_option: INCLUDING like_option_name { $$=LikeOption{Name:$2.text,Including:true,Pos:$1.pos} }
  | EXCLUDING like_option_name { $$=LikeOption{Name:$2.text,Pos:$1.pos} } ;
@@ -235,18 +254,29 @@ drop_table: DROP TABLE relation_names drop_mode { $$=&DropTable{Names:$3,Mode:$4
 relation_names: relation_name { $$=[]ObjectName{$1} } | relation_names ',' relation_name { $$=append($1,$3) } ;
 drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASCADE { $$=DropCascade } ;
 alter_drop_column: alter_drop_single { $$=$1 }
+ | alter_nn_single { $$=$1 }
+ | alter_nn_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_drop_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
- | ALTER TABLE alter_relation alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 }
- | ALTER TABLE lock_only relation_name alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$5.pos.Offset); return 1 }
- | ALTER TABLE lock_only '(' relation_name ')' alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$7.pos.Offset); return 1 } ;
-alter_drop_single: ALTER TABLE alter_relation DROP optional_column drop_if_exists name drop_mode { $$=&AlterTableDropColumn{Name:$3,Column:Identifier{Text:$7.text,Pos:$7.pos},IfExists:$6,Mode:$8,Pos:$1.pos} }
- | ALTER TABLE lock_only relation_name DROP optional_column drop_if_exists name drop_mode { $$=&AlterTableDropColumn{Name:$4,Column:Identifier{Text:$8.text,Pos:$8.pos},IfExists:$7,Mode:$9,Only:true,Pos:$1.pos} }
- | ALTER TABLE lock_only '(' relation_name ')' DROP optional_column drop_if_exists name drop_mode { $$=&AlterTableDropColumn{Name:$5,Column:Identifier{Text:$10.text,Pos:$10.pos},IfExists:$9,Mode:$11,Only:true,Pos:$1.pos} } ;
+ | ALTER TABLE alter_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
+alter_drop_single: ALTER TABLE alter_target DROP optional_column drop_target drop_mode { $$=&AlterTableDropColumn{Name:$3.Name,Column:$6.Name,IfExists:$6.IfExists,Mode:$7,Only:$3.Only,Pos:$1.pos} } ;
+alter_nn_single: ALTER TABLE alter_target ALTER optional_column name SET NOT NULL { $$=&AlterTableNotNull{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Action:SetNotNull,Only:$3.Only,Pos:$1.pos} }
+ | ALTER TABLE alter_target ALTER optional_column name DROP NOT NULL { $$=&AlterTableNotNull{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Action:DropNotNull,Only:$3.Only,Pos:$1.pos} }
+ | ALTER TABLE alter_target ADD table_not_null { $$=&AlterTableNotNull{Name:$3.Name,Column:$5.Column,Constraint:$5.Name,Action:AddNotNull,Only:$3.Only,Pos:$1.pos} }
+ | ALTER TABLE alter_target DROP CONSTRAINT drop_target drop_mode { $$=&AlterTableNotNull{Name:$3.Name,Constraint:$6.Name,Action:DropConstraint,IfExists:$6.IfExists,Mode:$7,Only:$3.Only,Pos:$1.pos} }
+ | ALTER TABLE alter_target ADD COLUMN { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 }
+ | ALTER TABLE alter_target ADD name { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 }
+ | ALTER TABLE alter_target ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 }
+ | ALTER TABLE alter_target ALTER optional_column name KW_U { if $7.text!="type" { sqllex.(*lexer).syntax($7);return 1 };sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
+alter_target: alter_relation { $$=alterTarget{Name:$1} }
+ | ONLY relation_name { $$=alterTarget{Name:$2,Only:true} }
+ | ONLY '(' relation_name ')' { $$=alterTarget{Name:$3,Only:true} } ;
 alter_relation: relation_name { $$=$1 } | relation_name '*' { $$=$1 } ;
 optional_column: /* empty */ { $$=false } | COLUMN { $$=true } ;
-drop_if_exists: /* empty */ { $$=false } | IF EXISTS { $$=true } ;
-alter_action: generic_word | ALTER | RENAME | OWNER | SET ;
-column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Nullable:$3, Pos:$1.pos} } ;
+/* Share the IF prefix with eligible names: DROP if and IF EXISTS both parse. */
+drop_target: name { $$=dropTarget{Name:Identifier{Text:$1.text,Pos:$1.pos}} }
+ | IF EXISTS name { $$=dropTarget{Name:Identifier{Text:$3.text,Pos:$3.pos},IfExists:true} } ;
+alter_action: generic_word | RENAME | OWNER | SET ;
+column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Constraints:$3, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
  | temporal_type { $$=$1 }
@@ -276,10 +306,24 @@ temporal_type: TIMESTAMP %prec TYPE_NAME { $$=TypeName{Name:$1.text,Pos:$1.pos} 
 generic_precision: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=temporalPrecision(sqllex,$1,false)};if !ok{return 1}}
  | '-' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
  | '+' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos} ;
-nullability: /* empty */ { $$ = true } | NULL { $$ = true } | NOT NULL { $$ = false }
- | suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
+nullability: /* empty */ { $$ = nil }
+ | column_constraints { $$=$1 }
+ | column_suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
  | '[' { sqllex.(*lexer).failAt("0A000","array types are unsupported",$1.pos.Offset); return 1 }
  | '(' { sqllex.(*lexer).failAt("0A000","type modifiers are unsupported",$1.pos.Offset); return 1 } ;
+/* Modifiers require a preceding constraint, never an empty nullability list. */
+column_constraints: column_constraint { $$=[]ColumnConstraint{$1} }
+ | column_constraints column_constraint { $$=append($1,$2) }
+ | column_constraints NO nn_inherit { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
+ | column_constraints NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 } ;
+column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
+ | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
+ | CONSTRAINT name NULL { $$=ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
+ | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
+ | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
+nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+column_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
 insert: INSERT INTO relation_name insert_columns VALUES rows { $$ = &Insert{Name:$3, Targets:$4, Rows:$6, Pos:$1.pos} }
  | INSERT INTO relation_name insert_columns VALUES rows suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
  | INSERT INTO relation_name insert_columns DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$5.pos.Offset); return 1 }; $$=&Insert{Name:$3,Targets:$4,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} }
@@ -357,12 +401,12 @@ nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | transaction_name ;
+setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name ;
 name: setting_word | ROLE | LOCAL ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | transaction_name ;
+type_name: IDENT | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ADD | INHERITS | transaction_name ;
 generic_word: generic_word_without_with | WITH ;
-generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | ONLY | DEFERRABLE ;
+generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | ONLY | DEFERRABLE | CONSTRAINT ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
 bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | LIKE { $$=$1 }
@@ -372,9 +416,9 @@ bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
- | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | AND | END | ONLY | DEFERRABLE ;
-col_label: name | LIKE | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | AND | END | ONLY | DEFERRABLE ;
-suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
+ | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | AND | END | ONLY | DEFERRABLE | CONSTRAINT ;
+col_label: name | LIKE | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | AND | END | ONLY | DEFERRABLE | CONSTRAINT ;
+suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN | IS | AND | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }

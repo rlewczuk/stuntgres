@@ -45,9 +45,66 @@ For NUMERIC column `v`, `SELECT $1 FROM n WHERE v=$1` fails Prepare with `42P08`
 
 CREATE TABLE uses ordered explicit columns and plain LIKE elements, including multiple/interleaved sources and zero-column `()`. LIKE copies declaration shape and NOT NULL, never source rows/owner/ACL/dependencies; qualified/effective-path lookup requires source namespace USAGE and relation SELECT. LIKE options remain unsupported, not successful no-ops. IF NOT EXISTS skips an existing authorized destination before semantic element analysis, including nested CREATE TABLE in CREATE SCHEMA; malformed syntax still fails before effects. Nested elements use the enclosing owner and local staged schema path, never change session identity/settings, and publish atomically. Outer CREATE SCHEMA IF NOT EXISTS still cannot contain elements.
 
+NOT NULL is an identity-bearing relation constraint, separate from CHECK.
+Ordered column `[CONSTRAINT name] NULL/NOT NULL` declarations and table
+`[CONSTRAINT name] NOT NULL column` are supported; compatible redundancies merge,
+named NULL creates no identity. Column-local NULL/NOT NULL conflicts are42601
+at the conflicting token; differently named column duplicates are18.0XX000,
+validated before table-level merging even if a table constraint comes first.
+Explicit column NULL plus table NOT NULL is valid in either order. Only NOT
+NULL identities merge; different names at that stage are42601. CREATE table
+constraints naming system columns fail0A000 `cannot add not-null constraint on
+system column "ctid"` for ctid, as does selected ALTER ADD. Duplicate explicit
+names on different attributes
+are42710. Generated UTF8-safe63-byte `table_column_not_null` names consult all
+destination namespace constraints, including staged nested tables and prior
+current-command names, never future explicit names. Allocation follows original
+column/table/LIKE element order after same-column merging. A later explicit name
+colliding with an earlier generated name fails23505 for
+`pg_constraint_conrelid_contypid_conname_index`; Schema pg_catalog, Table
+pg_constraint and that Constraint are reported, with exact Detail
+`Key (conrelid, contypid, conname)=(OID, 0, name) already exists.` using the real
+locally allocated candidate relation OID. CREATE publishes no table; reversing
+the declarations succeeds with a generated suffix. Explicit names remain
+relation-local. LIKE copies identities in source constraint-name order at its
+element position onto fresh attributes, never hierarchy or source dependencies.
+
+Selected ALTER TABLE actions are ALTER [COLUMN] c SET/DROP NOT NULL, ADD
+[CONSTRAINT n] NOT NULL c, and DROP CONSTRAINT [IF EXISTS] n [RESTRICT|CASCADE].
+They share t/t*/ONLY t/ONLY(t), OwnerOnly AX and metadata-only effect-free Prepare.
+SET/ADD scans visible committed rows before metadata-only publication; old NULL
+fails23502 with column/schema/table, no Detail/Constraint. INSERT23502 includes
+failing-row Detail even for a named constraint. Both identify the decoded column
+literally; all failures preserve schema/data. Compatible SET/ADD retains existing
+name; DROP makes nullable; redundant operations are count-zero/no-revision.
+Missing DROP42704 or IF EXISTS NOTICE00000 uses the relation/name diagnostic.
+Stable attribute IDs, ACL/comments and original storage/backing survive ALTER;
+independently captured storage length fences a stale scan. DROP COLUMN removes
+only the dropped identity. Retained prepared SELECT and parameterized INSERT
+rebind current nullability across SET/ADD/DROP: nil23502 while enforced, nil
+success after DROP, no cached-result-type error. Native known Nullable and
+INT4 int64 ScanType differ deliberately from pinned pq's unavailable Nullable
+and int32 ScanType. Retained snapshots keep the original metadata/values.
+
+Dump captures and emits quoted named NOT NULL declarations, generated names
+included. Restore uses common isolated CREATE/INSERT binding and atomic target
+replacement. UPDATE (no executor), inheritance (no hierarchy/OR merge), and
+NOT VALID/VALIDATE/NO INHERIT (no deferred-validation/hierarchy mechanism) remain
+explicit native0A000 boundaries; independent real PostgreSQL-only witnesses
+exercise their substantive effects. CHECK/PK/domains/general ALTER lists and
+explicit-transaction DDL remain excluded, never successful no-ops.
+
+Native INHERITS failure-only grammar allows one complete parent list on either
+CREATE TABLE form; qualified/quoted/multiple parents and IF NOT EXISTS remain
+0A000 at INHERITS, never a conditional bypass. Malformed/repeated/extra-tail
+input is42601; script prefixes do not execute on these full-input rejections.
+
+Public smoke: `make smoke RUN='^TestNotNull(Smoke|ControlsSmoke)$' VERBOSE=1`.
+
+
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. The current inbound table-definition dependency set is empty, so both drop modes remove the same explicitly selected tables/contained metadata/storage/ACLs, not schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
 
-ALTER TABLE supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] action, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact; descriptor+storage publish through one guarded CatalogStage, checking original storage root/length against concurrent inserts. Native dependencies are column-owned nullability/ACL/comments only, with empty external inbound set; real constraints/indexes/views/FKs/hierarchy and transactional DDL are explicit external-only reference witnesses. Explicit native transactions exclude ALTER TABLE. Retained snapshots stay immutable; prepared survivors rebind, dropped references fail42703, changed-width star keeps the existing0A000 signature boundary.
+ALTER TABLE also supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] action, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact; descriptor+storage publish through one guarded CatalogStage, checking original storage root/observed length against concurrent inserts. Native dependencies are named NOT NULL/ACL/comments only, with empty external inbound set; indexes/views/FKs/hierarchy and transactional DDL are explicit external-only reference witnesses. Explicit native transactions exclude ALTER TABLE. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
 The optional ALTER DROP COLUMN keyword consumes the shared dedicated COLUMN token used by COMMENT, not legacy KW_R text matching. Quoted keyword targets remain decoded IDENT names; preserve keyword categories and positioned parser errors when integrating grammar changes.
 Canonical populated zero-column Dump uses one DEFAULT VALUES insertion per row. Only private Restore parsing/authority permits that marker, validated for zero live columns/no targets and executed as a genuine empty row through common Insert. Public DEFAULT VALUES and VALUES() stay unsupported; Restore does not accept ALTER TABLE history. Feature smoke: `make smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'`.
 
@@ -56,7 +113,7 @@ Do not widen syntax beyond the documented selected surface: no savepoints, neste
 Control classification precedes ordinary implicit birth/epoch/command gating. Prepare is effect/notice-free; start Prepare Aborted gives 25P02, end Prepare remains eligible without recovering until Exec. SQL Aborted COMMIT succeeds by rollback/count0, whereas Go Commit keeps its failed-transaction ordinary error. Completed controls Finish once without late authority checks/merge/command advance into a chained incarnation. Shared private helpers never reacquire admission; one physical-session owner and publishWrites remain sole authority. CHAIN reserves a fresh current-epoch ref and empty ticket before old publication under the existing short replacement read fence; install is infallible, then release old holds before waking waiters. Resolve old settings actions after publication and before clearing/installing the next incarnation; CHAIN inherits committed SESSION values, never LOCAL values or old actions. Old native GoTx refs cannot end a new SQL incarnation (intentionally unlike pq's unqualified old end). Healthy pool reuse/borrower Close preserves SQL blocks; pin and explicitly end before pool return. Physical end drains and discards only its own private work/holds. Restore's whitelist still rejects controls; no script-transaction expansion.
 
 
-Relation locking is transaction-owned AS for SELECT, RX for INSERT, internal SUE for COMMENT TABLE/COLUMN Execute, owner-authorized AX for standalone ALTER TABLE DROP COLUMN, and explicit single-target `LOCK TABLE name IN ACCESS EXCLUSIVE MODE [NOWAIT]` in an explicit block under the current superuser role. AS/RX coexist with SUE; SUE conflicts with other-owner SUE; AX conflicts across owners; same-owner operations reenter. Semantic SELECT/INSERT Prepare acquires AS/RX (implicit Finish releases, explicit retains despite stmt.Close); LOCK, COMMENT and ALTER Prepare are metadata-only. Earlier conflicting waiters prevent barging. NOWAIT fails without enqueue with 55P03/relation-name message. Ordinary typed lock_timeout defaults to 0/off, uses milliseconds and the existing SET/RESET/local lifecycle, and times each queued acquisition separately (including automatic preparation), never immediate grants or whole operations. Expiry is 55P03/lock-timeout message; earlier absolute SQL deadline wins (exact tie favors lock timeout), while caller context errors retain Go identity. Abort/end immediately releases exact owner state; commit publishes before waking successors. Interruption removes requests and wakes eligible successors without disturbing holders. Successful replacement fences old held/waiting epochs outside metadata locks; only genuinely queued implicit SQL drops replacement admission and revalidates exact identity afterward. ALTER releases replacement admission before catalog provider validation, checking original descriptor/storage at publication. Do not add other exposed modes, conversion/deadlock detection, row/advisory resources or introspection.
+Relation locking is transaction-owned AS for SELECT, RX for INSERT, internal SUE for COMMENT TABLE/COLUMN Execute, owner-authorized AX for the selected standalone ALTER TABLE utilities, and explicit single-target `LOCK TABLE name IN ACCESS EXCLUSIVE MODE [NOWAIT]` in an explicit block under the current superuser role. AS/RX coexist with SUE; SUE conflicts with other-owner SUE; AX conflicts across owners; same-owner operations reenter. Semantic SELECT/INSERT Prepare acquires AS/RX (implicit Finish releases, explicit retains despite stmt.Close); LOCK, COMMENT and ALTER Prepare are metadata-only. Earlier conflicting waiters prevent barging. NOWAIT fails without enqueue with 55P03/relation-name message. Ordinary typed lock_timeout defaults to 0/off, uses milliseconds and the existing SET/RESET/local lifecycle, and times each queued acquisition separately (including automatic preparation), never immediate grants or whole operations. Expiry is 55P03/lock-timeout message; earlier absolute SQL deadline wins (exact tie favors lock timeout), while caller context errors retain Go identity. Abort/end immediately releases exact owner state; commit publishes before waking successors. Interruption removes requests and wakes eligible successors without disturbing holders. Successful replacement fences old held/waiting epochs outside metadata locks; only genuinely queued implicit SQL drops replacement admission and revalidates exact identity afterward. ALTER releases replacement admission before catalog provider validation, checking original descriptor/storage at publication. Do not add other exposed modes, conversion/deadlock detection, row/advisory resources or introspection.
 Lock-timeout55P03 during direct SELECT/INSERT analysis or semantic Prepare carries the original ObjectName's first token character Position (schema token for qualified names). Cached Execute and utility timeouts have no parse-analysis Position;57014 is excluded from this positional decoration. Do not put SQL source-position policy into manager resources or fabricate Schema/Table fields.
 Queued work binds the grant-time descriptor of the exact retained ObjectRef; a same-identity definition revision is valid, while epoch changes/removal/recreation remain fenced. Keep subsequent grant-time descriptor pinning and catalog/storage publication guards. Post-drop quoted expression errors use literal decoded identifiers and character positions. Positive qualified ordinary-owner controls use one ordinary schema/table owner; separate distinct-owner Restore/denial/replay witnesses retain the namespace-USAGE and explicit-ACL Dump boundaries without adding native GRANT.
 ALTER re-resolution must compare the complete ObjectRef with scope.lockedRef before owner/column semantics, notices or staging, then use the validated grant-time lockedDescriptor. A search_path shadow created during an AX wait fails ErrCatalogReplaced without effects or reacquisition; PostgreSQL's independently asserted utility behavior instead reacquires the shadow AX. Never reinstate a pre-wait descriptor-revision fence.

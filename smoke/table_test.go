@@ -265,7 +265,7 @@ func TestTableCoreSmoke(t *testing.T) {
 	if err = stuntgres.Dump(ctx, db, &dump); err != nil {
 		t.Fatal(err)
 	}
-	for _, part := range []string{`CREATE TABLE "public"."clone" ("lead" BIGINT, "i" INTEGER NOT NULL, "s" TEXT, "f" BOOLEAN, "tail" TEXT);`, `CREATE TABLE "public"."z" ();`, `CREATE TABLE "public"."zl" ();`} {
+	for _, part := range []string{`CREATE TABLE "public"."clone" ("lead" BIGINT, "i" INTEGER CONSTRAINT "source_i_not_null" NOT NULL, "s" TEXT, "f" BOOLEAN, "tail" TEXT);`, `CREATE TABLE "public"."z" ();`, `CREATE TABLE "public"."zl" ();`} {
 		if !strings.Contains(dump.String(), part) {
 			t.Fatal("missing expanded shape", part, dump.String())
 		}

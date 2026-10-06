@@ -28,10 +28,22 @@ type Identifier struct {
 }
 type ObjectName struct{ Parts []Identifier }
 type Column struct {
-	Name     string
-	TypeName TypeName
-	Nullable bool
-	Pos      Position
+	Name        string
+	TypeName    TypeName
+	Constraints []ColumnConstraint
+	Pos         Position
+}
+
+type ColumnConstraint struct {
+	NotNull bool
+	Name    Identifier
+	Pos     Position
+}
+
+type NotNullConstraint struct {
+	Column Identifier
+	Name   Identifier
+	Pos    Position
 }
 type CreateTable struct {
 	Name        ObjectName
@@ -43,9 +55,10 @@ type CreateTable struct {
 func (*CreateTable) statement() {}
 
 type TableElement struct {
-	Column *Column
-	Like   *TableLike
-	Pos    Position
+	Column  *Column
+	Like    *TableLike
+	NotNull *NotNullConstraint
+	Pos     Position
 }
 
 type TableLike struct {
@@ -85,6 +98,38 @@ type AlterTableDropColumn struct {
 }
 
 func (*AlterTableDropColumn) statement() {}
+
+type NotNullAction uint8
+
+const (
+	SetNotNull NotNullAction = iota + 1
+	DropNotNull
+	AddNotNull
+	DropConstraint
+)
+
+type AlterTableNotNull struct {
+	Name       ObjectName
+	Column     Identifier
+	Constraint Identifier
+	Action     NotNullAction
+	IfExists   bool
+	Only       bool
+	Mode       DropMode
+	Pos        Position
+}
+
+func (*AlterTableNotNull) statement() {}
+
+type alterTarget struct {
+	Name ObjectName
+	Only bool
+}
+
+type dropTarget struct {
+	Name     Identifier
+	IfExists bool
+}
 
 type Insert struct {
 	Name                 ObjectName
