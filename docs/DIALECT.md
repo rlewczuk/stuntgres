@@ -290,6 +290,8 @@ nested calls. Computed arguments in the singleton no-FROM form instead fail
 the existing admission check with0A000 `SELECT without FROM is unsupported`
 at SELECT (character1), before function binding. Former signed numeric literal
 inputs remain admitted; arithmetic does not broaden this selected call surface.
+Character casts are also ordinary call operands; the selected-call singleton
+argument rules admit literal/parameter/nested-call casts without columns.
 Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`;
 independent reference: `make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
 
@@ -461,6 +463,10 @@ BPCHAR->TEXT/VARCHAR removes ASCII tails before sizing; same-ID BPCHAR casts
 preserve physical bytes before resizing. The separate baseline cast matrix above
 is retained; it adds no integer/Boolean explicit edges to BPCHAR or VARCHAR.
 Existing assignment output conversion is not implicit.
+Character casts infer only unresolved parameters from the target; known character
+occurrences convert from their fixed source identity. Earlier unknown occurrences
+and mixed INSERT inference boundaries are not rewritten. Diagnostic spelling is
+`character`/`character varying`, distinct from catalog/metadata/Dump spelling.
 
 Character-family comparisons reuse the existing target/WHERE comparison and
 logical surface, with column/literal/NULL/parameter/cast operands on either side.

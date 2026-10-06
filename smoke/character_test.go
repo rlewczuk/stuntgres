@@ -152,6 +152,78 @@ func TestCharacterSmoke(t *testing.T) {
 		}
 		castRows.Close()
 	}
+	parameterQuery := "SELECT CAST($1 AS bpchar),CAST($1 AS text),CAST($1 AS bpchar)='a',CAST($1 AS text)='a ' FROM c WHERE id=2"
+	for _, prepared := range []bool{false, true} {
+		var stmt *sql.Stmt
+		if prepared {
+			stmt, err = db.PrepareContext(ctx, parameterQuery)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+		}
+		for _, frame := range []struct {
+			input any
+			want  []any
+		}{
+			{"a  ", []any{"a  ", "a", true, false}},
+			{nil, []any{nil, nil, nil, nil}},
+			{"z ", []any{"z ", "z", false, false}},
+		} {
+			var parameterRows *sql.Rows
+			if prepared {
+				parameterRows, err = stmt.QueryContext(ctx, frame.input)
+			} else {
+				parameterRows, err = db.QueryContext(ctx, parameterQuery, frame.input)
+			}
+			if err != nil {
+				t.Fatal("fixed parameter cast", prepared, frame.input, err)
+			}
+			labels, e := parameterRows.Columns()
+			if e != nil || !reflect.DeepEqual(labels, []string{"bpchar", "text", "?column?", "?column?"}) {
+				parameterRows.Close()
+				t.Fatal(labels, e)
+			}
+			if !parameterRows.Next() {
+				parameterRows.Close()
+				t.Fatal("missing parameter row", parameterRows.Err())
+			}
+			var a, b, c, d any
+			if e = parameterRows.Scan(&a, &b, &c, &d); e != nil || !reflect.DeepEqual([]any{a, b, c, d}, frame.want) {
+				parameterRows.Close()
+				t.Fatal("parameter frame", prepared, frame.input, []any{a, b, c, d}, frame.want, e)
+			}
+			if parameterRows.Next() || parameterRows.Err() != nil {
+				parameterRows.Close()
+				t.Fatal("unexpected parameter row/error", parameterRows.Err())
+			}
+			parameterRows.Close()
+		}
+	}
+	for _, prepared := range []bool{false, true} {
+		q := "SELECT v AND TRUE FROM c"
+		var diagnosticError error
+		if prepared {
+			stmt, e := db.PrepareContext(ctx, q)
+			diagnosticError = e
+			if stmt != nil {
+				stmt.Close()
+				t.Fatal("Boolean failure exposed handle")
+			}
+		} else {
+			failedRows, e := db.QueryContext(ctx, q)
+			diagnosticError = e
+			if failedRows != nil {
+				failedRows.Close()
+				t.Fatal("Boolean failure exposed rows")
+			}
+		}
+		var got *stuntgres.Error
+		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "argument of AND must be type boolean, not type character varying", Position: "8"}
+		if !errors.As(diagnosticError, &got) || *got != want {
+			t.Fatal("canonical character diagnostic", prepared, got, diagnosticError, want)
+		}
+	}
 	rows, err = db.QueryContext(ctx, "SELECT CAST(NULL AS char(2)) FROM c WHERE id=1")
 	if err != nil {
 		t.Fatal(err)

@@ -22,8 +22,15 @@ func TestCharacterDescriptorsModifiersAndCodecs(t *testing.T) {
 			if d == nil {
 				t.Fatalf("missing builtin %s OID %d", tc.name, tc.id)
 			}
-			if d.Name() != tc.name || d.DatabaseName() != tc.database {
+			if d.Name() != tc.name || d.SQLName() != tc.unlimited || d.DatabaseName() != tc.database {
 				t.Fatal(d)
+			}
+			diagnostic := "character"
+			if tc.id == VarChar {
+				diagnostic = "character varying"
+			}
+			if d.DiagnosticName() != diagnostic {
+				t.Fatal("diagnostic spelling", d.DiagnosticName(), diagnostic)
 			}
 			u := d.Usage()
 			if !u.Valid() || u.Typmod != -1 || u.Collation != (CollationRef{ID: 100, Derivation: Default}) {
@@ -176,4 +183,18 @@ func TestCharacterSizingContextsConversionsAndComparisons(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestCharacterTextDiagnosticName(t *testing.T) {
+	for _, d := range Builtins() {
+		if d.ID() != Text {
+			continue
+		}
+		declaration, err := d.Usage().Declaration()
+		if d.Name() != "text" || d.SQLName() != "TEXT" || d.DatabaseName() != "TEXT" || d.DiagnosticName() != "text" || declaration != "TEXT" || err != nil {
+			t.Fatal("text naming changed", d, declaration, err)
+		}
+		return
+	}
+	t.Fatal("missing TEXT descriptor")
 }

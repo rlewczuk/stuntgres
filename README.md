@@ -948,6 +948,12 @@ into surrounding assignment. BPCHAR conversion to TEXT/VARCHAR trims trailing
 ASCII spaces before destination sizing; BPCHAR-to-BPCHAR preserves and resizes.
 Nonstring assignment output conversions do not add explicit edges to BPCHAR or
 VARCHAR; the separate baseline cast matrix below retains conversions to TEXT.
+A cast infers an unresolved parameter from its destination, but converts an
+already-known character parameter from its fixed source identity. Earlier
+unknown output/ANY occurrences and mixed INSERT inference boundaries remain
+unchanged. Diagnostic type names are `character` and `character varying`.
+Catalog names and cast labels remain `bpchar`/`varchar`; metadata and unlimited
+Dump declarations remain BPCHAR/VARCHAR.
 
 Character comparisons accept string columns, literals, NULL, parameters and
 these casts on either side within the existing comparison/logical surface.

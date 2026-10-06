@@ -76,6 +76,12 @@ func (d *Descriptor) DiagnosticName() string {
 	if d.id == Time {
 		return "time without time zone"
 	}
+	if d.id == BPChar {
+		return "character"
+	}
+	if d.id == VarChar {
+		return "character varying"
+	}
 	return strings.ToLower(d.sql)
 }
 func (d *Descriptor) DatabaseName() string { return d.database }
