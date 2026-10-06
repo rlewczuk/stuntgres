@@ -115,7 +115,7 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 			t.Fatal(err, again.String())
 		}
 	}
-	for _, script := range []string{"CREATE TABLE bad(v INT); INSERT INTO bad DEFAULT VALUES;", "CREATE TABLE bad(); INSERT INTO bad(v) DEFAULT VALUES;", "CREATE TABLE bad(); ALTER TABLE bad DROP v;"} {
+	for _, script := range []string{"CREATE TABLE bad(v INT NOT NULL); INSERT INTO bad DEFAULT VALUES;", "CREATE TABLE bad(); INSERT INTO bad(v) DEFAULT VALUES;", "CREATE TABLE bad(); ALTER TABLE bad DROP v;"} {
 		if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err == nil {
 			t.Fatal("invalid private control accepted", script)
 		}

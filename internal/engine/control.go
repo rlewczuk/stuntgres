@@ -74,6 +74,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		comment             string
 		columnComments      map[int32]string
 		notNullConstraints  []notNullConstraint
+		defaults            map[int32]columnDefault
 	}
 	tables := make([]dumpRelation, 0)
 	type dumpSchema struct{ name, owner string }
@@ -213,7 +214,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints})
+		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults})
 	}
 	e.mu.Unlock()
 	sort.Slice(tables, func(i, j int) bool {
@@ -275,6 +276,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return err
 			}
 			line.WriteString(quoteIdentifier(c.Name) + " " + declaration)
+			if definition, exists := t.defaults[t.attributes[i]]; exists {
+				line.WriteString(" DEFAULT " + definition.sql)
+			}
 			if !c.Nullable {
 				for _, constraint := range t.notNullConstraints {
 					if constraint.Attribute == t.attributes[i] {
@@ -365,7 +369,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, RestoreDefaultValues: true})
+	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true})
 	if err != nil {
 		return err
 	}
@@ -446,7 +450,7 @@ func restoreScalar(raw parser.Expr) error {
 		return restoreScalar(r.Child)
 	case parser.ParameterExpr:
 		return expressionError("42P02", "parameters are not allowed in restore", r.Pos)
-	case parser.LiteralExpr, parser.TypedLiteralExpr:
+	case parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:
 		return nil
 	case parser.OperatorExpr:
 		if len(r.Name.Parts) != 1 || (!arithmeticName(r.Name.Parts[0].Text) && !symbolicArithmeticName(r.Name.Parts[0].Text)) {

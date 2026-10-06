@@ -60,6 +60,8 @@ type binding struct {
 	expressions    [][]BoundExpr
 	createColumns  []ColumnDescriptor
 	createNotNull  []notNullConstraint
+	createDefaults map[int32]columnDefault
+	defaults       []BoundExpr
 	temporals      []temporalConstant
 	predicate      BoundExpr
 }
@@ -343,6 +345,10 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if err != nil {
 			return b, err
 		}
+		b.createDefaults, err = bindCreateDefaults(binder, s, columns)
+		if err != nil {
+			return b, err
+		}
 	case *parser.Insert:
 		var err error
 		b.ref, err = e.resolveReference(auth, s.Name)
@@ -356,9 +362,6 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		b.storage = e.storage[b.ref.Address]
 		if b.storage == nil {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
-		}
-		if s.RestoreDefaultValues && (len(b.relation.columns) != 0 || len(s.Targets) != 0 || len(s.Rows) != 1 || len(s.Rows[0]) != 0) {
-			return b, sqlError("0A000", "restore DEFAULT VALUES requires a zero-column table")
 		}
 		if len(s.Targets) == 0 && s.Source == nil {
 			width := len(s.Rows[0])
@@ -394,6 +397,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 			b.expressions[rowIndex] = make([]BoundExpr, len(row))
 			for j, v := range row {
+				if _, requested := v.(parser.DefaultExpr); requested {
+					continue
+				}
 				c := b.relation.columns[b.targets[j]]
 				plan, err := bind(v, c, sqltype.Assignment)
 				if err != nil {
@@ -404,6 +410,12 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					return b, insertValueError(auth.catalog, err, c, v, source)
 				}
 				b.expressions[rowIndex][j] = plan
+			}
+		}
+		if len(b.relation.defaults) != 0 {
+			b.defaults = make([]BoundExpr, len(b.relation.columns))
+			for i, attribute := range b.relation.attributes {
+				b.defaults[i] = b.relation.defaults[attribute].expression
 			}
 		}
 	case *parser.Delete:
@@ -660,7 +672,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return result, err
 	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
-		result, err := e.executeSchema(op, stmt, count)
+		result, err := e.executeSchema(op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true
 		}
@@ -710,10 +722,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.AlterTableRenameTable:
 		return e.renameRelationLocked(scope, op, auth, s.Name, "", s.NewName.Text, s.IfExists, false, count)
 	}
-	if s, ok := stmt.(*parser.Insert); ok && s.RestoreDefaultValues && !op.restoreInsertAuthority {
-		e.mu.Unlock()
-		return Result{}, sqlError("0A000", "INSERT defaults are unsupported")
-	}
 	if s, ok := stmt.(*parser.DropTable); ok {
 		return e.dropTableLocked(scope, op, auth, s, count)
 	}
@@ -756,7 +764,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		stage.authSession = op.session
 		stage.authRevision = auth.revision
 		stage.roleRevision = auth.roles.state.revision
-		er = e.schemaTableLocked(op, auth, stage, s, ns, auth.state.CurrentUser)
+		er = e.schemaTableLocked(op, auth, stage, s, ns, auth.state.CurrentUser, scope.input)
 		e.mu.Unlock()
 		if er != nil {
 			return Result{}, er
@@ -1004,7 +1012,27 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			for j, c := range b.relation.columns {
 				row[j] = sqltype.Null(c.Usage.Type)
 			}
+			if len(b.defaults) != 0 {
+				supplied := b.expressions[i]
+				for j, target := range b.targets {
+					if j < len(supplied) && supplied[j] != nil {
+						row[target] = sqltype.Value{}
+					}
+				}
+				for j, expression := range b.defaults {
+					if expression != nil && row[j].Type() != nil {
+						row[j], err = expression.Eval(&evaluation)
+						if err != nil {
+							e.mu.Unlock()
+							return Result{}, err
+						}
+					}
+				}
+			}
 			for j, v := range source {
+				if b.expressions[i][j] == nil {
+					continue
+				}
 				target := b.targets[j]
 				c := b.relation.columns[target]
 				row[target], err = expressions[i][j].Eval(&evaluation)
@@ -1015,8 +1043,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			rows[i] = row
 		}
-		// Frame-only conversions have already folded before ACL checks;
-		// executor constraints must not mask their failures.
+		// Supplied frame-only conversions have already folded before ACL
+		// checks; executor constraints must not mask their failures. Defaults
+		// execute per row after authorization, before staged write publication.
 		for _, row := range rows {
 			if err = ctx.Err(); err != nil {
 				e.mu.Unlock()

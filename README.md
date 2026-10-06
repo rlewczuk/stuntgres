@@ -676,7 +676,7 @@ Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
 
 ```text
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
-element := column type [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL]...
+element := column type [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression]...
          | [CONSTRAINT name] NOT NULL column | LIKE [schema.]source
 DROP TABLE [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 COMMENT ON TABLE [schema.]name IS string_literal | NULL
@@ -689,11 +689,13 @@ ALTER TABLE target ALTER [COLUMN] column DROP NOT NULL
 ALTER TABLE target ADD [CONSTRAINT name] NOT NULL column
 ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
-INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
+INSERT INTO [schema.]name [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
 INSERT INTO [schema.]name [(column [, ...])] SELECT [projection_target [, ...]]
        [FROM [schema.]name [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]]
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
        ORDER BY (positive_output_ordinal | columnN | +numeric_constant) [ASC | DESC]
+INSERT INTO [schema.]name DEFAULT VALUES
+insert_value := value | DEFAULT
 DELETE FROM [schema.]name [[AS] alias] [WHERE delete_predicate]
 SELECT (* | projection_target [, ...]) FROM [schema.]name
        [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]
@@ -716,6 +718,7 @@ delete_predicate := logical_predicate with optional target/alias qualification o
 projection_target := logical_target | null_count_call
 call_argument := scalar | null_count_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
+default_expression := value | comparison | (logical_target)
 ```
 
 ### INSERT from query — change note
@@ -1275,12 +1278,53 @@ bytes. Reset clears local text; Restore replaces it atomically. Both retain role
 comments, which are deliberately excluded from database Dump and Restore.
 
 
+### Column defaults
+
+CREATE TABLE now stores immutable, bound column `DEFAULT` expressions. Existing
+literal/NULL and typed TIME/TIMESTAMP syntax and scalar comparisons are admitted
+at the outer level; Boolean NOT/AND/OR require parentheses, e.g. `DEFAULT (NOT NULL)`.
+Column references and positional parameters are prohibited even in decisive logical branches. Functions, subqueries, arithmetic,
+casts, serial/identity and ALTER DEFAULT remain outside this selected SQL surface.
+Restrictions apply as ordinary recursive binding reaches each occurrence; earlier
+child Boolean, input and operator diagnostics retain their PostgreSQL precedence.
+Named DEFAULT syntax is accepted but does not create a named constraint object.
+Plain LIKE copies shape and NOT NULL, **not defaults**.
+
+Each INSERT row evaluates declared defaults for omitted columns or per-cell
+`DEFAULT`; absent declarations yield typed NULL. Explicit supplied values,
+including NULL, bypass defaults. Targetless `DEFAULT VALUES` inserts one all-default row;
+an explicit target list before DEFAULT VALUES is a syntax error (42601).
+Ordinary INSERT supplied values remain scalars, not logical/comparison expressions.
+Defaults do not change declared result types, ScanTypes or nullable metadata.
+Utility Prepare remains semantic-analysis-free; CREATE binds input/type errors
+on execution, while destination narrowing and typmod sizing remain deferred to
+INSERT. For example `INT DEFAULT 2147483648` creates successfully but fails
+on use with 22003. Relative temporal input such as `'now'` captures CREATE's
+transaction input environment; it is not a volatile per-row SQL function.
+
+Every statement stages complete rows before publication. Later default evaluation,
+conversion, NOT NULL or cancellation failure leaves existing rows unchanged.
+Descriptor owner/comment/NOT NULL changes preserve definitions; dropping a column
+removes only its stable attribute's default. Dump preserves canonical expression
+structure and captured temporal leaves without evaluating defaults; stored data,
+including explicit NULL, remains explicit. Restore uses the same public syntax
+and binder, atomically replacing definitions/data or preserving the target on failure.
+The rounded finite TIMESTAMP endpoint retains its type-owned `TIMESTAMP(0)`
+encoding exactly once, including temporal leaves inside comparison defaults.
+
+Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
+Independent pinned PostgreSQL witnesses: `make reference RUN='^TestReferenceDefault' VERBOSE=1`.
+Sequences/identity and volatile SQL functions are adjacent unsupported SQL
+capabilities, separately labeled in reference coverage. PostgreSQL disk/WAL
+durability, wire networking, native ABI extensions and external pg_dump processes
+or custom archives are non-engine mechanisms, not successful no-op promises.
+
 ### Ordinary table definitions and removal
 
 `CREATE TABLE z ()` is a real zero-column relation: direct/prepared `SELECT *`
 returns no columns and no rows for the newly created table. `LIKE z` is legal.
-There is no dummy column, `INSERT DEFAULT VALUES` remains unsupported, and
-`INSERT ... VALUES ()` is invalid syntax. Ordinary `oid` is a legal column;
+There is no dummy column. Public `INSERT ... DEFAULT VALUES` inserts one row,
+including into a zero-column table; `INSERT ... VALUES ()` is invalid syntax. Ordinary `oid` is a legal column;
 `ctid`, `xmin`, `cmin`, `xmax`, `cmax` and `tableoid` conflict with system names.
 
 Plain LIKE copies column names and supported concrete types in declaration
@@ -1552,11 +1596,10 @@ is an ordinary user column. All failures leave the original shape and data intac
 
 Dump serializes the final live CREATE/INSERT shape, never ALTER history. Dropping
 every column retains row multiplicity: CREATE TABLE `()` is followed by one
-canonical `INSERT INTO ... DEFAULT VALUES;` per empty row. Restore alone enables
-a private positioned parser marker and requires exactly zero live columns and no
-target list; it runs the common insertion path with genuine empty rows, not default
-evaluation. Public DEFAULT VALUES remains `0A000` (`INSERT defaults are unsupported`);
-`VALUES ()` remains a syntax error. ALTER TABLE is not admitted to Restore scripts.
+canonical `INSERT INTO ... DEFAULT VALUES;` per empty row. Restore and public
+INSERT share this syntax and execution path; nonzero-column relations use their
+declared defaults or typed NULL. `VALUES ()` remains a syntax error.
+ALTER TABLE is not admitted to Restore scripts.
 Explicit ACL Dump rejection remains unchanged.
 
 Owner-bearing feature controls exercise an ordinary owner of both a nonpublic
@@ -2566,7 +2609,7 @@ Lexically valid exponents succeed through NUMERIC inference, but `1e3foo`, `1e3_
 
 Radix and separated constants follow the same prepared assignment contract as decimal integers: `INSERT INTO t VALUES (1),(0x8000_0000)` into an INT4 column prepares successfully, then execution fails with `22003` / `integer out of range` and publishes neither row. The numeric feature smoke checks this boundary through both direct and prepared execution.
 
-For an INSERT without a target list, uniform VALUES rows may supply any positive number of leading declaration-order columns up to the table width; omitted supported columns receive NULL (the supported DDL has no declared-default expressions). Every VALUES row must have the same width. Explicit target lists retain their stated order and must match row width. Conversion, arity and NOT NULL failures publish no rows from the statement. The public feature smoke is `go test -count=1 -run '^TestInsertImplicitSmoke$' ./smoke`.
+For an INSERT without a target list, uniform VALUES rows may supply any positive number of leading declaration-order columns up to the table width; omitted columns use their declared default or typed NULL. Every VALUES row must have the same width. Explicit target lists retain their stated order and must match row width. Targetless DEFAULT VALUES requests one all-default row. Conversion, arity, default evaluation and NOT NULL failures publish no rows from the statement. The public feature smoke is `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
 
 Preparation checks assignment compatibility; typed integer literals assigned to INT4 are range-checked during execution, before NOT NULL checks. Thus preparing a short INSERT containing `2147483648` succeeds, but executing it fails with `22003` (`integer out of range`) without publishing rows. Unknown quoted numeric strings still run the destination input function during preparation and retain their input-specific diagnostic and cursor position.
 
@@ -2659,7 +2702,7 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 `go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
 
 
-Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, casts outside the bounded baseline and character-family sets, constraints beyond nullability, defaults, serial, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, casts outside the bounded baseline and character-family sets, constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 
@@ -2699,11 +2742,11 @@ are rejected before output. Recreated public is an ordinary namespace with absen
 ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
-Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE, supported
-parameter-free scalar INSERT (including integer arithmetic), database-local
-COMMENT and named SET SESSION AUTHORIZATION owner directives. Parameters are
-recursively rejected, and other SQL remains excluded. Legacy CREATE/INSERT-only
-scripts remain bootstrap-owned. Referenced
+Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
+defaults, supported parameter-free scalar/default-request INSERT (including
+integer arithmetic), database-local COMMENT and named SET SESSION AUTHORIZATION
+owner directives. Parameters are recursively rejected, and other SQL remains
+excluded. Legacy CREATE/INSERT-only scripts remain bootstrap-owned. Referenced
 roles must already exist in the target engine. Restore captures a private role
 snapshot before input I/O, starts an initialized private catalog, executes through
 the same SQL engine, remaps owners into target principal authority, then atomically

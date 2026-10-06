@@ -83,16 +83,10 @@ func TestAlterDropColumnZeroColumnControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertRows()
-	for _, q := range []string{"INSERT INTO z DEFAULT VALUES", "INSERT INTO z VALUES ()"} {
-		_, err := db.Exec(q)
-		if q == "INSERT INTO z DEFAULT VALUES" {
-			alterDropDiagnostic(t, err, "0A000", "INSERT defaults are unsupported", "15")
-		} else {
-			alterDropDiagnostic(t, err, "42601", `syntax error at or near ")"`, "23")
-		}
-		assertRows()
-	}
-	for _, script := range []string{"CREATE TABLE x(v INT); INSERT INTO x DEFAULT VALUES;", "CREATE TABLE x(); INSERT INTO x(v) DEFAULT VALUES;", "CREATE TABLE x(); ALTER TABLE x DROP v;"} {
+	_, err := db.Exec("INSERT INTO z VALUES ()")
+	alterDropDiagnostic(t, err, "42601", `syntax error at or near ")"`, "23")
+	assertRows()
+	for _, script := range []string{"CREATE TABLE x(v INT NOT NULL); INSERT INTO x DEFAULT VALUES;", "CREATE TABLE x(); INSERT INTO x(v) DEFAULT VALUES;", "CREATE TABLE x(); ALTER TABLE x DROP v;"} {
 		if err := stuntgres.Restore(ctx, db, strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore accepted", script)
 		}

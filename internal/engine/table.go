@@ -207,6 +207,17 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 			next.notNullConstraints = append(next.notNullConstraints, constraint)
 		}
 	}
+	if _, exists := old.defaults[old.attributes[slot]]; exists {
+		next.defaults = nil
+		if len(old.defaults) > 1 {
+			next.defaults = make(map[int32]columnDefault, len(old.defaults)-1)
+			for attribute, definition := range old.defaults {
+				if attribute != old.attributes[slot] {
+					next.defaults[attribute] = definition
+				}
+			}
+		}
+	}
 	if _, exists := old.columnACL[old.attributes[slot]]; exists {
 		next.columnACL = nil
 		for sub, acl := range old.columnACL {

@@ -80,6 +80,9 @@ func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, inheri
 			local := &declarations[index[c.Name]]
 			seen := false
 			for _, constraint := range c.Constraints {
+				if constraint.Default != nil {
+					continue
+				}
 				if seen && local.columnNotNull != constraint.NotNull {
 					return nil, insertError("42601", fmt.Sprintf(`conflicting NULL/NOT NULL declarations for column "%s" of table "%s"`, c.Name, table), constraint.Pos)
 				}

@@ -88,6 +88,7 @@ type relationDescriptor struct {
 	comment            string
 	columnComments     map[int32]string
 	notNullConstraints []notNullConstraint
+	defaults           map[int32]columnDefault
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -206,6 +207,22 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	for i, c := range r.columns {
 		if attrs[r.attributes[i]] != (c.NullabilityKnown && !c.Nullable) {
 			return fmt.Errorf("stuntgres: inconsistent not-null projection")
+		}
+	}
+	for attribute, definition := range r.defaults {
+		slot := -1
+		for i, live := range r.attributes {
+			if live == attribute {
+				slot = i
+				break
+			}
+		}
+		if slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.columns[slot].Usage {
+			return fmt.Errorf("stuntgres: invalid column default destination")
+		}
+		canonical, err := defaultSQL(context.Background(), v, definition.expression)
+		if err != nil || canonical != definition.sql {
+			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
 	}
 	for sub, text := range r.columnComments {

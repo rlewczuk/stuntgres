@@ -36,7 +36,7 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (PrincipalR
 	}
 	return role.Ref, nil
 }
-func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef) error {
+func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef, input sqltype.InputEnvironment) error {
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}
 	_, baseExists := stage.base.state.names[key]
@@ -52,7 +52,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
 		auth.catalog = e.stageRead(stage)
 	}
-	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, sqltype.InputEnvironment{}, op, nil)
+	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, input, op, nil)
 	if err != nil {
 		return err
 	}
@@ -72,6 +72,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		d.columns[i].OriginAttribute = int16(i + 1)
 	}
 	d.notNullConstraints = b.createNotNull
+	d.defaults = b.createDefaults
 	if err := nameCreateNotNull(d, auth.catalog); err != nil {
 		return err
 	}
@@ -100,12 +101,12 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	}
 	return stage.Create(d)
 }
-func (e *Engine) executeSchema(op *Operation, stmt parser.Statement, count int) (Result, error) {
+func (e *Engine) executeSchema(op *Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.mu.Lock()
-	stage, err := e.stageSchemaLocked(op, stmt)
+	stage, err := e.stageSchemaLocked(op, stmt, input)
 	e.mu.Unlock()
 	if err != nil || stage == nil {
 		return Result{}, err
@@ -132,7 +133,7 @@ func (e *Engine) executeSchema(op *Operation, stmt parser.Statement, count int) 
 	}
 	return Result{}, err
 }
-func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement) (*CatalogStage, error) {
+func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input sqltype.InputEnvironment) (*CatalogStage, error) {
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		return nil, err
@@ -221,7 +222,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement) (*Catal
 			if len(table.Name.Parts) == 2 && table.Name.Parts[0].Text != name {
 				return nil, sqlError("42P15", fmt.Sprintf("CREATE specifies a schema (%s) different from the one being created (%s)", table.Name.Parts[0].Text, name))
 			}
-			if err = e.schemaTableLocked(op, auth, stage, table, ns.address, owner); err != nil {
+			if err = e.schemaTableLocked(op, auth, stage, table, ns.address, owner, input); err != nil {
 				return nil, err
 			}
 		}

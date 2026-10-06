@@ -119,9 +119,9 @@ package parser
 %type <tok> alter_action
 %type <names> names
 %type <rows> rows
-%type <row> row values call_args scalar_targets function_values
+%type <row> row values call_args scalar_targets function_values insert_values
 %type <value> value
-%type <expr> scalar scalar_atom operand target where target_not target_and target_or projection_target function function_argument
+%type <expr> scalar scalar_atom operand target where target_not target_and target_or projection_target function function_argument insert_value
 %type <tok> comparison_operator
 %type <call> function_args
 %type <predicate> truth_kind
@@ -369,10 +369,12 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
  | CONSTRAINT name NULL { $$=ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
+ | DEFAULT target { $$=ColumnConstraint{Default:$2,Pos:$1.pos} }
+ | CONSTRAINT name DEFAULT target { $$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
-column_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
+column_suffix: LIKE | KW_T | KW_R | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
 update: UPDATE relation_name SET update_assignments where { $$=&Update{Name:$2,Assignments:$4,Where:$5,Pos:$1.pos} }
  | UPDATE relation_name SET update_assignments where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
  | UPDATE relation_name SET update_assignments where FROM { sqllex.(*lexer).failAt("0A000","UPDATE FROM is unsupported",$6.pos.Offset);return 1 }
@@ -390,8 +392,7 @@ insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1
  | INSERT INTO relation_name '(' insert_targets ')' insert_input { $$=insertStatement($3,$5,$7,$1.pos) }
  | INSERT INTO relation_name insert_input suffix { sqllex.(*lexer).capability($5,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
  | INSERT INTO relation_name '(' insert_targets ')' insert_input suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
- | INSERT INTO relation_name DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$4.pos.Offset); return 1 }; $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} }
- | INSERT INTO relation_name '(' insert_targets ')' DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$7.pos.Offset); return 1 }; $$=&Insert{Name:$3,Targets:$5,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} } ;
+ | INSERT INTO relation_name DEFAULT VALUES { $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
 delete: DELETE FROM relation_name delete_alias delete_where { $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Pos:$1.pos} }
  | DELETE FROM relation_name delete_alias delete_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
@@ -435,8 +436,10 @@ values_order: /* empty */ { $$=nil }
  | ORDER BY NULL direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NullValue,Pos:$3.pos}},Pos:$3.pos,Desc:$4} } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
-row: '(' values ')' { $$ = $2 } ;
+row: '(' insert_values ')' { $$ = $2 } ;
 values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$1} } | values ',' scalar { if !sqllex.(*lexer).scalarInput($3) { return 1 }; $$ = append($1,$3) } ;
+insert_value: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
+insert_values: insert_value { $$=[]Expr{$1} } | insert_values ',' insert_value { $$=append($1,$3) } ;
 scalar: scalar_atom { $$=$1 }
  | '(' scalar ')' { $$=$2 }
  | CAST '(' scalar AS type ')' { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} }
@@ -474,8 +477,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | LIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | AUTHORIZATION '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | ISNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | DEFAULT { sqllex.(*lexer).failAt("0A000","default values are unsupported",$1.pos.Offset); return 1 } ;
+ | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
 select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=$5; $2.Order=$6; $2.Pos=$1.pos; $$=$2 }
  | SELECT projection { $2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection FROM relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$5.pos.Offset); return 1 }

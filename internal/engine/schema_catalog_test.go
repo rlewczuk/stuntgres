@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 	"testing"
 )
 
@@ -74,7 +75,7 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	e.mu.Lock()
 	auth := catalogAuthorization(e, CatalogRead{e, e.state})
 	stage := e.BeginCatalogStage(auth.catalog)
-	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, e.roles.names["postgres"])
+	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, e.roles.names["postgres"], sqltype.InputEnvironment{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -144,7 +145,7 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 	defer adminDone()
 	before := e.CatalogRead()
 	e.mu.Lock()
-	stage, err := e.stageSchemaLocked(op, statement(t, "CREATE SCHEMA fenced CREATE TABLE t(id INT)"))
+	stage, err := e.stageSchemaLocked(op, statement(t, "CREATE SCHEMA fenced CREATE TABLE t(id INT)"), sqltype.InputEnvironment{})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

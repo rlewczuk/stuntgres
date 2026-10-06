@@ -124,6 +124,7 @@ type comparisonExpression struct {
 	expressionInfo
 	left, right BoundExpr
 	predicate   sqltype.ComparisonPredicate
+	operator    string
 }
 
 func (e comparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -330,6 +331,7 @@ type expressionBinder struct {
 	deleteTarget     bool
 	targetName       string
 	targetAlias      string
+	defaultConsumer  bool
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -480,6 +482,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, err
 		}
 	case parser.ColumnExpr:
+		if b.defaultConsumer {
+			return nil, expressionError("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
+		}
 		if policy.context == assignmentContext {
 			return nil, expressionError("0A000", "column references outside SELECT are unsupported", r.Pos)
 		}
@@ -489,7 +494,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, err
 		}
 	case parser.ParameterExpr:
-		if r.Number <= 0 {
+		if b.defaultConsumer || r.Number <= 0 {
 			return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 		}
 		u := policy.expected
@@ -911,7 +916,7 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	p.RowDependent = p.RowDependent || rp.RowDependent
 	p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 	p.StageDependent = p.StageDependent || rp.StageDependent
-	return comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), l, r, predicate}, nil
+	return comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), l, r, predicate, raw.Name.Parts[0].Text}, nil
 }
 
 type arithmeticExpression struct {

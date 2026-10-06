@@ -36,6 +36,7 @@ type Column struct {
 
 type ColumnConstraint struct {
 	NotNull bool
+	Default Expr
 	Name    Identifier
 	Pos     Position
 }
@@ -153,12 +154,12 @@ type dropTarget struct {
 }
 
 type Insert struct {
-	Name                 ObjectName
-	Targets              []InsertTarget
-	Rows                 [][]Expr
-	Source               *InsertSource
-	Pos                  Position
-	RestoreDefaultValues bool
+	Name          ObjectName
+	Targets       []InsertTarget
+	Rows          [][]Expr
+	Source        *InsertSource
+	Pos           Position
+	DefaultValues bool
 }
 
 type InsertTarget struct {
@@ -391,6 +392,13 @@ type ParameterExpr struct {
 	Number int
 	Pos    Position
 }
+
+// DefaultExpr requests the destination's default; it is not a scalar value.
+type DefaultExpr struct{ Pos Position }
+
+func (DefaultExpr) expression()                {}
+func (e DefaultExpr) SourcePosition() Position { return e.Pos }
+
 type OperatorExpr struct {
 	Name ObjectName
 	Args []Expr

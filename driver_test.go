@@ -893,9 +893,6 @@ func TestInsertImplicitShortBoundariesAndCancellation(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), "implicit-boundaries")
 	execSQL(t, db, "CREATE TABLE t(id INT,label TEXT)")
 	for _, tc := range []struct{ query, state string }{
-		{"CREATE TABLE defaults(id INT DEFAULT 1)", "0A000"},
-		{"INSERT INTO t VALUES(DEFAULT)", "0A000"},
-		{"INSERT INTO t DEFAULT VALUES", "0A000"},
 		{"INSERT INTO t VALUES(1) RETURNING id", "0A000"},
 		{"INSERT INTO t VALUES()", "42601"},
 		{"INSERT INTO t VALUES($2)", "42P18"},
