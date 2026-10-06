@@ -519,6 +519,28 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.current.text = "::"
 			l.offset++
 		}
+		// Preserve maximal-munch arithmetic operator spellings. PostgreSQL
+		// strips trailing signs only when no nonstandard operator character
+		// (here %) occurs; comment openers terminate the token first.
+		if strings.ContainsRune("+-*/%", rune(c)) {
+			end := l.offset
+			for end < len(l.input) && strings.ContainsRune("+-*/%", rune(l.input[end])) {
+				if end+1 < len(l.input) && (l.input[end:end+2] == "/*" || l.input[end:end+2] == "--") {
+					break
+				}
+				end++
+			}
+			if !strings.Contains(l.input[start:end], "%") {
+				for end > start+1 && (l.input[end-1] == '+' || l.input[end-1] == '-') {
+					end--
+				}
+			}
+			l.offset = end
+			l.current.text = l.input[start:end]
+			if end > start+1 {
+				token = SYMBOLIC_OPERATOR
+			}
+		}
 		if l.offset < len(l.input) {
 			next := l.input[l.offset]
 			switch {

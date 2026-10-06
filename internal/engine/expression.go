@@ -179,6 +179,24 @@ func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, 
 			e.left, e.right = left, right
 			return e, true, nil
 		}
+	case arithmeticExpression:
+		left, leftChanged, err := preflightCoercions(c, e.left)
+		if err != nil {
+			return nil, false, err
+		}
+		var right BoundExpr
+		var rightChanged bool
+		if e.right != nil {
+			right, rightChanged, err = preflightCoercions(c, e.right)
+			if err != nil {
+				return nil, false, err
+			}
+		}
+		// Only materialize child casts. Arithmetic itself remains row-owned.
+		if leftChanged || rightChanged {
+			e.left, e.right = left, right
+			return e, true, nil
+		}
 	case nullTestExpression:
 		child, changed, err := preflightCoercions(c, e.child)
 		if err != nil {
@@ -286,6 +304,7 @@ type expressionPolicy struct {
 	context          expressionContext
 	expected         sqltype.Usage
 	mode             sqltype.CoercionContext
+	column           string
 	booleanConstruct string
 	// Operand skips the enclosing WHERE BOOL check while binding predicate children.
 	operand bool
@@ -552,11 +571,15 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, err
 		}
 	case parser.OperatorExpr:
-		if policy.context == assignmentContext {
-			return nil, fmt.Errorf("stuntgres: comparison in assignment scalar")
-		}
 		var err error
-		node, err = b.bindComparison(r)
+		if len(r.Name.Parts) == 1 && (arithmeticName(r.Name.Parts[0].Text) || symbolicArithmeticName(r.Name.Parts[0].Text)) {
+			node, err = b.bindArithmetic(r)
+		} else {
+			if policy.context == assignmentContext {
+				return nil, fmt.Errorf("stuntgres: comparison in assignment scalar")
+			}
+			node, err = b.bindComparison(r)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -564,11 +587,18 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		return nil, fmt.Errorf("stuntgres: unsupported scalar node")
 	}
 	if policy.booleanConstruct != "" && node.ResultUsage().Type.ID() != sqltype.Bool {
-		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), raw.SourcePosition())
+		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
 	}
 	if policy.context == assignmentContext && node.ResultUsage() != policy.expected {
 		plan, err := sqltype.PlanCoercion(node.ResultUsage(), policy.expected, policy.mode)
 		if err != nil {
+			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && policy.column != "" {
+				copy := *d
+				copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", policy.column, policy.expected.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())
+				copy.Hint = "You will need to rewrite or cast the expression."
+				copy.Position = strconv.Itoa(parser.ExpressionStart(raw).Character)
+				return nil, &copy
+			}
 			return nil, err
 		}
 		node = coercionExpression{b.info(policy.expected, raw.SourcePosition(), node.Properties()), node, plan}
@@ -753,8 +783,13 @@ func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw par
 		}
 		return t.DiagnosticName()
 	}
-	copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), raw.Name.Parts[0].Text, name(right))
-	copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
+	if len(raw.Args) == 1 {
+		copy.Message = fmt.Sprintf("operator does not exist: %s %s", raw.Name.Parts[0].Text, name(left))
+		copy.Hint = "No operator matches the given name and argument type. You might need to add an explicit type cast."
+	} else {
+		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), raw.Name.Parts[0].Text, name(right))
+		copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
+	}
 	copy.Position = strconv.Itoa(raw.Pos.Character)
 	return &copy
 }
@@ -777,7 +812,7 @@ func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand
 		return comparisonOperand{raw: raw}, nil
 	}
 	switch raw.(type) {
-	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr:
+	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.OperatorExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
@@ -865,4 +900,142 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 	p.StageDependent = p.StageDependent || rp.StageDependent
 	return comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), l, r, predicate}, nil
+}
+
+type arithmeticExpression struct {
+	expressionInfo
+	left, right BoundExpr
+	provider    sqltype.Arithmetic
+}
+
+func (e arithmeticExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	a, err := e.left.Eval(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.right == nil {
+		return e.provider.Unary(c.Context, a)
+	}
+	v, err := e.right.Eval(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return e.provider.Binary(c.Context, a, v)
+}
+func arithmeticName(name string) bool {
+	return name == "+" || name == "-" || name == "*" || name == "/" || name == "%"
+}
+func symbolicArithmeticName(name string) bool {
+	if len(name) < 2 {
+		return false
+	}
+	for _, c := range name {
+		if c != '+' && c != '-' && c != '*' && c != '/' && c != '%' {
+			return false
+		}
+	}
+	return true
+}
+func integerArithmeticType(t *sqltype.Descriptor) bool {
+	return t != nil && (t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8)
+}
+func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, error) {
+	if len(raw.Name.Parts) != 1 || len(raw.Args) < 1 || len(raw.Args) > 2 {
+		return nil, fmt.Errorf("stuntgres: invalid arithmetic expression")
+	}
+	name := raw.Name.Parts[0].Text
+	// Preserve signed NUMERIC literal input without admitting a NUMERIC provider.
+	if name == "+" && len(raw.Args) == 1 {
+		if literal, ok := raw.Args[0].(parser.LiteralExpr); ok && literal.Value.Kind == parser.NumericValue {
+			literal.Value.Pos = raw.Pos
+			return b.bind(literal, expressionPolicy{context: projectionContext})
+		}
+	}
+	operator := sqltype.ArithmeticAdd
+	switch name {
+	case "-":
+		operator = sqltype.ArithmeticSubtract
+	case "*":
+		operator = sqltype.ArithmeticMultiply
+	case "/":
+		operator = sqltype.ArithmeticDivide
+	case "%":
+		operator = sqltype.ArithmeticRemainder
+	}
+	left, err := b.comparisonOperand(raw.Args[0])
+	if err != nil {
+		return nil, err
+	}
+	var right comparisonOperand
+	if len(raw.Args) == 2 {
+		right, err = b.comparisonOperand(raw.Args[1])
+		if err != nil {
+			return nil, err
+		}
+	}
+	lt, rt := left.descriptor(), right.descriptor()
+	if symbolicArithmeticName(name) {
+		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
+	}
+	// BOOL/TEXT with an integer (or unary BOOL/TEXT) has a genuine missing signature.
+	badSignature := func(t *sqltype.Descriptor) bool {
+		return t != nil && (t.ID() == sqltype.Bool || t.ID() == sqltype.Text)
+	}
+	if (len(raw.Args) == 1 && badSignature(lt)) || (integerArithmeticType(lt) && badSignature(rt)) || (badSignature(lt) && integerArithmeticType(rt)) {
+		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "operator does not exist"}, lt, rt, raw)
+	}
+	for _, t := range []*sqltype.Descriptor{lt, rt} {
+		if t != nil && !integerArithmeticType(t) {
+			return nil, expressionError("0A000", fmt.Sprintf("arithmetic for %s operands is unsupported", t.DiagnosticName()), raw.Pos)
+		}
+	}
+	typ := lt
+	if typ == nil {
+		typ = rt
+	}
+	if typ == nil {
+		return nil, expressionError("0A000", "integer arithmetic requires known integer or bigint operands", raw.Pos)
+	}
+	if rt != nil && rt.ID() == sqltype.Int8 {
+		typ = rt
+	}
+	provider, err := sqltype.BindArithmetic(operator, typ, len(raw.Args) == 1)
+	if err != nil {
+		return nil, err
+	}
+	finish := func(o comparisonOperand) (BoundExpr, error) {
+		source := o.descriptor()
+		if source == nil {
+			source = typ
+		}
+		n, err := b.finalizeOperand(o, source)
+		if err != nil {
+			return nil, err
+		}
+		if source != typ {
+			plan, err := sqltype.PlanCoercion(n.ResultUsage(), typ.Usage(), sqltype.Implicit)
+			if err != nil {
+				return nil, err
+			}
+			n = coercionExpression{b.info(typ.Usage(), n.SourcePosition(), n.Properties()), n, plan}
+		}
+		return n, nil
+	}
+	l, err := finish(left)
+	if err != nil {
+		return nil, err
+	}
+	var r BoundExpr
+	p := l.Properties()
+	if len(raw.Args) == 2 {
+		r, err = finish(right)
+		if err != nil {
+			return nil, err
+		}
+		rp := r.Properties()
+		p.RowDependent = p.RowDependent || rp.RowDependent
+		p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
+		p.StageDependent = p.StageDependent || rp.StageDependent
+	}
+	return arithmeticExpression{b.info(typ.Usage(), raw.Pos, p), l, r, provider}, nil
 }

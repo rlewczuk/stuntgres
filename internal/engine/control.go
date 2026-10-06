@@ -448,6 +448,16 @@ func restoreScalar(raw parser.Expr) error {
 		return expressionError("42P02", "parameters are not allowed in restore", r.Pos)
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		return nil
+	case parser.OperatorExpr:
+		if len(r.Name.Parts) != 1 || (!arithmeticName(r.Name.Parts[0].Text) && !symbolicArithmeticName(r.Name.Parts[0].Text)) {
+			return fmt.Errorf("stuntgres: invalid restore scalar")
+		}
+		for _, child := range r.Args {
+			if err := restoreScalar(child); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return fmt.Errorf("stuntgres: invalid restore scalar")
 	}

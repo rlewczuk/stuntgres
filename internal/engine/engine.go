@@ -260,7 +260,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
 	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
-		return binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: mode})
+		return binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: mode, column: c.Name})
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
@@ -560,6 +560,9 @@ func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw 
 	}
 	switch copy.Code {
 	case "42804":
+		if strings.HasPrefix(copy.Message, "column \"") {
+			return &copy
+		}
 		source := literalTypeName(value)
 		if literal, ok := raw.(parser.TypedLiteralExpr); ok {
 			found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: literal.TypeName.Name})

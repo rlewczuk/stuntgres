@@ -42,7 +42,8 @@ package parser
 %token <tok> DATE_MODIFIER_NUMBER
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL
-%token <tok> '+' '-' '[' ':' '(' '=' '<' '>' ',' '*'
+%token <tok> SYMBOLIC_OPERATOR
+%token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ','
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DELETE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
@@ -59,16 +60,16 @@ package parser
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
-/* Reduce a scalar/name only after checking failure-only continuations.
- * Arithmetic remains unsupported; WHERE name suffix keeps its positioned
- * predicate diagnostic rather than reducing to a completed bare scalar.
- * Dedicated CONSTRAINT retains KW_R's contextual continuation precedence.
- * '(' selects a function path, not a completed ordinary name/name list. */
+/* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
-%nonassoc '+' '-' INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP IN AND SAVEPOINT
+%nonassoc INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP IN AND SAVEPOINT
 /* Predicate continuations reduce a completed cast type before consuming IS,
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
+%left SYMBOLIC_OPERATOR
+%left '+' '-'
+%left '*' '/' '%'
+%right UNARY
 /* KW_T, LIKE and WITH also start suffixes. Shift an adjacent type tail before
  * completing a single type name: known excluded families use their first type
  * location, while arbitrary tails are syntax errors at the second token. */
@@ -115,7 +116,7 @@ package parser
 %type <rows> rows
 %type <row> row values call_args scalar_targets function_values
 %type <value> value
-%type <expr> scalar operand target where target_not target_and target_or projection_target function function_argument
+%type <expr> scalar scalar_atom operand target where target_not target_and target_or projection_target function function_argument
 %type <tok> comparison_operator
 %type <call> function_args
 %type <predicate> truth_kind
@@ -414,20 +415,29 @@ names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NA
 rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' values ')' { $$ = $2 } ;
 values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$1} } | values ',' scalar { if !sqllex.(*lexer).scalarInput($3) { return 1 }; $$ = append($1,$3) } ;
-scalar: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
+scalar: scalar_atom { $$=$1 }
+ | '(' scalar ')' { $$=$2 }
+ | CAST '(' scalar AS type ')' { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} }
+ | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} }
+ | cast_function scalar ')' { $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
+ /* Share the call opener, but retain raw DATE modifiers instead of reducing
+  * them as scalar literals (which would convert overflowing numbers too early). */
+ | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
+ | '+' scalar %prec UNARY { $$=arithmeticExpr($1,$2,nil) }
+ | '-' scalar %prec UNARY { $$=negateExpr(sqllex,$1,$2) }
+ | scalar '+' scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar '-' scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar '*' scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar '/' scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar '%' scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar SYMBOLIC_OPERATOR scalar { $$=arithmeticExpr($2,$1,$3) } ;
+scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
  | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
  /* DATE is an IDENT (also when quoted). TIME/TIMESTAMP STRING continuations
   * belong exclusively to temporal_type, not the ordinary name reduction. */
  | IDENT STRING { if $1.text!="date" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
- | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
- | '(' scalar ')' { $$=$2 }
- | CAST '(' scalar AS type ')' { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} }
- | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} }
- | cast_function scalar ')' { $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
- | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}} ;
-/* Share the call opener, but retain raw DATE modifiers instead of reducing
- * them as scalar literals (which would convert overflowing numbers too early). */
+ | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} } ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 date_literal_precision: DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$1,false);if !ok{return 1}}
  | '-' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
@@ -437,12 +447,6 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | FALSE { $$ = Value{Kind:BooleanValue, Pos:$1.pos} }
  | STRING { $$ = Value{Kind:StringValue, Text:$1.text, Pos:$1.pos} }
  | NUMBER { var ok bool; $$, ok = integerValue(sqllex,$1,""); if !ok { return 1 } }
- | '+' NUMBER { var ok bool; $$, ok = integerValue(sqllex,$2,"+"); if !ok { return 1 }; $$.Pos=$1.pos }
- | '-' NUMBER { var ok bool; $$, ok = integerValue(sqllex,$2,"-"); if !ok { return 1 }; $$.Pos=$1.pos }
- | value '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
- | value '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
- | value '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
- | value '/' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
  | KW_T '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | IS '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | LIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
@@ -460,7 +464,11 @@ select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 operand: scalar %prec NAME_LIST { $$=$1 } ;
 comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
-target: operand { $$=$1 }
+/* On ')', keep a grouped scalar in the operand layer so arithmetic may follow.
+ * Comparisons/predicates/logical forms instead use target_or grouping. Both
+ * layers erase grouping; this explicit shift preserves their existing ASTs
+ * without admitting Boolean targets as arithmetic operands. */
+target: operand %prec NAME_LIST { $$=$1 }
  | operand comparison_operator operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
  | '(' target_or ')' { $$=$2 }
  | target IS NULL %prec IS { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
@@ -493,8 +501,6 @@ truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
 projection: '*' { $$ = &Select{Star:true,StarPos:$1.pos} } | scalar_targets { $$ = &Select{Targets:$1} }
  | scalar_targets bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
  | scalar_targets AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 }
- | scalar_targets '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
- | scalar_targets '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
  | scalar_targets '.' { sqllex.(*lexer).fail("0A000","qualified column references are unsupported"); return 1 } ;
 where: /* empty */ { $$ = nil }
  | WHERE target_or { $$=$2 }

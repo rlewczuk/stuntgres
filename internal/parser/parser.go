@@ -117,6 +117,48 @@ func numberValue(tok lexeme, sign string) Value {
 	return Value{Kind: IntegerValue, Integer: n, Pos: tok.pos}
 }
 
+func arithmeticExpr(tok lexeme, left, right Expr) Expr {
+	args := []Expr{left}
+	if right != nil {
+		args = append(args, right)
+	}
+	return OperatorExpr{Name: ObjectName{Parts: []Identifier{{Text: tok.text, Pos: tok.pos}}}, Args: args, Pos: tok.pos}
+}
+
+// PostgreSQL folds numeric literal negation, including grouped constants.
+func negateExpr(l sqlLexer, tok lexeme, child Expr) Expr {
+	literal, ok := child.(LiteralExpr)
+	if !ok {
+		return arithmeticExpr(tok, child, nil)
+	}
+	v := literal.Value
+	switch v.Kind {
+	case IntegerValue:
+		if v.Integer == -1<<63 {
+			v.Kind = NumericValue
+			v.Integer = 0
+			v.Text = "9223372036854775808"
+		} else {
+			v.Integer = -v.Integer
+		}
+	case NumericValue:
+		text := v.Text
+		sign := "-"
+		if strings.HasPrefix(text, "-") {
+			text = text[1:]
+			sign = ""
+		} else {
+			text = strings.TrimPrefix(text, "+")
+		}
+		numeric := strings.ContainsAny(text, ".eE") && !(strings.HasPrefix(text, "0x") || strings.HasPrefix(text, "0X"))
+		v, _ = integerValue(l, lexeme{text: text, numeric: numeric, pos: tok.pos}, sign)
+	default:
+		return arithmeticExpr(tok, child, nil)
+	}
+	v.Pos = tok.pos
+	return LiteralExpr{Value: v}
+}
+
 func settingInteger(l sqlLexer, tok lexeme, negative bool) (string, bool) {
 	text := tok.text
 	if tok.numeric {
@@ -247,6 +289,13 @@ func (l *lexer) scalarInput(expr Expr) bool {
 	switch r := expr.(type) {
 	case CastExpr:
 		return l.scalarInput(r.Child)
+	case OperatorExpr:
+		for _, child := range r.Args {
+			if !l.scalarInput(child) {
+				return false
+			}
+		}
+		return true
 	case ColumnExpr:
 		l.failAt("0A000", "column references are unsupported in scalar inputs", r.Pos.Offset)
 		return false

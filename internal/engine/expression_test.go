@@ -194,7 +194,7 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	for _, q := range []string{"SELECT 7 FROM secret", "SELECT v FROM secret", "SELECT 7 FROM secret WHERE v=1", "SELECT 7 FROM secret ORDER BY v"} {
+	for _, q := range []string{"SELECT 7 FROM secret", "SELECT v FROM secret", "SELECT 7 FROM secret WHERE v=1", "SELECT 7 FROM secret ORDER BY v", "SELECT (v+1)*2 FROM secret", "SELECT 7 FROM secret WHERE v+1=2"} {
 		if _, err := e.Describe(op, statement(t, q)); err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +205,7 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 		r.Rows.Close()
 	}
 	before := e.state
-	for _, q := range []string{"SELECT id FROM secret", "SELECT 7 FROM secret WHERE f", "SELECT 7 FROM secret ORDER BY id", "SELECT v FROM secret WHERE id=1"} {
+	for _, q := range []string{"SELECT id FROM secret", "SELECT 7 FROM secret WHERE f", "SELECT 7 FROM secret ORDER BY id", "SELECT v FROM secret WHERE id=1", "SELECT id+v FROM secret", "SELECT v+1 FROM secret WHERE id+1=2"} {
 		if _, err := e.Describe(op, statement(t, q)); err != nil {
 			t.Fatal("ACL moved into Prepare", err)
 		}

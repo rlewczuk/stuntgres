@@ -1000,7 +1000,7 @@ scalar comparisons form Boolean leaves in targets and WHERE, such as
 `NOT id=1 AND (a OR b)` or `id>=2 AND a=b`. Comparisons keep scalar operands
 only: no chaining or logical/comparison expressions as comparison operands.
 This adds no logical INSERT VALUES, setting arguments, expression ORDER BY,
-arithmetic, nonbaseline casts, aliases, general functions or qualified-column expressions.
+nonbaseline casts, aliases, general functions or qualified-column expressions.
 PostgreSQL also accepts `SELECT TRUE AND FROM t` and `SELECT TRUE OR FROM t`
 as TRUE targets with bare aliases `and` and `or`. Native aliases remain excluded:
 these keywords continue logical expressions, so these two incomplete expressions
@@ -1547,7 +1547,7 @@ Unconstrained storage is bounded to 131072 integer digits and 16383 fractional
 places; excess format range is rejected, not silently truncated to zero.
 Numeric SQL parsing does not broaden SET's plain-decimal-integer grammar:
 settings' quoted numeric codecs retain their separate units/prefix behavior.
-No serial, arithmetic/general functions, numeric casts, general operator syntax or
+No serial, NUMERIC/SMALLINT arithmetic, general functions, numeric casts, general operator syntax or
 SELECT-without-FROM expansion is introduced; existing SMALLINT participates in
 exact numeric comparison and checked integer assignment.
 
@@ -1572,7 +1572,7 @@ not aliases. Result DatabaseTypeName is FLOAT4/FLOAT8, ScanType is float64,
 including NULL/empty results; no fictitious DecimalSize or Length is reported.
 
 Decimal inputs may be quoted, inferred numeric tokens or positional binds:
-`INSERT INTO f VALUES(0.1)`. Arithmetic and floating-point casts remain unsupported.
+`INSERT INTO f VALUES(0.1)`. Floating arithmetic and floating-point casts remain unsupported.
 Text REAL input rounds directly to binary32 (not through binary64):
 `'7.038531e-26'` stores bits 0x15ae43fd. Bound float32 is already widened by
 database/sql; bound float64 is serialized as pq-compatible decimal parameter
@@ -1662,17 +1662,69 @@ never rewrites it. Selected quoted-input failure is final, at the literal;
 incompatible known operands fail eagerly in Query/Prepare at the operator,
 even on empty tables, with the canonical operator spelling in diagnostics.
 FROM is still required outside identity/settings special forms and the selected
-null-count-only form. These scalar
-comparisons also form Boolean leaves above NOT, AND and OR in SELECT targets
-and WHERE. No comparison chaining, arithmetic, SELECT aliases or SELECT qualified
-column references, general functions, nonbaseline casts or comparison in INSERT/settings is enabled.
-Comparisons do not sort rows.
+null-count-only form. These scalar comparisons also form Boolean leaves above
+NOT, AND and OR in SELECT targets and WHERE. Bounded integer arithmetic and
+baseline explicit casts are scalar operands. Comparison chaining, aliases,
+qualified column references, general functions, nonbaseline casts and comparison
+in INSERT/settings remain excluded. Comparisons do not sort rows.
 Selected null-count calls remain excluded from Boolean/comparison operands,
-and Boolean/comparison expressions remain excluded from their arguments.
+and Boolean/comparison/arithmetic expressions remain excluded from their arguments.
+Former signed literal inputs remain admitted.
 
 Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
 pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`;
 native coverage: `make test PACKAGES=. RUN='^TestCompareOps' VERBOSE=1`.
+
+### Integer arithmetic
+
+Table SELECT projections, comparison operands/WHERE and INSERT VALUES accept
+INT4/INT8 `+`, `-`, `*`, `/`, `%`, unary `+`/`-` and arithmetic parentheses.
+Multiplication/division/remainder precede addition/subtraction; binary operators
+associate left, unary signs right. Division truncates toward zero and remainder
+has the dividend's sign (`7/2=3`, `-7%2=-1`). Unary signs preserve width;
+INT4 pairs produce INT4, either INT8 operand produces INT8. Width is fixed before
+assignment: a BIGINT destination cannot prevent INT4 expression overflow.
+Checked overflow reports `22003` (`integer out of range`/`bigint out of range`);
+division/remainder by zero reports `22012` (`division by zero`), without invented
+runtime positions. Minimum divided by -1 overflows; minimum remainder -1 is zero.
+Strict NULL returns a result-typed NULL. Numeric literal minus is folded,
+including grouped literals, so signed minimum constants retain integer width.
+Use whitespace or parentheses before a negative remainder divisor (`i% -1`,
+`i%(-1)`). Adjacent `%-` is one symbolic operator, not remainder followed by
+negation; unsupported combined arithmetic spellings fail with a typed `42883`
+at the operator rather than executing or publishing data. Contextual WHERE
+and incompatible-assignment errors use the expression start and resolved type;
+missing-operator errors retain the operator token location.
+
+Parameters obtain width from a known integer peer, in SQL occurrence order,
+not from the Go argument kind or assignment destination. Computed metadata is
+`?column?`, INT4/INT8, native int64, with no physical column origin. Existing eager
+SELECT and atomic INSERT/Restore publication remain unchanged; Dump stores
+canonical values rather than expression source. Parameter-free arithmetic
+Restore is supported and nested parameters are rejected.
+
+Existing baseline INT4/INT8/TEXT/BOOL casts compose with these scalar expressions,
+using `CAST`, postfix `::`, or the supported function-style cast names. Postfix
+casts bind before unary signs: `-i::bigint` widens before negation, whereas
+`(-i)::bigint` cannot rescue INT4 negation overflow. Similarly, casting an operand
+can widen arithmetic; casting its result cannot undo overflow. Cast preflight
+visits arithmetic children even on empty or filtered input, preserving conversion
+errors without evaluating the arithmetic root early. Cast wrappers do not admit
+computed arithmetic arguments into the bounded null-count functions. Cast
+families and BYTEA capabilities remain unchanged.
+Composition smoke: `make smoke RUN='^TestArithmeticCastCompositionSmoke$' VERBOSE=1`.
+
+SMALLINT/NUMERIC/floating and other noninteger arithmetic remain explicitly
+unsupported, without changing their input/comparison/assignment capabilities.
+Previously supported signed NUMERIC literal input, such as `+1.5`, remains a
+literal identity operation, not a NUMERIC arithmetic provider.
+Unknown-only arithmetic fails `0A000`, `integer arithmetic requires known integer
+or bigint operands`; unlike PostgreSQL it does not select FLOAT8 for unary unknown
+`+` or emulate ambiguous full-provider overloads. Settings signatures, casts,
+functions, aliases and general SELECT-without-FROM remain bounded as before.
+Feature smoke: `make smoke RUN='^TestArithmeticSmoke$' VERBOSE=1`;
+real pinned reference: `make reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
+
 
 Missing column and invalid SQL `$0` references fail during analysis with `42703`
 and `42P02`, respectively, at the occurrence's one-based character position.

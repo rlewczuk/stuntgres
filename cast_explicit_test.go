@@ -473,7 +473,6 @@ func TestCastExplicitBoundariesAndCursorCancellation(t *testing.T) {
 	for _, q := range []string{
 		"SELECT 1::int4",
 		"SELECT i::int4 AS renamed FROM t",
-		"SELECT i::int4+1 FROM t",
 		"SELECT CAST(i AS int4) trailing FROM t",
 		"SELECT i:: FROM t",
 		"SELECT CAST(i AS) FROM t",

@@ -68,6 +68,30 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	}
 	properties := ExprProperties{Volatility: Immutable}
 	for i, rawArg := range raw.Args {
+		// Casts remain selected arguments, but cannot hide computed arithmetic.
+		// Former signed literal input remains admitted through either spelling.
+		argument := rawArg
+		for {
+			cast, ok := argument.(parser.CastExpr)
+			if !ok {
+				break
+			}
+			argument = cast.Child
+		}
+		if operator, ok := argument.(parser.OperatorExpr); ok {
+			if len(operator.Name.Parts) == 1 && operator.Name.Parts[0].Text == "+" && len(operator.Args) == 1 {
+				if literal, ok := operator.Args[0].(parser.LiteralExpr); ok && (literal.Value.Kind == parser.IntegerValue || literal.Value.Kind == parser.NumericValue) {
+					literal.Value.Pos = operator.Pos
+					if _, wrapped := rawArg.(parser.CastExpr); !wrapped {
+						rawArg = literal
+					}
+				} else {
+					return nil, expressionError("0A000", "arithmetic in null-count arguments is unsupported", operator.Pos)
+				}
+			} else {
+				return nil, expressionError("0A000", "arithmetic in null-count arguments is unsupported", operator.Pos)
+			}
+		}
 		arg, err := b.bind(rawArg, expressionPolicy{context: projectionContext})
 		if err != nil {
 			return nil, err

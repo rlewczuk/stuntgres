@@ -150,8 +150,8 @@ An earlier bare `$1` still has TEXT output fallback and conflicts with later
 INT4 inference (42P08). Inputs' Go kinds never choose SQL types.
 Incompatible operands fail eagerly in Query/Prepare at the operator (42883);
 selected literal input errors retain the literal position (22P02/22003).
-No comparison implies row ordering. Comparison chaining, SELECT aliases/qualified
-columns, nonbaseline casts, arithmetic and comparison in INSERT/settings remain
+No comparison implies row ordering. Comparison chaining, aliases, qualified
+columns, nonbaseline casts and comparison in INSERT/settings remain
 excluded. Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`;
 independent pinned reference: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`.
 Logical operators use PostgreSQL's three-valued BOOL semantics: FALSE AND NULL
@@ -209,6 +209,10 @@ native support, and ordinary NULL is a single null argument. Calls remain exclud
 from INSERT, WHERE and setting arguments. General calls, qualification, aliases,
 nonbaseline casts, arithmetic, DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
 remain exclusions rather than PostgreSQL diagnostic-parity claims.
+Computed arithmetic in selected null-count arguments fails native0A000
+`arithmetic in null-count arguments is unsupported` at the operator, including
+nested calls and the singleton no-FROM form. Former signed numeric literal
+inputs remain admitted; arithmetic does not broaden this selected call surface.
 Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`;
 independent reference: `make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
 
@@ -248,8 +252,10 @@ fails42601); explicit grouping admits the intended nesting. Scalar comparisons
 bind more tightly than selected predicates, which bind above NOT, AND and OR.
 `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection and WHERE.
 Ordinary `v=NULL` still selects no rows; no transform_null_equals change.
-Existing scalar-only comparison operands/chaining restrictions remain.
-Arithmetic/general functions/nonbaseline casts, aliases, rows/composites and no-FROM scalar
+Comparison operands admit bounded scalar arithmetic and baseline casts, but not
+comparison chaining or nested logical/comparison expressions. Predicates also
+accept these scalar expressions and use their resolved type and expression start.
+General functions/nonbaseline casts, aliases, rows/composites and no-FROM scalar
 queries remain excluded except for the selected call roots described above.
 Null-count calls remain standalone projection roots, not predicate operands;
 predicate expressions remain excluded from their arguments.
@@ -327,6 +333,39 @@ use quoted lowercase hex; Restore preserves settings, atomicity and old
 snapshots. No typed BYTEA literals, functions/casts, arrays or wire server.
 Smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`; pinned independent reference:
 `make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
+
+INT4/INT8 arithmetic uses the common expression binder in table SELECT,
+comparison operands and column-free INSERT VALUES. Operators `+ - * / %`,
+unary signs and parentheses follow ordinary arithmetic precedence. Same-width
+INT4 stays INT4; mixed width widens to INT8 before evaluation, not according to
+the destination or result magnitude. Division truncates toward zero; remainder
+follows the dividend sign. Overflow is checked (`22003`), zero division/remainder
+is `22012`; runtime diagnostics have no invented source position. NULL results
+retain result width. Signed numeric literals fold under minus, including grouping.
+`i% -1` and `i%(-1)` are remainder with a negative divisor; adjacent `%-`
+is a combined symbolic operator and fails typed `42883`, not a successful
+remainder. Arithmetic punctuation maximal munch preserves comment boundaries
+and PostgreSQL trailing-sign stripping. Contextual errors use the expression
+start/resolved type, while missing-operator errors point at the operator.
+Computed results expose `?column?` and INT4/INT8 metadata, including empty results.
+Parameter width follows the first known integer peer in SQL order. Unknown-only
+arithmetic and concrete non-INT4/INT8 arithmetic are explicit native `0A000`
+boundaries, not PostgreSQL preferred-type resolution (unary unknown plus is
+FLOAT8 there). Existing noninteger providers are unchanged.
+Existing baseline scalar casts compose with arithmetic without adding cast
+families. Postfix `::` binds before unary signs; operand casts can widen arithmetic,
+but result casts cannot prevent narrower overflow. Frame-only cast conversions
+are preflighted recursively beneath arithmetic, including on empty/filtered
+input; arithmetic roots still evaluate with rows. Computed arithmetic hidden
+under casts remains excluded from bounded null-count arguments. Standard/function
+cast labels and standalone identity-cast origins retain their existing contracts;
+arithmetic results retain computed metadata and no physical origin.
+Arithmetic INSERT and parameter-free Restore use existing staged publication;
+Dump emits canonical stored values, and failed/canceled replacement preserves
+old state and retained computed cursors. No external pg_dump, physical storage
+or wire-protocol parity is implied. Smoke: `make smoke RUN='^TestArithmeticSmoke$'
+VERBOSE=1`; reference: `make reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
+
 
 UUID declarations use contextual quoted values or binds, not UUID typed literals.
 UUID accepts either hex case, matching braces, omitted hyphens and single hyphens
@@ -560,5 +599,5 @@ live settings and shared role effects are not authorized by these witnesses.
 
 Trusted Restore INSERT and database-local COMMENT use local validated captured-bootstrap AuthorizationViews, never session identity mutation. COMMENT authority covers qualified lookup, lock resolution and metadata mutation, is restricted to local targets and is cleared after each statement. Named CREATE owner groups remain intact; per-statement private markers cannot affect public Prepare/INSERT/COMMENT or persist schema/table ACL grants.
 
-Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE TABLE, literal INSERT, database-local COMMENT and named SET SESSION AUTHORIZATION only. Dump reconstructs bootstrap identity/name/owner changes before user objects; retained canonical builtin ACLs transform owner grantor/grantee, recreated public has absent ACL, and unchanged bootstrap retains legacy bytes. Local schema comments follow schema creation, table/column comments follow CREATE before INSERT under owner groups. Arbitrary explicit ACL serialization stays unsupported. Held INSERT rebinding INT4→TEXT rejects native 0A000 before importer/write; pinned PostgreSQL retains INT4 parameters and assignment-coerces to TEXT, an explicitly asserted difference.
+Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE TABLE, INSERT with supported parameter-free scalar forms (including integer arithmetic), database-local COMMENT and named SET SESSION AUTHORIZATION only. Nested parameters remain rejected recursively. Dump reconstructs bootstrap identity/name/owner changes before user objects; retained canonical builtin ACLs transform owner grantor/grantee, recreated public has absent ACL, and unchanged bootstrap retains legacy bytes. Local schema comments follow schema creation, table/column comments follow CREATE before INSERT under owner groups. Arbitrary explicit ACL serialization stays unsupported. Held INSERT rebinding INT4→TEXT rejects native 0A000 before importer/write; pinned PostgreSQL retains INT4 parameters and assignment-coerces to TEXT, an explicitly asserted difference.
 

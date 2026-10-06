@@ -463,6 +463,24 @@ func (e ParameterExpr) SourcePosition() Position    { return e.Pos }
 func (e OperatorExpr) SourcePosition() Position     { return e.Pos }
 func (e FunctionExpr) SourcePosition() Position     { return e.Pos }
 
+// ExpressionStart differs from an operator's diagnostic token location.
+// Grouping is transparent; folded literals already retain their sign location.
+func ExpressionStart(expr Expr) Position {
+	pos := expr.SourcePosition()
+	if cast, ok := expr.(CastExpr); ok && cast.Syntax == PostfixCast {
+		return ExpressionStart(cast.Child)
+	}
+	if operator, ok := expr.(OperatorExpr); ok {
+		for _, arg := range operator.Args {
+			start := ExpressionStart(arg)
+			if start.Offset < pos.Offset {
+				pos = start
+			}
+		}
+	}
+	return pos
+}
+
 // Set uses setting-specific scalar text; Default is distinct from quoted text.
 type Set struct {
 	Name    Identifier

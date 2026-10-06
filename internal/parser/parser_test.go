@@ -37,7 +37,11 @@ func TestScriptAndLiterals(t *testing.T) {
 	}
 	for i := range insert.Rows {
 		for j := range insert.Rows[i] {
-			got := insert.Rows[i][j].(LiteralExpr).Value
+			expr := insert.Rows[i][j]
+			if unary, ok := expr.(OperatorExpr); ok {
+				expr = unary.Args[0]
+			}
+			got := expr.(LiteralExpr).Value
 			got.Pos = Position{}
 			if !reflect.DeepEqual(got, want[i][j]) {
 				t.Errorf("row %d value %d: %#v != %#v", i, j, got, want[i][j])
@@ -103,7 +107,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT * FROM t alias", "0A000"}, {"SELECT x alias FROM t", "0A000"},
 		{"SELECT x FROM t ORDER BY x, y", "0A000"}, {"SELECT f(x) FROM t", "0A000"},
-		{"SELECT x + 1 FROM t", "0A000"}, {"SELECT 1", "0A000"},
+		{"SELECT 1", "0A000"},
 		{"CREATE TABLE t (x INT[])", "0A000"},
 		{"SELECT * FROM t JOIN u ON t.x = u.x", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
@@ -382,7 +386,13 @@ func TestNumericLiteralDecoding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := statements[0].(*Insert).Rows[0][0].(LiteralExpr).Value
+			expr := statements[0].(*Insert).Rows[0][0]
+			pos := expr.SourcePosition()
+			if unary, ok := expr.(OperatorExpr); ok {
+				expr = unary.Args[0]
+			}
+			got := expr.(LiteralExpr).Value
+			got.Pos = pos
 			if got.Kind != IntegerValue || got.Integer != c.want || got.Pos.Offset != 22 || got.Pos.Character != 23 {
 				t.Fatalf("value %#v, want %d at 23", got, c.want)
 			}
