@@ -701,8 +701,12 @@ SELECT null_count_call [, null_count_call ...]
 type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
        | DATE | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] | UUID | BYTEA
+       | (CHAR | CHARACTER | BPCHAR | VARCHAR | CHARACTER VARYING) [(length)]
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | DATE 'input' | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] 'input'
-scalar := unqualified column | value
+scalar := unqualified column | value | (scalar) | CAST(scalar AS cast_type) | scalar::cast_type
+        | (int4 | int8 | text | bool)(scalar)
+cast_type := INTEGER | INT | INT4 | BIGINT | INT8 | BOOLEAN | BOOL | TEXT
+           | (CHAR | CHARACTER | BPCHAR | VARCHAR | CHARACTER VARYING) [(length)]
 comparison := scalar (= | <> | != | < | <= | > | >=) scalar
 logical_target := scalar | comparison | NOT logical_target
                 | logical_target AND logical_target | logical_target OR logical_target
@@ -916,13 +920,70 @@ whole-statement type finalization. Explicit VARIADIC scalar operands fail42804 a
 multiple ordinary/VARIADIC operands fail42883 signature lookup. Arrays, including
 PostgreSQL's NULL-array/empty-array cases, are unsupported; ordinary NULL is a
 single null argument, not a NULL array. No calls are added to INSERT, settings
-arguments or WHERE. General functions, qualification, aliases, nonbaseline casts, arithmetic,
-DISTINCT, ORDER BY within calls, FILTER, OVER, star and named arguments remain
-outside the native surface.
+arguments or WHERE. General functions, qualification, aliases, casts outside the
+bounded baseline and character-family sets, arithmetic, DISTINCT, ORDER BY within
+calls, FILTER, OVER, star and named arguments remain outside the native surface.
 
 Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`.
 Independent pinned PostgreSQL witnesses:
 `make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
+
+### Character types
+
+`CHAR(n)`/`CHARACTER(n)`/`BPCHAR(n)` use BPCHAR (OID1042), while
+`VARCHAR(n)`/`CHARACTER VARYING(n)` use VARCHAR (OID1043); TEXT remains OID25.
+Length counts UTF8 code points, not bytes or grapheme clusters, and ranges from
+1 through10485760. CHAR/CHARACTER without length default to1; BPCHAR and
+VARCHAR without length are unlimited. Quoted `"bpchar"` and `"varchar"` resolve
+catalog names; `"char"` is a separate unsupported internal one-byte type, and
+`name` is not a character alias.
+
+Fixed-width values pad with ASCII spaces. TEXT, VARCHAR and unlimited BPCHAR
+preserve physical trailing spaces. Assignment shortens excess only when every
+discarded character is an ASCII space, otherwise reporting22001 (`value too
+long for type character(n)` or `character varying(n)`). Explicit `CAST` and
+`::` between these string types truncate arbitrary excess at code-point
+boundaries; NULL retains destination type/length. Explicitness does not leak
+into surrounding assignment. BPCHAR conversion to TEXT/VARCHAR trims trailing
+ASCII spaces before destination sizing; BPCHAR-to-BPCHAR preserves and resizes.
+Nonstring assignment output conversions do not add explicit edges to BPCHAR or
+VARCHAR; the separate baseline cast matrix below retains conversions to TEXT.
+
+Character comparisons accept string columns, literals, NULL, parameters and
+these casts on either side within the existing comparison/logical surface.
+BPCHAR/BPCHAR and BPCHAR/VARCHAR comparisons ignore ASCII tails; BPCHAR/TEXT
+trims only BPCHAR, while TEXT/VARCHAR tails remain significant. An unknown string
+literal next to BPCHAR follows BPCHAR semantics. Ordering uses the same nonnull
+providers, with UTF8/C byte ordering only: no locale-general, ICU, collation or
+general string-function claims.
+
+Native ColumnTypes reports BPCHAR/VARCHAR/TEXT, string ScanType, constrained
+Length n and unlimited Length MaxInt64, including empty/NULL results and after
+EOF/Close/Reset/Restore. DecimalSize is unavailable. Independently, lib/pq
+reports BPCHAR ScanType interface{} and unlimited BPCHAR/VARCHAR Length -5;
+these adapter quirks are not copied into native metadata.
+Column-derived labels survive nested casts; casts of unknown strings, NULL and
+parameters use the outermost resolved type's catalog name as their output label.
+
+Invalid string encoding uses22021 with PostgreSQL English byte diagnostics.
+Native binds have no wire portal Context. Both native and PostgreSQL CREATE
+utility Prepare accept invalid min/max/generic modifiers and TEXT modifiers;
+direct/prepared Execute reports their positioned semantic error.
+Keyword modifier syntax errors are Prepare errors on both backends.
+Generic BPCHAR and quoted catalog character spellings accept simple identifier
+modifiers as well as constants: `bpchar("2")` has length2, while `bpchar(foo)`
+reports integer-input22P02 at the type name. Keyword CHAR/VARCHAR precision
+remains a single unsigned integer. TEXT rejects modifiers before interpreting
+their contents, including nonnumeric, overflow and unary-plus forms.
+Native Dump/Reset/Restore preserves declarations, padding, Unicode, escapes,
+NULL and old reader snapshots; failed staged restores publish nothing.
+PostgreSQL wire serving, COPY, pg_dump/pg_restore processes and physical
+TOAST/disk storage remain external-only mechanisms.
+
+Focused checks: `make test PACKAGES=. RUN='^TestCharacter'`,
+`make reference RUN='^TestReferenceCharacter'` (real pinned PostgreSQL18.0),
+and `make smoke RUN='^TestCharacterSmoke$'`.
+
 
 ### Logical query results
 
@@ -1134,7 +1195,8 @@ scalar comparisons form Boolean leaves in targets and WHERE, such as
 `NOT id=1 AND (a OR b)` or `id>=2 AND a=b`. Comparisons keep scalar operands
 only: no chaining or logical/comparison expressions as comparison operands.
 This adds no logical INSERT VALUES, setting arguments, expression ORDER BY,
-nonbaseline casts, aliases, general functions or qualified-column expressions.
+casts outside the bounded baseline and character-family sets, aliases,
+general functions or qualified-column expressions.
 PostgreSQL also accepts `SELECT TRUE AND FROM t` and `SELECT TRUE OR FROM t`
 as TRUE targets with bare aliases `and` and `or`. Native aliases remain excluded:
 these keywords continue logical expressions, so these two incomplete expressions
@@ -1232,14 +1294,14 @@ Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
 EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT2/INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8/DATE/TIME/TIMESTAMP/NUMERIC/UUID/BYTEA fail
-execution with `0A000`. Excluded multiword families (CHARACTER/BIT VARYING,
+Known single-name types outside INT2/INT4/INT8/TEXT/BPCHAR/VARCHAR/BOOL/FLOAT4/FLOAT8/DATE/TIME/TIMESTAMP/NUMERIC/UUID/BYTEA fail
+execution with `0A000`. Excluded multiword families (BIT VARYING,
 TIME WITH TIME ZONE, TIMESTAMP WITH TIME ZONE and qualified INTERVAL
 fields), qualified type names, arrays and modifiers other than FLOAT(p),
-numeric precision/scale, temporal precision and admitted single BYTEA modifiers
-remain parser-level `0A000` boundaries. DATE and BYTEA modifier syntax is admitted only
+numeric precision/scale, character length, temporal precision and admitted single BYTEA modifiers
+remain parser-level `0A000` boundaries. DATE, BYTEA and TEXT modifier syntax is admitted only
 to reject it semantically with `42601`, `type modifier is not allowed for type
-"date"` or `"bytea"`, at the type token, before validating modifier operands.
+"date"`, `"bytea"` or `"text"`, at the type token, before validating modifier operands.
 CREATE Prepare is metadata-only and succeeds; direct or prepared execution rejects
 the modifier without publishing a table. TIME/TIMESTAMP precision has its own bounded integer grammar.
 Even an existing IF NOT EXISTS target cannot bypass excluded syntax forms;
@@ -1535,10 +1597,10 @@ These ordinary-string defaults correspond to standard_conforming_strings=on.
 With the session setting off, ordinary strings use that same escape decoder;
 E strings always use it. Native Restore always uses the default-on parser.
 
-Types are int2/int4/int8/text/bool/float4/float8/numeric/date, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including DATE, TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including character types, DATE, TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, DATE 1082, TIME 1083, TIMESTAMP 1114, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -1777,7 +1839,8 @@ NULL/strings (`'yes'`/`'no'`); concrete non-BOOL input fails `42804`. Only TRUE
 matches: FALSE and typed BOOL NULL/UNKNOWN do not. SELECT targets and WHERE admit
 one binary comparison of existing scalar operands: `=`, `<>`, `!=`, `<`, `<=`,
 `>` or `>=`. `!=` aliases `<>`. Either operand may be a literal, parameter or
-unqualified column, including a baseline cast of those scalar operands; results have `?column?`/BOOL metadata with native bool
+unqualified column, including an admitted baseline or character-family cast of
+those scalar operands; results have `?column?`/BOOL metadata with native bool
 ScanType and no physical-column origin, even on empty input. Either NULL yields
 BOOL NULL/UNKNOWN, including NULL compared with NULL; WHERE discards it.
 INT2/INT4/INT8 compare exactly across widths without assignment narrowing or
@@ -1798,8 +1861,9 @@ even on empty tables, with the canonical operator spelling in diagnostics.
 FROM is still required outside identity/settings special forms and the selected
 null-count-only form. These scalar comparisons also form Boolean leaves above
 NOT, AND and OR in SELECT targets and WHERE. Bounded integer arithmetic and
-baseline explicit casts are scalar operands. Comparison chaining, aliases,
-qualified column references, general functions, nonbaseline casts and comparison
+baseline and character-family explicit casts are scalar operands. Comparison
+chaining, SELECT aliases/qualified column references, general functions, casts
+outside the bounded baseline and character-family sets and comparison
 in INSERT/settings remain excluded. Comparisons do not sort rows.
 Selected null-count calls remain excluded from Boolean/comparison operands,
 and Boolean/comparison/arithmetic expressions remain excluded from their arguments.
@@ -1950,8 +2014,9 @@ Scalar comparisons bind more tightly than these predicates, which bind above
 NOT, AND and OR: `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection
 and WHERE. Ordinary `v=NULL` remains UNKNOWN and selects no rows; no
 transform_null_equals behavior is added. Comparison and predicate operands
-admit bounded INT4/INT8 arithmetic and existing baseline casts; comparison
-chaining remains excluded. General functions, nonbaseline casts, aliases,
+admit bounded INT4/INT8 arithmetic and existing baseline and character-family
+casts; comparison chaining remains excluded. General functions, casts outside
+the bounded baseline and character-family sets, aliases,
 row/composite tests and no-FROM scalar SELECT remain excluded except for the
 selected null-count call roots described above. Those calls remain standalone
 projection roots, not predicate operands; predicates remain excluded from their
@@ -2574,7 +2639,7 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 `go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
 
 
-Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, nonbaseline explicit casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, casts outside the bounded baseline and character-family sets, constraints beyond nullability, defaults, serial, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 
@@ -2590,7 +2655,7 @@ Unterminated comments and quoted tokens report PostgreSQL-style English primary 
 
 INSERT target-resolution and assignment diagnostics interpolate decoded identifiers between literal double quotes, matching PostgreSQL diagnostic prose rather than Go escaping or SQL identifier quoting. The feature smoke includes an embedded-quote column mismatch and checks its exact diagnostic and complete sentinel preservation.
 
-Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source and retains existing type-input behavior. B/X/N strings remain unsupported; `standard_conforming_strings` is configurable as documented above. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
+Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Unicode reports `22025` with a format Hint, while invalid Unicode values/surrogate pairs and unterminated literals report `42601` with original-source character positions. Raw SQL NUL/invalid UTF8 intentionally retains native positioned `42601` preflight diagnostics, distinct from decoded bytes. Bound text is not SQL escape source; string-family input rejects NUL/malformedUTF8 with22021 byte diagnostics and no native wire Context. B/X/N strings remain unsupported; `standard_conforming_strings` is configurable as documented above. Dumps use ordinary strings, preserving decoded controls and literal backslashes.
 
 The focused public proof is `go test -count=1 -run '^TestStringLiteralsSmoke$' ./smoke`; it asserts direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary. Go test reports the result.
 

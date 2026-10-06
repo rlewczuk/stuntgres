@@ -396,6 +396,14 @@ type OperatorExpr struct {
 	Args []Expr
 	Pos  Position
 }
+type CastExpr struct {
+	Child    Expr
+	TypeName TypeName
+	Pos      Position
+}
+
+func (CastExpr) expression()                {}
+func (e CastExpr) SourcePosition() Position { return e.Pos }
 
 type LogicalOperator uint8
 

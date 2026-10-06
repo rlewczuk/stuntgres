@@ -103,8 +103,10 @@ func (r *rows) ColumnTypeNullable(i int) (bool, bool) {
 func (r *rows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
 	return r.columns[i].Usage.DecimalSize()
 }
+func (r *rows) ColumnTypeLength(i int) (int64, bool) { return r.columns[i].Usage.Length() }
 
 var _ driver.RowsColumnTypeDatabaseTypeName = (*rows)(nil)
 var _ driver.RowsColumnTypeScanType = (*rows)(nil)
 var _ driver.RowsColumnTypeNullable = (*rows)(nil)
 var _ driver.RowsColumnTypePrecisionScale = (*rows)(nil)
+var _ driver.RowsColumnTypeLength = (*rows)(nil)

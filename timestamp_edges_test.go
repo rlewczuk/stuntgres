@@ -212,7 +212,7 @@ func TestTimestampInvalidDeclarationNeverPublishesAndAbortsTransaction(t *testin
 	}
 	timestampQuery(t, db, "SELECT v FROM t", []string{"v"}, []string{"TIMESTAMP"}, nil)
 }
-func TestTimestampQuotedUnicodeDeclarationsAndPublicCastBoundary(t *testing.T) {
+func TestTimestampQuotedUnicodeDeclarations(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), t.Name())
 	execSQL(t, db, `CREATE TABLE timestamp(without U&"time\0073tamp"(3),time TIMESTAMP,zone TIMESTAMP,timestamp TIMESTAMP)`)
 	execSQL(t, db, `INSERT INTO timestamp VALUES('2000-01-01 00:00:00.1236','epoch','epoch','epoch')`)

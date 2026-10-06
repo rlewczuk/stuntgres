@@ -26,6 +26,8 @@ const (
 	Float4    ID = 700
 	Float8    ID = 701
 	Unknown   ID = 705
+	BPChar    ID = 1042
+	VarChar   ID = 1043
 	Date      ID = 1082
 	Time      ID = 1083
 	Timestamp ID = 1114
@@ -80,7 +82,7 @@ func (d *Descriptor) DatabaseName() string { return d.database }
 func (d *Descriptor) Concrete() bool       { return d != nil && d.id != 0 && d.id != Unknown }
 func (d *Descriptor) Usage() Usage {
 	u := Usage{Type: d, Typmod: -1}
-	if d.id == Text {
+	if IsCharacter(d.id) {
 		u.Collation = CollationRef{ID: 100, Derivation: Default}
 	}
 	return u
@@ -96,6 +98,8 @@ func Builtins() []*Descriptor {
 		{Int2, "int2", "SMALLINT", "INT2"},
 		{Int4, "int4", "INTEGER", "INT4"},
 		{Text, "text", "TEXT", "TEXT"},
+		{BPChar, "bpchar", "BPCHAR", "BPCHAR"},
+		{VarChar, "varchar", "VARCHAR", "VARCHAR"},
 		{Float4, "float4", "REAL", "FLOAT4"},
 		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8"},
 		{Date, "date", "DATE", "DATE"},
@@ -148,7 +152,7 @@ func Boolean(d *Descriptor, b bool) Value {
 	return Value{typ: d, boolean: b}
 }
 func String(d *Descriptor, s string) Value {
-	if d == nil || (d.id != Text && d.id != Name) {
+	if d == nil || (!IsCharacter(d.id) && d.id != Name) {
 		panic("invalid string descriptor")
 	}
 	return Value{typ: d, text: s}
@@ -166,7 +170,7 @@ func (v Value) Boolean() (bool, error) {
 	return v.boolean, nil
 }
 func (v Value) Text() (string, error) {
-	if v.null || v.typ == nil || (v.typ.id != Text && v.typ.id != Name) {
+	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && v.typ.id != Name) {
 		return "", fmt.Errorf("not a text value")
 	}
 	return v.text, nil
@@ -199,7 +203,11 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
 	}
-	if !utf8.ValidString(text) || strings.IndexByte(text, 0) >= 0 {
+	if IsCharacter(d.id) {
+		if err := validateCharacterInput(text); err != nil {
+			return Value{}, err
+		}
+	} else if !utf8.ValidString(text) || strings.IndexByte(text, 0) >= 0 {
 		return Value{}, failure("22P02", "invalid textual input")
 	}
 	switch d.id {
@@ -215,8 +223,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.numericInput(text, typmod)
 	case Timestamp:
 		return d.civilInput(text, typmod, env)
-	case Text:
-		return String(d, text), nil
+	case Text, BPChar, VarChar:
+		return sizeCharacter(String(d, text), typmod, false)
 	case Bool:
 		s := strings.ToLower(trim(text))
 		if s == "1" {
@@ -375,7 +383,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return strconv.FormatInt(v.integer, 10), nil
 	case Float4, Float8:
 		return floatOutput(v.floating, d.id), nil
-	case Text, Name:
+	case Text, BPChar, VarChar, Name:
 		return v.text, nil
 	case Bool:
 		if v.boolean {
@@ -409,7 +417,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
 		}
 		return "'" + timestampOutput(v.integer) + "'", nil
-	case Text, Name:
+	case Text, BPChar, VarChar, Name:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
@@ -448,11 +456,13 @@ const (
 	integerBoolean
 	booleanInteger
 	floatIntegerConversion
+	stringConversion
 )
 
 type CoercionPlan struct {
 	source, target Usage
 	method         coercionMethod
+	context        CoercionContext
 }
 
 type castSpec struct {
@@ -468,14 +478,10 @@ var baselineCasts = [...]castSpec{
 	{Int2, Int8, Implicit, integerConversion},
 	{Int4, Int2, Assignment, integerConversion},
 	{Int8, Int2, Assignment, integerConversion},
-	{Int2, Text, Assignment, viaIO},
 	{Int2, Float4, Implicit, floatConversion},
 	{Int2, Float8, Implicit, floatConversion},
 	{Int4, Int8, Implicit, integerConversion},
 	{Int8, Int4, Assignment, integerConversion},
-	{Int4, Text, Assignment, viaIO},
-	{Int8, Text, Assignment, viaIO},
-	{Bool, Text, Assignment, booleanText},
 	{Int4, Float4, Implicit, floatConversion},
 	{Int4, Float8, Implicit, floatConversion},
 	{Int8, Float4, Implicit, floatConversion},
@@ -500,7 +506,6 @@ var baselineCasts = [...]castSpec{
 	{Numeric, Float8, Implicit, numericConversion},
 	{Float4, Numeric, Assignment, numericConversion},
 	{Float8, Numeric, Assignment, numericConversion},
-	{Numeric, Text, Assignment, viaIO},
 }
 
 func BaselineCastType(id ID) bool {
@@ -509,16 +514,16 @@ func BaselineCastType(id ID) bool {
 
 // PlanCoercion admits only bounded directional edges, never transitive casts.
 func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, error) {
-	p := CoercionPlan{source: source, target: target}
+	p := CoercionPlan{source: source, target: target, context: context}
 	if !source.Valid() || !target.Valid() {
 		return p, fmt.Errorf("invalid coercion usage")
 	}
 	if context == Explicit {
-		if !BaselineCastType(source.Type.id) || !BaselineCastType(target.Type.id) {
+		if !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
 		}
 		switch {
-		case source.Type.id == Text && target.Type.id != Text:
+		case source.Type.id == Text && !IsCharacter(target.Type.id):
 			p.method = viaIO
 			return p, nil
 		case source.Type.id == Int4 && target.Type.id == Bool:
@@ -530,6 +535,17 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		}
 	}
 	if source.Type == target.Type {
+		return p, nil
+	}
+	if IsCharacter(source.Type.id) && IsCharacter(target.Type.id) {
+		p.method = stringConversion
+		return p, nil
+	}
+	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && BaselineCastType(source.Type.id) {
+		p.method = viaIO
+		if source.Type.id == Bool {
+			p.method = booleanText
+		}
 		return p, nil
 	}
 	for _, spec := range baselineCasts {
@@ -552,6 +568,9 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 	}
 	switch p.method {
 	case identity:
+		if IsCharacter(p.target.Type.id) {
+			return sizeCharacter(v, p.target.Typmod, p.context == Explicit)
+		}
 		if p.target.Type.id == Numeric {
 			return sizeNumeric(v, p.target.Typmod)
 		}
@@ -559,6 +578,12 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 			v.integer = roundTimestamp(v.integer, p.target.Typmod)
 		}
 		return v, nil
+	case stringConversion:
+		if v.typ.id == BPChar && p.target.Type.id != BPChar {
+			v.text = strings.TrimRight(v.text, " ")
+		}
+		v.typ = p.target.Type
+		return sizeCharacter(v, p.target.Typmod, p.context == Explicit)
 	case numericConversion:
 		return numericCoercion(ctx, v, p.target)
 	case integerConversion:
@@ -600,10 +625,10 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 		if err != nil {
 			return Value{}, err
 		}
-		return p.target.Type.Input(ctx, text, -1)
+		return p.target.Type.Input(ctx, text, p.target.Typmod)
 	case booleanText:
-		// PostgreSQL's registered bool-to-text function differs from boolout.
-		return String(p.target.Type, strconv.FormatBool(v.boolean)), nil
+		// Boolean string conversion uses true/false rather than boolout's t/f.
+		return sizeCharacter(String(p.target.Type, strconv.FormatBool(v.boolean)), p.target.Typmod, false)
 	}
 	return Value{}, fmt.Errorf("invalid coercion plan")
 }
@@ -614,6 +639,9 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 	p := Comparison{left, right}
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
+	}
+	if IsCharacter(left.id) && IsCharacter(right.id) {
+		return p, nil
 	}
 	if exactNumber(left.id) && exactNumber(right.id) {
 		return p, nil
@@ -632,6 +660,19 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 	}
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return 0, fmt.Errorf("invalid comparison values")
+	}
+	if IsCharacter(p.left.id) && IsCharacter(p.right.id) {
+		left, right := a.text, b.text
+		if p.left.id == BPChar {
+			left = strings.TrimRight(left, " ")
+		}
+		if p.right.id == BPChar {
+			right = strings.TrimRight(right, " ")
+		}
+		if p.left.id == BPChar && p.right.id == VarChar || p.right.id == BPChar && p.left.id == VarChar {
+			left, right = strings.TrimRight(left, " "), strings.TrimRight(right, " ")
+		}
+		return strings.Compare(left, right), nil
 	}
 	if isFloat(p.left.id) || isFloat(p.right.id) {
 		left, err := checkedFloatOperand(ctx, a)
@@ -664,7 +705,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 		if a.integer > b.integer {
 			return 1, nil
 		}
-	case Bytea, Text, Name:
+	case Bytea, Name:
 		return strings.Compare(a.text, b.text), nil
 	case Bool:
 		if !a.boolean && b.boolean {

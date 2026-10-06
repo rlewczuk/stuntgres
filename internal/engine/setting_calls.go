@@ -34,7 +34,7 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 			return ParameterInfo{}, nil, fmt.Errorf("stuntgres: missing setting argument type")
 		}
 		var err error
-		bound[i], err = binder.bind(v, expressionPolicy{context: assignmentContext, expected: typ.Usage(), mode: sqltype.Assignment})
+		bound[i], err = binder.bind(v, expressionPolicy{context: assignmentContext, expected: typ.Usage(), mode: sqltype.Implicit})
 		if err != nil {
 			return ParameterInfo{}, nil, err
 		}

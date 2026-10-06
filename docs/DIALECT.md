@@ -135,7 +135,8 @@ Integrated expressions: `make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmo
 
 
 Scalar comparisons admit `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=`; `!=` is the
-`<>` alias. Both operands may be existing scalar literals, parameters or columns.
+`<>` alias. Both operands may be existing scalar literals, parameters, columns
+or admitted character casts.
 Every result is BOOL (`?column?`, native bool ScanType, no physical-column origin),
 including empty results; either NULL yields typed BOOL NULL/UNKNOWN, which WHERE
 does not keep. INT2/INT4/INT8 compare exactly across widths without narrowing or
@@ -150,8 +151,9 @@ An earlier bare `$1` still has TEXT output fallback and conflicts with later
 INT4 inference (42P08). Inputs' Go kinds never choose SQL types.
 Incompatible operands fail eagerly in Query/Prepare at the operator (42883);
 selected literal input errors retain the literal position (22P02/22003).
-No comparison implies row ordering. Comparison chaining, aliases, qualified
-columns, nonbaseline casts and comparison in INSERT/settings remain
+No comparison implies row ordering. Comparison chaining, SELECT aliases/qualified
+columns, casts outside the bounded baseline and character-family sets and
+comparison in INSERT/settings remain
 excluded. Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`;
 independent pinned reference: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`.
 
@@ -279,7 +281,8 @@ strings/NULL; multiple ordinary/VARIADIC operands fail42883 lookup first.
 Arrays are not admitted: PostgreSQL NULL-array/empty-array semantics are not
 native support, and ordinary NULL is a single null argument. Calls remain excluded
 from INSERT, WHERE and setting arguments. General calls, qualification, aliases,
-nonbaseline casts, arithmetic, DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
+casts outside the bounded baseline and character-family sets, arithmetic,
+DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
 remain exclusions rather than PostgreSQL diagnostic-parity claims.
 Computed arithmetic in table-backed selected null-count arguments fails native0A000
 `arithmetic in null-count arguments is unsupported` at the operator, including
@@ -326,10 +329,11 @@ fails42601); explicit grouping admits the intended nesting. Scalar comparisons
 bind more tightly than selected predicates, which bind above NOT, AND and OR.
 `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection and WHERE.
 Ordinary `v=NULL` still selects no rows; no transform_null_equals change.
-Comparison operands admit bounded scalar arithmetic and baseline casts, but not
-comparison chaining or nested logical/comparison expressions. Predicates also
-accept these scalar expressions and use their resolved type and expression start.
-General functions/nonbaseline casts, aliases, rows/composites and no-FROM scalar
+Comparison operands admit bounded scalar arithmetic and baseline and
+character-family casts, but not comparison chaining or nested logical/comparison
+expressions. Predicates also accept these scalar expressions and use their
+resolved type and expression start. General functions/casts outside the bounded
+baseline and character-family sets, aliases, rows/composites and no-FROM scalar
 queries remain excluded except for the selected call roots described above.
 Null-count calls remain standalone projection roots, not predicate operands;
 predicate expressions remain excluded from their arguments.
@@ -347,9 +351,10 @@ real pinned reference: `make reference RUN='^TestReferenceCompareNull.*$' VERBOS
 Baseline explicit casts extend the scalar positions above: `CAST(expr AS type)`,
 `expr::type`, and function-style int4/int8/text/bool calls, with nested/grouped
 operands. Standard/postfix targets retain baseline declaration aliases; function
-aliases integer/bigint/boolean/int are not admitted. Only INT4/INT8/TEXT/BOOL
-source and target types are supported; other explicit casts, including identities,
-fail native0A000. The direct matrix permits integer width conversion, integer
+aliases integer/bigint/boolean/int are not admitted. The baseline matrix supports
+INT4/INT8/TEXT/BOOL source and target types; character-family edges are described
+separately below. Other type families, including identities, fail native0A000.
+The direct baseline matrix permits integer width conversion, integer
 text output, TEXT input to integers/BOOL, BOOL text output as true/false and
 INT4↔BOOL (nonzero true; false0/true1); INT8↔BOOL remains unsupported.
 NULL keeps target metadata; unsupported pairs cannot bypass analysis with NULL.
@@ -445,6 +450,43 @@ affected-row counts and atomic deletion staging. Qualified arithmetic remains
 excluded without changing qualified atom predicates. Mixed arithmetic/DATE
 typed-literal projections preserve the existing codecs, not a DATE arithmetic
 provider. Smoke: `make smoke RUN='^TestArithmeticDeleteCompositionSmoke$' VERBOSE=1`.
+
+Character declarations add CHAR/CHARACTER/BPCHAR(n) and VARCHAR/CHARACTER
+VARYING(n), length1..10485760 counted in UTF8 code points. Unmodified
+CHAR/CHARACTER defaults1; BPCHAR/VARCHAR is unlimited. BPCHAR pads constrained
+values with ASCII spaces; all string types preserve stored/output tails.
+Assignment truncates only ASCII-space excess or fails22001; string-family
+CAST/:: silently clips arbitrary excess and keeps typed NULL metadata.
+BPCHAR->TEXT/VARCHAR removes ASCII tails before sizing; same-ID BPCHAR casts
+preserve physical bytes before resizing. The separate baseline cast matrix above
+is retained; it adds no integer/Boolean explicit edges to BPCHAR or VARCHAR.
+Existing assignment output conversion is not implicit.
+
+Character-family comparisons reuse the existing target/WHERE comparison and
+logical surface, with column/literal/NULL/parameter/cast operands on either side.
+BPCHAR/BPCHAR and BPCHAR/VARCHAR ignore ASCII tails, BPCHAR/TEXT trims only
+BPCHAR, TEXT/VARCHAR preserve significance; unknown literals beside BPCHAR use
+BPCHAR semantics. ORDER BY uses UTF8/C byte comparison, without general
+locale/collation claims. No general functions or no-FROM query expansion are added.
+Column output labels survive nested casts; casts of unknown strings/NULL/
+parameters instead use the outermost resolved type's catalog name.
+
+BPCHAR/VARCHAR/TEXT native metadata has string ScanType and Length n or
+MaxInt64, retained for NULL/empty/closed/old-snapshot results. lib/pq's BPCHAR
+interface{} ScanType and unlimited BPCHAR/VARCHAR Length -5 are independent
+adapter contracts, not native behavior. String NUL/malformedUTF8 uses22021
+with English byte diagnostics; native has no wire portal Context.
+Both native and PostgreSQL CREATE utility Prepare accept invalid length/generic/
+TEXT modifiers; direct/prepared Execute reports the positioned semantic error.
+Keyword modifier syntax errors fail Prepare on both.
+Generic BPCHAR/quoted character modifiers admit simple identifiers, decoded
+through the existing integer input path; keyword lengths remain unsigned-only.
+TEXT's modifier prohibition wins before modifier expression/input errors.
+Native controls preserve constrained/unlimited declarations, physical
+padding/tails/Unicode/escapes/NULL and retained readers, with atomic failed
+Restore. Internal `"char"`/name are distinct unsupported identities.
+Smoke: `make smoke RUN='^TestCharacterSmoke$'`; permanent pinned reference:
+`make reference RUN='^TestReferenceCharacter'`.
 
 
 UUID declarations use contextual quoted values or binds, not UUID typed literals.

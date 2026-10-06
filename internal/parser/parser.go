@@ -348,6 +348,10 @@ func floatType(l sqlLexer, name, precision lexeme) (TypeName, bool) {
 }
 
 func temporalPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) {
+	if l.(*lexer).characterPrecision && (negative || tok.numeric) {
+		l.(*lexer).syntax(tok)
+		return TypeName{}, false
+	}
 	if tok.numeric {
 		text := tok.text
 		if negative {
@@ -384,6 +388,17 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).floatPrecision = true
 		return raw, true
 	}
+	if !raw.Quoted && (raw.Name == "char" || raw.Name == "character" || raw.Name == "varchar" || raw.Name == "character varying") {
+		l.(*lexer).characterPrecision = true
+		l.(*lexer).multipleModifiers = false
+		return raw, true
+	}
+	if raw.Name == "bpchar" || raw.Name == "varchar" || raw.Name == "text" {
+		l.(*lexer).characterGeneric = true
+		l.(*lexer).genericModifier = true
+		l.(*lexer).multipleModifiers = true
+		return raw, true
+	}
 	if raw.Name != "bytea" && raw.Name != "date" && raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
 		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
 		return TypeName{}, false
@@ -398,7 +413,7 @@ func excludedTypeTail(first, tail lexeme) bool {
 		return false
 	}
 	switch first.text {
-	case "character", "bit":
+	case "bit":
 		return tail.text == "varying"
 	case "time", "timestamp":
 		return tail.text == "with" || tail.text == "without"

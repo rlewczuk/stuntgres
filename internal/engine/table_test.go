@@ -219,7 +219,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 
 func TestTableCoreKnownUnsupportedTypesExecute(t *testing.T) {
 	e := New()
-	for _, name := range []string{"VARCHAR", "NAME", "TIMESTAMPTZ", "JSONB"} {
+	for _, name := range []string{"NAME", "TIMESTAMPTZ", "JSONB"} {
 		q := "CREATE TABLE bad (id " + name + ")"
 		stmt := statement(t, q)
 		if _, err := testDescribe(e, stmt); err != nil {
@@ -260,7 +260,7 @@ func TestTableCoreQuotedTypeNamesResolveRawCatalogNames(t *testing.T) {
 			t.Fatal(name, got, err, want)
 		}
 	}
-	for _, name := range []string{"name", "bpchar", "serial", "smallserial", "bigserial"} {
+	for _, name := range []string{"name", "serial", "smallserial", "bigserial"} {
 		_, err := testExecute(e, context.Background(), statement(t, `CREATE TABLE bad (id "`+name+`")`), nil)
 		state(t, err, "0A000")
 	}

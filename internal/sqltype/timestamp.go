@@ -38,7 +38,7 @@ func (v Value) Timestamp() (int64, error) {
 	return v.integer, nil
 }
 func (d *Descriptor) validTypmod(p int32) bool {
-	return p == -1 || (d.id == Timestamp || d.id == Time) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p)
+	return p == -1 || (d.id == Timestamp || d.id == Time) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
 }
 func (u Usage) Valid() bool {
 	if !u.Type.Concrete() || !u.Type.validTypmod(u.Typmod) {
@@ -51,8 +51,10 @@ func (u Usage) Valid() bool {
 // statement owner interprets raw modifier expressions.
 func (d *Descriptor) CheckModifierSupport() error {
 	switch d.id {
-	case Numeric, Timestamp, Time:
+	case Numeric, Timestamp, Time, BPChar, VarChar:
 		return nil
+	case Text:
+		return failure("42601", `type modifier is not allowed for type "text"`)
 	case Date:
 		return failure("42601", `type modifier is not allowed for type "date"`)
 	case Bytea:
@@ -68,6 +70,24 @@ func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Erro
 	u := d.Usage()
 	if err := d.CheckModifierSupport(); err != nil {
 		return u, nil, err
+	}
+	if d.id == BPChar || d.id == VarChar {
+		if len(modifiers) != 1 {
+			return u, nil, failure("22023", "invalid type modifier")
+		}
+		name := "char"
+		if d.id == VarChar {
+			name = "varchar"
+		}
+		n := modifiers[0]
+		if n < 1 {
+			return u, nil, failure("22023", "length for type "+name+" must be at least 1")
+		}
+		if n > maximumCharacterLength {
+			return u, nil, failure("22023", "length for type "+name+" cannot exceed 10485760")
+		}
+		u.Typmod = n + 4
+		return u, nil, nil
 	}
 	if d.id == Numeric {
 		if len(modifiers) < 1 || len(modifiers) > 2 {
@@ -107,6 +127,13 @@ func (u Usage) Declaration() (string, error) {
 	if u.Type.id == Numeric && u.Typmod >= 0 {
 		p, s := numericParts(u.Typmod)
 		return fmt.Sprintf("NUMERIC(%d,%d)", p, s), nil
+	}
+	if (u.Type.id == BPChar || u.Type.id == VarChar) && u.Typmod >= 0 {
+		name := "CHARACTER"
+		if u.Type.id == VarChar {
+			name = "VARCHAR"
+		}
+		return fmt.Sprintf("%s(%d)", name, u.Typmod-4), nil
 	}
 	if u.Typmod >= 0 {
 		return fmt.Sprintf("%s(%d)", u.Type.SQLName(), u.Typmod), nil

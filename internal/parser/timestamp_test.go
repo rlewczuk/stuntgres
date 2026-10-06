@@ -157,17 +157,6 @@ func TestTimestampKeywordCategoriesAndExcludedSyntaxLocations(t *testing.T) {
 			t.Fatal(word, err)
 		}
 	}
-	for _, q := range []string{
-		`CREATE TABLE t(v "text"(3))`,
-		`CREATE TABLE t(v "text"(nonsense))`, `CREATE TABLE t(v "text"(1.5))`,
-	} {
-		_, err := Parse(q)
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "type modifiers are unsupported", Position: strconv.Itoa(strings.LastIndex(q, "(") + 1)}
-		var got *sqlstate.Error
-		if !errors.As(err, &got) || *got != want {
-			t.Fatal(q, got, err, want)
-		}
-	}
 	for _, q := range []string{"SELECT TIMESTAMP 'epoch'::timestamp FROM t", "INSERT INTO t VALUES(TIMESTAMP(3) 'epoch'::timestamp)", "SELECT * FROM t WHERE v=TIMESTAMP 'epoch'::timestamp"} {
 		if _, err := Parse(q); err != nil {
 			t.Fatal(q, err) // Cast scope is a binder policy, not parser rejection.

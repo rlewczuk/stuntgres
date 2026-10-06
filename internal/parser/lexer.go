@@ -22,12 +22,14 @@ type lexer struct {
 	backslashEscapes bool
 	// Failure-only query recognition defers its capability error until the
 	// entire script is syntactically valid. It never publishes a query AST.
-	pendingMessage string
-	pendingOffset  int
-	lookahead      rawToken
-	hasLookahead   bool
-	rawUnicode     bool
-	floatPrecision bool
+	pendingMessage     string
+	pendingOffset      int
+	lookahead          rawToken
+	hasLookahead       bool
+	rawUnicode         bool
+	floatPrecision     bool
+	characterPrecision bool
+	characterGeneric   bool
 	// Temporal keyword forms retain their unsigned-Iconst grammar; generic
 	// descriptor modifiers retain numeric spellings for subsequent int4 input.
 	temporalLead        bool

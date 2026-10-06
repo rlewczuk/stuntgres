@@ -182,18 +182,6 @@ func TestTableCoreSmoke(t *testing.T) {
 			t.Fatal(notices)
 		}
 	}
-	notices = nil
-	_, err = db.ExecContext(ctx, "CREATE TABLE IF NOT EXISTS source(i CHARACTER VARYING)")
-	diagnostic(err, "0A000")
-	excluded, err := db.PrepareContext(ctx, "CREATE TABLE IF NOT EXISTS source(i CHARACTER VARYING)")
-	if excluded != nil {
-		excluded.Close()
-		t.Fatal("excluded family syntax exposed a prepared statement")
-	}
-	diagnostic(err, "0A000")
-	if len(notices) != 0 {
-		t.Fatal("excluded family syntax emitted skip notice", notices)
-	}
 	query(false, "SELECT * FROM source", []string{"i", "s", "f"}, []string{"INT4", "TEXT", "BOOL"}, []bool{false, true, true}, [][]any{{int64(7), "O'Brien", true}})
 	exec(false, "DROP TABLE source RESTRICT", 0)
 	query(true, "SELECT * FROM clone", names, types, nullable, cloneRows)

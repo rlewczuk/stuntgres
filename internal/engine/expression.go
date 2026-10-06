@@ -481,7 +481,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 	case parser.ColumnExpr:
 		if policy.context == assignmentContext {
-			return nil, fmt.Errorf("stuntgres: column in assignment scalar")
+			return nil, expressionError("0A000", "column references outside SELECT are unsupported", r.Pos)
 		}
 		var err error
 		node, err = b.column(r)
@@ -644,7 +644,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !sqltype.BaselineCastType(target.Type.ID()) {
+	if !sqltype.BaselineCastType(target.Type.ID()) && !sqltype.IsCharacter(target.Type.ID()) {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	policy := expressionPolicy{context: projectionContext}
@@ -671,7 +671,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 	source := child.ResultUsage()
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if !sqltype.BaselineCastType(source.Type.ID()) {
+		if !sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {

@@ -132,7 +132,7 @@ func testExport(v sqltype.Value) driver.Value {
 			panic(err)
 		}
 		return n
-	case sqltype.Text, sqltype.Name:
+	case sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name:
 		s, err := v.Text()
 		if err != nil {
 			panic(err)

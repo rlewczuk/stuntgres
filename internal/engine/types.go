@@ -97,6 +97,10 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 			name = "float8"
 		case "decimal", "dec":
 			name = "numeric"
+		case "char", "character":
+			name = "bpchar"
+		case "character varying":
+			name = "varchar"
 		}
 	}
 	view := CatalogRead{owner: e, state: e.state}
@@ -112,6 +116,9 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
+	if !raw.Quoted && (raw.Name == "char" || raw.Name == "character") && len(raw.Modifiers) == 0 {
+		u.Typmod = 5
+	}
 	if len(raw.Modifiers) > 0 {
 		if err := d.CheckModifierSupport(); err != nil {
 			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
@@ -173,7 +180,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	case "smallserial", "serial2", "serial", "serial4", "bigserial", "serial8":
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
-	case "money", "char", "bpchar", "varchar",
+	case "money", "char",
 		"bit", "varbit", "timetz",
 		"timestamptz", "interval", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
@@ -182,8 +189,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	}
 	if !raw.Quoted {
 		switch raw.Name {
-		case "double", "precision",
-			"character":
+		case "double", "precision":
 			return true
 		}
 	}
