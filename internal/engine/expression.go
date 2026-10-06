@@ -120,13 +120,13 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return e.plan.Apply(c.Context, v)
 }
 
-type equalityExpression struct {
+type comparisonExpression struct {
 	expressionInfo
 	left, right BoundExpr
-	equality    sqltype.Equality
+	predicate   sqltype.ComparisonPredicate
 }
 
-func (e equalityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+func (e comparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	a, err := e.left.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -135,7 +135,7 @@ func (e equalityExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.equality.Evaluate(c.Context, a, b)
+	return e.predicate.Evaluate(c.Context, a, b)
 }
 
 type Truth uint8
@@ -255,17 +255,7 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error)
 	if !ok || p.usage.Type != nil {
 		return node, nil
 	}
-	text := b.typ(sqltype.Text).Usage()
-	if existing := b.parameters[p.number]; existing.Type != nil && existing.Type != text.Type {
-		d := expressionError("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.number), p.pos).(*sqlstate.Error)
-		name := existing.Type.DiagnosticName()
-		d.Detail = fmt.Sprintf("%s versus text", name)
-		return nil, d
-	}
-	if err := b.constrain(p.number, text, p.pos); err != nil {
-		return nil, err
-	}
-	return parameterExpression{b.info(text, p.pos, p.properties), p.number}, nil
+	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
 	if b.relation == nil || len(raw.Name.Parts) != 1 {
@@ -386,24 +376,14 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 		node = literalExpression{b.info(u, r.Pos, ExprProperties{}), value}
 	case parser.OperatorExpr:
-		if policy.context != filterContext || len(r.Args) != 2 {
-			return nil, fmt.Errorf("stuntgres: invalid equality expression")
+		if policy.context == assignmentContext {
+			return nil, fmt.Errorf("stuntgres: comparison in assignment scalar")
 		}
-		left, err := b.bind(r.Args[0], expressionPolicy{context: projectionContext})
+		var err error
+		node, err = b.bindComparison(r)
 		if err != nil {
 			return nil, err
 		}
-		right, err := b.bind(r.Args[1], expressionPolicy{context: projectionContext, expected: left.ResultUsage(), mode: sqltype.Implicit})
-		if err != nil {
-			return nil, operatorExpressionError(err, left.ResultUsage(), r)
-		}
-		equality, err := sqltype.BindEquality(left.ResultUsage().Type, right.ResultUsage().Type, b.typ(sqltype.Bool))
-		if err != nil {
-			return nil, operatorExpressionError(err, left.ResultUsage(), r)
-		}
-		p := left.Properties()
-		p.ParameterDependent = p.ParameterDependent || right.Properties().ParameterDependent
-		node = equalityExpression{b.info(b.typ(sqltype.Bool).Usage(), r.Pos, p), left, right, equality}
 	default:
 		return nil, fmt.Errorf("stuntgres: unsupported scalar node")
 	}
@@ -477,28 +457,135 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		// The binder visits constant occurrences in source order.
+		// Append during analysis; description finalization orders captures by offset.
 		b.temporals = append(b.temporals, temporalConstant{pos.Offset, n, u.Typmod, u.Type.ID()})
 	}
 	return v, nil
 }
-func operatorExpressionError(err error, left sqltype.Usage, raw parser.OperatorExpr) error {
+func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
 	d, ok := err.(*sqlstate.Error)
 	if !ok {
 		return err
 	}
 	copy := *d
 	if copy.Code == "42883" {
-		right := "unknown"
-		if literal, ok := raw.Args[1].(parser.LiteralExpr); ok {
-			right = literalTypeName(literal.Value)
+		name := func(t *sqltype.Descriptor) string {
+			if t == nil {
+				return "unknown"
+			}
+			return t.DiagnosticName()
 		}
-		if literal, ok := raw.Args[1].(parser.TypedLiteralExpr); ok {
-			right = literal.TypeName.Name + " without time zone"
-		}
-		copy.Message = fmt.Sprintf("operator does not exist: %s = %s", left.Type.DiagnosticName(), right)
+		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), raw.Name.Parts[0].Text, name(right))
 		copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
 		copy.Position = strconv.Itoa(raw.Pos.Character)
 	}
 	return &copy
+}
+
+// Unknown state exists only during analysis. It never becomes an executable Value.
+type comparisonOperand struct {
+	node BoundExpr
+	raw  parser.Expr
+}
+
+func (o comparisonOperand) descriptor() *sqltype.Descriptor {
+	if o.node == nil {
+		return nil
+	}
+	return o.node.ResultUsage().Type
+}
+
+func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand, error) {
+	if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+		return comparisonOperand{raw: raw}, nil
+	}
+	switch raw.(type) {
+	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr:
+	default:
+		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
+	}
+	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	return comparisonOperand{node: node}, err
+}
+
+func (b *expressionBinder) coerceParameter(p parameterExpression, u sqltype.Usage) (BoundExpr, error) {
+	if existing := b.parameters[p.number]; existing.Type != nil && existing.Type != u.Type {
+		d := expressionError("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.number), p.pos).(*sqlstate.Error)
+		d.Detail = fmt.Sprintf("%s versus %s", existing.Type.DiagnosticName(), u.Type.DiagnosticName())
+		return nil, d
+	}
+	b.parameters[p.number] = u.Type.Usage()
+	return parameterExpression{b.info(u.Type.Usage(), p.pos, p.properties), p.number}, nil
+}
+
+func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Descriptor) (BoundExpr, error) {
+	if o.descriptor() != nil {
+		return o.node, nil
+	}
+	if p, ok := o.node.(parameterExpression); ok {
+		return b.coerceParameter(p, typ.Usage())
+	}
+	if o.raw == nil {
+		return nil, fmt.Errorf("stuntgres: missing unknown comparison operand")
+	}
+	return b.bind(o.raw, expressionPolicy{context: projectionContext, expected: typ.Usage()})
+}
+
+func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, error) {
+	if len(raw.Args) != 2 || len(raw.Name.Parts) != 1 {
+		return nil, fmt.Errorf("stuntgres: invalid comparison expression")
+	}
+	var operator sqltype.ComparisonOperator
+	switch raw.Name.Parts[0].Text {
+	case "=":
+		operator = sqltype.CompareEqual
+	case "<>":
+		operator = sqltype.CompareNotEqual
+	case "<":
+		operator = sqltype.CompareLess
+	case "<=":
+		operator = sqltype.CompareLessEqual
+	case ">":
+		operator = sqltype.CompareGreater
+	case ">=":
+		operator = sqltype.CompareGreaterEqual
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid comparison operator")
+	}
+	// Copy each occurrence's then-known parameter type before resolving either side.
+	left, err := b.comparisonOperand(raw.Args[0])
+	if err != nil {
+		return nil, err
+	}
+	right, err := b.comparisonOperand(raw.Args[1])
+	if err != nil {
+		return nil, err
+	}
+	lt, rt := left.descriptor(), right.descriptor()
+	if lt == nil {
+		lt = rt
+	}
+	if rt == nil {
+		rt = lt
+	}
+	if lt == nil {
+		lt, rt = b.typ(sqltype.Text), b.typ(sqltype.Text)
+	}
+	predicate, err := sqltype.BindComparisonPredicate(operator, lt, rt, b.typ(sqltype.Bool))
+	if err != nil {
+		return nil, operatorExpressionError(err, left.descriptor(), right.descriptor(), raw)
+	}
+	l, err := b.finalizeOperand(left, lt)
+	if err != nil {
+		return nil, err
+	}
+	r, err := b.finalizeOperand(right, rt)
+	if err != nil {
+		return nil, err
+	}
+	p, rp := l.Properties(), r.Properties()
+	p.RowDependent = p.RowDependent || rp.RowDependent
+	p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
+	p.StageDependent = p.StageDependent || rp.StageDependent
+	return comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), l, r, predicate}, nil
 }

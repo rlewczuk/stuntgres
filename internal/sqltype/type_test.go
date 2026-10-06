@@ -216,7 +216,7 @@ func TestTypeCoreBooleanAndCoercion(t *testing.T) {
 func TestTypeCoreStrictEqualityAndSerialization(t *testing.T) {
 	types := testTypes()
 	ctx := context.Background()
-	equality, err := BindEquality(types[Int4], types[Int8], types[Bool])
+	equality, err := BindComparisonPredicate(CompareEqual, types[Int4], types[Int8], types[Bool])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestTypeCoreStrictEqualityAndSerialization(t *testing.T) {
 	if err != nil || result.Type() != types[Bool] || !result.IsNull() {
 		t.Fatal(result, err)
 	}
-	if _, err = BindEquality(types[Int4], types[Bool], types[Bool]); err == nil {
+	if _, err = BindComparisonPredicate(CompareEqual, types[Int4], types[Bool], types[Bool]); err == nil {
 		t.Fatal("incompatible equality admitted")
 	}
 	text := String(types[Text], "O'Brien\n\\tail")

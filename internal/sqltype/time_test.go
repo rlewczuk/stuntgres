@@ -187,7 +187,7 @@ func TestTimePrecisionAndComparison(t *testing.T) {
 			stamp = v
 		}
 	}
-	eq, _ := BindEquality(d, d, boolType)
+	eq, _ := BindComparisonPredicate(CompareEqual, d, d, boolType)
 	v, _ := TimeValue(d, 0)
 	null, err := eq.Evaluate(ctx, Null(d), v)
 	if err != nil || !null.IsNull() || null.Type() != boolType {

@@ -482,6 +482,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		return b, err
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
+	// Comparison coercion may capture an unknown left constant after a typed
+	// right constant. Rebinding uses binary search by source offset.
+	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.temporals = binder.temporals
 	return b, nil
 }

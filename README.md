@@ -1251,7 +1251,7 @@ These assert exact release output/bit witnesses, precision/metadata, independent
 expected native/pq values, direct/prepared binds and diagnostics, NaN bags and
 ordering, later-tuple atomicity, cancellation and retained control snapshots.
 
-Table SELECT targets and existing equality filters use one immutable typed
+Table SELECT targets and scalar comparison filters use one immutable typed
 expression binder/evaluator, also shared by INSERT and bounded setting arguments.
 Untyped literal and parameter targets are named `?column?`; explicitly typed temporal
 targets are named `time` or `timestamp`; physical columns retain their
@@ -1265,11 +1265,34 @@ conflicts with TEXT fallback. `SELECT $1 FROM t` infers TEXT independent of the
 Go value, and `SELECT $1 FROM t WHERE s=$1` works when `s` is TEXT.
 Bare WHERE accepts BOOL columns/literals/parameters and contextual unknown
 NULL/strings (`'yes'`/`'no'`); concrete non-BOOL input fails `42804`. Only TRUE
-matches: FALSE and typed BOOL NULL/UNKNOWN do not. Existing equality remains
-column-left, literal/parameter-right; equality projection and general predicates
-are not admitted. FROM is still required outside the existing identity/settings
-special forms. No arithmetic, aliases, qualified column references, functions,
-casts or expanded comparison/logical syntax is enabled.
+matches: FALSE and typed BOOL NULL/UNKNOWN do not. SELECT targets and WHERE admit
+one binary comparison of existing scalar operands: `=`, `<>`, `!=`, `<`, `<=`,
+`>` or `>=`. `!=` aliases `<>`. Either operand may be a literal, parameter or
+unqualified column; results have `?column?`/BOOL metadata with native bool
+ScanType and no physical-column origin, even on empty input. Either NULL yields
+BOOL NULL/UNKNOWN, including NULL compared with NULL; WHERE discards it.
+INT2/INT4/INT8 compare exactly across widths without assignment narrowing or
+float conversion. Existing TEXT/NAME, BOOL, FLOAT4/8, exact NUMERIC, UUID and
+same-type TIME/TIMESTAMP comparison providers remain; no cross-temporal casts
+are added. C text ordering and FALSE before TRUE apply.
+
+Both operands are analyzed before unknown coercion. A quoted string or NULL
+uses the known peer's type; two unknown operands choose TEXT (`'10'<'2'` is true).
+Known TEXT does not become integer/BOOL implicitly. Each parameter occurrence
+copies the shared type known when visited: `SELECT i=$1,j=$1 FROM t` fixes INT4
+from `i`, then compares the known INT4 with BIGINT `j` without narrowing.
+`SELECT i=$1,b=$1 FROM t` instead fails42883 for BOOL versus INTEGER.
+An earlier bare `$1` still falls back to TEXT and can fail42P08; later inference
+never rewrites it. Selected quoted-input failure is final, at the literal;
+incompatible known operands fail eagerly in Query/Prepare at the operator,
+even on empty tables, with the canonical operator spelling in diagnostics.
+FROM is still required outside identity/settings special forms. No chaining,
+logical operators, arithmetic, aliases, qualified column references, functions,
+casts or comparison in INSERT/settings is enabled. Comparisons do not sort rows.
+
+Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
+pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`;
+native coverage: `make test PACKAGES=. RUN='^TestCompareOps' VERBOSE=1`.
 
 Missing column and invalid SQL `$0` references fail during analysis with `42703`
 and `42P02`, respectively, at the occurrence's one-based character position.

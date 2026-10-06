@@ -36,7 +36,8 @@ package parser
 }
 %token <tok> IDENT NUMBER STRING PARAM
 %token <tok> DOT_DOT
-%token <tok> '+' '-' '[' ':' '(' '=' ','
+%token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL
+%token <tok> '+' '-' '[' ':' '(' '=' '<' '>' ','
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
@@ -91,7 +92,8 @@ package parser
 %type <rows> rows
 %type <row> row values call_args scalar_targets
 %type <value> value
-%type <expr> scalar target where
+%type <expr> scalar operand target where
+%type <tok> comparison_operator
 %type <selectStmt> projection
 %type <order> order
 %type <desc> direction
@@ -377,8 +379,11 @@ select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=
  | SELECT projection FROM relation_name where order suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
-target: name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+operand: name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
  | scalar { $$=$1 } ;
+comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
+target: operand { $$=$1 }
+ | operand comparison_operator operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} } ;
 scalar_targets: target { $$=[]Expr{$1} } | scalar_targets ',' target { $$=append($1,$3) } ;
 projection: '*' { $$ = &Select{Star:true} } | scalar_targets { $$ = &Select{Targets:$1} }
  | scalar_targets bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
@@ -388,10 +393,6 @@ projection: '*' { $$ = &Select{Star:true} } | scalar_targets { $$ = &Select{Targ
  | scalar_targets '.' { sqllex.(*lexer).fail("0A000","qualified column references are unsupported"); return 1 } ;
 where: /* empty */ { $$ = nil }
  | WHERE target { $$=$2 }
- | WHERE name '=' scalar { $$ = OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:"=",Pos:$3.pos}}},Args:[]Expr{ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Pos:$2.pos},$4},Pos:$3.pos} }
- | WHERE name '>' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }
- | WHERE name '<' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }
- | WHERE name '!' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }
  | WHERE name suffix { if $3.keyword!=nil && ($3.text=="isnull" || $3.text=="notnull") { sqllex.(*lexer).failAt("0A000","expressions are unsupported",$3.pos.Offset) } else { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported") }; return 1 }
  | WHERE name KW_C { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 } ;
 order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$3.text, Pos:$3.pos, Desc:$4} }

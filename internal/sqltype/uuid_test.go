@@ -134,7 +134,7 @@ func TestUUIDComparisonAndNull(t *testing.T) {
 		t.Fatal(n, err)
 	}
 	boolType := Builtins()[0]
-	eq, err := BindEquality(d, d, boolType)
+	eq, err := BindComparisonPredicate(CompareEqual, d, d, boolType)
 	if err != nil {
 		t.Fatal(err)
 	}

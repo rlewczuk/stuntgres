@@ -357,7 +357,7 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 			t.Fatal(tc, got, err)
 		}
 	}
-	eq, _ := BindEquality(d, d, types[Bool])
+	eq, _ := BindComparisonPredicate(CompareEqual, d, d, types[Bool])
 	v, e := eq.Evaluate(ctx, Null(d), prev)
 	if e != nil || !v.IsNull() || v.Type() != types[Bool] {
 		t.Fatal(v, e)

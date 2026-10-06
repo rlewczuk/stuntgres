@@ -603,34 +603,64 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 	return 0, nil
 }
 
-// Equality is the strict SQL operator; Comparison is its nonnull ordering
-// provider. Query policy does not invent NULL equality from compare-zero.
-type Equality struct {
+// ComparisonPredicate is a strict SQL predicate over the nonnull ordering
+// provider. NULL policy belongs here, not in Comparison or its sorting callers.
+type ComparisonOperator uint8
+
+const (
+	CompareEqual ComparisonOperator = iota
+	CompareNotEqual
+	CompareLess
+	CompareLessEqual
+	CompareGreater
+	CompareGreaterEqual
+)
+
+type ComparisonPredicate struct {
 	operands Comparison
 	result   *Descriptor
+	operator ComparisonOperator
 }
 
-func BindEquality(left, right, result *Descriptor) (Equality, error) {
-	if result == nil || result.id != Bool {
-		return Equality{}, fmt.Errorf("invalid equality result descriptor")
+func BindComparisonPredicate(operator ComparisonOperator, left, right, result *Descriptor) (ComparisonPredicate, error) {
+	if operator > CompareGreaterEqual || result == nil || result.id != Bool || !result.Concrete() {
+		return ComparisonPredicate{}, fmt.Errorf("invalid comparison predicate")
 	}
 	operands, err := BindComparison(left, right)
 	if err != nil {
-		return Equality{}, err
+		return ComparisonPredicate{}, err
 	}
-	return Equality{operands: operands, result: result}, nil
+	return ComparisonPredicate{operands: operands, result: result, operator: operator}, nil
 }
 
-func (p Equality) Evaluate(ctx context.Context, a, b Value) (Value, error) {
-	if a.typ != p.operands.left || b.typ != p.operands.right || !p.result.Concrete() {
-		return Value{}, fmt.Errorf("invalid equality values")
+func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value) (Value, error) {
+	if p.operator > CompareGreaterEqual || a.typ != p.operands.left || b.typ != p.operands.right || !p.operands.left.Concrete() || !p.operands.right.Concrete() || !p.result.Concrete() || p.result.id != Bool {
+		return Value{}, fmt.Errorf("invalid comparison predicate values")
+	}
+	if err := ctx.Err(); err != nil {
+		return Value{}, err
 	}
 	if a.null || b.null {
-		return Null(p.result), ctx.Err()
+		return Null(p.result), nil
 	}
-	comparison, err := p.operands.Compare(ctx, a, b)
+	sign, err := p.operands.Compare(ctx, a, b)
 	if err != nil {
 		return Value{}, err
 	}
-	return Boolean(p.result, comparison == 0), nil
+	var truth bool
+	switch p.operator {
+	case CompareEqual:
+		truth = sign == 0
+	case CompareNotEqual:
+		truth = sign != 0
+	case CompareLess:
+		truth = sign < 0
+	case CompareLessEqual:
+		truth = sign <= 0
+	case CompareGreater:
+		truth = sign > 0
+	case CompareGreaterEqual:
+		truth = sign >= 0
+	}
+	return Boolean(p.result, truth), nil
 }

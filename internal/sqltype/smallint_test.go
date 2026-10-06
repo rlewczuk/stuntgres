@@ -159,7 +159,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 			if err != nil || n != want {
 				t.Fatal(id, n, err)
 			}
-			eq, err := BindEquality(a.Type(), b.Type(), types[Bool])
+			eq, err := BindComparisonPredicate(CompareEqual, a.Type(), b.Type(), types[Bool])
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -153,7 +153,7 @@ func TestFloatProvidersOwnership(t *testing.T) {
 	for _, pair := range [][2]ID{{Float4, Float8}, {Float8, Float4}, {Float4, Float4}} {
 		left, _ := Float(types[pair[0]], math.NaN())
 		right, _ := Float(types[pair[1]], math.NaN())
-		eq, err := BindEquality(left.Type(), right.Type(), types[Bool])
+		eq, err := BindComparisonPredicate(CompareEqual, left.Type(), right.Type(), types[Bool])
 		if err != nil {
 			t.Fatal(err)
 		}

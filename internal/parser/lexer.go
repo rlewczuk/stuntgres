@@ -518,6 +518,24 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.current.text = "::"
 			l.offset++
 		}
+		if l.offset < len(l.input) {
+			next := l.input[l.offset]
+			switch {
+			case c == '<' && next == '=':
+				token = LESS_EQUAL
+			case c == '>' && next == '=':
+				token = GREATER_EQUAL
+			case c == '<' && next == '>', c == '!' && next == '=':
+				token = NOT_EQUAL
+			}
+			if token == LESS_EQUAL || token == GREATER_EQUAL || token == NOT_EQUAL {
+				l.offset++
+				l.current.text = l.input[start:l.offset]
+				if token == NOT_EQUAL {
+					l.current.text = "<>"
+				}
+			}
+		}
 	}
 	if l.current.raw == "" {
 		l.current.raw = l.input[start:l.offset]

@@ -214,7 +214,7 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 	p, _ = BindComparison(d, types[Float8])
 	_, err := p.Compare(ctx, huge, f)
 	numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: `"` + "1" + strings.Repeat("0", 400) + `" is out of range for type double precision`})
-	equality, _ := BindEquality(d, d, types[Bool])
+	equality, _ := BindComparisonPredicate(CompareEqual, d, d, types[Bool])
 	null, err := equality.Evaluate(ctx, Null(d), decimal)
 	if err != nil || !null.IsNull() || null.Type() != types[Bool] {
 		t.Fatal(null, err)
@@ -345,7 +345,7 @@ func TestNumericExistingSmallintCoercionAndComparison(t *testing.T) {
 			if reverse {
 				left, right = right, left
 			}
-			equality, err := BindEquality(left.Type(), right.Type(), types[Bool])
+			equality, err := BindComparisonPredicate(CompareEqual, left.Type(), right.Type(), types[Bool])
 			if err != nil {
 				t.Fatal(err)
 			}
