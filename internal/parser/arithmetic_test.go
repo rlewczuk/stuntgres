@@ -49,3 +49,32 @@ func TestArithmeticGrammar(t *testing.T) {
 		}
 	}
 }
+
+func TestArithmeticSignedCastSingletonClassification(t *testing.T) {
+	for _, q := range []string{
+		"SELECT num_nulls(CAST(+1 AS int4),NULL),num_nonnulls(+1::int4,NULL)",
+		"SELECT num_nulls(+(1::int4),NULL)",
+		"SELECT num_nulls(+CAST(1 AS bigint),NULL)",
+		"SELECT num_nulls(-1::int4,NULL)",
+		"SELECT num_nulls(-(CAST(1 AS bigint)::int8),NULL)",
+		"SELECT num_nulls((-1)::int4,NULL)",
+	} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 || !statements[0].(*Select).IsSingleton() {
+			t.Fatal(q, statements, err)
+		}
+	}
+	for _, q := range []string{
+		"SELECT num_nulls(+(CAST(1+2 AS int4)),NULL)",
+		"SELECT num_nulls(+(i::int4),NULL)",
+		"SELECT num_nulls(+CAST($1 AS int4),NULL)",
+		"SELECT num_nulls(-(CAST(1+2 AS int4)),NULL)",
+		"SELECT num_nulls(-(i::int4),NULL)",
+		"SELECT num_nulls(-CAST($1 AS int4),NULL)",
+	} {
+		statements, err := Parse(q)
+		if err == nil || statements != nil {
+			t.Fatal("signed cast admitted a nonliteral singleton argument", q, statements, err)
+		}
+	}
+}

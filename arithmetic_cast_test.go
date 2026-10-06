@@ -306,3 +306,61 @@ func TestArithmeticCastAtomicityAndRestore(t *testing.T) {
 		t.Fatal(old, err)
 	}
 }
+
+func TestArithmeticSignedCastLiteralComposition(t *testing.T) {
+	_, db := arithmeticDB(t)
+	arithmeticExec(t, db, "CREATE TABLE t(id INT,i INT)", 0)
+	arithmeticExec(t, db, "INSERT INTO t VALUES(1,7),(2,NULL)", 2)
+	arithmeticRows(t, db, "SELECT num_nulls(-1::int4,NULL),num_nonnulls(-(CAST(1 AS bigint)::int8),NULL),num_nulls((-1)::int4,NULL),num_nonnulls(-1.5,NULL),num_nulls(+1.5,NULL)", []string{"INT4", "INT4", "INT4", "INT4", "INT4"}, [][]any{{int64(1), int64(1), int64(1), int64(1), int64(1)}})
+	for _, tc := range []struct{ query, message string }{
+		{"SELECT num_nulls(-CAST(2147483648 AS int4),NULL)", "integer out of range"},
+		{"SELECT num_nulls(-CAST(-2147483648 AS int4),NULL)", "integer out of range"},
+		{"SELECT num_nulls(-CAST(-9223372036854775808 AS int8),NULL)", "bigint out of range"},
+	} {
+		stmt, err := db.Prepare(tc.query)
+		if err != nil {
+			t.Fatal("literal cast/sign error moved into Prepare", tc.query, err)
+		}
+		rows, err := db.Query(tc.query)
+		if rows != nil {
+			rows.Close()
+			t.Fatal("overflow exposed cursor")
+		}
+		arithmeticError(t, err, stuntgres.Error{Code: "22003", Message: tc.message})
+		rows, err = stmt.Query()
+		if rows != nil {
+			rows.Close()
+			t.Fatal("prepared overflow exposed cursor")
+		}
+		arithmeticError(t, err, stuntgres.Error{Code: "22003", Message: tc.message})
+		stmt.Close()
+	}
+	for _, sign := range []string{"+", "-"} {
+		for _, child := range []string{"CAST(1+2 AS int4)", "CAST(i AS int4)", "CAST($1 AS int4)"} {
+			args := []any{}
+			if strings.Contains(child, "$1") {
+				args = []any{2}
+			}
+			for _, from := range []bool{false, true} {
+				query := "SELECT num_nulls(" + sign + child + ",NULL)"
+				message, position := "SELECT without FROM is unsupported", "1"
+				if from {
+					query += " FROM t ORDER BY id"
+					message, position = "arithmetic in null-count arguments is unsupported", "18"
+				}
+				rows, err := db.Query(query, args...)
+				if rows != nil {
+					rows.Close()
+					t.Fatal("excluded argument exposed cursor", query)
+				}
+				arithmeticError(t, err, stuntgres.Error{Code: "0A000", Message: message, Position: position})
+				stmt, err := db.Prepare(query)
+				if stmt != nil {
+					stmt.Close()
+					t.Fatal("excluded argument exposed handle", query)
+				}
+				arithmeticError(t, err, stuntgres.Error{Code: "0A000", Message: message, Position: position})
+			}
+		}
+	}
+}

@@ -72,8 +72,16 @@ func TestArithmeticCastCompositionSmoke(t *testing.T) {
 	if err := identifierCheckRows(rows, err, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}); err != nil {
 		t.Fatal(err)
 	}
-	rows, err = db.QueryContext(ctx, "SELECT num_nulls((+1)::int4,NULL)")
-	if err := identifierCheckRows(rows, err, []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}); err != nil {
+	rows, err = db.QueryContext(ctx, "SELECT num_nulls((+1)::int4,NULL),num_nulls(+1::int4,NULL),num_nonnulls(-1::int4,NULL)")
+	if err := identifierCheckRows(rows, err, []string{"num_nulls", "num_nulls", "num_nonnulls"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(1), int64(1), int64(1)}}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = db.QueryContext(ctx, "SELECT num_nulls(-CAST(-2147483648 AS int4),NULL)")
+	if rows != nil {
+		rows.Close()
+		t.Fatal("signed cast overflow exposed cursor")
+	}
+	if err := typeCoreDiagnostic(err, stuntgres.Error{Code: "22003", Message: "integer out of range"}); err != nil {
 		t.Fatal(err)
 	}
 	rows, err = db.QueryContext(ctx, "SELECT num_nulls(CAST(1+2 AS int4)) FROM t")

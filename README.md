@@ -1673,7 +1673,9 @@ qualified column references, general functions, nonbaseline casts and comparison
 in INSERT/settings remain excluded. Comparisons do not sort rows.
 Selected null-count calls remain excluded from Boolean/comparison operands,
 and Boolean/comparison/arithmetic expressions remain excluded from their arguments.
-Former signed literal inputs remain admitted.
+Former signed literal inputs remain admitted, including signs around baseline
+casts of numeric literals. Casts keep their precedence, conversions and errors;
+they are not removed or reassociated through the sign.
 
 Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
 pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`;
@@ -1681,8 +1683,18 @@ native coverage: `make test PACKAGES=. RUN='^TestCompareOps' VERBOSE=1`.
 
 ### Integer arithmetic
 
-Table SELECT projections, comparison operands/WHERE and INSERT VALUES accept
+Table SELECT projections, comparison operands/WHERE, unqualified DELETE
+predicates and column-free INSERT VALUES accept
 INT4/INT8 `+`, `-`, `*`, `/`, `%`, unary `+`/`-` and arithmetic parentheses.
+
+DELETE uses its existing affected-row, authorization and staged-publication
+contracts: arithmetic reads require SELECT on the actual predicate columns,
+and late overflow/division failure publishes no deletion. DELETE aliases do
+not enable qualified arithmetic; qualified column atoms retain their existing
+comparison support. Arithmetic can coexist with existing DATE typed literals
+in projection without adding DATE arithmetic or new casts.
+Composition smoke: `make smoke RUN='^TestArithmeticDeleteCompositionSmoke$' VERBOSE=1`.
+
 Multiplication/division/remainder precede addition/subtraction; binary operators
 associate left, unary signs right. Division truncates toward zero and remainder
 has the dividend's sign (`7/2=3`, `-7%2=-1`). Unary signs preserve width;
@@ -1699,6 +1711,13 @@ negation; unsupported combined arithmetic spellings fail with a typed `42883`
 at the operator rather than executing or publishing data. Contextual WHERE
 and incompatible-assignment errors use the expression start and resolved type;
 missing-operator errors retain the operator token location.
+Existing INSERT query-source assignment, common-VALUES typing and excess-source
+diagnostics also retain the recursive expression start, including widening
+postfix casts and Unicode input. Supported decorated VALUES uses its existing
+ORDER BY form; LIMIT remains an unsupported INSERT suffix, not a new arithmetic
+capability. The source smoke also executes `INSERT INTO good SELECT 1,7/2,-7%2`,
+asserting affected count 1 and persisted `(1,3,-1)` with INT4/INT4/INT8 destination
+metadata. Smoke: `make smoke RUN='^TestArithmeticInsertSourceContextualSmoke$' VERBOSE=1`.
 
 Parameters obtain width from a known integer peer, in SQL occurrence order,
 not from the Go argument kind or assignment destination. Computed metadata is

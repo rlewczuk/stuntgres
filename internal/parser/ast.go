@@ -230,10 +230,18 @@ func singletonArgument(expr Expr) bool {
 	case OperatorExpr:
 		// Preserve the former signed literal input spelling, not computed
 		// arithmetic through the selected singleton projection exception.
-		if len(e.Name.Parts) != 1 || e.Name.Parts[0].Text != "+" || len(e.Args) != 1 {
+		if len(e.Name.Parts) != 1 || (e.Name.Parts[0].Text != "+" && e.Name.Parts[0].Text != "-") || len(e.Args) != 1 {
 			return false
 		}
-		literal, ok := e.Args[0].(LiteralExpr)
+		child := e.Args[0]
+		for {
+			cast, ok := child.(CastExpr)
+			if !ok {
+				break
+			}
+			child = cast.Child
+		}
+		literal, ok := child.(LiteralExpr)
 		return ok && (literal.Value.Kind == IntegerValue || literal.Value.Kind == NumericValue)
 	case FunctionExpr:
 		if len(e.Name.Parts) != 1 || (e.Name.Parts[0].Text != "num_nulls" && e.Name.Parts[0].Text != "num_nonnulls") {

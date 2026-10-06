@@ -675,7 +675,11 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 	if source == target {
 		return child, nil
 	}
-	return coercionExpression{b.info(target, raw.Pos, child.Properties()), child, plan}, nil
+	pos := raw.Pos
+	if start := child.SourcePosition(); start.Character > 0 && (pos.Character <= 0 || start.Character < pos.Character) {
+		pos = start
+	}
+	return coercionExpression{b.info(target, pos, child.Properties()), child, plan}, nil
 }
 
 // Strong column/function names survive standard casts; weak literal names do not.
@@ -1037,5 +1041,16 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 		p.StageDependent = p.StageDependent || rp.StageDependent
 	}
-	return arithmeticExpression{b.info(typ.Usage(), raw.Pos, p), l, r, provider}, nil
+	// Contextual consumers use the cached expression start; signature errors
+	// above retain the raw operator token.
+	pos := raw.Pos
+	for _, child := range [...]BoundExpr{l, r} {
+		if child != nil {
+			start := child.SourcePosition()
+			if start.Character > 0 && (pos.Character <= 0 || start.Character < pos.Character) {
+				pos = start
+			}
+		}
+	}
+	return arithmeticExpression{b.info(typ.Usage(), pos, p), l, r, provider}, nil
 }

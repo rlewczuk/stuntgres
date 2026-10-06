@@ -274,3 +274,54 @@ func TestReferenceArithmeticCastAtomicity(t *testing.T) {
 		p.step(t, referenceSelect("SELECT v FROM d", []string{"v"}, []string{"INT8"}, [][]any{{int64(9)}}))
 	}
 }
+
+func TestReferenceArithmeticSignedCastLiteralComposition(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec("CREATE TABLE t(id INT,i INT)", 0))
+	p.step(t, referenceExec("INSERT INTO t VALUES(1,7),(2,NULL)", 2))
+	success := referenceSelect("SELECT num_nulls(-1::int4,NULL),num_nonnulls(-(CAST(1 AS bigint)::int8),NULL),num_nulls((-1)::int4,NULL),num_nonnulls(-1.5,NULL),num_nulls(+1.5,NULL)", []string{"num_nulls", "num_nonnulls", "num_nulls", "num_nonnulls", "num_nulls"}, []string{"INT4", "INT4", "INT4", "INT4", "INT4"}, [][]any{{int64(1), int64(1), int64(1), int64(1), int64(1)}})
+	p.step(t, success)
+	p.step(t, referencePrepared(success))
+	for _, tc := range []struct{ query, message string }{
+		{"SELECT num_nulls(-CAST(2147483648 AS int4),NULL)", "integer out of range"},
+		{"SELECT num_nulls(-CAST(-2147483648 AS int4),NULL)", "integer out of range"},
+		{"SELECT num_nulls(-CAST(-9223372036854775808 AS int8),NULL)", "bigint out of range"},
+	} {
+		failure := referenceImplicitError(tc.query, referenceDiagnostic{Code: "22003", Message: tc.message})
+		failure.selectRows, failure.errorStage = true, "execute"
+		p.step(t, failure)
+		p.step(t, referencePrepared(failure))
+	}
+	for _, sign := range []string{"+", "-"} {
+		for _, child := range []string{"CAST(1+2 AS int4)", "CAST(i AS int4)", "CAST($1 AS int4)"} {
+			args := []any{}
+			if strings.Contains(child, "$1") {
+				args = []any{2}
+			}
+			for _, from := range []bool{false, true} {
+				if !from && strings.Contains(child, "i AS") {
+					continue
+				}
+				query := "SELECT num_nulls(" + sign + child + ",NULL)"
+				want := [][]any{{int64(1)}}
+				message, position := "SELECT without FROM is unsupported", "1"
+				if from {
+					query += " FROM t ORDER BY id"
+					want = [][]any{{int64(1)}, {int64(1)}}
+					if strings.Contains(child, "i AS") {
+						want[1][0] = int64(2)
+					}
+					message, position = "arithmetic in null-count arguments is unsupported", "18"
+				}
+				pg := referenceSelect(query, []string{"num_nulls"}, []string{"INT4"}, want, args...)
+				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
+				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(pg))
+				native := referenceImplicitError(query, referenceDiagnostic{Code: "0A000", Message: message, Position: position}, args...)
+				native.selectRows, native.errorStage = true, "execute"
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
+				native.errorStage = "prepare"
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referencePrepared(native))
+			}
+		}
+	}
+}

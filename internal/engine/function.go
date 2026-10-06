@@ -79,11 +79,21 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 			argument = cast.Child
 		}
 		if operator, ok := argument.(parser.OperatorExpr); ok {
-			if len(operator.Name.Parts) == 1 && operator.Name.Parts[0].Text == "+" && len(operator.Args) == 1 {
-				if literal, ok := operator.Args[0].(parser.LiteralExpr); ok && (literal.Value.Kind == parser.IntegerValue || literal.Value.Kind == parser.NumericValue) {
+			if len(operator.Name.Parts) == 1 && (operator.Name.Parts[0].Text == "+" || operator.Name.Parts[0].Text == "-") && len(operator.Args) == 1 {
+				child := operator.Args[0]
+				for {
+					cast, ok := child.(parser.CastExpr)
+					if !ok {
+						break
+					}
+					child = cast.Child
+				}
+				if literal, ok := child.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.IntegerValue || literal.Value.Kind == parser.NumericValue) {
 					literal.Value.Pos = operator.Pos
-					if _, wrapped := rawArg.(parser.CastExpr); !wrapped {
-						rawArg = literal
+					if _, direct := operator.Args[0].(parser.LiteralExpr); direct && operator.Name.Parts[0].Text == "+" {
+						if _, wrapped := rawArg.(parser.CastExpr); !wrapped {
+							rawArg = literal
+						}
 					}
 				} else {
 					return nil, expressionError("0A000", "arithmetic in null-count arguments is unsupported", operator.Pos)

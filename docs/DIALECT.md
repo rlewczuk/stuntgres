@@ -337,7 +337,7 @@ Smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`; pinned independent referen
 `make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
 
 INT4/INT8 arithmetic uses the common expression binder in table SELECT,
-comparison operands and column-free INSERT VALUES. Operators `+ - * / %`,
+comparison operands, unqualified DELETE predicates and column-free INSERT VALUES. Operators `+ - * / %`,
 unary signs and parentheses follow ordinary arithmetic precedence. Same-width
 INT4 stays INT4; mixed width widens to INT8 before evaluation, not according to
 the destination or result magnitude. Division truncates toward zero; remainder
@@ -367,6 +367,12 @@ Dump emits canonical stored values, and failed/canceled replacement preserves
 old state and retained computed cursors. No external pg_dump, physical storage
 or wire-protocol parity is implied. Smoke: `make smoke RUN='^TestArithmeticSmoke$'
 VERBOSE=1`; reference: `make reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
+
+DELETE arithmetic keeps existing actual-used-column SELECT authorization,
+affected-row counts and atomic deletion staging. Qualified arithmetic remains
+excluded without changing qualified atom predicates. Mixed arithmetic/DATE
+typed-literal projections preserve the existing codecs, not a DATE arithmetic
+provider. Smoke: `make smoke RUN='^TestArithmeticDeleteCompositionSmoke$' VERBOSE=1`.
 
 
 UUID declarations use contextual quoted values or binds, not UUID typed literals.
