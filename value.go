@@ -57,7 +57,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 	case string:
 		text = v
 	case int64:
-		if target.Type.ID() == sqltype.Int8 || (target.Type.ID() == sqltype.Int4 && v >= -2147483648 && v <= 2147483647) {
+		if target.Type.ID() == sqltype.Int8 || (target.Type.ID() == sqltype.Int4 && v >= -2147483648 && v <= 2147483647) || (target.Type.ID() == sqltype.Int2 && v >= -32768 && v <= 32767) {
 			return sqltype.Integer(target.Type, v)
 		}
 		// Overflow retains the parameter input diagnostic, not assignment narrowing.
@@ -115,7 +115,7 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 			return []byte("infinity"), nil
 		}
 		return v.TimestampTime()
-	case sqltype.Int4, sqltype.Int8:
+	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
 		return v.Integer()
 	case sqltype.Float4, sqltype.Float8:
 		return v.Float()
@@ -131,7 +131,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 	switch d.ID() {
 	case sqltype.Timestamp:
 		return reflect.TypeFor[time.Time]()
-	case sqltype.Int4, sqltype.Int8:
+	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()

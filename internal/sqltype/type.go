@@ -18,6 +18,7 @@ const (
 	Bool      ID = 16
 	Name      ID = 19 // Result identity only; not admitted as a stored column type.
 	Int8      ID = 20
+	Int2      ID = 21
 	Int4      ID = 23
 	Text      ID = 25
 	Float4    ID = 700
@@ -83,6 +84,7 @@ func Builtins() []*Descriptor {
 		{Bool, "bool", "BOOLEAN", "BOOL"},
 		{Name, "name", "NAME", "NAME"},
 		{Int8, "int8", "BIGINT", "INT8"},
+		{Int2, "int2", "SMALLINT", "INT2"},
 		{Int4, "int4", "INTEGER", "INT4"},
 		{Text, "text", "TEXT", "TEXT"},
 		{Float4, "float4", "REAL", "FLOAT4"},
@@ -113,8 +115,11 @@ func Null(d *Descriptor) Value {
 	return Value{typ: d, null: true}
 }
 func Integer(d *Descriptor, n int64) (Value, error) {
-	if d == nil || (d.id != Int4 && d.id != Int8) {
+	if d == nil || (d.id != Int2 && d.id != Int4 && d.id != Int8) {
 		return Value{}, fmt.Errorf("invalid integer descriptor")
+	}
+	if d.id == Int2 && (n < -32768 || n > 32767) {
+		return Value{}, failure("22003", "smallint out of range")
 	}
 	if d.id == Int4 && (n < -2147483648 || n > 2147483647) {
 		return Value{}, failure("22003", "integer out of range")
@@ -134,7 +139,7 @@ func String(d *Descriptor, s string) Value {
 	return Value{typ: d, text: s}
 }
 func (v Value) Integer() (int64, error) {
-	if v.null || v.typ == nil || (v.typ.id != Int4 && v.typ.id != Int8) {
+	if v.null || v.typ == nil || (v.typ.id != Int2 && v.typ.id != Int4 && v.typ.id != Int8) {
 		return 0, fmt.Errorf("not an integer value")
 	}
 	return v.integer, nil
@@ -210,7 +215,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 			}
 		}
 		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for type boolean: \"%s\"", text))
-	case Int4, Int8:
+	case Int2, Int4, Int8:
 		return d.integerInput(text)
 	case Float4, Float8:
 		return d.floatInput(text)
@@ -235,6 +240,9 @@ func digit(c byte, base uint64) (uint64, bool) {
 
 func (d *Descriptor) integerInput(text string) (Value, error) {
 	name, limit := "integer", uint64(2147483648)
+	if d.id == Int2 {
+		name, limit = "smallint", 32768
+	}
 	if d.id == Int8 {
 		name, limit = "bigint", uint64(1)<<63
 	}
@@ -328,7 +336,7 @@ func (d *Descriptor) Output(ctx context.Context, v Value) (string, error) {
 		return uuidOutput(v.uuid), nil
 	case Timestamp:
 		return timestampOutput(v.integer), nil
-	case Int4, Int8:
+	case Int2, Int4, Int8:
 		return strconv.FormatInt(v.integer, 10), nil
 	case Float4, Float8:
 		return floatOutput(v.floating, d.id), nil
@@ -410,6 +418,13 @@ type castSpec struct {
 // Fixed provider definitions are read-only; identity/ownership comes from the
 // source and target catalog descriptors retained by each bound plan.
 var baselineCasts = [...]castSpec{
+	{Int2, Int4, Implicit, integerConversion},
+	{Int2, Int8, Implicit, integerConversion},
+	{Int4, Int2, Assignment, integerConversion},
+	{Int8, Int2, Assignment, integerConversion},
+	{Int2, Text, Assignment, viaIO},
+	{Int2, Float4, Implicit, floatConversion},
+	{Int2, Float8, Implicit, floatConversion},
 	{Int4, Int8, Implicit, integerConversion},
 	{Int8, Int4, Assignment, integerConversion},
 	{Int4, Text, Assignment, viaIO},
@@ -462,7 +477,7 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 		return Integer(p.target.Type, v.integer)
 	case floatConversion:
 		n := v.floating
-		if v.typ.id == Int4 || v.typ.id == Int8 {
+		if v.typ.id == Int2 || v.typ.id == Int4 || v.typ.id == Int8 {
 			n = float64(v.integer)
 			if p.target.Type.id == Float4 {
 				n = float64(float32(v.integer))
@@ -492,7 +507,7 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 	if (isFloat(left.id) && numericFloatOperand(right.id)) || (isFloat(right.id) && numericFloatOperand(left.id)) {
 		return p, nil
 	}
-	if left == right || (left.id == Int4 || left.id == Int8) && (right.id == Int4 || right.id == Int8) {
+	if left == right || (left.id == Int2 || left.id == Int4 || left.id == Int8) && (right.id == Int2 || right.id == Int4 || right.id == Int8) {
 		return p, nil
 	}
 	return p, failure("42883", "incompatible comparison operands")
@@ -517,7 +532,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 				return 1, nil
 			}
 		}
-	case Int4, Int8, Timestamp:
+	case Int2, Int4, Int8, Timestamp:
 		if a.integer < b.integer {
 			return -1, nil
 		}

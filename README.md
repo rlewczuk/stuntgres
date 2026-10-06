@@ -621,7 +621,7 @@ ALTER TABLE [ONLY] [schema.]name DROP [COLUMN] [IF EXISTS] column [RESTRICT | CA
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 SELECT (* | scalar [, ...]) FROM [schema.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
-type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
+type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
        | TIMESTAMP [(precision)] [WITHOUT TIME ZONE] | UUID
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | TIMESTAMP [(precision)] [WITHOUT TIME ZONE] 'input'
@@ -710,7 +710,7 @@ Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
 EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8/TIMESTAMP fail
+Known single-name types outside INT2/INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8/TIMESTAMP fail
 execution with `0A000`. Excluded multiword families (CHARACTER/BIT VARYING,
 TIME WITH/WITHOUT TIME ZONE, TIMESTAMP WITH TIME ZONE and qualified INTERVAL
 fields), qualified type names, arrays and modifiers other than FLOAT(p) and
@@ -719,11 +719,11 @@ has its own bounded integer grammar. Even an existing IF NOT EXISTS target
 cannot bypass excluded syntax forms; failure-only guards construct no executable
 family AST. DOUBLE PRECISION and valid FLOAT(p) are supported.
 
-Type keyword aliases are not quoted catalog names: `"integer"`, `"bigint"` and
-`"boolean"` fail with `42704`, while `"int4"`, `"int8"`, `"text"` and `"bool"`
-select the supported concrete types. Quoted case is significant (`"INT4"` is
+Type keyword aliases are not quoted catalog names: `"smallint"`, `"integer"`,
+`"bigint"` and `"boolean"` fail with `42704`, while `"int2"`, `"int4"`, `"int8"`,
+`"text"` and `"bool"` select the supported concrete types. Quoted case is significant (`"INT2"` or `"INT4"` is
 missing), and diagnostic names retain decoded quotes and backslashes without
-SQL or Go re-escaping. Genuine unsupported catalog names such as `"int2"` or
+SQL or Go re-escaping. Genuine unsupported catalog names such as
 `"numeric"` fail with `0A000`. Lowercase serial pseudo names, including quoted
 `"serial"`, remain a `0A000` CREATE-utility boundary rather than nonexistent
 types; uppercase quoted `"SERIAL"` is missing. No serial sequence or default
@@ -872,18 +872,18 @@ These ordinary-string defaults correspond to standard_conforming_strings=on.
 With the session setting off, ordinary strings use that same escape decoder;
 E strings always use it. Native Restore always uses the default-on parser.
 
-Types are int4/int8/text/bool/float4/float8, timestamp without time zone and uuid. Values returned to Go are `int64`, `string` (including canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/text/bool/float4/float8, timestamp without time zone and uuid. Values returned to Go are `int64`, `string` (including canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-INT8 20, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, TIMESTAMP 1114, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, TIMESTAMP 1114, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
 kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
-including INT4/INT8 reuse. Each execution imports an owned private typed frame
+including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-INT4/INT8 as `int64`, TEXT/UUID as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+INT2/INT4/INT8 as `int64`, TEXT/UUID as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
 finite TIMESTAMP as `time.Time`, infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
@@ -1021,9 +1021,9 @@ the real pinned reference is
 `go test -tags reference -count=1 -v -run '^TestReferenceExpressionCore.*$' ./reference`.
 Go test reports assertion failures or PASS; these commands require execution to
 establish verification.
-Normalized integer parameters targeting INT4/INT8 and Boolean parameters targeting
+Normalized integer parameters targeting INT2/INT4/INT8 and Boolean parameters targeting
 BOOL use checked scalar imports without successful-value formatting or reparsing.
-They retain the inferred descriptor and cancellation checks; INT4 overflow keeps
+They retain the inferred descriptor and cancellation checks; INT2/INT4 overflow keeps
 the textual-input diagnostic rather than the assignment-narrowing diagnostic.
 
 Integer textual input (quoted constants and string/byte parameters) accepts
@@ -1038,6 +1038,27 @@ t/f; Boolean assignment to TEXT is true/false, independently of driver output.
 Integer WHERE literals compare across widths without assignment narrowing:
 `int4_column = 2147483648` is valid and matches nothing, while a parameter in
 that predicate retains INT4 input and rejects the same overflowing bound text.
+
+SMALLINT/INT2 stores the signed range -32768 through 32767 and returns native
+`int64` with INT2 metadata; INTEGER and BIGINT retain their signed-32/signed-64
+ranges and existing inline storage. Integer input diagnostics use English names:
+`invalid input syntax for type smallint: "oops"` (`22P02`) and
+`value "32768" is out of range for type smallint` (`22003`), with `integer` or
+`bigint` for those widths. Original input spelling is retained. SMALLINT parsing
+order likewise distinguishes `32768x` (`22P02`) from `327680x` (`22003`).
+Typed INT4/INT8 assignments to SMALLINT prepare successfully and fail execution
+with `smallint out of range` on overflow; INT2 widens implicitly to INT4/INT8
+and the supported floats. Bare SQL integer literal inference remains INT4/INT8.
+All conversions precede statement publication; a bad later tuple publishes no
+rows. Dump emits canonical SMALLINT/INTEGER/BIGINT declarations and decimal
+values, and staged Restore preserves widths and retained cursor snapshots.
+
+`make smoke RUN='^TestSmallintSmoke$' VERBOSE=1` exercises the public direct and
+genuinely prepared smallint path, bounds/English diagnostics, INT2 metadata,
+NULL, atomicity/cancellation, mixed-width controls and authorization. Independent
+focused witnesses are `make test RUN='^TestSmallint' PACKAGES='./internal/sqltype ./internal/parser ./internal/engine .' VERBOSE=1`
+and `make reference RUN='^TestReferenceSmallint' VERBOSE=1` against the pinned
+PostgreSQL 18.0 oracle. These commands require execution to establish results.
 
 `go test -count=1 -run '^TestTypeCoreSmoke$' ./smoke` exercises public
 direct/prepared inference, codecs, exact diagnostics and phases, metadata, byte

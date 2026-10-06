@@ -99,7 +99,7 @@ func testExport(v sqltype.Value) driver.Value {
 		return nil
 	}
 	switch v.Type().ID() {
-	case sqltype.Int4, sqltype.Int8:
+	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
 		n, err := v.Integer()
 		if err != nil {
 			panic(err)

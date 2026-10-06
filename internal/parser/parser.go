@@ -221,6 +221,8 @@ func columnType(tok lexeme) TypeName {
 		return TypeName{Name: tok.text, Pos: tok.pos, Quoted: true}
 	}
 	switch tok.text {
+	case "int2":
+		return TypeName{Name: "smallint", Pos: tok.pos}
 	case "int4":
 		return TypeName{Name: "integer", Pos: tok.pos}
 	case "int8":

@@ -82,6 +82,8 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 	name := raw.Name
 	if !raw.Quoted {
 		switch name {
+		case "smallint":
+			name = "int2"
 		case "integer":
 			name = "int4"
 		case "bigint":
@@ -160,7 +162,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	case "smallserial", "serial2", "serial", "serial4", "bigserial", "serial8":
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
-	case "int2", "money", "char", "bpchar", "varchar",
+	case "money", "char", "bpchar", "varchar",
 		"numeric", "bit", "varbit", "date", "time", "timetz",
 		"timestamptz", "interval", "bytea", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
@@ -169,7 +171,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	}
 	if !raw.Quoted {
 		switch raw.Name {
-		case "smallint", "decimal", "dec", "double", "precision",
+		case "decimal", "dec", "double", "precision",
 			"character":
 			return true
 		}

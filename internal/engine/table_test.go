@@ -219,7 +219,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 
 func TestTableCoreKnownUnsupportedTypesExecute(t *testing.T) {
 	e := New()
-	for _, name := range []string{"SMALLINT", "NUMERIC", "VARCHAR", "NAME", "TIMESTAMPTZ", "JSONB"} {
+	for _, name := range []string{"NUMERIC", "VARCHAR", "NAME", "TIMESTAMPTZ", "JSONB"} {
 		q := "CREATE TABLE bad (id " + name + ")"
 		stmt := statement(t, q)
 		if _, err := testDescribe(e, stmt); err != nil {
@@ -240,9 +240,9 @@ func TestTableCoreKnownUnsupportedTypesExecute(t *testing.T) {
 
 func TestTableCoreQuotedTypeNamesResolveRawCatalogNames(t *testing.T) {
 	e := New()
-	run(t, e, `CREATE TABLE raw(i "int4" NOT NULL,b "int8",s "text",f "bool")`)
+	run(t, e, `CREATE TABLE raw(i "int4" NOT NULL,b "int8",s "text",f "bool",n "int2")`)
 	result := run(t, e, "SELECT * FROM raw")
-	for i, want := range []string{"INT4", "INT8", "TEXT", "BOOL"} {
+	for i, want := range []string{"INT4", "INT8", "TEXT", "BOOL", "INT2"} {
 		if result.Columns[i].Usage.Type.DatabaseName() != want {
 			t.Fatal(result.Columns[i])
 		}
@@ -260,7 +260,7 @@ func TestTableCoreQuotedTypeNamesResolveRawCatalogNames(t *testing.T) {
 			t.Fatal(name, got, err, want)
 		}
 	}
-	for _, name := range []string{"int2", "numeric", "name", "bpchar", "serial", "smallserial", "bigserial"} {
+	for _, name := range []string{"numeric", "name", "bpchar", "serial", "smallserial", "bigserial"} {
 		_, err := testExecute(e, context.Background(), statement(t, `CREATE TABLE bad (id "`+name+`")`), nil)
 		state(t, err, "0A000")
 	}

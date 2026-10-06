@@ -8,7 +8,7 @@ import (
 )
 
 func isFloat(id ID) bool             { return id == Float4 || id == Float8 }
-func numericFloatOperand(id ID) bool { return isFloat(id) || id == Int4 || id == Int8 }
+func numericFloatOperand(id ID) bool { return isFloat(id) || id == Int2 || id == Int4 || id == Int8 }
 
 // Float imports an already binary value; textual float4 input instead parses
 // directly at 32 bits to avoid decimal double rounding.

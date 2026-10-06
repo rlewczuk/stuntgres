@@ -78,6 +78,9 @@ func TestTypeCoreScalarImports(t *testing.T) {
 		id   sqltype.ID
 		raw  driver.Value
 	}{
+		{"int2", sqltype.Int2, int64(1000)},
+		{"int2_min", sqltype.Int2, int64(-32768)},
+		{"int2_max", sqltype.Int2, int64(32767)},
 		{"int4", sqltype.Int4, int64(1000)},
 		{"int4_min", sqltype.Int4, int64(-2147483648)},
 		{"int4_max", sqltype.Int4, int64(2147483647)},
@@ -188,6 +191,22 @@ func TestFloatAdapterImports(t *testing.T) {
 		}
 		if scanType(target) != reflect.TypeFor[float64]() {
 			t.Fatal(scanType(target))
+		}
+	}
+}
+
+func TestSmallintScalarOverflow(t *testing.T) {
+	e := engine.New()
+	target, _ := e.CatalogRead().LookupType(sqltype.Int2)
+	for _, tc := range []struct {
+		raw     int64
+		message string
+	}{{32768, `value "32768" is out of range for type smallint`}, {-32769, `value "-32769" is out of range for type smallint`}} {
+		_, err := importParameter(context.Background(), tc.raw, target.Usage(), sqltype.InputEnvironment{})
+		var got *Error
+		want := Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: tc.message}
+		if !errors.As(err, &got) || *got != want {
+			t.Fatalf("got %#v (%v), want %#v", got, err, want)
 		}
 	}
 }
