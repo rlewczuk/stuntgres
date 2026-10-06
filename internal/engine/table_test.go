@@ -219,7 +219,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 
 func TestTableCoreKnownUnsupportedTypesExecute(t *testing.T) {
 	e := New()
-	for _, name := range []string{"SMALLINT", "NUMERIC", "VARCHAR", "NAME", "TIMESTAMPTZ", "UUID", "JSONB"} {
+	for _, name := range []string{"SMALLINT", "NUMERIC", "VARCHAR", "NAME", "TIMESTAMPTZ", "JSONB"} {
 		q := "CREATE TABLE bad (id " + name + ")"
 		stmt := statement(t, q)
 		if _, err := testDescribe(e, stmt); err != nil {
@@ -234,6 +234,8 @@ func TestTableCoreKnownUnsupportedTypesExecute(t *testing.T) {
 		_, err = testExecute(e, context.Background(), statement(t, "SELECT * FROM bad"), nil)
 		state(t, err, "42P01")
 	}
+	run(t, e, `CREATE TABLE supported_uuid(v "uuid")`)
+	run(t, e, `INSERT INTO supported_uuid VALUES('{A0EEBC999C0B4EF8BB6D6BB9BD380A11}')`)
 }
 
 func TestTableCoreQuotedTypeNamesResolveRawCatalogNames(t *testing.T) {

@@ -24,6 +24,7 @@ const (
 	Float8    ID = 701
 	Unknown   ID = 705
 	Timestamp ID = 1114
+	UUID      ID = 2950
 )
 
 type CollationDerivation uint8
@@ -87,6 +88,7 @@ func Builtins() []*Descriptor {
 		{Float4, "float4", "REAL", "FLOAT4"},
 		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8"},
 		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
+		{UUID, "uuid", "UUID", "UUID"},
 		{Unknown, "unknown", "", ""},
 	}
 }
@@ -99,6 +101,7 @@ type Value struct {
 	floating float64
 	boolean  bool
 	text     string
+	uuid     [16]byte
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -180,6 +183,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return Value{}, failure("22P02", "invalid textual input")
 	}
 	switch d.id {
+	case UUID:
+		return d.uuidInput(text)
 	case Timestamp:
 		return d.timestampInput(text, typmod, env)
 	case Text:
@@ -319,6 +324,8 @@ func (d *Descriptor) Output(ctx context.Context, v Value) (string, error) {
 		return "", fmt.Errorf("invalid output value")
 	}
 	switch d.id {
+	case UUID:
+		return uuidOutput(v.uuid), nil
 	case Timestamp:
 		return timestampOutput(v.integer), nil
 	case Int4, Int8:
@@ -346,6 +353,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "NULL", nil
 	}
 	switch d.id {
+	case UUID:
+		return "'" + uuidOutput(v.uuid) + "'", nil
 	case Timestamp:
 		if v.integer == timestampEnd {
 			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
@@ -499,6 +508,15 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 		return compareFloats(floatOperand(a), floatOperand(b)), nil
 	}
 	switch p.left.id {
+	case UUID:
+		for i, x := range a.uuid {
+			if x < b.uuid[i] {
+				return -1, nil
+			}
+			if x > b.uuid[i] {
+				return 1, nil
+			}
+		}
 	case Int4, Int8, Timestamp:
 		if a.integer < b.integer {
 			return -1, nil

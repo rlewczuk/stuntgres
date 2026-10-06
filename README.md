@@ -623,7 +623,7 @@ SELECT (* | scalar [, ...]) FROM [schema.]name
        [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
 type  := INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
-       | TIMESTAMP [(precision)] [WITHOUT TIME ZONE]
+       | TIMESTAMP [(precision)] [WITHOUT TIME ZONE] | UUID
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | TIMESTAMP [(precision)] [WITHOUT TIME ZONE] 'input'
 scalar := unqualified column | value
 ```
@@ -872,10 +872,10 @@ These ordinary-string defaults correspond to standard_conforming_strings=on.
 With the session setting off, ordinary strings use that same escape decoder;
 E strings always use it. Native Restore always uses the default-on parser.
 
-Types are int4/int8/text/bool/float4/float8 and timestamp without time zone. Values returned to Go are `int64`, `string`, `bool`, `float64`, finite timestamp `time.Time`, owned infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int4/int8/text/bool/float4/float8, timestamp without time zone and uuid. Values returned to Go are `int64`, `string` (including canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-INT8 20, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, TIMESTAMP 1114; analysis-only UNKNOWN 705), concrete nullable values,
+INT8 20, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, TIMESTAMP 1114, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -883,10 +883,44 @@ kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
 including INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-INT4/INT8 as `int64`, TEXT as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+INT4/INT8 as `int64`, TEXT/UUID as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
 finite TIMESTAMP as `time.Time`, infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
+
+UUID stores all 128 bits inline, independently of UUID generation functions.
+Contextual quoted inputs and string/textual `[]byte` binds accept uppercase or
+lowercase hex, matching braces, omitted hyphens, and a single optional hyphen
+after any internal group of four hex digits. Whitespace, URN prefixes, malformed
+braces, nonhex digits and trailing text are rejected. Version and variant bits
+are not restricted. Output and native Dump literals are always lowercase
+`8-4-4-4-12`, for example `a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11`.
+Comparison uses unsigned lexicographic order over all sixteen bytes, not GUID
+mixed-endian order; ordinary strict NULL equality and ASC/DESC NULL policies apply.
+
+Native UUID results export immutable canonical `string`, DatabaseTypeName UUID
+and ScanType string, including empty/all-NULL results; nullability follows the
+column declaration. Length and DecimalSize are unavailable (not Length16).
+The pinned lib/pq adapter instead exports canonical owned `[]byte` and ScanType
+`interface{}`; reference tests assert these adapter differences independently.
+`database/sql` can scan native results into string, []byte, any or sql.NullString.
+Bindings reuse the standard converter/Valuer path; byte binds are text, never
+binary sixteen-byte UUIDs. General Go UUID structs/arrays are not added.
+
+Malformed UUID input returns `22P02` and
+`invalid input syntax for type uuid: "<original>"`. Literal errors occur eagerly,
+including Prepare on empty tables, and point to the quote in character offsets.
+Native parameter errors have no Position/Context; PostgreSQL's wire adapter adds
+`unnamed portal parameter $1 = '...'`. Later tuple/input/constraint failures publish
+no rows. UUID declarations and canonical quoted literals round-trip through the
+existing atomic native Dump/Reset/Restore controls, with retained UUID snapshots
+and metadata unchanged. Feature smoke: `make smoke RUN='^TestUUIDSmoke$'`;
+real reference coverage: `make reference RUN='^TestReferenceUUID.*$'`.
+
+UUID typed literals, casts, arrays, generators, version/timestamp extraction
+functions and binary wire UUID APIs remain excluded. PostgreSQL disk storage,
+network protocol serving, and the external pg_dump process/custom archives are
+non-engine boundaries, not successful no-op implementations.
 
 REAL/FLOAT4 store IEEE binary32; DOUBLE PRECISION/FLOAT8 and bare FLOAT store
 binary64. FLOAT(p) selects REAL for binary precision 1–24 and DOUBLE PRECISION

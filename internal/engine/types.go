@@ -162,7 +162,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		return true
 	case "int2", "money", "char", "bpchar", "varchar",
 		"numeric", "bit", "varbit", "date", "time", "timetz",
-		"timestamptz", "interval", "bytea", "uuid", "json", "jsonb", "xml",
+		"timestamptz", "interval", "bytea", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
 		return true
