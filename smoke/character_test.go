@@ -240,6 +240,120 @@ func TestCharacterSmoke(t *testing.T) {
 	check("SELECT id FROM c WHERE c=t", [][]any{})
 	check("SELECT id FROM c WHERE t=c", [][]any{})
 	check("SELECT id FROM c WHERE c='a    '", [][]any{{int64(2)}})
+	for _, tc := range []struct {
+		first, second string
+		values        [][]any
+	}{
+		{"CAST('b  ' AS text)", "CAST('a ' AS varchar)", [][]any{{"a "}, {"b  "}}},
+		{"CAST('a ' AS varchar)", "CAST('b  ' AS text)", [][]any{{"a "}, {"b  "}}},
+		{"CAST('b  ' AS text)", "CAST('a ' AS char(2))", [][]any{{"a"}, {"b  "}}},
+		{"CAST('a ' AS char(2))", "CAST('b  ' AS text)", [][]any{{"a"}, {"b"}}},
+	} {
+		for _, prepared := range []bool{false, true} {
+			exec("CREATE TABLE source_values(v TEXT)")
+			q := "INSERT INTO source_values VALUES(" + tc.first + "),(" + tc.second + ") ORDER BY 1"
+			var result sql.Result
+			if prepared {
+				stmt, e := db.PrepareContext(ctx, q)
+				if e != nil {
+					t.Fatal(e)
+				}
+				result, err = stmt.ExecContext(ctx)
+				stmt.Close()
+			} else {
+				result, err = db.ExecContext(ctx, q)
+			}
+			if err != nil {
+				t.Fatal("character source VALUES", prepared, q, err)
+			}
+			count, e := result.RowsAffected()
+			if e != nil || count != 2 {
+				t.Fatal("source affected count", count, e)
+			}
+			check("SELECT v FROM source_values ORDER BY v", tc.values)
+			metadataRows, e := db.QueryContext(ctx, "SELECT v FROM source_values")
+			if e != nil {
+				t.Fatal(e)
+			}
+			metadata, e := metadataRows.ColumnTypes()
+			metadataRows.Close()
+			if e != nil || len(metadata) != 1 {
+				t.Fatal(metadata, e)
+			}
+			length, known := metadata[0].Length()
+			if metadata[0].DatabaseTypeName() != "TEXT" || metadata[0].ScanType() != reflect.TypeFor[string]() || !known || length != math.MaxInt64 {
+				t.Fatal("source destination metadata", metadata[0], length, known)
+			}
+			exec("DROP TABLE source_values")
+		}
+	}
+	// Unlimited BPCHAR readback exposes pads that TEXT assignment would hide.
+	for _, tc := range []struct {
+		first, second string
+		values        [][]any
+	}{
+		{"CAST('b' AS char(2))", "CAST('a' AS varchar(2))", [][]any{{"a"}, {"b "}}},
+		{"CAST('a' AS varchar(2))", "CAST('b' AS char(2))", [][]any{{"a"}, {"b"}}},
+	} {
+		for _, prepared := range []bool{false, true} {
+			exec("CREATE TABLE source_typmod(v BPCHAR)")
+			q := "INSERT INTO source_typmod VALUES(" + tc.first + "),(" + tc.second + ") ORDER BY 1"
+			var result sql.Result
+			if prepared {
+				stmt, e := db.PrepareContext(ctx, q)
+				if e != nil {
+					t.Fatal(e)
+				}
+				result, err = stmt.ExecContext(ctx)
+				stmt.Close()
+			} else {
+				result, err = db.ExecContext(ctx, q)
+			}
+			if err != nil {
+				t.Fatal("cross-identity source typmod", prepared, q, err)
+			}
+			count, e := result.RowsAffected()
+			if e != nil || count != 2 {
+				t.Fatal("cross-identity source affected count", count, e)
+			}
+			check("SELECT v FROM source_typmod ORDER BY v", tc.values)
+			metadataRows, e := db.QueryContext(ctx, "SELECT v FROM source_typmod")
+			if e != nil {
+				t.Fatal(e)
+			}
+			metadata, e := metadataRows.ColumnTypes()
+			metadataRows.Close()
+			if e != nil || len(metadata) != 1 {
+				t.Fatal(metadata, e)
+			}
+			length, known := metadata[0].Length()
+			if metadata[0].DatabaseTypeName() != "BPCHAR" || metadata[0].ScanType() != reflect.TypeFor[string]() || !known || length != math.MaxInt64 {
+				t.Fatal("cross-identity source destination metadata", metadata[0], length, known)
+			}
+			exec("DROP TABLE source_typmod")
+		}
+	}
+	exec("CREATE TABLE source_atomic(v VARCHAR(2))")
+	exec("INSERT INTO source_atomic VALUES('s')")
+	for _, prepared := range []bool{false, true} {
+		q := "INSERT INTO source_atomic VALUES(CAST('aa' AS text)),(CAST('zzx' AS varchar)) ORDER BY 1"
+		var result sql.Result
+		if prepared {
+			stmt, e := db.PrepareContext(ctx, q)
+			if e != nil {
+				t.Fatal("source assignment rejected at Prepare", e)
+			}
+			result, err = stmt.ExecContext(ctx)
+			stmt.Close()
+		} else {
+			result, err = db.ExecContext(ctx, q)
+		}
+		if result != nil {
+			t.Fatal("failed source insert exposed result")
+		}
+		diagnostic(err, "value too long for type character varying(2)")
+		check("SELECT v FROM source_atomic", [][]any{{"s"}})
+	}
 	var dump bytes.Buffer
 	if err = stuntgres.Dump(ctx, db, &dump); err != nil {
 		t.Fatal(err)

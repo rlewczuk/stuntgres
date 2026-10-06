@@ -1,0 +1,130 @@
+package engine
+
+import (
+	"context"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+	"testing"
+)
+
+func TestCharacterSourceValuesCommonUsage(t *testing.T) {
+	e := New()
+	usage := func(id sqltype.ID) sqltype.Usage {
+		d, ok := e.CatalogRead().LookupType(id)
+		if !ok {
+			t.Fatal("missing type", id)
+		}
+		return d.Usage()
+	}
+	for _, id := range []sqltype.ID{sqltype.Text, sqltype.BPChar, sqltype.VarChar} {
+		if got := typeCategory(usage(id).Type); got != 'S' {
+			t.Errorf("type %d category=%q want S", id, got)
+		}
+	}
+	// Symmetric implicit string edges preserve the first concrete candidate;
+	// TEXT is preferred when already selected, not an unconditional replacement.
+	for _, tc := range []struct {
+		ids  []sqltype.ID
+		want sqltype.ID
+	}{
+		{[]sqltype.ID{sqltype.Text, sqltype.BPChar}, sqltype.Text},
+		{[]sqltype.ID{sqltype.BPChar, sqltype.Text}, sqltype.BPChar},
+		{[]sqltype.ID{sqltype.Text, sqltype.VarChar}, sqltype.Text},
+		{[]sqltype.ID{sqltype.VarChar, sqltype.Text}, sqltype.VarChar},
+		{[]sqltype.ID{sqltype.BPChar, sqltype.VarChar}, sqltype.BPChar},
+		{[]sqltype.ID{sqltype.VarChar, sqltype.BPChar}, sqltype.VarChar},
+		{[]sqltype.ID{sqltype.BPChar, sqltype.BPChar}, sqltype.BPChar},
+		{[]sqltype.ID{sqltype.VarChar, sqltype.VarChar}, sqltype.VarChar},
+		{[]sqltype.ID{sqltype.Unknown, sqltype.BPChar}, sqltype.BPChar},
+		{[]sqltype.ID{sqltype.VarChar, sqltype.Unknown}, sqltype.VarChar},
+	} {
+		rows := make([][]BoundExpr, len(tc.ids))
+		for i, id := range tc.ids {
+			u := sqltype.Usage{}
+			if id != sqltype.Unknown {
+				u = usage(id)
+			}
+			rows[i] = []BoundExpr{queryProbe(u, nil)}
+		}
+		got, err := commonValuesUsage(rows, 0, usage(sqltype.Text))
+		if err != nil {
+			t.Errorf("ids=%v: %v", tc.ids, err)
+			continue
+		}
+		if got.Type.ID() != tc.want || got.Typmod != -1 {
+			t.Errorf("ids=%v usage=%+v want=%d/-1", tc.ids, got, tc.want)
+		}
+	}
+}
+
+func TestCharacterSourceValuesSchemaAndTypmods(t *testing.T) {
+	e := New()
+	for _, tc := range []struct {
+		first, second string
+		id            sqltype.ID
+		typmod        int32
+	}{
+		{"'b'::text", "'a '::varchar", sqltype.Text, -1},
+		{"'a '::varchar", "'b'::text", sqltype.VarChar, -1},
+		{"'b'::text", "'a '::char(2)", sqltype.Text, -1},
+		{"'a '::char(2)", "'b'::text", sqltype.BPChar, -1},
+		{"'b'::char(2)", "'a'::char(2)", sqltype.BPChar, 6},
+		{"'b'::char(2)", "'a'::char(3)", sqltype.BPChar, -1},
+		{"'b'::varchar(2)", "'a'::varchar(2)", sqltype.VarChar, 6},
+		{"'b'::varchar(2)", "'a'::varchar(3)", sqltype.VarChar, -1},
+		{"'b'::char(2)", "'a'::varchar(2)", sqltype.BPChar, -1},
+		{"'a'::varchar(2)", "'b'::char(2)", sqltype.VarChar, -1},
+		{"NULL", "'a'::char(2)", sqltype.BPChar, -1},
+	} {
+		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		raw := statement(t, "INSERT INTO dst VALUES("+tc.first+"),("+tc.second+") ORDER BY 1").(*parser.Insert)
+		query, err := b.bindValues(raw.Source)
+		if err != nil {
+			t.Fatal(tc, err)
+		}
+		schema := query.Root.Schema()
+		if len(schema) != 1 || schema[0].Name != "column1" || schema[0].Usage.Type.ID() != tc.id || schema[0].Usage.Typmod != tc.typmod {
+			t.Fatal("source common schema", tc, schema)
+		}
+	}
+	for _, tc := range []struct {
+		first, second sqltype.ID
+		message       string
+	}{
+		{sqltype.BPChar, sqltype.Bool, "VALUES types character and boolean cannot be matched"},
+		{sqltype.Int4, sqltype.VarChar, "VALUES types integer and character varying cannot be matched"},
+	} {
+		a, _ := e.CatalogRead().LookupType(tc.first)
+		b, _ := e.CatalogRead().LookupType(tc.second)
+		text, _ := e.CatalogRead().LookupType(sqltype.Text)
+		_, err := commonValuesUsage([][]BoundExpr{{queryProbe(a.Usage(), nil)}, {queryProbe(b.Usage(), nil)}}, 0, text.Usage())
+		d, ok := err.(*sqlstate.Error)
+		if !ok || d.Code != "42804" || d.Message != tc.message {
+			t.Fatal("category boundary changed", tc, err)
+		}
+	}
+}
+
+func TestCharacterSourceValuesCrossIdentityTypmods(t *testing.T) {
+	e := New()
+	for _, tc := range []struct {
+		name          string
+		first, second sqltype.ID
+	}{
+		{"BPCHAR-first", sqltype.BPChar, sqltype.VarChar},
+		{"VARCHAR-first", sqltype.VarChar, sqltype.BPChar},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			first, _ := e.CatalogRead().LookupType(tc.first)
+			second, _ := e.CatalogRead().LookupType(tc.second)
+			text, _ := e.CatalogRead().LookupType(sqltype.Text)
+			a, b := first.Usage(), second.Usage()
+			a.Typmod, b.Typmod = 6, 6
+			got, err := commonValuesUsage([][]BoundExpr{{queryProbe(a, nil)}, {queryProbe(b, nil)}}, 0, text.Usage())
+			if err != nil || got != first.Usage() {
+				t.Fatal("cross-identity width retained", tc, got, err)
+			}
+		})
+	}
+}

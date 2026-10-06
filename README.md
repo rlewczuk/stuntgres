@@ -954,6 +954,16 @@ unknown output/ANY occurrences and mixed INSERT inference boundaries remain
 unchanged. Diagnostic type names are `character` and `character varying`.
 Catalog names and cast labels remain `bpchar`/`varchar`; metadata and unlimited
 Dump declarations remain BPCHAR/VARCHAR.
+BPCHAR and VARCHAR also participate in the existing string-category resolver for
+ordered INSERT source VALUES. Common-type selection follows row order and the
+existing implicit edges, rather than forcing TEXT for every string combination.
+Subsequent BPCHAR-to-TEXT conversion trims ASCII tails; VARCHAR-to-TEXT preserves
+them. Target assignment sizing and all-or-nothing publication remain unchanged.
+Source VALUES retains a common length only when every row has the same type
+identity and modifier. Equal numeric modifiers on CHAR(2) and VARCHAR(2) do not
+impose a common width. With an unlimited BPCHAR destination, CHAR(2) `'b'`
+followed by VARCHAR(2) `'a'` stores `"b "` and `"a"` without adding a pad to
+`"a"`; reversing the source rows chooses VARCHAR and removes the CHAR pad.
 
 Character comparisons accept string columns, literals, NULL, parameters and
 these casts on either side within the existing comparison/logical surface.

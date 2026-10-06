@@ -467,6 +467,15 @@ Character casts infer only unresolved parameters from the target; known characte
 occurrences convert from their fixed source identity. Earlier unknown occurrences
 and mixed INSERT inference boundaries are not rewritten. Diagnostic spelling is
 `character`/`character varying`, distinct from catalog/metadata/Dump spelling.
+Ordered INSERT source VALUES classifies BPCHAR/VARCHAR with the existing string
+family. Its row-order common-type rules and implicit conversions remain in use;
+BPCHAR-to-TEXT trims ASCII tails, VARCHAR-to-TEXT preserves them. Target sizing
+and atomic publication are unchanged.
+Common source typmods require matching type identities as well as matching
+modifiers; differing CHAR/VARCHAR identities use unconstrained common sizing
+even when both declare length 2. In an unlimited BPCHAR destination, a
+CHAR(2)-first mixed source preserves its original pad without padding the
+VARCHAR row. A VARCHAR(2)-first source trims the CHAR row's ASCII pad.
 
 Character-family comparisons reuse the existing target/WHERE comparison and
 logical surface, with column/literal/NULL/parameter/cast operands on either side.

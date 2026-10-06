@@ -85,7 +85,7 @@ func typeCategory(t *sqltype.Descriptor) byte {
 		return 'B'
 	case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
 		return 'N'
-	case sqltype.Text, sqltype.Name:
+	case sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name:
 		return 'S'
 	case sqltype.Date, sqltype.Time, sqltype.Timestamp:
 		return 'D'
@@ -112,7 +112,7 @@ func commonValuesUsage(nodes [][]BoundExpr, column int, text sqltype.Usage) (sql
 			typmod = u.Typmod
 			continue
 		}
-		if u.Typmod != typmod {
+		if u.Type != candidate.Type || u.Typmod != typmod {
 			sameMod = false
 		}
 		if candidate.Type == u.Type {
