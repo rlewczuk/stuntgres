@@ -40,3 +40,74 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
+	e := New()
+	run(t, e, `CREATE TABLE d(n BOOL DEFAULT (NULL IS NULL),t BOOL DEFAULT (TRUE IS TRUE),v BOOL DEFAULT (1 IS DISTINCT FROM 2),i INT DEFAULT 1)`)
+	view := e.CatalogRead()
+	ref := roleTableRef(t, e, "d")
+	old := view.state.descriptors[ref.Address].(*relationDescriptor)
+	if err := (relationProvider{}).Validate(view, old); err != nil {
+		t.Fatal(err)
+	}
+	foreign := New()
+	foreignType, _ := foreign.CatalogRead().LookupType(sqltype.Int4)
+	foreignValue, err := sqltype.Integer(foreignType, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignChild := literalExpression{expressionInfo: expressionInfo{usage: foreignType.Usage()}, value: foreignValue}
+	for _, tc := range []struct {
+		name      string
+		attribute int32
+		mutate    func(BoundExpr) BoundExpr
+	}{
+		{"null-child", 1, func(node BoundExpr) BoundExpr { n := node.(nullTestExpression); n.child = nil; return n }},
+		{"null-canonical", 1, func(node BoundExpr) BoundExpr { n := node.(nullTestExpression); n.not = !n.not; return n }},
+		{"null-result-type", 1, func(node BoundExpr) BoundExpr {
+			n := node.(nullTestExpression)
+			n.usage = old.columns[3].Usage
+			return n
+		}},
+		{"null-foreign-child", 1, func(node BoundExpr) BoundExpr { n := node.(nullTestExpression); n.child = foreignChild; return n }},
+		{"null-dependent-child", 1, func(node BoundExpr) BoundExpr {
+			n := node.(nullTestExpression)
+			child := old.defaults[4].expression.(literalExpression)
+			child.properties.RowDependent = true
+			n.child = child
+			return n
+		}},
+		{"truth-child", 2, func(node BoundExpr) BoundExpr { n := node.(truthTestExpression); n.child = nil; return n }},
+		{"truth-child-type", 2, func(node BoundExpr) BoundExpr {
+			n := node.(truthTestExpression)
+			n.child = old.defaults[4].expression
+			return n
+		}},
+		{"truth-enum", 2, func(node BoundExpr) BoundExpr { n := node.(truthTestExpression); n.truth = Truth(255); return n }},
+		{"distinct-child", 3, func(node BoundExpr) BoundExpr { n := node.(distinctExpression); n.left = nil; return n }},
+		{"distinct-plan", 3, func(node BoundExpr) BoundExpr {
+			n := node.(distinctExpression)
+			n.equality = sqltype.ComparisonPredicate{}
+			return n
+		}},
+		{"distinct-operand", 3, func(node BoundExpr) BoundExpr {
+			n := node.(distinctExpression)
+			n.right = old.defaults[2].expression
+			return n
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			next := *old
+			next.defaults = make(map[int32]columnDefault, len(old.defaults))
+			for attribute, definition := range old.defaults {
+				next.defaults[attribute] = definition
+			}
+			bad := next.defaults[tc.attribute]
+			bad.expression = tc.mutate(bad.expression)
+			next.defaults[tc.attribute] = bad
+			if err := (relationProvider{}).Validate(view, &next); err == nil {
+				t.Fatal("invalid predicate definition accepted", tc.name)
+			}
+		})
+	}
+}

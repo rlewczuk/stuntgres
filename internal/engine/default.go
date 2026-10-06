@@ -182,6 +182,64 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			return "", err
 		}
 		return "(" + left + " " + n.operator + " " + right + ")", nil
+	case nullTestExpression:
+		if u.Type.ID() != sqltype.Bool || n.child == nil {
+			return "", fmt.Errorf("stuntgres: invalid default null test")
+		}
+		child, err := defaultSQL(ctx, view, n.child)
+		if err != nil {
+			return "", err
+		}
+		operator := "IS NULL"
+		if n.not {
+			operator = "IS NOT NULL"
+		}
+		return "(" + child + " " + operator + ")", nil
+	case truthTestExpression:
+		if u.Type.ID() != sqltype.Bool || n.child == nil || n.child.ResultUsage().Type != u.Type {
+			return "", fmt.Errorf("stuntgres: invalid default truth test")
+		}
+		var truth string
+		switch n.truth {
+		case True:
+			truth = "TRUE"
+		case False:
+			truth = "FALSE"
+		case Unknown:
+			truth = "UNKNOWN"
+		default:
+			return "", fmt.Errorf("stuntgres: invalid default truth value")
+		}
+		child, err := defaultSQL(ctx, view, n.child)
+		if err != nil {
+			return "", err
+		}
+		operator := "IS"
+		if n.not {
+			operator = "IS NOT"
+		}
+		return "(" + child + " " + operator + " " + truth + ")", nil
+	case distinctExpression:
+		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
+			return "", fmt.Errorf("stuntgres: invalid default distinct test")
+		}
+		predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, n.left.ResultUsage().Type, n.right.ResultUsage().Type, u.Type)
+		if err != nil || predicate != n.equality {
+			return "", fmt.Errorf("stuntgres: invalid default distinct binding")
+		}
+		left, err := defaultSQL(ctx, view, n.left)
+		if err != nil {
+			return "", err
+		}
+		right, err := defaultSQL(ctx, view, n.right)
+		if err != nil {
+			return "", err
+		}
+		operator := "IS DISTINCT FROM"
+		if n.not {
+			operator = "IS NOT DISTINCT FROM"
+		}
+		return "(" + left + " " + operator + " " + right + ")", nil
 	case logicalExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.left.ResultUsage().Type.ID() != sqltype.Bool || n.op == parser.LogicalNot && n.right != nil || n.op != parser.LogicalNot && (n.right == nil || n.right.ResultUsage().Type.ID() != sqltype.Bool) {
 			return "", fmt.Errorf("stuntgres: invalid default logical binding")

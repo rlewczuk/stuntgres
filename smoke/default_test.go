@@ -94,6 +94,26 @@ func TestDefaultSmoke(t *testing.T) {
 			exec(`CREATE TABLE logical_defaults(b BOOL DEFAULT (1 < 2 AND NOT FALSE),u BOOL DEFAULT (NOT NULL))`, 0)
 			exec(`INSERT INTO logical_defaults DEFAULT VALUES`, 1)
 			alterDropSmokeRows(t, query(`SELECT * FROM logical_defaults`), []string{"b", "u"}, []string{"BOOL", "BOOL"}, [][]any{{true, nil}})
+			exec(`CREATE TABLE predicate_defaults(id INT,b BOOL DEFAULT (NULL IS NULL),t BOOL DEFAULT (NULL IS UNKNOWN),d BOOL DEFAULT 1 IS DISTINCT FROM 2,r BOOL DEFAULT ((NULL IS NULL) IS NOT DISTINCT FROM TRUE))`, 0)
+			predicateWant := [][]any{{int64(1), true, true, true, true}, {int64(2), true, true, true, true}, {int64(3), nil, nil, nil, nil}}
+			checkPredicates := func() {
+				t.Helper()
+				rows := query(`SELECT * FROM predicate_defaults ORDER BY id`)
+				metadata, e := rows.ColumnTypes()
+				if e != nil {
+					t.Fatal(e)
+				}
+				for _, c := range metadata {
+					nullable, known := c.Nullable()
+					if !known || !nullable {
+						t.Fatal("predicate default changed nullable metadata", c)
+					}
+				}
+				alterDropSmokeRows(t, rows, []string{"id", "b", "t", "d", "r"}, []string{"INT4", "BOOL", "BOOL", "BOOL", "BOOL"}, predicateWant)
+			}
+			exec(`INSERT INTO predicate_defaults(id) VALUES(1)`, 1)
+			exec(`INSERT INTO predicate_defaults VALUES(2,DEFAULT,DEFAULT,DEFAULT,DEFAULT),(3,NULL,NULL,NULL,NULL)`, 2)
+			checkPredicates()
 			exec(`CREATE TABLE all_d(i INT DEFAULT 7,n INT)`, 0)
 			exec(`INSERT INTO all_d DEFAULT VALUES`, 1)
 			alterDropSmokeRows(t, query(`SELECT * FROM all_d`), []string{"i", "n"}, []string{"INT4", "INT4"}, [][]any{{int64(7), nil}})
@@ -105,6 +125,10 @@ func TestDefaultSmoke(t *testing.T) {
 				{`CREATE TABLE e(id INT,b BOOL DEFAULT (1 < 2 AND NOT FALSE),n INT DEFAULT NULL,u BOOL DEFAULT (FALSE OR NULL),v BOOL DEFAULT NOT NULL)`, `syntax error at or near "NOT"`, "125"},
 				{`CREATE TABLE bad(b BOOL DEFAULT TRUE AND FALSE)`, `syntax error at or near "AND"`, "38"},
 				{`CREATE TABLE bad(b BOOL DEFAULT TRUE OR FALSE)`, `syntax error at or near "OR"`, "38"},
+				{`CREATE TABLE bad(b BOOL DEFAULT NULL IS NULL)`, `syntax error at or near "NULL"`, "41"},
+				{`CREATE TABLE bad(b BOOL DEFAULT TRUE IS TRUE)`, `syntax error at or near "TRUE"`, "41"},
+				{`CREATE TABLE bad(b BOOL DEFAULT NULL ISNULL)`, `syntax error at or near "ISNULL"`, "38"},
+				{`CREATE TABLE bad(b BOOL DEFAULT NULL NOTNULL)`, `syntax error at or near "NOTNULL"`, "38"},
 			} {
 				if prepared {
 					s, e := db.Prepare(tc.query)
@@ -166,6 +190,11 @@ func TestDefaultSmoke(t *testing.T) {
 				t.Fatal(err)
 			}
 			check(want)
+			checkPredicates()
+			exec(`INSERT INTO predicate_defaults(id) VALUES(4)`, 1)
+			exec(`INSERT INTO predicate_defaults VALUES(5,DEFAULT,DEFAULT,DEFAULT,DEFAULT)`, 1)
+			predicateWant = append(predicateWant, []any{int64(4), true, true, true, true}, []any{int64(5), true, true, true, true})
+			checkPredicates()
 			checkEndpoint([][]any{{int64(1), endpoint, true}})
 			exec(`INSERT INTO endpoint VALUES(2,DEFAULT,DEFAULT)`, 1)
 			checkEndpoint([][]any{{int64(1), endpoint, true}, {int64(2), endpoint, true}})

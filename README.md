@@ -719,6 +719,7 @@ projection_target := logical_target | null_count_call
 call_argument := scalar | null_count_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
 default_expression := value | comparison | (logical_target)
+                    | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
 
 ### INSERT from query — change note
@@ -1281,12 +1282,15 @@ comments, which are deliberately excluded from database Dump and Restore.
 ### Column defaults
 
 CREATE TABLE now stores immutable, bound column `DEFAULT` expressions. Existing
-literal/NULL and typed TIME/TIMESTAMP syntax and scalar comparisons are admitted
-at the outer level; Boolean NOT/AND/OR require parentheses, e.g. `DEFAULT (NOT NULL)`.
+literal/NULL, typed TIME/TIMESTAMP, scalar comparisons and IS [NOT] DISTINCT FROM
+are admitted at the outer level. Boolean NOT/AND/OR and null/truth tests require
+parentheses, e.g. `DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`.
 Column references and positional parameters are prohibited even in decisive logical branches. Functions, subqueries, arithmetic,
 casts, serial/identity and ALTER DEFAULT remain outside this selected SQL surface.
 Restrictions apply as ordinary recursive binding reaches each occurrence; earlier
 child Boolean, input and operator diagnostics retain their PostgreSQL precedence.
+The existing null, truth and distinct predicates retain their ordinary typed
+semantics and fully parenthesized unevaluated Dump representation in defaults.
 Named DEFAULT syntax is accepted but does not create a named constraint object.
 Plain LIKE copies shape and NOT NULL, **not defaults**.
 

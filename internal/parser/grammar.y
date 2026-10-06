@@ -121,7 +121,7 @@ package parser
 %type <rows> rows
 %type <row> row values call_args scalar_targets function_values insert_values
 %type <value> value
-%type <expr> scalar scalar_atom operand target where target_not target_and target_or projection_target function function_argument insert_value
+%type <expr> scalar scalar_atom operand target default_target where target_not target_and target_or projection_target function function_argument insert_value
 %type <tok> comparison_operator
 %type <call> function_args
 %type <predicate> truth_kind
@@ -369,8 +369,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
  | CONSTRAINT name NULL { $$=ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
- | DEFAULT target { $$=ColumnConstraint{Default:$2,Pos:$1.pos} }
- | CONSTRAINT name DEFAULT target { $$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
+ | DEFAULT default_target { $$=ColumnConstraint{Default:$2,Pos:$1.pos} }
+ | CONSTRAINT name DEFAULT default_target { $$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
@@ -488,6 +488,13 @@ select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 operand: scalar %prec NAME_LIST { $$=$1 } ;
 comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
+/* CREATE DEFAULT follows restricted b_expr; parenthesized targets retain the
+ * ordinary predicate/logical surface without changing SELECT admission. */
+default_target: operand %prec NAME_LIST { $$=$1 }
+ | operand comparison_operator operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
+ | '(' target_or ')' { $$=$2 }
+ | default_target IS DISTINCT FROM default_target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
+ | default_target IS NOT DISTINCT FROM default_target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
 /* On ')', keep a grouped scalar in the operand layer so arithmetic may follow.
  * Comparisons/predicates/logical forms instead use target_or grouping. Both
  * layers erase grouping; this explicit shift preserves their existing ASTs

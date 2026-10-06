@@ -133,9 +133,10 @@ Smoke: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`;
 reference: `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
 Integrated expressions: `make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
 
-Column DEFAULT declarations admit outer scalar/typed temporal/comparison syntax;
-logical NOT/AND/OR require parentheses (e.g. DEFAULT (NOT NULL)), as PostgreSQL's
-restricted default grammar requires. Columns (0A000) and parameters (42P02) remain
+Column DEFAULT declarations admit outer scalar/typed temporal/comparison and
+IS [NOT] DISTINCT FROM syntax. Logical NOT/AND/OR and null/truth tests require
+parentheses (e.g. DEFAULT (NULL IS NULL)), as PostgreSQL's restricted default grammar
+requires. Columns (0A000) and parameters (42P02) remain
 prohibited, including decisive branches. Unknown input binds at CREATE
 Execute; assignment narrowing/typmod sizing executes independently for every
 inserted row. CREATE utility Prepare remains analysis-free. Omitted INSERT
@@ -150,6 +151,8 @@ evaluated values or nullable metadata. Plain LIKE excludes defaults; owner,
 comment and NOT NULL changes preserve them, and DROP COLUMN removes its key.
 Rounded finite endpoint literals keep the type-owned TIMESTAMP(0) encoding with
 exactly one introducer, including within default comparison expressions.
+Existing null/truth/distinct default nodes serialize recursively with parentheses,
+without Eval, and retain shared typed predicate semantics through Dump/Restore.
 Dump serializes expression structure/captured temporal input without Eval and
 existing rows explicitly. Restore uses the same binder and public DEFAULT
 requests, staging atomically. Temporal 'now' input captures CREATE's operation
