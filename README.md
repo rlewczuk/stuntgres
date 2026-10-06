@@ -968,9 +968,12 @@ column metadata still require exact sequence equality.
 
 `UPDATE table SET column = expression [, ...] [WHERE predicate]` supports the
 existing scalar literals, parameters, old unqualified columns, comparisons,
-Boolean operators/grouping and standalone selected null-count calls. It does not
-add arithmetic, UPDATE FROM, aliases, row/subquery assignment, CURRENT OF,
-DEFAULT, RETURNING or general casts/functions.
+Boolean operators/grouping, null/truth/distinct predicates, baseline explicit
+INTEGER/BIGINT/TEXT/BOOLEAN casts and standalone selected null-count calls.
+DATE and BYTEA participate through existing destination/contextual input rules,
+including typed NULL; this does not add explicit DATE/BYTEA casts, arithmetic,
+UPDATE FROM, aliases, row/subquery assignment, CURRENT OF, DEFAULT, RETURNING
+or general casts/functions.
 
 All RHS expressions read the same old row: `SET a=b,b=a` swaps values.
 Assignment conversions use the destination type and typmod; the completed row
@@ -985,6 +988,29 @@ to even before checking the destination's signed bounds. NaN, infinities and
 out-of-range rounded values fail with 22003 and no partial effects. This is a
 direct assignment-only provider edge, not an implicit comparison cast or a
 text detour; existing NUMERIC-to-integer ties still round away from zero.
+
+The shared recursive conversion preflight visits every RHS and WHERE tree.
+Immutable conversions depending only on the current imported parameter frame
+fail at Execute even on empty or rejected input, before executor table/column
+ACLs, data capture or row holds. Semantic Prepare still succeeds for those
+execution-owned conversions. Folding copies only changed execution branches;
+analyzed expressions, conservative dependence metadata and later parameter
+frames remain independent. Analysis/namespace checks precede preflight; exact
+locked relation identity and current authority are revalidated after it.
+Row-dependent RHS conversions run only for qualifying rows. Existing native
+Boolean evaluation does not promise short-circuiting: PostgreSQL can simplify
+`WHERE FALSE AND CAST(n AS INTEGER)=0` to zero rows while native can evaluate
+the row-dependent cast and report 22003. This is distinct from the shared
+rejected-row RHS witness `SET a=CAST(n AS INTEGER) WHERE FALSE`, which counts
+zero without evaluating the cast on either backend.
+
+DATE exports remain native canonical strings versus pq civil `time.Time`
+values. BYTEA parameters are raw bytes, including strings such as `\q`;
+malformed textual BYTEA diagnostics apply to SQL unknown literals, not those
+raw binds. Whole-row NOT NULL Detail uses the command's captured output
+environment, including current hex/escape `bytea_output` for updated payloads.
+Parameter and result bytes remain detached, and Dump/Reset/Restore preserve
+current updated DATE/BYTEA heads without encoding presentation settings.
 
 Updates preserve logical row identity and install fresh immutable versions.
 Self reads see the latest successful private head once; peers see committed

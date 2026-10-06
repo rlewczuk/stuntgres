@@ -1,0 +1,229 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+	"time"
+)
+
+func TestUpdateCoreRecursivePreflight(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE t(i INT,n INT)")
+	op, done, err := testOperation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	ast := statement(t, "UPDATE t SET i=int4($1::text),n=i WHERE i=int4($1::text)")
+	original := func() *boundUpdate {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		auth, err := e.authorizationLocked(op)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ref, err := e.resolveReference(auth, ast.(*parser.Update).Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b.update
+	}()
+	cast := original.assignments[0].(coercionExpression)
+	column := original.assignments[1]
+	predicate := original.predicate.(comparisonExpression)
+	source := cast.child.ResultUsage().Type
+	for _, input := range []string{"7", "oops", "", "17", "oops", "42"} {
+		value := sqltype.Null(source)
+		var err error
+		if input != "" {
+			value, err = source.Input(context.Background(), input, -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		evaluation := EvalContext{Context: context.Background(), Parameters: []sqltype.Value{value}}
+		private, err := preflightUpdate(&evaluation, original)
+		if input == "oops" {
+			state(t, err, "22P02")
+			if private != nil {
+				t.Fatal("failed preflight returned partially folded update")
+			}
+		} else {
+			if err != nil || private == original {
+				t.Fatal(private, err)
+			}
+			literal, ok := private.assignments[0].(literalExpression)
+			if !ok || literal.expressionInfo != cast.expressionInfo {
+				t.Fatal("fold lost conservative frame/source metadata", private.assignments[0])
+			}
+			actual, err := literal.Eval(&evaluation)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if input == "" {
+				if !actual.IsNull() {
+					t.Fatal(actual)
+				}
+			} else {
+				n, err := actual.Integer()
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := int64(7)
+				if input == "17" {
+					want = 17
+				}
+				if input == "42" {
+					want = 42
+				}
+				if n != want {
+					t.Fatal("stale imported frame", n, want)
+				}
+			}
+			if !reflect.DeepEqual(private.assignments[1], column) {
+				t.Fatal("unchanged row-dependent branch replaced")
+			}
+			folded := private.predicate.(comparisonExpression)
+			if folded.expressionInfo != predicate.expressionInfo {
+				t.Fatal("predicate metadata changed")
+			}
+			if _, ok := folded.right.(literalExpression); !ok {
+				t.Fatal("WHERE root not traversed")
+			}
+			if &private.assignments[0] == &original.assignments[0] {
+				t.Fatal("assignment backing storage shared after fold")
+			}
+		}
+		if _, ok := original.assignments[0].(coercionExpression); !ok {
+			t.Fatal("analyzed assignment replaced")
+		}
+		if _, ok := original.predicate.(comparisonExpression).right.(coercionExpression); !ok {
+			t.Fatal("analyzed predicate replaced")
+		}
+	}
+	unchanged := &boundUpdate{assignments: []BoundExpr{column}}
+	evaluation := EvalContext{Context: context.Background()}
+	same, err := preflightUpdate(&evaluation, unchanged)
+	if err != nil || same != unchanged {
+		t.Fatal("unchanged update allocated/replaced", same, err)
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	evaluation.Context = canceled
+	private, err := preflightUpdate(&evaluation, original)
+	if !errors.Is(err, context.Canceled) || private != nil {
+		t.Fatal(private, err)
+	}
+}
+
+// Reuse the existing test-owned preflight context: no production hook or sleep.
+func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
+	for _, mode := range []string{"authority", "descriptor", "epoch", "preflight", "relock", "deadline", "teardown", "success"} {
+		t.Run(mode, func(t *testing.T) {
+			e := New()
+			run(t, e, "CREATE TABLE t(i INT)")
+			run(t, e, "INSERT INTO t VALUES(7)")
+			run(t, e, "CREATE ROLE actor LOGIN")
+			actor, _ := e.Roles().Lookup("actor")
+			ctx := &castPreflightContext{Context: context.Background(), e: e, t: t, cancelAt: mode}
+			op, done, err := testOperation(e, context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer done()
+			ctx.Context = op.ctx
+			op.ctx = ctx
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			deadline, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
+			defer cancel()
+			var restore func()
+			ctx.visit = func() {
+				if scope.view != nil {
+					t.Error("UPDATE captured source before preflight/current ACL")
+				}
+				if scope.lockedRef.owner != e.owner || scope.lockedDescriptor == nil {
+					t.Error("lost exact locked relation")
+				}
+				switch mode {
+				case "authority":
+					op.session.mu.Lock()
+					op.session.authorization.state.CurrentUser = actor.Ref
+					op.session.mu.Unlock()
+				case "descriptor":
+					address := scope.lockedRef.Address
+					original := e.state.descriptors[address]
+					replacement := *scope.lockedDescriptor.(*relationDescriptor)
+					e.state.descriptors[address] = &replacement
+					restore = func() { e.state.descriptors[address] = original }
+				case "epoch":
+					original := e.state.epoch
+					e.state.epoch++
+					restore = func() { e.state.epoch = original }
+				case "deadline":
+					ctx.Context = deadline
+				case "teardown":
+					op.session.RequestEnd(CleanClose)
+				}
+			}
+			result, executeErr := scope.Execute(statement(t, "UPDATE t SET i=int4($1::text) WHERE i IS NOT NULL"), 1, func(c context.Context, signature ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+				value, err := signature.Types[0].Type.Input(c, "42", -1)
+				if err != nil {
+					return err
+				}
+				frame[0] = value
+				ctx.armed = true
+				return nil
+			})
+			ctx.armed = false
+			if restore != nil {
+				e.mu.Lock()
+				restore()
+				e.mu.Unlock()
+			}
+			if !ctx.entered {
+				t.Error("preflight never entered")
+			}
+			switch mode {
+			case "authority":
+				state(t, executeErr, "42501")
+			case "descriptor", "epoch":
+				if !errors.Is(executeErr, ErrCatalogReplaced) {
+					t.Error(executeErr)
+				}
+			case "preflight", "relock", "teardown":
+				if !errors.Is(executeErr, context.Canceled) {
+					t.Error(executeErr)
+				}
+			case "deadline":
+				if !errors.Is(executeErr, context.DeadlineExceeded) {
+					t.Error(executeErr)
+				}
+			case "success":
+				if executeErr != nil || result.Count != 1 || result.Rows != nil {
+					t.Error(result, executeErr)
+				}
+			}
+			if mode != "success" && (result.Count != 0 || result.Rows != nil || scope.view != nil) {
+				t.Error("failure acquired source/result", result)
+			}
+			if err := scope.Finish(executeErr); err != executeErr {
+				t.Error("Finish changed failure", err, executeErr)
+			}
+			lockEmpty(t, e)
+			if scope.view != nil || scope.lockedDescriptor != nil || scope.ticket != nil || !scope.finished {
+				t.Error("statement pins/holds survived Finish")
+			}
+		})
+	}
+}

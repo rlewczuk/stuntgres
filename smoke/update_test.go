@@ -134,4 +134,62 @@ func TestUpdateCoreSmoke(t *testing.T) {
 	if dump.String() != again.String() {
 		t.Fatal("current-row dump changed after round trip")
 	}
+	// Retained public composition of the integrated DATE/BYTEA and baseline
+	// cast/null/truth/distinct surfaces, not a throwaway interoperability probe.
+	exec(b, "CREATE TABLE composed(id INT,d DATE,b BYTEA,n INT NOT NULL,f BOOL)", false, 0)
+	exec(b, `INSERT INTO composed VALUES(1,'2000-01-01','\x01',1,TRUE)`, false, 1)
+	composed, err := b.PrepareContext(ctx, "UPDATE composed SET d=$1,b=$2,n=CAST(n AS BIGINT)::INTEGER,f=(b IS NULL) IS FALSE WHERE id=1 AND d IS DISTINCT FROM $1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer composed.Close()
+	for _, args := range [][]any{{"2024-02-29", []byte{0, 92, 255}}, {nil, nil}, {"2030-01-02", []byte{65}}} {
+		r, err := composed.ExecContext(ctx, args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := r.RowsAffected()
+		if err != nil || n != 1 {
+			t.Fatal(n, err)
+		}
+	}
+	var date string
+	var blob []byte
+	var number int64
+	var flag bool
+	if err = b.QueryRowContext(ctx, "SELECT d,b,n,f FROM composed").Scan(&date, &blob, &number, &flag); err != nil || date != "2030-01-02" || !bytes.Equal(blob, []byte{65}) || number != 1 || flag {
+		t.Fatal(date, blob, number, flag, err)
+	}
+	exec(b, "UPDATE composed SET d=d,b=b,n=CAST(n AS BIGINT)::INTEGER WHERE f IS FALSE", false, 1)
+	failed, err := b.PrepareContext(ctx, "UPDATE composed SET b=$1,n=NULL WHERE id=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer failed.Close()
+	for _, output := range []struct{ name, detail string }{{"hex", `Failing row contains (1, 2030-01-02, \x005cff, null, f).`}, {"escape", `Failing row contains (1, 2030-01-02, \000\\\377, null, f).`}} {
+		exec(b, "SET bytea_output="+output.name, false, 0)
+		for _, prepared := range []bool{false, true} {
+			if prepared {
+				_, err = failed.ExecContext(ctx, []byte{0, 92, 255})
+			} else {
+				_, err = b.ExecContext(ctx, "UPDATE composed SET b=$1,n=NULL WHERE id=1", []byte{0, 92, 255})
+			}
+			if err := typeCoreDiagnostic(err, stuntgres.Error{Code: "23502", Message: `null value in column "n" of relation "composed" violates not-null constraint`, Detail: output.detail, Schema: "public", Table: "composed", Column: "n"}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	var compositionDump bytes.Buffer
+	if err = stuntgres.Dump(ctx, db, &compositionDump); err != nil {
+		t.Fatal(err)
+	}
+	if err = stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err = stuntgres.Restore(ctx, db, bytes.NewReader(compositionDump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	if err = b.QueryRowContext(ctx, "SELECT d,b,n,f FROM composed").Scan(&date, &blob, &number, &flag); err != nil || date != "2030-01-02" || !bytes.Equal(blob, []byte{65}) || number != 1 || flag {
+		t.Fatal("composition roundtrip", date, blob, number, flag, err)
+	}
 }

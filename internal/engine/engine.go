@@ -916,15 +916,27 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	}
 	if b.update != nil {
-		for i, expr := range b.update.assignments {
-			if _, cast := expr.(coercionExpression); cast && !expr.Properties().RowDependent && !expr.Properties().ParameterDependent {
-				value, foldErr := expr.Eval(&evaluation)
-				if foldErr != nil {
-					e.mu.Unlock()
-					return Result{}, foldErr
-				}
-				b.update.assignments[i] = literalExpression{expressionInfo: expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition()}, value: value}
-			}
+		// Like SELECT, frame-only coercions precede executor ACLs and source
+		// capture without retaining Engine.mu. The traversal keeps analyzed
+		// dependence metadata and unchanged branches shared.
+		e.mu.Unlock()
+		b.update, err = preflightUpdate(&evaluation, b.update)
+		if err != nil {
+			return Result{}, err
+		}
+		e.mu.Lock()
+		if err = ctx.Err(); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		if err = scope.validateLockedRelation(e); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		auth, err = e.statementAuthorizationLocked(op, stmt)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
 		}
 	}
 	if err = auth.checkBinding(b, stmt); err != nil {

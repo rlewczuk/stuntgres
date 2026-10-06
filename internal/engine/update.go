@@ -15,6 +15,44 @@ type boundUpdate struct {
 	predicate   BoundExpr
 }
 
+// Reuse the shared coercion traversal; only changed execution branches are
+// copied. In particular, imported-frame literals never replace analyzed nodes.
+func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error) {
+	result := original
+	var assignments []BoundExpr
+	for i, expression := range original.assignments {
+		folded, changed, err := preflightCoercions(c, expression)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			if assignments == nil {
+				assignments = append([]BoundExpr(nil), original.assignments...)
+			}
+			assignments[i] = folded
+		}
+	}
+	if assignments != nil {
+		private := *original
+		private.assignments = assignments
+		result = &private
+	}
+	if original.predicate != nil {
+		folded, changed, err := preflightCoercions(c, original.predicate)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			if result == original {
+				private := *original
+				result = &private
+			}
+			result.predicate = folded
+		}
+	}
+	return result, nil
+}
+
 // Transform WHERE and all RHS nodes before destination assignment checks.
 func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	binder.relation, binder.ref = b.relation, b.ref
@@ -191,7 +229,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		for i, column := range b.relation.columns {
 			if !column.Nullable && row[i].IsNull() {
-				return Result{}, notNullError(schema, b.relation.name, column.Name, row)
+				return Result{}, notNullError(schema, b.relation.name, column.Name, row, s.output)
 			}
 		}
 		oldRows = append(oldRows, old)
