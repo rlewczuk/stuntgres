@@ -120,5 +120,5 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 		d.(*sqlstate.Error).Hint = "You will need to rewrite or cast the expression."
 		return nil, d
 	}
-	return coercionExpression{b.info(target.Usage, expr.SourcePosition(), expr.Properties()), expr, plan}, nil
+	return coercionExpression{b.info(target.Usage, expr.SourcePosition(), expr.Properties()), expr, plan, sqltype.Assignment}, nil
 }

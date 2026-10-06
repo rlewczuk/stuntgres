@@ -730,10 +730,11 @@ parenthesized sources and INSERT-only no-FROM projections such as `SELECT '1'`,
 Star expansion and output width/type checks happen during analysis, even if the
 source is empty. An explicit target list requires the same number of expressions;
 without a list, the source maps the first N declared live columns. Omitted
-nullable columns become typed NULL; existing NOT NULL constraints still apply.
-Declared defaults, DEFAULT expressions, sequences and serial remain unsupported
-native subsystems, not successful no-ops. Real PostgreSQL declared-default
-behavior is separately witnessed in the reference suite.
+columns use declared defaults or typed NULL; existing NOT NULL constraints still
+apply. Explicit source NULL bypasses a default. ORDER-decorated VALUES shares
+this omission behavior but rejects a source DEFAULT marker with 42601;
+ordinary and parenthesized undecorated VALUES retain per-cell DEFAULT requests.
+Sequences and serial remain unsupported native subsystems, not successful no-ops.
 
 ```sql
 CREATE TABLE source_rows(i INT, label TEXT);
@@ -1282,11 +1283,13 @@ comments, which are deliberately excluded from database Dump and Restore.
 ### Column defaults
 
 CREATE TABLE now stores immutable, bound column `DEFAULT` expressions. Existing
-literal/NULL, typed TIME/TIMESTAMP, scalar comparisons and IS [NOT] DISTINCT FROM
-are admitted at the outer level. Boolean NOT/AND/OR and null/truth tests require
-parentheses, e.g. `DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`.
-Column references and positional parameters are prohibited even in decisive logical branches. Functions, subqueries, arithmetic,
-casts, serial/identity and ALTER DEFAULT remain outside this selected SQL surface.
+literal/NULL, typed DATE/TIME/TIMESTAMP, baseline CAST/`::`/function-style casts,
+scalar comparisons and IS [NOT] DISTINCT FROM are admitted at the outer level.
+Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
+`DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`. Column references and positional
+parameters are prohibited even inside casts or decisive logical branches.
+General SQL functions, subqueries, arithmetic, additional cast families,
+serial/identity and ALTER DEFAULT remain outside this selected SQL surface.
 Restrictions apply as ordinary recursive binding reaches each occurrence; earlier
 child Boolean, input and operator diagnostics retain their PostgreSQL precedence.
 The existing null, truth and distinct predicates retain their ordinary typed
@@ -1298,13 +1301,43 @@ Each INSERT row evaluates declared defaults for omitted columns or per-cell
 `DEFAULT`; absent declarations yield typed NULL. Explicit supplied values,
 including NULL, bypass defaults. Targetless `DEFAULT VALUES` inserts one all-default row;
 an explicit target list before DEFAULT VALUES is a syntax error (42601).
-Ordinary INSERT supplied values remain scalars, not logical/comparison expressions.
+Ordinary INSERT supplied values retain the existing scalar/cast surface;
+SELECT and ORDER-decorated VALUES sources retain their existing query surface.
 Defaults do not change declared result types, ScanTypes or nullable metadata.
+CREATE resolves each column's type before validating its NULL/NOT NULL and
+DEFAULT declarations in source order, before proceeding to later elements.
+The second DEFAULT fails with 42601 at that token. Earlier type/nullability
+errors still win; all declaration structure and NOT NULL merging complete before
+any default expression is bound, so a later duplicate can precede an earlier
+default-input error. Restore uses the same binder and preserves the existing
+catalog and data on failure.
 Utility Prepare remains semantic-analysis-free; CREATE binds input/type errors
 on execution, while destination narrowing and typmod sizing remain deferred to
 INSERT. For example `INT DEFAULT 2147483648` creates successfully but fails
-on use with 22003. Relative temporal input such as `'now'` captures CREATE's
-transaction input environment; it is not a volatile per-row SQL function.
+on use with 22003. Every INSERT preflights actually consumed declared defaults'
+immutable conversions at execution, after supplied-value or query-source
+preflight and before executor authorization and capture. For query INSERT,
+even an empty source can report a demanded conversion error. This bounded
+default-only planning also covers ordinary omissions, per-cell requests,
+undecorated parenthesized VALUES and DEFAULT VALUES; it visits the left
+Boolean operand first.
+A resulting concrete TRUE on OR, or FALSE on AND, makes the whole execution
+expression a private BOOL literal without demanding the discarded right branch.
+Nested closed constant comparisons/predicates and NOT use their existing typed
+operations after required children are handled. NULL/nondecisive left operands
+still demand the right; a bad left operand is not rescued by a decisive right.
+CREATE still analyzes both operands and rejects prohibited references or eager
+input errors. Stored definitions remain unfolded, including discarded casts.
+Explicitly supplied values, including NULL, bypass defaults. A default is
+planned only when some ordinary row requests or omits that destination, or
+a query omits it; a column supplied in every row is never default-planned.
+Mixed rows retain one private schedule but evaluate remaining runtime expressions
+only in cells consuming the default, never for a zero-row source.
+This is not a general runtime short-circuit or broader optimizer guarantee;
+ordinary query/DELETE/supplied-value preflight and logical evaluation are unchanged.
+Relative temporal input
+such as `'now'` captures CREATE's transaction input environment, not a volatile
+per-row SQL function.
 
 Every statement stages complete rows before publication. Later default evaluation,
 conversion, NOT NULL or cancellation failure leaves existing rows unchanged.
@@ -1315,6 +1348,13 @@ including explicit NULL, remains explicit. Restore uses the same public syntax
 and binder, atomically replacing definitions/data or preserving the target on failure.
 The rounded finite TIMESTAMP endpoint retains its type-owned `TIMESTAMP(0)`
 encoding exactly once, including temporal leaves inside comparison defaults.
+Explicit casts retain their actual coercion mode and canonical CAST structure.
+Known TEXT children stay typed, so `CAST('oops'::text AS INT)` remains an
+execution-demanded conversion through empty/populated controls rather than
+becoming a CREATE-time unknown-input error. Recursive DATE leaves retain DATE
+introducers, including BC comparisons whose civil ordering differs from TEXT.
+Root BYTEA defaults reuse the existing canonical hex codec and return raw octets;
+no typed BYTEA compound syntax or new cast family is added.
 
 Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
 Independent pinned PostgreSQL witnesses: `make reference RUN='^TestReferenceDefault' VERBOSE=1`.
@@ -1645,7 +1685,7 @@ Identifier classification uses the complete PostgreSQL 18 release keyword invent
 
 IF and EXISTS retain their release unreserved and column-name categories, respectively, even when their syntax tokens implement `CREATE TABLE IF NOT EXISTS`. Both remain usable as unquoted identifiers and bare labels in the corresponding contexts; dedicated syntax recognition does not change their keyword metadata.
 
-INSERT query inputs execute the selected SELECT/query-VALUES surface above, including parenthesized SELECT inputs. Parsing still consumes the complete script before execution. In `INSERT INTO t (select) VALUES (1)`, `(select)` is a parenthesized zero-target SELECT rather than a target column, and the following raw `VALUES` is the syntax error (`42601`, character position 24). `(SELECT)` alone is an INSERT-only one-occurrence zero-width source: omitted nullable targets initialize to NULL; an explicit nonempty target list fails the ordinary width check.
+INSERT query inputs execute the selected SELECT/query-VALUES surface above, including parenthesized SELECT inputs. Parsing still consumes the complete script before execution. In `INSERT INTO t (select) VALUES (1)`, `(select)` is a parenthesized zero-target SELECT rather than a target column, and the following raw `VALUES` is the syntax error (`42601`, character position 24). `(SELECT)` alone is an INSERT-only one-occurrence zero-width source: omitted targets use declared defaults or typed NULL; an explicit nonempty target list fails the ordinary width check.
 
 Generic function-name recognition follows the distinct IDENT/unreserved/type-or-function-name rule, not column-name legality: `between(x)` is malformed, while ordinary/U/T call names and separately recognized built-in constructs such as COALESCE remain unsupported (`0A000`), except the four baseline type-function casts documented below and the selected null-count functions. No general function or special expression is executed by this recognition. DEFAULT is a valid bare projection label but still an unsupported alias. ISNULL/NOTNULL execute as scalar null-test predicates in table SELECT; explicit `ORDER BY x NULLS FIRST/LAST` remains recognized but unsupported, and quoted operator spellings remain ordinary names/labels. Failure boundaries retain complete positioned diagnostics without global keyword-to-error promotion.
 

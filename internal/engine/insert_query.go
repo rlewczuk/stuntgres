@@ -75,6 +75,20 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		project.expressions[i] = assigned
 		project.querySchema[i].Usage = assigned.ResultUsage()
 	}
+	// This binding owns the schedule; supplied query outputs, including NULL,
+	// never consume defaults. Filter once rather than masking every row.
+	if len(out.defaults) != 0 {
+		remaining := len(out.relation.defaults)
+		for _, target := range out.targets {
+			if out.defaults[target] != nil {
+				out.defaults[target] = nil
+				remaining--
+			}
+		}
+		if remaining == 0 {
+			out.defaults = nil
+		}
+	}
 	out.query, out.commandQuery = query, true
 	return nil
 }
@@ -148,6 +162,9 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery,
 		}
 		nodes[i] = make([]BoundExpr, width)
 		for j, raw := range row {
+			if _, requested := raw.(parser.DefaultExpr); requested {
+				return nil, expressionError("42601", "DEFAULT is not allowed in this context", raw.SourcePosition())
+			}
 			var err error
 			nodes[i][j], err = b.bindOutput(raw, true)
 			if err != nil {
@@ -183,7 +200,7 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery,
 			if err != nil {
 				return nil, expressionError("42846", fmt.Sprintf("VALUES could not convert type %s to %s", node.ResultUsage().Type.DiagnosticName(), common.Type.DiagnosticName()), node.SourcePosition())
 			}
-			node = coercionExpression{b.info(common, node.SourcePosition(), node.Properties()), node, plan}
+			node = coercionExpression{b.info(common, node.SourcePosition(), node.Properties()), node, plan, sqltype.Implicit}
 			nodes[i][j] = node
 		}
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
@@ -345,6 +362,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 	if count != 0 {
 		scratch = make([]sqltype.Value, len(b.targets))
 	}
+	evaluation := EvalContext{Context: ctx}
 	for i := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -362,6 +380,14 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		}
 		for j, target := range b.targets {
 			row[target] = scratch[j]
+		}
+		for j, expression := range b.defaults {
+			if expression != nil {
+				row[j], err = expression.Eval(&evaluation)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 		for j, c := range b.relation.columns {
 			if err := ctx.Err(); err != nil {

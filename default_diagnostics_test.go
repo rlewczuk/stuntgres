@@ -1,6 +1,8 @@
 package stuntgres_test
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"stuntgres"
@@ -97,6 +99,59 @@ func TestDefaultDiagnosticPrecedence(t *testing.T) {
 				typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: tc.position})
 				_, err = db.Query(`SELECT * FROM bad`)
 				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "bad" does not exist`, Position: "15"})
+			})
+		}
+	}
+}
+
+func TestDefaultDeclarationPrecedence(t *testing.T) {
+	for _, tc := range []struct{ name, query, code, message, token string }{
+		{"duplicate-before-nullability", `CREATE TABLE bad(i INT DEFAULT 1 DEFAULT 2 NULL NOT NULL)`, "42601", `multiple default values specified for column "i" of table "bad"`, "DEFAULT 2"},
+		{"duplicate-before-cooking", `CREATE TABLE bad(i INT DEFAULT 'oops',j INT DEFAULT 1 DEFAULT 2)`, "42601", `multiple default values specified for column "j" of table "bad"`, "DEFAULT 2"},
+		{"nullability-before-duplicate", `CREATE TABLE bad(i INT NULL NOT NULL DEFAULT 1 DEFAULT 2)`, "42601", `conflicting NULL/NOT NULL declarations for column "i" of table "bad"`, "NOT NULL"},
+		{"duplicate-column-before-bad-input", `CREATE TABLE bad(j INT DEFAULT 1 DEFAULT 2,i INT DEFAULT 'oops')`, "42601", `multiple default values specified for column "j" of table "bad"`, "DEFAULT 2"},
+		{"duplicate-before-later-type", `CREATE TABLE bad(i INT DEFAULT 1 DEFAULT 2,j missing_type)`, "42601", `multiple default values specified for column "i" of table "bad"`, "DEFAULT 2"},
+		{"type-before-later-duplicate", `CREATE TABLE bad(i missing_type,j INT DEFAULT 1 DEFAULT 2)`, "42704", `type "missing_type" does not exist`, "missing_type"},
+		{"earlier-column-nullability", `CREATE TABLE bad(i INT NULL NOT NULL,j INT DEFAULT 1 DEFAULT 2)`, "42601", `conflicting NULL/NOT NULL declarations for column "i" of table "bad"`, "NOT NULL"},
+		{"nullability-before-cooking", `CREATE TABLE bad(i INT DEFAULT 'oops',j INT NULL NOT NULL)`, "42601", `conflicting NULL/NOT NULL declarations for column "j" of table "bad"`, "NOT NULL"},
+	} {
+		for _, phase := range []string{"direct", "prepared", "restore"} {
+			t.Run(tc.name+"/"+phase, func(t *testing.T) {
+				ctx := context.Background()
+				db := openLocal(t, stuntgres.NewDriver(), t.Name())
+				execSQL(t, db, `CREATE TABLE sentinel(id INT,v INT DEFAULT 7)`)
+				execSQL(t, db, `INSERT INTO sentinel(id) VALUES(1)`)
+				var before bytes.Buffer
+				if err := stuntgres.Dump(ctx, db, &before); err != nil {
+					t.Fatal(err)
+				}
+				var err error
+				switch phase {
+				case "prepared":
+					s, e := db.Prepare(tc.query)
+					if e != nil {
+						t.Fatal("utility Prepare must succeed", e)
+					}
+					_, err = s.Exec()
+					s.Close()
+				case "restore":
+					err = stuntgres.Restore(ctx, db, strings.NewReader(tc.query))
+				default:
+					_, err = db.Exec(tc.query)
+				}
+				want := stuntgres.Error{Code: tc.code, Message: tc.message, Position: fmt.Sprint(strings.Index(tc.query, tc.token) + 1)}
+				// Keep publication/preservation assertions reachable before remediation,
+				// even when the competing diagnostic currently differs.
+				t.Run("full-diagnostic", func(t *testing.T) { typeCoreDiagnostic(t, err, want) })
+				_, missing := db.Query(`SELECT * FROM bad`)
+				typeCoreDiagnostic(t, missing, stuntgres.Error{Code: "42P01", Message: `relation "bad" does not exist`, Position: "15"})
+				wantTuples(t, db, `SELECT * FROM sentinel`, [][]any{{int64(1), int64(7)}})
+				var after bytes.Buffer
+				if e := stuntgres.Dump(ctx, db, &after); e != nil || before.String() != after.String() {
+					t.Fatal("failed declaration changed persistent defaults/data", e, after.String())
+				}
+				execSQL(t, db, `INSERT INTO sentinel(id) VALUES(2)`)
+				wantTuples(t, db, `SELECT * FROM sentinel ORDER BY id`, [][]any{{int64(1), int64(7)}, {int64(2), int64(7)}})
 			})
 		}
 	}

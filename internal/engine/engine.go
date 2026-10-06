@@ -269,6 +269,8 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
 		var columns []ColumnDescriptor
+		declarations := make([]createColumnDeclaration, 0, len(s.Elements))
+		table := s.Name.Parts[len(s.Name.Parts)-1].Text
 		var inherited []createLikeConstraint
 		for elementIndex, element := range s.Elements {
 			kinds := 0
@@ -292,6 +294,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				if err != nil {
 					return b, err
 				}
+				declaration, err := bindCreateColumnDeclaration(c, table)
+				if err != nil {
+					return b, err
+				}
+				declarations = append(declarations, declaration)
 				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, Nullable: true, NullabilityKnown: true})
 			} else {
 				like := element.Like
@@ -336,16 +343,17 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				})
 				for _, c := range source.columns {
 					columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: c.Usage, Nullable: c.Nullable, NullabilityKnown: c.NullabilityKnown})
+					declarations = append(declarations, createColumnDeclaration{})
 				}
 			}
 		}
 		b.createColumns = columns
 		var err error
-		b.createNotNull, err = bindCreateNotNull(s, columns, inherited)
+		b.createNotNull, err = bindCreateNotNull(s, columns, declarations, inherited)
 		if err != nil {
 			return b, err
 		}
-		b.createDefaults, err = bindCreateDefaults(binder, s, columns)
+		b.createDefaults, err = bindCreateDefaults(binder, columns, declarations)
 		if err != nil {
 			return b, err
 		}
@@ -376,6 +384,12 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			b.targets = make([]int, len(s.Targets))
 			if err := bindInsertTargets(b.relation, s.Targets, b.targets); err != nil {
 				return b, err
+			}
+		}
+		if len(b.relation.defaults) != 0 {
+			b.defaults = make([]BoundExpr, len(b.relation.columns))
+			for i, attribute := range b.relation.attributes {
+				b.defaults[i] = b.relation.defaults[attribute].expression
 			}
 		}
 		if s.Source != nil {
@@ -412,10 +426,28 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				b.expressions[rowIndex][j] = plan
 			}
 		}
-		if len(b.relation.defaults) != 0 {
-			b.defaults = make([]BoundExpr, len(b.relation.columns))
-			for i, attribute := range b.relation.attributes {
-				b.defaults[i] = b.relation.defaults[attribute].expression
+		// Retain a targeted default only if at least one row requests it.
+		// Explicit NULL is a bound expression, not a DEFAULT marker.
+		if len(b.defaults) != 0 {
+			remaining := len(b.relation.defaults)
+			for j, target := range b.targets {
+				if b.defaults[target] == nil {
+					continue
+				}
+				consumed := false
+				for _, row := range b.expressions {
+					if j >= len(row) || row[j] == nil {
+						consumed = true
+						break
+					}
+				}
+				if !consumed {
+					b.defaults[target] = nil
+					remaining--
+				}
+			}
+			if remaining == 0 {
+				b.defaults = nil
 			}
 		}
 	case *parser.Delete:
@@ -864,38 +896,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	expressions := b.expressions
 	expressionsChanged := false
 	evaluation := EvalContext{Context: ctx, Parameters: canonical}
-	var queryRoot LogicalNode
-	_, deleting := stmt.(*parser.Delete)
-	if b.query != nil || (deleting && b.predicate != nil) {
-		// Planning-owned conversions precede executor ACLs, without retaining
-		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
-		// earlier, and only this execution's imported frame is materialized.
-		e.mu.Unlock()
-		if b.query != nil {
-			queryRoot, err = preflightQuery(&evaluation, b.query.Root)
-		} else {
-			b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)
-		}
-		if err != nil {
-			return Result{}, err
-		}
-		e.mu.Lock()
-		if err = ctx.Err(); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-		if err = scope.validateLockedRelation(e); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-		// Do not authorize source capture with the pre-unlock authority view.
-		// Keep the original binding's actual-column manifest and exact ref.
-		auth, err = e.statementAuthorizationLocked(op, stmt)
-		if err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-	}
 	_, inserting := stmt.(*parser.Insert)
 	if inserting {
 		// Preflight frame-only conversions before executor ACL/constraints.
@@ -924,14 +924,44 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
-	if b.update != nil {
-		// Like SELECT, frame-only coercions precede executor ACLs and source
-		// capture without retaining Engine.mu. The traversal keeps analyzed
-		// dependence metadata and unchanged branches shared.
+	var queryRoot LogicalNode
+	_, deleting := stmt.(*parser.Delete)
+	if b.update != nil || b.query != nil || (deleting && b.predicate != nil) || len(b.defaults) != 0 {
+		// Planning-owned conversions precede executor ACLs, without retaining
+		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
+		// earlier, and only this execution's imported frame is materialized.
 		e.mu.Unlock()
-		b.update, err = preflightUpdate(&evaluation, b.update)
+		if b.update != nil {
+			b.update, err = preflightUpdate(&evaluation, b.update)
+		} else if b.query != nil {
+			queryRoot, err = preflightQuery(&evaluation, b.query.Root)
+		} else if deleting {
+			b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)
+		}
 		if err != nil {
 			return Result{}, err
+		}
+		// Both INSERT paths plan only defaults this binding actually consumes.
+		// Demand immutable conversions even for an empty query source, while
+		// keeping the stored definition and any runtime-only producer unfolded.
+		var privateDefaults []BoundExpr
+		for i, expression := range b.defaults {
+			if expression == nil {
+				continue
+			}
+			folded, changed, foldErr := preflightCoercionsWithPolicy(&evaluation, expression, true)
+			if foldErr != nil {
+				return Result{}, foldErr
+			}
+			if changed {
+				if privateDefaults == nil {
+					privateDefaults = append([]BoundExpr(nil), b.defaults...)
+				}
+				privateDefaults[i] = folded
+			}
+		}
+		if privateDefaults != nil {
+			b.defaults = privateDefaults
 		}
 		e.mu.Lock()
 		if err = ctx.Err(); err != nil {
@@ -942,6 +972,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
+		// Do not authorize source capture with the pre-unlock authority view.
+		// Keep the original binding's actual-column manifest and exact ref.
 		auth, err = e.statementAuthorizationLocked(op, stmt)
 		if err != nil {
 			e.mu.Unlock()

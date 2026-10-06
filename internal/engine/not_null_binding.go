@@ -54,15 +54,44 @@ type createLikeConstraint struct {
 	notNullConstraint
 }
 
-func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, inherited []createLikeConstraint) ([]notNullConstraint, error) {
-	table := s.Name.Parts[len(s.Name.Parts)-1].Text
-	type declaration struct {
-		columnNotNull bool
-		columnName    string
-		notNull       bool
-		name          string
+// Column-local structure is validated as CREATE reaches each typed column,
+// before later elements or any default-expression cooking.
+type createColumnDeclaration struct {
+	columnNotNull bool
+	columnName    string
+	notNull       bool
+	name          string
+	defaultExpr   parser.Expr
+}
+
+func bindCreateColumnDeclaration(column *parser.Column, table string) (createColumnDeclaration, error) {
+	var declaration createColumnDeclaration
+	seen := false
+	for _, constraint := range column.Constraints {
+		if constraint.Default != nil {
+			if declaration.defaultExpr != nil {
+				return declaration, insertError("42601", fmt.Sprintf(`multiple default values specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
+			}
+			declaration.defaultExpr = constraint.Default
+			continue
+		}
+		if seen && declaration.columnNotNull != constraint.NotNull {
+			return declaration, insertError("42601", fmt.Sprintf(`conflicting NULL/NOT NULL declarations for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
+		}
+		name := constraint.Name.Text
+		if constraint.NotNull && declaration.columnName != "" && name != "" && declaration.columnName != name {
+			return declaration, sqlError("XX000", fmt.Sprintf(`conflicting not-null constraint names "%s" and "%s"`, declaration.columnName, name))
+		}
+		seen, declaration.columnNotNull = true, constraint.NotNull
+		if constraint.NotNull && name != "" {
+			declaration.columnName = name
+		}
 	}
-	declarations := make([]declaration, len(columns))
+	return declaration, nil
+}
+
+func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, declarations []createColumnDeclaration, inherited []createLikeConstraint) ([]notNullConstraint, error) {
+	table := s.Name.Parts[len(s.Name.Parts)-1].Text
 	index := make(map[string]int, len(columns))
 	for i, c := range columns {
 		if _, exists := index[c.Name]; exists {
@@ -72,30 +101,6 @@ func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, inheri
 			return nil, sqlError("42701", fmt.Sprintf("column name %q conflicts with a system column name", c.Name))
 		}
 		index[c.Name] = i
-	}
-	// PostgreSQL validates each column's own list before merging table/LIKE
-	// constraints. Explicit column NULL is not a table-level prohibition.
-	for _, element := range s.Elements {
-		if c := element.Column; c != nil {
-			local := &declarations[index[c.Name]]
-			seen := false
-			for _, constraint := range c.Constraints {
-				if constraint.Default != nil {
-					continue
-				}
-				if seen && local.columnNotNull != constraint.NotNull {
-					return nil, insertError("42601", fmt.Sprintf(`conflicting NULL/NOT NULL declarations for column "%s" of table "%s"`, c.Name, table), constraint.Pos)
-				}
-				name := constraint.Name.Text
-				if constraint.NotNull && local.columnName != "" && name != "" && local.columnName != name {
-					return nil, sqlError("XX000", fmt.Sprintf(`conflicting not-null constraint names "%s" and "%s"`, local.columnName, name))
-				}
-				seen, local.columnNotNull = true, constraint.NotNull
-				if constraint.NotNull && name != "" {
-					local.columnName = name
-				}
-			}
-		}
 	}
 	// Retain first occurrence order while merging later declarations' names.
 	var constraints []notNullConstraint
@@ -143,8 +148,8 @@ func bindCreateNotNull(s *parser.CreateTable, columns []ColumnDescriptor, inheri
 			}
 		}
 	}
-	for i, declaration := range declarations {
-		columns[i].Nullable = !declaration.notNull
+	for i := range declarations {
+		columns[i].Nullable = !declarations[i].notNull
 	}
 	for i := range constraints {
 		constraints[i].Name = declarations[constraints[i].Attribute-1].name

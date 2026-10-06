@@ -110,6 +110,7 @@ type coercionExpression struct {
 	expressionInfo
 	child BoundExpr
 	plan  sqltype.CoercionPlan
+	mode  sqltype.CoercionContext
 }
 
 func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -143,12 +144,18 @@ func (e comparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 // execution frame, never rows or stages. Only changed branches are copied;
 // analyzed nodes and their conservative dependence metadata remain immutable.
 func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, error) {
+	return preflightCoercionsWithPolicy(c, expression, false)
+}
+
+// Only consumed stored defaults use decisive constant planning. Ordinary source,
+// DELETE and supplied-value preflight retain their existing traversal demand.
+func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
 	}
 	switch e := expression.(type) {
 	case coercionExpression:
-		child, changed, err := preflightCoercions(c, e.child)
+		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
@@ -156,39 +163,42 @@ func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, 
 		p := e.Properties()
 		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
 			value, err := e.Eval(c)
-			if err != nil {
-				return nil, false, err
-			}
-			if err := evaluationContext(c); err != nil {
-				return nil, false, err
-			}
-			return literalExpression{expressionInfo: e.expressionInfo, value: value}, true, nil
+			return preflightValue(c, e.expressionInfo, value, err)
 		}
 		if changed {
 			return e, true, nil
 		}
 	case comparisonExpression:
-		left, leftChanged, err := preflightCoercions(c, e.left)
+		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		right, rightChanged, err := preflightCoercions(c, e.right)
+		right, rightChanged, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
+		}
+		if decisiveDefaults {
+			_, leftConstant := left.(literalExpression)
+			_, rightConstant := right.(literalExpression)
+			if leftConstant && rightConstant {
+				e.left, e.right = left, right
+				value, err := e.Eval(c)
+				return preflightValue(c, e.expressionInfo, value, err)
+			}
 		}
 		if leftChanged || rightChanged {
 			e.left, e.right = left, right
 			return e, true, nil
 		}
 	case arithmeticExpression:
-		left, leftChanged, err := preflightCoercions(c, e.left)
+		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		var right BoundExpr
 		var rightChanged bool
 		if e.right != nil {
-			right, rightChanged, err = preflightCoercions(c, e.right)
+			right, rightChanged, err = preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
@@ -199,47 +209,93 @@ func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, 
 			return e, true, nil
 		}
 	case nullTestExpression:
-		child, changed, err := preflightCoercions(c, e.child)
+		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
+		}
+		if decisiveDefaults {
+			if _, constant := child.(literalExpression); constant {
+				e.child = child
+				value, err := e.Eval(c)
+				return preflightValue(c, e.expressionInfo, value, err)
+			}
 		}
 		if changed {
 			e.child = child
 			return e, true, nil
 		}
 	case truthTestExpression:
-		child, changed, err := preflightCoercions(c, e.child)
+		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
+		}
+		if decisiveDefaults {
+			if _, constant := child.(literalExpression); constant {
+				e.child = child
+				value, err := e.Eval(c)
+				return preflightValue(c, e.expressionInfo, value, err)
+			}
 		}
 		if changed {
 			e.child = child
 			return e, true, nil
 		}
 	case distinctExpression:
-		left, leftChanged, err := preflightCoercions(c, e.left)
+		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		right, rightChanged, err := preflightCoercions(c, e.right)
+		right, rightChanged, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
+		}
+		if decisiveDefaults {
+			_, leftConstant := left.(literalExpression)
+			_, rightConstant := right.(literalExpression)
+			if leftConstant && rightConstant {
+				e.left, e.right = left, right
+				value, err := e.Eval(c)
+				return preflightValue(c, e.expressionInfo, value, err)
+			}
 		}
 		if leftChanged || rightChanged {
 			e.left, e.right = left, right
 			return e, true, nil
 		}
 	case logicalExpression:
-		left, leftChanged, err := preflightCoercions(c, e.left)
+		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
+		}
+		var leftConstant bool
+		if decisiveDefaults {
+			literal, constant := left.(literalExpression)
+			leftConstant = constant
+			if constant && literal.value.Type() != nil && literal.value.Type().Concrete() &&
+				literal.value.Type().ID() == sqltype.Bool && !literal.value.IsNull() {
+				truth, err := TruthOf(literal.value)
+				if err != nil {
+					return nil, false, err
+				}
+				if (e.op == parser.LogicalOr && truth == True) || (e.op == parser.LogicalAnd && truth == False) {
+					return preflightValue(c, e.expressionInfo, literal.value, nil)
+				}
+			}
 		}
 		var right BoundExpr
 		var rightChanged bool
 		if e.right != nil {
-			right, rightChanged, err = preflightCoercions(c, e.right)
+			right, rightChanged, err = preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
+			}
+		}
+		if decisiveDefaults && leftConstant {
+			_, rightConstant := right.(literalExpression)
+			if e.op == parser.LogicalNot || rightConstant {
+				e.left, e.right = left, right
+				value, err := e.Eval(c)
+				return preflightValue(c, e.expressionInfo, value, err)
 			}
 		}
 		if leftChanged || rightChanged {
@@ -249,7 +305,7 @@ func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, 
 	case nullCountExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {
-			folded, changed, err := preflightCoercions(c, arg)
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
 			}
@@ -266,6 +322,16 @@ func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, 
 		}
 	}
 	return expression, false, nil
+}
+
+func preflightValue(c *EvalContext, info expressionInfo, value sqltype.Value, err error) (BoundExpr, bool, error) {
+	if err != nil {
+		return nil, false, err
+	}
+	if err := evaluationContext(c); err != nil {
+		return nil, false, err
+	}
+	return literalExpression{expressionInfo: info, value: value}, true, nil
 }
 
 type Truth uint8
@@ -614,7 +680,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			}
 			return node, err
 		}
-		node = coercionExpression{b.info(policy.expected, raw.SourcePosition(), node.Properties()), node, plan}
+		node = coercionExpression{b.info(policy.expected, raw.SourcePosition(), node.Properties()), node, plan, policy.mode}
 	}
 	return node, nil
 }
@@ -660,6 +726,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 			policy.expected = target
 		}
 	case parser.ParameterExpr:
+		if b.defaultConsumer {
+			return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", child.Number), child.Pos)
+		}
 		if b.parameters[child.Number].Type == nil {
 			if raw.Syntax == parser.FunctionCast && target.Type.ID() != sqltype.Text {
 				if child.Number <= 0 {
@@ -692,7 +761,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 	if start := child.SourcePosition(); start.Character > 0 && (pos.Character <= 0 || start.Character < pos.Character) {
 		pos = start
 	}
-	return coercionExpression{b.info(target, pos, child.Properties()), child, plan}, nil
+	return coercionExpression{b.info(target, pos, child.Properties()), child, plan, sqltype.Explicit}, nil
 }
 
 // Strong column/function names survive standard casts; weak literal names do not.

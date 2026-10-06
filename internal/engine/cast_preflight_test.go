@@ -105,7 +105,7 @@ func TestCastCoercionPreflightDependentParent(t *testing.T) {
 			t.Fatal(folded, changed, err)
 		}
 		parent, ok := folded.(coercionExpression)
-		if !ok || parent.expressionInfo != original.expressionInfo {
+		if !ok || parent.expressionInfo != original.expressionInfo || parent.mode != original.mode {
 			t.Fatal(folded)
 		}
 		if _, ok := parent.child.(literalExpression); !ok {

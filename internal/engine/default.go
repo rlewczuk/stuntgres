@@ -37,43 +37,20 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 			}
 			return nil, err
 		}
-		node = coercionExpression{b.info(column.Usage, parser.Position{}, node.Properties()), node, plan}
+		node = coercionExpression{b.info(column.Usage, parser.Position{}, node.Properties()), node, plan, sqltype.Assignment}
 	}
 	return node, nil
 }
 
-func bindCreateDefaults(b *expressionBinder, s *parser.CreateTable, columns []ColumnDescriptor) (map[int32]columnDefault, error) {
+func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declarations []createColumnDeclaration) (map[int32]columnDefault, error) {
 	var defaults map[int32]columnDefault
-	slot := 0
 	view := CatalogRead{owner: b.engine, state: b.engine.state}
-	for _, element := range s.Elements {
-		if element.NotNull != nil {
-			continue
-		}
-		if element.Like != nil {
-			continue
-		}
-		column := element.Column
-		// Unique names and expansion order were validated by the table binder.
-		for columns[slot].Name != column.Name {
-			slot++
-		}
-		destination, attribute := columns[slot], int32(slot+1)
-		slot++
-		var raw parser.Expr
-		for _, constraint := range column.Constraints {
-			if constraint.Default == nil {
-				continue
-			}
-			if raw != nil {
-				return nil, expressionError("42601", fmt.Sprintf(`multiple default values specified for column "%s" of table "%s"`, column.Name, s.Name.Parts[len(s.Name.Parts)-1].Text), constraint.Pos)
-			}
-			raw = constraint.Default
-		}
+	for slot := range declarations {
+		raw := declarations[slot].defaultExpr
 		if raw == nil {
 			continue
 		}
-		node, err := b.bindDefault(raw, destination)
+		node, err := b.bindDefault(raw, columns[slot])
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +61,7 @@ func bindCreateDefaults(b *expressionBinder, s *parser.CreateTable, columns []Co
 		if defaults == nil {
 			defaults = make(map[int32]columnDefault)
 		}
-		defaults[attribute] = columnDefault{node, canonical}
+		defaults[int32(slot+1)] = columnDefault{node, canonical}
 	}
 	return defaults, nil
 }
@@ -116,6 +93,8 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			return literal, err
 		}
 		switch u.Type.ID() {
+		case sqltype.Date:
+			return "DATE " + literal, nil
 		case sqltype.Time:
 			return "TIME " + literal, nil
 		case sqltype.Timestamp:
@@ -143,11 +122,36 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		if n.child == nil {
 			return "", fmt.Errorf("stuntgres: missing default coercion child")
 		}
-		plan, err := sqltype.PlanCoercion(n.child.ResultUsage(), u, sqltype.Assignment)
+		switch n.mode {
+		case sqltype.Implicit, sqltype.Assignment, sqltype.Explicit:
+		default:
+			return "", fmt.Errorf("stuntgres: invalid default coercion mode")
+		}
+		plan, err := sqltype.PlanCoercion(n.child.ResultUsage(), u, n.mode)
 		if err != nil || plan != n.plan {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
-		return defaultSQL(ctx, view, n.child)
+		child, err := defaultSQL(ctx, view, n.child)
+		if err != nil || n.mode != sqltype.Explicit {
+			return child, err
+		}
+		// Bare quoted TEXT becomes unknown on replay and can move a deferred
+		// conversion into CREATE-time input decoding. Keep that child typed.
+		if n.child.ResultUsage().Type.ID() == sqltype.Text {
+			inner, explicit := n.child.(coercionExpression)
+			if !explicit || inner.mode != sqltype.Explicit {
+				declaration, err := n.child.ResultUsage().Declaration()
+				if err != nil {
+					return "", err
+				}
+				child = "CAST(" + child + " AS " + declaration + ")"
+			}
+		}
+		declaration, err := u.Declaration()
+		if err != nil {
+			return "", err
+		}
+		return "CAST(" + child + " AS " + declaration + ")", nil
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")

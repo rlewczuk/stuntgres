@@ -148,13 +148,9 @@ func TestReferenceInsertSelectControls(t *testing.T) {
 	p.step(t, expected)
 }
 
-func TestReferenceInsertSelectDefaultBoundary(t *testing.T) {
+func TestReferenceInsertSelectDeclaredDefault(t *testing.T) {
 	p := newReferencePair(t)
-	// Declared defaults are a separate native subsystem, not a successful no-op.
-	native := referenceImplicitError("CREATE TABLE t(i INT,j INT DEFAULT 42)", referenceDiagnostic{Code: "0A000", Message: "column constraints are unsupported", Position: "28"})
-	native.errorStage = "execute"
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("CREATE TABLE t(i INT,j INT DEFAULT 42)", 0))
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("INSERT INTO t(i) SELECT 1", 1))
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect("SELECT * FROM t", []string{"i", "j"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(42)}}))
+	p.step(t, referenceExec("CREATE TABLE t(i INT,j INT DEFAULT 42)", 0))
+	p.step(t, referenceExec("INSERT INTO t(i) SELECT 1", 1))
+	p.step(t, referenceSelect("SELECT * FROM t", []string{"i", "j"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(42)}}))
 }

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -109,5 +110,51 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 				t.Fatal("invalid predicate definition accepted", tc.name)
 			}
 		})
+	}
+}
+
+func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
+	e := New()
+	run(t, e, `CREATE TABLE d(t TEXT DEFAULT CAST(1 AS TEXT),i INT DEFAULT CAST('oops'::text AS INT))`)
+	view := e.CatalogRead()
+	ref := roleTableRef(t, e, "d")
+	old := view.state.descriptors[ref.Address].(*relationDescriptor)
+	if err := (relationProvider{}).Validate(view, old); err != nil {
+		t.Fatal("definition validation evaluated an explicit cast", err)
+	}
+	if !strings.Contains(old.defaults[2].sql, "CAST(CAST('oops' AS TEXT) AS ") {
+		t.Fatal("lost known TEXT input type", old.defaults[2].sql)
+	}
+	for _, mutate := range []func(coercionExpression) coercionExpression{
+		func(n coercionExpression) coercionExpression { n.mode = sqltype.CoercionContext(255); return n },
+		func(n coercionExpression) coercionExpression { n.mode = sqltype.Implicit; return n },
+		func(n coercionExpression) coercionExpression { n.mode = sqltype.Assignment; return n },
+		func(n coercionExpression) coercionExpression { n.plan = sqltype.CoercionPlan{}; return n },
+		func(n coercionExpression) coercionExpression { n.child = nil; return n },
+	} {
+		next := *old
+		bad := old.defaults[1]
+		bad.expression = mutate(bad.expression.(coercionExpression))
+		next.defaults = map[int32]columnDefault{1: bad, 2: old.defaults[2]}
+		if err := (relationProvider{}).Validate(view, &next); err == nil {
+			t.Fatal("invalid cast definition accepted", bad)
+		}
+	}
+}
+
+func TestDefaultDescriptorProviderUnfoldedDecisiveBranches(t *testing.T) {
+	e := New()
+	run(t, e, `CREATE TABLE d(t BOOL DEFAULT (TRUE OR CAST('oops'::text AS INT)=1),f BOOL DEFAULT (FALSE AND CAST('oops'::text AS INT)=1))`)
+	view := e.CatalogRead()
+	ref := roleTableRef(t, e, "d")
+	d := view.state.descriptors[ref.Address].(*relationDescriptor)
+	if err := (relationProvider{}).Validate(view, d); err != nil {
+		t.Fatal("provider evaluated a discarded conversion", err)
+	}
+	for _, definition := range d.defaults {
+		if _, ok := definition.expression.(logicalExpression); !ok ||
+			!strings.Contains(definition.sql, "'oops'") || !strings.Contains(definition.sql, "CAST(") {
+			t.Fatal("stored default was simplified", definition)
+		}
 	}
 }

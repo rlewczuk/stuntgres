@@ -13,9 +13,9 @@ one-column sort surface, parenthesized sources and INSERT-only no-FROM literal/
 parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;
 `SELECT FROM source` retains table occurrence/filter semantics. These do not
 expand standalone SELECT or standalone VALUES. Explicit targets match source
-schema width; implicit targets map first N live columns. Omitted columns use the
-current typed-NULL initialization seam and enforce NOT NULL; serial/sequences
-remain excluded with separate real-PG witnesses.
+schema width; implicit targets map first N live columns. Omitted columns use
+declared defaults or typed NULL and enforce NOT NULL; serial/sequences remain
+excluded with separate real-PG witnesses.
 Already-supported casts and null/truth/distinct predicates, DATE and BYTEA are
 preserved in INSERT sources. Shared SELECT analysis retains current cast result
 names. Recursive conversion preflight uses the imported execution frame, outside
@@ -133,17 +133,43 @@ Smoke: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`;
 reference: `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
 Integrated expressions: `make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
 
-Column DEFAULT declarations admit outer scalar/typed temporal/comparison and
-IS [NOT] DISTINCT FROM syntax. Logical NOT/AND/OR and null/truth tests require
-parentheses (e.g. DEFAULT (NULL IS NULL)), as PostgreSQL's restricted default grammar
-requires. Columns (0A000) and parameters (42P02) remain
-prohibited, including decisive branches. Unknown input binds at CREATE
-Execute; assignment narrowing/typmod sizing executes independently for every
-inserted row. CREATE utility Prepare remains analysis-free. Omitted INSERT
-columns and per-cell DEFAULT use declared expressions or typed NULL; explicit
-NULL bypasses defaults. Public targetless DEFAULT VALUES requests one all-default
-row, including on zero-column tables; a target list before DEFAULT VALUES fails
-42601 at DEFAULT. Supplied INSERT/settings scalars are not widened.
+Column DEFAULT declarations admit outer scalar/typed temporal/baseline cast/
+comparison and IS [NOT] DISTINCT FROM syntax. CAST, postfix and existing
+function-style casts use the four already-supported baseline types, not general
+SQL function admission. Logical NOT/AND/OR and null/truth tests require parentheses
+(e.g. DEFAULT (NULL IS NULL)), as PostgreSQL's restricted default grammar requires.
+Columns (0A000) and parameters (42P02) remain prohibited inside casts and decisive
+branches. Unknown input binds at CREATE Execute; destination sizing/conversion
+is execution-demanded. CREATE utility Prepare remains analysis-free.
+Each column's type resolves before its ordered NULL/NOT NULL/default declaration
+validation, before later elements. A second DEFAULT is42601 at that token;
+earlier type/nullability errors retain precedence. Complete declaration structure
+and NOT NULL merging precede cooking any default expression. Restore shares this
+binder, with no replacement publication on failure.
+Omitted INSERT columns and per-cell DEFAULT use declared expressions or typed
+NULL; explicit NULL bypasses defaults. SELECT and ORDER-decorated VALUES sources
+use omitted destination defaults. One execution-only default-demand phase
+handles both ordinary and query INSERT after supplied-value/source preflight.
+Only defaults consumed by some ordinary row or omitted by the query are planned;
+a column explicitly supplied in every row, including NULL, bypasses this phase.
+Immutable conversions are demanded even for an empty query source. This bounded
+default-only recursive
+planning handles the left first. Concrete non-NULL BOOL TRUE on OR or FALSE on
+AND replaces the whole execution node with a private BOOL literal, without
+visiting the discarded right branch. Existing typed operations fold closed
+constant comparison/predicate/NOT children only after their required children.
+NULL/nondecisive left operands still demand right conversions; a bad left is not
+rescued by a decisive right. CREATE continues analyzing both operands.
+The schedule uses lazy private copies; catalog definitions remain unfolded.
+Remaining runtime expressions evaluate only in rows/cells consuming the default.
+No ordinary query/DELETE/supplied preflight or runtime logical
+evaluator behavior changes, and no general short-circuit/optimizer promise is made.
+ORDER-decorated DEFAULT is42601 `DEFAULT is not allowed in this context` at its
+marker; direct Execute/prepared Prepare. Ordinary and parenthesized undecorated
+VALUES retain requests. LIMIT and FROM-less WHERE remain outside the source
+grammar, not new default features. Public targetless DEFAULT VALUES requests one
+all-default row, including on zero-column tables; a target list before DEFAULT
+VALUES fails42601 at DEFAULT. Supplied INSERT/settings scalars are not widened.
 Recursive analysis reports earlier child Boolean/input/operator errors before
 later prohibited occurrences; valid decisive branches still analyze both children.
 Defaults are immutable attribute-keyed descriptor definitions, not cached
@@ -153,11 +179,17 @@ Rounded finite endpoint literals keep the type-owned TIMESTAMP(0) encoding with
 exactly one introducer, including within default comparison expressions.
 Existing null/truth/distinct default nodes serialize recursively with parentheses,
 without Eval, and retain shared typed predicate semantics through Dump/Restore.
+Explicit default coercions validate their actual construction mode and retain
+canonical CAST structure. Known TEXT cast children remain typed, preserving
+deferred conversion timing through Restore. DATE leaves retain typed introducers
+recursively, so civil BC ordering cannot silently become TEXT ordering on replay.
+Top-level BYTEA defaults use the existing quoted hex codec in destination context;
+public results remain raw bytes. No typed BYTEA compound or DATE/BYTEA cast is added.
 Dump serializes expression structure/captured temporal input without Eval and
 existing rows explicitly. Restore uses the same binder and public DEFAULT
 requests, staging atomically. Temporal 'now' input captures CREATE's operation
-clock; no new volatile producer, function, subquery, cast, arithmetic, serial,
-identity or ALTER DEFAULT capability is implied. Independent PostgreSQL-only
+clock; no new volatile producer, general function, subquery, additional cast family,
+arithmetic, serial, identity or ALTER DEFAULT capability is implied. Independent PostgreSQL-only
 sequence/volatile witnesses are labeled adjacent SQL boundaries; disk/WAL,
 network protocol, native ABI extensions and external pg_dump/custom archives
 are specifically non-engine mechanisms, never permission for successful stubs.
