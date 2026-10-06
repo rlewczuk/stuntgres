@@ -147,7 +147,16 @@ func TestTimeDescriptionAndNoticeOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer r.Rows.Close()
-	if r.Rows.Len() != 1 || len(op.DetachNotices()) != 0 {
-		t.Fatal("missing row or repeated warning")
+	values := make([]sqltype.Value, 2)
+	if present, nextErr := r.Rows.Next(context.Background(), values); !present || nextErr != nil {
+		t.Fatal(present, nextErr)
+	}
+	captured, captureErr := values[0].Time()
+	midnight, midnightErr := values[1].Time()
+	if captureErr != nil || midnightErr != nil || captured != desc.temporals[0].scalar || midnight != 0 {
+		t.Fatal(captured, captureErr, midnight, midnightErr)
+	}
+	if present, nextErr := r.Rows.Next(context.Background(), values); present || nextErr != nil || len(op.DetachNotices()) != 0 {
+		t.Fatal("extra row or repeated warning", present, nextErr)
 	}
 }
