@@ -61,6 +61,9 @@ func TestReferenceCompareNullMatrices(t *testing.T) {
 		{"v IS NULL AND TRUE", []int64{2}}, {"NOT v IS NULL", []int64{1, 3, 4}},
 		{"v IS NULL OR f IS TRUE", []int64{1, 2, 4}}, {"TRUE OR FALSE", []int64{1, 2, 3, 4}},
 		{"v<2 IS TRUE OR NOT f IS UNKNOWN AND v IS NOT NULL", []int64{1, 3, 4}},
+		{"(f AND TRUE) IS UNKNOWN", []int64{2}},
+		{"(f OR FALSE) IS NOT TRUE", []int64{2, 3}},
+		{"(NOT f) IS DISTINCT FROM FALSE", []int64{2, 3}},
 	} {
 		want := [][]any{}
 		for _, id := range tc.ids {

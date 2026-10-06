@@ -52,7 +52,7 @@ func (e truthTestExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 type distinctExpression struct {
 	expressionInfo
 	left, right BoundExpr
-	equality    sqltype.Equality
+	equality    sqltype.ComparisonPredicate
 	not         bool
 }
 
@@ -100,15 +100,7 @@ func unknownOperand(raw parser.Expr, node BoundExpr) bool {
 // beneath null tests deliberately remain unresolved through final validation.
 func (b *expressionBinder) contextualOperand(raw parser.Expr, node BoundExpr, u sqltype.Usage, context expressionContext) (BoundExpr, error) {
 	if p, ok := node.(parameterExpression); ok {
-		if existing := b.parameters[p.number]; existing.Type != nil && existing.Type != u.Type {
-			d := expressionError("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.number), p.pos).(*sqlstate.Error)
-			d.Detail = fmt.Sprintf("%s versus %s", existing.Type.DiagnosticName(), u.Type.DiagnosticName())
-			return nil, d
-		}
-		if err := b.constrain(p.number, u, p.pos); err != nil {
-			return nil, err
-		}
-		return parameterExpression{b.info(u, p.pos, p.properties), p.number}, nil
+		return b.coerceParameter(p, u)
 	}
 	return b.bind(raw, expressionPolicy{context: context, expected: u, operand: true})
 }
@@ -181,7 +173,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 				return nil, err
 			}
 		}
-		equality, err := sqltype.BindEquality(left.ResultUsage().Type, right.ResultUsage().Type, b.typ(sqltype.Bool))
+		equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, left.ResultUsage().Type, right.ResultUsage().Type, b.typ(sqltype.Bool))
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42883" {
 				copy := *d

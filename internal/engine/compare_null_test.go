@@ -45,7 +45,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	two, _ := sqltype.Integer(intType, 2)
 	values := []sqltype.Value{sqltype.Null(intType), integer, two}
-	equality, err := sqltype.BindEquality(intType, intType, boolType)
+	equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, intType, intType, boolType)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,5 +258,131 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 		if err != nil || truthErr != nil || got.IsNull() || (truth == True) != (i == 0 || i == 3) {
 			t.Fatal("immutable node leaked frame", got, err, truthErr)
 		}
+	}
+}
+
+func TestExpressionCompareNullBoundComposition(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE t(id INT,v INT,f BOOL)")
+	run(t, e, "INSERT INTO t VALUES(1,1,TRUE),(2,NULL,NULL),(3,2,FALSE),(4,1,TRUE)")
+	op, done, err := testOperation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	describe := func(q string) (binding, ObjectRef) {
+		t.Helper()
+		ast := statement(t, q)
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		auth, err := e.authorizationLocked(op)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		return b, ref
+	}
+	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
+	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
+	intValue := func(n int64) sqltype.Value {
+		v, err := sqltype.Integer(integer, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	rows := [][]sqltype.Value{
+		{intValue(1), intValue(1), sqltype.Boolean(boolean, true)},
+		{intValue(2), sqltype.Null(integer), sqltype.Null(boolean)},
+		{intValue(3), intValue(2), sqltype.Boolean(boolean, false)},
+		{intValue(4), intValue(1), sqltype.Boolean(boolean, true)},
+	}
+	for _, tc := range []struct {
+		expr    string
+		want    [4]bool
+		columns []int32
+	}{
+		{"(v=1) IS TRUE", [4]bool{true, false, false, true}, []int32{2}},
+		{"(v=NULL) IS UNKNOWN", [4]bool{true, true, true, true}, []int32{2}},
+		{"(v=v) IS TRUE", [4]bool{true, false, true, true}, []int32{2}},
+		{"v IS NULL AND TRUE", [4]bool{false, true, false, false}, []int32{2}},
+		{"NOT v IS NULL", [4]bool{true, false, true, true}, []int32{2}},
+		{"v IS NULL OR f IS TRUE", [4]bool{true, true, false, true}, []int32{2, 3}},
+		{"(f AND TRUE) IS UNKNOWN", [4]bool{false, true, false, false}, []int32{3}},
+		{"(f OR FALSE) IS NOT TRUE", [4]bool{false, true, true, false}, []int32{3}},
+		{"(NOT f) IS DISTINCT FROM FALSE", [4]bool{false, true, true, false}, []int32{3}},
+		{"v<2 IS TRUE OR NOT f IS UNKNOWN AND v IS NOT NULL", [4]bool{true, false, true, true}, []int32{2, 3}},
+	} {
+		b, ref := describe("SELECT " + tc.expr + " FROM t WHERE " + tc.expr + " ORDER BY id")
+		project := b.query.Root.(*projectNode)
+		filter := project.child.(*sortNode).child.(*filterNode)
+		if b.parameters.Count != 0 {
+			t.Fatal(b.parameters)
+		}
+		for _, node := range []BoundExpr{project.expressions[0], filter.predicate} {
+			p := node.Properties()
+			if !p.RowDependent || p.ParameterDependent || p.StageDependent || p.Volatility != Immutable || node.ResultUsage() != boolean.Usage() {
+				t.Fatal(tc.expr, p, node.ResultUsage())
+			}
+			for i, row := range rows {
+				got, err := node.Eval(&EvalContext{Context: op.ctx, Scope: 1, Frame: 1, Row: row})
+				value, valueErr := got.Boolean()
+				if err != nil || valueErr != nil || got.IsNull() || value != tc.want[i] {
+					t.Fatal(tc.expr, i, got, err, valueErr)
+				}
+			}
+		}
+		seen := map[int32]bool{}
+		for _, d := range b.dependencies {
+			if d.ref.owner != e.owner || d.revision == 0 {
+				t.Fatal(d)
+			}
+			if d.ref.Address.ClassID == RelationClassID && d.ref.Address.ObjectID == ref.Address.ObjectID {
+				seen[d.ref.Address.SubID] = true
+			}
+		}
+		for _, column := range tc.columns {
+			if !seen[column] {
+				t.Fatal("composed child dependency missing", tc.expr, column, b.dependencies)
+			}
+		}
+	}
+	b, ref := describe("SELECT id FROM t WHERE v IS NOT DISTINCT FROM $1 AND (v=$1) IS NOT FALSE ORDER BY id")
+	if b.parameters.Count != 1 || !reflect.DeepEqual(b.parameters.Types, []sqltype.Usage{integer.Usage()}) {
+		t.Fatal("held mixed comparison must infer INT4", b.parameters)
+	}
+	filter := b.query.Root.(*projectNode).child.(*sortNode).child.(*filterNode)
+	p := filter.predicate.Properties()
+	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != Immutable || filter.predicate.ResultUsage() != boolean.Usage() {
+		t.Fatal(p, filter.predicate.ResultUsage())
+	}
+	column := ref
+	column.Address.SubID = 2
+	found := false
+	for _, d := range b.dependencies {
+		found = found || d.ref == column
+	}
+	if !found {
+		t.Fatal("held predicate must depend on v", b.dependencies)
+	}
+	for n, parameter := range []sqltype.Value{intValue(1), intValue(2), sqltype.Null(integer), intValue(1)} {
+		want := [][4]bool{{true, false, false, true}, {false, false, true, false}, {false, true, false, false}, {true, false, false, true}}[n]
+		for i, row := range rows {
+			got, err := filter.predicate.Eval(&EvalContext{Context: op.ctx, Scope: 1, Frame: 1, Row: row, Parameters: []sqltype.Value{parameter}})
+			value, valueErr := got.Boolean()
+			if err != nil || valueErr != nil || got.IsNull() || value != want[i] {
+				t.Fatal(n, i, got, err, valueErr)
+			}
+		}
+	}
+	if !reflect.DeepEqual(b.parameters.Types, []sqltype.Usage{integer.Usage()}) {
+		t.Fatal("held frames changed inferred usage", b.parameters)
 	}
 }

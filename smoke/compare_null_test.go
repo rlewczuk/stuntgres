@@ -55,6 +55,9 @@ func TestCompareNullSmoke(t *testing.T) {
 		{"mixed precedence", "SELECT id FROM t WHERE v<2 IS TRUE OR NOT f IS UNKNOWN AND v IS NOT NULL ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(3)}, {int64(4)}}},
 		{"grouped logical distinct", "SELECT id,(f OR FALSE) IS NOT TRUE,(NOT f) IS DISTINCT FROM FALSE FROM t ORDER BY id", []string{"id", "?column?", "?column?"}, []string{"INT4", "BOOL", "BOOL"}, [][]any{{int64(1), false, false}, {int64(2), true, true}, {int64(3), true, true}, {int64(4), false, false}}},
 		{"ordinary null projection", "SELECT v=NULL FROM t ORDER BY id", []string{"?column?"}, []string{"BOOL"}, [][]any{{nil}, {nil}, {nil}, {nil}}},
+		{"grouped AND unknown filter", "SELECT id FROM t WHERE (f AND TRUE) IS UNKNOWN ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}},
+		{"grouped OR truth filter", "SELECT id FROM t WHERE (f OR FALSE) IS NOT TRUE ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}}},
+		{"grouped logical distinct filter", "SELECT id FROM t WHERE (NOT f) IS DISTINCT FROM FALSE ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}}},
 	}
 	check := func(t *testing.T, rows *sql.Rows, err error, names, types []string, want [][]any) {
 		t.Helper()
