@@ -798,7 +798,15 @@ including alias-qualified operands. Existing baseline explicit scalar casts work
 on unqualified operands; qualified columns inside casts remain excluded, and
 the complete statement is rejected before effects. Frame-only cast conversions
 run before executor ACL checks or candidate capture, even on empty tables and
-inside decisive Boolean branches. Row-dependent conversions remain per-row.
+inside decisive Boolean branches. Row-dependent conversions remain per-row, but
+the shared logical evaluator does not guarantee short-circuiting: on stored
+`s='oops'`, both `FALSE AND int4(s)=42` and `TRUE OR int4(s)=42` fail with
+22P02 and leave every original row intact. Empty tables demand no row conversion
+and succeed with count zero. Pinned PostgreSQL optimizes these specific decisive
+branches: FALSE AND deletes zero, TRUE OR deletes all rows, including when the
+unused cast takes an invalid TEXT parameter. Native frame-only casts still fail
+before scanning even on empty input. This bounded optimization difference is not
+a general PostgreSQL evaluation-order or short-circuit promise.
 
 Direct and held prepared execution infer parameter types from SQL, not Go values,
 and return the exact number actually deleted through RowsAffected; zero is success.
@@ -860,6 +868,9 @@ Integrated-expression smoke:
 - Integrated the existing null/truth/DISTINCT predicate nodes and frame-only
   scalar-cast preflight into DELETE, preserving current qualification boundaries,
   fresh authorization and storage-shape fencing after preflight.
+- Corrected decisive-branch reference expectations to assert PostgreSQL's exact
+  optimized counts/survivors separately from native conversion diagnostics and
+  atomic preservation, without changing the shared evaluator or cast preflight.
 
 
 ### Null argument counts

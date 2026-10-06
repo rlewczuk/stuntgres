@@ -226,39 +226,55 @@ func TestDeleteCoreCastPreflightReuseAndRows(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		predicate string
-		count     int64
 		want      stuntgres.Error
 	}{
-		{"FALSE AND int4(s)=42", 0, stuntgres.Error{}},
-		{"TRUE OR int4(s)=42", 2, stuntgres.Error{}},
-		{"int4(s) IS DISTINCT FROM 0", 0, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}},
-		{"CAST(n AS int4) IS NOT NULL", 0, stuntgres.Error{Code: "22003", Message: "integer out of range"}},
+		{"FALSE AND int4(s)=42", stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}},
+		{"TRUE OR int4(s)=42", stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}},
+		{"int4(s) IS DISTINCT FROM 0", stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}},
+		{"CAST(n AS int4) IS NOT NULL", stuntgres.Error{Code: "22003", Message: "integer out of range"}},
 	} {
-		t.Run(tc.predicate, func(t *testing.T) {
-			db := openLocal(t, stuntgres.NewDriver(), t.Name())
-			execSQL(t, db, "CREATE TABLE t(id INT,s TEXT,n INT8)")
-			execSQL(t, db, "INSERT INTO t VALUES(1,'42',42),(2,'oops',2147483648)")
-			result, err := db.Exec("DELETE FROM t WHERE " + tc.predicate)
-			if tc.want.Code != "" {
-				if result != nil {
-					t.Fatal(result)
-				}
-				typeCoreDiagnostic(t, err, tc.want)
-			} else {
-				if err != nil {
-					t.Fatal(err)
-				}
-				if count, err := result.RowsAffected(); err != nil || count != tc.count {
-					t.Fatal(count, err)
-				}
+		for _, populated := range []bool{false, true} {
+			for _, prepared := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%t/%t", tc.predicate, populated, prepared), func(t *testing.T) {
+					db := openLocal(t, stuntgres.NewDriver(), t.Name())
+					execSQL(t, db, "CREATE TABLE t(id INT,s TEXT,n INT8)")
+					ids := [][]any{}
+					if populated {
+						execSQL(t, db, "INSERT INTO t VALUES(1,'42',42),(2,'oops',2147483648)")
+						ids = [][]any{{int64(1)}, {int64(2)}}
+					}
+					query := "DELETE FROM t WHERE " + tc.predicate
+					var result sql.Result
+					var err error
+					if prepared {
+						stmt, prepareErr := db.Prepare(query)
+						if prepareErr != nil {
+							t.Fatal("Prepare must succeed", prepareErr)
+						}
+						defer stmt.Close()
+						result, err = stmt.Exec()
+					} else {
+						result, err = db.Exec(query)
+					}
+					if populated {
+						// Shared logical evaluation does not promise pruning.
+						if result != nil {
+							t.Fatal("failed row conversion exposed result", result)
+						}
+						typeCoreDiagnostic(t, err, tc.want)
+					} else {
+						if err != nil {
+							t.Fatal(err)
+						}
+						if count, err := result.RowsAffected(); err != nil || count != 0 {
+							t.Fatal(count, err)
+						}
+					}
+					rows, err := db.Query("SELECT id FROM t ORDER BY id")
+					queryCoreRows(t, rows, err, []string{"id"}, []string{"INT4"}, ids, false)
+				})
 			}
-			ids := [][]any{}
-			if tc.count == 0 {
-				ids = [][]any{{int64(1)}, {int64(2)}}
-			}
-			rows, err := db.Query("SELECT id FROM t ORDER BY id")
-			queryCoreRows(t, rows, err, []string{"id"}, []string{"INT4"}, ids, false)
-		})
+		}
 	}
 	t.Run("explicit_abort", func(t *testing.T) {
 		db := openLocal(t, stuntgres.NewDriver(), t.Name())

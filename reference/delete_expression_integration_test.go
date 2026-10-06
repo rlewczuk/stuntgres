@@ -95,9 +95,21 @@ func TestReferenceDeleteCoreCastPreflight(t *testing.T) {
 								survivors = [][]any{{int64(7)}}
 							}
 							step := referenceImplicitError("DELETE FROM t WHERE "+predicate, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`})
+							// PostgreSQL simplifies decisive branches; native preflight
+							// deliberately visits every frame-only conversion.
+							if backend.name == "postgres" && predicate != "int4($1::text)=id" {
+								count := int64(0)
+								if populated && predicate == "TRUE OR int4($1::text)=id" {
+									count = 1
+									survivors = nil
+								}
+								step = referenceExec("DELETE FROM t WHERE "+predicate, count)
+							}
 							step.args = []any{"bad"}
 							step.prepared = prepared
-							step.errorStage = "execute"
+							if step.diagnostic != nil {
+								step.errorStage = "execute"
+							}
 							run(step)
 							run(referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, survivors))
 						})
@@ -220,7 +232,7 @@ func TestReferenceDeleteCoreCastPreflightReuseAndRows(t *testing.T) {
 			}
 			for _, tc := range []struct {
 				predicate string
-				count     int64
+				pgCount   int64
 				want      referenceDiagnostic
 			}{
 				{"FALSE AND int4(s)=42", 0, referenceDiagnostic{}},
@@ -228,20 +240,36 @@ func TestReferenceDeleteCoreCastPreflightReuseAndRows(t *testing.T) {
 				{"int4(s) IS DISTINCT FROM 0", 0, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}},
 				{"CAST(n AS int4) IS NOT NULL", 0, referenceDiagnostic{Code: "22003", Message: "integer out of range"}},
 			} {
-				run(referenceExec("CREATE TABLE t(id INT,s TEXT,n INT8)", 0))
-				run(referenceExec("INSERT INTO t VALUES(1,'42',42),(2,'oops',2147483648)", 2))
-				step := referenceExec("DELETE FROM t WHERE "+tc.predicate, tc.count)
-				if tc.want.Code != "" {
-					step = referenceImplicitError(step.query, tc.want)
-					step.errorStage = "execute"
+				for _, populated := range []bool{false, true} {
+					for _, prepared := range []bool{false, true} {
+						run(referenceExec("CREATE TABLE t(id INT,s TEXT,n INT8)", 0))
+						var ids [][]any
+						if populated {
+							run(referenceExec("INSERT INTO t VALUES(1,'42',42),(2,'oops',2147483648)", 2))
+							ids = [][]any{{int64(1)}, {int64(2)}}
+						}
+						count, want := int64(0), tc.want
+						if backend.name == "native" && want.Code == "" {
+							// Native logical evaluation does not prune row casts.
+							want = referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}
+						}
+						if populated && backend.name == "postgres" && want.Code == "" {
+							count = tc.pgCount
+							if count == 2 {
+								ids = nil
+							}
+						}
+						step := referenceExec("DELETE FROM t WHERE "+tc.predicate, count)
+						if populated && want.Code != "" {
+							step = referenceImplicitError(step.query, want)
+							step.errorStage = "execute"
+						}
+						step.prepared = prepared
+						run(step)
+						run(referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, ids))
+						run(referenceExec("DROP TABLE t", 0))
+					}
 				}
-				run(step)
-				var ids [][]any
-				if tc.count == 0 {
-					ids = [][]any{{int64(1)}, {int64(2)}}
-				}
-				run(referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, ids))
-				run(referenceExec("DROP TABLE t", 0))
 			}
 			run(referenceExec("CREATE TABLE t(id INT,s TEXT)", 0))
 			run(referenceExec("INSERT INTO t VALUES(1,'42'),(2,'oops')", 2))

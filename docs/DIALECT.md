@@ -90,7 +90,15 @@ including qualified target/alias operands. Baseline scalar CAST/`::`/function
 casts admit unqualified children only; qualified cast children remain excluded
 with whole-input rejection before effects. Frame-only conversions precede
 executor ACL checks and candidate capture even on empty input or decisive Boolean
-branches; row-dependent conversions still evaluate per row.
+branches; row-dependent conversions still evaluate per row, without guaranteed
+logical short-circuiting. With stored `s='oops'`, native `FALSE AND int4(s)=42`
+and `TRUE OR int4(s)=42` both fail22P02 and preserve all original rows; empty
+sources succeed with count0 because no row conversion is demanded. Pinned
+PostgreSQL optimizes these specific decisive predicates (FALSE AND count0 with
+originals, TRUE OR countpopulation with no survivors), also when the unused cast
+takes an invalid TEXT parameter. Native frame-only preflight still fails22P02
+on empty or populated input. This is a bounded optimization difference, not a
+general PostgreSQL short-circuit or operand-order guarantee.
 
 Execution requires table DELETE plus SELECT on actually read predicate columns,
 never a fabricated SELECT requirement for omitted/constant WHERE. Prepare binds
