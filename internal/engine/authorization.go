@@ -411,7 +411,7 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 	}
 	mask := classPrivileges(d)
 	if ref.Address.SubID > 0 {
-		mask = SelectPrivilege | InsertPrivilege
+		mask = SelectPrivilege | InsertPrivilege | UpdatePrivilege
 	}
 	if actor.Superuser || grantOptions && actor.Ref == owner {
 		return mask, nil
@@ -450,7 +450,7 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	}
 	mask := classPrivileges(d)
 	if req.Object.Address.SubID > 0 {
-		mask = SelectPrivilege | InsertPrivilege
+		mask = SelectPrivilege | InsertPrivilege | UpdatePrivilege
 	}
 	if req.Privileges == 0 || req.Privileges & ^mask != 0 {
 		return fmt.Errorf("stuntgres: invalid privilege mask")
@@ -515,7 +515,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 		if !ok || sub <= 0 || !relation.hasAttribute(sub) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
-		if err := check(a, SelectPrivilege|InsertPrivilege); err != nil {
+		if err := check(a, SelectPrivilege|InsertPrivilege|UpdatePrivilege); err != nil {
 			return err
 		}
 	}

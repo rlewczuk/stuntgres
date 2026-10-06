@@ -127,7 +127,7 @@ replacement and DROP-column shape changes preserve live membership; foreign
 imports assign fresh destination identities and omit source history. NOT NULL
 scans ignore deleted NULLs but reject live NULLs and enforce later INSERT. Removing
 a row cannot violate supported NOT NULL; genuine FK rejection is an explicitly
-PostgreSQL-only witness. Native FKs, triggers, UPDATE, DELETE USING/CURRENT OF/
+PostgreSQL-only witness. Native FKs, triggers, DELETE USING/CURRENT OF/
 RETURNING, CTE/inheritance targets and additional row modes remain excluded.
 Smoke: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`;
 reference: `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
@@ -167,8 +167,13 @@ Analysis errors are eager even on empty/no-match input; unknown literal input
 belongs to analysis, immutable destination casts fold during Execute (including
 empty/WHERE FALSE), and row-dependent conversion runs only for qualifying rows.
 Duplicate assignments are42601 without Position; assignment42804 retains RHS
-Position/Hint; runtime NOT NULL includes complete updated-row Detail and
-schema/table/column but no Constraint/Position.
+Position/Hint; runtime NOT NULL includes permission-filtered updated-row Detail
+and schema/table/column but no Constraint/Position. Table SELECT, default owner
+authority and superuser retain the complete unlabelled row. Otherwise Detail
+lists modified targets plus SELECT-readable retained columns in physical order
+as `(names) = (values)`, even when column grants cover every column. Unreadable
+retained values are not formatted or disclosed; carrying them does not require
+SELECT. Captured output settings and UTF8-safe field truncation remain unchanged.
 REAL/FLOAT4 and DOUBLE PRECISION/FLOAT8 have direct assignment-only conversions
 to each integer width: round to nearest with ties to even, then enforce signed
 bounds (the positive 2^63 boundary is excluded, negative -2^63 is valid).
@@ -186,20 +191,34 @@ old-versus-requested type Detail; other INSERT/settings destination-reuse 0A000
 boundaries remain unchanged. Native TIME exports canonical clock strings,
 while pq TIME uses civil time.Time; reference expectations preserve this distinction.
 
-Committed storage retains one immutable current head per stable logical RowID;
-new VersionIDs replace predecessors without changing cardinality. Successful
-private heads override prior own versions, including earlier private INSERTs.
-READ COMMITTED fixes candidates before waits, then same-row predecessor changes
-recheck WHERE/RHS without widening that set. UPDATE takes relation RX and
-transaction-owned NO KEY UPDATE row holds; ordinary readers/different-row
-updaters do not conflict. Prepare takes RX but no row locks/data scan.
-Cancellation/failure publishes none; explicit failure discards prior private
-effects, releases holds and leaves25P02 until end. Dump and ALTER see only current
-committed heads; retained results keep old values across updates/control replacement.
+Committed storage retains one immutable physical head per stable logical RowID,
+including ended heads; DELETE does not compact that vector. New VersionIDs
+replace predecessors without changing physical cardinality. One visible/raw-index
+mapping substitutes successful private heads before deletion filtering, including
+earlier private INSERTs. SELECT and INSERT SELECT consume each live occurrence
+once, preserving duplicates and excluding own UPDATE-then-DELETE or
+INSERT-UPDATE-DELETE heads. Generic self/foreign catalog replacement selects live
+heads through that same mapping once, detaches/remints them and omits ended history.
+READ COMMITTED fixes candidates before waits; physical ordinals are hints, stable
+RowIDs identify latest predecessors. Peer deletion makes waiting UPDATE count0;
+changed peer UPDATE values require predicate recheck for UPDATE/DELETE without
+widening the captured set. DELETE ends the actual latest version. Relation RX
+and distinct mutually conflicting NO KEY UPDATE/row UPDATE modes use one manager
+resource; ordinary readers/different rows do not conflict. Prepare takes RX, no
+row locks or data scan. Head vectors and immutable end roots share one all-relation
+storage/length/generation/end preflight and frontier install. Cancellation/failure
+publishes none and discards both kinds of prior private work, releases holds and
+leaves25P02 until end. Compatible COMMENT/ACL revisions preserve genuine rowshape
+and storage identity, not descriptor-pointer equality; current authorization still
+applies. Dump/ALTER see live committed heads and retained results keep old values.
 UPDATE privilege on assigned targets and SELECT on actual RHS/WHERE reads are
 checked independently; retained protected columns do not imply SELECT.
 Smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=1`;
 reference: `make reference RUN='^TestReferenceUpdateCore' VERBOSE=1`.
+Coexistence witnesses: `make test PACKAGES='./internal/engine .' RUN='^TestUpdateCoreDelete' VERBOSE=1`;
+`make reference RUN='^TestReferenceUpdateCoreDelete' VERBOSE=1`.
+The feature smoke includes private UPDATE/self INSERT SELECT/DELETE count2,
+no-resurrection count0, peer visibility, rollback, commit and live control roundtrip.
 
 Logical operators use PostgreSQL's three-valued BOOL semantics: FALSE AND NULL
 is FALSE, TRUE OR NULL is TRUE, other undecided NULL combinations remain NULL,

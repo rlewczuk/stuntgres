@@ -259,6 +259,9 @@ func (s *StatementScope) validateLockedRelation(e *Engine) error {
 }
 
 func sameRelationRowShape(a, b *relationDescriptor) bool {
+	if a == b {
+		return true
+	}
 	if len(a.columns) != len(b.columns) || len(a.attributes) != len(a.columns) || len(b.attributes) != len(b.columns) {
 		return false
 	}

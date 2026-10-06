@@ -24,10 +24,28 @@ func literalTypeName(raw parser.Value) string {
 	return "unknown"
 }
 
-func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment) (string, error) {
+func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment, columns []ColumnDescriptor, visible []int) (string, error) {
 	var b strings.Builder
 	b.WriteString("Failing row contains (")
-	for i, value := range row {
+	if columns != nil {
+		for i, index := range visible {
+			if i != 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(columns[index].Name)
+		}
+		b.WriteString(") = (")
+	}
+	count := len(row)
+	if columns != nil {
+		count = len(visible)
+	}
+	for i := range count {
+		index := i
+		if columns != nil {
+			index = visible[i]
+		}
+		value := row[index]
 		if i != 0 {
 			b.WriteString(", ")
 		}

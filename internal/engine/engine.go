@@ -611,10 +611,14 @@ func insertValueError(view CatalogRead, err error, column ColumnDescriptor, raw 
 }
 
 func notNullError(schema, table, column string, row []sqltype.Value, output sqltype.OutputEnvironment) error {
-	detail, err := failingRowDetail(row, output)
+	detail, err := failingRowDetail(row, output, nil, nil)
 	if err != nil {
 		return err
 	}
+	return notNullDetailError(schema, table, column, detail)
+}
+
+func notNullDetailError(schema, table, column, detail string) error {
 	return &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502",
 		Message: fmt.Sprintf("null value in column \"%s\" of relation \"%s\" violates not-null constraint", column, table),

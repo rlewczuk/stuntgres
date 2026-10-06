@@ -126,13 +126,14 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 
 // Reuse the existing test-owned preflight context: no production hook or sleep.
 func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
-	for _, mode := range []string{"authority", "descriptor", "epoch", "preflight", "relock", "deadline", "teardown", "success"} {
+	for _, mode := range []string{"authority", "storage", "attribute", "type", "width", "comment", "acl", "epoch", "preflight", "relock", "deadline", "teardown", "success"} {
 		t.Run(mode, func(t *testing.T) {
 			e := New()
 			run(t, e, "CREATE TABLE t(i INT)")
 			run(t, e, "INSERT INTO t VALUES(7)")
 			run(t, e, "CREATE ROLE actor LOGIN")
 			actor, _ := e.Roles().Lookup("actor")
+			int8Usage := testUsage(e, sqltype.Int8)
 			ctx := &castPreflightContext{Context: context.Background(), e: e, t: t, cancelAt: mode}
 			op, done, err := testOperation(e, context.Background())
 			if err != nil {
@@ -145,6 +146,8 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// Release admission even if a diagnostic assertion calls Fatal.
+			defer scope.Finish(context.Canceled)
 			deadline, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
 			defer cancel()
 			var restore func()
@@ -160,10 +163,32 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					op.session.mu.Lock()
 					op.session.authorization.state.CurrentUser = actor.Ref
 					op.session.mu.Unlock()
-				case "descriptor":
+				case "storage":
+					address := scope.lockedRef.Address
+					original := e.storage[address]
+					replacement := *original
+					e.storage[address] = &replacement
+					restore = func() { e.storage[address] = original }
+				case "attribute", "type", "width", "comment", "acl":
 					address := scope.lockedRef.Address
 					original := e.state.descriptors[address]
 					replacement := *scope.lockedDescriptor.(*relationDescriptor)
+					replacement.revision++
+					switch mode {
+					case "attribute":
+						replacement.attributes = append([]int32(nil), replacement.attributes...)
+						replacement.attributes[0]++
+					case "type":
+						replacement.columns = append([]ColumnDescriptor(nil), replacement.columns...)
+						replacement.columns[0].Usage = int8Usage
+					case "width":
+						replacement.columns = nil
+						replacement.attributes = nil
+					case "comment":
+						replacement.comment = "compatible metadata revision"
+					case "acl":
+						replacement.acl = ACLValue{Explicit: true}
+					}
 					e.state.descriptors[address] = &replacement
 					restore = func() { e.state.descriptors[address] = original }
 				case "epoch":
@@ -186,7 +211,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				return nil
 			})
 			ctx.armed = false
-			if restore != nil {
+			if restore != nil && mode != "comment" && mode != "acl" {
 				e.mu.Lock()
 				restore()
 				e.mu.Unlock()
@@ -197,7 +222,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 			switch mode {
 			case "authority":
 				state(t, executeErr, "42501")
-			case "descriptor", "epoch":
+			case "storage", "attribute", "type", "width", "epoch":
 				if !errors.Is(executeErr, ErrCatalogReplaced) {
 					t.Error(executeErr)
 				}
@@ -209,16 +234,23 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				if !errors.Is(executeErr, context.DeadlineExceeded) {
 					t.Error(executeErr)
 				}
-			case "success":
+			case "success", "comment", "acl":
 				if executeErr != nil || result.Count != 1 || result.Rows != nil {
 					t.Error(result, executeErr)
 				}
 			}
-			if mode != "success" && (result.Count != 0 || result.Rows != nil || scope.view != nil) {
+			if mode != "success" && mode != "comment" && mode != "acl" && (result.Count != 0 || result.Rows != nil || scope.view != nil) {
 				t.Error("failure acquired source/result", result)
 			}
+			address := scope.lockedRef.Address
 			if err := scope.Finish(executeErr); err != executeErr {
 				t.Error("Finish changed failure", err, executeErr)
+			}
+			if mode == "comment" || mode == "acl" {
+				store := e.storage[address]
+				if store == nil || len(store.versions) != 1 || testExport(store.versions[0].values[0]) != int64(42) {
+					t.Error("compatible metadata lost publication")
+				}
 			}
 			lockEmpty(t, e)
 			if scope.view != nil || scope.lockedDescriptor != nil || scope.ticket != nil || !scope.finished {

@@ -209,4 +209,71 @@ func TestUpdateCoreSmoke(t *testing.T) {
 	if err = b.QueryRowContext(ctx, "SELECT d,b,n,f FROM composed").Scan(&date, &blob, &number, &flag); err != nil || date != "2030-01-02" || !bytes.Equal(blob, []byte{65}) || number != 1 || flag {
 		t.Fatal("composition roundtrip", date, blob, number, flag, err)
 	}
+	// One canonical own-head/live-source path through UPDATE, self INSERT SELECT
+	// and DELETE, with independent peer visibility and no resurrection.
+	exec(b, "CREATE TABLE mixed(id INT,v INT)", false, 0)
+	exec(b, "INSERT INTO mixed VALUES(1,10),(2,20)", false, 2)
+	mixedOld, err := b.QueryContext(ctx, "SELECT id,v FROM mixed ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mixedOld.Close()
+	mixedRows := func(x transactionExecutor, want [][]int64) {
+		t.Helper()
+		rows, err := x.QueryContext(ctx, "SELECT id,v FROM mixed ORDER BY id")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		got := [][]int64{}
+		for rows.Next() {
+			var id, v int64
+			if err := rows.Scan(&id, &v); err != nil {
+				t.Fatal(err)
+			}
+			got = append(got, []int64{id, v})
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatal(got, want)
+		}
+	}
+	exec(a, "BEGIN", false, 0)
+	exec(a, "UPDATE mixed SET v=30 WHERE id=1", false, 1)
+	exec(a, "INSERT INTO mixed SELECT id,v FROM mixed WHERE id=1", true, 1)
+	exec(a, "DELETE FROM mixed WHERE id=1", true, 2)
+	mixedRows(a, [][]int64{{2, 20}})
+	mixedRows(b, [][]int64{{1, 10}, {2, 20}})
+	exec(a, "UPDATE mixed SET v=40 WHERE id=1", true, 0)
+	exec(a, "ROLLBACK", false, 0)
+	mixedRows(b, [][]int64{{1, 10}, {2, 20}})
+	exec(a, "BEGIN", false, 0)
+	exec(a, "UPDATE mixed SET v=30 WHERE id=1", false, 1)
+	exec(a, "DELETE FROM mixed WHERE id=1", true, 1)
+	exec(a, "COMMIT", false, 0)
+	mixedRows(b, [][]int64{{2, 20}})
+	var mixedDump bytes.Buffer
+	if err = stuntgres.Dump(ctx, db, &mixedDump); err != nil {
+		t.Fatal(err)
+	}
+	if err = stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err = stuntgres.Restore(ctx, db, bytes.NewReader(mixedDump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	mixedRows(b, [][]int64{{2, 20}})
+	oldMixed := [][]int64{}
+	for mixedOld.Next() {
+		var id, v int64
+		if err := mixedOld.Scan(&id, &v); err != nil {
+			t.Fatal(err)
+		}
+		oldMixed = append(oldMixed, []int64{id, v})
+	}
+	if err = mixedOld.Err(); err != nil || !reflect.DeepEqual(oldMixed, [][]int64{{1, 10}, {2, 20}}) {
+		t.Fatal("retained mixed source", oldMixed, err)
+	}
 }

@@ -1038,6 +1038,30 @@ ALTER consumers use the same current-head storage. UPDATE requires UPDATE on
 assigned columns/table plus SELECT on actual RHS/WHERE reads, not on protected
 columns merely retained. SQL GRANT remains excluded.
 
+UPDATE and DELETE share one physical head vector, immutable deletion roots and
+generation guards. DELETE does not compact that vector: candidate ordinals are
+hints, while row arbitration and latest-predecessor liveness use stable RowIDs.
+UPDATE's NO KEY UPDATE and DELETE's row UPDATE are distinct conflicting modes
+on the same resource. A peer committed deletion makes a waiting UPDATE affect
+zero rows; DELETE rechecks a peer-updated predicate and ends the actual latest
+version, never resurrecting a head or admitting newly matching rows.
+Earlier own UPDATE and INSERT heads appear exactly once in SELECT/INSERT SELECT,
+and later own DELETE hides them immediately. Mixed head/end commits publish at
+one frontier; cancellation discards both kinds of private work. Compatible
+COMMENT/ACL revisions preserve a captured valid layout/storage token, with fresh
+execution still checking current authority. Reset/Restore and generic self/foreign
+catalog replacement detach/remint only live heads; retained old results remain
+immutable. These are existing surfaces composed, not additional DELETE syntax.
+
+Mixed-DML witnesses: `make test PACKAGES='./internal/engine .' RUN='^TestUpdateCoreDelete' VERBOSE=1`
+and `make reference RUN='^TestReferenceUpdateCoreDelete' VERBOSE=1`.
+They cover direct/prepared duplicate-preserving composition and commit/rollback,
+cross-mode latest-row counts and frozen candidates, mixed cancellation/resource
+reacquisition, immutable candidate slots, all-relation publication, live-only
+control/import behavior and identity exhaustion. Native internal waits observe
+the actual manager; PostgreSQL waits observe transaction-ID locks and the exact
+blocker. Public native effect/deadline tests do not claim queue-observation proof.
+
 Feature smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=1`.
 Independent pinned PostgreSQL witnesses:
 `make reference RUN='^TestReferenceUpdateCore' VERBOSE=1`.
@@ -2548,7 +2572,7 @@ SQL errors support `errors.As` into `interface { SQLState() string }`; exported 
 
 Native SQL failures supply both severity fields as `ERROR`, including parser, missing-object and duplicate-object failures; naming an object in the primary message does not imply an object diagnostic field. The error-fields feature smoke is `go test -count=1 -run '^TestErrorFieldsSmoke$' ./smoke`: it checks exact syntax and engine diagnostics, direct/prepared NOT NULL failures, statement atomicity, wrapping, ordinary context cancellation and native control round trips. Go test reports the result. Reference-only permission, procedural and SQL cancellation witnesses exercise PostgreSQL diagnostic transport expectations, not native implementations of those unsupported features.
 
-Shared generic SQL diagnostics construct only severity, SQLSTATE and primary message; they never infer object identities. In particular, input/range conversion errors (`22P02`/`22003`) do not infer Schema, Table or Column from a destination or WHERE predicate. Condition-specific NOT NULL producers (`23502`) supply schema/table/column: INSERT and UPDATE include complete failing-row Detail, while SET/ADD existing-row validation has no Detail. Even a named constraint leaves the Constraint field empty. This distinction follows PostgreSQL's [conditional error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html); clients must not infer the presence of one object field from another.
+Shared generic SQL diagnostics construct only severity, SQLSTATE and primary message; they never infer object identities. In particular, input/range conversion errors (`22P02`/`22003`) do not infer Schema, Table or Column from a destination or WHERE predicate. Condition-specific NOT NULL producers (`23502`) supply schema/table/column: INSERT includes complete failing-row Detail; UPDATE includes only modified targets and effectively SELECT-readable columns, in physical order. Without relation-level SELECT, UPDATE prints `(names) = (values)`, even when column grants cover every column; table SELECT, default owner authority and superuser retain the complete unlabelled row. Protected retained values are neither formatted nor disclosed, and retaining them does not require SELECT. Captured output settings and UTF8-safe field truncation are unchanged. SET/ADD existing-row validation has no Detail. Even a named constraint leaves the Constraint field empty. This distinction follows PostgreSQL's [conditional error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html); clients must not infer the presence of one object field from another.
 
 Invalid boolean strings retain the original decoded input in the PostgreSQL `22P02` primary message (for example, `invalid input syntax for type boolean: "o"`). Boolean WHERE string-literal failures now carry the one-based character Position of the source opener, as INSERT already does, including during actual preparation and on empty tables. Escapes and continued strings do not change that provenance. Bound parameters have no query Position or native portal Context; real PostgreSQL Bind errors independently retain lib/pq's parameter Context. No destination object identities are inferred.
 
