@@ -83,6 +83,7 @@ func TestCompareNullMatrices(t *testing.T) {
 	check("SELECT id,v IS NULL,v IS NOT NULL,v ISNULL,v NOTNULL FROM t ORDER BY id", []string{"id", "?column?", "?column?", "?column?", "?column?"}, []string{"INT4", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{int64(1), false, true, false, true}, {int64(2), true, false, true, false}, {int64(3), false, true, false, true}, {int64(4), false, true, false, true}})
 	check("SELECT id,f IS TRUE,f IS NOT TRUE,f IS FALSE,f IS NOT FALSE,f IS UNKNOWN,f IS NOT UNKNOWN FROM t ORDER BY id", []string{"id", "?column?", "?column?", "?column?", "?column?", "?column?", "?column?"}, []string{"INT4", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{int64(1), true, false, false, true, false, true}, {int64(2), false, true, false, true, true, false}, {int64(3), false, true, true, false, false, true}, {int64(4), true, false, false, true, false, true}})
 	check("SELECT v=NULL FROM t ORDER BY id", []string{"?column?"}, []string{"BOOL"}, [][]any{{nil}, {nil}, {nil}, {nil}})
+	check("SELECT num_nulls(v),v IS NULL FROM t ORDER BY id", []string{"num_nulls", "?column?"}, []string{"INT4", "BOOL"}, [][]any{{int64(0), false}, {int64(1), true}, {int64(0), false}, {int64(0), false}})
 	variants := []string{"IS TRUE", "IS NOT TRUE", "IS FALSE", "IS NOT FALSE", "IS UNKNOWN", "IS NOT UNKNOWN"}
 	truth := [][]bool{{true, false, false, true, false, true}, {false, true, true, false, false, true}, {false, true, false, true, true, false}}
 	for i, literal := range []string{"TRUE", "FALSE", "NULL"} {
@@ -380,6 +381,58 @@ func TestCompareNullCapturedMetadataControlsAndCancellation(t *testing.T) {
 	cancel()
 	if err := rows.Next(make([]driver.Value, 1)); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
+	}
+}
+
+func TestCompareNullFunctionBoundaries(t *testing.T) {
+	_, db := compareNullSetup(t)
+	for _, q := range []string{
+		"SELECT num_nulls(v) IS NULL FROM t", "SELECT num_nulls(v IS NULL) FROM t",
+		"SELECT (num_nulls(v)) IS NULL FROM t", "SELECT num_nulls((v IS NULL)) FROM t",
+		"SELECT num_nulls(v)=1 FROM t", "SELECT 1=num_nulls(v) FROM t",
+		"SELECT num_nulls(v) AND TRUE FROM t", "SELECT TRUE OR num_nulls(v) FROM t",
+		"SELECT id FROM t WHERE num_nulls(v) IS NULL",
+	} {
+		rows, err := db.Query(q)
+		if rows != nil {
+			rows.Close()
+			t.Fatal("excluded function/predicate composition exposed cursor", q)
+		}
+		if err == nil {
+			t.Fatal("excluded function/predicate composition succeeded", q)
+		}
+		stmt, err := db.Prepare(q)
+		if stmt != nil {
+			stmt.Close()
+			t.Fatal("excluded function/predicate composition exposed handle", q)
+		}
+		if err == nil {
+			t.Fatal("excluded function/predicate composition prepared", q)
+		}
+	}
+}
+
+func TestCompareNullFunctionInsertSelectDiagnostics(t *testing.T) {
+	_, db := compareNullSetup(t)
+	for _, tc := range []struct {
+		q    string
+		want stuntgres.Error
+	}{
+		{"INSERT INTO t SELECT num_nulls(v) FROM t", stuntgres.Error{Code: "0A000", Message: "INSERT SELECT is unsupported", Position: "15"}},
+		{"INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", stuntgres.Error{Code: "42601", Message: `syntax error at or near "VALUES"`, Position: "42"}},
+	} {
+		rows, err := db.Query(tc.q)
+		if rows != nil {
+			rows.Close()
+			t.Fatal("failed INSERT SELECT exposed cursor", tc.q)
+		}
+		typeCoreDiagnostic(t, err, tc.want)
+		stmt, err := db.Prepare(tc.q)
+		if stmt != nil {
+			stmt.Close()
+			t.Fatal("failed INSERT SELECT exposed handle", tc.q)
+		}
+		typeCoreDiagnostic(t, err, tc.want)
 	}
 }
 

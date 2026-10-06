@@ -101,6 +101,11 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 		"INSERT INTO t VALUES(1 IS NULL)", "SELECT set_config('x',TRUE IS NULL,FALSE)",
 		"SELECT v IS OF (integer) FROM t",
 		"SELECT v=1=1 FROM t", "SELECT (v IS NULL)=TRUE FROM t",
+		"SELECT num_nulls(v) IS NULL FROM t", "SELECT num_nulls(v IS NULL) FROM t",
+		"SELECT (num_nulls(v)) IS NULL FROM t", "SELECT num_nulls((v IS NULL)) FROM t",
+		"SELECT num_nulls(v)=1 FROM t", "SELECT 1=num_nulls(v) FROM t",
+		"SELECT num_nulls(v) AND TRUE FROM t", "SELECT TRUE OR num_nulls(v) FROM t",
+		"SELECT id FROM t WHERE num_nulls(v) IS NULL",
 	} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
 			t.Fatal("admitted excluded syntax", q, statements, err)
@@ -108,6 +113,8 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	}
 	keywordDiagnostic(t, "INSERT INTO t SELECT v IS NULL FROM t", "0A000", "INSERT SELECT is unsupported", "15")
 	keywordDiagnostic(t, "INSERT INTO t SELECT v IS NULL FROM t VALUES (1)", "42601", `syntax error at or near "VALUES"`, "39")
+	keywordDiagnostic(t, "INSERT INTO t SELECT num_nulls(v) FROM t", "0A000", "INSERT SELECT is unsupported", "15")
+	keywordDiagnostic(t, "INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", "42601", `syntax error at or near "VALUES"`, "42")
 	for _, q := range []string{"SELECT isnull(1) FROM t", "SELECT notnull(1) FROM t"} {
 		keywordDiagnostic(t, q, "0A000", "functions are unsupported", "8")
 	}

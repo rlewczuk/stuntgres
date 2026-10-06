@@ -356,7 +356,7 @@ unsupported_query: SELECT query_projection query_from query_where query_order { 
  | '(' unsupported_query ')' { $$=$2 } ;
 query_projection: /* empty */ | '*' | query_targets ;
 query_targets: query_target | query_targets ',' query_target ;
-query_target: target_or ;
+query_target: projection_target ;
 query_from: /* empty */ | FROM relation_name ;
 query_where: /* empty */ | WHERE target_or ;
 query_order: /* empty */ | ORDER BY name direction ;

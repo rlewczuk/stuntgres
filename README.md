@@ -1532,6 +1532,11 @@ arguments. ANY and null-test unknown occurrences share binding-order validation:
 while reversing the first two targets fails for$1 at8. Still-unresolved
 occurrences do not mask a later mismatch, and mismatches precede slot gaps.
 INSERT and settings retain their existing scalar-only admission.
+Failure-only INSERT SELECT recognition reuses the same admitted projection roots;
+it does not execute INSERT SELECT. `INSERT INTO t SELECT num_nulls(v) FROM t`
+fails `0A000` (`INSERT SELECT is unsupported`) at SELECT, character15.
+Appending `VALUES (1)` instead reports `42601` at VALUES, character42, so an
+implemented projection call cannot mask a malformed trailing suffix.
 
 Executable acceptance (run these commands to establish verification):
 

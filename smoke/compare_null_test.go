@@ -58,6 +58,7 @@ func TestCompareNullSmoke(t *testing.T) {
 		{"grouped AND unknown filter", "SELECT id FROM t WHERE (f AND TRUE) IS UNKNOWN ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}},
 		{"grouped OR truth filter", "SELECT id FROM t WHERE (f OR FALSE) IS NOT TRUE ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}}},
 		{"grouped logical distinct filter", "SELECT id FROM t WHERE (NOT f) IS DISTINCT FROM FALSE ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}}},
+		{"mixed column function roots", "SELECT num_nulls(v),v IS NULL FROM t ORDER BY id", []string{"num_nulls", "?column?"}, []string{"INT4", "BOOL"}, [][]any{{int64(0), false}, {int64(1), true}, {int64(0), false}, {int64(0), false}}},
 	}
 	check := func(t *testing.T, rows *sql.Rows, err error, names, types []string, want [][]any) {
 		t.Helper()
@@ -181,6 +182,48 @@ func TestCompareNullSmoke(t *testing.T) {
 		defer stmt.Close()
 		rows, err := stmt.QueryContext(ctx, nil)
 		check(t, rows, err, []string{"id"}, []string{"INT4"}, [][]any{})
+	})
+	t.Run("mixed ANY selected roots", func(t *testing.T) {
+		q := "SELECT $1 IS TRUE,num_nulls($1),$1 IS NULL FROM t ORDER BY id"
+		stmt, err := db.PrepareContext(ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stmt.Close()
+		for i, arg := range []any{true, false, nil} {
+			row := [][]any{{true, int64(0), false}, {false, int64(0), false}, {false, int64(1), true}}[i]
+			want := [][]any{row, row, row, row}
+			rows, err := db.QueryContext(ctx, q, arg)
+			check(t, rows, err, []string{"?column?", "num_nulls", "?column?"}, []string{"BOOL", "INT4", "BOOL"}, want)
+			rows, err = stmt.QueryContext(ctx, arg)
+			check(t, rows, err, []string{"?column?", "num_nulls", "?column?"}, []string{"BOOL", "INT4", "BOOL"}, want)
+		}
+	})
+	t.Run("mixed occurrence order diagnostics", func(t *testing.T) {
+		for _, tc := range []struct {
+			q, parameter, position string
+		}{
+			{"SELECT num_nulls($2),$1 IS NULL,$1 IS TRUE,$2 IS TRUE FROM t", "$2", "18"},
+			{"SELECT $1 IS NULL,num_nulls($2),$1 IS TRUE,$2 IS TRUE FROM t", "$1", "8"},
+		} {
+			want := stuntgres.Error{Code: "42P08", Message: "could not determine data type of parameter " + tc.parameter, Position: tc.position}
+			rows, err := db.QueryContext(ctx, tc.q, true, true)
+			if rows != nil {
+				rows.Close()
+				t.Fatal("mixed occurrence error exposed cursor")
+			}
+			if err := typeCoreDiagnostic(err, want); err != nil {
+				t.Fatal(tc.q, err)
+			}
+			stmt, err := db.PrepareContext(ctx, tc.q)
+			if stmt != nil {
+				stmt.Close()
+				t.Fatal("mixed occurrence error exposed handle")
+			}
+			if err := typeCoreDiagnostic(err, want); err != nil {
+				t.Fatal(tc.q, err)
+			}
+		}
 	})
 	t.Run("full diagnostics", func(t *testing.T) {
 		for _, tc := range []struct {
