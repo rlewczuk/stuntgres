@@ -176,6 +176,8 @@ type expressionPolicy struct {
 	expected         sqltype.Usage
 	mode             sqltype.CoercionContext
 	booleanConstruct string
+	// Operand skips the enclosing WHERE BOOL check while binding predicate children.
+	operand bool
 }
 type expressionDependency struct {
 	ref      ObjectRef
@@ -233,11 +235,11 @@ func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position
 	return nil
 }
 func (b *expressionBinder) finish() (ParameterInfo, error) {
-	// ANY does not coerce an occurrence when a later context constrains its
-	// shared slot. Diagnose that mismatch before the unresolved-slot boundary.
-	for _, occurrence := range b.anyParameters {
-		if b.parameters[occurrence.number].Type != nil {
-			return ParameterInfo{}, expressionError("42P08", fmt.Sprintf("could not determine data type of parameter $%d", occurrence.number), occurrence.pos)
+	// Retained unknown ANY and null-test occurrences share binding order.
+	// Diagnose occurrence mismatches before gaps or unresolved shared slots.
+	for _, p := range b.anyParameters {
+		if b.parameters[p.number].Type != nil {
+			return ParameterInfo{}, expressionError("42P08", fmt.Sprintf("could not determine data type of parameter $%d", p.number), p.pos)
 		}
 	}
 	keys := make([]int, 0, len(b.parameters))
@@ -299,7 +301,7 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) BoundExpr {
 	return columnExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, pos: pos, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 }
 func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (BoundExpr, error) {
-	if policy.context == filterContext && policy.booleanConstruct == "" {
+	if policy.context == filterContext && !policy.operand && policy.booleanConstruct == "" {
 		return b.bindBoolean(raw, policy.context, "WHERE")
 	}
 	if err := b.ctx.Err(); err != nil {
@@ -399,6 +401,15 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
+	case parser.PredicateExpr:
+		if policy.context == assignmentContext {
+			return nil, fmt.Errorf("stuntgres: predicate in assignment scalar")
+		}
+		var err error
+		node, err = b.bindPredicate(r, policy.context)
+		if err != nil {
+			return nil, err
+		}
 	case parser.OperatorExpr:
 		if policy.context == assignmentContext {
 			return nil, fmt.Errorf("stuntgres: comparison in assignment scalar")
@@ -481,8 +492,12 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		// Append during analysis; description finalization orders captures by offset.
-		b.temporals = append(b.temporals, temporalConstant{pos.Offset, n, u.Typmod, u.Type.ID()})
+		// Symmetric comparison can contextualize an earlier unknown literal
+		// after its right operand. Keep captures ordered for rebind lookup.
+		i := sort.Search(len(b.temporals), func(i int) bool { return b.temporals[i].offset >= pos.Offset })
+		b.temporals = append(b.temporals, temporalConstant{})
+		copy(b.temporals[i+1:], b.temporals[i:])
+		b.temporals[i] = temporalConstant{pos.Offset, n, u.Typmod, u.Type.ID()}
 	}
 	return v, nil
 }

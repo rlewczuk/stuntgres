@@ -1202,7 +1202,7 @@ IF and EXISTS retain their release unreserved and column-name categories, respec
 
 INSERT query inputs remain unsupported, including parenthesized SELECT inputs. Their bounded grammar recognition does not execute a query or publish data: a recognized query produces `0A000` only after the whole script is syntactically valid. In `INSERT INTO t (select) VALUES (1)`, `(select)` is a parenthesized zero-target SELECT rather than a target column, and the following raw `VALUES` is the syntax error (`42601`, character position 24).
 
-Generic function-name recognition follows the distinct IDENT/unreserved/type-or-function-name rule, not column-name legality: `between(x)` is malformed, while ordinary/U/T call names and separately recognized built-in constructs such as COALESCE remain unsupported (`0A000`). No function, cast or special expression is executed by this recognition. DEFAULT is a valid bare projection label but still an unsupported alias. ISNULL/NOTNULL are recognized null-test expressions rather than malformed bare labels, and explicit `ORDER BY x NULLS FIRST/LAST` is recognized but unsupported; quoted operator spellings remain ordinary names/labels. All these failure boundaries retain complete positioned diagnostics without global keyword-to-error promotion.
+Generic function-name recognition follows the distinct IDENT/unreserved/type-or-function-name rule, not column-name legality: `between(x)` is malformed, while ordinary/U/T call names and separately recognized built-in constructs such as COALESCE remain unsupported (`0A000`). No function or cast is executed by this recognition. DEFAULT is a valid bare projection label but still an unsupported alias. ISNULL/NOTNULL execute as scalar null-test predicates in table SELECT; explicit `ORDER BY x NULLS FIRST/LAST` remains recognized but unsupported, and quoted operator spellings remain ordinary names/labels. Failure boundaries retain complete positioned diagnostics without global keyword-to-error promotion.
 
 Except for the two selected null-count functions (including exact quoted `"num_nulls"` and `"num_nonnulls"` names), the same failure-only call guard applies at every named projection position: `SELECT x, abs(x) FROM t` and later COALESCE or quoted/type-function-name calls remain recognized unsupported features, while a later unquoted `between(x)` is malformed at its opening parenthesis. Failure-only recognition retains the original callee token and never reconstructs category identity from normalized projection strings or executes the call.
 
@@ -1475,6 +1475,82 @@ the real pinned reference is
 `go test -tags reference -count=1 -v -run '^TestReferenceExpressionCore.*$' ./reference`.
 Go test reports assertion failures or PASS; these commands require execution to
 establish verification.
+
+### Null and Boolean comparison predicates
+
+Table SELECT projection and WHERE support scalar `IS [NOT] NULL`, its
+`ISNULL`/`NOTNULL` aliases, `IS [NOT] DISTINCT FROM`, and all six Boolean tests:
+`IS [NOT] TRUE`, `IS [NOT] FALSE`, `IS [NOT] UNKNOWN`. Each returns a nonnull
+BOOL (`?column?`, OID16, typmod−1, native bool ScanType, scalar origin zero).
+Expression nullability metadata remains unknown even though these values are
+never NULL. Null tests accept every supported scalar type; Boolean tests require
+BOOL, contextualizing unknown strings/NULL/parameters but rejecting concrete
+nonboolean inputs with `42804` at the operand.
+
+DISTINCT treats two NULLs as not distinct, one NULL as distinct, and nonnull
+values through the existing equality provider (including exact numeric,
+cross-width integer, NaN, UUID and temporal semantics). NOT DISTINCT is the
+complement. Both operands can be admitted scalar atoms, comparisons or grouped
+predicates/logical expressions. Unknown operands contextualize to the known
+opposite type; two unknown operands use TEXT. Incompatible concrete inputs fail
+`42883` at IS
+with the ordinary equality signature, even on empty tables or typed NULLs.
+An undecorated NULL literal on either side instead becomes a nullness test:
+`$1 IS DISTINCT FROM NULL` therefore does **not** infer a parameter type.
+Bound nil is not a raw NULL literal: `v IS NOT DISTINCT FROM $1` infers the
+column's type and selects its NULL rows when bound nil.
+
+Null tests do not infer parameter types. An entirely unresolved slot fails
+`42P18` without Position; an earlier unknown nested occurrence left behind by
+a later constraint fails `42P08` at that occurrence. For example,
+`SELECT $1 IS NULL,$1 IS TRUE FROM t` fails at character8, while reversing
+the targets succeeds with a BOOL slot. Root target TEXT fallback and sparse
+parameter/protocol distinctions described above remain unchanged.
+Selected occurrence consistency is checked before unresolved shared slots or
+gaps. Thus `SELECT $1 IS NULL,$1 IS TRUE,$2 IS NULL FROM t` reports positioned
+`42P08` for the earlier `$1`, not `42P18` for `$2`; likewise an inconsistent
+`$2` occurrence takes precedence over the missing `$1` slot. With no occurrence
+mismatch, `$1 IS TRUE,$2 IS NULL` still reports unpositioned `42P18` for `$2`.
+
+Parentheses group admitted atoms, comparisons, predicates and logical expressions.
+Unary postfix tests nest left: `TRUE IS NULL IS TRUE` and `v IS NULL ISNULL`
+both return false.
+IS/ISNULL/NOTNULL share nonassociative precedence where a binary DISTINCT
+right operand competes with another ungrouped predicate:
+`1 IS DISTINCT FROM 1 IS TRUE` fails `42601`; group either intended nesting.
+`(v IS NULL) IS TRUE` and `TRUE IS DISTINCT FROM (v IS NULL)` work.
+Scalar comparisons bind more tightly than these predicates, which bind above
+NOT, AND and OR: `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection
+and WHERE. Ordinary `v=NULL` remains UNKNOWN and selects no rows; no
+transform_null_equals behavior is added. Existing atom-only comparison operands
+and comparison-chaining restrictions remain. General functions, casts, aliases,
+row/composite tests and no-FROM scalar SELECT remain excluded except for the
+selected null-count call roots described above. Those calls remain standalone
+projection roots, not predicate operands; predicates remain excluded from their
+arguments. ANY and null-test unknown occurrences share binding-order validation:
+`num_nulls($2),$1 IS NULL,$1 IS TRUE,$2 IS TRUE` fails42P08 for$2 at18,
+while reversing the first two targets fails for$1 at8. Still-unresolved
+occurrences do not mask a later mismatch, and mismatches precede slot gaps.
+INSERT and settings retain their existing scalar-only admission.
+
+Executable acceptance (run these commands to establish verification):
+
+```sh
+make smoke RUN='^TestCompareNullSmoke$' VERBOSE=1
+make test PACKAGES=. RUN='^TestCompareNull.*$' VERBOSE=1
+make test PACKAGES=./internal/engine RUN='^TestExpressionCompareNull.*$' VERBOSE=1
+make test PACKAGES=./internal/parser VERBOSE=1
+make reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1
+```
+
+These exercise independent direct/prepared truth/null/distinct matrices,
+held typed parameters, complete eager diagnostics/phases, precedence and
+admission, provider families, dependency/ACL manifests, cancellation and
+captured computed BOOL results across native controls. Reference checks use
+the unchanged pinned real PostgreSQL18.0 fixture, asserting expectations
+before backend parity. Source/manual semantics:
+[PostgreSQL18 comparison predicates](https://www.postgresql.org/docs/18/functions-comparison.html)
+and [operator precedence](https://www.postgresql.org/docs/18/sql-syntax-lexical.html).
 Normalized integer parameters targeting INT2/INT4/INT8 and Boolean parameters targeting
 BOOL use checked scalar imports without successful-value formatting or reparsing.
 They retain the inferred descriptor and cancellation checks; INT2/INT4 overflow keeps

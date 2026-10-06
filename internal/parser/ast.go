@@ -317,6 +317,27 @@ type LogicalExpr struct {
 	Pos         Position
 }
 
+type PredicateKind uint8
+
+const (
+	IsNull PredicateKind = iota
+	IsNotNull
+	IsTrue
+	IsNotTrue
+	IsFalse
+	IsNotFalse
+	IsUnknown
+	IsNotUnknown
+	IsDistinct
+	IsNotDistinct
+)
+
+type PredicateExpr struct {
+	Kind        PredicateKind
+	Left, Right Expr
+	Pos         Position
+}
+
 func (LogicalExpr) expression() {}
 func (e LogicalExpr) SourcePosition() Position {
 	pos := e.Pos
@@ -330,6 +351,8 @@ func (e LogicalExpr) SourcePosition() Position {
 	}
 	return pos
 }
+func (PredicateExpr) expression()                {}
+func (e PredicateExpr) SourcePosition() Position { return e.Pos }
 
 type FunctionExpr struct {
 	Name     ObjectName

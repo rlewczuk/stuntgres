@@ -155,8 +155,8 @@ func TestMappedKeywordLabels(t *testing.T) {
 			continue
 		}
 		keywordDiagnostic(t, "SELECT x AS "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "13")
-		// AND/OR now continue SELECT expressions rather than alias failures.
-		if k.bareLabel && k.word != "and" && k.word != "or" {
+		// Predicate and logical tokens continue SELECT expressions, not aliases.
+		if k.bareLabel && k.token != IS && k.word != "and" && k.word != "or" {
 			keywordDiagnostic(t, "SELECT x "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "10")
 		}
 	}
@@ -177,8 +177,6 @@ func TestKeywordContextualCapabilities(t *testing.T) {
 		{"SELECT CAST(x AS INT) FROM t", "0A000", "casts are unsupported", "8"},
 		{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30"},
 		{"SELECT x FROM t WHERE x=between(7)", "42601", "syntax error at or near \"(\"", "32"},
-		{"SELECT x isnull FROM t", "0A000", "expressions are unsupported", "10"},
-		{"SELECT x notnull FROM t", "0A000", "expressions are unsupported", "10"},
 		{"SELECT x \"isnull\" FROM t", "0A000", "projection aliases are unsupported", "10"},
 		{"SELECT x FROM t ORDER BY x NULLS FIRST", "0A000", "NULLS ordering is unsupported", "28"},
 		{"SELECT x FROM t ORDER BY x DESC NULLS LAST", "0A000", "NULLS ordering is unsupported", "33"},

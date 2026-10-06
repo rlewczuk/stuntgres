@@ -45,8 +45,6 @@ var identifierContextCases = []struct {
 	{"SELECT CAST(x AS INT) FROM t", "0A000", "casts are unsupported", "8", "x", "INT4", int64(7)},
 	{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30", "", "", nil},
 	{"SELECT x FROM t WHERE x=between(7)", "42601", "syntax error at or near \"(\"", "32", "", "", nil},
-	{"SELECT x isnull FROM t", "0A000", "expressions are unsupported", "10", "?column?", "BOOL", false},
-	{"SELECT x notnull FROM t", "0A000", "expressions are unsupported", "10", "?column?", "BOOL", true},
 	{"SELECT x \"isnull\" FROM t", "0A000", "projection aliases are unsupported", "10", "isnull", "INT4", int64(7)},
 	{"SELECT x \"notnull\" FROM t", "0A000", "projection aliases are unsupported", "10", "notnull", "INT4", int64(7)},
 	{"SELECT x FROM t ORDER BY x NULLS FIRST", "0A000", "NULLS ordering is unsupported", "28", "x", "INT4", int64(7)},

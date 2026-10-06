@@ -444,8 +444,6 @@ var identifierContextCases = []struct {
 	{"SELECT CAST(x AS INT) FROM t", "0A000", "casts are unsupported", "8", "x", "INT4", int64(7)},
 	{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30", "", "", nil},
 	{"SELECT x FROM t WHERE x=between(7)", "42601", "syntax error at or near \"(\"", "32", "", "", nil},
-	{"SELECT x isnull FROM t", "0A000", "expressions are unsupported", "10", "?column?", "BOOL", false},
-	{"SELECT x notnull FROM t", "0A000", "expressions are unsupported", "10", "?column?", "BOOL", true},
 	{"SELECT x \"isnull\" FROM t", "0A000", "projection aliases are unsupported", "10", "isnull", "INT4", int64(7)},
 	{"SELECT x \"notnull\" FROM t", "0A000", "projection aliases are unsupported", "10", "notnull", "INT4", int64(7)},
 	{"SELECT x FROM t ORDER BY x NULLS FIRST", "0A000", "NULLS ordering is unsupported", "28", "x", "INT4", int64(7)},
@@ -464,6 +462,32 @@ func TestIdentifierContextualCapabilities(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), "identifier-context-capabilities")
 	execSQL(t, db, "CREATE TABLE t (x INT)")
 	execSQL(t, db, "INSERT INTO t VALUES (7)")
+	for _, s := range []struct {
+		q     string
+		value bool
+	}{
+		{"SELECT x isnull FROM t", false},
+		{"SELECT x notnull FROM t", true},
+	} {
+		result, err := db.Exec(s.q)
+		if err := identifierAffected(result, err, 1); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.Query(s.q)
+		if err := identifierRows(rows, err, []string{"?column?"}, []string{"BOOL"}, [][]any{{s.value}}); err != nil {
+			t.Fatal(err)
+		}
+		stmt, err := db.Prepare(s.q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows, err = stmt.Query()
+		if err := identifierRows(rows, err, []string{"?column?"}, []string{"BOOL"}, [][]any{{s.value}}); err != nil {
+			stmt.Close()
+			t.Fatal(err)
+		}
+		stmt.Close()
+	}
 	for _, s := range identifierContextCases {
 		for _, op := range []func(string) error{
 			func(q string) error { _, err := db.Exec(q); return err },

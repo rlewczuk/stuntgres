@@ -317,6 +317,28 @@ func identifierContextualCapabilities() error {
 			return err
 		}
 	}
+	for _, s := range []struct {
+		q     string
+		value bool
+	}{
+		{"SELECT x isnull FROM source_rows", false},
+		{"SELECT x notnull FROM source_rows", true},
+	} {
+		rows, err := db.Query(s.q)
+		if err := identifierCheckRows(rows, err, []string{"?column?"}, []string{"BOOL"}, [][]any{{s.value}}); err != nil {
+			return err
+		}
+		stmt, err := db.Prepare(s.q)
+		if err != nil {
+			return err
+		}
+		rows, err = stmt.Query()
+		err = identifierCheckRows(rows, err, []string{"?column?"}, []string{"BOOL"}, [][]any{{s.value}})
+		stmt.Close()
+		if err != nil {
+			return err
+		}
+	}
 	for _, s := range []struct{ q, code, msg, pos string }{
 		{"SELECT x default FROM t", "0A000", "projection aliases are unsupported", "10"},
 		{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
@@ -331,8 +353,6 @@ func identifierContextualCapabilities() error {
 		{"SELECT x, x, abs(x) FROM t", "0A000", "functions are unsupported", "14"},
 		{"SELECT x FROM t ORDER BY x NULLS FIRST", "0A000", "NULLS ordering is unsupported", "28"},
 		{"SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "28"},
-		{"SELECT x isnull FROM t", "0A000", "expressions are unsupported", "10"},
-		{"SELECT x notnull FROM t", "0A000", "expressions are unsupported", "10"},
 		{"INSERT INTO t (SELECT)", "0A000", "INSERT SELECT is unsupported", "16"},
 		{"INSERT INTO t SELECT x FROM source_rows", "0A000", "INSERT SELECT is unsupported", "15"},
 		{"INSERT INTO t (x) SELECT x FROM source_rows", "0A000", "INSERT SELECT is unsupported", "19"},

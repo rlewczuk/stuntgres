@@ -221,6 +221,17 @@ func TestReferenceIdentifierContextualCapabilities(t *testing.T) {
 	p := newReferencePair(t)
 	p.step(t, referenceExec("CREATE TABLE t (x INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES (7)", 1))
+	for _, s := range []struct {
+		q     string
+		value bool
+	}{
+		{"SELECT x isnull FROM t", false},
+		{"SELECT x notnull FROM t", true},
+	} {
+		step := referenceSelect(s.q, []string{"?column?"}, []string{"BOOL"}, [][]any{{s.value}})
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
+	}
 	for _, name := range []string{"f", "abort", "authorization", `"between"`} {
 		if _, err := p.postgres.ExecContext(p.ctx, "CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
 			t.Fatal(err)
@@ -252,13 +263,22 @@ func TestReferenceIdentifierNullExpressions(t *testing.T) {
 	p.step(t, referenceExec("CREATE TABLE t (x INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES (7),(NULL)", 2))
 	for _, s := range []struct {
+		q    string
+		rows [][]any
+	}{
+		{"SELECT x isnull FROM t ORDER BY x", [][]any{{false}, {true}}},
+		{"SELECT x notnull FROM t ORDER BY x", [][]any{{true}, {false}}},
+	} {
+		step := referenceSelect(s.q, []string{"?column?"}, []string{"BOOL"}, s.rows)
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
+	}
+	for _, s := range []struct {
 		q, msg, pos, column, typ string
 		rows                     [][]any
 	}{
 		{"SELECT x FROM t ORDER BY x NULLS FIRST", "NULLS ordering is unsupported", "28", "x", "INT4", [][]any{{nil}, {int64(7)}}},
 		{"SELECT x FROM t ORDER BY x DESC NULLS LAST", "NULLS ordering is unsupported", "33", "x", "INT4", [][]any{{int64(7)}, {nil}}},
-		{"SELECT x isnull FROM t ORDER BY x", "expressions are unsupported", "10", "?column?", "BOOL", [][]any{{false}, {true}}},
-		{"SELECT x notnull FROM t ORDER BY x", "expressions are unsupported", "10", "?column?", "BOOL", [][]any{{true}, {false}}},
 	} {
 		for _, prepared := range []bool{false, true} {
 			native := referenceErrorDiagnostic(s.q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: s.msg, Position: s.pos})

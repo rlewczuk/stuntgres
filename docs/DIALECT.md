@@ -86,6 +86,54 @@ remain exclusions rather than PostgreSQL diagnostic-parity claims.
 Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`;
 independent reference: `make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
 
+Table SELECT projection/WHERE admit `IS [NOT] NULL`, `ISNULL`/`NOTNULL`,
+`IS [NOT] DISTINCT FROM`, and Boolean `IS [NOT] TRUE/FALSE/UNKNOWN`.
+These return nonnull BOOL with `?column?` names and scalar origin zero;
+native ScanType is bool and expression nullability metadata stays unknown.
+Nullness accepts every supported scalar type; Boolean tests contextualize
+unknown inputs to BOOL, but concrete nonboolean operands fail42804 at the
+operand. DISTINCT uses existing typed equality for nonnull inputs, considers
+two NULLs equal and one NULL distinct; NOT DISTINCT complements it. Both
+sides admit scalar atoms, comparisons or grouped predicates/logical expressions.
+Unknown operands adopt the known opposite type, or TEXT if both are unknown.
+Incompatible concrete types fail42883 at IS even on empty/all-null input. A bare NULL literal on
+either side rewrites to nullness without equality inference; a nil parameter
+does not. Thus `$1 IS DISTINCT FROM NULL` fails42P18/no Position just like
+`$1 IS NULL`, regardless of supplied Go value. Earlier nested unknown parameter
+occurrences do not retroactively acquire later slot types: `$1 IS NULL,$1 IS TRUE`
+fails42P08 at the first occurrence, while reversed order fixes BOOL and works.
+Root output TEXT fallback and mixed-assignment limits remain unchanged.
+Selected occurrence consistency precedes shared-slot gaps/unresolved types:
+`$1 IS NULL,$1 IS TRUE,$2 IS NULL` fails42P08/$1 at character8, not42P18/$2.
+An inconsistent `$2` occurrence similarly precedes the missing `$1` slot.
+Without occurrence inconsistency, `$1 IS TRUE,$2 IS NULL` retains42P18/$2
+without Position; validation still precedes count-sized parameter allocation.
+
+ANY arguments and selected null tests retain unknown occurrences in shared
+binding order: `num_nulls($2),$1 IS NULL,$1 IS TRUE,$2 IS TRUE` fails42P08
+for$2 at18; swapping its first two targets fails for$1 at8. A still-unresolved
+ANY slot does not mask a later selected occurrence mismatch.
+Parentheses group admitted atoms, comparisons, predicates and logical expressions.
+Unary postfix chains nest left: `TRUE IS NULL IS TRUE` and `v IS NULL ISNULL`
+both return false. The shared
+nonassociative IS/ISNULL/NOTNULL precedence rejects an ungrouped predicate
+competing with a binary DISTINCT right operand (`1 IS DISTINCT FROM 1 IS TRUE`
+fails42601); explicit grouping admits the intended nesting. Scalar comparisons
+bind more tightly than selected predicates, which bind above NOT, AND and OR.
+`v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection and WHERE.
+Ordinary `v=NULL` still selects no rows; no transform_null_equals change.
+Existing atom-only comparison operands/chaining restrictions remain.
+Arithmetic/general functions/casts, aliases, rows/composites and no-FROM scalar
+queries remain excluded except for the selected call roots described above.
+Null-count calls remain standalone projection roots, not predicate operands;
+predicate expressions remain excluded from their arguments.
+INSERT/settings arguments remain scalar-only.
+Native controls retain finalized computed BOOL
+values/metadata; dependency/ACL use includes both DISTINCT operands.
+Feature smoke: `make smoke RUN='^TestCompareNullSmoke$' VERBOSE=1`;
+native: `make test PACKAGES=. RUN='^TestCompareNull.*$' VERBOSE=1`;
+real pinned reference: `make reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1`.
+
 UUID declarations use contextual quoted values or binds, not UUID typed literals.
 UUID accepts either hex case, matching braces, omitted hyphens and single hyphens
 at internal four-hex-digit boundaries; no whitespace/URN prefix/version validation.
