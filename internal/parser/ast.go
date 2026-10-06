@@ -7,10 +7,16 @@ type Statement interface{ statement() }
 
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
-	Name         string
-	Pos          Position
-	Quoted       bool
-	Precision    *int32
+	Name      string
+	Pos       Position
+	Quoted    bool
+	Precision *int32
+	// RawPrecision retains a generic numeric token for descriptor-time int4
+	// input. It is mutually exclusive with the parsed integer Precision.
+	RawPrecision string
+	// UnaryPlus keeps the generic modifier's nonsimple expression kind.
+	// Unlike unary minus, PostgreSQL does not fold it into a numeric constant.
+	UnaryPlus    bool
 	PrecisionPos Position
 }
 

@@ -94,6 +94,8 @@ func TestTimestampSmoke(t *testing.T) {
 	exec("CREATE TABLE t(id INTEGER,v TIMESTAMP,p TIMESTAMP(3) WITHOUT TIME ZONE)", 0)
 	exec("CREATE TABLE decoder_forms(id INTEGER,v TIMESTAMP(3))", 0)
 	timestampBranchSmoke(t, ctx, db, exec, check)
+	timestampPrecisionSmoke(t, ctx, db, exec, check)
+	timestampNumericPrecisionSmoke(t, ctx, db, exec, check)
 	exec("INSERT INTO decoder_forms VALUES(1,TIMESTAMP 'J2451187.1'),(2,'1999-01-08 04:05:06.')", 2)
 	forms := [][]any{
 		{int64(1), time.Date(1999, 1, 8, 2, 24, 0, 0, time.UTC)},

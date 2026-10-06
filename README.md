@@ -1023,9 +1023,16 @@ their old values, types and column metadata.
 work in table declarations and typed literals in the existing scalar positions.
 Omitted precision is typmod -1; explicit 0–6 is retained in column/result metadata
 and native Dump. Plain LIKE copies that precision. The quoted catalog type
-`"timestamp"` also admits a bounded signed integer modifier. Ordinary `-1`/`+1`,
-empty/multiple/noninteger modifiers are syntax errors; quoted negative precision
-reaches the type provider and fails `22023`. Greater precision succeeds with
+`"timestamp"` also admits integer modifiers, including unary-minus constants.
+Ordinary signed, empty, multiple and noninteger modifiers are syntax errors;
+quoted negative precision reaches the type provider and fails `22023`.
+Complete quoted numeric spellings pass through the existing INTEGER input
+function at CREATE execution: decimal/exponent input fails `22P02`, and integer
+overflow fails `22003`. Quoted unary-plus modifiers are nonsimple syntax: Prepare
+accepts them, but CREATE execution fails `42601`,
+`type modifiers must be simple constants or identifiers`, at the type opener.
+An existing authorized `IF NOT EXISTS` destination skips semantic modifier input,
+not malformed numeric syntax. Greater precision succeeds with
 WARNING `22023`, for example `TIMESTAMP(7) precision reduced to maximum allowed, 6`,
 and effective precision 6. Typed-literal warnings occur at initial analysis/Prepare,
 not every held execution; CREATE warnings/errors occur at utility execution.
@@ -1123,7 +1130,12 @@ bare compact or Julian trailing dots follow different lexical branches and
 are invalid. Malformed fields fail `22007`, overflowing date/time integers
 fail `22008`, and overflowing numeric zone components fail `22009`.
 
-Fractional seconds first round to microseconds with binary floating-point ties-to-even.
+Fractional seconds first convert to binary64 seconds, then scale to microseconds
+and round ties-to-even. Go `time.Time` parameters use the same two-stage
+conversion without formatting: 125500 nanoseconds becomes 125 microseconds,
+while 126500 becomes 127, matching their decimal timestamp input rather than
+rounding the nanosecond count directly. Civil fields and validated-but-ignored
+offsets are preserved; typed and destination precision still size afterwards.
 Julian fractions instead multiply the separately decoded fraction by a day's
 microseconds and truncate to integer microseconds, matching the release codec.
 Own typed-literal precision and destination precision are separate later sizing
@@ -1219,8 +1231,13 @@ without a DateStyle hint). On failure, diagnostics include the original paramete
 text, including unrounded nanoseconds, offset seconds and BC spelling. Formatting
 is failure-only; successful civil imports do not allocate a timestamp string.
 
-Literal diagnostics include the quoted input's rune position; precision diagnostics
-use the type opener. Parameter input diagnostics omit native Position/Context.
+Literal diagnostics include the quoted input's rune position. Semantic precision
+diagnostics use the type opener; malformed numeric modifiers use the offending
+token's rune position. Numeric junk and incomplete exponents report `42601`
+`trailing junk after numeric literal` with the complete token; `1..2` instead
+reports syntax error at `".."`, positioned at its first dot. FLOAT and TIMESTAMP
+reuse this scanner behavior without admitting general scalar decimal expressions.
+Parameter input diagnostics omit native Position/Context.
 Malformed/date/time/range/zone errors publish no partial INSERT or Restore
 replacement. Retained cursors keep original values, precision and origin metadata
 across append/Reset/Restore; exported infinity buffers cannot mutate stored values.

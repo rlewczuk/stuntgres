@@ -249,7 +249,7 @@ column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Nullable:
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
  | timestamp_type { $$=$1 }
- | type_modifier_head generic_precision ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Precision=$2.Precision;$$.PrecisionPos=$2.PrecisionPos } }
+ | type_modifier_head generic_precision ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Precision=$2.Precision;$$.RawPrecision=$2.RawPrecision;$$.UnaryPlus=$2.UnaryPlus;$$.PrecisionPos=$2.PrecisionPos } }
  | type_name type_name { if $1.keyword!=nil && $2.keyword!=nil && $1.text=="double" && $2.text=="precision" { $$=TypeName{Name:"double precision",Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
  | type_name '.' { sqllex.(*lexer).failAt("0A000","qualified types are unsupported",$1.pos.Offset); return 1 } ;
@@ -264,7 +264,7 @@ timestamp_type: TIMESTAMP %prec TYPE_NAME { $$=TypeName{Name:"timestamp",Pos:$1.
  | TIMESTAMP '(' NUMBER ')' WITH {if _,ok:=timestampPrecision(sqllex,$3,false);!ok{return 1};sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1} ;
 generic_precision: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=timestampPrecision(sqllex,$1,false)};if !ok{return 1}}
  | '-' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=timestampPrecision(sqllex,$3,true);if !ok{return 1};$$.PrecisionPos=$1.pos}
- | '+' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=timestampPrecision(sqllex,$3,false);if !ok{return 1};$$.PrecisionPos=$1.pos} ;
+ | '+' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=timestampPrecision(sqllex,$3,false);if !ok{return 1};$$.UnaryPlus=true;$$.PrecisionPos=$1.pos} ;
 nullability: /* empty */ { $$ = true } | NULL { $$ = true } | NOT NULL { $$ = false }
  | suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
  | '[' { sqllex.(*lexer).failAt("0A000","array types are unsupported",$1.pos.Offset); return 1 }

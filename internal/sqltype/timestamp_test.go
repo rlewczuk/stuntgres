@@ -379,6 +379,54 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+func TestTimestampTimeFractionConversionAllocations(t *testing.T) {
+	d := testTypes()[Timestamp]
+	ctx := context.Background()
+	for _, tc := range []struct {
+		name, text string
+		raw, want  time.Time
+	}{
+		{"midpoint-down", "2000-01-01 00:00:00.0001255", time.Date(2000, 1, 1, 0, 0, 0, 125500, time.UTC), time.Date(2000, 1, 1, 0, 0, 0, 125000, time.UTC)},
+		{"midpoint-up", "2000-01-01 00:00:00.0001265", time.Date(2000, 1, 1, 0, 0, 0, 126500, time.UTC), time.Date(2000, 1, 1, 0, 0, 0, 127000, time.UTC)},
+		{"ordinary-even", "2000-01-01 00:00:00.0000005", time.Date(2000, 1, 1, 0, 0, 0, 500, time.UTC), time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"ordinary-odd", "2000-01-01 00:00:00.0000015", time.Date(2000, 1, 1, 0, 0, 0, 1500, time.UTC), time.Date(2000, 1, 1, 0, 0, 0, 2000, time.UTC)},
+		{"zero", "2000-01-01 00:00:00", time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"year-carry", "1999-12-31 23:59:59.9999995", time.Date(1999, 12, 31, 23, 59, 59, 999999500, time.UTC), time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{"negative-epoch-down", "1999-12-31 23:59:59.0001255", time.Date(1999, 12, 31, 23, 59, 59, 125500, time.UTC), time.Date(1999, 12, 31, 23, 59, 59, 125000, time.UTC)},
+		{"negative-epoch-up", "1999-12-31 23:59:59.0001265", time.Date(1999, 12, 31, 23, 59, 59, 126500, time.UTC), time.Date(1999, 12, 31, 23, 59, 59, 127000, time.UTC)},
+		{"bc-max-offset", "0001-10-19 10:23:54.0001255+15:59:59 BC", time.Date(0, 10, 19, 10, 23, 54, 125500, time.FixedZone("east", 57599)), time.Date(0, 10, 19, 10, 23, 54, 125000, time.UTC)},
+		{"bc-min-offset", "0001-10-19 10:23:54.0001265-15:59:59 BC", time.Date(0, 10, 19, 10, 23, 54, 126500, time.FixedZone("west", -57599)), time.Date(0, 10, 19, 10, 23, 54, 127000, time.UTC)},
+		{"finite-min", "4714-11-24 00:00:00.0001255 BC", time.Date(-4713, 11, 24, 0, 0, 0, 125500, time.UTC), time.Date(-4713, 11, 24, 0, 0, 0, 125000, time.UTC)},
+		{"finite-last", "294276-12-31 23:59:59.999999499", time.Date(294276, 12, 31, 23, 59, 59, 999999499, time.UTC), time.Date(294276, 12, 31, 23, 59, 59, 999999000, time.UTC)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, precision := range []int32{-1, 6} {
+				text, err := d.Input(ctx, tc.text, precision)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := text.TimestampTime()
+				if err != nil || got != tc.want {
+					t.Fatal(precision, got, tc.want, err)
+				}
+			}
+			var value Value
+			var err error
+			allocations := testing.AllocsPerRun(1000, func() { value, err = TimestampFromTime(d, tc.raw) })
+			if err != nil || value.Type() != d || value.IsNull() {
+				t.Fatal(value, err)
+			}
+			got, err := value.TimestampTime()
+			if err != nil || got != tc.want {
+				t.Fatal(got, tc.want, err)
+			}
+			if allocations != 0 {
+				t.Fatalf("civil fractional input allocated %g times/run, want 0", allocations)
+			}
+		})
+	}
+}
+
 func TestTimestampEnvironmentAndCivilTime(t *testing.T) {
 	d := testTypes()[Timestamp]
 	ctx := context.Background()

@@ -68,6 +68,8 @@ type lexeme struct {
 	raw     string
 	pos     Position
 	keyword *keyword
+	numeric bool
+	generic bool
 }
 
 func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
@@ -256,6 +258,13 @@ func floatType(l sqlLexer, name, precision lexeme) (TypeName, bool) {
 }
 
 func timestampPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) {
+	if tok.numeric {
+		text := tok.text
+		if negative {
+			text = "-" + text
+		}
+		return TypeName{RawPrecision: text, PrecisionPos: tok.pos}, true
+	}
 	text := strings.ReplaceAll(tok.text, "_", "")
 	base := 10
 	if len(text) > 2 && text[0] == '0' && strings.ContainsRune("xXoObB", rune(text[1])) {
@@ -266,6 +275,13 @@ func timestampPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) 
 	}
 	n, err := strconv.ParseInt(text, base, 32)
 	if err != nil {
+		if tok.generic {
+			raw := tok.text
+			if negative {
+				raw = "-" + raw
+			}
+			return TypeName{RawPrecision: raw, PrecisionPos: tok.pos}, true
+		}
 		l.(*lexer).syntax(tok)
 		return TypeName{}, false
 	}
@@ -282,6 +298,7 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
 		return TypeName{}, false
 	}
+	l.(*lexer).genericTimestamp = true
 	return raw, true
 }
 

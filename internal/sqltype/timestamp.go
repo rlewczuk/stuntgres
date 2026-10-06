@@ -206,7 +206,10 @@ func TimestampFromTime(d *Descriptor, t time.Time) (Value, error) {
 		return Value{}, timestampError(timestampTimeInput(t), "zone", false)
 	}
 	h, min, s := t.Clock()
-	u := int(math.RoundToEven(float64(t.Nanosecond()) / 1000))
+	// Reproduce decimal fractional-second input's binary64 conversion before
+	// scaling; dividing nanoseconds directly by 1000 changes midpoint results.
+	fractionalSeconds := float64(t.Nanosecond()) / 1_000_000_000
+	u := int(math.RoundToEven(fractionalSeconds * 1_000_000))
 	n, err := civilTimestamp(y, int(m), day, h, min, s, u)
 	if err != nil {
 		return Value{}, timestampError(timestampTimeInput(t), "range", false)

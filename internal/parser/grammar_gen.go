@@ -2350,6 +2350,8 @@ sqldefault:
 			} else {
 				sqlVAL.typ = sqlDollar[1].typ
 				sqlVAL.typ.Precision = sqlDollar[2].typ.Precision
+				sqlVAL.typ.RawPrecision = sqlDollar[2].typ.RawPrecision
+				sqlVAL.typ.UnaryPlus = sqlDollar[2].typ.UnaryPlus
 				sqlVAL.typ.PrecisionPos = sqlDollar[2].typ.PrecisionPos
 			}
 		}
@@ -2486,6 +2488,7 @@ sqldefault:
 			if !ok {
 				return 1
 			}
+			sqlVAL.typ.UnaryPlus = true
 			sqlVAL.typ.PrecisionPos = sqlDollar[1].tok.pos
 		}
 	case 223:

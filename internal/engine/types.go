@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -105,11 +106,32 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 	if !d.Concrete() || d.ID() == sqltype.Name {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
+	if raw.UnaryPlus {
+		return sqltype.Usage{}, typeDiagnostic(raw, "42601", "type modifiers must be simple constants or identifiers")
+	}
 	u := d.Usage()
-	if raw.Precision != nil {
+	precision := raw.Precision
+	if raw.RawPrecision != "" {
+		integer, _ := view.LookupType(sqltype.Int4)
+		ctx := context.Background()
+		if op != nil {
+			ctx = op.Context()
+		}
+		value, err := integer.Input(ctx, raw.RawPrecision, -1)
+		if err != nil {
+			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
+		}
+		n, err := value.Integer()
+		if err != nil {
+			return sqltype.Usage{}, err
+		}
+		p := int32(n)
+		precision = &p
+	}
+	if precision != nil {
 		var warning *sqlstate.Error
 		var err error
-		u, warning, err = d.ResolveModifier(*raw.Precision)
+		u, warning, err = d.ResolveModifier(*precision)
 		if err != nil {
 			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
 		}

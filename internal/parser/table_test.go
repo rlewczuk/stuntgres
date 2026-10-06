@@ -129,7 +129,7 @@ func TestTableCoreTypeTailSourceLocations(t *testing.T) {
 }
 
 func TestTableCoreFloatTimestampModifierCoexistence(t *testing.T) {
-	q := `/*é*/ CREATE TABLE t(a FLOAT(24),b U&"time\0073tamp"(-1),c FLOAT(25),d TIMESTAMP(3) WITHOUT TIME ZONE,e "timestamp"(+7),f DOUBLE PRECISION)`
+	q := `/*é*/ CREATE TABLE t(a FLOAT(24),b U&"time\0073tamp"(-1),c FLOAT(25),d TIMESTAMP(3) WITHOUT TIME ZONE,e "timestamp"(7),f DOUBLE PRECISION)`
 	statements, err := Parse(q)
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +147,6 @@ func TestTableCoreFloatTimestampModifierCoexistence(t *testing.T) {
 	}
 	for _, tc := range []struct{ declaration, token string }{
 		{"FLOAT(+1)", "+"}, {"FLOAT(-1)", "-"}, {"FLOAT(1.5)", "1.5"},
-		{`U&"time\0073tamp"(1.5)`, "1.5"},
 	} {
 		q := `/*é*/ CREATE TABLE t(a "timestamp"(-1),b ` + tc.declaration + `)`
 		_, err := Parse(q)
@@ -157,6 +156,16 @@ func TestTableCoreFloatTimestampModifierCoexistence(t *testing.T) {
 		if !errors.As(err, &got) || *got != want {
 			t.Fatal(q, got, err, want)
 		}
+	}
+	// A complete numeric token in a quoted generic modifier is retained for
+	// descriptor-time int4 input, unlike FLOAT's unsigned Iconst grammar.
+	generic, err := Parse(`/*é*/ CREATE TABLE t(a "timestamp"(-1),b U&"time\0073tamp"(1.5))`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := generic[0].(*CreateTable).Elements[1].Column.TypeName
+	if raw.RawPrecision != "1.5" || raw.Precision != nil {
+		t.Fatal(raw)
 	}
 	_, err = Parse(`CREATE TABLE t(a FLOAT(24),b "timestamp"(3)); SELECT 1.5 FROM t`)
 	var got *sqlstate.Error
