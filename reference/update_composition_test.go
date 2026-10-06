@@ -233,3 +233,105 @@ func TestReferenceUpdateCoreCompositionAtomicNotNull(t *testing.T) {
 		})
 	}
 }
+
+// PostgreSQL-only consumers specify UPDATE results independently of the native
+// evaluator. No native engine, parser, storage or diagnostic helpers are used.
+func TestReferenceUpdateCoreCompositionArithmetic(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
+			p := newReferencePair(t)
+			c, err := p.postgres.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			run := func(step referenceStep) { referenceRunStep(t, p.ctx, c, p.postgresRecord, step) }
+			run(referenceExec("CREATE TABLE t(id INT,a INT,b INT)", 0))
+			run(referenceExec("INSERT INTO t VALUES(1,7,2),(1,7,2),(2,NULL,4)", 3))
+			q := "UPDATE t SET a=a+b,b=a-b WHERE id+$1=$2"
+			execute := func(args ...any) (sql.Result, error) { return c.ExecContext(p.ctx, q, args...) }
+			if prepared {
+				held, err := c.PrepareContext(p.ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer held.Close()
+				execute = func(args ...any) (sql.Result, error) { return held.ExecContext(p.ctx, args...) }
+			}
+			for _, frame := range []struct {
+				args []any
+				n    int64
+				rows [][]any
+			}{
+				{[]any{1, 2}, 2, [][]any{{int64(1), int64(9), int64(5)}, {int64(1), int64(9), int64(5)}, {int64(2), nil, int64(4)}}},
+				{[]any{nil, 2}, 0, [][]any{{int64(1), int64(9), int64(5)}, {int64(1), int64(9), int64(5)}, {int64(2), nil, int64(4)}}},
+				{[]any{0, 1}, 2, [][]any{{int64(1), int64(14), int64(4)}, {int64(1), int64(14), int64(4)}, {int64(2), nil, int64(4)}}},
+				{[]any{0, 2}, 1, [][]any{{int64(1), int64(14), int64(4)}, {int64(1), int64(14), int64(4)}, {int64(2), nil, nil}}},
+			} {
+				result, err := execute(frame.args...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				referenceLockAffected(t, result, frame.n)
+				run(referenceSelect("SELECT id,a,b FROM t ORDER BY id", []string{"id", "a", "b"}, []string{"INT4", "INT4", "INT4"}, frame.rows))
+			}
+			run(referenceSelect("SELECT id,a,b FROM t WHERE FALSE", []string{"id", "a", "b"}, []string{"INT4", "INT4", "INT4"}, [][]any{}))
+		})
+	}
+}
+
+func TestReferenceUpdateCoreCompositionArithmeticAtomicity(t *testing.T) {
+	for _, tc := range []struct {
+		input, q, code, message string
+		rows                    [][]any
+	}{
+		{"(1,7,2),(2,0,4),(3,NULL,6)", "UPDATE t SET a=14/a,b=b+1", "22012", "division by zero", [][]any{{int64(1), int64(7), int64(2)}, {int64(2), int64(0), int64(4)}, {int64(3), nil, int64(6)}}},
+		{"(1,1,2),(2,2147483647,4)", "UPDATE t SET a=a+1,b=b+1", "22003", "integer out of range", [][]any{{int64(1), int64(1), int64(2)}, {int64(2), int64(2147483647), int64(4)}}},
+	} {
+		for _, prepared := range []bool{false, true} {
+			for _, explicit := range []bool{false, true} {
+				t.Run(tc.code+map[bool]string{false: "/direct", true: "/prepared"}[prepared]+map[bool]string{false: "/implicit", true: "/explicit"}[explicit], func(t *testing.T) {
+					p := newReferencePair(t)
+					c, err := p.postgres.Conn(p.ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer c.Close()
+					defer func() {
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						defer cancel()
+						if _, err := c.ExecContext(ctx, "ROLLBACK"); err != nil {
+							t.Error(err)
+						}
+					}()
+					run := func(step referenceStep) { referenceRunStep(t, p.ctx, c, p.postgresRecord, step) }
+					run(referenceExec("CREATE TABLE t(id INT,a INT,b INT)", 0))
+					run(referenceExec("INSERT INTO t VALUES"+tc.input, int64(len(tc.rows))))
+					execute := func() (sql.Result, error) { return c.ExecContext(p.ctx, tc.q) }
+					if prepared {
+						held, err := c.PrepareContext(p.ctx, tc.q)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer held.Close()
+						execute = func() (sql.Result, error) { return held.ExecContext(p.ctx) }
+					}
+					if explicit {
+						run(referenceExec("BEGIN", 0))
+						run(referenceExec("UPDATE t SET b=99 WHERE id=1", 1))
+					}
+					result, err := execute()
+					if result != nil {
+						t.Fatal("failed UPDATE returned a result")
+					}
+					referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message})
+					if explicit {
+						run(referenceImplicitError("UPDATE t SET b=0", referenceDiagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
+						run(referenceExec("ROLLBACK", 0))
+					}
+					run(referenceSelect("SELECT id,a,b FROM t ORDER BY id", []string{"id", "a", "b"}, []string{"INT4", "INT4", "INT4"}, tc.rows))
+				})
+			}
+		}
+	}
+}

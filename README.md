@@ -970,8 +970,11 @@ column metadata still require exact sequence equality.
 existing scalar literals, parameters, old unqualified columns, comparisons,
 Boolean operators/grouping, null/truth/distinct predicates, baseline explicit
 INTEGER/BIGINT/TEXT/BOOLEAN casts and standalone selected null-count calls.
+Existing INTEGER/BIGINT arithmetic also participates in SET and WHERE through
+the same binder and provider, preserving its operand/type boundaries, NULL
+propagation and division/overflow errors; UPDATE adds no arithmetic provider.
 DATE and BYTEA participate through existing destination/contextual input rules,
-including typed NULL; this does not add explicit DATE/BYTEA casts, arithmetic,
+including typed NULL; this does not add explicit DATE/BYTEA casts or arithmetic,
 UPDATE FROM, aliases, row/subquery assignment, CURRENT OF, DEFAULT, RETURNING
 or general casts/functions.
 
@@ -983,6 +986,11 @@ returns zero. Direct and prepared commands expose this count through
 RowsAffected, with no returned row schema or LastInsertId. Analysis rejects bad
 targets/types/duplicate assignments even on an empty table; late conversion,
 constraint or cancellation failures publish none of the statement's rows.
+Assignment type mismatch (`42804`) retains the rewrite/cast Hint and points to
+the RHS expression start, not an arithmetic operator. Grouping is transparent,
+postfix casts retain their operand's start, and Position counts UTF8 characters
+rather than bytes. This applies to direct execution and semantic Prepare;
+operator-resolution errors retain their own operator-token positions.
 REAL/DOUBLE PRECISION column assignments to SMALLINT/INTEGER/BIGINT round ties
 to even before checking the destination's signed bounds. NaN, infinities and
 out-of-range rounded values fail with 22003 and no partial effects. This is a

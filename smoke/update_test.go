@@ -276,4 +276,89 @@ func TestUpdateCoreSmoke(t *testing.T) {
 	if err = mixedOld.Err(); err != nil || !reflect.DeepEqual(oldMixed, [][]int64{{1, 10}, {2, 20}}) {
 		t.Fatal("retained mixed source", oldMixed, err)
 	}
+	// Consume the incumbent integer arithmetic provider through UPDATE, with
+	// simultaneous old-row RHSs and a retained parameterized statement.
+	exec(b, "CREATE TABLE arithmetic_update(id INT,a INT,b INT)", false, 0)
+	exec(b, "INSERT INTO arithmetic_update VALUES(1,7,2),(1,7,2),(2,NULL,4)", false, 3)
+	arithmetic, err := b.PrepareContext(ctx, "UPDATE arithmetic_update SET a=a+b,b=a-b WHERE id+$1=$2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer arithmetic.Close()
+	for _, frame := range []struct {
+		arg any
+		n   int64
+	}{
+		{1, 2},
+		{nil, 0},
+		{1, 2},
+	} {
+		r, err := arithmetic.ExecContext(ctx, frame.arg, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n, err := r.RowsAffected(); err != nil || n != frame.n {
+			t.Fatal(n, err)
+		}
+	}
+	exec(b, "UPDATE arithmetic_update SET a=a+b,b=a-b WHERE id+0=2", false, 1)
+	arithmeticRows, err := b.QueryContext(ctx, "SELECT id,a,b FROM arithmetic_update ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer arithmeticRows.Close()
+	arithmeticBag := [][]any{}
+	for arithmeticRows.Next() {
+		var id, a, b any
+		if err := arithmeticRows.Scan(&id, &a, &b); err != nil {
+			t.Fatal(err)
+		}
+		arithmeticBag = append(arithmeticBag, []any{id, a, b})
+	}
+	if err := arithmeticRows.Err(); err != nil || !reflect.DeepEqual(arithmeticBag, [][]any{{int64(1), int64(14), int64(4)}, {int64(1), int64(14), int64(4)}, {int64(2), nil, nil}}) {
+		t.Fatal("arithmetic UPDATE simultaneous/null bag", arithmeticBag, err)
+	}
+	exec(b, "CREATE TABLE u(f BOOL)", false, 0)
+	exec(b, "INSERT INTO u VALUES(TRUE),(FALSE)", false, 2)
+	for _, tc := range []struct {
+		q, position string
+	}{
+		{"UPDATE u SET f=1+2", "16"},
+		{"/*é*/ UPDATE u SET f=(1+2)", "23"},
+	} {
+		want := stuntgres.Error{Code: "42804", Message: `column "f" is of type boolean but expression is of type integer`, Hint: "You will need to rewrite or cast the expression.", Position: tc.position}
+		result, err := b.ExecContext(ctx, tc.q)
+		if result != nil {
+			t.Fatal("contextual mismatch returned a result")
+		}
+		if err := typeCoreDiagnostic(err, want); err != nil {
+			t.Fatal(err)
+		}
+		stmt, err := b.PrepareContext(ctx, tc.q)
+		if stmt != nil {
+			stmt.Close()
+			t.Fatal("contextual mismatch prepared")
+		}
+		if err := typeCoreDiagnostic(err, want); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := b.QueryContext(ctx, "SELECT f FROM u ORDER BY f")
+		if err != nil {
+			t.Fatal(err)
+		}
+		flags := []bool{}
+		for rows.Next() {
+			var flag bool
+			if err := rows.Scan(&flag); err != nil {
+				rows.Close()
+				t.Fatal(err)
+			}
+			flags = append(flags, flag)
+		}
+		rowErr := rows.Err()
+		closeErr := rows.Close()
+		if rowErr != nil || closeErr != nil || !reflect.DeepEqual(flags, []bool{false, true}) {
+			t.Fatal("contextual mismatch changed prior values", flags, rowErr, closeErr)
+		}
+	}
 }

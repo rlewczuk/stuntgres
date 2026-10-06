@@ -177,3 +177,115 @@ func TestUpdateCoreCompositionAtomicNotNull(t *testing.T) {
 		}
 	}
 }
+
+func TestUpdateCoreCompositionArithmetic(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), t.Name())
+			db.SetMaxOpenConns(2)
+			execSQL(t, db, "CREATE TABLE t(id INT,a INT,b INT)")
+			execSQL(t, db, "INSERT INTO t VALUES(1,7,2),(1,7,2),(2,NULL,4)")
+			old, err := db.Query("SELECT id,a,b FROM t ORDER BY id")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer old.Close()
+			q := "UPDATE t SET a=a+b,b=a-b WHERE id+$1=$2"
+			execute := func(args ...any) (int64, error) {
+				r, err := db.Exec(q, args...)
+				if err != nil {
+					return 0, err
+				}
+				return r.RowsAffected()
+			}
+			if prepared {
+				held, err := db.Prepare(q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer held.Close()
+				execute = func(args ...any) (int64, error) {
+					r, err := held.Exec(args...)
+					if err != nil {
+						return 0, err
+					}
+					return r.RowsAffected()
+				}
+			}
+			types := []string{"INT4", "INT4", "INT4"}
+			check := func(want [][]any) {
+				arithmeticRows(t, db, "SELECT id,a,b FROM t ORDER BY id", types, want)
+			}
+			for _, frame := range []struct {
+				args []any
+				n    int64
+				rows [][]any
+			}{
+				{[]any{1, 2}, 2, [][]any{{int64(1), int64(9), int64(5)}, {int64(1), int64(9), int64(5)}, {int64(2), nil, int64(4)}}},
+				{[]any{nil, 2}, 0, [][]any{{int64(1), int64(9), int64(5)}, {int64(1), int64(9), int64(5)}, {int64(2), nil, int64(4)}}},
+				{[]any{0, 1}, 2, [][]any{{int64(1), int64(14), int64(4)}, {int64(1), int64(14), int64(4)}, {int64(2), nil, int64(4)}}},
+				{[]any{0, 2}, 1, [][]any{{int64(1), int64(14), int64(4)}, {int64(1), int64(14), int64(4)}, {int64(2), nil, nil}}},
+			} {
+				if n, err := execute(frame.args...); err != nil || n != frame.n {
+					t.Fatal(n, err, frame)
+				}
+				check(frame.rows)
+			}
+			arithmeticRows(t, db, "SELECT id,a,b FROM t WHERE FALSE", types, [][]any{})
+			compareOpsRows(t, old, nil, types, [][]any{{int64(1), int64(7), int64(2)}, {int64(1), int64(7), int64(2)}, {int64(2), nil, int64(4)}})
+		})
+	}
+}
+
+func TestUpdateCoreCompositionArithmeticAtomicity(t *testing.T) {
+	for _, tc := range []struct {
+		input, q, code, message string
+		rows                    [][]any
+	}{
+		{"(1,7,2),(2,0,4),(3,NULL,6)", "UPDATE t SET a=14/a,b=b+1", "22012", "division by zero", [][]any{{int64(1), int64(7), int64(2)}, {int64(2), int64(0), int64(4)}, {int64(3), nil, int64(6)}}},
+		{"(1,1,2),(2,2147483647,4)", "UPDATE t SET a=a+1,b=b+1", "22003", "integer out of range", [][]any{{int64(1), int64(1), int64(2)}, {int64(2), int64(2147483647), int64(4)}}},
+	} {
+		for _, prepared := range []bool{false, true} {
+			for _, explicit := range []bool{false, true} {
+				t.Run(tc.code+map[bool]string{false: "/direct", true: "/prepared"}[prepared]+map[bool]string{false: "/implicit", true: "/explicit"}[explicit], func(t *testing.T) {
+					db := openLocal(t, stuntgres.NewDriver(), t.Name())
+					db.SetMaxOpenConns(1)
+					execSQL(t, db, "CREATE TABLE t(id INT,a INT,b INT)")
+					execSQL(t, db, "INSERT INTO t VALUES"+tc.input)
+					execute := func() error {
+						r, err := db.Exec(tc.q)
+						if r != nil {
+							t.Fatal("failed UPDATE returned a result")
+						}
+						return err
+					}
+					if prepared {
+						held, err := db.Prepare(tc.q)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer held.Close()
+						execute = func() error {
+							r, err := held.Exec()
+							if r != nil {
+								t.Fatal("failed prepared UPDATE returned a result")
+							}
+							return err
+						}
+					}
+					if explicit {
+						execSQL(t, db, "BEGIN")
+						execSQL(t, db, "UPDATE t SET b=99 WHERE id=1")
+					}
+					typeCoreDiagnostic(t, execute(), stuntgres.Error{Code: tc.code, Message: tc.message})
+					if explicit {
+						_, err := db.Exec("UPDATE t SET b=0")
+						typeCoreDiagnostic(t, err, stuntgres.Error{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
+						execSQL(t, db, "ROLLBACK")
+					}
+					arithmeticRows(t, db, "SELECT id,a,b FROM t ORDER BY id", []string{"INT4", "INT4", "INT4"}, tc.rows)
+				})
+			}
+		}
+	}
+}

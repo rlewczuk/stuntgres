@@ -221,3 +221,60 @@ func TestReferenceUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 		}
 	}
 }
+
+// Independently specified PostgreSQL-only contextual assignment goldens. The
+// positions are literal character offsets, not native AST/provider output.
+func TestReferenceUpdateCoreArithmeticAssignmentDiagnostic(t *testing.T) {
+	p := newReferencePair(t)
+	conn, err := p.postgres.Conn(p.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	run := func(step referenceStep) { referenceRunStep(t, p.ctx, conn, p.postgresRecord, step) }
+	run(referenceExec("CREATE TABLE t(f BOOL)", 0))
+	for _, populated := range []bool{false, true} {
+		wantRows := [][]any{}
+		if populated {
+			run(referenceExec("INSERT INTO t VALUES(TRUE),(FALSE)", 2))
+			wantRows = [][]any{{false}, {true}}
+		}
+		for _, tc := range []struct {
+			name, q, position, typ string
+		}{
+			{"plain", "UPDATE t SET f=1+2", "16", "integer"},
+			{"grouped", "UPDATE t SET f=(1+2)", "17", "integer"},
+			{"utf8_grouped", "/*é*/ UPDATE t SET f=(1+2)", "23", "integer"},
+			{"postfix", "UPDATE t SET f=(1+2)::bigint", "17", "bigint"},
+		} {
+			for _, protocol := range []string{"exec", "query", "prepare"} {
+				t.Run(map[bool]string{false: "empty", true: "populated"}[populated]+"/"+tc.name+"/"+protocol, func(t *testing.T) {
+					defer run(referenceSelect("SELECT f FROM t ORDER BY f", []string{"f"}, []string{"BOOL"}, wantRows))
+					want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: `column "f" is of type boolean but expression is of type ` + tc.typ, Hint: "You will need to rewrite or cast the expression.", Position: tc.position}
+					switch protocol {
+					case "exec":
+						result, err := conn.ExecContext(p.ctx, tc.q)
+						if result != nil {
+							t.Fatal("invalid assignment returned a result")
+						}
+						referenceAssertDiagnostic(t, err, &want)
+					case "query":
+						rows, err := conn.QueryContext(p.ctx, tc.q)
+						if rows != nil {
+							rows.Close()
+							t.Fatal("invalid assignment exposed rows")
+						}
+						referenceAssertDiagnostic(t, err, &want)
+					case "prepare":
+						stmt, err := conn.PrepareContext(p.ctx, tc.q)
+						if stmt != nil {
+							stmt.Close()
+							t.Fatal("invalid assignment prepared")
+						}
+						referenceAssertDiagnostic(t, err, &want)
+					}
+				})
+			}
+		}
+	}
+}

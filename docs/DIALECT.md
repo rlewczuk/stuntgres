@@ -157,17 +157,23 @@ independent pinned reference: `make reference RUN='^TestReferenceCompareOps' VER
 
 UPDATE supports schema-qualified/quoted target relations, ordered scalar SET
 assignments and optional Boolean WHERE. RHS literals/parameters/old unqualified
-columns/comparisons/logical operators/grouping/selected null-count roots use the
-existing expression binder; arithmetic, aliases, FROM, row/subquery assignment,
-CURRENT OF, DEFAULT, RETURNING and general casts/functions remain excluded.
+columns/comparisons/logical operators/grouping/selected null-count roots and
+existing INTEGER/BIGINT arithmetic use the same expression binder; aliases,
+FROM, row/subquery assignment, CURRENT OF, DEFAULT, RETURNING and general
+casts/functions remain excluded. Arithmetic retains its existing operand/type
+boundaries, NULL propagation and division/overflow errors, with no new provider.
 Assignments are simultaneous against one old row, preserve unassigned fields,
 apply destination type/typmod and then enforce whole-row NOT NULL. Counts include
 unchanged matches and duplicate occurrences once each; no match is zero.
 Analysis errors are eager even on empty/no-match input; unknown literal input
 belongs to analysis, immutable destination casts fold during Execute (including
 empty/WHERE FALSE), and row-dependent conversion runs only for qualifying rows.
-Duplicate assignments are42601 without Position; assignment42804 retains RHS
-Position/Hint; runtime NOT NULL includes permission-filtered updated-row Detail
+Duplicate assignments are42601 without Position; assignment42804 retains the
+rewrite/cast Hint and RHS expression-start Position in direct execution and
+semantic Prepare. Grouping is transparent, postfix casts retain the operand's
+start, and positions count UTF8 characters, not bytes. This does not change
+operator-resolution errors' operator-token positions.
+Runtime NOT NULL includes permission-filtered updated-row Detail
 and schema/table/column but no Constraint/Position. Table SELECT, default owner
 authority and superuser retain the complete unlabelled row. Otherwise Detail
 lists modified targets plus SELECT-readable retained columns in physical order
