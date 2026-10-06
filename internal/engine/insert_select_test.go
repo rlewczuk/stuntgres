@@ -268,7 +268,7 @@ func TestInsertSelectSourceLockIdentity(t *testing.T) {
 		lockPending(t, e, 1)
 		target := catalogRef(t, e, e.CatalogRead(), "t")
 		e.locks.mu.Lock()
-		entry := e.locks.entries[target]
+		entry := e.locks.entries[lockResource{ObjectRef: target}]
 		held := false
 		if entry != nil {
 			for _, mode := range entry.holders {
