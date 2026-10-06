@@ -476,6 +476,9 @@ BPCHAR semantics. ORDER BY uses UTF8/C byte comparison, without general
 locale/collation claims. No general functions or no-FROM query expansion are added.
 Column output labels survive nested casts; casts of unknown strings/NULL/
 parameters instead use the outermost resolved type's catalog name.
+An identical-Usage cast of a column retains native physical origin/nullability
+proof; typmod changes or retyping produce an expression with no origin and
+unknown nullability, also through later identity casts of that expression.
 
 BPCHAR/VARCHAR/TEXT native metadata has string ScanType and Length n or
 MaxInt64, retained for NULL/empty/closed/old-snapshot results. lib/pq's BPCHAR

@@ -88,3 +88,38 @@ func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 		}
 	}
 }
+
+func TestCharacterCastIdentityColumnProof(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE proof(c CHAR(3) NOT NULL,v VARCHAR(3),t TEXT NOT NULL,u BPCHAR,n CHAR(3))")
+	op, done, err := testOperation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	base, err := e.Describe(op, statement(t, "SELECT * FROM proof"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := "SELECT c::char(3),c::char(4),v::varchar(3),v::varchar(2),CAST(t AS text),u::bpchar,n::char(3),c::char(3)::char(3),c::char(4)::char(4) FROM proof"
+	description, err := e.Describe(op, statement(t, q))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Positive entries copy a physical descriptor exactly, including origin,
+	// NOT NULL and typmod. Zero entries are genuine conversions with no proof.
+	origins := []int{1, 0, 2, 0, 3, 4, 5, 1, 0}
+	if len(description.Results) != len(origins) {
+		t.Fatal(description.Results)
+	}
+	for i, origin := range origins {
+		got := description.Results[i]
+		if origin > 0 {
+			if got != base.Results[origin-1] {
+				t.Fatal("identity lost column proof", i, got, base.Results[origin-1])
+			}
+		} else if got.NullabilityKnown || got.Nullable || got.OriginTable != 0 || got.OriginAttribute != 0 {
+			t.Fatal("conversion fabricated column proof", i, got)
+		}
+	}
+}

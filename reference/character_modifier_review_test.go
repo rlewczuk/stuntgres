@@ -48,7 +48,7 @@ func TestReferenceCharacterReviewModifierOracle(t *testing.T) {
 					return
 				}
 				t.Logf("query=%q prepared=%t stage=execute accepted length=2", q, prepared)
-				referenceCharacterMetadata(t, p, p.postgres, "SELECT v FROM invalid", prepared, false, true, []string{"v"}, []string{tc.typ}, []int64{2})
+				referenceCharacterMetadata(t, p, p.postgres, "SELECT v FROM invalid", prepared, false, []string{"v"}, []string{tc.typ}, []int64{2}, nil)
 				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("INSERT INTO invalid VALUES('a')", 1))
 				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect("SELECT v FROM invalid", []string{"v"}, []string{tc.typ}, [][]any{{tc.value}}))
 				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("DROP TABLE invalid", 0))
@@ -77,8 +77,8 @@ func TestReferenceCharacterReviewModifierDiagnostics(t *testing.T) {
 					s = referencePrepared(s)
 				}
 				p.step(t, s)
-				referenceCharacterMetadata(t, p, p.memory, "SELECT v FROM invalid", prepared, true, true, []string{"v"}, []string{tc.typ}, []int64{2})
-				referenceCharacterMetadata(t, p, p.postgres, "SELECT v FROM invalid", prepared, false, true, []string{"v"}, []string{tc.typ}, []int64{2})
+				referenceCharacterMetadata(t, p, p.memory, "SELECT v FROM invalid", prepared, true, []string{"v"}, []string{tc.typ}, []int64{2}, []referenceCharacterNullability{{true,true}})
+				referenceCharacterMetadata(t, p, p.postgres, "SELECT v FROM invalid", prepared, false, []string{"v"}, []string{tc.typ}, []int64{2}, nil)
 				p.step(t, referenceExec("INSERT INTO invalid VALUES('a')", 1))
 				p.step(t, referenceSelect("SELECT v FROM invalid", []string{"v"}, []string{tc.typ}, [][]any{{tc.value}}))
 				p.step(t, referenceExec("DROP TABLE invalid", 0))

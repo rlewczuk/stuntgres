@@ -970,6 +970,10 @@ reports BPCHAR ScanType interface{} and unlimited BPCHAR/VARCHAR Length -5;
 these adapter quirks are not copied into native metadata.
 Column-derived labels survive nested casts; casts of unknown strings, NULL and
 parameters use the outermost resolved type's catalog name as their output label.
+Identical-Usage column casts retain native physical origin and known nullability,
+including NOT NULL. Resizing or retyping is a genuine expression with unknown
+nullability and no origin; a later identity cast of that expression does not
+restore the physical proof.
 
 Invalid string encoding uses22021 with PostgreSQL English byte diagnostics.
 Native binds have no wire portal Context. Both native and PostgreSQL CREATE

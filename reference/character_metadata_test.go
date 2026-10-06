@@ -9,7 +9,9 @@ import (
 	"testing"
 )
 
-func referenceCharacterMetadata(t *testing.T, p *referencePair, db *sql.DB, query string, prepared, native, physical bool, names, types []string, lengths []int64) {
+type referenceCharacterNullability struct{ nullable, known bool }
+
+func referenceCharacterMetadata(t *testing.T, p *referencePair, db *sql.DB, query string, prepared, native bool, names, types []string, lengths []int64, nullability []referenceCharacterNullability) {
 	t.Helper()
 	var rows *sql.Rows
 	var err error
@@ -31,6 +33,9 @@ func referenceCharacterMetadata(t *testing.T, p *referencePair, db *sql.DB, quer
 	if err != nil || len(columns) != len(types) {
 		t.Fatal(columns, err)
 	}
+	if native && len(nullability) != len(columns) {
+		t.Fatal("missing independent per-column nullability", query, nullability)
+	}
 	check := func() {
 		for i, column := range columns {
 			want := lengths[i]
@@ -51,8 +56,8 @@ func referenceCharacterMetadata(t *testing.T, p *referencePair, db *sql.DB, quer
 			}
 			value, known := column.Nullable()
 			if native {
-				if value != physical || known != physical {
-					t.Fatal("native nullable contract", value, known, physical)
+				if value != nullability[i].nullable || known != nullability[i].known {
+					t.Fatal("native nullable contract", query, i, value, known, nullability[i])
 				}
 			} else if value || known {
 				t.Fatal("pq nullable contract", value, known)
@@ -86,8 +91,8 @@ func TestReferenceCharacterAliasesAndMetadata(t *testing.T) {
 		t.Run(tc.declaration, func(t *testing.T) {
 			p.step(t, referenceExec("CREATE TABLE aliases(v "+tc.declaration+")", 0))
 			for _, prepared := range []bool{false, true} {
-				referenceCharacterMetadata(t, p, p.memory, "SELECT v FROM aliases", prepared, true, true, []string{"v"}, []string{tc.typ}, []int64{tc.length})
-				referenceCharacterMetadata(t, p, p.postgres, "SELECT v FROM aliases", prepared, false, true, []string{"v"}, []string{tc.typ}, []int64{tc.length})
+				referenceCharacterMetadata(t, p, p.memory, "SELECT v FROM aliases", prepared, true, []string{"v"}, []string{tc.typ}, []int64{tc.length}, []referenceCharacterNullability{{true, true}})
+				referenceCharacterMetadata(t, p, p.postgres, "SELECT v FROM aliases", prepared, false, []string{"v"}, []string{tc.typ}, []int64{tc.length}, nil)
 			}
 			p.step(t, referenceExec("INSERT INTO aliases VALUES('é'),(NULL)", 2))
 			s := referenceSelect("SELECT v FROM aliases", []string{"v"}, []string{tc.typ}, [][]any{{tc.value}, {nil}})
@@ -107,8 +112,11 @@ func TestReferenceCharacterAliasesAndMetadata(t *testing.T) {
 		names := []string{"c", "v", "t", "c", "v"}
 		types := []string{"VARCHAR", "BPCHAR", "TEXT", "TEXT", "VARCHAR"}
 		lengths := []int64{2, 4, -1, -1, 3}
-		referenceCharacterMetadata(t, p, p.memory, columnQuery, prepared, true, false, names, types, lengths)
-		referenceCharacterMetadata(t, p, p.postgres, columnQuery, prepared, false, false, names, types, lengths)
+		// Only CAST(t AS text) is identical Usage and retains the physical
+		// column proof. Resizing/retyping casts remain genuine expressions.
+		nullability := []referenceCharacterNullability{{}, {}, {true, true}, {}, {}}
+		referenceCharacterMetadata(t, p, p.memory, columnQuery, prepared, true, names, types, lengths, nullability)
+		referenceCharacterMetadata(t, p, p.postgres, columnQuery, prepared, false, names, types, lengths, nil)
 	}
 	p.step(t, referenceExec("CREATE TABLE seed(i INT)", 0))
 	p.step(t, referenceExec("INSERT INTO seed VALUES(1)", 1))
@@ -117,12 +125,42 @@ func TestReferenceCharacterAliasesAndMetadata(t *testing.T) {
 	types := []string{"BPCHAR", "VARCHAR", "TEXT", "BPCHAR", "VARCHAR"}
 	lengths := []int64{3, 2, -1, -1, -1}
 	for _, prepared := range []bool{false, true} {
-		referenceCharacterMetadata(t, p, p.memory, q, prepared, true, false, names, types, lengths)
-		referenceCharacterMetadata(t, p, p.postgres, q, prepared, false, false, names, types, lengths)
+		referenceCharacterMetadata(t, p, p.memory, q, prepared, true, names, types, lengths, make([]referenceCharacterNullability, len(types)))
+		referenceCharacterMetadata(t, p, p.postgres, q, prepared, false, names, types, lengths, nil)
 		s := referenceSelect(q, names, types, [][]any{{nil, nil, nil, nil, nil}})
 		if prepared {
 			s = referencePrepared(s)
 		}
 		p.step(t, s)
+	}
+}
+
+func TestReferenceCharacterCastIdentityMetadata(t *testing.T) {
+	p := newReferencePair(t)
+	p.step(t, referenceExec("CREATE TABLE proof(c CHAR(3) NOT NULL,v VARCHAR(3),t TEXT NOT NULL,u BPCHAR,n CHAR(3))", 0))
+	q := "SELECT c::char(3),c::char(4),v::varchar(3),v::varchar(2),CAST(t AS text),u::bpchar,n::char(3),c::char(3)::char(3),c::char(4)::char(4) FROM proof"
+	names := []string{"c", "c", "v", "v", "t", "u", "n", "c", "c"}
+	types := []string{"BPCHAR", "BPCHAR", "VARCHAR", "VARCHAR", "TEXT", "BPCHAR", "BPCHAR", "BPCHAR", "BPCHAR"}
+	lengths := []int64{3, 4, 3, 2, -1, -1, 3, 3, 4}
+	// Identity casts preserve the physical nullable/not-null proof. Typmod
+	// changes, including a nested identity of a changed expression, do not.
+	nullability := []referenceCharacterNullability{{false, true}, {}, {true, true}, {}, {false, true}, {true, true}, {true, true}, {false, true}, {}}
+	for _, populated := range []bool{false, true} {
+		if populated {
+			p.step(t, referenceExec("INSERT INTO proof VALUES('a','b  ','tail ','u  ',NULL)", 1))
+		}
+		for _, prepared := range []bool{false, true} {
+			referenceCharacterMetadata(t, p, p.memory, q, prepared, true, names, types, lengths, nullability)
+			referenceCharacterMetadata(t, p, p.postgres, q, prepared, false, names, types, lengths, nil)
+			var values [][]any
+			if populated {
+				values = [][]any{{"a  ", "a   ", "b  ", "b ", "tail ", "u  ", nil, "a  ", "a   "}}
+			}
+			s := referenceSelect(q, names, types, values)
+			if prepared {
+				s = referencePrepared(s)
+			}
+			p.step(t, s)
+		}
 	}
 }

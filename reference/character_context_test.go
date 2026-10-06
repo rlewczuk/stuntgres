@@ -2,7 +2,10 @@
 
 package reference_test
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+)
 
 // Character assignment IO must not widen function argument coercion. Character
 // casts use the existing comparison/logical surface without replacing its
@@ -15,6 +18,8 @@ func TestReferenceCharacterContextBoundaries(t *testing.T) {
 		referenceSelect("SELECT c FROM seed WHERE 1=1", []string{"c"}, []string{"BPCHAR"}, [][]any{{"a "}}),
 		referenceSelect("SELECT CAST(c AS text)='a',c='a   ',CAST('a ' AS text)=c FROM seed", []string{"?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, false}}),
 		referenceSelect("SELECT c FROM seed WHERE CAST(c AS text)='a' AND NOT CAST('a ' AS text)=c", []string{"c"}, []string{"BPCHAR"}, [][]any{{"a "}}),
+		referenceSelect("SELECT text(c),CAST(CAST('123 ' AS varchar) AS text)::int4 FROM seed", []string{"text", "int4"}, []string{"TEXT", "INT4"}, [][]any{{"a", int64(123)}}),
+		referenceSelect("SELECT CAST(CAST(123 AS text) AS bpchar(4)) FROM seed", []string{"bpchar"}, []string{"BPCHAR"}, [][]any{{"123 "}}),
 	} {
 		p.step(t, s)
 		p.step(t, referencePrepared(s))
@@ -55,4 +60,44 @@ func TestReferenceCharacterContextBoundaries(t *testing.T) {
 		}
 	}
 	p.step(t, referenceSelect("SELECT c FROM seed", []string{"c"}, []string{"BPCHAR"}, [][]any{{"a "}}))
+}
+
+func TestReferenceCharacterSelectedSingletonCastArguments(t *testing.T) {
+	p := newReferencePair(t)
+	q := "SELECT num_nulls(CAST($1 AS bpchar),CAST($1 AS text)),num_nonnulls(CAST($1 AS bpchar),CAST($1 AS text))"
+	for _, db := range []*sql.DB{p.memory, p.postgres} {
+		for _, prepared := range []bool{false, true} {
+			var stmt *sql.Stmt
+			if prepared {
+				var err error
+				stmt, err = db.PrepareContext(p.ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, frame := range []struct {
+				input any
+				want  []any
+			}{
+				{"a  ", []any{int64(0), int64(2)}},
+				{nil, []any{int64(2), int64(0)}},
+				{"z ", []any{int64(0), int64(2)}},
+			} {
+				var rows *sql.Rows
+				var err error
+				if prepared {
+					rows, err = stmt.QueryContext(p.ctx, frame.input)
+				} else {
+					rows, err = db.QueryContext(p.ctx, q, frame.input)
+				}
+				if err != nil {
+					t.Fatal(q, prepared, frame.input, err)
+				}
+				characterParameterReviewRows(t, rows, []string{"num_nulls", "num_nonnulls"}, []string{"INT4", "INT4"}, frame.want)
+			}
+			if stmt != nil {
+				stmt.Close()
+			}
+		}
+	}
 }
