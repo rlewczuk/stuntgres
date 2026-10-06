@@ -249,7 +249,7 @@ func TestNotNullInheritanceCompleteInputAndNoEffects(t *testing.T) {
 						if rows != nil {
 							rows.Close()
 						}
-						notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "` + name + `" does not exist`})
+						notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "` + name + `" does not exist`, Position: "15"})
 					}
 				})
 			}

@@ -72,6 +72,12 @@ element position onto fresh attributes, never hierarchy or source dependencies.
 Selected ALTER TABLE actions are ALTER [COLUMN] c SET/DROP NOT NULL, ADD
 [CONSTRAINT n] NOT NULL c, and DROP CONSTRAINT [IF EXISTS] n [RESTRICT|CASCADE].
 They share t/t*/ONLY t/ONLY(t), OwnerOnly AX and metadata-only effect-free Prepare.
+Execution captures the admitted command's lock_timeout policy; blocked utilities
+fail55P03 without Position or catalog effects, even for semantic no-ops.
+Prepare does not resolve or wait for these utility targets. In contrast, a
+subsequent absence probe `SELECT * FROM t` is analyzed on direct Exec/Query or
+semantic Prepare and returns42P01 at character15 on both native and PostgreSQL;
+this SELECT record must not inherit the utility's unpositioned-error policy.
 SET/ADD scans visible committed rows before metadata-only publication; old NULL
 fails23502 with column/schema/table, no Detail/Constraint. INSERT23502 includes
 failing-row Detail even for a named constraint. Both identify the decoded column

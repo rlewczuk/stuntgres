@@ -137,14 +137,14 @@ func TestNotNullSmoke(t *testing.T) {
 	_, err = db.Exec("CREATE TABLE sequential(a INT NOT NULL,b INT CONSTRAINT sequential_a_not_null NOT NULL)")
 	notNullSmokeNameCollision(t, err, "sequential_a_not_null")
 	_, err = db.Query("SELECT * FROM sequential")
-	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "sequential" does not exist`})
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "sequential" does not exist`, Position: "15"})
 	notNullSmokeExec(t, db, true, "CREATE TABLE sequential(b INT CONSTRAINT sequential_a_not_null NOT NULL,a INT NOT NULL)", 0)
 	exec("ALTER TABLE sequential DROP CONSTRAINT sequential_a_not_null1", 0)
 	exec("ALTER TABLE sequential DROP CONSTRAINT sequential_a_not_null", 0)
 	_, err = db.Exec("CREATE TABLE system_target(a INT,NOT NULL ctid)")
 	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: `cannot add not-null constraint on system column "ctid"`})
 	_, err = db.Query("SELECT * FROM system_target")
-	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "system_target" does not exist`})
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "system_target" does not exist`, Position: "15"})
 	for _, tc := range []struct{ q, token, message string }{{"UPDATE t SET a=NULL", "UPDATE", "statement is unsupported"}, {"ALTER TABLE t ADD NOT NULL a NOT VALID", "NOT VALID", "NOT NULL modifiers are unsupported"}} {
 		_, err = db.Exec(tc.q)
 		notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: tc.message, Position: strconv.Itoa(strings.Index(tc.q, tc.token) + 1)})
@@ -177,7 +177,7 @@ func TestNotNullControlsSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := db.Query("SELECT * FROM t")
-	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`})
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"})
 	if err = stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}

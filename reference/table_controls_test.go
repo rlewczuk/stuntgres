@@ -68,10 +68,7 @@ func TestReferenceTableCoreNativeControlRoundTrip(t *testing.T) {
 	p.step(t, expected)
 	p.step(t, referencePrepared(referenceExec(`INSERT INTO "clone.dot" VALUES(NULL,99,'released',FALSE)`, 1)))
 	p.step(t, referenceSelect(`SELECT * FROM "clone.dot" WHERE b=99`, []string{"i.dot", "b", "s", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{nil, int64(99), "released", false}}))
-	absent := referenceImplicitError(`SELECT * FROM "source.dot"`, referenceDiagnostic{Code: "42P01", Message: `relation "source.dot" does not exist`})
-	pgAbsent := *absent.diagnostic
-	pgAbsent.Position = "15"
-	absent.postgresDiagnostic = &pgAbsent
+	absent := referenceImplicitError(`SELECT * FROM "source.dot"`, referenceDiagnostic{Code: "42P01", Message: `relation "source.dot" does not exist`, Position: "15"})
 	p.step(t, absent)
 }
 

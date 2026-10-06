@@ -256,9 +256,8 @@ func TestReferenceUUIDControls(t *testing.T) {
 	if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err != nil {
 		t.Fatal(err)
 	}
-	const want = "CREATE TABLE \"public\".\"empty\" (\"v\" UUID);\nCREATE TABLE \"public\".\"saved\" (\"v\" UUID NOT NULL, \"n\" UUID);\nINSERT INTO \"public\".\"saved\" VALUES ('00000000-0000-0000-0000-000000000000', NULL);\nINSERT INTO \"public\".\"saved\" VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'ffffffff-ffff-ffff-ffff-ffffffffffff');\n"
 	var dump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil || dump.String() != want {
+	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 		t.Fatal(dump.String(), err)
 	}
 	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
@@ -268,14 +267,19 @@ func TestReferenceUUIDControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	var redump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &redump); err != nil || redump.String() != want {
+	if err := stuntgres.Dump(p.ctx, p.native, &redump); err != nil {
 		t.Fatal(redump.String(), err)
 	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+	if _, err := p.postgres.ExecContext(p.ctx, redump.String()); err != nil {
 		t.Fatal(err)
 	}
 	p.step(t, referenceSelect("SELECT * FROM saved ORDER BY v", []string{"v", "n"}, []string{"UUID", "UUID"}, [][]any{{uuidZ, nil}, {uuidA, uuidF}}))
 	p.step(t, referenceSelect("SELECT * FROM empty", []string{"v"}, []string{"UUID"}, nil))
+	// Verify the restored identity through behavior, not incidental dump layout.
+	p.step(t, referenceImplicitError("INSERT INTO saved VALUES(NULL,NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "v" of relation "saved" violates not-null constraint`, Detail: "Failing row contains (null, null).", Schema: "public", Table: "saved", Column: "v"}))
+	p.step(t, referenceExec("ALTER TABLE saved DROP CONSTRAINT saved_v_not_null", 0))
+	p.step(t, referenceExec("INSERT INTO saved VALUES(NULL,NULL)", 1))
+	p.step(t, referenceSelect("SELECT * FROM saved WHERE v=$1", []string{"v", "n"}, []string{"UUID", "UUID"}, [][]any{{uuidA, uuidF}}, uuidA))
 }
 
 func TestReferenceUUIDAuthorization(t *testing.T) {

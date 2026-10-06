@@ -66,7 +66,7 @@ func TestTableCoreControlsExpandedLikeAndZeroShape(t *testing.T) {
 	tableCoreExec(t, db, true, `INSERT INTO "clone.dot" VALUES(NULL,99,'released',FALSE)`, 1)
 	wantTuples(t, db, `SELECT * FROM "clone.dot" WHERE b=99`, [][]any{{nil, int64(99), "released", false}})
 	_, err = db.Query(`SELECT * FROM "source.dot"`)
-	notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "source.dot" does not exist`})
+	notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "source.dot" does not exist`, Position: "15"})
 }
 func TestTableCorePublicNoticesSemanticSkipAndRoleCleanup(t *testing.T) {
 	d := stuntgres.NewDriver()

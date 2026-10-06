@@ -34,7 +34,7 @@ func TestNotNullCurrentCommandNamesAndCompatibleReuse(t *testing.T) {
 			}
 			for _, tc := range []struct{ q, name string }{{"SELECT * FROM t", "t"}, {`SELECT * FROM "t""é\\x"`, `t"é\\x`}} {
 				_, err := db.Query(tc.q)
-				notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "` + tc.name + `" does not exist`})
+				notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "` + tc.name + `" does not exist`, Position: "15"})
 			}
 			for _, q := range []string{
 				"CREATE TABLE t(b INT CONSTRAINT t_a_not_null NOT NULL,a INT NOT NULL)",
@@ -105,7 +105,7 @@ func TestNotNullLikeConstraintProcessingOrder(t *testing.T) {
 			}
 			notNullDiagnostic(t, err, stuntgres.Error{Code: "42710", Message: `constraint "a_copy" for relation "clone" already exists`})
 			_, err = db.Query("SELECT * FROM clone")
-			notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "clone" does not exist`})
+			notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "clone" does not exist`, Position: "15"})
 			tableCoreMetadata(t, db, prepared, "SELECT * FROM src.left_source", []string{"z", "a"}, []string{"INT4", "INT4"}, []bool{false, false})
 			tableCoreMetadata(t, db, prepared, "SELECT * FROM src.right_source", []string{"w", "y"}, []string{"INT4", "INT4"}, []bool{false, false})
 		})

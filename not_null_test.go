@@ -146,7 +146,7 @@ func TestNotNullColumnLocalDeclarations(t *testing.T) {
 			}
 			notNullDiagnostic(t, err, stuntgres.Error{Code: "XX000", Message: `conflicting not-null constraint names "x" and "y"`})
 			_, err = db.Query("SELECT * FROM t")
-			notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`})
+			notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"})
 		})
 	}
 }
@@ -171,9 +171,37 @@ func TestNotNullCreateSystemTarget(t *testing.T) {
 				}
 				notNullDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: `cannot add not-null constraint on system column "ctid"`})
 				_, err = db.Query("SELECT * FROM t")
-				notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`})
+				notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"})
 				wantTuples(t, db, "SELECT * FROM keeper", [][]any{{int64(91)}})
 			})
 		}
 	}
+}
+
+func TestNotNullAbsenceAnalysisPhases(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), t.Name())
+	want := stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"}
+	_, err := db.Exec("SELECT * FROM t")
+	notNullDiagnostic(t, err, want)
+	rows, err := db.Query("SELECT * FROM t")
+	if rows != nil {
+		rows.Close()
+		t.Fatal("failed SELECT published rows")
+	}
+	notNullDiagnostic(t, err, want)
+	stmt, err := db.Prepare("SELECT * FROM t")
+	if stmt != nil {
+		stmt.Close()
+		t.Fatal("failed SELECT analysis published a statement")
+	}
+	notNullDiagnostic(t, err, want)
+	stmt, err = db.Prepare("ALTER TABLE t ALTER a SET NOT NULL")
+	if err != nil {
+		t.Fatal("metadata-only utility preparation resolved target", err)
+	}
+	defer stmt.Close()
+	_, err = stmt.Exec()
+	notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`})
+	_, err = db.Exec("ALTER TABLE t ALTER a SET NOT NULL")
+	notNullDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "t" does not exist`})
 }

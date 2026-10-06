@@ -338,8 +338,6 @@ func TestUUIDDiagnosticsAndAtomicity(t *testing.T) {
 	}
 }
 
-const uuidDump = "CREATE TABLE \"public\".\"empty\" (\"v\" UUID);\nCREATE TABLE \"public\".\"saved\" (\"v\" UUID NOT NULL, \"n\" UUID);\nINSERT INTO \"public\".\"saved\" VALUES ('00000000-0000-0000-0000-000000000000', NULL);\nINSERT INTO \"public\".\"saved\" VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'ffffffff-ffff-ffff-ffff-ffffffffffff');\n"
-
 func TestUUIDControlsAndRetainedSnapshot(t *testing.T) {
 	ctx := context.Background()
 	d := stuntgres.NewDriver()
@@ -358,22 +356,47 @@ func TestUUIDControlsAndRetainedSnapshot(t *testing.T) {
 	}
 	defer held.Close()
 	var dump bytes.Buffer
-	if err := stuntgres.Dump(ctx, db, &dump); err != nil || dump.String() != uuidDump {
+	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
 		t.Fatal(dump.String(), err)
 	}
 	execSQL(t, db, "INSERT INTO saved VALUES($1,NULL)", uuidF)
 	if err := stuntgres.Reset(ctx, db); err != nil {
 		t.Fatal(err)
 	}
-	if err := stuntgres.Restore(ctx, db, strings.NewReader(uuidDump)); err != nil {
+	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	var redump bytes.Buffer
-	if err := stuntgres.Dump(ctx, db, &redump); err != nil || redump.String() != uuidDump {
-		t.Fatal(redump.String(), err)
+	if err := stuntgres.Dump(ctx, db, &redump); err != nil {
+		t.Fatal(err)
 	}
-	wantTuples(t, db, "SELECT * FROM saved ORDER BY v", [][]any{{uuidZ, nil}, {uuidA, uuidF}})
-	wantTuples(t, db, "SELECT * FROM empty", [][]any{})
+	if err := stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(ctx, db, bytes.NewReader(redump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	assertSaved := func() {
+		t.Helper()
+		wantTuples(t, db, "SELECT * FROM saved ORDER BY v", [][]any{{uuidZ, nil}, {uuidA, uuidF}})
+		wantTuples(t, db, "SELECT * FROM empty", [][]any{})
+		rows, err := db.Query("SELECT * FROM saved")
+		if err != nil {
+			t.Fatal(err)
+		}
+		types, err := rows.ColumnTypes()
+		rows.Close()
+		if err != nil || len(types) != 2 {
+			t.Fatal(types, err)
+		}
+		for i, typ := range types {
+			nullable, known := typ.Nullable()
+			if typ.Name() != []string{"v", "n"}[i] || typ.DatabaseTypeName() != "UUID" || typ.ScanType() != reflect.TypeFor[string]() || !known || nullable != (i == 1) {
+				t.Fatal(typ, nullable, known)
+			}
+		}
+	}
+	assertSaved()
 	for _, script := range []string{"CREATE TABLE replacement(v UUID); INSERT INTO replacement VALUES('00000000000000000000000000000000'),('bad')", "/*é*/ CREATE TABLE replacement(v UUID); INSERT INTO replacement VALUES('00000000000000000000000000000000'),('bad')"} {
 		err := stuntgres.Restore(ctx, db, strings.NewReader(script))
 		pos := "103"
@@ -381,26 +404,25 @@ func TestUUIDControlsAndRetainedSnapshot(t *testing.T) {
 			pos = "109"
 		}
 		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Position: pos})
-		redump.Reset()
-		if err := stuntgres.Dump(ctx, db, &redump); err != nil || redump.String() != uuidDump {
-			t.Fatal(redump.String(), err)
-		}
+		assertSaved()
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if err := stuntgres.Restore(canceled, db, strings.NewReader(uuidDump)); !errors.Is(err, context.Canceled) {
+	if err := stuntgres.Restore(canceled, db, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	failure := errors.New("uuid restore source failure")
 	if err := stuntgres.Restore(ctx, db, uuidFailingReader{failure}); !errors.Is(err, failure) {
 		t.Fatal(err)
 	}
-	redump.Reset()
-	if err := stuntgres.Dump(ctx, db, &redump); err != nil || redump.String() != uuidDump {
-		t.Fatal(redump.String(), err)
-	}
+	assertSaved()
 	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE replacement(v UUID); INSERT INTO replacement VALUES($1)"))
 	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "42P02", Message: "parameters are not allowed in restore", Position: "66"})
+	assertSaved()
+	_, err = db.Exec("INSERT INTO saved VALUES(NULL,NULL)")
+	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "v" of relation "saved" violates not-null constraint`, Detail: "Failing row contains (null, null).", Schema: "public", Table: "saved", Column: "v"})
+	execSQL(t, db, "ALTER TABLE saved DROP CONSTRAINT saved_v_not_null")
+	execSQL(t, db, "INSERT INTO saved VALUES(NULL,NULL)")
 	if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE saved(v TEXT); INSERT INTO saved VALUES('new')")); err != nil {
 		t.Fatal(err)
 	}

@@ -205,7 +205,7 @@ func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
 			old := e.state.descriptors[ref.Address]
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-			done := lockAsync(e, b, context.Background(), q, false)
+			done := waitsCommandAsync(e, b, context.Background(), q, false)
 			lockPending(t, e, 1)
 			select {
 			case err := <-done:

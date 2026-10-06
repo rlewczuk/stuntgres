@@ -126,10 +126,7 @@ func TestReferenceNotNullCreateSystemTarget(t *testing.T) {
 				s.prepared = prepared
 				s.errorStage = "execute"
 				p.step(t, s)
-				s = referenceImplicitError("SELECT * FROM t", referenceDiagnostic{Code: "42P01", Message: `relation "t" does not exist`})
-				pg := *s.diagnostic
-				pg.Position = "15"
-				s.postgresDiagnostic = &pg
+				s = referenceImplicitError("SELECT * FROM t", referenceDiagnostic{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"})
 				p.step(t, s)
 				p.step(t, referenceSelect("SELECT * FROM keeper", []string{"v"}, []string{"INT4"}, [][]any{{int64(91)}}))
 			})
@@ -153,10 +150,7 @@ func TestReferenceNotNullCurrentCommandNamesAndCompatibleReuse(t *testing.T) {
 				referenceNotNullNameCollision(t, context.WithValue(p.ctx, referenceRecorderKey{}, p.postgresRecord), p.postgres, prepared, tc.q, tc.name)
 			}
 			for _, tc := range []struct{ q, name string }{{"SELECT * FROM t", "t"}, {`SELECT * FROM "t""é\\x"`, `t"é\\x`}} {
-				s := referenceImplicitError(tc.q, referenceDiagnostic{Code: "42P01", Message: `relation "` + tc.name + `" does not exist`})
-				pg := *s.diagnostic
-				pg.Position = "15"
-				s.postgresDiagnostic = &pg
+				s := referenceImplicitError(tc.q, referenceDiagnostic{Code: "42P01", Message: `relation "` + tc.name + `" does not exist`, Position: "15"})
 				run(s)
 			}
 			for _, q := range []string{
@@ -205,10 +199,7 @@ func TestReferenceNotNullLikeConstraintProcessingOrder(t *testing.T) {
 			s := referenceImplicitError("CREATE TABLE clone(LIKE src.left_source,LIKE src.right_source)", referenceDiagnostic{Code: "42710", Message: `constraint "a_copy" for relation "clone" already exists`})
 			s.errorStage = "execute"
 			run(s)
-			s = referenceImplicitError("SELECT * FROM clone", referenceDiagnostic{Code: "42P01", Message: `relation "clone" does not exist`})
-			pg := *s.diagnostic
-			pg.Position = "15"
-			s.postgresDiagnostic = &pg
+			s = referenceImplicitError("SELECT * FROM clone", referenceDiagnostic{Code: "42P01", Message: `relation "clone" does not exist`, Position: "15"})
 			run(s)
 			run(referenceSelect("SELECT * FROM src.left_source", []string{"z", "a"}, []string{"INT4", "INT4"}, nil))
 			run(referenceSelect("SELECT * FROM src.right_source", []string{"w", "y"}, []string{"INT4", "INT4"}, nil))
@@ -252,5 +243,23 @@ func referenceNotNullNameCollision(t *testing.T, ctx context.Context, db *sql.DB
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal(got, want)
+	}
+}
+
+func TestReferenceNotNullAbsenceAnalysisPhases(t *testing.T) {
+	p := newReferencePair(t)
+	for _, prepared := range []bool{false, true} {
+		for _, queryRows := range []bool{false, true} {
+			s := referenceImplicitError("SELECT * FROM t", referenceDiagnostic{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"})
+			s.prepared, s.selectRows = prepared, queryRows
+			s.errorStage = "execute"
+			if prepared {
+				s.errorStage = "prepare"
+			}
+			p.step(t, s)
+		}
+		s := referenceImplicitError("ALTER TABLE t ALTER a SET NOT NULL", referenceDiagnostic{Code: "42P01", Message: `relation "t" does not exist`})
+		s.prepared, s.errorStage = prepared, "execute"
+		p.step(t, s)
 	}
 }

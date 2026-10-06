@@ -88,7 +88,7 @@ func TestReferenceNotNullExternalInheritance(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"nn_child", "noinherit_parent", "check_unknown", "excluded"} {
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceImplicitError("SELECT * FROM "+name, referenceDiagnostic{Code: "42P01", Message: `relation "` + name + `" does not exist`}))
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceImplicitError("SELECT * FROM "+name, referenceDiagnostic{Code: "42P01", Message: `relation "` + name + `" does not exist`, Position: "15"}))
 	}
 }
 
