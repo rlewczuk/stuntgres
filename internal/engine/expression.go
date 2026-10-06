@@ -172,9 +172,10 @@ const (
 )
 
 type expressionPolicy struct {
-	context  expressionContext
-	expected sqltype.Usage
-	mode     sqltype.CoercionContext
+	context          expressionContext
+	expected         sqltype.Usage
+	mode             sqltype.CoercionContext
+	booleanConstruct string
 }
 type expressionDependency struct {
 	ref      ObjectRef
@@ -290,6 +291,9 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) BoundExpr {
 	return columnExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, pos: pos, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 }
 func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (BoundExpr, error) {
+	if policy.context == filterContext && policy.booleanConstruct == "" {
+		return b.bindBoolean(raw, policy.context, "WHERE")
+	}
 	if err := b.ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -375,6 +379,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, inputErrorAt(err, r.Pos)
 		}
 		node = literalExpression{b.info(u, r.Pos, ExprProperties{}), value}
+	case parser.LogicalExpr:
+		var err error
+		node, err = b.bindLogical(r, policy.context)
+		if err != nil {
+			return nil, err
+		}
 	case parser.OperatorExpr:
 		if policy.context == assignmentContext {
 			return nil, fmt.Errorf("stuntgres: comparison in assignment scalar")
@@ -387,8 +397,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	default:
 		return nil, fmt.Errorf("stuntgres: unsupported scalar node")
 	}
-	if policy.context == filterContext && node.ResultUsage().Type.ID() != sqltype.Bool {
-		return nil, expressionError("42804", fmt.Sprintf("argument of WHERE must be type boolean, not type %s", node.ResultUsage().Type.DiagnosticName()), raw.SourcePosition())
+	if policy.booleanConstruct != "" && node.ResultUsage().Type.ID() != sqltype.Bool {
+		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), raw.SourcePosition())
 	}
 	if policy.context == assignmentContext && node.ResultUsage() != policy.expected {
 		plan, err := sqltype.PlanCoercion(node.ResultUsage(), policy.expected, policy.mode)

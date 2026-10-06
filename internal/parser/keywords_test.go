@@ -155,7 +155,8 @@ func TestMappedKeywordLabels(t *testing.T) {
 			continue
 		}
 		keywordDiagnostic(t, "SELECT x AS "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "13")
-		if k.bareLabel {
+		// AND/OR now continue SELECT expressions rather than alias failures.
+		if k.bareLabel && k.word != "and" && k.word != "or" {
 			keywordDiagnostic(t, "SELECT x "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "10")
 		}
 	}

@@ -678,13 +678,18 @@ ALTER TABLE target ADD [CONSTRAINT name] NOT NULL column
 ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
-SELECT (* | scalar [, ...]) FROM [schema.]name
-       [WHERE column = value | WHERE scalar] [ORDER BY column [ASC | DESC]]
+SELECT (* | logical_target [, ...]) FROM [schema.]name
+       [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]
 type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
        | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] | UUID
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] 'input'
 scalar := unqualified column | value
+comparison := scalar (= | <> | != | < | <= | > | >=) scalar
+logical_target := scalar | comparison | NOT logical_target
+                | logical_target AND logical_target | logical_target OR logical_target
+                | (logical_target)
+logical_predicate := logical_target
 ```
 
 ### Logical query results
@@ -726,6 +731,64 @@ fixtures independently check cardinality and every occurrence in both consumed
 and recorder-captured rows before canonicalizing only for backend comparison.
 Duplicate, NULL and zero-width row counts remain significant; ordered rows and
 column metadata still require exact sequence equality.
+
+### Three-valued logical operators
+
+Table SELECT targets and WHERE now support Boolean `AND`, `OR` and `NOT`
+through the shared typed expression binder. Results are BOOL, named `?column?`
+without a physical origin; computed nullability remains unknown, including
+empty results. SQL NULL projects as native `nil`, and only TRUE passes WHERE.
+
+| a | b | a AND b | a OR b |
+|---|---|---|---|
+| TRUE | TRUE | TRUE | TRUE |
+| TRUE | FALSE | FALSE | TRUE |
+| TRUE | NULL | NULL | TRUE |
+| FALSE | TRUE | FALSE | TRUE |
+| FALSE | FALSE | FALSE | FALSE |
+| FALSE | NULL | FALSE | NULL |
+| NULL | TRUE | NULL | TRUE |
+| NULL | FALSE | FALSE | NULL |
+| NULL | NULL | NULL | NULL |
+
+NOT maps TRUE to FALSE, FALSE to TRUE, and NULL to BOOL NULL. Scalar comparisons
+bind above NOT, then AND, then OR; parentheses override precedence. NOT
+associates right, AND/OR left. Thus `TRUE OR FALSE AND FALSE` is TRUE, while
+`(TRUE OR FALSE) AND FALSE` is FALSE. There is **no guarantee that the left
+operand evaluates before the right**, or that a decisive value suppresses
+evaluation of another operand. All operands are analyzed even in
+`FALSE AND bad_operand` and `TRUE OR bad_operand`.
+
+Unknown strings, NULL and unconstrained parameters receive contextual BOOL:
+`'yes' AND 'no'` is FALSE and `NULL AND NULL` is BOOL NULL. Concrete non-BOOL
+columns and already-known parameter types are not implicitly converted; wrong
+types report construct-specific `42804`, malformed Boolean input `22P02`, and
+invalid syntax `42601`, with source character positions for SQL input.
+Logical binding carries each analyzed child's earliest source location into its
+parent in constant work per node, preserving positioned diagnostics for long
+operator chains and nested NOT without repeatedly walking their raw subtrees.
+`SELECT $1 AND TRUE,$1 FROM t` fixes both occurrences as BOOL;
+`SELECT $1,$1 AND TRUE FROM t` retains the first unresolved occurrence and
+fails `42P08` (`boolean versus text`) on its output fallback.
+
+FROM remains required outside identity/settings special forms. Existing binary
+scalar comparisons form Boolean leaves in targets and WHERE, such as
+`NOT id=1 AND (a OR b)` or `id>=2 AND a=b`. Comparisons keep scalar operands
+only: no chaining or logical/comparison expressions as comparison operands.
+This adds no logical INSERT VALUES, setting arguments, expression ORDER BY,
+arithmetic, casts, aliases, general functions or qualified-column expressions.
+PostgreSQL also accepts `SELECT TRUE AND FROM t` and `SELECT TRUE OR FROM t`
+as TRUE targets with bare aliases `and` and `or`. Native aliases remain excluded:
+these keywords continue logical expressions, so these two incomplete expressions
+report `42601` at FROM. Reference tests assert both native failures and PostgreSQL
+positive results independently, not false syntax-error parity.
+
+Public feature witness: `make smoke RUN='^TestLogicalSmoke$' VERBOSE=1`.
+Independent pinned PostgreSQL witnesses:
+`make reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
+Native/parser/engine units:
+`make test RUN='^TestLogical.*$' PACKAGES='. ./internal/parser ./internal/engine' VERBOSE=1`.
+
 
 
 Relation names accept one or two identifier components. Qualified `schema.name` resolves only in that schema; unqualified references follow the session's effective search_path, with implicit `pg_catalog` first unless explicitly positioned. Unqualified creation chooses the first usable explicit destination and requires CREATE there, without falling through on denial. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
@@ -1286,9 +1349,11 @@ An earlier bare `$1` still falls back to TEXT and can fail42P08; later inference
 never rewrites it. Selected quoted-input failure is final, at the literal;
 incompatible known operands fail eagerly in Query/Prepare at the operator,
 even on empty tables, with the canonical operator spelling in diagnostics.
-FROM is still required outside identity/settings special forms. No chaining,
-logical operators, arithmetic, aliases, qualified column references, functions,
-casts or comparison in INSERT/settings is enabled. Comparisons do not sort rows.
+FROM is still required outside identity/settings special forms. These scalar
+comparisons also form Boolean leaves above NOT, AND and OR in SELECT targets
+and WHERE. No comparison chaining, arithmetic, aliases, qualified column
+references, functions, casts or comparison in INSERT/settings is enabled.
+Comparisons do not sort rows.
 
 Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
 pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`;

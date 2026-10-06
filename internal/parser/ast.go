@@ -249,6 +249,34 @@ type OperatorExpr struct {
 	Pos  Position
 }
 
+type LogicalOperator uint8
+
+const (
+	LogicalAnd LogicalOperator = iota
+	LogicalOr
+	LogicalNot
+)
+
+type LogicalExpr struct {
+	Op          LogicalOperator
+	Left, Right Expr
+	Pos         Position
+}
+
+func (LogicalExpr) expression() {}
+func (e LogicalExpr) SourcePosition() Position {
+	pos := e.Pos
+	for _, child := range [...]Expr{e.Left, e.Right} {
+		if child != nil {
+			p := child.SourcePosition()
+			if p.Character > 0 && (pos.Character <= 0 || p.Character < pos.Character) {
+				pos = p
+			}
+		}
+	}
+	return pos
+}
+
 func (LiteralExpr) expression()                     {}
 func (TypedLiteralExpr) expression()                {}
 func (ColumnExpr) expression()                      {}

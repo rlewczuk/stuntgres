@@ -1,0 +1,119 @@
+package engine
+
+import (
+	"fmt"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+// Boolean context resolves only unknown inputs. A known parameter's type is
+// preserved just like a column's type, rather than assignment-coerced to BOOL.
+func (b *expressionBinder) bindBoolean(raw parser.Expr, context expressionContext, construct string) (BoundExpr, error) {
+	u := b.typ(sqltype.Bool).Usage()
+	if p, ok := raw.(parser.ParameterExpr); ok {
+		if known := b.parameters[p.Number]; known.Type != nil {
+			u = known
+		}
+	}
+	return b.bind(raw, expressionPolicy{context: context, expected: u, booleanConstruct: construct})
+}
+
+func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressionContext) (BoundExpr, error) {
+	if context == assignmentContext || raw.Left == nil {
+		return nil, fmt.Errorf("stuntgres: invalid logical expression")
+	}
+	var construct string
+	switch raw.Op {
+	case parser.LogicalAnd:
+		construct = "AND"
+	case parser.LogicalOr:
+		construct = "OR"
+	case parser.LogicalNot:
+		construct = "NOT"
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid logical operator")
+	}
+	if (raw.Op == parser.LogicalNot) != (raw.Right == nil) {
+		return nil, fmt.Errorf("stuntgres: invalid logical arity")
+	}
+	left, err := b.bindBoolean(raw.Left, context, construct)
+	if err != nil {
+		return nil, err
+	}
+	var right BoundExpr
+	properties := left.Properties()
+	if raw.Right != nil {
+		right, err = b.bindBoolean(raw.Right, context, construct)
+		if err != nil {
+			return nil, err
+		}
+		p := right.Properties()
+		properties.RowDependent = properties.RowDependent || p.RowDependent
+		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
+		properties.StageDependent = properties.StageDependent || p.StageDependent
+	}
+	// Children already retain their earliest positions. Combining those cached
+	// positions avoids walking raw subtrees again for every parent in a chain.
+	pos := raw.Pos
+	for _, child := range [...]BoundExpr{left, right} {
+		if child != nil {
+			p := child.SourcePosition()
+			if p.Character > 0 && (pos.Character <= 0 || p.Character < pos.Character) {
+				pos = p
+			}
+		}
+	}
+	return logicalExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, properties), raw.Op, left, right}, nil
+}
+
+type logicalExpression struct {
+	expressionInfo
+	op          parser.LogicalOperator
+	left, right BoundExpr
+}
+
+func (e logicalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	if err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.usage.Type == nil || e.usage.Type.ID() != sqltype.Bool || e.left == nil ||
+		(e.op == parser.LogicalNot) != (e.right == nil) || e.op > parser.LogicalNot {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid logical expression")
+	}
+	v, err := e.left.Eval(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	a, err := TruthOf(v)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.op == parser.LogicalNot {
+		if a == Unknown {
+			return sqltype.Null(e.usage.Type), nil
+		}
+		return sqltype.Boolean(e.usage.Type, a == False), nil
+	}
+	// Evaluation order is private. Both children are analyzed and evaluated;
+	// consumers must not rely on short-circuiting or a left-before-right promise.
+	v, err = e.right.Eval(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	b, err := TruthOf(v)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.op == parser.LogicalAnd {
+		if a == False || b == False {
+			return sqltype.Boolean(e.usage.Type, false), nil
+		}
+	} else if a == True || b == True {
+		return sqltype.Boolean(e.usage.Type, true), nil
+	}
+	if a == Unknown || b == Unknown {
+		return sqltype.Null(e.usage.Type), nil
+	}
+	return sqltype.Boolean(e.usage.Type, e.op == parser.LogicalAnd), nil
+}

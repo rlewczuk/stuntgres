@@ -782,7 +782,7 @@ func TestExpressionCoreRawOccurrences(t *testing.T) {
 			}
 		}
 	}
-	for _, q := range []string{"SELECT 1", "SELECT id FROM t WHERE TRUE AND FALSE"} {
+	for _, q := range []string{"SELECT 1"} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
 			t.Fatal("expanded scalar boundary", q, statements, err)
 		}
