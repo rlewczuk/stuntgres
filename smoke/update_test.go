@@ -134,6 +134,23 @@ func TestUpdateCoreSmoke(t *testing.T) {
 	if dump.String() != again.String() {
 		t.Fatal("current-row dump changed after round trip")
 	}
+	// INSERT's query source must consume the prior own UPDATE head, not its
+	// predecessor, while peer visibility and rollback remain transaction-owned.
+	exec(b, "CREATE TABLE consumed(id INT,a INT,b INT,n SMALLINT)", false, 0)
+	exec(a, "BEGIN", false, 0)
+	exec(a, "UPDATE t SET a=12 WHERE id=1", false, 1)
+	exec(a, "INSERT INTO consumed SELECT id,a,b,n FROM t WHERE id=1", true, 1)
+	var consumed int64
+	if err := a.QueryRowContext(ctx, "SELECT a FROM consumed").Scan(&consumed); err != nil || consumed != 12 {
+		t.Fatal(consumed, err)
+	}
+	if err := b.QueryRowContext(ctx, "SELECT a FROM consumed").Scan(&consumed); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal("peer saw private INSERT query result", err)
+	}
+	exec(a, "ROLLBACK", false, 0)
+	if err := b.QueryRowContext(ctx, "SELECT a FROM consumed").Scan(&consumed); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal("rollback retained INSERT query result", err)
+	}
 	// Retained public composition of the integrated DATE/BYTEA and baseline
 	// cast/null/truth/distinct surfaces, not a throwaway interoperability probe.
 	exec(b, "CREATE TABLE composed(id INT,d DATE,b BYTEA,n INT NOT NULL,f BOOL)", false, 0)
