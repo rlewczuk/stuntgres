@@ -29,10 +29,10 @@ type lexer struct {
 	rawUnicode     bool
 	floatPrecision bool
 	// Lexical evidence only: preserve numeric capability diagnostics outside a
-	// timestamp modifier, whose unsigned-Iconst grammar requires syntax errors.
-	timestampLead     bool
-	timestampModifier bool
-	genericTimestamp  bool
+	// temporal modifier, whose unsigned-Iconst grammar requires syntax errors.
+	temporalLead     bool
+	temporalModifier bool
+	genericTemporal  bool
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.
@@ -458,7 +458,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 		}
 		l.current.text = s
 		token = PARAM
-	case (l.floatPrecision || l.timestampModifier) && c == '.' && start+1 < len(l.input) && digit(l.input[start+1]):
+	case (l.floatPrecision || l.temporalModifier) && c == '.' && start+1 < len(l.input) && digit(l.input[start+1]):
 		if !l.floatNumericSyntax(start) {
 			return 0
 		}
@@ -470,7 +470,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 		}
 		l.current.text = l.input[start:l.offset]
 		token = NUMBER
-		l.current.generic = l.genericTimestamp
+		l.current.generic = l.genericTemporal
 	case initial(c):
 		for l.offset < len(l.input) && continuation(l.input[l.offset]) {
 			l.offset++
@@ -506,7 +506,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.fail("42601", "NUL in SQL")
 			return 0
 		}
-		if (l.floatPrecision || l.timestampModifier) && c == '.' && l.offset < len(l.input) && l.input[l.offset] == '.' {
+		if (l.floatPrecision || l.temporalModifier) && c == '.' && l.offset < len(l.input) && l.input[l.offset] == '.' {
 			// Preserve the release DOT_DOT diagnostic spelling.
 			l.current.text = ".."
 			l.offset++
@@ -612,14 +612,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	l.current = token.lexeme
 	v.tok = token.lexeme
-	if token.code == int('(') && l.timestampLead {
-		l.timestampModifier = true
+	if token.code == int('(') && l.temporalLead {
+		l.temporalModifier = true
 	}
 	if token.code == int(')') || token.code == int(',') || token.code == int(';') {
-		l.timestampModifier = false
-		l.genericTimestamp = false
+		l.temporalModifier = false
+		l.genericTemporal = false
 	}
-	l.timestampLead = token.code == TIMESTAMP || token.code == IDENT && columnType(token.lexeme).Quoted && token.lexeme.text == "timestamp"
+	l.temporalLead = token.code == TIMESTAMP || token.code == TIME || token.code == IDENT && columnType(token.lexeme).Quoted && (token.lexeme.text == "timestamp" || token.lexeme.text == "time")
 	return token.code
 }
 
@@ -763,12 +763,12 @@ func (l *lexer) integerToken(start int) bool {
 	// integer junk such as 1efoo. Hexadecimal e is already a valid digit.
 	if end == decimalEnd || reason != "" && decimalEnd < len(l.input) && (l.input[decimalEnd] == 'e' || l.input[decimalEnd] == 'E') {
 		if decimalEnd < len(l.input) && l.input[decimalEnd] == '.' {
-			if (l.floatPrecision || l.timestampModifier) && decimalEnd+1 < len(l.input) && l.input[decimalEnd+1] == '.' {
+			if (l.floatPrecision || l.temporalModifier) && decimalEnd+1 < len(l.input) && l.input[decimalEnd+1] == '.' {
 				// Release numericfail throws back both dots and returns Iconst.
 				l.offset = decimalEnd
 				return true
 			}
-			if l.floatPrecision || l.timestampModifier {
+			if l.floatPrecision || l.temporalModifier {
 				return l.floatNumericSyntax(start)
 			}
 			l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
@@ -791,12 +791,12 @@ func (l *lexer) integerToken(start int) bool {
 				// but not a longer identifier/separator suffix. Signed
 				// exponents also need the real_junk match beyond the sign.
 				if realJunkEnd == exponentEnd && exponentEnd >= end {
-					if l.genericTimestamp {
+					if l.genericTemporal {
 						l.offset = exponentEnd
 						l.current.numeric = true
 						return true
 					}
-					if l.floatPrecision || l.timestampModifier {
+					if l.floatPrecision || l.temporalModifier {
 						l.failAt("42601", "syntax error at or near \""+l.input[start:exponentEnd]+"\"", start)
 						return false
 					}
@@ -869,7 +869,7 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 	}
 	if junk {
 		l.failAt("42601", "trailing junk after numeric literal at or near \""+l.input[start:end]+"\"", start)
-	} else if l.genericTimestamp {
+	} else if l.genericTemporal {
 		l.offset = end
 		l.current.numeric = true
 		return true

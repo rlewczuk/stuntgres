@@ -65,7 +65,8 @@ package parser
 %type <tok> like_option_name
 %type <objectNames> relation_names
 %type <dropMode> drop_mode
-%type <typ> type timestamp_type generic_precision type_modifier_head
+%type <typ> type temporal_type generic_precision type_modifier_head
+%type <tok> temporal_keyword
 %type <nullable> nullability
 %type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with suffix unsupported_query nulls_keyword nulls_position
 %type <settingName> setting_name set_name local_setting_name
@@ -248,23 +249,24 @@ alter_action: generic_word | ALTER | RENAME | OWNER | SET ;
 column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Nullable:$3, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
- | timestamp_type { $$=$1 }
+ | temporal_type { $$=$1 }
  | type_modifier_head generic_precision ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Precision=$2.Precision;$$.RawPrecision=$2.RawPrecision;$$.UnaryPlus=$2.UnaryPlus;$$.PrecisionPos=$2.PrecisionPos } }
  | type_name type_name { if $1.keyword!=nil && $2.keyword!=nil && $1.text=="double" && $2.text=="precision" { $$=TypeName{Name:"double precision",Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
  | type_name '.' { sqllex.(*lexer).failAt("0A000","qualified types are unsupported",$1.pos.Offset); return 1 } ;
-/* FLOAT and quoted timestamp share the generic modifier opener, but retain
- * their distinct unsigned and signed precision contracts. */
+/* FLOAT and quoted temporal types share the generic modifier opener, but
+ * retain their distinct unsigned and signed precision contracts. */
 type_modifier_head: type_name '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2);if !ok{return 1}} ;
-timestamp_type: TIMESTAMP %prec TYPE_NAME { $$=TypeName{Name:"timestamp",Pos:$1.pos} }
- | TIMESTAMP '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=timestampPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timestamp";$$.Pos=$1.pos}
- | TIMESTAMP WITHOUT TIME ZONE {$$=TypeName{Name:"timestamp",Pos:$1.pos}}
- | TIMESTAMP '(' NUMBER ')' WITHOUT TIME ZONE {var ok bool;$$,ok=timestampPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timestamp";$$.Pos=$1.pos}
- | TIMESTAMP WITH {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1}
- | TIMESTAMP '(' NUMBER ')' WITH {if _,ok:=timestampPrecision(sqllex,$3,false);!ok{return 1};sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1} ;
-generic_precision: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=timestampPrecision(sqllex,$1,false)};if !ok{return 1}}
- | '-' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=timestampPrecision(sqllex,$3,true);if !ok{return 1};$$.PrecisionPos=$1.pos}
- | '+' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=timestampPrecision(sqllex,$3,false);if !ok{return 1};$$.UnaryPlus=true;$$.PrecisionPos=$1.pos} ;
+temporal_keyword: TIMESTAMP | TIME ;
+temporal_type: temporal_keyword %prec TYPE_NAME { $$=TypeName{Name:$1.text,Pos:$1.pos} }
+ | temporal_keyword '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
+ | temporal_keyword WITHOUT TIME ZONE {$$=TypeName{Name:$1.text,Pos:$1.pos}}
+ | temporal_keyword '(' NUMBER ')' WITHOUT TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
+ | temporal_keyword WITH {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1}
+ | temporal_keyword '(' NUMBER ')' WITH {if _,ok:=temporalPrecision(sqllex,$3,false);!ok{return 1};sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1} ;
+generic_precision: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=temporalPrecision(sqllex,$1,false)};if !ok{return 1}}
+ | '-' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,true);if !ok{return 1};$$.PrecisionPos=$1.pos}
+ | '+' {if sqllex.(*lexer).floatPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.UnaryPlus=true;$$.PrecisionPos=$1.pos} ;
 nullability: /* empty */ { $$ = true } | NULL { $$ = true } | NOT NULL { $$ = false }
  | suffix { sqllex.(*lexer).capability($1,unsupportedSuffixes,"column constraints are unsupported"); return 1 }
  | '[' { sqllex.(*lexer).failAt("0A000","array types are unsupported",$1.pos.Offset); return 1 }
@@ -294,7 +296,7 @@ row: '(' values ')' { $$ = $2 } ;
 values: scalar { $$ = []Expr{$1} } | values ',' scalar { $$ = append($1,$3) } ;
 scalar: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
- | timestamp_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
+ | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
  | scalar ':' {sqllex.(*lexer).failAt("0A000","casts are unsupported",$2.pos.Offset);return 1} ;
 value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | TRUE { $$ = Value{Kind:BooleanValue, Boolean:true, Pos:$1.pos} }
@@ -349,7 +351,7 @@ direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } 
 setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | transaction_name ;
 name: setting_word | ROLE | LOCAL ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | KW_U | KW_T | KW_C | WITHOUT | TIME | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | transaction_name ;
+type_name: IDENT | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | transaction_name ;
 generic_word: generic_word_without_with | WITH ;
 generic_word_without_with: IDENT | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | EXISTS | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | ONLY | DEFERRABLE ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */

@@ -32,7 +32,10 @@ func timestampZoneKind(s string) byte {
 	i := sort.Search(len(timestampZoneNames), func(i int) bool {
 		return timestampASCIICompare(s, timestampZoneNames[i]) <= 0
 	})
-	if i < len(timestampZoneNames) && timestampASCIIEqual(s, timestampZoneNames[i]) || posixTimestampZone(s) {
+	if i < len(timestampZoneNames) && timestampASCIIEqual(s, timestampZoneNames[i]) {
+		return timestampNamedZone
+	}
+	if valid, _ := posixTemporalZone(s); valid {
 		return timestampNamedZone
 	}
 	return timestampUnknownZone
@@ -43,32 +46,34 @@ func recognizedTimestampZone(s string) bool {
 }
 
 // Parse the unbracketed POSIX forms admitted as one ParseDateTime token.
-// Comma-separated rules are separate timestamp fields, unlike SET TIMEZONE;
-// the decoder consequently rejects them rather than ignoring the rule tail.
-func posixTimestampZone(s string) bool {
+// Rule tails are separate fields, unlike SET TIMEZONE. The second result
+// mirrors pg_get_timezone_offset, including equal-offset daylight names.
+func posixTemporalZone(s string) (valid, fixed bool) {
 	i := 0
-	// getzname stops at an offset/rule delimiter, not other admitted name chars.
-	for i < len(s) && !asciiDigit(s[i]) && s[i] != '+' && s[i] != '-' && s[i] != ',' {
-		i++
+	name := func() bool {
+		start := i
+		for i < len(s) && !asciiDigit(s[i]) && s[i] != '+' && s[i] != '-' && s[i] != ',' {
+			i++
+		}
+		return i > start
 	}
-	if i == len(s) {
-		return false
-	}
-	offset := func() bool {
+	offset := func() (int, bool) {
+		sign := 1
 		if i < len(s) && (s[i] == '+' || s[i] == '-') {
+			if s[i] == '-' {
+				sign = -1
+			}
 			i++
 		}
 		start := i
 		for i < len(s) && asciiDigit(s[i]) {
 			i++
 		}
-		if start == i {
-			return false
-		}
 		h, status := decimal(s[start:i])
 		if status != timestampDecoded || h > 167 {
-			return false
+			return 0, false
 		}
+		value := h * 3600
 		for component := range 2 {
 			if i == len(s) || s[i] != ':' {
 				break
@@ -79,33 +84,34 @@ func posixTimestampZone(s string) bool {
 				i++
 			}
 			n, status := decimal(s[start:i])
-			limit := 59
+			limit, factor := 59, 60
 			if component == 1 {
-				limit = 60 // POSIX getsecs permits a leap second; ISO zones do not.
+				limit, factor = 60, 1
 			}
 			if status != timestampDecoded || n > limit {
-				return false
+				return 0, false
 			}
+			value += n * factor
 		}
-		return true
+		return sign * value, true
 	}
-	if !offset() {
-		return false
-	}
-	if i == len(s) {
-		return true
-	}
-	start := i
-	for i < len(s) && !asciiDigit(s[i]) && s[i] != '+' && s[i] != '-' && s[i] != ',' {
-		i++
-	}
-	if i == start {
-		return false
+	// Release getzname permits an empty standard name, e.g. a numeric TZ.
+	name()
+	standard, ok := offset()
+	if !ok {
+		return false, false
 	}
 	if i == len(s) {
-		return true
+		return true, true
 	}
-	return offset() && i == len(s)
+	if !name() {
+		return false, false
+	}
+	if i == len(s) {
+		return true, false // Default DST offset differs by one hour.
+	}
+	daylight, ok := offset()
+	return ok && i == len(s), ok && daylight == standard
 }
 
 var timestampAbbreviations = [...]struct {

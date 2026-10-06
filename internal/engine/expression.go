@@ -191,7 +191,7 @@ type expressionBinder struct {
 	input        sqltype.InputEnvironment
 	op           *Operation
 	expected     *StatementDescription
-	timestamps   []timestampConstant
+	temporals    []temporalConstant
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -430,21 +430,27 @@ func inputErrorAt(err error, pos parser.Position) error {
 func literalInputError(err error, raw parser.LiteralExpr) error {
 	return inputErrorAt(err, raw.Value.Pos)
 }
-func (b *expressionBinder) captured(offset int) (timestampConstant, bool) {
+func (b *expressionBinder) captured(offset int) (temporalConstant, bool) {
 	if b.expected != nil {
-		captures := b.expected.timestamps
+		captures := b.expected.temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].offset >= offset })
 		if i < len(captures) && captures[i].offset == offset {
 			return captures[i], true
 		}
 	}
-	return timestampConstant{}, false
+	return temporalConstant{}, false
 }
 func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
-	if u.Type.ID() != sqltype.Timestamp {
+	if u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time {
 		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
 	}
 	if c, ok := b.captured(pos.Offset); ok {
+		if c.typeID != u.Type.ID() {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: captured temporal type changed")
+		}
+		if c.typeID == sqltype.Time {
+			return sqltype.TimeValue(u.Type, c.scalar)
+		}
 		return sqltype.TimestampValue(u.Type, c.scalar)
 	}
 	v, err := u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
@@ -459,12 +465,18 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		return sqltype.Value{}, err
 	}
 	if b.expected == nil {
-		n, err := v.Timestamp()
+		var n int64
+		var err error
+		if u.Type.ID() == sqltype.Time {
+			n, err = v.Time()
+		} else {
+			n, err = v.Timestamp()
+		}
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		// The binder visits constant occurrences in source order.
-		b.timestamps = append(b.timestamps, timestampConstant{pos.Offset, n, u.Typmod})
+		b.temporals = append(b.temporals, temporalConstant{pos.Offset, n, u.Typmod, u.Type.ID()})
 	}
 	return v, nil
 }
@@ -479,8 +491,8 @@ func operatorExpressionError(err error, left sqltype.Usage, raw parser.OperatorE
 		if literal, ok := raw.Args[1].(parser.LiteralExpr); ok {
 			right = literalTypeName(literal.Value)
 		}
-		if _, ok := raw.Args[1].(parser.TypedLiteralExpr); ok {
-			right = "timestamp without time zone"
+		if literal, ok := raw.Args[1].(parser.TypedLiteralExpr); ok {
+			right = literal.TypeName.Name + " without time zone"
 		}
 		copy.Message = fmt.Sprintf("operator does not exist: %s = %s", left.Type.DiagnosticName(), right)
 		copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."

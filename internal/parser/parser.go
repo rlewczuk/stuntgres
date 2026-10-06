@@ -259,7 +259,7 @@ func floatType(l sqlLexer, name, precision lexeme) (TypeName, bool) {
 	return raw, true
 }
 
-func timestampPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) {
+func temporalPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) {
 	if tok.numeric {
 		text := tok.text
 		if negative {
@@ -296,11 +296,11 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).floatPrecision = true
 		return raw, true
 	}
-	if !raw.Quoted || raw.Name != "timestamp" {
+	if !raw.Quoted || raw.Name != "timestamp" && raw.Name != "time" {
 		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
 		return TypeName{}, false
 	}
-	l.(*lexer).genericTimestamp = true
+	l.(*lexer).genericTemporal = true
 	return raw, true
 }
 

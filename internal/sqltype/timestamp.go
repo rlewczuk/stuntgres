@@ -38,7 +38,7 @@ func (v Value) Timestamp() (int64, error) {
 	return v.integer, nil
 }
 func (d *Descriptor) validTypmod(p int32) bool {
-	return p == -1 || d.id == Timestamp && p >= 0 && p <= 6
+	return p == -1 || (d.id == Timestamp || d.id == Time) && p >= 0 && p <= 6
 }
 func (u Usage) Valid() bool {
 	if !u.Type.Concrete() || !u.Type.validTypmod(u.Typmod) {
@@ -51,16 +51,16 @@ func (u Usage) Valid() bool {
 // Source positions and warning delivery belong to the statement owner.
 func (d *Descriptor) ResolveModifier(p int32) (Usage, *sqlstate.Error, error) {
 	u := d.Usage()
-	if d.id != Timestamp {
+	if d.id != Timestamp && d.id != Time {
 		return u, nil, fmt.Errorf("type modifiers are unsupported")
 	}
 	if p < 0 {
-		return u, nil, failure("22023", fmt.Sprintf("TIMESTAMP(%d) precision must not be negative", p))
+		return u, nil, failure("22023", fmt.Sprintf("%s(%d) precision must not be negative", d.SQLName(), p))
 	}
 	u.Typmod = p
 	if p > 6 {
 		u.Typmod = 6
-		return u, &sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: fmt.Sprintf("TIMESTAMP(%d) precision reduced to maximum allowed, 6", p)}, nil
+		return u, &sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: fmt.Sprintf("%s(%d) precision reduced to maximum allowed, 6", d.SQLName(), p)}, nil
 	}
 	return u, nil, nil
 }
@@ -677,7 +677,9 @@ func (p *timestampDecoder) compact(s string) timestampDecodeStatus {
 	return timestampDecoded
 }
 
-func (p *timestampDecoder) clock(s string) timestampDecodeStatus {
+// clockComponents mirrors DecodeTimeCommon plus DecodeTime's integer-hour
+// bound. Whole-clock domain and duplicate masks belong to the caller.
+func (p *timestampDecoder) clockComponents(s string) timestampDecodeStatus {
 	h, end, status := timestampIntegerPrefix(s, math.MaxInt64)
 	if status != timestampDecoded {
 		return status
@@ -719,16 +721,25 @@ func (p *timestampDecoder) clock(s string) timestampDecodeStatus {
 			return timestampMalformed
 		}
 	}
-	// DecodeTime checks its int64 hour after the other components and fraction.
-	// DecodeDateTime checks clock range before the common duplicate-field mask.
-	if h < 0 || h > 24 || mi < 0 || mi > 59 || se < 0 || se > 60 ||
-		h*3600000000+mi*60000000+se*1000000+int64(u) > microsPerDay {
+	if h < 0 || h > math.MaxInt32 || mi < 0 || mi > 59 || se < 0 || se > 60 || u < 0 || u > 1000000 {
+		return timestampFieldOverflow
+	}
+	p.h, p.min, p.s, p.u = int(h), int(mi), int(se), u
+	return timestampDecoded
+}
+
+func (p *timestampDecoder) clock(s string) timestampDecodeStatus {
+	if status := p.clockComponents(s); status != timestampDecoded {
+		return status
+	}
+	// DecodeDateTime checks whole-clock range before duplicate-field masks.
+	if p.h > 24 || int64(p.h)*3600000000+int64(p.min)*60000000+int64(p.s)*1000000+int64(p.u) > microsPerDay {
 		return timestampFieldOverflow
 	}
 	if p.timeSet {
 		return timestampMalformed
 	}
-	p.h, p.min, p.s, p.u, p.timeSet = int(h), int(mi), int(se), u, true
+	p.timeSet = true
 	return timestampDecoded
 }
 

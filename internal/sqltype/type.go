@@ -24,6 +24,7 @@ const (
 	Float4    ID = 700
 	Float8    ID = 701
 	Unknown   ID = 705
+	Time      ID = 1083
 	Timestamp ID = 1114
 	UUID      ID = 2950
 )
@@ -66,6 +67,9 @@ func (d *Descriptor) DiagnosticName() string {
 	if d.id == Timestamp {
 		return "timestamp without time zone"
 	}
+	if d.id == Time {
+		return "time without time zone"
+	}
 	return strings.ToLower(d.sql)
 }
 func (d *Descriptor) DatabaseName() string { return d.database }
@@ -89,6 +93,7 @@ func Builtins() []*Descriptor {
 		{Text, "text", "TEXT", "TEXT"},
 		{Float4, "float4", "REAL", "FLOAT4"},
 		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8"},
+		{Time, "time", "TIME", "TIME"},
 		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
 		{UUID, "uuid", "UUID", "UUID"},
 		{Unknown, "unknown", "", ""},
@@ -190,6 +195,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	switch d.id {
 	case UUID:
 		return d.uuidInput(text)
+	case Time:
+		return d.timeInput(text, typmod, env)
 	case Timestamp:
 		return d.timestampInput(text, typmod, env)
 	case Text:
@@ -334,6 +341,8 @@ func (d *Descriptor) Output(ctx context.Context, v Value) (string, error) {
 	switch d.id {
 	case UUID:
 		return uuidOutput(v.uuid), nil
+	case Time:
+		return timeOutput(v.integer), nil
 	case Timestamp:
 		return timestampOutput(v.integer), nil
 	case Int2, Int4, Int8:
@@ -363,6 +372,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	switch d.id {
 	case UUID:
 		return "'" + uuidOutput(v.uuid) + "'", nil
+	case Time:
+		return "'" + timeOutput(v.integer) + "'", nil
 	case Timestamp:
 		if v.integer == timestampEnd {
 			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
@@ -469,7 +480,7 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 	}
 	switch p.method {
 	case identity:
-		if p.target.Type.id == Timestamp {
+		if p.target.Type.id == Timestamp || p.target.Type.id == Time {
 			v.integer = roundTimestamp(v.integer, p.target.Typmod)
 		}
 		return v, nil
@@ -532,7 +543,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 				return 1, nil
 			}
 		}
-	case Int2, Int4, Int8, Timestamp:
+	case Int2, Int4, Int8, Timestamp, Time:
 		if a.integer < b.integer {
 			return -1, nil
 		}

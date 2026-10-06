@@ -26,8 +26,8 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	n, _ := v.Timestamp()
-	wantDesc := StatementDescription{timestamps: b.timestamps}
-	before := append([]timestampConstant(nil), wantDesc.timestamps...)
+	wantDesc := StatementDescription{temporals: b.temporals}
+	before := append([]temporalConstant(nil), wantDesc.temporals...)
 	if len(before) != 1 || before[0].offset != raw.Pos.Offset || before[0].scalar != n || before[0].typmod != 3 {
 		t.Fatal(before)
 	}
@@ -47,7 +47,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	}
 	v, err = node.Eval(&EvalContext{Context: ctx})
 	got, _ := v.Timestamp()
-	if err != nil || v.Type() != current || got != n || node.ResultUsage().Typmod != 3 || !reflect.DeepEqual(before, wantDesc.timestamps) {
+	if err != nil || v.Type() != current || got != n || node.ResultUsage().Typmod != 3 || !reflect.DeepEqual(before, wantDesc.temporals) {
 		t.Fatal(v, node.ResultUsage(), err)
 	}
 	dest, _, _ := current.ResolveModifier(0)
@@ -75,7 +75,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	info, err := b.finish()
-	if err != nil || info.Types[0].Type != current || info.Types[0].Typmod != -1 || len(b.timestamps) != 0 {
+	if err != nil || info.Types[0].Type != current || info.Types[0].Typmod != -1 || len(b.temporals) != 0 {
 		t.Fatal(info, err)
 	}
 }
@@ -97,7 +97,7 @@ func TestTimestampDescriptionMetadataAndNoticeOnce(t *testing.T) {
 	if len(notices) != 1 || notices[0].Code != "22023" || notices[0].Position != "8" {
 		t.Fatal(notices)
 	}
-	if len(description.timestamps) != 1 || description.Parameters.Count != 1 || description.Parameters.Types[0].Typmod != -1 || description.Parameters.Types[0].Type.ID() != 1114 {
+	if len(description.temporals) != 1 || description.Parameters.Count != 1 || description.Parameters.Types[0].Typmod != -1 || description.Parameters.Types[0].Type.ID() != 1114 {
 		t.Fatal(description)
 	}
 	a, b := description.Results[0], description.Results[1]
@@ -153,7 +153,7 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 			scope.Finish(err)
 			t.Fatal(err)
 		}
-		if !scope.input.TransactionStart.Equal(start) || len(desc.timestamps) != 1 {
+		if !scope.input.TransactionStart.Equal(start) || len(desc.temporals) != 1 {
 			t.Fatal(scope.input, desc)
 		}
 		if err = scope.Finish(nil); err != nil {
@@ -171,7 +171,7 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(desc.timestamps) != 1 || desc.timestamps[0].scalar != 9223371331200000000 {
+	if len(desc.temporals) != 1 || desc.temporals[0].scalar != 9223371331200000000 {
 		t.Fatal(desc)
 	}
 	scope, err := e.StartStatement(op)
@@ -212,7 +212,7 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		description := StatementDescription{timestamps: b.timestamps}
+		description := StatementDescription{temporals: b.temporals}
 		b = newExpressionBinder(ctx, e, later, nil, &description)
 		node, err = b.bind(raw, policy)
 		if err != nil {

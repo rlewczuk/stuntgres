@@ -53,7 +53,7 @@ type binding struct {
 	parameters    ParameterInfo
 	expressions   [][]BoundExpr
 	createColumns []ColumnDescriptor
-	timestamps    []timestampConstant
+	temporals     []temporalConstant
 }
 
 func New() *Engine {
@@ -234,7 +234,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if b.query != nil {
 		results = b.query.Root.Schema()
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, timestamps: b.timestamps}, nil
+	return StatementDescription{Parameters: b.parameters, Results: results, temporals: b.temporals}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -439,7 +439,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
 			if !s.Star {
 				if _, ok := s.Targets[i].(parser.TypedLiteralExpr); ok {
-					result.Name = "timestamp"
+					result.Name = expr.ResultUsage().Type.Name()
 				}
 			}
 			if c, ok := expr.(columnExpression); ok {
@@ -457,7 +457,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		return b, err
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
-	b.timestamps = binder.timestamps
+	b.temporals = binder.temporals
 	return b, nil
 }
 
@@ -562,8 +562,8 @@ func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error
 	switch copy.Code {
 	case "42804":
 		source := literalTypeName(value)
-		if _, ok := raw.(parser.TypedLiteralExpr); ok {
-			source = "timestamp without time zone"
+		if literal, ok := raw.(parser.TypedLiteralExpr); ok {
+			source = literal.TypeName.Name + " without time zone"
 		}
 		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, column.Usage.Type.DiagnosticName(), source)
 		copy.Hint = "You will need to rewrite or cast the expression."

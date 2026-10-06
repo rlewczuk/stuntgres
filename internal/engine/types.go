@@ -23,13 +23,14 @@ type StatementDescription struct {
 	Parameters ParameterInfo
 	Results    []ColumnDescriptor
 	// Immutable scalar captures, never descriptors, execution plans or frames.
-	timestamps []timestampConstant
+	temporals []temporalConstant
 }
 
-type timestampConstant struct {
+type temporalConstant struct {
 	offset int
 	scalar int64
 	typmod int32
+	typeID sqltype.ID
 }
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
@@ -163,7 +164,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
 	case "money", "char", "bpchar", "varchar",
-		"numeric", "bit", "varbit", "date", "time", "timetz",
+		"numeric", "bit", "varbit", "date", "timetz",
 		"timestamptz", "interval", "bytea", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
