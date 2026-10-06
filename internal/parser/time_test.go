@@ -86,12 +86,15 @@ func TestTimePrecisionScannerAndBoundaries(t *testing.T) {
 			t.Fatal(raw)
 		}
 	}
-	for _, q := range []string{"CREATE TABLE t(v TIME WITH TIME ZONE)", "CREATE TABLE t(v TIME(3) WITH TIME ZONE)", "SELECT TIME '24:00'", "SELECT TIME '24:00'::time FROM t", "CREATE TABLE t(v TIME[])"} {
+	for _, q := range []string{"CREATE TABLE t(v TIME WITH TIME ZONE)", "CREATE TABLE t(v TIME(3) WITH TIME ZONE)", "SELECT TIME '24:00'", "CREATE TABLE t(v TIME[])"} {
 		_, err := Parse(q)
 		var got *sqlstate.Error
 		if !errors.As(err, &got) || got.Code != "0A000" {
 			t.Fatal(q, err)
 		}
+	}
+	if _, err := Parse("SELECT TIME '24:00'::time FROM t"); err != nil {
+		t.Fatal("cast target scope belongs to binding", err)
 	}
 	statements, err := Parse("INSERT INTO t VALUES(TIME '24:00'); SELECT TIME '00:00' FROM t junk bad")
 	if err == nil || statements != nil {

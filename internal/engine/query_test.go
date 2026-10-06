@@ -68,7 +68,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		rows, count, err := finalizeQuery(context.Background(), query, source, nil)
+		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if rows != nil || count != 0 || err != sentinel || calls != 3 || source.view != nil {
 			t.Fatal(rows, count, err, calls, source.view)
 		}
@@ -85,7 +85,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		rows, count, err := finalizeQuery(context.Background(), query, source, nil)
+		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if err != nil || count != 2 || calls != 2 {
 			t.Fatal(count, calls, err)
 		}
@@ -132,7 +132,7 @@ func TestQueryCoreCancellation(t *testing.T) {
 					return c.Row[0], nil
 				})
 			}
-			rows, _, err := finalizeQuery(ctx, query, source, nil)
+			rows, _, err := finalizeQuery(ctx, query.Root, source, nil)
 			if rows != nil || err != context.Canceled || calls == 0 || source.view != nil {
 				t.Fatal(rows, err, calls, source.view)
 			}
@@ -153,7 +153,7 @@ func TestQueryCoreCancellation(t *testing.T) {
 				source.committed[i].values[1] = value
 			}
 			ctx := &queryCountingContext{Context: context.Background(), remaining: 10}
-			rows, _, err := finalizeQuery(ctx, query, source, nil)
+			rows, _, err := finalizeQuery(ctx, query.Root, source, nil)
 			if rows != nil || err != context.Canceled || source.view != nil {
 				t.Fatal(rows, err, source.view)
 			}
@@ -185,14 +185,14 @@ func TestQueryCoreSortErrors(t *testing.T) {
 	t.Run("type comparison failure prevents publication", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
 		query.Root.(*projectNode).child.(*sortNode).comparison = sqltype.Comparison{}
-		rows, count, err := finalizeQuery(context.Background(), query, source, nil)
+		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if rows != nil || count != 0 || err == nil || err.Error() != "invalid comparison values" || source.view != nil {
 			t.Fatal(rows, count, err, source.view)
 		}
 	})
 	for _, q := range []string{"SELECT v FROM t ORDER BY v", "SELECT v FROM t ORDER BY v DESC"} {
 		_, query, source := queryCoreFixture(t, q)
-		rows, count, err := finalizeQuery(context.Background(), query, source, nil)
+		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if err != nil || count != 4 {
 			t.Fatal(err, count)
 		}
@@ -215,7 +215,7 @@ func TestQueryCoreResultOwnership(t *testing.T) {
 	for _, ending := range []string{"EOF", "cancel", "width", "close"} {
 		t.Run(ending, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT id FROM t")
-			rows, _, err := finalizeQuery(context.Background(), query, source, nil)
+			rows, _, err := finalizeQuery(context.Background(), query.Root, source, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

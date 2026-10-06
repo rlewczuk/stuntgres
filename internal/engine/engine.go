@@ -472,15 +472,13 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			projection[i] = expr
 			result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
 			if !s.Star {
-				if _, ok := s.Targets[i].(parser.TypedLiteralExpr); ok {
-					result.Name = expr.ResultUsage().Type.Name()
-				}
-				if call, ok := s.Targets[i].(parser.FunctionExpr); ok {
-					result.Name = call.Name.Parts[0].Text
-				}
+				result.Name, _ = expressionName(s.Targets[i], expr.ResultUsage())
 			}
 			if c, ok := expr.(columnExpression); ok {
 				result = b.relation.columns[c.slot]
+				if !s.Star {
+					result.Name, _ = expressionName(s.Targets[i], expr.ResultUsage())
+				}
 			}
 			results[i] = result
 		}
@@ -601,6 +599,18 @@ func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error
 		source := literalTypeName(value)
 		if literal, ok := raw.(parser.TypedLiteralExpr); ok {
 			source = literal.TypeName.Name + " without time zone"
+		}
+		if cast, ok := raw.(parser.CastExpr); ok {
+			switch cast.TypeName.Name {
+			case "int", "int4", "integer":
+				source = "integer"
+			case "int8", "bigint":
+				source = "bigint"
+			case "bool", "boolean":
+				source = "boolean"
+			default:
+				source = cast.TypeName.Name
+			}
 		}
 		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, column.Usage.Type.DiagnosticName(), source)
 		copy.Hint = "You will need to rewrite or cast the expression."
@@ -845,28 +855,61 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
-	var materialized [][]sqltype.Value
+	expressions := b.expressions
+	expressionsChanged := false
 	evaluation := EvalContext{Context: ctx, Parameters: canonical}
+	var queryRoot LogicalNode
+	if _, selecting := stmt.(*parser.Select); selecting {
+		// Planning-owned conversions precede executor ACLs, without retaining
+		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
+		// earlier, and only this execution's imported frame is materialized.
+		e.mu.Unlock()
+		queryRoot, err = preflightQuery(&evaluation, b.query.Root)
+		if err != nil {
+			return Result{}, err
+		}
+		e.mu.Lock()
+		if err = ctx.Err(); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		if err = scope.validateLockedRelation(e); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		// Do not authorize source capture with the pre-unlock authority view.
+		// Keep the original binding's actual-column manifest and exact ref.
+		auth, err = e.statementAuthorizationLocked(op, stmt)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
 	_, inserting := stmt.(*parser.Insert)
 	if inserting {
-		// Fold immutable assignment casts before executor ACL checks, without
-		// allocating protected rows for unauthorized valid input.
+		// Preflight frame-only conversions before executor ACL/constraints.
+		// Only changed rows and the outer slice need execution-private copies.
 		for i, row := range b.expressions {
+			var privateRow []BoundExpr
 			for j, expression := range row {
-				if _, converted := expression.(coercionExpression); converted && !expression.Properties().ParameterDependent {
-					value, foldErr := expression.Eval(&evaluation)
-					if foldErr != nil {
-						e.mu.Unlock()
-						return Result{}, insertValueError(foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j])
-					}
-					if materialized == nil {
-						materialized = make([][]sqltype.Value, len(b.expressions))
-					}
-					if materialized[i] == nil {
-						materialized[i] = make([]sqltype.Value, len(row))
-					}
-					materialized[i][j] = value
+				folded, changed, foldErr := preflightCoercions(&evaluation, expression)
+				if foldErr != nil {
+					e.mu.Unlock()
+					return Result{}, insertValueError(foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j])
 				}
+				if changed {
+					if privateRow == nil {
+						privateRow = append([]BoundExpr(nil), row...)
+					}
+					privateRow[j] = folded
+				}
+			}
+			if privateRow != nil {
+				if !expressionsChanged {
+					expressions = append([][]BoundExpr(nil), b.expressions...)
+					expressionsChanged = true
+				}
+				expressions[i] = privateRow
 			}
 		}
 	}
@@ -889,11 +932,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			for j, v := range source {
 				target := b.targets[j]
 				c := b.relation.columns[target]
-				if materialized != nil && materialized[i] != nil && materialized[i][j].Type() != nil {
-					row[target] = materialized[i][j]
-				} else {
-					row[target], err = b.expressions[i][j].Eval(&evaluation)
-				}
+				row[target], err = expressions[i][j].Eval(&evaluation)
 				if err != nil {
 					e.mu.Unlock()
 					return Result{}, insertValueError(err, c, v)
@@ -901,8 +940,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			rows[i] = row
 		}
-		// All supported expressions are literals or canonical parameters.
-		// Constant assignment casts have already folded before ACL checks;
+		// Frame-only conversions have already folded before ACL checks;
 		// executor constraints must not mask their failures.
 		for _, row := range rows {
 			if err = ctx.Err(); err != nil {
@@ -939,7 +977,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			source = captureQuerySource(view, b.ref)
 		}
 		e.mu.Unlock()
-		rows, count, queryErr := finalizeQuery(ctx, b.query, source, canonical)
+		rows, count, queryErr := finalizeQuery(ctx, queryRoot, source, canonical)
 		if queryErr != nil {
 			return Result{}, queryErr
 		}

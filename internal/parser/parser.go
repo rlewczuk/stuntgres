@@ -222,6 +222,31 @@ func (l *lexer) call(callee, opener lexeme) {
 	}
 }
 
+func (l *lexer) castFunction(callee, opener lexeme) bool {
+	switch callee.text {
+	case "int4", "int8", "text", "bool":
+		return true
+	case "integer", "bigint", "boolean", "int":
+		if callee.keyword == nil {
+			return true // Bounded quoted alias diagnostic belongs to binding.
+		}
+	}
+	l.call(callee, opener)
+	return false
+}
+
+func (l *lexer) scalarInput(expr Expr) bool {
+	switch r := expr.(type) {
+	case CastExpr:
+		return l.scalarInput(r.Child)
+	case ColumnExpr:
+		l.failAt("0A000", "column references are unsupported in scalar inputs", r.Pos.Offset)
+		return false
+	default:
+		return true
+	}
+}
+
 func columnType(tok lexeme) TypeName {
 	if strings.HasPrefix(tok.raw, `"`) || strings.HasPrefix(tok.raw, `U&"`) || strings.HasPrefix(tok.raw, `u&"`) {
 		return TypeName{Name: tok.text, Pos: tok.pos, Quoted: true}

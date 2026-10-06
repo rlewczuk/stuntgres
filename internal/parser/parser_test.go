@@ -105,7 +105,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"SELECT x FROM t ORDER BY x, y", "0A000"}, {"SELECT f(x) FROM t", "0A000"},
 		{"SELECT x + 1 FROM t", "0A000"}, {"SELECT 1", "0A000"},
 		{"CREATE TABLE t (x INT[])", "0A000"},
-		{"SELECT * FROM t JOIN u ON t.x = u.x", "0A000"}, {"SELECT * FROM t WHERE x = 1::INT", "0A000"},
+		{"SELECT * FROM t JOIN u ON t.x = u.x", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"UPDATE t SET x = 1", "0A000"}, {"DELETE FROM t", "0A000"},
 		{"SAVEPOINT x", "0A000"}, {"RELEASE x", "0A000"},

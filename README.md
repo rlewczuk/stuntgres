@@ -730,7 +730,7 @@ whole-statement type finalization. Explicit VARIADIC scalar operands fail42804 a
 multiple ordinary/VARIADIC operands fail42883 signature lookup. Arrays, including
 PostgreSQL's NULL-array/empty-array cases, are unsupported; ordinary NULL is a
 single null argument, not a NULL array. No calls are added to INSERT, settings
-arguments or WHERE. General functions, qualification, aliases, casts, arithmetic,
+arguments or WHERE. General functions, qualification, aliases, nonbaseline casts, arithmetic,
 DISTINCT, ORDER BY within calls, FILTER, OVER, star and named arguments remain
 outside the native surface.
 
@@ -823,7 +823,7 @@ scalar comparisons form Boolean leaves in targets and WHERE, such as
 `NOT id=1 AND (a OR b)` or `id>=2 AND a=b`. Comparisons keep scalar operands
 only: no chaining or logical/comparison expressions as comparison operands.
 This adds no logical INSERT VALUES, setting arguments, expression ORDER BY,
-arithmetic, casts, aliases, general functions or qualified-column expressions.
+arithmetic, nonbaseline casts, aliases, general functions or qualified-column expressions.
 PostgreSQL also accepts `SELECT TRUE AND FROM t` and `SELECT TRUE OR FROM t`
 as TRUE targets with bare aliases `and` and `or`. Native aliases remain excluded:
 these keywords continue logical expressions, so these two incomplete expressions
@@ -1202,9 +1202,9 @@ IF and EXISTS retain their release unreserved and column-name categories, respec
 
 INSERT query inputs remain unsupported, including parenthesized SELECT inputs. Their bounded grammar recognition does not execute a query or publish data: a recognized query produces `0A000` only after the whole script is syntactically valid. In `INSERT INTO t (select) VALUES (1)`, `(select)` is a parenthesized zero-target SELECT rather than a target column, and the following raw `VALUES` is the syntax error (`42601`, character position 24).
 
-Generic function-name recognition follows the distinct IDENT/unreserved/type-or-function-name rule, not column-name legality: `between(x)` is malformed, while ordinary/U/T call names and separately recognized built-in constructs such as COALESCE remain unsupported (`0A000`). No function or cast is executed by this recognition. DEFAULT is a valid bare projection label but still an unsupported alias. ISNULL/NOTNULL execute as scalar null-test predicates in table SELECT; explicit `ORDER BY x NULLS FIRST/LAST` remains recognized but unsupported, and quoted operator spellings remain ordinary names/labels. Failure boundaries retain complete positioned diagnostics without global keyword-to-error promotion.
+Generic function-name recognition follows the distinct IDENT/unreserved/type-or-function-name rule, not column-name legality: `between(x)` is malformed, while ordinary/U/T call names and separately recognized built-in constructs such as COALESCE remain unsupported (`0A000`), except the four baseline type-function casts documented below and the selected null-count functions. No general function or special expression is executed by this recognition. DEFAULT is a valid bare projection label but still an unsupported alias. ISNULL/NOTNULL execute as scalar null-test predicates in table SELECT; explicit `ORDER BY x NULLS FIRST/LAST` remains recognized but unsupported, and quoted operator spellings remain ordinary names/labels. Failure boundaries retain complete positioned diagnostics without global keyword-to-error promotion.
 
-Except for the two selected null-count functions (including exact quoted `"num_nulls"` and `"num_nonnulls"` names), the same failure-only call guard applies at every named projection position: `SELECT x, abs(x) FROM t` and later COALESCE or quoted/type-function-name calls remain recognized unsupported features, while a later unquoted `between(x)` is malformed at its opening parenthesis. Failure-only recognition retains the original callee token and never reconstructs category identity from normalized projection strings or executes the call.
+Except for the admitted baseline cast calls and the two selected null-count functions (including exact quoted `"num_nulls"` and `"num_nonnulls"` names), the same failure-only call guard applies at every named projection position: `SELECT x, abs(x) FROM t` and later COALESCE or nonbaseline quoted/type-function-name calls remain recognized unsupported features, while a later unquoted `between(x)` is malformed at its opening parenthesis. Recognition retains the original callee token and never reconstructs category identity from normalized projection strings.
 
 NULLS ordering is admitted only when the next actual unquoted keyword token is FIRST or LAST (comments and case folding use the existing scanner). A one-token filter caches that token without rescanning. Invalid or quoted alternatives, or end of input after NULLS, leave the original keyword as the syntax error: `ORDER BY x NULLS bogus` reports `42601` at raw NULLS, not at bogus. The filter preserves original lexemes, character positions and scanner-error precedence; it neither changes keyword metadata nor enables explicit NULL ordering.
 
@@ -1328,7 +1328,7 @@ Unconstrained storage is bounded to 131072 integer digits and 16383 fractional
 places; excess format range is rejected, not silently truncated to zero.
 Numeric SQL parsing does not broaden SET's plain-decimal-integer grammar:
 settings' quoted numeric codecs retain their separate units/prefix behavior.
-No serial, arithmetic/functions, CAST/`::`, general operator syntax or
+No serial, arithmetic/general functions, numeric casts, general operator syntax or
 SELECT-without-FROM expansion is introduced; existing SMALLINT participates in
 exact numeric comparison and checked integer assignment.
 
@@ -1353,7 +1353,7 @@ not aliases. Result DatabaseTypeName is FLOAT4/FLOAT8, ScanType is float64,
 including NULL/empty results; no fictitious DecimalSize or Length is reported.
 
 Decimal inputs may be quoted, inferred numeric tokens or positional binds:
-`INSERT INTO f VALUES(0.1)`. Arithmetic and general cast syntax remain unsupported.
+`INSERT INTO f VALUES(0.1)`. Arithmetic and floating-point casts remain unsupported.
 Text REAL input rounds directly to binary32 (not through binary64):
 `'7.038531e-26'` stores bits 0x15ae43fd. Bound float32 is already widened by
 database/sql; bound float64 is serialized as pq-compatible decimal parameter
@@ -1424,7 +1424,7 @@ NULL/strings (`'yes'`/`'no'`); concrete non-BOOL input fails `42804`. Only TRUE
 matches: FALSE and typed BOOL NULL/UNKNOWN do not. SELECT targets and WHERE admit
 one binary comparison of existing scalar operands: `=`, `<>`, `!=`, `<`, `<=`,
 `>` or `>=`. `!=` aliases `<>`. Either operand may be a literal, parameter or
-unqualified column; results have `?column?`/BOOL metadata with native bool
+unqualified column, including a baseline cast of those scalar operands; results have `?column?`/BOOL metadata with native bool
 ScanType and no physical-column origin, even on empty input. Either NULL yields
 BOOL NULL/UNKNOWN, including NULL compared with NULL; WHERE discards it.
 INT2/INT4/INT8 compare exactly across widths without assignment narrowing or
@@ -1446,7 +1446,7 @@ FROM is still required outside identity/settings special forms and the selected
 null-count-only form. These scalar
 comparisons also form Boolean leaves above NOT, AND and OR in SELECT targets
 and WHERE. No comparison chaining, arithmetic, aliases, qualified column
-references, general functions, casts or comparison in INSERT/settings is enabled.
+references, general functions, nonbaseline casts or comparison in INSERT/settings is enabled.
 Comparisons do not sort rows.
 Selected null-count calls remain excluded from Boolean/comparison operands,
 and Boolean/comparison expressions remain excluded from their arguments.
@@ -1522,8 +1522,8 @@ right operand competes with another ungrouped predicate:
 Scalar comparisons bind more tightly than these predicates, which bind above
 NOT, AND and OR: `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection
 and WHERE. Ordinary `v=NULL` remains UNKNOWN and selects no rows; no
-transform_null_equals behavior is added. Existing atom-only comparison operands
-and comparison-chaining restrictions remain. General functions, casts, aliases,
+transform_null_equals behavior is added. Existing scalar-only comparison operands
+and comparison-chaining restrictions remain. General functions, nonbaseline casts, aliases,
 row/composite tests and no-FROM scalar SELECT remain excluded except for the
 selected null-count call roots described above. Those calls remain standalone
 projection roots, not predicate operands; predicates remain excluded from their
@@ -1556,6 +1556,72 @@ the unchanged pinned real PostgreSQL18.0 fixture, asserting expectations
 before backend parity. Source/manual semantics:
 [PostgreSQL18 comparison predicates](https://www.postgresql.org/docs/18/functions-comparison.html)
 and [operator precedence](https://www.postgresql.org/docs/18/sql-syntax-lexical.html).
+
+### Explicit baseline casts
+
+Baseline casts also serve as the existing comparison and null/Boolean predicate
+operands, Boolean leaves, and selected null-count arguments. They do not admit logical/comparison input to
+INSERT/settings or selected calls as Boolean/comparison leaves. The selected
+null-count-only no-FROM form may use literal/parameter cast arguments; a standalone
+cast still requires FROM.
+
+`CAST(expression AS type)`, `expression::type` and `int4(expression)`,
+`int8(expression)`, `text(expression)`, `bool(expression)` execute through the
+shared typed expression path in table SELECT, WHERE and INSERT VALUES.
+Nested/grouped casts and postfix chains are supported. Standard/postfix targets
+accept INTEGER/INT/INT4, BIGINT/INT8, BOOLEAN/BOOL and TEXT aliases; function-style
+names are only int4/int8/text/bool, including their quoted lowercase spellings.
+Unquoted `integer(...)`, `bigint(...)`, `boolean(...)` and `int(...)` remain syntax
+errors; this feature does not introduce general function resolution.
+
+| Source | INT4 | INT8 | TEXT | BOOL |
+| --- | --- | --- | --- | --- |
+| INT4 | identity | widen | decimal output | zero false, nonzero true |
+| INT8 | checked narrow | identity | decimal output | unsupported |
+| TEXT | integer input | bigint input | identity | boolean input |
+| BOOL | false 0, true 1 | unsupported | `false` / `true` | identity |
+
+NULL retains the target type; unsupported pairs fail even for typed NULL or empty
+relations. No transitive conversion is inferred. Explicit casts involving INT2,
+NUMERIC, floats, temporal types or UUID remain native `0A000` boundaries, including
+same-type casts. Existing assignment/implicit policies are unchanged: for example,
+BOOL cannot assign to INT4 without a cast, and concrete TEXT cannot assign to INT4.
+Unknown quoted input may still acquire a destination type directly.
+
+The first standard/postfix cast of an unresolved parameter fixes its source type:
+`SELECT $1::int4,$1::text FROM t` imports INT4 and returns INT4/TEXT. Later casts
+convert that source rather than re-inferring it. Earlier unresolved targets retain
+the occurrence-sensitive rule: `$1,$1::int4` fails `42P08` (integer versus text).
+`int4($1)`, `int8($1)` and `bool($1)` are ambiguous (`42725`); `text($1)` infers TEXT,
+and `int4($1::text)` imports TEXT then converts. Prepared executions retain fixed
+metadata and private parameter frames.
+
+Standard/postfix output names preserve column/function names, otherwise use the
+normalized target name; function casts use their callee name. Same-type column
+casts reduce to the column and retain physical origin; conversions have no column
+origin. Unknown literal input errors carry the quote's character Position.
+Typed conversion/overflow errors have no Position and finalize before Query exposes
+a cursor. Unsupported standard/postfix pairs use `42846`; function pairs use `42883`
+with PostgreSQL's function hint. Multirow INSERT and staged Restore remain atomic.
+Dump emits canonical typed literals, and Restore recursively admits literal casts
+while rejecting nested parameters at their token.
+Immutable row/stage-independent conversions, including imported parameter casts,
+are preflighted in a fresh execution-private frame even when the relation is empty
+or WHERE selects no rows; Prepare still succeeds for typed conversion failures.
+SELECT preflight runs outside engine locks before executor table privileges are
+checked; namespace lookup/USAGE remains earlier. Valid casts still require SELECT.
+Row-dependent conversions are evaluated only for admitted input rows. This bounded
+materialization does not implement PostgreSQL's custom/generic plan-cache switching.
+Preflight also traverses null tests, Boolean tests and both DISTINCT operands,
+including raw-NULL rewrites, without folding the predicate or pruning its dependencies.
+Errors from a cast inside equality keep their original diagnostic and Position;
+operator-resolution errors report the actual bound operand types.
+
+Public feature smoke: `make smoke RUN='^TestCastExplicitSmoke$' VERBOSE=1`.
+Review-regression smoke: `make smoke RUN='^TestCastExplicitReviewSmoke$' VERBOSE=1`.
+Parameter/ACL smoke: `make smoke RUN='^TestCastExplicitPreflightSmoke$' VERBOSE=1`.
+Pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCastExplicit.*$'`.
+
 Normalized integer parameters targeting INT2/INT4/INT8 and Boolean parameters targeting
 BOOL use checked scalar imports without successful-value formatting or reparsing.
 They retain the inferred descriptor and cancellation checks; INT2/INT4 overflow keeps
@@ -2011,7 +2077,7 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 `go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
 
 
-Three-part/database qualification, temporary-object creation, aliases, joins, generic expressions/functions, casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary-object creation, aliases, joins, generic expressions/functions, nonbaseline explicit casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 

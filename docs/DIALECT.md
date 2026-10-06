@@ -25,7 +25,7 @@ INT4 inference (42P08). Inputs' Go kinds never choose SQL types.
 Incompatible operands fail eagerly in Query/Prepare at the operator (42883);
 selected literal input errors retain the literal position (22P02/22003).
 No comparison implies row ordering. Comparison chaining, aliases, qualified
-columns, casts, arithmetic and comparison in INSERT/settings remain
+columns, nonbaseline casts, arithmetic and comparison in INSERT/settings remain
 excluded. Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`;
 independent pinned reference: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`.
 Logical operators use PostgreSQL's three-valued BOOL semantics: FALSE AND NULL
@@ -81,7 +81,7 @@ strings/NULL; multiple ordinary/VARIADIC operands fail42883 lookup first.
 Arrays are not admitted: PostgreSQL NULL-array/empty-array semantics are not
 native support, and ordinary NULL is a single null argument. Calls remain excluded
 from INSERT, WHERE and setting arguments. General calls, qualification, aliases,
-casts, arithmetic, DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
+nonbaseline casts, arithmetic, DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
 remain exclusions rather than PostgreSQL diagnostic-parity claims.
 Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`;
 independent reference: `make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
@@ -122,8 +122,8 @@ fails42601); explicit grouping admits the intended nesting. Scalar comparisons
 bind more tightly than selected predicates, which bind above NOT, AND and OR.
 `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection and WHERE.
 Ordinary `v=NULL` still selects no rows; no transform_null_equals change.
-Existing atom-only comparison operands/chaining restrictions remain.
-Arithmetic/general functions/casts, aliases, rows/composites and no-FROM scalar
+Existing scalar-only comparison operands/chaining restrictions remain.
+Arithmetic/general functions/nonbaseline casts, aliases, rows/composites and no-FROM scalar
 queries remain excluded except for the selected call roots described above.
 Null-count calls remain standalone projection roots, not predicate operands;
 predicate expressions remain excluded from their arguments.
@@ -137,6 +137,42 @@ values/metadata; dependency/ACL use includes both DISTINCT operands.
 Feature smoke: `make smoke RUN='^TestCompareNullSmoke$' VERBOSE=1`;
 native: `make test PACKAGES=. RUN='^TestCompareNull.*$' VERBOSE=1`;
 real pinned reference: `make reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1`.
+
+Baseline explicit casts extend the scalar positions above: `CAST(expr AS type)`,
+`expr::type`, and function-style int4/int8/text/bool calls, with nested/grouped
+operands. Standard/postfix targets retain baseline declaration aliases; function
+aliases integer/bigint/boolean/int are not admitted. Only INT4/INT8/TEXT/BOOL
+source and target types are supported; other explicit casts, including identities,
+fail native0A000. The direct matrix permits integer width conversion, integer
+text output, TEXT input to integers/BOOL, BOOL text output as true/false and
+INT4↔BOOL (nonzero true; false0/true1); INT8↔BOOL remains unsupported.
+NULL keeps target metadata; unsupported pairs cannot bypass analysis with NULL.
+Assignment/implicit policies do not gain these explicit edges.
+Baseline casts remain scalar leaves in existing comparisons, null/Boolean
+predicates, Boolean expressions and selected null-count arguments. Selected null-count-only no-FROM projections
+may use literal/parameter cast arguments; standalone casts still require FROM.
+First standard/postfix parameter casts establish source type, later casts convert
+it; int4/int8/bool unknown parameter calls are42725, text($1) infers TEXT.
+Standard/postfix names preserve strong column/function names, otherwise target
+names; function casts use callee names. Same-type column casts retain origin,
+converted outputs do not. Unknown input errors position the quote; typed
+conversion errors are unpositioned and expose no partial query cursor.
+Standard/postfix unsupported pairs are42846, function pairs42883.
+Multirow INSERT and cast-bearing Restore remain atomic; nested Restore parameters
+are rejected at their token. Dump serializes canonical values.
+Execution preflights immutable row/stage-independent casts, including imported
+parameters, even on empty/fully filtered input without moving typed failures into
+Prepare. Fresh private frames prevent parameter reuse across executions.
+SELECT preflight precedes executor table ACL outside engine locks; namespace USAGE
+analysis remains earlier and valid casts still require SELECT. Row-dependent
+conversions remain row-owned; custom/generic plan-cache switching is not implemented.
+Preflight traverses null/Boolean tests and both DISTINCT operands without
+folding predicates or pruning conservative dependencies.
+Equality preserves child cast errors and diagnoses operator
+failures from bound operand types. Review smoke:
+`make smoke RUN='^TestCastExplicitReviewSmoke$'`.
+Smoke: `make smoke RUN='^TestCastExplicitSmoke$'`; details/matrix in README.
+Parameter/ACL smoke: `make smoke RUN='^TestCastExplicitPreflightSmoke$'`.
 
 UUID declarations use contextual quoted values or binds, not UUID typed literals.
 UUID accepts either hex case, matching braces, omitted hyphens and single hyphens

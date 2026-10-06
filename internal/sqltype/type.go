@@ -412,6 +412,7 @@ type CoercionContext uint8
 const (
 	Implicit CoercionContext = iota
 	Assignment
+	Explicit
 )
 
 type coercionMethod uint8
@@ -423,6 +424,8 @@ const (
 	booleanText
 	floatConversion
 	numericConversion
+	integerBoolean
+	booleanInteger
 )
 
 type CoercionPlan struct {
@@ -472,11 +475,31 @@ var baselineCasts = [...]castSpec{
 	{Numeric, Text, Assignment, viaIO},
 }
 
+func BaselineCastType(id ID) bool {
+	return id == Int4 || id == Int8 || id == Text || id == Bool
+}
+
 // PlanCoercion admits only bounded directional edges, never transitive casts.
 func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, error) {
 	p := CoercionPlan{source: source, target: target}
 	if !source.Valid() || !target.Valid() {
 		return p, fmt.Errorf("invalid coercion usage")
+	}
+	if context == Explicit {
+		if !BaselineCastType(source.Type.id) || !BaselineCastType(target.Type.id) {
+			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
+		}
+		switch {
+		case source.Type.id == Text && target.Type.id != Text:
+			p.method = viaIO
+			return p, nil
+		case source.Type.id == Int4 && target.Type.id == Bool:
+			p.method = integerBoolean
+			return p, nil
+		case source.Type.id == Bool && target.Type.id == Int4:
+			p.method = booleanInteger
+			return p, nil
+		}
 	}
 	if source.Type == target.Type {
 		return p, nil
@@ -512,6 +535,14 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 		return numericCoercion(ctx, v, p.target)
 	case integerConversion:
 		return Integer(p.target.Type, v.integer)
+	case integerBoolean:
+		return Boolean(p.target.Type, v.integer != 0), nil
+	case booleanInteger:
+		var n int64
+		if v.boolean {
+			n = 1
+		}
+		return Integer(p.target.Type, n)
 	case floatConversion:
 		n := v.floating
 		if v.typ.id == Int2 || v.typ.id == Int4 || v.typ.id == Int8 {

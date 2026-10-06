@@ -66,10 +66,18 @@ package parser
  * completing a single type name: known excluded families use their first type
  * location, while arbitrary tails are syntax errors at the second token. */
 %nonassoc TYPE_NAME
+/* Postfix casts put projection labels in the follow set of type names.
+ * Preserve declaration grammar's deliberate type-tail shift rather than
+ * leaving those decisions as implicit shift/reduce conflicts. */
+%nonassoc IDENT NULL_COUNT_FUNC INSERT VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN START COMMIT ROLLBACK ABORT WORK TRANSACTION NO CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE '.'
 %nonassoc '('
 %nonassoc KW_T LIKE WITH WITHOUT
 %nonassoc IS ISNULL NOTNULL
 %nonassoc '='
+%left ':'
+/* A parenthesized scalar stays on the scalar path; Boolean grouping uses
+ * target_or only when a logical/comparison continuation requires it. */
+%nonassoc ')'
 %type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single alter_rename_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <col> column
 %type <elements> elements optional_elements
@@ -86,6 +94,7 @@ package parser
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
 %type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with generic_word_without_exists generic_word_base suffix unsupported_query nulls_keyword nulls_position
+%type <tok> cast_function
 %type <settingName> setting_name set_name local_setting_name
 %type <targets> insert_columns insert_targets
 %type <objectName> relation_name
@@ -363,11 +372,16 @@ query_order: /* empty */ | ORDER BY name direction ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' values ')' { $$ = $2 } ;
-values: scalar { $$ = []Expr{$1} } | values ',' scalar { $$ = append($1,$3) } ;
+values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$1} } | values ',' scalar { if !sqllex.(*lexer).scalarInput($3) { return 1 }; $$ = append($1,$3) } ;
 scalar: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
  | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
- | scalar ':' {sqllex.(*lexer).failAt("0A000","casts are unsupported",$2.pos.Offset);return 1} ;
+ | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+ | '(' scalar ')' { $$=$2 }
+ | CAST '(' scalar AS type ')' { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} }
+ | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} }
+ | cast_function scalar ')' { $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} } ;
+cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | TRUE { $$ = Value{Kind:BooleanValue, Boolean:true, Pos:$1.pos} }
  | FALSE { $$ = Value{Kind:BooleanValue, Pos:$1.pos} }
@@ -379,15 +393,13 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | value '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
  | value '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
  | value '/' { sqllex.(*lexer).fail("0A000","expressions are unsupported"); return 1 }
- | name '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | KW_T '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | IS '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | LIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | AUTHORIZATION '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | ISNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
- | DEFAULT { sqllex.(*lexer).failAt("0A000","default values are unsupported",$1.pos.Offset); return 1 }
- | CAST '(' { sqllex.(*lexer).failAt("0A000","casts are unsupported",$1.pos.Offset); return 1 } ;
+ | DEFAULT { sqllex.(*lexer).failAt("0A000","default values are unsupported",$1.pos.Offset); return 1 } ;
 select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=$5; $2.Order=$6; $2.Pos=$1.pos; $$=$2 }
  | SELECT projection { $2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection FROM relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$5.pos.Offset); return 1 }
@@ -396,8 +408,7 @@ select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=
  | SELECT projection FROM relation_name where order suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
-operand: name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
- | scalar { $$=$1 } ;
+operand: scalar %prec NAME_LIST { $$=$1 } ;
 comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
 target: operand { $$=$1 }
  | operand comparison_operator operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }

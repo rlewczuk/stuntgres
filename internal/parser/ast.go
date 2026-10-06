@@ -196,6 +196,8 @@ func singletonArgument(expr Expr) bool {
 	switch e := expr.(type) {
 	case LiteralExpr, TypedLiteralExpr, ParameterExpr:
 		return true
+	case CastExpr:
+		return singletonArgument(e.Child)
 	case FunctionExpr:
 		if len(e.Name.Parts) != 1 || (e.Name.Parts[0].Text != "num_nulls" && e.Name.Parts[0].Text != "num_nonnulls") {
 			return false
@@ -359,6 +361,30 @@ type FunctionExpr struct {
 	Args     []Expr
 	Pos      Position
 	Variadic bool
+}
+
+type CastSyntax uint8
+
+const (
+	StandardCast CastSyntax = iota
+	PostfixCast
+	FunctionCast
+)
+
+type CastExpr struct {
+	Child    Expr
+	TypeName TypeName
+	Syntax   CastSyntax
+	Callee   string
+	Pos      Position
+}
+
+func (CastExpr) expression() {}
+func (e CastExpr) SourcePosition() Position {
+	if e.Syntax == PostfixCast {
+		return e.Child.SourcePosition()
+	}
+	return e.Pos
 }
 
 func (LiteralExpr) expression()                     {}

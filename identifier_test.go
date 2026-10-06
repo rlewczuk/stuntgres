@@ -431,8 +431,6 @@ var identifierContextCases = []struct {
 	{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15", "", "", nil},
 	{"SELECT integer(x) FROM t", "42601", "syntax error at or near \"(\"", "15", "", "", nil},
 	{"SELECT abs(x) FROM t", "0A000", "functions are unsupported", "8", "abs", "INT4", int64(7)},
-	{"SELECT int4(x) FROM t", "0A000", "functions are unsupported", "8", "int4", "INT4", int64(7)},
-	{"SELECT text(x) FROM t", "0A000", "functions are unsupported", "8", "text", "TEXT", "7"},
 	{"SELECT authorization(x) FROM t", "0A000", "functions are unsupported", "8", "authorization", "INT4", int64(7)},
 	{"SELECT coalesce(x,0) FROM t", "0A000", "functions are unsupported", "8", "coalesce", "INT4", int64(7)},
 	{"SELECT nullif(x,7) FROM t", "0A000", "functions are unsupported", "8", "nullif", "INT4", nil},
@@ -441,7 +439,6 @@ var identifierContextCases = []struct {
 	{"SELECT f(x) FROM t", "0A000", "functions are unsupported", "8", "f", "INT4", int64(7)},
 	{"SELECT abort(x) FROM t", "0A000", "functions are unsupported", "8", "abort", "INT4", int64(7)},
 	{"SELECT \"between\"(x) FROM t", "0A000", "functions are unsupported", "8", "between", "INT4", int64(7)},
-	{"SELECT CAST(x AS INT) FROM t", "0A000", "casts are unsupported", "8", "x", "INT4", int64(7)},
 	{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30", "", "", nil},
 	{"SELECT x FROM t WHERE x=between(7)", "42601", "syntax error at or near \"(\"", "32", "", "", nil},
 	{"SELECT x \"isnull\" FROM t", "0A000", "projection aliases are unsupported", "10", "isnull", "INT4", int64(7)},
@@ -525,7 +522,6 @@ var identifierLaterCallCases = []struct {
 	{"SELECT x, \"between\"(x) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "between"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
 	{"SELECT x, coalesce(x,0) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "coalesce"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
 	{"SELECT x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "18", nil, nil, nil},
-	{"SELECT x, CAST(x AS INT) FROM t", "0A000", "casts are unsupported", "11", []string{"x", "x"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
 	{"SELECT x, x, abs(x) FROM t", "0A000", "functions are unsupported", "14", []string{"x", "x", "abs"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(7), int64(7), int64(7)}}},
 	{"SELECT x, x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "21", nil, nil, nil},
 }
@@ -574,5 +570,35 @@ func TestIdentifierLaterProjectionCalls(t *testing.T) {
 	rows, err := db.Query("SELECT x FROM t ORDER BY x")
 	if err := identifierRows(rows, err, []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestIdentifierBaselineCastCalls(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), t.Name())
+	execSQL(t, db, "CREATE TABLE t(x INT)")
+	execSQL(t, db, "INSERT INTO t VALUES(7)")
+	for _, tc := range []struct {
+		q            string
+		names, types []string
+		row          []any
+	}{
+		{"SELECT int4(x) FROM t", []string{"int4"}, []string{"INT4"}, []any{int64(7)}},
+		{"SELECT text(x) FROM t", []string{"text"}, []string{"TEXT"}, []any{"7"}},
+		{"SELECT CAST(x AS INT) FROM t", []string{"x"}, []string{"INT4"}, []any{int64(7)}},
+		{"SELECT x, CAST(x AS INT) FROM t", []string{"x", "x"}, []string{"INT4", "INT4"}, []any{int64(7), int64(7)}},
+	} {
+		rows, err := db.Query(tc.q)
+		if err := identifierRows(rows, err, tc.names, tc.types, [][]any{tc.row}); err != nil {
+			t.Fatal(err)
+		}
+		stmt, err := db.Prepare(tc.q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows, err = stmt.Query()
+		if err := identifierRows(rows, err, tc.names, tc.types, [][]any{tc.row}); err != nil {
+			t.Fatal(err)
+		}
+		stmt.Close()
 	}
 }

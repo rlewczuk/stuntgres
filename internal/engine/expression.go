@@ -138,6 +138,117 @@ func (e comparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return e.predicate.Evaluate(c.Context, a, b)
 }
 
+// preflightCoercions materializes immutable conversions from the imported
+// execution frame, never rows or stages. Only changed branches are copied;
+// analyzed nodes and their conservative dependence metadata remain immutable.
+func preflightCoercions(c *EvalContext, expression BoundExpr) (BoundExpr, bool, error) {
+	if err := evaluationContext(c); err != nil {
+		return nil, false, err
+	}
+	switch e := expression.(type) {
+	case coercionExpression:
+		child, changed, err := preflightCoercions(c, e.child)
+		if err != nil {
+			return nil, false, err
+		}
+		e.child = child
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			if err != nil {
+				return nil, false, err
+			}
+			if err := evaluationContext(c); err != nil {
+				return nil, false, err
+			}
+			return literalExpression{expressionInfo: e.expressionInfo, value: value}, true, nil
+		}
+		if changed {
+			return e, true, nil
+		}
+	case comparisonExpression:
+		left, leftChanged, err := preflightCoercions(c, e.left)
+		if err != nil {
+			return nil, false, err
+		}
+		right, rightChanged, err := preflightCoercions(c, e.right)
+		if err != nil {
+			return nil, false, err
+		}
+		if leftChanged || rightChanged {
+			e.left, e.right = left, right
+			return e, true, nil
+		}
+	case nullTestExpression:
+		child, changed, err := preflightCoercions(c, e.child)
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			e.child = child
+			return e, true, nil
+		}
+	case truthTestExpression:
+		child, changed, err := preflightCoercions(c, e.child)
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			e.child = child
+			return e, true, nil
+		}
+	case distinctExpression:
+		left, leftChanged, err := preflightCoercions(c, e.left)
+		if err != nil {
+			return nil, false, err
+		}
+		right, rightChanged, err := preflightCoercions(c, e.right)
+		if err != nil {
+			return nil, false, err
+		}
+		if leftChanged || rightChanged {
+			e.left, e.right = left, right
+			return e, true, nil
+		}
+	case logicalExpression:
+		left, leftChanged, err := preflightCoercions(c, e.left)
+		if err != nil {
+			return nil, false, err
+		}
+		var right BoundExpr
+		var rightChanged bool
+		if e.right != nil {
+			right, rightChanged, err = preflightCoercions(c, e.right)
+			if err != nil {
+				return nil, false, err
+			}
+		}
+		if leftChanged || rightChanged {
+			e.left, e.right = left, right
+			return e, true, nil
+		}
+	case nullCountExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercions(c, arg)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.args = args
+			return e, true, nil
+		}
+	}
+	return expression, false, nil
+}
+
 type Truth uint8
 
 const (
@@ -395,6 +506,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, inputErrorAt(err, r.Pos)
 		}
 		node = literalExpression{b.info(u, r.Pos, ExprProperties{}), value}
+	case parser.CastExpr:
+		var err error
+		node, err = b.cast(r)
+		if err != nil {
+			return nil, err
+		}
 	case parser.LogicalExpr:
 		var err error
 		node, err = b.bindLogical(r, policy.context)
@@ -433,6 +550,100 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		node = coercionExpression{b.info(policy.expected, raw.SourcePosition(), node.Properties()), node, plan}
 	}
 	return node, nil
+}
+
+const functionCastHint = "No function matches the given name and argument types. You might need to add explicit type casts."
+
+func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error {
+	code, ending, hint := "42883", "does not exist", functionCastHint
+	if ambiguous {
+		code, ending = "42725", "is not unique"
+		hint = "Could not choose a best candidate function. You might need to add explicit type casts."
+	}
+	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", raw.Callee, source, ending), raw.Pos).(*sqlstate.Error)
+	d.Hint = hint
+	return d
+}
+
+func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
+	if raw.Syntax == parser.FunctionCast && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool" {
+		source := "unknown"
+		if literal, ok := raw.Child.(parser.LiteralExpr); !ok || (literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue) {
+			child, err := b.bind(raw.Child, expressionPolicy{context: projectionContext})
+			if err != nil {
+				return nil, err
+			}
+			if child.ResultUsage().Type != nil {
+				source = child.ResultUsage().Type.DiagnosticName()
+			}
+		}
+		return nil, functionCastError(raw, source, false)
+	}
+	target, err := b.engine.resolveType(raw.TypeName, b.op)
+	if err != nil {
+		return nil, err
+	}
+	if !sqltype.BaselineCastType(target.Type.ID()) {
+		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
+	}
+	policy := expressionPolicy{context: projectionContext}
+	switch child := raw.Child.(type) {
+	case parser.LiteralExpr:
+		if child.Value.Kind == parser.StringValue || child.Value.Kind == parser.NullValue {
+			policy.expected = target
+		}
+	case parser.ParameterExpr:
+		if b.parameters[child.Number].Type == nil {
+			if raw.Syntax == parser.FunctionCast && target.Type.ID() != sqltype.Text {
+				if child.Number <= 0 {
+					return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", child.Number), child.Pos)
+				}
+				return nil, functionCastError(raw, "unknown", true)
+			}
+			policy.expected = target
+		}
+	}
+	child, err := b.bind(raw.Child, policy)
+	if err != nil {
+		return nil, err
+	}
+	source := child.ResultUsage()
+	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
+	if err != nil {
+		if !sqltype.BaselineCastType(source.Type.ID()) {
+			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
+		}
+		if raw.Syntax == parser.FunctionCast {
+			return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
+		}
+		return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", source.Type.DiagnosticName(), target.Type.DiagnosticName()), raw.Pos)
+	}
+	if source == target {
+		return child, nil
+	}
+	return coercionExpression{b.info(target, raw.Pos, child.Properties()), child, plan}, nil
+}
+
+// Strong column/function names survive standard casts; weak literal names do not.
+func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
+	switch r := raw.(type) {
+	case parser.ColumnExpr:
+		return r.Name.Parts[0].Text, true
+	case parser.FunctionExpr:
+		return r.Name.Parts[0].Text, true
+	case parser.CastExpr:
+		if r.Syntax == parser.FunctionCast {
+			return r.Callee, true
+		}
+		if name, strong := expressionName(r.Child, usage); strong {
+			return name, true
+		}
+		return usage.Type.Name(), false
+	case parser.TypedLiteralExpr:
+		return usage.Type.Name(), false
+	default:
+		return "?column?", false
+	}
 }
 func inputErrorAt(err error, pos parser.Position) error {
 	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "22P02" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22023") {
@@ -503,21 +714,19 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 }
 func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
 	d, ok := err.(*sqlstate.Error)
-	if !ok {
+	if !ok || d.Code != "42883" {
 		return err
 	}
 	copy := *d
-	if copy.Code == "42883" {
-		name := func(t *sqltype.Descriptor) string {
-			if t == nil {
-				return "unknown"
-			}
-			return t.DiagnosticName()
+	name := func(t *sqltype.Descriptor) string {
+		if t == nil {
+			return "unknown"
 		}
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), raw.Name.Parts[0].Text, name(right))
-		copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
-		copy.Position = strconv.Itoa(raw.Pos.Character)
+		return t.DiagnosticName()
 	}
+	copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), raw.Name.Parts[0].Text, name(right))
+	copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
+	copy.Position = strconv.Itoa(raw.Pos.Character)
 	return &copy
 }
 
@@ -539,7 +748,7 @@ func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand
 		return comparisonOperand{raw: raw}, nil
 	}
 	switch raw.(type) {
-	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr:
+	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

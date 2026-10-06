@@ -51,6 +51,9 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 		"SELECT v IS NULL FROM t WHERE v IS NULL AND TRUE", "SELECT NOT v IS NULL FROM t",
 		"SELECT v<2 IS TRUE OR NOT f IS UNKNOWN AND v IS NOT NULL FROM t",
 		"SELECT (f AND TRUE) IS UNKNOWN FROM t",
+		"SELECT v::integer IS NULL FROM t",
+		"SELECT CAST(v AS bool) IS TRUE FROM t",
+		"SELECT int4(v) IS DISTINCT FROM 1::int8 FROM t",
 	} {
 		if _, err := Parse(q); err != nil {
 			t.Fatal(q, err)
@@ -96,7 +99,7 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	keywordDiagnostic(t, "SELECT 1 IS DISTINCT FROM 1 IS TRUE FROM t", "42601", `syntax error at or near "IS"`, "29")
 	for _, q := range []string{
 		"SELECT v IS NULL", "SELECT v IS NULL AS result FROM t", "SELECT v IS NULL result FROM t",
-		"SELECT abs(v) IS NULL FROM t", "SELECT v::integer IS NULL FROM t", "SELECT t.v IS NULL FROM t",
+		"SELECT abs(v) IS NULL FROM t", "SELECT t.v IS NULL FROM t",
 		"SELECT v IS DISTINCT FROM 1 IS NULL FROM t",
 		"INSERT INTO t VALUES(1 IS NULL)", "SELECT set_config('x',TRUE IS NULL,FALSE)",
 		"SELECT v IS OF (integer) FROM t",

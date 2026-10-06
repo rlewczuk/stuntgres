@@ -166,7 +166,6 @@ func TestKeywordContextualCapabilities(t *testing.T) {
 		{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
 		{"SELECT integer(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
 		{"SELECT abs(x) FROM t", "0A000", "functions are unsupported", "8"},
-		{"SELECT text(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT authorization(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT coalesce(x,0) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT nullif(x,7) FROM t", "0A000", "functions are unsupported", "8"},
@@ -174,7 +173,6 @@ func TestKeywordContextualCapabilities(t *testing.T) {
 		{"SELECT least(x,9) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT \"between\"(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT abort(x) FROM t", "0A000", "functions are unsupported", "8"},
-		{"SELECT CAST(x AS INT) FROM t", "0A000", "casts are unsupported", "8"},
 		{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30"},
 		{"SELECT x FROM t WHERE x=between(7)", "42601", "syntax error at or near \"(\"", "32"},
 		{"SELECT x \"isnull\" FROM t", "0A000", "projection aliases are unsupported", "10"},
@@ -244,7 +242,6 @@ func TestKeywordLaterProjectionCalls(t *testing.T) {
 		{"SELECT x, \"between\"(x) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, coalesce(x,0) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "18"},
-		{"SELECT x, CAST(x AS INT) FROM t", "0A000", "casts are unsupported", "11"},
 		{"SELECT x, x, abs(x) FROM t", "0A000", "functions are unsupported", "14"},
 		{"SELECT x, x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "21"},
 	} {

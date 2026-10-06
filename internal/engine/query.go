@@ -48,6 +48,71 @@ type projectNode struct {
 	expressions []BoundExpr
 }
 
+// preflightQuery retains schemas and source identity from analysis. Only paths
+// containing folded coercions are copied for this execution.
+func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
+	if err := evaluationContext(c); err != nil {
+		return nil, err
+	}
+	switch n := node.(type) {
+	case *sourceNode, *singletonNode:
+		return n, nil
+	case *filterNode:
+		predicate, changed, err := preflightCoercions(c, n.predicate)
+		if err != nil {
+			return nil, err
+		}
+		child, err := preflightQuery(c, n.child)
+		if err != nil {
+			return nil, err
+		}
+		if changed || child != n.child {
+			copy := *n
+			copy.child, copy.predicate = child, predicate
+			return &copy, nil
+		}
+	case *sortNode:
+		child, err := preflightQuery(c, n.child)
+		if err != nil {
+			return nil, err
+		}
+		if child != n.child {
+			copy := *n
+			copy.child = child
+			return &copy, nil
+		}
+	case *projectNode:
+		var expressions []BoundExpr
+		for i, expression := range n.expressions {
+			folded, changed, err := preflightCoercions(c, expression)
+			if err != nil {
+				return nil, err
+			}
+			if changed {
+				if expressions == nil {
+					expressions = append([]BoundExpr(nil), n.expressions...)
+				}
+				expressions[i] = folded
+			}
+		}
+		child, err := preflightQuery(c, n.child)
+		if err != nil {
+			return nil, err
+		}
+		if expressions != nil || child != n.child {
+			copy := *n
+			copy.child = child
+			if expressions != nil {
+				copy.expressions = expressions
+			}
+			return &copy, nil
+		}
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid logical query node")
+	}
+	return node, nil
+}
+
 // querySource retains only the captured immutable prefixes for one relation.
 // A nil selection preserves the allocation-free all-occurrences path.
 type querySource struct {
@@ -394,14 +459,15 @@ func (r *finalRows) Close() error {
 	return nil
 }
 
-func finalizeQuery(ctx context.Context, query *BoundQuery, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
+// finalizeQuery consumes an already-preflighted execution-private root.
+func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
 	keep := false
 	defer func() {
 		if !keep {
 			source.close()
 		}
 	}()
-	project, ok := query.Root.(*projectNode)
+	project, ok := root.(*projectNode)
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}

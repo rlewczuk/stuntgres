@@ -386,12 +386,8 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		case *parser.Insert:
 			for _, row := range s.Rows {
 				for _, v := range row {
-					switch v.(type) {
-					case parser.ParameterExpr:
-						return expressionError("42P02", "parameters are not allowed in restore", v.SourcePosition())
-					case parser.LiteralExpr, parser.TypedLiteralExpr:
-					default:
-						return fmt.Errorf("stuntgres: invalid restore scalar")
+					if err := restoreScalar(v); err != nil {
+						return err
 					}
 				}
 			}
@@ -431,4 +427,17 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 // Explicit escape strings are independent of the destination string setting.
 func commentLiteral(text string) string {
 	return "E'" + strings.ReplaceAll(strings.ReplaceAll(text, "\\", "\\\\"), "'", "''") + "'"
+}
+
+func restoreScalar(raw parser.Expr) error {
+	switch r := raw.(type) {
+	case parser.CastExpr:
+		return restoreScalar(r.Child)
+	case parser.ParameterExpr:
+		return expressionError("42P02", "parameters are not allowed in restore", r.Pos)
+	case parser.LiteralExpr, parser.TypedLiteralExpr:
+		return nil
+	default:
+		return fmt.Errorf("stuntgres: invalid restore scalar")
+	}
 }
