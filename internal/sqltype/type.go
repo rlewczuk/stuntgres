@@ -16,6 +16,7 @@ type ID uint32
 
 const (
 	Bool      ID = 16
+	Bytea     ID = 17
 	Name      ID = 19 // Result identity only; not admitted as a stored column type.
 	Int8      ID = 20
 	Int2      ID = 21
@@ -87,6 +88,7 @@ func (d *Descriptor) Usage() Usage {
 func Builtins() []*Descriptor {
 	return []*Descriptor{
 		{Bool, "bool", "BOOLEAN", "BOOL"},
+		{Bytea, "bytea", "BYTEA", "BYTEA"},
 		{Name, "name", "NAME", "NAME"},
 		{Int8, "int8", "BIGINT", "INT8"},
 		{Int2, "int2", "SMALLINT", "INT2"},
@@ -198,6 +200,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return Value{}, failure("22P02", "invalid textual input")
 	}
 	switch d.id {
+	case Bytea:
+		return d.byteaInput(text)
 	case UUID:
 		return d.uuidInput(text)
 	case Time:
@@ -339,13 +343,19 @@ func (d *Descriptor) integerInput(text string) (Value, error) {
 }
 
 func (d *Descriptor) Output(ctx context.Context, v Value) (string, error) {
+	return d.OutputWithEnvironment(ctx, v, OutputEnvironment{})
+}
+
+func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env OutputEnvironment) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	if v.typ != d || v.null {
+	if d == nil || v.typ != d || v.null {
 		return "", fmt.Errorf("invalid output value")
 	}
 	switch d.id {
+	case Bytea:
+		return byteaOutput(v.text, env.ByteaOutput)
 	case UUID:
 		return uuidOutput(v.uuid), nil
 	case Time:
@@ -379,6 +389,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "NULL", nil
 	}
 	switch d.id {
+	case Bytea:
+		return byteaHex(v.text, true), nil
 	case UUID:
 		return "'" + uuidOutput(v.uuid) + "'", nil
 	case Time:
@@ -621,7 +633,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 		if a.integer > b.integer {
 			return 1, nil
 		}
-	case Text, Name:
+	case Bytea, Text, Name:
 		return strings.Compare(a.text, b.text), nil
 	case Bool:
 		if !a.boolean && b.boolean {

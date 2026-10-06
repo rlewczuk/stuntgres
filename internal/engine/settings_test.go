@@ -16,6 +16,7 @@ import (
 func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	all := [][]string{
 		{"application_name", "initial", "Sets the application name to be reported in statistics and logs."},
+		{"bytea_output", "hex", "Sets the output format for bytea."},
 		{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
 		{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
 		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},

@@ -327,7 +327,7 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).floatPrecision = true
 		return raw, true
 	}
-	if raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
+	if raw.Name != "bytea" && raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
 		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
 		return TypeName{}, false
 	}

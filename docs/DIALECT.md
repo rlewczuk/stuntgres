@@ -6,7 +6,7 @@ development instructions.
 
 ## Supported surface and limits
 
-CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
+CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
 
 Scalar comparisons admit `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=`; `!=` is the
 `<>` alias. Both operands may be existing scalar literals, parameters or columns.
@@ -14,7 +14,7 @@ Every result is BOOL (`?column?`, native bool ScanType, no physical-column origi
 including empty results; either NULL yields typed BOOL NULL/UNKNOWN, which WHERE
 does not keep. INT2/INT4/INT8 compare exactly across widths without narrowing or
 floating-point conversion. Existing NAME/TEXT, BOOL, FLOAT4/8, exact NUMERIC,
-UUID and same-type TIME/TIMESTAMP providers keep their existing admission and
+UUID, BYTEA and same-type TIME/TIMESTAMP providers keep their existing admission and
 ordering (C text order, FALSE before TRUE); no cross-temporal casts are added.
 Unknown quoted strings/NULL take a known peer's type; two unknowns choose TEXT.
 Known TEXT is not implicitly integer/BOOL. Parameter occurrences copy their
@@ -176,6 +176,31 @@ failures from bound operand types. Review smoke:
 `make smoke RUN='^TestCastExplicitReviewSmoke$'`.
 Smoke: `make smoke RUN='^TestCastExplicitSmoke$'`; details/matrix in README.
 Parameter/ACL smoke: `make smoke RUN='^TestCastExplicitPreflightSmoke$'`.
+
+BYTEA is a stored column type (OID17, typmod -1, no collation), with arbitrary
+octets, NULL and nonnull empty values. SQL literals accept hex `\x` (either-case
+digits; space/tab/LF/CR between pairs only) and double-backslash/three-octal
+escape forms after normal SQL string decoding. String/[]byte binds to inferred
+BYTEA are raw pq-compatible octets, not byteain text; typed nil []byte is NULL,
+while nonnil empty []byte is empty. Native rows export fresh owned []byte,
+DatabaseTypeName BYTEA and ScanType []byte; metadata survives EOF/Close and
+catalog replacement. Length/DecimalSize are unavailable natively; pq Length is
+MaxInt64 and nullability unknown. Comparison is unsigned bytewise prefix order.
+Malformed hex is 22023; malformed escape is 22P02 with exact English primary
+`invalid input syntax for type bytea`, eagerly character-positioned at literals.
+Invalid hex digits report the complete offending UTF8 character, not a lead byte;
+both nibble positions preserve the literal's character-based source location.
+BYTEA modifiers fail42601; quoted lowercase "bytea" resolves, "BYTEA" does not.
+The builtin bytea_output enum defaults hex and supports escape, with generic
+settings lifecycle and statement-captured NOT NULL failing-row Detail. Raw
+SELECT octets never change with this setting. Native nonnull empty bytea
+always exports nonnil []byte; pinned pq's text escape decoder exports typed
+nil []byte for empty bytea (hex exports nonnil empty). Both remain distinct
+from SQL NULL's nil interface. Canonical Dump literals always
+use quoted lowercase hex; Restore preserves settings, atomicity and old
+snapshots. No typed BYTEA literals, functions/casts, arrays or wire server.
+Smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`; pinned independent reference:
+`make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
 
 UUID declarations use contextual quoted values or binds, not UUID typed literals.
 UUID accepts either hex case, matching braces, omitted hyphens and single hyphens
@@ -348,6 +373,10 @@ The control borrower is released before external I/O. A blocking Reader must
 return before cancellation is observed; cancellation after final successful
 publication cannot retract the replacement. Captured cursors retain old typed
 rows/metadata, not authority to publish (Go sql.Tx may itself close owned Rows).
+
+BYTEA control values are canonical ASCII hex regardless of bytea_output.
+Late malformed byteain, reader errors and cancellation before publication
+leave the old typed catalog/data intact; retained byte buffers remain detached.
 
 Feature smoke: `make smoke RUN='^TestControlTransactionsSmoke$' VERBOSE=1`.
 Native fixture replacement has no PostgreSQL wire-command oracle; reference

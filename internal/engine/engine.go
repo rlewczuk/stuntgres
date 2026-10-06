@@ -619,8 +619,8 @@ func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error
 	return &copy
 }
 
-func notNullError(schema, table, column string, row []sqltype.Value) error {
-	detail, err := failingRowDetail(row)
+func notNullError(schema, table, column string, row []sqltype.Value, output sqltype.OutputEnvironment) error {
+	detail, err := failingRowDetail(row, output)
 	if err != nil {
 		return err
 	}
@@ -951,7 +951,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if row[j].IsNull() && !c.Nullable {
 					schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 					e.mu.Unlock()
-					return Result{}, notNullError(schema, b.relation.name, c.Name, row)
+					return Result{}, notNullError(schema, b.relation.name, c.Name, row, scope.output)
 				}
 			}
 		}

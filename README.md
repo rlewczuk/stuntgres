@@ -683,7 +683,7 @@ SELECT (* | projection_target [, ...]) FROM [schema.]name
 SELECT null_count_call [, null_count_call ...]
 type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
-       | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] | UUID
+       | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] | UUID | BYTEA
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] 'input'
 scalar := unqualified column | value
 comparison := scalar (= | <> | != | < | <= | > | >=) scalar
@@ -921,14 +921,19 @@ Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
 EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT2/INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8/TIME/TIMESTAMP/NUMERIC/UUID fail
+Known single-name types outside INT2/INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8/TIME/TIMESTAMP/NUMERIC/UUID/BYTEA fail
 execution with `0A000`. Excluded multiword families (CHARACTER/BIT VARYING,
 TIME WITH TIME ZONE, TIMESTAMP WITH TIME ZONE and qualified INTERVAL
 fields), qualified type names, arrays and modifiers other than FLOAT(p),
-numeric precision/scale and temporal precision remain parser-level `0A000` boundaries. Temporal precision
-has its own bounded integer grammar. Even an existing IF NOT EXISTS target
-cannot bypass excluded syntax forms; failure-only guards construct no executable
-family AST. DOUBLE PRECISION and valid FLOAT(p) are supported.
+numeric precision/scale, temporal precision and admitted single BYTEA modifiers
+remain parser-level `0A000` boundaries. BYTEA modifier syntax is admitted only
+to reject it semantically with `42601`, `type modifier is not allowed for type
+"bytea"`, at the type token, before validating modifier operands. CREATE Prepare
+is metadata-only and succeeds; direct or prepared execution rejects the modifier
+without publishing a table. Temporal precision has its own bounded integer grammar.
+Even an existing IF NOT EXISTS target cannot bypass excluded syntax forms;
+failure-only guards construct no executable family AST. DOUBLE PRECISION and
+valid FLOAT(p) are supported.
 
 Type keyword aliases are not quoted catalog names: `"smallint"`, `"integer"`,
 `"bigint"` and `"boolean"` fail with `42704`, while `"int2"`, `"int4"`, `"int8"`,
@@ -1219,10 +1224,10 @@ These ordinary-string defaults correspond to standard_conforming_strings=on.
 With the session setting off, ordinary strings use that same escape decoder;
 E strings always use it. Native Restore always uses the default-on parser.
 
-Types are int2/int4/int8/text/bool/float4/float8, time/timestamp without time zone and uuid. Values returned to Go are `int64`, `string` (including TIME and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/text/bool/float4/float8/numeric, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to text but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. Text ordering uses C-locale bytewise comparison. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, TIME 1083, TIMESTAMP 1114, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, TIME 1083, TIMESTAMP 1114, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -1232,8 +1237,45 @@ including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private ty
 against the current coherent binding. Driver adapters detach bytes and export
 INT2/INT4/INT8 as `int64`, TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
 TIME as canonical `string`, finite TIMESTAMP as `time.Time`, infinity as fresh
-`[]byte("infinity")` / `[]byte("-infinity")`, and typed NULL as nil.
+`[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
+
+BYTEA stores arbitrary octets as immutable raw bytes (OID17, typmod -1, no
+collation). SQL quoted input accepts lowercase `\x` hex prefix with either-case
+digits and space/tab/LF/CR only between complete byte pairs. Escape input accepts
+double backslash and exactly three octal digits from `\000` through `\377`;
+ordinary UTF8 contributes its encoded bytes. SQL's normal string-decoding layer
+still applies; invalid UTF8/NUL SQL is not permitted. Malformed hex reports
+22023 (`invalid hexadecimal digit: "X"` or
+`invalid hexadecimal data: odd number of digits`); malformed escapes report
+22P02 (`invalid input syntax for type bytea`). Eager literal errors retain
+character-based quote positions, including Prepare on empty tables.
+
+Inferred BYTEA string and `[]byte` binds are **raw octets**, matching lib/pq:
+bound `\x41` stores four bytes, whereas SQL literal `'\x41'` stores byte 41.
+Nil interface and typed nil `[]byte` are NULL; nonnil empty bytes and empty
+string are nonnull empty BYTEA. Other SQL destinations retain textual byte
+binds. Valuer executes once outside engine locks. Input buffers and each
+exported result are detached; mutating returned bytes cannot alter storage or
+retained cursors. BYTEA DatabaseTypeName/ScanType are BYTEA/[]byte even for
+empty/NULL-only results and after EOF/Close. Native Length/DecimalSize are
+unavailable; pinned pq reports Length MaxInt64 and unknown nullability.
+Bytewise unsigned lexicographic comparison places shorter prefixes first.
+
+`bytea_output` defaults to `hex`; `escape` doubles backslashes and octal-escapes
+bytes below 32 or above 126. SHOW/SET/RESET/DEFAULT and transaction-local unwind
+use the existing settings lifecycle. NOT NULL failing-row Detail genuinely uses
+the statement-captured mode; raw SELECT bytes remain invariant under the setting.
+Dump always writes quoted lowercase hex, including `'\x'` for empty and NULL
+for null, independent of output/string settings. Restore privately parses
+default-on strings, preserves live settings and retained snapshots, and
+publishes no replacement on input/read/cancellation failure. BYTEA typed
+literals, modifiers, casts/functions, arrays and wire serving are not added.
+
+Feature smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`.
+Native witnesses: `make test PACKAGES=. RUN='^TestBytea.*$' VERBOSE=1`;
+codec witnesses: `make test PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=1`.
+Pinned reference: `make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
 
 UUID stores all 128 bits inline, independently of UUID generation functions.
 Contextual quoted inputs and string/textual `[]byte` binds accept uppercase or

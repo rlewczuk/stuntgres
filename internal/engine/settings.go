@@ -74,6 +74,7 @@ var applicationName = SettingDefinition{
 }
 var builtinSettings = []SettingDefinition{
 	applicationName,
+	{Name: "bytea_output", Type: SettingEnum, BootDefault: "hex", EnumValues: []string{"escape", "hex"}, Description: "Sets the output format for bytea."},
 	clientMinMessages,
 	{Name: "search_path", Type: SettingString, BootDefault: `"$user", public`, Description: "Sets the schema search order for names that are not schema-qualified."},
 	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},

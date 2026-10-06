@@ -31,7 +31,11 @@ func normalizeArguments(args []driver.NamedValue) ([]driver.Value, error) {
 		case nil, int64, float64, string, bool, time.Time:
 			values[i] = v
 		case []byte:
-			values[i] = string(v)
+			if v == nil {
+				values[i] = []byte(nil)
+			} else {
+				values[i] = string(v)
+			}
 		default:
 			return nil, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported parameter value"}
 		}
@@ -48,6 +52,15 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 	}
 	var text string
 	switch v := raw.(type) {
+	case []byte:
+		// Only typed nil survives normalization; mutable nonnil buffers never
+		// cross the engine lock boundary.
+		if v != nil {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: unnormalized byte argument")
+		}
+		if target.Type.ID() == sqltype.Bytea {
+			return sqltype.Null(target.Type), nil
+		}
 	case time.Time:
 		if target.Type.ID() == sqltype.Timestamp {
 			return sqltype.TimestampFromTime(target.Type, v)
@@ -55,6 +68,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		// Preserve the existing text-input policy for other SQL destinations.
 		text = v.Format("2006-01-02 15:04:05.999999999Z07:00")
 	case string:
+		if target.Type.ID() == sqltype.Bytea {
+			return sqltype.Binary(target.Type, v)
+		}
 		text = v
 	case int64:
 		if target.Type.ID() == sqltype.Int8 || (target.Type.ID() == sqltype.Int4 && v >= -2147483648 && v <= 2147483647) || (target.Type.ID() == sqltype.Int2 && v >= -32768 && v <= 32767) {
@@ -101,6 +117,12 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 		return nil, nil
 	}
 	switch v.Type().ID() {
+	case sqltype.Bytea:
+		raw, err := v.Binary()
+		if err != nil {
+			return nil, err
+		}
+		return []byte(raw), nil
 	case sqltype.UUID, sqltype.Time, sqltype.Numeric:
 		return v.Type().Output(ctx, v)
 	case sqltype.Timestamp:
@@ -129,6 +151,8 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
 	switch d.ID() {
+	case sqltype.Bytea:
+		return reflect.TypeFor[[]byte]()
 	case sqltype.Timestamp:
 		return reflect.TypeFor[time.Time]()
 	case sqltype.Int2, sqltype.Int4, sqltype.Int8:

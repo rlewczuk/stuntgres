@@ -190,6 +190,7 @@ type StatementScope struct {
 	Expected           *StatementDescription
 	implicit           bool
 	input              sqltype.InputEnvironment
+	output             sqltype.OutputEnvironment
 }
 
 type WriteStage struct {
@@ -212,6 +213,14 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 	s.self = s
 	s.stage.scope = s
 	s.stage.self = &s.stage
+	// Capture presentation before engine locking; admission serializes settings
+	// changes on this session for the lifetime of the statement.
+	settings := op.session.settings
+	settings.mu.Lock()
+	if settings.value("bytea_output") == "escape" {
+		s.output.ByteaOutput = sqltype.ByteaEscape
+	}
+	settings.mu.Unlock()
 	return s, nil
 }
 

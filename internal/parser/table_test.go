@@ -176,3 +176,23 @@ func TestTableCoreFloatTimestampModifierCoexistence(t *testing.T) {
 		t.Fatal("modifier context leaked into scalar input", err)
 	}
 }
+
+func TestByteaModifierRetainsTypeToken(t *testing.T) {
+	for _, declaration := range []string{"BYTEA(1)", `"bytea"(1)`} {
+		statements, err := Parse("/*é*/ CREATE TABLE bad(v " + declaration + ")")
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw := statements[0].(*CreateTable).Elements[0].Column.TypeName
+		if raw.Name != "bytea" || raw.Pos.Character != 26 || raw.Quoted != strings.HasPrefix(declaration, `"`) || len(raw.Modifiers) != 1 || raw.Modifiers[0].Integer == nil || *raw.Modifiers[0].Integer != 1 {
+			t.Fatal(raw)
+		}
+	}
+	// Admission is limited to BYTEA, not a general typmod expansion.
+	_, err := Parse(`CREATE TABLE bad(v UUID(1))`)
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "type modifiers are unsupported", Position: "24"}
+	var got *sqlstate.Error
+	if !errors.As(err, &got) || *got != want {
+		t.Fatal(got, err, want)
+	}
+}

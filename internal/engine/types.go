@@ -112,6 +112,14 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
+	if d.ID() == sqltype.Bytea && len(raw.Modifiers) > 0 {
+		// BYTEA has no typmod input: reject before validating any operands.
+		_, _, err := d.ResolveModifiers()
+		if diagnostic, ok := err.(*sqlstate.Error); ok {
+			return sqltype.Usage{}, typeDiagnostic(raw, diagnostic.Code, diagnostic.Message)
+		}
+		return sqltype.Usage{}, err
+	}
 	modifiers := make([]int32, len(raw.Modifiers))
 	for i, modifier := range raw.Modifiers {
 		if modifier.UnaryPlus {
@@ -170,7 +178,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		return true
 	case "money", "char", "bpchar", "varchar",
 		"bit", "varbit", "date", "timetz",
-		"timestamptz", "interval", "bytea", "json", "jsonb", "xml",
+		"timestamptz", "interval", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
 		return true

@@ -24,7 +24,7 @@ func literalTypeName(raw parser.Value) string {
 	return "unknown"
 }
 
-func failingRowDetail(row []sqltype.Value) (string, error) {
+func failingRowDetail(row []sqltype.Value, output sqltype.OutputEnvironment) (string, error) {
 	var b strings.Builder
 	b.WriteString("Failing row contains (")
 	for i, value := range row {
@@ -35,7 +35,7 @@ func failingRowDetail(row []sqltype.Value) (string, error) {
 			b.WriteString("null")
 			continue
 		}
-		text, err := value.Type().Output(context.Background(), value)
+		text, err := value.Type().OutputWithEnvironment(context.Background(), value, output)
 		if err != nil {
 			return "", err
 		}

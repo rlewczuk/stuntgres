@@ -51,6 +51,9 @@ func (u Usage) Valid() bool {
 // Source positions and warning delivery belong to the statement owner.
 func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Error, error) {
 	u := d.Usage()
+	if d.id == Bytea {
+		return u, nil, failure("42601", `type modifier is not allowed for type "bytea"`)
+	}
 	if d.id == Numeric {
 		if len(modifiers) < 1 || len(modifiers) > 2 {
 			return u, nil, failure("22023", "invalid NUMERIC type modifier")

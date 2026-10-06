@@ -387,6 +387,7 @@ func TestSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
 	cols, _ := rows.Columns()
 	types, _ := rows.ColumnTypes()
 	if !reflect.DeepEqual(cols, []string{"name", "setting", "description"}) {
@@ -400,6 +401,7 @@ func TestSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 	}
 	expected := map[string][2]string{"application_name": {"", "Sets the application name to be reported in statistics and logs."}, "log_statement_stats": {"off", "Writes cumulative performance statistics to the server log."}, "server_encoding": {"UTF8", "Shows the server (database) character set encoding."}, "standard_conforming_strings": {"on", "Causes '...' strings to treat backslashes literally."}, "statement_timeout": {"0", "Sets the maximum allowed duration of any statement."}}
 	expected["client_min_messages"] = [2]string{"notice", "Sets the message levels that are sent to the client."}
+	expected["bytea_output"] = [2]string{"hex", "Sets the output format for bytea."}
 	expected["search_path"] = [2]string{`"$user", public`, "Sets the schema search order for names that are not schema-qualified."}
 	expected["lock_timeout"] = [2]string{"0", "Sets the maximum allowed duration of any wait for a lock."}
 	for _, v := range settingsDefinitionsForTest() {
