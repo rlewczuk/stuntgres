@@ -4,10 +4,65 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"stuntgres/internal/sqltype"
 )
+
+func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
+	for _, end := range []string{"COMMIT", "COMMIT AND CHAIN"} {
+		t.Run(end, func(t *testing.T) {
+			e := New()
+			a := sessionStart(t, e, nil)
+			b := sessionStart(t, e, nil)
+			sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
+			sessionSQL(t, b, "INSERT INTO t VALUES(77)")
+			controlsRequire(t, a, "BEGIN")
+			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
+			if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);")); err != nil {
+				t.Fatal(err)
+			}
+			op, err := a.Acquire(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = scope.Execute(statement(t, "SELECT v FROM t"), 0, nil)
+			if !errors.Is(scope.Finish(err), ErrCatalogReplaced) {
+				t.Fatal("stale ordinary statement", err)
+			}
+			op.Done()
+			if a.TransactionState() != TxAborted || a.transactions.writes != nil {
+				t.Fatal("stale statement did not discard private work")
+			}
+			op, err = a.Acquire(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer op.Done()
+			scope, err = e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer scope.Finish(errors.New("test cleanup"))
+			_, err = scope.Execute(statement(t, end), 0, nil)
+			if !errors.Is(err, ErrCatalogReplaced) {
+				t.Fatal("stale aborted commit must reject publication", err)
+			}
+			if !errors.Is(scope.Finish(err), ErrCatalogReplaced) {
+				t.Fatal("lost replacement error")
+			}
+			if a.TransactionState() != TxIdle || a.transactions.ticket != nil || a.transactions.ref != (TxRef{}) {
+				t.Fatal("failed end installed chain or retained old owner")
+			}
+			transactionRows(t, b, "SELECT v FROM t", 99)
+		})
+	}
+}
 
 func TestTransactionControlsPublicationBoundary(t *testing.T) {
 	for _, boundary := range []string{"success", "cancel_before", "cancel_after", "terminal_before", "epoch_before", "counter_before", "ref_before"} {

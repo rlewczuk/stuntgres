@@ -150,7 +150,8 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		committed = err == nil
 	} else {
 		err = e.endPreflight(op)
-		if err == nil && commit && !sqlEnd {
+		// Replacement also fences SQL recovery commits of aborted blocks.
+		if err == nil && commit {
 			e.mu.Lock()
 			if ref.epoch != e.state.epoch {
 				err = ErrCatalogReplaced

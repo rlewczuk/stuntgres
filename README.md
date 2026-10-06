@@ -310,8 +310,8 @@ WARNING/ERROR and nonlocalized severity; optional diagnostic fields are absent.
 
 AND CHAIN ends the old block, releases its holds **after publication**, and
 installs a fresh healthy Active incarnation with command zero/default modes,
-no inherited private writes or locks. Failed-block SQL COMMIT rolls back
-successfully; COMMIT AND CHAIN likewise starts healthy work after discarding it.
+no inherited private writes or locks. **Same-epoch** failed-block SQL COMMIT rolls
+back successfully; COMMIT AND CHAIN likewise starts healthy work after discarding it.
 AND NO CHAIN and plain ends leave Idle; the next ordinary INSERT autocommits.
 Both SQL and Go ends resolve the same settings actions. COMMIT preserves SESSION
 changes and expires LOCAL; ROLLBACK and abort restore pretransaction values.
@@ -421,11 +421,18 @@ filtering/ordering and Dump use the type-owned operators and literal codecs.
 Admitted SQL errors, preparation/binding failures and statement cancellation
 abort an explicit transaction and discard its private writes. Valid subsequent
 commands are rejected before semantic analysis; malformed SQL still reports its
-original syntax error. Full SQL/Go Rollback succeeds. SQL COMMIT of aborted work
-successfully rolls back with count zero; Go Commit instead returns the ordinary
-failed-transaction error below. Valid SQL ends (including their Prepare) remain
-recovery-eligible in Aborted; SQL starts still fail `25P02`. Empty SQL
-without arguments does no transaction work. Pre-canceled admission, closed
+original syntax error. Full SQL/Go Rollback succeeds. Within the same catalog
+epoch, SQL COMMIT of aborted work successfully rolls back with count zero; Go
+Commit instead returns the ordinary failed-transaction error below. Valid SQL
+ends (including their Prepare) remain recovery-eligible in Aborted; SQL starts
+still fail `25P02`. Successful native replacement takes precedence over this
+failed-block commit recovery: every old-epoch commit, including read-only,
+already-Aborted and COMMIT/END AND CHAIN, returns the ordinary replacement error.
+An accepted failed commit disposes the old incarnation and installs no chain;
+the next ordinary INSERT autocommits. Full ROLLBACK/ABORT remains available,
+including ROLLBACK AND CHAIN into the current epoch. End Prepare is effect-free;
+replacement is checked at Execute, not by deleting retained prepared handles.
+Empty SQL without arguments does no transaction work. Pre-canceled admission, closed
 statement/connection checks and adapter argument rejection do not abort prior
 successful private work.
 
@@ -440,10 +447,35 @@ successful private work.
 | Repeated raw handle end | Ordinary `stuntgres: transaction is done`; old handles cannot end a newer incarnation |
 | Internal foreign/zero / stale TxRef | Ordinary `stuntgres: foreign or missing transaction reference` / `stuntgres: stale transaction reference` |
 | Public sql.Tx repeated end/use | `sql.ErrTxDone`: `sql: transaction has already been committed or rolled back` |
-| Go Commit after aborted transaction | Ordinary `pq: could not complete operation in a failed transaction`, matching pinned lib/pq's adapter diagnostic, not `25P02`; SQL COMMIT succeeds by rollback |
-| Successful native replacement fencing old transaction | Ordinary `stuntgres: catalog replaced before publication` (`ErrCatalogReplaced` internally); private work discarded, full Rollback remains available |
+| Go Commit after same-epoch aborted transaction | Ordinary `pq: could not complete operation in a failed transaction`, matching pinned lib/pq's adapter diagnostic, not `25P02`; SQL COMMIT succeeds by rollback |
+| Successful native replacement fencing old transaction | Ordinary `stuntgres: catalog replaced before publication` (`ErrCatalogReplaced` internally); private writes and transactional settings discarded at first admitted stale failure, repeated ordinary use stays fenced until full end |
 | Closed connection / statement | Ordinary `stuntgres: connection is closed` / `stuntgres: statement is closed` |
 | Go cancellation / deadline | Ordinary `context.Canceled` / `context.DeadlineExceeded`, preserving `errors.Is`; database/sql automatic rollback can instead make Tx end report `sql.ErrTxDone` |
+
+Reset/Restore are host-authorized native fixture controls, not PostgreSQL wire
+commands or physical-session termination. Another pool on the same Driver and
+exact opaque DSN shares replacement; other DSNs (including whitespace changes)
+and Drivers remain isolated. Replacement installs one complete catalog epoch,
+without merging old private writes. Failed/canceled/read-failing Restore before
+installation preserves committed state and otherwise eligible transactions.
+An arbitrarily blocking Reader must return before cancellation can be observed;
+target locks and the borrowed control connection are not held over external I/O.
+Late cancellation cannot retract a completed installation.
+
+Already returned immutable cursors retain their original rows and metadata,
+including prior own writes captured before replacement; retention is not
+publication. `database/sql` may itself close Rows owned by a Go `sql.Tx` when
+that transaction ends. Controls preserve physical session identity, live role
+views, baseline settings and prepared handles; transaction rollback still
+resolves SESSION/LOCAL setting actions. SQL authorization remains unchanged,
+even when an unprivileged pool is used for a native host control.
+
+Feature witness: `make smoke RUN='^TestControlTransactionsSmoke$' VERBOSE=1`.
+This exercises two-pool Reset/Restore, retained typed results, stale ordinary
+execution followed by COMMIT AND CHAIN, exact Driver/DSN isolation and canceled
+Restore reader I/O. Real PostgreSQL reference coverage independently checks SQL
+visibility, English diagnostics and same-epoch failed-block recovery; native
+replacement errors have no PostgreSQL command-equivalence oracle.
 
 Transaction SQL errors supply ERROR/nonlocalized ERROR. Optional diagnostic
 fields are absent unless stated above; native source fields do not claim

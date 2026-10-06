@@ -12,6 +12,47 @@ import (
 	"stuntgres"
 )
 
+func TestControlTransactionsStaleAbortedCommit(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		name := "direct"
+		endSQL := "COMMIT"
+		if prepared {
+			name = "retained_prepared_chain"
+			endSQL = "COMMIT AND CHAIN"
+		}
+		t.Run(name, func(t *testing.T) {
+			db, a, b, _ := controlsFixture(t)
+			ctx := context.Background()
+			transactionAffected(t, ctx, b, "INSERT INTO t VALUES(77)", false, 1)
+			transactionAffected(t, ctx, a, "BEGIN", false, 0)
+			transactionAffected(t, ctx, a, "INSERT INTO t VALUES(1)", false, 1)
+			var end *sql.Stmt
+			if prepared {
+				var err error
+				end, err = a.PrepareContext(ctx, endSQL)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer end.Close()
+			}
+			if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);")); err != nil {
+				t.Fatal(err)
+			}
+			_, err := a.ExecContext(ctx, "SELECT v FROM t")
+			transactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
+			if prepared {
+				_, err = end.ExecContext(ctx)
+			} else {
+				_, err = a.ExecContext(ctx, endSQL)
+			}
+			transactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
+			transactionSelect(t, ctx, b, "SELECT v FROM t", false, 99)
+			transactionAffected(t, ctx, a, "INSERT INTO t VALUES(2)", false, 1)
+			transactionSelect(t, ctx, b, "SELECT v FROM t ORDER BY v", false, 2, 99)
+		})
+	}
+}
+
 func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 	db, a, b, _ := controlsFixture(t)
 	ctx := context.Background()
