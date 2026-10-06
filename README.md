@@ -79,6 +79,7 @@ Supported builtins are deliberately bounded:
 | search_path | `"$user", public` / session | Stored explicit path; effective lookup skips absent/inaccessible schemas and expands current user |
 | standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
 | statement_timeout | 0 / session | Millisecond command-admission timer covering parse, Prepare and Execute |
+| lock_timeout | 0 / session | Millisecond limit for each queued lock acquisition; 0 disables |
 | server_encoding | UTF8 / read-only | Actual UTF8 invariant; writes and individual RESET fail 55P02 |
 | log_statement_stats | off / privileged | Deny-only: all writes and individual RESET fail 42501; no logging activation |
 
@@ -348,11 +349,31 @@ These automatic modes coexist, including concurrent readers and writers. COMMENT
 TABLE/COLUMN acquires internal SHARE UPDATE EXCLUSIVE at Execute (not Prepare):
 it coexists with AS/RX, but conflicts with another owner's SUE and AX.
 `LOCK TABLE <name> IN ACCESS EXCLUSIVE MODE` is the only explicit lock syntax:
-one existing optionally qualified/quoted table, no ONLY/list/star/default mode,
-NOWAIT or other modes. Execution requires an explicit SQL or driver block and the
+one existing optionally qualified/quoted table, no ONLY/list/star/default mode
+or other modes; optional `NOWAIT` is supported. Execution requires an explicit SQL or driver block and the
 current role's existing superuser authority. Ordinary SELECT/INSERT privileges
 or ownership alone do not authorize this bounded native path. PostgreSQL also
 supports additional AX privilege alternatives not modeled here.
+
+`NOWAIT` grants compatible or self-held locks immediately and otherwise returns
+55P03, `could not obtain lock on relation "t"` (qualified input preserves the
+decoded qualification), without joining the queue. Earlier conflicting waiters
+prevent barging, while self-reentry and compatible cohorts remain eligible.
+`lock_timeout` uses the ordinary SET/RESET/SET LOCAL lifecycle and applies to
+each queued acquisition, including automatic SELECT/INSERT Prepare locks and
+COMMENT/ALTER execution. Immediate grants are untimed; every later acquisition
+gets a fresh budget. Expiry returns 55P03, `canceling statement due to lock timeout`.
+During direct SELECT/INSERT analysis and semantic Prepare, lock timeout also
+reports the relation-name token's character Position (including schema qualification).
+Cached Execute and utility lock timeouts have no parser Position; statement
+timeout (57014) likewise does not acquire that parse-analysis decoration.
+The earlier absolute SQL deadline wins against statement_timeout (57014);
+an exact absolute tie favors lock timeout. Equal configured durations normally
+favor statement timeout because command admission occurs first. Caller context
+cancellation/deadlines retain their original Go error identity, not SQLSTATE.
+Failed waits remove provisional state and wake eligible successors without
+disturbing holders; mandatory statement cleanup aborts explicit transactions
+and discards private writes/releases prior locks, or returns implicit work to Idle.
 
 ACCESS EXCLUSIVE conflicts with all automatic modes and another transaction's
 AX. Conflicting operations wait using their command context, with compatible
@@ -372,9 +393,9 @@ authority. LOCK Prepare is metadata-only (zero parameters/results); Execute
 performs block/name/current-role checks and acquires AX, affecting zero rows.
 Outside a block it returns `25P01`, `LOCK TABLE can only be used in transaction
 blocks`, before lookup. Missing targets use `42P01`; ordinary-role AX denial is
-`42501`, `permission denied for table t`. There is no lock timeout setting,
-upgrade/deadlock detection, row/advisory locking or lock introspection. Use caller
-deadlines to bound conflicting operations; conflicting conversion cycles are
+`42501`, `permission denied for table t`. There is no upgrade/deadlock detection,
+row/advisory locking or lock introspection. Use lock_timeout or caller deadlines
+to bound conflicting operations; conflicting conversion cycles are
 not protected by deadlock detection.
 
 An explicit transaction sees its successful earlier writes; other physical

@@ -1,8 +1,11 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 // Resolve original authority before waiting; never resolve a replacement by name.
@@ -10,6 +13,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	var name parser.ObjectName
 	var mode relationLockMode
 	ownerOnly := false
+	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	switch v := stmt.(type) {
 	case *parser.Select:
 		name = v.Name
@@ -30,7 +34,9 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 		}
 		mode = shareUpdateExclusive
 	case *parser.AlterTableDropColumn:
-		if !execute { return nil }
+		if !execute {
+			return nil
+		}
 		name = v.Name
 		mode = accessExclusive
 		ownerOnly = true
@@ -46,6 +52,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 		}
 		name = v.Name
 		mode = accessExclusive
+		policy.nowait = v.Nowait
 	default:
 		return nil
 	}
@@ -62,7 +69,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	}
 	if err == nil {
 		if ownerOnly {
-			err = auth.Check(AccessRequirement{Object:ref, OwnerOnly:true})
+			err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 		} else if mode == accessExclusive {
 			actor, roleErr := auth.roles.Descriptor(auth.state.CurrentUser)
 			if roleErr != nil {
@@ -82,7 +89,14 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	if err != nil {
 		return err
 	}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, ref, mode)
+	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, ref, mode, policy)
+	if errors.Is(err, errRelationUnavailable) {
+		relationName := name.Parts[0].Text
+		if len(name.Parts) == 2 {
+			relationName += "." + name.Parts[1].Text
+		}
+		return sqlError("55P03", fmt.Sprintf("could not obtain lock on relation \"%s\"", relationName))
+	}
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -91,6 +105,17 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 		err = request.wait()
 	}
 	if err != nil {
+		// Parse analysis opens SELECT/INSERT relations with a positioned
+		// error callback. Cached execution and utility locks do not. Query
+		// cancellation (57014) deliberately bypasses that callback.
+		if (mode == accessShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
+			var diagnostic *sqlstate.Error
+			if errors.As(err, &diagnostic) && diagnostic.Code == "55P03" && name.Parts[0].Pos.Character > 0 {
+				copy := *diagnostic
+				copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
+				return &copy
+			}
+		}
 		return err
 	}
 	s.owner.mu.Lock()
@@ -117,7 +142,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 		return err
 	}
 	if ownerOnly {
-		return auth.Check(AccessRequirement{Object:ref, OwnerOnly:true})
+		return auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 	} else if mode == accessExclusive {
 		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
 		if err != nil {

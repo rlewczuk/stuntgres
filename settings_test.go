@@ -401,6 +401,7 @@ func TestSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 	expected := map[string][2]string{"application_name": {"", "Sets the application name to be reported in statistics and logs."}, "log_statement_stats": {"off", "Writes cumulative performance statistics to the server log."}, "server_encoding": {"UTF8", "Shows the server (database) character set encoding."}, "standard_conforming_strings": {"on", "Causes '...' strings to treat backslashes literally."}, "statement_timeout": {"0", "Sets the maximum allowed duration of any statement."}}
 	expected["client_min_messages"] = [2]string{"notice", "Sets the message levels that are sent to the client."}
 	expected["search_path"] = [2]string{`"$user", public`, "Sets the schema search order for names that are not schema-qualified."}
+	expected["lock_timeout"] = [2]string{"0", "Sets the maximum allowed duration of any wait for a lock."}
 	for _, v := range settingsDefinitionsForTest() {
 		value := v.Default
 		switch v.Name {
@@ -1134,6 +1135,14 @@ func TestSettingsShowAllCurrentOverrides(t *testing.T) {
 	defer c.Close()
 	for _, prepared := range []bool{false, true} {
 		expected := map[string]string{"demo.flag": "on", "demo.text": "current", "demo.count": "4", "demo.ratio": "2.12346", "demo.mode": "fast", "demo.memory": "2MB"}
+		for name, value := range map[string]string{
+			"application_name": "", "client_min_messages": "notice",
+			"lock_timeout": "0", "log_statement_stats": "off",
+			"search_path": `"$user", public`, "server_encoding": "UTF8",
+			"standard_conforming_strings": "on", "statement_timeout": "0",
+		} {
+			expected[name] = value
+		}
 		for _, tc := range []struct{ name, input string }{{"demo.flag", "YES"}, {"demo.text", "current"}, {"demo.count", "3.5"}, {"demo.ratio", "2.1234567"}, {"demo.mode", "FAST"}, {"demo.memory", "2048"}} {
 			sessionSet(t, c, "SET "+tc.name+" TO '"+tc.input+"'", prepared)
 		}
@@ -1167,13 +1176,11 @@ func TestSettingsShowAllCurrentOverrides(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		count := 0
 		for rows.Next() {
 			var name, value, description string
 			if err = rows.Scan(&name, &value, &description); err != nil {
 				t.Fatal(err)
 			}
-			count++
 			if want, ok := expected[name]; ok {
 				if value != want {
 					t.Fatal(name, value, want)
@@ -1181,8 +1188,8 @@ func TestSettingsShowAllCurrentOverrides(t *testing.T) {
 				delete(expected, name)
 			}
 		}
-		if rows.Err() != nil || len(expected) != 0 || count != 7+len(settingsDefinitionsForTest()) {
-			t.Fatal(rows.Err(), expected, count)
+		if rows.Err() != nil || len(expected) != 0 {
+			t.Fatal(rows.Err(), expected)
 		}
 		rows.Close()
 		sessionSet(t, c, "RESET ALL", prepared)

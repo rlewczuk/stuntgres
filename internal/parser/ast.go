@@ -112,8 +112,9 @@ type Select struct {
 func (*Select) statement() {}
 
 type LockTable struct {
-	Name ObjectName
-	Pos  Position
+	Name   ObjectName
+	Pos    Position
+	Nowait bool
 }
 
 func (*LockTable) statement() {}

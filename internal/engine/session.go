@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/sqlstate"
 	"sync"
+	"time"
 )
 
 type SessionID uint64
@@ -100,6 +101,9 @@ type Operation struct {
 	notices                 []sqlstate.Error
 	noticeThreshold         noticeLevel
 	timerCancel             context.CancelFunc
+	lockTimeout             time.Duration
+	statementDeadline       time.Time
+	sourceContext           context.Context
 	commandAdmission        bool
 	restoreTableDestination bool
 	restoreInsertAuthority  bool
@@ -194,7 +198,7 @@ func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
 	// cancels every admitted child under the same admission lock; Done removes it.
 	combined, cancel := context.WithCancel(ctx)
-	op := &Operation{session: s, ctx: combined, cancel: cancel, private: private}
+	op := &Operation{session: s, ctx: combined, sourceContext: combined, cancel: cancel, private: private}
 	op.self = op
 	if s.operations == nil {
 		s.operations = make(map[*Operation]struct{})

@@ -80,6 +80,7 @@ var builtinSettings = []SettingDefinition{
 	{Name: "server_encoding", Type: SettingString, Access: SettingReadOnly, BootDefault: "UTF8", Description: "Shows the server (database) character set encoding."},
 	{Name: "standard_conforming_strings", Type: SettingBoolean, BootDefault: "on", Description: "Causes '...' strings to treat backslashes literally."},
 	{Name: "statement_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any statement."},
+	{Name: "lock_timeout", Type: SettingInteger, Unit: SettingMilliseconds, IntegerMax: math.MaxInt32, BootDefault: "0", Description: "Sets the maximum allowed duration of any wait for a lock."},
 }
 
 func RegistrationError(message string) error { return errors.New("stuntgres: " + message) }

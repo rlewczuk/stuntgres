@@ -1835,8 +1835,7 @@ sqldefault:
 	case 87:
 		sqlDollar = sqlS[sqlpt-8 : sqlpt+1]
 		{
-			sqllex.(*lexer).deferUnsupported(sqlDollar[1].tok, "LOCK options are unsupported")
-			sqlVAL.stmt = nil
+			sqlVAL.stmt = &LockTable{Name: sqlDollar[3].objectName, Pos: sqlDollar[1].tok.pos, Nowait: true}
 		}
 	case 88:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]

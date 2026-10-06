@@ -355,6 +355,7 @@ func settingsRun() error {
 		"log_statement_stats": {"off", "Writes cumulative performance statistics to the server log."}, "server_encoding": {"UTF8", "Shows the server (database) character set encoding."},
 		"search_path":                 {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
 		"standard_conforming_strings": {"on", "Causes '...' strings to treat backslashes literally."}, "statement_timeout": {"0", "Sets the maximum allowed duration of any statement."},
+		"lock_timeout": {"0", "Sets the maximum allowed duration of any wait for a lock."},
 	}
 	for _, v := range settingsDefinitions() {
 		value := v.Default

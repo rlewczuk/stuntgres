@@ -156,7 +156,7 @@ transaction_mode: ISOLATION LEVEL isolation_mode { $$=$1 }
 isolation_mode: READ COMMITTED | READ UNCOMMITTED | REPEATABLE READ | SERIALIZABLE ;
 mode_write: KW_U { if $1.text!="write" { sqllex.(*lexer).syntax($1); return 1 } } ;
 lock_table: LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE { $$=&LockTable{Name:$3,Pos:$1.pos} }
- | LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE lock_nowait { sqllex.(*lexer).deferUnsupported($1,"LOCK options are unsupported"); $$=nil }
+ | LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE lock_nowait { $$=&LockTable{Name:$3,Pos:$1.pos,Nowait:true} }
  | LOCK TABLE relation_name { sqllex.(*lexer).deferUnsupported($1,"LOCK requires explicit ACCESS EXCLUSIVE MODE"); $$=nil }
  | LOCK TABLE relation_name lock_nowait { sqllex.(*lexer).deferUnsupported($1,"LOCK options are unsupported"); $$=nil }
  | LOCK TABLE relation_name IN excluded_lock_mode MODE optional_lock_nowait { sqllex.(*lexer).deferUnsupported($1,"LOCK mode is unsupported"); $$=nil }
@@ -164,8 +164,8 @@ lock_table: LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE { $$=&LockTable{Na
  | LOCK TABLE relation_name '*' lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK descendants are unsupported"); $$=nil }
  | LOCK TABLE lock_only relation_name optional_lock_star lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK ONLY is unsupported"); $$=nil }
  | LOCK excluded_lock_target lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK requires TABLE and explicit ACCESS EXCLUSIVE MODE"); $$=nil } ;
-/* Failure-only release forms: no option-bearing executable AST. Consume the
- * complete input so malformed suffixes retain their syntax diagnostics. */
+/* Excluded release forms consume complete input so malformed suffixes
+ * retain their syntax diagnostics. */
 excluded_lock_targets: excluded_lock_target | excluded_lock_targets ',' excluded_lock_target ;
 excluded_lock_target: relation_name optional_lock_star | lock_only relation_name optional_lock_star ;
 optional_lock_star: /* empty */ | '*' ;

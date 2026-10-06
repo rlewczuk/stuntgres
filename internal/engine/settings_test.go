@@ -17,6 +17,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	all := [][]string{
 		{"application_name", "initial", "Sets the application name to be reported in statistics and logs."},
 		{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
+		{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
 		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
 		{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
 		{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
@@ -84,7 +85,9 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 			}
 			values := make([]sqltype.Value, len(tc.names))
 			for i, row := range tc.rows {
-				if err := result.Rows.Values(context.Background(),i, values);err!=nil { t.Fatal(err) }
+				if err := result.Rows.Values(context.Background(), i, values); err != nil {
+					t.Fatal(err)
+				}
 				for j, want := range row {
 					if tc.null {
 						if !values[j].IsNull() || values[j].Type() != typ {
@@ -218,7 +221,7 @@ func TestSettingCapturedDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	r, err := e.Execute(op, &parser.SettingCall{Name: "set_config", Args: []parser.Expr{parser.LiteralExpr{Value:parser.Value{Kind: parser.StringValue, Text: "application_name"}}, parser.LiteralExpr{Value:parser.Value{Kind: parser.NullValue}}, parser.LiteralExpr{Value:parser.Value{Kind: parser.BooleanValue}}}}, 0, nil)
+	r, err := e.Execute(op, &parser.SettingCall{Name: "set_config", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "application_name"}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue}}}}, 0, nil)
 	if err != nil || tuples(r)[0][0] != want {
 		t.Fatal(r, err)
 	}
