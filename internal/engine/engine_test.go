@@ -95,7 +95,7 @@ func independentFinalRows(original RowResult) *finalRows {
 	r.values, r.selection, r.slots = old.values, old.selection, old.slots
 	r.anonymous = old.anonymous
 	if old.source != nil {
-		r.source = &querySource{view: old.source.view.Retain(), ref: old.source.ref, committed: old.source.committed, own: old.source.own}
+		r.source = &querySource{view: old.source.view.Retain(), ref: old.source.ref, committed: old.source.committed, own: old.source.own, visible: old.source.visible}
 	}
 	return r
 }

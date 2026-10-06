@@ -69,6 +69,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		columns             []ColumnDescriptor
 		attributes          []int32
 		versions            []rowVersion
+		ends                *deletionRoot
+		frontier            CommitSeq
 		comment             string
 		columnComments      map[int32]string
 		notNullConstraints  []notNullConstraint
@@ -211,7 +213,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{principal.Name, ns.name, r.name, r.columns, r.attributes, storage.versions, r.comment, r.columnComments, r.notNullConstraints})
+		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints})
 	}
 	e.mu.Unlock()
 	sort.Slice(tables, func(i, j int) bool {
@@ -299,6 +301,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 		for _, version := range t.versions {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if !liveVersion(version, t.frontier, t.ends, nil) {
+				continue
+			}
 			row := version.values
 			line.Reset()
 			if len(t.columns) == 0 {

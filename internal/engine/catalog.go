@@ -28,7 +28,13 @@ type ObjectRef struct {
 	Epoch   CatalogEpoch
 	Address ObjectAddress
 }
-type relationStorage struct{ versions []rowVersion }
+
+// Storage identity is the relation's row-shape generation. Append/end publication
+// mutates its roots under mu; metadata revisions retain it, shape changes replace it.
+type relationStorage struct {
+	versions []rowVersion
+	ends     *deletionRoot
+}
 
 const (
 	NamespaceClassID      OID = 2615
@@ -240,6 +246,7 @@ type catalogRowShape struct {
 	original       *relationStorage
 	replacement    *relationStorage
 	observedLength int
+	observedEnds   *deletionRoot
 }
 
 type CatalogStage struct {
@@ -325,7 +332,7 @@ func (s *CatalogStage) Replace(d Descriptor) error {
 }
 
 // alterRelation couples a same-identity revision with an immutable storage root.
-func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *relationDescriptor, original, replacement *relationStorage, observedLength int) error {
+func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *relationDescriptor, original, replacement *relationStorage, observedLength int, observedEnds *deletionRoot) error {
 	if s == nil || s.owner == nil || s.lifecycle != catalogOpen || s.invalid != nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
@@ -340,7 +347,7 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *rela
 		e.mu.Unlock()
 		return CatalogConflict{}
 	}
-	if len(original.versions) != observedLength || len(replacement.versions) != observedLength {
+	if len(original.versions) != observedLength || len(replacement.versions) != observedLength || original.ends != observedEnds || replacement.ends != observedEnds {
 		e.mu.Unlock()
 		return CatalogConflict{}
 	}
@@ -370,7 +377,7 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *rela
 	if s.rowShapes == nil {
 		s.rowShapes = make(map[ObjectAddress]catalogRowShape)
 	}
-	s.rowShapes[ref.Address] = catalogRowShape{original: original, replacement: replacement, observedLength: observedLength}
+	s.rowShapes[ref.Address] = catalogRowShape{original: original, replacement: replacement, observedLength: observedLength, observedEnds: observedEnds}
 	return nil
 }
 
@@ -570,7 +577,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 		}
 		for a, shape := range s.rowShapes {
-			if currentStorage[a] != shape.original || len(shape.original.versions) != shape.observedLength {
+			if currentStorage[a] != shape.original || len(shape.original.versions) != shape.observedLength || shape.original.ends != shape.observedEnds {
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
@@ -614,7 +621,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			continue
 		}
 		for a, shape := range s.rowShapes {
-			if e.storage[a] != shape.original || len(shape.original.versions) != shape.observedLength {
+			if e.storage[a] != shape.original || len(shape.original.versions) != shape.observedLength || shape.original.ends != shape.observedEnds {
 				if op != nil {
 					op.session.mu.Unlock()
 				}
@@ -751,13 +758,8 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
 			}
-			versions := source[a].versions
-			if replacement.owner != e {
-				versions = append([]rowVersion(nil), versions...)
-			}
-			// Captured prefixes/payloads are immutable. Foreign stores need their
-			// own append capacity because their engines publish independently.
-			storage[a] = &relationStorage{versions: versions}
+			// Capture immutable prefixes/end roots under the source lock.
+			storage[a] = &relationStorage{versions: source[a].versions, ends: source[a].ends}
 		}
 		return nil
 	}
@@ -807,12 +809,25 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		return ChangeSet{}, ErrCatalogReplaced
 	}
 	err := copyRows(replacement.owner.storage)
+	sourceFrontier := replacement.owner.commitSeq
 	sourceRoles := RoleRead{replacement.owner, replacement.owner.roles}
 	replacement.owner.mu.Unlock()
 	if err != nil {
 		return ChangeSet{}, err
 	}
 	var imported uint64
+	for _, relation := range storage {
+		versions := make([]rowVersion, 0, len(relation.versions))
+		for _, version := range relation.versions {
+			if err := ctx.Err(); err != nil {
+				return ChangeSet{}, err
+			}
+			if version.born != 0 && liveVersion(version, sourceFrontier, relation.ends, nil) {
+				versions = append(versions, version)
+			}
+		}
+		relation.versions, relation.ends = versions, nil
+	}
 	for _, relation := range storage {
 		imported += uint64(len(relation.versions))
 	}
@@ -848,8 +863,20 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 			}
 		}
 	}
-	if err := ctx.Err(); err != nil {
+	if err := e.installForeignCatalogLocked(ctx, next, storage, nextRevision); err != nil {
 		return ChangeSet{}, err
+	}
+	installed = next.epoch
+	return ChangeSet{Replacement: true}, nil
+}
+
+// installForeignCatalogLocked owns the final cancellation boundary and the
+// indivisible installation of a prepared foreign generation. The caller holds
+// replacementMu and mu and has validated capacity, descriptors and authority.
+// Storage vectors are private copies; payload values remain immutable.
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, nextRevision DefinitionRevision) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	// Fresh engine-local identities/frontier for this replacement. Old snapshots
 	// retain source versions; no source payload or published entry is rewritten.
@@ -866,8 +893,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	e.state = next
 	e.storage = storage
 	e.nextRevision = nextRevision
-	installed = next.epoch
-	return ChangeSet{Replacement: true}, nil
+	return nil
 }
 func cloneCatalog(s *catalogState) *catalogState {
 	n := &catalogState{epoch: s.epoch, descriptors: make(map[ObjectAddress]Descriptor, len(s.descriptors)), names: make(map[NameKey]ObjectAddress, len(s.names))}

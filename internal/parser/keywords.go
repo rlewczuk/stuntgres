@@ -153,7 +153,7 @@ var keywords = [...]keyword{
 	{"deferrable", Reserved, true, DEFERRABLE},
 	{"deferred", Unreserved, true, 0},
 	{"definer", Unreserved, true, 0},
-	{"delete", Unreserved, true, 0},
+	{"delete", Unreserved, true, DELETE},
 	{"delimiter", Unreserved, true, 0},
 	{"delimiters", Unreserved, true, 0},
 	{"depends", Unreserved, true, 0},

@@ -152,12 +152,12 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		ra := transactionBegin(t, a)
 		rb := transactionBegin(t, b)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		if err := e.locks.acquire(context.Background(), a.transactions.ticket, ref, accessExclusive); err != nil {
+		if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
-		go func() { done <- e.locks.acquire(ctx, b.transactions.ticket, ref, accessShare) }()
+		go func() { done <- e.locks.acquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare) }()
 		lockPending(t, e, 1)
 		ended := make(chan struct{})
 		go func() { e.locks.end(a.transactions.ticket); close(ended) }()
@@ -169,7 +169,7 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		}
 		e.locks.mu.Lock()
 		held := relationLockMode(0)
-		if entry := e.locks.entries[ref]; entry != nil {
+		if entry := e.locks.entries[lockResource{ObjectRef: ref}]; entry != nil {
 			held = entry.holders[b.transactions.ticket]
 		}
 		e.locks.mu.Unlock()

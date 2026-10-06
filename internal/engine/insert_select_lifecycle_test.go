@@ -97,8 +97,11 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			source := captureQuerySource(view, b.sourceRef)
 			e.mu.Unlock()
+			source, err := captureQuerySource(op.ctx, view, b.sourceRef)
+			if err != nil {
+				t.Fatal(err)
+			}
 			project := b.query.Root.(*projectNode)
 			original := project.expressions[0]
 			calls := 0

@@ -307,6 +307,9 @@ type expressionBinder struct {
 	expected      *StatementDescription
 	temporals     []temporalConstant
 	anyParameters []parameterExpression
+	deleteTarget  bool
+	targetName    string
+	targetAlias   string
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -380,15 +383,33 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error)
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
-	if len(raw.Name.Parts) != 1 {
+	if len(raw.Name.Parts) == 0 || len(raw.Name.Parts) > 2 || (len(raw.Name.Parts) == 2 && !b.deleteTarget) {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if b.relation == nil {
-		return nil, expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, raw.Name.Parts[0].Text), raw.Pos)
+		return nil, expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
 	}
-	name := raw.Name.Parts[0].Text
+	if len(raw.Name.Parts) == 2 {
+		qualifier := raw.Name.Parts[0].Text
+		visible := b.targetName
+		if b.targetAlias != "" {
+			visible = b.targetAlias
+		}
+		if qualifier != visible {
+			if qualifier == b.targetName && b.targetAlias != "" {
+				err := expressionError("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, qualifier), raw.Pos).(*sqlstate.Error)
+				err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.targetAlias)
+				return nil, err
+			}
+			return nil, expressionError("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, qualifier), raw.Pos)
+		}
+	}
 	i, ok := b.relation.index[name]
 	if !ok {
+		if len(raw.Name.Parts) == 2 {
+			return nil, expressionError("42703", fmt.Sprintf("column %s.%s does not exist", raw.Name.Parts[0].Text, name), raw.Pos)
+		}
 		return nil, expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
 	}
 	return b.columnAt(i, raw.Pos), nil

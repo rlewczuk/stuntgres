@@ -78,26 +78,24 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 	}
 }
 
-// Foreign replacement checks context at admission, under the target lock, and
-// finally after remapping/ACL preparation. Cancel at that last check, either
-// before its returned error or immediately after the successful nil observation.
+// This context is used only at the real prepared-generation install seam.
+// Cancellation either precedes its final observation or follows a successful
+// observation, without depending on how many checks preparation performs.
 type controlReplacementContext struct {
 	context.Context
-	cancel context.CancelFunc
-	late   bool
-	checks int
+	cancel   context.CancelFunc
+	late     bool
+	observed bool
 }
 
 func (c *controlReplacementContext) Err() error {
-	c.checks++
-	if c.checks == 3 {
-		if c.late {
-			err := c.Context.Err()
-			c.cancel()
-			return err
-		}
+	c.observed = true
+	if c.late {
+		err := c.Context.Err()
 		c.cancel()
+		return err
 	}
+	c.cancel()
 	return c.Context.Err()
 }
 
@@ -121,13 +119,46 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			boundary := &controlReplacementContext{Context: ctx, cancel: cancel, late: late}
-			changes, err := target.ReplaceCatalog(boundary, source.CatalogRead())
-			if ctx.Err() != context.Canceled || boundary.checks != 3 || target.owner != owner {
-				t.Fatal("boundary not exercised", boundary.checks, err)
+			// Full ReplaceCatalog behavior is covered by the catalog replacement
+			// tests. Prepare a genuine foreign generation here so cancellation
+			// targets installation, not admission or the live-row scan.
+			replacement := source.CatalogRead()
+			sourceRoles, targetRoles := source.Roles(), target.Roles()
+			preparedStorage := make(map[ObjectAddress]*relationStorage)
+			source.mu.Lock()
+			for address, relation := range source.storage {
+				preparedStorage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
+			}
+			source.mu.Unlock()
+			err := func() error {
+				target.replacementMu.Lock()
+				defer target.replacementMu.Unlock()
+				target.mu.Lock()
+				defer target.mu.Unlock()
+				next, err := target.remapCatalog(replacement.state, sourceRoles, targetRoles, nil)
+				if err != nil {
+					return err
+				}
+				nextRevision := target.nextRevision
+				for _, descriptor := range next.descriptors {
+					if err := validateACL(RoleRead{target, target.roles}, descriptor); err != nil {
+						return err
+					}
+					if revision := descriptor.Revision(); revision >= nextRevision {
+						nextRevision = revision + 1
+					}
+				}
+				return target.installForeignCatalogLocked(boundary, next, preparedStorage, nextRevision)
+			}()
+			if err == nil {
+				target.locks.fence(target.CatalogRead().Epoch())
+			}
+			if ctx.Err() != context.Canceled || !boundary.observed || target.owner != owner {
+				t.Fatal("boundary not exercised", boundary.observed, err)
 			}
 			if late {
-				if err != nil || !changes.Replacement || target.CatalogRead().Epoch() != before.Epoch()+1 || target.commitSeq != frontier+1 {
-					t.Fatal("late cancellation retracted install", changes, err)
+				if err != nil || target.CatalogRead().Epoch() != before.Epoch()+1 || target.commitSeq != frontier+1 {
+					t.Fatal("late cancellation retracted install", err)
 				}
 				transactionRows(t, b, "SELECT v FROM t", 99)
 				if !errors.Is(target.ValidateObjectRef(target.CatalogRead(), ref), ErrCatalogReplaced) {
@@ -150,8 +181,8 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					t.Fatal(err)
 				}
 			} else {
-				if !errors.Is(err, context.Canceled) || changes.Replacement || len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 {
-					t.Fatal(changes, err)
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
 				}
 				if target.CatalogRead().state != before.state || target.storage[ref.Address] != storage || target.commitSeq != frontier {
 					t.Fatal("failed replacement changed state/storage/frontier")

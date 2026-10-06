@@ -134,8 +134,10 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	defer func() {
 		err = scope.Finish(err)
 		err = op.CommandError(err)
-		if err != nil && r.Rows != nil {
-			r.Rows.Close()
+		if err != nil {
+			if r.Rows != nil {
+				r.Rows.Close()
+			}
 			r = engine.Result{}
 		}
 		notices := op.DetachNotices()

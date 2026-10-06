@@ -40,6 +40,9 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 	case *parser.Insert:
 		name = v.Name
 		mode = rowExclusive
+	case *parser.Delete:
+		name = v.Name
+		mode = rowExclusive
 	case *parser.Comment:
 		if !execute || (v.Kind != parser.CommentTable && v.Kind != parser.CommentColumn) {
 			return nil
@@ -142,7 +145,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 	if rename && ref.owner == nil {
 		return nil
 	}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, ref, mode, policy)
+	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 	if errors.Is(err, errRelationUnavailable) {
 		relationName := name.Parts[0].Text
 		if len(name.Parts) == 2 {
@@ -158,7 +161,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 		err = request.wait()
 	}
 	if err != nil {
-		// Parse analysis opens SELECT/INSERT relations with a positioned
+		// Parse analysis opens SELECT/INSERT/DELETE relations with a positioned
 		// error callback. Cached execution and utility locks do not. Query
 		// cancellation (57014) deliberately bypasses that callback.
 		if (mode == accessShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
@@ -190,6 +193,12 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
+		if _, deleting := stmt.(*parser.Delete); deleting {
+			s.lockedStorage = e.storage[ref.Address]
+			if s.lockedStorage == nil {
+				return errors.New("stuntgres: relation storage is missing")
+			}
+		}
 		s.lockedIdentityOnly = mode == shareUpdateExclusive
 	}
 	// Definition evolution while waiting is valid for this exact relation.
@@ -231,6 +240,10 @@ func (s *StatementScope) validateLockedRelation(e *Engine) error {
 	current := e.state.descriptors[s.lockedRef.Address]
 	if s.lockedIdentityOnly {
 		if _, ok := current.(*relationDescriptor); !ok {
+			return ErrCatalogReplaced
+		}
+	} else if s.lockedStorage != nil {
+		if _, ok := current.(*relationDescriptor); !ok || s.lockedRef.Address.SubID != 0 || e.storage[s.lockedRef.Address] != s.lockedStorage {
 			return ErrCatalogReplaced
 		}
 	} else if current != s.lockedDescriptor {

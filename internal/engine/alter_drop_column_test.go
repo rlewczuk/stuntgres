@@ -69,13 +69,13 @@ func alterDropTestStage(t *testing.T, e *Engine) (*CatalogStage, ObjectRef, *rel
 	next.index = map[string]int{"a": 0}
 	next.columnACL = nil
 	original := e.storage[ref.Address]
-	replacement := &relationStorage{versions: make([]rowVersion, len(original.versions))}
+	replacement := &relationStorage{versions: make([]rowVersion, len(original.versions)), ends: original.ends}
 	for i, row := range original.versions {
 		row.values = append([]sqltype.Value(nil), row.values[0])
 		replacement.versions[i] = row
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	if err := stage.alterRelation(context.Background(), ref, &next, original, replacement, len(original.versions)); err != nil {
+	if err := stage.alterRelation(context.Background(), ref, &next, original, replacement, len(original.versions), original.ends); err != nil {
 		t.Fatal(err)
 	}
 	return stage, ref, old

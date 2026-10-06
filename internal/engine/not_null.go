@@ -94,6 +94,7 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 	versions := original.versions
 	observedLength := len(versions)
 	frontier := e.commitSeq
+	ends := original.ends
 	name := s.Constraint.Text
 	if adding {
 		if name == "" {
@@ -115,7 +116,7 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 			if err := op.Context().Err(); err != nil {
 				return Result{}, err
 			}
-			if row.born != 0 && row.born <= frontier && row.values[slot].IsNull() {
+			if liveVersion(row, frontier, ends, nil) && row.born != 0 && row.values[slot].IsNull() {
 				diagnostic := sqlError("23502", fmt.Sprintf(`column "%s" of relation "%s" contains null values`, old.columns[slot].Name, old.name)).(*sqlstate.Error)
 				diagnostic.Schema, diagnostic.Table, diagnostic.Column = schema, old.name, old.columns[slot].Name
 				return Result{}, diagnostic
@@ -135,7 +136,7 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[:constraintIndex]...)
 		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[constraintIndex+1:]...)
 	}
-	if err := stage.alterRelation(op.Context(), ref, &next, original, original, observedLength); err != nil {
+	if err := stage.alterRelation(op.Context(), ref, &next, original, original, observedLength, ends); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

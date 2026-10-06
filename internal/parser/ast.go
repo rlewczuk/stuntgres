@@ -186,6 +186,15 @@ func insertStatement(name ObjectName, targets []InsertTarget, source *InsertSour
 	return stmt
 }
 
+type Delete struct {
+	Name  ObjectName
+	Alias Identifier
+	Where Expr
+	Pos   Position
+}
+
+func (*Delete) statement() {}
+
 type Select struct {
 	Name    ObjectName
 	Star    bool

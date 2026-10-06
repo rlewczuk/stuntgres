@@ -64,6 +64,7 @@ type transactionOwner struct {
 	next      TxID
 	command   CommandID
 	writes    map[ObjectAddress][]rowVersion
+	deletes   map[ObjectAddress]*privateDeletionRoot
 	start     time.Time
 }
 
@@ -72,6 +73,7 @@ func (t *transactionOwner) clear() {
 	t.ref = TxRef{}
 	t.command = 0
 	t.writes = nil
+	t.deletes = nil
 	t.start = time.Time{}
 }
 
@@ -167,7 +169,7 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 
 // StatementScope serializes one session's statement, from parsing through Finish.
 // Binding uses current resolution metadata; data consumers explicitly acquire a
-// fresh READ COMMITTED view. Future consumers stage effects here, never in storage.
+// fresh READ COMMITTED view. Writes stage effects here, never in storage.
 type StatementScope struct {
 	self               *StatementScope
 	owner              *transactionOwner
@@ -185,10 +187,12 @@ type StatementScope struct {
 	lockedDescriptor   Descriptor
 	sourceRef          ObjectRef
 	sourceDescriptor   Descriptor
+	lockedStorage      *relationStorage
 	lockedIdentityOnly bool
 	txRef              TxRef
 	command            CommandID
 	ownWrites          map[ObjectAddress][]rowVersion
+	ownDeletes         map[ObjectAddress]*privateDeletionRoot
 	Expected           *StatementDescription
 	implicit           bool
 	input              sqltype.InputEnvironment
@@ -196,9 +200,10 @@ type StatementScope struct {
 }
 
 type WriteStage struct {
-	self  *WriteStage
-	scope *StatementScope
-	rows  map[ObjectAddress][]rowVersion
+	self    *WriteStage
+	scope   *StatementScope
+	rows    map[ObjectAddress][]rowVersion
+	deletes map[ObjectAddress]*privateDeletionRoot
 }
 
 func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
@@ -261,7 +266,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	t.mu.Unlock()
 	if idle {
 		switch stmt.(type) {
-		case *parser.Insert, *parser.Select:
+		case *parser.Insert, *parser.Select, *parser.Delete:
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		case *parser.Comment:
@@ -295,6 +300,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	s.input = sqltype.InputEnvironment{TransactionStart: t.start}
 	s.command = t.command
 	s.ownWrites = t.writes
+	s.ownDeletes = t.deletes
 	e.mu.Lock()
 	stale := t.ref.epoch != e.state.epoch
 	e.mu.Unlock()
@@ -418,6 +424,34 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
 }
 
+// Prepare only vector headers/capacity. Tail writes follow the final preflight.
+func prepareOwnWrites(previous, staged map[ObjectAddress][]rowVersion) map[ObjectAddress][]rowVersion {
+	if len(staged) == 0 {
+		return previous
+	}
+	next := make(map[ObjectAddress][]rowVersion, len(previous)+len(staged))
+	for a, rows := range previous {
+		next[a] = rows
+	}
+	for a, rows := range staged {
+		old := previous[a]
+		if len(old) == 0 {
+			next[a] = rows
+			continue
+		}
+		size := len(old) + len(rows)
+		if size <= cap(old) {
+			next[a] = old[:size]
+			continue
+		}
+		capacity := max(size, cap(old)*2)
+		dst := make([]rowVersion, size, capacity)
+		copy(dst, old)
+		next[a] = dst
+	}
+	return next
+}
+
 func (s *StatementScope) Finish(err error) error {
 	if s == nil || s.self != s {
 		return errors.New("stuntgres: foreign or missing statement scope")
@@ -445,9 +479,11 @@ func (s *StatementScope) Finish(err error) error {
 	if err == nil && s.worked {
 		if t.state == TxImplicit {
 			if !s.completed {
-				err = e.publishWrites(s.op, t.ref, s.stage.rows)
+				err = e.publishWrites(s.op, t.ref, s.stage.rows, s.stage.deletes)
 			}
 		} else {
+			deletes := mergeDeletions(t.deletes, s.stage.deletes)
+			writes := prepareOwnWrites(t.writes, s.stage.rows)
 			session := s.op.session
 			e.mu.Lock()
 			session.mu.Lock()
@@ -456,16 +492,11 @@ func (s *StatementScope) Finish(err error) error {
 				err = ErrCatalogReplaced
 			}
 			if err == nil {
-				if len(s.stage.rows) != 0 && t.writes == nil {
-					t.writes = make(map[ObjectAddress][]rowVersion)
-				}
 				for a, rows := range s.stage.rows {
-					if len(t.writes[a]) == 0 {
-						t.writes[a] = rows
-					} else {
-						t.writes[a] = append(t.writes[a], rows...)
-					}
+					copy(writes[a][len(t.writes[a]):], rows)
 				}
+				t.writes = writes
+				t.deletes = deletes
 			}
 			session.mu.Unlock()
 			e.mu.Unlock()
@@ -486,6 +517,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.session.settings.finishTransaction(false)
 		t.state = TxAborted
 		t.writes = nil
+		t.deletes = nil
 		endedTicket = t.ticket
 		t.ticket = nil
 	}
@@ -494,9 +526,12 @@ func (s *StatementScope) Finish(err error) error {
 		s.view = nil
 	}
 	s.stage.rows = nil
+	s.stage.deletes = nil
+	s.ownDeletes = nil
 	s.ownWrites = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil
+	s.lockedStorage = nil
 	s.lockedIdentityOnly = false
 	s.finished = true
 	s.result = err
@@ -519,7 +554,10 @@ type visibilityData struct {
 	frontier  CommitSeq
 	catalog   CatalogRead
 	committed map[ObjectAddress][]rowVersion
+	storage   *relationStorage // Exact shape generation of this one-relation view.
 	own       map[ObjectAddress][]rowVersion
+	ends      map[ObjectAddress]*deletionRoot
+	deleted   map[ObjectAddress]*privateDeletionRoot
 }
 
 type VisibilityView struct {
@@ -576,7 +614,12 @@ func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ObjectRef) (*Visib
 		tx: s.txRef, command: s.command, frontier: e.commitSeq,
 		catalog:   CatalogRead{owner: e, state: e.state},
 		committed: map[ObjectAddress][]rowVersion{ref.Address: storage.versions},
+		storage:   storage,
 	}
+	if storage.ends != nil {
+		data.ends = map[ObjectAddress]*deletionRoot{ref.Address: storage.ends}
+	}
+	data.deleted = s.ownDeletes
 	if rows := s.ownWrites[ref.Address]; len(rows) != 0 {
 		data.own = map[ObjectAddress][]rowVersion{ref.Address: rows}
 	}
@@ -620,8 +663,14 @@ func (v *VisibilityView) Catalog() CatalogRead { return v.read().catalog }
 // Publication grows vectors geometrically, outside final locks. Spare capacity
 // is written only after final preflight, under Engine.mu; captured prefixes are
 // never rewritten. A peer append causes re-preparation, not SQL re-execution.
-func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion) error {
-	if len(writes) == 0 {
+func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot) error {
+	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || ref.attachment == nil || ref.owner != e || ref.session != op.session.token || ref.attachment != op.session.transactions || ref.id == 0 || ref != ref.attachment.ref {
+		return errors.New("stuntgres: foreign or stale publication transaction")
+	}
+	if ref.attachment.state != TxActive && ref.attachment.state != TxImplicit {
+		return errors.New("stuntgres: inactive publication transaction")
+	}
+	if len(writes) == 0 && len(deletes) == 0 {
 		session := op.session
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -645,8 +694,13 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			e.mu.Unlock()
 			return errors.New("stuntgres: commit sequence exhausted")
 		}
-		roots := make(map[ObjectAddress][]rowVersion, len(writes))
-		stores := make(map[ObjectAddress]*relationStorage, len(writes))
+		capacity := len(writes) + len(deletes)
+		roots := make(map[ObjectAddress][]rowVersion, capacity)
+		stores := make(map[ObjectAddress]*relationStorage, capacity)
+		var ends map[ObjectAddress]*deletionRoot
+		if len(deletes) != 0 {
+			ends = make(map[ObjectAddress]*deletionRoot, capacity)
+		}
 		for a := range writes {
 			storage := e.storage[a]
 			if storage == nil {
@@ -655,9 +709,26 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			}
 			roots[a] = storage.versions
 			stores[a] = storage
+			if ends != nil {
+				ends[a] = storage.ends
+			}
+		}
+		for a := range deletes {
+			if stores[a] != nil {
+				continue
+			}
+			storage := e.storage[a]
+			if storage == nil {
+				e.mu.Unlock()
+				return errors.New("stuntgres: relation storage is missing")
+			}
+			roots[a], stores[a], ends[a] = storage.versions, storage, storage.ends
 		}
 		e.mu.Unlock()
-		next := make(map[ObjectAddress][]rowVersion, len(writes))
+		var next map[ObjectAddress][]rowVersion
+		if len(writes) != 0 {
+			next = make(map[ObjectAddress][]rowVersion, len(writes))
+		}
 		for a, rows := range writes {
 			root := roots[a]
 			size := len(root) + len(rows)
@@ -672,6 +743,26 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			dst := make([]rowVersion, size, capacity)
 			copy(dst, root)
 			next[a] = dst
+		}
+		var nextEnds map[ObjectAddress]*deletionRoot
+		if len(deletes) != 0 {
+			nextEnds = make(map[ObjectAddress]*deletionRoot, len(deletes))
+		}
+		for a, deletion := range deletes {
+			n := len(deletion.rows)
+			if ends[a] != nil {
+				n += len(ends[a].rows)
+			}
+			root := &deletionRoot{rows: make(map[RowID]rowEnd, n)}
+			if ends[a] != nil {
+				for id, end := range ends[a].rows {
+					root.rows[id] = end
+				}
+			}
+			for id, candidate := range deletion.rows {
+				root.rows[id] = rowEnd{version: candidate.version}
+			}
+			nextEnds[a] = root
 		}
 		session := op.session
 		e.mu.Lock()
@@ -690,7 +781,7 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 		}
 		changed := false
 		for a, storage := range stores {
-			if e.storage[a] != storage || len(storage.versions) != len(roots[a]) {
+			if e.storage[a] != storage || len(storage.versions) != len(roots[a]) || ends != nil && storage.ends != ends[a] {
 				changed = true
 			}
 		}
@@ -698,6 +789,41 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 			session.mu.Unlock()
 			e.mu.Unlock()
 			continue
+		}
+		for a, deletion := range deletes {
+			relation, live := e.state.descriptors[a].(*relationDescriptor)
+			if !live || a.SubID != 0 {
+				err = ErrCatalogReplaced
+				break
+			}
+			for id, candidate := range deletion.rows {
+				if candidate.ref.owner != e.owner || candidate.ref.Epoch != ref.epoch || candidate.ref.Address != a || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage == nil || candidate.storage != stores[a] {
+					err = ErrCatalogReplaced
+					break
+				}
+				predecessors := roots[a]
+				if candidate.own {
+					predecessors = writes[a]
+				}
+				if candidate.ordinal < 0 || candidate.ordinal >= len(predecessors) || predecessors[candidate.ordinal].row != id || predecessors[candidate.ordinal].version != candidate.version || len(predecessors[candidate.ordinal].values) != len(relation.columns) {
+					err = errors.New("stuntgres: invalid deletion predecessor")
+					break
+				}
+				if ends[a] != nil {
+					if _, ended := ends[a].rows[id]; ended {
+						err = errors.New("stuntgres: deletion predecessor already ended")
+						break
+					}
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
+		if err != nil {
+			session.mu.Unlock()
+			e.mu.Unlock()
+			return err
 		}
 		// All fallible work and allocations are complete. One critical section
 		// installs every relation and frontier; no callback can see a half batch.
@@ -707,6 +833,12 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 				rows[i].born = e.commitSeq + 1
 			}
 			stores[a].versions = rows
+		}
+		for a, root := range nextEnds {
+			for id, candidate := range deletes[a].rows {
+				root.rows[id] = rowEnd{version: candidate.version, end: e.commitSeq + 1}
+			}
+			stores[a].ends = root
 		}
 		e.commitSeq++
 		session.mu.Unlock()

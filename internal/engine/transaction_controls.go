@@ -146,7 +146,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	var err error
 	committed := false
 	if commit && t.state != TxAborted {
-		err = e.publishWrites(op, ref, t.writes)
+		err = e.publishWrites(op, ref, t.writes, t.deletes)
 		committed = err == nil
 	} else {
 		err = e.endPreflight(op)

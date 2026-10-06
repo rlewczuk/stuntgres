@@ -29,16 +29,16 @@ func TestRelationLockWaitsNowait(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(v INT)")
 			ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			if err := e.locks.acquire(context.Background(), a.transactions.ticket, ref, held); err != nil {
+			if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, held); err != nil {
 				t.Fatal(err)
 			}
-			request, err := e.locks.startAcquire(context.Background(), b.transactions.ticket, ref, requested, relationLockPolicy{nowait: true})
+			request, err := e.locks.startAcquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, requested, relationLockPolicy{nowait: true})
 			conflict := held == accessExclusive || requested == accessExclusive || held == shareUpdateExclusive && requested == shareUpdateExclusive
 			if request != nil || conflict && !errors.Is(err, errRelationUnavailable) || !conflict && err != nil {
 				t.Fatalf("%d/%d: request=%v err=%v", held, requested, request, err)
 			}
 			e.locks.mu.Lock()
-			entry := e.locks.entries[ref]
+			entry := e.locks.entries[lockResource{ObjectRef: ref}]
 			bad := len(entry.pending) != 0 || entry.holders[a.transactions.ticket] != held || conflict && len(b.transactions.ticket.resources) != 0
 			e.locks.mu.Unlock()
 			if bad {
@@ -58,7 +58,7 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 		sessionSQL(t, a, "CREATE TABLE t(v INT)")
 		ra, rb, rc := transactionBegin(t, a), transactionBegin(t, b), transactionBegin(t, c)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		if err := e.locks.acquire(context.Background(), a.transactions.ticket, ref, accessShare); err != nil {
+		if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessShare); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -67,18 +67,18 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 		if timeout {
 			policy.timeout = 200 * time.Millisecond
 		}
-		ax, err := e.locks.startAcquire(ctx, b.transactions.ticket, ref, accessExclusive, policy)
+		ax, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive, policy)
 		if err != nil || ax == nil {
 			t.Fatal("AX not queued", err)
 		}
 		follower, stopFollower := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stopFollower()
-		rx, err := e.locks.startAcquire(follower, c.transactions.ticket, ref, rowExclusive, relationLockPolicy{})
+		rx, err := e.locks.startAcquire(follower, c.transactions.ticket, lockResource{ObjectRef: ref}, rowExclusive, relationLockPolicy{})
 		if err != nil || rx == nil {
 			t.Fatal("RX barged", err)
 		}
 		lockPending(t, e, 2)
-		probe, err := e.locks.startAcquire(context.Background(), c.transactions.ticket, ref, rowExclusive, relationLockPolicy{nowait: true})
+		probe, err := e.locks.startAcquire(context.Background(), c.transactions.ticket, lockResource{ObjectRef: ref}, rowExclusive, relationLockPolicy{nowait: true})
 		if probe != nil || !errors.Is(err, errRelationUnavailable) {
 			t.Fatal("NOWAIT barged", err)
 		}
@@ -96,7 +96,7 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.locks.mu.Lock()
-		bad := e.locks.entries[ref].holders[a.transactions.ticket] != accessShare || len(b.transactions.ticket.resources) != 0 || !ax.terminal || !rx.terminal
+		bad := e.locks.entries[lockResource{ObjectRef: ref}].holders[a.transactions.ticket] != accessShare || len(b.transactions.ticket.resources) != 0 || !ax.terminal || !rx.terminal
 		e.locks.mu.Unlock()
 		if bad {
 			t.Fatal("interruption damaged ownership/journal")
@@ -194,10 +194,10 @@ func TestRelationLockWaitsTimeoutPerAcquisition(t *testing.T) {
 	for _, name := range []string{"t", "u"} {
 		ref := catalogRef(t, e, e.CatalogRead(), name)
 		ra := transactionBegin(t, a)
-		if err := e.locks.acquire(context.Background(), a.transactions.ticket, ref, accessExclusive); err != nil {
+		if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 			t.Fatal(err)
 		}
-		r, err := e.locks.startAcquire(context.Background(), b.transactions.ticket, ref, accessShare, policy)
+		r, err := e.locks.startAcquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy)
 		if err != nil || r == nil {
 			t.Fatal(err)
 		}

@@ -153,19 +153,18 @@ type querySource struct {
 	committed, own []rowVersion
 	singleton      bool
 	anonymous      [][]sqltype.Value
+	visible        []int
 }
 
-func captureQuerySource(view *VisibilityView, ref ObjectRef) *querySource {
-	pin := view.Retain()
-	data := pin.read()
-	return &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address]}
-}
 func (s *querySource) count() int {
 	if s.anonymous != nil {
 		return len(s.anonymous)
 	}
 	if s.singleton {
 		return 1
+	}
+	if s.visible != nil {
+		return len(s.visible)
 	}
 	return len(s.committed) + len(s.own)
 }
@@ -176,10 +175,19 @@ func (s *querySource) row(i int) []sqltype.Value {
 	if s.singleton {
 		return nil
 	}
-	if i < len(s.committed) {
-		return s.committed[i].values
+	return s.versionAt(s.rawIndex(i)).values
+}
+func (s *querySource) rawIndex(i int) int {
+	if s.visible != nil {
+		return s.visible[i]
 	}
-	return s.own[i-len(s.committed)].values
+	return i
+}
+func (s *querySource) versionAt(i int) rowVersion {
+	if i < len(s.committed) {
+		return s.committed[i]
+	}
+	return s.own[i-len(s.committed)]
 }
 func (s *querySource) close() {
 	if s.view != nil {
@@ -188,6 +196,7 @@ func (s *querySource) close() {
 	s.view = nil
 	s.committed, s.own = nil, nil
 	s.anonymous = nil
+	s.visible = nil
 }
 
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
@@ -300,7 +309,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		state.source.anonymous = rows
 		return indexedStage{source: state.source, schema: n.Schema()}, nil
 	case *singletonNode:
-		if state.source == nil || !state.source.singleton || state.source.view != nil || state.source.ref != (ObjectRef{}) || len(state.source.committed) != 0 || len(state.source.own) != 0 {
+		if state.source == nil || !state.source.singleton || state.source.view != nil || state.source.ref != (ObjectRef{}) || len(state.source.committed) != 0 || len(state.source.own) != 0 || state.source.visible != nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid singleton query source")
 		}
 		return indexedStage{source: state.source, schema: n.Schema()}, nil

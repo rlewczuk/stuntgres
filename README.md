@@ -271,12 +271,12 @@ Go test reports the result.
 ### SQL and driver transactions (READ COMMITTED)
 
 `DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support the
-baseline INSERT and SELECT path, transactional settings and the single-target
+baseline INSERT, SELECT and DELETE paths, transactional settings and the single-target
 explicit AX utility below, including prepared execution. Default isolation
 and explicit `sql.LevelReadCommitted` are supported, read-write only. CREATE
-tables **before** starting a block. SQL controls support the same INSERT/SELECT,
-settings and AX path; savepoints, transactional DDL, stronger isolation and
-future DML remain unsupported.
+tables **before** starting a block. SQL controls support the same INSERT/SELECT/DELETE,
+settings and AX paths; savepoints, transactional DDL, stronger isolation and
+other DML remain unsupported.
 Role creation/removal and SET/RESET SESSION AUTHORIZATION are likewise rejected
 with `0A000` inside an explicit transaction; this is a native capability limit,
 not PostgreSQL parity. Read-only identity SELECT remains supported there.
@@ -344,7 +344,7 @@ coverage is selected by `go test -tags=reference -count=1 -v -timeout=60s
 
 #### Relation locks
 
-SELECT acquires transaction-owned ACCESS SHARE; INSERT acquires ROW EXCLUSIVE.
+SELECT acquires transaction-owned ACCESS SHARE; INSERT and DELETE acquire ROW EXCLUSIVE.
 These automatic modes coexist, including concurrent readers and writers. COMMENT
 TABLE/COLUMN acquires internal SHARE UPDATE EXCLUSIVE at Execute (not Prepare):
 it coexists with AS/RX, but conflicts with another owner's SUE and AX.
@@ -360,10 +360,10 @@ supports additional AX privilege alternatives not modeled here.
 decoded qualification), without joining the queue. Earlier conflicting waiters
 prevent barging, while self-reentry and compatible cohorts remain eligible.
 `lock_timeout` uses the ordinary SET/RESET/SET LOCAL lifecycle and applies to
-each queued acquisition, including automatic SELECT/INSERT Prepare locks and
-COMMENT/ALTER execution. Immediate grants are untimed; every later acquisition
+each queued acquisition, including automatic SELECT/INSERT/DELETE Prepare locks,
+DELETE row waits and COMMENT/ALTER execution. Immediate grants are untimed; every later acquisition
 gets a fresh budget. Expiry returns 55P03, `canceling statement due to lock timeout`.
-During direct SELECT/INSERT analysis and semantic Prepare, lock timeout also
+During direct SELECT/INSERT/DELETE relation analysis and semantic Prepare, lock timeout also
 reports the relation-name token's character Position (including schema qualification).
 Cached Execute and utility lock timeouts have no parser Position; statement
 timeout (57014) likewise does not acquire that parse-analysis decoration.
@@ -377,7 +377,7 @@ and discards private writes/releases prior locks, or returns implicit work to Id
 
 ACCESS EXCLUSIVE conflicts with all automatic modes and another transaction's
 AX. Conflicting operations wait using their command context, with compatible
-cohorts and earlier incompatible waiter ordering. An owner can SELECT/INSERT
+cohorts and earlier incompatible waiter ordering. An owner can SELECT/INSERT/DELETE
 under its own AX. SELECT captures its READ COMMITTED view after the wait: holder
 commits are visible, holder rollbacks are absent. Explicit locks survive
 statement/Rows close, until commit/rollback, admitted failure or physical end.
@@ -386,7 +386,7 @@ the client rolls back the aborted transaction. Implicit completion publishes
 first and releases afterward. Canceled pending requests are removed and wake
 eligible successors; caller interruption remains an ordinary context error.
 
-Semantic SELECT/INSERT Prepare acquires the same AS/RX as execution. Implicit
+Semantic SELECT/INSERT/DELETE Prepare acquires the same AS/RX as execution. Implicit
 Prepare releases at completion; explicit Prepare retains until transaction end
 or failure, not stmt.Close. Preparation captures no data snapshot or future
 authority. LOCK Prepare is metadata-only (zero parameters/results); Execute
@@ -394,8 +394,12 @@ performs block/name/current-role checks and acquires AX, affecting zero rows.
 Outside a block it returns `25P01`, `LOCK TABLE can only be used in transaction
 blocks`, before lookup. Missing targets use `42P01`; ordinary-role AX denial is
 `42501`, `permission denied for table t`. There is no upgrade/deadlock detection,
-row/advisory locking or lock introspection. Use lock_timeout or caller deadlines
-to bound conflicting operations; conflicting conversion cycles are
+advisory locking, additional row modes or lock introspection. DELETE's row UPDATE
+holds arbitrate distinct logical rows independently; ordinary SELECT does not wait
+on those holds. DELETE acquires its one candidate view after relation grant and
+keeps it fixed across row waits, skipping a peer's committed deletion and retaining
+the original candidate after peer rollback. Peer inserts during a wait are not candidates.
+Use lock_timeout or caller deadlines to bound conflicting operations; conflicting conversion cycles are
 not protected by deadlock detection.
 
 An explicit transaction sees its successful earlier writes; other physical
@@ -685,6 +689,7 @@ INSERT INTO [schema.]name [(column [, ...])] SELECT [projection_target [, ...]]
        [FROM [schema.]name [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]]
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
        ORDER BY (positive_output_ordinal | columnN | +numeric_constant) [ASC | DESC]
+DELETE FROM [schema.]name [[AS] alias] [WHERE delete_predicate]
 SELECT (* | projection_target [, ...]) FROM [schema.]name
        [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]
 SELECT null_count_call [, null_count_call ...]
@@ -698,6 +703,7 @@ logical_target := scalar | comparison | NOT logical_target
                 | logical_target AND logical_target | logical_target OR logical_target
                 | (logical_target)
 logical_predicate := logical_target
+delete_predicate := logical_predicate with optional target/alias qualification on columns
 projection_target := logical_target | null_count_call
 call_argument := scalar | null_count_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
@@ -777,6 +783,84 @@ make test PACKAGES=. RUN='^TestInsertSelect' VERBOSE=1
 make reference RUN='^TestReferenceInsertSelect' VERBOSE=1
 make smoke RUN='^TestInsertSelectSmoke$' VERBOSE=1
 ```
+
+### DELETE rows
+
+`DELETE FROM target` removes every live occurrence while keeping the table and
+its schema. Optional WHERE uses the same typed comparison and three-valued
+Boolean evaluator as SELECT: only TRUE selects, never FALSE or NULL. AS and bare
+target aliases are supported; an alias hides the original target name. Predicate
+columns may be unqualified or qualified by the visible target/alias. This does not
+enable SELECT aliases/qualified columns, USING, CURRENT OF, RETURNING, UPDATE,
+foreign keys, triggers or additional constraints.
+DELETE also reuses SELECT's nullness, Boolean truth and DISTINCT predicates,
+including alias-qualified operands. Existing baseline explicit scalar casts work
+on unqualified operands; qualified columns inside casts remain excluded, and
+the complete statement is rejected before effects. Frame-only cast conversions
+run before executor ACL checks or candidate capture, even on empty tables and
+inside decisive Boolean branches. Row-dependent conversions remain per-row.
+
+Direct and held prepared execution infer parameter types from SQL, not Go values,
+and return the exact number actually deleted through RowsAffected; zero is success.
+There is no result relation without RETURNING and no LastInsertId. Preparation
+captures descriptions and relation locks only, not rows or a future execution snapshot.
+Execution checks table DELETE and SELECT on actually read predicate columns;
+omitted or constant predicates do not invent a SELECT requirement. SQL GRANT
+remains excluded; the existing internal catalog ACL authority supplies rights.
+
+Immutable row identities/end roots preserve READ COMMITTED views, duplicates,
+zero-column occurrence counts and already-returned cursors. Successful earlier
+own INSERT/DELETE commands are visible in the next command; peers see only the
+combined committed batch. Rollback or an admitted error/cancellation discards
+private inserts/deletes and releases transaction holds. All predicates and
+preflight complete before atomic publication, and publication precedes lock release.
+Go context errors remain ordinary errors. Ordinary SELECT and writes on different
+rows are not blocked by a DELETE row hold; same-row DELETE waits and revalidates
+the original candidate, never retries SQL or widens its candidate snapshot.
+Compatible TABLE/COLUMN COMMENT and ACL metadata revisions do not invalidate
+staged or waiting DELETE: authority follows the exact storage-shape generation,
+object/epoch and row/version/ordinal, not descriptor revision. ACL changes do not
+retroactively reauthorize staged work at COMMIT; each fresh prepared Execute
+still checks current privileges. Replacement, removal/recreation and incompatible
+row-shape changes remain fenced.
+INSERT query sources use that same live view, including earlier own deletions:
+self-insert copies only captured survivors, never deleted history or its new batch.
+
+Dump captures only committed survivors (including duplicate/zero-width rows), not
+private deletion or tombstone history; canonical CREATE/INSERT restores those
+survivors and supported metadata. DELETE scripts remain outside Restore's whitelist.
+Deleted NULL history does not prevent SET NOT NULL, while live NULL and subsequent
+NULL insertion retain genuine 23502 enforcement. DELETE cannot violate the only
+currently supported constraint, NOT NULL. The real PostgreSQL foreign-key rejection
+witness is explicitly oracle-only, not native FK support or a synthetic constraint hook.
+
+Feature commands: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`,
+`make test PACKAGES=./internal/engine RUN='^TestDeleteCore' VERBOSE=1`,
+and `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
+Integrated-expression smoke:
+`make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
+
+#### DELETE change log
+
+- Added positioned DELETE grammar, target-only alias qualification, shared typed
+  predicate binding and execution-time DELETE/read-column ACL requirements.
+- Added immutable committed/private deletions, combined insertion/deletion
+  publication, exact counts and transaction-owned row arbitration.
+- Migrated retained SELECT, Dump, catalog replacement/shape and NOT NULL consumers
+  to live membership; retained snapshots and failed publications remain unchanged.
+- DELETE column predicates evaluate in the shared binder's row frame, including
+  qualified aliases and held prepared parameters. Qualified missing-column
+  diagnostics render decoded components (`column D.Zzzzz does not exist`).
+- Foreign replacement retains one final cancellation boundary after live-row
+  filtering and authority preparation; cancellation cannot retract installation
+  after that successful observation.
+- Corrected DELETE lifetime/publication fences to use existing storage-shape
+  identity rather than descriptor identity, preserving compatible COMMENT/ACL
+  publication without relaxing replacement or predecessor authority.
+- Integrated the existing null/truth/DISTINCT predicate nodes and frame-only
+  scalar-cast preflight into DELETE, preserving current qualification boundaries,
+  fresh authorization and storage-shape fencing after preflight.
+
 
 ### Null argument counts
 
@@ -1569,8 +1653,8 @@ even on empty tables, with the canonical operator spelling in diagnostics.
 FROM is still required outside identity/settings special forms and the selected
 null-count-only form. These scalar
 comparisons also form Boolean leaves above NOT, AND and OR in SELECT targets
-and WHERE. No comparison chaining, arithmetic, aliases, qualified column
-references, general functions, nonbaseline casts or comparison in INSERT/settings is enabled.
+and WHERE. No comparison chaining, arithmetic, SELECT aliases or SELECT qualified
+column references, general functions, nonbaseline casts or comparison in INSERT/settings is enabled.
 Comparisons do not sort rows.
 Selected null-count calls remain excluded from Boolean/comparison operands,
 and Boolean/comparison expressions remain excluded from their arguments.
@@ -2273,7 +2357,7 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 `go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
 
 
-Three-part/database qualification, temporary-object creation, aliases, joins, generic expressions/functions, nonbaseline explicit casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE/DELETE, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, nonbaseline explicit casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE, DELETE USING/CURRENT OF/RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 

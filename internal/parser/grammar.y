@@ -44,6 +44,7 @@ package parser
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL
 %token <tok> '+' '-' '[' ':' '(' '=' '<' '>' ',' '*'
 %token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
+%token <tok> DELETE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
@@ -75,7 +76,7 @@ package parser
 /* Postfix casts put projection labels in the follow set of type names.
  * Preserve declaration grammar's deliberate type-tail shift rather than
  * leaving those decisions as implicit shift/reduce conflicts. */
-%nonassoc IDENT NULL_COUNT_FUNC UNKNOWN INSERT VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN START COMMIT ROLLBACK ABORT WORK TRANSACTION NO CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE '.'
+%nonassoc IDENT NULL_COUNT_FUNC UNKNOWN INSERT DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN START COMMIT ROLLBACK ABORT WORK TRANSACTION NO CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE '.'
 %nonassoc '('
 %nonassoc KW_T LIKE WITH WITHOUT
 %nonassoc '='
@@ -84,6 +85,9 @@ package parser
  * target_or only when a logical/comparison continuation requires it. */
 %nonassoc ')'
 %type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single alter_rename_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> delete
+%type <tok> delete_alias
+%type <expr> delete_where delete_operand delete_target delete_not delete_and delete_or
 %type <col> column
 %type <elements> elements optional_elements
 %type <element> element
@@ -144,7 +148,7 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | drop_table | alter_drop_column | insert | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | drop_table | alter_drop_column | insert | delete | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -365,6 +369,30 @@ insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1
  | INSERT INTO relation_name '(' insert_targets ')' insert_input suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
  | INSERT INTO relation_name DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$4.pos.Offset); return 1 }; $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} }
  | INSERT INTO relation_name '(' insert_targets ')' DEFAULT VALUES { if !sqllex.(*lexer).options.RestoreDefaultValues { sqllex.(*lexer).failAt("0A000","INSERT defaults are unsupported",$7.pos.Offset); return 1 }; $$=&Insert{Name:$3,Targets:$5,Rows:[][]Expr{nil},Pos:$1.pos,RestoreDefaultValues:true} } ;
+delete: DELETE FROM relation_name delete_alias delete_where { $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Pos:$1.pos} }
+ | DELETE FROM relation_name delete_alias delete_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
+delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
+delete_where: /* empty */ { $$=nil } | WHERE delete_or { $$=$2 }
+ | WHERE name name name {
+   if $2.keyword==nil || $2.text!="current" { sqllex.(*lexer).syntax($3); return 1 }
+   if $3.keyword==nil || $3.text!="of" { sqllex.(*lexer).syntax($3); return 1 }
+   sqllex.(*lexer).deferUnsupported($2,"DELETE CURRENT OF is unsupported"); $$=nil
+ } ;
+delete_operand: operand { $$=$1 }
+ | name '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} } ;
+delete_target: delete_operand { $$=$1 }
+ | delete_operand comparison_operator delete_operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
+ | '(' delete_or ')' { $$=$2 }
+ | delete_target IS NULL %prec IS { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
+ | delete_target IS NOT NULL %prec IS { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
+ | delete_target ISNULL { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
+ | delete_target NOTNULL { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
+ | delete_target IS truth_kind %prec IS { $$=PredicateExpr{Kind:$3,Left:$1,Pos:$2.pos} }
+ | delete_target IS DISTINCT FROM delete_target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
+ | delete_target IS NOT DISTINCT FROM delete_target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
+delete_not: delete_target { $$=$1 } | NOT delete_not { $$=LogicalExpr{Op:LogicalNot,Left:$2,Pos:$1.pos} } ;
+delete_and: delete_not { $$=$1 } | delete_and AND delete_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
+delete_or: delete_and { $$=$1 } | delete_or OR delete_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
 insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
 insert_input: VALUES rows values_order { $$=&InsertSource{Rows:$2,Order:$3} }
  | insert_select { $$=&InsertSource{Select:$1} }
@@ -479,11 +507,11 @@ nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word: IDENT | NULL_COUNT_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+setting_word: IDENT | DELETE | NULL_COUNT_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | UNKNOWN ;
 name: setting_word | ROLE | LOCAL ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name ;
+type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;

@@ -207,7 +207,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				}()
 				lockPending(t, e, 1)
 				e.locks.mu.Lock()
-				entry := e.locks.entries[lateRef]
+				entry := e.locks.entries[lockResource{ObjectRef: lateRef}]
 				queuedOnLate := entry != nil && len(entry.pending) == 1
 				e.locks.mu.Unlock()
 				if !queuedOnLate {

@@ -175,6 +175,7 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 		return Result{}, fmt.Errorf("stuntgres: relation storage is missing")
 	}
 	originalVersions := original.versions
+	originalEnds := original.ends
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 	e.mu.Unlock()
@@ -231,7 +232,7 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 			next.columnComments[sub] = text
 		}
 	}
-	replacement := &relationStorage{versions: make([]rowVersion, len(originalVersions))}
+	replacement := &relationStorage{versions: make([]rowVersion, len(originalVersions)), ends: originalEnds}
 	for i, row := range originalVersions {
 		if err := op.Context().Err(); err != nil {
 			return Result{}, err
@@ -245,7 +246,7 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 		row.values = values
 		replacement.versions[i] = row
 	}
-	if err := stage.alterRelation(op.Context(), ref, &next, original, replacement, len(originalVersions)); err != nil {
+	if err := stage.alterRelation(op.Context(), ref, &next, original, replacement, len(originalVersions), originalEnds); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

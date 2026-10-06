@@ -15,12 +15,12 @@ func TestRelationLockWaitsLifecycle(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(v INT)")
 			ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			if err := e.locks.acquire(context.Background(), a.transactions.ticket, ref, accessExclusive); err != nil {
+			if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			r, err := e.locks.startAcquire(ctx, b.transactions.ticket, ref, accessShare, relationLockPolicy{timeout: time.Hour})
+			r, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, relationLockPolicy{timeout: time.Hour})
 			if err != nil || r == nil {
 				t.Fatal(err)
 			}
@@ -145,13 +145,13 @@ func TestRelationLockWaitsDelayedDeadlines(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	if err := e.locks.acquire(context.Background(), a.transactions.ticket, ref, accessExclusive); err != nil {
+	if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	policy := relationLockPolicy{timeout: 40 * time.Millisecond, statementDeadline: time.Now().Add(80 * time.Millisecond)}
-	r, err := e.locks.startAcquire(ctx, b.transactions.ticket, ref, accessShare, policy)
+	r, err := e.locks.startAcquire(ctx, b.transactions.ticket, lockResource{ObjectRef: ref}, accessShare, policy)
 	if err != nil || r == nil {
 		t.Fatal(err)
 	}

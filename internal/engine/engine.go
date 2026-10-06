@@ -59,6 +59,7 @@ type binding struct {
 	createColumns  []ColumnDescriptor
 	createNotNull  []notNullConstraint
 	temporals      []temporalConstant
+	predicate      BoundExpr
 }
 
 func New() *Engine {
@@ -252,7 +253,7 @@ func objectNameText(n parser.ObjectName) string {
 	return strings.Join(parts, ".")
 }
 
-// requiredRef is the exact acquired relation for SELECT/INSERT. Name lookup
+// requiredRef is the exact acquired relation for SELECT/INSERT/DELETE. Name lookup
 // still validates current namespace authority, but cannot retarget that lock.
 // CREATE TABLE has no existing relation and supplies the zero reference.
 func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) (binding, error) {
@@ -397,6 +398,28 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					return b, insertValueError(auth.catalog, err, c, v)
 				}
 				b.expressions[rowIndex][j] = plan
+			}
+		}
+	case *parser.Delete:
+		var err error
+		b.ref, err = e.resolveReference(auth, s.Name)
+		if err != nil {
+			return b, err
+		}
+		if b.ref != requiredRef {
+			return b, ErrCatalogReplaced
+		}
+		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.storage = e.storage[b.ref.Address]
+		if b.storage == nil {
+			return b, fmt.Errorf("stuntgres: relation storage is missing")
+		}
+		binder.relation, binder.ref = b.relation, b.ref
+		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.name, s.Alias.Text
+		if s.Where != nil {
+			b.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
+			if err != nil {
+				return b, err
 			}
 		}
 	case *parser.Select:
@@ -588,8 +611,10 @@ func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, import
 	}
 	defer func() {
 		err = scope.Finish(err)
-		if err != nil && result.Rows != nil {
-			result.Rows.Close()
+		if err != nil {
+			if result.Rows != nil {
+				result.Rows.Close()
+			}
 			result = Result{}
 		}
 	}()
@@ -809,12 +834,17 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	expressionsChanged := false
 	evaluation := EvalContext{Context: ctx, Parameters: canonical}
 	var queryRoot LogicalNode
-	if b.query != nil {
+	_, deleting := stmt.(*parser.Delete)
+	if b.query != nil || (deleting && b.predicate != nil) {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
 		e.mu.Unlock()
-		queryRoot, err = preflightQuery(&evaluation, b.query.Root)
+		if b.query != nil {
+			queryRoot, err = preflightQuery(&evaluation, b.query.Root)
+		} else {
+			b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)
+		}
 		if err != nil {
 			return Result{}, err
 		}
@@ -863,24 +893,33 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
-	if err = auth.checkBinding(b, inserting); err != nil {
+	if err = auth.checkBinding(b, stmt); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
 	switch s := stmt.(type) {
 	case *parser.Insert:
 		if s.Source != nil {
-			source := &querySource{singleton: s.Source.Select != nil && b.sourceRelation == nil}
+			var source *querySource
+			var view *VisibilityView
 			if b.sourceRelation != nil {
-				view, viewErr := scope.acquireDataViewLocked(e, b.sourceRef)
+				var viewErr error
+				view, viewErr = scope.acquireDataViewLocked(e, b.sourceRef)
 				if viewErr != nil {
 					e.mu.Unlock()
 					return Result{}, viewErr
 				}
-				source = captureQuerySource(view, b.sourceRef)
 			}
 			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 			e.mu.Unlock()
+			if view != nil {
+				source, err = captureQuerySource(ctx, view, b.sourceRef)
+				if err != nil {
+					return Result{}, err
+				}
+			} else {
+				source = &querySource{singleton: s.Source.Select != nil && b.sourceRelation == nil}
+			}
 			b.query = &BoundQuery{Root: queryRoot}
 			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.output)
 			if queryErr != nil {
@@ -939,19 +978,30 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		return Result{Count: int64(len(rows))}, nil
+	case *parser.Delete:
+		view, viewErr := scope.acquireDataViewLocked(e, b.ref)
+		e.mu.Unlock()
+		if viewErr != nil {
+			return Result{}, viewErr
+		}
+		return scope.executeDelete(b, view, canonical)
 	case *parser.Select:
 		var source *querySource
 		if s.IsSingleton() {
 			source = &querySource{singleton: true}
+			e.mu.Unlock()
 		} else {
 			view, viewErr := scope.acquireDataViewLocked(e, b.ref)
 			if viewErr != nil {
 				e.mu.Unlock()
 				return Result{}, viewErr
 			}
-			source = captureQuerySource(view, b.ref)
+			e.mu.Unlock()
+			source, err = captureQuerySource(ctx, view, b.ref)
+			if err != nil {
+				return Result{}, err
+			}
 		}
-		e.mu.Unlock()
 		rows, count, queryErr := finalizeQuery(ctx, queryRoot, source, canonical)
 		if queryErr != nil {
 			return Result{}, queryErr

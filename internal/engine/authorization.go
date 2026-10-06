@@ -195,6 +195,7 @@ const (
 	InsertPrivilege
 	UsagePrivilege
 	CreatePrivilege
+	DeletePrivilege
 )
 
 type ACLGrantee struct {
@@ -356,7 +357,7 @@ func classPrivileges(d Descriptor) Privileges {
 	if d.Kind() == NamespaceObject {
 		return UsagePrivilege | CreatePrivilege
 	}
-	return SelectPrivilege | InsertPrivilege
+	return SelectPrivilege | InsertPrivilege | DeletePrivilege
 }
 func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
 	if v.engine == nil || v.catalog.state == nil || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {
@@ -408,6 +409,9 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 		return 0, err
 	}
 	mask := classPrivileges(d)
+	if ref.Address.SubID > 0 {
+		mask = SelectPrivilege | InsertPrivilege
+	}
 	if actor.Superuser || grantOptions && actor.Ref == owner {
 		return mask, nil
 	}
@@ -415,7 +419,7 @@ func (v AuthorizationView) Effective(ref ObjectRef, grantOptions bool) (Privileg
 	if ref.Address.SubID > 0 {
 		rights |= v.aclRights(columns[ref.Address.SubID], PrincipalRef{}, mask, grantOptions)
 	}
-	return rights, nil
+	return rights & mask, nil
 }
 func (v AuthorizationView) Check(req AccessRequirement) error {
 	d, err := v.object(req.Object)
@@ -443,7 +447,11 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		}
 		return sqlError("42501", fmt.Sprintf("must be owner of %s %s", kind, d.Name()))
 	}
-	if req.Privileges == 0 || req.Privileges & ^classPrivileges(d) != 0 {
+	mask := classPrivileges(d)
+	if req.Object.Address.SubID > 0 {
+		mask = SelectPrivilege | InsertPrivilege
+	}
+	if req.Privileges == 0 || req.Privileges & ^mask != 0 {
 		return fmt.Errorf("stuntgres: invalid privilege mask")
 	}
 	rights, err := v.Effective(req.Object, false)
@@ -474,7 +482,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 	if _, err := r.Descriptor(owner); err != nil {
 		return err
 	}
-	check := func(a ACLValue) error {
+	check := func(a ACLValue, mask Privileges) error {
 		if !a.Explicit && len(a.Entries) != 0 {
 			return fmt.Errorf("stuntgres: entries in absent ACL")
 		}
@@ -492,13 +500,13 @@ func validateACL(r RoleRead, d Descriptor) error {
 			} else if _, err := r.Descriptor(x.Grantee.Role); err != nil {
 				return err
 			}
-			if x.Privileges & ^classPrivileges(d) != 0 || x.GrantOptions & ^x.Privileges != 0 {
+			if x.Privileges & ^mask != 0 || x.GrantOptions & ^x.Privileges != 0 {
 				return fmt.Errorf("stuntgres: invalid ACL mask")
 			}
 		}
 		return nil
 	}
-	if err := check(acl); err != nil {
+	if err := check(acl, classPrivileges(d)); err != nil {
 		return err
 	}
 	for sub, a := range cols {
@@ -506,7 +514,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 		if !ok || sub <= 0 || !relation.hasAttribute(sub) {
 			return fmt.Errorf("stuntgres: invalid ACL column")
 		}
-		if err := check(a); err != nil {
+		if err := check(a, SelectPrivilege|InsertPrivilege); err != nil {
 			return err
 		}
 	}
@@ -529,23 +537,31 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	}
 	return refs
 }
-func (v AuthorizationView) checkBinding(b binding, insert bool) error {
-	if err := v.checkRelationBinding(b, insert); err != nil {
+func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
+	if err := v.checkRelationBinding(b, stmt); err != nil {
 		return err
 	}
-	if insert && b.sourceRelation != nil {
-		return v.checkRelationBinding(binding{ref: b.sourceRef, relation: b.sourceRelation, usedColumns: b.usedColumns}, false)
+	if insert, ok := stmt.(*parser.Insert); ok && b.sourceRelation != nil {
+		return v.checkRelationBinding(binding{ref: b.sourceRef, relation: b.sourceRelation, usedColumns: b.usedColumns}, insert.Source.Select)
 	}
 	return nil
 }
 
-func (v AuthorizationView) checkRelationBinding(b binding, insert bool) error {
-	if !insert && b.relation == nil && b.query != nil {
+func (v AuthorizationView) checkRelationBinding(b binding, stmt parser.Statement) error {
+	if _, selectStmt := stmt.(*parser.Select); selectStmt && b.relation == nil && b.query != nil {
 		return nil
 	}
 	mask, indices := SelectPrivilege, b.usedColumns
-	if insert {
+	switch stmt.(type) {
+	case *parser.Insert:
 		mask, indices = InsertPrivilege, b.targets
+	case *parser.Delete:
+		if err := v.Check(AccessRequirement{Object: b.ref, Privileges: DeletePrivilege}); err != nil {
+			return err
+		}
+		if len(indices) == 0 {
+			return nil
+		}
 	}
 	whole, err := v.Effective(b.ref, false)
 	if err != nil {

@@ -443,7 +443,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				// Keep the admitted lease and private batch alive. Exercise the
 				// publication seam after terminal admission, so both buffers are
 				// prepared and the final live-operation check rejects installation.
-				err = e.publishWrites(op, ref, a.transactions.writes)
+				err = e.publishWrites(op, ref, a.transactions.writes, a.transactions.deletes)
 			case "epoch_before":
 				// Isolate epoch rejection from replacement's own storage/frontier
 				// effects; the mixed roots remain installed as the no-write witness.

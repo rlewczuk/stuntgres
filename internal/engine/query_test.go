@@ -16,7 +16,10 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *BoundQuery, *querySou
 	run(t, e, "CREATE TABLE t(id INT NOT NULL,v INT,f BOOL)")
 	run(t, e, "INSERT INTO t VALUES(1,1,TRUE),(2,NULL,NULL),(3,2,FALSE),(4,1,TRUE)")
 	captured := run(t, e, "SELECT * FROM t").Rows.(*finalRows)
-	source := captureQuerySource(captured.source.view, captured.source.ref)
+	source, captureErr := captureQuerySource(context.Background(), captured.source.view, captured.source.ref)
+	if captureErr != nil {
+		t.Fatal(captureErr)
+	}
 	captured.Close()
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
