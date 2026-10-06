@@ -192,7 +192,7 @@ func unicodeEscapesRun() error {
 		return fmt.Errorf("quoted case was lost")
 	}
 	var missing *stuntgres.Error
-	missingWant := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "a" does not exist`}
+	missingWant := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "a" does not exist`, Position: "15"}
 	if !errors.As(err, &missing) || *missing != missingWant {
 		return fmt.Errorf("quoted lookup %#v %v", missing, err)
 	}

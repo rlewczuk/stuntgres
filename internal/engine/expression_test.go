@@ -42,14 +42,16 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	if b.parameters.Count != 2 || b.parameters.Types[0].Type.ID() != sqltype.Text || b.parameters.Types[1].Type.ID() != sqltype.Int4 || b.parameters.Types[1].Typmod != -1 {
 		t.Fatal(b.parameters)
 	}
-	if len(b.projection) != 3 || b.projection[0].ResultUsage().Type.ID() != sqltype.Text || b.projection[2].ResultUsage().Type.ID() != sqltype.Text {
-		t.Fatal(b.results)
+	project := b.query.Root.(*projectNode)
+	filter := project.child.(*sortNode).child.(*filterNode)
+	if len(project.expressions) != 3 || project.expressions[0].ResultUsage().Type.ID() != sqltype.Text || project.expressions[2].ResultUsage().Type.ID() != sqltype.Text {
+		t.Fatal(project.Schema())
 	}
-	column := b.projection[1].(columnExpression)
+	column := project.expressions[1].(columnExpression)
 	if column.origin.owner != e.owner || column.origin.Address.SubID != 2 || column.slot != 1 || column.scope == 0 || column.frame == 0 || column.SourcePosition().Character != 11 {
 		t.Fatal(column)
 	}
-	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != Immutable || !b.projection[0].Properties().ParameterDependent {
+	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != Immutable || !project.expressions[0].Properties().ParameterDependent {
 		t.Fatal("dependence metadata")
 	}
 	refs := map[ObjectRef]bool{}
@@ -81,7 +83,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	frame := []sqltype.Value{sqltype.Null(text), sqltype.Null(integer)}
-	value, err := b.filter.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(integer), sqltype.Null(integer), sqltype.Null(typ)}, Parameters: frame})
+	value, err := filter.predicate.Eval(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(integer), sqltype.Null(integer), sqltype.Null(typ)}, Parameters: frame})
 	if err != nil || value.Type() != typ || !value.IsNull() {
 		t.Fatal(value, err)
 	}
@@ -92,7 +94,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	for n := range 16 {
 		wg.Go(func() {
 			v := sqltype.String(text, strconv.Itoa(n))
-			got, err := b.projection[0].Eval(&EvalContext{Context: context.Background(), Parameters: []sqltype.Value{v}})
+			got, err := project.expressions[0].Eval(&EvalContext{Context: context.Background(), Parameters: []sqltype.Value{v}})
 			actual, _ := got.Text()
 			if err != nil || actual != strconv.Itoa(n) {
 				t.Error(actual, err)
@@ -105,7 +107,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := b.projection[0].Eval(&EvalContext{Context: ctx, Parameters: frame}); !errors.Is(err, context.Canceled) {
+	if _, err := project.expressions[0].Eval(&EvalContext{Context: ctx, Parameters: frame}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }

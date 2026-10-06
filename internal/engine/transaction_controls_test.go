@@ -279,8 +279,8 @@ func TestTransactionControlsLockLifecycle(t *testing.T) {
 			if strings.HasPrefix(q, "COMMIT") {
 				want = 1
 			}
-			if r.Rows.Len() != want {
-				t.Fatal("waiter resumed before correct publication", r.Rows.Len())
+			if r.Count != int64(want) {
+				t.Fatal("waiter resumed before correct publication", r.Count)
 			}
 			r.Rows.Close()
 			if strings.Contains(q, "CHAIN") {
@@ -341,7 +341,7 @@ func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	controlsRequire(t, a, "COMMIT")
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 2, 99)
-	if retained.Len() != 2 {
+	if retained.count != 2 {
 		t.Fatal("replacement invalidated retained rows")
 	}
 }

@@ -32,7 +32,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					prefixes[i][j].values = append([]sqltype.Value(nil), root[j].values...)
 				}
 			}
-			retained := [2]*Snapshot{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
+			retained := [2]*finalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
 			retainedCatalog := e.state
 			retainedEpoch := e.state.epoch
 			retainedFrontier := e.commitSeq
@@ -177,8 +177,8 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if !reflect.DeepEqual(root, prefixes[i]) {
 					t.Fatal("immutable prefix changed", i)
 				}
-				data := retained[i].view.read()
-				if retained[i].Len() != len(root) || data.frontier != retainedFrontier || data.catalog.state != retainedCatalog || data.catalog.Epoch() != retainedEpoch || !reflect.DeepEqual(data.committed[addresses[i]], prefixes[i]) {
+				data := retained[i].source.view.read()
+				if retained[i].count != len(root) || data.frontier != retainedFrontier || data.catalog.state != retainedCatalog || data.catalog.Epoch() != retainedEpoch || !reflect.DeepEqual(data.committed[addresses[i]], prefixes[i]) {
 					t.Fatal("retained rows/types/frontier changed", i)
 				}
 				if success {
@@ -240,7 +240,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			// A real peer SELECT completes before control Finish: the old AX
 			// hold is gone and both typed rows have already been published.
 			retained := transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
-			data := retained.view.read()
+			data := retained.source.view.read()
 			catalog, epoch := data.catalog.state, data.catalog.Epoch()
 			versions := append([]rowVersion(nil), data.committed[address]...)
 			for i := range versions {
@@ -288,14 +288,16 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			assertRetained := func() {
 				t.Helper()
-				view := retained.view.read()
+				view := retained.source.view.read()
 				values := make([]sqltype.Value, 1)
+				cursor := independentFinalRows(retained)
+				defer cursor.Close()
 				for i, want := range []int64{1, 7} {
-					if err := retained.Values(context.Background(), i, values); err != nil || testExport(values[0]) != want {
-						t.Fatal("accepted retained typed row changed", i, err, values)
+					if present, err := cursor.Next(context.Background(), values); !present || err != nil || testExport(values[0]) != want {
+						t.Fatal("accepted retained typed row changed", i, present, err, values)
 					}
 				}
-				if retained.Len() != 2 || view.frontier != frontier+1 || view.catalog.state != catalog ||
+				if retained.count != 2 || view.frontier != frontier+1 || view.catalog.state != catalog ||
 					view.catalog.Epoch() != epoch || !reflect.DeepEqual(view.committed[address], versions) {
 					t.Fatal("lifecycle boundary changed retained committed rows/metadata/frontier")
 				}

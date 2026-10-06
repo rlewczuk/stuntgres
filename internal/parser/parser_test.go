@@ -866,3 +866,22 @@ func TestFloatPrecisionScannerPrecedence(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestQueryCoreOrderOccurrencePosition(t *testing.T) {
+	for _, tc := range []struct {
+		query             string
+		offset, character int
+	}{
+		{"SELECT id FROM t ORDER BY missing", 26, 27},
+		{"SELECT /*é*/ id FROM t ORDER BY missing DESC", 33, 33},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		order := statements[0].(*Select).Order
+		if order == nil || order.Column != "missing" || order.Pos.Offset != tc.offset || order.Pos.Character != tc.character {
+			t.Fatal(order, tc)
+		}
+	}
+}

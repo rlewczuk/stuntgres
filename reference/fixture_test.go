@@ -227,6 +227,7 @@ type referenceStep struct {
 	args               []any
 	prepared           bool
 	selectRows         bool
+	bag                bool
 	affected           int64
 	state              string
 	diagnostic         *referenceDiagnostic
@@ -234,6 +235,42 @@ type referenceStep struct {
 	errorStage         string
 	columns, types     []string
 	rows               [][]any
+}
+
+// Each stream must independently match the expected occurrences. Bag results
+// retain their observed values while canonicalizing order for backend parity.
+func referenceCompareRows(values, expected [][]any, bag bool) ([][]any, bool) {
+	if expected == nil {
+		expected = make([][]any, 0)
+	}
+	if !bag {
+		return values, reflect.DeepEqual(values, expected)
+	}
+	if len(values) != len(expected) {
+		return values, false
+	}
+	ordered := make([][]any, len(expected))
+	used := make([]bool, len(expected))
+	for _, row := range values {
+		found := false
+		for i, want := range expected {
+			if !used[i] && reflect.DeepEqual(row, want) {
+				used[i] = true
+				ordered[i] = row
+				found = true
+				break
+			}
+		}
+		if !found {
+			return values, false
+		}
+	}
+	return ordered, true
+}
+
+func referenceRecordedRowsMatch(captured [][]any, step referenceStep) bool {
+	_, matched := referenceCompareRows(captured, step.rows, step.bag)
+	return matched
 }
 
 func referenceExec(query string, count int64, args ...any) referenceStep {
@@ -443,13 +480,11 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	expected := s.rows
-	if expected == nil {
-		expected = make([][]any, 0)
+	compared, matched := referenceCompareRows(values, s.rows, s.bag)
+	if !matched {
+		t.Fatalf("rows bag=%v got %#v want %#v", s.bag, values, s.rows)
 	}
-	if !reflect.DeepEqual(values, expected) {
-		t.Fatalf("rows got %#v want %#v", values, expected)
-	}
+	values = compared
 	// Compare recorded consumed values, not middleware call counts or fast-path choices.
 	recorder.mu.Lock()
 	var recorded *referenceOperation
@@ -474,7 +509,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	copy(capturedColumns, recorded.Columns)
 	closed, closeErr := recorded.Closed, recorded.CloseErr
 	recorder.mu.Unlock()
-	if !reflect.DeepEqual(captured, expected) || !reflect.DeepEqual(capturedColumns, s.columns) {
+	if !referenceRecordedRowsMatch(captured, s) || !reflect.DeepEqual(capturedColumns, s.columns) {
 		t.Fatalf("recorded query data columns=%#v rows=%#v", capturedColumns, captured)
 	}
 	if !closed || closeErr != nil {

@@ -10,7 +10,7 @@ import (
 func lockUtility(t *testing.T, s *Session) {
 	t.Helper()
 	r := sessionSQL(t, s, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-	if r.Count != 0 || r.Rows != nil || len(r.Columns) != 0 {
+	if r.Count != 0 || r.Rows != nil {
 		t.Fatalf("AX utility result: %+v", r)
 	}
 }
@@ -32,7 +32,7 @@ func lockUtilityAsync(t *testing.T, e *Engine, s *Session, prepare bool) func() 
 			if err == nil {
 				r, executeErr := e.Execute(op, q, 0, nil)
 				err = executeErr
-				if err == nil && (r.Count != 0 || r.Rows != nil || len(r.Columns) != 0) {
+				if err == nil && (r.Count != 0 || r.Rows != nil) {
 					err = fmt.Errorf("AX utility result: %+v", r)
 				}
 				if r.Rows != nil {

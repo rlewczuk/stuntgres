@@ -50,9 +50,11 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T) {
 	run(t, e, "INSERT INTO typed VALUES(1,NULL,NULL,NULL)")
 	old := run(t, e, "SELECT * FROM typed")
 	values := make([]sqltype.Value, 4)
-	if err = old.Rows.Values(context.Background(), 0, values); err != nil {
-		t.Fatal(err)
+	first := independentFinalRows(old.Rows)
+	if present, nextErr := first.Next(context.Background(), values); !present || nextErr != nil {
+		t.Fatal(present, nextErr)
 	}
+	first.Close()
 	for i, v := range values {
 		if v.Type() != desc.Results[i].Usage.Type || v.IsNull() != (i != 0) {
 			t.Fatal(v)
@@ -73,9 +75,11 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T) {
 	if current == desc.Results[0].Usage.Type {
 		t.Fatal("reused type generation")
 	}
-	if err = old.Rows.Values(context.Background(), 0, values); err != nil {
-		t.Fatal(err)
+	later := independentFinalRows(old.Rows)
+	if present, nextErr := later.Next(context.Background(), values); !present || nextErr != nil {
+		t.Fatal(present, nextErr)
 	}
+	later.Close()
 	if values[0].Type() != desc.Results[0].Usage.Type {
 		t.Fatal("retained type changed")
 	}

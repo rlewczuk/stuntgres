@@ -121,7 +121,7 @@ func TestTimestampDescriptionMetadataAndNoticeOnce(t *testing.T) {
 		t.Fatal(finish)
 	}
 	defer r.Rows.Close()
-	if len(op.DetachNotices()) != 0 || r.Rows.Len() != 1 {
+	if len(op.DetachNotices()) != 0 || r.Count != 1 {
 		t.Fatal("notice repeated or comparison sized incorrectly")
 	}
 }
@@ -186,8 +186,8 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 	r := run(t, e, "SELECT v FROM t")
 	defer r.Rows.Close()
 	values := make([]sqltype.Value, 1)
-	if err = r.Rows.Values(context.Background(), 0, values); err != nil {
-		t.Fatal(err)
+	if present, nextErr := r.Rows.Next(context.Background(), values); !present || nextErr != nil {
+		t.Fatal(present, nextErr)
 	}
 	out, err := values[0].Type().Output(context.Background(), values[0])
 	if err != nil || out != "294277-01-01 00:00:00" {

@@ -157,6 +157,7 @@ func (*TransactionControl) statement() {}
 
 type Order struct {
 	Column string
+	Pos    Position
 	Desc   bool
 }
 type ValueKind uint8

@@ -39,24 +39,19 @@ type ParameterInfo struct {
 	Types []sqltype.Usage
 }
 type Result struct {
-	Count   int64
-	Columns []ColumnDescriptor
-	Rows    *Snapshot
+	Count int64
+	Rows  RowResult
 }
 type binding struct {
 	relation      *relationDescriptor
 	storage       *relationStorage
 	ref           ObjectRef
 	targets       []int
-	projection    []BoundExpr
 	usedColumns   []int
-	filter        BoundExpr
-	results       []ColumnDescriptor
+	query         *BoundQuery
 	dependencies  []expressionDependency
-	order         int
 	parameters    ParameterInfo
 	expressions   [][]BoundExpr
-	ordering      sqltype.Comparison
 	createColumns []ColumnDescriptor
 	timestamps    []timestampConstant
 }
@@ -235,7 +230,11 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	return StatementDescription{Parameters: b.parameters, Results: b.columns(), timestamps: b.timestamps}, nil
+	var results []ColumnDescriptor
+	if b.query != nil {
+		results = b.query.Root.Schema()
+	}
+	return StatementDescription{Parameters: b.parameters, Results: results, timestamps: b.timestamps}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -249,17 +248,10 @@ func objectNameText(n parser.ObjectName) string {
 // still validates current namespace authority, but cannot retarget that lock.
 // CREATE TABLE has no existing relation and supplies the zero reference.
 func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) (binding, error) {
-	b := binding{order: -1}
+	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
 	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
 		return binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: mode})
-	}
-	column := func(name string) (int, error) {
-		i, ok := b.relation.index[name]
-		if !ok {
-			return 0, sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, name))
-		}
-		return i, nil
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateTable:
@@ -397,8 +389,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if s.Star {
 			width = len(b.relation.columns)
 		}
-		b.projection = make([]BoundExpr, width)
-		b.results = make([]ColumnDescriptor, width)
+		projection := make([]BoundExpr, width)
+		results := make([]ColumnDescriptor, width)
+		var root LogicalNode = &sourceNode{querySchema: b.relation.columns, ref: b.ref}
 		for i := range width {
 			if err := ctx.Err(); err != nil {
 				return b, err
@@ -413,31 +406,36 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					return b, er
 				}
 			}
-			b.projection[i] = expr
+			projection[i] = expr
 		}
 		if s.Where != nil {
-			b.filter, err = binder.bind(s.Where, expressionPolicy{context: filterContext, expected: binder.typ(sqltype.Bool).Usage(), mode: sqltype.Implicit})
+			filter, bindErr := binder.bind(s.Where, expressionPolicy{context: filterContext, expected: binder.typ(sqltype.Bool).Usage(), mode: sqltype.Implicit})
+			err = bindErr
 			if err != nil {
 				return b, err
 			}
+			root = &filterNode{querySchema: root.Schema(), child: root, predicate: filter}
 		}
 		if s.Order != nil {
-			b.order, err = column(s.Order.Column)
+			expr, bindErr := binder.column(parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: s.Order.Column, Pos: s.Order.Pos}}}, Pos: s.Order.Pos})
+			err = bindErr
 			if err != nil {
 				return b, err
 			}
-			binder.useColumn(b.order)
-			b.ordering, err = sqltype.BindComparison(b.relation.columns[b.order].Usage.Type, b.relation.columns[b.order].Usage.Type)
+			order := expr.(columnExpression).slot
+			ordering, bindErr := sqltype.BindComparison(b.relation.columns[order].Usage.Type, b.relation.columns[order].Usage.Type)
+			err = bindErr
 			if err != nil {
 				return b, err
 			}
+			root = &sortNode{querySchema: root.Schema(), child: root, slot: order, comparison: ordering, desc: s.Order.Desc}
 		}
-		for i, expr := range b.projection {
+		for i, expr := range projection {
 			expr, err = binder.finalizeProjection(expr)
 			if err != nil {
 				return b, err
 			}
-			b.projection[i] = expr
+			projection[i] = expr
 			result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
 			if !s.Star {
 				if _, ok := s.Targets[i].(parser.TypedLiteralExpr); ok {
@@ -447,8 +445,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			if c, ok := expr.(columnExpression); ok {
 				result = b.relation.columns[c.slot]
 			}
-			b.results[i] = result
+			results[i] = result
 		}
+		b.query = &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}}
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}
@@ -474,7 +473,17 @@ func (e *Engine) validateCatalogViewLocked(view CatalogRead) error {
 }
 
 func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
-	return e.resolveRelationReference(auth, name, false)
+	ref, err := e.resolveRelationReference(auth, name, false)
+	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42P01" && len(name.Parts) > 0 {
+		// Analyzed relation names retain their raw identifier occurrence.
+		// Utility lookup owns its separate, intentionally unpositioned record.
+		if position := name.Parts[0].Pos.Character; position > 0 {
+			copy := *diagnostic
+			copy.Position = strconv.Itoa(position)
+			err = &copy
+		}
+	}
+	return ref, err
 }
 
 // COMMENT utility lookup checks a qualified namespace before the relation and
@@ -764,7 +773,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	if scope.Expected != nil {
-		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: b.columns()}); err != nil {
+		var results []ColumnDescriptor
+		if b.query != nil {
+			results = b.query.Root.Schema()
+		}
+		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results}); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -877,15 +890,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, viewErr
 		}
-		snap := versionSnapshot(view, b.ref.Address, b.projection)
-		snap.parameters = canonical
-		columns := b.columns()
+		source := captureQuerySource(view, b.ref)
 		e.mu.Unlock()
-		if err = snap.selectRows(ctx, b.filter, b.order, b.ordering, s.Order != nil && s.Order.Desc); err != nil {
-			snap.Close()
-			return Result{}, err
+		rows, count, queryErr := finalizeQuery(ctx, b.query, source, canonical)
+		if queryErr != nil {
+			return Result{}, queryErr
 		}
-		return Result{Count: int64(snap.Len()), Columns: columns, Rows: snap}, nil
+		return Result{Count: int64(count), Rows: rows}, nil
 	}
 	e.mu.Unlock()
 	return Result{}, sqlError("0A000", "unsupported statement")

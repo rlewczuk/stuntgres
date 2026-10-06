@@ -205,10 +205,7 @@ func TestReferenceTransactionFailuresAndAutocommit(t *testing.T) {
 					}
 					defer tx.Rollback()
 					insert(tx, "INSERT INTO t VALUES(1)", 1)
-					missing := referenceTransactionError(true, "SELECT v FROM missing", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "missing" does not exist`})
-					pgMissing := *missing.diagnostic
-					pgMissing.Position = "15"
-					missing.postgresDiagnostic = &pgMissing
+					missing := referenceTransactionError(true, "SELECT v FROM missing", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "missing" does not exist`, Position: "15"})
 					step(tx, missing)
 					step(tx, referenceTransactionError(false, "INSERT INTO t VALUES(2)", referenceTransactionAborted()))
 					if err = tx.Rollback(); err != nil {

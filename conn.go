@@ -179,7 +179,9 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 		return nil, err
 	}
 	if r.Rows != nil {
-		r.Rows.Close()
+		if err := r.Rows.Close(); err != nil {
+			return nil, err
+		}
 	}
 	return result(r.Count), nil
 }

@@ -339,7 +339,7 @@ where: /* empty */ { $$ = nil }
  | WHERE name '!' { sqllex.(*lexer).fail("0A000","comparison operator is unsupported"); return 1 }
  | WHERE name suffix { if $3.keyword!=nil && ($3.text=="isnull" || $3.text=="notnull") { sqllex.(*lexer).failAt("0A000","expressions are unsupported",$3.pos.Offset) } else { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported") }; return 1 }
  | WHERE name KW_C { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 } ;
-order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$3.text, Desc:$4} }
+order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$3.text, Pos:$3.pos, Desc:$4} }
  | ORDER BY name direction ',' { sqllex.(*lexer).fail("0A000","multiple sort keys are unsupported"); return 1 }
  | ORDER BY name direction nulls_keyword nulls_position { sqllex.(*lexer).failAt("0A000","NULLS ordering is unsupported",$5.pos.Offset); return 1 } ;
 nulls_keyword: NULLS_LA ;

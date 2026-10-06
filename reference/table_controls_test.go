@@ -142,10 +142,7 @@ func TestReferenceTableCoreHeldCursorAndPreparedRebinding(t *testing.T) {
 				failed.Close()
 				t.Fatal("absent prepared query exposed rows")
 			}
-			want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "held" does not exist`}
-			if backend.postgres {
-				want.Position = "16"
-			}
+			want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "held" does not exist`, Position: "16"}
 			referenceAssertDiagnostic(t, err, &want)
 			referenceRunStep(t, ctx, backend.db, record, referenceExec("CREATE TABLE held(other TEXT)", 0))
 			referenceRunStep(t, ctx, backend.db, record, referenceExec("INSERT INTO held VALUES('fresh')", 1))

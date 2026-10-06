@@ -57,10 +57,10 @@ func TestErrorFieldsEngine(t *testing.T) {
 	for _, tc := range []struct {
 		query, code, message, position string
 	}{
-		{"SELECT * FROM missing", "42P01", `relation "missing" does not exist`, ""},
+		{"SELECT * FROM missing", "42P01", `relation "missing" does not exist`, "15"},
 		{"SELECT missing FROM diagnostic_rows", "42703", `column "missing" does not exist`, ""},
 		{"SELECT * FROM diagnostic_rows WHERE missing=1", "42703", `column "missing" does not exist`, ""},
-		{"SELECT * FROM diagnostic_rows ORDER BY missing", "42703", `column "missing" does not exist`, ""},
+		{"SELECT * FROM diagnostic_rows ORDER BY missing", "42703", `column "missing" does not exist`, "40"},
 		{"CREATE TABLE absent.t (id INT)", "3F000", `schema "absent" does not exist`, "14"},
 		{"CREATE TABLE pg_catalog.t (id INT)", "0A000", "system schema creation is unsupported", "14"},
 	} {
@@ -2396,7 +2396,7 @@ func TestUnicodeEscapesNames(t *testing.T) {
 		}
 		_, err := db.Query("SELECT * FROM a")
 		var got *stuntgres.Error
-		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "a" does not exist`}
+		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "a" does not exist`, Position: "15"}
 		if !errors.As(err, &got) || *got != want {
 			t.Fatalf("quoted case %#v %v", got, err)
 		}

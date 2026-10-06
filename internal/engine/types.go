@@ -178,5 +178,3 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	}
 	return false
 }
-
-func (b binding) columns() []ColumnDescriptor { return b.results }

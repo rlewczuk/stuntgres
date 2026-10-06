@@ -85,7 +85,7 @@ func errorFieldsRun() error {
 	var missing *stuntgres.Error
 	wantMissing := stuntgres.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01",
-		Message: `relation "missing" does not exist`,
+		Message: `relation "missing" does not exist`, Position: "15",
 	}
 	if !errors.As(err, &missing) || *missing != wantMissing {
 		return fmt.Errorf("unexpected missing relation diagnostic: %#v (%v)", missing, err)

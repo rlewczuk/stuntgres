@@ -17,7 +17,7 @@ func TestTableCoreShapeAndAtomicDrop(t *testing.T) {
 	run(t, e, "INSERT INTO one VALUES(7)")
 	run(t, e, "CREATE TABLE clone(head BOOL,LIKE one,middle BIGINT,LIKE two,tail TEXT)")
 	clone := run(t, e, "SELECT * FROM clone")
-	if clone.Rows.Len() != 0 || len(clone.Columns) != 5 {
+	if clone.Count != 0 || len(clone.Rows.Schema()) != 5 {
 		t.Fatal(clone)
 	}
 	ref := roleTableRef(t, e, "clone")
@@ -25,7 +25,7 @@ func TestTableCoreShapeAndAtomicDrop(t *testing.T) {
 		name, typ string
 		nullable  bool
 	}{{"head", "BOOL", true}, {"a", "INT4", false}, {"middle", "INT8", true}, {"b", "TEXT", true}, {"tail", "TEXT", true}} {
-		c := clone.Columns[i]
+		c := clone.Rows.Schema()[i]
 		if c.Name != want.name || c.Usage.Type.DatabaseName() != want.typ || !c.NullabilityKnown || c.Nullable != want.nullable || c.OriginTable != uint32(ref.Address.ObjectID) || c.OriginAttribute != int16(i+1) {
 			t.Fatal(c, want)
 		}
@@ -39,7 +39,7 @@ func TestTableCoreShapeAndAtomicDrop(t *testing.T) {
 	run(t, e, "CREATE TABLE zl(LIKE z)")
 	for _, name := range []string{"z", "zl"} {
 		r := run(t, e, "SELECT * FROM "+name)
-		if len(r.Columns) != 0 || r.Rows.Len() != 0 {
+		if len(r.Rows.Schema()) != 0 || r.Count != 0 {
 			t.Fatal(r)
 		}
 		r.Rows.Close()
@@ -243,8 +243,8 @@ func TestTableCoreQuotedTypeNamesResolveRawCatalogNames(t *testing.T) {
 	run(t, e, `CREATE TABLE raw(i "int4" NOT NULL,b "int8",s "text",f "bool",n "int2")`)
 	result := run(t, e, "SELECT * FROM raw")
 	for i, want := range []string{"INT4", "INT8", "TEXT", "BOOL", "INT2"} {
-		if result.Columns[i].Usage.Type.DatabaseName() != want {
-			t.Fatal(result.Columns[i])
+		if result.Rows.Schema()[i].Usage.Type.DatabaseName() != want {
+			t.Fatal(result.Rows.Schema()[i])
 		}
 	}
 	result.Rows.Close()
@@ -293,7 +293,7 @@ func TestTableCoreSystemColumnNamesAndOid(t *testing.T) {
 	}
 	run(t, e, `CREATE TABLE ordinary(oid INT,"CTID" TEXT)`)
 	result := run(t, e, "SELECT * FROM ordinary")
-	if len(result.Columns) != 2 || result.Columns[0].Name != "oid" || result.Columns[1].Name != "CTID" {
+	if len(result.Rows.Schema()) != 2 || result.Rows.Schema()[0].Name != "oid" || result.Rows.Schema()[1].Name != "CTID" {
 		t.Fatal(result)
 	}
 	result.Rows.Close()
@@ -337,7 +337,7 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 			if !errors.As(err, &got) || *got != want {
 				t.Errorf("conflict diagnostic %#v (%v), want %#v", got, err, want)
 			}
-			if result.Count != 0 || result.Rows != nil || len(result.Columns) != 0 {
+			if result.Count != 0 || result.Rows != nil {
 				t.Fatal("loser exposed result", result)
 			}
 			after := e.CatalogRead()
@@ -353,8 +353,8 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 				t.Fatal("winner descriptor changed")
 			}
 			rows := run(t, e, "SELECT * FROM "+tc.identifier)
-			if len(rows.Columns) != 1 || rows.Columns[0].Name != "id" || rows.Columns[0].Usage.Type.DatabaseName() != "INT4" || !rows.Columns[0].NullabilityKnown || rows.Columns[0].Nullable {
-				t.Fatal("winner shape changed", rows.Columns)
+			if len(rows.Rows.Schema()) != 1 || rows.Rows.Schema()[0].Name != "id" || rows.Rows.Schema()[0].Usage.Type.DatabaseName() != "INT4" || !rows.Rows.Schema()[0].NullabilityKnown || rows.Rows.Schema()[0].Nullable {
+				t.Fatal("winner shape changed", rows.Rows.Schema())
 			}
 			if got := tuples(rows); !reflect.DeepEqual(got, [][]driver.Value{{int64(11)}}) {
 				t.Fatal("winner data changed", got)

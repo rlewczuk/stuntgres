@@ -48,10 +48,14 @@ func transactionEnd(t *testing.T, s *Session, ref TxRef, commit bool) EndResult 
 	}
 	return r
 }
-func transactionRows(t *testing.T, s *Session, q string, want ...int64) *Snapshot {
+func transactionRows(t *testing.T, s *Session, q string, want ...int64) *finalRows {
 	t.Helper()
 	r := sessionSQL(t, s, q)
-	t.Cleanup(r.Rows.Close)
+	t.Cleanup(func() {
+		if err := r.Rows.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	got := tuples(r)
 	expected := make([][]driver.Value, len(want))
 	for i, v := range want {
@@ -60,7 +64,7 @@ func transactionRows(t *testing.T, s *Session, q string, want ...int64) *Snapsho
 	if !reflect.DeepEqual(got, expected) {
 		t.Fatalf("%s got %v want %v", q, got, expected)
 	}
-	return r.Rows
+	return r.Rows.(*finalRows)
 }
 func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	e := New()
@@ -81,7 +85,7 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 7)
 	transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9)
-	if own.Len() != 2 || empty.Len() != 0 {
+	if own.count != 2 || empty.count != 0 {
 		t.Fatal("retained result widened")
 	}
 	e.mu.Lock()
@@ -105,7 +109,7 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if private.Len() != 4 || own.Len() != 2 {
+	if private.count != 4 || own.count != 2 {
 		t.Fatal("end/replacement invalidated result")
 	}
 	private.Close()
@@ -353,7 +357,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			for _, query := range []string{"INSERT INTO t VALUES(7)", "INSERT INTO t VALUES(8)", "INSERT INTO t VALUES(10)", "INSERT INTO u VALUES(70)"} {
 				sessionSQL(t, b, query)
 			}
-			retained := [2]*Snapshot{
+			retained := [2]*finalRows{
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10),
 				transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70),
 			}
@@ -495,11 +499,11 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if sameRoot != (!published || i == 0) {
 					t.Fatalf("relation %d used wrong spare/growth root", i)
 				}
-				data := retained[i].view.read()
+				data := retained[i].source.view.read()
 				if data.frontier != retainedFrontier || data.catalog.state != retainedCatalog || data.catalog.Epoch() != retainedEpoch {
 					t.Fatal("retained frontier/catalog metadata changed")
 				}
-				if retained[i].Len() != len(root) {
+				if retained[i].count != len(root) {
 					t.Fatal("retained result length changed")
 				}
 				if len(data.committed) != 1 || !reflect.DeepEqual(data.committed[addresses[i]], records[i]) || !reflect.DeepEqual(current[:len(root)], records[i]) {

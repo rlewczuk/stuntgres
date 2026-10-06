@@ -3,7 +3,6 @@
 package reference_test
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -37,18 +36,11 @@ func TestReferenceCatalogCore(t *testing.T) {
 	for _, tc := range cases {
 		native := referenceDiagnostic{
 			Severity: "ERROR", SeverityUnlocalized: "ERROR",
-			Code: tc.state, Message: tc.message,
+			Code: tc.state, Message: tc.message, Position: tc.pos,
 		}
-		// CREATE destinations, scalar column occurrences and INSERT targets
-		// retain occurrence positions. Missing-relation producers are unchanged.
-		if strings.HasPrefix(tc.query, "CREATE TABLE ") || strings.HasPrefix(tc.query, "INSERT INTO public.t (missing_column)") || strings.HasPrefix(tc.query, "SELECT missing_column") {
-			native.Position = tc.pos
-		}
-		postgres := native
-		postgres.Position = tc.pos
 		step := referenceStep{
 			query: tc.query, prepared: tc.prepared, state: tc.state,
-			diagnostic: &native, postgresDiagnostic: &postgres, errorStage: tc.stage,
+			diagnostic: &native, errorStage: tc.stage,
 		}
 		p.step(t, step)
 	}

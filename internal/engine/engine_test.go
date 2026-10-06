@@ -77,19 +77,46 @@ func run(t *testing.T, e *Engine, sql string, args ...any) Result {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if r.Rows != nil {
+		t.Cleanup(func() {
+			if err := r.Rows.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	return r
+}
+
+// Tuple assertions use an independent retained cursor so lifetime tests may
+// inspect the original result later without rewinding its public position.
+func independentFinalRows(original RowResult) *finalRows {
+	old := original.(*finalRows)
+	r := newFinalRows(old.schema, old.count)
+	r.values, r.selection, r.slots = old.values, old.selection, old.slots
+	r.anonymous = old.anonymous
+	if old.source != nil {
+		r.source = &querySource{view: old.source.view.Retain(), ref: old.source.ref, committed: old.source.committed, own: old.source.own}
+	}
 	return r
 }
 func tuples(r Result) [][]driver.Value {
-	rows := make([][]driver.Value, r.Rows.Len())
-	for i := range rows {
-		rows[i] = make([]driver.Value, len(r.Columns))
-		values := make([]sqltype.Value, len(r.Columns))
-		if err := r.Rows.Values(context.Background(), i, values); err != nil {
+	cursor := independentFinalRows(r.Rows)
+	defer cursor.Close()
+	rows := make([][]driver.Value, 0, cursor.count)
+	values := make([]sqltype.Value, len(cursor.Schema()))
+	for {
+		present, err := cursor.Next(context.Background(), values)
+		if err != nil {
 			panic(err)
 		}
-		for j, v := range values {
-			rows[i][j] = testExport(v)
+		if !present {
+			break
 		}
+		row := make([]driver.Value, len(values))
+		for j, v := range values {
+			row[j] = testExport(v)
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
@@ -454,7 +481,7 @@ func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
 		t.Fatal("INSERT changed relation definition or count")
 	}
 	got := run(t, e, "SELECT id FROM t")
-	if got.Count != 1 || got.Columns[0].Usage.Type.DatabaseName() != "INT4" || !reflect.DeepEqual(tuples(got), [][]driver.Value{{int64(1)}}) {
+	if got.Count != 1 || got.Rows.Schema()[0].Usage.Type.DatabaseName() != "INT4" || !reflect.DeepEqual(tuples(got), [][]driver.Value{{int64(1)}}) {
 		t.Fatalf("qualified result: %#v %v", got, tuples(got))
 	}
 	run(t, e, `CREATE TABLE public."Foo" (id INTEGER)`)

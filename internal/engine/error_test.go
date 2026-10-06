@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"stuntgres/internal/sqltype"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 func TestSQLDiagnosticSeverityAndRowDetail(t *testing.T) {
@@ -17,20 +17,20 @@ func TestSQLDiagnosticSeverityAndRowDetail(t *testing.T) {
 		t.Fatalf("SQL error fields = %#v", got)
 	}
 	e := New()
-	text := testUsage(e,sqltype.Text).Type
-	big := testUsage(e,sqltype.Int8).Type
-	boolean := testUsage(e,sqltype.Bool).Type
-	minimum,_ := sqltype.Integer(big,-9223372036854775808)
+	text := testUsage(e, sqltype.Text).Type
+	big := testUsage(e, sqltype.Int8).Type
+	boolean := testUsage(e, sqltype.Bool).Type
+	minimum, _ := sqltype.Integer(big, -9223372036854775808)
 	for _, tc := range []struct {
 		row  []sqltype.Value
 		want string
 	}{
-		{[]sqltype.Value{sqltype.Null(text),minimum,sqltype.Boolean(boolean,true),sqltype.Boolean(boolean,false),sqltype.String(text,"a,b\nc")}, "Failing row contains (null, -9223372036854775808, t, f, a,b\nc)."},
-		{[]sqltype.Value{sqltype.String(text,strings.Repeat("x",64))}, "Failing row contains (" + strings.Repeat("x", 64) + ")."},
-		{[]sqltype.Value{sqltype.String(text,strings.Repeat("x",65))}, "Failing row contains (" + strings.Repeat("x", 64) + "...)."},
-		{[]sqltype.Value{sqltype.String(text,strings.Repeat("x",63)+"é")}, "Failing row contains (" + strings.Repeat("x", 63) + "...)."},
+		{[]sqltype.Value{sqltype.Null(text), minimum, sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false), sqltype.String(text, "a,b\nc")}, "Failing row contains (null, -9223372036854775808, t, f, a,b\nc)."},
+		{[]sqltype.Value{sqltype.String(text, strings.Repeat("x", 64))}, "Failing row contains (" + strings.Repeat("x", 64) + ")."},
+		{[]sqltype.Value{sqltype.String(text, strings.Repeat("x", 65))}, "Failing row contains (" + strings.Repeat("x", 64) + "...)."},
+		{[]sqltype.Value{sqltype.String(text, strings.Repeat("x", 63)+"é")}, "Failing row contains (" + strings.Repeat("x", 63) + "...)."},
 	} {
-		if detail,err := failingRowDetail(tc.row); err!=nil || detail != tc.want {
+		if detail, err := failingRowDetail(tc.row); err != nil || detail != tc.want {
 			t.Errorf("detail = %q, want %q", detail, tc.want)
 		}
 	}
@@ -76,7 +76,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	if !errors.As(err, &got) || *got != want {
 		t.Fatalf("losing Execute diagnostic = %#v (%v), want %#v", got, err, want)
 	}
-	if result.Count != 0 || result.Rows != nil || len(result.Columns) != 0 {
+	if result.Count != 0 || result.Rows != nil {
 		t.Fatalf("losing Execute exposed result: %#v", result)
 	}
 	after := e.CatalogRead()

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func TestTransactionUtilityCompletionBoundary(t *testing.T) {
@@ -89,8 +90,10 @@ func TestTransactionUtilityCompletionBoundary(t *testing.T) {
 					t.Fatalf("setting got %q want %q", got, want)
 				}
 				if result.Rows != nil {
-					value, err := result.Rows.row(0)[0].Text()
-					if result.Rows.Len() != 1 || err != nil || value != "initial" {
+					values := make([]sqltype.Value, 1)
+					present, nextErr := result.Rows.Next(context.Background(), values)
+					value, err := values[0].Text()
+					if !present || nextErr != nil || err != nil || value != "initial" {
 						t.Fatal("SHOW capture changed")
 					}
 					result.Rows.Close()
@@ -111,7 +114,7 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			store := e.storage[ref.Address]
 			changes, copied := 0, 0
-			var retained *Snapshot
+			var retained *finalRows
 			for i := range n {
 				old := store.versions
 				sessionSQL(t, s, "INSERT INTO t VALUES(1)")
@@ -132,8 +135,8 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			if changes > maxChanges || copied >= n {
 				t.Fatalf("N=%d roots=%d copied=%d", n, changes, copied)
 			}
-			value, err := retained.row(0)[0].Integer()
-			if retained.Len() != 1 || err != nil || value != 1 {
+			value, err := retained.source.row(0)[0].Integer()
+			if retained.count != 1 || err != nil || value != 1 {
 				t.Fatal("append widened retained prefix")
 			}
 			for range n {
@@ -142,9 +145,9 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "INSERT INTO t VALUES(2)")
 			sessionSQL(t, s, "INSERT INTO u VALUES(3)")
-			own := sessionSQL(t, s, "SELECT v FROM t").Rows
+			own := sessionSQL(t, s, "SELECT v FROM t").Rows.(*finalRows)
 			defer own.Close()
-			data := own.view.read()
+			data := own.source.view.read()
 			if len(data.committed) != 1 || len(data.own) != 1 || len(data.committed[ref.Address]) != n || len(data.own[ref.Address]) != 1 {
 				t.Fatal("query retained unrelated committed/private relation roots")
 			}
@@ -152,8 +155,8 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			value, err = own.row(n)[0].Integer()
-			if own.Len() != n+1 || err != nil || value != 2 || retained.Len() != 1 {
+			value, err = own.source.row(n)[0].Integer()
+			if own.count != n+1 || err != nil || value != 2 || retained.count != 1 {
 				t.Fatal("replacement lost retained relation-local roots")
 			}
 			t.Logf("N=%d backing-root changes=%d copied-prefix entries=%d retained committed relations=%d private relations=%d", n, changes, copied, len(data.committed), len(data.own))

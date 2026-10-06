@@ -370,12 +370,12 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		result := run(t, e, "SELECT * FROM mixed.t")
 		names := []string{"id", "note", "flag", "big"}
 		types := []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Bool, sqltype.Int8}
-		if len(result.Columns) != len(names) {
-			t.Fatal("mixed metadata width", result.Columns)
+		if len(result.Rows.Schema()) != len(names) {
+			t.Fatal("mixed metadata width", result.Rows.Schema())
 		}
-		for i, c := range result.Columns {
+		for i, c := range result.Rows.Schema() {
 			if c.Name != names[i] || c.Usage.Type.ID() != types[i] || !c.NullabilityKnown || c.Nullable != (i != 0) {
-				t.Fatal("mixed metadata", result.Columns)
+				t.Fatal("mixed metadata", result.Rows.Schema())
 			}
 		}
 		if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(7), nil, true, int64(9223372036854775807)}}) {

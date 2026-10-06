@@ -415,7 +415,7 @@ Committed and private versions retain canonical typed values and their descripto
 generations through the existing type foundation. Prepared handles retain the
 AST, source and parameter/result description, never a data view. Argument
 normalization remains at the driver boundary before transaction admission;
-execution imports a typed frame against the current coherent binding. Snapshot
+execution imports a typed frame against the current coherent binding. Query
 filtering/ordering and Dump use the type-owned operators and literal codecs.
 
 Admitted SQL errors, preparation/binding failures and statement cancellation
@@ -447,9 +447,9 @@ successful private work.
 
 Transaction SQL errors supply ERROR/nonlocalized ERROR. Optional diagnostic
 fields are absent unless stated above; native source fields do not claim
-PostgreSQL C provenance. Existing missing-relation diagnostics retain an absent
-native Position versus PostgreSQL's positioned diagnostic; reference fixtures
-assert each complete record before their declared position normalization.
+PostgreSQL C provenance. Analyzed SELECT/INSERT missing-relation diagnostics
+retain the relation identifier's one-based character Position, including UTF8
+SQL; utility lookup preserves its independently specified diagnostic fields.
 Operation, scope, stage and released-view authority errors are ordinary internal
 lifecycle errors, never fabricated SQLSTATE. Identity/command/frontier exhaustion
 fails before wrap or publication.
@@ -648,6 +648,47 @@ type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | TIMESTAMP [(precision)] [WITHOUT TIME ZONE] 'input'
 scalar := unqualified column | value
 ```
+
+### Logical query results
+
+SELECT now uses one bound source/filter/sort/projection pipeline and the same
+typed result contract as identity SELECT, SHOW and setting calls. Finite results
+are finalized eagerly before statement completion: a later projection or sort
+failure exposes no cursor or successful statement fragment. Public iteration
+never evaluates targets or publishes writes. Direct-column output retains
+immutable captured source/index views rather than copying whole tables;
+computed output retains only finalized projected values.
+
+Rows own their schema independently of the statement. Empty results preserve
+column names/types; zero-column SELECT preserves one occurrence per input row.
+Physical projections preserve origin and known nullability, while scalar
+nullability remains unknown. WHERE retains only TRUE (not FALSE or NULL).
+Duplicates remain duplicates. Without ORDER BY, output is a bag with no promised
+sequence; sort peers have no portable tie order. ASC places NULL last and DESC
+places NULL first; filter and sort-only columns do not leak into output metadata.
+
+EOF, cancellation and iteration errors automatically release result resources
+without erasing metadata or saved exported values. At the raw driver cursor,
+the originating error remains sticky until idempotent Close; closed Next returns
+EOF. Ordinary context errors remain ordinary Go errors. Mutable exported bytes
+(including timestamp infinity) detach from both internal values and other
+exports. Captured rows/types remain stable across append, Reset, Restore and
+transaction completion; result retention does not grant publication authority.
+
+Missing ORDER BY identifiers and analyzed relation names now retain their token's
+one-based **character** Position during Query and Prepare, including multibyte
+SQL and empty input. COMMENT/ALTER/LOCK utility records keep their own semantics.
+This migration adds no SQL syntax, binder, catalog, storage or routine-frame path.
+Run `make smoke RUN='^TestQueryCoreSmoke$' VERBOSE=1` for direct/prepared
+projection/metadata, bags, NULL/empty/zero-width output, ordering, sticky raw
+cursor cancellation, byte ownership and retained native-control results.
+Independent PostgreSQL witnesses are
+`make reference RUN='^TestReferenceQueryCore' VERBOSE=1`; feature-local unordered
+fixtures independently check cardinality and every occurrence in both consumed
+and recorder-captured rows before canonicalizing only for backend comparison.
+Duplicate, NULL and zero-width row counts remain significant; ordered rows and
+column metadata still require exact sequence equality.
+
 
 Relation names accept one or two identifier components. Qualified `schema.name` resolves only in that schema; unqualified references follow the session's effective search_path, with implicit `pg_catalog` first unless explicitly positioned. Unqualified creation chooses the first usable explicit destination and requires CREATE there, without falling through on denial. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
 

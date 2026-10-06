@@ -65,7 +65,11 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
 	var ref ObjectRef
 	if err == nil {
-		ref, err = e.resolveRelationReference(auth, name, mode == shareUpdateExclusive)
+		if mode == accessShare || mode == rowExclusive {
+			ref, err = e.resolveReference(auth, name)
+		} else {
+			ref, err = e.resolveRelationReference(auth, name, mode == shareUpdateExclusive)
+		}
 	}
 	if err == nil {
 		if ownerOnly {

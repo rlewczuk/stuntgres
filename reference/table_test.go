@@ -57,11 +57,8 @@ func TestReferenceTableCoreOrderedLikeShapeAndDrop(t *testing.T) {
 				run(referenceExec("DROP TABLE IF EXISTS a,missing,public.a,b"+mode, 0))
 				// Lookup failure is prepare-time on both engines for a newly prepared SELECT.
 				for _, n := range []string{"a", "b"} {
-					s := referenceImplicitError("SELECT * FROM "+n, referenceDiagnostic{Code: "42P01", Message: "relation \"" + n + "\" does not exist"})
+					s := referenceImplicitError("SELECT * FROM "+n, referenceDiagnostic{Code: "42P01", Message: "relation \"" + n + "\" does not exist", Position: "15"})
 					s.selectRows = true
-					pg := *s.diagnostic
-					pg.Position = "15"
-					s.postgresDiagnostic = &pg
 					if prepared {
 						s.errorStage = "prepare"
 					} else {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 	"testing"
 )
 
@@ -56,8 +57,11 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 				if err != nil || finish != nil {
 					t.Fatal(err, finish)
 				}
-				if value, eerr := result.Rows.row(0)[0].Text(); eerr != nil || value != "transient" {
-					t.Fatal(value, eerr)
+				values := make([]sqltype.Value, 1)
+				present, nextErr := result.Rows.Next(context.Background(), values)
+				value, eerr := values[0].Text()
+				if !present || nextErr != nil || eerr != nil || value != "transient" {
+					t.Fatal(present, nextErr, value, eerr)
 				}
 				result.Rows.Close()
 			}

@@ -25,16 +25,12 @@ func schemaReferenceCleanup(t *testing.T, names ...string) {
 }
 func schemaReferenceError(query, code, message, detail string, prepared bool, phase, position string) referenceStep {
 	s := roleReferenceError(query, code, message, detail, prepared, phase)
-	if position != "" {
-		pg := *s.diagnostic
-		pg.Position = position
-		s.postgresDiagnostic = &pg
-	}
+	s.diagnostic.Position = position
 	return s
 }
 
-// Creation destination diagnostics have the same AST target position on both
-// backends; unlike missing-reference diagnostics, no backend override applies.
+// Creation destination diagnostics also preserve the AST target position on
+// both backends without a backend-specific position override.
 func schemaReferenceCreationError(query, code, message string, prepared bool, position string) referenceStep {
 	s := roleReferenceError(query, code, message, "", prepared, "execute")
 	s.diagnostic.Position = position

@@ -32,7 +32,6 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 		typ, _ := v.catalog.LookupType(sqltype.Name)
 		columns := make([]ColumnDescriptor, len(s.Names))
 		row := make([]sqltype.Value, len(s.Names))
-		projection := make([]int, len(s.Names))
 		for i, name := range s.Names {
 			var value sqltype.Value
 			if name == "current_schema" {
@@ -56,10 +55,9 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 				value = sqltype.String(typ, d.Name)
 			}
 			row[i] = value
-			projection[i] = i
 			columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage(), Nullable: name == "current_schema", NullabilityKnown: name == "current_schema"}
 		}
-		return Result{Columns: columns, Rows: anonymousSnapshot([][]sqltype.Value{row}, projection), Count: 1}, nil
+		return anonymousResult(columns, [][]sqltype.Value{row}, 1)
 	case *parser.SessionAuthorization:
 		target := v.state.Authenticated
 		if !s.Default {

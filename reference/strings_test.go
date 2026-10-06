@@ -51,16 +51,11 @@ func TestReferenceStringLiterals(t *testing.T) {
 	p.step(t, referenceSelect("SELECT x$tag$x$tag$ FROM separated ORDER BY x$tag$x$tag$", []string{"x$tag$x$tag$"}, []string{"TEXT"}, [][]any{{"v"}, {"v"}}))
 	phantomNative := referenceDiagnostic{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR",
-		Code: "42P01", Message: `relation "phantom" does not exist`,
+		Code: "42P01", Message: `relation "phantom" does not exist`, Position: "15",
 	}
-	// The existing native missing-relation producer omits Position; PostgreSQL
-	// supplies the relation occurrence. Assert both full records before parity
-	// normalizes this declared difference, as in the conversion fixtures.
-	phantomPostgres := phantomNative
-	phantomPostgres.Position = "15"
 	p.step(t, referenceStep{
 		query: "SELECT * FROM phantom", selectRows: true, state: "42P01",
-		diagnostic: &phantomNative, postgresDiagnostic: &phantomPostgres, errorStage: "execute",
+		diagnostic: &phantomNative, errorStage: "execute",
 	})
 	for _, prepared := range []bool{false, true} {
 		s := referenceErrorDiagnostic("INSERT INTO t VALUES$$v$$", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near "VALUES$$v$$"`, Position: "15"})
@@ -129,14 +124,11 @@ func TestReferenceStringLiterals(t *testing.T) {
 	p.step(t, s)
 	freshNative := referenceDiagnostic{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR",
-		Code: "42P01", Message: `relation "fresh" does not exist`,
+		Code: "42P01", Message: `relation "fresh" does not exist`, Position: "15",
 	}
-	// Use the same documented missing-relation Position difference as phantom.
-	freshPostgres := freshNative
-	freshPostgres.Position = "15"
 	p.step(t, referenceStep{
 		query: "SELECT * FROM fresh", selectRows: true, state: "42P01",
-		diagnostic: &freshNative, postgresDiagnostic: &freshPostgres, errorStage: "execute",
+		diagnostic: &freshNative, errorStage: "execute",
 	})
 	p.step(t, referenceSelect("SELECT * FROM failures", []string{"label"}, []string{"TEXT"}, [][]any{{"seed"}}))
 }

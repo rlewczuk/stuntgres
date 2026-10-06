@@ -93,10 +93,8 @@ func TestReferenceUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
 	s = referenceErrorDiagnostic(`CREATE TABLE fresh(x TEXT); INSERT INTO fresh VALUES (U&'a''😀\061')`, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid Unicode escape", Position: "62", Hint: `Unicode escapes must be \XXXX or \+XXXXXX.`})
 	s.errorStage = "execute"
 	p.step(t, s)
-	native := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "fresh" does not exist`}
-	pg := native
-	pg.Position = "15"
-	p.step(t, referenceStep{query: "SELECT * FROM fresh", selectRows: true, state: "42P01", diagnostic: &native, postgresDiagnostic: &pg, errorStage: "execute"})
+	native := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "fresh" does not exist`, Position: "15"}
+	p.step(t, referenceStep{query: "SELECT * FROM fresh", selectRows: true, state: "42P01", diagnostic: &native, errorStage: "execute"})
 	// This is the exact malformed script used by the native Restore witness.
 	// Exercise PostgreSQL's direct SQL path, not an invented Restore analogue,
 	// to independently establish its full Position 101 record and no effects.
@@ -109,13 +107,11 @@ func TestReferenceUnicodeEscapesDiagnosticsAtomicity(t *testing.T) {
 	p.step(t, staged)
 	stagedNative := referenceDiagnostic{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR",
-		Code: "42P01", Message: `relation "staged" does not exist`,
+		Code: "42P01", Message: `relation "staged" does not exist`, Position: "15",
 	}
-	stagedPostgres := stagedNative
-	stagedPostgres.Position = "15"
 	p.step(t, referenceStep{
 		query: "SELECT * FROM staged", selectRows: true, state: "42P01",
-		diagnostic: &stagedNative, postgresDiagnostic: &stagedPostgres, errorStage: "execute",
+		diagnostic: &stagedNative, errorStage: "execute",
 	})
 	p.step(t, referenceSelect("SELECT * FROM t", []string{"x"}, []string{"TEXT"}, [][]any{{"seed"}}))
 }
@@ -137,10 +133,8 @@ func TestReferenceUnicodeEscapesNames(t *testing.T) {
 					p.step(t, s)
 				}
 			}
-			native := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "a" does not exist`}
-			pg := native
-			pg.Position = "15"
-			s := referenceStep{query: "SELECT * FROM a", selectRows: true, state: "42P01", diagnostic: &native, postgresDiagnostic: &pg, errorStage: "execute"}
+			native := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "a" does not exist`, Position: "15"}
+			s := referenceStep{query: "SELECT * FROM a", selectRows: true, state: "42P01", diagnostic: &native, errorStage: "execute"}
 			if prepared {
 				s.prepared = true
 				s.errorStage = "prepare"

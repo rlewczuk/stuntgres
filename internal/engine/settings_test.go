@@ -65,11 +65,12 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 				t.Fatal("missing utility snapshot")
 			}
 			defer result.Rows.Close()
-			if result.Rows.self != result.Rows || result.Rows.Len() != len(tc.rows) || result.Count != tc.count || len(result.Columns) != len(tc.names) {
-				t.Fatalf("invalid snapshot ownership, cardinality or metadata: %+v", result)
+			actual := result.Rows.(*finalRows)
+			if actual.self != actual || actual.count != len(tc.rows) || result.Count != tc.count || len(result.Rows.Schema()) != len(tc.names) {
+				t.Fatalf("invalid result ownership, cardinality or metadata: %+v", result)
 			}
 			typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-			for i, column := range result.Columns {
+			for i, column := range result.Rows.Schema() {
 				if column.Name != tc.names[i] || column.Usage.Type != typ || column.Nullable != tc.nullable {
 					t.Fatalf("column %d: %+v", i, column)
 				}
@@ -85,8 +86,8 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 			}
 			values := make([]sqltype.Value, len(tc.names))
 			for i, row := range tc.rows {
-				if err := result.Rows.Values(context.Background(), i, values); err != nil {
-					t.Fatal(err)
+				if present, err := result.Rows.Next(context.Background(), values); !present || err != nil {
+					t.Fatal(present, err)
 				}
 				for j, want := range row {
 					if tc.null {
@@ -102,7 +103,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 				}
 			}
 			result.Rows.Close()
-			if result.Rows.Len() != 0 {
+			if present, err := result.Rows.Next(context.Background(), values); present || err != nil || actual.anonymous != nil {
 				t.Fatal("Close did not release anonymous rows")
 			}
 		})

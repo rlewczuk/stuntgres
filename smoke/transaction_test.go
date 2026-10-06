@@ -277,7 +277,7 @@ func transactionControls(ctx context.Context, db *sql.DB, a, b *sql.Conn) error 
 		return errors.New("Dump included private writes or lost committed data")
 	}
 	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE t(v INT); INSERT INTO missing VALUES(99)"))
-	if err = transactionDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "missing" does not exist`}); err != nil {
+	if err = transactionDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "missing" does not exist`, Position: "36"}); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {

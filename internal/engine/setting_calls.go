@@ -148,5 +148,5 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	columns := settingColumns(typ, s.Name)
 	columns[0].Nullable = true
-	return Result{Count: 1, Columns: columns, Rows: anonymousSnapshot([][]sqltype.Value{{output}}, []int{0})}, nil
+	return anonymousResult(columns, [][]sqltype.Value{{output}}, 1)
 }

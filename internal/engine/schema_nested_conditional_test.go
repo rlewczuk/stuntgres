@@ -52,7 +52,7 @@ func TestSchemaNestedConditionalTables(t *testing.T) {
 				if d.owner != owner.Ref || len(d.columns) != 1 || d.columns[0].Name != "id" || d.columns[0].Usage.Type.DatabaseName() != "INT4" || d.columns[0].Nullable || !d.columns[0].NullabilityKnown || d.acl.Explicit || len(d.columnACL) != 0 || d.columns[0].OriginTable != uint32(ref.Address.ObjectID) || d.columns[0].OriginAttribute != 1 {
 					t.Fatal("conditional retained shape/owner/origin", table, d)
 				}
-				if got := roleExecute(t, e, op, "SELECT * FROM nc."+table); got.Count != 0 || len(got.Columns) != 1 {
+				if got := roleExecute(t, e, op, "SELECT * FROM nc."+table); got.Count != 0 || len(got.Rows.Schema()) != 1 {
 					t.Fatal("conditional table not empty", table, got)
 				}
 			}

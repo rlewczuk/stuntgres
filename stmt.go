@@ -52,7 +52,9 @@ func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 		return nil, err
 	}
 	if r.Rows != nil {
-		r.Rows.Close()
+		if err := r.Rows.Close(); err != nil {
+			return nil, err
+		}
 	}
 	return result(r.Count), nil
 }

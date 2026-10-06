@@ -53,13 +53,20 @@ func sessionSQL(t *testing.T, s *Session, q string) Result {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if r.Rows != nil {
+		t.Cleanup(func() {
+			if err := r.Rows.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+	}
 	return r
 }
 func sessionValue(t *testing.T, s *Session, want string) {
 	t.Helper()
 	r := sessionSQL(t, s, "SHOW application_name")
-	if r.Count != 0 || !reflect.DeepEqual(r.Columns, []ColumnDescriptor{{Name: "application_name", Usage: testUsage(s.Engine(), sqltype.Text), NullabilityKnown: true}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
-		t.Fatalf("SHOW count=%d %+v %v want count=0 value=%q", r.Count, r.Columns, tuples(r), want)
+	if r.Count != 0 || !reflect.DeepEqual(r.Rows.Schema(), []ColumnDescriptor{{Name: "application_name", Usage: testUsage(s.Engine(), sqltype.Text), NullabilityKnown: true}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
+		t.Fatalf("SHOW count=%d %+v %v want count=0 value=%q", r.Count, r.Rows.Schema(), tuples(r), want)
 	}
 }
 func TestSessionEffectiveDefaultsAndControls(t *testing.T) {

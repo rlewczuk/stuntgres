@@ -136,7 +136,7 @@ func TestNoticesPublicationConflict(t *testing.T) {
 		t.Fatal("winner catalog replaced")
 	}
 	got := run(t, e, "SELECT kept FROM conflict_rows")
-	if len(got.Columns) != 1 || got.Columns[0].Usage.Type.ID() != sqltype.Text || got.Columns[0].Nullable || !reflect.DeepEqual(tuples(got), [][]driver.Value{{"winner"}}) {
+	if len(got.Rows.Schema()) != 1 || got.Rows.Schema()[0].Usage.Type.ID() != sqltype.Text || got.Rows.Schema()[0].Nullable || !reflect.DeepEqual(tuples(got), [][]driver.Value{{"winner"}}) {
 		t.Fatal(got, tuples(got))
 	}
 }
@@ -172,7 +172,7 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 			if errors.As(err, &diagnostic) {
 				t.Errorf("ordinary cancellation became SQL diagnostic: %#v", diagnostic)
 			}
-			if result.Count != 0 || result.Rows != nil || len(result.Columns) != 0 {
+			if result.Count != 0 || result.Rows != nil {
 				t.Errorf("losing CREATE exposed result: %#v", result)
 			}
 			if notices := op.DetachNotices(); len(notices) != 0 {
@@ -186,7 +186,7 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 				t.Fatal("losing CREATE published descriptor or storage")
 			}
 			got := run(t, e, "SELECT kept FROM conflict_rows")
-			if len(got.Columns) != 1 || got.Columns[0].Usage.Type.ID() != sqltype.Text || got.Columns[0].Nullable ||
+			if len(got.Rows.Schema()) != 1 || got.Rows.Schema()[0].Usage.Type.ID() != sqltype.Text || got.Rows.Schema()[0].Nullable ||
 				!reflect.DeepEqual(tuples(got), [][]driver.Value{{"winner"}}) {
 				t.Fatal("winner definition/data changed", got, tuples(got))
 			}
@@ -276,7 +276,7 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 		t.Fatal("losing CREATE published descriptor or storage")
 	}
 	got := run(t, e, "SELECT kept FROM conflict_rows")
-	if len(got.Columns) != 1 || got.Columns[0].Usage.Type.ID() != sqltype.Text || got.Columns[0].Nullable ||
+	if len(got.Rows.Schema()) != 1 || got.Rows.Schema()[0].Usage.Type.ID() != sqltype.Text || got.Rows.Schema()[0].Nullable ||
 		!reflect.DeepEqual(tuples(got), [][]driver.Value{{"winner"}}) {
 		t.Fatal("winner definition/data changed", got, tuples(got))
 	}

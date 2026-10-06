@@ -19,6 +19,13 @@ func roleExecute(t *testing.T, e *Engine, op *Operation, sql string) Result {
 	if err != nil {
 		t.Fatalf("%s: %v", sql, err)
 	}
+	if r.Rows != nil {
+		t.Cleanup(func() {
+			if err := r.Rows.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+	}
 	return r
 }
 func roleError(t *testing.T, e *Engine, op *Operation, sql, code, message, detail string) {
@@ -63,8 +70,8 @@ func roleIdentity(t *testing.T, e *Engine, op *Operation, want string) {
 	t.Helper()
 	r := roleExecute(t, e, op, "SELECT session_user,current_user")
 	values := tuples(r)
-	if r.Rows.Len() != 1 || !reflect.DeepEqual(values, [][]driver.Value{{want, want}}) || r.Columns[0].Usage.Type.ID() != sqltype.Name || r.Columns[1].Usage.Type.ID() != sqltype.Name {
-		t.Fatalf("identity: %#v %#v", values, r.Columns)
+	if r.Count != 1 || !reflect.DeepEqual(values, [][]driver.Value{{want, want}}) || r.Rows.Schema()[0].Usage.Type.ID() != sqltype.Name || r.Rows.Schema()[1].Usage.Type.ID() != sqltype.Name {
+		t.Fatalf("identity: %#v %#v", values, r.Rows.Schema())
 	}
 }
 

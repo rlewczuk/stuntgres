@@ -43,6 +43,7 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TABLE t(v INT)")
+	sessionSQL(t, s, "INSERT INTO t VALUES(7)")
 	ref := transactionBegin(t, s)
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -88,10 +89,13 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 	if forged.Retain() != nil || scope.view.Catalog().Epoch() == 0 {
 		t.Fatal("copied view affected original authority")
 	}
-	forgedSnapshot := &Snapshot{self: result.Rows, view: result.Rows.view}
-	forgedSnapshot.Close()
-	if result.Rows.view.Catalog().Epoch() == 0 {
-		t.Fatal("copied snapshot released another result")
+	actual := result.Rows.(*finalRows)
+	forgedResult := &finalRows{self: actual, source: actual.source}
+	forgedResult.Close()
+	copiedResult := *actual
+	copiedResult.Close()
+	if actual.source.view.Catalog().Epoch() == 0 {
+		t.Fatal("copied result released another result")
 	}
 	if err = scope.Finish(nil); err != nil {
 		t.Fatal(err)

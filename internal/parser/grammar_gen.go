@@ -2931,7 +2931,7 @@ sqldefault:
 	case 326:
 		sqlDollar = sqlS[sqlpt-4 : sqlpt+1]
 		{
-			sqlVAL.order = &Order{Column: sqlDollar[3].tok.text, Desc: sqlDollar[4].desc}
+			sqlVAL.order = &Order{Column: sqlDollar[3].tok.text, Pos: sqlDollar[3].tok.pos, Desc: sqlDollar[4].desc}
 		}
 	case 327:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]

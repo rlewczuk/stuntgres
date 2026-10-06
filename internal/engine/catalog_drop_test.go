@@ -54,7 +54,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	if oldB != newB || roleTableRef(t, e, "b") != b {
 		t.Fatal("survivor changed")
 	}
-	if _, ok := base.Descriptor(a.Address); !ok || retained.Rows.Len() != 1 {
+	if _, ok := base.Descriptor(a.Address); !ok || retained.Count != 1 {
 		t.Fatal("retained generation lost")
 	}
 	retained.Rows.Close()

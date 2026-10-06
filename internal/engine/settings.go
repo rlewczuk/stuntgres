@@ -903,7 +903,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 		if err := op.ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		return Result{Columns: settingColumns(typ, "name", "setting", "description"), Rows: anonymousSnapshot(rows, []int{0, 1, 2})}, nil
+		return anonymousResult(settingColumns(typ, "name", "setting", "description"), rows, 0)
 	}
 	d, err := e.sessionSetting(owner, name, write)
 	if err != nil {
@@ -922,5 +922,5 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	if err := op.ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	return Result{Columns: settingColumns(typ, d.Name), Rows: anonymousSnapshot([][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, []int{0})}, nil
+	return anonymousResult(settingColumns(typ, d.Name), [][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, 0)
 }

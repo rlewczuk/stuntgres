@@ -33,12 +33,12 @@ func TestAuthorizationNamespaceLookupCheckpoint(t *testing.T) {
 		{"INSERT INTO public.secret VALUES(9)", "42501", "permission denied for schema public", "13"},
 		{"INSERT INTO public.secret VALUES($1)", "42501", "permission denied for schema public", "13"},
 		{"INSERT INTO public.secret(missing) VALUES(2147483648)", "42501", "permission denied for schema public", "13"},
-		{"SELECT id FROM secret", "42P01", `relation "secret" does not exist`, ""},
-		{"SELECT missing FROM secret", "42P01", `relation "secret" does not exist`, ""},
-		{"INSERT INTO secret VALUES('bad')", "42P01", `relation "secret" does not exist`, ""},
-		{"INSERT INTO secret VALUES(9)", "42P01", `relation "secret" does not exist`, ""},
-		{"INSERT INTO secret VALUES($1)", "42P01", `relation "secret" does not exist`, ""},
-		{"INSERT INTO secret(missing) VALUES(2147483648)", "42P01", `relation "secret" does not exist`, ""},
+		{"SELECT id FROM secret", "42P01", `relation "secret" does not exist`, "16"},
+		{"SELECT missing FROM secret", "42P01", `relation "secret" does not exist`, "21"},
+		{"INSERT INTO secret VALUES('bad')", "42P01", `relation "secret" does not exist`, "13"},
+		{"INSERT INTO secret VALUES(9)", "42P01", `relation "secret" does not exist`, "13"},
+		{"INSERT INTO secret VALUES($1)", "42P01", `relation "secret" does not exist`, "13"},
+		{"INSERT INTO secret(missing) VALUES(2147483648)", "42P01", `relation "secret" does not exist`, "13"},
 	} {
 		for _, prepare := range []bool{false, true} {
 			stmt := statement(t, tc.query)
@@ -451,10 +451,12 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 		t.Fatal("replacement reused type generation")
 	}
 	values := make([]sqltype.Value, 2)
-	if err := retained.Rows.Values(context.Background(),0, values);err!=nil { t.Fatal(err) }
+	if present, err := retained.Rows.Next(context.Background(), values); !present || err != nil {
+		t.Fatal(present, err)
+	}
 	for i, value := range values {
 		text, err := value.Text()
-		if err != nil || value.Type() != typ || text != "typed_owner" || retained.Columns[i].Usage.Type != typ {
+		if err != nil || value.Type() != typ || text != "typed_owner" || retained.Rows.Schema()[i].Usage.Type != typ {
 			t.Fatal("retained typed identity", value, err)
 		}
 	}

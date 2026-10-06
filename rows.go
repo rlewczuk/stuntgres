@@ -3,6 +3,7 @@ package stuntgres
 import (
 	"context"
 	"database/sql/driver"
+	"fmt"
 	"io"
 	"reflect"
 	"stuntgres/internal/engine"
@@ -10,16 +11,20 @@ import (
 )
 
 type rows struct {
-	ctx      context.Context
-	columns  []engine.ColumnDescriptor
-	snapshot *engine.Snapshot
-	index    int
-	closed   bool
-	scratch  []sqltype.Value
+	ctx                context.Context
+	columns            []engine.ColumnDescriptor
+	cursor             engine.RowResult
+	closed, exhausted  bool
+	terminal, closeErr error
+	scratch            []sqltype.Value
 }
 
 func newRows(ctx context.Context, r engine.Result) *rows {
-	return &rows{ctx: ctx, columns: r.Columns, snapshot: r.Rows, scratch: make([]sqltype.Value, len(r.Columns))}
+	var schema []engine.ColumnDescriptor
+	if r.Rows != nil {
+		schema = r.Rows.Schema()
+	}
+	return &rows{ctx: ctx, columns: schema, cursor: r.Rows, scratch: make([]sqltype.Value, len(schema))}
 }
 func (r *rows) Columns() []string {
 	names := make([]string, len(r.columns))
@@ -28,34 +33,64 @@ func (r *rows) Columns() []string {
 	}
 	return names
 }
-func (r *rows) Close() error {
-	r.closed = true
-	if r.snapshot != nil {
-		r.snapshot.Close()
-		r.snapshot = nil
+func (r *rows) release() error {
+	var err error
+	if r.cursor != nil {
+		err = r.cursor.Close()
+		r.cursor = nil
+		r.closeErr = err
 	}
 	r.scratch = nil
-	return nil
+	return r.closeErr
+}
+func (r *rows) Close() error {
+	if !r.closed {
+		r.closeErr = r.release()
+		r.closed = true
+		r.terminal = nil
+	}
+	return r.closeErr
+}
+func (r *rows) fail(err error) error {
+	r.terminal = err
+	r.closeErr = r.release()
+	return err
 }
 func (r *rows) Next(dst []driver.Value) error {
-	if r.closed {
+	if r.closed || r.exhausted {
 		return io.EOF
+	}
+	if r.terminal != nil {
+		return r.terminal
 	}
 	if err := r.ctx.Err(); err != nil {
-		return err
+		return r.fail(err)
 	}
-	if r.snapshot == nil || r.index >= r.snapshot.Len() {
+	if len(dst) != len(r.columns) {
+		return r.fail(fmt.Errorf("stuntgres: invalid driver destination width"))
+	}
+	if r.cursor == nil {
+		r.exhausted = true
 		return io.EOF
 	}
-	if err := r.snapshot.Values(r.ctx, r.index, r.scratch); err != nil { return err }
+	present, err := r.cursor.Next(r.ctx, r.scratch)
+	if err != nil {
+		return r.fail(err)
+	}
+	if !present {
+		if err := r.release(); err != nil {
+			return r.fail(err)
+		}
+		r.exhausted = true
+		return io.EOF
+	}
 	for i, v := range r.scratch {
 		value, err := exportValue(r.ctx, v)
 		if err != nil {
-			return err
+			return r.fail(err)
 		}
 		dst[i] = value
 	}
-	r.index++
 	return nil
 }
 func (r *rows) ColumnTypeDatabaseTypeName(i int) string {

@@ -404,7 +404,14 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		if _, ok := stmt.(*parser.Comment); ok {
 			op.restoreCommentAuthority = true
 		}
-		_, err = stage.Execute(op, stmt, 0, nil)
+		var result Result
+		result, err = stage.Execute(op, stmt, 0, nil)
+		if result.Rows != nil {
+			closeErr := result.Rows.Close()
+			if err == nil {
+				err = closeErr
+			}
+		}
 		op.restoreCommentAuthority = false
 		op.DetachNotices()
 		if err != nil {

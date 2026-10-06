@@ -575,8 +575,8 @@ func TestAuthorizationLargeColumnManifestAndRepeatedUses(t *testing.T) {
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	result := roleExecute(t, e, op, "SELECT c64,c64 FROM wide WHERE c64=7 ORDER BY c64")
-	if result.Rows.Len() != 1 {
-		t.Fatal("wide row count", result.Rows.Len())
+	if result.Count != 1 {
+		t.Fatal("wide row count", result.Count)
 	}
 	values := tuples(result)
 	if !reflect.DeepEqual(values, [][]driver.Value{{int64(7), int64(7)}}) {
