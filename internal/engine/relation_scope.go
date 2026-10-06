@@ -17,6 +17,9 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	switch v := stmt.(type) {
 	case *parser.Select:
+		if v.IsSingleton() {
+			return nil
+		}
 		name = v.Name
 		mode = accessShare
 	case *parser.Insert:

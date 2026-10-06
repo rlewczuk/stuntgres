@@ -610,6 +610,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		token.lexeme.text = text
 	}
 	switch token.lexeme.text {
+	case "num_nulls", "num_nonnulls":
+		if token.code == IDENT {
+			token.code = NULL_COUNT_FUNC
+		}
+	case "variadic":
+		if token.lexeme.keyword != nil {
+			token.code = VARIADIC
+		}
 	case "current_setting", "set_config":
 		if token.code == IDENT {
 			token.code = SETTING_FUNC

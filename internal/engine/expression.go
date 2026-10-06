@@ -182,17 +182,18 @@ type expressionDependency struct {
 	revision DefinitionRevision
 }
 type expressionBinder struct {
-	engine       *Engine
-	ctx          context.Context
-	relation     *relationDescriptor
-	ref          ObjectRef
-	parameters   map[int]sqltype.Usage
-	uses         []int
-	dependencies []expressionDependency
-	input        sqltype.InputEnvironment
-	op           *Operation
-	expected     *StatementDescription
-	temporals    []temporalConstant
+	engine        *Engine
+	ctx           context.Context
+	relation      *relationDescriptor
+	ref           ObjectRef
+	parameters    map[int]sqltype.Usage
+	uses          []int
+	dependencies  []expressionDependency
+	input         sqltype.InputEnvironment
+	op            *Operation
+	expected      *StatementDescription
+	temporals     []temporalConstant
+	anyParameters []parameterExpression
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -232,6 +233,13 @@ func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position
 	return nil
 }
 func (b *expressionBinder) finish() (ParameterInfo, error) {
+	// ANY does not coerce an occurrence when a later context constrains its
+	// shared slot. Diagnose that mismatch before the unresolved-slot boundary.
+	for _, occurrence := range b.anyParameters {
+		if b.parameters[occurrence.number].Type != nil {
+			return ParameterInfo{}, expressionError("42P08", fmt.Sprintf("could not determine data type of parameter $%d", occurrence.number), occurrence.pos)
+		}
+	}
 	keys := make([]int, 0, len(b.parameters))
 	for n := range b.parameters {
 		keys = append(keys, n)
@@ -302,6 +310,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	}
 	var node BoundExpr
 	switch r := raw.(type) {
+	case parser.FunctionExpr:
+		var err error
+		node, err = b.bindFunction(r)
+		if err != nil {
+			return nil, err
+		}
 	case parser.ColumnExpr:
 		if policy.context == assignmentContext {
 			return nil, fmt.Errorf("stuntgres: column in assignment scalar")

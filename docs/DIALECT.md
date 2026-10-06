@@ -6,7 +6,7 @@ development instructions.
 
 ## Supported surface and limits
 
-CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
+CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
 
 Scalar comparisons admit `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=`; `!=` is the
 `<>` alias. Both operands may be existing scalar literals, parameters or columns.
@@ -52,6 +52,39 @@ targets with bare aliases and/or. Native aliases remain excluded and these
 keywords continue logical expressions; native42601 points to FROM at17/16.
 Independent reference coverage asserts PostgreSQL's positive BOOL outputs and
 native failures separately, without normalizing this capability boundary.
+
+Selected `num_nulls`/`num_nonnulls` calls additionally work in SELECT projections
+and nested selected arguments, accepting1–100 heterogeneous scalars without
+common-type conversion. They are immutable, nonstrict and return nonnull INT4
+(native int64) counts with function-name labels and no physical origin.
+Explicit NULL positions count; zero, false and empty strings are nonnull.
+Their decoded counts sum to the ordinary argument count.
+
+The only added FROM-less form has every target rooted in a selected call, with
+literal/parameter/nested-call arguments, no column references and no extra clauses.
+It feeds a singleton through the existing binder/project/finalization pipeline,
+returning one row and Exec RowsAffected1; table calls retain input multiplicity,
+actual-used-column authorization and empty-result metadata.
+Direct and prepared calls share this path. ANY does not infer a parameter type:
+standalone `num_nulls($1)`/`num_nonnulls($1)` fail42P18 regardless of supplied Go
+values. Later target TEXT fallback or WHERE inference does not rewrite an earlier
+unknown ANY occurrence; that mismatch fails42P08 at the occurrence. Existing
+bare-target42P08 and valid TEXT reuse remain unchanged.
+
+Zero arguments fail42883 with the standard explicit-casts Hint; over100 fail54023.
+Children are analyzed in order before the outer arity check; the first missing
+column or nested-call error therefore precedes54023. An unresolved ANY parameter
+is not a child analysis error, so over100 still fails54023 before whole-statement
+parameter finalization.
+Explicit VARIADIC scalar operands fail42804 at the operand, including unknown
+strings/NULL; multiple ordinary/VARIADIC operands fail42883 lookup first.
+Arrays are not admitted: PostgreSQL NULL-array/empty-array semantics are not
+native support, and ordinary NULL is a single null argument. Calls remain excluded
+from INSERT, WHERE and setting arguments. General calls, qualification, aliases,
+casts, arithmetic, DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
+remain exclusions rather than PostgreSQL diagnostic-parity claims.
+Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`;
+independent reference: `make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
 
 UUID declarations use contextual quoted values or binds, not UUID typed literals.
 UUID accepts either hex case, matching braces, omitted hyphens and single hyphens

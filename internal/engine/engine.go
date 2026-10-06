@@ -397,26 +397,35 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 	case *parser.Select:
 		var err error
-		b.ref, err = e.resolveReference(auth, s.Name)
-		if err != nil {
-			return b, err
+		if s.IsSingleton() {
+			if requiredRef != (ObjectRef{}) {
+				return b, ErrCatalogReplaced
+			}
+		} else {
+			b.ref, err = e.resolveReference(auth, s.Name)
+			if err != nil {
+				return b, err
+			}
+			if b.ref != requiredRef {
+				return b, ErrCatalogReplaced
+			}
+			b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+			b.storage = e.storage[b.ref.Address]
+			if b.storage == nil {
+				return b, fmt.Errorf("stuntgres: relation storage is missing")
+			}
+			binder.relation, binder.ref = b.relation, b.ref
 		}
-		if b.ref != requiredRef {
-			return b, ErrCatalogReplaced
-		}
-		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
-		b.storage = e.storage[b.ref.Address]
-		if b.storage == nil {
-			return b, fmt.Errorf("stuntgres: relation storage is missing")
-		}
-		binder.relation, binder.ref = b.relation, b.ref
 		width := len(s.Targets)
 		if s.Star {
 			width = len(b.relation.columns)
 		}
 		projection := make([]BoundExpr, width)
 		results := make([]ColumnDescriptor, width)
-		var root LogicalNode = &sourceNode{querySchema: b.relation.columns, ref: b.ref}
+		var root LogicalNode = &singletonNode{}
+		if b.relation != nil {
+			root = &sourceNode{querySchema: b.relation.columns, ref: b.ref}
+		}
 		for i := range width {
 			if err := ctx.Err(); err != nil {
 				return b, err
@@ -465,6 +474,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			if !s.Star {
 				if _, ok := s.Targets[i].(parser.TypedLiteralExpr); ok {
 					result.Name = expr.ResultUsage().Type.Name()
+				}
+				if call, ok := s.Targets[i].(parser.FunctionExpr); ok {
+					result.Name = call.Name.Parts[0].Text
 				}
 			}
 			if c, ok := expr.(columnExpression); ok {
@@ -918,12 +930,17 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return Result{Count: int64(len(rows))}, nil
 	case *parser.Select:
-		view, viewErr := scope.acquireDataViewLocked(e, b.ref)
-		if viewErr != nil {
-			e.mu.Unlock()
-			return Result{}, viewErr
+		var source *querySource
+		if s.IsSingleton() {
+			source = &querySource{singleton: true}
+		} else {
+			view, viewErr := scope.acquireDataViewLocked(e, b.ref)
+			if viewErr != nil {
+				e.mu.Unlock()
+				return Result{}, viewErr
+			}
+			source = captureQuerySource(view, b.ref)
 		}
-		source := captureQuerySource(view, b.ref)
 		e.mu.Unlock()
 		rows, count, queryErr := finalizeQuery(ctx, b.query, source, canonical)
 		if queryErr != nil {

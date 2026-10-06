@@ -49,7 +49,7 @@ return one nullable TEXT row, with affected count one for Exec.
 SHOW, SHOW ALL and setting-function rows own immutable anonymous snapshots:
 statement completion releases the implicit transaction, not the returned rows.
 Later setting changes or physical-session teardown do not change captured values.
-Function arguments accept strings, NULL, booleans in the third position,
+Setting-function arguments accept strings, NULL, booleans in the third position,
 and positional parameters through the existing binder. NULL current_setting
 returns SQL NULL; NULL set_config name fails 22004; NULL value resets;
 NULL is_local means false. Same-type repeated parameters work, gaps fail
@@ -176,8 +176,8 @@ transaction aborts. They add no role/grant authority, file defaults, ALTER SYSTE
 reload, server-start or shell-option effects. Existing role/ACL capabilities
 remain separate.
 Unsupported builtin names (including work_mem/random_page_cost) remain 42704.
-The two selected calls do not introduce general functions, casts, aliases or
-expressions. NULL/parameters remain invalid **SET scalar syntax**; use
+The two selected setting calls do not introduce general functions, casts, aliases
+or expressions. NULL/parameters remain invalid **SET scalar syntax**; use
 set_config for bound values. Comma lists are supported for search_path; other settings reject multiple values with 22023.
 The nonreserved name local remains a parameter name in `SET local TO value`
 and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
@@ -678,8 +678,9 @@ ALTER TABLE target ADD [CONSTRAINT name] NOT NULL column
 ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
-SELECT (* | logical_target [, ...]) FROM [schema.]name
+SELECT (* | projection_target [, ...]) FROM [schema.]name
        [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]
+SELECT null_count_call [, null_count_call ...]
 type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
        | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] | UUID
@@ -690,7 +691,52 @@ logical_target := scalar | comparison | NOT logical_target
                 | logical_target AND logical_target | logical_target OR logical_target
                 | (logical_target)
 logical_predicate := logical_target
+projection_target := logical_target | null_count_call
+call_argument := scalar | null_count_call
+null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
 ```
+
+### Null argument counts
+
+`num_nulls` and `num_nonnulls` accept 1–100 heterogeneous scalar arguments
+without common-type coercion. They are immutable and nonstrict: explicit NULL
+positions count as null, while zero, false, empty strings and nested count results
+are nonnull. Results are nonnull INT4 with native int64 values and the selected
+function name as the column label; physical origin is absent and scalar
+nullability metadata stays conservative.
+
+Calls work in table SELECT projections and nested selected arguments. SELECT
+without FROM is supported only when every target is rooted in a selected call,
+with literal/parameter/nested-call arguments and no columns or extra clauses.
+Both forms use the same binder, typed execution and finalized query pipeline:
+
+```sql
+SELECT num_nulls(1,NULL,'x'),num_nonnulls(1,NULL,'x');
+SELECT num_nulls(v,s),num_nonnulls(v,s) FROM t WHERE id=$1;
+```
+
+Direct and prepared invocations share analysis and metadata. The second example
+can hold a prepared statement and reuse its INT4 predicate parameter. Variadic
+ANY arguments themselves do not infer parameter types: `SELECT num_nulls($1)`
+fails analysis with42P18 even if the Go value is nil, integer or string. An
+initially unknown ANY occurrence is not retroactively typed by a later target
+TEXT fallback or WHERE constraint; that mismatch has42P08 at the occurrence.
+Existing bare-target42P08 behavior remains unchanged.
+
+Zero arguments fail42883 with PostgreSQL's function-resolution Hint; over100
+fail54023 after child analysis: a missing column or failing nested call takes
+precedence, while unresolved ANY parameters still reach the arity error before
+whole-statement type finalization. Explicit VARIADIC scalar operands fail42804 at the operand, and
+multiple ordinary/VARIADIC operands fail42883 signature lookup. Arrays, including
+PostgreSQL's NULL-array/empty-array cases, are unsupported; ordinary NULL is a
+single null argument, not a NULL array. No calls are added to INSERT, settings
+arguments or WHERE. General functions, qualification, aliases, casts, arithmetic,
+DISTINCT, ORDER BY within calls, FILTER, OVER, star and named arguments remain
+outside the native surface.
+
+Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`.
+Independent pinned PostgreSQL witnesses:
+`make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
 
 ### Logical query results
 
@@ -771,7 +817,8 @@ operator chains and nested NOT without repeatedly walking their raw subtrees.
 `SELECT $1,$1 AND TRUE FROM t` retains the first unresolved occurrence and
 fails `42P08` (`boolean versus text`) on its output fallback.
 
-FROM remains required outside identity/settings special forms. Existing binary
+FROM remains required outside identity/settings special forms and the selected
+null-count-only form. Existing binary
 scalar comparisons form Boolean leaves in targets and WHERE, such as
 `NOT id=1 AND (a OR b)` or `id>=2 AND a=b`. Comparisons keep scalar operands
 only: no chaining or logical/comparison expressions as comparison operands.
@@ -1157,7 +1204,7 @@ INSERT query inputs remain unsupported, including parenthesized SELECT inputs. T
 
 Generic function-name recognition follows the distinct IDENT/unreserved/type-or-function-name rule, not column-name legality: `between(x)` is malformed, while ordinary/U/T call names and separately recognized built-in constructs such as COALESCE remain unsupported (`0A000`). No function, cast or special expression is executed by this recognition. DEFAULT is a valid bare projection label but still an unsupported alias. ISNULL/NOTNULL are recognized null-test expressions rather than malformed bare labels, and explicit `ORDER BY x NULLS FIRST/LAST` is recognized but unsupported; quoted operator spellings remain ordinary names/labels. All these failure boundaries retain complete positioned diagnostics without global keyword-to-error promotion.
 
-The same failure-only call guard applies at every named projection position: `SELECT x, abs(x) FROM t` and later COALESCE or quoted/type-function-name calls remain recognized unsupported features, while a later unquoted `between(x)` is malformed at its opening parenthesis. Recognition retains the original callee token and never reconstructs category identity from normalized projection strings or executes the call.
+Except for the two selected null-count functions (including exact quoted `"num_nulls"` and `"num_nonnulls"` names), the same failure-only call guard applies at every named projection position: `SELECT x, abs(x) FROM t` and later COALESCE or quoted/type-function-name calls remain recognized unsupported features, while a later unquoted `between(x)` is malformed at its opening parenthesis. Failure-only recognition retains the original callee token and never reconstructs category identity from normalized projection strings or executes the call.
 
 NULLS ordering is admitted only when the next actual unquoted keyword token is FIRST or LAST (comments and case folding use the existing scanner). A one-token filter caches that token without rescanning. Invalid or quoted alternatives, or end of input after NULLS, leave the original keyword as the syntax error: `ORDER BY x NULLS bogus` reports `42601` at raw NULLS, not at bogus. The filter preserves original lexemes, character positions and scanner-error precedence; it neither changes keyword metadata nor enables explicit NULL ordering.
 
@@ -1395,11 +1442,14 @@ An earlier bare `$1` still falls back to TEXT and can fail42P08; later inference
 never rewrites it. Selected quoted-input failure is final, at the literal;
 incompatible known operands fail eagerly in Query/Prepare at the operator,
 even on empty tables, with the canonical operator spelling in diagnostics.
-FROM is still required outside identity/settings special forms. These scalar
+FROM is still required outside identity/settings special forms and the selected
+null-count-only form. These scalar
 comparisons also form Boolean leaves above NOT, AND and OR in SELECT targets
 and WHERE. No comparison chaining, arithmetic, aliases, qualified column
-references, functions, casts or comparison in INSERT/settings is enabled.
+references, general functions, casts or comparison in INSERT/settings is enabled.
 Comparisons do not sort rows.
+Selected null-count calls remain excluded from Boolean/comparison operands,
+and Boolean/comparison expressions remain excluded from their arguments.
 
 Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
 pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`;

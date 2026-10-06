@@ -530,6 +530,9 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, insert bool) error {
+	if !insert && b.relation == nil && b.query != nil {
+		return nil
+	}
 	mask, indices := SelectPrivilege, b.usedColumns
 	if insert {
 		mask, indices = InsertPrivilege, b.targets

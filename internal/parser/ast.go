@@ -178,6 +178,39 @@ type Select struct {
 
 func (*Select) statement() {}
 
+// IsSingleton admits only selected-call projections without a relation.
+func (s *Select) IsSingleton() bool {
+	if len(s.Name.Parts) != 0 || s.Star || s.Where != nil || s.Order != nil || len(s.Targets) == 0 {
+		return false
+	}
+	for _, target := range s.Targets {
+		call, ok := target.(FunctionExpr)
+		if !ok || !singletonArgument(call) {
+			return false
+		}
+	}
+	return true
+}
+
+func singletonArgument(expr Expr) bool {
+	switch e := expr.(type) {
+	case LiteralExpr, TypedLiteralExpr, ParameterExpr:
+		return true
+	case FunctionExpr:
+		if len(e.Name.Parts) != 1 || (e.Name.Parts[0].Text != "num_nulls" && e.Name.Parts[0].Text != "num_nonnulls") {
+			return false
+		}
+		for _, arg := range e.Args {
+			if !singletonArgument(arg) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
 type LockTable struct {
 	Name   ObjectName
 	Pos    Position
@@ -298,16 +331,25 @@ func (e LogicalExpr) SourcePosition() Position {
 	return pos
 }
 
+type FunctionExpr struct {
+	Name     ObjectName
+	Args     []Expr
+	Pos      Position
+	Variadic bool
+}
+
 func (LiteralExpr) expression()                     {}
 func (TypedLiteralExpr) expression()                {}
 func (ColumnExpr) expression()                      {}
 func (ParameterExpr) expression()                   {}
 func (OperatorExpr) expression()                    {}
+func (FunctionExpr) expression()                    {}
 func (e LiteralExpr) SourcePosition() Position      { return e.Value.Pos }
 func (e TypedLiteralExpr) SourcePosition() Position { return e.Pos }
 func (e ColumnExpr) SourcePosition() Position       { return e.Pos }
 func (e ParameterExpr) SourcePosition() Position    { return e.Pos }
 func (e OperatorExpr) SourcePosition() Position     { return e.Pos }
+func (e FunctionExpr) SourcePosition() Position     { return e.Pos }
 
 // Set uses setting-specific scalar text; Default is distinct from quoted text.
 type Set struct {

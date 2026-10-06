@@ -23,6 +23,7 @@ package parser
  row []Expr
  value Value
  expr Expr
+ call FunctionExpr
  selectStmt *Select
  order *Order
  desc bool
@@ -42,6 +43,7 @@ package parser
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
+%token <tok> NULL_COUNT_FUNC VARIADIC
 %token <tok> IF EXISTS
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
 %token <tok> LOCK ACCESS EXCLUSIVE MODE IN
@@ -89,10 +91,11 @@ package parser
 %type <tok> alter_action
 %type <names> names
 %type <rows> rows
-%type <row> row values call_args scalar_targets
+%type <row> row values call_args scalar_targets function_values
 %type <value> value
-%type <expr> scalar operand target where target_not target_and target_or
+%type <expr> scalar operand target where target_not target_and target_or projection_target function function_argument
 %type <tok> comparison_operator
+%type <call> function_args
 %type <selectStmt> projection
 %type <order> order
 %type <desc> direction
@@ -380,7 +383,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | DEFAULT { sqllex.(*lexer).failAt("0A000","default values are unsupported",$1.pos.Offset); return 1 }
  | CAST '(' { sqllex.(*lexer).failAt("0A000","casts are unsupported",$1.pos.Offset); return 1 } ;
 select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=$5; $2.Order=$6; $2.Pos=$1.pos; $$=$2 }
- | SELECT projection { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil }
+ | SELECT projection { $2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection FROM relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$5.pos.Offset); return 1 }
  | SELECT projection FROM relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$6.pos.Offset); return 1 }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
@@ -399,7 +402,17 @@ target_and: target_not { $$=$1 }
  | target_and AND target_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
 target_or: target_and { $$=$1 }
  | target_or OR target_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
-scalar_targets: target_or { $$=[]Expr{$1} } | scalar_targets ',' target_or { $$=append($1,$3) } ;
+projection_target: target_or { $$=$1 } | function { $$=$1 } ;
+/* Selected calls remain standalone projection roots, not Boolean/comparison
+ * leaves. Their arguments remain ordinary operands or nested selected calls. */
+function_argument: operand { $$=$1 } | function { $$=$1 } ;
+function: NULL_COUNT_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} } ;
+function_args: /* empty */ { $$=FunctionExpr{} }
+ | function_values { $$=FunctionExpr{Args:$1} }
+ | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
+ | function_values ',' VARIADIC function_argument { $$=FunctionExpr{Args:append($1,$4),Variadic:true} } ;
+function_values: function_argument { $$=[]Expr{$1} } | function_values ',' function_argument { $$=append($1,$3) } ;
+scalar_targets: projection_target { $$=[]Expr{$1} } | scalar_targets ',' projection_target { $$=append($1,$3) } ;
 projection: '*' { $$ = &Select{Star:true} } | scalar_targets { $$ = &Select{Targets:$1} }
  | scalar_targets bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
  | scalar_targets AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 }
@@ -417,14 +430,14 @@ nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word: IDENT | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name ;
+setting_word: IDENT | NULL_COUNT_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name ;
 name: setting_word | ROLE | LOCAL ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ADD | INHERITS | transaction_name ;
+type_name: IDENT | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ADD | INHERITS | transaction_name ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | OR | ONLY | DEFERRABLE | CONSTRAINT ;
+generic_word_base: IDENT | NULL_COUNT_FUNC | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | AND | OR | ONLY | DEFERRABLE | CONSTRAINT ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
 bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | LIKE { $$=$1 }
@@ -434,8 +447,8 @@ bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
- | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT ;
-col_label: name | LIKE | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT ;
+ | VARIADIC | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT ;
+col_label: name | VARIADIC | LIKE | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT ;
 suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN | IS | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }

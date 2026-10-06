@@ -29,6 +29,7 @@ type sourceNode struct {
 	querySchema
 	ref ObjectRef
 }
+type singletonNode struct{ querySchema }
 type filterNode struct {
 	querySchema
 	child     LogicalNode
@@ -53,6 +54,7 @@ type querySource struct {
 	view           *VisibilityView
 	ref            ObjectRef
 	committed, own []rowVersion
+	singleton      bool
 }
 
 func captureQuerySource(view *VisibilityView, ref ObjectRef) *querySource {
@@ -60,8 +62,16 @@ func captureQuerySource(view *VisibilityView, ref ObjectRef) *querySource {
 	data := pin.read()
 	return &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address]}
 }
-func (s *querySource) count() int { return len(s.committed) + len(s.own) }
+func (s *querySource) count() int {
+	if s.singleton {
+		return 1
+	}
+	return len(s.committed) + len(s.own)
+}
 func (s *querySource) row(i int) []sqltype.Value {
+	if s.singleton {
+		return nil
+	}
 	if i < len(s.committed) {
 		return s.committed[i].values
 	}
@@ -160,6 +170,11 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
+	case *singletonNode:
+		if state.source == nil || !state.source.singleton || state.source.view != nil || state.source.ref != (ObjectRef{}) || len(state.source.committed) != 0 || len(state.source.own) != 0 {
+			return indexedStage{}, fmt.Errorf("stuntgres: invalid singleton query source")
+		}
+		return indexedStage{source: state.source, schema: n.Schema()}, nil
 	case *sourceNode:
 		if state.source == nil || state.source.view == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
