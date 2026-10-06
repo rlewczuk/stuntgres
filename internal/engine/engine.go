@@ -568,10 +568,6 @@ func insertValueError(err error, column ColumnDescriptor, raw parser.Expr) error
 		copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", column.Name, column.Usage.Type.DiagnosticName(), source)
 		copy.Hint = "You will need to rewrite or cast the expression."
 		copy.Position = strconv.Itoa(value.Pos.Character)
-	case "22P02", "22003":
-		if value.Kind == parser.StringValue {
-			copy.Position = strconv.Itoa(value.Pos.Character)
-		}
 	}
 	return &copy
 }

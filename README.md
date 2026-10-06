@@ -772,11 +772,11 @@ Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
 EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT2/INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8/TIME/TIMESTAMP/UUID fail
+Known single-name types outside INT2/INT4/INT8/TEXT/BOOL/FLOAT4/FLOAT8/TIME/TIMESTAMP/NUMERIC/UUID fail
 execution with `0A000`. Excluded multiword families (CHARACTER/BIT VARYING,
 TIME WITH TIME ZONE, TIMESTAMP WITH TIME ZONE and qualified INTERVAL
-fields), qualified type names, arrays and modifiers other than FLOAT(p) and
-temporal precision remain parser-level `0A000` boundaries. Temporal precision
+fields), qualified type names, arrays and modifiers other than FLOAT(p),
+numeric precision/scale and temporal precision remain parser-level `0A000` boundaries. Temporal precision
 has its own bounded integer grammar. Even an existing IF NOT EXISTS target
 cannot bypass excluded syntax forms; failure-only guards construct no executable
 family AST. DOUBLE PRECISION and valid FLOAT(p) are supported.
@@ -786,7 +786,7 @@ Type keyword aliases are not quoted catalog names: `"smallint"`, `"integer"`,
 `"text"` and `"bool"` select the supported concrete types. Quoted case is significant (`"INT2"` or `"INT4"` is
 missing), and diagnostic names retain decoded quotes and backslashes without
 SQL or Go re-escaping. Genuine unsupported catalog names such as
-`"numeric"` fail with `0A000`. Lowercase serial pseudo names, including quoted
+`"name"` fail with `0A000`. Lowercase serial pseudo names, including quoted
 `"serial"`, remain a `0A000` CREATE-utility boundary rather than nonexistent
 types; uppercase quoted `"SERIAL"` is missing. No serial sequence or default
 is implemented.
@@ -945,7 +945,7 @@ kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
 including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-INT2/INT4/INT8 as `int64`, TEXT/UUID as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+INT2/INT4/INT8 as `int64`, TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
 TIME as canonical `string`, finite TIMESTAMP as `time.Time`, infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
@@ -984,6 +984,81 @@ functions and binary wire UUID APIs remain excluded. PostgreSQL disk storage,
 network protocol serving, and the external pg_dump process/custom archives are
 non-engine boundaries, not successful no-op implementations.
 
+### Exact NUMERIC
+
+NUMERIC, DECIMAL and DEC support unconstrained exact decimals or `(p[,s])`.
+Precision is 1–1000; scale independently ranges from -1000 to 1000, including
+scale greater than precision. Omitted scale is zero; unconstrained values
+preserve input display scale instead of imposing zero. `"numeric"` is a catalog
+name, but quoted `"decimal"` and `"dec"` are not aliases.
+
+```sql
+CREATE TABLE exact_values (id INTEGER, v NUMERIC, rounded NUMERIC(3,1),
+                          thousands NUMERIC(2,-3), tiny NUMERIC(3,5));
+INSERT INTO exact_values VALUES
+  (1, 12345678901234567890.1234567890123456789000, -1.25, 1500, .009994);
+SELECT v, rounded, thousands, tiny FROM exact_values ORDER BY id;
+-- exact strings: 12345678901234567890.1234567890123456789000,
+--                -1.3, 2000, 0.00999
+```
+
+Decimal fraction/exponent tokens always infer NUMERIC, even `1.` or `1e0`.
+Signed integer/radix tokens infer INT4, then INT8, then exact NUMERIC beyond
+int8; leading decimal zero is not octal. Digit separators and `0x`/`0o`/`0b`
+integer forms use the shared literal/input path. Malformed syntax is distinct
+from destination overflow. Integer/numeric equality stays exact beyond 2^53;
+finite numeric equality ignores display scale. Numeric-to-integer assignment
+rounds ties away from zero with checked range. Numeric-to-float conversion is
+checked and uses the selected binary type; numeric-to-TEXT emits canonical text.
+
+Numeric output is fixed decimal, never float64 or exponent notation. Examples:
+`001.2300` → `1.2300`, `-0.000` → `0.000`, `1.230e-2` → `0.01230`.
+Typmods round ties away from zero before checking the precision bound, preserve
+`max(s,0)` fractional places and apply separately at each destination. NaN is
+allowed with any typmod; Infinity/-Infinity require an unconstrained column.
+Specials normalize case and Inf spellings; signed NaN is invalid. Ordering is
+-Infinity < finite < Infinity < NaN, with NaN equal to NaN; NULL retains the
+existing ASC-last/DESC-first and strict-equality behavior.
+
+Result DatabaseTypeName is NUMERIC and ScanType is string, including empty and
+NULL results. Scan into string or []byte preserves exact output. DecimalSize
+reports declared precision/scale, including negative scale; unconstrained
+numeric has unknown sizing. Bind arguments remain target-driven textual input,
+not Go-kind inference. Prepared numeric constants validate input syntax during
+Prepare, but typmod sizing happens at Execute: malformed `'oops'` is located at
+the literal, while numeric-field overflow has Detail and no Position. Parameter
+errors have no native Position/Context. Statement and Restore failures publish
+no partial rows. Dump quotes canonical exact numeric output and declarations;
+Reset/Restore preserve old cursor values/metadata and deterministic redumps.
+
+`SELECT $1 FROM n WHERE v=$1` with a NUMERIC `v` fails during Prepare with
+`42P08`, `inconsistent types deduced for parameter $1`, Detail `numeric versus
+text`, Position `8`. Direct Query with a supplied argument reports the same
+record at the execution boundary. With no arguments, native Query still reports
+`42P08`, but lib/pq's PostgreSQL simple query reports `42P02`, `there is no
+parameter $1`, Position `8`. These protocol records are asserted separately,
+not normalized into parity.
+
+Unconstrained storage is bounded to 131072 integer digits and 16383 fractional
+places; excess format range is rejected, not silently truncated to zero.
+Numeric SQL parsing does not broaden SET's plain-decimal-integer grammar:
+settings' quoted numeric codecs retain their separate units/prefix behavior.
+No serial, arithmetic/functions, CAST/`::`, general operator syntax or
+SELECT-without-FROM expansion is introduced; existing SMALLINT participates in
+exact numeric comparison and checked integer assignment.
+
+Feature smoke: `make smoke RUN='^TestNumericSmoke$' VERBOSE=1`.
+The same smoke includes signed integer carry failures beside successful extrema,
+plus direct/prepared REAL/FLOAT8 assignments of 1.5, -1.5 and zero with a tiny
+exponent. Populated float comparisons against 1.0 and 1e100 assert exact result
+types even when no rows match, in both direct and prepared modes.
+Real pinned PostgreSQL witnesses:
+`make reference RUN='^TestReferenceNumeric.*$' VERBOSE=1`.
+Native logical negative-scale metadata is asserted independently of lib/pq's
+unsigned-scale decoding defect, not by accepting its incorrect DecimalSize.
+
+### Binary floating point
+
 REAL/FLOAT4 store IEEE binary32; DOUBLE PRECISION/FLOAT8 and bare FLOAT store
 binary64. FLOAT(p) selects REAL for binary precision 1–24 and DOUBLE PRECISION
 for 25–53, without a per-value typmod. Out-of-range precision fails `22023`
@@ -992,26 +1067,30 @@ and `"float8"` are catalog names; quoted keyword aliases such as `"real"` are
 not aliases. Result DatabaseTypeName is FLOAT4/FLOAT8, ScanType is float64,
 including NULL/empty results; no fictitious DecimalSize or Length is reported.
 
-Use quoted decimal inputs or positional binds: `INSERT INTO f VALUES('0.1')`.
-Fractional/exponent SQL numeric tokens, arithmetic and casts remain unsupported.
+Decimal inputs may be quoted, inferred numeric tokens or positional binds:
+`INSERT INTO f VALUES(0.1)`. Arithmetic and general cast syntax remain unsupported.
 Text REAL input rounds directly to binary32 (not through binary64):
 `'7.038531e-26'` stores bits 0x15ae43fd. Bound float32 is already widened by
 database/sql; bound float64 is serialized as pq-compatible decimal parameter
 text and parsed according to its SQL destination, not its Go kind. Finite
 overflow or nonzero input rounded to zero fails `22003`; nonzero subnormals
 are accepted. Bad syntax fails `22P02`, preserving the original input; range
-errors quote the recognized numeric prefix. Literal errors point to the quote,
-while native parameter errors have no Position/Context.
+errors quote the recognized numeric prefix. Quoted textual input errors point
+to the quote, while native parameter input errors have no Position/Context.
+Conversion of an inferred NUMERIC literal to a float destination is instead
+execution-owned: Prepare succeeds, and range failure has no Position/Context.
 
 Portable input accepts decimal numbers, C-ASCII whitespace at the ends,
 case-insensitive NaN, Inf/Infinity and signed infinities. Host strtof/strtod
 extensions such as hex floats, signed NaN or NaN payloads are not admitted
 natively and are not claimed portable PostgreSQL parity. NaNs compare equal
 and sort above all non-NaNs, including Infinity; signed zeros compare equal
-but retain their sign. Known integer operands of float equality convert to
-binary64, whereas unknown strings/parameters contextualize to the column:
-REAL `'16777216'` does not equal integer 16777217 but does equal quoted
-`'16777217'` after binary32 rounding.
+but retain their sign. Known integer and NUMERIC operands of float equality
+convert to binary64, whereas unknown strings/parameters contextualize to the
+column. Thus REAL `'16777216'` does not equal integer `16777217` or known
+NUMERIC `16777217.0`, but does equal quoted `'16777217'` after binary32 input
+rounding. Known NUMERIC against REAL uses checked FLOAT8 conversion, not REAL
+narrowing; overflowing/underflowing FLOAT8 conversion is an execution error.
 
 Output is PostgreSQL's default shortest-precise decimal with **open** rounding
 boundaries (not plain Go shortest ties-to-even output), canonical
@@ -1417,7 +1496,8 @@ diagnostics use the type opener; malformed numeric modifiers use the offending
 token's rune position. Numeric junk and incomplete exponents report `42601`
 `trailing junk after numeric literal` with the complete token; `1..2` instead
 reports syntax error at `".."`, positioned at its first dot. FLOAT and TIMESTAMP
-reuse this scanner behavior without admitting general scalar decimal expressions.
+modifiers reuse this scanner behavior; scalar decimal expressions are supported
+through the shared exact NUMERIC literal path described above.
 Parameter input diagnostics omit native Position/Context.
 Malformed/date/time/range/zone errors publish no partial INSERT or Restore
 replacement. Retained cursors keep original values, precision and origin metadata
@@ -1436,11 +1516,11 @@ Codec corner cases and allocation assertions can be selected with
 includes signed-whitespace and revised numeric/prefix/DST branches.
 
 
-Integer SQL constants accept decimal and case-insensitive binary `0b`, octal `0o`, or hexadecimal `0x` prefixes. Single underscores may separate digits; radix constants may also have one underscore immediately after the prefix (`0B_1_010`, `0O_1_2`, `0X_A` all equal 10). Decimal leading zeros remain decimal (`010` is 10, `08` is 8). Unary signs may be separated from the number by whitespace/comments. Values must fit signed int64, including `-0x8000_0000_0000_0000`; int4 assignment additionally checks its own range. Malformed digits, separators and trailing identifier junk fail the entire statement with PostgreSQL English `42601` diagnostics pointing to the number's first character (not its sign).
+Integer SQL constants accept decimal and case-insensitive binary `0b`, octal `0o`, or hexadecimal `0x` prefixes. Single underscores may separate digits; radix constants may also have one underscore immediately after the prefix (`0B_1_010`, `0O_1_2`, `0X_A` all equal 10). Decimal leading zeros remain decimal (`010` is 10, `08` is 8). Unary signs may be separated from the number by whitespace/comments. Signed values infer INT4, then INT8, then exact NUMERIC beyond signed int64; `-0x8000_0000_0000_0000` still infers INT8. Integer destinations independently check their assignment range. Malformed digits, separators and trailing identifier junk fail the entire statement with PostgreSQL English `42601` diagnostics pointing to the number's first character (not its sign).
 
-This is not PostgreSQL's full numeric inference: lexically valid constants outside signed int64 retain the native `22003` / `integer literal out of range` capability boundary, while PostgreSQL can infer exact `numeric` values. Fractional/exponent numeric constants and bit-string constants remain unsupported (`0A000`). SQL integer constants and integer textual input have distinct lexical/input diagnostics, though both support the baseline radix/separator forms. Dump emits canonical decimal integers, and Restore accepts the supported integer spellings. Run `go test -count=1 -run '^TestNumericLiteralsSmoke$' ./smoke` for the public feature contract; Go test reports the result.
+Fractional/exponent SQL constants infer exact NUMERIC, including integral forms such as `1e3` and `1e+3`. Bit-string constants remain unsupported (`0A000`). SQL integer constants and integer textual input have distinct lexical/input diagnostics, though both support radix/separator forms: a valid beyond-int8 SQL constant can be stored as NUMERIC, while assignment to BIGINT fails with `22003` / `bigint out of range`. Dump emits canonical decimal integers and quotes exact numeric output; Restore accepts the supported spellings. Run `go test -count=1 -run '^TestNumericLiteralsSmoke$' ./smoke` for the public feature contract; Go test reports the result.
 
-Lexical errors take precedence over the unsupported-valid-exponent boundary: `1e3` and `1e+3` remain unsupported, but `1e3foo`, `1e3_`, `1_000e3__0` and `1e+3foo` fail with `42601`, quoting the complete malformed numeric token.
+Lexically valid exponents succeed through NUMERIC inference, but `1e3foo`, `1e3_`, `1_000e3__0` and `1e+3foo` fail with `42601`, quoting the complete malformed numeric token. Lexical errors take precedence over destination conversion or range checks.
 
 Radix and separated constants follow the same prepared assignment contract as decimal integers: `INSERT INTO t VALUES (1),(0x8000_0000)` into an INT4 column prepares successfully, then execution fails with `22003` / `integer out of range` and publishes neither row. The numeric feature smoke checks this boundary through both direct and prepared execution.
 

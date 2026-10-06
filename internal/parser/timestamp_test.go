@@ -25,10 +25,10 @@ func TestTimestampDeclarationsAndTypedLiteralPositions(t *testing.T) {
 			t.Fatal(raw)
 		}
 		if strings.Contains(tc.decl, "(") {
-			if raw.Precision == nil || *raw.Precision != tc.p {
+			if len(raw.Modifiers) != 1 || raw.Modifiers[0].Integer == nil || *raw.Modifiers[0].Integer != tc.p {
 				t.Fatal(raw)
 			}
-		} else if raw.Precision != nil {
+		} else if len(raw.Modifiers) != 0 {
 			t.Fatal("omitted precision lost")
 		}
 	}
@@ -39,7 +39,7 @@ func TestTimestampDeclarationsAndTypedLiteralPositions(t *testing.T) {
 	}
 	targets := s[0].(*Select).Targets
 	literal, ok := targets[0].(TypedLiteralExpr)
-	if !ok || literal.Text != "1999-01-08T04:05:06+02" || literal.TypeName.Precision == nil || *literal.TypeName.Precision != 3 {
+	if !ok || literal.Text != "1999-01-08T04:05:06+02" || len(literal.TypeName.Modifiers) != 1 || literal.TypeName.Modifiers[0].Integer == nil || *literal.TypeName.Modifiers[0].Integer != 3 {
 		t.Fatal(targets)
 	}
 	for _, p := range []struct {
@@ -107,7 +107,7 @@ func TestTimestampModifierNumericContextAndIdentifiers(t *testing.T) {
 					t.Fatal(q, err)
 				}
 				raw := stmts[0].(*CreateTable).Elements[0].Column.TypeName
-				if raw.RawPrecision != number || raw.Precision != nil {
+				if raw.Modifiers[0].Raw != number || raw.Modifiers[0].Integer != nil {
 					t.Fatal(raw, number)
 				}
 				continue
@@ -120,11 +120,19 @@ func TestTimestampModifierNumericContextAndIdentifiers(t *testing.T) {
 			}
 		}
 	}
-	for _, q := range []string{"SELECT 1.5 FROM t", "SELECT timestamp,1e2 FROM t", "CREATE TABLE t(v TIMESTAMP(3)); SELECT .5 FROM t"} {
-		stmts, err := Parse(q)
-		var d *sqlstate.Error
-		if stmts != nil || !errors.As(err, &d) || d.Code != "0A000" {
-			t.Fatal(q, stmts, err)
+	for _, tc := range []struct{ q, text string }{
+		{"SELECT 1.5 FROM t", "1.5"},
+		{"SELECT timestamp,1e2 FROM t", "1e2"},
+		{"CREATE TABLE t(v TIMESTAMP(3)); SELECT .5 FROM t", ".5"},
+	} {
+		stmts, err := Parse(tc.q)
+		if err != nil || len(stmts) == 0 {
+			t.Fatal(tc.q, stmts, err)
+		}
+		targets := stmts[len(stmts)-1].(*Select).Targets
+		literal, ok := targets[len(targets)-1].(LiteralExpr)
+		if !ok || literal.Value.Kind != NumericValue || literal.Value.Text != tc.text {
+			t.Fatal(tc.q, targets)
 		}
 	}
 }
@@ -150,7 +158,7 @@ func TestTimestampKeywordCategoriesAndExcludedSyntaxLocations(t *testing.T) {
 		}
 	}
 	for _, q := range []string{
-		`CREATE TABLE t(v numeric(8))`, `CREATE TABLE t(v "text"(3))`,
+		`CREATE TABLE t(v "text"(3))`,
 		`CREATE TABLE t(v "text"(nonsense))`, `CREATE TABLE t(v "text"(1.5))`,
 	} {
 		_, err := Parse(q)
@@ -209,7 +217,7 @@ func TestTimestampPrecisionScannerPrecedence(t *testing.T) {
 						t.Fatal(q, err)
 					}
 					raw := stmts[0].(*CreateTable).Elements[0].Column.TypeName
-					if raw.RawPrecision != tc.spelling || raw.Precision != nil || raw.Pos.Character != 20 {
+					if raw.Modifiers[0].Raw != tc.spelling || raw.Modifiers[0].Integer != nil || raw.Pos.Character != 20 {
 						t.Fatal(q, raw)
 					}
 				}
@@ -254,8 +262,8 @@ func TestTimestampPrecisionScannerGrammarIsolation(t *testing.T) {
 				want = -1
 			}
 			raw := stmts[0].(*CreateTable).Elements[0].Column.TypeName
-			got := raw.Precision
-			if got == nil || *got != want || raw.UnaryPlus != (precision == "+3") {
+			got := raw.Modifiers[0].Integer
+			if got == nil || *got != want || raw.Modifiers[0].UnaryPlus != (precision == "+3") {
 				t.Fatal(raw, want)
 			}
 		}
@@ -270,10 +278,6 @@ func TestTimestampPrecisionScannerGrammarIsolation(t *testing.T) {
 		{"CREATE TABLE bad(v FLOAT(+3))", "42601", `syntax error at or near "+"`, "26"},
 		{"CREATE TABLE bad(v FLOAT(1.5foo))", "42601", `trailing junk after numeric literal at or near "1.5foo"`, "26"},
 		{"CREATE TABLE bad(v FLOAT(1..2))", "42601", `syntax error at or near ".."`, "27"},
-		{"SELECT 1.5 FROM t", "0A000", "non-decimal-integer literal is unsupported", "8"},
-		{"SELECT .5 FROM t", "0A000", "non-integer literal is unsupported", "8"},
-		{"SELECT 1e2 FROM t", "0A000", "non-decimal-integer literal is unsupported", "8"},
-		{"CREATE TABLE t(v TIMESTAMP(3)); SELECT .5 FROM t", "0A000", "non-integer literal is unsupported", "40"},
 	} {
 		stmts, err := Parse(tc.query)
 		var got *sqlstate.Error

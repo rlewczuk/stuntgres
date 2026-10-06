@@ -26,6 +26,7 @@ const (
 	Unknown   ID = 705
 	Time      ID = 1083
 	Timestamp ID = 1114
+	Numeric   ID = 1700
 	UUID      ID = 2950
 )
 
@@ -95,6 +96,7 @@ func Builtins() []*Descriptor {
 		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8"},
 		{Time, "time", "TIME", "TIME"},
 		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
+		{Numeric, "numeric", "NUMERIC", "NUMERIC"},
 		{UUID, "uuid", "UUID", "UUID"},
 		{Unknown, "unknown", "", ""},
 	}
@@ -102,13 +104,16 @@ func Builtins() []*Descriptor {
 
 // Zero Value is invalid, not NULL. All payloads are inline or immutable strings.
 type Value struct {
-	typ      *Descriptor
-	null     bool
-	integer  int64
-	floating float64
-	boolean  bool
-	text     string
-	uuid     [16]byte
+	typ             *Descriptor
+	null            bool
+	integer         int64
+	floating        float64
+	boolean         bool
+	text            string
+	exponent, scale int64
+	negative        bool
+	special         uint8
+	uuid            [16]byte
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -197,6 +202,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.uuidInput(text)
 	case Time:
 		return d.timeInput(text, typmod, env)
+	case Numeric:
+		return d.numericInput(text, typmod)
 	case Timestamp:
 		return d.timestampInput(text, typmod, env)
 	case Text:
@@ -343,6 +350,8 @@ func (d *Descriptor) Output(ctx context.Context, v Value) (string, error) {
 		return uuidOutput(v.uuid), nil
 	case Time:
 		return timeOutput(v.integer), nil
+	case Numeric:
+		return numericOutput(v), nil
 	case Timestamp:
 		return timestampOutput(v.integer), nil
 	case Int2, Int4, Int8:
@@ -381,7 +390,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + timestampOutput(v.integer) + "'", nil
 	case Text, Name:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
-	case Float4, Float8:
+	case Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
 		if err != nil {
 			return "", err
@@ -413,6 +422,7 @@ const (
 	viaIO
 	booleanText
 	floatConversion
+	numericConversion
 )
 
 type CoercionPlan struct {
@@ -449,6 +459,17 @@ var baselineCasts = [...]castSpec{
 	{Float8, Float4, Assignment, floatConversion},
 	{Float4, Text, Assignment, viaIO},
 	{Float8, Text, Assignment, viaIO},
+	{Int4, Numeric, Implicit, numericConversion},
+	{Int8, Numeric, Implicit, numericConversion},
+	{Int2, Numeric, Implicit, numericConversion},
+	{Numeric, Int2, Assignment, numericConversion},
+	{Numeric, Int4, Assignment, numericConversion},
+	{Numeric, Int8, Assignment, numericConversion},
+	{Numeric, Float4, Implicit, numericConversion},
+	{Numeric, Float8, Implicit, numericConversion},
+	{Float4, Numeric, Assignment, numericConversion},
+	{Float8, Numeric, Assignment, numericConversion},
+	{Numeric, Text, Assignment, viaIO},
 }
 
 // PlanCoercion admits only bounded directional edges, never transitive casts.
@@ -480,10 +501,15 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 	}
 	switch p.method {
 	case identity:
+		if p.target.Type.id == Numeric {
+			return sizeNumeric(v, p.target.Typmod)
+		}
 		if p.target.Type.id == Timestamp || p.target.Type.id == Time {
 			v.integer = roundTimestamp(v.integer, p.target.Typmod)
 		}
 		return v, nil
+	case numericConversion:
+		return numericCoercion(ctx, v, p.target)
 	case integerConversion:
 		return Integer(p.target.Type, v.integer)
 	case floatConversion:
@@ -515,6 +541,9 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
 	}
+	if exactNumber(left.id) && exactNumber(right.id) {
+		return p, nil
+	}
 	if (isFloat(left.id) && numericFloatOperand(right.id)) || (isFloat(right.id) && numericFloatOperand(left.id)) {
 		return p, nil
 	}
@@ -531,7 +560,18 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 		return 0, fmt.Errorf("invalid comparison values")
 	}
 	if isFloat(p.left.id) || isFloat(p.right.id) {
-		return compareFloats(floatOperand(a), floatOperand(b)), nil
+		left, err := checkedFloatOperand(ctx, a)
+		if err != nil {
+			return 0, err
+		}
+		right, err := checkedFloatOperand(ctx, b)
+		if err != nil {
+			return 0, err
+		}
+		return compareFloats(left, right), nil
+	}
+	if p.left.id == Numeric || p.right.id == Numeric {
+		return compareNumeric(a, b), nil
 	}
 	switch p.left.id {
 	case UUID:

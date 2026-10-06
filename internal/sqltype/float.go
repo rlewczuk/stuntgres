@@ -1,6 +1,7 @@
 package sqltype
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strconv"
@@ -8,7 +9,7 @@ import (
 )
 
 func isFloat(id ID) bool             { return id == Float4 || id == Float8 }
-func numericFloatOperand(id ID) bool { return isFloat(id) || id == Int2 || id == Int4 || id == Int8 }
+func numericFloatOperand(id ID) bool { return isFloat(id) || exactNumber(id) }
 
 // Float imports an already binary value; textual float4 input instead parses
 // directly at 32 bits to avoid decimal double rounding.
@@ -39,6 +40,19 @@ func floatOperand(v Value) float64 {
 		return v.floating
 	}
 	return float64(v.integer)
+}
+func checkedFloatOperand(ctx context.Context, v Value) (float64, error) {
+	if v.typ.id != Numeric {
+		return floatOperand(v), nil
+	}
+	// Known numeric operands select preferred float8, even against REAL;
+	// UNKNOWN inputs still contextualize to REAL before reaching this provider.
+	d := Descriptor{id: Float8}
+	converted, err := d.Input(ctx, numericOutput(v), -1)
+	if err != nil {
+		return 0, err
+	}
+	return converted.floating, nil
 }
 func compareFloats(a, b float64) int {
 	if math.IsNaN(a) {

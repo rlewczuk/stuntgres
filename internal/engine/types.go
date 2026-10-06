@@ -95,6 +95,8 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 			name = "float4"
 		case "float", "double precision":
 			name = "float8"
+		case "decimal", "dec":
+			name = "numeric"
 		}
 	}
 	view := CatalogRead{owner: e, state: e.state}
@@ -109,18 +111,22 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 	if !d.Concrete() || d.ID() == sqltype.Name {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
-	if raw.UnaryPlus {
-		return sqltype.Usage{}, typeDiagnostic(raw, "42601", "type modifiers must be simple constants or identifiers")
-	}
 	u := d.Usage()
-	precision := raw.Precision
-	if raw.RawPrecision != "" {
+	modifiers := make([]int32, len(raw.Modifiers))
+	for i, modifier := range raw.Modifiers {
+		if modifier.UnaryPlus {
+			return sqltype.Usage{}, typeDiagnostic(raw, "42601", "type modifiers must be simple constants or identifiers")
+		}
+		if modifier.Integer != nil {
+			modifiers[i] = *modifier.Integer
+			continue
+		}
 		integer, _ := view.LookupType(sqltype.Int4)
 		ctx := context.Background()
 		if op != nil {
 			ctx = op.Context()
 		}
-		value, err := integer.Input(ctx, raw.RawPrecision, -1)
+		value, err := integer.Input(ctx, modifier.Raw, -1)
 		if err != nil {
 			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
 		}
@@ -128,13 +134,12 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		if err != nil {
 			return sqltype.Usage{}, err
 		}
-		p := int32(n)
-		precision = &p
+		modifiers[i] = int32(n)
 	}
-	if precision != nil {
+	if len(modifiers) > 0 {
 		var warning *sqlstate.Error
 		var err error
-		u, warning, err = d.ResolveModifier(*precision)
+		u, warning, err = d.ResolveModifiers(modifiers...)
 		if err != nil {
 			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
 		}
@@ -164,7 +169,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		// CREATE recognizes these utility pseudo names even when quoted.
 		return true
 	case "money", "char", "bpchar", "varchar",
-		"numeric", "bit", "varbit", "date", "timetz",
+		"bit", "varbit", "date", "timetz",
 		"timestamptz", "interval", "bytea", "json", "jsonb", "xml",
 		"name", "oid", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
@@ -172,7 +177,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	}
 	if !raw.Quoted {
 		switch raw.Name {
-		case "decimal", "dec", "double", "precision",
+		case "double", "precision",
 			"character":
 			return true
 		}

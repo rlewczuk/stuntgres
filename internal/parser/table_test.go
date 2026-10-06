@@ -141,7 +141,11 @@ func TestTableCoreFloatTimestampModifierCoexistence(t *testing.T) {
 		quoted    bool
 	}{{"float4", nil, false}, {"timestamp", new(int32(-1)), true}, {"float8", nil, false}, {"timestamp", new(int32(3)), false}, {"timestamp", new(int32(7)), true}, {"double precision", nil, false}} {
 		got := elements[i].Column.TypeName
-		if got.Name != want.name || got.Quoted != want.quoted || !reflect.DeepEqual(got.Precision, want.precision) {
+		var precision *int32
+		if len(got.Modifiers) > 0 {
+			precision = got.Modifiers[0].Integer
+		}
+		if got.Name != want.name || got.Quoted != want.quoted || !reflect.DeepEqual(precision, want.precision) {
 			t.Fatal(i, got, want)
 		}
 	}
@@ -164,12 +168,11 @@ func TestTableCoreFloatTimestampModifierCoexistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := generic[0].(*CreateTable).Elements[1].Column.TypeName
-	if raw.RawPrecision != "1.5" || raw.Precision != nil {
+	if len(raw.Modifiers) != 1 || raw.Modifiers[0].Raw != "1.5" || raw.Modifiers[0].Integer != nil {
 		t.Fatal(raw)
 	}
 	_, err = Parse(`CREATE TABLE t(a FLOAT(24),b "timestamp"(3)); SELECT 1.5 FROM t`)
-	var got *sqlstate.Error
-	if !errors.As(err, &got) || got.Code != "0A000" {
+	if err != nil {
 		t.Fatal("modifier context leaked into scalar input", err)
 	}
 }

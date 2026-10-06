@@ -240,9 +240,9 @@ func numericLiteralsRun() error {
 			return err
 		}
 	}
-	// Native-only capability boundary, deliberately not PostgreSQL parity.
+	// Valid beyond-int8 syntax fails only when assigned to the first INT4 column.
 	_, err = db.ExecContext(ctx, "INSERT INTO t VALUES (0x8000000000000000)")
-	if err := numericLiteralsDiagnostic(err, "22003", "integer literal out of range", "23"); err != nil {
+	if err := numericLiteralsDiagnostic(err, "22003", "integer out of range", ""); err != nil {
 		return err
 	}
 	var dump bytes.Buffer

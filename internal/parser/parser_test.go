@@ -95,16 +95,10 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES ($0)", "42P02"}, {"INSERT INTO t VALUES ($000)", "42P02"},
 		{"INSERT INTO t VALUES ($2147483648)", "42601"}, {"INSERT INTO t VALUES ($1junk)", "42601"},
 		{"INSERT INTO t VALUES (?)", "42601"}, {"INSERT INTO t VALUES (:name)", "42601"},
-		{"INSERT INTO t VALUES (9223372036854775808)", "22003"},
-		{"INSERT INTO t VALUES (-9223372036854775809)", "22003"},
-		{"INSERT INTO t VALUES (1.0)", "0A000"}, {"INSERT INTO t VALUES (.1)", "0A000"},
-		{"INSERT INTO t VALUES (1e3)", "0A000"}, {"INSERT INTO t VALUES (1z)", "42601"},
+		{"INSERT INTO t VALUES (1z)", "42601"},
 		{"INSERT INTO t VALUES (B'a')", "0A000"}, {"INSERT INTO t VALUES (X'a')", "0A000"},
 		{"INSERT INTO t VALUES (N'a')", "0A000"},
-		{"INSERT INTO t VALUES (1e+3)", "0A000"}, {"INSERT INTO t VALUES (1_000e3)", "0A000"},
-		{"INSERT INTO t VALUES (1E-3_000)", "0A000"},
 		{"INSERT INTO t VALUES (B'1010')", "0A000"},
-		{"CREATE TABLE t (x NUMERIC(8))", "0A000"},
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
 		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT * FROM t alias", "0A000"}, {"SELECT x alias FROM t", "0A000"},
@@ -419,12 +413,16 @@ func TestNumericLiteralLexicalPrecedenceAndNativeLimits(t *testing.T) {
 		}
 	}
 	for _, token := range []string{"9223372036854775808", "0x8000000000000000", "0o1000000000000000000000", "0b1" + strings.Repeat("0", 63), strings.Repeat("9", 200)} {
-		check("INSERT INTO t VALUES ("+token+")", "22003", "integer literal out of range", "23")
+		if _, err := Parse("INSERT INTO t VALUES (" + token + ")"); err != nil {
+			t.Fatal("valid numeric literal rejected", err)
+		}
 		junk := token + "z"
 		check("INSERT INTO t VALUES ("+junk+")", "42601", `trailing junk after numeric literal at or near "`+junk+`"`, "23")
 	}
 	for _, token := range []string{"9223372036854775809", "0x8000000000000001", "0o1000000000000000000001", "0b1" + strings.Repeat("0", 62) + "1"} {
-		check("INSERT INTO t VALUES (-"+token+")", "22003", "integer literal out of range", "24")
+		if _, err := Parse("INSERT INTO t VALUES (-" + token + ")"); err != nil {
+			t.Fatal("valid signed numeric literal rejected", err)
+		}
 	}
 	check("INSERT INTO t VALUES (-0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "24")
 	check("/*é*/ INSERT INTO t VALUES (0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "29")
@@ -860,9 +858,9 @@ func TestFloatPrecisionScannerPrecedence(t *testing.T) {
 	if !errors.As(err, &got) || *got != want {
 		t.Fatal(got, want)
 	}
-	// The precision-only scanner treatment must not admit numeric scalars.
+	// FLOAT modifier restrictions must not leak into scalar numeric syntax.
 	_, err = Parse("INSERT INTO f VALUES(1.5)")
-	if !errors.As(err, &got) || got.Code != "0A000" {
+	if err != nil {
 		t.Fatal(err)
 	}
 }

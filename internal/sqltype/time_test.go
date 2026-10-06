@@ -125,7 +125,7 @@ func TestTimePrecisionAndComparison(t *testing.T) {
 		t.Fatal(d)
 	}
 	for p := int32(0); p <= 6; p++ {
-		u, w, err := d.ResolveModifier(p)
+		u, w, err := d.ResolveModifiers(p)
 		if err != nil || w != nil || u.Typmod != p || !u.Valid() {
 			t.Fatal(u, w, err)
 		}
@@ -156,11 +156,11 @@ func TestTimePrecisionAndComparison(t *testing.T) {
 			t.Fatal(tc, out)
 		}
 	}
-	u, w, err := d.ResolveModifier(7)
+	u, w, err := d.ResolveModifiers(7)
 	if err != nil || u.Typmod != 6 || w == nil || w.Code != "22023" || w.Message != "TIME(7) precision reduced to maximum allowed, 6" {
 		t.Fatal(u, w, err)
 	}
-	_, _, err = d.ResolveModifier(-1)
+	_, _, err = d.ResolveModifiers(-1)
 	if !reflect.DeepEqual(err, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "TIME(-1) precision must not be negative"}) {
 		t.Fatal(err)
 	}

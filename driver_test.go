@@ -1572,7 +1572,7 @@ func assertNumericRows(t *testing.T, rows *sql.Rows, names, types []string, want
 	}
 	for i, typ := range types {
 		scan := reflect.TypeOf(int64(0))
-		if typ == "TEXT" {
+		if typ == "TEXT" || typ == "NUMERIC" {
 			scan = reflect.TypeOf("")
 		}
 		if metadata[i].DatabaseTypeName() != typ || metadata[i].ScanType() != scan {
@@ -1593,6 +1593,9 @@ func assertNumericRows(t *testing.T, rows *sql.Rows, names, types []string, want
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
+	}
+	if len(got) == 0 && len(want) == 0 {
+		return
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows %v, want %v", got, want)
@@ -1762,10 +1765,6 @@ func TestNumericLiteralNativeRepresentabilityLimit(t *testing.T) {
 	}
 	for _, token := range []string{"9223372036854775808", "0x8000000000000000", "0o1000000000000000000000", "0b1" + strings.Repeat("0", 63), "-9223372036854775809", "-0x8000000000000001", "-0o1000000000000000000001", "-0b1" + strings.Repeat("0", 62) + "1", strings.Repeat("9", 200)} {
 		query := "INSERT INTO t VALUES (" + token + ")"
-		position := "23"
-		if strings.HasPrefix(token, "-") {
-			position = "24"
-		}
 		for _, operation := range []string{"exec", "query", "prepare"} {
 			var err error
 			switch operation {
@@ -1780,13 +1779,13 @@ func TestNumericLiteralNativeRepresentabilityLimit(t *testing.T) {
 				}
 			case "prepare":
 				stmt, e := db.Prepare(query)
-				err = e
-				if stmt != nil {
-					stmt.Close()
-					t.Fatal("out-of-range Prepare succeeded")
+				if e != nil {
+					t.Fatal("valid numeric constant failed Prepare", e)
 				}
+				_, err = stmt.Exec()
+				stmt.Close()
 			}
-			assertNumericDiagnostic(t, err, "22003", "integer literal out of range", position)
+			assertNumericDiagnostic(t, err, "22003", "bigint out of range", "")
 		}
 	}
 	rows, err := db.Query("SELECT x FROM t")

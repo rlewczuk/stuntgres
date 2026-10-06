@@ -3,137 +3,120 @@
 package reference_test
 
 import (
-	"bytes"
-	"fmt"
+	"database/sql"
+	"reflect"
 	"strings"
-	"stuntgres"
 	"testing"
 )
 
-func TestReferenceNumericLiteralsValues(t *testing.T) {
+func TestReferenceNumericExactValuesInferenceAndTypmods(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
-		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
+		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
 			p := newReferencePair(t)
-			step := func(s referenceStep) { t.Helper(); s.prepared = prepared; p.step(t, s) }
-			step(referenceExec("CREATE TABLE t(id INT,i INT,b BIGINT)", 0))
-			step(referenceExec("INSERT INTO t VALUES (1,0b1010,0o12),(2,0xa,1_000)", 2))
-			step(referenceSelect("SELECT id,i,b FROM t ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(1), int64(10), int64(10)}, {int64(2), int64(10), int64(1000)}}))
-			p.step(t, referencePrepared(referenceExec("INSERT INTO t VALUES ($1,0B_1_010,0X_A)", 1, int64(3))))
-			p.step(t, referencePrepared(referenceSelect("SELECT id,i,b FROM t WHERE i=0b1010 ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(1), int64(10), int64(10)}, {int64(2), int64(10), int64(1000)}, {int64(3), int64(10), int64(10)}})))
-			p.step(t, referenceSelect("SELECT id,i,b FROM t WHERE b=1_000", []string{"id", "i", "b"}, []string{"INT4", "INT4", "INT8"}, [][]any{{int64(2), int64(10), int64(1000)}}))
-			step(referenceExec("CREATE TABLE endpoints(id INT,b BIGINT)", 0))
-			var want [][]any
-			for i, literal := range numericEndpoints() {
-				step(referenceExec(fmt.Sprintf("INSERT INTO endpoints VALUES (%d,%s)", i, literal), 1))
-				value := int64(9223372036854775807)
-				if i%2 == 1 {
-					value = -9223372036854775808
-				}
-				want = append(want, []any{int64(i), value})
+			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+			run(referenceExec(`CREATE TABLE n(id INTEGER,v NUMERIC,a DECIMAL,b DEC,c "numeric")`, 0))
+			run(referenceSelect("SELECT * FROM n", []string{"id", "v", "a", "b", "c"}, []string{"INT4", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC"}, nil))
+			exact := "12345678901234567890.1234567890123456789000"
+			run(referenceExec("INSERT INTO n(id,v) VALUES(1,'"+exact+"'),(2,'-"+exact+"'),(3,001.2300),(4,-0.000),(5,.1),(6,1.230e2),(7,1.230e-2),(8,5e2)", 8))
+			run(referenceSelect("SELECT v FROM n ORDER BY id", []string{"v"}, []string{"NUMERIC"}, [][]any{{exact}, {"-" + exact}, {"1.2300"}, {"0.000"}, {"0.1"}, {"123.0"}, {"0.01230"}, {"500"}}))
+			run(referenceExec("CREATE TABLE exact_binds(id INT,v NUMERIC)", 0))
+			for i, arg := range []any{exact, "-" + exact, []byte(exact), []byte("-" + exact)} {
+				run(referenceExec("INSERT INTO exact_binds VALUES($1,$2)", 1, int64(i+1), arg))
 			}
-			step(referenceSelect("SELECT id,b FROM endpoints ORDER BY id", []string{"id", "b"}, []string{"INT4", "INT8"}, want))
-			step(referenceExec("CREATE TABLE bounds(i INT,b BIGINT,label TEXT)", 0))
-			step(referenceExec("INSERT INTO bounds VALUES (-0x8000_0000,0x8000_0000,0xa),(0x7FFF_FFFF,010,1_000)", 2))
-			step(referenceSelect("SELECT i,b,label FROM bounds ORDER BY i", []string{"i", "b", "label"}, []string{"INT4", "INT8", "TEXT"}, [][]any{{int64(-2147483648), int64(2147483648), "10"}, {int64(2147483647), int64(10), "1000"}}))
+			run(referenceSelect("SELECT v FROM exact_binds ORDER BY id", []string{"v"}, []string{"NUMERIC"}, [][]any{{exact}, {"-" + exact}, {exact}, {"-" + exact}}))
+			q := "SELECT 2147483647,2147483648,-2147483648,9223372036854775807,-9223372036854775808,9223372036854775808,-9223372036854775809,1.,1e0,.001,1.618_034,1e1_0,010 FROM n WHERE id=1"
+			names := make([]string, 13)
+			for i := range names {
+				names[i] = "?column?"
+			}
+			run(referenceSelect(q, names, []string{"INT4", "INT8", "INT4", "INT8", "INT8", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC", "INT4"}, [][]any{{int64(2147483647), int64(2147483648), int64(-2147483648), int64(9223372036854775807), int64(-9223372036854775808), "9223372036854775808", "-9223372036854775809", "1", "1", "0.001", "1.618034", "10000000000", int64(10)}}))
+			run(referenceExec("CREATE TABLE radix(v NUMERIC)", 0))
+			run(referenceExec("INSERT INTO radix VALUES(0x8000000000000000),(0o1000000000000000000000),(0b1"+strings.Repeat("0", 63)+")", 3))
+			run(referenceSelect("SELECT v FROM radix", []string{"v"}, []string{"NUMERIC"}, [][]any{{"9223372036854775808"}, {"9223372036854775808"}, {"9223372036854775808"}}))
+			run(referenceExec("CREATE TABLE sized(a NUMERIC(3,1),b NUMERIC(2,-3),c NUMERIC(3,5),d NUMERIC(2))", 0))
+			run(referenceExec("INSERT INTO sized VALUES(1.25,1499,.009994,2.5),(-1.25,-1500,.000004,-2.5),(99.94,99499,-.000005,0)", 3))
+			run(referenceSelect("SELECT * FROM sized ORDER BY a", []string{"a", "b", "c", "d"}, []string{"NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC"}, [][]any{{"-1.3", "-2000", "0.00000", "-3"}, {"1.3", "1000", "0.00999", "3"}, {"99.9", "99000", "-0.00001", "0"}}))
+			run(referenceExec("CREATE TABLE ints(v BIGINT)", 0))
+			run(referenceExec("INSERT INTO ints VALUES(9007199254740993),(1.5),(-1.5)", 3))
+			run(referenceSelect("SELECT v FROM ints WHERE v=9007199254740993.0", []string{"v"}, []string{"INT8"}, [][]any{{int64(9007199254740993)}}))
+			for _, literal := range []string{"9007199254740992.0", "9223372036854775808"} {
+				run(referenceSelect("SELECT v FROM ints WHERE v="+literal, []string{"v"}, []string{"INT8"}, nil))
+			}
+			run(referenceExec("CREATE TABLE converted(i INT,t TEXT,f DOUBLE PRECISION)", 0))
+			run(referenceExec("INSERT INTO converted VALUES(1.5,1.2300,.5),(-1.5,1e2,1e0)", 2))
+			run(referenceSelect("SELECT * FROM converted ORDER BY i", []string{"i", "t", "f"}, []string{"INT4", "TEXT", "FLOAT8"}, [][]any{{int64(-2), "100", float64(1)}, {int64(2), "1.2300", float64(.5)}}))
+			run(referenceExec("CREATE TABLE real_values(id INT,v REAL)", 0))
+			run(referenceExec("INSERT INTO real_values VALUES(1,'16777217')", 1))
+			run(referenceSelect("SELECT id FROM real_values WHERE v=16777217.0", []string{"id"}, []string{"INT4"}, nil))
+			run(referenceSelect("SELECT id FROM real_values WHERE v='16777217'", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+			run(referenceSelect("SELECT id FROM real_values WHERE v=1e100", []string{"id"}, []string{"INT4"}, nil))
 		})
 	}
 }
-
-func TestReferenceNumericLiteralsDiagnosticsAtomicity(t *testing.T) {
+func TestReferenceNumericSpecialsAndHeldParameters(t *testing.T) {
 	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(x INT)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES (99)", 1))
-	check := func(query, code, message, position string) {
-		t.Helper()
-		want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Position: position}
-		for _, operation := range []string{"exec", "query", "prepare"} {
-			t.Run(operation+"/"+query, func(t *testing.T) {
-				s := referenceErrorDiagnostic(query, want)
-				s.errorStage = "execute"
-				if operation == "prepare" {
-					s.prepared = true
-					s.errorStage = "prepare"
-				}
-				if operation == "query" {
-					s.selectRows = true
-				}
-				p.step(t, s)
-				p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, [][]any{{int64(99)}}))
-			})
+	p.step(t, referenceExec("CREATE TABLE n(id INT,v NUMERIC)", 0))
+	p.step(t, referenceExec("INSERT INTO n VALUES(1,'-Infinity'),(2,-1),(3,0),(4,1),(5,'Infinity'),(6,'NaN'),(7,'NaN'),(8,NULL)", 8))
+	p.step(t, referenceSelect("SELECT v FROM n ORDER BY v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"-Infinity"}, {"-1"}, {"0"}, {"1"}, {"Infinity"}, {"NaN"}, {"NaN"}, {nil}}))
+	p.step(t, referencePrepared(referenceSelect("SELECT v FROM n ORDER BY v DESC", []string{"v"}, []string{"NUMERIC"}, [][]any{{nil}, {"NaN"}, {"NaN"}, {"Infinity"}, {"1"}, {"0"}, {"-1"}, {"-Infinity"}})))
+	p.step(t, referenceSelect("SELECT id FROM n WHERE v='NaN' ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(6)}, {int64(7)}}))
+	p.step(t, referenceSelect("SELECT id FROM n WHERE v=NULL", []string{"id"}, []string{"INT4"}, nil))
+	p.step(t, referenceExec("CREATE TABLE binds(v NUMERIC(3,1))", 0))
+	for _, db := range []*sql.DB{p.memory, p.postgres} {
+		stmt, err := db.PrepareContext(p.ctx, "INSERT INTO binds VALUES($1)")
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	for _, c := range numericLiteralErrors() {
-		message := c.reason + ` at or near "` + c.token + `"`
-		check("INSERT INTO t VALUES ("+c.token+")", "42601", message, "23")
-		check("INSERT INTO t VALUES (1),("+c.token+")", "42601", message, "27")
-	}
-	check("INSERT INTO t VALUES (-0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "24")
-	check("/*é*/ INSERT INTO t VALUES (0b2)", "42601", `trailing junk after numeric literal at or near "0b2"`, "29")
-	check("/*😀*/ INSERT INTO t VALUES (0x_)", "42601", `invalid hexadecimal integer at or near "0x_"`, "29")
-	for _, operation := range []string{"exec", "query"} {
-		s := referenceErrorDiagnostic("INSERT INTO t VALUES (1); INSERT INTO t VALUES (0b2)", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `trailing junk after numeric literal at or near "0b2"`, Position: "49"})
-		s.selectRows = operation == "query"
-		s.errorStage = "execute"
-		p.step(t, s)
-		p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, [][]any{{int64(99)}}))
-	}
-	// A representable int8 literal prepares successfully; assignment to int4
-	// fails only at execution, without publishing the preceding valid row.
-	for _, prepared := range []bool{false, true} {
-		s := referenceErrorDiagnostic("INSERT INTO t VALUES (1),(0x8000_0000)", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "integer out of range"})
-		s.prepared = prepared
-		s.errorStage = "execute"
-		p.step(t, s)
-		p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, [][]any{{int64(99)}}))
-	}
-	p.step(t, referenceSelect("SELECT x FROM t WHERE x=0x8000_0000", []string{"x"}, []string{"INT4"}, nil))
-}
-
-func TestReferenceNumericLiteralsDumpRoundTrip(t *testing.T) {
-	p := newReferencePair(t)
-	script := "CREATE TABLE t(id INT,b BIGINT); INSERT INTO t VALUES (1,0b1010),(2,1_000),(3,0x7FFF_FFFF_FFFF_FFFF),(4,-0x8000_0000_0000_0000)"
-	if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err != nil {
-		t.Fatal(err)
-	}
-	var dump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
-		t.Fatal(err)
-	}
-	for _, value := range []string{"10", "1000", "9223372036854775807", "-9223372036854775808"} {
-		if !strings.Contains(dump.String(), value) {
-			t.Fatalf("dump missing %s: %s", value, dump.String())
-		}
-	}
-	if strings.Contains(dump.String(), "0x") || strings.Contains(dump.String(), "0b") || strings.Contains(dump.String(), "1_000") {
-		t.Fatalf("noncanonical dump: %s", dump.String())
-	}
-	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
-		t.Fatal(err)
-	}
-	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal(err)
-	}
-	p.step(t, referenceSelect("SELECT id,b FROM t ORDER BY id", []string{"id", "b"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(10)}, {int64(2), int64(1000)}, {int64(3), int64(9223372036854775807)}, {int64(4), int64(-9223372036854775808)}}))
-}
-
-func TestReferenceNumericLiteralsSpellings(t *testing.T) {
-	for _, prepared := range []bool{false, true} {
-		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE t(id INT,b BIGINT)", 0))
-			var want [][]any
-			for i, c := range numericLiteralSpellings() {
-				s := referenceExec(fmt.Sprintf("INSERT INTO t VALUES (%d,%s)", i, c.literal), 1)
-				s.prepared = prepared
-				p.step(t, s)
-				want = append(want, []any{int64(i), c.value})
+		for _, arg := range []any{"1.25", []byte("-1.25"), nil, int64(2), float64(1.5), "nan"} {
+			r, err := stmt.ExecContext(p.ctx, arg)
+			if err != nil {
+				t.Fatal(arg, err)
 			}
-			s := referenceSelect("SELECT id,b FROM t ORDER BY id", []string{"id", "b"}, []string{"INT4", "INT8"}, want)
-			s.prepared = prepared
-			p.step(t, s)
-		})
+			n, _ := r.RowsAffected()
+			if n != 1 {
+				t.Fatal(n)
+			}
+		}
+		_, err = stmt.ExecContext(p.ctx, "99.95")
+		want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "numeric field overflow", Detail: "A field with precision 3, scale 1 must round to an absolute value less than 10^2."}
+		referenceAssertDiagnostic(t, err, &want)
+		if _, err = stmt.ExecContext(p.ctx, "1.2"); err != nil {
+			t.Fatal(err)
+		}
+		stmt.Close()
+	}
+	p.step(t, referenceSelect("SELECT v FROM binds ORDER BY v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"-1.3"}, {"1.2"}, {"1.3"}, {"1.5"}, {"2.0"}, {"NaN"}, {nil}}))
+	p.step(t, referencePrepared(referenceSelect("SELECT id FROM n WHERE v=$1 ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(6)}, {int64(7)}}, "NaN")))
+	p.step(t, referencePrepared(referenceSelect("SELECT id FROM n WHERE v=$1", []string{"id"}, []string{"INT4"}, nil, nil)))
+	conflict := referenceImplicitError("SELECT $1 FROM n WHERE v=$1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "numeric versus text", Position: "8"}, "1.2500")
+	conflict.selectRows = true
+	conflict.errorStage = "prepare"
+	p.step(t, referencePrepared(conflict))
+	conflict.errorStage = "execute"
+	p.step(t, conflict)
+	// Zero-argument pq Query uses simple protocol. Assert both complete records
+	// separately, without normalizing their different SQLSTATE or primary.
+	conflict.args = nil
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, conflict)
+	simple := referenceImplicitError(conflict.query, referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: "8"})
+	simple.selectRows = true
+	simple.errorStage = "execute"
+	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+	p.step(t, referenceExec("CREATE TABLE repeats(a NUMERIC(3,1),b NUMERIC(3,2))", 0))
+	p.step(t, referencePrepared(referenceExec("INSERT INTO repeats VALUES($1,$1)", 1, "1.255")))
+	p.step(t, referenceSelect("SELECT * FROM repeats", []string{"a", "b"}, []string{"NUMERIC", "NUMERIC"}, [][]any{{"1.3", "1.26"}}))
+	// pq's negative-scale DecimalSize decodes unsigned scale incorrectly. Native
+	// logical metadata is independently asserted rather than copied from pq.
+	rows, err := p.memory.QueryContext(p.ctx, "SELECT * FROM repeats")
+	if err != nil {
+		t.Fatal(err)
+	}
+	types, err := rows.ColumnTypes()
+	rows.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if types[0].ScanType() != reflect.TypeFor[string]() {
+		t.Fatal(types[0])
 	}
 }

@@ -100,7 +100,11 @@ func (r *rows) ColumnTypeScanType(i int) reflect.Type { return scanType(r.column
 func (r *rows) ColumnTypeNullable(i int) (bool, bool) {
 	return r.columns[i].Nullable, r.columns[i].NullabilityKnown
 }
+func (r *rows) ColumnTypePrecisionScale(i int) (int64, int64, bool) {
+	return r.columns[i].Usage.DecimalSize()
+}
 
 var _ driver.RowsColumnTypeDatabaseTypeName = (*rows)(nil)
 var _ driver.RowsColumnTypeScanType = (*rows)(nil)
 var _ driver.RowsColumnTypeNullable = (*rows)(nil)
+var _ driver.RowsColumnTypePrecisionScale = (*rows)(nil)

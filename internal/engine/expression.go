@@ -350,6 +350,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 				u = b.typ(sqltype.Text).Usage()
 			}
 			value, err = b.inputConstant(v.Text, u.Type.Usage(), v.Pos)
+		case parser.NumericValue:
+			value, err = b.inputConstant(v.Text, b.typ(sqltype.Numeric).Usage(), v.Pos)
 		case parser.IntegerValue:
 			id := sqltype.Int4
 			if v.Integer < -2147483648 || v.Integer > 2147483647 {
@@ -369,7 +371,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		rawType := r.TypeName
 		saved, found := b.captured(r.Pos.Offset)
 		if found {
-			rawType.Precision = nil
+			rawType.Modifiers = nil
 		}
 		u, err := b.engine.resolveType(rawType, b.op)
 		if err != nil {

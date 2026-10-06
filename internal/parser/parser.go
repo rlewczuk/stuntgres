@@ -73,6 +73,9 @@ type lexeme struct {
 }
 
 func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
+	if tok.numeric {
+		return Value{Kind: NumericValue, Text: sign + tok.text, Pos: tok.pos}, true
+	}
 	base, offset := uint64(10), 0
 	if len(tok.text) > 2 && tok.text[0] == '0' {
 		switch tok.text[1] {
@@ -95,8 +98,7 @@ func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
 		}
 		d := numericDigit(tok.text[offset])
 		if magnitude > (limit-d)/base {
-			l.(*lexer).failAt("22003", "integer literal out of range", tok.pos.Offset)
-			return Value{}, false
+			return Value{Kind: NumericValue, Text: sign + tok.text, Pos: tok.pos}, true
 		}
 		magnitude = magnitude*base + d
 	}
@@ -113,6 +115,10 @@ func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
 
 func settingInteger(l sqlLexer, tok lexeme, negative bool) (string, bool) {
 	text := tok.text
+	if tok.numeric {
+		l.(*lexer).failAt("0A000", "non-decimal-integer literal is unsupported", tok.pos.Offset)
+		return "", false
+	}
 	// NUMBER is shared with INSERT/SELECT, which also accept radix/separator
 	// spellings. Settings deliberately support decimal digits only.
 	for i := range text {
@@ -265,7 +271,7 @@ func temporalPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) {
 		if negative {
 			text = "-" + text
 		}
-		return TypeName{RawPrecision: text, PrecisionPos: tok.pos}, true
+		return TypeName{Modifiers: []TypeModifier{{Raw: text, Pos: tok.pos}}}, true
 	}
 	text := strings.ReplaceAll(tok.text, "_", "")
 	base := 10
@@ -282,13 +288,13 @@ func temporalPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) {
 			if negative {
 				raw = "-" + raw
 			}
-			return TypeName{RawPrecision: raw, PrecisionPos: tok.pos}, true
+			return TypeName{Modifiers: []TypeModifier{{Raw: raw, Pos: tok.pos}}}, true
 		}
 		l.(*lexer).syntax(tok)
 		return TypeName{}, false
 	}
 	p := int32(n)
-	return TypeName{Precision: &p, PrecisionPos: tok.pos}, true
+	return TypeName{Modifiers: []TypeModifier{{Integer: &p, Pos: tok.pos}}}, true
 }
 func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 	raw := columnType(tok)
@@ -296,11 +302,12 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).floatPrecision = true
 		return raw, true
 	}
-	if !raw.Quoted || raw.Name != "timestamp" && raw.Name != "time" {
+	if raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
 		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
 		return TypeName{}, false
 	}
-	l.(*lexer).genericTemporal = true
+	l.(*lexer).genericModifier = true
+	l.(*lexer).multipleModifiers = raw.Name == "numeric" || !raw.Quoted && (raw.Name == "decimal" || raw.Name == "dec")
 	return raw, true
 }
 

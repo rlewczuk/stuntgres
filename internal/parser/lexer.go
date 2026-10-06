@@ -28,11 +28,12 @@ type lexer struct {
 	hasLookahead   bool
 	rawUnicode     bool
 	floatPrecision bool
-	// Lexical evidence only: preserve numeric capability diagnostics outside a
-	// temporal modifier, whose unsigned-Iconst grammar requires syntax errors.
-	temporalLead     bool
-	temporalModifier bool
-	genericTemporal  bool
+	// Temporal keyword forms retain their unsigned-Iconst grammar; generic
+	// descriptor modifiers retain numeric spellings for subsequent int4 input.
+	temporalLead      bool
+	temporalModifier  bool
+	genericModifier   bool
+	multipleModifiers bool
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.
@@ -458,7 +459,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 		}
 		l.current.text = s
 		token = PARAM
-	case (l.floatPrecision || l.temporalModifier) && c == '.' && start+1 < len(l.input) && digit(l.input[start+1]):
+	case c == '.' && start+1 < len(l.input) && digit(l.input[start+1]):
 		if !l.floatNumericSyntax(start) {
 			return 0
 		}
@@ -470,7 +471,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 		}
 		l.current.text = l.input[start:l.offset]
 		token = NUMBER
-		l.current.generic = l.genericTemporal
+		l.current.generic = l.genericModifier
 	case initial(c):
 		for l.offset < len(l.input) && continuation(l.input[l.offset]) {
 			l.offset++
@@ -502,23 +503,21 @@ func (l *lexer) scan(v *sqlSymType) int {
 	default:
 		l.offset++
 		l.current.text = string(c)
+		token = int(c)
 		if c == 0 {
 			l.fail("42601", "NUL in SQL")
 			return 0
 		}
-		if (l.floatPrecision || l.temporalModifier) && c == '.' && l.offset < len(l.input) && l.input[l.offset] == '.' {
+		if c == '.' && l.offset < len(l.input) && l.input[l.offset] == '.' {
 			// Preserve the release DOT_DOT diagnostic spelling.
 			l.current.text = ".."
 			l.offset++
-		} else if c == '.' && l.offset < len(l.input) && digit(l.input[l.offset]) {
-			l.failAt("0A000", "non-integer literal is unsupported", start)
-			return 0
+			token = DOT_DOT
 		}
 		if c == ':' && l.offset < len(l.input) && l.input[l.offset] == ':' {
 			l.current.text = "::"
 			l.offset++
 		}
-		token = int(c)
 	}
 	if l.current.raw == "" {
 		l.current.raw = l.input[start:l.offset]
@@ -617,7 +616,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	if token.code == int(')') || token.code == int(',') || token.code == int(';') {
 		l.temporalModifier = false
-		l.genericTemporal = false
+		if token.code != int(',') {
+			l.genericModifier = false
+			l.multipleModifiers = false
+		}
 	}
 	l.temporalLead = token.code == TIMESTAMP || token.code == TIME || token.code == IDENT && columnType(token.lexeme).Quoted && (token.lexeme.text == "timestamp" || token.lexeme.text == "time")
 	return token.code
@@ -759,20 +761,15 @@ func (l *lexer) integerToken(start int) bool {
 			end, reason = junkEnd, "trailing junk after numeric literal"
 		}
 	}
-	// Keep valid decimal numeric constants unsupported, but do not hide
-	// integer junk such as 1efoo. Hexadecimal e is already a valid digit.
+	// Hexadecimal e is a digit; only decimal tokens enter real syntax.
 	if end == decimalEnd || reason != "" && decimalEnd < len(l.input) && (l.input[decimalEnd] == 'e' || l.input[decimalEnd] == 'E') {
 		if decimalEnd < len(l.input) && l.input[decimalEnd] == '.' {
-			if (l.floatPrecision || l.temporalModifier) && decimalEnd+1 < len(l.input) && l.input[decimalEnd+1] == '.' {
+			if decimalEnd+1 < len(l.input) && l.input[decimalEnd+1] == '.' {
 				// Release numericfail throws back both dots and returns Iconst.
 				l.offset = decimalEnd
 				return true
 			}
-			if l.floatPrecision || l.temporalModifier {
-				return l.floatNumericSyntax(start)
-			}
-			l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
-			return false
+			return l.floatNumericSyntax(start)
 		}
 		if decimalEnd < len(l.input) && (l.input[decimalEnd] == 'e' || l.input[decimalEnd] == 'E') {
 			exponent := decimalEnd + 1
@@ -791,7 +788,7 @@ func (l *lexer) integerToken(start int) bool {
 				// but not a longer identifier/separator suffix. Signed
 				// exponents also need the real_junk match beyond the sign.
 				if realJunkEnd == exponentEnd && exponentEnd >= end {
-					if l.genericTemporal {
+					if l.genericModifier {
 						l.offset = exponentEnd
 						l.current.numeric = true
 						return true
@@ -800,8 +797,9 @@ func (l *lexer) integerToken(start int) bool {
 						l.failAt("42601", "syntax error at or near \""+l.input[start:exponentEnd]+"\"", start)
 						return false
 					}
-					l.failAt("0A000", "non-decimal-integer literal is unsupported", start)
-					return false
+					l.offset = exponentEnd
+					l.current.numeric = true
+					return true
 				}
 				if realJunkEnd > end {
 					end, reason = realJunkEnd, "trailing junk after numeric literal"
@@ -820,9 +818,9 @@ func (l *lexer) integerToken(start int) bool {
 	return true
 }
 
-// Preserve release longest-match numeric diagnostics for FLOAT and timestamp.
-// Only quoted timestamp modifiers retain valid numeric spellings for subsequent
-// canonical int4 input; numeric scalar expressions remain unsupported.
+// Preserve release longest-match numeric diagnostics. FLOAT and keyword
+// timestamp modifiers reject real tokens; generic modifiers and scalars retain
+// their spelling for type-owned input.
 func (l *lexer) floatNumericSyntax(start int) bool {
 	end := start
 	if digit(l.input[end]) {
@@ -869,7 +867,7 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 	}
 	if junk {
 		l.failAt("42601", "trailing junk after numeric literal at or near \""+l.input[start:end]+"\"", start)
-	} else if l.genericTemporal {
+	} else if l.genericModifier || !l.floatPrecision && !l.temporalModifier {
 		l.offset = end
 		l.current.numeric = true
 		return true

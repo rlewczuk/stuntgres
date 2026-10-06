@@ -46,7 +46,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if out != "04:05:06.5" {
 		t.Fatal(out)
 	}
-	dest, _, _ := current.ResolveModifier(0)
+	dest, _, _ := current.ResolveModifiers(0)
 	node, err = b.bind(raw, expressionPolicy{context: assignmentContext, expected: dest, mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)

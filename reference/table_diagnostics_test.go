@@ -113,7 +113,7 @@ func TestReferenceTableCoreQuotedTypeNamesAndBoundaries(t *testing.T) {
 			run(unchanged)
 			// Genuine unsupported raw names and serial utility pseudo names are separate
 			// external-only controls, not nonexistent-type parity or native family support.
-			for _, name := range []string{"numeric", "name", "bpchar", "serial", "smallserial", "bigserial"} {
+			for _, name := range []string{"name", "bpchar", "serial", "smallserial", "bigserial"} {
 				q := `CREATE TABLE bad (id "` + name + `")`
 				s := referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "unsupported column type", Position: "22"})
 				s.prepared = prepared

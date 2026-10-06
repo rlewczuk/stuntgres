@@ -38,7 +38,7 @@ func (v Value) Timestamp() (int64, error) {
 	return v.integer, nil
 }
 func (d *Descriptor) validTypmod(p int32) bool {
-	return p == -1 || (d.id == Timestamp || d.id == Time) && p >= 0 && p <= 6
+	return p == -1 || (d.id == Timestamp || d.id == Time) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p)
 }
 func (u Usage) Valid() bool {
 	if !u.Type.Concrete() || !u.Type.validTypmod(u.Typmod) {
@@ -47,10 +47,31 @@ func (u Usage) Valid() bool {
 	return u.Collation == u.Type.Usage().Collation
 }
 
-// ResolveModifier returns an effective usage and optional provider warning.
+// ResolveModifiers returns an effective usage and optional provider warning.
 // Source positions and warning delivery belong to the statement owner.
-func (d *Descriptor) ResolveModifier(p int32) (Usage, *sqlstate.Error, error) {
+func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Error, error) {
 	u := d.Usage()
+	if d.id == Numeric {
+		if len(modifiers) < 1 || len(modifiers) > 2 {
+			return u, nil, failure("22023", "invalid NUMERIC type modifier")
+		}
+		p, s := modifiers[0], int32(0)
+		if len(modifiers) == 2 {
+			s = modifiers[1]
+		}
+		if p < 1 || p > 1000 {
+			return u, nil, failure("22023", fmt.Sprintf("NUMERIC precision %d must be between 1 and 1000", p))
+		}
+		if s < -1000 || s > 1000 {
+			return u, nil, failure("22023", fmt.Sprintf("NUMERIC scale %d must be between -1000 and 1000", s))
+		}
+		u.Typmod = ((p << 16) | (s & 2047)) + 4
+		return u, nil, nil
+	}
+	if len(modifiers) != 1 {
+		return u, nil, fmt.Errorf("type modifiers are unsupported")
+	}
+	p := modifiers[0]
 	if d.id != Timestamp && d.id != Time {
 		return u, nil, fmt.Errorf("type modifiers are unsupported")
 	}
@@ -67,6 +88,10 @@ func (d *Descriptor) ResolveModifier(p int32) (Usage, *sqlstate.Error, error) {
 func (u Usage) Declaration() (string, error) {
 	if !u.Valid() {
 		return "", fmt.Errorf("invalid declaration usage")
+	}
+	if u.Type.id == Numeric && u.Typmod >= 0 {
+		p, s := numericParts(u.Typmod)
+		return fmt.Sprintf("NUMERIC(%d,%d)", p, s), nil
 	}
 	if u.Typmod >= 0 {
 		return fmt.Sprintf("%s(%d)", u.Type.SQLName(), u.Typmod), nil

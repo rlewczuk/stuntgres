@@ -78,9 +78,17 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	// PostgreSQL resolves raw column modifiers again while building the
 	// relation descriptor, without a parser state/source position.
 	for _, element := range s.Elements {
-		if column := element.Column; column != nil && column.TypeName.Precision != nil {
+		if column := element.Column; column != nil && len(column.TypeName.Modifiers) > 0 {
 			i := d.index[column.Name]
-			usage, warning, err := d.columns[i].Usage.Type.ResolveModifier(*column.TypeName.Precision)
+			// Temporal modifiers emit a second descriptor-build warning.
+			if d.columns[i].Usage.Type.ID() != sqltype.Timestamp && d.columns[i].Usage.Type.ID() != sqltype.Time {
+				continue
+			}
+			modifier := column.TypeName.Modifiers[0]
+			if modifier.Integer == nil {
+				continue
+			}
+			usage, warning, err := d.columns[i].Usage.Type.ResolveModifiers(*modifier.Integer)
 			if err != nil {
 				return err
 			}

@@ -262,7 +262,7 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 	d := types[Timestamp]
 	ctx := context.Background()
 	for p, out := range []string{"2000-01-01 00:00:00", "2000-01-01 00:00:00.1", "2000-01-01 00:00:00.12", "2000-01-01 00:00:00.123", "2000-01-01 00:00:00.1235", "2000-01-01 00:00:00.12346", "2000-01-01 00:00:00.123456"} {
-		u, w, e := d.ResolveModifier(int32(p))
+		u, w, e := d.ResolveModifiers(int32(p))
 		if e != nil || w != nil || u.Typmod != int32(p) {
 			t.Fatal(u, w, e)
 		}
@@ -308,8 +308,8 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 		}
 	}
 	v, _ := d.Input(ctx, "2000-01-01 00:00:00.1245", -1)
-	u3, _, _ := d.ResolveModifier(3)
-	u2, _, _ := d.ResolveModifier(2)
+	u3, _, _ := d.ResolveModifiers(3)
+	u2, _, _ := d.ResolveModifiers(2)
 	p3, _ := PlanCoercion(d.Usage(), u3, Assignment)
 	p2, _ := PlanCoercion(u3, u2, Assignment)
 	v, _ = p3.Apply(ctx, v)
@@ -368,12 +368,12 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 	if _, e := TimestampValue(d, math.MaxInt64-1); e == nil {
 		t.Fatal("out of range constructor")
 	}
-	u, w, e := d.ResolveModifier(7)
+	u, w, e := d.ResolveModifiers(7)
 	want := sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "TIMESTAMP(7) precision reduced to maximum allowed, 6"}
 	if e != nil || u.Typmod != 6 || w == nil || *w != want {
 		t.Fatal(u, w, e)
 	}
-	_, _, e = d.ResolveModifier(-1)
+	_, _, e = d.ResolveModifiers(-1)
 	var diagnostic *sqlstate.Error
 	if !errors.As(e, &diagnostic) || diagnostic.Message != "TIMESTAMP(-1) precision must not be negative" || diagnostic.Code != "22023" {
 		t.Fatal(e)

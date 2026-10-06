@@ -14,7 +14,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	p := int32(3)
-	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp", Precision: &p, Pos: parser.Position{Offset: 7, Character: 8}}, Text: "now", Pos: parser.Position{Offset: 20, Character: 21}}
+	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp", Modifiers: []parser.TypeModifier{{Integer: &p}}, Pos: parser.Position{Offset: 7, Character: 8}}, Text: "now", Pos: parser.Position{Offset: 20, Character: 21}}
 	first := sqltype.InputEnvironment{TransactionStart: time.Date(2024, 12, 31, 23, 59, 59, 123456000, time.UTC)}
 	b := newExpressionBinder(ctx, e, first, nil, nil)
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -50,7 +50,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	if err != nil || v.Type() != current || got != n || node.ResultUsage().Typmod != 3 || !reflect.DeepEqual(before, wantDesc.temporals) {
 		t.Fatal(v, node.ResultUsage(), err)
 	}
-	dest, _, _ := current.ResolveModifier(0)
+	dest, _, _ := current.ResolveModifiers(0)
 	b = newExpressionBinder(ctx, e, later, nil, &wantDesc)
 	node, err = b.bind(raw, expressionPolicy{context: assignmentContext, expected: dest, mode: sqltype.Assignment})
 	if err != nil {

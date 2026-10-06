@@ -22,7 +22,7 @@ func TestTimeDeclarationsAndPositions(t *testing.T) {
 		if raw.Name != "time" || raw.Pos.Character != utf8.RuneCountInString(q[:strings.Index(q, decl)])+1 {
 			t.Fatal(raw)
 		}
-		if strings.Contains(decl, "(") && raw.Precision == nil {
+		if strings.Contains(decl, "(") && (len(raw.Modifiers) != 1 || raw.Modifiers[0].Integer == nil) {
 			t.Fatal("missing precision", raw)
 		}
 	}
@@ -32,7 +32,7 @@ func TestTimeDeclarationsAndPositions(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := statements[0].(*Select).Targets[0].(TypedLiteralExpr)
-	if raw.Text != "24:00" || raw.TypeName.Name != "time" || raw.TypeName.Precision == nil || *raw.TypeName.Precision != 3 {
+	if raw.Text != "24:00" || raw.TypeName.Name != "time" || len(raw.TypeName.Modifiers) != 1 || raw.TypeName.Modifiers[0].Integer == nil || *raw.TypeName.Modifiers[0].Integer != 3 {
 		t.Fatal(raw)
 	}
 	for _, tc := range []struct {
@@ -71,7 +71,7 @@ func TestTimePrecisionScannerAndBoundaries(t *testing.T) {
 				t.Fatal(q, err)
 			}
 			raw := statements[0].(*CreateTable).Elements[0].Column.TypeName
-			if raw.RawPrecision != number || raw.Precision != nil {
+			if len(raw.Modifiers) != 1 || raw.Modifiers[0].Raw != number || raw.Modifiers[0].Integer != nil {
 				t.Fatal(raw)
 			}
 		}
@@ -82,7 +82,7 @@ func TestTimePrecisionScannerAndBoundaries(t *testing.T) {
 			t.Fatal(err)
 		}
 		raw := statements[0].(*CreateTable).Elements[0].Column.TypeName
-		if raw.Precision == nil || *raw.Precision != 3 {
+		if len(raw.Modifiers) != 1 || raw.Modifiers[0].Integer == nil || *raw.Modifiers[0].Integer != 3 {
 			t.Fatal(raw)
 		}
 	}

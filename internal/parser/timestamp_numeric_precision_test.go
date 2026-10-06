@@ -27,7 +27,7 @@ func TestTimestampGenericNumericPrecisionRawTokens(t *testing.T) {
 					t.Fatal(q, err)
 				}
 				raw := stmts[0].(*CreateTable).Elements[0].Column.TypeName
-				if raw.RawPrecision != tc.raw || raw.Precision != nil || raw.Pos.Character != 20 || raw.UnaryPlus != strings.HasPrefix(tc.sql, "+") {
+				if raw.Modifiers[0].Raw != tc.raw || raw.Modifiers[0].Integer != nil || raw.Pos.Character != 20 || raw.Modifiers[0].UnaryPlus != strings.HasPrefix(tc.sql, "+") {
 					t.Fatal(q, raw, tc.raw)
 				}
 			}
@@ -45,11 +45,11 @@ func TestTimestampGenericUnaryPlusPrecisionAST(t *testing.T) {
 					t.Fatal(q, err)
 				}
 				raw := stmts[0].(*CreateTable).Elements[0].Column.TypeName
-				if !raw.UnaryPlus || raw.Pos.Character != 20 {
+				if !raw.Modifiers[0].UnaryPlus || raw.Pos.Character != 20 {
 					t.Fatal(q, raw)
 				}
 				if number == "+2147483648" {
-					if raw.RawPrecision != "2147483648" || raw.Precision != nil {
+					if raw.Modifiers[0].Raw != "2147483648" || raw.Modifiers[0].Integer != nil {
 						t.Fatal(raw)
 					}
 				} else {
@@ -60,7 +60,7 @@ func TestTimestampGenericUnaryPlusPrecisionAST(t *testing.T) {
 					if number == "+7" {
 						want = 7
 					}
-					if raw.Precision == nil || *raw.Precision != want || raw.RawPrecision != "" {
+					if raw.Modifiers[0].Integer == nil || *raw.Modifiers[0].Integer != want || raw.Modifiers[0].Raw != "" {
 						t.Fatal(raw, want)
 					}
 				}
