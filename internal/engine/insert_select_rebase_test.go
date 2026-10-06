@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"reflect"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -19,8 +18,40 @@ func TestInsertSelectIntegratedExpressions(t *testing.T) {
 	}
 	result = run(t, e, "SELECT i,b,d,v FROM t ORDER BY i")
 	defer result.Rows.Close()
-	want := [][]driver.Value{{int64(1), true, "2026-10-06", []byte("A")}, {int64(2), false, nil, nil}}
-	if got := tuples(result); !reflect.DeepEqual(got, want) {
+	wantTypes := []sqltype.ID{sqltype.Int4, sqltype.Bool, sqltype.Date, sqltype.Bytea}
+	if len(result.Rows.Schema()) != len(wantTypes) {
+		t.Fatal("destination width", result.Rows.Schema())
+	}
+	for i, column := range result.Rows.Schema() {
+		if column.Usage.Type.ID() != wantTypes[i] {
+			t.Fatal("destination type", i, column)
+		}
+	}
+	want := [][]any{{"1", "t", "2026-10-06", `\x41`}, {"2", "f", nil, nil}}
+	got := make([][]any, 0, len(want))
+	values := make([]sqltype.Value, len(wantTypes))
+	for {
+		present, err := result.Rows.Next(context.Background(), values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !present {
+			break
+		}
+		row := make([]any, len(values))
+		for i, value := range values {
+			if value.IsNull() {
+				continue
+			}
+			text, err := value.Type().Output(context.Background(), value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			row[i] = text
+		}
+		got = append(got, row)
+	}
+	if !reflect.DeepEqual(got, want) {
 		t.Fatal(got, want)
 	}
 	result = run(t, e, "INSERT INTO t(i) VALUES(int4('3'::text)),(CAST('4' AS INT)) ORDER BY 1")

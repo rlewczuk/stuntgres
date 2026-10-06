@@ -196,10 +196,10 @@ Arithmetic/general functions/nonbaseline casts, aliases, rows/composites and no-
 queries remain excluded except for the selected call roots described above.
 Null-count calls remain standalone projection roots, not predicate operands;
 predicate expressions remain excluded from their arguments.
-INSERT/settings arguments remain scalar-only.
-Failure-only INSERT SELECT recognition includes these existing projection roots
-without executing them: `INSERT INTO t SELECT num_nulls(v) FROM t` fails0A000
-at SELECT (15), while trailing `VALUES (1)` instead fails42601 at VALUES (42).
+Ordinary INSERT VALUES/settings arguments remain scalar-only. INSERT SELECT
+executes existing predicate and selected null-count projection roots through the
+common query pipeline; a trailing `VALUES (1)` in
+`INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)` still fails42601 at VALUES (42).
 Genuinely unsupported calls retain their existing call guards.
 Native controls retain finalized computed BOOL
 values/metadata; dependency/ACL use includes both DISTINCT operands.

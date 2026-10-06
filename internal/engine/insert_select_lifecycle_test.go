@@ -117,7 +117,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				}
 				return original.Eval(c)
 			})
-			rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public")
+			rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public", scope.output)
 			if err != nil || len(rows) != 2 || calls != 2 || source.view != nil {
 				t.Fatal(rows, err, calls, source.view)
 			}

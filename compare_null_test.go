@@ -414,11 +414,28 @@ func TestCompareNullFunctionBoundaries(t *testing.T) {
 
 func TestCompareNullFunctionInsertSelectDiagnostics(t *testing.T) {
 	_, db := compareNullSetup(t)
+	execSQL(t, db, "CREATE TABLE counts(n INT)")
+	for _, prepared := range []bool{false, true} {
+		query := "INSERT INTO counts SELECT num_nulls(v) FROM t"
+		var result sql.Result
+		var err error
+		if prepared {
+			stmt, prepareErr := db.Prepare(query)
+			if prepareErr != nil {
+				t.Fatal(prepareErr)
+			}
+			result, err = stmt.Exec()
+			stmt.Close()
+		} else {
+			result, err = db.Exec(query)
+		}
+		insertSelectCount(t, result, err, 4)
+	}
+	wantTuples(t, db, "SELECT n FROM counts ORDER BY n", [][]any{{int64(0)}, {int64(0)}, {int64(0)}, {int64(0)}, {int64(0)}, {int64(0)}, {int64(1)}, {int64(1)}})
 	for _, tc := range []struct {
 		q    string
 		want stuntgres.Error
 	}{
-		{"INSERT INTO t SELECT num_nulls(v) FROM t", stuntgres.Error{Code: "0A000", Message: "INSERT SELECT is unsupported", Position: "15"}},
 		{"INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", stuntgres.Error{Code: "42601", Message: `syntax error at or near "VALUES"`, Position: "42"}},
 	} {
 		rows, err := db.Query(tc.q)

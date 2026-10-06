@@ -118,9 +118,23 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 			t.Fatal("admitted excluded syntax", q, statements, err)
 		}
 	}
-	keywordDiagnostic(t, "INSERT INTO t SELECT v IS NULL FROM t", "0A000", "INSERT SELECT is unsupported", "15")
+	statements, err = Parse("INSERT INTO t SELECT v IS NULL FROM t")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	source := statements[0].(*Insert).Source.Select
+	if predicate, ok := source.Targets[0].(PredicateExpr); !ok || predicate.Kind != IsNull {
+		t.Fatal("INSERT source lost its null predicate", source)
+	}
 	keywordDiagnostic(t, "INSERT INTO t SELECT v IS NULL FROM t VALUES (1)", "42601", `syntax error at or near "VALUES"`, "39")
-	keywordDiagnostic(t, "INSERT INTO t SELECT num_nulls(v) FROM t", "0A000", "INSERT SELECT is unsupported", "15")
+	statements, err = Parse("INSERT INTO t SELECT num_nulls(v) FROM t")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	source = statements[0].(*Insert).Source.Select
+	if call, ok := source.Targets[0].(FunctionExpr); !ok || call.Name.Parts[0].Text != "num_nulls" {
+		t.Fatal("INSERT source lost its selected function", source)
+	}
 	keywordDiagnostic(t, "INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", "42601", `syntax error at or near "VALUES"`, "42")
 	// UNKNOWN remains a type-name tail before a postfix target can reduce to
 	// a projection alias, matching the existing adjacent-type shift policy.

@@ -1658,11 +1658,10 @@ arguments. ANY and null-test unknown occurrences share binding-order validation:
 `num_nulls($2),$1 IS NULL,$1 IS TRUE,$2 IS TRUE` fails42P08 for$2 at18,
 while reversing the first two targets fails for$1 at8. Still-unresolved
 occurrences do not mask a later mismatch, and mismatches precede slot gaps.
-INSERT and settings retain their existing scalar-only admission.
-Failure-only INSERT SELECT recognition reuses the same admitted projection roots;
-it does not execute INSERT SELECT. `INSERT INTO t SELECT num_nulls(v) FROM t`
-fails `0A000` (`INSERT SELECT is unsupported`) at SELECT, character15.
-Appending `VALUES (1)` instead reports `42601` at VALUES, character42, so an
+Ordinary INSERT VALUES and settings retain scalar-only arguments. INSERT SELECT
+executes the same admitted predicate and selected null-count projection roots;
+`INSERT INTO counts SELECT num_nulls(v) FROM t` inserts one count per source row.
+Appending `VALUES (1)` instead reports `42601` at VALUES, character47, so an
 implemented projection call cannot mask a malformed trailing suffix.
 
 Executable acceptance (run these commands to establish verification):

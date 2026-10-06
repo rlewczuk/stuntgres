@@ -316,16 +316,16 @@ func valuesColumnDistance(name string, key, left, right []int, limit int) int {
 
 // evaluateInsertQuery owns the source pin and all destination rows. Evaluation
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
-func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string) ([][]sqltype.Value, error) {
+func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
 	defer source.close()
 	stage, err := openQueryNode(ctx, &queryState{source: source, parameters: parameters}, b.query.Root)
 	if err != nil {
 		return nil, err
 	}
-	return assembleInsertRows(ctx, b, &stage, stage.count(), schema)
+	return assembleInsertRows(ctx, b, &stage, stage.count(), schema, output)
 }
 
-func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string) (rows [][]sqltype.Value, err error) {
+func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, output sqltype.OutputEnvironment) (rows [][]sqltype.Value, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -368,7 +368,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return nil, err
 			}
 			if row[j].IsNull() && !c.Nullable {
-				return nil, notNullError(schema, b.relation.name, c.Name, row)
+				return nil, notNullError(schema, b.relation.name, c.Name, row, output)
 			}
 		}
 		rows[i] = row

@@ -42,7 +42,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		projection := columnExpression{expressionInfo: expressionInfo{usage: usage, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 		query := &BoundQuery{Root: &projectNode{querySchema: schema, child: sorted, expressions: []BoundExpr{projection}}}
 		source := &querySource{}
-		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public")
+		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public", sqltype.OutputEnvironment{})
 		if err != nil || len(rows) != count || source.anonymous != nil {
 			t.Fatal(rows, err, source.anonymous)
 		}

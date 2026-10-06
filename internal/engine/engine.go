@@ -882,7 +882,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 			e.mu.Unlock()
 			b.query = &BoundQuery{Root: queryRoot}
-			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema)
+			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.output)
 			if queryErr != nil {
 				return Result{}, queryErr
 			}
