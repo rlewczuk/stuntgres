@@ -196,6 +196,7 @@ const (
 	UsagePrivilege
 	CreatePrivilege
 	DeletePrivilege
+	UpdatePrivilege
 )
 
 type ACLGrantee struct {
@@ -357,7 +358,7 @@ func classPrivileges(d Descriptor) Privileges {
 	if d.Kind() == NamespaceObject {
 		return UsagePrivilege | CreatePrivilege
 	}
-	return SelectPrivilege | InsertPrivilege | DeletePrivilege
+	return SelectPrivilege | InsertPrivilege | DeletePrivilege | UpdatePrivilege
 }
 func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
 	if v.engine == nil || v.catalog.state == nil || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {
@@ -538,31 +539,39 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
-	if err := v.checkRelationBinding(b, stmt); err != nil {
-		return err
-	}
-	if insert, ok := stmt.(*parser.Insert); ok && b.sourceRelation != nil {
-		return v.checkRelationBinding(binding{ref: b.sourceRef, relation: b.sourceRelation, usedColumns: b.usedColumns}, insert.Source.Select)
-	}
-	return nil
-}
-
-func (v AuthorizationView) checkRelationBinding(b binding, stmt parser.Statement) error {
-	if _, selectStmt := stmt.(*parser.Select); selectStmt && b.relation == nil && b.query != nil {
+	if b.relation == nil && b.query != nil {
 		return nil
 	}
-	mask, indices := SelectPrivilege, b.usedColumns
 	switch stmt.(type) {
 	case *parser.Insert:
-		mask, indices = InsertPrivilege, b.targets
+		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {
+			return err
+		}
+		if b.sourceRelation != nil {
+			return v.checkColumns(binding{ref: b.sourceRef, relation: b.sourceRelation}, SelectPrivilege, b.usedColumns)
+		}
+		return nil
 	case *parser.Delete:
 		if err := v.Check(AccessRequirement{Object: b.ref, Privileges: DeletePrivilege}); err != nil {
 			return err
 		}
-		if len(indices) == 0 {
+		if len(b.usedColumns) == 0 {
 			return nil
 		}
+		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
+	case *parser.Update:
+		if err := v.checkColumns(b, UpdatePrivilege, b.targets); err != nil {
+			return err
+		}
+		if len(b.usedColumns) == 0 {
+			return nil
+		}
+		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
+	default:
+		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
 	}
+}
+func (v AuthorizationView) checkColumns(b binding, mask Privileges, indices []int) error {
 	whole, err := v.Effective(b.ref, false)
 	if err != nil {
 		return err

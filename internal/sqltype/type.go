@@ -5,6 +5,7 @@ package sqltype
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -446,6 +447,7 @@ const (
 	numericConversion
 	integerBoolean
 	booleanInteger
+	floatIntegerConversion
 )
 
 type CoercionPlan struct {
@@ -480,6 +482,12 @@ var baselineCasts = [...]castSpec{
 	{Int8, Float8, Implicit, floatConversion},
 	{Float4, Float8, Implicit, floatConversion},
 	{Float8, Float4, Assignment, floatConversion},
+	{Float4, Int2, Assignment, floatIntegerConversion},
+	{Float4, Int4, Assignment, floatIntegerConversion},
+	{Float4, Int8, Assignment, floatIntegerConversion},
+	{Float8, Int2, Assignment, floatIntegerConversion},
+	{Float8, Int4, Assignment, floatIntegerConversion},
+	{Float8, Int8, Assignment, floatIntegerConversion},
 	{Float4, Text, Assignment, viaIO},
 	{Float8, Text, Assignment, viaIO},
 	{Int4, Numeric, Implicit, numericConversion},
@@ -563,6 +571,21 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 			n = 1
 		}
 		return Integer(p.target.Type, n)
+	case floatIntegerConversion:
+		n := math.RoundToEven(v.floating)
+		limit, name := float64(2147483648), "integer"
+		switch p.target.Type.id {
+		case Int2:
+			limit, name = 32768, "smallint"
+		case Int8:
+			limit, name = 9223372036854775808, "bigint"
+		}
+		// Check the rounded float before converting: +2^63 cannot be represented
+		// by int64, while the exactly represented -2^63 is a valid minimum.
+		if math.IsNaN(n) || n < -limit || n >= limit {
+			return Value{}, failure("22003", name+" out of range")
+		}
+		return Integer(p.target.Type, int64(n))
 	case floatConversion:
 		n := v.floating
 		if v.typ.id == Int2 || v.typ.id == Int4 || v.typ.id == Int8 {

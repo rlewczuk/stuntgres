@@ -195,6 +195,19 @@ type Delete struct {
 
 func (*Delete) statement() {}
 
+type Update struct {
+	Name        ObjectName
+	Assignments []UpdateAssignment
+	Where       Expr
+	Pos         Position
+}
+type UpdateAssignment struct {
+	Target Identifier
+	Value  Expr
+}
+
+func (*Update) statement() {}
+
 type Select struct {
 	Name    ObjectName
 	Star    bool

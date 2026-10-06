@@ -51,7 +51,9 @@ type rowVersion struct {
 	row     RowID
 	version VersionID
 	born    CommitSeq
-	values  []sqltype.Value
+	// base is the committed predecessor for a private replacement; zero is an insert.
+	base   VersionID
+	values []sqltype.Value
 }
 
 type transactionOwner struct {
@@ -200,10 +202,11 @@ type StatementScope struct {
 }
 
 type WriteStage struct {
-	self    *WriteStage
-	scope   *StatementScope
-	rows    map[ObjectAddress][]rowVersion
-	deletes map[ObjectAddress]*privateDeletionRoot
+	self      *WriteStage
+	scope     *StatementScope
+	rows      map[ObjectAddress][]rowVersion
+	deletes   map[ObjectAddress]*privateDeletionRoot
+	replacing bool
 }
 
 func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
@@ -266,7 +269,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	t.mu.Unlock()
 	if idle {
 		switch stmt.(type) {
-		case *parser.Insert, *parser.Select, *parser.Delete:
+		case *parser.Insert, *parser.Update, *parser.Select, *parser.Delete:
 			e.replacementMu.RLock()
 			s.replacementRead = true
 		case *parser.Comment:
@@ -374,10 +377,14 @@ func (w *WriteStage) Apply(ref ObjectRef, rows [][]sqltype.Value) error {
 	if n > ^uint64(0)-e.nextRow {
 		return errors.New("stuntgres: row identity exhausted")
 	}
+	if n > ^uint64(0)-e.nextVersion {
+		return errors.New("stuntgres: version identity exhausted")
+	}
 	versions := make([]rowVersion, len(rows))
 	for i, row := range rows {
 		e.nextRow++
-		versions[i] = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextRow), values: row}
+		e.nextVersion++
+		versions[i] = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row}
 	}
 	if w.rows == nil {
 		w.rows = make(map[ObjectAddress][]rowVersion)
@@ -425,7 +432,7 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 }
 
 // Prepare only vector headers/capacity. Tail writes follow the final preflight.
-func prepareOwnWrites(previous, staged map[ObjectAddress][]rowVersion) map[ObjectAddress][]rowVersion {
+func prepareOwnWrites(previous, staged map[ObjectAddress][]rowVersion, replacing bool) map[ObjectAddress][]rowVersion {
 	if len(staged) == 0 {
 		return previous
 	}
@@ -435,6 +442,10 @@ func prepareOwnWrites(previous, staged map[ObjectAddress][]rowVersion) map[Objec
 	}
 	for a, rows := range staged {
 		old := previous[a]
+		if replacing {
+			next[a] = mergePrivateRows(old, rows, true)
+			continue
+		}
 		if len(old) == 0 {
 			next[a] = rows
 			continue
@@ -483,7 +494,7 @@ func (s *StatementScope) Finish(err error) error {
 			}
 		} else {
 			deletes := mergeDeletions(t.deletes, s.stage.deletes)
-			writes := prepareOwnWrites(t.writes, s.stage.rows)
+			writes := prepareOwnWrites(t.writes, s.stage.rows, s.stage.replacing)
 			session := s.op.session
 			e.mu.Lock()
 			session.mu.Lock()
@@ -493,7 +504,9 @@ func (s *StatementScope) Finish(err error) error {
 			}
 			if err == nil {
 				for a, rows := range s.stage.rows {
-					copy(writes[a][len(t.writes[a]):], rows)
+					if !s.stage.replacing && len(t.writes[a]) != 0 {
+						copy(writes[a][len(t.writes[a]):], rows)
+					}
 				}
 				t.writes = writes
 				t.deletes = deletes
@@ -660,9 +673,20 @@ func (v *VisibilityView) Command() CommandID   { return v.read().command }
 func (v *VisibilityView) Frontier() CommitSeq  { return v.read().frontier }
 func (v *VisibilityView) Catalog() CatalogRead { return v.read().catalog }
 
-// Publication grows vectors geometrically, outside final locks. Spare capacity
-// is written only after final preflight, under Engine.mu; captured prefixes are
-// never rewritten. A peer append causes re-preparation, not SQL re-execution.
+// Prepare immutable replacement heads/end roots outside final locks. Appends
+// retain geometric capacity; final installation follows one all-relations veto.
+type rowPublication struct {
+	address            ObjectAddress
+	store              *relationStorage
+	relation           *relationDescriptor
+	root, next, writes []rowVersion
+	ends, nextEnds     *deletionRoot
+	deletion           *privateDeletionRoot
+	generation         uint64
+	slots              []int
+	singleSlot         int
+}
+
 func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot) error {
 	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || ref.attachment == nil || ref.owner != e || ref.session != op.session.token || ref.attachment != op.session.transactions || ref.id == 0 || ref != ref.attachment.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
@@ -671,11 +695,10 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 		return errors.New("stuntgres: inactive publication transaction")
 	}
 	if len(writes) == 0 && len(deletes) == 0 {
-		session := op.session
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		session.mu.Lock()
-		defer session.mu.Unlock()
+		op.session.mu.Lock()
+		defer op.session.mu.Unlock()
 		if err := publicationOperationLocked(e, op); err != nil {
 			return err
 		}
@@ -685,160 +708,193 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 		return nil
 	}
 	for {
+		prepared := make([]rowPublication, 0, len(writes)+len(deletes))
 		e.mu.Lock()
 		if ref.epoch != e.state.epoch {
 			e.mu.Unlock()
 			return ErrCatalogReplaced
 		}
-		if e.commitSeq == CommitSeq(^uint64(0)) {
-			e.mu.Unlock()
-			return errors.New("stuntgres: commit sequence exhausted")
-		}
-		capacity := len(writes) + len(deletes)
-		roots := make(map[ObjectAddress][]rowVersion, capacity)
-		stores := make(map[ObjectAddress]*relationStorage, capacity)
-		var ends map[ObjectAddress]*deletionRoot
-		if len(deletes) != 0 {
-			ends = make(map[ObjectAddress]*deletionRoot, capacity)
-		}
-		for a := range writes {
-			storage := e.storage[a]
-			if storage == nil {
-				e.mu.Unlock()
-				return errors.New("stuntgres: relation storage is missing")
+		capture := func(a ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
+			store := e.storage[a]
+			relation, live := e.state.descriptors[a].(*relationDescriptor)
+			if store == nil || !live || a.SubID != 0 {
+				return ErrCatalogReplaced
 			}
-			roots[a] = storage.versions
-			stores[a] = storage
-			if ends != nil {
-				ends[a] = storage.ends
-			}
+			prepared = append(prepared, rowPublication{address: a, store: store, relation: relation, root: store.versions, writes: rows, ends: store.ends, deletion: deletion, generation: store.generation, singleSlot: -1})
+			return nil
 		}
-		for a := range deletes {
-			if stores[a] != nil {
-				continue
-			}
-			storage := e.storage[a]
-			if storage == nil {
-				e.mu.Unlock()
-				return errors.New("stuntgres: relation storage is missing")
-			}
-			roots[a], stores[a], ends[a] = storage.versions, storage, storage.ends
-		}
-		e.mu.Unlock()
-		var next map[ObjectAddress][]rowVersion
-		if len(writes) != 0 {
-			next = make(map[ObjectAddress][]rowVersion, len(writes))
-		}
+		var err error
 		for a, rows := range writes {
-			root := roots[a]
-			size := len(root) + len(rows)
-			if size <= cap(root) {
-				next[a] = root[:size]
-				continue
+			if err = capture(a, rows, deletes[a]); err != nil {
+				break
 			}
-			capacity := cap(root) * 2
-			if capacity < size {
-				capacity = size
-			}
-			dst := make([]rowVersion, size, capacity)
-			copy(dst, root)
-			next[a] = dst
 		}
-		var nextEnds map[ObjectAddress]*deletionRoot
-		if len(deletes) != 0 {
-			nextEnds = make(map[ObjectAddress]*deletionRoot, len(deletes))
-		}
-		for a, deletion := range deletes {
-			n := len(deletion.rows)
-			if ends[a] != nil {
-				n += len(ends[a].rows)
-			}
-			root := &deletionRoot{rows: make(map[RowID]rowEnd, n)}
-			if ends[a] != nil {
-				for id, end := range ends[a].rows {
-					root.rows[id] = end
+		if err == nil {
+			for a, deletion := range deletes {
+				if _, written := writes[a]; written {
+					continue
+				}
+				if err = capture(a, nil, deletion); err != nil {
+					break
 				}
 			}
-			for id, candidate := range deletion.rows {
-				root.rows[id] = rowEnd{version: candidate.version}
+		}
+		e.mu.Unlock()
+		if err != nil {
+			return err
+		}
+		for i := range prepared {
+			p := &prepared[i]
+			inserts, replacements := 0, 0
+			for _, row := range p.writes {
+				if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(p.relation.columns) {
+					return errors.New("stuntgres: invalid private row version")
+				}
+				if row.base == 0 {
+					inserts++
+				} else {
+					replacements++
+				}
 			}
-			nextEnds[a] = root
+			size := len(p.root) + inserts
+			if replacements == 0 && size <= cap(p.root) {
+				p.next = p.root[:size]
+			} else {
+				capacity := max(size, cap(p.root)*2)
+				if replacements != 0 {
+					capacity = size
+				}
+				p.next = make([]rowVersion, size, capacity)
+				copy(p.next, p.root)
+			}
+			if replacements != 0 {
+				var index map[RowID]int
+				if replacements > 1 {
+					index = make(map[RowID]int, len(p.root))
+					for slot, row := range p.root {
+						index[row.row] = slot
+					}
+				}
+				if len(p.writes) > 1 {
+					p.slots = make([]int, len(p.writes))
+				}
+				tail := len(p.root)
+				for j, row := range p.writes {
+					if row.base == 0 {
+						p.slots[j] = tail
+						tail++
+						continue
+					}
+					var predecessor rowVersion
+					var slot int
+					var found bool
+					if index != nil {
+						slot, found = index[row.row]
+						if found {
+							predecessor = p.root[slot]
+						}
+					} else {
+						predecessor, slot, found = rowByID(p.root, row.row, -1)
+					}
+					if !found || predecessor.version != row.base || !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {
+						return errors.New("stuntgres: stale update predecessor")
+					}
+					if p.slots == nil {
+						p.singleSlot = slot
+					} else {
+						p.slots[j] = slot
+					}
+				}
+			}
+			if p.deletion != nil {
+				count := len(p.deletion.rows)
+				if p.ends != nil {
+					count += len(p.ends.rows)
+				}
+				p.nextEnds = &deletionRoot{rows: make(map[RowID]rowEnd, count)}
+				if p.ends != nil {
+					for id, end := range p.ends.rows {
+						p.nextEnds.rows[id] = end
+					}
+				}
+				for id, candidate := range p.deletion.rows {
+					if candidate.ref.owner != e.owner || candidate.ref.Epoch != ref.epoch || candidate.ref.Address != p.address || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage != p.store {
+						return ErrCatalogReplaced
+					}
+					predecessors := p.root
+					if candidate.own {
+						predecessors = p.writes
+					}
+					predecessor, _, found := rowByID(predecessors, id, candidate.ordinal)
+					if !found || predecessor.version != candidate.version || len(predecessor.values) != len(p.relation.columns) {
+						return errors.New("stuntgres: invalid deletion predecessor")
+					}
+					if !candidate.own && !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {
+						return errors.New("stuntgres: deletion predecessor already ended")
+					}
+					p.nextEnds.rows[id] = rowEnd{version: candidate.version}
+				}
+			}
 		}
 		session := op.session
 		e.mu.Lock()
 		session.mu.Lock()
-		err := publicationOperationLocked(e, op)
+		err = publicationOperationLocked(e, op)
 		if err == nil && ref.epoch != e.state.epoch {
 			err = ErrCatalogReplaced
 		}
 		if err == nil && e.commitSeq == CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
+		changed := false
+		if err == nil {
+			for _, p := range prepared {
+				if e.storage[p.address] != p.store || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
+					changed = true
+					break
+				}
+				current, ok := e.state.descriptors[p.address].(*relationDescriptor)
+				if !ok || !sameRelationRowShape(p.relation, current) {
+					err = ErrCatalogReplaced
+					break
+				}
+				if p.store.generation == ^uint64(0) {
+					err = errors.New("stuntgres: storage generation exhausted")
+					break
+				}
+			}
+		}
 		if err != nil {
 			session.mu.Unlock()
 			e.mu.Unlock()
 			return err
-		}
-		changed := false
-		for a, storage := range stores {
-			if e.storage[a] != storage || len(storage.versions) != len(roots[a]) || ends != nil && storage.ends != ends[a] {
-				changed = true
-			}
 		}
 		if changed {
 			session.mu.Unlock()
 			e.mu.Unlock()
 			continue
 		}
-		for a, deletion := range deletes {
-			relation, live := e.state.descriptors[a].(*relationDescriptor)
-			if !live || a.SubID != 0 {
-				err = ErrCatalogReplaced
-				break
-			}
-			for id, candidate := range deletion.rows {
-				if candidate.ref.owner != e.owner || candidate.ref.Epoch != ref.epoch || candidate.ref.Address != a || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage == nil || candidate.storage != stores[a] {
-					err = ErrCatalogReplaced
-					break
+		// No callback, allocation or failure remains after this point.
+		for _, p := range prepared {
+			for i, row := range p.writes {
+				slot := len(p.root) + i
+				if p.slots != nil {
+					slot = p.slots[i]
 				}
-				predecessors := roots[a]
-				if candidate.own {
-					predecessors = writes[a]
+				if p.singleSlot >= 0 {
+					slot = p.singleSlot
 				}
-				if candidate.ordinal < 0 || candidate.ordinal >= len(predecessors) || predecessors[candidate.ordinal].row != id || predecessors[candidate.ordinal].version != candidate.version || len(predecessors[candidate.ordinal].values) != len(relation.columns) {
-					err = errors.New("stuntgres: invalid deletion predecessor")
-					break
+				row.born, row.base = e.commitSeq+1, 0
+				p.next[slot] = row
+			}
+			if p.nextEnds != nil {
+				for id, candidate := range p.deletion.rows {
+					p.nextEnds.rows[id] = rowEnd{version: candidate.version, end: e.commitSeq + 1}
 				}
-				if ends[a] != nil {
-					if _, ended := ends[a].rows[id]; ended {
-						err = errors.New("stuntgres: deletion predecessor already ended")
-						break
-					}
-				}
+				p.store.ends = p.nextEnds
 			}
-			if err != nil {
-				break
-			}
-		}
-		if err != nil {
-			session.mu.Unlock()
-			e.mu.Unlock()
-			return err
-		}
-		// All fallible work and allocations are complete. One critical section
-		// installs every relation and frontier; no callback can see a half batch.
-		for a, rows := range next {
-			copy(rows[len(roots[a]):], writes[a])
-			for i := len(roots[a]); i < len(rows); i++ {
-				rows[i].born = e.commitSeq + 1
-			}
-			stores[a].versions = rows
-		}
-		for a, root := range nextEnds {
-			for id, candidate := range deletes[a].rows {
-				root.rows[id] = rowEnd{version: candidate.version, end: e.commitSeq + 1}
-			}
-			stores[a].ends = root
+			p.store.versions = p.next
+			p.store.generation++
 		}
 		e.commitSeq++
 		session.mu.Unlock()

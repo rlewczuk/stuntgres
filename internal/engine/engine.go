@@ -28,6 +28,7 @@ type Engine struct {
 	sessions            map[SessionToken]*Session
 	settingsDefinitions map[string]SettingDefinition
 	nextRow             uint64
+	nextVersion         uint64
 	commitSeq           CommitSeq
 	roles               *roleCatalog
 	nextPrincipal       uint64
@@ -53,6 +54,7 @@ type binding struct {
 	sourceRef      ObjectRef
 	sourceRelation *relationDescriptor
 	commandQuery   bool
+	update         *boundUpdate
 	dependencies   []expressionDependency
 	parameters     ParameterInfo
 	expressions    [][]BoundExpr
@@ -253,7 +255,7 @@ func objectNameText(n parser.ObjectName) string {
 	return strings.Join(parts, ".")
 }
 
-// requiredRef is the exact acquired relation for SELECT/INSERT/DELETE. Name lookup
+// requiredRef is the exact acquired relation for SELECT/INSERT/UPDATE/DELETE.
 // still validates current namespace authority, but cannot retarget that lock.
 // CREATE TABLE has no existing relation and supplies the zero reference.
 func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) (binding, error) {
@@ -421,6 +423,23 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			if err != nil {
 				return b, err
 			}
+		}
+	case *parser.Update:
+		var err error
+		b.ref, err = e.resolveReference(auth, s.Name)
+		if err != nil {
+			return b, err
+		}
+		if b.ref != requiredRef {
+			return b, ErrCatalogReplaced
+		}
+		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.storage = e.storage[b.ref.Address]
+		if b.storage == nil {
+			return b, fmt.Errorf("stuntgres: relation storage is missing")
+		}
+		if err = e.bindUpdate(&b, binder, s); err != nil {
+			return b, err
 		}
 	case *parser.Select:
 		var err error
@@ -896,11 +915,37 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
+	if b.update != nil {
+		for i, expr := range b.update.assignments {
+			if _, cast := expr.(coercionExpression); cast && !expr.Properties().RowDependent && !expr.Properties().ParameterDependent {
+				value, foldErr := expr.Eval(&evaluation)
+				if foldErr != nil {
+					e.mu.Unlock()
+					return Result{}, foldErr
+				}
+				b.update.assignments[i] = literalExpression{expressionInfo: expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition()}, value: value}
+			}
+		}
+	}
 	if err = auth.checkBinding(b, stmt); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.Update:
+		view, err := scope.acquireDataViewLocked(e, b.ref)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		source, err := captureQuerySource(ctx, view, b.ref)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+		e.mu.Unlock()
+		return e.executeUpdate(ctx, scope, b, source, canonical, schema)
 	case *parser.Insert:
 		if s.Source != nil {
 			var source *querySource

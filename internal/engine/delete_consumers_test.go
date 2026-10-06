@@ -172,12 +172,14 @@ func TestDeleteCoreCatalogReplacement(t *testing.T) {
 	retained := run(t, source, "SELECT v FROM t ORDER BY v")
 	run(t, source, "DELETE FROM t WHERE v=1")
 	ref := catalogRef(t, source, source.CatalogRead(), "t")
-	ends := source.storage[ref.Address].ends
+	oldStore := source.storage[ref.Address]
+	oldLive := oldStore.versions[2]
 	if _, err := source.ReplaceCatalog(context.Background(), source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if source.storage[ref.Address].ends != ends {
-		t.Fatal("self replacement lost end root")
+	self := source.storage[ref.Address]
+	if self == oldStore || len(self.versions) != 1 || self.ends != nil || self.versions[0].row == oldLive.row || self.versions[0].version == oldLive.version || self.versions[0].born != source.commitSeq {
+		t.Fatal("self replacement did not detach/remint live heads")
 	}
 	if got := tuples(run(t, source, "SELECT v FROM t ORDER BY v")); !reflect.DeepEqual(got, [][]driver.Value{{int64(2)}}) {
 		t.Fatal(got)

@@ -64,7 +64,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 		t.Fatal("owner authority revoked", err)
 	}
 	options, err := view.Effective(ref, true)
-	if err != nil || options != SelectPrivilege|InsertPrivilege|DeletePrivilege {
+	if err != nil || options != SelectPrivilege|InsertPrivilege|DeletePrivilege|UpdatePrivilege {
 		t.Fatal(options, err)
 	}
 	reader, _ := e.Roles().Lookup("reader")

@@ -271,12 +271,12 @@ Go test reports the result.
 ### SQL and driver transactions (READ COMMITTED)
 
 `DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support the
-baseline INSERT, SELECT and DELETE paths, transactional settings and the single-target
-explicit AX utility below, including prepared execution. Default isolation
-and explicit `sql.LevelReadCommitted` are supported, read-write only. CREATE
-tables **before** starting a block. SQL controls support the same INSERT/SELECT/DELETE,
-settings and AX paths; savepoints, transactional DDL, stronger isolation and
-other DML remain unsupported.
+INSERT (VALUES or SELECT), scalar UPDATE, SELECT and DELETE paths, transactional
+settings and the single-target explicit AX utility below, including prepared
+execution. Default isolation and explicit `sql.LevelReadCommitted` are supported,
+read-write only. CREATE tables **before** starting a block. SQL controls support
+the same INSERT/UPDATE/SELECT/DELETE, settings and AX paths; savepoints,
+transactional DDL, stronger isolation and other DML remain unsupported.
 Role creation/removal and SET/RESET SESSION AUTHORIZATION are likewise rejected
 with `0A000` inside an explicit transaction; this is a native capability limit,
 not PostgreSQL parity. Read-only identity SELECT remains supported there.
@@ -360,12 +360,13 @@ supports additional AX privilege alternatives not modeled here.
 decoded qualification), without joining the queue. Earlier conflicting waiters
 prevent barging, while self-reentry and compatible cohorts remain eligible.
 `lock_timeout` uses the ordinary SET/RESET/SET LOCAL lifecycle and applies to
-each queued acquisition, including automatic SELECT/INSERT/DELETE Prepare locks,
-DELETE row waits and COMMENT/ALTER execution. Immediate grants are untimed; every later acquisition
-gets a fresh budget. Expiry returns 55P03, `canceling statement due to lock timeout`.
-During direct SELECT/INSERT/DELETE relation analysis and semantic Prepare, lock timeout also
+each queued acquisition, including automatic SELECT/INSERT/UPDATE/DELETE Prepare
+locks, UPDATE/DELETE row waits and COMMENT/ALTER execution. Immediate grants are
+untimed; every later acquisition gets a fresh budget. Expiry returns 55P03,
+`canceling statement due to lock timeout`. During direct SELECT/INSERT/UPDATE/DELETE
+relation analysis and semantic Prepare, lock timeout also
 reports the relation-name token's character Position (including schema qualification).
-Cached Execute and utility lock timeouts have no parser Position; statement
+Cached Execute, UPDATE/DELETE row waits and utility lock timeouts have no parser Position; statement
 timeout (57014) likewise does not acquire that parse-analysis decoration.
 The earlier absolute SQL deadline wins against statement_timeout (57014);
 an exact absolute tie favors lock timeout. Equal configured durations normally
@@ -377,7 +378,7 @@ and discards private writes/releases prior locks, or returns implicit work to Id
 
 ACCESS EXCLUSIVE conflicts with all automatic modes and another transaction's
 AX. Conflicting operations wait using their command context, with compatible
-cohorts and earlier incompatible waiter ordering. An owner can SELECT/INSERT/DELETE
+cohorts and earlier incompatible waiter ordering. An owner can SELECT/INSERT/UPDATE/DELETE
 under its own AX. SELECT captures its READ COMMITTED view after the wait: holder
 commits are visible, holder rollbacks are absent. Explicit locks survive
 statement/Rows close, until commit/rollback, admitted failure or physical end.
@@ -386,7 +387,7 @@ the client rolls back the aborted transaction. Implicit completion publishes
 first and releases afterward. Canceled pending requests are removed and wake
 eligible successors; caller interruption remains an ordinary context error.
 
-Semantic SELECT/INSERT/DELETE Prepare acquires the same AS/RX as execution. Implicit
+Semantic SELECT/INSERT/UPDATE/DELETE Prepare acquires the same AS/RX as execution. Implicit
 Prepare releases at completion; explicit Prepare retains until transaction end
 or failure, not stmt.Close. Preparation captures no data snapshot or future
 authority. LOCK Prepare is metadata-only (zero parameters/results); Execute
@@ -394,12 +395,14 @@ performs block/name/current-role checks and acquires AX, affecting zero rows.
 Outside a block it returns `25P01`, `LOCK TABLE can only be used in transaction
 blocks`, before lookup. Missing targets use `42P01`; ordinary-role AX denial is
 `42501`, `permission denied for table t`. There is no upgrade/deadlock detection,
-advisory locking, additional row modes or lock introspection. DELETE's row UPDATE
-holds arbitrate distinct logical rows independently; ordinary SELECT does not wait
-on those holds. DELETE acquires its one candidate view after relation grant and
-keeps it fixed across row waits, skipping a peer's committed deletion and retaining
-the original candidate after peer rollback. Peer inserts during a wait are not candidates.
-Use lock_timeout or caller deadlines to bound conflicting operations; conflicting conversion cycles are
+advisory locking or lock introspection. DELETE's row UPDATE and UPDATE's
+NO KEY UPDATE holds are distinct mutually conflicting modes on the same logical
+row resource; distinct rows arbitrate independently and ordinary SELECT does not
+wait on those holds. Both commands freeze one candidate view after relation grant:
+peer inserts during a wait are not candidates, peer committed deletions are skipped,
+and changed predecessor values require predicate recheck before mutation. Peer
+rollback retains the original predecessor. Use lock_timeout or caller deadlines
+to bound conflicting operations; conflicting conversion cycles are
 not protected by deadlock detection.
 
 An explicit transaction sees its successful earlier writes; other physical
@@ -483,7 +486,7 @@ replacement errors have no PostgreSQL command-equivalence oracle.
 
 Transaction SQL errors supply ERROR/nonlocalized ERROR. Optional diagnostic
 fields are absent unless stated above; native source fields do not claim
-PostgreSQL C provenance. Analyzed SELECT/INSERT missing-relation diagnostics
+PostgreSQL C provenance. Analyzed SELECT/INSERT/UPDATE missing-relation diagnostics
 retain the relation identifier's one-based character Position, including UTF8
 SQL; utility lookup preserves its independently specified diagnostic fields.
 Operation, scope, stage and released-view authority errors are ordinary internal
@@ -533,7 +536,7 @@ durability, WAL, crash recovery, a network server or PostgreSQL's physical MVCC*
 Actual future-consumer seams are the persistent session Transaction owner,
 incarnation-qualified TxRef, StatementScope/Finish, current ResolutionCatalog,
 conditional AcquireDataView, immutable version WriteStage and indivisible end
-publication. INSERT/SELECT use the existing binder and identity-keyed storage;
+publication. INSERT/UPDATE/SELECT use the existing binder and identity-keyed storage;
 there is no parallel catalog/store, retrying SQL executor, or placeholder
 savepoint/SSI/provider implementation.
 
@@ -614,16 +617,18 @@ Two connectors with the same Driver/exact DSN share data, never session state.
 
 New tables belong to current_user and have owner use rights, with no PUBLIC
 table privileges. Central checks cover schema CREATE/USAGE, all actually used
-SELECT projection/predicate/order columns and assigned INSERT columns.
-When that SELECT or INSERT column manifest is empty, table privileges or the
-corresponding privilege on **any live column** suffice. Empty/filtered sources
-still require authorization; grants on dropped columns never qualify.
+SELECT projection/predicate/order columns, assigned INSERT/UPDATE columns, and UPDATE RHS/WHERE reads.
+When a SELECT or INSERT column manifest is empty, table privileges or the
+corresponding privilege on **any live column** suffice. Empty/filtered INSERT
+sources still require source SELECT authorization; grants on dropped columns
+never qualify. UPDATE needs SELECT only on actual RHS/WHERE reads, not on
+columns merely retained.
 Schema USAGE is checked during relation lookup, including preparation: qualified
 references to an inaccessible schema fail with `42501` / `permission denied for
 schema public` before column/input binding. Unqualified lookup omits inaccessible
 public, so an otherwise unresolved name fails with `42P01`; implicit pg_catalog
 lookup is preserved. Ordinary table/column ACLs remain execution-time checks:
-SELECT/INSERT preparation does not cache permission, and execution reevaluates
+SELECT/INSERT/UPDATE preparation does not cache permission, and execution reevaluates
 the current principal, returning `42501` / `permission denied for table secret`
 without synthetic diagnostic object fields. Explicit internal empty ACLs remove
 ordinary owner use rights, not owner authority or implicit grant options.
@@ -942,8 +947,8 @@ without erasing metadata or saved exported values. At the raw driver cursor,
 the originating error remains sticky until idempotent Close; closed Next returns
 EOF. Ordinary context errors remain ordinary Go errors. Mutable exported bytes
 (including timestamp infinity) detach from both internal values and other
-exports. Captured rows/types remain stable across append, Reset, Restore and
-transaction completion; result retention does not grant publication authority.
+exports. Captured rows/types remain stable across append, UPDATE, Reset, Restore
+and transaction completion; result retention does not grant publication authority.
 
 Missing ORDER BY identifiers and analyzed relation names now retain their token's
 one-based **character** Position during Query and Prepare, including multibyte
@@ -958,6 +963,73 @@ fixtures independently check cardinality and every occurrence in both consumed
 and recorder-captured rows before canonicalizing only for backend comparison.
 Duplicate, NULL and zero-width row counts remain significant; ordered rows and
 column metadata still require exact sequence equality.
+
+### Scalar UPDATE
+
+`UPDATE table SET column = expression [, ...] [WHERE predicate]` supports the
+existing scalar literals, parameters, old unqualified columns, comparisons,
+Boolean operators/grouping and standalone selected null-count calls. It does not
+add arithmetic, UPDATE FROM, aliases, row/subquery assignment, CURRENT OF,
+DEFAULT, RETURNING or general casts/functions.
+
+All RHS expressions read the same old row: `SET a=b,b=a` swaps values.
+Assignment conversions use the destination type and typmod; the completed row
+must satisfy existing NOT NULL constraints. Every qualifying logical row counts
+once, including unchanged values and duplicate-valued occurrences; no match
+returns zero. Direct and prepared commands expose this count through
+RowsAffected, with no returned row schema or LastInsertId. Analysis rejects bad
+targets/types/duplicate assignments even on an empty table; late conversion,
+constraint or cancellation failures publish none of the statement's rows.
+REAL/DOUBLE PRECISION column assignments to SMALLINT/INTEGER/BIGINT round ties
+to even before checking the destination's signed bounds. NaN, infinities and
+out-of-range rounded values fail with 22003 and no partial effects. This is a
+direct assignment-only provider edge, not an implicit comparison cast or a
+text detour; existing NUMERIC-to-integer ties still round away from zero.
+
+Updates preserve logical row identity and install fresh immutable versions.
+Self reads see the latest successful private head once; peers see committed
+heads until commit, and rollback discards private replacements. Retained results
+keep their captured values. READ COMMITTED freezes qualifying candidates, takes
+transaction-owned NO KEY UPDATE locks, and after a competing updater commits
+rechecks WHERE and RHS against that same row's latest version. It never discovers
+initially rejected or concurrently inserted rows. Different-row updates and
+ordinary SELECT can proceed while a row is held. Row waits honor the existing
+lock/statement deadlines and release replacement admission while queued;
+cancellation aborts explicit work and releases its holds.
+Explicit row holds survive statement, result and pooled-connection borrower
+close; commit, rollback, admitted failure or physical session end releases them.
+Cancellation during payload construction or multi-relation commit publishes no
+replacement roots. Failed/canceled Restore preserves eligible live holders and
+waiters; successful Restore fences old row requests before same-name reuse.
+
+Candidate storage grows only with actual matches. A no-match UPDATE does not
+copy the committed root; a sparse replacement copies that immutable root once,
+using a linear single-row slot lookup rather than a table-sized auxiliary index.
+
+Dump emits only current committed heads as canonical CREATE/INSERT, preserving
+duplicate occurrences, not UPDATE history or private state; Reset/Restore and
+ALTER consumers use the same current-head storage. UPDATE requires UPDATE on
+assigned columns/table plus SELECT on actual RHS/WHERE reads, not on protected
+columns merely retained. SQL GRANT remains excluded.
+
+Feature smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=1`.
+Independent pinned PostgreSQL witnesses:
+`make reference RUN='^TestReferenceUpdateCore' VERBOSE=1`.
+The diagnostic oracle distinguishes direct/Prepare/bind/runtime phases and
+asserts full portable fields, UTF8 character positions and atomic failures.
+The destination matrix covers TIME/TIMESTAMP precision, UUID input and NULL,
+TEXT assignment conversion and NUMERIC ordinary/negative/wide-scale sizing,
+including late multirow overflow. Bad parameter input intentionally has no
+native portal Context; pq identifies its unnamed execution portal. SQL row
+deadline diagnostics likewise keep native Context empty while PostgreSQL
+reports its physical tuple context, asserted structurally rather than by an
+invented tuple identity.
+Mixed contextual UPDATE parameter types report 42P08 with the conflicting
+occurrence's character Position and old-versus-requested type Detail. This
+UPDATE policy does not change INSERT/settings mixed-destination 0A000 boundaries.
+Native TIME results remain canonical clock strings; PostgreSQL/pq TIME results
+remain civil time.Time values, with independent expected representations.
+
 
 ### Three-valued logical operators
 
@@ -1220,9 +1292,9 @@ INSERT binder, preserving names/data/nullability/ownership/comments; failed
 declarations or NULL insertion preserve the target. Explicit-ACL Dump rejection
 and ordinary context/I/O errors are unchanged.
 
-UPDATE has no native executor; inheritance has no native hierarchy/merge
-mechanism; NOT VALID/VALIDATE/NO INHERIT have no native deferred validation or
-hierarchy flags. They are explicit `0A000` boundaries, not successful no-ops.
+Inheritance has no native hierarchy/merge mechanism; NOT VALID/VALIDATE/NO
+INHERIT have no native deferred validation or hierarchy flags. They are explicit
+`0A000` boundaries, not successful no-ops. Scalar UPDATE enforces NOT NULL.
 Native failure-only INHERITS recognition accepts one complete parent list after
 either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
@@ -1230,9 +1302,9 @@ unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
 CHECK, primary keys, domains and general ALTER action lists remain excluded.
 Explicit-transaction DDL remains `0A000` and aborts the native block. Independent
-PostgreSQL-only tests witness actual UPDATE enforcement, inherited OR nullability,
-inherited-drop rejection, NO INHERIT, CHECK unknown acceptance, deferred
-validation, and transactional DDL rollback. These are not native engine claims.
+PostgreSQL-only tests witness inherited OR nullability, inherited-drop rejection,
+NO INHERIT, CHECK unknown acceptance, deferred validation, and transactional DDL
+rollback. UPDATE enforcement is now a shared native/reference witness.
 
 Public feature smokes:
 
@@ -2389,7 +2461,7 @@ fail 22023 without changing the previous value. Renaming a schema does not
 rewrite stored search_path text.
 
 New schemas have no PUBLIC rights. Owners have schema USAGE/CREATE; relation
-SELECT/INSERT is independently checked. Qualified creation requires CREATE,
+SELECT/INSERT/UPDATE is independently checked. Qualified creation requires CREATE,
 not USAGE. Unqualified creation chooses the first usable explicit namespace,
 then checks CREATE without fallback. Database CREATE grants are not implemented:
 standalone schema provisioning and rename require effective superuser authority.
@@ -2418,7 +2490,7 @@ through rename/drop/Reset/Restore. Explicit transactions reject schema utilities
 before effects. Absent pg_temp references do not allocate; a pending temporary
 creation destination fails 0A000 rather than falling through to public.
 
-Within a native SELECT/INSERT or semantic Prepare, current authorized name
+Within a native SELECT/INSERT/UPDATE or semantic Prepare, current authorized name
 resolution must equal the exact relation whose AS/RX lock was acquired. If an
 earlier search-path schema gains a same-shaped shadow while acquisition waits,
 native rejects with the ordinary `stuntgres: catalog replaced before publication`
@@ -2444,13 +2516,13 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 `go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
 
 
-Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, nonbaseline explicit casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE, DELETE USING/CURRENT OF/RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, nonbaseline explicit casts, constraints beyond nullability, defaults, serial, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 
 Native SQL failures supply both severity fields as `ERROR`, including parser, missing-object and duplicate-object failures; naming an object in the primary message does not imply an object diagnostic field. The error-fields feature smoke is `go test -count=1 -run '^TestErrorFieldsSmoke$' ./smoke`: it checks exact syntax and engine diagnostics, direct/prepared NOT NULL failures, statement atomicity, wrapping, ordinary context cancellation and native control round trips. Go test reports the result. Reference-only permission, procedural and SQL cancellation witnesses exercise PostgreSQL diagnostic transport expectations, not native implementations of those unsupported features.
 
-Shared generic SQL diagnostics construct only severity, SQLSTATE and primary message; they never infer object identities. In particular, input/range conversion errors (`22P02`/`22003`) do not infer Schema, Table or Column from a destination or WHERE predicate. Condition-specific NOT NULL producers (`23502`) supply schema/table/column: INSERT includes failing-row Detail, while SET/ADD existing-row validation has no Detail. Even a named constraint leaves the Constraint field empty. This distinction follows PostgreSQL's [conditional error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html); clients must not infer the presence of one object field from another.
+Shared generic SQL diagnostics construct only severity, SQLSTATE and primary message; they never infer object identities. In particular, input/range conversion errors (`22P02`/`22003`) do not infer Schema, Table or Column from a destination or WHERE predicate. Condition-specific NOT NULL producers (`23502`) supply schema/table/column: INSERT and UPDATE include complete failing-row Detail, while SET/ADD existing-row validation has no Detail. Even a named constraint leaves the Constraint field empty. This distinction follows PostgreSQL's [conditional error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html); clients must not infer the presence of one object field from another.
 
 Invalid boolean strings retain the original decoded input in the PostgreSQL `22P02` primary message (for example, `invalid input syntax for type boolean: "o"`). Boolean WHERE string-literal failures now carry the one-based character Position of the source opener, as INSERT already does, including during actual preparation and on empty tables. Escapes and continued strings do not change that provenance. Bound parameters have no query Position or native portal Context; real PostgreSQL Bind errors independently retain lib/pq's parameter Context. No destination object identities are inferred.
 
@@ -2561,6 +2633,6 @@ The explicitly enabled reference suite requires working Docker and image/module 
 Reference tests live in the dedicated `reference/` external test package and use only the public stuntgres API. Shared setup and helpers belong in `reference/fixture_test.go`; functional groups belong in separate test files of at most 750 lines each. `make reference` runs these fixtures uncached, with `VERBOSE=1` available for diagnostics.
 The cohesive common fixture is exempt from the 750-line limit; it keeps container lifecycle, diagnostic assertions, notice connections and middleware recording together.
 
-Implicit INSERT diagnostic fixtures independently specify preparation versus execution failure stages, not just backend agreement. Native engine tests also use a test-owned context to deterministically cancel after row staging, during constraint checks, and immediately before publication, checking complete sentinel preservation and subsequent engine usability without sleeps or production hooks.
+Implicit INSERT and UPDATE diagnostic fixtures independently specify preparation versus execution failure stages, not just backend agreement. Native engine tests also use test-owned contexts to deterministically cancel after row staging and immediately before publication, checking complete sentinel preservation and subsequent engine usability without sleeps or production hooks.
 
 Authoritative references: [PostgreSQL 18 commands](https://www.postgresql.org/docs/18/sql-commands.html), [SQLSTATE codes](https://www.postgresql.org/docs/18/errcodes-appendix.html), [testcontainers PostgreSQL API](https://golang.testcontainers.org/modules/postgres/), and [pinned sqlmw APIs](https://github.com/ngrok/sqlmw/blob/97c9c04efc79/interceptor.go). Local PostgreSQL source is 20devel and useful for implementation research; the pinned PostgreSQL 18.0 runtime is the compatibility oracle.

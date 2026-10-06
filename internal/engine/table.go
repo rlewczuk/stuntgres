@@ -176,6 +176,11 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 	}
 	originalVersions := original.versions
 	originalEnds := original.ends
+	originalGeneration := original.generation
+	if originalGeneration == ^uint64(0) {
+		e.mu.Unlock()
+		return Result{}, fmt.Errorf("stuntgres: storage generation exhausted")
+	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 	e.mu.Unlock()
@@ -232,7 +237,7 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 			next.columnComments[sub] = text
 		}
 	}
-	replacement := &relationStorage{versions: make([]rowVersion, len(originalVersions)), ends: originalEnds}
+	replacement := &relationStorage{versions: make([]rowVersion, len(originalVersions)), ends: originalEnds, generation: originalGeneration + 1}
 	for i, row := range originalVersions {
 		if err := op.Context().Err(); err != nil {
 			return Result{}, err
@@ -246,7 +251,7 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 		row.values = values
 		replacement.versions[i] = row
 	}
-	if err := stage.alterRelation(op.Context(), ref, &next, original, replacement, len(originalVersions), originalEnds); err != nil {
+	if err := stage.alterRelation(op.Context(), ref, &next, original, replacement, len(originalVersions), originalGeneration, originalEnds); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

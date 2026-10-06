@@ -79,7 +79,6 @@ func TestNotNullPublicExcludedSyntaxAndQuotedDiagnostics(t *testing.T) {
 		{"ALTER TABLE t VALIDATE CONSTRAINT nn", "VALIDATE", "ALTER TABLE action is unsupported"},
 		{"CREATE TABLE child(a INT) INHERITS(t)", "INHERITS", "table inheritance is unsupported"},
 		{"CREATE TABLE noinherit(a INT NOT NULL NO INHERIT)", "NO INHERIT", "NOT NULL modifiers are unsupported"},
-		{"UPDATE t SET a=NULL", "UPDATE", "statement is unsupported"},
 	} {
 		for _, prepared := range []bool{false, true} {
 			var err error
@@ -90,6 +89,22 @@ func TestNotNullPublicExcludedSyntaxAndQuotedDiagnostics(t *testing.T) {
 			}
 			notNullDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: tc.message, Position: strconv.Itoa(strings.Index(tc.q, tc.token) + 1)})
 		}
+	}
+	wantTuples(t, db, "SELECT * FROM t", [][]any{{int64(7)}})
+	execSQL(t, db, "ALTER TABLE t ALTER a SET NOT NULL")
+	for _, prepared := range []bool{false, true} {
+		var err error
+		if prepared {
+			stmt, e := db.Prepare("UPDATE t SET a=NULL")
+			if e != nil {
+				t.Fatal(e)
+			}
+			_, err = stmt.Exec()
+			stmt.Close()
+		} else {
+			_, err = db.Exec("UPDATE t SET a=NULL")
+		}
+		notNullDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "a"})
 	}
 	wantTuples(t, db, "SELECT * FROM t", [][]any{{int64(7)}})
 	ctx, cancel := context.WithCancel(context.Background())

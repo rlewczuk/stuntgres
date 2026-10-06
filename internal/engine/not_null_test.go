@@ -191,7 +191,7 @@ func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ObjectRef, *r
 	next.notNullConstraints = []notNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
 	original := e.storage[ref.Address]
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	if err := stage.alterRelation(context.Background(), ref, &next, original, original, len(original.versions), original.ends); err != nil {
+	if err := stage.alterRelation(context.Background(), ref, &next, original, original, len(original.versions), original.generation, original.ends); err != nil {
 		t.Fatal(err)
 	}
 	return stage, ref, old

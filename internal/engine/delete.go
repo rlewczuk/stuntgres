@@ -161,17 +161,15 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 	if !candidate.own {
 		rows = storage.versions
 	}
-	if candidate.ordinal < 0 || candidate.ordinal >= len(rows) {
-		return false, errors.New("stuntgres: invalid deletion ordinal")
-	}
-	original := rows[candidate.ordinal]
+	original, slot, found := rowByID(rows, candidate.row, candidate.ordinal)
 	relation, ok := e.state.descriptors[candidate.ref.Address].(*relationDescriptor)
-	if !ok || original.row != candidate.row || original.version != candidate.version || len(original.values) != len(relation.columns) {
+	if !found || !ok || len(original.values) != len(relation.columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
 	if !liveVersion(original, e.commitSeq, storage.ends, s.ownDeletes[candidate.ref.Address]) {
 		return false, nil
 	}
+	candidate.version, candidate.ordinal = original.version, slot
 	root := w.deletes[candidate.ref.Address]
 	if root != nil {
 		if _, duplicate := root.rows[candidate.row]; duplicate {
@@ -233,6 +231,27 @@ func (s *StatementScope) deleteSource(b binding, source *querySource, parameters
 		if err := s.acquireRow(candidate); err != nil {
 			return Result{}, err
 		}
+		current, live, err := s.latestDeleteRow(candidate)
+		if err != nil {
+			return Result{}, err
+		}
+		if !live {
+			continue
+		}
+		if current.version != candidate.version && b.predicate != nil {
+			evaluation.Row = current.values
+			value, err := b.predicate.Eval(&evaluation)
+			if err != nil {
+				return Result{}, err
+			}
+			truth, err := TruthOf(value)
+			if err != nil {
+				return Result{}, err
+			}
+			if truth != True {
+				continue
+			}
+		}
 		deleted, err := s.Writes().Delete(candidate)
 		if err != nil {
 			return Result{}, err
@@ -242,6 +261,29 @@ func (s *StatementScope) deleteSource(b binding, source *querySource, parameters
 		}
 	}
 	return Result{Count: count}, nil
+}
+
+// Row arbitration freezes identity, not a stale ordinal or pre-wait predicate.
+func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion, bool, error) {
+	e := s.op.session.Engine()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := s.validateLockedRelation(e); err != nil {
+		return rowVersion{}, false, err
+	}
+	store := e.storage[candidate.ref.Address]
+	if store == nil || store != candidate.storage {
+		return rowVersion{}, false, ErrCatalogReplaced
+	}
+	rows := store.versions
+	if candidate.own {
+		rows = s.ownWrites[candidate.ref.Address]
+	}
+	row, _, found := rowByID(rows, candidate.row, candidate.ordinal)
+	if !found {
+		return rowVersion{}, false, errors.New("stuntgres: invalid deletion predecessor")
+	}
+	return row, liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[candidate.ref.Address]), nil
 }
 
 // The nil selection path remains allocation-free for undeleted prefixes.
@@ -260,25 +302,68 @@ func captureQuerySource(ctx context.Context, view *VisibilityView, ref ObjectRef
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}
 	source := &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address]}
-	ends, own := data.ends[ref.Address], data.deleted[ref.Address]
-	if ends == nil && own == nil {
+	return selectQuerySource(ctx, source, data.frontier, data.ends[ref.Address], data.deleted[ref.Address])
+}
+
+// Query and catalog replacement share one physical-to-live head selection.
+func selectQuerySource(ctx context.Context, source *querySource, frontier CommitSeq, ends *deletionRoot, own *privateDeletionRoot) (*querySource, error) {
+	replacements, single := 0, 0
+	for i, row := range source.own {
+		if row.base != 0 {
+			replacements++
+			single = i
+		}
+	}
+	if ends == nil && own == nil && replacements == 0 {
 		return source, nil
 	}
 	total := len(source.committed) + len(source.own)
-	for i := range total {
+	var heads map[RowID]int
+	if replacements > 1 {
+		heads = make(map[RowID]int, replacements)
+		for i, row := range source.own {
+			if row.base != 0 {
+				heads[row.row] = len(source.committed) + i
+			}
+		}
+	}
+	include := func(raw, ordinal int) error {
 		if err := ctx.Err(); err != nil {
+			return err
+		}
+		live := liveVersion(source.versionAt(raw), frontier, ends, own)
+		if source.visible == nil && (!live || raw != ordinal) {
+			source.visible = make([]int, ordinal, total)
+			for j := range ordinal {
+				source.visible[j] = j
+			}
+		}
+		if live && source.visible != nil {
+			source.visible = append(source.visible, raw)
+		}
+		return nil
+	}
+	for i, row := range source.committed {
+		raw := i
+		if replacements == 1 && row.row == source.own[single].row {
+			raw = len(source.committed) + single
+		}
+		if head, ok := heads[row.row]; ok {
+			raw = head
+		}
+		if err := include(raw, i); err != nil {
 			source.close()
 			return nil, err
 		}
-		if liveVersion(source.versionAt(i), data.frontier, ends, own) {
-			if source.visible != nil {
-				source.visible = append(source.visible, i)
-			}
-		} else if source.visible == nil {
-			source.visible = make([]int, i, total)
-			for j := range i {
-				source.visible[j] = j
-			}
+	}
+	for i, row := range source.own {
+		if row.base != 0 {
+			continue
+		}
+		raw := len(source.committed) + i
+		if err := include(raw, raw); err != nil {
+			source.close()
+			return nil, err
 		}
 	}
 	return source, nil

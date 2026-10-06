@@ -146,7 +146,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 }
 
 // querySource retains only the captured immutable prefixes for one relation.
-// A nil selection preserves the allocation-free all-occurrences path.
+// A nil visible mapping preserves the allocation-free all-occurrences path.
 type querySource struct {
 	view           *VisibilityView
 	ref            ObjectRef

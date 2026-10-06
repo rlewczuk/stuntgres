@@ -93,6 +93,7 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 	}
 	versions := original.versions
 	observedLength := len(versions)
+	observedGeneration := original.generation
 	frontier := e.commitSeq
 	ends := original.ends
 	name := s.Constraint.Text
@@ -136,7 +137,7 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[:constraintIndex]...)
 		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[constraintIndex+1:]...)
 	}
-	if err := stage.alterRelation(op.Context(), ref, &next, original, original, observedLength, ends); err != nil {
+	if err := stage.alterRelation(op.Context(), ref, &next, original, original, observedLength, observedGeneration, ends); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

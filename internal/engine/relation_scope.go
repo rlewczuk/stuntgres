@@ -43,6 +43,9 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 	case *parser.Delete:
 		name = v.Name
 		mode = rowExclusive
+	case *parser.Update:
+		name = v.Name
+		mode = rowExclusive
 	case *parser.Comment:
 		if !execute || (v.Kind != parser.CommentTable && v.Kind != parser.CommentColumn) {
 			return nil
@@ -161,7 +164,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 		err = request.wait()
 	}
 	if err != nil {
-		// Parse analysis opens SELECT/INSERT/DELETE relations with a positioned
+		// Parse analysis opens SELECT/INSERT/UPDATE/DELETE with a positioned
 		// error callback. Cached execution and utility locks do not. Query
 		// cancellation (57014) deliberately bypasses that callback.
 		if (mode == accessShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
@@ -193,7 +196,8 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
-		if _, deleting := stmt.(*parser.Delete); deleting {
+		switch stmt.(type) {
+		case *parser.Delete, *parser.Update:
 			s.lockedStorage = e.storage[ref.Address]
 			if s.lockedStorage == nil {
 				return errors.New("stuntgres: relation storage is missing")
@@ -243,11 +247,26 @@ func (s *StatementScope) validateLockedRelation(e *Engine) error {
 			return ErrCatalogReplaced
 		}
 	} else if s.lockedStorage != nil {
-		if _, ok := current.(*relationDescriptor); !ok || s.lockedRef.Address.SubID != 0 || e.storage[s.lockedRef.Address] != s.lockedStorage {
+		relation, ok := current.(*relationDescriptor)
+		captured, capturedOK := s.lockedDescriptor.(*relationDescriptor)
+		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.storage[s.lockedRef.Address] != s.lockedStorage || !sameRelationRowShape(captured, relation) {
 			return ErrCatalogReplaced
 		}
 	} else if current != s.lockedDescriptor {
 		return ErrCatalogReplaced
 	}
 	return nil
+}
+
+func sameRelationRowShape(a, b *relationDescriptor) bool {
+	if len(a.columns) != len(b.columns) || len(a.attributes) != len(a.columns) || len(b.attributes) != len(b.columns) {
+		return false
+	}
+	for i, column := range a.columns {
+		other := b.columns[i]
+		if a.attributes[i] != b.attributes[i] || column.Name != other.Name || !sameStatementUsage(column.Usage, other.Usage) || column.Nullable != other.Nullable || column.NullabilityKnown != other.NullabilityKnown {
+			return false
+		}
+	}
+	return true
 }

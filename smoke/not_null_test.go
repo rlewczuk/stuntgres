@@ -145,7 +145,7 @@ func TestNotNullSmoke(t *testing.T) {
 	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: `cannot add not-null constraint on system column "ctid"`})
 	_, err = db.Query("SELECT * FROM system_target")
 	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "system_target" does not exist`, Position: "15"})
-	for _, tc := range []struct{ q, token, message string }{{"UPDATE t SET a=NULL", "UPDATE", "statement is unsupported"}, {"ALTER TABLE t ADD NOT NULL a NOT VALID", "NOT VALID", "NOT NULL modifiers are unsupported"}} {
+	for _, tc := range []struct{ q, token, message string }{{"ALTER TABLE t ADD NOT NULL a NOT VALID", "NOT VALID", "NOT NULL modifiers are unsupported"}} {
 		_, err = db.Exec(tc.q)
 		notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: tc.message, Position: strconv.Itoa(strings.Index(tc.q, tc.token) + 1)})
 	}

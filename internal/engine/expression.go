@@ -314,21 +314,22 @@ type expressionDependency struct {
 	revision DefinitionRevision
 }
 type expressionBinder struct {
-	engine        *Engine
-	ctx           context.Context
-	relation      *relationDescriptor
-	ref           ObjectRef
-	parameters    map[int]sqltype.Usage
-	uses          []int
-	dependencies  []expressionDependency
-	input         sqltype.InputEnvironment
-	op            *Operation
-	expected      *StatementDescription
-	temporals     []temporalConstant
-	anyParameters []parameterExpression
-	deleteTarget  bool
-	targetName    string
-	targetAlias   string
+	engine           *Engine
+	ctx              context.Context
+	relation         *relationDescriptor
+	ref              ObjectRef
+	parameters       map[int]sqltype.Usage
+	updateParameters bool
+	uses             []int
+	dependencies     []expressionDependency
+	input            sqltype.InputEnvironment
+	op               *Operation
+	expected         *StatementDescription
+	temporals        []temporalConstant
+	anyParameters    []parameterExpression
+	deleteTarget     bool
+	targetName       string
+	targetAlias      string
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -362,6 +363,12 @@ func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position
 		return expressionError("42P02", fmt.Sprintf("there is no parameter $%d", n), pos)
 	}
 	if old, ok := b.parameters[n]; ok && old.Type != nil && old.Type != u.Type {
+		if b.updateParameters {
+			// UPDATE uses occurrence-sensitive inference diagnostics; other
+			// assignment consumers retain their selected 0A000 boundary.
+			_, err := b.coerceParameter(parameterExpression{expressionInfo: expressionInfo{pos: pos}, number: n}, u)
+			return err
+		}
 		return sqlError("0A000", "parameter reused with different destination types")
 	}
 	b.parameters[n] = u.Type.Usage()

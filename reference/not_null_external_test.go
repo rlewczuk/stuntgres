@@ -9,11 +9,11 @@ import (
 	"testing"
 )
 
-func TestReferenceNotNullExternalUpdate(t *testing.T) {
+func TestReferenceNotNullUpdate(t *testing.T) {
 	p := newReferencePair(t)
 	p.step(t, referenceExec("CREATE TABLE t(a INT CONSTRAINT nn NOT NULL,b TEXT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,'keep'),(2,'other')", 2))
-	run := func(s referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s) }
+	run := func(s referenceStep) { p.step(t, s) }
 	diagnostic := referenceDiagnostic{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null, keep).", Schema: "public", Table: "t", Column: "a"}
 	run(referenceImplicitError("UPDATE t SET a=NULL WHERE a=1", diagnostic))
 	run(referenceSelect("SELECT * FROM t ORDER BY a", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "keep"}, {int64(2), "other"}}))
@@ -21,15 +21,6 @@ func TestReferenceNotNullExternalUpdate(t *testing.T) {
 	run(referencePrepared(referenceImplicitError("UPDATE t SET a=$1 WHERE a=3", diagnostic, nil)))
 	run(referencePrepared(referenceExec("UPDATE t SET a=$1 WHERE a=3", 1, 4)))
 	run(referenceSelect("SELECT * FROM t ORDER BY a", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(2), "other"}, {int64(4), "keep"}}))
-	for _, prepared := range []bool{false, true} {
-		step := referenceImplicitError("UPDATE t SET a=NULL", referenceDiagnostic{Code: "0A000", Message: "statement is unsupported", Position: "1"})
-		step.prepared = prepared
-		if prepared {
-			step.errorStage = "prepare"
-		}
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
-	}
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT * FROM t ORDER BY a", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "keep"}, {int64(2), "other"}}))
 }
 
 func TestReferenceNotNullExternalInheritance(t *testing.T) {

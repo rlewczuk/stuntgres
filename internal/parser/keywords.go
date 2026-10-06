@@ -499,7 +499,7 @@ var keywords = [...]keyword{
 	{"unlisten", Unreserved, true, 0},
 	{"unlogged", Unreserved, true, 0},
 	{"until", Unreserved, true, 0},
-	{"update", Unreserved, true, 0},
+	{"update", Unreserved, true, UPDATE},
 	{"user", Reserved, true, USER},
 	{"using", Reserved, true, 0},
 	{"vacuum", Unreserved, true, 0},

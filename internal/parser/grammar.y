@@ -18,6 +18,8 @@ package parser
  alterTarget alterTarget
  dropTarget dropTarget
  targets []InsertTarget
+ assignments []UpdateAssignment
+ assignment UpdateAssignment
  names []string
  rows [][]Expr
  row []Expr
@@ -43,8 +45,8 @@ package parser
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL
 %token <tok> SYMBOLIC_OPERATOR
-%token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ','
-%token <tok> CREATE TABLE INSERT INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
+%token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ',' '.'
+%token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DELETE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
@@ -89,6 +91,9 @@ package parser
 %type <stmt> delete
 %type <tok> delete_alias
 %type <expr> delete_where delete_operand delete_target delete_not delete_and delete_or
+%type <stmt> update
+%type <assignments> update_assignments
+%type <assignment> update_assignment
 %type <col> column
 %type <elements> elements optional_elements
 %type <element> element
@@ -149,7 +154,7 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | drop_table | alter_drop_column | insert | delete | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -221,7 +226,7 @@ excluded_lock_mode: ACCESS lock_share | lock_row lock_share | lock_row EXCLUSIVE
  | lock_share | lock_share lock_update EXCLUSIVE | lock_share lock_row EXCLUSIVE | EXCLUSIVE ;
 lock_share: KW_U { if $1.text!="share" { sqllex.(*lexer).syntax($1); return 1 } } ;
 lock_row: KW_C { if $1.text!="row" { sqllex.(*lexer).syntax($1); return 1 } } ;
-lock_update: KW_U { if $1.text!="update" { sqllex.(*lexer).syntax($1); return 1 } } ;
+lock_update: UPDATE ;
 lock_only: ONLY ;
 lock_nowait: KW_U { if $1.text!="nowait" { sqllex.(*lexer).syntax($1); return 1 } } ;
 set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier(),$4,$1.pos) }
@@ -364,6 +369,19 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
+update: UPDATE relation_name SET update_assignments where { $$=&Update{Name:$2,Assignments:$4,Where:$5,Pos:$1.pos} }
+ | UPDATE relation_name SET update_assignments where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
+ | UPDATE relation_name SET update_assignments where FROM { sqllex.(*lexer).failAt("0A000","UPDATE FROM is unsupported",$6.pos.Offset);return 1 }
+ | UPDATE relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$3.pos.Offset);return 1 }
+ | UPDATE relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$4.pos.Offset);return 1 }
+ | UPDATE relation_name SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$4.pos.Offset);return 1 } ;
+update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) } ;
+update_assignment: name '=' projection_target { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
+ | name '=' projection_target '.' { sqllex.(*lexer).failAt("0A000","qualified column references are unsupported",$4.pos.Offset);return 1 }
+ | name '=' projection_target '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
+ | name '=' projection_target '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
+ | name '=' projection_target '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
+ | name '=' projection_target '/' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 } ;
 insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1.pos) }
  | INSERT INTO relation_name '(' insert_targets ')' insert_input { $$=insertStatement($3,$5,$7,$1.pos) }
  | INSERT INTO relation_name insert_input suffix { sqllex.(*lexer).capability($5,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
@@ -513,11 +531,11 @@ nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word: IDENT | DELETE | NULL_COUNT_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+setting_word: IDENT | DELETE | NULL_COUNT_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | UNKNOWN ;
 name: setting_word | ROLE | LOCAL ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name ;
+type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
