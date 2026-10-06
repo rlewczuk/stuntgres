@@ -1519,6 +1519,9 @@ IS/ISNULL/NOTNULL share nonassociative precedence where a binary DISTINCT
 right operand competes with another ungrouped predicate:
 `1 IS DISTINCT FROM 1 IS TRUE` fails `42601`; group either intended nesting.
 `(v IS NULL) IS TRUE` and `TRUE IS DISTINCT FROM (v IS NULL)` work.
+Postfix casts complete their target type before a predicate continuation:
+`v::int4 IS NULL`, `v::bool IS TRUE` and `v::int8 IS DISTINCT FROM 0`
+apply the predicate to the cast result, not to a multiword type name.
 Scalar comparisons bind more tightly than these predicates, which bind above
 NOT, AND and OR: `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection
 and WHERE. Ordinary `v=NULL` remains UNKNOWN and selects no rows; no

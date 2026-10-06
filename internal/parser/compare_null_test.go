@@ -54,6 +54,10 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 		"SELECT v::integer IS NULL FROM t",
 		"SELECT CAST(v AS bool) IS TRUE FROM t",
 		"SELECT int4(v) IS DISTINCT FROM 1::int8 FROM t",
+		"SELECT v::int4 IS NULL,v::int4 ISNULL,v::int4 NOTNULL FROM t",
+		"SELECT v::bool IS TRUE,v::bool IS UNKNOWN FROM t",
+		"SELECT v::int8 IS DISTINCT FROM 0,0 IS NOT DISTINCT FROM v::int8 FROM t",
+		"SELECT NOT v::bool IS TRUE AND v::int4=1 IS TRUE FROM t",
 	} {
 		if _, err := Parse(q); err != nil {
 			t.Fatal(q, err)

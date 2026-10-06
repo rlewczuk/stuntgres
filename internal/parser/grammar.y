@@ -62,6 +62,9 @@ package parser
  * '(' selects a function path, not a completed ordinary name/name list. */
 %nonassoc NAME_LIST
 %nonassoc '+' '-' INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP IN AND SAVEPOINT
+/* Predicate continuations reduce a completed cast type before consuming IS,
+ * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
+%nonassoc IS ISNULL NOTNULL
 /* KW_T, LIKE and WITH also start suffixes. Shift an adjacent type tail before
  * completing a single type name: known excluded families use their first type
  * location, while arbitrary tails are syntax errors at the second token. */
@@ -72,7 +75,6 @@ package parser
 %nonassoc IDENT NULL_COUNT_FUNC UNKNOWN INSERT VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN START COMMIT ROLLBACK ABORT WORK TRANSACTION NO CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE '.'
 %nonassoc '('
 %nonassoc KW_T LIKE WITH WITHOUT
-%nonassoc IS ISNULL NOTNULL
 %nonassoc '='
 %left ':'
 /* A parenthesized scalar stays on the scalar path; Boolean grouping uses

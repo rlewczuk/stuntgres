@@ -26,8 +26,9 @@ func TestReferenceCastExplicitIntegratedExpressions(t *testing.T) {
 		castReferenceBoth(t, p, referencePrepared(step))
 	}
 	for _, q := range []string{"SELECT int8(TRUE) IS NULL FROM t", "SELECT int8(TRUE) IS DISTINCT FROM i FROM t"} {
-		step := castReferenceError(q, referenceDiagnostic{Code: "42883", Message: "function int8(boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, true)
+		step := castReferenceError(q, referenceDiagnostic{Code: "42883", Message: "function int8(boolean) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, false)
 		castReferenceBoth(t, p, step)
+		step.errorStage = "prepare"
 		castReferenceBoth(t, p, referencePrepared(step))
 	}
 	p.step(t, referenceExec("CREATE TABLE e(i INT4)", 0))
