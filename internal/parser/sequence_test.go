@@ -2,8 +2,6 @@ package parser
 
 import (
 	"errors"
-	"strconv"
-	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -45,21 +43,6 @@ func TestSequenceCastRoutingAndBoundaries(t *testing.T) {
 		call := statements[0].(*Select).Targets[0].(CallExpr)
 		if _, ok := call.Args[0].(RegclassExpr); !ok {
 			t.Fatalf("%s: cast AST missing: %#v", q, call)
-		}
-	}
-	for _, tc := range []struct{ q, marker string }{
-		{"SELECT CAST(x AS INT) FROM t", "CAST"},
-		{"SELECT x, CAST(x AS INT) FROM t", "CAST"},
-		{"SELECT * FROM t WHERE x = 1::INT", "::"},
-		{"SELECT TIME '24:00'::time FROM t", "::"},
-		{"SELECT TIMESTAMP 'epoch'::timestamp FROM t", "::"},
-		{"SELECT nextval('s'::text)", "::"},
-	} {
-		statements, err := Parse(tc.q)
-		var got *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "casts are unsupported", Position: strconv.Itoa(strings.Index(tc.q, tc.marker) + 1)}
-		if len(statements) != 0 || !errors.As(err, &got) || *got != want {
-			t.Fatalf("%s: %#v, %v; want %#v", tc.q, got, statements, want)
 		}
 	}
 	for _, q := range []string{"SELECT nextval('s':regclass)", "SELECT nextval('s': :regclass)", "SELECT nextval('s'::)"} {

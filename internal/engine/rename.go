@@ -46,6 +46,13 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	old := scope.lockedDescriptor.(*relationDescriptor)
 	slot := -1
 	if columnRename {
+		if old.relationKind == sequenceRelation {
+			return fail(&sqlstate.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809",
+				Message: fmt.Sprintf(`cannot rename columns of relation "%s"`, old.name),
+				Detail:  "This operation is not supported for sequences.",
+			})
+		}
 		if isSystemColumn(column) {
 			return fail(sqlError("0A000", fmt.Sprintf(`cannot rename system column "%s"`, column)))
 		}
@@ -84,6 +91,14 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		next.index[destination] = slot
 	} else {
 		next.name = destination
+		if old.relationKind == sequenceRelation {
+			// Relation rename invalidates analyzed sequence source without
+			// making every descriptor revision a sequence-plan event.
+			next.sequencePlanStamp, err = e.revisionLocked()
+			if err != nil {
+				return fail(err)
+			}
+		}
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision

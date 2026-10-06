@@ -94,6 +94,7 @@ func independentFinalRows(original RowResult) *finalRows {
 	r := newFinalRows(old.schema, old.count)
 	r.values, r.selection, r.slots = old.values, old.selection, old.slots
 	r.anonymous = old.anonymous
+	r.regclassOutput = old.regclassOutput
 	if old.source != nil {
 		source := *old.source
 		if source.view != nil {

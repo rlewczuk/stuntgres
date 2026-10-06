@@ -18,6 +18,7 @@ func TestSequenceSmoke(t *testing.T) {
 	t.Run("prepared-invalidation", sequencePreparedSmoke)
 	t.Run("merged-producer", TestSequenceMergedProducerSmoke)
 	t.Run("delete-composition", TestSequenceDeleteCompositionSmoke)
+	t.Run("producer-boundary", TestSequenceProducerBoundarySmoke)
 	ctx := context.Background()
 	connector, err := stuntgres.NewDriver().OpenConnector("sequence-smoke")
 	if err != nil {
@@ -219,6 +220,7 @@ func TestSequenceSmoke(t *testing.T) {
 	exec(a, "ALTER SEQUENCE admin SET SCHEMA moved")
 	exec(a, "ALTER SEQUENCE moved.admin RENAME TO renamed_admin")
 	value(a, "SELECT nextval('moved.renamed_admin')", 1)
+	diagnostic("ALTER TABLE moved.renamed_admin RENAME COLUMN last_value TO renamed", stuntgres.Error{Code: "42809", Message: `cannot rename columns of relation "renamed_admin"`, Detail: "This operation is not supported for sequences."})
 	diagnostic("CREATE SEQUENCE invalid CACHE 0", stuntgres.Error{Code: "22023", Message: "CACHE (0) must be greater than zero"})
 	diagnostic("SELECT nextval('missing')", stuntgres.Error{Code: "42P01", Message: `relation "missing" does not exist`, Position: "16"})
 	exec(a, "CREATE SEQUENCE s AS BIGINT START WITH 5 CACHE 3")

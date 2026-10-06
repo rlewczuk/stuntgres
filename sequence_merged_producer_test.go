@@ -18,12 +18,18 @@ func TestSequenceMergedProducer(t *testing.T) {
 		"INSERT INTO t VALUES(nextval(CAST('s' AS regclass))) ORDER BY 1",
 	} {
 		stmt, err := c.PrepareContext(ctx, q)
-		if err != nil { t.Fatal(q, err) }
+		if err != nil {
+			t.Fatal(q, err)
+		}
 		r, err := stmt.ExecContext(ctx)
 		stmt.Close()
-		if err != nil { t.Fatal(q, err) }
+		if err != nil {
+			t.Fatal(q, err)
+		}
 		n, err := r.RowsAffected()
-		if err != nil || n != 1 { t.Fatal(q, n, err) }
+		if err != nil || n != 1 {
+			t.Fatal(q, n, err)
+		}
 	}
 	rows, err := c.QueryContext(ctx, "SELECT v FROM t ORDER BY v")
 	queryCoreRows(t, rows, err, []string{"v"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(1)}, {int64(2)}}, false)
@@ -36,34 +42,52 @@ func TestSequenceMergedProducer(t *testing.T) {
 	sequenceExec(t, c, "BEGIN")
 	sequenceExec(t, c, "CREATE SEQUENCE private_s START 40")
 	r, err := c.ExecContext(ctx, "INSERT INTO t SELECT last_value FROM private_s")
-	if err != nil { t.Fatal(err) }
-	if n, err := r.RowsAffected(); err != nil || n != 1 { t.Fatal(n, err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := r.RowsAffected(); err != nil || n != 1 {
+		t.Fatal(n, err)
+	}
 	sequenceExec(t, c, "ROLLBACK")
 	rows, err = c.QueryContext(ctx, "SELECT v FROM t ORDER BY v")
 	queryCoreRows(t, rows, err, []string{"v"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(1)}, {int64(2)}}, false)
 	sequenceExec(t, c, "CREATE TABLE src(id INT, day DATE, payload BYTEA, nullable BIGINT)")
-	if _, err := c.ExecContext(ctx, "INSERT INTO src VALUES(1,DATE '2024-02-29','\\x01',NULL),(2,DATE '2024-03-01','\\x02',7)"); err != nil { t.Fatal(err) }
+	if _, err := c.ExecContext(ctx, "INSERT INTO src VALUES(1,DATE '2024-02-29','\\x01',NULL),(2,DATE '2024-03-01','\\x02',7)"); err != nil {
+		t.Fatal(err)
+	}
 	sequenceExec(t, c, "CREATE TABLE dst(id BIGINT, n BIGINT, day DATE, payload BYTEA, nullable BIGINT)")
 	stmt, err := c.PrepareContext(ctx, "INSERT INTO dst SELECT id::bigint,nextval('s'),day,payload,nullable FROM src ORDER BY id")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	sequenceValue(t, c, "SELECT currval('s')", 3)
 	r, err = stmt.ExecContext(ctx)
 	stmt.Close()
-	if err != nil { t.Fatal(err) }
-	if n, err := r.RowsAffected(); err != nil || n != 2 { t.Fatal(n, err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := r.RowsAffected(); err != nil || n != 2 {
+		t.Fatal(n, err)
+	}
 	rows, err = c.QueryContext(ctx, "SELECT * FROM dst ORDER BY id")
-	queryCoreRows(t, rows, err, []string{"id","n","day","payload","nullable"}, []string{"INT8","INT8","DATE","BYTEA","INT8"}, [][]any{{int64(1),int64(4),"2024-02-29",[]byte{1},nil},{int64(2),int64(5),"2024-03-01",[]byte{2},int64(7)}}, false)
+	queryCoreRows(t, rows, err, []string{"id", "n", "day", "payload", "nullable"}, []string{"INT8", "INT8", "DATE", "BYTEA", "INT8"}, [][]any{{int64(1), int64(4), "2024-02-29", []byte{1}, nil}, {int64(2), int64(5), "2024-03-01", []byte{2}, int64(7)}}, false)
 	r, err = c.ExecContext(ctx, "INSERT INTO dst(id,n) SELECT id::bigint,nextval('s') FROM src WHERE id=99")
-	if err != nil { t.Fatal(err) }
-	if n, err := r.RowsAffected(); err != nil || n != 0 { t.Fatal(n, err) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := r.RowsAffected(); err != nil || n != 0 {
+		t.Fatal(n, err)
+	}
 	sequenceValue(t, c, "SELECT currval('s')", 5)
 	sequenceExec(t, c, "CREATE TABLE bad(v TEXT)")
-	if _, err := c.ExecContext(ctx, "INSERT INTO bad VALUES('bad')"); err != nil { t.Fatal(err) }
+	if _, err := c.ExecContext(ctx, "INSERT INTO bad VALUES('bad')"); err != nil {
+		t.Fatal(err)
+	}
 	_, err = c.ExecContext(ctx, "INSERT INTO dst(id,n) SELECT nextval('s'),v::bigint FROM bad")
 	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type bigint: "bad"`})
 	sequenceValue(t, c, "SELECT currval('s')", 6)
 	rows, err = c.QueryContext(ctx, "SELECT id FROM dst ORDER BY id")
-	queryCoreRows(t, rows, err, []string{"id"}, []string{"INT8"}, [][]any{{int64(1)},{int64(2)}}, false)
+	queryCoreRows(t, rows, err, []string{"id"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(2)}}, false)
 	rows, err = c.QueryContext(ctx, "SELECT num_nulls(nextval('s'))")
 	queryCoreRows(t, rows, err, []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(0)}}, false)
 	sequenceValue(t, c, "SELECT currval('s')", 7)

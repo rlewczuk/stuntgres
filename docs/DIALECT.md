@@ -886,6 +886,12 @@ Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE T
 
 Sequence objects support the PostgreSQL18 CREATE/ALTER/DROP option and administrative forms documented in the [SQL reference](SQL.md#sequences), including TEMP/UNLOGGED, optional BY/WITH, CREATE/ALTER RESTART, NO MINVALUE/MAXVALUE/CYCLE, OWNED BY, IF [NOT] EXISTS and grouped DROP. RESTART sets the current uncalled value, not configured START: CREATE START 5 RESTART 9 returns 9 first, and a later bare ALTER RESTART returns 5. Numeric options are integral and bounded by the declared smallint/integer/bigint type; function results always use INT8. Constant-space reservation arithmetic handles large CACHE and int64 extremes without allocating cached arrays. CYCLE wraps on reservation boundaries and can repeat values; it is not a uniqueness constraint.
 
+Generic ALTER TABLE relation rename also accepts a sequence and atomically
+publishes its fresh sequence-plan stamp without changing identity/generator/cache.
+Generic sequence column rename rejects with42809 `cannot rename columns of relation
+"s"` / Detail `This operation is not supported for sequences.` before attribute
+lookup, including missing/system-column names and optional COLUMN syntax.
+
 Sequence OWNER TO supports role names and CURRENT_ROLE/CURRENT_USER/SESSION_USER
 identity operands; quoted identity spellings remain literal role names.
 Same-owner requests need no renewed destination schema CREATE. Genuine ownership

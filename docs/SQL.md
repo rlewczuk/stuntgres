@@ -80,6 +80,11 @@ destination-role and schema authority checks. An OWNED BY-linked sequence cannot
 change owners independently of its table; successful transfers remap owner ACL
 identities while preserving unrelated grants.
 
+Generic `ALTER TABLE sequence_name RENAME TO name` also renames sequences and
+invalidates held sequence source analysis just like the dedicated rename form.
+Renaming any fixed sequence column, with or without COLUMN, is rejected with
+42809 and the sequence-kind Detail before ordinary column lookup.
+
 START configures the value used by a later bare RESTART; RESTART sets the current
 uncalled value without changing that configured START. For example, CREATE
 SEQUENCE s START 5 RESTART 9 first returns 9, while a later ALTER SEQUENCE s
@@ -181,7 +186,9 @@ Position, not during Prepare. Ordinary CREATE validates options first;
 IF NOT EXISTS checks namespace authority before skipping or validating options.
 Literal regclass schema USAGE lookup remains an analysis/Prepare check with the
 input's character Position. Both `::regclass` and `CAST(... AS regclass)` use
-the shared cast routing; other casts retain positioned unsupported diagnostics.
+the shared cast routing alongside the bounded int4/int8/text/bool and character
+explicit-cast matrix. Unsupported type pairs retain their documented positioned
+diagnostics; sequence support does not widen that matrix.
 
 Feature commands: `make smoke RUN='^TestSequenceSmoke$' VERBOSE=1`,
 `make test RUN='^TestSequence' VERBOSE=1`, and
