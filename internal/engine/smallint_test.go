@@ -48,8 +48,8 @@ func TestSmallintLiteralInference(t *testing.T) {
 	result := run(t, e, "SELECT 7,32768,2147483648 FROM t")
 	defer result.Rows.Close()
 	for i, id := range []sqltype.ID{sqltype.Int4, sqltype.Int4, sqltype.Int8} {
-		if result.Columns[i].Usage.Type.ID() != id {
-			t.Fatal(result.Columns[i])
+		if result.Rows.Schema()[i].Usage.Type.ID() != id {
+			t.Fatal(result.Rows.Schema()[i])
 		}
 	}
 }
