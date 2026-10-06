@@ -10,6 +10,7 @@ import (
 )
 
 func TestSequenceDeleteCompositionSmoke(t *testing.T) {
+	t.Run("consumer-boundary", TestSequenceDeleteBoundarySmoke)
 	ctx := context.Background()
 	connector,err := stuntgres.NewDriver().OpenConnector(t.Name())
 	if err!=nil { t.Fatal(err) }

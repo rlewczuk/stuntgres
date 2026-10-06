@@ -7,41 +7,128 @@ import (
 )
 
 func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
-	for _, phase := range []string{"frontier", "cancel", "predecessor"} {
-		t.Run(phase,func(t *testing.T) {
+	for _, phase := range []string{"frontier", "predecessor", "shape", "namespace", "final_cancel"} {
+		t.Run(phase, func(t *testing.T) {
 			e := New()
-			s := sessionStart(t,e,nil)
-			sessionSQL(t,s,"CREATE TABLE t(v INT)")
-			sessionSQL(t,s,"INSERT INTO t VALUES(1),(1),(2)")
-			sessionSQL(t,s,"CREATE SEQUENCE s")
-			sequenceScalar(t,s,"SELECT nextval('s')",1)
-			table := catalogRef(t,e,e.CatalogRead(),"t")
-			sequence := catalogRef(t,e,e.CatalogRead(),"s")
-			state, store, generator := e.state,e.storage[table.Address],e.sequences[sequence.Address]
-			root, ends, frontier := store.versions,store.ends,e.commitSeq
-			ref := transactionBegin(t,s)
-			sessionSQL(t,s,"ALTER SEQUENCE s RESTART 100")
-			if r := sessionSQL(t,s,"DELETE FROM t WHERE v=1"); r.Count!=2 { t.Fatal(r) }
-			sessionSQL(t,s,"INSERT INTO t VALUES(3)")
-			op := transactionOperation(t,s)
-			if phase=="frontier" { e.commitSeq=CommitSeq(^uint64(0)); frontier=e.commitSeq }
-			if phase=="cancel" {
-				ctx,cancel := context.WithCancel(op.Context())
-				op.ctx=ctx
-				cancel()
+			s := sessionStart(t, e, nil)
+			sessionSQL(t, s, "CREATE TABLE t(v INT)")
+			sessionSQL(t, s, "INSERT INTO t VALUES(0),(1),(1),(2)")
+			sessionSQL(t, s, "DELETE FROM t WHERE v=0")
+			sessionSQL(t, s, "CREATE SEQUENCE s")
+			sequenceScalar(t, s, "SELECT nextval('s')", 1)
+			table := catalogRef(t, e, e.CatalogRead(), "t")
+			sequence := catalogRef(t, e, e.CatalogRead(), "s")
+			healthyFrontier, healthyNamespace := e.commitSeq, e.state.namespaceGeneration
+			ref := transactionBegin(t, s)
+			sessionSQL(t, s, "ALTER SEQUENCE s RESTART 100")
+			if r := sessionSQL(t, s, "DELETE FROM t WHERE v=1"); r.Count != 2 {
+				t.Fatal(r)
 			}
-			if phase=="predecessor" {
-				for id,candidate := range s.transactions.deletes[table.Address].rows {
+			sessionSQL(t, s, "INSERT INTO t VALUES(3),(5)")
+			sessionSQL(t, s, "DELETE FROM t WHERE v=5")
+			if phase == "namespace" {
+				// No TEMP object has ever committed in this session: this is a
+				// genuine new namespace descriptor, not another temp relation.
+				sessionSQL(t, s, "CREATE TEMP SEQUENCE first_temp START 40")
+				state := cloneCatalog(e.state)
+				state.namespaceGeneration = ^uint64(0)
+				e.state = state
+			}
+			switch phase {
+			case "frontier":
+				e.commitSeq = CommitSeq(^uint64(0))
+			case "predecessor":
+				for id, candidate := range s.transactions.deletes[table.Address].rows {
 					candidate.version++
-					s.transactions.deletes[table.Address].rows[id]=candidate
+					s.transactions.deletes[table.Address].rows[id] = candidate
 					break
 				}
+			case "shape":
+				// Preserve every row and its width; only shape authority changes.
+				replacement := *e.storage[table.Address]
+				e.storage[table.Address] = &replacement
 			}
-			err := e.publishWrites(op,ref,s.transactions.writes,s.transactions.deletes)
-			if err==nil || phase=="cancel" && !errors.Is(err,context.Canceled) { t.Fatal(phase,err) }
-			if e.state!=state || e.storage[table.Address]!=store || store.ends!=ends || len(store.versions)!=len(root) || &store.versions[0]!=&root[0] || e.sequences[sequence.Address]!=generator || generator.last!=1 || e.commitSeq!=frontier {
-				t.Fatal("failed coupled publication changed catalog, rows, deletion root, generator or frontier")
+			assertSequenceDeletePrivateBatch(t, s, table.Address, sequence.Address, phase == "namespace")
+			before := captureSequenceDeletePublication(e, s, table.Address)
+			ticket := s.transactions.ticket
+			if ticket == nil || len(ticket.resources) == 0 {
+				t.Fatal("mixed staging did not acquire transaction resources")
 			}
+			op := transactionOperation(t, s)
+			var cancellation *cancelAtErrCheck
+			if phase == "final_cancel" {
+				base, cancel := context.WithCancel(op.Context())
+				defer cancel()
+				// Native Commit: admission Err(1), accepted-end Err(2),
+				// prepareSequenceCatalog Err(3), final publication Err(4).
+				// The existing real-context seam cancels at that final check,
+				// after row/end/catalog/generator candidates are prepared.
+				cancellation = &cancelAtErrCheck{Context: base, cancel: cancel, at: 4}
+				op.ctx = cancellation
+			}
+			result, err := e.Commit(op, ref)
+			op.Done()
+			if result.Committed || err == nil {
+				t.Fatal("failed mixed transaction committed", result, err)
+			}
+			switch phase {
+			case "frontier":
+				if err.Error() != "stuntgres: commit sequence exhausted" {
+					t.Fatal(err)
+				}
+			case "predecessor":
+				if err.Error() != "stuntgres: invalid deletion predecessor" {
+					t.Fatal(err)
+				}
+			case "shape":
+				if !errors.Is(err, ErrCatalogReplaced) {
+					t.Fatal(err)
+				}
+			case "namespace":
+				if err.Error() != "stuntgres: namespace invalidation generation exhausted" {
+					t.Fatal(err)
+				}
+			case "final_cancel":
+				if !errors.Is(err, context.Canceled) || cancellation.checks.Load() != 4 {
+					t.Fatal("did not reach final combined cancellation boundary", err, cancellation.checks.Load())
+				}
+			}
+			before.assertUnchanged(t, e, s)
+			assertSequenceDeleteEndCleanup(t, e, s, ticket)
+			// Restore only deliberately exhausted counters, after checking
+			// failure atomicity and disposal. Never restore private effects.
+			if phase == "frontier" {
+				e.commitSeq = healthyFrontier
+			}
+			if phase == "namespace" {
+				state := cloneCatalog(e.state)
+				state.namespaceGeneration = healthyNamespace
+				e.state = state
+			}
+			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 1, 2)
+			sequenceScalar(t, s, "SELECT currval('s')", 1)
+			sequenceScalar(t, s, "SELECT lastval()", 1)
+			peer := sessionStart(t, e, nil)
+			sequenceScalar(t, peer, "SELECT nextval('s')", 2)
+			// A fresh mixed transaction must reacquire the retired resources
+			// and successfully publish through the same combined branch.
+			next := transactionBegin(t, s)
+			sessionSQL(t, s, "ALTER SEQUENCE s RESTART 200")
+			sessionSQL(t, s, "DELETE FROM t WHERE v=2")
+			sessionSQL(t, s, "INSERT INTO t VALUES(9)")
+			if phase == "namespace" {
+				sessionSQL(t, s, "CREATE TEMP SEQUENCE first_temp START 40")
+			}
+			frontier := e.commitSeq
+			if r := transactionEnd(t, s, next, true); !r.Committed || e.commitSeq != frontier+1 {
+				t.Fatal("healthy combined transaction failed", r, e.commitSeq, frontier)
+			}
+			transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 1, 9)
+			sequenceScalar(t, peer, "SELECT nextval('s')", 200)
+			if phase == "namespace" {
+				sequenceScalar(t, s, "SELECT nextval('first_temp')", 40)
+			}
+			lockEmpty(t, e)
 		})
 	}
 }

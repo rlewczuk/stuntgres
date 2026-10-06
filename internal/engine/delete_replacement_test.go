@@ -313,7 +313,11 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	for address, relation := range source.storage {
 		storage[address] = &relationStorage{versions: append([]rowVersion(nil), relation.versions...)}
 	}
+	sequences, sequenceErr := copySequenceState(source, replacement)
 	source.mu.Unlock()
+	if sequenceErr != nil {
+		t.Fatal(sequenceErr)
+	}
 	e.replacementMu.Lock()
 	writerHeld := true
 	defer func() {
@@ -362,7 +366,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 			}
 		}
 		if err == nil {
-			err = e.installForeignCatalogLocked(context.Background(), next, storage, nextRevision)
+			err = e.installForeignCatalogLocked(context.Background(), next, storage, sequences, nextRevision)
 		}
 	}
 	epoch := e.state.epoch

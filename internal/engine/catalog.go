@@ -958,7 +958,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 			}
 		}
 	}
-	if err := e.installForeignCatalogLocked(ctx, next, storage, nextRevision); err != nil {
+	if err := e.installForeignCatalogLocked(ctx, next, storage, sequences, nextRevision); err != nil {
 		return ChangeSet{}, err
 	}
 	installed = next.epoch
@@ -968,8 +968,9 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 // installForeignCatalogLocked owns the final cancellation boundary and the
 // indivisible installation of a prepared foreign generation. The caller holds
 // replacementMu and mu and has validated capacity, descriptors and authority.
-// Storage vectors are private copies; payload values remain immutable.
-func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, nextRevision DefinitionRevision) error {
+// Storage vectors and sequence generator scalars are private copies; payload
+// values remain immutable. All prepared containers publish at the same boundary.
+func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, nextRevision DefinitionRevision) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

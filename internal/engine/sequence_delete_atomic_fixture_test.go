@@ -1,0 +1,123 @@
+package engine
+
+import (
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/sqltype"
+)
+
+// These snapshots distinguish container replacement from in-place mutation.
+// Values are copied only in this test fixture; production roots remain retained.
+type sequenceDeletePublicationSnapshot struct {
+	state *catalogState
+	catalog catalogState
+	descriptors map[ObjectAddress]Descriptor
+	names map[NameKey]ObjectAddress
+	storageID, generatorsID uintptr
+	stores map[ObjectAddress]*relationStorage
+	generators map[ObjectAddress]*sequenceGenerator
+	generatorValues map[ObjectAddress]sequenceGenerator
+	store *relationStorage
+	root []rowVersion
+	rows []rowVersion
+	ends *deletionRoot
+	endValues map[RowID]rowEnd
+	frontier CommitSeq
+	temporary, last ObjectAddress
+	memoryID uintptr
+	memory map[ObjectAddress]*sequenceMemory
+	memoryValues map[ObjectAddress]sequenceMemory
+}
+
+func captureSequenceDeletePublication(e *Engine, s *Session, table ObjectAddress) sequenceDeletePublicationSnapshot {
+	p := sequenceDeletePublicationSnapshot{
+		state: e.state, catalog: *e.state,
+		descriptors: make(map[ObjectAddress]Descriptor), names: make(map[NameKey]ObjectAddress),
+		storageID: uintptr(reflect.ValueOf(e.storage).UnsafePointer()),
+		generatorsID: uintptr(reflect.ValueOf(e.sequences).UnsafePointer()),
+		stores: make(map[ObjectAddress]*relationStorage),
+		generators: make(map[ObjectAddress]*sequenceGenerator),
+		generatorValues: make(map[ObjectAddress]sequenceGenerator),
+		store: e.storage[table], frontier: e.commitSeq,
+		temporary: s.temporaryNamespace, last: s.lastSequence,
+		memoryID: uintptr(reflect.ValueOf(s.sequences).UnsafePointer()),
+		memory: make(map[ObjectAddress]*sequenceMemory), memoryValues: make(map[ObjectAddress]sequenceMemory),
+	}
+	for a, d := range e.state.descriptors { p.descriptors[a] = d }
+	for k, a := range e.state.names { p.names[k] = a }
+	for a, store := range e.storage { p.stores[a] = store }
+	for a, g := range e.sequences { p.generators[a], p.generatorValues[a] = g, *g }
+	for a, m := range s.sequences { p.memory[a], p.memoryValues[a] = m, *m }
+	p.root, p.ends = p.store.versions, p.store.ends
+	p.rows = append([]rowVersion(nil), p.root...)
+	for i := range p.rows { p.rows[i].values = append([]sqltype.Value(nil), p.rows[i].values...) }
+	if p.ends != nil {
+		p.endValues = make(map[RowID]rowEnd)
+		for id, end := range p.ends.rows { p.endValues[id] = end }
+	}
+	return p
+}
+
+func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engine, s *Session) {
+	t.Helper()
+	if e.state != p.state || !reflect.DeepEqual(*e.state, p.catalog) || !reflect.DeepEqual(e.state.descriptors, p.descriptors) || !reflect.DeepEqual(e.state.names, p.names) {
+		t.Fatal("failed combined publication changed catalog authority, descriptor/name bindings or namespace generation")
+	}
+	if uintptr(reflect.ValueOf(e.storage).UnsafePointer()) != p.storageID || uintptr(reflect.ValueOf(e.sequences).UnsafePointer()) != p.generatorsID || len(e.storage) != len(p.stores) || len(e.sequences) != len(p.generators) {
+		t.Fatal("failed combined publication replaced or resized shared storage/generator containers")
+	}
+	for a, store := range p.stores {
+		if e.storage[a] != store { t.Fatal("changed storage identity", a) }
+	}
+	for a, g := range p.generators {
+		if e.sequences[a] != g || *g != p.generatorValues[a] { t.Fatal("changed generator identity/state", a) }
+	}
+	if len(p.store.versions) != len(p.root) || &p.store.versions[0] != &p.root[0] || !reflect.DeepEqual(p.store.versions, p.rows) || p.store.ends != p.ends || e.commitSeq != p.frontier {
+		t.Fatal("failed combined publication changed row/version vector, predecessor root or frontier")
+	}
+	if p.ends != nil && !reflect.DeepEqual(p.ends.rows, p.endValues) { t.Fatal("changed committed deletion entries") }
+	if s.temporaryNamespace != p.temporary || s.lastSequence != p.last || uintptr(reflect.ValueOf(s.sequences).UnsafePointer()) != p.memoryID || len(s.sequences) != len(p.memory) {
+		t.Fatal("failed combined publication changed session temporary handle or sequence memory container")
+	}
+	for a, m := range p.memory {
+		if s.sequences[a] != m || *m != p.memoryValues[a] { t.Fatal("changed session sequence memory", a) }
+	}
+}
+
+func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence ObjectAddress, firstTemp bool) {
+	t.Helper()
+	tx := s.transactions
+	if tx.state != TxActive || len(tx.writes[table]) != 2 || tx.deletes[table] == nil || len(tx.deletes[table].rows) != 3 || tx.sequences == nil {
+		t.Fatal("fixture must contain private appended rows, committed/own deletions and sequence overlay")
+	}
+	g := tx.sequences.generators[sequence]
+	if g == nil || g.last != 100 || g.called || g == s.Engine().sequences[sequence] {
+		t.Fatal("fixture must contain a private restarted generator")
+	}
+	if firstTemp {
+		if s.temporaryNamespace != (ObjectAddress{}) { t.Fatal("fixture reused a published TEMP namespace") }
+		var namespaces, temps int
+		for a, d := range tx.sequences.descriptors {
+			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == s.token {
+				namespaces++
+				if tx.sequences.originals[a] != nil || s.Engine().state.descriptors[a] != nil { t.Fatal("TEMP namespace was not genuinely new") }
+			}
+			if r, ok := d.(*relationDescriptor); ok && r.Name() == "first_temp" {
+				temps++
+				if tx.sequences.generators[a] == nil || s.Engine().sequences[a] != nil { t.Fatal("TEMP generator is not private") }
+			}
+		}
+		if namespaces != 1 || temps != 1 { t.Fatal("missing genuine first TEMP namespace/sequence", namespaces, temps) }
+	}
+}
+
+func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *Session, old *relationTicket) {
+	t.Helper()
+	tx := s.transactions
+	if tx.state != TxIdle || tx.ref != (TxRef{}) || tx.command != 0 || !tx.start.IsZero() || tx.writes != nil || tx.deletes != nil || tx.sequences != nil || tx.ticket != nil {
+		t.Fatal("failed native Commit did not discard the complete private transaction incarnation")
+	}
+	if len(old.resources) != 0 { t.Fatal("failed transaction retained ticket resources") }
+	lockEmpty(t, e)
+}
