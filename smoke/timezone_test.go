@@ -118,15 +118,68 @@ func TestTimezoneSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Release the cursor before deferred Conn.Close even when a metadata or
+	// row assertion fails: a pinned connection cannot close with live Rows.
+	defer meta.Close()
 	m, err := meta.ColumnTypes()
-	meta.Close()
-	if err != nil || m[0].ScanType() != reflect.TypeFor[time.Time]() || m[1].ScanType() != reflect.TypeFor[string]() {
+	if err != nil || len(m) != 2 || m[0].DatabaseTypeName() != "TIMESTAMPTZ" || m[1].DatabaseTypeName() != "TIMETZ" || m[0].ScanType() != reflect.TypeFor[time.Time]() || m[1].ScanType() != reflect.TypeFor[string]() {
 		t.Fatal(m, err)
+	}
+	for _, column := range m {
+		nullable, known := column.Nullable()
+		precision, scale, decimal := column.DecimalSize()
+		// Scalar expression nullability is unknown in the existing public
+		// metadata contract, even when the expression evaluates to NULL.
+		if known || nullable || decimal || precision != 0 || scale != 0 {
+			t.Fatal("NULL temporal metadata", column, nullable, known, precision, scale, decimal)
+		}
+	}
+	if !meta.Next() {
+		t.Fatal("missing NULL temporal witness", meta.Err())
+	}
+	var nullZ, nullQ any
+	if err = meta.Scan(&nullZ, &nullQ); err != nil || nullZ != nil || nullQ != nil {
+		t.Fatal(nullZ, nullQ, err)
+	}
+	if meta.Next() || meta.Err() != nil {
+		t.Fatal("NULL temporal witness cardinality", meta.Err())
+	}
+	if err = meta.Close(); err != nil {
+		t.Fatal(err)
+	}
+	columns, err := a.QueryContext(ctx, "SELECT z,q FROM tz_witness WHERE id=2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer columns.Close()
+	cm, err := columns.ColumnTypes()
+	if err != nil || len(cm) != 2 {
+		t.Fatal(cm, err)
+	}
+	for i, typ := range []string{"TIMESTAMPTZ", "TIMETZ"} {
+		nullable, known := cm[i].Nullable()
+		if cm[i].DatabaseTypeName() != typ || !known || !nullable {
+			t.Fatal("nullable temporal column metadata", cm[i], nullable, known)
+		}
+	}
+	if !columns.Next() {
+		t.Fatal("missing nullable column witness", columns.Err())
+	}
+	var columnZ time.Time
+	var columnQ any
+	if err = columns.Scan(&columnZ, &columnQ); err != nil || !columnZ.Equal(time.Date(2004, 7, 1, 16, 0, 0, 0, time.UTC)) || columnQ != nil {
+		t.Fatal(columnZ, columnQ, err)
+	}
+	if columns.Next() || columns.Err() != nil {
+		t.Fatal("nullable column witness cardinality", columns.Err())
+	}
+	if err = columns.Close(); err != nil {
+		t.Fatal(err)
 	}
 	for _, tc := range []struct {
 		q    string
 		want stuntgres.Error
-	}{{"SET TIME ZONE 'No/Such_Zone'", stuntgres.Error{Code: "22023", Message: "invalid value for parameter \"TimeZone\": \"No/Such_Zone\""}}, {"SELECT TIMESTAMPTZ '2004-10-19 10:00+16' FROM tz_witness", stuntgres.Error{Code: "22009", Message: "time zone displacement out of range: \"2004-10-19 10:00+16\"", Position: "19"}}, {"SET DateStyle='ISO,SQL'", stuntgres.Error{Code: "22023", Message: "invalid value for parameter \"DateStyle\": \"ISO,SQL\"", Detail: "Conflicting \"DateStyle\" specifications."}}} {
+	}{{"SET TIME ZONE 'No/Such_Zone'", stuntgres.Error{Code: "22023", Message: "invalid value for parameter \"TimeZone\": \"No/Such_Zone\""}}, {"SELECT TIMESTAMPTZ '2004-10-19 10:00+16' FROM tz_witness", stuntgres.Error{Code: "22009", Message: "time zone displacement out of range: \"2004-10-19 10:00+16\"", Position: "20"}}, {"SET DateStyle='ISO,SQL'", stuntgres.Error{Code: "22023", Message: "invalid value for parameter \"DateStyle\": \"ISO,SQL\"", Detail: "Conflicting \"DateStyle\" specifications."}}} {
 		_, err = a.ExecContext(ctx, tc.q)
 		if err = typeCoreDiagnostic(err, tc.want); err != nil {
 			t.Fatal(err)

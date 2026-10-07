@@ -71,7 +71,7 @@ func TestTimestampPrecisionGrammarAndBoundaries(t *testing.T) {
 	}
 	for _, q := range []string{"CREATE TABLE t(v TIMESTAMP WITH TIME ZONE)", "SELECT TIMESTAMP 'epoch'", "CREATE TABLE t(v TIMESTAMPTZ)"} {
 		_, e := Parse(q)
-		if q == "CREATE TABLE t(v TIMESTAMPTZ)" {
+		if q != "SELECT TIMESTAMP 'epoch'" {
 			if e != nil {
 				t.Fatal("type authority moved into parser", e)
 			}

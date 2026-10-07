@@ -586,6 +586,17 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
+	if l.err == nil && token.code == AT {
+		next := l.nextRaw()
+		if l.err != nil {
+			return 0
+		}
+		l.lookahead, l.hasLookahead = next, true
+		if next.code != TIME && next.code != LOCAL {
+			// AT remains an unreserved label unless it starts zone conversion.
+			token.code = KW_U
+		}
+	}
 	if l.err == nil && token.code == KW_U && token.lexeme.keyword != nil && token.lexeme.text == "nulls" {
 		// NULLS and Unicode filtering share one raw-token cache. Neither
 		// lookahead decodes Unicode bodies or changes keyword identity.

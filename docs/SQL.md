@@ -215,10 +215,10 @@ comparison syntax or evaluate definitions during serialization.
 Stored literal occurrences retain their analyzed value and type usage, including
 temporal precision, independently typed BETWEEN occurrences and each JOIN ON clause.
 Definition reconstruction and native replay use type-owned canonical literals,
-not creation-time spellings such as `today`, and do not introduce unsupported
-DATE/TIME/TIMESTAMP casts. Native input supports its current ISO environment;
-PostgreSQL DateStyle controls are independent oracle witnesses, not native SET
-support.
+not creation-time spellings such as `today`. Temporal input and supported
+DATE/TIME/TIMESTAMP/TIMETZ/TIMESTAMPTZ casts use the captured session environment;
+native DateStyle and TimeZone settings are supported. Canonical replay remains
+independent of presentation settings.
 
 Replacement, recursive/TEMP views, view writes/check options, general ALTER/
 DROP VIEW, joins/subqueries/bare or table aliases, public GRANT, RLS, UDFs and optimizer

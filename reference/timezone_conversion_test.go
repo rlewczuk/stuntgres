@@ -124,8 +124,10 @@ func TestReferenceTimezoneComparisonAndComposition(t *testing.T) {
 	p.step(t, referenceExec("INSERT INTO tz_witness(id,z,q) VALUES(2,'2004-10-19 10:00+02','09:00+01'),(3,'2004-10-19 08:00+00','08:00+00'),(4,'2004-10-19 08:00+00','09:00+01')", 3))
 	timezoneBoth(t, p, referenceSelect("SELECT q::TEXT AS v FROM tz_witness WHERE q IS NOT NULL ORDER BY q", []string{"v"}, []string{"TEXT"}, [][]any{{"09:00:00+01"}, {"09:00:00+01"}, {"08:00:00+00"}}))
 	timezoneBoth(t, p, referenceSelect("SELECT q::TEXT AS v,COUNT(*) AS n FROM tz_witness WHERE q IS NOT NULL GROUP BY q ORDER BY q", []string{"v", "n"}, []string{"TEXT", "INT8"}, [][]any{{"09:00:00+01", int64(2)}, {"08:00:00+00", int64(1)}}))
-	timezoneBoth(t, p, referenceSelect("SELECT DISTINCT z::TEXT AS v FROM tz_witness WHERE z IS NOT NULL", []string{"v"}, []string{"TEXT"}, [][]any{{"2004-10-19 08:00:00+00"}}))
-	timezoneBoth(t, p, referenceSelect("SELECT MIN(q)::TEXT AS lo,MAX(q)::TEXT AS hi FROM tz_witness", []string{"lo", "hi"}, []string{"TEXT", "TEXT"}, [][]any{{"09:00:00+01", "08:00:00+00"}}))
+	// DISTINCT and MIN/MAX are not baseline SQL consumers. Group by the
+	// temporal value (not its formatted text), and assert both ordered bounds.
+	timezoneBoth(t, p, referenceSelect("SELECT z::TEXT AS v,COUNT(*) AS n FROM tz_witness WHERE z IS NOT NULL GROUP BY z", []string{"v", "n"}, []string{"TEXT", "INT8"}, [][]any{{"2004-10-19 08:00:00+00", int64(3)}}))
+	timezoneBoth(t, p, referenceSelect("SELECT q::TEXT AS v,q>=TIMETZ '09:00+01' AS lo,q<=TIMETZ '08:00+00' AS hi FROM tz_witness WHERE q IS NOT NULL ORDER BY q DESC", []string{"v", "lo", "hi"}, []string{"TEXT", "BOOL", "BOOL"}, [][]any{{"08:00:00+00", true, true}, {"09:00:00+01", true, true}, {"09:00:00+01", true, true}}))
 	timezoneBoth(t, p, referenceSelect("SELECT NULLIF(z,TIMESTAMPTZ '2004-10-19 08:00+00') AS n,COALESCE(z,TIMESTAMPTZ 'epoch') IS DISTINCT FROM NULL AS b,z BETWEEN TIMESTAMPTZ '2004-01-01+00' AND TIMESTAMPTZ '2005-01-01+00' AS c FROM tz_witness WHERE id=2", []string{"n", "b", "c"}, []string{"TIMESTAMPTZ", "BOOL", "BOOL"}, [][]any{{nil, true, true}}))
-	timezoneBoth(t, p, referenceSelect("SELECT a.id AS id FROM tz_witness a JOIN tz_witness b ON a.z=b.z WHERE b.id=2 ORDER BY a.id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}, {int64(4)}}))
+	timezoneBoth(t, p, referenceSelect("SELECT a.id AS id FROM tz_witness a JOIN tz_witness b(bid,bz,bq) ON a.z=b.bz WHERE b.bid=2 ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}, {int64(4)}}))
 }

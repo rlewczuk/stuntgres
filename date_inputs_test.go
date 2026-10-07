@@ -84,9 +84,29 @@ func TestDateBoundValuesPreparedQueriesAndComparisons(t *testing.T) {
 	}
 	_, err = db.Prepare("SELECT $1 FROM d WHERE v=$1")
 	timeDiagnostic(t, err, stuntgres.Error{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "date versus text", Position: "8"})
-	for _, tc := range []struct{ literal, typ string }{{"TIME '00:00'", "time without time zone"}, {"TIMESTAMP '2000-01-01'", "timestamp without time zone"}} {
+	for _, tc := range []struct{ literal, typ string }{{"TIME '00:00'", "time without time zone"}} {
 		_, err := db.Query("SELECT v FROM d WHERE v=" + tc.literal)
 		timeDiagnostic(t, err, stuntgres.Error{Code: "42883", Message: "operator does not exist: date = " + tc.typ, Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: "24"})
+	}
+	for _, prepared := range []bool{false, true} {
+		q := "SELECT v=TIMESTAMP '2000-02-29 00:00',TIMESTAMP '2000-02-29 00:00'=v FROM d WHERE v=DATE '2000-02-29'"
+		var left, right bool
+		if prepared {
+			stmt, err := db.Prepare(q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = stmt.QueryRow().Scan(&left, &right)
+			stmt.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+		} else if err := db.QueryRow(q).Scan(&left, &right); err != nil {
+			t.Fatal(err)
+		}
+		if !left || !right {
+			t.Fatal("DATE/TIMESTAMP midnight comparison", left, right)
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

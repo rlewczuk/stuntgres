@@ -79,11 +79,14 @@ func TestTableCoreOptionsAndBoundaries(t *testing.T) {
 }
 
 func TestTableCoreExcludedTypeSyntaxNeverSkips(t *testing.T) {
-	for _, declaration := range []string{"BIT VARYING", "TIME WITH TIME ZONE", "TIMESTAMP WITH TIME ZONE", "INTERVAL YEAR TO MONTH", "INT(4)", "INT[]"} {
-		_, err := Parse("CREATE TABLE IF NOT EXISTS t (id " + declaration + ")")
+	for _, declaration := range []string{"BIT VARYING", "INTERVAL", "INTERVAL YEAR TO MONTH", "INTERVAL(3) HOUR TO SECOND", "INT(4)", "INT[]"} {
+		statements, err := Parse("CREATE TABLE IF NOT EXISTS t (id " + declaration + "); INSERT INTO t VALUES(1)")
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal(declaration, err)
+		}
+		if len(statements) != 0 {
+			t.Fatal("unsupported declaration exposed executable statements", declaration, statements)
 		}
 	}
 	// The family guards must not reinterpret arbitrary adjacent type/name tokens.
@@ -115,7 +118,6 @@ func TestTableCoreTypeTailSourceLocations(t *testing.T) {
 	// The type begins at character 19; an arbitrary nine-character type's
 	// following token begins at 29. Exercise each suffix/type-tail overlap.
 	for _, tc := range []struct{ declaration, code, position string }{
-		{"TIME WITH TIME ZONE", "0A000", "19"},
 		{"arbitrary ISNULL", "42601", "29"},
 		{"arbitrary LIKE", "42601", "29"},
 		{"arbitrary WITH", "42601", "29"},

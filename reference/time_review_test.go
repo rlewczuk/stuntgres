@@ -104,10 +104,8 @@ func TestReferenceTimeReviewAssignmentIdentity(t *testing.T) {
 						// preserve the quoted literal location, not the type keyword.
 						want := referenceDiagnostic{Code: "42804", Message: "column \"v\" is of type " + tc.destination + " but expression is of type " + tc.source, Hint: "You will need to rewrite or cast the expression.", Position: strconv.Itoa(strings.Index(q, tc.literal) + strings.Index(tc.literal, "'") + 1)}
 						for _, prepared := range []bool{false, true} {
-							if backend.postgres && tc.name == "times" {
-								// PostgreSQL permits TIMESTAMP->TIME assignment; cross-temporal
-								// casts are outside this part's native contract. Assert both
-								// concrete outcomes instead of pretending rejection is parity.
+							if tc.name == "times" {
+								// Both backends permit TIMESTAMP->TIME assignment.
 								affected := int64(1)
 								if later {
 									affected = 2
@@ -125,7 +123,7 @@ func TestReferenceTimeReviewAssignmentIdentity(t *testing.T) {
 								run(s)
 							}
 							rows := [][]any{{tc.value}}
-							if backend.postgres && tc.name == "times" {
+							if tc.name == "times" {
 								rows = make([][]any, count)
 								for i := range rows {
 									rows[i] = []any{"00:00:00"}

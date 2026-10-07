@@ -56,11 +56,18 @@ func TestExplicitCoercionMatrix(t *testing.T) {
 			}
 		}
 	}
-	for _, id := range []ID{Int2, Float4, Float8, Numeric, Timestamp, Time, UUID} {
+	for _, id := range []ID{Int2, Float4, Float8, Numeric, UUID} {
 		for _, pair := range [][2]ID{{id, id}, {id, Text}, {Text, id}} {
 			_, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit)
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "0A000" {
+				t.Fatal(pair, err)
+			}
+		}
+	}
+	for _, id := range []ID{Date, Time, Timestamp, Timestamptz, Timetz} {
+		for _, pair := range [][2]ID{{id, id}, {id, Text}, {Text, id}} {
+			if _, err := PlanCoercion(types[pair[0]].Usage(), types[pair[1]].Usage(), Explicit); err != nil {
 				t.Fatal(pair, err)
 			}
 		}

@@ -20,7 +20,7 @@ func TestReferenceTimezoneExtremeTimetzCapture(t *testing.T) {
 		run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
 		for _, tc := range []struct{ zone, input, want string }{{"ABC167:59:60", "10:00", "10:00:00-168"}, {"ABC-167:59:60DEF,M3.2.0,M11.1.0", "2004-07-01 10:00", "10:00:00+169"}} {
 			run(referenceExec("SET TIME ZONE '"+tc.zone+"'", 0))
-			q := "SELECT TIMETZ '" + tc.input + "' AS q FROM tz_witness WHERE id=1"
+			q := "SELECT (TIMETZ '" + tc.input + "')::TEXT AS q FROM tz_witness WHERE id=1"
 			stmt, err := backend.db.PrepareContext(p.ctx, q)
 			if err != nil {
 				t.Fatal(err)
@@ -45,7 +45,7 @@ func TestReferenceTimezoneCastsExecutionEnvironment(t *testing.T) {
 		db     *sql.DB
 		record *referenceRecorder
 	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		stmt, err := backend.db.PrepareContext(p.ctx, "SELECT c::TIMESTAMPTZ AS a,d::TIMESTAMPTZ AS b,z::TIMESTAMP AS c,z::DATE AS d,z::TIME::TEXT AS e,q::TIME::TEXT AS f FROM tz_witness")
+		stmt, err := backend.db.PrepareContext(p.ctx, "SELECT c::TIMESTAMPTZ AS a,d::TIMESTAMPTZ AS b,z::TIMESTAMP::TEXT AS c,z::DATE::TEXT AS d,z::TIME::TEXT AS e,q::TIME::TEXT AS f FROM tz_witness")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -64,7 +64,7 @@ func TestReferenceTimezoneCastsExecutionEnvironment(t *testing.T) {
 				rows.Close()
 				t.Fatal(err)
 			}
-			for i, want := range []string{"TIMESTAMPTZ", "TIMESTAMPTZ", "TIMESTAMP", "DATE", "TEXT", "TEXT"} {
+			for i, want := range []string{"TIMESTAMPTZ", "TIMESTAMPTZ", "TEXT", "TEXT", "TEXT", "TEXT"} {
 				if types[i].DatabaseTypeName() != want {
 					rows.Close()
 					t.Fatal(types[i], want)
@@ -74,14 +74,15 @@ func TestReferenceTimezoneCastsExecutionEnvironment(t *testing.T) {
 				rows.Close()
 				t.Fatal("cast row", rows.Err())
 			}
-			var a, b, c time.Time
-			var d, e, f string
+			var a, b time.Time
+			var c, d, e, f string
 			if err := rows.Scan(&a, &b, &c, &d, &e, &f); err != nil {
 				rows.Close()
 				t.Fatal(err)
 			}
 			want := time.Date(2004, 10, 19, tc.hour, 0, 0, 0, time.UTC)
-			if !a.Equal(want) || !b.Equal(want) || c.Hour() != 4-tc.hour || d != "2004-10-19" || e != tc.clock || f != "10:00:00" {
+			wantCivil := "2004-10-19 " + tc.clock
+			if !a.Equal(want) || !b.Equal(want) || c != wantCivil || d != "2004-10-19" || e != tc.clock || f != "10:00:00" {
 				rows.Close()
 				t.Fatal(a, b, c, d, e, f)
 			}
@@ -116,6 +117,10 @@ func TestReferenceTimezoneDeclarationPrecisionDiagnostics(t *testing.T) {
 				var want any = tc.value
 				if tc.dbtype == "TIMESTAMPTZ" {
 					want = time.Date(2004, 1, 1, 0, 0, 0, 123456000, time.UTC)
+				} else if postgres {
+					// The fixture normalizes pq's year-zero TIMETZ to UTC.
+					// 10:00-05 is independently the exact 15:00 UTC instant.
+					want = time.Date(0, 1, 1, 15, 0, 0, 123456000, time.UTC)
 				}
 				s := referenceSelect(q, []string{"v"}, []string{tc.dbtype}, [][]any{{want}})
 				s.prepared = prepared

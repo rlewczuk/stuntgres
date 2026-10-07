@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"strings"
 	"stuntgres"
 	"testing"
 )
@@ -18,7 +19,7 @@ func TestTimezoneDateStyleAndSettingsLifecycle(t *testing.T) {
 		timezoneExec(t, c, "SET DateStyle='"+tc.setting+"'", 0)
 		timezoneRows(t, c, "SELECT DATE '01/02/03' FROM tz_witness", []string{"DATE"}, [][]any{{tc.want}})
 	}
-	for _, tc := range []struct{ setting, date, stamp string }{{"ISO,MDY", "1997-12-17", "1997-12-17 07:37:16"}, {"SQL,MDY", "12/17/1997", "12/17/1997 07:37:16"}, {"SQL,DMY", "17/12/1997", "17/12/1997 07:37:16"}, {"German", "17.12.1997", "17.12.1997 07:37:16"}, {"Postgres,MDY", "1997-12-17", "Wed Dec 17 07:37:16 1997"}, {"Postgres,DMY", "1997-12-17", "Wed 17 Dec 07:37:16 1997"}} {
+	for _, tc := range []struct{ setting, date, stamp string }{{"ISO,MDY", "1997-12-17", "1997-12-17 07:37:16"}, {"SQL,MDY", "12/17/1997", "12/17/1997 07:37:16"}, {"SQL,DMY", "17/12/1997", "17/12/1997 07:37:16"}, {"German", "17.12.1997", "17.12.1997 07:37:16"}, {"Postgres,MDY", "12-17-1997", "Wed Dec 17 07:37:16 1997"}, {"Postgres,DMY", "17-12-1997", "Wed 17 Dec 07:37:16 1997"}} {
 		timezoneExec(t, c, "SET DateStyle='"+tc.setting+"'", 0)
 		timezoneRows(t, c, "SELECT DATE '1997-12-17',TIMESTAMP '1997-12-17 07:37:16'::TEXT,TIMETZ '12:00+02' FROM tz_witness", []string{"DATE", "TEXT", "TIMETZ"}, [][]any{{tc.date, tc.stamp, "12:00:00+02"}})
 	}
@@ -121,11 +122,30 @@ func TestTimezoneBuiltinDescriptionsAndZonedDateStyle(t *testing.T) {
 	}
 	defer rows.Close()
 	seen := map[string]bool{}
+	// Exact supported registry, independently enumerated rather than read from production.
+	expected := map[string]bool{
+		"DateStyle": true, "TimeZone": true, "application_name": true,
+		"bytea_output": true, "client_min_messages": true,
+		"default_transaction_isolation": true, "default_transaction_read_only": true,
+		"lock_timeout": true, "log_statement_stats": true, "search_path": true,
+		"server_encoding": true, "standard_conforming_strings": true,
+		"statement_timeout": true, "transaction_isolation": true, "transaction_read_only": true,
+	}
+	count, last := 0, ""
 	for rows.Next() {
 		var name, value, description string
 		if err = rows.Scan(&name, &value, &description); err != nil {
 			t.Fatal(err)
 		}
+		// SHOW ALL follows the existing folded registry-key order; display
+		// names retain PostgreSQL's DateStyle/TimeZone capitalization.
+		key := strings.ToLower(name)
+		if !expected[name] || key <= last {
+			t.Fatal("unexpected, repeated or unsorted builtin", name)
+		}
+		delete(expected, name)
+		last = key
+		count++
 		switch name {
 		case "TimeZone":
 			if value != "UTC" || description != "Sets the time zone for displaying and interpreting time stamps." {
@@ -145,6 +165,9 @@ func TestTimezoneBuiltinDescriptionsAndZonedDateStyle(t *testing.T) {
 	rows.Close()
 	if !seen["TimeZone"] || !seen["DateStyle"] {
 		t.Fatal("missing builtins", seen)
+	}
+	if count != 15 || len(expected) != 0 {
+		t.Fatal("builtin cardinality/set", count, expected)
 	}
 	for _, tc := range []struct{ style, want string }{{"SQL,MDY", "12/17/1997 07:37:16 UTC"}, {"SQL,DMY", "17/12/1997 07:37:16 UTC"}, {"German", "17.12.1997 07:37:16 UTC"}, {"Postgres,MDY", "Wed Dec 17 07:37:16 1997 UTC"}, {"Postgres,DMY", "Wed 17 Dec 07:37:16 1997 UTC"}} {
 		timezoneExec(t, c, "SET DateStyle='"+tc.style+"'", 0)

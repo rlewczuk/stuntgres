@@ -35,6 +35,7 @@ func TestReferenceTimezonePooledIsolation(t *testing.T) {
 						s.prepared = prepared
 						referenceRunStep(t, p.ctx, conn, backend.record, s)
 					}
+					defaultZone := timezoneDefaultZone(t, p, a, backend.name == "postgres")
 					run(a, referenceExec("SET TIME ZONE 'UTC'", 0))
 					run(b, referenceExec("SET TIME ZONE 'America/New_York'", 0))
 					run(a, referenceExec("SET DateStyle='ISO,MDY'", 0))
@@ -65,7 +66,8 @@ func TestReferenceTimezonePooledIsolation(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer a.Close()
-					run(a, referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"UTC"}}))
+					run(a, referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{defaultZone}}))
+					run(a, referenceExec("SET TIME ZONE 'UTC'", 0))
 					run(a, referenceSelect("SHOW DateStyle", []string{"DateStyle"}, []string{"TEXT"}, [][]any{{"ISO, MDY"}}))
 					run(a, referenceSelect("SELECT COUNT(*) AS n FROM tz_witness", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
 					// Public native RowResult must retain its execution-captured output zone.
@@ -117,8 +119,8 @@ func TestReferenceTimezoneDateStyle(t *testing.T) {
 		{"SQL,MDY", "12/17/1997", "12/17/1997 07:37:16", "12/17/1997 07:37:16 UTC"},
 		{"SQL,DMY", "17/12/1997", "17/12/1997 07:37:16", "17/12/1997 07:37:16 UTC"},
 		{"German", "17.12.1997", "17.12.1997 07:37:16", "17.12.1997 07:37:16 UTC"},
-		{"Postgres,MDY", "1997-12-17", "Wed Dec 17 07:37:16 1997", "Wed Dec 17 07:37:16 1997 UTC"},
-		{"Postgres,DMY", "1997-12-17", "Wed 17 Dec 07:37:16 1997", "Wed 17 Dec 07:37:16 1997 UTC"},
+		{"Postgres,MDY", "12-17-1997", "Wed Dec 17 07:37:16 1997", "Wed Dec 17 07:37:16 1997 UTC"},
+		{"Postgres,DMY", "17-12-1997", "Wed 17 Dec 07:37:16 1997", "Wed 17 Dec 07:37:16 1997 UTC"},
 	} {
 		timezoneBoth(t, p, referenceExec("SET DateStyle='"+tc.style+"'", 0))
 		timezoneBoth(t, p, timezoneTextStep("DATE '1997-12-17'", tc.date))
@@ -139,6 +141,11 @@ func TestReferenceTimezoneSettingsLifecycleAndOffsets(t *testing.T) {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
 			p := timezoneReferencePair(t)
 			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+			defaults := map[*sql.DB]string{
+				p.memory:   timezoneDefaultZone(t, p, p.memory, false),
+				p.postgres: timezoneDefaultZone(t, p, p.postgres, true),
+			}
+			run(referenceExec("SET TIME ZONE 'UTC'", 0))
 			for _, tc := range []struct{ operand, show, local string }{
 				{"-7", "<-07>+07", "2004-01-01 07:00:00"},
 				{"5.5", "<+05:30>-05:30", "2003-12-31 18:30:00"},
@@ -151,18 +158,26 @@ func TestReferenceTimezoneSettingsLifecycleAndOffsets(t *testing.T) {
 			} {
 				run(referenceExec("SET TIME ZONE "+tc.operand, 0))
 				run(referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{tc.show}}))
-				run(timezoneTextStep("TIMESTAMPTZ '2004-01-01 00:00' AT TIME ZONE 'UTC'", tc.local))
+				run(timezoneTextStep("('2004-01-01 00:00'::TEXT)::TIMESTAMPTZ AT TIME ZONE '+00'", tc.local))
 			}
 			run(referenceExec("SET TIME ZONE 'EST5EDT'", 0))
-			run(timezoneTextStep("TIMESTAMPTZ '1974-01-10 12:00' AT TIME ZONE 'UTC'", "1974-01-10 16:00:00"))
+			run(timezoneTextStep("('1974-01-10 12:00'::TEXT)::TIMESTAMPTZ AT TIME ZONE 'UTC'", "1974-01-10 16:00:00"))
 			run(referenceExec("SET TIME ZONE 'ABC5DEF'", 0))
-			run(timezoneTextStep("TIMESTAMPTZ '2004-07-01 12:00' AT TIME ZONE 'UTC'", "2004-07-01 16:00:00"))
+			run(timezoneTextStep("('2004-07-01 12:00'::TEXT)::TIMESTAMPTZ AT TIME ZONE 'UTC'", "2004-07-01 16:00:00"))
 			for _, q := range []string{"SET TIME ZONE LOCAL", "SET TIME ZONE DEFAULT", "RESET TIME ZONE", "RESET ALL"} {
 				run(referenceExec(q, 0))
-				run(referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"UTC"}}))
+				for _, backend := range []struct {
+					db     *sql.DB
+					record *referenceRecorder
+				}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
+					s := referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{defaults[backend.db]}})
+					s.prepared = prepared
+					referenceRunStep(t, p.ctx, backend.db, backend.record, s)
+				}
 			}
-			run(referenceSelect("SELECT set_config('TimeZone','America/New_York',false) AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"America/New_York"}}))
-			run(referenceSelect("SELECT current_setting('timezone') AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"America/New_York"}}))
+			run(referenceExec("SET TIME ZONE 'UTC'", 0))
+			run(referenceSelect("SELECT set_config('TimeZone','America/New_York',false)", []string{"set_config"}, []string{"TEXT"}, [][]any{{"America/New_York"}}))
+			run(referenceSelect("SELECT current_setting('timezone')", []string{"current_setting"}, []string{"TEXT"}, [][]any{{"America/New_York"}}))
 			run(referenceExec("SET SESSION TIME ZONE 'UTC'", 0))
 			run(referenceExec("BEGIN", 0))
 			run(referenceExec("SET LOCAL TIME ZONE 'America/New_York'", 0))

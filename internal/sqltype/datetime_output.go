@@ -24,6 +24,11 @@ func formattedDate(y, m, d int, style DateStyle) string {
 			return fmt.Sprintf("%02d/%02d/%04d", d, m, y)
 		}
 		return fmt.Sprintf("%02d/%02d/%04d", m, d, y)
+	case DatePostgres:
+		if style.Order == DateDMY {
+			return fmt.Sprintf("%02d-%02d-%04d", d, m, y)
+		}
+		return fmt.Sprintf("%02d-%02d-%04d", m, d, y)
 	case DateGerman:
 		return fmt.Sprintf("%02d.%02d.%04d", d, m, y)
 	default:

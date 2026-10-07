@@ -35,7 +35,7 @@ func TestViewCatalogTypes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, err := comparison.Compare(ctx, value, value); err != nil || got != 0 {
+		if got, err := comparison.Compare(ctx, value, value, InputEnvironment{}); err != nil || got != 0 {
 			t.Fatal(got, err)
 		}
 	}
@@ -93,7 +93,7 @@ func TestViewCatalogCHARReleaseInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result, err := comparison.Compare(ctx, a, b); err != nil || result <= 0 {
+	if result, err := comparison.Compare(ctx, a, b, InputEnvironment{}); err != nil || result <= 0 {
 		t.Fatal(result, err)
 	}
 }

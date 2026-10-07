@@ -264,3 +264,29 @@ func TestTimezoneProviderSecondsWestDomain(t *testing.T) {
 		}
 	}
 }
+
+func TestTimezoneRebasedCivilCarryAndDateStyle(t *testing.T) {
+	ctx := context.Background()
+	types := testTypes()
+	value, err := types[Timestamp].Input(ctx, "4714-11-23 250000 BC", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := types[Timestamp].Output(ctx, value)
+	if err != nil || text != "4714-11-24 01:00:00 BC" {
+		t.Fatal(text, err)
+	}
+	date, err := types[Date].Input(ctx, "1997-12-17", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		order DateOrder
+		want  string
+	}{{DateMDY, "12-17-1997"}, {DateDMY, "17-12-1997"}} {
+		text, err := types[Date].OutputWithEnvironment(ctx, date, OutputEnvironment{DateStyle: DateStyle{Style: DatePostgres, Order: tc.order}})
+		if err != nil || text != tc.want {
+			t.Fatal(tc, text, err)
+		}
+	}
+}

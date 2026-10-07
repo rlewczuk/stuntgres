@@ -128,7 +128,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 					}
 					return Value{}, timestampError(text, "", false)
 				}
-				zone, err := resolveInputZone(s, env.Zone)
+				zone, err := resolveParsedInputZone(s, env.Zone)
 				if err != nil {
 					return Value{}, err
 				}
@@ -293,7 +293,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 			}
 			continue
 		}
-		zone, err := resolveInputZone(s, env.Zone)
+		zone, err := resolveParsedInputZone(s, env.Zone)
 		kind := inputAbbreviationKind(s, env.Zone)
 		if p.zoneSet || err != nil || kind == timestampDaylightZone && p.daylightSet {
 			return Value{}, timestampError(text, "", false)
@@ -374,7 +374,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 	}
 	days := civilDay(p.y, p.m, p.d)
 	tod := int64(p.h)*3600000000 + int64(p.min)*60000000 + int64(p.s)*1000000 + int64(p.u)
-	if days < timestampMinimum/microsPerDay || days > timestampEnd/microsPerDay {
+	if days < timestampMinimum/microsPerDay-1 || days > timestampEnd/microsPerDay {
 		return Value{}, timestampError(text, "range", false)
 	}
 	nval := days*microsPerDay + tod

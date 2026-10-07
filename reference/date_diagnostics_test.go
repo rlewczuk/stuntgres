@@ -64,9 +64,8 @@ func TestReferenceDateFullDiagnosticsAtomicityAndBoundaries(t *testing.T) {
 			run(referenceImplicitError("INSERT INTO nn VALUES('epoch'),(NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "v" of relation "nn" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "nn", Column: "v"}))
 			run(referenceSelect("SELECT v FROM nn", []string{"v"}, []string{"DATE"}, nil))
 			for _, tc := range []struct{ literal, typ string }{{"TIME '00:00'", "time without time zone"}, {"TIMESTAMP '2000-01-01'", "timestamp without time zone"}} {
-				if b.pg && tc.typ == "timestamp without time zone" {
-					// PostgreSQL has date/timestamp operators; native deliberately
-					// keeps the same-type temporal boundary.
+				if tc.typ == "timestamp without time zone" {
+					// DATE/TIMESTAMP comparison is supported on both backends.
 					s = referenceSelect("SELECT v FROM d WHERE v="+tc.literal, []string{"v"}, []string{"DATE"}, nil)
 					run(s) // The sentinel infinity is not equal to finite midnight.
 					s.prepared = true

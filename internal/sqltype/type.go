@@ -690,6 +690,15 @@ func BaselineCastType(id ID) bool {
 	return id == Int4 || id == Int8 || id == Text || id == Bool
 }
 
+func TemporalCastType(id ID) bool {
+	return id == Date || id == Time || id == Timestamp || id == Timestamptz || id == Timetz
+}
+
+func TemporalCastPair(source, target ID) bool {
+	return TemporalCastType(source) && (TemporalCastType(target) || target == Text) ||
+		source == Text && TemporalCastType(target)
+}
+
 // OIDCastPair admits only OID-related explicit syntax, including unsupported
 // integer directions so the binder can report the normal cannot-cast diagnostic.
 func OIDCastPair(source, target ID) bool {
@@ -705,7 +714,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, fmt.Errorf("invalid coercion usage")
 	}
 	if context == Explicit {
-		if !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !OIDCastPair(source.Type.id, target.Type.id) {
+		if !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !OIDCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
 		}
 		switch {
@@ -739,7 +748,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		p.method = stringConversion
 		return p, nil
 	}
-	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && (BaselineCastType(source.Type.id) || source.Type.id == Oid) {
+	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && (BaselineCastType(source.Type.id) || source.Type.id == Oid || TemporalCastType(source.Type.id)) {
 		p.method = viaIO
 		if source.Type.id == Bool {
 			p.method = booleanText

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
@@ -259,7 +260,28 @@ func TestCharacterCastsAndConversions(t *testing.T) {
 	wantTuples(t, db, "SELECT CAST(v AS char(4)),CAST(v AS text),CAST(v AS varchar(3)) FROM c", [][]any{{"a   ", "a", "a"}})
 	wantTuples(t, db, "SELECT v::char(4)::text FROM c", [][]any{{"a"}})
 	wantTuples(t, db, "SELECT CAST('1' AS integer) FROM seed", [][]any{{int64(1)}})
-	for _, q := range []string{"SELECT CAST(1 AS varchar(2)) FROM seed", "SELECT CAST(TIMESTAMP 'epoch' AS text) FROM seed", "SELECT TIMESTAMP 'epoch'::timestamp FROM seed"} {
+	for _, tc := range []struct {
+		q, name, typ string
+		want         any
+	}{
+		{"SELECT CAST(TIMESTAMP 'epoch' AS text) FROM seed", "text", "TEXT", "1970-01-01 00:00:00"},
+		{"SELECT TIMESTAMP 'epoch'::timestamp FROM seed", "timestamp", "TIMESTAMP", time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)},
+	} {
+		want := [][]any{{tc.want}}
+		timestampQuery(t, db, tc.q, []string{tc.name}, []string{tc.typ}, want)
+		stmt, err := db.Prepare(tc.q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows, err := stmt.Query()
+		if err != nil {
+			stmt.Close()
+			t.Fatal(err)
+		}
+		timestampCheckRows(t, rows, []string{tc.name}, []string{tc.typ}, want)
+		stmt.Close()
+	}
+	for _, q := range []string{"SELECT CAST(1 AS varchar(2)) FROM seed"} {
 		_, err := db.Prepare(q)
 		sqlState(t, err, "0A000")
 	}

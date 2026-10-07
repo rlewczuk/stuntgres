@@ -218,17 +218,16 @@ func TestTimestampQuotedUnicodeDeclarations(t *testing.T) {
 	execSQL(t, db, `INSERT INTO timestamp VALUES('2000-01-01 00:00:00.1236','epoch','epoch','epoch')`)
 	timestampQuery(t, db, "SELECT without,time,zone,timestamp FROM timestamp", []string{"without", "time", "zone", "timestamp"}, []string{"TIMESTAMP", "TIMESTAMP", "TIMESTAMP", "TIMESTAMP"}, [][]any{{time.Date(2000, 1, 1, 0, 0, 0, 124000000, time.UTC), time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)}})
 	q := "SELECT TIMESTAMP 'epoch'::timestamp FROM timestamp"
-	want := stuntgres.Error{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: strconv.Itoa(strings.Index(q, "::") + 1)}
-	rows, err := db.Query(q)
-	if rows != nil {
-		rows.Close()
-		t.Fatal("cast boundary exposed cursor")
-	}
-	typeCoreDiagnostic(t, err, want)
+	want := [][]any{{time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)}}
+	timestampQuery(t, db, q, []string{"timestamp"}, []string{"TIMESTAMP"}, want)
 	stmt, err := db.Prepare(q)
-	if stmt != nil {
-		stmt.Close()
-		t.Fatal("cast boundary exposed handle")
+	if err != nil {
+		t.Fatal(err)
 	}
-	typeCoreDiagnostic(t, err, want)
+	defer stmt.Close()
+	rows, err := stmt.Query()
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestampCheckRows(t, rows, []string{"timestamp"}, []string{"TIMESTAMP"}, want)
 }

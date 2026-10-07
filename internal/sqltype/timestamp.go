@@ -913,6 +913,11 @@ func civilInputError(typeName, text, kind string, hint bool) error {
 	case "field":
 		code, msg = "22008", fmt.Sprintf("date/time field value out of range: \"%s\"", text)
 	case "range":
+		// PostgreSQL uses the shared timestamp range label for both timestamp
+		// input functions, but retains the zoned type name for syntax errors.
+		if typeName == "timestamp with time zone" {
+			typeName = "timestamp"
+		}
 		code, msg = "22008", fmt.Sprintf("%s out of range: \"%s\"", typeName, text)
 	case "zone":
 		code, msg = "22009", fmt.Sprintf("time zone displacement out of range: \"%s\"", text)

@@ -50,7 +50,7 @@ SET reuses the [literal decoding rules](LEXICAL.md): for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-Supported builtins are deliberately bounded:
+The exact supported builtin registry contains these fifteen settings:
 
 | Name | Default / access | Actual behavior |
 | --- | --- | --- |
@@ -58,12 +58,17 @@ Supported builtins are deliberately bounded:
 | client_min_messages | notice / session | Filters structured connector notices; debug aliases debug2 |
 | search_path | `"$user", public` / session | Stored explicit path; effective lookup skips absent/inaccessible schemas and expands current user |
 | standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
+| bytea_output | hex / session | Selects hex or escape BYTEA output |
 | TimeZone | UTC / session | Typed embedded timezone rules for input, output and conversions |
 | DateStyle | `ISO, MDY` / session | ISO/SQL/Postgres/German output and MDY/DMY/YMD input order |
 | statement_timeout | 0 / session | Millisecond command-admission timer covering parse, Prepare and Execute |
 | lock_timeout | 0 / session | Millisecond limit for each queued lock acquisition; 0 disables |
 | server_encoding | UTF8 / read-only | Actual UTF8 invariant; writes and individual RESET fail 55P02 |
 | log_statement_stats | off / privileged | Deny-only: all writes and individual RESET fail 42501; no logging activation |
+| default_transaction_isolation | read committed / session | Isolation default for new transactions |
+| default_transaction_read_only | off / session | Read-only default for new transactions |
+| transaction_isolation | read committed / transaction | Current transaction isolation level |
+| transaction_read_only | off / transaction | Current transaction read-only status |
 
 Prepared literals retain Prepare-time string mode; prepared SHOW/functions read
 Execute-time values. To retain a literal prepared before LOCAL within a transaction,
@@ -209,6 +214,8 @@ YMD 2001-02-03. ISO input remains unambiguous. Conflicting components and malfor
 lists fail atomically. RESET, RESET ALL, transactions, savepoints and LOCAL
 restore typed rules/style and displayed text together; healthy pool reuse retains
 both, while physical replacement starts with captured defaults.
+For DATE `1997-12-17`, Postgres style emits `12-17-1997` with MDY and
+`17-12-1997` with DMY (not ISO date output).
 
 Execution captures one immutable temporal environment. Held rows keep that
 presentation even after SET. Prepared typed temporal constants freeze at analysis;

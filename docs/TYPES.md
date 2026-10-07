@@ -985,6 +985,9 @@ Length/DecimalSize are unavailable. Finite timestamptz time.Time exports preserv
 the exact instant with the execution-captured zone offset, whereas infinity
 exports fresh owned bytes. A time.Time parameter inferred as timestamptz preserves
 its instant; one inferred as plain timestamp preserves its civil fields.
+The pinned lib/pq adapter exports TIMETZ as time.Time, unlike native string output.
+Cross-backend text witnesses use `::TEXT`; native ScanType assertions remain
+independent rather than normalizing this adapter difference.
 
 Explicit input offsets/names convert to an instant; absent zones use session
 TimeZone. Output renders that instant in the captured session zone. Thus
@@ -1011,17 +1014,20 @@ are chosen at transaction-start instant, not the source literal's date or a
 per-row wall clock. A full DST-bearing zone in timetz input requires a supplied
 date; stored timetz output remains fixed when session TimeZone changes.
 
-Stored/provider-derived TIMETZ offsets can reach ±169 hours. This is distinct
-from literal input's ±15:59:59 bound: a valid wide POSIX/session rule may produce
+Stored/provider-derived TIMETZ offsets range from 169 hours east to 168 hours west,
+distinct from literal input's ±15:59:59 bound: a valid wide POSIX/session rule may produce
 a timetz offset that cannot be entered as an ordinary numeric-offset literal.
 Prepared capture, comparison, conversion and native replay retain that identity.
 Timestamptz equality/order uses the instant. Timetz compares non-modular UTC-clock
 keys and then seconds-west offset: `09:00+01` sorts before, and is unequal to,
-`08:00+00`. Grouping/DISTINCT/conditional providers share these semantics.
+`08:00+00`. Grouping, ordering and conditional/distinct predicates share these semantics.
+SELECT DISTINCT and min/max aggregates remain outside the supported query surface.
 
 Selected datetime casts interpret civil DATE/TIMESTAMP in session TimeZone when
 converting/comparing with an instant; reverse casts use local civil fields.
 DATE/TIMESTAMP midnight equals the corresponding local-midnight timestamptz.
+DATE and plain TIMESTAMP also compare across types at civil midnight, and
+timestamp-to-time assignment drops the date and retains the clock.
 Dropping timetz's zone retains its clock. Temporal TEXT casts honor DateStyle:
 ISO/SQL/Postgres/German output and MDY/DMY/YMD numeric input ordering.
 TIME/TIMETZ output clocks do not depend on DateStyle. Use explicit SQL TEXT casts
@@ -1045,4 +1051,7 @@ Initial timestamptz input range checking and typmod rounding are distinct:
 rounding the valid upper input `294276-12-31 23:59:59.999999+00` to precision0
 can produce `294277-01-01 00:00:00+00`. That PostgreSQL-compatible carry succeeds;
 it is not a new permission to parse arbitrary initially out-of-range input.
+An explicit offset that moves an initially finite input beyond either endpoint
+fails with SQLSTATE `22008` and `timestamp out of range: "<original input>"`,
+not the zoned type label used by malformed timestamptz input.
 

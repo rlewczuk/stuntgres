@@ -66,7 +66,6 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 	}{
 		{"ints", "INTEGER", "integer", "TIME '04:05'", "time without time zone", "1", "INT4", int64(1)},
 		{"stamps", "TIMESTAMP", "timestamp without time zone", "TIME '04:05'", "time without time zone", "'2003-07-07'", "TIMESTAMP", time.Date(2003, 7, 7, 0, 0, 0, 0, time.UTC)},
-		{"times", "TIME", "time without time zone", "TIMESTAMP '2003-07-07'", "timestamp without time zone", "'00:00'", "TIME", "00:00:00"},
 		{"stampints", "INTEGER", "integer", "TIMESTAMP '2003-07-07'", "timestamp without time zone", "1", "INT4", int64(1)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -91,4 +90,35 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTimezoneTimestampToTimeAssignment(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), t.Name())
+	execSQL(t, db, "CREATE TABLE times(v TIME)")
+	for _, prepared := range []bool{false, true} {
+		q := "INSERT INTO times VALUES(TIMESTAMP '2003-07-07 04:05:06')"
+		if prepared {
+			stmt, err := db.Prepare(q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := stmt.Exec()
+			stmt.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n, err := result.RowsAffected(); err != nil || n != 1 {
+				t.Fatal(n, err)
+			}
+		} else {
+			result, err := db.Exec(q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if n, err := result.RowsAffected(); err != nil || n != 1 {
+				t.Fatal(n, err)
+			}
+		}
+	}
+	timeQuery(t, db, "SELECT v FROM times", []string{"v"}, []string{"TIME"}, [][]any{{"04:05:06"}, {"04:05:06"}})
 }

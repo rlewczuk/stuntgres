@@ -75,9 +75,16 @@ func TestReferenceTimezoneRelativeInputAndDeclarations(t *testing.T) {
 	p.step(t, referenceExec("CREATE TABLE tz_spelling(a TIMESTAMP(3) WITH TIME ZONE,b TIME(3) WITH TIME ZONE,c pg_catalog.timestamptz,d pg_catalog.timetz)", 0))
 	p.step(t, referencePrepared(referenceExec("CREATE TABLE tz_spelling_prepared(a TIMESTAMP(3) WITH TIME ZONE,b TIME(3) WITH TIME ZONE,c pg_catalog.timestamptz,d pg_catalog.timetz)", 0)))
 	timezoneBoth(t, p, referenceSelect("SELECT a,b,c,d FROM tz_spelling", []string{"a", "b", "c", "d"}, []string{"TIMESTAMPTZ", "TIMETZ", "TIMESTAMPTZ", "TIMETZ"}, nil))
-	// Check NULL column typmods against PostgreSQL's actual catalog, not the
-	// driver's intentionally nonnumeric DecimalSize adapter metadata.
-	timezoneBoth(t, p, referenceSelect("SELECT attname,atttypmod FROM pg_attribute WHERE attrelid='tz_spelling'::regclass AND attnum>0 ORDER BY attnum", []string{"attname", "atttypmod"}, []string{"NAME", "INT4"}, [][]any{{"a", int64(3)}, {"b", int64(3)}, {"c", int64(-1)}, {"d", int64(-1)}}))
+	// pg_attribute population is outside the baseline catalog contract. Assert
+	// public metadata on actual NULL rows and typmod effects on assigned values.
+	for _, table := range []string{"tz_spelling", "tz_spelling_prepared"} {
+		insert := referenceExec("INSERT INTO "+table+" VALUES(NULL,NULL,NULL,NULL)", 1)
+		insert.prepared = table == "tz_spelling_prepared"
+		p.step(t, insert)
+		timezoneBoth(t, p, referenceSelect("SELECT a,b,c,d FROM "+table, []string{"a", "b", "c", "d"}, []string{"TIMESTAMPTZ", "TIMETZ", "TIMESTAMPTZ", "TIMETZ"}, [][]any{{nil, nil, nil, nil}}))
+		timezoneBoth(t, p, referenceExec("UPDATE "+table+" SET a='2004-01-01 00:00:00.1236+00',b='10:00:00.1236-05',c='2004-01-01 00:00:00.1236+00',d='10:00:00.1236-05'", 1))
+		timezoneBoth(t, p, referenceSelect("SELECT a::TEXT AS a,b::TEXT AS b,c::TEXT AS c,d::TEXT AS d FROM "+table, []string{"a", "b", "c", "d"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"2004-01-01 00:00:00.124+00", "10:00:00.124-05", "2004-01-01 00:00:00.1236+00", "10:00:00.1236-05"}}))
+	}
 	for _, zone := range []struct {
 		name    string
 		seconds int

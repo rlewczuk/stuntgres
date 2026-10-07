@@ -17,9 +17,9 @@ func TestTimezoneDiagnosticsPhasesAndAtomicity(t *testing.T) {
 	timezoneExec(t, c, "CREATE TABLE tz_witness(z TIMESTAMPTZ,q TIMETZ)", 0)
 	timezoneExec(t, c, "INSERT INTO tz_witness VALUES('2004-01-01+00','12:00+00')", 1)
 	for _, tc := range []struct{ sql, code, message, position, hint string }{
-		{"SELECT TIMESTAMPTZ 'nonsense' FROM tz_witness", "22007", "invalid input syntax for type timestamp with time zone: \"nonsense\"", "19", ""},
-		{"SELECT TIMESTAMPTZ '2004-10-19 10:00+16' FROM tz_witness", "22009", "time zone displacement out of range: \"2004-10-19 10:00+16\"", "19", ""},
-		{"SELECT TIMESTAMPTZ '2004-10-19 10:00 No/Such_Zone' FROM tz_witness", "22023", "time zone \"no/such_zone\" not recognized", "19", ""},
+		{"SELECT TIMESTAMPTZ 'nonsense' FROM tz_witness", "22007", "invalid input syntax for type timestamp with time zone: \"nonsense\"", "20", ""},
+		{"SELECT TIMESTAMPTZ '2004-10-19 10:00+16' FROM tz_witness", "22009", "time zone displacement out of range: \"2004-10-19 10:00+16\"", "20", ""},
+		{"SELECT TIMESTAMPTZ '2004-10-19 10:00 No/Such_Zone' FROM tz_witness", "22023", "time zone \"no/such_zone\" not recognized", "20", ""},
 		{"SELECT TIMETZ '10:00 America/New_York' FROM tz_witness", "22007", "invalid input syntax for type time with time zone: \"10:00 America/New_York\"", "15", ""},
 		{"SELECT DATE '31/12/2024' FROM tz_witness", "22008", "date/time field value out of range: \"31/12/2024\"", "13", "Perhaps you need a different \"DateStyle\" setting."},
 		{"SET TIME ZONE = 'UTC'", "42601", "syntax error at or near \"=\"", "15", ""},

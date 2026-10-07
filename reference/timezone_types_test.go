@@ -26,6 +26,35 @@ func timezoneReferencePair(t *testing.T) *referencePair {
 	return p
 }
 
+// Capture each backend's configured default separately from the explicit UTC
+// baseline: PostgreSQL's pinned container boots in Etc/UTC, not the native UTC.
+func timezoneDefaultZone(t *testing.T, p *referencePair, conn referenceExecutor, postgres bool) string {
+	t.Helper()
+	if _, err := conn.ExecContext(p.ctx, "RESET TIME ZONE"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := conn.QueryContext(p.ctx, "SHOW TIME ZONE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		t.Fatal("missing default TimeZone", rows.Err())
+	}
+	var zone string
+	if err := rows.Scan(&zone); err != nil {
+		t.Fatal(err)
+	}
+	want := "UTC"
+	if postgres {
+		want = "Etc/UTC"
+	}
+	if zone != want || rows.Next() || rows.Err() != nil {
+		t.Fatal("configured default TimeZone", zone, want, rows.Err())
+	}
+	return zone
+}
+
 func timezoneTextStep(expression, want string) referenceStep {
 	return referenceSelect("SELECT ("+expression+")::TEXT AS v FROM tz_witness WHERE id=1", []string{"v"}, []string{"TEXT"}, [][]any{{want}})
 }
@@ -47,9 +76,9 @@ func TestReferenceTimezoneInputPrecisionAndBounds(t *testing.T) {
 		{"TIMESTAMPTZ '2004-01-01 00:00-05:30:15'", "2004-01-01 05:30:15+00"},
 		{"TIMESTAMPTZ '2004-01-02 00:00+15:59:59'", "2004-01-01 08:00:01+00"},
 		{"TIMESTAMPTZ '2004-01-01 00:00-15:59:59'", "2004-01-01 15:59:59+00"},
-		{"CAST('2004-01-01 00:00:00.9995+00' AS TIMESTAMP(3) WITH TIME ZONE)", "2004-01-01 00:00:01+00"},
-		{"CAST('2004-01-01 23:59:59.5+00' AS TIMESTAMP(0) WITH TIME ZONE)", "2004-01-02 00:00:00+00"},
-		{"CAST('2004-01-01 00:00:00.123456+00' AS TIMESTAMP(6) WITH TIME ZONE)", "2004-01-01 00:00:00.123456+00"},
+		{"'2004-01-01 00:00:00.9995+00'::TEXT::TIMESTAMP(3) WITH TIME ZONE", "2004-01-01 00:00:01+00"},
+		{"'2004-01-01 23:59:59.5+00'::TEXT::TIMESTAMP(0) WITH TIME ZONE", "2004-01-02 00:00:00+00"},
+		{"'2004-01-01 00:00:00.123456+00'::TEXT::TIMESTAMP(6) WITH TIME ZONE", "2004-01-01 00:00:00.123456+00"},
 		{"TIMESTAMPTZ 'epoch'", "1970-01-01 00:00:00+00"},
 		{"TIMESTAMPTZ '0001-01-01 00:00+00 BC'", "0001-01-01 00:00:00+00 BC"},
 		{"TIMESTAMPTZ '4714-11-24 00:00+00 BC'", "4714-11-24 00:00:00+00 BC"},
@@ -59,7 +88,7 @@ func TestReferenceTimezoneInputPrecisionAndBounds(t *testing.T) {
 		{"TIMESTAMPTZ '-infinity'", "-infinity"},
 		{"TIMESTAMP '2004-10-19 10:23:54+02'", "2004-10-19 10:23:54"},
 		{"TIMETZ '24:00+02'", "24:00:00+02"},
-		{"CAST('23:59:59.9995-05' AS TIME(3) WITH TIME ZONE)", "24:00:00-05"},
+		{"'23:59:59.9995-05'::TEXT::TIME(3) WITH TIME ZONE", "24:00:00-05"},
 	} {
 		t.Run(tc.expression, func(t *testing.T) { timezoneBoth(t, p, timezoneTextStep(tc.expression, tc.want)) })
 	}
@@ -75,7 +104,7 @@ func TestReferenceTimezoneMetadataParametersAndFreeze(t *testing.T) {
 		s.prepared = prepared
 		p.step(t, s)
 	}
-	timezoneBoth(t, p, referenceSelect("SELECT z,q FROM tz_witness ORDER BY id", []string{"z", "q"}, []string{"TIMESTAMPTZ", "TIMETZ"}, [][]any{{nil, nil}, {instant.UTC().Truncate(time.Millisecond), "05:34:17.124-05"}, {instant.UTC().Truncate(time.Millisecond), "05:34:17.124-05"}}))
+	timezoneBoth(t, p, referenceSelect("SELECT z,q::TEXT AS q FROM tz_witness ORDER BY id", []string{"z", "q"}, []string{"TIMESTAMPTZ", "TEXT"}, [][]any{{nil, nil}, {instant.UTC().Truncate(time.Millisecond), "05:34:17.124-05"}, {instant.UTC().Truncate(time.Millisecond), "05:34:17.124-05"}}))
 	timezoneBoth(t, p, referenceSelect("SELECT $1::TIMESTAMPTZ AS z,$2::TIMETZ AS q FROM tz_witness WHERE id=1", []string{"z", "q"}, []string{"TIMESTAMPTZ", "TIMETZ"}, [][]any{{nil, nil}}, nil, nil))
 	for _, backend := range []struct {
 		name   string
@@ -85,7 +114,7 @@ func TestReferenceTimezoneMetadataParametersAndFreeze(t *testing.T) {
 		t.Run(backend.name, func(t *testing.T) {
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
 			run(referenceExec("SET TIME ZONE 'America/New_York'", 0))
-			frozen, err := backend.db.PrepareContext(p.ctx, "SELECT TIMESTAMPTZ '2004-07-01 12:00' AS z,TIMETZ '05:34:17-05' AS q FROM tz_witness WHERE id=1")
+			frozen, err := backend.db.PrepareContext(p.ctx, "SELECT TIMESTAMPTZ '2004-07-01 12:00' AS z,(TIMETZ '05:34:17-05')::TEXT AS q FROM tz_witness WHERE id=1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -150,11 +179,19 @@ func TestReferenceTimezoneMetadataParametersAndFreeze(t *testing.T) {
 				t.Fatal("extra row", rows.Err())
 			}
 			rows.Close()
-			for _, tc := range []struct {
-				name string
-				oid  int64
-			}{{"timestamptz", 1184}, {"timetz", 1266}} {
-				run(referenceSelect(fmt.Sprintf("SELECT oid::BIGINT AS oid FROM pg_type WHERE typname='%s'", tc.name), []string{"oid"}, []string{"INT8"}, [][]any{{tc.oid}}))
+			if backend.name == "postgres" {
+				// Native exposes SQL type/scan metadata above, not pg_type or
+				// a public OID API. Assert the fixed release OIDs on PostgreSQL.
+				for _, tc := range []struct {
+					name string
+					oid  int64
+				}{{"timestamptz", 1184}, {"timetz", 1266}} {
+					for _, prepared := range []bool{false, true} {
+						s := referenceSelect(fmt.Sprintf("SELECT oid::BIGINT AS oid FROM pg_catalog.pg_type WHERE typname='%s'", tc.name), []string{"oid"}, []string{"INT8"}, [][]any{{tc.oid}})
+						s.prepared = prepared
+						run(s)
+					}
+				}
 			}
 		})
 	}

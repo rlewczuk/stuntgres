@@ -219,7 +219,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 
 func TestTableCoreKnownUnsupportedTypesExecute(t *testing.T) {
 	e := New()
-	for _, name := range []string{"TIMESTAMPTZ", "JSONB"} {
+	for _, name := range []string{"JSONB"} {
 		q := "CREATE TABLE bad (id " + name + ")"
 		stmt := statement(t, q)
 		if _, err := testDescribe(e, stmt); err != nil {
@@ -235,6 +235,8 @@ func TestTableCoreKnownUnsupportedTypesExecute(t *testing.T) {
 		state(t, err, "42P01")
 	}
 	run(t, e, `CREATE TABLE supported_uuid(v "uuid")`)
+	run(t, e, "CREATE TABLE supported_zoned(z TIMESTAMPTZ,q TIMETZ)")
+	run(t, e, "INSERT INTO supported_zoned VALUES('2004-01-01 12:00+02','12:00+02')")
 	run(t, e, `INSERT INTO supported_uuid VALUES('{A0EEBC999C0B4EF8BB6D6BB9BD380A11}')`)
 }
 

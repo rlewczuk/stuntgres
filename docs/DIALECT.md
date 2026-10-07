@@ -1415,12 +1415,22 @@ TIMESTAMPTZ stores instants; TIMETZ stores clock plus fixed offset.
 AT TIME ZONE/AT LOCAL and selected datetime casts/comparisons reuse the scalar
 binder and captured session environment. TimeZone/DateStyle use existing
 SET/SHOW/RESET/current_setting/set_config and transaction/savepoint lifecycle.
+AT TIME ZONE is strict: a NULL temporal operand or NULL zone produces a typed
+NULL result. AT LOCAL likewise preserves the result type for a NULL operand.
+An unreachable CASE branch does not evaluate its zone conversion.
 IANA rules, historical abbreviations and POSIX/fixed offsets are deterministic
 embedded pinned-image data, not host lookups. DST gaps/folds follow PostgreSQL's
 accepted transition-side preference. See [types](TYPES.md#time-zone-aware-values)
 and [settings](SETTINGS.md#temporal-settings) for signs, precision, adapter
 representation and DateStyle ordering. Dump/Restore remains native logical replay.
-Timezone name/abbreviation views, general INTERVAL values/arithmetic,
-timezone(...) aliases and CURRENT_* producer-family expansion are excluded.
+Standard/postfix temporal identity casts and temporal-to-TEXT output casts are
+supported in existing scalar positions, including direct and prepared queries.
+For example, `TIMESTAMP 'epoch'::timestamp` preserves the timestamp value and
+`CAST(TIMESTAMP 'epoch' AS text)` renders `1970-01-01 00:00:00` under ISO DateStyle.
+This does not expand unrelated cast families: integer-to-VARCHAR remains excluded.
+Timezone name/abbreviation views, general INTERVAL declarations/literals/values
+and arithmetic, timezone(...) aliases and CURRENT_* producer-family expansion
+are excluded. The timezone-only INTERVAL operand of SET TIME ZONE is supported;
+it does not introduce a general INTERVAL type.
 Feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
 

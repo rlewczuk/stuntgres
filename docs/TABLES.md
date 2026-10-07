@@ -173,10 +173,9 @@ Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
 EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT2/INT4/INT8/NAME/TEXT/BPCHAR/VARCHAR/BOOL/FLOAT4/FLOAT8/DATE/TIME/TIMESTAMP/NUMERIC/UUID/BYTEA fail
-execution with `0A000`. Excluded multiword families (BIT VARYING,
-TIME WITH TIME ZONE, TIMESTAMP WITH TIME ZONE and qualified INTERVAL
-fields), qualified type names, arrays and modifiers other than FLOAT(p),
+Known single-name types outside INT2/INT4/INT8/NAME/TEXT/BPCHAR/VARCHAR/BOOL/FLOAT4/FLOAT8/DATE/TIME/TIMESTAMP/TIMETZ/TIMESTAMPTZ/NUMERIC/UUID/BYTEA fail
+execution with `0A000`. Excluded multiword families (BIT VARYING and qualified
+INTERVAL fields), unsupported qualified type names, arrays and modifiers other than FLOAT(p),
 numeric precision/scale, character length, temporal precision and admitted BYTEA/NAME modifiers
 remain parser-level `0A000` boundaries. DATE, BYTEA, TEXT and NAME modifier syntax is admitted only
 to reject it semantically with `42601`, `type modifier is not allowed for type

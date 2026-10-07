@@ -21,7 +21,6 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 		{"date", sqltype.Time, "2000-01-01", "time without time zone", "date"},
 		{"time", sqltype.Int4, "04:05", "integer", "time without time zone"},
 		{"time", sqltype.Timestamp, "04:05", "timestamp without time zone", "time without time zone"},
-		{"timestamp", sqltype.Time, "2003-07-07", "time without time zone", "timestamp without time zone"},
 		{"timestamp", sqltype.Int4, "2003-07-07", "integer", "timestamp without time zone"},
 	} {
 		t.Run(tc.source+"/"+tc.destination, func(t *testing.T) {
@@ -41,5 +40,20 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 				t.Fatalf("got %#v want %#v", got, want)
 			}
 		})
+	}
+	d, _ := e.CatalogRead().LookupType(sqltype.Time)
+	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp"}, Text: "2003-07-07 04:05:06"}
+	bound, err := b.bind(raw, expressionPolicy{context: assignmentContext, expected: d.Usage(), mode: sqltype.Assignment})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := bound.Eval(&EvalContext{Context: context.Background()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := d.Output(context.Background(), value)
+	if err != nil || text != "04:05:06" {
+		t.Fatal(text, err)
 	}
 }

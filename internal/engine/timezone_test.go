@@ -83,3 +83,49 @@ func TestTimezonePreparedTemporalPayloads(t *testing.T) {
 		}
 	}
 }
+
+func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
+	ctx := context.Background()
+	e := New()
+	for _, tc := range []struct {
+		query string
+		id    sqltype.ID
+		null  bool
+		text  string
+	}{
+		{"SELECT NULL::TIMESTAMP AT TIME ZONE 'No/Such_Zone' FROM t", sqltype.Timestamptz, true, ""},
+		{"SELECT NULL::TIMESTAMPTZ AT LOCAL FROM t", sqltype.Timestamp, true, ""},
+		{"SELECT NULL::TIMETZ AT TIME ZONE 'UTC' FROM t", sqltype.Timetz, true, ""},
+		{"SELECT TIMESTAMP 'epoch' AT TIME ZONE NULL::TEXT FROM t", sqltype.Timestamptz, true, ""},
+		{"SELECT CASE WHEN TRUE THEN TIMETZ '05:34:17-05' ELSE TIMETZ '10:00+00' AT TIME ZONE 'No/Such_Zone' END FROM t", sqltype.Timetz, false, "05:34:17-05"},
+		{"SELECT (TIMETZ '05:34:17-05' AT TIME ZONE 'UTC')=TIMETZ '10:34:17+00' FROM t", sqltype.Bool, false, "t"},
+		{"SELECT (NULL::TIMESTAMP AT TIME ZONE 'No/Such_Zone') IS DISTINCT FROM NULL::TIMESTAMPTZ FROM t", sqltype.Bool, false, "f"},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			binder := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+			node, err := binder.bind(castTarget(t, tc.query), expressionPolicy{context: projectionContext})
+			if err != nil {
+				t.Fatal(err)
+			}
+			value, err := node.Eval(&EvalContext{Context: ctx})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if node.ResultUsage().Type.ID() != tc.id || value.Type() != node.ResultUsage().Type || value.IsNull() != tc.null {
+				t.Fatal(node.ResultUsage(), value)
+			}
+			if !tc.null {
+				text, err := value.Type().Output(ctx, value)
+				if err != nil || text != tc.text {
+					t.Fatal(text, err)
+				}
+			}
+		})
+	}
+}
+
+func TestTimezoneCastScopeRetainsCharacterExclusion(t *testing.T) {
+	binder := newExpressionBinder(context.Background(), New(), sqltype.InputEnvironment{}, nil, nil)
+	_, err := binder.bind(castTarget(t, "SELECT CAST(1 AS varchar(2)) FROM t"), expressionPolicy{context: projectionContext})
+	state(t, err, "0A000")
+}

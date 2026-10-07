@@ -96,7 +96,7 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				}
 				p.zoneSet = true
 			} else {
-				zone, err := resolveInputZone(s, env.Zone)
+				zone, err := resolveParsedInputZone(s, env.Zone)
 				if err != nil {
 					return Value{}, err
 				}
@@ -174,7 +174,7 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 					return bad(timestampMalformed)
 				}
 				p.zoneSet = true
-				zone, err := resolveInputZone(s, env.Zone)
+				zone, err := resolveParsedInputZone(s, env.Zone)
 				if err != nil {
 					return Value{}, err
 				}
@@ -239,7 +239,7 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				}
 				prefix = unsupportedPrefix
 			default:
-				zone, err := resolveInputZone(s, env.Zone)
+				zone, err := resolveParsedInputZone(s, env.Zone)
 				if coreDateWord(s) || err != nil || p.zoneSet {
 					return bad(timestampMalformed)
 				}

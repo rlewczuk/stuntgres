@@ -125,7 +125,6 @@ func TestTimePrecisionDiagnosticsAndNotices(t *testing.T) {
 		{`CREATE TABLE bad(v "time"(+1))`, "42601", "type modifiers must be simple constants or identifiers", "20"},
 		{`CREATE TABLE bad(v "time"(1.5))`, "22P02", "invalid input syntax for type integer: \"1.5\"", "20"},
 		{`CREATE TABLE bad(v "time"(2147483648))`, "22003", "value \"2147483648\" is out of range for type integer", "20"},
-		{"CREATE TABLE bad(v TIME WITH TIME ZONE)", "0A000", "unsupported column type", "20"},
 	} {
 		_, err := conn.ExecContext(ctx, tc.q)
 		timeDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: tc.message, Position: tc.position})
@@ -141,6 +140,9 @@ func TestTimePrecisionDiagnosticsAndNotices(t *testing.T) {
 		noticeExec(t, conn, "CREATE TABLE bad(v TIME)")
 		noticeExec(t, conn, "DROP TABLE bad")
 	}
+	noticeExec(t, conn, "CREATE TABLE zoned(v TIME WITH TIME ZONE)")
+	timezoneExec(t, conn, "INSERT INTO zoned VALUES('04:05+02')", 1)
+	timezoneRows(t, conn, "SELECT v FROM zoned", []string{"TIMETZ"}, [][]any{{"04:05:00+02"}})
 	stmt, err := conn.PrepareContext(ctx, "CREATE TABLE capped(v TIME(7))")
 	if err != nil || len(notices) != 0 {
 		t.Fatal(err, notices)

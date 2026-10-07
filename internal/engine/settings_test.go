@@ -18,6 +18,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"application_name", "initial", "Sets the application name to be reported in statistics and logs."},
 		{"bytea_output", "hex", "Sets the output format for bytea."},
 		{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
+		{"DateStyle", "ISO, MDY", "Sets the display format for date and time values."},
 		{"default_transaction_isolation", "read committed", "Sets the transaction isolation level of each new transaction."},
 		{"default_transaction_read_only", "off", "Sets the default read-only status of new transactions."},
 		{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
@@ -26,6 +27,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
 		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},
 		{"statement_timeout", "0", "Sets the maximum allowed duration of any statement."},
+		{"TimeZone", "UTC", "Sets the time zone for displaying and interpreting time stamps."},
 		{"transaction_isolation", "read committed", "Sets the current transaction's isolation level."},
 		{"transaction_read_only", "off", "Sets the current transaction's read-only status."},
 	}

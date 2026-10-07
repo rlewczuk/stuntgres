@@ -12,6 +12,15 @@ type zoneSpecification struct {
 	fixed        bool
 }
 
+func resolveParsedInputZone(name string, session *Zone) (zoneSpecification, error) {
+	// DecodeDateTime folds input tokens; AT TIME ZONE retains its expression text.
+	specification, err := resolveInputZone(name, session)
+	if err != nil {
+		_, err = ResolveZone(strings.ToLower(name))
+	}
+	return specification, err
+}
+
 func resolveInputZone(name string, session *Zone) (zoneSpecification, error) {
 	zones.once.Do(initializeZones)
 	if session != nil {

@@ -88,7 +88,7 @@ var builtinSettings = []SettingDefinition{
 	{Name: "transaction_read_only", Type: SettingBoolean, BootDefault: "off", Description: "Sets the current transaction's read-only status."},
 	{Name: "bytea_output", Type: SettingEnum, BootDefault: "hex", EnumValues: []string{"escape", "hex"}, Description: "Sets the output format for bytea."},
 	{Name: "timezone", Type: SettingString, BootDefault: "UTC", Description: "Sets the time zone for displaying and interpreting time stamps."},
-	{Name: "datestyle", Type: SettingString, BootDefault: "ISO, MDY", Description: "Sets the display format for date and time values, as well as the rules for interpreting ambiguous date input values."},
+	{Name: "datestyle", Type: SettingString, BootDefault: "ISO, MDY", Description: "Sets the display format for date and time values."},
 	clientMinMessages,
 	{Name: "search_path", Type: SettingString, BootDefault: `"$user", public`, Description: "Sets the schema search order for names that are not schema-qualified."},
 	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},

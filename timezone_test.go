@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"reflect"
+	"strings"
 	"stuntgres"
 	"testing"
 	"time"
@@ -47,8 +48,29 @@ func timezoneRows(t *testing.T, c timezoneQueryer, q string, types []string, wan
 	if err = r.Err(); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("%s: %#v want %#v", q, got, want)
+	if strings.Contains(q, " ORDER BY ") {
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s: %#v want %#v", q, got, want)
+		}
+		return
+	}
+	// Match unordered results as bags, including every duplicate occurrence.
+	if len(got) != len(want) {
+		t.Fatalf("%s cardinality %d want %d: %#v", q, len(got), len(want), got)
+	}
+	used := make([]bool, len(want))
+	for _, row := range got {
+		found := false
+		for i, expected := range want {
+			if !used[i] && reflect.DeepEqual(row, expected) {
+				used[i] = true
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("%s bag occurrence %#v: %#v want %#v", q, row, got, want)
+		}
 	}
 }
 func timezoneExec(t *testing.T, c *sql.Conn, q string, n int64, args ...any) {
@@ -120,7 +142,7 @@ func TestTimezoneConversionComparisonAndComposition(t *testing.T) {
 	timezoneExec(t, c, "INSERT INTO tz_witness VALUES('2004-10-19 04:00+00','09:00+01'),('2004-10-19 04:00+00','08:00+00'),(NULL,NULL)", 3)
 	timezoneExec(t, c, "SET TIME ZONE 'America/New_York'", 0)
 	timezoneRows(t, c, "SELECT DATE '2004-10-19'=z,z=TIMESTAMP '2004-10-19 00:00',DATE '2004-10-19' BETWEEN z AND z,z IS DISTINCT FROM NULL FROM tz_witness WHERE z IS NOT NULL", []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, true}, {true, true, true, true}})
-	timezoneRows(t, c, "SELECT DISTINCT z::TEXT FROM tz_witness WHERE z IS NOT NULL", []string{"TEXT"}, [][]any{{"2004-10-19 00:00:00-04"}})
+	timezoneRows(t, c, "SELECT z::TEXT,count(*) FROM tz_witness WHERE z IS NOT NULL GROUP BY z", []string{"TEXT", "INT8"}, [][]any{{"2004-10-19 00:00:00-04", int64(2)}})
 	timezoneRows(t, c, "SELECT q::TEXT FROM tz_witness WHERE q IS NOT NULL ORDER BY q", []string{"TEXT"}, [][]any{{"09:00:00+01"}, {"08:00:00+00"}})
 	timezoneRows(t, c, "SELECT TIMETZ '09:00+01'=TIMETZ '08:00+00',TIMETZ '09:00+01'<TIMETZ '08:00+00',TIMETZ '05:34:17-05' AT TIME ZONE 'UTC',TIMETZ '23:30+00' AT TIME ZONE 'UTC-2' FROM tz_witness WHERE q=TIMETZ '09:00+01'", []string{"BOOL", "BOOL", "TIMETZ", "TIMETZ"}, [][]any{{false, true, "10:34:17+00", "01:30:00+02"}})
 	timezoneRows(t, c, "SELECT (TIMESTAMP '2004-07-01 12:00' AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC',(TIMESTAMP '2004-07-01 12:00' AT LOCAL)::TEXT,(NULL::TIMESTAMPTZ AT LOCAL),CASE WHEN TRUE THEN 'safe' ELSE (TIMESTAMP '2004-07-01' AT TIME ZONE 'No/Such_Zone')::TEXT END FROM tz_witness WHERE q=TIMETZ '09:00+01'", []string{"TIMESTAMP", "TEXT", "TIMESTAMP", "TEXT"}, [][]any{{time.Date(2004, 7, 1, 16, 0, 0, 0, time.UTC), "2004-07-01 12:00:00-04", nil, "safe"}})
@@ -161,6 +183,9 @@ func TestTimezoneParametersMetadataAndPreparedFreeze(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(m) != 2 {
+		t.Fatalf("metadata columns %d want 2", len(m))
+	}
 	for i, typ := range []string{"TIMESTAMPTZ", "TIMETZ"} {
 		nullable, known := m[i].Nullable()
 		precision, scale, decimal := m[i].DecimalSize()
@@ -171,6 +196,16 @@ func TestTimezoneParametersMetadataAndPreparedFreeze(t *testing.T) {
 		if m[i].DatabaseTypeName() != typ || m[i].ScanType() != scan || !known || !nullable || decimal || precision != 0 || scale != 0 {
 			t.Fatalf("metadata %s %#v decimal %d,%d,%v", typ, m[i], precision, scale, decimal)
 		}
+	}
+	if !r.Next() {
+		t.Fatal("missing NULL metadata witness", r.Err())
+	}
+	var nullZ, nullQ any
+	if err = r.Scan(&nullZ, &nullQ); err != nil || nullZ != nil || nullQ != nil {
+		t.Fatal(nullZ, nullQ, err)
+	}
+	if r.Next() || r.Err() != nil {
+		t.Fatal("unexpected NULL witness cardinality", r.Err())
 	}
 	r.Close()
 	timezoneExec(t, c, "SET TIME ZONE 'UTC'", 0)

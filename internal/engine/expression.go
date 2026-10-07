@@ -983,7 +983,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 		return node, err
 	}
 	bitwiseCast := raw.Syntax != parser.FunctionCast && (bitwiseOperand || bitwiseCastSource(raw.Child))
-	if !sqltype.BaselineCastType(target.Type.ID()) && target.Type.ID() != sqltype.Oid && target.Type.ID() != sqltype.Int2 && !sqltype.IsCharacter(target.Type.ID()) {
+	if !sqltype.BaselineCastType(target.Type.ID()) && target.Type.ID() != sqltype.Oid && target.Type.ID() != sqltype.Int2 && !sqltype.IsCharacter(target.Type.ID()) && !sqltype.TemporalCastType(target.Type.ID()) {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	policy := expressionPolicy{context: projectionContext, bitwiseOperand: bitwiseOperand}
@@ -1019,7 +1019,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 		plan, err = sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	}
 	if err != nil {
-		if !scopedIntegral && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) {
+		if !scopedIntegral && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
@@ -1230,7 +1230,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		return comparisonOperand{raw: raw}, nil
 	}
 	switch raw.(type) {
-	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
+	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
