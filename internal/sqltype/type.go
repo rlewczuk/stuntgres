@@ -827,10 +827,14 @@ func BindOrdering(u Usage) (Comparison, error) {
 	}
 	switch u.Type.id {
 	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Numeric, UUID, Regclass:
-	case Void:
+	case Void, NameArray:
+		message := "could not identify an ordering operator for type void"
+		if u.Type.id == NameArray {
+			message = "could not identify an ordering operator for type name[]"
+		}
 		return Comparison{}, &sqlstate.Error{
 			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883",
-			Message: "could not identify an ordering operator for type void",
+			Message: message,
 			Hint:    "Use an explicit ordering operator or modify the query.",
 		}
 	default:

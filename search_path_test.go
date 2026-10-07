@@ -385,7 +385,7 @@ func TestSearchPathNameArrayOrderingBoundary(t *testing.T) {
 			"SELECT current_schemas(false) AS paths FROM public.path_array_order ORDER BY paths",
 			"SELECT current_schemas(flag) FROM public.path_array_order ORDER BY 1",
 		} {
-			want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type name[]", Hint: "Use an explicit ordering operator or modify the query.", Position: strconv.Itoa(strings.LastIndex(q, "ORDER BY ")+len("ORDER BY ")+1)}
+			want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type name[]", Hint: "Use an explicit ordering operator or modify the query.", Position: strconv.Itoa(strings.LastIndex(q, "ORDER BY ") + len("ORDER BY ") + 1)}
 			check := func(err error) {
 				t.Helper()
 				var got *stuntgres.Error
@@ -415,7 +415,7 @@ func TestSearchPathQualifiedBitwiseProviders(t *testing.T) {
 	execSQL(t, db, "INSERT INTO public.path_bits(id) VALUES(7)")
 	for _, tc := range []struct {
 		expression string
-		want int64
+		want       int64
 	}{
 		{"id OPERATOR(pg_catalog.&) 3", 3},
 		{"id OPERATOR(pg_catalog.|) 8", 15},
@@ -426,7 +426,7 @@ func TestSearchPathQualifiedBitwiseProviders(t *testing.T) {
 		{"CAST(id OPERATOR(pg_catalog.&) 3 AS pg_catalog.int2)", 3},
 		{"mask", 3},
 	} {
-		q := "SELECT "+tc.expression+" FROM public.path_bits"
+		q := "SELECT " + tc.expression + " FROM public.path_bits"
 		var got int64
 		if err := db.QueryRow(q).Scan(&got); err != nil || got != tc.want {
 			t.Fatal(q, got, tc.want, err)

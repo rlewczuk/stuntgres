@@ -5,6 +5,7 @@ package reference_test
 import (
 	"database/sql"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -386,7 +387,7 @@ func TestReferenceSearchPathQualifiedBitwiseProviders(t *testing.T) {
 	p.step(t, referenceExec("INSERT INTO bit_path.t VALUES(7)", 1))
 	for _, tc := range []struct {
 		expression, typ string
-		want int64
+		want            int64
 	}{
 		{"id OPERATOR(pg_catalog.&) 3", "INT4", 3},
 		{"id OPERATOR(pg_catalog.|) 8", "INT4", 15},
@@ -554,5 +555,66 @@ func TestReferenceSearchPathStoredViewRuntime(t *testing.T) {
 			direct(b, "{sp1}")
 			checkHeld(peer, "{sp1}")
 		})
+	}
+}
+
+func TestReferenceSearchPathNameArrayOrderingBoundary(t *testing.T) {
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "path_order")
+	p.step(t, referenceExec("CREATE SCHEMA path_order", 0))
+	p.step(t, referenceExec("CREATE TABLE path_order.source(id INT,flag BOOL)", 0))
+	for _, populated := range []bool{false, true} {
+		state := "/empty"
+		if populated {
+			p.step(t, referenceExec("INSERT INTO path_order.source VALUES(1,NULL)", 1))
+			state = "/populated"
+		}
+		for _, backend := range []struct {
+			name   string
+			db     *sql.DB
+			record *referenceRecorder
+		}{{"native-boundary", p.memory, p.memoryRecord}, {"postgres-array-order", p.postgres, p.postgresRecord}} {
+			t.Run(backend.name+state, func(t *testing.T) {
+				c, err := backend.db.Conn(p.ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer c.Close()
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, backend.record, s) }
+				run(referenceExec("SET search_path TO path_order", 0))
+				for _, tc := range []struct {
+					q, label string
+					value    any
+				}{
+					{"SELECT current_schemas(false) AS paths FROM path_order.source ORDER BY paths", "paths", "{path_order}"},
+					{"SELECT current_schemas(flag) FROM path_order.source ORDER BY 1", "current_schemas", nil},
+				} {
+					var step referenceStep
+					if backend.name == "native-boundary" {
+						step = referenceErrorDiagnostic(tc.q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type name[]", Hint: "Use an explicit ordering operator or modify the query.", Position: strconv.Itoa(strings.LastIndex(tc.q, "ORDER BY ") + len("ORDER BY ") + 1)})
+					} else {
+						// Released PostgreSQL array comparison is deliberately oracle-only,
+						// not an engine comparator or a same-error parity assertion.
+						want := [][]any{}
+						if populated {
+							want = [][]any{{tc.value}}
+						}
+						step = referenceSelect(tc.q, []string{tc.label}, []string{"_NAME"}, want)
+					}
+					run(step)
+					step = referencePrepared(step)
+					if backend.name == "native-boundary" {
+						step.errorStage = "prepare"
+					}
+					run(step)
+				}
+				run(referenceSelect("SELECT current_schemas(false)", []string{"current_schemas"}, []string{"_NAME"}, [][]any{{"{path_order}"}}))
+				if populated {
+					run(referenceSelect("SELECT id FROM path_order.source", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+				} else {
+					run(referenceSelect("SELECT id FROM path_order.source", []string{"id"}, []string{"INT4"}, [][]any{}))
+				}
+			})
+		}
 	}
 }

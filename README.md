@@ -33,6 +33,8 @@ temporal explicit casts remain excluded whether qualified or unqualified.
 as a native string, or NULL for a NULL boolean argument. General arrays and
 SQL type/function/operator DDL remain excluded. TEMP remains sequence-only;
 introspection does not allocate an absent temporary namespace.
+Native ORDER on NAME[] is explicitly unsupported at analysis, including empty
+sources; PostgreSQL's array comparator is outside this result-only surface.
 Feature smoke: `make smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
 
 

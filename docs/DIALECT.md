@@ -1209,6 +1209,10 @@ DatabaseTypeName `_NAME`, typmod-1, no origin and NAME-element collation950.
 Native ScanType/export are string; PostgreSQL/libpq reports interface{} and
 raw []byte instead. This is a result-only descriptor, not TEXT or general array
 input/storage/casts/comparison/DDL. Array output quotes and escapes special names.
+NAME[] may be projected alongside scalar ordering, but native ORDER on NAME[]
+itself returns positioned42883 at analysis, even for empty/all-NULL sources.
+PostgreSQL supports array ordering; that external comparator is not native parity
+or a reason to sort the encoded array as TEXT.
 Native current_schema/current_schemas omit absent TEMP without materializing it;
 PostgreSQL current_schemas may materialize a pending leading pg_temp. Once a
 supported TEMP sequence creates the namespace, normal ordering/dedup applies.
