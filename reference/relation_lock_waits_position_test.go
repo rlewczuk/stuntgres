@@ -59,7 +59,7 @@ func TestReferenceRelationLockWaitsTimeoutPosition(t *testing.T) {
 							if tc.position == "13" {
 								mode = "RowExclusiveLock"
 							}
-							referenceLockWaitBehind(t, ctx, bp, ap, mode)
+							referenceLockWaitBehind(t, ctx, bp, ap, referenceLockOID(t, ctx, "public.t"), mode)
 						}
 						o := await()
 						if o.stmt != nil {

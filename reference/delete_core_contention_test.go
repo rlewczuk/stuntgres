@@ -203,7 +203,7 @@ func TestReferenceDeleteCoreContention(t *testing.T) {
 						return relationOutcome{result: result, err: err}
 					})
 					if i == 1 {
-						referenceLockWaitBehind(t, p.ctx, bp, ap, "RowExclusiveLock")
+						referenceLockWaitBehind(t, p.ctx, bp, ap, referenceLockOID(t, p.ctx, "public.t"), "RowExclusiveLock")
 					}
 					if err = holder.Commit(); err != nil {
 						t.Fatal(err)

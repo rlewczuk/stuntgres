@@ -295,6 +295,9 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	var notify *relationRequest
 	e.pending = append(e.pending, r)
 	m.settle(e, &notify)
+	if !r.terminal {
+		m.detectDeadlock(r, &notify)
+	}
 	m.retire(ref, e)
 	m.mu.Unlock()
 	notifyRequests(notify)

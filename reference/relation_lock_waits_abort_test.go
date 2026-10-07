@@ -54,7 +54,7 @@ func TestReferenceRelationLockWaitsAbort(t *testing.T) {
 						return relationOutcome{rows: rows, err: err}
 					})
 					if index == 1 {
-						referenceLockWaitBehind(t, ctx, bp, ap, "AccessShareLock")
+						referenceLockWaitBehind(t, ctx, bp, ap, referenceLockOID(t, ctx, "public.t"), "AccessShareLock")
 					}
 					o := await()
 					if o.stmt != nil {

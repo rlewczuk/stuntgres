@@ -158,8 +158,8 @@ LOCK Prepare is metadata-only (zero parameters/results); Execute
 performs block/name/current-role checks and acquires AX, affecting zero rows.
 Outside a block it returns `25P01`, `LOCK TABLE can only be used in transaction
 blocks`, before lookup. Missing targets use `42P01`; ordinary-role AX denial is
-`42501`, `permission denied for table t`. There is no upgrade/deadlock detection,
-advisory locking or lock introspection. DELETE's row UPDATE and UPDATE's
+`42501`, `permission denied for table t`. Advisory locking and lock introspection
+remain unsupported. DELETE's row UPDATE and UPDATE's
 NO KEY UPDATE holds are distinct mutually conflicting modes on the same logical
 row resource; distinct rows arbitrate independently and ordinary SELECT does not
 wait on those holds. READ COMMITTED/UNCOMMITTED freeze candidates after relation
@@ -171,8 +171,42 @@ before dead-row skipping, predicate recheck or assignment. A post-snapshot
 replacement followed by deletion reports concurrent update; deletion of the
 snapshot predecessor itself reports concurrent delete. Peer rollback retains
 the original predecessor. Use lock_timeout or caller deadlines
-to bound conflicting operations; conflicting conversion cycles are
-not protected by deadlock detection.
+to bound acyclic conflicting operations.
+
+The canonical relation/row lock manager detects cycles across exact live
+transaction owners. Conflicting holders create hard dependencies; earlier
+conflicting queued requests create soft dependencies. It searches finite queue
+ordering constraints before aborting: a compatible queue rearrangement resolves
+an avoidable soft cycle without an error or revoking any held lock. An unavoidable
+cycle terminalizes one actual cycle member with `40P01`, `deadlock detected`.
+Victim choice is unspecified. The failing statement's mandatory Finish discards
+all private transactional effects before releasing its locks, so the survivor can
+complete before the victim explicitly issues ROLLBACK. An explicit victim is
+Aborted (`25P02` on ordinary commands); ROLLBACK permits a new healthy transaction.
+
+Detection normalizes live waits using the same cancellation and absolute-deadline
+arbitration as ordinary queue settling, both before searching and immediately
+before publishing a queue rearrangement or a prepared victim diagnostic. If that
+last normalization removes or grants a request, the stale graph, witness and
+proposal are discarded and the live decision is rebuilt; cancellation callbacks
+need not obtain the manager mutex first. Acyclic queues store actual dependencies,
+not all hypothetical ordering pairs. Ordering and branch scratch is allocated
+only for cycle search and reused across proposals; search remains finite and
+uncapped.
+The selected victim also receives an exact-request interruption check immediately
+at terminalization, so cancellation or expiration during later observations in
+the final sweep cannot replace its canonical error with `40P01`.
+
+Deadlock diagnostics have ERROR severity and Hint `See server log for query
+details.` Native Detail records actual transaction/session/epoch, requested mode,
+relation identity and logical row identity for every cycle edge. These are not
+PostgreSQL backend PIDs, XIDs or physical tuple addresses; native Context does not
+invent those mechanisms. Direct relation analysis and semantic data Prepare add
+the relation token's one-based character Position to 40P01 (as for lock timeout).
+Cached Execute, utility locks and runtime row waits leave Position absent.
+Cancellation/deadline cleanup and exact epoch fencing remain independent of
+cycle detection. Predicate/SSI tracking is not part of this blocking graph;
+SERIALIZABLE remains unsupported.
 
 An explicit transaction sees successful earlier private writes/deletes; other
 sessions see only committed data. READ COMMITTED/UNCOMMITTED execution captures a

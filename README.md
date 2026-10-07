@@ -17,6 +17,13 @@ native Dump/Restore; it does not change SQL identifier folding or add general
 name casts/functions. Public feature smoke:
 `make smoke RUN='^TestNameSmoke$' VERBOSE=0`.
 
+Supported transaction-owned relation and logical row locks include deadlock
+detection: compatible queue reordering resolves avoidable soft cycles; an
+unavoidable cycle returns `40P01` / `deadlock detected` to an unspecified cycle
+member. Statement completion rolls back that victim before releasing its locks,
+allowing survivors to proceed before explicit ROLLBACK. See
+[transaction recovery and logical diagnostics](docs/TRANSACTIONS.md).
+
 ## Minimal example: one unit test
 
 In a checkout of this module, save the following as `example_test.go` and run

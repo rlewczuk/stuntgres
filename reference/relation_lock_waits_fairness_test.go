@@ -61,14 +61,14 @@ func TestReferenceRelationLockWaitsFairness(t *testing.T) {
 						return relationOutcome{result: r, err: e}
 					})
 					if index == 1 {
-						referenceLockWaitBehind(t, ctx, bp, ap, "AccessExclusiveLock")
+						referenceLockWaitBehind(t, ctx, bp, ap, referenceLockOID(t, ctx, "public.t"), "AccessExclusiveLock")
 					}
 					rx := referenceLockOperation(t, ctx, func(ctx context.Context) relationOutcome {
 						r, e := c.ExecContext(ctx, "INSERT INTO t VALUES(2)")
 						return relationOutcome{result: r, err: e}
 					})
 					if index == 1 {
-						referenceLockWaitBehind(t, ctx, cp, bp, "RowExclusiveLock")
+						referenceLockWaitBehind(t, ctx, cp, bp, referenceLockOID(t, ctx, "public.t"), "RowExclusiveLock")
 					}
 					// PostgreSQL observer establishes both queue positions. The
 					// paired native manager test establishes the same ordering

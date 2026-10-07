@@ -2,8 +2,12 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"runtime"
+	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
@@ -237,83 +241,98 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 	}
 }
 
-// Existing documented native boundary: cycles terminate through cancellation
-// or lock_timeout, not a fabricated PostgreSQL deadlock diagnostic.
+// OWNED BY and column-drop use the same deadlock graph as table/row callers.
+// Acyclic cancel/timeout admission remains covered by TestSequenceOwnedTableLockFailure.
 func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
-		for _, failure := range []string{"Cancel", "Timeout"} {
-			t.Run(map[bool]string{false: "Direct/", true: "Held/"}[prepared]+failure, func(t *testing.T) {
-				e := New()
-				a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-				sessionSQL(t, a, "CREATE TABLE t(c INT, keep INT)")
-				sessionSQL(t, a, "INSERT INTO t VALUES(7,9)")
-				sessionSQL(t, a, "CREATE SEQUENCE late START 17 OWNED BY t.c")
-				ast, d := ownedLockStatement(t, e, b, false, prepared)
-				sessionSQL(t, b, "SET lock_timeout TO '1h'")
-				br := transactionBegin(t, b)
-				sequence := catalogRef(t, e, e.CatalogRead(), "late")
-				// Real ticket admission fixes the sequence-first ordering without
-				// a production pause hook between the two ALTER lock requests.
-				if err := e.locks.acquire(context.Background(), b.transactions.ticket, lockResource{ObjectRef: sequence}, shareRowExclusive); err != nil {
-					t.Fatal(err)
+		t.Run(map[bool]string{false: "Direct", true: "Held"}[prepared], func(t *testing.T) {
+			e := New()
+			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			sessionSQL(t, a, "CREATE TABLE t(c INT, keep INT)")
+			sessionSQL(t, a, "INSERT INTO t VALUES(7,9)")
+			sessionSQL(t, a, "CREATE SEQUENCE late START 17 OWNED BY t.c")
+			ast := statement(t, "ALTER SEQUENCE late OWNED BY t.keep")
+			var description *StatementDescription
+			if prepared {
+				var d StatementDescription
+				ast, d = sequencePreparedDescription(t, e, b, "ALTER SEQUENCE late OWNED BY t.keep")
+				description = &d
+			}
+			br := transactionBegin(t, b)
+			bticket := b.transactions.ticket
+			sessionSQL(t, b, "CREATE SEQUENCE victim_staged START 31")
+			before := e.CatalogRead()
+			sequence := catalogRef(t, e, before, "late")
+			table := catalogRef(t, e, before, "t")
+			// Real admission fixes sequence-first ordering without a pause hook.
+			if err := e.locks.acquire(context.Background(), bticket, lockResource{ObjectRef: sequence}, shareRowExclusive); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			dropping := lockAsync(e, a, ctx, "ALTER TABLE t DROP COLUMN c", false)
+			dropRequest := ownedLockQueued(t, e, sequence, accessExclusive, dropping)
+			e.locks.mu.Lock()
+			entry := e.locks.entries[lockResource{ObjectRef: table}]
+			cycle := entry != nil && entry.holders[dropRequest.ticket]&accessExclusive != 0
+			e.locks.mu.Unlock()
+			if !cycle {
+				t.Fatal("drop did not retain table AX while waiting for sequence")
+			}
+			altering := ownedLockAsync(e, b, ctx, ast, description)
+			select {
+			case err := <-altering:
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) {
+					t.Fatal("missing deadlock diagnostic", err)
 				}
-				ctx, stop := context.WithCancel(context.Background())
-				defer stop()
-				dropping := lockAsync(e, a, ctx, "ALTER TABLE t DROP COLUMN c", false)
-				dropRequest := ownedLockQueued(t, e, sequence, accessExclusive, dropping)
-				before := e.CatalogRead()
-				generator := *e.sequences[sequence.Address]
-				waitctx, cancel := context.WithCancel(context.Background())
-				defer cancel()
-				altering := ownedLockAsync(e, b, waitctx, ast, d)
-				table := catalogRef(t, e, before, "t")
-				request := ownedLockQueued(t, e, table, accessShare, altering)
-				e.locks.mu.Lock()
-				cycle := request.entry.holders[dropRequest.ticket]&accessExclusive != 0
-				e.locks.mu.Unlock()
-				if !cycle {
-					t.Fatal("drop did not retain table AX while waiting for sequence")
+				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40P01", Message: "deadlock detected", Hint: "See server log for query details.", Detail: diagnostic.Detail}
+				if *diagnostic != want {
+					t.Fatalf("deadlock fields %#v want %#v", diagnostic, want)
 				}
-				if e.state != before.state || *e.sequences[sequence.Address] != generator {
-					t.Fatal("cycle published catalog or generator")
+				expected := make(map[string]bool, 2)
+				for _, edge := range []struct {
+					waiter, blocker *relationTicket
+					ref             ObjectRef
+					mode            string
+				}{{bticket, dropRequest.ticket, table, "AccessShareLock"}, {dropRequest.ticket, bticket, sequence, "AccessExclusiveLock"}} {
+					expected[fmt.Sprintf("Transaction %d (session %d, epoch %d) waits for %s on relation %d (class %d, sub-ID %d, epoch %d); blocked by transaction %d (session %d, epoch %d).", edge.waiter.ref.id, edge.waiter.ref.session.id, edge.waiter.ref.epoch, edge.mode, edge.ref.Address.ObjectID, edge.ref.Address.ClassID, edge.ref.Address.SubID, edge.ref.Epoch, edge.blocker.ref.id, edge.blocker.ref.session.id, edge.blocker.ref.epoch)] = true
 				}
-				if failure == "Cancel" {
-					cancel()
-				} else {
-					var notify *relationRequest
-					e.locks.mu.Lock()
-					request.deadline = time.Now().Add(-time.Second)
-					e.locks.settle(request.entry, &notify)
-					e.locks.retire(request.ref, request.entry)
-					e.locks.mu.Unlock()
-					notifyRequests(notify)
-				}
-				if failure == "Cancel" {
-					lockAwait(t, altering, context.Canceled)
-				} else {
-					select {
-					case err := <-altering:
-						sequenceOwnerDiagnostic(t, err, "55P03", "canceling statement due to lock timeout", "")
-					case <-time.After(5 * time.Second):
-						t.Fatal("cycle timeout did not finish")
+				for _, line := range strings.Split(diagnostic.Detail, "\n") {
+					if !expected[line] {
+						t.Fatalf("unexpected OWNED BY cycle edge %q", line)
 					}
+					delete(expected, line)
 				}
-				if b.TransactionState() != TxAborted {
-					t.Fatal("failed explicit ownership did not abort")
+				if len(expected) != 0 {
+					t.Fatal("missing OWNED BY cycle edges", expected)
 				}
-				lockAwait(t, dropping, nil)
-				transactionEnd(t, b, br, false)
-				if _, ok := e.state.descriptors[sequence.Address]; ok {
-					t.Fatal("drop failed to remove owned sequence after cycle release")
-				}
-				transactionRows(t, b, "SELECT keep FROM t", 9)
-				assertTemporaryProjectionProviders(t, e)
-				sessionSQL(t, b, "CREATE SEQUENCE healthy START 23 OWNED BY t.keep")
-				sequenceScalar(t, b, "SELECT nextval('healthy')", 23)
-				assertTemporaryProjectionProviders(t, e)
-				lockEmpty(t, e)
-			})
-		}
+			case <-ctx.Done():
+				t.Fatal("cycle did not produce 40P01", ctx.Err())
+			}
+			if b.TransactionState() != TxAborted {
+				t.Fatal("deadlock victim did not abort")
+			}
+			// Finish must release the victim's sequence lock before explicit ROLLBACK.
+			lockAwait(t, dropping, nil)
+			op := transactionOperation(t, b)
+			_, err := e.Execute(op, statement(t, "SELECT keep FROM t"), 0, nil)
+			op.Done()
+			sequenceOwnerDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block", "")
+			if _, ok := e.state.descriptors[sequence.Address]; ok {
+				t.Fatal("original OWNED BY dependency did not cascade after victim release")
+			}
+			if len(e.CatalogRead().Lookup(NameKey{ClassID: RelationClassID, Namespace: e.state.descriptors[table.Address].(*relationDescriptor).namespace, Name: "victim_staged"})) != 0 {
+				t.Fatal("deadlock victim published previously staged sequence")
+			}
+			transactionEnd(t, b, br, false)
+			transactionRows(t, b, "SELECT keep FROM t", 9)
+			assertTemporaryProjectionProviders(t, e)
+			sessionSQL(t, b, "CREATE SEQUENCE healthy START 23 OWNED BY t.keep")
+			sequenceScalar(t, b, "SELECT nextval('healthy')", 23)
+			assertTemporaryProjectionProviders(t, e)
+			lockEmpty(t, e)
+		})
 	}
 }
 

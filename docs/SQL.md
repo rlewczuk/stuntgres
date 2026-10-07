@@ -87,8 +87,13 @@ owner and schema. It waits behind table AccessExclusive and retains the hold
 until transaction end; cancellation or lock timeout publishes no new sequence
 or association. OWNED BY NONE and skipped IF NOT EXISTS/IF EXISTS commands
 do not acquire dependency-table locks. ALTER locks the sequence before the table,
-so conflicting cycles require caller deadlines or lock_timeout: the native
-engine has no deadlock detection and does not promise 40P01.
+and participates in the same relation/row deadlock graph. Compatible queue
+reordering avoids soft-cycle aborts; unavoidable cycles return 40P01 with an
+unspecified cycle-member victim whose Finish rolls back before releasing holds.
+Failed OWNED BY reassociation preserves the original column dependency and
+discards the victim's earlier staged catalog changes. A surviving column drop
+can complete before victim ROLLBACK and still cascades through that original
+dependency; ROLLBACK then restores the victim's ability to issue new commands.
 
 Generic `ALTER TABLE sequence_name RENAME TO name` also renames sequences and
 invalidates held sequence source analysis just like the dedicated rename form.

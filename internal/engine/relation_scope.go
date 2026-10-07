@@ -174,7 +174,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 		// cancellation (57014) deliberately bypasses that callback.
 		if (mode == accessShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
 			var diagnostic *sqlstate.Error
-			if errors.As(err, &diagnostic) && diagnostic.Code == "55P03" && name.Parts[0].Pos.Character > 0 {
+			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01") && name.Parts[0].Pos.Character > 0 {
 				copy := *diagnostic
 				copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
 				return &copy
