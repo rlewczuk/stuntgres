@@ -49,7 +49,7 @@ from_item := [schema.]name [[AS] alias [(column [, ...])]]
            | from_item [INNER] JOIN from_item ON logical_predicate
            | from_item [INNER] JOIN from_item USING (column [, ...]) [AS merged_alias]
            | from_item NATURAL [INNER] JOIN from_item
-SELECT null_count_call [, null_count_call ...]
+SELECT selected_call [, selected_call ...]
 type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
        | DATE | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] | UUID | BYTEA
@@ -78,13 +78,28 @@ logical_target := between_expression | comparison | NOT logical_target
 logical_predicate := logical_target
 delete_predicate := logical_predicate with optional target/alias qualification on columns
 query_column := column | qualifier.column | schema.table.column
-projection_target := (logical_target | null_count_call) [AS label]
+projection_target := (logical_target | selected_call) [AS label]
                    | * | qualifier.* | schema.table.*
-call_argument := scalar | null_count_call
+call_argument := scalar | selected_call
+selected_call := null_count_call | random_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
+random_call := random() | random(call_argument,call_argument)
+             | random_normal([call_argument [,call_argument]]) | setseed(call_argument)
 default_expression := value | scalar comparison_operator scalar | (logical_target)
                     | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
+
+The selected-call-only no-FROM form produces one singleton row; its arguments
+are literals, parameters, nested selected calls and previously admitted casts/
+conditionals, without columns or extra clauses. Random calls also use existing
+table-backed SELECT and INSERT SELECT projection paths. Bounded random resolves
+INTEGER, BIGINT or NUMERIC, not floating-point bounds; normal and seed arguments
+coerce implicitly to DOUBLE PRECISION. Numeric literals and typed table columns,
+plus target-context bindings, supply these types without expanding the existing
+typed-literal or general explicit-cast boundaries.
+Random calls are excluded from DEFAULT, INSERT VALUES, WHERE and settings.
+See [random behavior and diagnostics](DIALECT.md#random-functions--change-note).
+
 
 The FROM productions above are precedence notation: explicit joins bind tighter
 than comma lists and associate left; parentheses preserve boundaries. ON sees

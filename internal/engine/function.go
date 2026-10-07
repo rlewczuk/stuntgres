@@ -53,6 +53,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	name := raw.Name.Parts[0].Text
 	var kind nullCountKind
 	switch name {
+	case "random", "random_normal", "setseed":
+		return b.bindRandom(raw)
 	case "num_nulls":
 		kind = countNulls
 	case "num_nonnulls":

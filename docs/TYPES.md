@@ -18,6 +18,17 @@ DATE/TIME as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infi
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
 
+### VOID selected function result
+
+`setseed` returns the true builtin VOID descriptor (OID2278, typmod-1, no
+collation). Nonnull VOID exports an empty native string; strict `setseed(NULL)`
+exports nil with the same VOID result metadata. DatabaseTypeName is `VOID`,
+ScanType is string, and there is no Length/PrecisionScale or physical column
+origin. VOID is not a TEXT/NULL alias and remains excluded from declarations,
+input/typed literals, explicit casts, storage, operators and native data dumps.
+The selected result addition does not add a general pseudo-type subsystem.
+
+
 ## OID — unsigned scalar change note
 
 OID is a distinct unsigned four-byte scalar (builtin type26, typmod -1,
@@ -419,8 +430,8 @@ An earlier bare `$1` still falls back to TEXT and can fail42P08; later inference
 never rewrites it. Selected quoted-input failure is final, at the literal;
 incompatible known operands fail eagerly in Query/Prepare at the operator,
 even on empty tables, with the canonical operator spelling in diagnostics.
-FROM is still required outside identity/settings special forms and the selected
-null-count-only form. These scalar comparisons also form Boolean leaves above
+FROM is still required outside identity/settings special forms and the
+selected-call-only form (including random functions). These scalar comparisons also form Boolean leaves above
 NOT, AND and OR in SELECT targets and WHERE. Bounded integer arithmetic and
 baseline and character-family explicit casts are scalar operands. Comparison
 chaining, SELECT aliases/qualified column references, general functions, casts

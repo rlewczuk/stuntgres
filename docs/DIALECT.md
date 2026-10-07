@@ -476,6 +476,57 @@ argument rules admit literal/parameter/nested-call casts without columns.
 Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`;
 independent reference: `make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
 
+### Random functions — change note
+
+Selected projection/nested-argument calls now include PostgreSQL18 `random`,
+`random_normal` and `setseed`, through the existing direct/prepared expression
+pipeline and selected-call-only singleton exception:
+
+| Call | Result | Behavior |
+|---|---|---|
+| `random()` | FLOAT8 | Uniform `0 <= value < 1` |
+| `random(INT4,INT4)` | INT4 | Inclusive bounds, including the full signed domain |
+| `random(INT8,INT8)` | INT8 | Inclusive bounds, including the full signed domain |
+| `random(NUMERIC,NUMERIC)` | NUMERIC | Exact inclusive decimal lattice at maximum input display scale |
+| `random_normal([mean[,stddev]])` | FLOAT8 | Defaults mean0/stddev1; ordinary IEEE results, including negative deviation and specials |
+| `setseed(seed)` | VOID | Finite inclusive [-1,1]; nonnull empty string result |
+
+Equal bounds return the endpoint without consuming a draw. Numeric results are
+unconstrained, not resized to a source column typmod. Mixed INTEGER/BIGINT
+chooses BIGINT; integer/NUMERIC chooses NUMERIC. Bounded FLOAT4/FLOAT8 calls are
+not released overloads. Two unknown bounds and SMALLINT/SMALLINT are ambiguous
+(42725 with the explicit-casts Hint); inferred parameter types do not depend on
+supplied Go values. Missing signatures use42883 and the standard function Hint
+at the function token's character Position.
+
+All selected random calls are volatile and strict. Preparing/describing them
+does not invoke them. Literal NULL can eliminate a call and its volatile sibling
+arguments after type analysis; runtime NULL still evaluates all sibling arguments
+before suppressing the provider. Each evaluated row receives its own draw.
+Table-backed arguments may use existing integer arithmetic/conditional/group
+expressions; this does not widen the singleton arithmetic admission rule or add
+general functions/casts, WHERE, DEFAULT, INSERT VALUES or settings-call support.
+
+One lazy physical-session generator is shared by all overloads and normal calls.
+Repeated valid seed repeats that session's subsequent mixed series. Pool return,
+statement failure, rollback/savepoint rollback and native Reset/Restore do not
+undo seed/draw effects; physical close loses the state. Peer sessions remain
+independent, and read-only transactions allow these functions. The implementation
+uses standard-library PCG; outputs are not cryptographic and exact PostgreSQL
+PRNG sequence parity is not promised.
+
+Reversed bounds fail22023 `lower bound must be less than or equal to upper bound`.
+Numeric special bounds fail `lower/upper bound cannot be NaN` or
+`lower/upper bound cannot be infinity`, lower checked first. Invalid seeds fail
+22023 `setseed parameter <value> is out of allowed range [-1,1]`, using six
+significant digits or NaN/Infinity/-Infinity. These execution errors carry no
+Position/Hint/Detail and leave an existing seeded stream unconsumed.
+VOID is result-only, distinct from typed NULL, and does not admit stored columns
+or VOID casts/operators.
+
+Feature smoke: `make smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
+Independent pinned reference: `make reference RUN='^TestReferenceRandom' VERBOSE=0`.
+
 Table SELECT projection/WHERE admit `IS [NOT] NULL`, `ISNULL`/`NOTNULL`,
 `IS [NOT] DISTINCT FROM`, and Boolean `IS [NOT] TRUE/FALSE/UNKNOWN`.
 These return nonnull BOOL with `?column?` names and scalar origin zero;

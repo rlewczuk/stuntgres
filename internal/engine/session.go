@@ -92,6 +92,7 @@ type Session struct {
 	lastSequence       ObjectAddress
 	temporaryNamespace ObjectAddress
 	sequencePath       sequencePathCache
+	random             randomState
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.

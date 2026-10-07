@@ -122,7 +122,7 @@ const DEFAULT = 57405
 const LOCAL = 57406
 const SETTING_FUNC = 57407
 const ON = 57408
-const NULL_COUNT_FUNC = 57409
+const SELECTED_FUNC = 57409
 const VARIADIC = 57410
 const CASE = 57411
 const WHEN = 57412
@@ -288,7 +288,7 @@ var sqlToknames = [...]string{
 	"LOCAL",
 	"SETTING_FUNC",
 	"ON",
-	"NULL_COUNT_FUNC",
+	"SELECTED_FUNC",
 	"VARIADIC",
 	"CASE",
 	"WHEN",

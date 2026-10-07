@@ -197,6 +197,25 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.args = args
 		}
 		expression = e
+	case randomExpression:
+		var args []BoundExpr
+		for i, old := range e.args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = node
+				changed = true
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		expression = e
 	case nullCountExpression:
 		var args []BoundExpr
 		for i, old := range e.args {

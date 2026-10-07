@@ -6,6 +6,16 @@
 
 The DSN is an **exact opaque string**, not a libpq connection string or network address. Identical strings (including the empty string) within the same Driver share an engine; different strings or Driver instances are isolated. The registered `stuntgres` driver uses one default Driver. Engines live as long as their Driver, even after every connection or pool closes. Use `NewDriver().OpenConnector(name)` with `sql.OpenDB` for independently owned fixtures. Nothing is shared between processes or persisted across process exit.
 
+Random functions share one generator per physical connection. Pin a `sql.Conn`
+when calling `setseed` and reading a repeatable series: interchangeable pool
+queries need not use the same session. Returning a borrower to the pool preserves
+the stream; closing/replacing the physical session discards it without losing
+database tables. Draws and successful reseeding are nontransactional, including
+savepoint rollback, and survive native catalog Reset/Restore. Prepared calls
+describe types without drawing; each execution uses its current physical session.
+No generator state is serialized into Dump. Feature smoke:
+`make smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
+
 ## Notices and warnings
 
 ```go

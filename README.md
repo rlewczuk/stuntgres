@@ -60,6 +60,16 @@ pre-mark effects survive but native locks conservatively persist until the
 outer transaction ends; PostgreSQL subtransaction lock rollback is excluded. See
 [transaction recovery and logical diagnostics](docs/TRANSACTIONS.md).
 
+Selected mathematical functions include `random()`, inclusive INTEGER/BIGINT/
+NUMERIC bounded `random(lower,upper)`, `random_normal([mean[,stddev]])` and
+`setseed(seed)`. Exact NUMERIC sampling preserves the greater input scale.
+Seeds and draws belong to the physical connection and survive rollback and
+pool return; use a pinned `sql.Conn` for repeatable series. These are
+pseudorandom, not cryptographic, and do not promise PostgreSQL's exact PRNG
+sequence. See [the capability/change note](docs/DIALECT.md#random-functions--change-note).
+Public feature smoke: `make smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
+
+
 ## Minimal example: one unit test
 
 In a checkout of this module, save the following as `example_test.go` and run

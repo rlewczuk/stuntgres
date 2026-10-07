@@ -35,6 +35,7 @@ const (
 	Timestamp ID = 1114
 	Numeric   ID = 1700
 	Regclass  ID = 2205
+	Void      ID = 2278
 	UUID      ID = 2950
 )
 
@@ -121,6 +122,7 @@ func Builtins() []*Descriptor {
 		{Numeric, "numeric", "NUMERIC", "NUMERIC"},
 		{UUID, "uuid", "UUID", "UUID"},
 		{Regclass, "regclass", "REGCLASS", "REGCLASS"},
+		{Void, "void", "VOID", "VOID"},
 		{Unknown, "unknown", "", ""},
 	}
 }
@@ -157,6 +159,14 @@ func Null(d *Descriptor) Value {
 		panic("invalid NULL descriptor")
 	}
 	return Value{typ: d, null: true}
+}
+
+// VoidValue is a concrete nonnull function result, distinct from typed NULL.
+func VoidValue(d *Descriptor) Value {
+	if d == nil || d.id != Void {
+		panic("invalid void descriptor")
+	}
+	return Value{typ: d}
 }
 func Integer(d *Descriptor, n int64) (Value, error) {
 	if d == nil || (d.id != Int2 && d.id != Int4 && d.id != Int8) {
@@ -410,6 +420,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return "", fmt.Errorf("invalid output value")
 	}
 	switch d.id {
+	case Void:
+		return "", nil
 	case Oid:
 		return strconv.FormatUint(uint64(v.oid), 10), nil
 	case Bytea:
