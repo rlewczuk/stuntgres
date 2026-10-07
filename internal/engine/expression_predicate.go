@@ -173,6 +173,10 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 				return nil, err
 			}
 		}
+		left, right, err = b.coerceComparisonOperands(left, right)
+		if err != nil {
+			return nil, err
+		}
 		equality, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, left.ResultUsage().Type, right.ResultUsage().Type, b.typ(sqltype.Bool))
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42883" {

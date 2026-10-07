@@ -272,7 +272,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 		l.genericModifier = true
 		l.dateLiteralModifier = true
 		return true
-	case "int4", "int8", "text", "bool", "count":
+	case "oid", "int4", "int8", "text", "bool", "count":
 		return true
 	case "integer", "bigint", "boolean", "int":
 		if callee.keyword == nil {

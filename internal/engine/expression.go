@@ -807,7 +807,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 			return nil, err
 		}
 	}
-	if raw.Syntax == parser.FunctionCast && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool" {
+	if raw.Syntax == parser.FunctionCast && raw.Callee != "oid" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool" {
 		source := "unknown"
 		if literal, ok := raw.Child.(parser.LiteralExpr); !ok || (literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue) {
 			child, err := b.bind(raw.Child, expressionPolicy{context: projectionContext})
@@ -824,7 +824,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !sqltype.BaselineCastType(target.Type.ID()) && !sqltype.IsCharacter(target.Type.ID()) {
+	if !sqltype.BaselineCastType(target.Type.ID()) && target.Type.ID() != sqltype.Oid && target.Type.ID() != sqltype.Int2 && !sqltype.IsCharacter(target.Type.ID()) {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	policy := expressionPolicy{context: projectionContext}
@@ -854,7 +854,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 	source := child.ResultUsage()
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if !sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID()) {
+		if (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
@@ -1052,6 +1052,37 @@ func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Des
 	return b.bind(o.raw, expressionPolicy{context: projectionContext, expected: typ.Usage()})
 }
 
+// coerceComparisonOperands applies the bounded implicit integer→OID edge for
+// both ordinary and null-safe comparisons, after occurrence-sensitive unknown
+// operand inference. The shared coercion node owns range checks and typed NULLs.
+func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (BoundExpr, BoundExpr, error) {
+	lt, rt := left.ResultUsage().Type, right.ResultUsage().Type
+	integer := func(t *sqltype.Descriptor) bool {
+		return t.ID() == sqltype.Int2 || t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8
+	}
+	var child BoundExpr
+	var target sqltype.Usage
+	switch {
+	case lt.ID() == sqltype.Oid && integer(rt):
+		child, target = right, lt.Usage()
+	case rt.ID() == sqltype.Oid && integer(lt):
+		child, target = left, rt.Usage()
+	default:
+		return left, right, nil
+	}
+	plan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Implicit)
+	if err != nil {
+		return nil, nil, err
+	}
+	converted := coercionExpression{b.info(target, child.SourcePosition(), child.Properties()), child, plan, sqltype.Implicit}
+	if lt.ID() == sqltype.Oid {
+		right = converted
+	} else {
+		left = converted
+	}
+	return left, right, nil
+}
+
 func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, error) {
 	if len(raw.Args) != 2 || len(raw.Name.Parts) != 1 {
 		return nil, fmt.Errorf("stuntgres: invalid comparison expression")
@@ -1092,10 +1123,6 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	if lt == nil {
 		lt, rt = b.typ(sqltype.Text), b.typ(sqltype.Text)
 	}
-	predicate, err := sqltype.BindComparisonPredicate(operator, lt, rt, b.typ(sqltype.Bool))
-	if err != nil {
-		return nil, operatorExpressionError(err, left.descriptor(), right.descriptor(), raw)
-	}
 	l, err := b.finalizeOperand(left, lt)
 	if err != nil {
 		return nil, err
@@ -1103,6 +1130,14 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	r, err := b.finalizeOperand(right, rt)
 	if err != nil {
 		return nil, err
+	}
+	l, r, err = b.coerceComparisonOperands(l, r)
+	if err != nil {
+		return nil, err
+	}
+	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.typ(sqltype.Bool))
+	if err != nil {
+		return nil, operatorExpressionError(err, left.descriptor(), right.descriptor(), raw)
 	}
 	p, rp := l.Properties(), r.Properties()
 	p.RowDependent = p.RowDependent || rp.RowDependent

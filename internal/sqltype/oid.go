@@ -1,0 +1,80 @@
+package sqltype
+
+import "fmt"
+
+// OIDValue constructs a distinct unsigned four-byte scalar, not a regclass.
+func OIDValue(d *Descriptor, n uint32) (Value, error) {
+	if d == nil || d.id != Oid {
+		return Value{}, fmt.Errorf("invalid oid descriptor")
+	}
+	return Value{typ: d, oid: n}, nil
+}
+
+func (v Value) OID() (uint32, error) {
+	if v.null || v.typ == nil || v.typ.id != Oid {
+		return 0, fmt.Errorf("not an oid value")
+	}
+	return v.oid, nil
+}
+
+// oidInput reproduces the 64-bit strtoul(base 0) used by PostgreSQL's
+// uint32in_subr, including negative unsigned-long conversion and error order.
+func (d *Descriptor) oidInput(text string) (Value, error) {
+	s := trim(text)
+	negative := false
+	if len(s) > 0 && (s[0] == '+' || s[0] == '-') {
+		negative = s[0] == '-'
+		s = s[1:]
+	}
+	base := uint64(10)
+	if len(s) > 0 && s[0] == '0' {
+		base = 8
+		if len(s) > 2 && (s[1] == 'x' || s[1] == 'X') {
+			if _, ok := digit(s[2], 16); ok {
+				base, s = 16, s[2:]
+			}
+		}
+	}
+	var n uint64
+	i, overflow := 0, false
+	for i < len(s) {
+		x, ok := digit(s[i], base)
+		if !ok {
+			break
+		}
+		if n > (^uint64(0)-x)/base {
+			overflow = true
+		} else if !overflow {
+			n = n*base + x
+		}
+		i++
+	}
+	if overflow {
+		return Value{}, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type oid", text))
+	}
+	if i == 0 || trim(s[i:]) != "" {
+		return Value{}, failure("22P02", fmt.Sprintf("invalid input syntax for type oid: \"%s\"", text))
+	}
+	if negative {
+		n = -n
+	}
+	low := uint32(n)
+	if n != uint64(low) && n != uint64(int64(int32(low))) {
+		return Value{}, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type oid", text))
+	}
+	return OIDValue(d, low)
+}
+
+func oidCoercion(v Value, target *Descriptor) (Value, error) {
+	if target.id == Oid {
+		if v.typ.id == Int8 && (v.integer < 0 || v.integer > 4294967295) {
+			return Value{}, failure("22003", "OID out of range")
+		}
+		return OIDValue(target, uint32(v.integer))
+	}
+	n := int64(v.oid)
+	if target.id == Int4 {
+		n = int64(int32(v.oid))
+	}
+	return Integer(target, n)
+}

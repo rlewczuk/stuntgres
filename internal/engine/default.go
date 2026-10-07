@@ -91,6 +91,11 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			return "", fmt.Errorf("stuntgres: invalid default literal")
 		}
 		literal, err := u.Type.SQLLiteral(ctx, n.value)
+		// OID's quoted SQLLiteral is safe for stored rows, but defaults must
+		// retain its identity inside comparisons and conditional expressions.
+		if err == nil && u.Type.ID() == sqltype.Oid {
+			return "CAST(" + literal + " AS OID)", nil
+		}
 		if err != nil || n.value.IsNull() {
 			return literal, err
 		}

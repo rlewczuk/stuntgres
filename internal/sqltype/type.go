@@ -23,6 +23,7 @@ const (
 	Int2      ID = 21
 	Int4      ID = 23
 	Text      ID = 25
+	Oid       ID = 26
 	Float4    ID = 700
 	Float8    ID = 701
 	Unknown   ID = 705
@@ -107,6 +108,7 @@ func Builtins() []*Descriptor {
 		{Int2, "int2", "SMALLINT", "INT2"},
 		{Int4, "int4", "INTEGER", "INT4"},
 		{Text, "text", "TEXT", "TEXT"},
+		{Oid, "oid", "OID", "OID"},
 		{BPChar, "bpchar", "BPCHAR", "BPCHAR"},
 		{VarChar, "varchar", "VARCHAR", "VARCHAR"},
 		{Float4, "float4", "REAL", "FLOAT4"},
@@ -126,6 +128,7 @@ type Value struct {
 	typ             *Descriptor
 	null            bool
 	integer         int64
+	oid             uint32
 	floating        float64
 	boolean         bool
 	text            string
@@ -221,6 +224,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return Value{}, failure("22P02", "invalid textual input")
 	}
 	switch d.id {
+	case Oid:
+		return d.oidInput(text)
 	case Name:
 		return String(d, clipName(text)), nil
 	case Bytea:
@@ -381,6 +386,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return "", fmt.Errorf("invalid output value")
 	}
 	switch d.id {
+	case Oid:
+		return strconv.FormatUint(uint64(v.oid), 10), nil
 	case Bytea:
 		return byteaOutput(v.text, env.ByteaOutput)
 	case UUID:
@@ -433,7 +440,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + timestampOutput(v.integer) + "'", nil
 	case Text, BPChar, VarChar, Name, Regclass:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
-	case Float4, Float8, Numeric:
+	case Oid, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
 		if err != nil {
 			return "", err
@@ -473,6 +480,7 @@ const (
 	stringConversion
 	nameConversion
 	dateTimestampConversion
+	oidConversion
 )
 
 type CoercionPlan struct {
@@ -490,6 +498,11 @@ type castSpec struct {
 // Fixed provider definitions are read-only; identity/ownership comes from the
 // source and target catalog descriptors retained by each bound plan.
 var baselineCasts = [...]castSpec{
+	{Int2, Oid, Implicit, oidConversion},
+	{Int4, Oid, Implicit, oidConversion},
+	{Int8, Oid, Implicit, oidConversion},
+	{Oid, Int4, Assignment, oidConversion},
+	{Oid, Int8, Assignment, oidConversion},
 	{Date, Timestamp, Implicit, dateTimestampConversion},
 	{Name, Text, Implicit, stringConversion},
 	{Name, BPChar, Assignment, stringConversion},
@@ -535,6 +548,14 @@ func BaselineCastType(id ID) bool {
 	return id == Int4 || id == Int8 || id == Text || id == Bool
 }
 
+// OIDCastPair admits only OID-related explicit syntax, including unsupported
+// integer directions so the binder can report the normal cannot-cast diagnostic.
+func OIDCastPair(source, target ID) bool {
+	integer := func(id ID) bool { return id == Int2 || id == Int4 || id == Int8 }
+	return source == Oid && (target == Oid || target == Text || integer(target)) ||
+		target == Oid && (source == Text || integer(source))
+}
+
 // PlanCoercion admits only bounded directional edges, never transitive casts.
 func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, error) {
 	p := CoercionPlan{source: source, target: target, context: context}
@@ -542,7 +563,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, fmt.Errorf("invalid coercion usage")
 	}
 	if context == Explicit {
-		if !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) {
+		if !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !OIDCastPair(source.Type.id, target.Type.id) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
 		}
 		switch {
@@ -576,7 +597,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		p.method = stringConversion
 		return p, nil
 	}
-	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && BaselineCastType(source.Type.id) {
+	if context == Assignment && IsCharacter(target.Type.id) || context == Explicit && target.Type.id == Text && (BaselineCastType(source.Type.id) || source.Type.id == Oid) {
 		p.method = viaIO
 		if source.Type.id == Bool {
 			p.method = booleanText
@@ -602,6 +623,8 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case oidConversion:
+		return oidCoercion(v, p.target.Type)
 	case dateTimestampConversion:
 		if v.integer == DateNegativeInfinity || v.integer == DatePositiveInfinity {
 			return TimestampValue(p.target.Type, v.integer)
@@ -756,6 +779,13 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 		return compareNumeric(a, b), nil
 	}
 	switch p.left.id {
+	case Oid:
+		if a.oid < b.oid {
+			return -1, nil
+		}
+		if a.oid > b.oid {
+			return 1, nil
+		}
 	case UUID:
 		for i, x := range a.uuid {
 			if x < b.uuid[i] {

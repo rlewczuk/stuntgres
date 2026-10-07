@@ -8,6 +8,13 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
 
+OID is also a supported column type: distinct unsigned32 type26, native int64
+results, unsigned comparison/order and directional integer casts. See
+[OID scalar semantics](TYPES.md#oid--unsigned-scalar-change-note) for text syntax,
+signed-bit reinterpretation versus checked INT8 conversion and adapter metadata.
+It adds no metadata catalog population, object lookup/allocation or OID arithmetic.
+Smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
+
 Table SELECT and shared INSERT SELECT also support scalar/multiple GROUP BY
 keys, one-based output ordinals, contextual BOOL HAVING, and count(*) as the
 initial aggregate (count/INT8/int64). Global empty input returns one count0;
@@ -182,8 +189,8 @@ Integrated expressions: `make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmo
 
 Column DEFAULT declarations admit outer scalar/typed temporal/existing cast/
 INT4/INT8 unary and binary arithmetic/comparison and IS [NOT] DISTINCT FROM syntax.
-CAST and postfix casts reuse existing baseline and character-family conversions;
-function-style casts remain baseline-only, not general SQL function admission.
+CAST and postfix casts reuse existing baseline, character-family and bounded
+OID conversions; function-style casts additionally admit oid, not general functions.
 Logical NOT/AND/OR and null/truth tests require parentheses
 (e.g. DEFAULT (NULL IS NULL)), as PostgreSQL's restricted default grammar requires.
 Columns (0A000) and parameters (42P02) remain prohibited inside casts and decisive
@@ -471,13 +478,17 @@ Baseline explicit casts extend the scalar positions above: `CAST(expr AS type)`,
 `expr::type`, and function-style int4/int8/text/bool calls, with nested/grouped
 operands. Standard/postfix targets retain baseline declaration aliases; function
 aliases integer/bigint/boolean/int are not admitted. The baseline matrix supports
-INT4/INT8/TEXT/BOOL source and target types; character-family edges are described
-separately below. Other type families, including identities, fail native0A000.
+INT4/INT8/TEXT/BOOL source and target types; character-family and bounded OID
+edges are described separately. Other families, including identities, fail0A000.
 The direct baseline matrix permits integer width conversion, integer
 text output, TEXT input to integers/BOOL, BOOL text output as true/false and
 INT4↔BOOL (nonzero true; false0/true1); INT8↔BOOL remains unsupported.
 NULL keeps target metadata; unsupported pairs cannot bypass analysis with NULL.
 Assignment/implicit policies do not gain these explicit edges.
+OID adds INT2/INT4/INT8→OID implicit, OID→INT4/INT8 assignment, OID identity
+and explicit TEXT I/O edges; CAST/::/oid(...) reuse the same providers.
+OID→INT2 is42846, including NULL. No unrelated INT2 cast family is admitted.
+No new ordinary no-FROM SELECT root is admitted.
 Baseline casts remain scalar leaves in existing comparisons, null/Boolean
 predicates, Boolean expressions and selected null-count arguments. Selected null-count-only no-FROM projections
 may use literal/parameter cast arguments; standalone casts still require FROM.

@@ -99,6 +99,8 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 	}
 	byteHash(1)
 	switch v.typ.id {
+	case Oid:
+		integerHash(uint64(v.oid))
 	case Bool:
 		if v.boolean {
 			byteHash(1)

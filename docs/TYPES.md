@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -13,10 +13,77 @@ kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
 including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+OID and INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
 DATE/TIME as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
+
+## OID — unsigned scalar change note
+
+OID is a distinct unsigned four-byte scalar (builtin type26, typmod -1,
+no collation), not INTEGER or symbolic REGCLASS. `CREATE TABLE o(v OID)`
+stores0 through4294967295, with canonical unsigned decimal output.
+OID declarations are also part of the supported type list above.
+NULL retains OID identity; comparisons and sorting use unsigned order.
+Mixed OID/integer comparisons implicitly convert the integer to OID.
+The same conversion governs `IS DISTINCT FROM` and `IS NOT DISTINCT FROM`:
+OID max and INT4 -1 are not distinct in either order. Two typed NULLs are
+not distinct; exactly one NULL is distinct. Negative or overflowing typed
+INT8 still fails its checked conversion rather than becoming a signed comparison.
+
+Text input follows PostgreSQL's64-bit Linux `strtoul(base0)` semantics:
+C whitespace and an optional sign, decimal, leading-zero octal and `0x` hex
+are accepted; binary prefixes, separators and Unicode whitespace are not.
+`'-1'` becomes4294967295, `'-2147483648'` becomes2147483648,
+and `'-18446744073709551615'` becomes1 through unsigned-long negation.
+Positive unsigned-long sign extensions are accepted too:
+`'18446744073709551615'` becomes4294967295 and
+`'18446744071562067968'` becomes2147483648.
+This is not universal modulo32 conversion. Malformed input gives22P02
+`invalid input syntax for type oid: "<original>"`; range failure gives22003
+`value "<original>" is out of range for type oid`. Unsigned-long overflow
+precedes trailing-junk validation, which precedes32-bit narrowing.
+Literal failures point to the quote; native bind errors have no Position/Context.
+The pinned PostgreSQL18.0 failed text-bind diagnostic adds
+`unnamed portal parameter $1 = '...'` for nonempty input and
+`unnamed portal parameter $1 = ''` for empty input; the original value still
+appears verbatim in the primary message.
+
+| Conversion | Context | Behavior |
+|---|---|---|
+| INT2/INT4→OID | implicit | Sign-extend/reinterpret32 bits; -1 becomes max |
+| INT8→OID | implicit | Check0..4294967295; otherwise22003 `OID out of range` |
+| OID→INT4 | assignment | Reinterpret32 bits; max becomes -1 |
+| OID→INT8 | assignment | Zero-extend; max stays4294967295 |
+| OID→INT2 | unsupported | Explicit42846, including NULL |
+| TEXT→OID | explicit | Type-owned input |
+| OID→TEXT | assignment | Canonical output through the existing I/O convention |
+
+CAST, postfix `::`, OID identity and bounded `oid(...)` use the existing
+cast binder. Unrelated cast families and standalone SELECT without FROM
+remain excluded. Run scalar witnesses FROM a real one-row table.
+Typed INT8 -1 fails, unlike text `'-1'` or an OID-inferred Go int64(-1) bind.
+String/textual bytes/Valuer/nil use the existing owned parameter path.
+Go uint64 above MaxInt64 remains an ordinary adapter conversion error.
+
+Native OID results/ScanType are int64; pinned lib/pq returns decimal []byte
+with interface{} ScanType. Both report OID and unavailable Length/DecimalSize,
+including empty/NULL results. Identity casts retain column origins; conversions
+lose them. Native raw-driver metadata and held snapshots survive EOF/Close/native
+replacement; database/sql's closed Rows wrapper does not expose ColumnTypes.
+Existing grouping, conditionals, INSERT SELECT and defaults reuse this scalar.
+Dump writes OID declarations and quoted canonical decimals, and atomic
+Restore preserves defaults, NULL, empty tables and failure/cancellation safety.
+
+This feature does not populate metadata catalogs, allocate/resolve objects,
+add reg* families, oidvector/arrays or OID arithmetic. Physical/binary wire
+receive/send, a network server, disk/WAL durability and external pg_dump
+process/archive support are non-engine mechanisms, not successful no-ops.
+
+Feature smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
+Native: `make test PACKAGES=. RUN='^TestOID.*$' VERBOSE=0`.
+Providers: `make test PACKAGES=./internal/sqltype RUN='^TestOID.*$' VERBOSE=0`.
+Pinned reference: `make reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
 
 ## NAME
 

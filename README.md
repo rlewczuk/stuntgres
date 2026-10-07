@@ -17,6 +17,12 @@ native Dump/Restore; it does not change SQL identifier folding or add general
 name casts/functions. Public feature smoke:
 `make smoke RUN='^TestNameSmoke$' VERBOSE=0`.
 
+OID is a distinct unsigned four-byte scalar with exact native int64 results,
+unsigned ordering, PostgreSQL integer bitcasts/checked INT8 conversion and
+native schema/data/default Dump/Restore. It does not populate metadata catalogs
+or add object lookup, arithmetic or ordinary SELECT-without-FROM support.
+Public feature smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
+
 Supported transaction-owned relation and logical row locks include deadlock
 detection: compatible queue reordering resolves avoidable soft cycles; an
 unavoidable cycle returns `40P01` / `deadlock detected` to an unspecified cycle

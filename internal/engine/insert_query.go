@@ -97,7 +97,7 @@ func typeCategory(t *sqltype.Descriptor) byte {
 	switch t.ID() {
 	case sqltype.Bool:
 		return 'B'
-	case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
+	case sqltype.Oid, sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
 		return 'N'
 	case sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name:
 		return 'S'
@@ -109,7 +109,7 @@ func typeCategory(t *sqltype.Descriptor) byte {
 	return 0
 }
 func preferredType(t *sqltype.Descriptor) bool {
-	return t.ID() == sqltype.Text || t.ID() == sqltype.Float8 || t.ID() == sqltype.Bool
+	return t.ID() == sqltype.Oid || t.ID() == sqltype.Text || t.ID() == sqltype.Float8 || t.ID() == sqltype.Bool
 }
 func commonValuesUsage(nodes [][]BoundExpr, column int, text sqltype.Usage) (sqltype.Usage, error) {
 	return selectCommonUsage(len(nodes), func(i int) comparisonOperand {

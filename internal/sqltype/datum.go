@@ -14,6 +14,8 @@ func SameDatum(a, b Value) bool {
 		return a.null == b.null
 	}
 	switch a.typ.id {
+	case Oid:
+		return a.oid == b.oid
 	case Bool:
 		return a.boolean == b.boolean
 	case Int2, Int4, Int8, Date, Time, Timestamp:
