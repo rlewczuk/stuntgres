@@ -318,6 +318,22 @@ func TestDefaultSmoke(t *testing.T) {
 				alterDropSmokeRows(t, query(`SELECT * FROM planning_d ORDER BY id`), []string{"id", "t", "f", "n"}, []string{"INT4", "BOOL", "BOOL", "BOOL"}, planningWant)
 			}
 			checkPlanning()
+			exec(`CREATE TABLE arithmetic_src(id INT)`, 0)
+			exec(`CREATE TABLE arithmetic_defaults(id INT,v INT DEFAULT (1+2)*3,b BOOL DEFAULT ((1+2=3) OR 1/0=0),s TEXT DEFAULT CAST('a' AS CHAR(3)))`, 0)
+			exec(`INSERT INTO arithmetic_defaults(id) VALUES(1)`, 1)
+			exec(`INSERT INTO arithmetic_defaults VALUES(2,DEFAULT,DEFAULT,DEFAULT)`, 1)
+			arithmeticWant := [][]any{{int64(1), int64(9), true, "a"}, {int64(2), int64(9), true, "a"}}
+			checkArithmetic := func() {
+				t.Helper()
+				alterDropSmokeRows(t, query(`SELECT * FROM arithmetic_defaults ORDER BY id`), []string{"id", "v", "b", "s"}, []string{"INT4", "INT4", "BOOL", "TEXT"}, arithmeticWant)
+			}
+			checkArithmetic()
+			exec(`CREATE TABLE arithmetic_bad(id INT,v INT DEFAULT 1/0)`, 0)
+			exec(`INSERT INTO arithmetic_bad VALUES(0,9)`, 1)
+			divisionError := stuntgres.Error{Code: "22012", Message: "division by zero"}
+			fail(`INSERT INTO arithmetic_bad(id) SELECT id FROM arithmetic_src`, divisionError)
+			fail(`INSERT INTO arithmetic_bad VALUES(1,9),(2,DEFAULT)`, divisionError)
+			alterDropSmokeRows(t, query(`SELECT * FROM arithmetic_bad`), []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(0), int64(9)}})
 			var dump bytes.Buffer
 			if err = stuntgres.Dump(ctx, db, &dump); err != nil {
 				t.Fatal(err)
@@ -337,6 +353,12 @@ func TestDefaultSmoke(t *testing.T) {
 			if err = stuntgres.Dump(ctx, db, &again); err != nil || again.String() != dump.String() {
 				t.Fatal("default consumer redump", err, again.String())
 			}
+			checkArithmetic()
+			exec(`INSERT INTO arithmetic_defaults(id) SELECT 3`, 1)
+			arithmeticWant = append(arithmeticWant, []any{int64(3), int64(9), true, "a"})
+			checkArithmetic()
+			fail(`INSERT INTO arithmetic_bad VALUES(1,DEFAULT)`, divisionError)
+			alterDropSmokeRows(t, query(`SELECT * FROM arithmetic_bad`), []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(0), int64(9)}})
 			checkConsumers()
 			exec(`INSERT INTO consumer_defaults(id) SELECT 7`, 1)
 			exec(`INSERT INTO consumer_defaults VALUES(8,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT)`, 1)

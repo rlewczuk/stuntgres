@@ -152,6 +152,57 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			return "", err
 		}
 		return "CAST(" + child + " AS " + declaration + ")", nil
+	case arithmeticExpression:
+		if !integerArithmeticType(u.Type) || u != u.Type.Usage() || n.left == nil || n.left.ResultUsage() != u || n.right != nil && n.right.ResultUsage() != u {
+			return "", fmt.Errorf("stuntgres: invalid default arithmetic operands")
+		}
+		provider, err := sqltype.BindArithmetic(n.operator, u.Type, n.right == nil)
+		if err != nil || provider != n.provider {
+			return "", fmt.Errorf("stuntgres: invalid default arithmetic binding")
+		}
+		var operator string
+		switch n.operator {
+		case sqltype.ArithmeticAdd:
+			operator = "+"
+		case sqltype.ArithmeticSubtract:
+			operator = "-"
+		case sqltype.ArithmeticMultiply:
+			operator = "*"
+		case sqltype.ArithmeticDivide:
+			operator = "/"
+		case sqltype.ArithmeticRemainder:
+			operator = "%"
+		default:
+			return "", fmt.Errorf("stuntgres: invalid default arithmetic operator")
+		}
+		operandSQL := func(child BoundExpr) (string, error) {
+			text, err := defaultSQL(ctx, view, child)
+			if err != nil {
+				return "", err
+			}
+			// A known BIGINT or typed NULL leaf must not become an INT4 or
+			// unknown operand on replay, changing width or unary resolution.
+			if literal, ok := child.(literalExpression); ok && (u.Type.ID() == sqltype.Int8 || literal.value.IsNull()) {
+				declaration, err := u.Declaration()
+				if err != nil {
+					return "", err
+				}
+				text = "CAST(" + text + " AS " + declaration + ")"
+			}
+			return text, nil
+		}
+		left, err := operandSQL(n.left)
+		if err != nil {
+			return "", err
+		}
+		if n.right == nil {
+			return "(" + operator + " " + left + ")", nil
+		}
+		right, err := operandSQL(n.right)
+		if err != nil {
+			return "", err
+		}
+		return "(" + left + " " + operator + " " + right + ")", nil
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")

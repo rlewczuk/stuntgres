@@ -1283,13 +1283,14 @@ comments, which are deliberately excluded from database Dump and Restore.
 ### Column defaults
 
 CREATE TABLE now stores immutable, bound column `DEFAULT` expressions. Existing
-literal/NULL, typed DATE/TIME/TIMESTAMP, baseline CAST/`::`/function-style casts,
+literal/NULL, typed DATE/TIME/TIMESTAMP, existing baseline and character-family
+CAST/`::` casts, baseline function-style casts, INT4/INT8 unary/binary arithmetic,
 scalar comparisons and IS [NOT] DISTINCT FROM are admitted at the outer level.
 Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
 `DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`. Column references and positional
 parameters are prohibited even inside casts or decisive logical branches.
-General SQL functions, subqueries, arithmetic, additional cast families,
-serial/identity and ALTER DEFAULT remain outside this selected SQL surface.
+General SQL functions, subqueries, arithmetic beyond existing INT4/INT8 operators,
+new cast families, serial/identity and ALTER DEFAULT remain outside this surface.
 Restrictions apply as ordinary recursive binding reaches each occurrence; earlier
 child Boolean, input and operator diagnostics retain their PostgreSQL precedence.
 The existing null, truth and distinct predicates retain their ordinary typed
@@ -1315,16 +1316,16 @@ Utility Prepare remains semantic-analysis-free; CREATE binds input/type errors
 on execution, while destination narrowing and typmod sizing remain deferred to
 INSERT. For example `INT DEFAULT 2147483648` creates successfully but fails
 on use with 22003. Every INSERT preflights actually consumed declared defaults'
-immutable conversions at execution, after supplied-value or query-source
-preflight and before executor authorization and capture. For query INSERT,
-even an empty source can report a demanded conversion error. This bounded
-default-only planning also covers ordinary omissions, per-cell requests,
+immutable conversions and closed integer arithmetic at execution, after supplied-value
+or query-source preflight and before executor authorization and capture. For query
+INSERT, even an empty source can report demanded division-by-zero or overflow errors.
+This bounded default-only planning also covers ordinary omissions, per-cell requests,
 undecorated parenthesized VALUES and DEFAULT VALUES; it visits the left
 Boolean operand first.
 A resulting concrete TRUE on OR, or FALSE on AND, makes the whole execution
 expression a private BOOL literal without demanding the discarded right branch.
-Nested closed constant comparisons/predicates and NOT use their existing typed
-operations after required children are handled. NULL/nondecisive left operands
+Nested closed constant arithmetic/comparisons/predicates and NOT use their existing
+typed operations after required children are handled. NULL/nondecisive left operands
 still demand the right; a bad left operand is not rescued by a decisive right.
 CREATE still analyzes both operands and rejects prohibited references or eager
 input errors. Stored definitions remain unfolded, including discarded casts.
@@ -1334,7 +1335,7 @@ a query omits it; a column supplied in every row is never default-planned.
 Mixed rows retain one private schedule but evaluate remaining runtime expressions
 only in cells consuming the default, never for a zero-row source.
 This is not a general runtime short-circuit or broader optimizer guarantee;
-ordinary query/DELETE/supplied-value preflight and logical evaluation are unchanged.
+ordinary query/DELETE/UPDATE/supplied-value preflight and logical evaluation are unchanged.
 Relative temporal input
 such as `'now'` captures CREATE's transaction input environment, not a volatile
 per-row SQL function.
@@ -1346,6 +1347,12 @@ removes only its stable attribute's default. Dump preserves canonical expression
 structure and captured temporal leaves without evaluating defaults; stored data,
 including explicit NULL, remains explicit. Restore uses the same public syntax
 and binder, atomically replacing definitions/data or preserving the target on failure.
+Existing integer arithmetic defaults retain operator structure, grouping and operand
+widths through native controls; CREATE and Dump never evaluate them. Destination
+BIGINT does not widen an INT4 operation to avoid overflow. Explicit character CAST
+typmods retain Unicode truncation and BPCHAR-to-TEXT trimming; destination assignment
+still reports overlength rather than silently truncating. UPDATE DEFAULT remains
+outside this INSERT-only default consumer.
 The rounded finite TIMESTAMP endpoint retains its type-owned `TIMESTAMP(0)`
 encoding exactly once, including temporal leaves inside comparison defaults.
 Explicit casts retain their actual coercion mode and canonical CAST structure.

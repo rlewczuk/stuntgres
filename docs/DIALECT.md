@@ -133,10 +133,11 @@ Smoke: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`;
 reference: `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
 Integrated expressions: `make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
 
-Column DEFAULT declarations admit outer scalar/typed temporal/baseline cast/
-comparison and IS [NOT] DISTINCT FROM syntax. CAST, postfix and existing
-function-style casts use the four already-supported baseline types, not general
-SQL function admission. Logical NOT/AND/OR and null/truth tests require parentheses
+Column DEFAULT declarations admit outer scalar/typed temporal/existing cast/
+INT4/INT8 unary and binary arithmetic/comparison and IS [NOT] DISTINCT FROM syntax.
+CAST and postfix casts reuse existing baseline and character-family conversions;
+function-style casts remain baseline-only, not general SQL function admission.
+Logical NOT/AND/OR and null/truth tests require parentheses
 (e.g. DEFAULT (NULL IS NULL)), as PostgreSQL's restricted default grammar requires.
 Columns (0A000) and parameters (42P02) remain prohibited inside casts and decisive
 branches. Unknown input binds at CREATE Execute; destination sizing/conversion
@@ -152,17 +153,17 @@ use omitted destination defaults. One execution-only default-demand phase
 handles both ordinary and query INSERT after supplied-value/source preflight.
 Only defaults consumed by some ordinary row or omitted by the query are planned;
 a column explicitly supplied in every row, including NULL, bypasses this phase.
-Immutable conversions are demanded even for an empty query source. This bounded
-default-only recursive
+Immutable conversions and closed integer arithmetic are demanded even for an empty
+query source. This bounded default-only recursive
 planning handles the left first. Concrete non-NULL BOOL TRUE on OR or FALSE on
 AND replaces the whole execution node with a private BOOL literal, without
-visiting the discarded right branch. Existing typed operations fold closed
-constant comparison/predicate/NOT children only after their required children.
-NULL/nondecisive left operands still demand right conversions; a bad left is not
+visiting the discarded right branch. Existing typed operations fold closed constant
+arithmetic/comparison/predicate/NOT children only after their required children.
+NULL/nondecisive left operands still demand right operations; a bad left is not
 rescued by a decisive right. CREATE continues analyzing both operands.
 The schedule uses lazy private copies; catalog definitions remain unfolded.
 Remaining runtime expressions evaluate only in rows/cells consuming the default.
-No ordinary query/DELETE/supplied preflight or runtime logical
+No ordinary query/DELETE/UPDATE/supplied preflight or runtime logical
 evaluator behavior changes, and no general short-circuit/optimizer promise is made.
 ORDER-decorated DEFAULT is42601 `DEFAULT is not allowed in this context` at its
 marker; direct Execute/prepared Prepare. Ordinary and parenthesized undecorated
@@ -179,6 +180,12 @@ Rounded finite endpoint literals keep the type-owned TIMESTAMP(0) encoding with
 exactly one introducer, including within default comparison expressions.
 Existing null/truth/distinct default nodes serialize recursively with parentheses,
 without Eval, and retain shared typed predicate semantics through Dump/Restore.
+Integer arithmetic defaults validate their private operator identity against the
+existing concrete-width provider and serialize grouped operands without Eval.
+Operand widths remain intact on replay; destination BIGINT does not widen INT4
+operations. Ordinary arithmetic stays row-owned outside consumed-default planning.
+Existing explicit character CAST typmods preserve Unicode truncation and BPCHAR
+trimming through controls; destination assignment retains overlength errors.
 Explicit default coercions validate their actual construction mode and retain
 canonical CAST structure. Known TEXT cast children remain typed, preserving
 deferred conversion timing through Restore. DATE leaves retain typed introducers
@@ -188,8 +195,8 @@ public results remain raw bytes. No typed BYTEA compound or DATE/BYTEA cast is a
 Dump serializes expression structure/captured temporal input without Eval and
 existing rows explicitly. Restore uses the same binder and public DEFAULT
 requests, staging atomically. Temporal 'now' input captures CREATE's operation
-clock; no new volatile producer, general function, subquery, additional cast family,
-arithmetic, serial, identity or ALTER DEFAULT capability is implied. Independent PostgreSQL-only
+clock; no new volatile producer, general function, subquery, cast family or arithmetic
+operator/type is implied. Serial, identity, ALTER DEFAULT and UPDATE DEFAULT remain excluded. Independent PostgreSQL-only
 sequence/volatile witnesses are labeled adjacent SQL boundaries; disk/WAL,
 network protocol, native ABI extensions and external pg_dump/custom archives
 are specifically non-engine mechanisms, never permission for successful stubs.

@@ -203,7 +203,17 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 				return nil, false, err
 			}
 		}
-		// Only materialize child casts. Arithmetic itself remains row-owned.
+		if decisiveDefaults {
+			_, leftConstant := left.(literalExpression)
+			_, rightConstant := right.(literalExpression)
+			p := e.Properties()
+			if leftConstant && (e.right == nil || rightConstant) && p.Volatility == Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent {
+				e.left, e.right = left, right
+				value, err := e.Eval(c)
+				return preflightValue(c, e.expressionInfo, value, err)
+			}
+		}
+		// Ordinary consumers only materialize casts; arithmetic stays row-owned.
 		if leftChanged || rightChanged {
 			e.left, e.right = left, right
 			return e, true, nil
@@ -992,6 +1002,7 @@ type arithmeticExpression struct {
 	expressionInfo
 	left, right BoundExpr
 	provider    sqltype.Arithmetic
+	operator    sqltype.ArithmeticOperator
 }
 
 func (e arithmeticExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -1103,7 +1114,7 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 			if err != nil {
 				return nil, err
 			}
-			n = coercionExpression{b.info(typ.Usage(), n.SourcePosition(), n.Properties()), n, plan}
+			n = coercionExpression{b.info(typ.Usage(), n.SourcePosition(), n.Properties()), n, plan, sqltype.Implicit}
 		}
 		return n, nil
 	}
@@ -1134,5 +1145,5 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 			}
 		}
 	}
-	return arithmeticExpression{b.info(typ.Usage(), pos, p), l, r, provider}, nil
+	return arithmeticExpression{b.info(typ.Usage(), pos, p), l, r, provider, operator}, nil
 }

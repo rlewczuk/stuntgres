@@ -102,7 +102,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 				}
 				return err
 			}
-			source = coercionExpression{binder.info(dest.Usage, a.Value.SourcePosition(), source.Properties()), source, plan}
+			source = coercionExpression{binder.info(dest.Usage, a.Value.SourcePosition(), source.Properties()), source, plan, sqltype.Assignment}
 			u.assignments[i] = source
 		}
 	}
