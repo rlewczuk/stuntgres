@@ -26,6 +26,9 @@ builtin functions/operators; `pg_catalog` qualification and
 `OPERATOR(pg_catalog.+)` preserve their provider boundaries.
 Existing `min_scale`, `round`, `scale`, `trim_scale`, `trunc`, `sign` and `mod`
 providers use the same namespace checks while retaining their numeric overloads.
+Qualified temporal declarations such as `pg_catalog.time(3)` and
+`pg_catalog.timestamp(3)` retain precision through native Dump/Restore;
+temporal explicit casts remain excluded whether qualified or unqualified.
 `SELECT current_schemas(false)` returns a genuine result-only NAME[] (`_NAME`)
 as a native string, or NULL for a NULL boolean argument. General arrays and
 SQL type/function/operator DDL remain excluded. TEMP remains sequence-only;

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres"
 	"testing"
+	"time"
 )
 
 func TestSearchPathSmoke(t *testing.T) {
@@ -158,6 +159,43 @@ func TestSearchPathSmoke(t *testing.T) {
 	value(a, "SELECT paths FROM sp1.paths", "{sp2,sp1}")
 	exec(a, "SET search_path TO sp1")
 	value(a, "SELECT paths FROM sp1.paths", "{sp1}")
+	exec(a, "CREATE TABLE sp1.temporal(t pg_catalog.time(3),ts pg_catalog.timestamp(3))")
+	exec(a, "INSERT INTO sp1.temporal VALUES('12:34:56.123789','2000-01-01 12:34:56.123789')")
+	checkTemporal := func(rows *sql.Rows) {
+		t.Helper()
+		defer rows.Close()
+		metadata, err := rows.ColumnTypes()
+		if err != nil || len(metadata) != 2 {
+			t.Fatal(metadata, err)
+		}
+		for i, expected := range []struct {
+			name, typ string
+			scan      reflect.Type
+		}{{"t", "TIME", reflect.TypeFor[string]()}, {"ts", "TIMESTAMP", reflect.TypeFor[time.Time]()}} {
+			if metadata[i].Name() != expected.name || metadata[i].DatabaseTypeName() != expected.typ || metadata[i].ScanType() != expected.scan {
+				t.Fatal("temporal metadata", metadata[i], expected)
+			}
+		}
+		if !rows.Next() {
+			t.Fatal("missing temporal row", rows.Err())
+		}
+		var clock, timestamp any
+		if err := rows.Scan(&clock, &timestamp); err != nil {
+			t.Fatal(err)
+		}
+		if clock != "12:34:56.124" || !reflect.DeepEqual(timestamp, time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC)) {
+			t.Fatal("temporal values", clock, timestamp)
+		}
+		if rows.Next() || rows.Err() != nil {
+			t.Fatal("extra temporal row", rows.Err())
+		}
+	}
+	const temporalQuery = "SELECT t,ts FROM sp1.temporal"
+	temporalRows, err := a.QueryContext(ctx, temporalQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkTemporal(temporalRows)
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
 		t.Fatal(err)
@@ -165,7 +203,45 @@ func TestSearchPathSmoke(t *testing.T) {
 	if strings.Contains(dump.String(), "SET search_path") {
 		t.Fatal("dump serialized session path")
 	}
+	if !strings.Contains(dump.String(), `CREATE TABLE "sp1"."temporal" ("t" TIME(3), "ts" TIMESTAMP(3))`) {
+		t.Fatal("dump lost canonical temporal precision", dump.String())
+	}
 	exec(a, "SET search_path TO sp2,sp1")
+	freshConnector, err := stuntgres.NewDriver().OpenConnector(t.Name() + "-fresh-temporal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh := sql.OpenDB(freshConnector)
+	defer fresh.Close()
+	freshSession, err := fresh.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer freshSession.Close()
+	exec(freshSession, "SET search_path TO pg_catalog")
+	if err := stuntgres.Restore(ctx, fresh, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	value(freshSession, "SELECT current_schemas(false)", "{pg_catalog}")
+	restoredTemporal, err := freshSession.PrepareContext(ctx, temporalQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restoredTemporal.Close()
+	for _, path := range []string{"pg_catalog", "sp2"} {
+		exec(freshSession, "SET search_path TO "+path)
+		rows, err := freshSession.QueryContext(ctx, temporalQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkTemporal(rows)
+		rows, err = restoredTemporal.QueryContext(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkTemporal(rows)
+	}
+	read(false, "{sp2,sp1}")
 	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
@@ -176,6 +252,11 @@ func TestSearchPathSmoke(t *testing.T) {
 	value(a, "SELECT n FROM sp1.math_path", "1.3")
 	read(false, "{sp2,sp1}")
 	value(a, "SELECT paths FROM sp1.paths", "{sp2,sp1}")
+	value(a, "SELECT t FROM sp1.temporal", "12:34:56.124")
+	value(a, "SELECT ts FROM sp1.temporal", time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC))
+	exec(a, "INSERT INTO sp1.temporal VALUES(TIME '12:34:56.125789',TIMESTAMP '2000-01-01 12:34:56.125789')")
+	value(a, "SELECT t FROM sp1.temporal WHERE t='12:34:56.126'", "12:34:56.126")
+	value(a, "SELECT ts FROM sp1.temporal WHERE t='12:34:56.126'", time.Date(2000, 1, 1, 12, 34, 56, 126000000, time.UTC))
 	if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE broken(")); err == nil {
 		t.Fatal("invalid restore succeeded")
 	}

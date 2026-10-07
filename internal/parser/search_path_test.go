@@ -39,3 +39,25 @@ func TestSearchPathQualifiedSyntax(t *testing.T) {
 		t.Fatal("qualified operator precedence", op)
 	}
 }
+
+func TestSearchPathQualifiedTemporalModifiers(t *testing.T) {
+	for _, tc := range []struct {
+		terminal, name    string
+		quoted            bool
+		precisionPosition int
+	}{
+		{"time", "time", false, 41},
+		{"timestamp", "timestamp", false, 46},
+		{`"time"`, "time", true, 43},
+		{`"timestamp"`, "timestamp", true, 48},
+	} {
+		statements, err := Parse("CREATE TABLE temporal(v pg_catalog." + tc.terminal + "(3))")
+		if err != nil {
+			t.Fatal(tc.terminal, err)
+		}
+		typ := statements[0].(*CreateTable).Elements[0].Column.TypeName
+		if typ.Schema == nil || typ.Schema.Text != "pg_catalog" || typ.Schema.Pos.Character != 25 || typ.Pos.Character != 25 || typ.Name != tc.name || typ.Quoted != tc.quoted || len(typ.Modifiers) != 1 || typ.Modifiers[0].Integer == nil || *typ.Modifiers[0].Integer != 3 || typ.Modifiers[0].Pos.Character != tc.precisionPosition {
+			t.Fatalf("%s: %#v", tc.terminal, typ)
+		}
+	}
+}

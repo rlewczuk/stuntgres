@@ -1192,12 +1192,19 @@ or allowing familiar spellings in a wrong namespace to bypass lookup.
 Qualified type names use catalog identifiers, not SQL aliases:
 pg_catalog.int4 is valid, pg_catalog.integer is not an alias. Qualified operators
 use OPERATOR(schema.symbol) and generic operator precedence.
+Qualified temporal declarations such as pg_catalog.time(3) and
+pg_catalog.timestamp(3) preserve precision and canonical TIME(3)/TIMESTAMP(3)
+Dump/Restore declarations. Temporal explicit casts remain excluded, whether
+qualified or unqualified; qualification does not enlarge the existing cast family.
 
 The scalar function owner exposes stable, strict current_schemas(boolean).
 FALSE returns the explicit searchable path; TRUE includes implicit namespaces.
 Prepared BOOL parameters observe fresh settings/current-role state at execution;
 returned values are immutable snapshots. NULL returns typed NULL; an empty
-explicit path returns `{}`. NAME[] has OID1003, catalog name _name, public
+explicit path returns `{}`. Stored views containing current_schemas likewise
+read the executing session's runtime path, including through held prepared
+queries, rather than the view's creation-time path.
+NAME[] has OID1003, catalog name _name, public
 DatabaseTypeName `_NAME`, typmod-1, no origin and NAME-element collation950.
 Native ScanType/export are string; PostgreSQL/libpq reports interface{} and
 raw []byte instead. This is a result-only descriptor, not TEXT or general array

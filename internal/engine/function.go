@@ -209,40 +209,39 @@ func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return scope.searchPathResults[0], nil
 }
 
+// functionSignatureError binds diagnostic operands once, only on a failure path.
+func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error {
+	names := make([]string, len(raw.Args))
+	for i, rawArg := range raw.Args {
+		arg, err := b.bind(rawArg, expressionPolicy{context: projectionContext})
+		if err != nil {
+			return err
+		}
+		names[i] = "unknown"
+		if arg.ResultUsage().Type != nil {
+			names[i] = arg.ResultUsage().Type.DiagnosticName()
+		}
+		if literal, ok := rawArg.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+			names[i] = "unknown"
+		}
+	}
+	d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(raw.Name), strings.Join(names, ", ")), raw.Pos).(*sqlstate.Error)
+	d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+	return d
+}
+
 func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (BoundExpr, error) {
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
 		return nil, err
 	}
-	args := make([]BoundExpr, len(raw.Args))
-	for i, rawArg := range raw.Args {
-		args[i], err = b.bind(rawArg, expressionPolicy{context: projectionContext})
-		if err != nil {
-			return nil, err
-		}
-	}
-	missing := func() error {
-		names := make([]string, len(args))
-		for i, arg := range args {
-			names[i] = "unknown"
-			if arg.ResultUsage().Type != nil {
-				names[i] = arg.ResultUsage().Type.DiagnosticName()
-			}
-			if literal, ok := raw.Args[i].(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-				names[i] = "unknown"
-			}
-		}
-		d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(raw.Name), strings.Join(names, ", ")), raw.Pos).(*sqlstate.Error)
-		d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
-		return d
-	}
-	if !visible || len(args) != 1 || raw.Variadic {
-		return nil, missing()
+	if !visible || len(raw.Args) != 1 || raw.Variadic {
+		return nil, b.functionSignatureError(raw)
 	}
 	arg, err := b.bind(raw.Args[0], expressionPolicy{context: functionArgumentContext, expected: b.typ(sqltype.Bool).Usage(), mode: sqltype.Implicit})
 	if err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && (d.Code == "42804" || d.Code == "42846") {
-			return nil, missing()
+			return nil, b.functionSignatureError(raw)
 		}
 		return nil, err
 	}

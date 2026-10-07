@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestReferenceSearchPathCurrentSchemas(t *testing.T) {
@@ -126,6 +127,7 @@ func TestReferenceSearchPathQualifiedProviders(t *testing.T) {
 		want          any
 	}{
 		{"SELECT pg_catalog.num_nulls(NULL,7)", "num_nulls", "INT4", int64(1)},
+		{"SELECT pg_catalog.current_schemas('false')", "current_schemas", "_NAME", "{public}"},
 		{"SELECT CAST(id AS pg_catalog.int4) FROM sp1.t", "id", "INT4", int64(7)},
 		{"SELECT pg_catalog.int4(id) FROM sp1.t", "int4", "INT4", int64(7)},
 		{"SELECT pg_catalog.count(*) FROM sp1.t", "count", "INT8", int64(1)},
@@ -156,6 +158,8 @@ func TestReferenceSearchPathDiagnostics(t *testing.T) {
 	for _, tc := range []struct{ q, code, message, hint, pos string }{
 		{"SELECT current_schemas()", "42883", "function current_schemas() does not exist", fh, "8"},
 		{"SELECT current_schemas(1)", "42883", "function current_schemas(integer) does not exist", fh, "8"},
+		{"SELECT public.current_schemas(false)", "42883", "function public.current_schemas(boolean) does not exist", fh, "8"},
+		{"SELECT public.current_setting('search_path')", "42883", "function public.current_setting(unknown) does not exist", fh, "8"},
 		{"SELECT public.num_nulls(1)", "42883", "function public.num_nulls(integer) does not exist", fh, "8"},
 		{"SELECT 1 OPERATOR(public.+) 2 FROM sp1.t", "42883", "operator does not exist: integer public.+ integer", oh, "10"},
 		{"SELECT 1::public.int4 FROM sp1.t", "42704", `type "public.int4" does not exist`, "", "11"},
@@ -332,4 +336,154 @@ func TestReferenceSearchPathQualifiedBitwiseProviders(t *testing.T) {
 	s = referencePrepared(s)
 	s.errorStage = "prepare"
 	p.step(t, s)
+}
+
+func TestReferenceSearchPathQualifiedTemporalPrecision(t *testing.T) {
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "sp1")
+	p.step(t, referenceExec("CREATE SCHEMA sp1", 0))
+	p.step(t, referencePrepared(referenceExec(`CREATE TABLE sp1.temporal(t pg_catalog.time(3),ts pg_catalog.timestamp(3),tq pg_catalog."time"(3),tsq pg_catalog."timestamp"(3))`, 0)))
+	p.step(t, referenceExec("INSERT INTO sp1.temporal VALUES('12:34:56.123789','2000-01-01 12:34:56.123789','12:34:56.123789','2000-01-01 12:34:56.123789')", 1))
+	p.step(t, referencePrepared(referenceExec("INSERT INTO sp1.temporal VALUES(TIME(3) '12:34:56.123789',TIMESTAMP(3) '2000-01-01 12:34:56.123789',TIME(3) '12:34:56.123789',TIMESTAMP(3) '2000-01-01 12:34:56.123789')", 1)))
+	labels := []string{"t", "ts", "tq", "tsq"}
+	types := []string{"TIME", "TIMESTAMP", "TIME", "TIMESTAMP"}
+	want := [][]any{
+		{"12:34:56.124", time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC), "12:34:56.124", time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC)},
+		{"12:34:56.124", time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC), "12:34:56.124", time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC)},
+	}
+	for _, backend := range []struct {
+		name   string
+		db     *sql.DB
+		record *referenceRecorder
+	}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+		t.Run(backend.name, func(t *testing.T) {
+			c, err := backend.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			const query = "SELECT t,ts,tq,tsq FROM sp1.temporal"
+			expected := referenceTimeRows(t, backend.name == "postgres", types, want)
+			step := referenceSelect(query, labels, types, expected)
+			held, err := c.PrepareContext(p.ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer held.Close()
+			for _, path := range []string{"sp1", "pg_catalog"} {
+				referenceRunStep(t, p.ctx, c, backend.record, referenceExec("SET search_path TO "+path, 0))
+				referenceRunStep(t, p.ctx, c, backend.record, step)
+				rows, err := held.QueryContext(p.ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				func() {
+					defer rows.Close()
+					metadata, err := rows.ColumnTypes()
+					if err != nil || len(metadata) != len(types) {
+						t.Fatal(metadata, err)
+					}
+					for i, typ := range types {
+						scan := reflect.TypeFor[time.Time]()
+						if typ == "TIME" && backend.name == "memory" {
+							scan = reflect.TypeFor[string]()
+						}
+						if metadata[i].Name() != labels[i] || metadata[i].DatabaseTypeName() != typ || metadata[i].ScanType() != scan {
+							t.Fatal("held temporal metadata", metadata[i], scan)
+						}
+					}
+					var got [][]any
+					for rows.Next() {
+						var values [4]any
+						if err := rows.Scan(&values[0], &values[1], &values[2], &values[3]); err != nil {
+							t.Fatal(err)
+						}
+						for i := range values {
+							values[i] = referenceNormalize(values[i])
+						}
+						got = append(got, values[:])
+					}
+					if err := rows.Err(); err != nil || !reflect.DeepEqual(got, expected) {
+						t.Fatal("held temporal values", got, expected, err)
+					}
+				}()
+			}
+		})
+	}
+}
+
+func TestReferenceSearchPathStoredViewRuntime(t *testing.T) {
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "sp1", "sp2")
+	for _, q := range []string{"CREATE SCHEMA sp1", "CREATE SCHEMA sp2", "CREATE TABLE sp1.t(id INT)", "CREATE VIEW sp1.runtime_paths AS SELECT pg_catalog.current_schemas(false) AS paths FROM sp1.t"} {
+		p.step(t, referenceExec(q, 0))
+	}
+	p.step(t, referenceExec("INSERT INTO sp1.t VALUES(7)", 1))
+	for _, backend := range []struct {
+		name   string
+		db     *sql.DB
+		record *referenceRecorder
+	}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+		t.Run(backend.name, func(t *testing.T) {
+			a, err := backend.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer a.Close()
+			b, err := backend.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer b.Close()
+			run := func(c *sql.Conn, step referenceStep) { referenceRunStep(t, p.ctx, c, backend.record, step) }
+			run(a, referenceExec("SET search_path TO sp1", 0))
+			run(b, referenceExec("SET search_path TO sp1", 0))
+			const query = "SELECT paths FROM sp1.runtime_paths"
+			held, err := a.PrepareContext(p.ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer held.Close()
+			peer, err := b.PrepareContext(p.ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer peer.Close()
+			checkHeld := func(stmt *sql.Stmt, want string) {
+				t.Helper()
+				rows, err := stmt.QueryContext(p.ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				types, err := rows.ColumnTypes()
+				scan := reflect.TypeOf("")
+				if backend.name == "postgres" {
+					scan = reflect.TypeOf((*any)(nil)).Elem()
+				}
+				if err != nil || len(types) != 1 || types[0].ScanType() != scan {
+					rows.Close()
+					t.Fatal("stored view scan metadata", types, err)
+				}
+				schemaReferenceRow(t, rows, "paths", "_NAME", want)
+			}
+			direct := func(c *sql.Conn, want string) {
+				t.Helper()
+				run(c, referenceSelect(query, []string{"paths"}, []string{"_NAME"}, [][]any{{want}}))
+			}
+			direct(a, "{sp1}")
+			checkHeld(held, "{sp1}")
+			direct(b, "{sp1}")
+			checkHeld(peer, "{sp1}")
+			run(a, referenceExec("SET search_path TO sp2", 0))
+			direct(a, "{sp2}")
+			checkHeld(held, "{sp2}")
+			direct(b, "{sp1}")
+			checkHeld(peer, "{sp1}")
+			run(a, referenceExec("SELECT set_config('search_path','',false)", 1))
+			direct(a, "{}")
+			checkHeld(held, "{}")
+			direct(b, "{sp1}")
+			checkHeld(peer, "{sp1}")
+		})
+	}
 }

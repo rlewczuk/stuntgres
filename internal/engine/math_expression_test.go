@@ -12,7 +12,7 @@ import (
 
 func TestMathBinding(t *testing.T) {
 	e := New()
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	bind := func(query string) BoundExpr {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]

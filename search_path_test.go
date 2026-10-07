@@ -2,12 +2,14 @@ package stuntgres_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"strconv"
 	"strings"
 	"stuntgres"
 	"testing"
+	"time"
 )
 
 func TestSearchPathCurrentSchemas(t *testing.T) {
@@ -90,6 +92,7 @@ func TestSearchPathQualifiedProviders(t *testing.T) {
 	}{
 		{"SELECT pg_catalog.num_nulls(NULL,7)", int64(1)},
 		{"SELECT pg_catalog.current_schemas(false)", "{sp1}"},
+		{"SELECT pg_catalog.current_schemas('false')", "{sp1}"},
 		{"SELECT pg_catalog.current_setting('search_path')", "sp1"},
 		{"SELECT CAST(id AS pg_catalog.int4) FROM sp1.t", int64(7)},
 		{"SELECT id OPERATOR(pg_catalog.+) 1 FROM sp1.t", int64(8)},
@@ -117,6 +120,8 @@ func TestSearchPathMissingProviderDiagnostics(t *testing.T) {
 	for _, tc := range []struct{ sql, code, message, hint, position string }{
 		{"SELECT current_schemas()", "42883", "function current_schemas() does not exist", functionHint, "8"},
 		{"SELECT current_schemas(1)", "42883", "function current_schemas(integer) does not exist", functionHint, "8"},
+		{"SELECT public.current_schemas(false)", "42883", "function public.current_schemas(boolean) does not exist", functionHint, "8"},
+		{"SELECT public.current_setting('search_path')", "42883", "function public.current_setting(unknown) does not exist", functionHint, "8"},
 		{"SELECT public.num_nulls(1)", "42883", "function public.num_nulls(integer) does not exist", functionHint, "8"},
 		{"SELECT 1 OPERATOR(public.+) 2 FROM sp1.t", "42883", "operator does not exist: integer public.+ integer", operatorHint, "10"},
 		{"SELECT 1::public.int4 FROM sp1.t", "42704", "type \"public.int4\" does not exist", "", "11"},
@@ -218,6 +223,98 @@ func TestSearchPathQualifiedMathProviders(t *testing.T) {
 			t.Fatal("wrong schema exposed math statement", missing)
 		}
 		check(err)
+	}
+}
+
+func TestSearchPathQualifiedTemporalPrecision(t *testing.T) {
+	for _, tc := range []struct {
+		name, typ, input, databaseType string
+		want                           any
+	}{
+		{"time", "pg_catalog.time(3)", "12:34:56.123789", "TIME", "12:34:56.124"},
+		{"timestamp", "pg_catalog.timestamp(3)", "2000-01-01 12:34:56.123789", "TIMESTAMP", time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC)},
+		{"time-quoted", `pg_catalog."time"(3)`, "12:34:56.123789", "TIME", "12:34:56.124"},
+		{"timestamp-quoted", `pg_catalog."timestamp"(3)`, "2000-01-01 12:34:56.123789", "TIMESTAMP", time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC)},
+	} {
+		t.Run(tc.name+"/declaration", func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), t.Name())
+			ctx := context.Background()
+			c, err := db.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			execSQL(t, db, "CREATE TABLE public.temporal(v "+tc.typ+")")
+			execSQL(t, db, "INSERT INTO public.temporal VALUES('"+tc.input+"')")
+			const query = "SELECT v FROM public.temporal"
+			checkRows := func(rows *sql.Rows) {
+				t.Helper()
+				metadata, err := rows.ColumnTypes()
+				if err != nil || len(metadata) != 1 || metadata[0].ScanType() != reflect.TypeOf(tc.want) {
+					rows.Close()
+					t.Fatal(metadata, err)
+				}
+				timeCheckRows(t, rows, []string{"v"}, []string{tc.databaseType}, [][]any{{tc.want}})
+			}
+			held, err := c.PrepareContext(ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer held.Close()
+			for _, path := range []string{"public", "pg_catalog"} {
+				if _, err := c.ExecContext(ctx, "SET search_path TO "+path); err != nil {
+					t.Fatal(err)
+				}
+				rows, err := c.QueryContext(ctx, query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				checkRows(rows)
+				rows, err = held.QueryContext(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				checkRows(rows)
+			}
+		})
+		t.Run(tc.name+"/cast-excluded", func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), t.Name())
+			execSQL(t, db, "CREATE TABLE public.anchor(id INT)")
+			execSQL(t, db, "INSERT INTO public.anchor VALUES(1)")
+			var before string
+			if err := db.QueryRow("SHOW search_path").Scan(&before); err != nil {
+				t.Fatal(err)
+			}
+			// Qualification preserves the existing temporal explicit-cast boundary.
+			want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: "8"}
+			check := func(err error) {
+				t.Helper()
+				var got *stuntgres.Error
+				if !errors.As(err, &got) || *got != want {
+					t.Fatalf("got %#v (%v), want %#v", got, err, want)
+				}
+			}
+			for _, typ := range []string{tc.typ, tc.typ[len("pg_catalog."):]} {
+				q := "SELECT CAST('" + tc.input + "' AS " + typ + ") AS v FROM public.anchor"
+				rows, err := db.Query(q)
+				if rows != nil {
+					rows.Close()
+					t.Fatal("excluded cast exposed cursor", q)
+				}
+				check(err)
+				held, err := db.Prepare(q)
+				if held != nil {
+					held.Close()
+					t.Fatal("excluded cast exposed prepared handle", q)
+				}
+				check(err)
+			}
+			wantTuples(t, db, "SELECT id FROM public.anchor", [][]any{{int64(1)}})
+			var after string
+			if err := db.QueryRow("SHOW search_path").Scan(&after); err != nil || after != before {
+				t.Fatal("failed cast changed settings", before, after, err)
+			}
+		})
 	}
 }
 

@@ -31,14 +31,7 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 		return ParameterInfo{}, nil, err
 	}
 	if !visible {
-		args := make([]BoundExpr, len(s.Args))
-		for i, raw := range s.Args {
-			args[i], err = binder.bind(raw, expressionPolicy{context: projectionContext})
-			if err != nil {
-				return ParameterInfo{}, nil, err
-			}
-		}
-		return ParameterInfo{}, nil, binder.sequenceSignatureError(parser.CallExpr{Name: name, Args: s.Args})
+		return ParameterInfo{}, nil, binder.functionSignatureError(parser.FunctionExpr{Name: name, Args: s.Args, Pos: name.Parts[0].Pos})
 	}
 	bound := make([]BoundExpr, len(s.Args))
 	view := CatalogRead{owner: e, state: e.state}
