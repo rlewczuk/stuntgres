@@ -240,8 +240,8 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(bound.usedColumns, []int{1, 2}) {
-		t.Fatal(bound.usedColumns)
+	if len(bound.querySources) != 1 || bound.querySources[0].ref != ref || !reflect.DeepEqual(bound.querySources[0].uses, []int{1, 2}) {
+		t.Fatal(bound.querySources)
 	}
 	project := bound.query.Root.(*projectNode)
 	for _, expression := range project.expressions {

@@ -7,331 +7,542 @@ import (
 	"testing"
 	"time"
 
-	"stuntgres/internal/sqltype"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 func TestQueryJoinsPrivateVisibilityAndRepeatableRead(t *testing.T) {
-	e:=New()
-	a:=sessionStart(t,e,nil)
-	b:=sessionStart(t,e,nil)
-	for _,q:=range []string{"CREATE TABLE a(k INT)","CREATE TABLE b(k INT)","INSERT INTO a VALUES(1)","INSERT INTO b VALUES(1)"} {sessionSQL(t,a,q)}
-	tx:=transactionBegin(t,a)
-	sessionSQL(t,a,"SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-	transactionRows(t,a,"SELECT k FROM a JOIN b USING(k)",1)
-	peer:=transactionBegin(t,b)
-	sessionSQL(t,b,"INSERT INTO a VALUES(2)")
-	sessionSQL(t,b,"INSERT INTO b VALUES(2)")
-	transactionEnd(t,b,peer,true)
-	transactionRows(t,a,"SELECT k FROM a JOIN b USING(k)",1)
-	sessionSQL(t,a,"INSERT INTO a VALUES(3)")
-	sessionSQL(t,a,"INSERT INTO b VALUES(3)")
-	transactionRows(t,a,"SELECT k FROM a JOIN b USING(k) ORDER BY k",1,3)
-	sessionSQL(t,a,"DELETE FROM a WHERE k=1")
-	transactionRows(t,a,"SELECT k FROM a JOIN b USING(k)",3)
-	transactionEnd(t,a,tx,false)
-	transactionRows(t,b,"SELECT k FROM a JOIN b USING(k) ORDER BY k",1,2)
-	lockEmpty(t,e)
+	e := New()
+	a := sessionStart(t, e, nil)
+	b := sessionStart(t, e, nil)
+	for _, q := range []string{"CREATE TABLE a(k INT)", "CREATE TABLE b(k INT)", "INSERT INTO a VALUES(1)", "INSERT INTO b VALUES(1)"} {
+		sessionSQL(t, a, q)
+	}
+	tx := transactionBegin(t, a)
+	sessionSQL(t, a, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+	transactionRows(t, a, "SELECT k FROM a JOIN b USING(k)", 1)
+	peer := transactionBegin(t, b)
+	sessionSQL(t, b, "INSERT INTO a VALUES(2)")
+	sessionSQL(t, b, "INSERT INTO b VALUES(2)")
+	transactionEnd(t, b, peer, true)
+	transactionRows(t, a, "SELECT k FROM a JOIN b USING(k)", 1)
+	sessionSQL(t, a, "INSERT INTO a VALUES(3)")
+	sessionSQL(t, a, "INSERT INTO b VALUES(3)")
+	transactionRows(t, a, "SELECT k FROM a JOIN b USING(k) ORDER BY k", 1, 3)
+	sessionSQL(t, a, "DELETE FROM a WHERE k=1")
+	transactionRows(t, a, "SELECT k FROM a JOIN b USING(k)", 3)
+	transactionEnd(t, a, tx, false)
+	transactionRows(t, b, "SELECT k FROM a JOIN b USING(k) ORDER BY k", 1, 2)
+	lockEmpty(t, e)
 }
 
 func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
-	e:=New()
-	a:=sessionStart(t,e,nil)
-	b:=sessionStart(t,e,nil)
-	for _,q:=range []string{"CREATE TABLE a(k INT)","CREATE TABLE b(k INT)","CREATE TABLE unrelated(k INT)","INSERT INTO a VALUES(1)","INSERT INTO b VALUES(1)"} {sessionSQL(t,a,q)}
-	op:=transactionOperation(t,a)
+	e := New()
+	a := sessionStart(t, e, nil)
+	b := sessionStart(t, e, nil)
+	for _, q := range []string{"CREATE TABLE a(k INT)", "CREATE TABLE b(k INT)", "CREATE TABLE unrelated(k INT)", "INSERT INTO a VALUES(1)", "INSERT INTO b VALUES(1)"} {
+		sessionSQL(t, a, q)
+	}
+	op := transactionOperation(t, a)
 	defer op.Done()
-	scope,err:=e.StartStatement(op)
-	if err!=nil {t.Fatal(err)}
-	ast:=statement(t,"SELECT k FROM a JOIN b USING(k)")
-	if _,err=scope.Describe(ast);err!=nil {t.Fatal(err)}
-	unrelated:=catalogRef(t,e,e.CatalogRead(),"unrelated")
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ast := statement(t, "SELECT k FROM a JOIN b USING(k)")
+	if _, err = scope.Describe(ast); err != nil {
+		t.Fatal(err)
+	}
+	unrelated := catalogRef(t, e, e.CatalogRead(), "unrelated")
 	var widenErr error
 	e.mu.Lock()
-	auth,err:=e.authorizationLocked(op)
+	auth, err := e.authorizationLocked(op)
 	var binding binding
-	if err==nil {binding,err=e.describe(op.ctx,ast,auth,scope.lockedRef,scope.input,op,nil)}
+	if err == nil {
+		binding, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil)
+	}
 	var source *querySource
-	if err==nil {source,err=e.captureQuerySourcesLocked(scope,binding.querySources,false)}
-	frontier:=e.commitSeq
-	if err==nil {
-		_,widenErr=scope.acquireDataViewLocked(e,unrelated)
+	if err == nil {
+		source, err = e.captureQuerySourcesLocked(scope, binding.querySources, false)
+	}
+	frontier := e.commitSeq
+	if err == nil {
+		_, widenErr = scope.acquireDataViewLocked(e, unrelated)
 	}
 	e.mu.Unlock()
-	if err!=nil {scope.Finish(err);t.Fatal(err)}
-	if widenErr==nil {scope.Finish(errors.New("view widened"));t.Fatal("retained statement view widened")}
+	if err != nil {
+		scope.Finish(err)
+		t.Fatal(err)
+	}
+	if widenErr == nil {
+		scope.Finish(errors.New("view widened"))
+		t.Fatal("retained statement view widened")
+	}
 	defer source.close()
-	data:=source.view.read()
-	if source.sources[1].view.read()!=data || data.frontier!=frontier || len(data.committed)!=2 || data.generationAt(binding.querySources[0].ref.Address)!=binding.querySources[0].storage || data.generationAt(binding.querySources[1].ref.Address)!=binding.querySources[1].storage {t.Fatal(data)}
-	peer:=transactionBegin(t,b)
-	sessionSQL(t,b,"INSERT INTO a VALUES(2)")
-	sessionSQL(t,b,"INSERT INTO b VALUES(2)")
-	transactionEnd(t,b,peer,true)
-	if err=selectQuerySources(op.ctx,source);err!=nil {t.Fatal(err)}
-	rows,n,err:=finalizeQuery(op.ctx,binding.query.Root,source,nil)
-	if err!=nil || n!=1 {t.Fatal(rows,n,err)}
-	values:=make([]sqltype.Value,1)
-	present,err:=rows.Next(context.Background(),values)
-	value,_:=values[0].Integer()
-	if !present || err!=nil || value!=1 {t.Fatal(present,err,value)}
+	data := source.view.read()
+	if source.sources[1].view.read() != data || data.frontier != frontier || len(data.committed) != 2 || data.generationAt(binding.querySources[0].ref.Address) != binding.querySources[0].storage || data.generationAt(binding.querySources[1].ref.Address) != binding.querySources[1].storage {
+		t.Fatal(data)
+	}
+	peer := transactionBegin(t, b)
+	sessionSQL(t, b, "INSERT INTO a VALUES(2)")
+	sessionSQL(t, b, "INSERT INTO b VALUES(2)")
+	transactionEnd(t, b, peer, true)
+	if err = selectQuerySources(op.ctx, source); err != nil {
+		t.Fatal(err)
+	}
+	rows, n, err := finalizeQuery(op.ctx, binding.query.Root, source, nil)
+	if err != nil || n != 1 {
+		t.Fatal(rows, n, err)
+	}
+	values := make([]sqltype.Value, 1)
+	present, err := rows.Next(context.Background(), values)
+	value, _ := values[0].Integer()
+	if !present || err != nil || value != 1 {
+		t.Fatal(present, err, value)
+	}
 	rows.Close()
-	if err=scope.Finish(nil);err!=nil {t.Fatal(err)}
-	transactionRows(t,b,"SELECT k FROM a JOIN b USING(k) ORDER BY k",1,2)
-	lockEmpty(t,e)
+	if err = scope.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+	transactionRows(t, b, "SELECT k FROM a JOIN b USING(k) ORDER BY k", 1, 2)
+	lockEmpty(t, e)
 }
 
-
 func TestQueryJoinsSecondLeafLockAndCancellation(t *testing.T) {
-	for _,prepare:=range []bool{false,true} {
-		for _,cancelled:=range []bool{false,true} {
-			e:=New()
-			holder:=sessionStart(t,e,nil)
-			reader:=sessionStart(t,e,nil)
-			for _,q:=range []string{"CREATE TABLE a(k INT)","CREATE TABLE b(k INT)","INSERT INTO a VALUES(1)","INSERT INTO b VALUES(1)"} {sessionSQL(t,holder,q)}
-			tx:=transactionBegin(t,holder)
-			sessionSQL(t,holder,"LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
-			ctx,cancel:=context.WithCancel(context.Background())
-			done:=lockAsync(e,reader,ctx,"SELECT a.k FROM a JOIN b USING(k)",prepare)
-			lockPending(t,e,1)
-			aref:=catalogRef(t,e,e.CatalogRead(),"a")
-			bref:=catalogRef(t,e,e.CatalogRead(),"b")
+	for _, prepare := range []bool{false, true} {
+		for _, cancelled := range []bool{false, true} {
+			e := New()
+			holder := sessionStart(t, e, nil)
+			reader := sessionStart(t, e, nil)
+			for _, q := range []string{"CREATE TABLE a(k INT)", "CREATE TABLE b(k INT)", "INSERT INTO a VALUES(1)", "INSERT INTO b VALUES(1)"} {
+				sessionSQL(t, holder, q)
+			}
+			tx := transactionBegin(t, holder)
+			sessionSQL(t, holder, "LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
+			ctx, cancel := context.WithCancel(context.Background())
+			done := lockAsync(e, reader, ctx, "SELECT a.k FROM a JOIN b USING(k)", prepare)
+			lockPending(t, e, 1)
+			aref := catalogRef(t, e, e.CatalogRead(), "a")
+			bref := catalogRef(t, e, e.CatalogRead(), "b")
 			e.locks.mu.Lock()
-			first:=e.locks.entries[lockResource{ObjectRef:aref}]
-			second:=e.locks.entries[lockResource{ObjectRef:bref}]
-			admitted:=first!=nil && len(first.holders)==1 && second!=nil && len(second.pending)==1
+			first := e.locks.entries[lockResource{ObjectRef: aref}]
+			second := e.locks.entries[lockResource{ObjectRef: bref}]
+			admitted := first != nil && len(first.holders) == 1 && second != nil && len(second.pending) == 1
 			e.locks.mu.Unlock()
-			if !admitted {t.Fatal("second-leaf wait did not retain first grant")}
-			if cancelled {cancel();lockAwait(t,done,context.Canceled)}
-			transactionEnd(t,holder,tx,false)
-			if !cancelled {lockAwait(t,done,nil);cancel()}
-			lockEmpty(t,e)
+			if !admitted {
+				t.Fatal("second-leaf wait did not retain first grant")
+			}
+			if cancelled {
+				cancel()
+				lockAwait(t, done, context.Canceled)
+			}
+			transactionEnd(t, holder, tx, false)
+			if !cancelled {
+				lockAwait(t, done, nil)
+				cancel()
+			}
+			lockEmpty(t, e)
 		}
 	}
 }
 
 func TestQueryJoinsSelfLockAndInsertDestination(t *testing.T) {
-	e:=New()
-	s:=sessionStart(t,e,nil)
-	sessionSQL(t,s,"CREATE TABLE a(k INT)")
-	sessionSQL(t,s,"INSERT INTO a VALUES(1),(1)")
-	tx:=transactionBegin(t,s)
-	transactionRows(t,s,"SELECT count(*) FROM a AS x CROSS JOIN a AS y",4)
-	ref:=catalogRef(t,e,e.CatalogRead(),"a")
+	e := New()
+	s := sessionStart(t, e, nil)
+	sessionSQL(t, s, "CREATE TABLE a(k INT)")
+	sessionSQL(t, s, "INSERT INTO a VALUES(1),(1)")
+	tx := transactionBegin(t, s)
+	transactionRows(t, s, "SELECT count(*) FROM a AS x CROSS JOIN a AS y", 4)
+	ref := catalogRef(t, e, e.CatalogRead(), "a")
 	e.locks.mu.Lock()
-	entry:=e.locks.entries[lockResource{ObjectRef:ref}]
-	ok:=len(e.locks.entries)==1 && entry!=nil && len(entry.holders)==1 && len(entry.pending)==0
+	entry := e.locks.entries[lockResource{ObjectRef: ref}]
+	ok := len(e.locks.entries) == 1 && entry != nil && len(entry.holders) == 1 && len(entry.pending) == 0
 	e.locks.mu.Unlock()
-	if !ok {t.Fatal("self occurrences duplicated physical lock authority")}
-	result:=sessionSQL(t,s,"INSERT INTO a SELECT x.k FROM a AS x JOIN a AS y USING(k)")
-	if result.Rows!=nil || result.Count!=4 {t.Fatal(result)}
-	transactionRows(t,s,"SELECT count(*) FROM a",6)
-	transactionEnd(t,s,tx,false)
-	transactionRows(t,s,"SELECT count(*) FROM a",2)
-	lockEmpty(t,e)
+	if !ok {
+		t.Fatal("self occurrences duplicated physical lock authority")
+	}
+	result := sessionSQL(t, s, "INSERT INTO a SELECT x.k FROM a AS x JOIN a AS y USING(k)")
+	if result.Rows != nil || result.Count != 4 {
+		t.Fatal(result)
+	}
+	transactionRows(t, s, "SELECT count(*) FROM a", 6)
+	transactionEnd(t, s, tx, false)
+	transactionRows(t, s, "SELECT count(*) FROM a", 2)
+	lockEmpty(t, e)
 }
 
 func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
-	e,query,source:=queryJoinsFixture(t,"SELECT a.k FROM a JOIN b USING(k)")
+	e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b USING(k)")
 	defer source.close()
-	old:=source.sources[1].ref
-	if err:=e.Reset(context.Background());err!=nil {t.Fatal(err)}
-	// Captured data remains valid for the eager execution owner, but an old
-	// scope's grants cannot be adopted into the replacement catalog.
+	old := source.sources[1].ref
+	// Snapshot genuine admission evidence while its statement is still live.
+	op, done, err := testOperation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if !scope.finished {
+			_ = scope.Finish(context.Canceled)
+		}
+	}()
+	if _, err = scope.Describe(statement(t, "SELECT a.k FROM a JOIN b USING(k)")); err != nil {
+		t.Fatal(err)
+	}
+	if len(scope.querySources) != 2 || scope.querySources[1].ref != old {
+		t.Fatal(scope.querySources, old)
+	}
+	grant := scope.querySources[1]
+	if err = scope.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(scope.querySources) != 0 {
+		t.Fatal("finished scope retained admission metadata")
+	}
+	if err := e.Reset(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Captured data remains valid for the eager execution owner. Its retained
+	// source identity cannot authorize admission in the replacement catalog;
+	// the fixture's already-Finished statement no longer owns any grants.
 	e.mu.Lock()
-	err:=source.scope.validateLockedRelation(e)
+	_, err = currentQuerySourceLocked(e, CatalogRead{e, e.state}, grant)
 	e.mu.Unlock()
-	if !errors.Is(err,ErrCatalogReplaced) {t.Fatal(old,err)}
-	rows,n,err:=finalizeQuery(context.Background(),query.Root,source,nil)
-	if err!=nil || n!=4 {t.Fatal(rows,n,err)}
+	if !errors.Is(err, ErrCatalogReplaced) {
+		t.Fatal(old, err)
+	}
+	rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	if err != nil || n != 4 {
+		t.Fatal(rows, n, err)
+	}
 	rows.Close()
 }
 
 func TestQueryJoinsSecondLeafGrantRebind(t *testing.T) {
-	for _,prepare:=range []bool{false,true} {
-		for _,kind:=range []string{"revision","shadow","reset","restore","recreate"} {
-			t.Run(kind+map[bool]string{false:"/execute",true:"/describe"}[prepare],func(t *testing.T){
-				e:=New()
-				holder,reader:=sessionStart(t,e,nil),sessionStart(t,e,nil)
-				for _,q:=range []string{"CREATE SCHEMA shadow","CREATE TABLE l(a INT)","CREATE TABLE t(a INT)","INSERT INTO l VALUES(7)","INSERT INTO t VALUES(7)"} {sessionSQL(t,holder,q)}
-				if kind=="shadow" {sessionSQL(t,reader,"SET search_path TO shadow,public")}
-				tx:=transactionBegin(t,holder)
-				sessionSQL(t,holder,"LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-				done:=lockAsync(e,reader,context.Background(),"SELECT t.a FROM l JOIN t USING(a)",prepare)
-				lockPending(t,e,1)
+	for _, prepare := range []bool{false, true} {
+		for _, kind := range []string{"revision", "shadow", "reset", "restore", "recreate"} {
+			t.Run(kind+map[bool]string{false: "/execute", true: "/describe"}[prepare], func(t *testing.T) {
+				e := New()
+				holder, reader := sessionStart(t, e, nil), sessionStart(t, e, nil)
+				for _, q := range []string{"CREATE SCHEMA shadow", "CREATE TABLE l(a INT)", "CREATE TABLE t(a INT)", "INSERT INTO l VALUES(7)", "INSERT INTO t VALUES(7)"} {
+					sessionSQL(t, holder, q)
+				}
+				if kind == "shadow" {
+					sessionSQL(t, reader, "SET search_path TO shadow,public")
+				}
+				tx := transactionBegin(t, holder)
+				sessionSQL(t, holder, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+				done := lockAsync(e, reader, context.Background(), "SELECT t.a FROM l JOIN t USING(a)", prepare)
+				lockPending(t, e, 1)
 				switch kind {
 				case "revision":
-					stage,ref,_:=notNullMetadataStage(t,e)
-					publication,err:=e.ValidateCatalogStage(context.Background(),stage)
-					if err!=nil {t.Fatal(err)}
-					if _,err=e.PublishCatalog(publication,PublicationToken{Epoch:ref.Epoch});err!=nil {t.Fatal(err)}
+					stage, ref, _ := notNullMetadataStage(t, e)
+					publication, err := e.ValidateCatalogStage(context.Background(), stage)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err = e.PublishCatalog(publication, PublicationToken{Epoch: ref.Epoch}); err != nil {
+						t.Fatal(err)
+					}
 				case "shadow":
-					run(t,e,"CREATE TABLE shadow.t(a INT)")
+					run(t, e, "CREATE TABLE shadow.t(a INT)")
 				case "reset":
-					if err:=e.Reset(context.Background());err!=nil {t.Fatal(err)}
+					if err := e.Reset(context.Background()); err != nil {
+						t.Fatal(err)
+					}
 				case "restore":
-					if err:=e.Restore(context.Background(),strings.NewReader("CREATE TABLE l(a INT);CREATE TABLE t(a INT);INSERT INTO l VALUES(91);INSERT INTO t VALUES(91)"));err!=nil {t.Fatal(err)}
+					if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE l(a INT);CREATE TABLE t(a INT);INSERT INTO l VALUES(91);INSERT INTO t VALUES(91)")); err != nil {
+						t.Fatal(err)
+					}
 				case "recreate":
-					run(t,e,"DROP TABLE t")
-					run(t,e,"CREATE TABLE t(a INT)")
+					run(t, e, "DROP TABLE t")
+					run(t, e, "CREATE TABLE t(a INT)")
 				}
-				if kind=="reset" || kind=="restore" {lockAwait(t,done,ErrCatalogReplaced)}
-				transactionEnd(t,holder,tx,false)
-				if kind=="revision" {lockAwait(t,done,nil)} else if kind!="reset" && kind!="restore" {lockAwait(t,done,ErrCatalogReplaced)}
-				lockEmpty(t,e)
+				if kind == "reset" || kind == "restore" {
+					lockAwait(t, done, ErrCatalogReplaced)
+				}
+				transactionEnd(t, holder, tx, false)
+				if kind == "revision" {
+					lockAwait(t, done, nil)
+				} else if kind != "reset" && kind != "restore" {
+					lockAwait(t, done, ErrCatalogReplaced)
+				}
+				lockEmpty(t, e)
 			})
 		}
 	}
 }
 
 func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
-	e:=New()
-	holder,reader:=sessionStart(t,e,nil),sessionStart(t,e,nil)
-	for _,q:=range []string{"CREATE TABLE a(k INT)","CREATE TABLE b(k INT)","CREATE TABLE prior(k INT)"} {sessionSQL(t,holder,q)}
-	h:=transactionBegin(t,holder)
-	sessionSQL(t,holder,"LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
-	r:=transactionBegin(t,reader)
-	transactionRows(t,reader,"SELECT count(*) FROM prior",0)
-	prior:=roleTableRef(t,e,"prior")
-	ctx,cancel:=context.WithCancel(context.Background())
-	done:=lockAsync(e,reader,ctx,"SELECT * FROM a CROSS JOIN b",false)
-	lockPending(t,e,1)
-	cancel()
-	lockAwait(t,done,context.Canceled)
-	e.locks.mu.Lock()
-	entry:=e.locks.entries[lockResource{ObjectRef:prior}]
-	retained:=entry!=nil && len(entry.holders)==1
-	e.locks.mu.Unlock()
-	if !retained || reader.TransactionState()!=TxAborted {t.Fatal("cancellation released earlier transaction authority")}
-	transactionEnd(t,reader,r,false)
-	transactionEnd(t,holder,h,false)
-	lockEmpty(t,e)
+	for _, recoverable := range []bool{false, true} {
+		t.Run(map[bool]string{false: "full-abort", true: "savepoint-abort"}[recoverable], func(t *testing.T) {
+			e := New()
+			holder, reader := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			for _, q := range []string{"CREATE TABLE a(k INT)", "CREATE TABLE b(k INT)", "CREATE TABLE prior(k INT)"} {
+				sessionSQL(t, holder, q)
+			}
+			h := transactionBegin(t, holder)
+			sessionSQL(t, holder, "LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
+			r := transactionBegin(t, reader)
+			transactionRows(t, reader, "SELECT count(*) FROM prior", 0)
+			prior := roleTableRef(t, e, "prior")
+			left, right := roleTableRef(t, e, "a"), roleTableRef(t, e, "b")
+			readerTicket, holderTicket := reader.transactions.ticket, holder.transactions.ticket
+			if recoverable {
+				controlsRequire(t, reader, "SAVEPOINT before_join")
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := lockAsync(e, reader, ctx, "SELECT * FROM a CROSS JOIN b", false)
+			lockPending(t, e, 1)
+			e.locks.mu.Lock()
+			entry := e.locks.entries[lockResource{ObjectRef: prior}]
+			priorHeld := entry != nil && entry.holders[readerTicket]&accessShare != 0
+			e.locks.mu.Unlock()
+			if !priorHeld {
+				t.Fatal("join admission released earlier transaction authority")
+			}
+			cancel()
+			lockAwait(t, done, context.Canceled)
+			e.locks.mu.Lock()
+			entry = e.locks.entries[lockResource{ObjectRef: prior}]
+			priorHeld = entry != nil && entry.holders[readerTicket]&accessShare != 0
+			other := e.locks.entries[lockResource{ObjectRef: right}]
+			holderHeld := other != nil && other.holders[holderTicket]&accessExclusive != 0 && other.holders[readerTicket] == 0 && len(other.pending) == 0
+			first := e.locks.entries[lockResource{ObjectRef: left}]
+			joinHeld := first != nil && first.holders[readerTicket]&accessShare != 0
+			e.locks.mu.Unlock()
+			// Full abort ends the reader ticket; recoverable abort retains its
+			// grants, including the admitted first leaf. Marks do not journal
+			// lock contributions. Neither releases the competing owner's grant.
+			if priorHeld != recoverable || !holderHeld || joinHeld != recoverable || reader.TransactionState() != TxAborted {
+				t.Fatal("cancellation violated transaction authority", priorHeld, holderHeld, joinHeld, reader.TransactionState())
+			}
+			if recoverable {
+				controlsRequire(t, reader, "ROLLBACK TO before_join")
+				if reader.transactions.ticket != readerTicket || reader.TransactionState() != TxActive {
+					t.Fatal("savepoint recovery replaced outer authority")
+				}
+				transactionRows(t, reader, "SELECT count(*) FROM prior", 0)
+			}
+			transactionEnd(t, reader, r, false)
+			transactionEnd(t, holder, h, false)
+			lockEmpty(t, e)
+		})
+	}
 }
 
 func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
-	for _,prepared:=range []bool{false,true} {
-		for _,revoked:=range []bool{false,true} {
-			for _,inserting:=range []bool{false,true} {
-				e:=New()
-				holder,reader:=sessionStart(t,e,nil),sessionStart(t,e,nil)
-				for _,q:=range []string{"CREATE USER waiting_join_reader","CREATE TABLE a(k INT)","CREATE TABLE b(k INT)","CREATE TABLE dst(k INT)","INSERT INTO a VALUES(1)","INSERT INTO b VALUES(1)"} {sessionSQL(t,holder,q)}
-				role,_:=e.Roles().Lookup("waiting_join_reader")
-				grantor:=e.roles.names["postgres"]
-				left:=roleTableRef(t,e,"a")
-				grant:=func(name string,rights Privileges){t.Helper();if err:=e.SetObjectACL(context.Background(),roleTableRef(t,e,name),ACLValue{Explicit:true,Entries:[]ACLEntry{{Grantor:grantor,Grantee:ACLGrantee{Role:role.Ref},Privileges:rights}}});err!=nil {t.Fatal(err)}}
-				grant("a",SelectPrivilege)
-				grant("b",SelectPrivilege)
-				grant("dst",InsertPrivilege)
-				sessionSQL(t,reader,"SET SESSION AUTHORIZATION waiting_join_reader")
-				q:="SELECT a.k FROM a JOIN b USING(k)"
-				if inserting {q="INSERT INTO dst SELECT a.k FROM a JOIN b USING(k)"}
-				ast:=statement(t,q)
+	for _, prepared := range []bool{false, true} {
+		for _, revoked := range []bool{false, true} {
+			for _, inserting := range []bool{false, true} {
+				e := New()
+				holder, reader := sessionStart(t, e, nil), sessionStart(t, e, nil)
+				for _, q := range []string{"CREATE USER waiting_join_reader", "CREATE TABLE a(k INT)", "CREATE TABLE b(k INT)", "CREATE TABLE dst(k INT)", "INSERT INTO a VALUES(1)", "INSERT INTO b VALUES(1)"} {
+					sessionSQL(t, holder, q)
+				}
+				role, _ := e.Roles().Lookup("waiting_join_reader")
+				grantor := e.roles.names["postgres"]
+				left := roleTableRef(t, e, "a")
+				grant := func(name string, rights Privileges) {
+					t.Helper()
+					if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: grantor, Grantee: ACLGrantee{Role: role.Ref}, Privileges: rights}}}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				grant("a", SelectPrivilege)
+				grant("b", SelectPrivilege)
+				grant("dst", InsertPrivilege)
+				sessionSQL(t, reader, "SET SESSION AUTHORIZATION waiting_join_reader")
+				q := "SELECT a.k FROM a JOIN b USING(k)"
+				if inserting {
+					q = "INSERT INTO dst SELECT a.k FROM a JOIN b USING(k)"
+				}
+				ast := statement(t, q)
 				var expected *StatementDescription
-				if prepared {op:=transactionOperation(t,reader);description,err:=e.Describe(op,ast);op.Done();if err!=nil {t.Fatal(err)};expected=&description}
-				tx:=transactionBegin(t,holder)
-				sessionSQL(t,holder,"LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
-				old:=e.state.descriptors[left.Address]
-				done:=make(chan error,1)
+				if prepared {
+					op := transactionOperation(t, reader)
+					description, err := e.Describe(op, ast)
+					op.Done()
+					if err != nil {
+						t.Fatal(err)
+					}
+					expected = &description
+				}
+				tx := transactionBegin(t, holder)
+				sessionSQL(t, holder, "LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
+				old := e.state.descriptors[left.Address]
+				done := make(chan error, 1)
 				var result Result
 				var capturedScope *StatementScope
-				go func(){
-					op,err:=reader.Acquire(context.Background())
-					if err!=nil {done<-err;return}
-					scope,err:=e.StartStatement(op)
-					if err!=nil {op.Done();done<-err;return}
-					capturedScope=scope
-					scope.Expected=expected
-					result,err=scope.Execute(ast,0,nil)
-					err=scope.Finish(err)
-					if result.Rows!=nil {result.Rows.Close()}
+				var capturedSources []queryLeaf
+				go func() {
+					op, err := reader.Acquire(context.Background())
+					if err != nil {
+						done <- err
+						return
+					}
+					scope, err := e.StartStatement(op)
+					if err != nil {
+						op.Done()
+						done <- err
+						return
+					}
+					capturedScope = scope
+					scope.Expected = expected
+					result, err = scope.Execute(ast, 0, nil)
+					// Observe admission metadata before Finish clears grants.
+					capturedSources = append([]queryLeaf(nil), scope.querySources...)
+					err = scope.Finish(err)
+					if result.Rows != nil {
+						result.Rows.Close()
+					}
 					op.Done()
-					done<-err
+					done <- err
 				}()
-				lockPending(t,e,1)
-				run(t,e,"COMMENT ON TABLE a IS 'join wait metadata'")
-				if revoked {grant("a",0)}
-				transactionEnd(t,holder,tx,false)
+				lockPending(t, e, 1)
+				run(t, e, "COMMENT ON TABLE a IS 'join wait metadata'")
+				if revoked {
+					grant("a", 0)
+				}
+				transactionEnd(t, holder, tx, false)
 				var err error
-				select {case err=<-done:case <-time.After(5*time.Second):t.Fatal("metadata-refresh waiter stuck")}
+				select {
+				case err = <-done:
+				case <-time.After(5 * time.Second):
+					t.Fatal("metadata-refresh waiter stuck")
+				}
 				if revoked {
 					var diagnostic *sqlstate.Error
-					want:=sqlstate.Error{Severity:"ERROR",SeverityUnlocalized:"ERROR",Code:"42501",Message:"permission denied for table a"}
-					if !errors.As(err,&diagnostic) || *diagnostic!=want || result.Rows!=nil || result.Count!=0 {t.Fatal(result,diagnostic,err)}
-				} else if err!=nil || result.Count!=1 || (result.Rows!=nil)==inserting {t.Fatal(result,err)}
-				if capturedScope==nil || len(capturedScope.querySources)!=2 || capturedScope.querySources[0].relation==old || capturedScope.querySources[0].relation.comment!="join wait metadata" {t.Fatal("earlier grant metadata was not refreshed",capturedScope)}
-				wantCount:=int64(0);if inserting && !revoked {wantCount=1}
-				transactionRows(t,holder,"SELECT count(*) FROM dst",wantCount)
-				lockEmpty(t,e)
+					want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table a"}
+					if !errors.As(err, &diagnostic) || *diagnostic != want || result.Rows != nil || result.Count != 0 {
+						t.Fatal(result, diagnostic, err)
+					}
+				} else if err != nil || result.Count != 1 || (result.Rows != nil) == inserting {
+					t.Fatal(result, err)
+				}
+				if capturedScope == nil || len(capturedSources) != 2 || capturedSources[0].relation == old || capturedSources[0].relation.comment != "join wait metadata" || len(capturedScope.querySources) != 0 {
+					t.Fatal("earlier grant metadata was not refreshed or cleanup retained grants", capturedSources, capturedScope)
+				}
+				wantCount := int64(0)
+				if inserting && !revoked {
+					wantCount = 1
+				}
+				transactionRows(t, holder, "SELECT count(*) FROM dst", wantCount)
+				lockEmpty(t, e)
 			}
 		}
 	}
 }
 
 func TestQueryJoinsParameterAnalysis(t *testing.T) {
-	e:=New()
-	for _,q:=range []string{"CREATE TABLE a(l TEXT,k INT)","CREATE TABLE b(r TEXT,k INT)"} {run(t,e,q)}
-	s:=sessionStart(t,e,nil)
-	op:=transactionOperation(t,s)
+	e := New()
+	for _, q := range []string{"CREATE TABLE a(l TEXT,k INT)", "CREATE TABLE b(r TEXT,k INT)"} {
+		run(t, e, q)
+	}
+	s := sessionStart(t, e, nil)
+	op := transactionOperation(t, s)
 	defer op.Done()
-	for _,tc:=range []struct{q string;result sqltype.ID}{
-		{"SELECT a.l FROM a JOIN b ON a.k=$1 AND a.k=b.k",sqltype.Text},
-		{"SELECT $1 FROM a JOIN b ON a.k=$1 AND a.k=b.k",sqltype.Int4},
+	for _, tc := range []struct {
+		q      string
+		result sqltype.ID
+	}{
+		{"SELECT a.l FROM a JOIN b ON a.k=$1 AND a.k=b.k", sqltype.Text},
+		{"SELECT $1 FROM a JOIN b ON a.k=$1 AND a.k=b.k", sqltype.Int4},
 	} {
-		description,err:=e.Describe(op,statement(t,tc.q))
-		if err!=nil || description.Parameters.Count!=1 || len(description.Parameters.Types)!=1 || description.Parameters.Types[0].Type.ID()!=sqltype.Int4 || len(description.Results)!=1 || description.Results[0].Usage.Type.ID()!=tc.result {t.Fatal(tc,description,err)}
+		description, err := e.Describe(op, statement(t, tc.q))
+		if err != nil || description.Parameters.Count != 1 || len(description.Parameters.Types) != 1 || description.Parameters.Types[0].Type.ID() != sqltype.Int4 || len(description.Results) != 1 || description.Results[0].Usage.Type.ID() != tc.result {
+			t.Fatal(tc, description, err)
+		}
 	}
 }
 
 func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
-	e:=New()
-	s,peer:=sessionStart(t,e,nil),sessionStart(t,e,nil)
-	for _,q:=range []string{"CREATE TABLE a(k INT)","CREATE TABLE b(k INT)","CREATE TABLE unrelated(k INT)","INSERT INTO a VALUES(1)","INSERT INTO b VALUES(1)","INSERT INTO unrelated VALUES(9)"} {sessionSQL(t,s,q)}
-	tx:=transactionBegin(t,s)
-	sessionSQL(t,s,"DELETE FROM unrelated WHERE k=9")
-	sessionSQL(t,s,"INSERT INTO unrelated VALUES(10)")
-	unrelated:=roleTableRef(t,e,"unrelated")
+	e := New()
+	s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	for _, q := range []string{"CREATE TABLE a(k INT)", "CREATE TABLE b(k INT)", "CREATE TABLE unrelated(k INT)", "INSERT INTO a VALUES(1)", "INSERT INTO b VALUES(1)", "INSERT INTO unrelated VALUES(9)"} {
+		sessionSQL(t, s, q)
+	}
+	tx := transactionBegin(t, s)
+	sessionSQL(t, s, "DELETE FROM unrelated WHERE k=9")
+	sessionSQL(t, s, "INSERT INTO unrelated VALUES(10)")
+	unrelated := roleTableRef(t, e, "unrelated")
 	var held RowResult
-	for _,private:=range []bool{false,true} {
-	if private {
-		sessionSQL(t,s,"DELETE FROM a WHERE k=1")
-		sessionSQL(t,s,"INSERT INTO a VALUES(3)")
-		sessionSQL(t,s,"INSERT INTO b VALUES(3)")
+	for _, private := range []bool{false, true} {
+		if private {
+			sessionSQL(t, s, "DELETE FROM a WHERE k=1")
+			sessionSQL(t, s, "INSERT INTO a VALUES(3)")
+			sessionSQL(t, s, "INSERT INTO b VALUES(3)")
+		}
+		var query *BoundQuery
+		source := func() *querySource {
+			op := transactionOperation(t, s)
+			defer op.Done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ast := statement(t, "SELECT k FROM a JOIN b USING(k)")
+			if _, err = scope.Describe(ast); err != nil {
+				scope.Finish(err)
+				t.Fatal(err)
+			}
+			if scope.ownDeletes[unrelated.Address] == nil || len(scope.ownWrites[unrelated.Address]) == 0 {
+				scope.Finish(nil)
+				t.Fatal("private-root exclusion witness was vacuous")
+			}
+			e.mu.Lock()
+			auth, err := e.authorizationLocked(op)
+			var bound binding
+			if err == nil {
+				bound, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil)
+			}
+			var source *querySource
+			if err == nil {
+				source, err = e.captureQuerySourcesLocked(scope, bound.querySources, false)
+			}
+			e.mu.Unlock()
+			if err == nil {
+				err = selectQuerySources(op.ctx, source)
+			}
+			if err = scope.Finish(err); err != nil {
+				t.Fatal(err)
+			}
+			query = bound.query
+			return source
+		}()
+		defer source.close()
+		data := source.view.read()
+		ownCount, deleteCount := 0, 0
+		if private {
+			ownCount, deleteCount = 2, 1
+		}
+		if len(data.committed) != 2 || len(data.own) != ownCount || len(data.deleted) != deleteCount || len(data.own[unrelated.Address]) != 0 || data.deleted[unrelated.Address] != nil {
+			t.Fatal("unrelated private roots retained", data)
+		}
+		rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		if err != nil || n != 1 {
+			t.Fatal(rows, n, err)
+		}
+		if private {
+			held = rows
+		} else {
+			rows.Close()
+		}
 	}
-	var query *BoundQuery
-	source:=func() *querySource {
-		op:=transactionOperation(t,s)
-		defer op.Done()
-		scope,err:=e.StartStatement(op);if err!=nil {t.Fatal(err)}
-		ast:=statement(t,"SELECT k FROM a JOIN b USING(k)")
-		if _,err=scope.Describe(ast);err!=nil {scope.Finish(err);t.Fatal(err)}
-		if scope.ownDeletes[unrelated.Address]==nil || len(scope.ownWrites[unrelated.Address])==0 {scope.Finish(nil);t.Fatal("private-root exclusion witness was vacuous")}
-		e.mu.Lock()
-		auth,err:=e.authorizationLocked(op)
-		var bound binding
-		if err==nil {bound,err=e.describe(op.ctx,ast,auth,scope.lockedRef,scope.input,op,nil)}
-		var source *querySource
-		if err==nil {source,err=e.captureQuerySourcesLocked(scope,bound.querySources,false)}
-		e.mu.Unlock()
-		if err==nil {err=selectQuerySources(op.ctx,source)}
-		if err=scope.Finish(err);err!=nil {t.Fatal(err)}
-		query=bound.query
-		return source
-	}()
-	defer source.close()
-	data:=source.view.read()
-	ownCount,deleteCount:=0,0
-	if private {ownCount,deleteCount=2,1}
-	if len(data.committed)!=2 || len(data.own)!=ownCount || len(data.deleted)!=deleteCount || len(data.own[unrelated.Address])!=0 || data.deleted[unrelated.Address]!=nil {t.Fatal("unrelated private roots retained",data)}
-	rows,n,err:=finalizeQuery(context.Background(),query.Root,source,nil)
-	if err!=nil || n!=1 {t.Fatal(rows,n,err)}
-	if private {held=rows} else {rows.Close()}
+	transactionEnd(t, s, tx, false)
+	values := make([]sqltype.Value, 1)
+	present, err := held.Next(context.Background(), values)
+	value, _ := values[0].Integer()
+	if !present || err != nil || value != 3 {
+		t.Fatal("rollback invalidated eager private output", present, value, err)
 	}
-	transactionEnd(t,s,tx,false)
-	values:=make([]sqltype.Value,1)
-	present,err:=held.Next(context.Background(),values)
-	value,_:=values[0].Integer()
-	if !present || err!=nil || value!=3 {t.Fatal("rollback invalidated eager private output",present,value,err)}
 	held.Close()
-	transactionRows(t,peer,"SELECT k FROM a JOIN b USING(k)",1)
-	transactionRows(t,peer,"SELECT k FROM unrelated",9)
-	lockEmpty(t,e)
+	transactionRows(t, peer, "SELECT k FROM a JOIN b USING(k)", 1)
+	transactionRows(t, peer, "SELECT k FROM unrelated", 9)
+	lockEmpty(t, e)
 }

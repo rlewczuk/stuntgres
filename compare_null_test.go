@@ -305,15 +305,8 @@ func TestCompareNullDiagnostics(t *testing.T) {
 		}
 		typeCoreDiagnostic(t, err, tc.want)
 	}
-	for _, q := range []string{"SELECT v IS NULL FROM t extra"} {
-		rows, err := db.Query(q)
-		if rows != nil {
-			rows.Close()
-		}
-		if err == nil {
-			t.Fatal("excluded syntax admitted", q)
-		}
-	}
+	compareOpsDirectPrepared(t, db, "SELECT extra.v IS NULL FROM t extra ORDER BY id", []string{"BOOL"}, [][]any{{false}, {true}, {false}, {false}})
+	compareOpsDirectPrepared(t, db, "SELECT extra.v IS NULL FROM t extra JOIN t rhs USING(id) ORDER BY id", []string{"BOOL"}, [][]any{{false}, {true}, {false}, {false}})
 }
 
 func TestCompareNullCapturedMetadataControlsAndCancellation(t *testing.T) {
@@ -436,7 +429,7 @@ func TestCompareNullFunctionInsertSelectDiagnostics(t *testing.T) {
 		q    string
 		want stuntgres.Error
 	}{
-		{"INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", stuntgres.Error{Code: "42601", Message: `syntax error at or near "VALUES"`, Position: "42"}},
+		{"INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near "1"`, Position: "50"}},
 	} {
 		rows, err := db.Query(tc.q)
 		if rows != nil {

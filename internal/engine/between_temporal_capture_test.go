@@ -28,7 +28,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		ast := statement(t, "SELECT '2000-01-02' "+form+" d AND ts FROM temporal_bounds")
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
@@ -38,9 +38,9 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		if !reflect.DeepEqual(bound.usedColumns, []int{0, 1}) || len(bound.parameters.Types) != 0 {
+		if len(bound.querySources) != 1 || bound.querySources[0].ref != ref || !reflect.DeepEqual(bound.querySources[0].uses, []int{0, 1}) || len(bound.parameters.Types) != 0 {
 			e.mu.Unlock()
-			t.Fatal("mixed temporal dependencies changed", bound.usedColumns, bound.parameters)
+			t.Fatal("mixed temporal dependencies changed", bound.querySources, bound.parameters)
 		}
 		desc := StatementDescription{temporals: bound.temporals}
 		before := append([]temporalConstant(nil), desc.temporals...)
@@ -71,7 +71,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(form, err)
 			}
-			if !reflect.DeepEqual(rebound.usedColumns, bound.usedColumns) || !reflect.DeepEqual(rebound.parameters, bound.parameters) {
+			if len(rebound.querySources) != 1 || rebound.querySources[0].ref != bound.querySources[0].ref || !reflect.DeepEqual(rebound.querySources[0].uses, bound.querySources[0].uses) || !reflect.DeepEqual(rebound.parameters, bound.parameters) {
 				e.mu.Unlock()
 				t.Fatal("rebind dependencies changed")
 			}

@@ -38,7 +38,7 @@ func TestBetweenBindingProperties(t *testing.T) {
 			t.Fatal(err)
 		}
 		ast := statement(t, "SELECT "+tc.expr+" FROM t")
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
@@ -48,8 +48,8 @@ func TestBetweenBindingProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.expr, err)
 		}
-		if !reflect.DeepEqual(bound.usedColumns, tc.used) {
-			t.Fatal(tc.expr, bound.usedColumns, tc.used)
+		if len(bound.querySources) != 1 || bound.querySources[0].ref != ref || !reflect.DeepEqual(bound.querySources[0].uses, tc.used) {
+			t.Fatal(tc.expr, bound.querySources, tc.used)
 		}
 		if len(bound.parameters.Types) != len(tc.ids) {
 			t.Fatal(bound.parameters)
@@ -104,7 +104,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				t.Fatal(err)
 			}
 			ast := statement(t, "SELECT 'now' "+form+" "+typ+" 'now' AND "+typ+" 'now' FROM t")
-			ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+			ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(err)

@@ -633,6 +633,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.ticket = nil
 	s.lockedDescriptor = nil
 	s.lockedStorage = nil
+	s.querySources = nil
 	s.lockedIdentityOnly = false
 	s.finished = true
 	s.result = err

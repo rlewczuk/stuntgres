@@ -130,12 +130,14 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			found := false
 			for _, c := range q.columns {
 				if c.slot == e.slot {
-					name = q.name+"."+c.descriptor.Name
+					name = q.name + "." + c.descriptor.Name
 					found = true
 					break
 				}
 			}
-			if found { break }
+			if found {
+				break
+			}
 		}
 		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.pos)
 	case coercionExpression:

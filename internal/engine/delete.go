@@ -292,7 +292,9 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 // The nil selection path remains allocation-free for undeleted prefixes.
 func captureQuerySource(ctx context.Context, view *VisibilityView, ref ObjectRef) (*querySource, error) {
 	source, err := captureQueryPrefix(view, ref)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	data := source.view.read()
 	return selectQuerySource(ctx, source, data.frontier, data.ends[ref.Address], data.deleted[ref.Address])
 }

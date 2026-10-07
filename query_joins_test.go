@@ -30,10 +30,10 @@ func queryJoinsPublicFixture(t *testing.T) *sql.DB {
 func TestQueryJoinsRegression(t *testing.T) {
 	db := queryJoinsPublicFixture(t)
 	for _, tc := range []struct {
-		query string
+		query        string
 		names, types []string
-		want [][]any
-		args []any
+		want         [][]any
+		args         []any
 	}{
 		{"SELECT * FROM a JOIN b USING(k)", []string{"k", "l", "q", "r", "q"}, []string{"INT4", "TEXT", "INT4", "TEXT", "INT4"}, [][]any{{int64(1), "a", int64(9), "x", int64(9)}, {int64(1), "a", int64(9), "x", int64(9)}, {int64(1), "a", int64(9), "x", int64(9)}, {int64(1), "a", int64(9), "x", int64(9)}}, nil},
 		{"SELECT u.*,a.k,b.k FROM a JOIN b USING(q,k) AS u", []string{"q", "k", "k", "k"}, []string{"INT4", "INT4", "INT4", "INT4"}, [][]any{{int64(9), int64(1), int64(1), int64(1)}, {int64(9), int64(1), int64(1), int64(1)}, {int64(9), int64(1), int64(1), int64(1)}, {int64(9), int64(1), int64(1), int64(1)}}, nil},
@@ -42,9 +42,9 @@ func TestQueryJoinsRegression(t *testing.T) {
 		{"SELECT a.l,b.r FROM a JOIN b ON a.k=$1 AND a.k=b.k", []string{"l", "r"}, []string{"TEXT", "TEXT"}, [][]any{{"a", "x"}, {"a", "x"}, {"a", "x"}, {"a", "x"}}, []any{1}},
 		{"SELECT a.l,b.r FROM a JOIN b ON a.k=$1 AND a.k=b.k", []string{"l", "r"}, []string{"TEXT", "TEXT"}, nil, []any{nil}},
 		{"SELECT a.l,b.r FROM a JOIN b ON a.k=$1 AND a.k=b.k", []string{"l", "r"}, []string{"TEXT", "TEXT"}, nil, []any{2}},
-		{"SELECT $1 FROM a JOIN b ON a.k=$1 AND a.k=b.k",[]string{"?column?"},[]string{"INT4"},[][]any{{int64(1)},{int64(1)},{int64(1)},{int64(1)}},[]any{1}},
-		{"SELECT $1 FROM a JOIN b ON a.k=$1 AND a.k=b.k",[]string{"?column?"},[]string{"INT4"},nil,[]any{nil}},
-		{"SELECT $1 FROM a JOIN b ON a.k=$1 AND a.k=b.k",[]string{"?column?"},[]string{"INT4"},nil,[]any{2}},
+		{"SELECT $1 FROM a JOIN b ON a.k=$1 AND a.k=b.k", []string{"?column?"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}, {int64(1)}, {int64(1)}}, []any{1}},
+		{"SELECT $1 FROM a JOIN b ON a.k=$1 AND a.k=b.k", []string{"?column?"}, []string{"INT4"}, nil, []any{nil}},
+		{"SELECT $1 FROM a JOIN b ON a.k=$1 AND a.k=b.k", []string{"?column?"}, []string{"INT4"}, nil, []any{2}},
 		{"SELECT * FROM a CROSS JOIN empty", []string{"l", "k", "q", "r", "q", "k"}, []string{"TEXT", "INT4", "INT4", "TEXT", "INT4", "INT4"}, nil, nil},
 	} {
 		t.Run(tc.query, func(t *testing.T) {

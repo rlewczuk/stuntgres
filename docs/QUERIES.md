@@ -20,6 +20,12 @@ Unaliased schema-qualified relations also permit `schema.table.column` and
 `schema.table.*`; a FROM alias prevents bypass through the original schema/name.
 Ambiguous names fail rather than selecting a source arbitrarily.
 
+Keyword-category alias names include bare `values`, `values(k)`, explicit
+`AS values` and quoted `"values"`. Consequently a numeric alias-column list in
+`INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)` is now diagnosed at `1`
+(`42601`, Position 50), independently observed in direct/Prepare PostgreSQL
+18.0 execution; the former pre-alias VALUES-token rejection is obsolete.
+
 USING emits merged keys in list order, followed by remaining left then right
 columns. NATURAL derives common keys in left exposed-column order; no common
 names means a Cartesian product. Every key participates in equality, so NULL keys
@@ -51,6 +57,10 @@ Projection aliases, expanded ORDER syntax, outer/LATERAL joins, derived queries,
 CTEs and FROM functions remain excluded; UPDATE FROM and DELETE USING are not
 enabled by query joins.
 
+An ON clause cannot follow CROSS/NATURAL JOIN or a completed join condition:
+these malformed joined queries report positioned `42601` at ON. Other excluded
+SELECT suffixes retain their capability diagnostics.
+
 Each source requires current SELECT authority, including constant targets, empty
 sources and ON FALSE. Equality reads both USING/NATURAL inputs even when merged
 output chooses one physical origin. Sources capture one selected statement view
@@ -62,9 +72,19 @@ later source waits. Final analysis refreshes same-identity/same-row-shape source
 authority; a revoked grant returns42501, while identity/shape replacement retains
 the existing catalog-replacement failure. Bound layouts and captured views are
 never retroactively refreshed.
+Cancellation removes the pending source request without releasing another
+transaction's locks. A full explicit abort ends the reader's ticket and grants;
+a recoverable savepoint abort retains the outer ticket and admitted grants,
+including earlier join leaves. ROLLBACK TO recovers that same authority, and the
+outer transaction's end releases it. Finish clears statement admission metadata;
+retained eager results independently own the captured data they still require.
 INSERT acquires/checks its destination before sources and publishes only a complete
 converted/constraint-checked batch. Held prepared execution rebinds names, rights,
 NATURAL keys and data; changed result shape retains the cached-plan diagnostic.
+Renaming an existing distinct column to a common name can change both NATURAL
+matching and star width without adding new DDL capability. Aggregate consumers
+replace the joined input layout with finalized group rows: an empty join still
+produces global `count(*) = 0`, while keyed grouping remains empty.
 Results are finalized before publication: public Next does not evaluate joins,
 and retained direct/computed rows and metadata survive append and Reset/Restore.
 The ordinary single-source indexed/no-copy path remains separate from joined
@@ -779,8 +799,8 @@ occurrences do not mask a later mismatch, and mismatches precede slot gaps.
 Ordinary INSERT VALUES and settings retain scalar-only arguments. INSERT SELECT
 executes the same admitted predicate and selected null-count projection roots;
 `INSERT INTO counts SELECT num_nulls(v) FROM t` inserts one count per source row.
-Appending `VALUES (1)` instead reports `42601` at VALUES, character47, so an
-implemented projection call cannot mask a malformed trailing suffix.
+Appending `VALUES (1)` instead reports `42601` at `1`, character55: VALUES is
+a legal bare FROM alias, but numeric alias-column names are not legal.
 
 Executable acceptance (run these commands to establish verification):
 

@@ -3,6 +3,7 @@
 package reference_test
 
 import (
+	"database/sql"
 	"reflect"
 	"testing"
 )
@@ -19,6 +20,17 @@ func TestReferenceQueryJoinsDiagnostics(t *testing.T) {
 // Unspecified logical fields are asserted absent, including synthesized positions.
 func queryJoinsDiagnostics(t *testing.T, oracle bool) {
 	p := queryJoinsReferenceSetup(t)
+	cleanupOther := func(db *sql.DB) {
+		// Child subtests and their rows/statements finish before this cleanup;
+		// the pair's connection/context cleanup was registered earlier.
+		t.Cleanup(func() {
+			for _, q := range []string{"DROP TABLE other.a", "DROP SCHEMA other"} {
+				if _, err := db.ExecContext(p.ctx, q); err != nil {
+					t.Errorf("join schema cleanup %s: %v", q, err)
+				}
+			}
+		})
+	}
 	for _, q := range []string{
 		"CREATE TABLE only_left(k INT)", "CREATE TABLE only_right(r INT)",
 		"CREATE TABLE text_key(k TEXT)",
@@ -32,16 +44,24 @@ func queryJoinsDiagnostics(t *testing.T, oracle bool) {
 			}
 			return 0
 		}()))
+		if q == "CREATE SCHEMA other" {
+			cleanupOther(p.postgres)
+		}
 		if !oracle {
 			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(q, func() int64 {
-				if q == "INSERT INTO char_a VALUES('x')" || q == "INSERT INTO char_b VALUES('x')" || q == "INSERT INTO char_c VALUES('x')" { return 1 }
+				if q == "INSERT INTO char_a VALUES('x')" || q == "INSERT INTO char_b VALUES('x')" || q == "INSERT INTO char_c VALUES('x')" {
+					return 1
+				}
 				return 0
 			}()))
+			if q == "CREATE SCHEMA other" {
+				cleanupOther(p.memory)
+			}
 		}
 	}
 	cases := []struct {
 		query string
-		want *referenceDiagnostic
+		want  *referenceDiagnostic
 	}{
 		{"SELECT k FROM a CROSS JOIN b", &referenceDiagnostic{Code: "42702", Message: `column reference "k" is ambiguous`, Position: "8"}},
 		{"SELECT /*é*/ k FROM a CROSS JOIN b", &referenceDiagnostic{Code: "42702", Message: `column reference "k" is ambiguous`, Position: "14"}},
@@ -132,8 +152,10 @@ func queryJoinsDiagnostics(t *testing.T, oracle bool) {
 		})
 	}
 	t.Run("prepared_schema", func(t *testing.T) {
-		t.Run("postgres",func(t *testing.T){queryJoinsPreparedSchema(t,p,p.postgres)})
-		if !oracle {t.Run("native",func(t *testing.T){queryJoinsPreparedSchema(t,p,p.memory)})}
+		t.Run("postgres", func(t *testing.T) { queryJoinsPreparedSchema(t, p, p.postgres) })
+		if !oracle {
+			t.Run("native", func(t *testing.T) { queryJoinsPreparedSchema(t, p, p.memory) })
+		}
 	})
 	for _, q := range []string{"SELECT k,char_a.k,char_b.k FROM char_a JOIN char_b USING(k)", "SELECT k,char_a.k,char_c.k FROM char_a JOIN char_c USING(k)", "SELECT public.a.k,other.a.k FROM public.a CROSS JOIN other.a"} {
 		t.Run(q, func(t *testing.T) {
@@ -143,7 +165,11 @@ func queryJoinsDiagnostics(t *testing.T, oracle bool) {
 			}
 			s := referenceSelect(q, names, types, values)
 			s.bag = true
-			if !oracle {p.step(t,s);p.step(t,referencePrepared(s));return}
+			if !oracle {
+				p.step(t, s)
+				p.step(t, referencePrepared(s))
+				return
+			}
 			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
 			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(s))
 		})

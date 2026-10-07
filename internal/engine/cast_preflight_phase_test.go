@@ -68,13 +68,22 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 			if err != nil {
 				t.Fatal(err)
 			}
+			// Finish before ending the operation even if an assertion panics:
+			// session teardown waits for this statement's admission to release.
+			defer func() {
+				ctx.armed = false
+				if !scope.finished {
+					_ = scope.Finish(context.Canceled)
+				}
+			}()
 			var restore func()
 			ctx.visit = func() {
 				if scope.view != nil {
 					t.Error("source view captured before preflight/ACL")
 				}
-				if scope.lockedRef.owner != e.owner || scope.lockedDescriptor == nil {
-					t.Error("preflight lost locked relation identity")
+				if len(scope.querySources) != 1 || scope.querySources[0].ref.owner != e.owner || scope.querySources[0].relation == nil {
+					t.Error("preflight lost locked source occurrence identity")
+					return // Keep the assertion non-panicking inside execution.
 				}
 				switch mode {
 				case "authority":
@@ -84,9 +93,14 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 				case "teardown":
 					op.session.RequestEnd(CleanClose)
 				case "descriptor":
-					address := scope.lockedRef.Address
+					leaf := scope.querySources[0]
+					address := leaf.ref.Address
 					original := e.state.descriptors[address]
-					replacement := *scope.lockedDescriptor.(*relationDescriptor)
+					replacement := *leaf.relation
+					// Compatible descriptor copies are admissible; invalidate the
+					// captured physical attribute identity instead.
+					replacement.attributes = append([]int32(nil), replacement.attributes...)
+					replacement.attributes[0]++
 					e.state.descriptors[address] = &replacement
 					restore = func() { e.state.descriptors[address] = original }
 				case "epoch":
@@ -138,7 +152,7 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 			if err := scope.Finish(executeErr); err != executeErr {
 				t.Error("scope teardown changed failure", err, executeErr)
 			}
-			if scope.view != nil || scope.lockedDescriptor != nil || scope.ticket != nil || !scope.finished {
+			if scope.view != nil || len(scope.querySources) != 0 || scope.lockedDescriptor != nil || scope.ticket != nil || !scope.finished {
 				t.Error("statement resources survived teardown")
 			}
 		})

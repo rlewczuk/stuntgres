@@ -243,22 +243,28 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 }
 
 func (s *StatementScope) validateLockedRelation(e *Engine) error {
-	return s.validateRelationGrantsLocked(e,false)
+	return s.validateRelationGrantsLocked(e, false)
 }
 
 // Final analysis refreshes compatible source metadata in the same critical
 // section as authorization/binding. Later validation never rewrites layouts.
 func (s *StatementScope) refreshRelationGrantsLocked(e *Engine) error {
-	return s.validateRelationGrantsLocked(e,true)
+	return s.validateRelationGrantsLocked(e, true)
 }
 
-func (s *StatementScope) validateRelationGrantsLocked(e *Engine,refreshSources bool) error {
-	if len(s.querySources)==0 && s.lockedRef.owner==nil {return nil}
-	catalog:=e.sequenceCatalogLocked(s.owner.sequences)
+func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources bool) error {
+	if len(s.querySources) == 0 && s.lockedRef.owner == nil {
+		return nil
+	}
+	catalog := e.sequenceCatalogLocked(s.owner.sequences)
 	for i, source := range s.querySources {
-		current,err:=currentQuerySourceLocked(e,catalog,source)
-		if err!=nil {return err}
-		if refreshSources {s.querySources[i].relation=current}
+		current, err := currentQuerySourceLocked(e, catalog, source)
+		if err != nil {
+			return err
+		}
+		if refreshSources {
+			s.querySources[i].relation = current
+		}
 	}
 	if s.lockedRef.owner == nil {
 		return nil

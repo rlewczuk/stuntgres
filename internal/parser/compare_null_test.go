@@ -103,7 +103,7 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	keywordDiagnostic(t, "SELECT 1 IS DISTINCT FROM 1 IS TRUE FROM t", "42601", `syntax error at or near "IS"`, "29")
 	for _, q := range []string{
 		"SELECT v IS NULL", "SELECT v IS NULL AS result FROM t", "SELECT v IS NULL result FROM t",
-		"SELECT abs(v) IS NULL FROM t", "SELECT t.v IS NULL FROM t",
+		"SELECT abs(v) IS NULL FROM t",
 		"SELECT v IS DISTINCT FROM 1 IS NULL FROM t",
 		"INSERT INTO t VALUES(1 IS NULL)", "SELECT set_config('x',TRUE IS NULL,FALSE)",
 		"SELECT v IS OF (integer) FROM t",
@@ -118,6 +118,14 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 			t.Fatal("admitted excluded syntax", q, statements, err)
 		}
 	}
+	statements, err = Parse("SELECT x.v IS NULL FROM t x JOIN t y USING(id)")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	joined := statements[0].(*Select)
+	if len(joined.Targets[0].(PredicateExpr).Left.(ColumnExpr).Name.Parts) != 2 || joined.From.(*JoinReference).Left.(*AliasReference).Name.Text != "x" {
+		t.Fatal(joined)
+	}
 	statements, err = Parse("INSERT INTO t SELECT v IS NULL FROM t")
 	if err != nil || len(statements) != 1 {
 		t.Fatal(statements, err)
@@ -126,7 +134,7 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	if predicate, ok := source.Targets[0].(PredicateExpr); !ok || predicate.Kind != IsNull {
 		t.Fatal("INSERT source lost its null predicate", source)
 	}
-	keywordDiagnostic(t, "INSERT INTO t SELECT v IS NULL FROM t VALUES (1)", "42601", `syntax error at or near "VALUES"`, "39")
+	keywordDiagnostic(t, "INSERT INTO t SELECT v IS NULL FROM t VALUES (1)", "42601", `syntax error at or near "1"`, "47")
 	statements, err = Parse("INSERT INTO t SELECT num_nulls(v) FROM t")
 	if err != nil || len(statements) != 1 {
 		t.Fatal(statements, err)
@@ -135,7 +143,7 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	if call, ok := source.Targets[0].(FunctionExpr); !ok || call.Name.Parts[0].Text != "num_nulls" {
 		t.Fatal("INSERT source lost its selected function", source)
 	}
-	keywordDiagnostic(t, "INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", "42601", `syntax error at or near "VALUES"`, "42")
+	keywordDiagnostic(t, "INSERT INTO t SELECT num_nulls(v) FROM t VALUES (1)", "42601", `syntax error at or near "1"`, "50")
 	// UNKNOWN remains a type-name tail before a postfix target can reduce to
 	// a projection alias, matching the existing adjacent-type shift policy.
 	keywordDiagnostic(t, "SELECT v::int4 unknown FROM t", "42601", `syntax error at or near "unknown"`, "16")

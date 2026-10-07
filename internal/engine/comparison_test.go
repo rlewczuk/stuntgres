@@ -50,8 +50,8 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.q, err)
 		}
-		if !reflect.DeepEqual(bound.usedColumns, tc.used) {
-			t.Fatal(tc.q, bound.usedColumns, tc.used)
+		if len(bound.querySources) != 1 || bound.querySources[0].ref != ref || !reflect.DeepEqual(bound.querySources[0].uses, tc.used) {
+			t.Fatal(tc.q, bound.querySources, tc.used)
 		}
 		for _, u := range bound.parameters.Types {
 			if u.Type.ID() != tc.id {

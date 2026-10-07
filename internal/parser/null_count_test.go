@@ -127,7 +127,7 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 	if !selectStmt.IsSingleton() {
 		t.Fatal(selectStmt)
 	}
-	selectStmt.From = &TableReference{Name:ObjectName{Parts: []Identifier{{Text: "t"}}}}
+	selectStmt.From = &TableReference{Name: ObjectName{Parts: []Identifier{{Text: "t"}}}}
 	if selectStmt.IsSingleton() || !reflect.DeepEqual(selectStmt.From.(*TableReference).Name.Parts, []Identifier{{Text: "t"}}) {
 		t.Fatal(selectStmt)
 	}

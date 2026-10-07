@@ -37,17 +37,23 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		return nil, err
 	}
 	b.queryNamespace = nil
-	if s.From != nil {b.queryNamespace = &namespace}
+	if s.From != nil {
+		b.queryNamespace = &namespace
+	}
 	b.aggregateClause, b.aggregates = "SELECT", nil
 	var projection []BoundExpr
 	var targetNames []string
 	for _, raw := range s.Targets {
-		if err := b.ctx.Err(); err != nil { return nil, err }
+		if err := b.ctx.Err(); err != nil {
+			return nil, err
+		}
 		if star, ok := raw.(parser.StarExpr); ok {
 			columns := namespace.columns
 			if len(star.Qualifier.Parts) != 0 {
 				q, err := b.queryQualifier(star.Qualifier, star.Pos)
-				if err != nil { return nil, err }
+				if err != nil {
+					return nil, err
+				}
 				columns = q.columns
 			} else if s.From == nil {
 				return nil, expressionError("42601", "SELECT * with no tables specified is not valid", star.Pos)
@@ -58,7 +64,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			}
 		} else {
 			expr, err := b.bindOutput(raw, contextual)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			projection = append(projection, expr)
 			name, _ := expressionName(raw, expr.ResultUsage())
 			targetNames = append(targetNames, name)

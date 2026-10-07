@@ -16,6 +16,8 @@ func TestInsertSelectSources(t *testing.T) {
 		{"INSERT INTO t ((VALUES ('1')))", false, false, 0},
 		{"INSERT INTO t(i) (VALUES (1),(2) ORDER BY column1 DESC)", true, true, 1},
 		{"INSERT INTO t VALUES (1),(2) ORDER BY 1", true, true, 0},
+		{"INSERT INTO t SELECT x.i FROM s AS x", true, false, 0},
+		{"INSERT INTO t SELECT x.i FROM s AS x JOIN r USING(i)", true, false, 0},
 	} {
 		stmts, err := Parse(tc.sql)
 		if err != nil || len(stmts) != 1 {
@@ -40,7 +42,7 @@ func TestInsertSelectBoundaries(t *testing.T) {
 		"INSERT INTO t WITH x AS (SELECT 1) SELECT 1",
 		"INSERT INTO t VALUES()", "VALUES(1)", "SELECT 1",
 		"INSERT INTO t VALUES(1) ORDER BY 1,2", "INSERT INTO t VALUES(1) ORDER BY 1 NULLS FIRST",
-		"INSERT INTO t SELECT 1 FROM s AS x", "INSERT INTO t VALUES(1); INSERT INTO t (SELECT 1) VALUES(2)",
+		"INSERT INTO t VALUES(1); INSERT INTO t (SELECT 1) VALUES(2)",
 	} {
 		stmts, err := Parse(q)
 		if err == nil || stmts != nil {

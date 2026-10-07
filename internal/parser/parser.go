@@ -306,7 +306,10 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 func (l *lexer) scalarInput(expr Expr) bool {
 	// Raw qualification errors precede scalar consumer checks, including a
 	// later invalid cast beneath an otherwise unsupported conditional child.
-	if token,_:=nonqueryQualification(expr,false);token!=nil {l.syntax(*token);return false}
+	if token, _ := nonqueryQualification(expr, false); token != nil {
+		l.syntax(*token)
+		return false
+	}
 	return l.scalarInputTree(expr)
 }
 

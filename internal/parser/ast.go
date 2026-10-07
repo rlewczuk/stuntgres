@@ -509,8 +509,8 @@ type TypedLiteralExpr struct {
 	Pos      Position
 }
 type ColumnExpr struct {
-	Name ObjectName
-	Pos  Position
+	Name                                    ObjectName
+	Pos                                     Position
 	QualificationPos, ExtraQualificationPos Position
 	// Grouping erases its AST node, but retains the old raw dot boundary.
 	QualificationGrouped bool

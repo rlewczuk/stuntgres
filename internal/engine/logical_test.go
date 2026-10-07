@@ -51,19 +51,21 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 	check := func(tc struct {
 		a, b         int
 		and, or, not Truth
-	}) { for i, want := range []Truth{tc.and, tc.or, tc.not} {
-		v, err := nodes[i].Eval(&EvalContext{Context: context.Background(), Parameters: []sqltype.Value{values[tc.a], values[tc.b]}})
-		if err != nil || v.Type() != typ || v.IsNull() != (want == Unknown) {
-			t.Error(v, err, want)
-			continue
-		}
-		if want != Unknown {
-			actual, err := v.Boolean()
-			if err != nil || actual != (want == True) {
-				t.Error(actual, err, want)
+	}) {
+		for i, want := range []Truth{tc.and, tc.or, tc.not} {
+			v, err := nodes[i].Eval(&EvalContext{Context: context.Background(), Parameters: []sqltype.Value{values[tc.a], values[tc.b]}})
+			if err != nil || v.Type() != typ || v.IsNull() != (want == Unknown) {
+				t.Error(v, err, want)
+				continue
+			}
+			if want != Unknown {
+				actual, err := v.Boolean()
+				if err != nil || actual != (want == True) {
+					t.Error(actual, err, want)
+				}
 			}
 		}
-	} }
+	}
 	for _, tc := range cases {
 		check(tc)
 	}

@@ -113,7 +113,7 @@ package parser
 %nonassoc ')'
 %type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single alter_rename_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> delete
-%type <tok> delete_alias
+%type <tok> delete_alias from_alias
 %type <expr> delete_where delete_operand delete_base delete_lower delete_between delete_between_predicate delete_comparison delete_target delete_not delete_and delete_or
 %type <expr> update_where scalar_projection
 %type <stmt> update
@@ -610,10 +610,12 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | AUTHORIZATION '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | ISNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
+/* Newly admitted FROM trees diagnose a misplaced ON as syntax. Preserve the
+ * legacy single-table suffix capability boundary for otherwise excluded SQL. */
 select: SELECT projection FROM from_list where group having order { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
  | SELECT projection { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
- | SELECT projection FROM from_list where group having order suffix { sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
+ | SELECT projection FROM from_list where group having order suffix { if $9.keyword!=nil && $9.keyword.token==ON {if _,table:=$4.(*TableReference);!table {sqllex.(*lexer).syntax($9);return 1}};sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 sequence_args: /* empty */ { $$=nil } | sequence_values { $$=$1 } ;
@@ -680,8 +682,8 @@ truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
  | UNKNOWN { $$=IsUnknown } | NOT UNKNOWN { $$=IsNotUnknown } ;
 /* Prefer positioned alias/suffix guards over completing a projection. */
 projection: scalar_targets %prec NAME_LIST { $$ = &Select{Targets:$1} }
- | scalar_targets bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
- | scalar_targets AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 } ;
+ | scalar_targets bare_label { if _,star:=$1[len($1)-1].(StarExpr);star {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
+ | scalar_targets AS col_label { if _,star:=$1[len($1)-1].(StarExpr);star {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 } ;
 from_list: joined_table { $$=$1 }
  | from_list ',' joined_table { $$=&JoinReference{Left:$1,Right:$3,Pos:$2.pos} } ;
 joined_table: from_atom { $$=$1 }
@@ -693,12 +695,13 @@ inner_join: /* empty */ { $$=false } | INNER { $$=true } ;
 from_base: relation_name { $$=&TableReference{Name:$1} }
  | '(' from_list ')' { $$=$2 } ;
 from_atom: from_base { $$=$1 }
- | from_base AS name alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
- | from_base name alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} } ;
+ | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
+ | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} } ;
+from_alias: name {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 alias_columns: /* empty */ { $$=nil } | '(' using_columns ')' { $$=$2 } ;
 using_columns: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
  | using_columns ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
-using_alias: /* empty */ { $$=nil } | AS name { $$=&Identifier{Text:$2.text,Pos:$2.pos} } ;
+using_alias: /* empty */ { $$=nil } | AS from_alias { $$=&Identifier{Text:$2.text,Pos:$2.pos} } ;
 where: /* empty */ { $$ = nil }
  | WHERE target_or { $$=$2 }
  | WHERE name predicate_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 }

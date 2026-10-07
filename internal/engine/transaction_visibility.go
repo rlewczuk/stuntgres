@@ -9,21 +9,25 @@ import (
 // values. Each handle has independent release authority. The immutable data is
 // naturally reclaimed after the last view/result owner; no registry is needed.
 type visibilityData struct {
-	tx        TxRef
-	command   CommandID
-	frontier  CommitSeq
-	catalog   CatalogRead
-	committed map[ObjectAddress][]rowVersion
-	generations map[ObjectAddress]*relationStorage
+	tx               TxRef
+	command          CommandID
+	frontier         CommitSeq
+	catalog          CatalogRead
+	committed        map[ObjectAddress][]rowVersion
+	generations      map[ObjectAddress]*relationStorage
 	singleGeneration *relationStorage
-	own       map[ObjectAddress][]rowVersion
-	ends      map[ObjectAddress]*deletionRoot
-	deleted   map[ObjectAddress]*privateDeletionRoot
+	own              map[ObjectAddress][]rowVersion
+	ends             map[ObjectAddress]*deletionRoot
+	deleted          map[ObjectAddress]*privateDeletionRoot
 }
 
 func (d *visibilityData) generationAt(address ObjectAddress) *relationStorage {
-	if d.generations != nil { return d.generations[address] }
-	if _, ok := d.committed[address]; ok { return d.singleGeneration }
+	if d.generations != nil {
+		return d.generations[address]
+	}
+	if _, ok := d.committed[address]; ok {
+		return d.singleGeneration
+	}
 	return nil
 }
 
@@ -59,29 +63,47 @@ func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ObjectRef) (*Visib
 }
 
 func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*VisibilityView, error) {
-	if s.txRef.epoch != e.state.epoch { return nil, ErrCatalogReplaced }
+	if s.txRef.epoch != e.state.epoch {
+		return nil, ErrCatalogReplaced
+	}
 	for _, ref := range refs {
-		if ref.owner != e.owner { return nil, errors.New("stuntgres: foreign catalog reference") }
-		if ref.Epoch != e.state.epoch { return nil, ErrCatalogReplaced }
-		if e.storage[ref.Address] == nil { return nil, errors.New("stuntgres: relation storage is missing") }
+		if ref.owner != e.owner {
+			return nil, errors.New("stuntgres: foreign catalog reference")
+		}
+		if ref.Epoch != e.state.epoch {
+			return nil, ErrCatalogReplaced
+		}
+		if e.storage[ref.Address] == nil {
+			return nil, errors.New("stuntgres: relation storage is missing")
+		}
 	}
 	if s.view != nil {
 		data := s.view.data.Load()
-		if data == nil { return nil, errors.New("stuntgres: visibility view is released") }
+		if data == nil {
+			return nil, errors.New("stuntgres: visibility view is released")
+		}
 		for _, ref := range refs {
-			if _, ok := data.committed[ref.Address]; !ok { return nil, errors.New("stuntgres: relation is outside statement data view") }
-			if data.generationAt(ref.Address) != e.storage[ref.Address] { return nil, ErrCatalogReplaced }
+			if _, ok := data.committed[ref.Address]; !ok {
+				return nil, errors.New("stuntgres: relation is outside statement data view")
+			}
+			if data.generationAt(ref.Address) != e.storage[ref.Address] {
+				return nil, ErrCatalogReplaced
+			}
 		}
 		return s.view, nil
 	}
 	frontier := e.commitSeq
-	if s.owner.isolation == RepeatableRead { frontier = s.owner.frontier }
+	if s.owner.isolation == RepeatableRead {
+		frontier = s.owner.frontier
+	}
 	data := &visibilityData{
 		tx: s.txRef, command: s.command, frontier: frontier,
-		catalog: CatalogRead{owner: e, state: e.state},
+		catalog:   CatalogRead{owner: e, state: e.state},
 		committed: make(map[ObjectAddress][]rowVersion, len(refs)),
 	}
-	if len(refs) > 1 { data.generations = make(map[ObjectAddress]*relationStorage, len(refs)) }
+	if len(refs) > 1 {
+		data.generations = make(map[ObjectAddress]*relationStorage, len(refs))
+	}
 	for _, ref := range refs {
 		storage := e.storage[ref.Address]
 		versions, ends := storage.versions, storage.ends
@@ -89,31 +111,51 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
 				current, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
-				if !ok || root.storage != storage || !sameRelationRowShape(root.relation, current) { return nil, ErrCatalogReplaced }
+				if !ok || root.storage != storage || !sameRelationRowShape(root.relation, current) {
+					return nil, ErrCatalogReplaced
+				}
 				versions, ends = root.versions, root.ends
-			} else { versions, ends = nil, nil }
+			} else {
+				versions, ends = nil, nil
+			}
 		}
 		data.committed[ref.Address] = versions
-		if data.generations != nil { data.generations[ref.Address] = storage } else { data.singleGeneration = storage }
+		if data.generations != nil {
+			data.generations[ref.Address] = storage
+		} else {
+			data.singleGeneration = storage
+		}
 		if ends != nil {
-			if data.ends == nil { data.ends = make(map[ObjectAddress]*deletionRoot) }
+			if data.ends == nil {
+				data.ends = make(map[ObjectAddress]*deletionRoot)
+			}
 			data.ends[ref.Address] = ends
 		}
 		if rows := s.ownWrites[ref.Address]; len(rows) != 0 {
-			if data.own == nil { data.own = make(map[ObjectAddress][]rowVersion) }
+			if data.own == nil {
+				data.own = make(map[ObjectAddress][]rowVersion)
+			}
 			data.own[ref.Address] = rows
 		}
 	}
-	if len(s.ownDeletes)!=0 {
-		selected:=0
-		for _,ref:=range refs {if s.ownDeletes[ref.Address]!=nil {selected++}}
-		if selected==len(s.ownDeletes) {
+	if len(s.ownDeletes) != 0 {
+		selected := 0
+		for _, ref := range refs {
+			if s.ownDeletes[ref.Address] != nil {
+				selected++
+			}
+		}
+		if selected == len(s.ownDeletes) {
 			// Reuse an already exact immutable root set, including the usual
 			// single-target case, rather than allocating a redundant map.
-			data.deleted=s.ownDeletes
-		} else if selected!=0 {
-			data.deleted=make(map[ObjectAddress]*privateDeletionRoot,selected)
-			for _,ref:=range refs {if root:=s.ownDeletes[ref.Address];root!=nil {data.deleted[ref.Address]=root}}
+			data.deleted = s.ownDeletes
+		} else if selected != 0 {
+			data.deleted = make(map[ObjectAddress]*privateDeletionRoot, selected)
+			for _, ref := range refs {
+				if root := s.ownDeletes[ref.Address]; root != nil {
+					data.deleted[ref.Address] = root
+				}
+			}
 		}
 	}
 	s.view = newVisibilityView(data)

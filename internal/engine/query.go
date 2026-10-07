@@ -33,7 +33,7 @@ func (s querySchema) Schema() []ColumnDescriptor { return s }
 
 type sourceNode struct {
 	querySchema
-	ref ObjectRef
+	ref        ObjectRef
 	occurrence int
 }
 type singletonNode struct{ querySchema }
@@ -184,17 +184,17 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 // the occurrence bundle. Joined stages instead own flat admitted frames.
 // A nil visible mapping preserves the allocation-free all-occurrences path.
 type querySource struct {
-	view           *VisibilityView
-	ref            ObjectRef
-	committed, own []rowVersion
-	singleton      bool
-	anonymous      [][]sqltype.Value
-	visible        []int
-	scope          *StatementScope
-	sources        []*querySource
-	flat           []sqltype.Value
+	view                 *VisibilityView
+	ref                  ObjectRef
+	committed, own       []rowVersion
+	singleton            bool
+	anonymous            [][]sqltype.Value
+	visible              []int
+	scope                *StatementScope
+	sources              []*querySource
+	flat                 []sqltype.Value
 	flatWidth, flatCount int
-	materialized   bool
+	materialized         bool
 }
 
 func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
@@ -208,7 +208,9 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRe
 	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.columns[2].Usage.Type, g.called)}}}, nil
 }
 func (s *querySource) count() int {
-	if s.materialized { return s.flatCount }
+	if s.materialized {
+		return s.flatCount
+	}
 	if s.anonymous != nil {
 		return len(s.anonymous)
 	}
@@ -221,7 +223,9 @@ func (s *querySource) count() int {
 	return len(s.committed) + len(s.own)
 }
 func (s *querySource) row(i int) []sqltype.Value {
-	if s.materialized { return s.flat[i*s.flatWidth:(i+1)*s.flatWidth] }
+	if s.materialized {
+		return s.flat[i*s.flatWidth : (i+1)*s.flatWidth]
+	}
 	if s.anonymous != nil {
 		return s.anonymous[i]
 	}
@@ -245,9 +249,15 @@ func (s *querySource) versionAt(i int) rowVersion {
 func (s *querySource) close() {
 	sources := s.sources
 	s.sources = nil
-	for _, child := range sources { if child != nil && child != s { child.close() } }
+	for _, child := range sources {
+		if child != nil && child != s {
+			child.close()
+		}
+	}
 	s.flat = nil
 	s.flatCount = 0
+	s.flatWidth = 0
+	s.materialized = false
 	if s.view != nil {
 		s.view.Release()
 	}
@@ -378,14 +388,22 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 	case *sourceNode:
 		source := state.source
 		if source != nil && source.sources != nil {
-			if n.occurrence < 0 || n.occurrence >= len(source.sources) { return indexedStage{}, fmt.Errorf("stuntgres: invalid query occurrence") }
+			if n.occurrence < 0 || n.occurrence >= len(source.sources) {
+				return indexedStage{}, fmt.Errorf("stuntgres: invalid query occurrence")
+			}
 			source = source.sources[n.occurrence]
 		}
-		if source == nil || source.ref != n.ref { return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target") }
+		if source == nil || source.ref != n.ref {
+			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
+		}
 		if source.anonymous == nil {
-			if source.view == nil { return indexedStage{}, fmt.Errorf("stuntgres: missing query source") }
+			if source.view == nil {
+				return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
+			}
 			data := source.view.read()
-			if n.ref.owner != data.catalog.owner.owner || n.ref.Epoch != data.catalog.Epoch() { return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target") }
+			if n.ref.owner != data.catalog.owner.owner || n.ref.Epoch != data.catalog.Epoch() {
+				return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
+			}
 		}
 		return indexedStage{source: source, schema: n.Schema()}, nil
 	case *filterNode:
@@ -691,7 +709,9 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	if direct && r.count > 0 {
 		r.source, r.selection, r.slots = stageSource, selection, slots
 		keep = true
-		if stageSource != source { source.close() }
+		if stageSource != source {
+			source.close()
+		}
 	}
 	return r, r.count, nil
 }

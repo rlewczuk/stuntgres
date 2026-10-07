@@ -396,7 +396,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 			e.mu.Unlock()
-			if err := selectQuerySources(ctx, source); err != nil { return Result{}, err }
+			if err := selectQuerySources(ctx, source); err != nil {
+				return Result{}, err
+			}
 			b.query = &BoundQuery{Root: queryRoot}
 			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.output)
 			if queryErr != nil {
@@ -484,7 +486,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
-		if err := selectQuerySources(ctx, source); err != nil { return Result{}, err }
+		if err := selectQuerySources(ctx, source); err != nil {
+			return Result{}, err
+		}
 		rows, count, queryErr := finalizeQuery(ctx, queryRoot, source, canonical)
 		if queryErr != nil {
 			return Result{}, queryErr

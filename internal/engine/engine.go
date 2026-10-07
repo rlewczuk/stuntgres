@@ -46,24 +46,24 @@ type Result struct {
 	Rows  RowResult
 }
 type binding struct {
-	relation       *relationDescriptor
-	storage        *relationStorage
-	ref            ObjectRef
-	targets        []int
-	usedColumns    []int
-	query          *BoundQuery
-	querySources   []queryLeaf
-	commandQuery   bool
-	update         *boundUpdate
-	dependencies   []expressionDependency
-	parameters     ParameterInfo
-	expressions    [][]BoundExpr
-	createColumns  []ColumnDescriptor
-	createNotNull  []notNullConstraint
-	createDefaults map[int32]columnDefault
-	defaults       []BoundExpr
-	temporals      []temporalConstant
-	predicate      BoundExpr
+	relation          *relationDescriptor
+	storage           *relationStorage
+	ref               ObjectRef
+	targets           []int
+	usedColumns       []int
+	query             *BoundQuery
+	querySources      []queryLeaf
+	commandQuery      bool
+	update            *boundUpdate
+	dependencies      []expressionDependency
+	parameters        ParameterInfo
+	expressions       [][]BoundExpr
+	createColumns     []ColumnDescriptor
+	createNotNull     []notNullConstraint
+	createDefaults    map[int32]columnDefault
+	defaults          []BoundExpr
+	temporals         []temporalConstant
+	predicate         BoundExpr
 	sequenceConstants []sequenceConstant
 }
 
