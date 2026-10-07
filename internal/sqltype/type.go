@@ -882,7 +882,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
 	}
 	switch u.Type.id {
-	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Numeric, UUID, Regclass:
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass:
 	case Void, NameArray:
 		message := "could not identify an ordering operator for type void"
 		if u.Type.id == NameArray {

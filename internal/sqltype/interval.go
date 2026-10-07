@@ -883,11 +883,15 @@ func isoNumberUnderflow(raw string, parsed float64, nonzero bool) bool {
 	}
 	// Keep the normal 53 mantissa bits, the original half bit, and an
 	// independent sticky flag. Arbitrary precision is necessary only here.
-	var value big.Float
-	value.SetPrec(54).SetMode(big.ToZero)
-	if _, _, err := value.Parse(raw, 10); err != nil {
+	// Parse exactly before the single binary rounding: Float.Parse scales
+	// decimal exponents with a rounded power of five, losing exactness.
+	var exact big.Rat
+	if _, ok := exact.SetString(raw); !ok {
 		return true
 	}
+	var value big.Float
+	value.SetPrec(54).SetMode(big.ToZero)
+	value.SetRat(&exact)
 	sticky := value.Acc() != big.Exact
 	value.Abs(&value)
 	var mantissa big.Float
