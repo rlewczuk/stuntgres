@@ -82,6 +82,11 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		if err != nil {
 			return nil, err
 		}
+		if b.noParameters {
+			if err := b.captureViewLiterals(s.Where, filter, viewWhereLiteral, 0); err != nil {
+				return nil, err
+			}
+		}
 		root = &filterNode{querySchema: root.Schema(), child: root, predicate: filter}
 	}
 	b.aggregateClause = "GROUP BY"
@@ -113,6 +118,11 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		if err != nil {
 			return nil, err
 		}
+		if b.noParameters && !ok {
+			if err := b.captureViewLiterals(raw, keys[i], viewGroupLiteral, i); err != nil {
+				return nil, err
+			}
+		}
 		comparisons[i], err = sqltype.BindGrouping(keys[i].ResultUsage())
 		if err != nil {
 			return nil, err
@@ -125,6 +135,11 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		having, err = b.bindBoolean(s.Having, projectionContext, "HAVING")
 		if err != nil {
 			return nil, err
+		}
+		if b.noParameters {
+			if err := b.captureViewLiterals(s.Having, having, viewHavingLiteral, 0); err != nil {
+				return nil, err
+			}
 		}
 	}
 	var order BoundExpr
@@ -145,6 +160,11 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 				return nil, err
 			}
 			projection[i] = expr
+		}
+		if b.noParameters && !s.Star {
+			if err := b.captureViewLiterals(s.Targets[i], expr, viewTargetLiteral, i); err != nil {
+				return nil, err
+			}
 		}
 		result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
 		regclassOutput = regclassOutput || (result.Usage.Type != nil && result.Usage.Type.ID() == sqltype.Regclass)

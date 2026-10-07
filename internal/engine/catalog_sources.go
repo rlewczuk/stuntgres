@@ -98,7 +98,7 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			if err != nil {
 				return nil, err
 			}
-			definition, err := relation.view.selectSQL(catalog)
+			definition, err := relation.view.selectSQL(ctx, catalog)
 			if err != nil {
 				return nil, err
 			}

@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func (v *viewDefinition) columnName(catalog CatalogRead, name string) (string, error) {
@@ -24,7 +26,7 @@ func (v *viewDefinition) columnName(catalog CatalogRead, name string) (string, e
 	return "", fmt.Errorf("stuntgres: missing view column identity")
 }
 
-func (v *viewDefinition) selectSQL(catalog CatalogRead) (string, error) {
+func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (string, error) {
 	s := v.syntax
 	var targets []string
 	if s.Star {
@@ -43,8 +45,8 @@ func (v *viewDefinition) selectSQL(catalog CatalogRead) (string, error) {
 			}
 		}
 	} else {
-		for _, expr := range s.Targets {
-			text, err := v.expressionSQL(catalog, expr)
+		for i, expr := range s.Targets {
+			text, err := v.expressionSQL(ctx, catalog, expr, viewLiteralPath{clause: viewTargetLiteral, target: i})
 			if err != nil {
 				return "", err
 			}
@@ -60,7 +62,7 @@ func (v *viewDefinition) selectSQL(catalog CatalogRead) (string, error) {
 		text += " FROM " + quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
 	}
 	if s.Where != nil {
-		part, err := v.expressionSQL(catalog, s.Where)
+		part, err := v.expressionSQL(ctx, catalog, s.Where, viewLiteralPath{clause: viewWhereLiteral})
 		if err != nil {
 			return "", err
 		}
@@ -68,8 +70,8 @@ func (v *viewDefinition) selectSQL(catalog CatalogRead) (string, error) {
 	}
 	if len(s.GroupBy) > 0 {
 		var keys []string
-		for _, expr := range s.GroupBy {
-			part, err := v.expressionSQL(catalog, expr)
+		for i, expr := range s.GroupBy {
+			part, err := v.expressionSQL(ctx, catalog, expr, viewLiteralPath{clause: viewGroupLiteral, target: i})
 			if err != nil {
 				return "", err
 			}
@@ -78,7 +80,7 @@ func (v *viewDefinition) selectSQL(catalog CatalogRead) (string, error) {
 		text += " GROUP BY " + strings.Join(keys, ", ")
 	}
 	if s.Having != nil {
-		part, err := v.expressionSQL(catalog, s.Having)
+		part, err := v.expressionSQL(ctx, catalog, s.Having, viewLiteralPath{clause: viewHavingLiteral})
 		if err != nil {
 			return "", err
 		}
@@ -97,8 +99,24 @@ func (v *viewDefinition) selectSQL(catalog CatalogRead) (string, error) {
 	return text, nil
 }
 
-func (v *viewDefinition) expressionSQL(catalog CatalogRead, raw parser.Expr) (string, error) {
-	child := func(expr parser.Expr) (string, error) { return v.expressionSQL(catalog, expr) }
+func (v *viewDefinition) expressionSQL(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath) (string, error) {
+	ordinal := 0
+	return v.expressionSQLAt(ctx, catalog, raw, path, &ordinal)
+}
+
+func (v *viewDefinition) expressionSQLAt(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal *int) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	path.node = *ordinal
+	(*ordinal)++
+	if literal, ok := v.literals[path]; ok {
+		_, identity := v.sequenceRefs[raw.SourcePosition().Offset]
+		if literal.ResultUsage().Type.ID() != sqltype.Regclass || !identity {
+			return literalSQL(ctx, literal)
+		}
+	}
+	child := func(expr parser.Expr) (string, error) { return v.expressionSQLAt(ctx, catalog, expr, path, ordinal) }
 	args := func(expressions []parser.Expr) (string, error) {
 		parts := make([]string, len(expressions))
 		for i, expr := range expressions {
@@ -120,25 +138,14 @@ func (v *viewDefinition) expressionSQL(catalog CatalogRead, raw parser.Expr) (st
 			name := quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
 			return "'" + strings.ReplaceAll(name, "'", "''") + "'", nil
 		}
-		switch e.Value.Kind {
-		case parser.NullValue:
-			return "NULL", nil
-		case parser.IntegerValue:
+		if path.clause == viewGroupLiteral && path.node == 0 && e.Value.Kind == parser.IntegerValue {
 			return strconv.FormatInt(e.Value.Integer, 10), nil
-		case parser.NumericValue:
-			return e.Value.Text, nil
-		case parser.BooleanValue:
-			if e.Value.Boolean {
-				return "TRUE", nil
-			}
-			return "FALSE", nil
-		case parser.StringValue:
-			return "'" + strings.ReplaceAll(e.Value.Text, "'", "''") + "'", nil
 		}
+		return "", fmt.Errorf("stuntgres: missing analyzed view literal")
 	case parser.ColumnExpr:
 		return v.columnName(catalog, e.Name.Parts[len(e.Name.Parts)-1].Text)
 	case parser.TypedLiteralExpr:
-		return "CAST('" + strings.ReplaceAll(e.Text, "'", "''") + "' AS " + syntaxTypeSQL(e.TypeName) + ")", nil
+		return "", fmt.Errorf("stuntgres: missing analyzed typed view literal")
 	case parser.CastExpr:
 		text, err := child(e.Child)
 		if err != nil {
@@ -146,18 +153,20 @@ func (v *viewDefinition) expressionSQL(catalog CatalogRead, raw parser.Expr) (st
 		}
 		return "CAST(" + text + " AS " + syntaxTypeSQL(e.TypeName) + ")", nil
 	case parser.OperatorExpr:
-		left, err := v.comparisonOperandSQL(catalog, e.Args[0])
+		left, err := child(e.Args[0])
 		if err != nil {
 			return "", err
 		}
+		left = viewComparisonOperandSQL(e.Args[0], left)
 		op := e.Name.Parts[len(e.Name.Parts)-1].Text
 		if len(e.Args) == 1 {
 			return "(" + op + " " + left + ")", nil
 		}
-		right, err := v.comparisonOperandSQL(catalog, e.Args[1])
+		right, err := child(e.Args[1])
 		if err != nil {
 			return "", err
 		}
+		right = viewComparisonOperandSQL(e.Args[1], right)
 		return "(" + left + " " + op + " " + right + ")", nil
 	case parser.LogicalExpr:
 		left, err := child(e.Left)
@@ -239,21 +248,17 @@ func (v *viewDefinition) expressionSQL(catalog CatalogRead, raw parser.Expr) (st
 
 // BETWEEN lowers to ordinary comparison/logical nodes. Predicate-valued
 // operands need the same scalar CASE bridge used by stored defaults on replay.
-func (v *viewDefinition) comparisonOperandSQL(catalog CatalogRead, raw parser.Expr) (string, error) {
-	text, err := v.expressionSQL(catalog, raw)
-	if err != nil {
-		return "", err
-	}
+func viewComparisonOperandSQL(raw parser.Expr, text string) string {
 	switch e := raw.(type) {
 	case parser.LogicalExpr, parser.PredicateExpr:
-		return predicateOperandSQL(text), nil
+		return predicateOperandSQL(text)
 	case parser.OperatorExpr:
 		switch e.Name.Parts[len(e.Name.Parts)-1].Text {
 		case "=", "<>", "!=", "<", "<=", ">", ">=":
-			return predicateOperandSQL(text), nil
+			return predicateOperandSQL(text)
 		}
 	}
-	return text, nil
+	return text
 }
 
 func syntaxTypeSQL(t parser.TypeName) string {

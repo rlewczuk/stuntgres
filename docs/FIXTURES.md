@@ -28,6 +28,16 @@ data. Derived catalog sources initialize normally and are not dumped. Restored
 views remain dynamic; later base writes and dependency checks still apply.
 Failed/canceled imports retain old catalogs, dependencies and held result rows.
 
+Stored view literals are serialized from creation-time analyzed values and type
+usages, including temporal precision, typed NULLs and sentinel values. Relative
+spellings such as `DATE 'today'` do not acquire a new value during replay.
+Native remapping replaces concrete catalog type identities without reparsing or
+coercing the captured datum; retained TEMP objects do not alias the old generation.
+Contextual NAME, UUID, BYTEA and NUMERIC literals likewise retain their analyzed
+values and distinct result types through definition reconstruction and native
+Dump/Restore, including NUMERIC display scale. Public direct/prepared roundtrip
+coverage: `make test PACKAGES=. RUN='^TestViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0`.
+
 Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
 defaults, CREATE SEQUENCE, supported parameter-free scalar/default-request INSERT
 (including integer arithmetic), database-local COMMENT, generated sequence OWNED BY

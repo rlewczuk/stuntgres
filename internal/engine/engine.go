@@ -53,6 +53,7 @@ type binding struct {
 	usedColumns       []int
 	query             *BoundQuery
 	querySources      []queryLeaf
+	viewLiterals      map[viewLiteralPath]literalExpression
 	commandQuery      bool
 	update            *boundUpdate
 	dependencies      []expressionDependency
@@ -568,6 +569,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
 	b.sequenceConstants = binder.sequenceConstants
+	b.viewLiterals = binder.viewLiterals
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.temporals = binder.temporals
 	return b, nil

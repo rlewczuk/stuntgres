@@ -87,44 +87,7 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 	case caseExpression, conditionalExpression:
 		return conditionalDefaultSQL(ctx, view, node)
 	case literalExpression:
-		if n.value.Type() != u.Type {
-			return "", fmt.Errorf("stuntgres: invalid default literal")
-		}
-		literal, err := u.Type.SQLLiteral(ctx, n.value)
-		// OID's quoted SQLLiteral is safe for stored rows, but defaults must
-		// retain its identity inside comparisons and conditional expressions.
-		if err == nil && u.Type.ID() == sqltype.Oid {
-			return "CAST(" + literal + " AS OID)", nil
-		}
-		if err != nil || n.value.IsNull() {
-			return literal, err
-		}
-		switch u.Type.ID() {
-		case sqltype.Date:
-			return "DATE " + literal, nil
-		case sqltype.Time:
-			return "TIME " + literal, nil
-		case sqltype.Timestamp:
-			// The type-owned endpoint encoding already includes its required
-			// precision-bearing introducer; never prepend a second one.
-			if strings.HasPrefix(literal, "TIMESTAMP") {
-				return literal, nil
-			}
-			return "TIMESTAMP " + literal, nil
-		case sqltype.Numeric:
-			text, err := u.Type.Output(ctx, n.value)
-			if err != nil {
-				return "", err
-			}
-			if text == "NaN" || text == "Infinity" || text == "-Infinity" {
-				return literal, nil
-			}
-			if !strings.ContainsAny(text, ".eE") {
-				text += ".0"
-			}
-			return text, nil
-		}
-		return literal, nil
+		return literalSQL(ctx, n)
 	case coercionExpression:
 		if n.child == nil {
 			return "", fmt.Errorf("stuntgres: missing default coercion child")
@@ -455,21 +418,7 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 		if !changed {
 			return node, false, nil
 		}
-		if n.value.IsNull() {
-			n.value = sqltype.Null(typ)
-		} else if typ.ID() == sqltype.Int8 {
-			var number int64
-			number, err = n.value.Integer()
-			if err == nil {
-				n.value, err = sqltype.Integer(typ, number)
-			}
-		} else {
-			var flag bool
-			flag, err = n.value.Boolean()
-			if err == nil {
-				n.value = sqltype.Boolean(typ, flag)
-			}
-		}
+		n.value, err = n.value.Retag(typ)
 		n.expressionInfo = info
 		rebound = n
 	case coercionExpression:
@@ -557,4 +506,46 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 		return nil, false, err
 	}
 	return rebound, true, nil
+}
+
+// Serialize captured scalars through their owning type, without evaluating a
+// stored expression or converting a temporal introducer into an unsupported cast.
+func literalSQL(ctx context.Context, n literalExpression) (string, error) {
+	u := n.ResultUsage()
+	if n.value.Type() != u.Type {
+		return "", fmt.Errorf("stuntgres: invalid stored literal")
+	}
+	literal, err := u.Type.SQLLiteral(ctx, n.value)
+	if err == nil && u.Type.ID() == sqltype.Oid {
+		return "CAST(" + literal + " AS OID)", nil
+	}
+	if err != nil || n.value.IsNull() {
+		return literal, err
+	}
+	switch u.Type.ID() {
+	case sqltype.Date, sqltype.Time, sqltype.Timestamp:
+		// The endpoint encoding can already carry its required precision.
+		if strings.HasPrefix(literal, "TIMESTAMP") {
+			return literal, nil
+		}
+		declaration, err := u.Declaration()
+		if err != nil {
+			return "", err
+		}
+		return declaration + " " + literal, nil
+	case sqltype.Numeric:
+		text, err := u.Type.Output(ctx, n.value)
+		if err != nil {
+			return "", err
+		}
+		if text == "NaN" || text == "Infinity" || text == "-Infinity" {
+			return literal, nil
+		}
+		if !strings.ContainsAny(text, ".eE") {
+			// Keep NUMERIC identity without adding a display-scale digit.
+			text += "e0"
+		}
+		return text, nil
+	}
+	return literal, nil
 }

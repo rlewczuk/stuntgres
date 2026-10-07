@@ -142,6 +142,16 @@ type Value struct {
 
 func (v Value) Type() *Descriptor { return v.typ }
 func (v Value) IsNull() bool      { return v.null }
+
+// Retag remints descriptor ownership without changing a concrete scalar datum.
+// It is not a conversion: the builtin type identity must remain identical.
+func (v Value) Retag(d *Descriptor) (Value, error) {
+	if v.typ == nil || !v.typ.Concrete() || !d.Concrete() || v.typ.id != d.id {
+		return Value{}, fmt.Errorf("incompatible scalar type identity")
+	}
+	v.typ = d
+	return v, nil
+}
 func Null(d *Descriptor) Value {
 	if !d.Concrete() {
 		panic("invalid NULL descriptor")

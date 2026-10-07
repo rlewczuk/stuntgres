@@ -225,7 +225,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		if r.view != nil {
-			body, err := r.view.selectSQL(CatalogRead{owner: e, state: e.state})
+			body, err := r.view.selectSQL(ctx, CatalogRead{owner: e, state: e.state})
 			if err != nil {
 				e.mu.Unlock()
 				return err

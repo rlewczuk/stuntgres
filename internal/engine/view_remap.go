@@ -209,6 +209,20 @@ func (e *Engine) remapCatalogViews(next *catalogState, mapping map[ObjectAddress
 		}
 		definition := *d.view
 		definition.source = ref(definition.source)
+		if len(d.view.literals) != 0 {
+			definition.literals = make(map[viewLiteralPath]literalExpression, len(d.view.literals))
+			for path, literal := range d.view.literals {
+				node, _, err := retagDefaultTypes(literal, typ)
+				if err != nil {
+					return err
+				}
+				node, err = remapViewExpression(node, ref)
+				if err != nil {
+					return err
+				}
+				definition.literals[path] = node.(literalExpression)
+			}
+		}
 		definition.sequenceRefs = make(map[int]ObjectRef, len(d.view.sequenceRefs))
 		for offset, old := range d.view.sequenceRefs {
 			definition.sequenceRefs[offset] = ref(old)

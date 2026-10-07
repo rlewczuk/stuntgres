@@ -9,6 +9,7 @@ import (
 	"strings"
 	"stuntgres"
 	"testing"
+	"time"
 )
 
 func TestViewSmoke(t *testing.T) {
@@ -120,10 +121,11 @@ func TestViewSmoke(t *testing.T) {
 			t.Fatal(count, want)
 		}
 	}
-	for _, query := range []string{"CREATE TABLE b(txt TEXT,visible BOOL)", "INSERT INTO b VALUES('1',true),('oops',false)", "CREATE VIEW safe WITH(security_barrier=true) AS SELECT txt FROM b WHERE visible"} {
+	for _, query := range []string{"CREATE TABLE b(txt TEXT,visible BOOL)", "INSERT INTO b VALUES('1',true),('oops',false)", "CREATE VIEW safe(txt,d,clock,stamp) WITH(security_barrier=true) AS SELECT txt,DATE '2000-01-02',TIME(3) '04:05:06.1235',TIMESTAMP(3) '2000-01-02 04:05:06.1235' FROM b WHERE visible"} {
 		exec(query)
 	}
 	check("SELECT CAST(txt AS INT) FROM safe WHERE CAST(txt AS INT)=1", []string{"txt"}, []string{"INT4"}, [][]any{{int64(1)}})
+	check("SELECT d,clock,stamp FROM safe", []string{"d", "clock", "stamp"}, []string{"DATE", "TIME", "TIMESTAMP"}, [][]any{{"2000-01-02", "04:05:06.124", time.Date(2000, 1, 2, 4, 5, 6, 124000000, time.UTC)}})
 	exec("ALTER TABLE t RENAME TO renamed")
 	exec("ALTER TABLE renamed RENAME COLUMN id TO new_id")
 	exec("CREATE TABLE t(id INT)")
@@ -156,6 +158,7 @@ func TestViewSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("SELECT k FROM w ORDER BY k", []string{"k"}, []string{"INT4"}, [][]any{{int64(3)}, {int64(3)}, {int64(4)}})
+	check("SELECT d,clock,stamp FROM safe", []string{"d", "clock", "stamp"}, []string{"DATE", "TIME", "TIMESTAMP"}, [][]any{{"2000-01-02", "04:05:06.124", time.Date(2000, 1, 2, 4, 5, 6, 124000000, time.UTC)}})
 	check("SELECT count(*) FROM providers", []string{"count"}, []string{"INT8"}, [][]any{{int64(5)}})
 	if err = stuntgres.Restore(ctx, db, bytes.NewBufferString("CREATE TABLE lost(i INT); CREATE VIEW broken AS SELECT missing FROM lost;")); err == nil {
 		t.Fatal("invalid restore accepted")

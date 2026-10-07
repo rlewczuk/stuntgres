@@ -17,6 +17,9 @@ Bound base reads do not repeat name lookup or source-schema USAGE checks; the
 initial named view lookup still requires its schema's USAGE. Relation-principal
 substitution never changes session identity or sequence/function authority.
 Native public SQL GRANT remains absent; tests use the central internal ACL seam.
+The native prepared witness retains an allowed statement description across
+revocation and regrant: the same handle must deny42501 without rows after revoke
+and resume reads after regrant, including an owner view above an invoker view.
 
 ```text
 CREATE {ROLE | USER | GROUP} name [WITH] [LOGIN | NOLOGIN]

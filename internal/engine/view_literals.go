@@ -1,0 +1,244 @@
+package engine
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+type viewLiteralClause uint8
+
+const (
+	viewTargetLiteral viewLiteralClause = iota
+	viewWhereLiteral
+	viewGroupLiteral
+	viewHavingLiteral
+)
+
+// Each lowered syntax occurrence has its own structural key. BETWEEN can bind
+// the same source position independently to different types in its two branches.
+type viewLiteralPath struct {
+	clause viewLiteralClause
+	target int
+	node   int
+}
+
+func (b *expressionBinder) captureViewLiterals(raw parser.Expr, bound BoundExpr, clause viewLiteralClause, target int) error {
+	path := viewLiteralPath{clause: clause, target: target}
+	ordinal := 0
+	return b.captureViewLiteralTree(raw, bound, path, &ordinal)
+}
+
+func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundExpr, path viewLiteralPath, ordinal *int) error {
+	if raw == nil {
+		return nil
+	}
+	path.node = *ordinal
+	(*ordinal)++
+	for {
+		coercion, ok := bound.(coercionExpression)
+		if !ok || coercion.mode == sqltype.Explicit {
+			break
+		}
+		bound = coercion.child
+	}
+	child := func(raw parser.Expr, bound BoundExpr) error {
+		return b.captureViewLiteralTree(raw, bound, path, ordinal)
+	}
+	children := func(raw []parser.Expr, bound []BoundExpr) error {
+		if len(raw) != len(bound) {
+			return fmt.Errorf("stuntgres: mismatched view literal arguments")
+		}
+		for i := range raw {
+			if err := child(raw[i], bound[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	switch r := raw.(type) {
+	case parser.LiteralExpr, parser.TypedLiteralExpr:
+		if literal, ok := bound.(literalExpression); ok {
+			if b.viewLiterals == nil {
+				b.viewLiterals = make(map[viewLiteralPath]literalExpression)
+			}
+			b.viewLiterals[path] = literal
+			return nil
+		}
+	case parser.ColumnExpr, parser.AggregateExpr:
+		return nil
+	case parser.CastExpr:
+		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
+			bound = coercion.child
+		}
+		return child(r.Child, bound)
+	case parser.RegclassExpr:
+		return child(r.Child, bound)
+	case parser.OperatorExpr:
+		switch n := bound.(type) {
+		case arithmeticExpression:
+			if err := child(r.Args[0], n.left); err != nil {
+				return err
+			}
+			if len(r.Args) == 2 {
+				return child(r.Args[1], n.right)
+			}
+			return nil
+		case comparisonExpression:
+			if err := child(r.Args[0], n.left); err != nil {
+				return err
+			}
+			return child(r.Args[1], n.right)
+		}
+	case parser.LogicalExpr:
+		if n, ok := bound.(logicalExpression); ok {
+			if err := child(r.Left, n.left); err != nil {
+				return err
+			}
+			return child(r.Right, n.right)
+		}
+	case parser.PredicateExpr:
+		switch n := bound.(type) {
+		case nullTestExpression:
+			return child(r.Left, n.child)
+		case truthTestExpression:
+			return child(r.Left, n.child)
+		case distinctExpression:
+			if err := child(r.Left, n.left); err != nil {
+				return err
+			}
+			return child(r.Right, n.right)
+		}
+	case parser.ConditionalExpr:
+		if n, ok := bound.(conditionalExpression); ok {
+			return children(r.Args, n.args)
+		}
+	case parser.CaseExpr:
+		if n, ok := bound.(caseExpression); ok && len(r.Arms) == len(n.arms) {
+			if err := child(r.Test, n.test); err != nil {
+				return err
+			}
+			for i, arm := range r.Arms {
+				if err := child(arm.Condition, n.arms[i].condition); err != nil {
+					return err
+				}
+				if err := child(arm.Result, n.arms[i].result); err != nil {
+					return err
+				}
+			}
+			return child(r.Else, n.otherwise)
+		}
+	case parser.FunctionExpr:
+		if n, ok := bound.(nullCountExpression); ok {
+			return children(r.Args, n.args)
+		}
+	case parser.CallExpr:
+		if n, ok := bound.(sequenceCallExpression); ok {
+			return children(r.Args, n.args)
+		}
+	}
+	return fmt.Errorf("stuntgres: mismatched view literal expression %T / %T", raw, bound)
+}
+
+func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
+	count := 0
+	validate := func(raw parser.Expr, clause viewLiteralClause, target int) error {
+		ordinal := 0
+		return v.validateLiteralTree(catalog, raw, viewLiteralPath{clause: clause, target: target}, &ordinal, &count)
+	}
+	for i, raw := range v.syntax.Targets {
+		if err := validate(raw, viewTargetLiteral, i); err != nil {
+			return err
+		}
+	}
+	if err := validate(v.syntax.Where, viewWhereLiteral, 0); err != nil {
+		return err
+	}
+	for i, raw := range v.syntax.GroupBy {
+		if err := validate(raw, viewGroupLiteral, i); err != nil {
+			return err
+		}
+	}
+	if err := validate(v.syntax.Having, viewHavingLiteral, 0); err != nil {
+		return err
+	}
+	if count != len(v.literals) {
+		return fmt.Errorf("stuntgres: invalid view literal occurrence path")
+	}
+	return nil
+}
+
+func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal, count *int) error {
+	if raw == nil {
+		return nil
+	}
+	path.node = *ordinal
+	(*ordinal)++
+	child := func(raw parser.Expr) error { return v.validateLiteralTree(catalog, raw, path, ordinal, count) }
+	args := func(raw []parser.Expr) error {
+		for _, arg := range raw {
+			if err := child(arg); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	switch r := raw.(type) {
+	case parser.LiteralExpr, parser.TypedLiteralExpr:
+		if literal, ok := v.literals[path]; ok {
+			usage := literal.ResultUsage()
+			if !usage.Valid() || literal.value.Type() != usage.Type {
+				return fmt.Errorf("stuntgres: invalid view literal usage")
+			}
+			typ, ok := catalog.LookupType(usage.Type.ID())
+			if !ok || typ != usage.Type {
+				return fmt.Errorf("stuntgres: foreign view literal type")
+			}
+			(*count)++
+			return nil
+		}
+		if integer, ok := raw.(parser.LiteralExpr); ok && path.clause == viewGroupLiteral && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
+			_, _, err := groupOrdinal(raw, len(v.query.Root.Schema()))
+			return err
+		}
+		return fmt.Errorf("stuntgres: missing view literal occurrence")
+	case parser.ColumnExpr, parser.AggregateExpr:
+		return nil
+	case parser.CastExpr:
+		return child(r.Child)
+	case parser.RegclassExpr:
+		return child(r.Child)
+	case parser.OperatorExpr:
+		return args(r.Args)
+	case parser.LogicalExpr:
+		if err := child(r.Left); err != nil {
+			return err
+		}
+		return child(r.Right)
+	case parser.PredicateExpr:
+		if err := child(r.Left); err != nil {
+			return err
+		}
+		return child(r.Right)
+	case parser.ConditionalExpr:
+		return args(r.Args)
+	case parser.CaseExpr:
+		if err := child(r.Test); err != nil {
+			return err
+		}
+		for _, arm := range r.Arms {
+			if err := child(arm.Condition); err != nil {
+				return err
+			}
+			if err := child(arm.Result); err != nil {
+				return err
+			}
+		}
+		return child(r.Else)
+	case parser.FunctionExpr:
+		return args(r.Args)
+	case parser.CallExpr:
+		return args(r.Args)
+	}
+	return fmt.Errorf("stuntgres: invalid view literal syntax %T", raw)
+}

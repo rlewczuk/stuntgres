@@ -119,8 +119,11 @@ func emitViewCascade(op *Operation, details []string) {
 
 func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 	definition := d.view
-	if definition == nil || definition.query == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.columns) {
+	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.columns) {
 		return fmt.Errorf("stuntgres: invalid view definition")
+	}
+	if err := definition.validateLiterals(v); err != nil {
+		return err
 	}
 	if definition.source != (ObjectRef{}) {
 		source, ok := v.state.descriptors[definition.source.Address].(*relationDescriptor)

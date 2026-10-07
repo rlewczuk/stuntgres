@@ -18,6 +18,7 @@ type viewDefinition struct {
 	reads            []int32
 	dependencies     []expressionDependency
 	sequenceRefs     map[int]ObjectRef
+	literals         map[viewLiteralPath]literalExpression
 	barrier, invoker bool
 	rule             OID
 }
@@ -159,6 +160,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, err
 	}
 	definition := &viewDefinition{query: b.query, syntax: view.Query, source: b.ref, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
+	definition.literals = b.viewLiterals
 	definition.sequenceRefs = make(map[int]ObjectRef, len(b.sequenceConstants))
 	for _, constant := range b.sequenceConstants {
 		if constant.temporary != (SessionToken{}) {

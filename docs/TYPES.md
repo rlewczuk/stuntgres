@@ -98,6 +98,13 @@ input, and decodes exact four-byte `\ooo` octal spellings. High bytes export
 as escaped octal strings (`é` becomes `\303`), never invalid UTF8 or replacement
 characters; ordering compares unsigned bytes. It is not Unicode CHAR(n).
 
+Stored view literal annotations retain the analyzed scalar and complete type usage,
+not just the source spelling. Canonical temporal introducers preserve precision;
+contextually resolved NAME, UUID, BYTEA and NUMERIC values use their existing
+type-owned literal serializers and supported surrounding expression contexts.
+Native generation remapping retags an immutable datum only to the same concrete
+builtin type identity, preserving typed NULLs, numeric display scale and sentinels.
+
 ## NAME
 
 NAME is the distinct PostgreSQL identifier-value type (OID19, typmod -1,

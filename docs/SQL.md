@@ -176,6 +176,14 @@ predicate-valued endpoints. Canonical replay uses the same scalar CASE bridge
 as stored defaults for grouped predicate operands; it does not broaden ordinary
 comparison syntax or evaluate definitions during serialization.
 
+Stored literal occurrences retain their analyzed value and type usage, including
+temporal precision and independently typed occurrences introduced by BETWEEN.
+Definition reconstruction and native replay use type-owned canonical literals,
+not creation-time spellings such as `today`, and do not introduce unsupported
+DATE/TIME/TIMESTAMP casts. Native input supports its current ISO environment;
+PostgreSQL DateStyle controls are independent oracle witnesses, not native SET
+support.
+
 Replacement, recursive/TEMP views, view writes/check options, general ALTER/
 DROP VIEW, joins/subqueries/bare or table aliases, public GRANT, RLS, UDFs and optimizer
 introspection are separate unsupported capabilities. Native ACL unit controls
