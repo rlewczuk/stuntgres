@@ -52,21 +52,14 @@ func (b *expressionBinder) bindTimeZone(raw parser.TimeZoneExpr, policy expressi
 	default:
 		return nil, expressionError("42883", "function pg_catalog.timezone(text, "+value.ResultUsage().Type.DiagnosticName()+") does not exist", raw.Pos)
 	}
-	properties := value.Properties()
-	properties.Volatility = Stable
+	properties := mergeExpressionProperties(value.Properties(), ExprProperties{Volatility: Stable})
 	var zone BoundExpr
 	if !raw.Local {
 		zone, err = b.bind(raw.Zone, expressionPolicy{context: policy.context, operand: true, expected: b.typ(sqltype.Text).Usage(), mode: sqltype.Implicit})
 		if err != nil {
 			return nil, err
 		}
-		zp := zone.Properties()
-		properties.RowDependent = properties.RowDependent || zp.RowDependent
-		properties.ParameterDependent = properties.ParameterDependent || zp.ParameterDependent
-		properties.StageDependent = properties.StageDependent || zp.StageDependent
-		if zp.Volatility > properties.Volatility {
-			properties.Volatility = zp.Volatility
-		}
+		properties = mergeExpressionProperties(properties, zone.Properties())
 	}
 	return timeZoneExpression{expressionInfo: b.info(b.typ(result).Usage(), raw.Pos, properties), value: value, zone: zone, local: raw.Local}, nil
 }

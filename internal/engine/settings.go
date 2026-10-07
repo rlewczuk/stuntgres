@@ -258,6 +258,15 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 	if d.Name == "timezone" {
 		zone, detail, err := sqltype.ParseSessionZone(input)
 		if err != nil {
+			// check_timezone invokes interval_in directly. Its input errors
+			// escape unchanged, unlike ordinary GUC-hook rejections.
+			var diagnostic *sqlstate.Error
+			if errors.As(err, &diagnostic) {
+				switch diagnostic.Code {
+				case "22007", "22008", "22015":
+					return v, err
+				}
+			}
 			return v, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "TimeZone": "%s"`, input), Detail: detail}
 		}
 		v.zone, v.text = zone, zone.Name()

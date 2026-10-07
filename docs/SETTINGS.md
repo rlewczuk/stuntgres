@@ -205,6 +205,12 @@ Numeric hours are east-positive: `5.5` means +05:30. POSIX names are west-positi
 HOUR TO MINUTE and MINUTE qualifiers are accepted. This utility syntax does not
 provide a general INTERVAL SQL type or arithmetic. Numeric/interval SET offsets
 are bounded to 167:59:59; literal datetime offsets to 15:59:59.
+Marker-only intervals such as `@` or `@ ago` fail with 22007; an actual zero
+field such as `0 seconds` is valid. Quoted textual `INTERVAL '...'` values
+through ordinary SET or set_config preserve interval-input diagnostics (22007
+for malformed input, 22015 for overflow). Unknown zone names and rejected
+months/days/ranges retain 22023 setting diagnostics. Every failure leaves the
+previous typed TimeZone and displayed setting unchanged.
 
 DateStyle combines one style and one order. Partial updates preserve the other
 component; German implies DMY unless order is explicit. DEFAULT uses captured

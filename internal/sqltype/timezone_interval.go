@@ -373,6 +373,11 @@ func DecodeZoneInterval(text, qualifier string, precision int32) (ZoneInterval, 
 				return bad()
 			}
 		}
+		// Like PostgreSQL DecodeInterval's fmask check, require a decoded
+		// field even when its value is zero; @ and ago are only markers.
+		if seen == 0 {
+			return bad()
+		}
 	}
 	if negate {
 		if result.Months == math.MinInt32 || result.Days == math.MinInt32 || result.Microseconds == math.MinInt64 {

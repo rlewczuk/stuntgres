@@ -285,6 +285,9 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 	for _, arg := range args {
 		properties = mergeExpressionProperties(properties, arg.Properties())
 	}
+	if comparison.SessionDependent() {
+		properties = mergeExpressionProperties(properties, ExprProperties{Volatility: Stable})
+	}
 	return conditionalExpression{b.info(usage, raw.Pos, properties), raw.Kind, args, comparison}, nil
 }
 func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
@@ -357,6 +360,9 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 		}
 		properties = mergeExpressionProperties(properties, arms[i].condition.Properties())
 		properties = mergeExpressionProperties(properties, arms[i].result.Properties())
+		if test != nil && (arms[i].testPlan.SessionDependent() || arms[i].equality.SessionDependent()) {
+			properties = mergeExpressionProperties(properties, ExprProperties{Volatility: Stable})
+		}
 	}
 	return caseExpression{b.info(usage, raw.Pos, properties), test, arms, otherwiseNode}, nil
 }

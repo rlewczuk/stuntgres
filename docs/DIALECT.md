@@ -945,9 +945,9 @@ native parameters have no Position/Context. Comparisons order civil days with
 infinities and default NULL order. Dump/Restore quotes canonical values and
 preserves snapshots/atomicity. Captured database/sql ColumnType values remain
 usable after EOF/Close; database/sql itself rejects new ColumnTypes calls on
-closed Rows. Native DATE/TIME and DATE/TIMESTAMP comparisons reject42883;
-PostgreSQL independently supports DATE/TIMESTAMP comparison operators, including
-midnight equality, civil-day ordering, infinities and SQL NULL propagation.
+closed Rows. Native DATE/TIME comparisons reject42883. DATE/TIMESTAMP
+comparisons are supported with the same PostgreSQL semantics, including midnight
+equality, civil-day ordering, infinities and SQL NULL propagation.
 Selected datetime casts and TimeZone/DateStyle are supported as documented in
 [temporal types](TYPES.md#time-zone-aware-values); arithmetic, CURRENT_DATE and ordinary no-FROM SELECT remain excluded. Smoke:
 `make smoke RUN='^TestDateSmoke$' VERBOSE=1`; independent pinned reference:
