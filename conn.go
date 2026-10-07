@@ -69,18 +69,24 @@ func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx
 	if err := c.check(ctx); err != nil {
 		return nil, err
 	}
-	if options.Isolation != 0 && options.Isolation != driver.IsolationLevel(sql.LevelReadCommitted) {
+	level := engine.DefaultIsolation
+	switch options.Isolation {
+	case 0:
+	case driver.IsolationLevel(sql.LevelReadCommitted):
+		level = engine.ReadCommitted
+	case driver.IsolationLevel(sql.LevelReadUncommitted):
+		level = engine.ReadUncommitted
+	case driver.IsolationLevel(sql.LevelRepeatableRead):
+		level = engine.RepeatableRead
+	default:
 		return nil, errors.New("stuntgres: unsupported transaction isolation level")
-	}
-	if options.ReadOnly {
-		return nil, errors.New("stuntgres: read-only transactions are unsupported")
 	}
 	op, err := c.session.Acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer op.Done()
-	ref, err := c.session.Engine().Begin(op, engine.TxOptions{})
+	ref, err := c.session.Engine().Begin(op, engine.TxOptions{Isolation: level, ReadOnly: options.ReadOnly})
 	if err != nil {
 		return nil, err
 	}

@@ -283,6 +283,9 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 	if !found {
 		return rowVersion{}, false, errors.New("stuntgres: invalid deletion predecessor")
 	}
+	if err := s.repeatableConflict(row, store.ends); err != nil {
+		return rowVersion{}, false, err
+	}
 	return row, liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[candidate.ref.Address]), nil
 }
 

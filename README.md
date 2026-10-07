@@ -42,7 +42,9 @@ decimal-digit integer tokens or bare DEFAULT. DEFAULT and RESET restore
 the captured physical-session default; quoted 'DEFAULT' is literal text.
 SHOW returns one string row with the canonical setting-name TEXT column.
 SHOW ALL returns sorted `name,setting,description` TEXT columns for the exact
-supported registry, **not** PostgreSQL's entire parameter catalog.
+supported registry, **not** PostgreSQL's entire parameter catalog. Built-in
+descriptions match PostgreSQL 18.0's English `pg_settings.short_desc`; custom
+settings return their registered description.
 SET/RESET and Exec of SHOW affect zero rows. The selected FROM-less calls
 `SELECT current_setting(text)` and `SELECT set_config(text,text,boolean)`
 return one nullable TEXT row, with affected count one for Exec.
@@ -268,18 +270,21 @@ replacement with surviving data, data retention after pool reopening,
 42704/22023/42601 diagnostics, and cancellation/control preservation.
 Go test reports the result.
 
-### SQL and driver transactions (READ COMMITTED)
+### SQL and driver transaction isolation
 
-`DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support the
-INSERT (VALUES or SELECT), scalar UPDATE, SELECT and DELETE paths, transactional
-settings and the single-target explicit AX utility below, including prepared
-execution. Default isolation and explicit `sql.LevelReadCommitted` are supported,
-read-write only. CREATE tables **before** starting a block. SQL controls support
-the same INSERT/UPDATE/SELECT/DELETE, settings and AX paths; savepoints,
-transactional DDL, stronger isolation and other DML remain unsupported.
-Role creation/removal and SET/RESET SESSION AUTHORIZATION are likewise rejected
-with `0A000` inside an explicit transaction; this is a native capability limit,
-not PostgreSQL parity. Read-only identity SELECT remains supported there.
+`DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support
+READ COMMITTED, READ UNCOMMITTED and REPEATABLE READ, with read-only or read-write
+access. READ UNCOMMITTED has READ COMMITTED visibility but retains its requested
+name in settings. Default Go isolation honors the session default; explicit
+`sql.LevelReadCommitted`, `sql.LevelReadUncommitted` and `sql.LevelRepeatableRead`
+override it. Go `ReadOnly: false` explicitly requests read-write access. SQL
+omitted modes inherit session defaults. INSERT (VALUES or SELECT), scalar UPDATE,
+SELECT, DELETE, settings and the single-target AX utility are supported, including
+prepared execution. CREATE tables before a block; transactional DDL, savepoints,
+SERIALIZABLE/SSI and DEFERRABLE safe snapshots remain unsupported.
+In read-write explicit blocks, role creation/removal and SET/RESET SESSION
+AUTHORIZATION retain native `0A000` capability boundaries, not PostgreSQL parity.
+Identity SELECT remains supported in both access modes.
 
 Supported whole-input SQL syntax (one statement per public call):
 
@@ -289,11 +294,13 @@ START TRANSACTION
 (COMMIT | END | ROLLBACK | ABORT) [WORK | TRANSACTION] [AND [NO] CHAIN]
 ```
 
-Starts use default READ COMMITTED/read-write only. Complete transaction-mode
-clauses, including explicit SQL READ COMMITTED or READ WRITE, are recognized but
-fail native `0A000`, `transaction modes are unsupported`, at the first mode.
-Malformed clauses and suffixes retain `42601`; PostgreSQL supports valid modes,
-so this is a native capability boundary, not PostgreSQL rejection parity.
+BEGIN/START accept ordered `ISOLATION LEVEL READ COMMITTED | READ UNCOMMITTED |
+REPEATABLE READ`, `READ ONLY` and `READ WRITE` assignments, comma-separated or
+juxtaposed. `SET TRANSACTION` changes current characteristics; `SET SESSION
+CHARACTERISTICS AS TRANSACTION` changes next-transaction defaults. Complete
+SERIALIZABLE and [NOT] DEFERRABLE modes fail native `0A000`,
+`transaction mode is unsupported`; malformed clauses/suffixes retain `42601`.
+These excluded modes are not implemented as aliases or successful no-ops.
 Complete SAVEPOINT/RELEASE/ROLLBACK TO and two-phase PREPARE TRANSACTION/
 COMMIT PREPARED/ROLLBACK PREPARED similarly fail `0A000` without effects.
 
@@ -309,9 +316,15 @@ parameters/results and affected count zero. State warnings/errors have exact
 WARNING/ERROR and nonlocalized severity; optional diagnostic fields are absent.
 
 AND CHAIN ends the old block, releases its holds **after publication**, and
-installs a fresh healthy Active incarnation with command zero/default modes,
-no inherited private writes or locks. **Same-epoch** failed-block SQL COMMIT rolls
-back successfully; COMMIT AND CHAIN likewise starts healthy work after discarding it.
+installs a fresh healthy Active incarnation with command zero and the current
+isolation/access modes, no inherited snapshot, private writes, deletes or locks.
+Healthy CHAIN preserves the block's final modes despite changed session defaults.
+An admitted failure first restores current modes to the defaults captured at
+transaction entry (before BEGIN/Go overrides), and rolls back in-block default
+changes. Aborted CHAIN carries those restored modes, not the failed overrides.
+Same-epoch failed-block SQL COMMIT rolls back successfully.
+A fresh chained block's abort baseline is its carried modes, not its session
+defaults; later failed mode overrides restore that carried baseline.
 AND NO CHAIN and plain ends leave Idle; the next ordinary INSERT autocommits.
 Both SQL and Go ends resolve the same settings actions. COMMIT preserves SESSION
 changes and expires LOCAL; ROLLBACK and abort restore pretransaction values.
@@ -389,8 +402,11 @@ eligible successors; caller interruption remains an ordinary context error.
 
 Semantic SELECT/INSERT/UPDATE/DELETE Prepare acquires the same AS/RX as execution. Implicit
 Prepare releases at completion; explicit Prepare retains until transaction end
-or failure, not stmt.Close. Preparation captures no data snapshot or future
-authority. LOCK Prepare is metadata-only (zero parameters/results); Execute
+or failure, not stmt.Close. Data preparation fixes characteristic timing and,
+in REPEATABLE READ, the transaction snapshot before semantic relation waits.
+READ COMMITTED/UNCOMMITTED execution still captures fresh data after grant.
+Cached statements retain descriptions, not an owner or future execution snapshot.
+LOCK Prepare is metadata-only (zero parameters/results); Execute
 performs block/name/current-role checks and acquires AX, affecting zero rows.
 Outside a block it returns `25P01`, `LOCK TABLE can only be used in transaction
 blocks`, before lookup. Missing targets use `42P01`; ordinary-role AX denial is
@@ -398,16 +414,21 @@ blocks`, before lookup. Missing targets use `42P01`; ordinary-role AX denial is
 advisory locking or lock introspection. DELETE's row UPDATE and UPDATE's
 NO KEY UPDATE holds are distinct mutually conflicting modes on the same logical
 row resource; distinct rows arbitrate independently and ordinary SELECT does not
-wait on those holds. Both commands freeze one candidate view after relation grant:
-peer inserts during a wait are not candidates, peer committed deletions are skipped,
-and changed predecessor values require predicate recheck before mutation. Peer
-rollback retains the original predecessor. Use lock_timeout or caller deadlines
+wait on those holds. READ COMMITTED/UNCOMMITTED freeze candidates after relation
+grant: peer inserts during row waits are not candidates, committed deletions are
+skipped, and changed values require predicate recheck. REPEATABLE READ uses its
+retained roots; after real row grant a newer committed predecessor fails `40001`,
+`could not serialize access due to concurrent update` or `... concurrent delete`,
+before dead-row skipping, predicate recheck or assignment. A post-snapshot
+replacement followed by deletion reports concurrent update; deletion of the
+snapshot predecessor itself reports concurrent delete. Peer rollback retains
+the original predecessor. Use lock_timeout or caller deadlines
 to bound conflicting operations; conflicting conversion cycles are
 not protected by deadlock detection.
 
-An explicit transaction sees its successful earlier writes; other physical
-sessions see only committed data. Each SELECT execution captures a fresh
-READ COMMITTED view, so a peer commit becomes visible to the next command,
+An explicit transaction sees successful earlier private writes/deletes; other
+sessions see only committed data. READ COMMITTED/UNCOMMITTED execution captures a
+fresh view, so a peer commit becomes visible to the next command,
 including a query prepared before that commit. Duplicate rows retain their
 multiplicity. Commit atomically publishes all staged relations, preserving peer
 commits; Rollback discards them. Every standalone statement commits independently.
@@ -449,7 +470,7 @@ successful private work.
 | Explicit CREATE/ALTER/DROP TABLE, schema, COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
-| Unsupported isolation / read-only option | Ordinary `stuntgres: unsupported transaction isolation level` / `stuntgres: read-only transactions are unsupported`, before state change |
+| Unsupported Go isolation option | Ordinary `stuntgres: unsupported transaction isolation level`, before state change |
 | Nested raw driver BeginTx | Ordinary `stuntgres: transaction already active` |
 | Repeated raw handle end | Ordinary `stuntgres: transaction is done`; old handles cannot end a newer incarnation |
 | Internal foreign/zero / stale TxRef | Ordinary `stuntgres: foreign or missing transaction reference` / `stuntgres: stale transaction reference` |
@@ -825,7 +846,8 @@ a general PostgreSQL evaluation-order or short-circuit promise.
 Direct and held prepared execution infer parameter types from SQL, not Go values,
 and return the exact number actually deleted through RowsAffected; zero is success.
 There is no result relation without RETURNING and no LastInsertId. Preparation
-captures descriptions and relation locks only, not rows or a future execution snapshot.
+captures descriptions and relation locks, and fixes an explicit REPEATABLE READ
+snapshot without taking row locks or executing writes.
 Execution checks table DELETE and SELECT on actually read predicate columns;
 omitted or constant predicates do not invent a SELECT requirement. SQL GRANT
 remains excluded; the existing internal catalog ACL authority supplies rights.
@@ -845,6 +867,43 @@ object/epoch and row/version/ordinal, not descriptor revision. ACL changes do no
 retroactively reauthorize staged work at COMMIT; each fresh prepared Execute
 still checks current privileges. Replacement, removal/recreation and incompatible
 row-shape changes remain fenced.
+
+REPEATABLE READ atomically retains the immutable version headers/end roots of
+all relations, including empty and never-read tables, on the first data analysis
+or SELECT (including identity/settings functions), not at BEGIN. No row values
+are copied. Later statements see that committed frontier plus successful own
+changes. Current names, descriptors and ACLs still bind at grant time: a new or
+recreated identity has an empty committed root at the retained frontier.
+Compatible COMMENT/ACL revisions remain valid; incompatible saved storage/row
+shape is the ordinary native `ErrCatalogReplaced` boundary, not transactional-DDL
+compatibility. Native Reset/Restore remains an epoch fence; returned rows retain
+their own immutable pins across end, CHAIN and teardown.
+
+`default_transaction_isolation` and `default_transaction_read_only` are typed
+session defaults. SET/LOCAL, RESET, session characteristics and set_config share
+the settings journal: commit preserves SESSION, rollback restores, LOCAL expires.
+SHOW/SHOW ALL/current_setting of `transaction_isolation`/`transaction_read_only`
+resolve the active owner. Current values cannot be RESET, SET TO DEFAULT or reset
+by set_config(NULL): `0A000`, `parameter "<name>" cannot be reset`. RESET ALL
+excludes current modes but transactionally resets defaults.
+
+A changed requested isolation after the first data snapshot fails `25001`,
+`SET TRANSACTION ISOLATION LEVEL must be called before any query`; identical
+assignment is allowed (RU and RC are different requested modes). RW to RO is
+allowed after a query/write; late RO to RW fails `25001`, `transaction read-write
+mode must be set before any query`. Outside a block SET TRANSACTION warns `25P01`,
+`SET TRANSACTION can only be used in transaction blocks`, at execution only.
+Read-only execution rejects INSERT/UPDATE/DELETE and supported CREATE/ALTER/DROP
+table/schema/role and COMMENT tags with `25006`, `cannot execute <tag> in a
+read-only transaction`. Utility rejection precedes object resolution,
+authorization and lock acquisition, as well as the native explicit-utility
+boundary. DML retains semantic analysis before its read-only execution check.
+Valid data-write Prepare analyzes/describes without execution rejection;
+utility Prepare inside an explicit transaction remains native `0A000`.
+Held statements recheck at Execute. SELECT, settings, controls and supported
+ACCESS EXCLUSIVE LOCK remain allowed. Failures abort/discard prior private work.
+Feature smoke: `make smoke RUN='^TestTransactionIsolationSmoke$$' VERBOSE=1`.
+
 INSERT query sources use that same live view, including earlier own deletions:
 self-insert copies only captured survivors, never deleted history or its new batch.
 
@@ -2753,7 +2812,7 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 `go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
 
 
-Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, casts outside the bounded baseline and character-family sets, constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, SQL transaction mode clauses, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, stronger isolation, SQL ACL mutation, or SQL catalog projections are not supported. The default-mode SQL transaction controls described above, including chain syntax and transactional settings, are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Three-part/database qualification, temporary-object creation, SELECT aliases/qualified columns, joins, generic expressions/functions, casts outside the bounded baseline and character-family sets, constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, savepoints, two-phase commit, transactional DDL/COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation, or SQL catalog projections are not supported. SQL transaction controls, RU/RC/RR modes, read-only access, CHAIN and current/default transactional settings described above are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
 
 SQL errors support `errors.As` into `interface { SQLState() string }`; exported `stuntgres.Error` preserves PostgreSQL severity, nonlocalized severity, five-character Code, primary Message, Detail, Hint, one-based character Position, InternalQuery/InternalPosition, Context, and independently optional Schema, Table, Column, DataType and Constraint fields. Optional empty strings are absent; InternalPosition is supplied only with InternalQuery. File, Line and Routine, if present, are implementation-specific locations and never PostgreSQL C locations. `Error()` remains a presentation string, not a source for SQLSTATE or severity. The type is not `*pq.Error`; concrete lib/pq assertions are not compatible. Context, I/O, closed-object, argument-count and foreign-driver errors are ordinary Go errors. Cancellation cannot forcibly interrupt arbitrary blocking reader/writer calls.
 

@@ -117,6 +117,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		}
 	}
 	var next TxRef
+	isolation, readOnly := t.isolation, t.readOnly
 	if chain {
 		if t.next == TxID(^uint64(0)) {
 			return EndResult{}, errors.New("stuntgres: transaction identity exhausted")
@@ -174,6 +175,11 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	if chain {
 		t.ref = next
 		t.state = TxActive
+		t.isolation, t.readOnly = isolation, readOnly
+		// CHAIN restores modes directly: they are the new block's unstacked
+		// baseline, unlike BEGIN's overrides of session defaults.
+		t.entryIsolation, t.entryReadOnly = isolation, readOnly
+		t.syncCharacteristics()
 		t.start = time.Now().UTC()
 		t.ticket = candidate
 		candidate = nil
@@ -200,8 +206,16 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 	t.mu.Unlock()
 	var err error
 	if control.Kind == parser.KindStart {
+		if err := validateModes(control.Modes); err != nil {
+			return Result{}, err
+		}
 		if state == TxIdle {
 			_, err = e.beginAdmitted(s.op, t)
+			if err == nil {
+				t.mu.Lock()
+				err = t.assignModes(control.Modes)
+				t.mu.Unlock()
+			}
 		} else {
 			err = e.endPreflight(s.op)
 			if err == nil {

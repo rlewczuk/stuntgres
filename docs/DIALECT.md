@@ -102,11 +102,13 @@ general PostgreSQL short-circuit or operand-order guarantee.
 
 Execution requires table DELETE plus SELECT on actually read predicate columns,
 never a fabricated SELECT requirement for omitted/constant WHERE. Prepare binds
-metadata and acquires RX but owns no candidate view or row hold. Execute captures
-one READ COMMITTED candidate view after relation grant, then row UPDATE arbitration
-through the existing manager. Same-row peer commit skips the ended predecessor;
-rollback permits deletion; newly committed matching inserts during a wait remain
-outside the fixed candidate set. Distinct rows and ordinary SELECT remain independent.
+metadata and acquires RX but no row hold. Data analysis fixes transaction
+characteristic timing and the REPEATABLE READ snapshot before relation waits.
+READ COMMITTED/UNCOMMITTED capture execution candidates after relation grant:
+peer commit skips an ended predecessor, rollback permits deletion, and newly
+matching inserts during a wait remain outside the fixed set. REPEATABLE READ
+rejects newer committed heads/ends with 40001 before liveness/predicate recheck.
+Distinct rows and ordinary SELECT remain independent.
 Successful own earlier insert/delete commands overlay subsequent commands. One
 atomic frontier publishes all insertions/deletions before holds are released;
 failure/cancellation discards everything admitted, including earlier explicit
@@ -759,7 +761,65 @@ ALTER TABLE also supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] 
 The optional ALTER DROP COLUMN keyword consumes the shared dedicated COLUMN token used by COMMENT, not legacy KW_R text matching. Quoted keyword targets remain decoded IDENT names; preserve keyword categories and positioned parser errors when integrating grammar changes.
 Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion per row through common Insert. DEFAULT VALUES also applies declared defaults/typed NULL for nonzero-column tables; VALUES() remains invalid syntax. Restore does not accept ALTER TABLE history. Feature smoke: `make smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'`.
 
-Do not widen syntax beyond the documented selected surface: no savepoints, nested transactions, 2PC, SQL transaction modes, SELECT aliases/qualified columns, general casts/joins/functions/expressions, ALTER DEFAULT, serial/identity, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING or extra clauses. SQL BEGIN [WORK|TRANSACTION], START TRANSACTION and COMMIT/END/ROLLBACK/ABORT [WORK|TRANSACTION] [AND [NO] CHAIN] support default READ COMMITTED/read-write INSERT/UPDATE/SELECT/DELETE, settings and the AX utility below. Complete excluded mode/savepoint/2PC grammar fails 0A000; malformed whole clauses/suffixes retain 42601. Driver BeginTx/Commit/Rollback preserves default/explicit READ COMMITTED options and qualified handles. Explicit CREATE/ALTER/DROP SCHEMA and CREATE/ALTER/DROP TABLE, COMMENT and role/session-authorization utilities remain native unsupported boundaries. Settings reuse the shared registry/binder and catalog-resolved sqltype descriptors/values. SESSION/LOCAL/RESET share one effective overlay and a lazy bounded per-touched-setting action map. Transaction ownership resolves commit, rollback, implicit completion and immediate abort; restoration uses captured typed/text overrides without callbacks or reparsing. Stage normalizers outside locks; final publication order is Engine→settings→Session, never settings→transaction. Prepare is metadata-only for settings. SCHEMA is the string-only search_path alias. Driver.RegisterSetting publishes copied dotted typed definitions before first Engine construction, then freezes. Supported builtins are application_name, client_min_messages with notice filtering, search_path, standard_conforming_strings, statement_timeout, lock_timeout, read-only UTF8 server_encoding and deny-only log_statement_stats. No timezone/client_encoding/savepoints or privileged/file/process effects; preserve existing role/ACL capabilities. See README for units, bounds, diagnostics and physical-session behavior. Recognized unsupported features fail `0A000`; malformed supported syntax fails `42601`. Commands accept at most one statement except Restore. Caller context cancellation stays ordinary; own statement timers return 57014 and lock-wait timers return 55P03. Failed multirow INSERT/UPDATE/DELETE must not partially publish data.
+Do not widen syntax beyond the selected surface: no savepoints, nested transactions,
+2PC, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SELECT aliases/qualified columns,
+general casts/joins/functions/expressions, ALTER DEFAULT, serial/identity, primary
+keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF or RETURNING.
+SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
+READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ and READ ONLY/READ WRITE modes.
+SET TRANSACTION changes current owner modes; SET SESSION CHARACTERISTICS AS
+TRANSACTION changes typed defaults. SERIALIZABLE/[NOT] DEFERRABLE syntax is
+complete but execution is native 0A000; malformed suffixes remain 42601.
+Driver default isolation honors defaults; explicit RU/RC/RR overrides and Go
+ReadOnly=false requests RW. COMMIT/END/ROLLBACK/ABORT [WORK|TRANSACTION]
+[AND [NO] CHAIN] retain qualified handles and one publication authority.
+Explicit modifying utilities remain a native 0A000 boundary in RW blocks.
+Exec-only RO rejects supported INSERT/UPDATE/DELETE, CREATE/ALTER/DROP
+table/schema/role and COMMENT with 25006/canonical tag before effects and that
+native utility boundary; valid data-write Prepare still analyzes/describes.
+LOCK, reads and settings remain allowed; session authorization retains its
+separate native explicit boundary.
+
+Settings use the existing registry, typed values and SESSION/LOCAL action journal.
+Commit preserves SESSION, rollback/abort restores, LOCAL expires. Current
+transaction_isolation/read_only resolve the owner; default_transaction_isolation/
+read_only affect next starts only. Current RESET/SET DEFAULT/set_config(NULL)
+reject 0A000 `parameter "<name>" cannot be reset`; RESET ALL excludes current
+modes but transactionally resets defaults. Different isolation after the first
+snapshot fails 25001; identical requested mode succeeds (RU != RC). Late RO→RW
+fails 25001; RW→RO succeeds. SET TRANSACTION outside a block warns25P01 at Exec.
+Route current assignments before Engine/settings/Session locks, never invert
+owner-first order. Providers/normalizers run outside publication locks.
+Physical settings registration, search_path alias, timer and adapter boundaries
+are unchanged. Restore whitelist does not expand. Multirow DML remains atomic.
+SHOW ALL built-in descriptions are PostgreSQL 18.0's English short_desc metadata,
+including all four current/default transaction settings; custom descriptions
+remain the registered text, with no blanket built-in metadata exemption.
+
+REPEATABLE READ retains all canonical relations' immutable slice headers/end
+roots once, including empty/never-read relations, before semantic waits; no row
+values are copied and BEGIN captures nothing. RC/RU execution remains grant-time
+fresh. SELECT singleton/identity/settings functions and data Prepare freeze timing.
+Current binding/ACL uses grant-time metadata. Missing saved addresses mean empty
+committed roots; saved incompatible storage/row shape is ordinary ErrCatalogReplaced,
+not historical-catalog/transactional-DDL support. Results pin roots independently.
+Healthy CHAIN preserves final isolation/access despite changed defaults and clears
+snapshot/writes/deletes/holds. Abort restores current modes to entry defaults,
+before BEGIN/Go overrides, and rolls back in-block default changes; aborted
+CHAIN carries those restored modes. Plain end then BEGIN uses session defaults.
+A chained block uses its carried modes as the abort baseline, not session defaults.
+For RR conflicts a post-frontier committed replacement reports concurrent update
+even if subsequently deleted; only deletion of the snapshot predecessor reports
+concurrent delete.
+Read-only modifying utilities reject with 25006 before object resolution,
+authorization and relation locks, including missing or locked targets and
+statements prepared before BEGIN. DML retains semantic analysis before read-only
+execution rejection. Utility Prepare inside explicit transactions and read-write
+utility execution retain the native unsupported 0A000 boundary; no transactional
+DDL support is implied.
+Feature commands: `make test RUN='^TestTransactionIsolation'`,
+`make reference RUN='^TestReferenceTransactionIsolation'`,
+`make smoke RUN='^TestTransactionIsolationSmoke$$'`.
 
 Control classification precedes ordinary implicit birth/epoch/command gating. Prepare is effect/notice-free; start Prepare Aborted gives 25P02, end Prepare remains eligible without recovering until Exec. Same-epoch SQL Aborted COMMIT succeeds by rollback/count0, whereas Go Commit keeps its failed-transaction ordinary error. Completed controls Finish once without late authority checks/merge/command advance into a chained incarnation. Shared private helpers never reacquire admission; one physical-session owner and publishWrites remain sole authority. CHAIN reserves a fresh current-epoch ref and empty ticket before old publication under the existing short replacement read fence; install is infallible, then release old holds before waking waiters. Resolve old settings actions after publication and before clearing/installing the next incarnation; CHAIN inherits committed SESSION values, never LOCAL values or old actions. Old native GoTx refs cannot end a new SQL incarnation (intentionally unlike pq's unqualified old end). Healthy pool reuse/borrower Close preserves SQL blocks; pin and explicitly end before pool return. Physical end drains and discards only its own private work/holds. Restore's whitelist still rejects controls; no script-transaction expansion.
 
@@ -774,7 +834,7 @@ recovers across epochs, including fresh current-epoch ROLLBACK AND CHAIN.
 End Prepare remains effect-free/eligible; retained handles are not deleted.
 
 
-Relation locking is transaction-owned AS for SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for UPDATE, internal SUE for COMMENT TABLE/COLUMN Execute, owner-authorized AX for selected ALTER utilities, and explicit single-target `LOCK TABLE name IN ACCESS EXCLUSIVE MODE [NOWAIT]` in an explicit block under the current superuser role. The two row modes are distinct, mutually conflicting bits on one logical row resource, not separate domains. AS/RX coexist with SUE; SUE conflicts with other-owner SUE; AX conflicts across owners; same-owner operations reenter. Semantic SELECT/INSERT/UPDATE/DELETE Prepare acquires AS/RX (implicit Finish releases, explicit retains despite stmt.Close), never row holds; LOCK, COMMENT and ALTER Prepare are metadata-only. Earlier conflicting waiters prevent barging. NOWAIT fails without enqueue with 55P03/relation-name message. Typed lock_timeout defaults to 0/off, uses the existing millisecond SET/RESET/local lifecycle and times each queued acquisition separately, including preparation and UPDATE/DELETE rows, never immediate grants or whole operations. Earlier absolute SQL deadline wins (exact tie favors lock timeout); caller context errors retain Go identity. Abort/end releases exact owner state; commit publishes before waking successors. Interruption removes requests and wakes successors without disturbing holders. Successful replacement fences old held/waiting epochs outside metadata locks; only genuinely queued implicit SQL drops replacement admission and revalidates exact identity afterward. UPDATE and DELETE retain their original candidate view, skip a committed deletion, and recheck changed predecessor values without admitting peer inserts. ALTER releases replacement admission before catalog provider validation and checks descriptor/storage generation/end-root tokens at publication. Additional exposed modes, conversion/deadlock detection, advisory resources and introspection remain excluded.
+Relation locking is transaction-owned AS for SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for UPDATE, internal SUE for COMMENT TABLE/COLUMN Execute, owner-authorized AX for selected ALTER utilities, and explicit single-target `LOCK TABLE name IN ACCESS EXCLUSIVE MODE [NOWAIT]` in an explicit block under the current superuser role. The two row modes are distinct, mutually conflicting bits on one logical row resource, not separate domains. AS/RX coexist with SUE; SUE conflicts with other-owner SUE; AX conflicts across owners; same-owner operations reenter. Semantic data Prepare acquires AS/RX, fixes characteristic timing and the explicit RR snapshot before waits (implicit Finish releases, explicit retains despite stmt.Close), never row holds; LOCK, COMMENT and ALTER Prepare are metadata-only. Earlier conflicting waiters prevent barging. NOWAIT fails without enqueue with 55P03/relation-name message. Typed lock_timeout defaults to 0/off, uses the existing millisecond SET/RESET/local lifecycle and times each queued acquisition separately, including preparation and UPDATE/DELETE rows, never immediate grants or whole operations. Earlier absolute SQL deadline wins (exact tie favors lock timeout); caller context errors retain Go identity. Abort/end releases exact owner state; commit publishes before waking successors. Interruption removes requests and wakes successors without disturbing holders. Successful replacement fences old held/waiting epochs outside metadata locks; only genuinely queued implicit SQL drops replacement admission and revalidates exact identity afterward. UPDATE/DELETE never widen candidates to peer inserts: RC/RU skip committed deletion and recheck changed predecessor values, while RR rejects newer committed heads/ends with40001 after real immediate/queued grant. ALTER releases replacement admission before catalog provider validation and checks descriptor/storage generation/end-root tokens at publication. Additional exposed modes, conversion/deadlock detection, advisory resources and introspection remain excluded.
 Lock-timeout55P03 during direct SELECT/INSERT/UPDATE/DELETE relation analysis or semantic Prepare carries the original ObjectName's first token character Position (schema token for qualified names). Cached Execute, UPDATE/DELETE row waits and utility timeouts have no parse-analysis Position;57014 is excluded from this decoration. Do not put source-position policy into manager resources or fabricate Schema/Table fields.
 Queued work binds the grant-time descriptor of the exact retained ObjectRef; a same-identity definition revision is valid, while epoch changes/removal/recreation remain fenced. Keep subsequent grant-time descriptor pinning and catalog/storage publication guards. Post-drop quoted expression errors use literal decoded identifiers and character positions. Positive qualified ordinary-owner controls use one ordinary schema/table owner; separate distinct-owner Restore/denial/replay witnesses retain the namespace-USAGE and explicit-ACL Dump boundaries without adding native GRANT.
 ALTER re-resolution must compare the complete ObjectRef with scope.lockedRef before owner/column semantics, notices or staging, then use the validated grant-time lockedDescriptor. A search_path shadow created during an AX wait fails ErrCatalogReplaced without effects or reacquisition; PostgreSQL's independently asserted utility behavior instead reacquires the shadow AX. Never reinstate a pre-wait descriptor-revision fence.

@@ -352,12 +352,20 @@ func settingsRun() error {
 		return fmt.Errorf("SHOW ALL columns %v", cols)
 	}
 	expected := map[string][2]string{
-		"application_name": {"", "Sets the application name to be reported in statistics and logs."}, "client_min_messages": {"notice", "Sets the message levels that are sent to the client."},
-		"bytea_output":        {"hex", "Sets the output format for bytea."},
-		"log_statement_stats": {"off", "Writes cumulative performance statistics to the server log."}, "server_encoding": {"UTF8", "Shows the server (database) character set encoding."},
-		"search_path":                 {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
-		"standard_conforming_strings": {"on", "Causes '...' strings to treat backslashes literally."}, "statement_timeout": {"0", "Sets the maximum allowed duration of any statement."},
-		"lock_timeout": {"0", "Sets the maximum allowed duration of any wait for a lock."},
+		// PostgreSQL REL_18_0 guc_tables.c short_desc, independent of the registry.
+		"application_name":              {"", "Sets the application name to be reported in statistics and logs."},
+		"client_min_messages":           {"notice", "Sets the message levels that are sent to the client."},
+		"bytea_output":                  {"hex", "Sets the output format for bytea."},
+		"log_statement_stats":           {"off", "Writes cumulative performance statistics to the server log."},
+		"server_encoding":               {"UTF8", "Shows the server (database) character set encoding."},
+		"standard_conforming_strings":   {"on", "Causes '...' strings to treat backslashes literally."},
+		"statement_timeout":             {"0", "Sets the maximum allowed duration of any statement."},
+		"lock_timeout":                  {"0", "Sets the maximum allowed duration of any wait for a lock."},
+		"search_path":                   {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
+		"default_transaction_isolation": {"read committed", "Sets the transaction isolation level of each new transaction."},
+		"default_transaction_read_only": {"off", "Sets the default read-only status of new transactions."},
+		"transaction_isolation":         {"read committed", "Sets the current transaction's isolation level."},
+		"transaction_read_only":         {"off", "Sets the current transaction's read-only status."},
 	}
 	for _, v := range settingsDefinitions() {
 		value := v.Default
@@ -378,7 +386,7 @@ func settingsRun() error {
 			return err
 		}
 		want, ok := expected[n]
-		if n <= last || !ok || want != [2]string{v, desc} {
+		if n <= last || !ok || want[0] != v || want[1] != desc {
 			return fmt.Errorf("SHOW ALL %s %q %q", n, v, desc)
 		}
 		last = n

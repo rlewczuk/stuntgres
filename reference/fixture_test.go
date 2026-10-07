@@ -880,3 +880,41 @@ func (f controlsReferenceFixture) rows(t *testing.T, x referenceExecutor, values
 	t.Helper()
 	referenceRunStep(t, f.pair.ctx, x, f.recorder, referenceTransactionRows(false, "SELECT v FROM t ORDER BY v", values...))
 }
+func isolationReferenceConnections(t *testing.T, postgres bool) (*sql.DB, *sql.Conn, *sql.Conn) {
+	t.Helper()
+	pair := newReferencePair(t)
+	db := pair.memory
+	if postgres {
+		db = pair.postgres
+	}
+	a, err := db.Conn(pair.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := db.Conn(pair.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		a.ExecContext(context.Background(), "ROLLBACK")
+		b.ExecContext(context.Background(), "ROLLBACK")
+		a.Close()
+		b.Close()
+	})
+	return db, a, b
+}
+func isolationReferenceAffected(t *testing.T, ctx context.Context, x referenceExecutor, query string, prepared bool, want int64) {
+	t.Helper()
+	referenceRunStep(t, ctx, x, &referenceRecorder{}, referenceStep{query: query, prepared: prepared, affected: want})
+}
+func isolationReferenceSelect(t *testing.T, ctx context.Context, x referenceExecutor, query string, prepared bool, want ...int64) {
+	t.Helper()
+	referenceRunStep(t, ctx, x, &referenceRecorder{}, referenceTransactionRows(prepared, query, want...))
+}
+func isolationReferenceWant(code, message string) referenceDiagnostic {
+	return referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
+}
+func isolationReferenceDiagnostic(t *testing.T, err error, want referenceDiagnostic) {
+	t.Helper()
+	referenceAssertDiagnostic(t, err, &want)
+}

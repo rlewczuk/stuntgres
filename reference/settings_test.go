@@ -94,24 +94,73 @@ func TestReferenceSettingsSQL(t *testing.T) {
 					referenceRunStep(t, p.ctx, b, backend.record, unknown)
 					run(referenceExec("RESET ALL", 0))
 					run(referenceSelect("SHOW demo.placeholder", []string{"demo.placeholder"}, []string{"TEXT"}, [][]any{{""}}))
-					expected := [][]any{
-						{"application_name", "", "Sets the application name to be reported in statistics and logs."},
-						{"bytea_output", "hex", "Sets the output format for bytea."},
-						{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
-						{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
-						{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
-						{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
-						{"server_encoding", "UTF8", "Shows the server (database) character set encoding."},
-						{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},
-						{"statement_timeout", "0", "Sets the maximum allowed duration of any statement."},
+					// Independent REL_18_0 guc_tables.c short_desc expectations.
+					expected := map[string][2]string{
+						"application_name":              {"", "Sets the application name to be reported in statistics and logs."},
+						"bytea_output":                  {"hex", "Sets the output format for bytea."},
+						"client_min_messages":           {"notice", "Sets the message levels that are sent to the client."},
+						"default_transaction_isolation": {"read committed", "Sets the transaction isolation level of each new transaction."},
+						"default_transaction_read_only": {"off", "Sets the default read-only status of new transactions."},
+						"lock_timeout":                  {"0", "Sets the maximum allowed duration of any wait for a lock."},
+						"log_statement_stats":           {"off", "Writes cumulative performance statistics to the server log."},
+						"search_path":                   {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
+						"server_encoding":               {"UTF8", "Shows the server (database) character set encoding."},
+						"standard_conforming_strings":   {"on", "Causes '...' strings to treat backslashes literally."},
+						"statement_timeout":             {"0", "Sets the maximum allowed duration of any statement."},
+						"transaction_isolation":         {"read committed", "Sets the current transaction's isolation level."},
+						"transaction_read_only":         {"off", "Sets the current transaction's read-only status."},
 					}
-					if backend.name == "native" {
-						run(referenceSelect("SHOW ALL", []string{"name", "setting", "description"}, []string{"TEXT", "TEXT", "TEXT"}, expected))
-					} else {
-						// A genuine pg_settings projection, not fabricated parity for a whole catalog.
-						run(referenceSelect("SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('application_name','bytea_output','client_min_messages','lock_timeout','log_statement_stats','search_path','server_encoding','standard_conforming_strings','statement_timeout') ORDER BY name", []string{"name", "setting", "short_desc"}, []string{"TEXT", "TEXT", "TEXT"}, expected))
+					query := "SHOW ALL"
+					if backend.name == "postgres" {
+						// Project the genuine registry, not fabricated whole-catalog parity.
+						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('application_name','bytea_output','client_min_messages','default_transaction_isolation','default_transaction_read_only','lock_timeout','log_statement_stats','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_isolation','transaction_read_only') ORDER BY name"
 						run(referenceSelect("SELECT name FROM pg_settings WHERE name='demo.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
 					}
+					var rows *sql.Rows
+					if prepared {
+						stmt, e := a.PrepareContext(p.ctx, query)
+						if e != nil {
+							t.Fatal(e)
+						}
+						defer stmt.Close()
+						rows, err = stmt.QueryContext(p.ctx)
+					} else {
+						rows, err = a.QueryContext(p.ctx, query)
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer rows.Close()
+					columns, err := rows.Columns()
+					if err != nil || len(columns) != 3 || columns[0] != "name" || columns[1] != "setting" || columns[2] != map[bool]string{false: "description", true: "short_desc"}[backend.name == "postgres"] {
+						t.Fatal(columns, err)
+					}
+					types, err := rows.ColumnTypes()
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, typ := range types {
+						if typ.DatabaseTypeName() != "TEXT" {
+							t.Fatal(typ)
+						}
+					}
+					last := ""
+					for rows.Next() {
+						var name, value, description string
+						if err := rows.Scan(&name, &value, &description); err != nil {
+							t.Fatal(err)
+						}
+						want, ok := expected[name]
+						if name <= last || !ok || value != want[0] || description != want[1] {
+							t.Fatal(name, value, description, want)
+						}
+						last = name
+						delete(expected, name)
+					}
+					if rows.Err() != nil || len(expected) != 0 {
+						t.Fatal(rows.Err(), expected)
+					}
+					rows.Close()
 				})
 			}
 		})

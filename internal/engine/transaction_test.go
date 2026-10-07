@@ -289,10 +289,8 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 		t.Fatal("done operation mutated state")
 	}
 	transactionEnd(t, a, next, false)
-	for _, options := range []TxOptions{{Isolation: Isolation(99)}, {ReadOnly: true}} {
-		if _, err := e.Begin(op, options); err == nil || a.TransactionState() != TxIdle {
-			t.Fatal("option mutation")
-		}
+	if _, err := e.Begin(op, TxOptions{Isolation: Isolation(99)}); err == nil || a.TransactionState() != TxIdle {
+		t.Fatal("option mutation")
 	}
 	a.transactions.next = TxID(^uint64(0))
 	if _, err := e.Begin(op, TxOptions{}); err == nil || a.TransactionState() != TxIdle {

@@ -172,6 +172,9 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate upd
 	if !found {
 		return rowVersion{}, false, errors.New("stuntgres: invalid update predecessor")
 	}
+	if err := s.repeatableConflict(row, store.ends); err != nil {
+		return rowVersion{}, false, err
+	}
 	return row, liveVersion(row, e.commitSeq, store.ends, s.ownDeletes[ref.Address]), nil
 }
 

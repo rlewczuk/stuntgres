@@ -38,6 +38,9 @@ package parser
  settingName settingName
  tables []*CreateTable
  table *CreateTable
+ modes []TransactionMode
+ mode TransactionMode
+ isolation TransactionIsolation
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -145,7 +148,10 @@ package parser
 %type <objectName> comment_column_name
 %type <value> comment_text
 %type <tok> comment_excluded_kind comment_excluded_word
-%type <tok> transaction_modes transaction_mode transaction_start commit_word rollback_start
+%type <tok> transaction_start commit_word rollback_start characteristics_word
+%type <modes> transaction_modes
+%type <mode> transaction_mode
+%type <isolation> isolation_mode
 %type <desc> opt_chain
 %type <tok> transaction_name
 %%
@@ -174,7 +180,9 @@ comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
 comment_excluded_word: IDENT | KW_U | KW_T | KW_R ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
- | transaction_start transaction_modes { sqllex.(*lexer).deferUnsupported($2,"transaction modes are unsupported"); $$=nil }
+ | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
+ | SET TRANSACTION transaction_modes { $$=&TransactionCharacteristics{Pos:$1.pos,Modes:$3} }
+ | SET SESSION characteristics_word AS TRANSACTION transaction_modes { $$=&TransactionCharacteristics{Session:true,Pos:$1.pos,Modes:$6} }
  | commit_word opt_transaction opt_chain { $$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos} }
  | rollback_start opt_chain { $$=&TransactionControl{Kind:KindRollback,Chain:$2,Pos:$1.pos} }
  | ABORT opt_transaction opt_chain { $$=&TransactionControl{Kind:KindRollback,Chain:$3,Pos:$1.pos} }
@@ -196,13 +204,19 @@ opt_chain: /* empty */ { $$=false } | AND CHAIN { $$=true } | AND NO CHAIN { $$=
  * RELEASE SAVEPOINT and ROLLBACK TO SAVEPOINT still require an operand.
  * SAVEPOINT stays name-eligible in actual name positions. */
 optional_savepoint: /* empty */ %prec NAME_LIST | SAVEPOINT ;
-transaction_modes: transaction_mode | transaction_modes ',' transaction_mode { $$=$1 } | transaction_modes transaction_mode { $$=$1 } ;
-transaction_mode: ISOLATION LEVEL isolation_mode { $$=$1 }
- | READ ONLY { $$=$1 }
- | READ mode_write { $$=$1 }
- | DEFERRABLE
- | NOT DEFERRABLE { $$=$1 } ;
-isolation_mode: READ COMMITTED | READ UNCOMMITTED | REPEATABLE READ | SERIALIZABLE ;
+characteristics_word: KW_U { if $1.text!="characteristics" { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
+transaction_modes: transaction_mode { $$=[]TransactionMode{$1} }
+ | transaction_modes ',' transaction_mode { $$=append($1,$3) }
+ | transaction_modes transaction_mode { $$=append($1,$2) } ;
+transaction_mode: ISOLATION LEVEL isolation_mode { $$=TransactionMode{Isolation:$3} }
+ | READ ONLY { $$=TransactionMode{AccessSet:true,ReadOnly:true} }
+ | READ mode_write { $$=TransactionMode{AccessSet:true} }
+ | DEFERRABLE { $$=TransactionMode{Unsupported:true} }
+ | NOT DEFERRABLE { $$=TransactionMode{Unsupported:true} } ;
+isolation_mode: READ COMMITTED { $$=IsolationReadCommitted }
+ | READ UNCOMMITTED { $$=IsolationReadUncommitted }
+ | REPEATABLE READ { $$=IsolationRepeatableRead }
+ | SERIALIZABLE { $$=IsolationSerializable } ;
 mode_write: KW_U { if $1.text!="write" { sqllex.(*lexer).syntax($1); return 1 } } ;
 lock_table: LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE { $$=&LockTable{Name:$3,Pos:$1.pos} }
  | LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE lock_nowait { $$=&LockTable{Name:$3,Pos:$1.pos,Nowait:true} }

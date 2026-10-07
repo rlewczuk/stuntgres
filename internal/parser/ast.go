@@ -307,11 +307,36 @@ const (
 	KindRollback
 )
 
-// TransactionControl contains only executable default-mode controls.
+type TransactionIsolation uint8
+
+const (
+	IsolationDefault TransactionIsolation = iota
+	IsolationReadCommitted
+	IsolationReadUncommitted
+	IsolationRepeatableRead
+	IsolationSerializable
+)
+
+type TransactionMode struct {
+	Isolation   TransactionIsolation
+	AccessSet   bool
+	ReadOnly    bool
+	Unsupported bool
+}
+
+type TransactionCharacteristics struct {
+	Session bool
+	Modes   []TransactionMode
+	Pos     Position
+}
+
+func (*TransactionCharacteristics) statement() {}
+
 type TransactionControl struct {
 	Kind  TransactionControlKind
 	Chain bool
 	Pos   Position
+	Modes []TransactionMode
 }
 
 func (*TransactionControl) statement() {}

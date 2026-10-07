@@ -340,12 +340,10 @@ func TestTransactionOptionsAndExplicitUtilityBoundary(t *testing.T) {
 	_, a, b := transactionConnections(t)
 	ctx := context.Background()
 	transactionAffected(t, ctx, b, "CREATE TABLE t(v INT)", false, 0)
-	for _, level := range []sql.IsolationLevel{sql.LevelReadUncommitted, sql.LevelRepeatableRead, sql.LevelSerializable} {
+	for _, level := range []sql.IsolationLevel{sql.LevelSerializable, sql.LevelSnapshot, sql.LevelLinearizable} {
 		_, err := a.BeginTx(ctx, &sql.TxOptions{Isolation: level})
 		transactionOrdinary(t, err, "stuntgres: unsupported transaction isolation level")
 	}
-	_, err := a.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	transactionOrdinary(t, err, "stuntgres: read-only transactions are unsupported")
 	for _, q := range []string{"CREATE TABLE forbidden(v INT)"} {
 		tx, err := a.BeginTx(ctx, nil)
 		if err != nil {
@@ -357,7 +355,7 @@ func TestTransactionOptionsAndExplicitUtilityBoundary(t *testing.T) {
 		tx.Rollback()
 	}
 	transactionSelect(t, ctx, b, "SELECT v FROM t ORDER BY v", false)
-	_, err = b.QueryContext(ctx, "SELECT v FROM forbidden")
+	_, err := b.QueryContext(ctx, "SELECT v FROM forbidden")
 	sqlState(t, err, "42P01")
 }
 func TestTransactionBeginContextCancellation(t *testing.T) {

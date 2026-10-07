@@ -2,7 +2,6 @@ package parser
 
 import (
 	"errors"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -13,10 +12,6 @@ func TestTransactionControlsGrammar(t *testing.T) {
 	starts := []string{"BEGIN", "BEGIN WORK", "BEGIN TRANSACTION", "START TRANSACTION"}
 	for _, q := range starts {
 		controlParse(t, q, KindStart, false)
-		for _, mode := range []string{"ISOLATION LEVEL READ UNCOMMITTED", "ISOLATION LEVEL READ COMMITTED", "ISOLATION LEVEL REPEATABLE READ", "ISOLATION LEVEL SERIALIZABLE", "READ ONLY", "READ WRITE", "DEFERRABLE", "NOT DEFERRABLE", "READ WRITE, NOT DEFERRABLE", "ISOLATION LEVEL READ COMMITTED READ WRITE"} {
-			controlParseError(t, q+" "+mode, "0A000", "transaction modes are unsupported", strconv.Itoa(len(q)+2))
-			controlParseError(t, q+" "+mode+" junk", "42601", "", "")
-		}
 	}
 	for _, word := range []string{"COMMIT", "END", "ROLLBACK", "ABORT"} {
 		kind := KindCommit

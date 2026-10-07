@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"stuntgres/internal/parser"
@@ -28,7 +27,13 @@ const (
 
 type Isolation uint8
 
-const ReadCommitted Isolation = 0
+const (
+	DefaultIsolation Isolation = iota
+	ReadCommitted
+	ReadUncommitted
+	RepeatableRead
+	Serializable
+)
 
 type TxOptions struct {
 	Isolation Isolation
@@ -57,17 +62,24 @@ type rowVersion struct {
 }
 
 type transactionOwner struct {
-	admission sync.Mutex
-	ticket    *relationTicket
-	mu        sync.Mutex
-	session   *Session
-	state     TxState
-	ref       TxRef
-	next      TxID
-	command   CommandID
-	writes    map[ObjectAddress][]rowVersion
-	deletes   map[ObjectAddress]*privateDeletionRoot
-	start     time.Time
+	admission      sync.Mutex
+	ticket         *relationTicket
+	mu             sync.Mutex
+	session        *Session
+	state          TxState
+	ref            TxRef
+	next           TxID
+	command        CommandID
+	writes         map[ObjectAddress][]rowVersion
+	deletes        map[ObjectAddress]*privateDeletionRoot
+	start          time.Time
+	isolation      Isolation
+	readOnly       bool
+	entryIsolation Isolation
+	entryReadOnly  bool
+	snapshotSet    bool
+	frontier       CommitSeq
+	roots          map[ObjectAddress]transactionRoot
 }
 
 func (t *transactionOwner) clear() {
@@ -77,6 +89,9 @@ func (t *transactionOwner) clear() {
 	t.writes = nil
 	t.deletes = nil
 	t.start = time.Time{}
+	t.snapshotSet = false
+	t.frontier = 0
+	t.roots = nil
 }
 
 func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
@@ -110,24 +125,32 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState) 
 	session := op.session
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	settings := session.settings
+	settings.mu.Lock()
+	defer settings.mu.Unlock()
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return err
 	}
+	if settings.value("default_transaction_isolation") == "serializable" {
+		return sqlError("0A000", "transaction mode is unsupported")
+	}
 	t.next++
 	t.ref = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t}
 	t.state = state
+	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
+	t.readOnly = settings.value("default_transaction_read_only") == "on"
+	t.entryIsolation, t.entryReadOnly = t.isolation, t.readOnly
+	settings.currentIsolation = isolationText(t.isolation)
+	settings.currentReadOnly = t.readOnly
 	t.start = time.Now().UTC()
 	return nil
 }
 
 func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
-	if options.Isolation != ReadCommitted {
+	if options.Isolation > RepeatableRead {
 		return TxRef{}, errors.New("stuntgres: unsupported transaction isolation level")
-	}
-	if options.ReadOnly {
-		return TxRef{}, errors.New("stuntgres: read-only transactions are unsupported")
 	}
 	if err := e.transactionAdmission(op); err != nil {
 		return TxRef{}, err
@@ -135,7 +158,17 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 	t := op.session.transactions
 	t.admission.Lock()
 	defer t.admission.Unlock()
-	return e.beginAdmitted(op, t)
+	ref, err := e.beginAdmitted(op, t)
+	if err == nil {
+		t.mu.Lock()
+		if options.Isolation != DefaultIsolation {
+			t.isolation = options.Isolation
+		}
+		t.readOnly = options.ReadOnly
+		t.syncCharacteristics()
+		t.mu.Unlock()
+	}
+	return ref, err
 }
 
 func (t *transactionOwner) validate(ref TxRef) error {
@@ -171,7 +204,7 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 
 // StatementScope serializes one session's statement, from parsing through Finish.
 // Binding uses current resolution metadata; data consumers explicitly acquire a
-// fresh READ COMMITTED view. Writes stage effects here, never in storage.
+// policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
 	self               *StatementScope
 	owner              *transactionOwner
@@ -316,12 +349,6 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	if t.command == CommandID(^uint64(0)) {
 		return errors.New("stuntgres: command identity exhausted")
 	}
-	if t.state == TxActive {
-		switch stmt.(type) {
-		case *parser.Comment, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
-			return sqlError("0A000", "statement is unsupported in an explicit transaction")
-		}
-	}
 	return nil
 }
 
@@ -402,8 +429,20 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, err
 	}
 	if _, ok := stmt.(*parser.TransactionControl); ok {
+		if err := validateModes(stmt.(*parser.TransactionControl).Modes); err != nil {
+			return StatementDescription{}, err
+		}
 		s.controlOutcome = controlDescribed
 		return StatementDescription{}, nil
+	}
+	if characteristics, ok := stmt.(*parser.TransactionCharacteristics); ok {
+		return StatementDescription{}, validateModes(characteristics.Modes)
+	}
+	if err := s.snapshotPhase(stmt); err != nil {
+		return StatementDescription{}, err
+	}
+	if s.owner.state == TxActive && explicitUtility(stmt) {
+		return StatementDescription{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	if err := s.acquireRelation(stmt, false); err != nil {
 		return StatementDescription{}, err
@@ -419,14 +458,28 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	if control, ok := stmt.(*parser.TransactionControl); ok {
 		return s.executeControl(control, count)
 	}
+	if characteristics, ok := stmt.(*parser.TransactionCharacteristics); ok {
+		return s.executeCharacteristics(characteristics, count)
+	}
+	if err := s.snapshotPhase(stmt); err != nil {
+		return Result{}, err
+	}
 	if _, ok := stmt.(*parser.LockTable); ok && count != 0 {
 		return Result{}, errors.New("stuntgres: LOCK TABLE takes no arguments")
+	}
+	// Utility read-only restrictions precede object resolution, ACL checks and
+	// locks. DML keeps its separate analysis-before-read-only execution gate.
+	if err := s.readOnlyUtilityEligibility(stmt); err != nil {
+		return Result{}, err
 	}
 	if err := s.acquireRelation(stmt, true); err != nil {
 		return Result{}, err
 	}
 	if _, ok := stmt.(*parser.LockTable); ok {
 		return Result{}, nil
+	}
+	if err := s.executionEligibility(stmt); err != nil {
+		return Result{}, err
 	}
 	return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
 }
@@ -528,9 +581,13 @@ func (s *StatementScope) Finish(err error) error {
 		t.clear()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
 		t.session.settings.finishTransaction(false)
+		t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
+		t.syncCharacteristics()
 		t.state = TxAborted
 		t.writes = nil
 		t.deletes = nil
+		t.roots = nil
+		t.frontier = 0
 		endedTicket = t.ticket
 		t.ticket = nil
 	}
@@ -556,351 +613,6 @@ func (s *StatementScope) Finish(err error) error {
 	e.locks.end(endedTicket)
 	t.admission.Unlock()
 	return err
-}
-
-// VisibilityView retains frozen relation-local slice prefixes, not copied row
-// values. Each handle has independent release authority. The immutable data is
-// naturally reclaimed after the last view/result owner; no registry is needed.
-type visibilityData struct {
-	tx        TxRef
-	command   CommandID
-	frontier  CommitSeq
-	catalog   CatalogRead
-	committed map[ObjectAddress][]rowVersion
-	storage   *relationStorage // Exact shape generation of this one-relation view.
-	own       map[ObjectAddress][]rowVersion
-	ends      map[ObjectAddress]*deletionRoot
-	deleted   map[ObjectAddress]*privateDeletionRoot
-}
-
-type VisibilityView struct {
-	self *VisibilityView
-	data atomic.Pointer[visibilityData]
-}
-
-func newVisibilityView(data *visibilityData) *VisibilityView {
-	v := &VisibilityView{}
-	v.self = v
-	v.data.Store(data)
-	return v
-}
-
-func (s *StatementScope) AcquireDataView(ref ObjectRef) (*VisibilityView, error) {
-	if err := s.active(); err != nil {
-		return nil, err
-	}
-	s.owner.mu.Lock()
-	defer s.owner.mu.Unlock()
-	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
-		return nil, errors.New("stuntgres: inactive data view scope")
-	}
-	e := s.op.session.Engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return s.acquireDataViewLocked(e, ref)
-}
-
-func (s *StatementScope) acquireDataViewLocked(e *Engine, ref ObjectRef) (*VisibilityView, error) {
-	if ref.owner != e.owner {
-		return nil, errors.New("stuntgres: foreign catalog reference")
-	}
-	if ref.Epoch != e.state.epoch || s.txRef.epoch != e.state.epoch {
-		return nil, ErrCatalogReplaced
-	}
-	storage := e.storage[ref.Address]
-	if storage == nil {
-		return nil, errors.New("stuntgres: relation storage is missing")
-	}
-	if s.view != nil {
-		if s.view.data.Load() == nil {
-			return nil, errors.New("stuntgres: visibility view is released")
-		}
-		if _, ok := s.view.read().committed[ref.Address]; !ok {
-			return nil, errors.New("stuntgres: relation is outside statement data view")
-		}
-		return s.view, nil
-	}
-	if s.txRef.epoch != e.state.epoch {
-		return nil, ErrCatalogReplaced
-	}
-	data := &visibilityData{
-		tx: s.txRef, command: s.command, frontier: e.commitSeq,
-		catalog:   CatalogRead{owner: e, state: e.state},
-		committed: map[ObjectAddress][]rowVersion{ref.Address: storage.versions},
-		storage:   storage,
-	}
-	if storage.ends != nil {
-		data.ends = map[ObjectAddress]*deletionRoot{ref.Address: storage.ends}
-	}
-	data.deleted = s.ownDeletes
-	if rows := s.ownWrites[ref.Address]; len(rows) != 0 {
-		data.own = map[ObjectAddress][]rowVersion{ref.Address: rows}
-	}
-	s.view = newVisibilityView(data)
-	return s.view, nil
-}
-
-func (v *VisibilityView) Retain() *VisibilityView {
-	if v == nil || v.self != v {
-		return nil
-	}
-	data := v.data.Load()
-	if data == nil {
-		return nil
-	}
-	return newVisibilityView(data)
-}
-
-func (v *VisibilityView) Release() {
-	if v != nil && v.self == v {
-		v.data.Store(nil)
-	}
-}
-
-func (v *VisibilityView) read() *visibilityData {
-	if v == nil || v.self != v {
-		panic("stuntgres: visibility view is released")
-	}
-	data := v.data.Load()
-	if data == nil {
-		panic("stuntgres: visibility view is released")
-	}
-	return data
-}
-
-func (v *VisibilityView) Tx() TxRef            { return v.read().tx }
-func (v *VisibilityView) Command() CommandID   { return v.read().command }
-func (v *VisibilityView) Frontier() CommitSeq  { return v.read().frontier }
-func (v *VisibilityView) Catalog() CatalogRead { return v.read().catalog }
-
-// Prepare immutable replacement heads/end roots outside final locks. Appends
-// retain geometric capacity; final installation follows one all-relations veto.
-type rowPublication struct {
-	address            ObjectAddress
-	store              *relationStorage
-	relation           *relationDescriptor
-	root, next, writes []rowVersion
-	ends, nextEnds     *deletionRoot
-	deletion           *privateDeletionRoot
-	generation         uint64
-	slots              []int
-	singleSlot         int
-}
-
-func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot) error {
-	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || ref.attachment == nil || ref.owner != e || ref.session != op.session.token || ref.attachment != op.session.transactions || ref.id == 0 || ref != ref.attachment.ref {
-		return errors.New("stuntgres: foreign or stale publication transaction")
-	}
-	if ref.attachment.state != TxActive && ref.attachment.state != TxImplicit {
-		return errors.New("stuntgres: inactive publication transaction")
-	}
-	if len(writes) == 0 && len(deletes) == 0 {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		op.session.mu.Lock()
-		defer op.session.mu.Unlock()
-		if err := publicationOperationLocked(e, op); err != nil {
-			return err
-		}
-		if ref.epoch != e.state.epoch {
-			return ErrCatalogReplaced
-		}
-		return nil
-	}
-	for {
-		prepared := make([]rowPublication, 0, len(writes)+len(deletes))
-		e.mu.Lock()
-		if ref.epoch != e.state.epoch {
-			e.mu.Unlock()
-			return ErrCatalogReplaced
-		}
-		capture := func(a ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
-			store := e.storage[a]
-			relation, live := e.state.descriptors[a].(*relationDescriptor)
-			if store == nil || !live || a.SubID != 0 {
-				return ErrCatalogReplaced
-			}
-			prepared = append(prepared, rowPublication{address: a, store: store, relation: relation, root: store.versions, writes: rows, ends: store.ends, deletion: deletion, generation: store.generation, singleSlot: -1})
-			return nil
-		}
-		var err error
-		for a, rows := range writes {
-			if err = capture(a, rows, deletes[a]); err != nil {
-				break
-			}
-		}
-		if err == nil {
-			for a, deletion := range deletes {
-				if _, written := writes[a]; written {
-					continue
-				}
-				if err = capture(a, nil, deletion); err != nil {
-					break
-				}
-			}
-		}
-		e.mu.Unlock()
-		if err != nil {
-			return err
-		}
-		for i := range prepared {
-			p := &prepared[i]
-			inserts, replacements := 0, 0
-			for _, row := range p.writes {
-				if row.row == 0 || row.version == 0 || row.born != 0 || len(row.values) != len(p.relation.columns) {
-					return errors.New("stuntgres: invalid private row version")
-				}
-				if row.base == 0 {
-					inserts++
-				} else {
-					replacements++
-				}
-			}
-			size := len(p.root) + inserts
-			if replacements == 0 && size <= cap(p.root) {
-				p.next = p.root[:size]
-			} else {
-				capacity := max(size, cap(p.root)*2)
-				if replacements != 0 {
-					capacity = size
-				}
-				p.next = make([]rowVersion, size, capacity)
-				copy(p.next, p.root)
-			}
-			if replacements != 0 {
-				var index map[RowID]int
-				if replacements > 1 {
-					index = make(map[RowID]int, len(p.root))
-					for slot, row := range p.root {
-						index[row.row] = slot
-					}
-				}
-				if len(p.writes) > 1 {
-					p.slots = make([]int, len(p.writes))
-				}
-				tail := len(p.root)
-				for j, row := range p.writes {
-					if row.base == 0 {
-						p.slots[j] = tail
-						tail++
-						continue
-					}
-					var predecessor rowVersion
-					var slot int
-					var found bool
-					if index != nil {
-						slot, found = index[row.row]
-						if found {
-							predecessor = p.root[slot]
-						}
-					} else {
-						predecessor, slot, found = rowByID(p.root, row.row, -1)
-					}
-					if !found || predecessor.version != row.base || !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {
-						return errors.New("stuntgres: stale update predecessor")
-					}
-					if p.slots == nil {
-						p.singleSlot = slot
-					} else {
-						p.slots[j] = slot
-					}
-				}
-			}
-			if p.deletion != nil {
-				count := len(p.deletion.rows)
-				if p.ends != nil {
-					count += len(p.ends.rows)
-				}
-				p.nextEnds = &deletionRoot{rows: make(map[RowID]rowEnd, count)}
-				if p.ends != nil {
-					for id, end := range p.ends.rows {
-						p.nextEnds.rows[id] = end
-					}
-				}
-				for id, candidate := range p.deletion.rows {
-					if candidate.ref.owner != e.owner || candidate.ref.Epoch != ref.epoch || candidate.ref.Address != p.address || id == 0 || id != candidate.row || candidate.version == 0 || candidate.storage != p.store {
-						return ErrCatalogReplaced
-					}
-					predecessors := p.root
-					if candidate.own {
-						predecessors = p.writes
-					}
-					predecessor, _, found := rowByID(predecessors, id, candidate.ordinal)
-					if !found || predecessor.version != candidate.version || len(predecessor.values) != len(p.relation.columns) {
-						return errors.New("stuntgres: invalid deletion predecessor")
-					}
-					if !candidate.own && !liveVersion(predecessor, CommitSeq(^uint64(0)), p.ends, nil) {
-						return errors.New("stuntgres: deletion predecessor already ended")
-					}
-					p.nextEnds.rows[id] = rowEnd{version: candidate.version}
-				}
-			}
-		}
-		session := op.session
-		e.mu.Lock()
-		session.mu.Lock()
-		err = publicationOperationLocked(e, op)
-		if err == nil && ref.epoch != e.state.epoch {
-			err = ErrCatalogReplaced
-		}
-		if err == nil && e.commitSeq == CommitSeq(^uint64(0)) {
-			err = errors.New("stuntgres: commit sequence exhausted")
-		}
-		changed := false
-		if err == nil {
-			for _, p := range prepared {
-				if e.storage[p.address] != p.store || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
-					changed = true
-					break
-				}
-				current, ok := e.state.descriptors[p.address].(*relationDescriptor)
-				if !ok || !sameRelationRowShape(p.relation, current) {
-					err = ErrCatalogReplaced
-					break
-				}
-				if p.store.generation == ^uint64(0) {
-					err = errors.New("stuntgres: storage generation exhausted")
-					break
-				}
-			}
-		}
-		if err != nil {
-			session.mu.Unlock()
-			e.mu.Unlock()
-			return err
-		}
-		if changed {
-			session.mu.Unlock()
-			e.mu.Unlock()
-			continue
-		}
-		// No callback, allocation or failure remains after this point.
-		for _, p := range prepared {
-			for i, row := range p.writes {
-				slot := len(p.root) + i
-				if p.slots != nil {
-					slot = p.slots[i]
-				}
-				if p.singleSlot >= 0 {
-					slot = p.singleSlot
-				}
-				row.born, row.base = e.commitSeq+1, 0
-				p.next[slot] = row
-			}
-			if p.nextEnds != nil {
-				for id, candidate := range p.deletion.rows {
-					p.nextEnds.rows[id] = rowEnd{version: candidate.version, end: e.commitSeq + 1}
-				}
-				p.store.ends = p.nextEnds
-			}
-			p.store.versions = p.next
-			p.store.generation++
-		}
-		e.commitSeq++
-		session.mu.Unlock()
-		e.mu.Unlock()
-		return nil
-	}
 }
 
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
