@@ -14,9 +14,11 @@ func TestReferenceMathConsumers(t *testing.T) {
 	p := newReferencePair(t)
 	p.step(t, referenceExec("CREATE TABLE m(id INT,n NUMERIC,d NUMERIC)", 0))
 	p.step(t, referenceExec("INSERT INTO m VALUES(1,1.25,4),(2,1.24,0),(3,-1.25,4)", 3))
+	p.step(t, referenceExec("CREATE TABLE group_inputs(n NUMERIC)", 0))
+	p.step(t, referenceExec("INSERT INTO group_inputs VALUES(1.25),(1.26),(1.24),(-1.25)", 4))
 	for _, prepared := range []bool{false, true} {
 		run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
-		grouped := referenceSelect("SELECT round(n,1),count(*) FROM m GROUP BY 1", []string{"round", "count"}, []string{"NUMERIC", "INT8"}, [][]any{{"-1.3", int64(1)}, {"1.2", int64(1)}, {"1.3", int64(1)}})
+		grouped := referenceSelect("SELECT round(n,1),count(*) FROM group_inputs GROUP BY 1", []string{"round", "count"}, []string{"NUMERIC", "INT8"}, [][]any{{"-1.3", int64(1)}, {"1.2", int64(1)}, {"1.3", int64(2)}})
 		grouped.bag = true
 		run(grouped)
 		run(referenceSelect("SELECT sign(count(*)),round(count(*),1) FROM m", []string{"sign", "round"}, []string{"FLOAT8", "NUMERIC"}, [][]any{{float64(1), "3.0"}}))
@@ -31,6 +33,18 @@ func TestReferenceMathConsumers(t *testing.T) {
 	s := referenceSelect("SELECT rounded,trimmed,remainder FROM math_view ORDER BY id", []string{"rounded", "trimmed", "remainder"}, []string{"NUMERIC", "NUMERIC", "NUMERIC"}, [][]any{{"1.3", "1.25", "1.25"}, {"1.2", "1.24", "1.24"}, {"-1.3", "-1.25", "-1.25"}})
 	p.step(t, s)
 	p.step(t, referencePrepared(s))
+	p.step(t, referenceExec("CREATE VIEW null_math_view AS SELECT round(NULL,mod(id,0)) AS result FROM m", 0))
+	p.step(t, referenceExec("CREATE VIEW constant_null_math_view AS SELECT round(NULL,mod(1,0)) AS result FROM m", 0))
+	for _, prepared := range []bool{false, true} {
+		nullView := referenceSelect("SELECT result FROM null_math_view", []string{"result"}, []string{"NUMERIC"}, [][]any{{nil}, {nil}, {nil}})
+		nullView.prepared = prepared
+		p.step(t, nullView)
+		constantView := referenceImplicitError("SELECT result FROM constant_null_math_view", referenceDiagnostic{Code: "22012", Message: "division by zero"})
+		constantView.selectRows = true
+		constantView.errorStage = "execute"
+		constantView.prepared = prepared
+		p.step(t, constantView)
+	}
 	p.step(t, referenceExec("UPDATE m SET n=round(n,1)", 3))
 	p.step(t, referenceExec("CREATE TABLE materialized(n NUMERIC)", 0))
 	p.step(t, referenceExec("INSERT INTO materialized SELECT trim_scale(n) FROM m", 3))

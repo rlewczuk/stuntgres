@@ -3,6 +3,7 @@ package stuntgres_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"math"
 	"strings"
@@ -52,6 +53,8 @@ func TestMathControls(t *testing.T) {
 	execSQL(t, db, "INSERT INTO materialized SELECT id,round(n,4),trim_scale(n),mod(n,4.0),sign(n),trunc(d) FROM source")
 	execSQL(t, db, "CREATE VIEW math_view AS SELECT id,round(n,1) AS rounded,trim_scale(n) AS trimmed,mod(n,4.0) AS remainder FROM source")
 	execSQL(t, db, "CREATE VIEW null_math_view AS SELECT round(NULL,mod(id,0)) AS result FROM source")
+	execSQL(t, db, "CREATE VIEW constant_null_math_view AS SELECT round(NULL,mod(1,0)) AS result FROM source")
+	mathStoredViewWitnesses(t, db)
 	wantTuples(t, db, "SELECT rounded,trimmed,remainder FROM math_view ORDER BY id", [][]any{{"1.2", "1.23", "1.23"}, {"8.4", "8.41", "0.4100"}, {nil, nil, nil}})
 	held, err := db.Query("SELECT padded,trimmed FROM materialized ORDER BY id")
 	if err != nil {
@@ -70,7 +73,7 @@ func TestMathControls(t *testing.T) {
 	}
 	wantTuples(t, db, "SELECT padded,trimmed,remainder,sgn FROM materialized ORDER BY id", [][]any{{"1.2300", "1.23", "1.23", "1"}, {"8.4100", "8.41", "0.4100", "1"}, {nil, nil, nil, nil}})
 	wantTuples(t, db, "SELECT rounded,trimmed,remainder FROM math_view ORDER BY id", [][]any{{"1.2", "1.23", "1.23"}, {"8.4", "8.41", "0.4100"}, {nil, nil, nil}})
-	wantTuples(t, db, "SELECT result FROM null_math_view", [][]any{{nil}, {nil}, {nil}})
+	mathStoredViewWitnesses(t, db)
 	var negativeZero float64
 	if err := db.QueryRow("SELECT d FROM materialized WHERE id=1").Scan(&negativeZero); err != nil || negativeZero != 0 || !math.Signbit(negativeZero) {
 		t.Fatal(negativeZero, err)
@@ -94,4 +97,73 @@ func TestMathControls(t *testing.T) {
 		t.Fatal("invalid restore succeeded")
 	}
 	wantTuples(t, db, "SELECT padded FROM materialized ORDER BY id", [][]any{{"1.2300"}, {"8.4100"}, {nil}})
+}
+
+func mathStoredViewWitnesses(t *testing.T, db *sql.DB) {
+	t.Helper()
+	for _, prepared := range []bool{false, true} {
+		var rows *sql.Rows
+		var stmt *sql.Stmt
+		var err error
+		const nullQuery = "SELECT result FROM null_math_view"
+		if prepared {
+			stmt, err = db.Prepare(nullQuery)
+			if err != nil {
+				t.Fatal("row-dependent NULL view Prepare", err)
+			}
+			rows, err = stmt.Query()
+		} else {
+			rows, err = db.Query(nullQuery)
+		}
+		if err != nil {
+			if stmt != nil {
+				stmt.Close()
+			}
+			t.Fatal(err)
+		}
+		types, err := rows.ColumnTypes()
+		if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "NUMERIC" {
+			rows.Close()
+			if stmt != nil {
+				stmt.Close()
+			}
+			t.Fatal("NULL view metadata", types, err)
+		}
+		count := 0
+		for rows.Next() {
+			var value any
+			if err := rows.Scan(&value); err != nil || value != nil {
+				rows.Close()
+				if stmt != nil {
+					stmt.Close()
+				}
+				t.Fatal("NULL view result", value, err)
+			}
+			count++
+		}
+		err = rows.Err()
+		rows.Close()
+		if stmt != nil {
+			stmt.Close()
+		}
+		if err != nil || count != 3 {
+			t.Fatal("NULL view count", count, err)
+		}
+		const errorQuery = "SELECT result FROM constant_null_math_view"
+		if prepared {
+			stmt, err = db.Prepare(errorQuery)
+			if err != nil {
+				t.Fatal("immutable constant-error view failed during Prepare", err)
+			}
+			_, err = stmt.Exec()
+			stmt.Close()
+		} else {
+			_, err = db.Exec(errorQuery)
+		}
+		var diagnostic *stuntgres.Error
+		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}
+		if !errors.As(err, &diagnostic) || *diagnostic != want {
+			t.Fatalf("constant-error stored view prepared=%v: %#v (%v)", prepared, diagnostic, err)
+		}
+	}
 }
