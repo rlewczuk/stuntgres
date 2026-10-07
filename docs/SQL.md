@@ -80,7 +80,7 @@ logical_target := between_expression | comparison | NOT logical_target
 logical_predicate := logical_target
 delete_predicate := logical_predicate with optional target/alias qualification on columns
 query_column := column | qualifier.column | schema.table.column
-projection_target := (logical_target | selected_call) [AS label]
+projection_target := (logical_target | selected_call) [[AS] label]
                    | * | qualifier.* | schema.table.*
 call_argument := scalar | selected_call
 selected_call := null_count_call | random_call
@@ -144,19 +144,20 @@ admission; restored defaults retain typed NULL and deferred errors.
 
 `CREATE VIEW` stores an immutable, identity-bound definition analyzed by the
 ordinary SELECT binder. The body admits the current scalar/filter/group/HAVING/
-single-column sort repertoire and table, sequence, view and bounded catalog
-sources. It is not executed by CREATE or Prepare; subsequent reads evaluate it
+expression and multi-key ordering repertoire and table, sequence, view and
+bounded catalog sources. It is not executed by CREATE or Prepare; subsequent reads evaluate it
 against current visible data. Explicit names rename an output prefix; fewer
 names than outputs are legal, more fail42601, and duplicate final names fail42701.
 Unknown-only outputs become TEXT. Creation-time `*` expansion and output types
 are fixed; zero-column views retain real source occurrences and count semantics.
 CREATE has affected count zero and no result columns or runtime parameters.
 
-Explicit SELECT target `AS label` preserves canonical view definition labels,
-including after base-column renames; CREATE VIEW's explicit column list then
-overrides that output prefix. FROM aliases, alias column lists, qualified columns
-and mixed qualified/unqualified stars use the ordinary joined SELECT namespace.
-Output-alias lookup remains excluded; clauses keep existing source-column/ordinal rules.
+Explicit SELECT target `AS label` and eligible bare labels preserve view output
+names, including after base-column renames; CREATE VIEW's explicit column list
+then overrides that output prefix. FROM aliases, alias column lists, qualified
+columns and mixed stars use the ordinary joined SELECT namespace. ORDER resolves
+output labels and ordinals; WHERE/HAVING do not expose output labels, and GROUP
+BY retains its input-name priority and existing ordinal rules.
 
 Reads and INSERT SELECT share normal relation admission, dynamic ACL checks,
 locking and eager query finalization. The caller needs SELECT on the named view.
@@ -198,8 +199,11 @@ aliases retain their visibility boundaries. Explicit USING remains USING, and
 NATURAL becomes its creation-time explicit USING key list (or CROSS JOIN when
 empty), so current names cannot broaden the join. Merged values and implicit
 common-type conversions are recreated by the ordinary USING binder, not explicit
-casts. Stored ORDER retains its frozen unqualified input label and direction;
-definition replay adds no qualified ORDER, ordinal or output-alias lookup.
+casts. Stored ORDER preserves frozen input-slot identity through qualified
+physical or merged namespaces, while output references are frozen separately
+as ordinals. Each key retains its direction and NULL policy. Render-private
+USING aliases preserve synthetic merged usage without substituting a physical
+operand or allowing a later output-name override to retarget the key.
 
 Views reuse the supported OID scalar and BETWEEN lowering, including nested
 predicate-valued endpoints. Canonical replay uses the same scalar CASE bridge

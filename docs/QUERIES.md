@@ -177,11 +177,11 @@ execution-private borrowed row scratch handles projected/frozen slot mappings.
 Final public results expose only stable copied values or immutable owned backing,
 never a borrowed scratch slice. See [view authorization and catalogs](SQL.md#views).
 
-Explicit SELECT target `AS label` supplies frozen output metadata and allows
-reconstructed `pg_views.definition` queries to preserve view labels. CREATE
-column lists override the labeled output prefix. Bare projection labels and
-output-alias lookup in WHERE/GROUP/ORDER remain excluded; source columns and
-existing GROUP ordinals keep their existing rules.
+Explicit SELECT target `AS label` and eligible bare labels supply frozen output
+metadata and preserve view labels during definition reconstruction. CREATE
+column lists override the labeled output prefix. ORDER resolves output labels
+and ordinals; WHERE/HAVING do not expose output labels, and GROUP BY retains its
+input-name priority and existing ordinal rules.
 
 Persistent joined views freeze their source occurrences, expanded star projections
 and USING/NATURAL keys when created, unlike an ordinary prepared SELECT rebind.

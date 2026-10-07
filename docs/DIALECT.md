@@ -37,9 +37,10 @@ DROP VIEW, full PostgreSQL catalogs/RLS/UDFs/optimizer facilities remain exclude
 Native fixture controls preserve definitions rather than materialized results.
 Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.
 
-Explicit SELECT target `AS label` is supported for canonical view definitions
-and normal output metadata. Bare projection labels, output-alias lookup in
-WHERE/GROUP/ORDER and multiple sort keys remain excluded.
+SELECT targets support `AS label` and eligible bare labels for view definitions
+and normal output metadata. ORDER resolves output labels and ordinals alongside
+input expressions and accepts multiple keys. WHERE/HAVING do not expose output
+labels; GROUP BY retains its input-name priority and existing ordinal rules.
 
 OID is also a supported column type: distinct unsigned32 type26, native int64
 results, unsigned comparison/order and directional integer casts. See

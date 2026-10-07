@@ -41,7 +41,9 @@ Namespace labels/slots, explicit USING keys and attribute IDs are immutable
 metadata without generation-specific type pointers. Full positional aliases
 follow the current physical/visible order after compaction; NATURAL replays its
 frozen USING keys, and merged conversions use the ordinary implicit binder.
-Stored ORDER remains an unqualified frozen namespace label.
+Stored ORDER preserves qualified frozen physical/merged input-slot identity,
+separately frozen output ordinals, and each key's direction and NULL policy.
+Render-private USING aliases preserve synthetic merged usage when needed.
 
 Stored view literals are serialized from creation-time analyzed values and type
 usages, including temporal precision, typed NULLs and sentinel values. Relative
