@@ -21,14 +21,19 @@ const (
 )
 
 func decodeZoneIntervalUnit(unit string) zoneIntervalUnit {
+	// REL_18_0 DecodeUnits/datebsearch compare TOKMAXLEN (10) bytes.
+	// This also admits full microsecond/millisecond spellings and plurals.
+	if len(unit) > 10 {
+		unit = unit[:10]
+	}
 	switch strings.ToLower(unit) {
-	case "millennium", "millenniums", "millennia":
+	case "millennium", "millennia", "mil", "mils":
 		return zoneIntervalMillennium
-	case "century", "centuries":
+	case "century", "centuries", "c", "cent":
 		return zoneIntervalCentury
-	case "decade", "decades":
+	case "decade", "decades", "dec", "decs":
 		return zoneIntervalDecade
-	case "year", "years", "y":
+	case "year", "years", "y", "yr", "yrs":
 		return zoneIntervalYear
 	case "month", "months", "mon", "mons":
 		return zoneIntervalMonth
@@ -36,15 +41,15 @@ func decodeZoneIntervalUnit(unit string) zoneIntervalUnit {
 		return zoneIntervalWeek
 	case "day", "days", "d":
 		return zoneIntervalDay
-	case "hour", "hours", "h":
+	case "hour", "hours", "h", "hr", "hrs":
 		return zoneIntervalHour
 	case "minute", "minutes", "min", "mins", "m":
 		return zoneIntervalMinute
 	case "second", "seconds", "sec", "secs", "s":
 		return zoneIntervalSecond
-	case "millisecond", "milliseconds", "msec", "msecs", "ms":
+	case "millisecon", "msec", "msecs", "ms", "msecond", "mseconds":
 		return zoneIntervalMillisecond
-	case "microsecond", "microseconds", "usec", "usecs", "us":
+	case "microsecon", "usec", "usecs", "us", "usecond", "useconds":
 		return zoneIntervalMicrosecond
 	}
 	return zoneIntervalUnknown

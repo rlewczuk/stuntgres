@@ -177,6 +177,19 @@ execution-private borrowed row scratch handles projected/frozen slot mappings.
 Final public results expose only stable copied values or immutable owned backing,
 never a borrowed scratch slice. See [view authorization and catalogs](SQL.md#views).
 
+View execution-local preflight, including simple CASE branch selection, uses the
+admitted statement's captured TimeZone and DateStyle input/output environments.
+Nested views and retained prepared statements use the current execution capture,
+not the settings at CREATE VIEW or PREPARE. Already returned results retain their
+original capture after later session setting changes. These environments do not
+mutate stored definitions, replace source identity pins or change owner/invoker
+authorization; timezone catalog-view population remains a separate capability.
+
+Temporal view regression smoke:
+`make test RUN='^TestTimezoneReviewView' VERBOSE=0`.
+Independent pinned PostgreSQL18.0:
+`make reference RUN='^TestReferenceTimezoneReviewViews' VERBOSE=0`.
+
 Explicit SELECT target `AS label` and eligible bare labels supply frozen output
 metadata and preserve view labels during definition reconstruction. CREATE
 column lists override the labeled output prefix. ORDER resolves output labels

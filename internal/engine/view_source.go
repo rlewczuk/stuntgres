@@ -34,7 +34,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			return nil, err
 		}
 		e.mu.Unlock()
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope}
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
 		root, err := preflightQuery(&evaluation, definition.query.Root)
 		if err != nil {
 			return nil, err

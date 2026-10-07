@@ -27,7 +27,7 @@ func TestOrderingUsage(t *testing.T) {
 			}
 			// SQL null placement is the sort stage's policy, never this strict
 			// nonnull provider, even when the builtin capability binds successfully.
-			if _, err := provider.Compare(context.Background(), Null(d), Null(d)); err == nil {
+			if _, err := provider.Compare(context.Background(), Null(d), Null(d), DefaultInputEnvironment()); err == nil {
 				t.Fatal("nonnull provider admitted NULL")
 			}
 			invalid := d.Usage()

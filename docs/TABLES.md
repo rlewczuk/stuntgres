@@ -46,10 +46,16 @@ comments, which are deliberately excluded from database Dump and Restore.
 
 ## Column defaults
 
-CREATE TABLE now stores immutable, bound column `DEFAULT` expressions. Existing
-literal/NULL, typed DATE/TIME/TIMESTAMP, existing baseline and character-family
-CAST/`::` casts, baseline function-style casts, INT4/INT8 unary/binary arithmetic,
-scalar comparisons and IS [NOT] DISTINCT FROM are admitted at the outer level.
+CREATE TABLE stores structurally immutable, bound column `DEFAULT` definitions;
+this does not require the expression's volatility to be Immutable. Supported
+closed, parameter-free, row-independent Immutable and Stable trees are admitted,
+including temporal casts, `AT TIME ZONE`/`AT LOCAL`, comparisons, CASE and NULLIF.
+Session-dependent temporal operations remain Stable, not folded constants.
+Existing literal/NULL, typed DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ, baseline and
+character-family CAST/`::` casts, baseline function-style casts, INT4/INT8
+unary/binary arithmetic, scalar comparisons and IS [NOT] DISTINCT FROM are admitted
+at the outer level. Volatile producers and execution-stage-dependent nodes remain
+unsupported defaults.
 Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
 `DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`. Column references and positional
 parameters are prohibited even inside casts or decisive logical branches.
@@ -66,6 +72,12 @@ Each INSERT row evaluates declared defaults for omitted columns or per-cell
 `DEFAULT`; absent declarations yield typed NULL. Explicit supplied values,
 including NULL, bypass defaults. Targetless `DEFAULT VALUES` inserts one all-default row;
 an explicit target list before DEFAULT VALUES is a syntax error (42601).
+Stable defaults use the admitted INSERT's captured TimeZone and DateStyle.
+Changing settings between executions of the same prepared INSERT can therefore
+change actual default values without changing the stored definition. CREATE and
+Dump serialize/validate the expression tree without evaluating it; typed literal
+leaves still freeze at CREATE analysis, while supported session-dependent parent
+operations are evaluated only when consumed by INSERT.
 Ordinary INSERT supplied values retain the existing scalar/cast surface;
 SELECT and ORDER-decorated VALUES sources retain their existing query surface.
 Defaults do not change declared result types, ScanTypes or nullable metadata.

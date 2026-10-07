@@ -66,8 +66,10 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 	return defaults, nil
 }
 
-// Serialize only closed supported nodes, validating ownership and dependence
-// without Eval. Assignment wrappers intentionally retain deferred conversion.
+// Serialize only closed supported Immutable or Stable nodes, validating ownership
+// and dependence without Eval. Definitions are structurally immutable; their
+// evaluation may depend on the admitted INSERT environment. Assignment wrappers
+// intentionally retain deferred conversion.
 func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -76,7 +78,7 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || p != (ExprProperties{}) {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || p.Volatility > Stable || p.RowDependent || p.ParameterDependent || p.StageDependent {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	typ, ok := view.LookupType(u.Type.ID())

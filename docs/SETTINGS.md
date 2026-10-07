@@ -205,6 +205,15 @@ Numeric hours are east-positive: `5.5` means +05:30. POSIX names are west-positi
 HOUR TO MINUTE and MINUTE qualifiers are accepted. This utility syntax does not
 provide a general INTERVAL SQL type or arithmetic. Numeric/interval SET offsets
 are bounded to 167:59:59; literal datetime offsets to 15:59:59.
+The bounded interval decoder uses PostgreSQL 18's aliases for its existing
+fields, attached or separated (`1hr` / `1 hr`, `hrs`, `min` / `mins`,
+`sec` / `secs`, `msec` / `msecs` / `msecond` / `mseconds`,
+`usec` / `usecs` / `usecond` / `useconds`, and full field names).
+Long unit tokens use PostgreSQL's first-ten-byte matching, including
+`millisecond(s)` and `microsecond(s)`. Calendar aliases such as `c` / `cent`,
+`dec` / `decs`, `mil` / `mils` and `yr` / `yrs` still decode to months and
+are rejected; week/day aliases still fail the day restriction. This vocabulary
+does not add quarter/timezone extraction fields or general INTERVAL expressions.
 Marker-only intervals such as `@` or `@ ago` fail with 22007; an actual zero
 field such as `0 seconds` is valid. Quoted textual `INTERVAL '...'` values
 through ordinary SET or set_config preserve interval-input diagnostics (22007

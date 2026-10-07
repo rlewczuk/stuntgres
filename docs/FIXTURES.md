@@ -83,6 +83,13 @@ independent of source TimeZone/DateStyle and does not serialize session settings
 Restore preserves target live settings. Old cursors retain their captured
 presentation and metadata after replacement; later invalid temporal input,
 unknown zones, I/O errors or cancellation never publish a partial catalog.
+Supported closed Stable temporal defaults retain their unevaluated expression
+definitions in empty and populated tables: Dump never replaces `AT LOCAL`,
+session-dependent casts, comparisons, CASE or NULLIF with source-session results.
+Restored rows retain their stored values; subsequent omitted/per-cell defaults
+evaluate the restored definition using the destination INSERT's captured settings.
+Explicit values (including NULL) still bypass defaults. Frozen typed literal
+leaves remain canonical values, distinct from session-dependent operations above them.
 This is native logical fixture replay, not PostgreSQL physical backup.
 
 Dump excludes TEMP sequences and records persistent sequence options, owner,

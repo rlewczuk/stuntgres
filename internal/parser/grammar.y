@@ -721,7 +721,7 @@ target_and: target_not { $$=$1 }
 target_or: target_and { $$=$1 }
  | target_or OR target_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
 scalar_projection: target_or { $$=$1 } | function { $$=$1 } ;
-projection_target: scalar_projection { $$=$1 }
+projection_target: scalar_projection %prec NAME_LIST { $$=$1 }
  | '*' { $$=StarExpr{Pos:$1.pos} }
  | name '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
  | name '.' col_label '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} } ;
