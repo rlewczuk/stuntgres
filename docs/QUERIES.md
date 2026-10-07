@@ -23,11 +23,14 @@ an expression, not an ordinal; signed lexical int32 boundaries remain unchanged.
 ORDER keys bind before grouping determination, including hidden count(*).
 Ungrouped leaves retain42803, hidden physical columns retain SELECT ACL checks,
 and VALUES orders its common-typed source before destination assignment.
-Computed keys are evaluated once per admitted occurrence before sorting;
-referenced equivalent visible outputs reuse that datum. Unaffected visible
-outputs are evaluated after sorting. Thus selected nextval ORDER labels/ordinals
-return the same evaluated values, not fresh sequence calls. Prepared plans contain
-no mutable datum cache: every execution owns its keys/permutation/parameters.
+Computed keys are evaluated once per admitted occurrence before sorting.
+Structurally equivalent keys share that datum even when both keys are hidden;
+direction and NULL placement remain independent. Referenced equivalent visible
+outputs reuse the same datum. Unaffected visible outputs remain occurrence-sensitive
+and are evaluated after sorting: unrelated duplicate nextval outputs are not
+globally merged. Selected nextval ORDER labels/ordinals return the evaluated values,
+not fresh sequence calls. Prepared plans contain no mutable datum cache:
+every execution owns its keys/permutation/parameters.
 
 Ordering capability and the bounded UTF8/C collation are checked during analysis
 even for empty/single/all-NULL inputs. Existing type providers supply numeric,
@@ -36,11 +39,13 @@ unsigned OIDs, not lexical text or silent equality. All supported concrete types
 are PostgreSQL-sortable; there is no reachable native unsortable SQL type to
 exercise a missing-ordering-operator42883. Internal invalid usages are invariant
 errors, not invented PostgreSQL diagnostics.
+The catalog-only internal `"char"` provider also supports ordering through its
+existing unsigned-byte comparator; this does not admit internal-CHAR type DDL.
 
 Eager finalization preserves immutable result buffers/metadata, cancellation,
-captured-source ownership and atomic INSERT publication. Dump/Restore owns only
-existing data/sequence state; sort caches are never serialized. Native public
-SQL/API ACL mutation remains absent: exact column grants use engine units and
+captured-source ownership and atomic INSERT publication. Dump/Restore persists
+existing data/sequence state and analyzed view definitions, never sort datum caches.
+Native public SQL/API ACL mutation remains absent: exact column grants use engine units and
 independent PostgreSQL GRANT scenarios. LIMIT/OFFSET, ORDER USING, general
 COLLATE/ICU, sets/windows/aggregate-internal ordering and ordinary no-FROM SELECT
 remain excluded. The existing AND/OR bare-label ambiguity remains a bounded

@@ -346,6 +346,9 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 	case aggregateExpression:
 		n.expressionInfo = info
 		rebound = n
+	case cachedOrderExpression:
+		n.expressionInfo = info
+		rebound = n
 	case sequenceCallExpression:
 		n.args = append([]BoundExpr(nil), n.args...)
 		for i := range n.args {

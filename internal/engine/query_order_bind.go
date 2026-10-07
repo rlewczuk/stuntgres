@@ -126,19 +126,12 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		if key.slot >= 0 {
 			continue
 		}
-		visible := false
-		for _, output := range projection {
-			if b.sameGroupExpression(output, key.expression) {
-				visible = true
+		// SQL99 resolves against the accumulated ORDER target list, including
+		// preceding hidden targets. Direction and NULL policy remain per key.
+		for previous := range i {
+			if keys[previous].cache >= 0 && b.sameGroupExpression(keys[previous].expression, key.expression) {
+				key.cache = keys[previous].cache
 				break
-			}
-		}
-		if visible {
-			for previous := range i {
-				if keys[previous].cache >= 0 && b.sameGroupExpression(keys[previous].expression, key.expression) {
-					key.cache = keys[previous].cache
-					break
-				}
 			}
 		}
 		if key.cache < 0 {

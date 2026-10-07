@@ -573,7 +573,10 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 				if key.cache >= 0 {
 					left, right = child.orderValues[a*n.cacheWidth+key.cache], child.orderValues[b*n.cacheWidth+key.cache]
 				} else {
-					left, right = child.source.row(leftIndex)[key.slot], child.source.row(rightIndex)[key.slot]
+					// View sources may reuse one scratch row. Capture the first
+					// datum before requesting the second borrowed row.
+					left = child.source.row(leftIndex)[key.slot]
+					right = child.source.row(rightIndex)[key.slot]
 				}
 				if left.IsNull() && right.IsNull() {
 					continue
@@ -829,9 +832,11 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	}
 	selection := stage.selection
 	if direct && stage.permutation != nil {
-		selection = make([]int, r.count)
-		for i := range selection {
-			selection[i] = stage.index(i)
+		// Transfer the execution-owned permutation after flattening it. Keep
+		// the admitted-source mapping intact until every occurrence is read.
+		selection = stage.permutation
+		for i, occurrence := range selection {
+			selection[i] = stage.selection[occurrence]
 		}
 	}
 	stageSource := stage.source

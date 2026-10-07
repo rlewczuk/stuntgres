@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-
 func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (string, error) {
 	s := v.syntax
 	renderer := newViewRenderer(v)
@@ -292,4 +291,3 @@ func syntaxTypeSQL(t parser.TypeName) string {
 	}
 	return name
 }
-

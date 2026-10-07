@@ -779,7 +779,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		return Comparison{}, fmt.Errorf("invalid ordering usage")
 	}
 	switch u.Type.id {
-	case Bool, Bytea, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Numeric, UUID, Regclass:
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Numeric, UUID, Regclass:
 	default:
 		return Comparison{}, fmt.Errorf("invalid ordering type")
 	}

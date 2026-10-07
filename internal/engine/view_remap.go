@@ -52,6 +52,8 @@ func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundEx
 		next = n
 	case aggregateExpression:
 		next = n
+	case cachedOrderExpression:
+		next = n // The cache slot belongs to this immutable query plan.
 	case coercionExpression:
 		n.child = child(n.child)
 		next = n
@@ -152,8 +154,12 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 		copy := *n
 		copy.querySchema = schema
 		copy.child = child(n.child)
-		if err == nil {
-			copy.comparison, err = sqltype.BindComparison(copy.child.Schema()[n.slot].Usage.Type, copy.child.Schema()[n.slot].Usage.Type)
+		copy.keys = append([]sortKey(nil), n.keys...)
+		for i, key := range copy.keys {
+			copy.keys[i].expression = expression(key.expression)
+			if err == nil {
+				copy.keys[i].comparison, err = sqltype.BindOrdering(copy.keys[i].expression.ResultUsage())
+			}
 		}
 		next = &copy
 	case *aggregateNode:

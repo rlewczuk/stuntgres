@@ -154,6 +154,24 @@ func TestQueryOrderSmoke(t *testing.T) {
 	if err := db.QueryRow("SELECT nextval('s')").Scan(&next); err != nil || next != 4 {
 		t.Fatal(next, err)
 	}
+	exec("INSERT INTO v VALUES(4),(5)", 2)
+	exec("CREATE SEQUENCE repeated_s START WITH 1", 0)
+	exec("CREATE VIEW repeated_order AS SELECT id FROM v WHERE id>2 ORDER BY nextval('repeated_s'),nextval('repeated_s') DESC", 0)
+	rows, err = db.Query("SELECT id FROM repeated_order ORDER BY id")
+	orderSmokeRows(t, rows, err, []string{"id"}, []string{"INT4"}, [][]any{{int64(3)}, {int64(4)}, {int64(5)}})
+	if err := db.QueryRow("SELECT nextval('repeated_s')").Scan(&next); err != nil || next != 4 {
+		t.Fatal("repeated hidden filtered keys", next, err)
+	}
+	repeated, err := db.Prepare("SELECT id FROM repeated_order ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err = repeated.Query()
+	orderSmokeRows(t, rows, err, []string{"id"}, []string{"INT4"}, [][]any{{int64(3)}, {int64(4)}, {int64(5)}})
+	repeated.Close()
+	if err := db.QueryRow("SELECT nextval('repeated_s')").Scan(&next); err != nil || next != 8 {
+		t.Fatal("fresh repeated hidden keys", next, err)
+	}
 	held, err := db.Query("SELECT id,a+b AS k FROM t ORDER BY k DESC NULLS LAST,id")
 	if err != nil {
 		t.Fatal(err)
