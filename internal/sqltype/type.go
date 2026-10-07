@@ -467,7 +467,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
 		}
 		return "'" + timestampOutput(v.integer) + "'", nil
-	case Text, BPChar, VarChar, Name, Regclass, Char:
+	case Char:
+		text, err := d.Output(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	case Text, BPChar, VarChar, Name, Regclass:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case Oid, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)

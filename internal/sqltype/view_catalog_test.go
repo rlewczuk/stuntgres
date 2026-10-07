@@ -3,6 +3,7 @@ package sqltype
 import (
 	"context"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestViewCatalogTypes(t *testing.T) {
@@ -94,6 +95,32 @@ func TestViewCatalogCHARReleaseInputs(t *testing.T) {
 	}
 	if result, err := comparison.Compare(ctx, a, b); err != nil || result <= 0 {
 		t.Fatal(result, err)
+	}
+}
+
+func TestViewCatalogCHARSQLLiteralHighByte(t *testing.T) {
+	ctx := context.Background()
+	d := testTypes()[Char]
+	value, err := d.Input(ctx, "é", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	literal, err := d.SQLLiteral(ctx, value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !utf8.ValidString(literal) {
+		t.Fatalf("SQLLiteral is invalid UTF-8: %x", literal)
+	}
+	if literal != `'\303'` {
+		t.Fatalf("SQLLiteral = %q, want printable octal literal", literal)
+	}
+	replayed, err := d.Input(ctx, literal[1:len(literal)-1], -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed.text != value.text || replayed.text != "\xc3" {
+		t.Fatalf("replayed CHAR payload = %x, original = %x", replayed.text, value.text)
 	}
 }
 

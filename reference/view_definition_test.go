@@ -183,3 +183,32 @@ func TestReferenceViewContextualDateStyleOracle(t *testing.T) {
 	run(referenceSelect("SELECT id FROM v_copy", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 	run(referenceSelect("SELECT matches FROM w_copy", []string{"matches"}, []string{"BOOL"}, [][]any{{true}}))
 }
+
+func TestReferenceViewCatalogCHARLiteralReconstruction(t *testing.T) {
+	p := newReferencePair(t)
+	for _, step := range []referenceStep{
+		referenceExec("CREATE TABLE char_source(id INT)", 0),
+		referenceSelect("SELECT relkind < 'é' AS below FROM pg_catalog.pg_class WHERE relname='char_source'",
+			[]string{"below"}, []string{"BOOL"}, [][]any{{true}}),
+		referenceExec("CREATE VIEW char_literal AS SELECT relkind < 'é' AS below FROM pg_catalog.pg_class WHERE relname='char_source'", 0),
+	} {
+		p.step(t, step)
+	}
+	check := func(name string) {
+		step := referenceSelect("SELECT below FROM "+name, []string{"below"}, []string{"BOOL"}, [][]any{{true}})
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
+	}
+	check("char_literal")
+	for _, db := range []*sql.DB{p.memory, p.postgres} {
+		var definition string
+		if err := db.QueryRowContext(p.ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='char_literal'").Scan(&definition); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(p.ctx, "CREATE VIEW reconstructed AS "+definition); err != nil {
+			t.Fatal(err, definition)
+		}
+	}
+	check("char_literal")
+	check("reconstructed")
+}

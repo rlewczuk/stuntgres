@@ -3,6 +3,7 @@ package stuntgres_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"stuntgres"
 	"testing"
 	"time"
@@ -260,4 +261,45 @@ func TestViewContextualScalarLiteralNativeRoundTrip(t *testing.T) {
 	}
 	check("")
 	check("_copy")
+}
+
+func TestViewCatalogCHARLiteralNativeRoundTrip(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), t.Name())
+	execSQL(t, db, "CREATE TABLE char_source(id INT)")
+	execSQL(t, db, "CREATE VIEW char_literal AS SELECT relkind < 'é' AS below FROM pg_catalog.pg_class WHERE relname='char_source'")
+	prepared, err := db.Prepare("SELECT below FROM char_literal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer prepared.Close()
+	check := func(name string, statement *sql.Stmt) {
+		t.Helper()
+		rows, err := db.Query("SELECT below FROM " + name)
+		queryCoreRows(t, rows, err, []string{"below"}, []string{"BOOL"}, [][]any{{true}}, false)
+		rows, err = statement.Query()
+		queryCoreRows(t, rows, err, []string{"below"}, []string{"BOOL"}, [][]any{{true}}, false)
+	}
+	check("char_literal", prepared)
+	var definition string
+	if err := db.QueryRow("SELECT definition FROM pg_catalog.pg_views WHERE viewname='char_literal'").Scan(&definition); err != nil {
+		t.Fatal(err)
+	}
+	execSQL(t, db, "CREATE VIEW reconstructed AS "+definition)
+	reconstructed, err := db.Prepare("SELECT below FROM reconstructed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reconstructed.Close()
+	check("char_literal", prepared)
+	check("reconstructed", reconstructed)
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(context.Background(), db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(context.Background(), db, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	// Reuse both prepared handles across native catalog replacement.
+	check("char_literal", prepared)
+	check("reconstructed", reconstructed)
 }

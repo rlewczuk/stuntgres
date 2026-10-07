@@ -97,6 +97,9 @@ Internal CHAR accepts an empty zero byte, takes the first raw byte of other
 input, and decodes exact four-byte `\ooo` octal spellings. High bytes export
 as escaped octal strings (`é` becomes `\303`), never invalid UTF8 or replacement
 characters; ordering compares unsigned bytes. It is not Unicode CHAR(n).
+Canonical SQL literals use that same printable CHAR output, quoted as SQL text,
+so contextual high-byte literals remain valid UTF8 and preserve their original
+byte through queried view-definition reconstruction and native Dump/Restore.
 
 Stored view literal annotations retain the analyzed scalar and complete type usage,
 not just the source spelling. Canonical temporal introducers preserve precision;
