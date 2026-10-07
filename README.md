@@ -23,6 +23,14 @@ native schema/data/default Dump/Restore. It does not populate metadata catalogs
 or add object lookup, arithmetic or ordinary SELECT-without-FROM support.
 Public feature smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
 
+Scalar comparison types also support inclusive `BETWEEN`/`NOT BETWEEN` and
+both `SYMMETRIC` forms in existing expression consumers. Symmetric predicates
+accept reversed bounds; NULL follows SQL three-valued logic rather than a
+strict three-argument rule. See [BETWEEN predicates](docs/QUERIES.md#between-predicates)
+for grouped endpoints, contextual prepared typing, replayable grouped/nested
+defaults and bounded syntax. Public feature smoke:
+`make smoke RUN='^TestBetweenSmoke$' VERBOSE=0`.
+
 Supported transaction-owned relation and logical row locks include deadlock
 detection: compatible queue reordering resolves avoidable soft cycles; an
 unavoidable cycle returns `40P01` / `deadlock detected` to an unspecified cycle

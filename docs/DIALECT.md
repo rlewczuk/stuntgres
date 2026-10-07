@@ -281,6 +281,30 @@ comparison in INSERT/settings remain
 excluded. Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`;
 independent pinned reference: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`.
 
+BETWEEN predicates support `BETWEEN`, `NOT BETWEEN`, `BETWEEN SYMMETRIC`
+and `NOT BETWEEN SYMMETRIC` through the existing comparison/logical binder.
+Endpoints are inclusive; reversed ordinary bounds match no non-NULL values,
+while symmetric forms accept either order. NOT forms use the complementary
+inequalities. NULL follows binary comparison and SQL AND/OR truth tables:
+`5 BETWEEN NULL AND 3` is false, its NOT form is true, and its symmetric forms
+are UNKNOWN. Each binary comparison resolves its own types; there is no
+three-argument common type or bounds sorter. Generated operator diagnostics
+point to BETWEEN (or NOT), while input errors retain their original positions.
+Group Boolean/nested endpoints, for example
+`TRUE BETWEEN (1 BETWEEN 0 AND 2) AND TRUE`. These predicates compose in
+existing SELECT/WHERE, DELETE, UPDATE, CASE, INSERT SELECT, grouping/HAVING
+and parenthesized DEFAULT paths; they do not expand ordinary INSERT/settings,
+no-FROM SELECT, comparison chaining, casts/types or provider admission.
+Prepared temporal occurrences at a shared source position retain independently
+typed frozen values (including precision); mixed DATE/TIMESTAMP endpoints do
+not require a cross-temporal operator. Native Dump/Restore preserves grouped
+and nested BETWEEN default definitions without evaluating them, so DEFAULT
+inserts continue to use those definitions after replay.
+ASYMMETRIC remains excluded. Feature smoke:
+`make smoke RUN='^TestBetweenSmoke$' VERBOSE=0`; independent pinned reference:
+`make reference RUN='^TestReferenceBetween' VERBOSE=0`.
+
+
 UPDATE supports schema-qualified/quoted target relations, ordered scalar SET
 assignments and optional Boolean WHERE. RHS literals/parameters/old unqualified
 columns/comparisons/logical operators/grouping/selected null-count roots and

@@ -714,7 +714,10 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		node = literalExpression{b.info(value.Type().Usage(), v.Pos, ExprProperties{}), value}
 	case parser.TypedLiteralExpr:
 		rawType := r.TypeName
-		saved, found := b.captured(r.Pos.Offset)
+		saved, found, err := b.captureAt(r.Pos.Offset)
+		if err != nil {
+			return nil, err
+		}
 		if found {
 			rawType.Modifiers = nil
 		}
@@ -921,24 +924,52 @@ func inputErrorAt(err error, pos parser.Position) error {
 func literalInputError(err error, raw parser.LiteralExpr) error {
 	return inputErrorAt(err, raw.Value.Pos)
 }
-func (b *expressionBinder) captured(offset int) (temporalConstant, bool) {
+
+// Explicit typed literals use this only to discover their frozen modifier
+// before resolving the raw declaration again. Scalar reconstruction must use
+// captured with the complete contextual usage.
+func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error) {
 	if b.expected != nil {
 		captures := b.expected.temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].offset >= offset })
 		if i < len(captures) && captures[i].offset == offset {
-			return captures[i], true
+			saved := captures[i]
+			for i++; i < len(captures) && captures[i].offset == offset; i++ {
+				if captures[i].typeID != saved.typeID || captures[i].typmod != saved.typmod {
+					return temporalConstant{}, false, fmt.Errorf("stuntgres: ambiguous captured temporal metadata")
+				}
+			}
+			return saved, true, nil
 		}
 	}
-	return temporalConstant{}, false
+	return temporalConstant{}, false, nil
+}
+
+func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalConstant, bool, error) {
+	if b.expected != nil {
+		captures := b.expected.temporals
+		i := sort.Search(len(captures), func(i int) bool { return captures[i].offset >= offset })
+		if i < len(captures) && captures[i].offset == offset {
+			for ; i < len(captures) && captures[i].offset == offset; i++ {
+				capture := captures[i]
+				if capture.typeID == usage.Type.ID() && capture.typmod == usage.Typmod {
+					return capture, true, nil
+				}
+			}
+			return temporalConstant{}, false, fmt.Errorf("stuntgres: captured temporal usage changed")
+		}
+	}
+	return temporalConstant{}, false, nil
 }
 func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
 	if u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date {
 		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
 	}
-	if c, ok := b.captured(pos.Offset); ok {
-		if c.typeID != u.Type.ID() {
-			return sqltype.Value{}, fmt.Errorf("stuntgres: captured temporal type changed")
-		}
+	c, found, err := b.captured(pos.Offset, u)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if found {
 		if c.typeID == sqltype.Time {
 			return sqltype.TimeValue(u.Type, c.scalar)
 		}

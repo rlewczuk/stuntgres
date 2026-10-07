@@ -729,6 +729,68 @@ before backend parity. Source/manual semantics:
 [PostgreSQL18 comparison predicates](https://www.postgresql.org/docs/18/functions-comparison.html)
 and [operator precedence](https://www.postgresql.org/docs/18/sql-syntax-lexical.html).
 
+## BETWEEN predicates
+
+The four forms `a BETWEEN l AND u`, `a NOT BETWEEN l AND u`,
+`a BETWEEN SYMMETRIC l AND u` and `a NOT BETWEEN SYMMETRIC l AND u`
+use the existing scalar comparison types, BOOL metadata and WHERE TRUE-only
+filtering. Ordinary BETWEEN includes both endpoints and is false for reversed
+non-NULL bounds. SYMMETRIC checks both orders. Equal bounds include only equal
+values. NOT forms complement those results, retaining UNKNOWN.
+
+Evaluation uses independent binary comparisons and SQL three-valued logic:
+BETWEEN is `a >= l AND a <= u`, NOT BETWEEN is `a < l OR a > u`;
+symmetric forms combine the two orders with OR and AND respectively.
+Thus `5 BETWEEN NULL AND 3` is false and `5 NOT BETWEEN NULL AND 3` true,
+not blanket NULL propagation. A NULL tested value gives UNKNOWN.
+Unknown literal occurrences resolve independently against each peer;
+`'2' BETWEEN integer_column AND text_column` need not coerce the columns to
+a common type. Repeated parameters retain the existing shared-slot inference
+and prepared execution contracts. Repeated expressions are not promised a
+single evaluation or short-circuit ordering.
+Prepared temporal literal captures retain contextual type and precision as
+well as source position. For example, `'2000-01-02' BETWEEN date_column AND
+timestamp_column` independently materializes DATE and TIMESTAMP occurrences;
+held prepared execution preserves each frozen value without introducing a
+DATE/TIMESTAMP comparison operator or a common type across the three values.
+
+Arithmetic and casts bind above BETWEEN, then ordinary comparisons, IS tests,
+outer NOT, AND and OR. The restricted lower endpoint admits ordinary comparisons
+but excludes unparenthesized logical syntax. Group upper comparison endpoints:
+`TRUE BETWEEN (1<2) AND (2<3)` and `TRUE BETWEEN 1<2 AND (2<3)` are true.
+In contrast, `TRUE BETWEEN 1<2 AND 2<3` parses as
+`(TRUE BETWEEN (1<2) AND 2) < 3` and eagerly fails42883:
+`operator does not exist: boolean <= integer` at BETWEEN. An ordinary comparison
+outside BETWEEN is valid, for example `2 BETWEEN 1 AND 3 = TRUE`.
+Group nested predicates or Boolean endpoints:
+
+```sql
+SELECT v BETWEEN (1+0) AND (2+1) FROM t;
+SELECT TRUE BETWEEN (1 BETWEEN 0 AND 2) AND TRUE FROM t;
+SELECT id FROM t WHERE v BETWEEN 1 AND 3 AND v=2;
+```
+
+Ungrouped BETWEEN chaining is excluded. BETWEEN remains an unquoted column
+name; SYMMETRIC remains reserved. ASYMMETRIC is not admitted. Generated
+comparison failures point at BETWEEN, or NOT for NOT forms, with the existing
+SQLSTATE/English message/Hint; literal failures point at the literal.
+Existing DELETE/UPDATE/CASE/conditional, INSERT SELECT, grouping/HAVING and
+parenthesized DEFAULT consumers share this lowering without new native paths.
+Ordinary scalar-only INSERT VALUES/settings and other documented boundaries
+remain unchanged. Grouped predicate values are admitted as BETWEEN's tested
+value/endpoints. This does not broaden ordinary comparisons without a BETWEEN
+predicate: `(v IS NULL)=TRUE` and `(id=1)=TRUE` remain outside the native dialect.
+Native Dump/Restore preserves grouped comparison/logical/nested BETWEEN
+defaults, including fresh DEFAULT inserts after replay. Predicate-valued
+comparison operands serialize through the existing scalar identity
+`CASE WHEN TRUE THEN ... END`; this preserves typed NULL and deferred errors
+without evaluating defaults during serialization or admitting unrelated grouped
+ordinary comparisons.
+
+Executable feature evidence: `make smoke RUN='^TestBetweenSmoke$' VERBOSE=0`,
+`make test PACKAGES=. RUN='^TestBetween' VERBOSE=0`,
+and `make reference RUN='^TestReferenceBetween' VERBOSE=0` against pinned18.0.
+
 ## Explicit baseline casts
 
 Baseline casts also serve as the existing comparison and null/Boolean predicate

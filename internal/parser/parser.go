@@ -123,6 +123,26 @@ func arithmeticExpr(tok lexeme, left, right Expr) Expr {
 	return OperatorExpr{Name: ObjectName{Parts: []Identifier{{Text: tok.text, Pos: tok.pos}}}, Args: args, Pos: tok.pos}
 }
 
+// PostgreSQL lowers each occurrence independently, preserving binary typing
+// and three-valued logic rather than sorting or coercing the bounds together.
+func betweenExpr(a, lower, upper Expr, pos Position, negated, symmetric bool) Expr {
+	first, second, inner, outer := ">=", "<=", LogicalAnd, LogicalOr
+	if negated {
+		first, second, inner, outer = "<", ">", LogicalOr, LogicalAnd
+	}
+	comparison := func(op string, right Expr) Expr {
+		return OperatorExpr{Name: ObjectName{Parts: []Identifier{{Text: op, Pos: pos}}}, Args: []Expr{a, right}, Pos: pos}
+	}
+	branch := func(l, u Expr) Expr {
+		return LogicalExpr{Op: inner, Left: comparison(first, l), Right: comparison(second, u), Pos: pos}
+	}
+	forward := branch(lower, upper)
+	if !symmetric {
+		return forward
+	}
+	return LogicalExpr{Op: outer, Left: forward, Right: branch(upper, lower), Pos: pos}
+}
+
 // PostgreSQL folds numeric literal negation, including grouped constants.
 func negateExpr(l sqlLexer, tok lexeme, child Expr) Expr {
 	literal, ok := child.(LiteralExpr)
@@ -238,7 +258,7 @@ func (l *lexer) deferUnsupported(tok lexeme, message string) {
 // classifications. Quoted names never acquire keyword identity.
 var unsupportedCommands = wordSet("merge truncate drop alter explain copy vacuum analyze analyse grant revoke with execute deallocate discard listen notify unlisten reindex cluster refresh reset")
 var unsupportedCreateObjects = wordSet("temporary temp unlogged view index database function procedure trigger")
-var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning limit offset fetch group having window for using primary unique check references default constraint collate in between like ilike similar")
+var unsupportedSuffixes = wordSet("union intersect except join inner left right full cross natural on returning limit offset fetch group having window for using primary unique check references default constraint collate in like ilike similar")
 var unsupportedCommentKinds = wordSet("type database index view collation conversion extension language publication subscription tablespace trigger policy rule statistics")
 
 // LOGIN attributes are contextual role-option words, not PostgreSQL keywords.

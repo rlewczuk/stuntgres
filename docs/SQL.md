@@ -52,8 +52,16 @@ scalar := unqualified column | value | (scalar) | CAST(scalar AS cast_type) | sc
         | NULLIF(logical_target, logical_target)
 cast_type := INTEGER | INT | INT4 | BIGINT | INT8 | BOOLEAN | BOOL | TEXT
            | (CHAR | CHARACTER | BPCHAR | VARCHAR | CHARACTER VARYING) [(length)]
-comparison := scalar (= | <> | != | < | <= | > | >=) scalar
-logical_target := scalar | comparison | NOT logical_target
+comparison_operator := = | <> | != | < | <= | > | >=
+comparison := scalar comparison_operator scalar
+            | between_predicate comparison_operator between_expression
+            | scalar comparison_operator between_predicate
+between_target := scalar | (logical_target)
+between_predicate := between_target [NOT] BETWEEN [SYMMETRIC] lower_endpoint AND between_target
+between_expression := between_target | between_predicate
+lower_endpoint := between_target | scalar comparison_operator scalar
+                | lower_endpoint IS [NOT] DISTINCT FROM lower_endpoint
+logical_target := between_expression | comparison | NOT logical_target
                 | logical_target AND logical_target | logical_target OR logical_target
                 | (logical_target)
 logical_predicate := logical_target
@@ -61,13 +69,23 @@ delete_predicate := logical_predicate with optional target/alias qualification o
 projection_target := logical_target | null_count_call
 call_argument := scalar | null_count_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
-default_expression := value | comparison | (logical_target)
+default_expression := value | scalar comparison_operator scalar | (logical_target)
                     | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
 Conditional expressions compose with the existing scalar consumers, including
 INSERT sources, mutation predicates/RHS and stored DEFAULTs. Their common types,
 NULLIF equality signatures, result metadata and analysis-versus-execution demand
 are described in [Conditional expressions](QUERIES.md#conditional-expressions).
+BETWEEN includes endpoints; SYMMETRIC handles either bound order. Lower
+endpoints exclude unparenthesized logical syntax; parentheses admit nested
+predicates/Boolean expressions. Cast/arithmetic bind above BETWEEN; a single
+ordinary comparison binds below BETWEEN, then IS/outer NOT/AND/OR. ASYMMETRIC and ungrouped
+BETWEEN chaining remain excluded. Typing and NULL behavior are composed from
+independent existing binary comparisons, not a common triple type.
+Grouped/nested BETWEEN defaults round-trip through native Dump/Restore using
+the existing scalar CASE syntax to encode predicate-valued comparison operands.
+Serialization does not evaluate defaults or widen ordinary grouped-comparison
+admission; restored defaults retain typed NULL and deferred errors.
 
 
 ## Sequences

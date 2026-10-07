@@ -235,11 +235,11 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		if err != nil || predicate != n.predicate {
 			return "", fmt.Errorf("stuntgres: invalid default predicate binding")
 		}
-		left, err := defaultSQL(ctx, view, n.left)
+		left, err := defaultComparisonOperandSQL(ctx, view, n.left)
 		if err != nil {
 			return "", err
 		}
-		right, err := defaultSQL(ctx, view, n.right)
+		right, err := defaultComparisonOperandSQL(ctx, view, n.right)
 		if err != nil {
 			return "", err
 		}
@@ -326,6 +326,23 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		return "(" + left + " " + operator + " " + right + ")", nil
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported stored default node")
+	}
+}
+
+// Grouped predicate operands arise from BETWEEN lowering, but ordinary
+// comparisons intentionally retain scalar-only operands in the replay grammar.
+// CASE is the existing scalar identity bridge; serialize/validate its child
+// first, without evaluating the stored default or widening the grammar.
+func defaultComparisonOperandSQL(ctx context.Context, view CatalogRead, child BoundExpr) (string, error) {
+	text, err := defaultSQL(ctx, view, child)
+	if err != nil {
+		return "", err
+	}
+	switch child.(type) {
+	case comparisonExpression, nullTestExpression, truthTestExpression, distinctExpression, logicalExpression:
+		return "(CASE WHEN TRUE THEN " + text + " END)", nil
+	default:
+		return text, nil
 	}
 }
 

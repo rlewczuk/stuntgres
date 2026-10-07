@@ -163,7 +163,7 @@ func TestMappedKeywordLabels(t *testing.T) {
 		}
 		keywordDiagnostic(t, "SELECT x AS "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "13")
 		// Predicate and logical tokens continue SELECT expressions, not aliases.
-		if k.bareLabel && k.token != IS && k.word != "and" && k.word != "or" {
+		if k.bareLabel && k.token != IS && k.token != BETWEEN && k.token != NOT && k.word != "and" && k.word != "or" {
 			keywordDiagnostic(t, "SELECT x "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "10")
 		}
 	}
