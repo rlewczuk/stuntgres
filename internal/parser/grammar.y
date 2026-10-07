@@ -49,6 +49,9 @@ package parser
  persistence string
  caseArms []CaseArm
  caseArm CaseArm
+ fromItem FromItem
+ identifiers []Identifier
+ identifier *Identifier
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -59,6 +62,7 @@ package parser
 %token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> HAVING
+%token <tok> CROSS INNER JOIN NATURAL USING
 %token <tok> DELETE
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
@@ -101,7 +105,7 @@ package parser
 %nonassoc IDENT NULL_COUNT_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC '.'
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
 %nonassoc '('
-%nonassoc KW_T LIKE WITH WITHOUT
+%nonassoc KW_T CROSS INNER JOIN NATURAL LIKE WITH WITHOUT
 %nonassoc '='
 %left ':'
 /* A parenthesized scalar stays on the scalar path; Boolean grouping uses
@@ -111,6 +115,7 @@ package parser
 %type <stmt> delete
 %type <tok> delete_alias
 %type <expr> delete_where delete_operand delete_base delete_lower delete_between delete_between_predicate delete_comparison delete_target delete_not delete_and delete_or
+%type <expr> update_where scalar_projection
 %type <stmt> update
 %type <assignments> update_assignments
 %type <assignment> update_assignment
@@ -134,6 +139,10 @@ package parser
 %type <settingName> setting_name set_name local_setting_name
 %type <targets> insert_targets
 %type <objectName> relation_name
+%type <fromItem> from_list joined_table from_atom from_base
+%type <identifiers> alias_columns using_columns
+%type <identifier> using_alias
+%type <desc> inner_join
 %type <alterTarget> alter_target rename_target
 %type <desc> optional_column
 %type <dropTarget> drop_target
@@ -451,32 +460,34 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
  | CONSTRAINT name NULL { $$=ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
- | DEFAULT default_target { $$=ColumnConstraint{Default:$2,Pos:$1.pos} }
- | CONSTRAINT name DEFAULT default_target { $$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
+ | DEFAULT default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
+ | CONSTRAINT name DEFAULT default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
-update: UPDATE relation_name SET update_assignments where { $$=&Update{Name:$2,Assignments:$4,Where:$5,Pos:$1.pos} }
- | UPDATE relation_name SET update_assignments where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
- | UPDATE relation_name SET update_assignments where FROM { sqllex.(*lexer).failAt("0A000","UPDATE FROM is unsupported",$6.pos.Offset);return 1 }
+update: UPDATE relation_name SET update_assignments update_where { $$=&Update{Name:$2,Assignments:$4,Where:$5,Pos:$1.pos} }
+ | UPDATE relation_name SET update_assignments update_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
+ | UPDATE relation_name SET update_assignments update_where FROM { sqllex.(*lexer).failAt("0A000","UPDATE FROM is unsupported",$6.pos.Offset);return 1 }
  | UPDATE relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$3.pos.Offset);return 1 }
  | UPDATE relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$4.pos.Offset);return 1 }
  | UPDATE relation_name SET '(' { sqllex.(*lexer).failAt("0A000","row assignments are unsupported",$4.pos.Offset);return 1 } ;
 update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) } ;
-update_assignment: name '=' projection_target { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
- | name '=' projection_target '.' { sqllex.(*lexer).failAt("0A000","qualified column references are unsupported",$4.pos.Offset);return 1 }
- | name '=' projection_target '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
- | name '=' projection_target '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
- | name '=' projection_target '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
- | name '=' projection_target '/' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 } ;
+update_assignment: name '=' scalar_projection { if token,unsupported:=nonqueryQualification($3,true);token!=nil {if unsupported {sqllex.(*lexer).failAt("0A000","qualified column references are unsupported",token.pos.Offset)} else {sqllex.(*lexer).syntax(*token)};return 1}; $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
+ | name '=' scalar_projection '.' { sqllex.(*lexer).failAt("0A000","qualified column references are unsupported",$4.pos.Offset);return 1 }
+ | name '=' scalar_projection '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
+ | name '=' scalar_projection '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
+ | name '=' scalar_projection '*' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
+ | name '=' scalar_projection '/' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 } ;
+update_where: where { if token,_:=nonqueryQualification($1,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=$1 } ;
 insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1.pos) }
  | INSERT INTO relation_name '(' insert_targets ')' insert_input { $$=insertStatement($3,$5,$7,$1.pos) }
  | INSERT INTO relation_name insert_input suffix { sqllex.(*lexer).capability($5,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
  | INSERT INTO relation_name '(' insert_targets ')' insert_input suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
  | INSERT INTO relation_name DEFAULT VALUES { $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
-delete: DELETE FROM relation_name delete_alias delete_where { $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Pos:$1.pos} }
- | DELETE FROM relation_name delete_alias delete_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 } ;
+delete: DELETE FROM relation_name delete_alias delete_where { if token:=deleteQualification($5,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Pos:$1.pos} }
+ | DELETE FROM relation_name delete_alias delete_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 }
+ | DELETE FROM relation_name delete_alias delete_where USING { sqllex.(*lexer).failAt("0A000","DELETE suffix is unsupported",$6.pos.Offset);return 1 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
 delete_where: /* empty */ { $$=nil } | WHERE delete_or { $$=$2 }
  | WHERE KW_U KW_U name {
@@ -484,8 +495,7 @@ delete_where: /* empty */ { $$=nil } | WHERE delete_or { $$=$2 }
    if $3.keyword==nil || $3.text!="of" { sqllex.(*lexer).syntax($3); return 1 }
    sqllex.(*lexer).deferUnsupported($2,"DELETE CURRENT OF is unsupported"); $$=nil
  } ;
-delete_operand: operand { $$=$1 }
- | name '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} } ;
+delete_operand: operand { $$=$1 } ;
 delete_base: delete_operand { $$=$1 }
  | '(' delete_or ')' { $$=$2 } ;
 delete_lower: delete_base { $$=$1 }
@@ -519,9 +529,9 @@ insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | inser
 insert_input: VALUES rows values_order { $$=&InsertSource{Rows:$2,Order:$3} }
  | insert_select { $$=&InsertSource{Select:$1} }
  | '(' insert_input ')' { $$=$2 } ;
-insert_select: SELECT projection FROM relation_name where group having order { $2.Name=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
- | SELECT projection { $2.Pos=$1.pos; $$=$2 }
- | SELECT FROM relation_name where group having order { $$=&Select{Name:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Pos:$1.pos} }
+insert_select: SELECT projection FROM from_list where group having order { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
+ | SELECT projection { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Pos=$1.pos; $$=$2 }
+ | SELECT FROM from_list where group having order { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Pos:$1.pos} }
  /* Prefer a projection operand/suffix over completing the zero-width source. */
  | SELECT %prec NAME_LIST { $$=&Select{Pos:$1.pos} } ;
 values_order: /* empty */ { $$=nil }
@@ -540,7 +550,7 @@ values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$
 insert_value: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
 insert_values: insert_value { $$=[]Expr{$1} } | insert_values ',' insert_value { $$=append($1,$3) } ;
 scalar: scalar_atom { $$=$1 }
- | '(' scalar ')' { $$=$2 }
+ | '(' scalar ')' { $$=groupedQualification($2) }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && len($3.Modifiers)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
  | cast_function scalar ')' { if $1.text=="count" {sqllex.(*lexer).failAt("0A000","count arguments are unsupported",$1.pos.Offset);return 1}; $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
@@ -567,6 +577,8 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
   * belong exclusively to temporal_type, not the ordinary name reduction. */
  | IDENT STRING { if $1.text!="date" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+ | name '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
+ | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} }
  | conditional { $$=$1 }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:Identifier{Text:$1.text,Pos:$1.pos},Args:$3} } ;
 conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$3,Else:$4,Pos:$1.pos} }
@@ -589,17 +601,19 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | STRING { $$ = Value{Kind:StringValue, Text:$1.text, Pos:$1.pos} }
  | NUMBER { var ok bool; $$, ok = integerValue(sqllex,$1,""); if !ok { return 1 } }
  | KW_T '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | CROSS '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | INNER '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | JOIN '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | NATURAL '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | IS '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | LIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | AUTHORIZATION '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | ISNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
-select: SELECT projection FROM relation_name where group having order { $2.Name=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
- | SELECT projection { $2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
- | SELECT projection FROM relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$5.pos.Offset); return 1 }
- | SELECT projection FROM relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$6.pos.Offset); return 1 }
+select: SELECT projection FROM from_list where group having order { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
+ | SELECT projection { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
- | SELECT projection FROM relation_name where group having order suffix { sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
+ | SELECT projection FROM from_list where group having order suffix { sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 sequence_args: /* empty */ { $$=nil } | sequence_values { $$=$1 } ;
@@ -618,7 +632,7 @@ default_target: target_base %prec NAME_LIST { $$=$1 }
  * layers erase grouping; this explicit shift preserves their existing ASTs
  * without admitting Boolean targets as arithmetic operands. */
 target_base: operand %prec NAME_LIST { $$=$1 }
- | '(' target_or ')' { $$=$2 } ;
+ | '(' target_or ')' { $$=groupedQualification($2) } ;
 target_between: target_base %prec IS { $$=$1 }
  | target_between_predicate { $$=$1 } ;
 target_between_predicate: target_base BETWEEN default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$3,$5,$2.pos,false,false) }
@@ -646,7 +660,11 @@ target_and: target_not { $$=$1 }
  | target_and AND target_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
 target_or: target_and { $$=$1 }
  | target_or OR target_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
-projection_target: target_or { $$=$1 } | function { $$=$1 } ;
+scalar_projection: target_or { $$=$1 } | function { $$=$1 } ;
+projection_target: scalar_projection { $$=$1 }
+ | '*' { $$=StarExpr{Pos:$1.pos} }
+ | name '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
+ | name '.' col_label '.' '*' { $$=StarExpr{Qualifier:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} } ;
 /* Selected calls remain standalone projection roots, not Boolean/comparison
  * leaves. Their arguments remain ordinary operands or nested selected calls. */
 function_argument: operand { $$=$1 } | function { $$=$1 } ;
@@ -661,10 +679,26 @@ truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
  | FALSE { $$=IsFalse } | NOT FALSE { $$=IsNotFalse }
  | UNKNOWN { $$=IsUnknown } | NOT UNKNOWN { $$=IsNotUnknown } ;
 /* Prefer positioned alias/suffix guards over completing a projection. */
-projection: '*' { $$ = &Select{Star:true,StarPos:$1.pos} } | scalar_targets %prec NAME_LIST { $$ = &Select{Targets:$1} }
+projection: scalar_targets %prec NAME_LIST { $$ = &Select{Targets:$1} }
  | scalar_targets bare_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
- | scalar_targets AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 }
- | scalar_targets '.' { sqllex.(*lexer).fail("0A000","qualified column references are unsupported"); return 1 } ;
+ | scalar_targets AS col_label { sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 } ;
+from_list: joined_table { $$=$1 }
+ | from_list ',' joined_table { $$=&JoinReference{Left:$1,Right:$3,Pos:$2.pos} } ;
+joined_table: from_atom { $$=$1 }
+ | joined_table CROSS JOIN from_atom { $$=&JoinReference{Left:$1,Right:$4,Pos:$2.pos} }
+ | joined_table inner_join JOIN from_atom ON target_or { $$=&JoinReference{Left:$1,Right:$4,On:$6,Pos:$3.pos} }
+ | joined_table inner_join JOIN from_atom USING '(' using_columns ')' using_alias { $$=&JoinReference{Left:$1,Right:$4,Using:$7,UsingAlias:$9,Pos:$3.pos} }
+ | joined_table NATURAL inner_join JOIN from_atom { $$=&JoinReference{Left:$1,Right:$5,Natural:true,Pos:$2.pos} } ;
+inner_join: /* empty */ { $$=false } | INNER { $$=true } ;
+from_base: relation_name { $$=&TableReference{Name:$1} }
+ | '(' from_list ')' { $$=$2 } ;
+from_atom: from_base { $$=$1 }
+ | from_base AS name alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
+ | from_base name alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} } ;
+alias_columns: /* empty */ { $$=nil } | '(' using_columns ')' { $$=$2 } ;
+using_columns: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
+ | using_columns ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+using_alias: /* empty */ { $$=nil } | AS name { $$=&Identifier{Text:$2.text,Pos:$2.pos} } ;
 where: /* empty */ { $$ = nil }
  | WHERE target_or { $$=$2 }
  | WHERE name predicate_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 }
@@ -693,11 +727,12 @@ setting_word: setting_word_without_between | BETWEEN ;
 non_between_name: setting_word_without_between | ROLE | LOCAL ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN ;
+type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
+ | CROSS | INNER | JOIN | NATURAL ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | NULL_COUNT_FUNC | KW_U | KW_C | KW_T | KW_R | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | conditional_word | BETWEEN | SYMMETRIC ;
+generic_word_base: IDENT | NULL_COUNT_FUNC | KW_U | KW_C | KW_T | KW_R | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */
@@ -709,8 +744,9 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | DISTINCT
- | CASE | WHEN | THEN | ELSE | SYMMETRIC ;
-col_label: name | VARIADIC | LIKE | KW_T | KW_R | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CASE | WHEN | THEN | ELSE | SYMMETRIC ;
+ | CASE | WHEN | THEN | ELSE | SYMMETRIC
+ | CROSS | INNER | JOIN | NATURAL | USING ;
+col_label: name | VARIADIC | LIKE | KW_T | KW_R | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

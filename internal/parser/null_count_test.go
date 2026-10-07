@@ -30,7 +30,7 @@ func TestNullCountRawCalls(t *testing.T) {
 		if call.Args[0].(LiteralExpr).Value.Integer != 1 || call.Args[1].(LiteralExpr).Value.Kind != NullValue || call.Args[2].(LiteralExpr).Value.Text != "x" {
 			t.Fatal(call.Args)
 		}
-		if selectStmt.IsSingleton() != (len(selectStmt.Name.Parts) == 0) {
+		if selectStmt.IsSingleton() != (selectStmt.From == nil) {
 			t.Fatal("singleton admission", selectStmt)
 		}
 	}
@@ -127,8 +127,8 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 	if !selectStmt.IsSingleton() {
 		t.Fatal(selectStmt)
 	}
-	selectStmt.Name = ObjectName{Parts: []Identifier{{Text: "t"}}}
-	if selectStmt.IsSingleton() || !reflect.DeepEqual(selectStmt.Name.Parts, []Identifier{{Text: "t"}}) {
+	selectStmt.From = &TableReference{Name:ObjectName{Parts: []Identifier{{Text: "t"}}}}
+	if selectStmt.IsSingleton() || !reflect.DeepEqual(selectStmt.From.(*TableReference).Name.Parts, []Identifier{{Text: "t"}}) {
 		t.Fatal(selectStmt)
 	}
 }

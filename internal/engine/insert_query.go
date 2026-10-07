@@ -33,15 +33,9 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	var query *BoundQuery
 	var err error
 	if sel := s.Source.Select; sel != nil {
-		if len(sel.Name.Parts) != 0 {
-			out.sourceRef, err = e.resolveReference(auth, sel.Name)
-			if err != nil {
-				return err
-			}
-			out.sourceRelation = auth.catalog.state.descriptors[out.sourceRef.Address].(*relationDescriptor)
-			binder.relation, binder.ref = out.sourceRelation, out.sourceRef
-		}
+		binder.queryAuth = &auth
 		query, err = binder.bindSelect(sel, true)
+		out.querySources = binder.querySources
 	} else {
 		query, err = binder.bindValues(s.Source)
 	}

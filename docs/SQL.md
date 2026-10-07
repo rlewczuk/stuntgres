@@ -30,21 +30,30 @@ ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
 INSERT INTO [schema.]name [(column [, ...])] SELECT [projection_target [, ...]]
-       [FROM [schema.]name [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]]
+       [FROM from_list [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
+        [HAVING logical_predicate] [ORDER BY column [ASC | DESC]]]
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
        ORDER BY (positive_output_ordinal | columnN | +numeric_constant) [ASC | DESC]
 INSERT INTO [schema.]name DEFAULT VALUES
 insert_value := value | DEFAULT
 DELETE FROM [schema.]name [[AS] alias] [WHERE delete_predicate]
-SELECT (* | projection_target [, ...]) FROM [schema.]name
-       [WHERE logical_predicate] [ORDER BY column [ASC | DESC]]
+SELECT projection_target [, ...] FROM from_list
+       [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
+       [HAVING logical_predicate] [ORDER BY column [ASC | DESC]]
+from_list := from_item [, from_item ...]
+from_item := [schema.]name [[AS] alias [(column [, ...])]]
+           | (from_list) [[AS] alias [(column [, ...])]]
+           | from_item CROSS JOIN from_item
+           | from_item [INNER] JOIN from_item ON logical_predicate
+           | from_item [INNER] JOIN from_item USING (column [, ...]) [AS merged_alias]
+           | from_item NATURAL [INNER] JOIN from_item
 SELECT null_count_call [, null_count_call ...]
 type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
        | DATE | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] | UUID | BYTEA
        | (CHAR | CHARACTER | BPCHAR | VARCHAR | CHARACTER VARYING) [(length)]
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | DATE 'input' | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] 'input'
-scalar := unqualified column | value | (scalar) | CAST(scalar AS cast_type) | scalar::cast_type
+scalar := query_column | value | (scalar) | CAST(scalar AS cast_type) | scalar::cast_type
         | (int4 | int8 | text | bool)(scalar)
         | CASE [logical_target] WHEN logical_target THEN logical_target
           [WHEN logical_target THEN logical_target ...] [ELSE logical_target] END
@@ -66,12 +75,34 @@ logical_target := between_expression | comparison | NOT logical_target
                 | (logical_target)
 logical_predicate := logical_target
 delete_predicate := logical_predicate with optional target/alias qualification on columns
-projection_target := logical_target | null_count_call
+query_column := column | qualifier.column | schema.table.column
+projection_target := logical_target | null_count_call | * | qualifier.* | schema.table.*
 call_argument := scalar | null_count_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
 default_expression := value | scalar comparison_operator scalar | (logical_target)
                     | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
+
+The FROM productions above are precedence notation: explicit joins bind tighter
+than comma lists and associate left; parentheses preserve boundaries. ON sees
+only its operands. Aliases hide original qualifiers; a whole-join alias hides
+operand qualifiers. A special USING AS alias exposes only merged keys without
+hiding operands and admits no column-alias list. Query qualification applies to
+SELECT/INSERT SELECT consumers; existing DELETE/UPDATE cast/qualification guards
+are not widened. Raw qualification guards also remain at DEFAULT, VALUES and
+settings-call scalar entry points. Previously admitted conditional arguments
+retain their consumer diagnostics, including metadata-only utility Prepare
+followed by DEFAULT validation at execution. ORDER retains its single
+unqualified named-key syntax.
+No-FROM SELECT/INSERT SELECT retain their prior projection qualification
+capability guard (`0A000` at a raw dot), rather than gaining a FROM namespace.
+Grouped scalar qualifiers retain their syntax boundary; existing selected
+singleton calls and zero-width INSERT SELECT admission are unchanged.
+USING emits list-order keys, then remaining left/right columns; NATURAL derives
+left-order common names, with no common name equivalent to CROSS JOIN. Results
+preserve all matching occurrences and promise no unordered traversal sequence.
+See [the join examples and ownership contract](QUERIES.md#inner-and-cross-joins--change-note).
+
 Conditional expressions compose with the existing scalar consumers, including
 INSERT sources, mutation predicates/RHS and stored DEFAULTs. Their common types,
 NULLIF equality signatures, result metadata and analysis-versus-execution demand
@@ -276,4 +307,4 @@ authority, coherent multi-literal groups and native temp-only replacement.
 
 ## Unsupported surface
 
-Three-part/database qualification, temporary tables (TEMP sequences are supported), SELECT aliases/qualified columns, joins, generic expressions/functions, casts outside the bounded baseline/character-family/selected regclass sets, constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, two-phase commit, transactional table/schema DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation, or SQL catalog projections are not supported. Declared DEFAULT expressions remain bounded and reject sequence calls, including calls with constant NULL arguments; sequence support does not widen that consumer. SQL transaction controls and savepoints, RU/RC/RR modes, read-only access, CHAIN and current/default transactional settings described in [transactions](TRANSACTIONS.md) are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Database-qualified relation names, temporary tables (TEMP sequences are supported), SELECT projection aliases, outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions, casts outside the bounded baseline/character-family/selected regclass sets, constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, two-phase commit, transactional table/schema DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation, or SQL catalog projections are not supported. Declared DEFAULT expressions remain bounded and reject sequence calls, including calls with constant NULL arguments; sequence support does not widen that consumer. SQL transaction controls and savepoints, RU/RC/RR modes, read-only access, CHAIN and current/default transactional settings described in [transactions](TRANSACTIONS.md) are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.

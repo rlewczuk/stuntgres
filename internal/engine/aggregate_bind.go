@@ -125,7 +125,19 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 	case aggregateExpression:
 		return groupExpression{e.expressionInfo, len(keys) + e.slot}, nil
 	case columnExpression:
-		return nil, expressionError("42803", fmt.Sprintf(`column "%s.%s" must appear in the GROUP BY clause or be used in an aggregate function`, b.relation.name, b.relation.columns[e.slot].Name), e.pos)
+		name := b.queryNamespace.frame[e.slot].Name
+		for _, q := range b.queryNamespace.qualifiers {
+			found := false
+			for _, c := range q.columns {
+				if c.slot == e.slot {
+					name = q.name+"."+c.descriptor.Name
+					found = true
+					break
+				}
+			}
+			if found { break }
+		}
+		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.pos)
 	case coercionExpression:
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)

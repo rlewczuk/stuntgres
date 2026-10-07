@@ -27,7 +27,7 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)

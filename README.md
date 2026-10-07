@@ -10,6 +10,14 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+SELECT and INSERT SELECT support comma products, CROSS JOIN and inner joins
+with ON, USING or NATURAL, including nested joins, FROM/column aliases and the
+special USING alias. Qualified columns and mixed qualified stars preserve
+duplicate occurrences; unordered results are bags, not a traversal-order promise.
+Prepared executions freshly bind every source, and eager results survive native
+Reset/Restore. See [join semantics and limits](docs/QUERIES.md#inner-and-cross-joins--change-note).
+Public feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
+
 The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling
 is preserved, textual input clips at a63-byte UTF8 boundary, and comparisons use
 C byte order. NAME has distinct metadata from TEXT and round-trips through

@@ -279,7 +279,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			t.Fatal(err)
 		}

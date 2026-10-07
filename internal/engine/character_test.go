@@ -24,7 +24,7 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	ast := statement(t, "SELECT CAST(v AS varchar(2)) FROM c WHERE CAST('a ' AS bpchar)=v")
-	ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

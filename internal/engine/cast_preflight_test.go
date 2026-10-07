@@ -364,7 +364,7 @@ func TestCastExpressionEqualityBoundDiagnosticOwnership(t *testing.T) {
 		{"SELECT id FROM t WHERE i=TRUE::bool", "operator does not exist: integer = boolean", "No operator matches the given name and argument types. You might need to add explicit type casts.", "25"},
 	} {
 		ast := statement(t, tc.query)
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			t.Fatal(err)
 		}

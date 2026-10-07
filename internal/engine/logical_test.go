@@ -156,7 +156,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	ast := statement(t, "SELECT FALSE AND a,TRUE OR b,$1 AND a FROM t WHERE NOT id=1")
-	ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

@@ -304,33 +304,40 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 }
 
 func (l *lexer) scalarInput(expr Expr) bool {
+	// Raw qualification errors precede scalar consumer checks, including a
+	// later invalid cast beneath an otherwise unsupported conditional child.
+	if token,_:=nonqueryQualification(expr,false);token!=nil {l.syntax(*token);return false}
+	return l.scalarInputTree(expr)
+}
+
+func (l *lexer) scalarInputTree(expr Expr) bool {
 	switch r := expr.(type) {
 	case CaseExpr:
-		if r.Test != nil && !l.scalarInput(r.Test) {
+		if r.Test != nil && !l.scalarInputTree(r.Test) {
 			return false
 		}
 		for _, arm := range r.Arms {
-			if !l.scalarInput(arm.Condition) || !l.scalarInput(arm.Result) {
+			if !l.scalarInputTree(arm.Condition) || !l.scalarInputTree(arm.Result) {
 				return false
 			}
 		}
-		return r.Else == nil || l.scalarInput(r.Else)
+		return r.Else == nil || l.scalarInputTree(r.Else)
 	case ConditionalExpr:
 		for _, child := range r.Args {
-			if !l.scalarInput(child) {
+			if !l.scalarInputTree(child) {
 				return false
 			}
 		}
 		return true
 	case LogicalExpr:
-		return l.scalarInput(r.Left) && (r.Right == nil || l.scalarInput(r.Right))
+		return l.scalarInputTree(r.Left) && (r.Right == nil || l.scalarInputTree(r.Right))
 	case PredicateExpr:
-		return l.scalarInput(r.Left) && (r.Right == nil || l.scalarInput(r.Right))
+		return l.scalarInputTree(r.Left) && (r.Right == nil || l.scalarInputTree(r.Right))
 	case CastExpr:
-		return l.scalarInput(r.Child)
+		return l.scalarInputTree(r.Child)
 	case OperatorExpr:
 		for _, child := range r.Args {
-			if !l.scalarInput(child) {
+			if !l.scalarInputTree(child) {
 				return false
 			}
 		}

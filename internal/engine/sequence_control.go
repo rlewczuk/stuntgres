@@ -332,7 +332,7 @@ func sequenceDumpStatements(sequences []dumpSequence) []string {
 	return lines
 }
 func restoreSequenceState(s *parser.Select) bool {
-	if len(s.Name.Parts) != 0 || s.Star || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) != 1 {
+	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) != 1 {
 		return false
 	}
 	call, ok := s.Targets[0].(parser.CallExpr)

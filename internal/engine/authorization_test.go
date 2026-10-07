@@ -25,7 +25,7 @@ func roleTableRef(t *testing.T, e *Engine, name string) ObjectRef {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	ref, err := e.resolveReference(catalogAuthorization(e, CatalogRead{e, e.state}), statement(t, "SELECT * FROM "+name).(*parser.Select).Name)
+	ref, err := e.resolveReference(catalogAuthorization(e, CatalogRead{e, e.state}), statement(t, "SELECT * FROM "+name).(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		t.Fatal(err)
 	}

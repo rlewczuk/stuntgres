@@ -551,6 +551,9 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
+	if _, query := stmt.(*parser.Select); query {
+		return v.checkQuerySources(b.querySources)
+	}
 	if b.relation == nil {
 		return nil
 	}
@@ -559,10 +562,7 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {
 			return err
 		}
-		if b.sourceRelation != nil {
-			return v.checkColumns(binding{ref: b.sourceRef, relation: b.sourceRelation}, SelectPrivilege, b.usedColumns)
-		}
-		return nil
+		return v.checkQuerySources(b.querySources)
 	case *parser.Delete:
 		if err := v.Check(AccessRequirement{Object: b.ref, Privileges: DeletePrivilege}); err != nil {
 			return err
@@ -582,6 +582,14 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 	default:
 		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
 	}
+}
+func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
+	for _, source := range sources {
+		if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, SelectPrivilege, source.uses); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (v AuthorizationView) checkColumns(b binding, mask Privileges, indices []int) error {
 	if b.relation.relationKind == sequenceRelation {

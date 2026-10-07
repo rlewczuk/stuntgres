@@ -6,7 +6,21 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
-CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
+CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one unqualified named ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
+
+FROM supports comma products, CROSS JOIN, JOIN/INNER JOIN ON or USING, and
+NATURAL [INNER] JOIN, chains and parentheses. Table/whole-join aliases with or
+without AS support positional column aliases; qualified columns and mixed stars
+resolve the visible namespace. USING's special AS alias exposes merged keys
+without hiding operands. USING key order and NATURAL left-common-column order,
+duplicate multiplicities and NULL nonmatch follow PostgreSQL18.0. Merged common
+types may retain either physical origin or a synthetic conversion origin.
+Every source is authorized and captures one coherent selected statement view.
+Prepared execution rebinds all sources; eager results survive native Reset/Restore.
+Outer/LATERAL/derived/CTE/function FROM, projection aliases and expanded ORDER
+syntax remain excluded. See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
+Feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`;
+independent pinned reference: `make reference RUN='^TestReferenceQueryJoins' VERBOSE=0`.
 
 OID is also a supported column type: distinct unsigned32 type26, native int64
 results, unsigned comparison/order and directional integer casts. See
@@ -33,7 +47,7 @@ atomicity; public Next performs no aggregate work. See [grouping](QUERIES.md#gro
 
 Grouping does not admit standalone SELECT without FROM, count(expr), count(),
 other aggregates, FILTER/DISTINCT/in-call ORDER/OVER, DISTINCT/ALL grouping,
-grouping sets/ROLLUP/CUBE/empty grouping sets, aliases, joins or expanded ORDER syntax.
+grouping sets/ROLLUP/CUBE/empty grouping sets, projection aliases or expanded ORDER syntax.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
@@ -50,7 +64,7 @@ a row-dependent CASE/COALESCE, while decisive constant branches prune their
 unneeded runtime expressions. This is not general Boolean short-circuiting.
 Common-type and equality-overload resolution execute across the already-supported
 scalar types, including implicit DATE→TIMESTAMP; this does not add general casts,
-ordinary routines, arrays/VARIADIC, aliases, ORDER expressions or ordinary
+ordinary routines, arrays/VARIADIC, projection aliases, ORDER expressions or ordinary
 relationless SELECT. See [conditional expressions](QUERIES.md#conditional-expressions).
 Feature witnesses: `make smoke RUN='^TestConditionalSmoke$' VERBOSE=0` and
 `make reference RUN='^TestReferenceConditional' VERBOSE=0`.
@@ -132,7 +146,7 @@ DELETE FROM [schema.]target [[AS] alias] [WHERE predicate] removes real live row
 occurrences and retains the table/schema. WHERE reuses typed scalar comparisons,
 Boolean AND/OR/NOT and True-only selection, including contextual BOOL parameters.
 DELETE predicate columns accept visible target/alias qualification; alias hides
-the original target name. SELECT aliases/qualification remain excluded. Direct
+the original target name. Query FROM aliases/qualification are separate supported features. Direct
 and held prepared executions report exact affected counts, zero for no matches,
 no result relation and unsupported LastInsertId.
 Qualified missing-column diagnostics use decoded identifier components without
@@ -275,8 +289,8 @@ An earlier bare `$1` still has TEXT output fallback and conflicts with later
 INT4 inference (42P08). Inputs' Go kinds never choose SQL types.
 Incompatible operands fail eagerly in Query/Prepare at the operator (42883);
 selected literal input errors retain the literal position (22P02/22003).
-No comparison implies row ordering. Comparison chaining, SELECT aliases/qualified
-columns, casts outside the bounded baseline and character-family sets and
+No comparison implies row ordering. Comparison chaining, SELECT projection
+aliases, casts outside the bounded baseline and character-family sets and
 comparison in INSERT/settings remain
 excluded. Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`;
 independent pinned reference: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`.
@@ -396,7 +410,7 @@ expression syntax remain excluded. Feature smoke:
 `make smoke RUN='^TestLogicalSmoke$' VERBOSE=1`; pinned independent reference:
 `make reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
 PostgreSQL parses `SELECT TRUE AND FROM t` / `SELECT TRUE OR FROM t` as TRUE
-targets with bare aliases and/or. Native aliases remain excluded and these
+targets with bare aliases and/or. Native projection aliases remain excluded and these
 keywords continue logical expressions; native42601 points to FROM at17/16.
 Independent reference coverage asserts PostgreSQL's positive BOOL outputs and
 native failures separately, without normalizing this capability boundary.
@@ -428,7 +442,7 @@ Explicit VARIADIC scalar operands fail42804 at the operand, including unknown
 strings/NULL; multiple ordinary/VARIADIC operands fail42883 lookup first.
 Arrays are not admitted: PostgreSQL NULL-array/empty-array semantics are not
 native support, and ordinary NULL is a single null argument. Calls remain excluded
-from INSERT, WHERE and setting arguments. General calls, qualification, aliases,
+from INSERT, WHERE and setting arguments. General calls, function qualification, projection aliases,
 casts outside the bounded baseline and character-family sets, arithmetic,
 DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
 remain exclusions rather than PostgreSQL diagnostic-parity claims.
@@ -483,7 +497,7 @@ Comparison operands admit bounded scalar arithmetic and baseline and
 character-family casts, but not comparison chaining or nested logical/comparison
 expressions. Predicates also accept these scalar expressions and use their
 resolved type and expression start. General functions/casts outside the bounded
-baseline and character-family sets, aliases, rows/composites and no-FROM scalar
+baseline and character-family sets, projection aliases, rows/composites and no-FROM scalar
 queries remain excluded except for the selected call roots described above.
 Null-count calls remain standalone projection roots, not predicate operands;
 predicate expressions remain excluded from their arguments.

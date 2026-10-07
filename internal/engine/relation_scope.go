@@ -10,7 +10,10 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) error {
-	if insert, ok := stmt.(*parser.Insert); ok && insert.Source != nil && insert.Source.Select != nil && len(insert.Source.Select.Name.Parts) != 0 {
+	if sel, ok := stmt.(*parser.Select); ok {
+		return s.acquireQueryRelations(sel, execute)
+	}
+	if insert, ok := stmt.(*parser.Insert); ok && insert.Source != nil && insert.Source.Select != nil && insert.Source.Select.From != nil {
 		if err := s.acquireRelationTarget(stmt, execute, false); err != nil {
 			return err
 		}
@@ -19,7 +22,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) er
 		if err := bindInsertTargets(s.lockedDescriptor.(*relationDescriptor), insert.Targets, nil); err != nil {
 			return err
 		}
-		return s.acquireRelationTarget(insert.Source.Select, execute, true)
+		return s.acquireQueryRelations(insert.Source.Select, execute)
 	}
 	return s.acquireRelationTarget(stmt, execute, false)
 }
@@ -35,7 +38,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 		if v.IsSingleton() {
 			return nil
 		}
-		name = v.Name
+		name = v.From.(*parser.TableReference).Name
 		mode = accessShare
 	case *parser.Insert:
 		name = v.Name
@@ -197,7 +200,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 		return ErrCatalogReplaced
 	}
 	if source {
-		s.sourceRef, s.sourceDescriptor = ref, descriptor
+		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, storage: e.storage[ref.Address]})
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
@@ -240,8 +243,22 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 }
 
 func (s *StatementScope) validateLockedRelation(e *Engine) error {
-	if s.sourceRef.owner != nil && (s.sourceRef.owner != e.owner || s.sourceRef.Epoch != e.state.epoch || e.sequenceCatalogLocked(s.owner.sequences).state.descriptors[s.sourceRef.Address] != s.sourceDescriptor) {
-		return ErrCatalogReplaced
+	return s.validateRelationGrantsLocked(e,false)
+}
+
+// Final analysis refreshes compatible source metadata in the same critical
+// section as authorization/binding. Later validation never rewrites layouts.
+func (s *StatementScope) refreshRelationGrantsLocked(e *Engine) error {
+	return s.validateRelationGrantsLocked(e,true)
+}
+
+func (s *StatementScope) validateRelationGrantsLocked(e *Engine,refreshSources bool) error {
+	if len(s.querySources)==0 && s.lockedRef.owner==nil {return nil}
+	catalog:=e.sequenceCatalogLocked(s.owner.sequences)
+	for i, source := range s.querySources {
+		current,err:=currentQuerySourceLocked(e,catalog,source)
+		if err!=nil {return err}
+		if refreshSources {s.querySources[i].relation=current}
 	}
 	if s.lockedRef.owner == nil {
 		return nil
@@ -249,7 +266,7 @@ func (s *StatementScope) validateLockedRelation(e *Engine) error {
 	if s.lockedRef.owner != e.owner || s.lockedRef.Epoch != e.state.epoch {
 		return ErrCatalogReplaced
 	}
-	current := e.sequenceCatalogLocked(s.owner.sequences).state.descriptors[s.lockedRef.Address]
+	current := catalog.state.descriptors[s.lockedRef.Address]
 	if s.lockedIdentityOnly {
 		if _, ok := current.(*relationDescriptor); !ok {
 			return ErrCatalogReplaced

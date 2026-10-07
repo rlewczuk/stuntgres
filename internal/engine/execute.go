@@ -55,7 +55,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return result, err
 	}
 	e.mu.Lock()
-	if err := scope.validateLockedRelation(e); err != nil {
+	if err := scope.refreshRelationGrantsLocked(e); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -210,9 +210,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if b.sourceRef != scope.sourceRef {
+	if err := scope.validateQuerySources(b.querySources); err != nil {
 		e.mu.Unlock()
-		return Result{}, ErrCatalogReplaced
+		return Result{}, err
 	}
 	if scope.Expected != nil {
 		var results []ColumnDescriptor
@@ -389,33 +389,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.executeUpdate(ctx, scope, b, source, canonical, schema)
 	case *parser.Insert:
 		if s.Source != nil {
-			var source *querySource
-			var view *VisibilityView
-			if b.sourceRelation != nil && b.sourceRelation.relationKind == sequenceRelation {
-				source, err = e.captureSequenceSourceLocked(scope, b.sourceRef, b.sourceRelation)
-				if err != nil {
-					e.mu.Unlock()
-					return Result{}, err
-				}
-			} else if b.sourceRelation != nil {
-				var viewErr error
-				view, viewErr = scope.acquireDataViewLocked(e, b.sourceRef)
-				if viewErr != nil {
-					e.mu.Unlock()
-					return Result{}, viewErr
-				}
+			source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Source.Select != nil && len(b.querySources) == 0)
+			if sourceErr != nil {
+				e.mu.Unlock()
+				return Result{}, sourceErr
 			}
 			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 			e.mu.Unlock()
-			if view != nil {
-				source, err = captureQuerySource(ctx, view, b.sourceRef)
-				if err != nil {
-					return Result{}, err
-				}
-			} else if source == nil {
-				source = &querySource{singleton: s.Source.Select != nil && b.sourceRelation == nil}
-			}
-			source.scope = scope
+			if err := selectQuerySources(ctx, source); err != nil { return Result{}, err }
 			b.query = &BoundQuery{Root: queryRoot}
 			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.output)
 			if queryErr != nil {
@@ -498,29 +479,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return scope.executeDelete(b, view, canonical)
 	case *parser.Select:
-		var source *querySource
-		if s.IsSingleton() {
-			source = &querySource{singleton: true}
-			e.mu.Unlock()
-		} else if b.relation.relationKind == sequenceRelation {
-			source, err = e.captureSequenceSourceLocked(scope, b.ref, b.relation)
-			e.mu.Unlock()
-			if err != nil {
-				return Result{}, err
-			}
-		} else {
-			view, viewErr := scope.acquireDataViewLocked(e, b.ref)
-			if viewErr != nil {
-				e.mu.Unlock()
-				return Result{}, viewErr
-			}
-			e.mu.Unlock()
-			source, err = captureQuerySource(ctx, view, b.ref)
-			if err != nil {
-				return Result{}, err
-			}
+		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.IsSingleton())
+		e.mu.Unlock()
+		if sourceErr != nil {
+			return Result{}, sourceErr
 		}
-		source.scope = scope
+		if err := selectQuerySources(ctx, source); err != nil { return Result{}, err }
 		rows, count, queryErr := finalizeQuery(ctx, queryRoot, source, canonical)
 		if queryErr != nil {
 			return Result{}, queryErr

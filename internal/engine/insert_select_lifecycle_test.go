@@ -92,13 +92,13 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			view, err := scope.acquireDataViewLocked(e, b.sourceRef)
+			view, err := scope.acquireDataViewLocked(e, b.querySources[0].ref)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
 			e.mu.Unlock()
-			source, err := captureQuerySource(op.ctx, view, b.sourceRef)
+			source, err := captureQuerySource(op.ctx, view, b.querySources[0].ref)
 			if err != nil {
 				t.Fatal(err)
 			}

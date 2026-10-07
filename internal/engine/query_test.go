@@ -33,7 +33,7 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *BoundQuery, *querySou
 		t.Fatal(err)
 	}
 	ast := statement(t, sql)
-	ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

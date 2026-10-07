@@ -264,9 +264,7 @@ type UpdateAssignment struct {
 func (*Update) statement() {}
 
 type Select struct {
-	Name    ObjectName
-	Star    bool
-	StarPos Position
+	From    FromItem
 	Targets []Expr
 	Where   Expr
 	GroupBy []Expr
@@ -279,10 +277,13 @@ func (*Select) statement() {}
 
 // IsSingleton admits only selected-call projections without a relation.
 func (s *Select) IsSingleton() bool {
-	if len(s.Name.Parts) != 0 || s.Star || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) == 0 {
+	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) == 0 {
 		return false
 	}
 	for _, target := range s.Targets {
+		if _, star := target.(StarExpr); star {
+			return false
+		}
 		if containsAggregate(target) {
 			return false
 		}
@@ -510,6 +511,9 @@ type TypedLiteralExpr struct {
 type ColumnExpr struct {
 	Name ObjectName
 	Pos  Position
+	QualificationPos, ExtraQualificationPos Position
+	// Grouping erases its AST node, but retains the old raw dot boundary.
+	QualificationGrouped bool
 }
 type ParameterExpr struct {
 	Number int

@@ -2,6 +2,78 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Inner and cross joins — change note
+
+SELECT and its shared INSERT SELECT producer accept comma-separated FROM items,
+CROSS JOIN, JOIN/INNER JOIN with ON or USING, and NATURAL [INNER] JOIN. Explicit
+joins bind tighter than commas and associate left; parentheses preserve operand
+boundaries. Every matching left/right occurrence emits a row: duplicate values
+are not deduplicated. ON keeps only TRUE; FALSE and SQL NULL reject the pair.
+Empty inputs still have a fully analyzed output schema. No unordered sequence
+guarantee follows from the nested-loop implementation.
+
+FROM aliases may use AS or a bare name and rename the first N exposed columns
+with a positional column list, leaving the suffix unchanged. A table alias hides
+its original name. An alias on a parenthesized join hides its operand qualifiers.
+Targets can mix `*`, `a.*`, qualified columns and existing scalar expressions.
+Unaliased schema-qualified relations also permit `schema.table.column` and
+`schema.table.*`; a FROM alias prevents bypass through the original schema/name.
+Ambiguous names fail rather than selecting a source arbitrarily.
+
+USING emits merged keys in list order, followed by remaining left then right
+columns. NATURAL derives common keys in left exposed-column order; no common
+names means a Cartesian product. Every key participates in equality, so NULL keys
+do not match. Qualified operand stars/columns retain the original keys and types.
+`USING(q,k) AS u` exposes only the merged keys through `u.*`/`u.k`, without hiding
+the operands; this special alias has no column-alias list.
+
+```sql
+CREATE TABLE a(l TEXT,k INT,q INT);
+CREATE TABLE b(r TEXT,q INT,k INT);
+INSERT INTO a VALUES('a',1,9),('a',1,9),('n',NULL,9),('z',2,8);
+INSERT INTO b VALUES('x',9,1),('x',9,1),('y',8,3),('n',9,NULL);
+SELECT * FROM a CROSS JOIN b;
+SELECT * FROM a JOIN b USING(q,k);
+SELECT u.*,a.k,b.k FROM a JOIN b USING(q,k) AS u;
+SELECT * FROM (a JOIN b USING(k)) AS j(kk,ll);
+```
+
+The product has sixteen occurrences. USING(q,k) has schema `q,k,l,r` and the
+bag `(9,1,'a','x')` four times. NATURAL has schema `k,q,l,r` and four matching
+occurrences. A merged INT4/INT8 key uses INT8 while qualified originals keep their
+types. Direct merged keys preserve the selected physical origin (which may be
+the right input); converted merged keys have synthetic origin/typmod metadata.
+
+ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
+but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
+existing single unqualified named ORDER key resolve the complete joined namespace.
+Projection aliases, expanded ORDER syntax, outer/LATERAL joins, derived queries,
+CTEs and FROM functions remain excluded; UPDATE FROM and DELETE USING are not
+enabled by query joins.
+
+Each source requires current SELECT authority, including constant targets, empty
+sources and ON FALSE. Equality reads both USING/NATURAL inputs even when merged
+output chooses one physical origin. Sources capture one selected statement view
+at one frontier, with private writes/deletes and existing RC/RR semantics.
+Retained input roots are restricted to the mentioned relations, including private
+write prefixes and deletion overlays.
+An earlier source lock does not freeze compatible COMMENT/ACL metadata while a
+later source waits. Final analysis refreshes same-identity/same-row-shape source
+authority; a revoked grant returns42501, while identity/shape replacement retains
+the existing catalog-replacement failure. Bound layouts and captured views are
+never retroactively refreshed.
+INSERT acquires/checks its destination before sources and publishes only a complete
+converted/constraint-checked batch. Held prepared execution rebinds names, rights,
+NATURAL keys and data; changed result shape retains the cached-plan diagnostic.
+Results are finalized before publication: public Next does not evaluate joins,
+and retained direct/computed rows and metadata survive append and Reset/Restore.
+The ordinary single-source indexed/no-copy path remains separate from joined
+admitted-frame materialization; rejected pairs do not build a Cartesian buffer.
+
+Feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
+Independent pinned PostgreSQL behavior and full diagnostic coverage:
+`make reference RUN='^TestReferenceQueryJoins' VERBOSE=0`.
+
 ## Grouping and count — change note
 
 Table SELECT and shared INSERT SELECT now accept scalar, comma-separated
@@ -61,7 +133,7 @@ datum. Restore's generated-sequence SELECT whitelist is unchanged.
 
 This does not admit standalone SELECT without FROM, count(expr), count(),
 other aggregates, FILTER, DISTINCT/ALL grouping modifiers, within-call ORDER,
-OVER, grouping sets/ROLLUP/CUBE/empty sets, aliases, joins, new scalar calls,
+OVER, grouping sets/ROLLUP/CUBE/empty sets, projection aliases, new scalar calls,
 general standalone ORDER expressions or optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded
 even with a selected sequence/REGCLASS sibling; those aggregate-free singleton
@@ -126,7 +198,7 @@ ORDER analysis follows target validation and VALUES width/common typing. Raw
 parsing always consumes the complete script first, so later syntax errors take
 precedence over ORDER analysis errors and prevent effects from a valid prefix.
 These VALUES/no-FROM forms do not add standalone VALUES or ordinary no-FROM SELECT.
-WITH/CTE, aliases, joins, general casts/functions, LIMIT and locking decorations,
+WITH/CTE, projection aliases, general casts/functions, LIMIT and locking decorations,
 RETURNING and ON CONFLICT remain outside this part's surface.
 
 The target RX lock is acquired before source AS; target INSERT and source SELECT
@@ -161,7 +233,7 @@ its schema. Optional WHERE uses the same typed comparison and three-valued
 Boolean evaluator as SELECT: only TRUE selects, never FALSE or NULL. AS and bare
 target aliases are supported; an alias hides the original target name. Predicate
 columns may be unqualified or qualified by the visible target/alias. This does not
-enable SELECT aliases/qualified columns, USING, CURRENT OF, RETURNING, UPDATE,
+enable DELETE USING, CURRENT OF, RETURNING, UPDATE,
 foreign keys, triggers or additional constraints.
 DELETE also reuses SELECT's nullness, Boolean truth and DISTINCT predicates,
 including alias-qualified operands. Existing baseline explicit scalar casts work
@@ -319,7 +391,7 @@ whole-statement type finalization. Explicit VARIADIC scalar operands fail42804 a
 multiple ordinary/VARIADIC operands fail42883 signature lookup. Arrays, including
 PostgreSQL's NULL-array/empty-array cases, are unsupported; ordinary NULL is a
 single null argument, not a NULL array. No calls are added to INSERT, settings
-arguments or WHERE. General functions, qualification, aliases, casts outside the
+arguments or WHERE. General functions, function qualification, projection aliases, casts outside the
 bounded baseline and character-family sets, arithmetic, DISTINCT, ORDER BY within
 calls, FILTER, OVER, star and named arguments remain outside the native surface.
 
@@ -537,10 +609,10 @@ scalar comparisons form Boolean leaves in targets and WHERE, such as
 `NOT id=1 AND (a OR b)` or `id>=2 AND a=b`. Comparisons keep scalar operands
 only: no chaining or logical/comparison expressions as comparison operands.
 This adds no logical INSERT VALUES, setting arguments, expression ORDER BY,
-casts outside the bounded baseline and character-family sets, aliases,
-general functions or qualified-column expressions.
+casts outside the bounded baseline and character-family sets, projection aliases
+or general functions.
 PostgreSQL also accepts `SELECT TRUE AND FROM t` and `SELECT TRUE OR FROM t`
-as TRUE targets with bare aliases `and` and `or`. Native aliases remain excluded:
+as TRUE targets with bare aliases `and` and `or`. Native projection aliases remain excluded:
 these keywords continue logical expressions, so these two incomplete expressions
 report `42601` at FROM. Reference tests assert both native failures and PostgreSQL
 positive results independently, not false syntax-error parity.

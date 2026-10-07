@@ -143,7 +143,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 		return false, errors.New("stuntgres: deletion requires its candidate view")
 	}
 	data := s.view.read()
-	if candidate.ref != s.lockedRef || candidate.storage != s.lockedStorage || candidate.storage != data.storage {
+	if candidate.ref != s.lockedRef || candidate.storage != s.lockedStorage || candidate.storage != data.generationAt(candidate.ref.Address) {
 		return false, errors.New("stuntgres: deletion is outside its candidate shape")
 	}
 	captured := data.committed[candidate.ref.Address]
@@ -197,7 +197,7 @@ func (s *StatementScope) executeDelete(b binding, view *VisibilityView, paramete
 }
 
 func (s *StatementScope) deleteSource(b binding, source *querySource, parameters []sqltype.Value) (Result, error) {
-	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.read().storage {
+	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.read().generationAt(b.ref.Address) {
 		return Result{}, ErrCatalogReplaced
 	}
 	ctx := s.op.Context()
@@ -291,6 +291,13 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 
 // The nil selection path remains allocation-free for undeleted prefixes.
 func captureQuerySource(ctx context.Context, view *VisibilityView, ref ObjectRef) (*querySource, error) {
+	source, err := captureQueryPrefix(view, ref)
+	if err != nil { return nil, err }
+	data := source.view.read()
+	return selectQuerySource(ctx, source, data.frontier, data.ends[ref.Address], data.deleted[ref.Address])
+}
+
+func captureQueryPrefix(view *VisibilityView, ref ObjectRef) (*querySource, error) {
 	pin := view.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
@@ -304,8 +311,7 @@ func captureQuerySource(ctx context.Context, view *VisibilityView, ref ObjectRef
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}
-	source := &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address]}
-	return selectQuerySource(ctx, source, data.frontier, data.ends[ref.Address], data.deleted[ref.Address])
+	return &querySource{view: pin, ref: ref, committed: data.committed[ref.Address], own: data.own[ref.Address]}, nil
 }
 
 // Query and catalog replacement share one physical-to-live head selection.

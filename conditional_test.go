@@ -177,7 +177,8 @@ func TestConditionalSequenceDemandAndConsumers(t *testing.T) {
 	wantTuples(t, db, "SELECT v FROM t ORDER BY id", [][]any{{int64(10)}, {int64(20)}, {int64(30)}})
 	execSQL(t, db, "DELETE FROM t WHERE CASE t.b WHEN TRUE THEN TRUE ELSE FALSE END")
 	wantTuples(t, db, "SELECT id FROM t ORDER BY id", [][]any{{int64(2)}, {int64(3)}})
-	for _, q := range []string{"SELECT COALESCE(t.v,1) FROM t", "UPDATE t SET v=COALESCE(t.v,1)", "DELETE FROM t WHERE CAST(COALESCE(t.v,1) AS int4)=1"} {
+	wantTuples(t, db, "SELECT COALESCE(t.v,1) FROM t ORDER BY id", [][]any{{int64(20)}, {int64(30)}})
+	for _, q := range []string{"UPDATE t SET v=COALESCE(t.v,1)", "DELETE FROM t WHERE CAST(COALESCE(t.v,1) AS int4)=1"} {
 		_, err := db.Exec(q)
 		var d *stuntgres.Error
 		if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "qualified column references are unsupported" || d.Position == "" {

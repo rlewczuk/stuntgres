@@ -87,7 +87,7 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	ast := statement(t, "SELECT i,i::int4,int4(i),CAST(i AS bigint),CAST(int8(i) AS text) FROM t")
-	ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		t.Fatal(err)
 	}

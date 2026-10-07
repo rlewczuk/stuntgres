@@ -40,7 +40,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 			t.Fatal(err)
 		}
 		ast := statement(t, tc.q)
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
@@ -156,7 +156,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 			t.Fatal(err)
 		}
 		ast := statement(t, q)
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)

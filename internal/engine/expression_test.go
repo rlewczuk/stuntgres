@@ -29,7 +29,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		t.Fatal(err)
 	}
 	ast := statement(t, "SELECT $1,v,NULL FROM t WHERE v=$2 ORDER BY id")
-	ref, err := e.resolveReference(auth, ast.(*parser.Select).Name)
+	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

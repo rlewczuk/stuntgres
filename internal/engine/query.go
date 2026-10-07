@@ -34,6 +34,7 @@ func (s querySchema) Schema() []ColumnDescriptor { return s }
 type sourceNode struct {
 	querySchema
 	ref ObjectRef
+	occurrence int
 }
 type singletonNode struct{ querySchema }
 type valuesNode struct {
@@ -65,6 +66,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return nil, err
 	}
 	switch n := node.(type) {
+	case *joinNode:
+		return preflightJoin(c, n)
 	case *sourceNode, *singletonNode:
 		return n, nil
 	case *valuesNode:
@@ -177,7 +180,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	return node, nil
 }
 
-// querySource retains only the captured immutable prefixes for one relation.
+// A leaf retains immutable relation-local prefixes; the first leaf also owns
+// the occurrence bundle. Joined stages instead own flat admitted frames.
 // A nil visible mapping preserves the allocation-free all-occurrences path.
 type querySource struct {
 	view           *VisibilityView
@@ -187,6 +191,10 @@ type querySource struct {
 	anonymous      [][]sqltype.Value
 	visible        []int
 	scope          *StatementScope
+	sources        []*querySource
+	flat           []sqltype.Value
+	flatWidth, flatCount int
+	materialized   bool
 }
 
 func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
@@ -200,6 +208,7 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRe
 	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.columns[2].Usage.Type, g.called)}}}, nil
 }
 func (s *querySource) count() int {
+	if s.materialized { return s.flatCount }
 	if s.anonymous != nil {
 		return len(s.anonymous)
 	}
@@ -212,6 +221,7 @@ func (s *querySource) count() int {
 	return len(s.committed) + len(s.own)
 }
 func (s *querySource) row(i int) []sqltype.Value {
+	if s.materialized { return s.flat[i*s.flatWidth:(i+1)*s.flatWidth] }
 	if s.anonymous != nil {
 		return s.anonymous[i]
 	}
@@ -233,6 +243,11 @@ func (s *querySource) versionAt(i int) rowVersion {
 	return s.own[i-len(s.committed)]
 }
 func (s *querySource) close() {
+	sources := s.sources
+	s.sources = nil
+	for _, child := range sources { if child != nil && child != s { child.close() } }
+	s.flat = nil
+	s.flatCount = 0
 	if s.view != nil {
 		s.view.Release()
 	}
@@ -327,6 +342,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
+	case *joinNode:
+		return openJoinNode(ctx, state, n)
 	case *aggregateNode:
 		return openAggregateNode(ctx, state, n)
 	case *valuesNode:
@@ -359,17 +376,18 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		return indexedStage{source: state.source, schema: n.Schema()}, nil
 	case *sourceNode:
-		if state.source != nil && state.source.anonymous != nil && n.ref == state.source.ref {
-			return indexedStage{source: state.source, schema: n.Schema()}, nil
+		source := state.source
+		if source != nil && source.sources != nil {
+			if n.occurrence < 0 || n.occurrence >= len(source.sources) { return indexedStage{}, fmt.Errorf("stuntgres: invalid query occurrence") }
+			source = source.sources[n.occurrence]
 		}
-		if state.source == nil || state.source.view == nil {
-			return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
+		if source == nil || source.ref != n.ref { return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target") }
+		if source.anonymous == nil {
+			if source.view == nil { return indexedStage{}, fmt.Errorf("stuntgres: missing query source") }
+			data := source.view.read()
+			if n.ref.owner != data.catalog.owner.owner || n.ref.Epoch != data.catalog.Epoch() { return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target") }
 		}
-		data := state.source.view.read()
-		if n.ref != state.source.ref || n.ref.owner != data.catalog.owner.owner || n.ref.Epoch != data.catalog.Epoch() {
-			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
-		}
-		return indexedStage{source: state.source, schema: n.Schema()}, nil
+		return indexedStage{source: source, schema: n.Schema()}, nil
 	case *filterNode:
 		child, err := openQueryNode(ctx, state, n.child)
 		if err != nil {
@@ -673,6 +691,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	if direct && r.count > 0 {
 		r.source, r.selection, r.slots = stageSource, selection, slots
 		keep = true
+		if stageSource != source { source.close() }
 	}
 	return r, r.count, nil
 }

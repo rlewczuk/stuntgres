@@ -81,8 +81,8 @@ func TestDeleteCoreParserBoundaries(t *testing.T) {
 		}
 	}
 	for _, query := range []string{"SELECT t.id FROM t", "SELECT id FROM t d WHERE d.id=1", "SELECT id FROM t WHERE t.id=1"} {
-		if statements, err := Parse(query); err == nil || statements != nil {
-			t.Fatal("DELETE widened SELECT", query, statements, err)
+		if statements, err := Parse(query); err != nil || len(statements) != 1 {
+			t.Fatal("query qualification admission", query, statements, err)
 		}
 	}
 	for _, query := range []string{"DELETE FROM t d WHERE CAST(d.id AS BIGINT)=1", "DELETE FROM t d WHERE d.id::BIGINT=1", "DELETE FROM t d WHERE int8(d.id)=1", "DELETE FROM t WHERE 1 IS DISTINCT FROM 1 IS TRUE"} {

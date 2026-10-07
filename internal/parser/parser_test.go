@@ -76,8 +76,8 @@ func TestQualifiedRelationComponents(t *testing.T) {
 	if len(create.Name.Parts) != 2 || create.Name.Parts[0].Text != "public" || create.Name.Parts[1].Text != "a.b" || create.Name.Parts[0].Pos.Offset != 13 || create.Name.Parts[1].Pos.Offset != 20 {
 		t.Fatalf("create name = %#v", create.Name)
 	}
-	if len(selectStmt.Name.Parts) != 1 || selectStmt.Name.Parts[0].Text != "public.t" {
-		t.Fatalf("select name = %#v", selectStmt.Name)
+	if name := selectStmt.From.(*TableReference).Name; len(name.Parts) != 1 || name.Parts[0].Text != "public.t" {
+		t.Fatalf("select name = %#v", name)
 	}
 }
 
@@ -105,11 +105,10 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (B'1010')", "0A000"},
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
 		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
-		{"SELECT * FROM t alias", "0A000"}, {"SELECT x alias FROM t", "0A000"},
+		{"SELECT x alias FROM t", "0A000"},
 		{"SELECT x FROM t ORDER BY x, y", "0A000"}, {"SELECT f(x) FROM t", "0A000"},
 		{"SELECT 1", "0A000"},
 		{"CREATE TABLE t (x INT[])", "0A000"},
-		{"SELECT * FROM t JOIN u ON t.x = u.x", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"DELETE FROM t USING u", "0A000"},
 		{"CREATE TABLE \"\" (x INT)", "42601"}, {"SELECT * FROM \"unterminated", "42601"},

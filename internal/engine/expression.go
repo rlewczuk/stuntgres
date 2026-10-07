@@ -459,6 +459,10 @@ type expressionBinder struct {
 	sequenceConstants []sequenceConstant
 	aggregateClause   string
 	aggregates        []aggregateProvider
+	queryAuth         *AuthorizationView
+	querySources      []queryLeaf
+	queryNamespace    *queryNamespace
+	queryHidden       []queryQualifier
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -538,6 +542,9 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error)
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
+	if b.queryNamespace != nil {
+		return b.queryColumn(raw)
+	}
 	if len(raw.Name.Parts) == 2 && !b.deleteTarget {
 		return nil, expressionError("0A000", "qualified column references are unsupported", raw.Pos)
 	}
@@ -607,7 +614,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
 		if b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" {
-			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" {
+			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" {
 				return nil, expressionError("42803", "aggregate functions are not allowed in "+b.aggregateClause, r.Pos)
 			}
 			return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", r.Pos)
@@ -805,7 +812,7 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 }
 
 func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
-	if !b.defaultConsumer {
+	if !b.defaultConsumer && b.queryNamespace == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
 		}
@@ -890,7 +897,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 		}
 		return "case", false
 	case parser.ColumnExpr:
-		return r.Name.Parts[0].Text, true
+		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.FunctionExpr:
 		return r.Name.Parts[0].Text, true
 	case parser.CallExpr:

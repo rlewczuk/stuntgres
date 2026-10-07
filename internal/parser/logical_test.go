@@ -81,7 +81,7 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 		"SELECT id=1=TRUE FROM t", "SELECT (id=1)=TRUE FROM t",
 		"INSERT INTO t VALUES(TRUE AND FALSE)", "INSERT INTO t VALUES(NOT TRUE)",
 		"INSERT INTO t SELECT TRUE AND FALSE FROM t RETURNING a", "SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
-		"SELECT a AND b AS result FROM t", "SELECT a AND b result FROM t", "SELECT t.a AND b FROM t",
+		"SELECT a AND b AS result FROM t", "SELECT a AND b result FROM t",
 		"SELECT f(a) AND b FROM t", "SELECT a FROM t ORDER BY a AND b",
 		"CREATE TABLE or(a BOOL)", "SELECT or FROM t", "INSERT INTO t VALUES(1); SELECT TRUE AND FROM t",
 	} {

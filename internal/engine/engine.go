@@ -52,8 +52,7 @@ type binding struct {
 	targets        []int
 	usedColumns    []int
 	query          *BoundQuery
-	sourceRef      ObjectRef
-	sourceRelation *relationDescriptor
+	querySources   []queryLeaf
 	commandQuery   bool
 	update         *boundUpdate
 	dependencies   []expressionDependency
@@ -234,7 +233,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := scope.validateLockedRelation(e); err != nil {
+	if err := scope.refreshRelationGrantsLocked(e); err != nil {
 		return StatementDescription{}, err
 	}
 	auth, err := e.authorizationLocked(op)
@@ -245,8 +244,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	if b.sourceRef != scope.sourceRef {
-		return StatementDescription{}, ErrCatalogReplaced
+	if err := scope.validateQuerySources(b.querySources); err != nil {
+		return StatementDescription{}, err
 	}
 	var results []ColumnDescriptor
 	if b.query != nil && !b.commandQuery {
@@ -270,9 +269,9 @@ func objectNameText(n parser.ObjectName) string {
 	return strings.Join(parts, ".")
 }
 
-// requiredRef is the exact acquired relation for SELECT/INSERT/UPDATE/DELETE.
-// still validates current namespace authority, but cannot retarget that lock.
-// CREATE TABLE has no existing relation and supplies the zero reference.
+// requiredRef is the exact acquired DML/utility target; query source occurrences
+// have their own admission manifest. Binding validates namespace authority and
+// cannot retarget an acquired identity. CREATE supplies the zero reference.
 func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) (binding, error) {
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
@@ -514,32 +513,15 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 	case *parser.Select:
 		var err error
-		if len(s.Name.Parts) != 0 {
-			b.ref, err = e.resolveReference(auth, s.Name)
-			if err != nil {
-				return b, err
-			}
-			if b.ref != requiredRef {
-				return b, ErrCatalogReplaced
-			}
-			b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
-			b.storage = e.storage[b.ref.Address]
-			if b.storage == nil && b.relation.relationKind == tableRelation {
-				return b, fmt.Errorf("stuntgres: relation storage is missing")
-			}
-			binder.relation, binder.ref = b.relation, b.ref
-		} else {
-			if requiredRef != (ObjectRef{}) {
-				return b, ErrCatalogReplaced
-			}
-			if !s.IsSingleton() {
-				return b, sqlError("0A000", "SELECT without FROM is unsupported")
-			}
+		if s.From == nil && !s.IsSingleton() {
+			return b, sqlError("0A000", "SELECT without FROM is unsupported")
 		}
+		binder.queryAuth = &auth
 		b.query, err = binder.bindSelect(s, false)
 		if err != nil {
 			return b, err
 		}
+		b.querySources = binder.querySources
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}

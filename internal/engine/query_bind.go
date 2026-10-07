@@ -32,33 +32,39 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (BoundEx
 func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*BoundQuery, error) {
 	oldClause, oldAggregates := b.aggregateClause, b.aggregates
 	defer func() { b.aggregateClause, b.aggregates = oldClause, oldAggregates }()
+	root, namespace, err := b.bindFrom(s.From)
+	if err != nil {
+		return nil, err
+	}
+	b.queryNamespace = nil
+	if s.From != nil {b.queryNamespace = &namespace}
 	b.aggregateClause, b.aggregates = "SELECT", nil
-	width := len(s.Targets)
-	if s.Star {
-		if b.relation == nil {
-			return nil, expressionError("42601", "SELECT * with no tables specified is not valid", s.StarPos)
-		}
-		width = len(b.relation.columns)
-	}
-	projection := make([]BoundExpr, width)
-	var root LogicalNode = &singletonNode{}
-	if b.relation != nil {
-		root = &sourceNode{querySchema: b.relation.columns, ref: b.ref}
-	}
-	for i := range width {
-		if err := b.ctx.Err(); err != nil {
-			return nil, err
-		}
-		var err error
-		if s.Star {
-			projection[i] = b.columnAt(i, s.StarPos)
+	var projection []BoundExpr
+	var targetNames []string
+	for _, raw := range s.Targets {
+		if err := b.ctx.Err(); err != nil { return nil, err }
+		if star, ok := raw.(parser.StarExpr); ok {
+			columns := namespace.columns
+			if len(star.Qualifier.Parts) != 0 {
+				q, err := b.queryQualifier(star.Qualifier, star.Pos)
+				if err != nil { return nil, err }
+				columns = q.columns
+			} else if s.From == nil {
+				return nil, expressionError("42601", "SELECT * with no tables specified is not valid", star.Pos)
+			}
+			for _, c := range columns {
+				projection = append(projection, b.queryColumnAt(c, star.Pos))
+				targetNames = append(targetNames, c.descriptor.Name)
+			}
 		} else {
-			projection[i], err = b.bindOutput(s.Targets[i], contextual)
-		}
-		if err != nil {
-			return nil, err
+			expr, err := b.bindOutput(raw, contextual)
+			if err != nil { return nil, err }
+			projection = append(projection, expr)
+			name, _ := expressionName(raw, expr.ResultUsage())
+			targetNames = append(targetNames, name)
 		}
 	}
+	width := len(projection)
 	b.aggregateClause = "WHERE"
 	if s.Where != nil {
 		filter, err := b.bindBoolean(s.Where, filterContext, "WHERE")
@@ -131,14 +137,10 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		}
 		result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
 		regclassOutput = regclassOutput || (result.Usage.Type != nil && result.Usage.Type.ID() == sqltype.Regclass)
-		if !s.Star {
-			result.Name, _ = expressionName(s.Targets[i], expr.ResultUsage())
-		}
+		result.Name = targetNames[i]
 		if c, ok := expr.(columnExpression); ok {
-			result = b.relation.columns[c.slot]
-			if !s.Star {
-				result.Name, _ = expressionName(s.Targets[i], expr.ResultUsage())
-			}
+			result = namespace.frame[c.slot]
+			result.Name = targetNames[i]
 		}
 		if _, ok := expr.(aggregateExpression); ok {
 			result.NullabilityKnown = true

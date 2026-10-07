@@ -226,8 +226,7 @@ type StatementScope struct {
 	ticket             *relationTicket
 	lockedRef          ObjectRef
 	lockedDescriptor   Descriptor
-	sourceRef          ObjectRef
-	sourceDescriptor   Descriptor
+	querySources       []queryLeaf
 	lockedStorage      *relationStorage
 	lockedIdentityOnly bool
 	txRef              TxRef

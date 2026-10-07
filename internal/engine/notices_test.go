@@ -76,7 +76,7 @@ func TestNoticesCommands(t *testing.T) {
 	run(t, e, "INSERT INTO notice_rows VALUES(7,'kept')")
 	before := e.CatalogRead()
 	e.mu.Lock()
-	ref, err := e.resolveReference(catalogAuthorization(e, before), statement(t, "SELECT * FROM notice_rows").(*parser.Select).Name)
+	ref, err := e.resolveReference(catalogAuthorization(e, before), statement(t, "SELECT * FROM notice_rows").(*parser.Select).From.(*parser.TableReference).Name)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
