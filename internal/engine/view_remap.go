@@ -57,6 +57,12 @@ func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundEx
 	case coercionExpression:
 		n.child = child(n.child)
 		next = n
+	case timeZoneExpression:
+		n.value = child(n.value)
+		if !n.local {
+			n.zone = child(n.zone)
+		}
+		next = n
 	case bitwiseExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n

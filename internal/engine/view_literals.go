@@ -77,6 +77,16 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		}
 	case parser.AggregateExpr:
 		return nil
+	case parser.TimeZoneExpr:
+		if n, ok := bound.(timeZoneExpression); ok && r.Local == n.local {
+			if err := child(r.Value, n.value); err != nil {
+				return err
+			}
+			if !r.Local {
+				return child(r.Zone, n.zone)
+			}
+			return nil
+		}
 	case parser.CastExpr:
 		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
 			bound = coercion.child
@@ -292,6 +302,14 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		(*columnCount)++
 		return nil
 	case parser.StarExpr, parser.AggregateExpr:
+		return nil
+	case parser.TimeZoneExpr:
+		if err := child(r.Value); err != nil {
+			return err
+		}
+		if !r.Local {
+			return child(r.Zone)
+		}
 		return nil
 	case parser.CastExpr:
 		return child(r.Child)

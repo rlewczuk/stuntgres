@@ -985,6 +985,14 @@ Length/DecimalSize are unavailable. Finite timestamptz time.Time exports preserv
 the exact instant with the execution-captured zone offset, whereas infinity
 exports fresh owned bytes. A time.Time parameter inferred as timestamptz preserves
 its instant; one inferred as plain timestamp preserves its civil fields.
+A `time.Time` parameter inferred as TIMETZ retains its civil clock and actual
+fixed offset, including positive or negative offset seconds; it does not round
+the offset to whole minutes or convert the clock to the session zone. Direct
+and prepared imports use the same checked temporal input and precision rules,
+and native Dump/Restore retains that imported fixed-offset value.
+The pinned lib/pq v1.12.3 parameter encoder has a distinct sub-minute boundary:
+it encodes a `time.Time` offset of -30 seconds as +00:00:30. Native import retains
+-00:00:30; textual negative offsets bypass that pq encoding discrepancy.
 The pinned lib/pq adapter exports TIMETZ as time.Time, unlike native string output.
 Cross-backend text witnesses use `::TEXT`; native ScanType assertions remain
 independent rather than normalizing this adapter difference.

@@ -71,6 +71,10 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.ID() == sqltype.Date {
 			return sqltype.DateFromTime(target.Type, v)
 		}
+		if target.Type.ID() == sqltype.Timetz {
+			text = timetzParameterText(v)
+			break
+		}
 		// Preserve the existing text-input policy for other SQL destinations.
 		text = v.Format("2006-01-02 15:04:05.999999999Z07:00")
 	case string:
@@ -95,6 +99,29 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		return sqltype.Value{}, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported parameter value"}
 	}
 	return target.Type.InputWithEnvironment(ctx, text, -1, input)
+}
+
+// Keep TIMETZ on its checked textual codec, including optional-date validation
+// and fractional rounding. Encode the actual offset sign before taking its
+// magnitude: a minute-only Go layout loses the sign of offsets such as -30s.
+func timetzParameterText(v time.Time) string {
+	var buffer [64]byte
+	text := v.AppendFormat(buffer[:0], "2006-01-02 15:04:05.999999999")
+	_, offset := v.Zone()
+	sign := byte('+')
+	if offset < 0 {
+		sign = '-'
+		offset = -offset
+	}
+	text = append(text, sign)
+	if offset/3600 < 10 {
+		text = append(text, '0')
+	}
+	text = strconv.AppendInt(text, int64(offset/3600), 10)
+	minutes, seconds := offset/60%60, offset%60
+	text = append(text, ':', byte('0'+minutes/10), byte('0'+minutes%10))
+	text = append(text, ':', byte('0'+seconds/10), byte('0'+seconds%10))
+	return string(text)
 }
 
 // Only checked scalar imports and codecs run in this callback. Values are already owned and no user code

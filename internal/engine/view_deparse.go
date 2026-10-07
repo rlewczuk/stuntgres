@@ -149,6 +149,19 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return v.slotSQL(ctx, catalog, root, slot)
 	case parser.TypedLiteralExpr:
 		return "", fmt.Errorf("stuntgres: missing analyzed typed view literal")
+	case parser.TimeZoneExpr:
+		value, err := child(e.Value)
+		if err != nil {
+			return "", err
+		}
+		if e.Local {
+			return "((" + value + ") AT LOCAL)", nil
+		}
+		zone, err := child(e.Zone)
+		if err != nil {
+			return "", err
+		}
+		return "((" + value + ") AT TIME ZONE (" + zone + "))", nil
 	case parser.CastExpr:
 		text, err := child(e.Child)
 		if err != nil {

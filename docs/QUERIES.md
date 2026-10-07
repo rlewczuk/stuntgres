@@ -1300,3 +1300,17 @@ column conversions, AT LOCAL and output. Cursors retain captured presentation
 after SET/Reset/Restore. See [types](TYPES.md#time-zone-aware-values) and
 [settings](SETTINGS.md#temporal-settings) for bounded support and adapter differences.
 
+Ordinary stored views admit both forms, including column-valued zone operands
+and nested conversions. The definition and analyzed temporal literals remain
+immutable; `AT LOCAL` uses each execution's captured TimeZone, not the zone used
+when the view was created. Sources and column operands retain their bound
+identities across renames and same-name replacements. Native logical Dump/Restore
+renders these expressions with explicit grouping and replays their definitions,
+not previously computed results; restoration retains the target session settings.
+
+Stored-view timezone regressions:
+`make test RUN='^TestTimezoneReviewViewAt' VERBOSE=0` and
+`make reference RUN='^TestReferenceTimezoneReviewViewAt$' VERBOSE=0`.
+The latter independently asserts results against the pinned PostgreSQL 18.0
+fixture; native replay and catalog identity replacement are native controls.
+
