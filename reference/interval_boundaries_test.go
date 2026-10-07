@@ -49,11 +49,17 @@ func TestReferenceIntervalGenericTypmodNativeRoundTrip(t *testing.T) {
 	if err = stuntgres.Dump(p.ctx, dest, &redump); err != nil || redump.String() != dump.String() {
 		t.Fatal(err, "generic typmods changed")
 	}
+	recorded, err := sql.Open("stuntgres_reference_memory", "reference/"+t.Name()+"/restore")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recorded.Close()
+	recorder := &referenceRecorder{}
 	for i, tc := range cases {
-		referenceRunStep(t, p.ctx, dest, &referenceRecorder{}, referenceSelect(fmt.Sprintf("SELECT v FROM g%d", i), []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
+		referenceRunStep(t, p.ctx, recorded, recorder, referenceSelect(fmt.Sprintf("SELECT v FROM g%d", i), []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
 	}
 	for _, q := range []string{"SELECT v FROM ivdefault", "SELECT v FROM ivgenericview"} {
-		referenceRunStep(t, p.ctx, dest, &referenceRecorder{}, referenceSelect(q, []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 year"}}))
+		referenceRunStep(t, p.ctx, recorded, recorder, referenceSelect(q, []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 year"}}))
 	}
 }
 
