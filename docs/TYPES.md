@@ -1088,6 +1088,10 @@ YEAR removes leftover months/days/time, MONTH removes days/time, DAY removes
 time, HOUR/MINUTE endings discard smaller time fields. Quoted generic
 `"interval"(range[,precision])` takes PostgreSQL's raw range mask, unlike
 keyword INTERVAL(p)'s precision shorthand.
+Explicit generic precision is retained even for non-SECOND endings: for example,
+`"interval"(4,2)` is YEAR with precision2. Dump preserves that legal generic
+declaration rather than emitting invalid keyword `INTERVAL YEAR(2)`. Defaults
+serialize legal field literals and retain the exact destination typmod on Restore.
 Precision warnings identify the INTERVAL keyword: at analysis/Prepare for typed
 literals, and at Execute for CREATE (alongside the existing unpositioned
 descriptor-build warning). Invalid generic CREATE modifiers likewise fail at
@@ -1099,6 +1103,14 @@ months/weeks spill downward using30days/month and24hours/day. Verbose duplicate
 fields fail22007; ISO repeated designators accumulate. Months, days and time
 have checked independent domains; malformed input uses22007, decoder overflow
 22015 and final conversion/precision overflow22008 without partial publication.
+The SQL year-month form `1-2` means14months; a preceding bare quantity in
+`1 1-2` duplicates the month field and fails22007, including restricted columns.
+ISO exponent notation retains basic-format integral width:
+`P00021015e0` means `2 years 10 mons 15 days`, and `PT001020e0` means `00:10:20`.
+A parsed ISO magnitude outside ±1e15 is decoder overflow22015, not malformed
+input. Unrestricted `2562047788:00:54.775807` is the largest finite microsecond
+component, but rounding it for SECOND(2) fails22008; a later overflowing parameter
+cannot publish an earlier valid row from the same statement.
 
 Unknown literals read the destination typmod: `'1'` assigned INTERVAL YEAR means
 `1 year`. Parameters parse unrestricted first, then apply assignment restrictions:

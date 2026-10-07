@@ -180,6 +180,35 @@ func TestIntervalSmoke(t *testing.T) {
 	if err = b.QueryRowContext(ctx, "SELECT COUNT(*) FROM iv").Scan(&count); err != nil || count != 8 {
 		t.Fatal(count, err)
 	}
+	exec(`CREATE TABLE ivgeneric(id INTEGER,v "interval"(4,2) DEFAULT '13 months')`, 0)
+	exec("INSERT INTO ivgeneric(id) VALUES(1)", 1)
+	exec("CREATE VIEW ivgenericview AS SELECT v FROM ivgeneric", 0)
+	exec("CREATE TABLE ivbounds(v INTERVAL)", 0)
+	exec("INSERT INTO ivbounds VALUES('1 second')", 1)
+	exec("CREATE TABLE ivprecision(v INTERVAL SECOND(2))", 0)
+	exec("INSERT INTO ivprecision VALUES('1 second')", 1)
+	for _, tc := range []struct{ table, input, code, message string }{
+		{"ivbounds", "PT1000000000000001S", "22015", "interval field value out of range: \"PT1000000000000001S\""},
+		{"ivbounds", "1 1-2", "22007", "invalid input syntax for type interval: \"1 1-2\""},
+		{"ivprecision", "2562047788:00:54.775807", "22008", "interval out of range"},
+	} {
+		boundary, err := db.PrepareContext(ctx, "INSERT INTO "+tc.table+" VALUES($1),($2)")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = boundary.ExecContext(ctx, "1 day", tc.input)
+		boundary.Close()
+		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
+		var got *stuntgres.Error
+		if !errors.As(err, &got) || *got != want {
+			t.Fatal(err, want)
+		}
+		check(db, "SELECT v FROM "+tc.table, [][]any{{"00:00:01"}})
+	}
+	exec("INSERT INTO ivbounds VALUES('P00021015e0')", 1)
+	exec("INSERT INTO ivbounds VALUES($1)", 1, "PT001020e0")
+	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL '2 years 10 months 15 days'", [][]any{{"2 years 10 mons 15 days"}})
+	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL '10 minutes 20 seconds'", [][]any{{"00:10:20"}})
 	raw, err := drv.Open(t.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -216,6 +245,12 @@ func TestIntervalSmoke(t *testing.T) {
 	if err = stuntgres.Dump(ctx, dest, &again); err != nil || again.String() != dump.String() {
 		t.Fatal(err, "canonical redump mismatch")
 	}
+	if _, err = dest.Exec("SET IntervalStyle=postgres"); err != nil {
+		t.Fatal(err)
+	}
+	check(dest, "SELECT v FROM ivgeneric", [][]any{{"1 year"}})
+	check(dest, "SELECT v FROM ivgenericview", [][]any{{"1 year"}})
+	check(dest, "SELECT v FROM ivprecision", [][]any{{"00:00:01"}})
 	if err = stuntgres.Reset(ctx, db); err != nil {
 		t.Fatal(err)
 	}

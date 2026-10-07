@@ -639,7 +639,14 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 	}
 	switch u.Type.ID() {
 	case sqltype.Interval:
-		declaration, err := u.Declaration()
+		literalUsage := u
+		if u.Typmod >= 0 && (u.Typmod>>16)&sqltype.IntervalSecond == 0 {
+			// Non-SECOND precision needs a generic column declaration, not
+			// invalid keyword literal syntax. The destination restores that
+			// exact typmod; this already-adjusted scalar keeps its field mask.
+			literalUsage.Typmod |= sqltype.IntervalFullPrecision
+		}
+		declaration, err := literalUsage.Declaration()
 		if err != nil {
 			return "", err
 		}

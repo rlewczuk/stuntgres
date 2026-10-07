@@ -99,6 +99,9 @@ func intervalDeclaration(p int32) string {
 	if p == -1 {
 		return "INTERVAL"
 	}
+	if p&0xffff != IntervalFullPrecision && (p>>16)&IntervalSecond == 0 {
+		return fmt.Sprintf(`"interval"(%d,%d)`, p>>16, p&0xffff)
+	}
 	name, _ := intervalRangeName(p >> 16)
 	s := "INTERVAL"
 	if name != "" {
@@ -700,6 +703,7 @@ func (d *Descriptor) intervalInput(ctx context.Context, original string, pmod in
 						return overflow()
 					}
 					chosen = "month"
+					unit = "month"
 				} else {
 					n, f, ok, rangeError = intervalNumber(tok)
 					if !ok {
@@ -815,9 +819,9 @@ func intervalParseClock(s string, r int32) (int64, bool, bool) {
 	result, ok := intervalAdd(hours, tail)
 	return result, ok, !ok
 }
-func isoNumber(s string) (int64, float64, int, bool) {
+func isoNumber(s string) (int64, float64, int, bool, bool) {
 	if s == "" || s[0] == '+' {
-		return 0, 0, 0, false
+		return 0, 0, 0, false, false
 	}
 	i := 0
 	if s[0] == '-' {
@@ -836,7 +840,7 @@ func isoNumber(s string) (int64, float64, int, bool) {
 		}
 	}
 	if !digits {
-		return 0, 0, 0, false
+		return 0, 0, 0, false, false
 	}
 	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
 		i++
@@ -848,15 +852,30 @@ func isoNumber(s string) (int64, float64, int, bool) {
 			i++
 		}
 		if i == start {
-			return 0, 0, 0, false
+			return 0, 0, 0, false, false
 		}
 	}
 	n, e := strconv.ParseFloat(s[:i], 64)
-	if e != nil || math.Abs(n) > 1e15 || math.IsNaN(n) {
-		return 0, 0, 0, false
+	if e != nil || math.IsNaN(n) {
+		return 0, 0, 0, false, false
+	}
+	if math.Abs(n) > 1e15 {
+		return 0, 0, 0, false, true
 	}
 	whole := int64(n)
-	return whole, n - float64(whole), i, true
+	return whole, n - float64(whole), i, true, false
+}
+
+func isoIntegerWidth(s string) int {
+	start := 0
+	if len(s) > 0 && s[0] == '-' {
+		start = 1
+	}
+	end := start
+	for end < len(s) && s[end] >= '0' && s[end] <= '9' {
+		end++
+	}
+	return end - start
 }
 func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
 	s = s[1:]
@@ -875,9 +894,9 @@ func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
 			s = s[1:]
 			continue
 		}
-		n, f, width, ok := isoNumber(s)
+		n, f, width, ok, rangeError := isoNumber(s)
 		if !ok {
-			return false, false
+			return false, rangeError
 		}
 		raw := s[:width]
 		s = s[width:]
@@ -919,7 +938,7 @@ func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
 			return false, false
 		}
 		if date && (u == 0 || u == 'T' || u == '-') {
-			integerWidth := len(strings.TrimLeft(strings.Split(raw, ".")[0], "-"))
+			integerWidth := isoIntegerWidth(raw)
 			if integerWidth == 8 && (u == 0 || u == 'T') {
 				if !p.add("year", n/10000, 0) || !p.add("month", n/100%100, 0) || !p.add("day", n%100, f) {
 					return false, true
@@ -941,9 +960,9 @@ func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
 				date = false
 				continue
 			}
-			n, f, width, ok = isoNumber(s)
+			n, f, width, ok, rangeError = isoNumber(s)
 			if !ok {
-				return false, false
+				return false, rangeError
 			}
 			s = s[width:]
 			if !p.add("month", n, f) {
@@ -961,9 +980,9 @@ func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
 				return false, false
 			}
 			s = s[1:]
-			n, f, width, ok = isoNumber(s)
+			n, f, width, ok, rangeError = isoNumber(s)
 			if !ok {
-				return false, false
+				return false, rangeError
 			}
 			s = s[width:]
 			if !p.add("day", n, f) {
@@ -980,7 +999,7 @@ func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
 			return false, false
 		}
 		if !date && (u == 0 || u == ':') {
-			if len(strings.TrimLeft(strings.Split(raw, ".")[0], "-")) == 6 && u == 0 {
+			if isoIntegerWidth(raw) == 6 && u == 0 {
 				if !p.add("hour", n/10000, 0) || !p.add("minute", n/100%100, 0) || !p.add("second", n%100, 0) || !p.add("microsecond", 0, f) {
 					return false, true
 				}
@@ -992,9 +1011,9 @@ func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
 			if u == 0 {
 				return true, false
 			}
-			n, f, width, ok = isoNumber(s)
+			n, f, width, ok, rangeError = isoNumber(s)
 			if !ok {
-				return false, false
+				return false, rangeError
 			}
 			s = s[width:]
 			if !p.add("minute", n, f) {
@@ -1007,9 +1026,9 @@ func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
 				return false, false
 			}
 			s = s[1:]
-			n, f, width, ok = isoNumber(s)
+			n, f, width, ok, rangeError = isoNumber(s)
 			if !ok {
-				return false, false
+				return false, rangeError
 			}
 			s = s[width:]
 			if !p.add("second", n, f) {
