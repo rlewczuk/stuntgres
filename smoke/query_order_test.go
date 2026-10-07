@@ -135,6 +135,81 @@ func TestQueryOrderSmoke(t *testing.T) {
 			}
 		}
 	}
+	exec("CREATE TABLE order_void_t(id INT)", 0)
+	exec("CREATE SEQUENCE s START WITH 1", 0)
+	voidSession, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := func() {
+		var result any
+		if err := voidSession.QueryRowContext(ctx, "SELECT setseed(.25)").Scan(&result); err != nil {
+			t.Fatal(err)
+		}
+	}
+	draw := func() float64 {
+		var value float64
+		if err := voidSession.QueryRowContext(ctx, "SELECT random()").Scan(&value); err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	seed()
+	draw()
+	wantContinuation := draw()
+	for _, populated := range []bool{false, true} {
+		if populated {
+			if _, err := voidSession.ExecContext(ctx, "INSERT INTO order_void_t VALUES(1),(2),(3)"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, tc := range []struct{ q, position string }{
+			{"SELECT id FROM order_void_t ORDER BY setseed(0)", "38"},
+			{"SELECT setseed(0) AS v FROM order_void_t ORDER BY v", "51"},
+			{"SELECT setseed(0) FROM order_void_t ORDER BY 1", "46"},
+			{"SELECT nextval('s') FROM order_void_t ORDER BY setseed(0)", "48"},
+		} {
+			for _, prepared := range []bool{false, true} {
+				if _, err := voidSession.ExecContext(ctx, "ALTER SEQUENCE s RESTART WITH 1"); err != nil {
+					t.Fatal(err)
+				}
+				seed()
+				draw()
+				var err error
+				if prepared {
+					stmt, failure := voidSession.PrepareContext(ctx, tc.q)
+					err = failure
+					if stmt != nil {
+						stmt.Close()
+						t.Fatal("VOID failure exposed statement")
+					}
+				} else {
+					rows, failure := voidSession.QueryContext(ctx, tc.q)
+					err = failure
+					if rows != nil {
+						rows.Close()
+						t.Fatal("VOID failure exposed cursor")
+					}
+				}
+				want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type void", Hint: "Use an explicit ordering operator or modify the query.", Position: tc.position}
+				var diagnostic *stuntgres.Error
+				if !errors.As(err, &diagnostic) || *diagnostic != want {
+					t.Fatal(tc.q, diagnostic, err, want)
+				}
+				if got := draw(); got != wantContinuation {
+					t.Fatal("VOID analysis changed random continuation", got, wantContinuation)
+				}
+				var next int64
+				if err := voidSession.QueryRowContext(ctx, "SELECT nextval('s')").Scan(&next); err != nil || next != 1 {
+					t.Fatal("VOID analysis evaluated sequence output", next, err)
+				}
+			}
+		}
+	}
+	if err := voidSession.Close(); err != nil {
+		t.Fatal(err)
+	}
+	exec("DROP SEQUENCE s", 0)
 	exec("CREATE TABLE v(id INT)", 0)
 	exec("INSERT INTO v VALUES(1),(2),(3)", 3)
 	for _, key := range []string{"n", "1", "nextval('s')"} {

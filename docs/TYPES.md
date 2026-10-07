@@ -513,9 +513,11 @@ general string-function claims.
 
 Expression ORDER BY validates the bounded provider/collation before reading rows.
 REGCLASS's internal canonical OID text compares as unsigned32 numeric identity,
-not lexical spelling or all-equal fallback. Every currently supported concrete
-SQL type has a PostgreSQL ordering provider; no public unsortable-type diagnostic
-is claimed. UNKNOWN/nil/internal invalid usages are invariant failures.
+not lexical spelling or all-equal fallback. VOID is a valid selected function
+result but has no PostgreSQL ordering provider; ORDER BY rejects it with42883 and
+the explicit-ordering-operator Hint before evaluation. The position names the
+original ORDER reference, including an alias or ordinal, not its visible target.
+UNKNOWN/nil/internal invalid usages remain invariant failures.
 
 Native ColumnTypes reports BPCHAR/VARCHAR/TEXT, string ScanType, constrained
 Length n and unlimited Length MaxInt64, including empty/NULL results and after

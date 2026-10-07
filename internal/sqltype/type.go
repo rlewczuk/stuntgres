@@ -778,13 +778,19 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.Type.Concrete() {
 		return Comparison{}, fmt.Errorf("invalid ordering usage")
 	}
-	switch u.Type.id {
-	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Numeric, UUID, Regclass:
-	default:
-		return Comparison{}, fmt.Errorf("invalid ordering type")
-	}
 	if u.Collation != u.Type.Usage().Collation {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
+	}
+	switch u.Type.id {
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Numeric, UUID, Regclass:
+	case Void:
+		return Comparison{}, &sqlstate.Error{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883",
+			Message: "could not identify an ordering operator for type void",
+			Hint:    "Use an explicit ordering operator or modify the query.",
+		}
+	default:
+		return Comparison{}, fmt.Errorf("invalid ordering type")
 	}
 	return BindComparison(u.Type, u.Type)
 }

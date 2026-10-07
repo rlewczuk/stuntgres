@@ -35,10 +35,12 @@ every execution owns its keys/permutation/parameters.
 Ordering capability and the bounded UTF8/C collation are checked during analysis
 even for empty/single/all-NULL inputs. Existing type providers supply numeric,
 NaN, temporal, bytea, UUID and character semantics; REGCLASS compares canonical
-unsigned OIDs, not lexical text or silent equality. All supported concrete types
-are PostgreSQL-sortable; there is no reachable native unsortable SQL type to
-exercise a missing-ordering-operator42883. Internal invalid usages are invariant
-errors, not invented PostgreSQL diagnostics.
+unsigned OIDs, not lexical text or silent equality. The valid result-only VOID
+type is not sortable: hidden `setseed` keys and referenced VOID outputs fail
+analysis with42883 / `could not identify an ordering operator for type void`,
+Hint `Use an explicit ordering operator or modify the query.`, positioned at the
+original ORDER expression/alias/ordinal. No key or visible output is evaluated.
+Nil/UNKNOWN and invalid internal usages remain invariant failures, not SQL errors.
 The catalog-only internal `"char"` provider also supports ordering through its
 existing unsigned-byte comparator; this does not admit internal-CHAR type DDL.
 
@@ -51,7 +53,14 @@ COLLATE/ICU, sets/windows/aggregate-internal ordering and ordinary no-FROM SELEC
 remain excluded. The existing AND/OR bare-label ambiguity remains a bounded
 logical-grammar difference; AS and quoted forms can label those outputs.
 
+View definition export and native round trips retain qualified physical ORDER
+column identity even when a view output-name override shadows that input name.
+Output references remain frozen separately by position. Numeric unary-plus
+ORDER expressions retain their analyzed operand occurrence and numeric lexical
+identity through definition replay; unary plus is not recategorized as an ordinal.
+
 Feature smoke: `make smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
+View persistence smoke: `make smoke RUN='^TestQueryOrderViewSmoke$' VERBOSE=0`.
 Independent pinned18.0 reference: `make reference RUN='^TestReferenceQueryOrder' VERBOSE=0`.
 
 ## Inner and cross joins — change note

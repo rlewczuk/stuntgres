@@ -74,16 +74,7 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 		keys := make([]string, len(s.Order.Keys))
 		for i, key := range s.Order.Keys {
 			path := viewLiteralPath{clause: viewOrderLiteral, target: i}
-			var name string
-			var err error
-			if raw, ok := key.Expr.(parser.ColumnExpr); ok && len(raw.Name.Parts) == 1 {
-				if slot, captured := v.columns[path]; captured {
-					name, err = renderer.orderColumnSQL(slot, raw.Name.Parts[0].Text)
-				}
-			}
-			if name == "" {
-				name, err = renderer.expressionSQL(ctx, catalog, key.Expr, path)
-			}
+			name, err := renderer.expressionSQL(ctx, catalog, key.Expr, path)
 			if err != nil {
 				return "", err
 			}

@@ -15,6 +15,13 @@ func TestOrderingUsage(t *testing.T) {
 				}
 				return
 			}
+			// Concrete means a valid runtime result, not a sortable SQL type.
+			if d.ID() == Void {
+				if err == nil {
+					t.Fatal("VOID ordering admitted")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}

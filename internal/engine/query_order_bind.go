@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -94,6 +95,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 		}
 		keys[i] = sortKey{
 			expression: expression,
+			position:   raw.Pos.Character,
 			desc:       raw.Desc,
 			nullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc,
 			cache:      -1,
@@ -102,8 +104,8 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 	return keys, nil
 }
 
-// finishOrder runs after grouped rewriting and output typing. Only referenced
-// equivalent visible occurrences share a datum; unrelated outputs are not CSE.
+// finishOrder runs after grouped rewriting and output typing. Equivalent ORDER
+// targets share a datum; unrelated visible outputs remain occurrence-sensitive.
 func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, projection []BoundExpr) (LogicalNode, error) {
 	if len(keys) == 0 {
 		return root, nil
@@ -113,6 +115,13 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		key := &keys[i]
 		provider, err := sqltype.BindOrdering(key.expression.ResultUsage())
 		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
+				positioned := *diagnostic
+				if key.position > 0 {
+					positioned.Position = strconv.Itoa(key.position)
+				}
+				return nil, &positioned
+			}
 			return nil, err
 		}
 		key.comparison = provider

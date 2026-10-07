@@ -86,6 +86,15 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
+		case literalExpression:
+			// Numeric unary plus is identity in the shared binder. Retain the
+			// analyzed literal at the operand occurrence so rendering and
+			// validation traverse the same operator/child path as the syntax.
+			if len(r.Name.Parts) == 1 && r.Name.Parts[0].Text == "+" && len(r.Args) == 1 {
+				if operand, ok := r.Args[0].(parser.LiteralExpr); ok && operand.Value.Kind == parser.NumericValue {
+					return child(operand, n)
+				}
+			}
 		case arithmeticExpression:
 			if err := child(r.Args[0], n.left); err != nil {
 				return err

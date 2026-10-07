@@ -529,6 +529,11 @@ significant digits or NaN/Infinity/-Infinity. These execution errors carry no
 Position/Hint/Detail and leave an existing seeded stream unconsumed.
 VOID is result-only, distinct from typed NULL, and does not admit stored columns
 or VOID casts/operators.
+VOID ORDER keys (including output aliases and ordinals) fail analysis with42883,
+`could not identify an ordering operator for type void`, and
+`Use an explicit ordering operator or modify the query.` Hint. The error points
+at the ORDER reference on empty or populated input, before reseeding or evaluating
+any unrelated visible sequence output.
 
 Feature smoke: `make smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
 Independent pinned reference: `make reference RUN='^TestReferenceRandom' VERBOSE=0`.

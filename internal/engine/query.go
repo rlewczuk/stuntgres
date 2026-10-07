@@ -49,6 +49,7 @@ type filterNode struct {
 type sortKey struct {
 	expression       BoundExpr
 	comparison       sqltype.Comparison
+	position         int // Original ORDER reference character position, not reused output syntax.
 	slot, cache      int
 	desc, nullsFirst bool
 }
