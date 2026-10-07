@@ -51,6 +51,12 @@ native schema/data/default Dump/Restore. It does not populate metadata catalogs
 or add object lookup, arithmetic or ordinary SELECT-without-FROM support.
 Public feature smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
 
+Integral bitwise `&`, `|`, `#`, unary `~`, `<<` and `>>` support SMALLINT,
+INTEGER and BIGINT in existing scalar consumers, including replayable defaults
+and views. Width, signed results, typed NULL and prepared parameter inference
+are preserved; shifts use an INTEGER count. See [integral bitwise operators](docs/TYPES.md#integral-bitwise-operators).
+Public feature smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
+
 Scalar comparison types also support inclusive `BETWEEN`/`NOT BETWEEN` and
 both `SYMMETRIC` forms in existing expression consumers. Symmetric predicates
 accept reversed bounds; NULL follows SQL three-valued logic rather than a

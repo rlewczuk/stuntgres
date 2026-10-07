@@ -38,6 +38,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case coercionExpression:
 		o, ok := other.(coercionExpression)
 		return ok && e.plan == o.plan && e.mode == o.mode && same(e.child, o.child)
+	case bitwiseExpression:
+		o, ok := other.(bitwiseExpression)
+		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
 	case arithmeticExpression:
 		o, ok := other.(arithmeticExpression)
 		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -172,6 +175,11 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
 		expr = e
+	case bitwiseExpression:
+		e.left = rewrite(e.left)
+		e.right = rewrite(e.right)
+		stage(&e.expressionInfo)
+		expr = e
 	case arithmeticExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
@@ -260,6 +268,9 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		return &e
 	case coercionExpression:
 		walk(e.child)
+	case bitwiseExpression:
+		walk(e.left)
+		walk(e.right)
 	case arithmeticExpression:
 		walk(e.left)
 		walk(e.right)

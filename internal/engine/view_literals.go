@@ -95,6 +95,14 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 					return child(operand, n)
 				}
 			}
+		case bitwiseExpression:
+			if err := child(r.Args[0], n.left); err != nil {
+				return err
+			}
+			if len(r.Args) == 2 {
+				return child(r.Args[1], n.right)
+			}
+			return nil
 		case arithmeticExpression:
 			if err := child(r.Args[0], n.left); err != nil {
 				return err

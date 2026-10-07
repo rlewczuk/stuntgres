@@ -130,9 +130,12 @@ func TestSettingsUnicodeOffOpenerPrecedence(t *testing.T) {
 			t.Fatal(q, err)
 		}
 	}
-	_, err := ParseWithOptions(`SELECT ! U&'unterminated`, Options{StandardConformingStrings: false})
+}
+
+func TestSettingsUnicodeOffEarlierLexicalError(t *testing.T) {
+	_, err := ParseWithOptions("SELECT \x00 U&'unterminated", Options{StandardConformingStrings: false})
 	var got *sqlstate.Error
-	if !errors.As(err, &got) || got.Code != "42601" || got.Position != "8" {
+	if !errors.As(err, &got) || got.Code != "42601" || got.Message != "NUL in SQL" || got.Position != "8" {
 		t.Fatal("earlier lexical error lost precedence", err)
 	}
 }

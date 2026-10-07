@@ -339,6 +339,7 @@ exponent. Populated float comparisons against 1.0 and 1e100 assert exact result
 types even when no rows match, in both direct and prepared modes.
 Real pinned PostgreSQL witnesses:
 `make reference RUN='^TestReferenceNumeric.*$' VERBOSE=1`.
+
 Native logical negative-scale metadata is asserted independently of lib/pq's
 unsigned-scale decoding defect, not by accepting its incorrect DecimalSize.
 For unconstrained NUMERIC results (including bounded random and selected math), pinned lib/pq
@@ -347,6 +348,48 @@ unsigned decoding of server typmod-1. Native metadata remains `(0,0,false)`;
 this adapter defect does not constrain the result's actual display scale or
 precision. Reference fixtures assert the exact adapter difference independently
 while retaining exact output/range/scale expectations.
+
+## Integral bitwise operators
+
+SMALLINT/INTEGER/BIGINT support `&` (AND), `|` (OR), `#` (XOR), unary
+`~` (NOT), `<<` and signed arithmetic `>>`. Binary AND/OR/XOR widen mixed
+integral inputs to the wider type; same-width inputs and unary NOT preserve
+their type. Shifts preserve the left type and require an INTEGER right operand
+(SMALLINT can widen implicitly; BIGINT cannot narrow implicitly).
+Computed metadata is INT2/INT4/INT8 with int64 ScanType, including NULL and
+empty results, without inherited physical-column origin or known nullability.
+
+Standard `CAST`/`::` syntax can establish SMALLINT within a selected bitwise
+operand (including a shift count), and integral casts can wrap a bitwise result
+for default/view replay. These use existing checked integral conversions or
+contextual unknown input; no new coercion edges are added. For example,
+`~1::smallint` is INT2 and `CAST(32767::smallint << 1 AS bigint)` is INT8 -2.
+This is not general SMALLINT cast admission: standalone `1::smallint`, an
+unrelated CASE/COALESCE sibling cast, known TEXT-to-SMALLINT casts and `int2()`
+function-style casts retain their existing exclusions.
+
+Shifts truncate to the left width rather than raising arithmetic overflow.
+For the pinned PostgreSQL18 x86_64 target, counts mask modulo32 for SMALLINT
+and INTEGER, modulo64 for BIGINT, including negative counts. SMALLINT shifts
+promote to INTEGER before narrowing: `1::smallint << 32` is1, not0.
+These out-of-range count rules describe pinned-target compatibility, not a
+platform-independent PostgreSQL promise. `(-8)::smallint >> 2` is-2.
+
+Known integral operands resolve unknown quoted/NULL/parameter peers to their
+width; shift counts resolve to INTEGER. Unknown left shift inputs with known
+INTEGER counts resolve to INTEGER; SMALLINT counts leave them ambiguous.
+Unknown-only AND/OR/XOR or unary NOT report42725, not a default INTEGER
+signature. Unsupported concrete signatures report42883 at the operator.
+Quoted input errors retain existing width-specific English diagnostics.
+Typed NULL propagates after analysis; it does not hide malformed input.
+
+These operators compose in existing table queries, writes, conditionals,
+aggregate expressions, defaults and views. Defaults preserve each operand's
+type through native Dump/Restore, including narrow truncation when the
+destination is BIGINT and INTEGER shift counts. BIT/VARBIT, ordinary SMALLINT
+arithmetic, NUMERIC/float/OID bitwise overloads and ordinary SELECT without
+FROM remain excluded.
+Feature smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
 
 ## Binary floating point
 

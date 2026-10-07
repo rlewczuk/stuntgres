@@ -62,7 +62,7 @@ package parser
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
 %token <tok> DATE_MODIFIER_NUMBER
 %token <tok> DOT_DOT
-%token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL
+%token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
 %token <tok> SYMBOLIC_OPERATOR
 %token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
@@ -575,6 +575,7 @@ scalar: scalar_atom { $$=$1 }
  | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | '+' scalar %prec UNARY { $$=arithmeticExpr($1,$2,nil) }
  | '-' scalar %prec UNARY { $$=negateExpr(sqllex,$1,$2) }
+ | SYMBOLIC_OPERATOR scalar %prec SYMBOLIC_OPERATOR { $$=arithmeticExpr($1,$2,nil) }
  | scalar '+' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar '-' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar '*' scalar { $$=arithmeticExpr($2,$1,$3) }

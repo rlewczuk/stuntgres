@@ -81,9 +81,13 @@ func TestQueryJoinsRetainsMutationGrammar(t *testing.T) {
 		{"UPDATE t SET a=t.b::INT", "0A000", "qualified column references are unsupported", "17"},
 		{"UPDATE t SET a=1 WHERE t.b=1", "42601", `syntax error at or near "."`, "25"},
 		{"UPDATE t SET a=CAST(t.b AS INT)", "42601", `syntax error at or near "."`, "22"},
-		{"UPDATE t SET a=*", "42601", `syntax error at or near "*"`, "16"},
 	} {
 		keywordDiagnostic(t, tc.q, tc.code, tc.message, tc.pos)
+	}
+	for _, q := range []string{"UPDATE t SET a=*", "UPDATE t SET a = *"} {
+		if statements, err := Parse(q); err == nil || len(statements) != 0 {
+			t.Fatal("invalid mutation assignment admitted", q, statements, err)
+		}
 	}
 	for _, q := range []string{"UPDATE t SET a=COALESCE(t.b,1)", "UPDATE t SET a=CAST(COALESCE(t.b,1) AS INT)"} {
 		// Existing conditional qualification reaches the nonquery binder's

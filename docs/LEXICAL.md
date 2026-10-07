@@ -2,6 +2,24 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+Integral bitwise `& | # ~ << >>` share PostgreSQL's generic operator tier:
+below addition, above comparison, left associative for binary operators.
+Prefix `~` uses that same tier: `~1 + 2` is-4, while `(~1)+2` is0.
+`1 | 2 & 4` is0, not1. Postfix casts bind first.
+Operator scanning uses maximal munch and stops before comment openers.
+Unsupported composites keep their complete spelling for42883 diagnostics:
+`1&-1`, `1|~1` and `1<<~1` are not split into valid operators.
+Use `1 & -1` or parentheses; `1<<-1` instead strips the trailing sign
+under PostgreSQL's standard-character rule. Existing comparison punctuation,
+comments and U& quoting retain their behavior.
+The named-argument marker `=>` is a distinct token, not a generic operator;
+named arguments remain outside the selected function-call surface.
+Maximal munch applies in mutation syntax too: adjacent `=*` is one token,
+while `= *` is two. Neither spelling forms a valid UPDATE assignment.
+Generic prefix operators are recognized before signature binding, so `!`
+is not an earlier lexical error that can mask a following invalid string.
+Actual scanner failures, including NUL in SQL, retain their precedence.
+
 Unquoted names fold ASCII uppercase and truncate to 63 UTF-8-boundary bytes; quoted names preserve case and decode doubled quotes. A quoted identifier containing a dot is one component, e.g. `public."a.b"`. Ordinary strings use doubled apostrophes and literal backslashes. `E'...'` (or lowercase `e`) additionally decodes escaped apostrophes/backslashes, `\b\f\n\r\t\v`, one-to-three octal digits, `\x` with one-to-two hex digits, and `\uXXXX`/`\UXXXXXXXX` Unicode scalars, including adjacent surrogate pairs. Unknown backslash escapes retain the following character. Octal/hex escapes produce bytes, and the complete decoded token must be valid UTF8 without NUL. Adjacent bare quoted segments concatenate only across whitespace containing LF or CR (line comments allowed, block comments excluded), inheriting the first segment's ordinary/escape mode; UTF8 bytes may span segments, surrogate pairs may not. Whitespace, line comments and nested block comments are accepted elsewhere. Parameters are 1-based `$n`, inferred from insert destinations or equality columns. Repeated parameters of one canonical destination type share a binding; gaps fail with `42P18`, mixed destination types with `0A000`. Named arguments and other parameter dialects are not supported.
 
 Dollar-quoted strings preserve their bodies exactly: apostrophes, backslashes, newlines, comments, semicolons and `$1` are text, not escapes, statements or parameters. `$$...$$` uses an empty tag; nonempty tags follow unquoted identifier spelling except that `$` is forbidden in the tag. Delimiters match case-sensitively, without folding or the identifier length limit. Separate a dollar literal from a preceding identifier/keyword with whitespace or punctuation: `VALUES$$v$$` is one identifier, not `VALUES` plus a string. A complete opener without an identical closer reports `42601`, `unterminated dollar-quoted string at or near "..."`, quoting the raw suffix and pointing to the opener's character position. An incomplete nonparameter opener such as `$tag` is instead syntax near `$`; digit-prefixed `$n` remains a parameter.

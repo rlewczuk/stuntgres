@@ -1,0 +1,210 @@
+package engine
+
+import (
+	"fmt"
+	"strconv"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+type bitwiseExpression struct {
+	expressionInfo
+	left, right BoundExpr
+	provider    sqltype.Bitwise
+	operator    sqltype.BitwiseOperator
+}
+
+func (e bitwiseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	a, err := e.left.Eval(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.right == nil {
+		return e.provider.Unary(c.Context, a)
+	}
+	b, err := e.right.Eval(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return e.provider.Binary(c.Context, a, b)
+}
+func integralBitwiseType(t *sqltype.Descriptor) bool {
+	return t != nil && (t.ID() == sqltype.Int2 || t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8)
+}
+func bitwiseName(name string) bool {
+	for _, c := range name {
+		if c == '&' || c == '|' || c == '#' || c == '~' {
+			return true
+		}
+	}
+	return name == "<<" || name == ">>"
+}
+
+func selectedBitwiseName(name string) bool {
+	switch name {
+	case "&", "|", "#", "~", "<<", ">>":
+		return true
+	}
+	return false
+}
+
+// A cast around a selected bitwise result must also survive default/view replay.
+// Do not search arbitrary descendants: unrelated conditional siblings stay excluded.
+func bitwiseCastSource(raw parser.Expr) bool {
+	switch n := raw.(type) {
+	case parser.CastExpr:
+		return n.Syntax != parser.FunctionCast && bitwiseCastSource(n.Child)
+	case parser.OperatorExpr:
+		return len(n.Name.Parts) == 1 && selectedBitwiseName(n.Name.Parts[0].Text)
+	}
+	return false
+}
+
+// Keep explicit syntax on the node, but reuse the existing integral assignment
+// plan for the scoped INT2 seam. Global sqltype explicit admission stays unchanged.
+func planExpressionCoercion(source, target sqltype.Usage, mode sqltype.CoercionContext) (sqltype.CoercionPlan, error) {
+	if mode == sqltype.Explicit && integralBitwiseType(source.Type) && integralBitwiseType(target.Type) &&
+		(source.Type.ID() == sqltype.Int2 || target.Type.ID() == sqltype.Int2) {
+		return sqltype.PlanCoercion(source, target, sqltype.Assignment)
+	}
+	return sqltype.PlanCoercion(source, target, mode)
+}
+func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, error) {
+	if len(raw.Name.Parts) != 1 || len(raw.Args) < 1 || len(raw.Args) > 2 {
+		return nil, fmt.Errorf("stuntgres: invalid bitwise expression")
+	}
+	name := raw.Name.Parts[0].Text
+	policy := expressionPolicy{context: projectionContext, bitwiseOperand: selectedBitwiseName(name)}
+	left, err := b.comparisonOperandPolicy(raw.Args[0], policy)
+	if err != nil {
+		return nil, err
+	}
+	var right comparisonOperand
+	if len(raw.Args) == 2 {
+		right, err = b.comparisonOperandPolicy(raw.Args[1], policy)
+		if err != nil {
+			return nil, err
+		}
+	}
+	lt, rt := left.descriptor(), right.descriptor()
+	missing := func() error {
+		return operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
+	}
+	ambiguous := func() error {
+		typeName := func(t *sqltype.Descriptor) string {
+			if t == nil {
+				return "unknown"
+			}
+			return t.DiagnosticName()
+		}
+		signature := name + " " + typeName(lt)
+		if len(raw.Args) == 2 {
+			signature = typeName(lt) + " " + name + " " + typeName(rt)
+		}
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42725", Message: "operator is not unique: " + signature, Hint: "Could not choose a best candidate operator. You might need to add explicit type casts.", Position: strconv.Itoa(raw.Pos.Character)}
+	}
+	var op sqltype.BitwiseOperator
+	switch name {
+	case "&":
+		op = sqltype.BitwiseAnd
+	case "|":
+		op = sqltype.BitwiseOr
+	case "#":
+		op = sqltype.BitwiseXor
+	case "~":
+		op = sqltype.BitwiseNot
+	case "<<":
+		op = sqltype.BitwiseShiftLeft
+	case ">>":
+		op = sqltype.BitwiseShiftRight
+	default:
+		return nil, missing()
+	}
+	if (op == sqltype.BitwiseNot) != (len(raw.Args) == 1) {
+		return nil, missing()
+	}
+	if lt != nil && !integralBitwiseType(lt) || rt != nil && !integralBitwiseType(rt) {
+		return nil, missing()
+	}
+	target, rightTarget := lt, lt
+	if op == sqltype.BitwiseNot {
+		if lt == nil {
+			return nil, ambiguous()
+		}
+		rightTarget = nil
+	} else if op == sqltype.BitwiseShiftLeft || op == sqltype.BitwiseShiftRight {
+		if rt != nil && rt.ID() == sqltype.Int8 {
+			return nil, missing()
+		}
+		if lt == nil {
+			if rt == nil || rt.ID() == sqltype.Int2 {
+				return nil, ambiguous()
+			}
+			target = rt
+		}
+		rightTarget = b.typ(sqltype.Int4)
+	} else {
+		if target == nil {
+			target = rt
+		}
+		if target == nil {
+			return nil, ambiguous()
+		}
+		rank := func(t *sqltype.Descriptor) int {
+			if t == nil {
+				return 0
+			}
+			switch t.ID() {
+			case sqltype.Int2:
+				return 1
+			case sqltype.Int4:
+				return 2
+			default:
+				return 3
+			}
+		}
+		if rank(rt) > rank(target) {
+			target = rt
+		}
+		rightTarget = target
+	}
+	finish := func(o comparisonOperand, t *sqltype.Descriptor) (BoundExpr, error) {
+		n, err := b.finalizeOperand(o, t)
+		if err != nil {
+			return nil, err
+		}
+		if n.ResultUsage() != t.Usage() {
+			plan, err := sqltype.PlanCoercion(n.ResultUsage(), t.Usage(), sqltype.Implicit)
+			if err != nil {
+				return nil, err
+			}
+			n = coercionExpression{b.info(t.Usage(), n.SourcePosition(), n.Properties()), n, plan, sqltype.Implicit}
+		}
+		return n, nil
+	}
+	l, err := finish(left, target)
+	if err != nil {
+		return nil, err
+	}
+	var r BoundExpr
+	p := l.Properties()
+	if len(raw.Args) == 2 {
+		r, err = finish(right, rightTarget)
+		if err != nil {
+			return nil, err
+		}
+		rp := r.Properties()
+		if rp.Volatility > p.Volatility {
+			p.Volatility = rp.Volatility
+		}
+		p.RowDependent = p.RowDependent || rp.RowDependent
+		p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
+		p.StageDependent = p.StageDependent || rp.StageDependent
+	}
+	provider, err := sqltype.BindBitwise(op, target, rightTarget)
+	if err != nil {
+		return nil, err
+	}
+	return bitwiseExpression{b.info(target.Usage(), parser.ExpressionStart(raw), p), l, r, provider, op}, nil
+}

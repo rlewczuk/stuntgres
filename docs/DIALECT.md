@@ -222,7 +222,8 @@ reference: `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
 Integrated expressions: `make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
 
 Column DEFAULT declarations admit outer scalar/typed temporal/existing cast/
-INT4/INT8 unary and binary arithmetic/comparison and IS [NOT] DISTINCT FROM syntax.
+INT4/INT8 unary and binary arithmetic, integral bitwise operations, comparison
+and IS [NOT] DISTINCT FROM syntax.
 CAST and postfix casts reuse existing baseline, character-family and bounded
 OID conversions; function-style casts additionally admit oid, not general functions.
 Logical NOT/AND/OR and null/truth tests require parentheses
@@ -732,6 +733,20 @@ use quoted lowercase hex; Restore preserves settings, atomicity and old
 snapshots. No typed BYTEA literals, functions/casts, arrays or wire server.
 Smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`; pinned independent reference:
 `make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
+
+Integral bitwise operators `& | # ~ << >>` now use a separate SMALLINT/
+INTEGER/BIGINT provider in existing general scalar consumers: queries,
+predicates, grouped/aggregate expressions, writes, conditional expressions,
+defaults and view/native replay. Mixed AND/OR/XOR widen; NOT and shifts
+preserve left width. Shift counts require INTEGER. Typed NULL and computed
+INT2/INT4/INT8 metadata survive empty results and replay. Unsupported signatures
+report42883 and ambiguous unknown signatures42725, with English messages and
+operator positions. See [width/count behavior](TYPES.md#integral-bitwise-operators).
+No BIT/VARBIT provider, ordinary SMALLINT arithmetic or no-FROM widening is added.
+Standard SMALLINT `CAST`/`::` is bounded to selected bitwise operands/counts
+and integral wrappers of bitwise results used by default/view replay; standalone
+SMALLINT casts, unrelated sibling casts, known TEXT casts and `int2()` stay excluded.
+Smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
 
 INT4/INT8 arithmetic uses the common expression binder in table SELECT,
 comparison operands, unqualified DELETE predicates and column-free INSERT VALUES. Operators `+ - * / %`,

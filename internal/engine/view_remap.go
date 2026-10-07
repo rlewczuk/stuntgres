@@ -57,6 +57,9 @@ func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundEx
 	case coercionExpression:
 		n.child = child(n.child)
 		next = n
+	case bitwiseExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		next = n
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n

@@ -7,7 +7,10 @@ import (
 )
 
 func TestRegclassQualifiedNameInputBoundary(t *testing.T) {
-	for _, tc := range []struct{ input string; parts []string }{
+	for _, tc := range []struct {
+		input string
+		parts []string
+	}{
 		{"BASE--suffix", []string{"base--suffix"}},
 		{"base/*suffix*/", []string{"base/*suffix*/"}},
 		{"s-other", []string{"s-other"}},
@@ -18,7 +21,7 @@ func TestRegclassQualifiedNameInputBoundary(t *testing.T) {
 		{`s"quote`, []string{`s"quote`}},
 		{"s\u00a0suffix", []string{"s\u00a0suffix"}},
 		{strings.Repeat("界", 22), []string{strings.Repeat("界", 21)}},
-		{`"`+strings.Repeat("界", 22)+`"`, []string{strings.Repeat("界", 21)}},
+		{`"` + strings.Repeat("界", 22) + `"`, []string{strings.Repeat("界", 21)}},
 		{"db . public . s", []string{"db", "public", "s"}},
 	} {
 		t.Run(tc.input, func(t *testing.T) {

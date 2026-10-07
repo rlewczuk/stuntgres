@@ -97,7 +97,7 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default coercion mode")
 		}
-		plan, err := sqltype.PlanCoercion(n.child.ResultUsage(), u, n.mode)
+		plan, err := planExpressionCoercion(n.child.ResultUsage(), u, n.mode)
 		if err != nil || plan != n.plan {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
@@ -122,6 +122,49 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			return "", err
 		}
 		return "CAST(" + child + " AS " + declaration + ")", nil
+	case bitwiseExpression:
+		if !integralBitwiseType(u.Type) || u != u.Type.Usage() || n.left == nil || n.left.ResultUsage() != u {
+			return "", fmt.Errorf("stuntgres: invalid default bitwise operands")
+		}
+		var rightType *sqltype.Descriptor
+		if n.right != nil {
+			rightType = n.right.ResultUsage().Type
+			if rightType == nil || n.right.ResultUsage() != rightType.Usage() {
+				return "", fmt.Errorf("stuntgres: invalid default bitwise right usage")
+			}
+		}
+		provider, err := sqltype.BindBitwise(n.operator, u.Type, rightType)
+		if err != nil || provider != n.provider {
+			return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
+		}
+		operator := [...]string{"&", "|", "#", "~", "<<", ">>"}[n.operator]
+		operandSQL := func(child BoundExpr) (string, error) {
+			text, err := defaultSQL(ctx, view, child)
+			if err != nil {
+				return "", err
+			}
+			cu := child.ResultUsage()
+			if literal, ok := child.(literalExpression); ok && (cu.Type.ID() != sqltype.Int4 || literal.value.IsNull()) {
+				declaration, err := cu.Declaration()
+				if err != nil {
+					return "", err
+				}
+				text = "CAST(" + text + " AS " + declaration + ")"
+			}
+			return text, nil
+		}
+		left, err := operandSQL(n.left)
+		if err != nil {
+			return "", err
+		}
+		if n.right == nil {
+			return "(" + operator + " " + left + ")", nil
+		}
+		right, err := operandSQL(n.right)
+		if err != nil {
+			return "", err
+		}
+		return "(" + left + " " + operator + " " + right + ")", nil
 	case arithmeticExpression:
 		if !integerArithmeticType(u.Type) || u != u.Type.Usage() || n.left == nil || n.left.ResultUsage() != u || n.right != nil && n.right.ResultUsage() != u {
 			return "", fmt.Errorf("stuntgres: invalid default arithmetic operands")
@@ -446,7 +489,21 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 			return node, false, err
 		}
 		if changed && err == nil {
-			n.plan, err = sqltype.PlanCoercion(n.child.ResultUsage(), info.usage, n.mode)
+			n.plan, err = planExpressionCoercion(n.child.ResultUsage(), info.usage, n.mode)
+		}
+		n.expressionInfo = info
+		rebound = n
+	case bitwiseExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			var rt *sqltype.Descriptor
+			if n.right != nil {
+				rt = n.right.ResultUsage().Type
+			}
+			n.provider, err = sqltype.BindBitwise(n.operator, n.left.ResultUsage().Type, rt)
 		}
 		n.expressionInfo = info
 		rebound = n

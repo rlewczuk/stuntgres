@@ -825,6 +825,17 @@ functions, aliases and general SELECT-without-FROM remain bounded as before.
 Feature smoke: `make smoke RUN='^TestArithmeticSmoke$' VERBOSE=1`;
 real pinned reference: `make reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
 
+Integral bitwise `& | # ~ << >>` additionally support SMALLINT, INTEGER and
+BIGINT in the same general scalar consumers, plus defaults and view replay.
+They are separate from ordinary arithmetic: mixed AND/OR/XOR widen, unary
+NOT and shifts preserve left width, and shift counts resolve to INTEGER.
+Generic operator precedence is below addition and above comparison.
+See [integral widths, NULL and pinned shift counts](TYPES.md#integral-bitwise-operators).
+Computed bitwise expressions remain excluded from bounded null-count
+arguments and singleton SELECT admission. No NUMERIC/float explicit casts,
+BIT/VARBIT signatures or new no-FROM scalar consumer are implied.
+Feature smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
+
 
 Missing column and invalid SQL `$0` references fail during analysis with `42703`
 and `42P02`, respectively, at the occurrence's one-based character position.

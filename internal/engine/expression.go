@@ -220,6 +220,32 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.left, e.right = left, right
 			return e, true, nil
 		}
+	case bitwiseExpression:
+		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		var right BoundExpr
+		var rc bool
+		if e.right != nil {
+			right, rc, err = preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+		}
+		e.left, e.right = left, right
+		if decisiveDefaults {
+			_, l := left.(literalExpression)
+			_, r := right.(literalExpression)
+			p := e.Properties()
+			if l && (right == nil || r) && p == (ExprProperties{}) {
+				v, err := e.Eval(c)
+				return preflightValue(c, e.expressionInfo, v, err)
+			}
+		}
+		if lc || rc {
+			return e, true, nil
+		}
 	case arithmeticExpression:
 		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
@@ -471,6 +497,8 @@ type expressionPolicy struct {
 	booleanConstruct string
 	// Operand skips the enclosing WHERE BOOL check while binding predicate children.
 	operand bool
+	// Only selected bitwise operands propagate this through standard cast chains.
+	bitwiseOperand bool
 }
 type expressionDependency struct {
 	ref      ObjectRef
@@ -786,7 +814,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		node = literalExpression{b.info(u, r.Pos, ExprProperties{}), value}
 	case parser.CastExpr:
 		var err error
-		node, err = b.cast(r)
+		node, err = b.cast(r, policy.bitwiseOperand)
 		if err != nil {
 			return nil, err
 		}
@@ -807,7 +835,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 	case parser.OperatorExpr:
 		var err error
-		if len(r.Name.Parts) == 1 && (arithmeticName(r.Name.Parts[0].Text) || symbolicArithmeticName(r.Name.Parts[0].Text)) {
+		if len(r.Name.Parts) == 1 && bitwiseName(r.Name.Parts[0].Text) {
+			node, err = b.bindBitwise(r)
+		} else if len(r.Name.Parts) == 1 && (arithmeticName(r.Name.Parts[0].Text) || symbolicArithmeticName(r.Name.Parts[0].Text)) {
 			node, err = b.bindArithmetic(r)
 		} else {
 			if policy.context == assignmentContext {
@@ -855,7 +885,7 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 	return d
 }
 
-func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
+func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (BoundExpr, error) {
 	if !b.defaultConsumer && b.queryNamespace == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
@@ -878,10 +908,11 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 	if err != nil {
 		return nil, err
 	}
+	bitwiseCast := raw.Syntax != parser.FunctionCast && (bitwiseOperand || bitwiseCastSource(raw.Child))
 	if !sqltype.BaselineCastType(target.Type.ID()) && target.Type.ID() != sqltype.Oid && target.Type.ID() != sqltype.Int2 && !sqltype.IsCharacter(target.Type.ID()) {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
-	policy := expressionPolicy{context: projectionContext}
+	policy := expressionPolicy{context: projectionContext, bitwiseOperand: bitwiseOperand}
 	switch child := raw.Child.(type) {
 	case parser.LiteralExpr:
 		if child.Value.Kind == parser.StringValue || child.Value.Kind == parser.NullValue {
@@ -906,9 +937,15 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 		return nil, err
 	}
 	source := child.ResultUsage()
-	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
+	scopedIntegral := bitwiseCast && integralBitwiseType(source.Type) && integralBitwiseType(target.Type)
+	var plan sqltype.CoercionPlan
+	if scopedIntegral {
+		plan, err = planExpressionCoercion(source, target, sqltype.Explicit)
+	} else {
+		plan, err = sqltype.PlanCoercion(source, target, sqltype.Explicit)
+	}
 	if err != nil {
-		if (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) {
+		if !scopedIntegral && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
@@ -1099,6 +1136,10 @@ func (o comparisonOperand) descriptor() *sqltype.Descriptor {
 }
 
 func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand, error) {
+	return b.comparisonOperandPolicy(raw, expressionPolicy{context: projectionContext})
+}
+
+func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expressionPolicy) (comparisonOperand, error) {
 	if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 		return comparisonOperand{raw: raw}, nil
 	}
@@ -1107,7 +1148,7 @@ func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	node, err := b.bind(raw, policy)
 	return comparisonOperand{node: node, raw: raw}, err
 }
 

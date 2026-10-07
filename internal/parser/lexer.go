@@ -523,44 +523,38 @@ func (l *lexer) scan(v *sqlSymType) int {
 			l.current.text = "::"
 			l.offset++
 		}
-		// Preserve maximal-munch arithmetic operator spellings. PostgreSQL
-		// strips trailing signs only when no nonstandard operator character
-		// (here %) occurs; comment openers terminate the token first.
-		if strings.ContainsRune("+-*/%", rune(c)) {
+		// PostgreSQL maximal-munch operators stop before comment openers.
+		// Trailing signs survive only with a nonstandard operator character.
+		if strings.ContainsRune("+-*/%<>=~!@#^&|`?", rune(c)) {
 			end := l.offset
-			for end < len(l.input) && strings.ContainsRune("+-*/%", rune(l.input[end])) {
+			for end < len(l.input) && strings.ContainsRune("+-*/%<>=~!@#^&|`?", rune(l.input[end])) {
 				if end+1 < len(l.input) && (l.input[end:end+2] == "/*" || l.input[end:end+2] == "--") {
 					break
 				}
 				end++
 			}
-			if !strings.Contains(l.input[start:end], "%") {
+			if !strings.ContainsAny(l.input[start:end], "~!@#^&|`?%") {
 				for end > start+1 && (l.input[end-1] == '+' || l.input[end-1] == '-') {
 					end--
 				}
 			}
 			l.offset = end
 			l.current.text = l.input[start:end]
-			if end > start+1 {
-				token = SYMBOLIC_OPERATOR
-			}
-		}
-		if l.offset < len(l.input) {
-			next := l.input[l.offset]
-			switch {
-			case c == '<' && next == '=':
+			switch l.current.text {
+			case "<=":
 				token = LESS_EQUAL
-			case c == '>' && next == '=':
+			case ">=":
 				token = GREATER_EQUAL
-			case c == '<' && next == '>', c == '!' && next == '=':
+			case "<>", "!=":
 				token = NOT_EQUAL
-			}
-			if token == LESS_EQUAL || token == GREATER_EQUAL || token == NOT_EQUAL {
-				l.offset++
-				l.current.text = l.input[start:l.offset]
-				if token == NOT_EQUAL {
-					l.current.text = "<>"
-				}
+				l.current.text = "<>"
+			case "=>":
+				// Named arguments are not generic binary operators.
+				token = EQUALS_GREATER
+			case "+", "-", "*", "/", "%", "<", ">", "=":
+				token = int(c)
+			default:
+				token = SYMBOLIC_OPERATOR
 			}
 		}
 	}
