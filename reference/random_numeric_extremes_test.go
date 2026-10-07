@@ -24,7 +24,7 @@ func TestReferenceRandomNondegenerateNumericExtremes(t *testing.T) {
 	}{
 		{"wide-multiword", "-18446744073709551616.000", "18446744073709551616.000", 3, nil},
 		{"maximum-scale", fineZero, fineTwo, 16383, []string{fineZero, fineOne, fineTwo}},
-		{"maximum-weight", "0", maxWeight, 0, nil},
+		{"maximum-weight", maxWeight, "2" + maxWeight[1:], 0, nil},
 	}
 	// Bind text through real NUMERIC columns, independently expecting one
 	// published row on each backend without recording enormous expected logs.
@@ -137,6 +137,13 @@ func TestReferenceRandomNondegenerateNumericExtremes(t *testing.T) {
 						// ordinary sign/decimal point, never exponential truncation.
 						if strings.Trim(text, "-0123456789.") != "" || len(text) > max(len(tc.lo), len(tc.hi)) {
 							t.Fatal("numeric output integrity; length", len(text))
+						}
+						// This entire nondegenerate interval has the maximum
+						// integer digit count, so no lucky endpoint is required.
+						if tc.name == "maximum-weight" {
+							if len(text) != 131072 || text[0] == '0' || strings.Trim(text, "0123456789") != "" {
+								t.Fatal("maximum-weight canonical integer output; length", len(text))
+							}
 						}
 						if tc.lattice != nil {
 							member := false

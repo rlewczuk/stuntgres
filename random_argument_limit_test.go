@@ -20,6 +20,30 @@ func TestRandomArgumentLimit(t *testing.T) {
 		arguments[i] = "1"
 	}
 	for _, name := range []string{"random", "random_normal", "setseed"} {
+		// At exactly 100, signature lookup still wins over the general limit.
+		q := "SELECT " + name + "(" + strings.Join(arguments[:100], ",") + ")"
+		want := stuntgres.Error{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883",
+			Message:  "function " + name + "(" + strings.Repeat("integer, ", 99) + "integer) does not exist",
+			Hint:     "No function matches the given name and argument types. You might need to add explicit type casts.",
+			Position: "8",
+		}
+		for _, prepared := range []bool{false, true} {
+			var e error
+			if prepared {
+				s, err := c.PrepareContext(ctx, q)
+				if s != nil {
+					s.Close()
+				}
+				e = err
+			} else {
+				_, e = c.ExecContext(ctx, q)
+			}
+			var got *stuntgres.Error
+			if !errors.As(e, &got) || *got != want {
+				t.Fatalf("%s 100 arguments prepared=%v got %#v (%v) want %#v", name, prepared, got, e, want)
+			}
+		}
 		for _, prefix := range []string{"SELECT ", "/*é*/ SELECT "} {
 			q := prefix + name + "(" + strings.Join(arguments, ",") + ")"
 			pos := "8"
