@@ -161,3 +161,50 @@ func TestIntervalDiagnosticsAndAtomicity(t *testing.T) {
 	}
 	intervalRows(t, rows, nil)
 }
+
+func TestIntervalISOHexadecimalNativeRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	drv := stuntgres.NewDriver()
+	source := openLocal(t, drv, t.Name())
+	execSQL(t, source, "CREATE TABLE iv(id INTEGER,v INTERVAL DEFAULT INTERVAL 'PT0x.8p0S')")
+	execSQL(t, source, "INSERT INTO iv VALUES(1,'PT0x1.8S'),(2,'P1DT-0x1.8p1S')")
+	execSQL(t, source, "INSERT INTO iv(id) VALUES(3)")
+	execSQL(t, source, "CREATE VIEW ivview AS SELECT INTERVAL 'PT0X1.8P+1S' AS v FROM iv WHERE id=1")
+	var canonical bytes.Buffer
+	if err := stuntgres.Dump(ctx, source, &canonical); err != nil {
+		t.Fatal(err)
+	}
+	for _, style := range []string{"postgres", "postgres_verbose", "sql_standard", "iso_8601"} {
+		execSQL(t, source, "SET IntervalStyle="+style)
+		var dump bytes.Buffer
+		if err := stuntgres.Dump(ctx, source, &dump); err != nil || dump.String() != canonical.String() {
+			t.Fatal(style, err, "style-dependent hexadecimal-origin dump")
+		}
+		dest := openLocal(t, drv, t.Name()+"/"+style)
+		execSQL(t, dest, "SET IntervalStyle="+style)
+		if err := stuntgres.Restore(ctx, dest, bytes.NewReader(canonical.Bytes())); err != nil {
+			t.Fatal(style, err)
+		}
+		var redump bytes.Buffer
+		if err := stuntgres.Dump(ctx, dest, &redump); err != nil || redump.String() != canonical.String() {
+			t.Fatal(style, err, "noncanonical hexadecimal-origin roundtrip")
+		}
+		execSQL(t, dest, "SET IntervalStyle=postgres")
+		rows, err := dest.Query("SELECT id,v FROM iv ORDER BY id")
+		if err != nil {
+			t.Fatal(err)
+		}
+		intervalRows(t, rows, [][]any{{int64(1), "00:00:01.5"}, {int64(2), "1 day -00:00:03"}, {int64(3), "00:00:00.5"}})
+		rows, err = dest.Query("SELECT v FROM ivview")
+		if err != nil {
+			t.Fatal(err)
+		}
+		intervalRows(t, rows, [][]any{{"00:00:03"}})
+		execSQL(t, dest, "INSERT INTO iv(id) VALUES(4)")
+		rows, err = dest.Query("SELECT v FROM iv WHERE id=4")
+		if err != nil {
+			t.Fatal(err)
+		}
+		intervalRows(t, rows, [][]any{{"00:00:00.5"}})
+	}
+}

@@ -827,39 +827,63 @@ func isoNumber(s string) (int64, float64, int, bool, bool) {
 	i := 0
 	if s[0] == '-' {
 		i++
+		// The release's leading-minus guard admits strtod's nonfinite
+		// prefixes, which fail magnitude validation before unit decoding.
+		if len(s) >= 4 && (strings.EqualFold(s[1:4], "nan") || strings.EqualFold(s[1:4], "inf")) {
+			return 0, 0, 0, false, true
+		}
+	}
+	start := i
+	hex := i+1 < len(s) && s[i] == '0' && (s[i+1] == 'x' || s[i+1] == 'X')
+	if hex {
+		i += 2
 	}
 	digits, nonzero := false, false
-	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+	for i < len(s) && isoNumberDigit(s[i], hex) {
 		digits = true
 		nonzero = nonzero || s[i] != '0'
 		i++
 	}
 	if i < len(s) && s[i] == '.' {
 		i++
-		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		for i < len(s) && isoNumberDigit(s[i], hex) {
 			digits = true
 			nonzero = nonzero || s[i] != '0'
 			i++
 		}
 	}
 	if !digits {
-		return 0, 0, 0, false, false
+		if !hex {
+			return 0, 0, 0, false, false
+		}
+		// strtod falls back to the initial zero for an incomplete 0x prefix.
+		i, hex = start+1, false
 	}
-	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
+	exponent := false
+	if i < len(s) && (hex && (s[i] == 'p' || s[i] == 'P') || !hex && (s[i] == 'e' || s[i] == 'E')) {
+		marker := i
 		i++
 		if i < len(s) && (s[i] == '+' || s[i] == '-') {
 			i++
 		}
-		start := i
+		digitsStart := i
 		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
 			i++
 		}
-		if i == start {
-			return 0, 0, 0, false, false
+		if i == digitsStart {
+			i = marker
+		} else {
+			exponent = true
 		}
 	}
-	n, e := strconv.ParseFloat(s[:i], 64)
-	if e != nil || math.IsNaN(n) || isoNumberUnderflow(s[:i], n, nonzero) {
+	number := s[:i]
+	if hex && !exponent {
+		// ParseFloat requires p even though strtod's hexadecimal exponent
+		// is optional. Only the conversion token changes, not consumed width.
+		number += "p0"
+	}
+	n, e := strconv.ParseFloat(number, 64)
+	if e != nil || isoNumberUnderflow(s[:i], n, nonzero) {
 		return 0, 0, 0, false, false
 	}
 	if math.Abs(n) > 1e15 {
@@ -867,6 +891,10 @@ func isoNumber(s string) (int64, float64, int, bool, bool) {
 	}
 	whole := int64(n)
 	return whole, n - float64(whole), i, true, false
+}
+
+func isoNumberDigit(c byte, hex bool) bool {
+	return c >= '0' && c <= '9' || hex && (c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F')
 }
 
 // PostgreSQL's ParseISO8601Number rejects strtod errno, unlike ParseFloat.

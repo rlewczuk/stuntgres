@@ -187,19 +187,43 @@ func TestIntervalSmoke(t *testing.T) {
 	exec("INSERT INTO ivbounds VALUES('1 second')", 1)
 	exec("CREATE TABLE ivprecision(v INTERVAL SECOND(2))", 0)
 	exec("INSERT INTO ivprecision VALUES('1 second')", 1)
+	exec("CREATE TABLE ivhex(id INTEGER,v INTERVAL DEFAULT INTERVAL 'PT0x.8p0S')", 0)
+	exec("INSERT INTO ivhex VALUES(1,'PT0x1.8S')", 1)
+	hexstmt, err := db.PrepareContext(ctx, "INSERT INTO ivhex VALUES($1,$2)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hexresult, err := hexstmt.ExecContext(ctx, 2, "P1DT0x1p0S")
+	hexstmt.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, e := hexresult.RowsAffected(); e != nil || n != 1 {
+		t.Fatal(n, e)
+	}
+	exec("INSERT INTO ivhex(id) VALUES(3)", 1)
+	exec("INSERT INTO ivhex VALUES($1,$2)", 1, 4, "PT0x1p-1074S")
+	check(db, "SELECT id,v FROM ivhex ORDER BY id", [][]any{{int64(1), "00:00:01.5"}, {int64(2), "1 day 00:00:01"}, {int64(3), "00:00:00.5"}, {int64(4), "00:00:00"}})
 	for _, tc := range []struct{ table, input, code, message string }{
 		{"ivbounds", "PT1000000000000001S", "22015", "interval field value out of range: \"PT1000000000000001S\""},
 		{"ivbounds", "1 1-2", "22007", "invalid input syntax for type interval: \"1 1-2\""},
 		{"ivbounds", "PT1e-400S", "22007", "invalid input syntax for type interval: \"PT1e-400S\""},
 		{"ivbounds", "P1DT1e-400S", "22007", "invalid input syntax for type interval: \"P1DT1e-400S\""},
 		{"ivbounds", "PT5e-324S", "22007", "invalid input syntax for type interval: \"PT5e-324S\""},
+		{"ivbounds", "P1DT0x1pS", "22007", "invalid input syntax for type interval: \"P1DT0x1pS\""},
+		{"ivbounds", "P1DT0x1p1024S", "22007", "invalid input syntax for type interval: \"P1DT0x1p1024S\""},
+		{"ivbounds", "P1DT0x1p50S", "22015", "interval field value out of range: \"P1DT0x1p50S\""},
+		{"ivbounds", "P1DT0x1p-1075S", "22007", "invalid input syntax for type interval: \"P1DT0x1p-1075S\""},
+		{"ivbounds", "P1DT0x1.8p-1074S", "22007", "invalid input syntax for type interval: \"P1DT0x1.8p-1074S\""},
+		{"ivbounds", "P1DT-NaNS", "22015", "interval field value out of range: \"P1DT-NaNS\""},
+		{"ivbounds", "P1DT-InfS", "22015", "interval field value out of range: \"P1DT-InfS\""},
 		{"ivprecision", "2562047788:00:54.775807", "22008", "interval out of range"},
 	} {
 		boundary, err := db.PrepareContext(ctx, "INSERT INTO "+tc.table+" VALUES($1),($2)")
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = boundary.ExecContext(ctx, "1 day", tc.input)
+		_, err = boundary.ExecContext(ctx, "PT0x1p0S", tc.input)
 		boundary.Close()
 		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
 		var got *stuntgres.Error
@@ -257,6 +281,7 @@ func TestIntervalSmoke(t *testing.T) {
 	check(dest, "SELECT v FROM ivgeneric", [][]any{{"1 year"}})
 	check(dest, "SELECT v FROM ivgenericview", [][]any{{"1 year"}})
 	check(dest, "SELECT v FROM ivprecision", [][]any{{"00:00:01"}})
+	check(dest, "SELECT id,v FROM ivhex ORDER BY id", [][]any{{int64(1), "00:00:01.5"}, {int64(2), "1 day 00:00:01"}, {int64(3), "00:00:00.5"}, {int64(4), "00:00:00"}})
 	if err = stuntgres.Reset(ctx, db); err != nil {
 		t.Fatal(err)
 	}

@@ -1107,6 +1107,18 @@ The SQL year-month form `1-2` means14months; a preceding bare quantity in
 `1 1-2` duplicates the month field and fails22007, including restricted columns.
 ISO exponent notation retains basic-format integral width:
 `P00021015e0` means `2 years 10 mons 15 days`, and `PT001020e0` means `00:10:20`.
+ISO numeric fields also preserve PostgreSQL's legacy hexadecimal floating syntax
+inside interval strings: `PT0x1p0S` means one second, `P1DT0x1p0S` one day and
+one second, and `PT0x1.8S` 1.5 seconds without an explicit binary exponent.
+Hexadecimal digits/prefixes and `p` exponents admit either case; signed fractions
+retain their components. Leading plus remains malformed22007. This is not an
+extension of SQL numeric literal syntax. Malformed hexadecimal fields and floating
+conversion overflow fail22007; accepted numbers still undergo the same magnitude,
+component-domain and exact underflow checks.
+The same leading-minus number guard admits case-insensitive `-NaN`, `-Inf` and
+`-Infinity` prefixes (including `-NaN(foo)`), but rejects these nonfinite numbers
+with22015 before unit validation. Unsigned NaN/Inf fields remain malformed22007.
+No NaN interval value is stored, and whole-interval ±infinity behavior is unchanged.
 A parsed ISO magnitude outside ±1e15 is decoder overflow22015, not malformed
 input. Unrestricted `2562047788:00:54.775807` is the largest finite microsecond
 component, but rounding it for SECOND(2) fails22008; a later overflowing parameter

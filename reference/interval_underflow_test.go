@@ -148,18 +148,174 @@ func TestReferenceIntervalISOUnderflowSessionIsolation(t *testing.T) {
 		defer b.Close()
 		referenceRunStep(t, p.ctx, a, backend.record, referenceExec("SET IntervalStyle=sql_standard", 0))
 		referenceRunStep(t, p.ctx, b, backend.record, referenceExec("SET IntervalStyle=iso_8601", 0))
-		for _, prepared := range []bool{false, true} {
-			s := referenceImplicitError("INSERT INTO iv VALUES($1),($2)", referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type interval: \"P1DT1e-400S\""}, "1 day", "P1DT1e-400S")
-			s.prepared = prepared
-			s.errorStage = "execute"
-			pg := *s.diagnostic
-			pg.Context = "unnamed portal parameter $2 = '...'"
-			s.postgresDiagnostic = &pg
-			referenceRunStep(t, p.ctx, a, backend.record, s)
-			referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
-			referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
-			referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"0:00:01"}}))
-			referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
+		for _, tc := range []struct{ input, code, primary string }{
+			{"P1DT1e-400S", "22007", "invalid input syntax for type interval"},
+			{"P1DT0x1pS", "22007", "invalid input syntax for type interval"},
+			{"P1DT0x1p50S", "22015", "interval field value out of range"},
+			{"P1DT0x1p-1075S", "22007", "invalid input syntax for type interval"},
+			{"P1DT-NaNS", "22015", "interval field value out of range"},
+			{"P1DT-InfS", "22015", "interval field value out of range"},
+		} {
+			for _, prepared := range []bool{false, true} {
+				s := referenceImplicitError("INSERT INTO iv VALUES($1),($2)", referenceDiagnostic{Code: tc.code, Message: tc.primary + ": \"" + tc.input + "\""}, "PT0x1p0S", tc.input)
+				s.prepared = prepared
+				s.errorStage = "execute"
+				pg := *s.diagnostic
+				pg.Context = "unnamed portal parameter $2 = '...'"
+				s.postgresDiagnostic = &pg
+				referenceRunStep(t, p.ctx, a, backend.record, s)
+				referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
+				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
+				referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"0:00:01"}}))
+				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
+			}
 		}
+	}
+}
+
+func TestReferenceIntervalISOHexadecimal(t *testing.T) {
+	for _, tc := range []struct{ input, out string }{
+		{"PT0x1p0S", "00:00:01"}, {"P1DT0x1p0S", "1 day 00:00:01"},
+		{"PT-0x1.8p1S", "-00:00:03"}, {"P1DT-0x1.8p1S", "1 day -00:00:03"},
+		{"PT0x1.8S", "00:00:01.5"}, {"P1DT0x1.8S", "1 day 00:00:01.5"},
+		{"PT0x.8p0S", "00:00:00.5"}, {"P1DT0x.8p0S", "1 day 00:00:00.5"},
+		{"PT0X1P0S", "00:00:01"}, {"P1DT0X1P0S", "1 day 00:00:01"},
+		{"PT0X1.8P+1S", "00:00:03"}, {"P1DT0X1.8P+1S", "1 day 00:00:03"},
+		{"PT0x1S", "00:00:01"}, {"P1DT0x1S", "1 day 00:00:01"},
+		{"PT0xep0S", "00:00:14"}, {"P1DT0xep0S", "1 day 00:00:14"},
+		{"PT0x.8S", "00:00:00.5"}, {"P1DT0x.8S", "1 day 00:00:00.5"},
+		{"PT-0x.8p0S", "-00:00:00.5"}, {"P1DT-0x.8p0S", "1 day -00:00:00.5"},
+		{"PT0x1.p0S", "00:00:01"}, {"P1DT0x1.p0S", "1 day 00:00:01"},
+		{"PT0x1.S", "00:00:01"}, {"P1DT0x1.S", "1 day 00:00:01"},
+		{"PT0x1p-1074S", "00:00:00"}, {"P1DT0x1p-1074S", "1 day"},
+		{"PT0x0p-4000S", "00:00:00"}, {"P1DT0x0p-4000S", "1 day"},
+		{"PT0x0p-99999S", "00:00:00"}, {"P1DT0x0p-99999S", "1 day"},
+		{"P0x1p0Y", "1 year"}, {"P0x1p0M", "1 mon"}, {"P0x1p0D", "1 day"},
+		{"P1Y0x1p0M", "1 year 1 mon"}, {"P0x1p0", "1 year"}, {"PT0x1p0", "01:00:00"},
+		{"P1-0x1p0-1", "1 year 1 mon 1 day"}, {"P1-1-0x1p0", "1 year 1 mon 1 day"},
+		{"PT1:0x1p0:1", "01:01:01"}, {"PT1:1:0x1p0", "01:01:01"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			p := newReferencePair(t)
+			for _, backend := range []struct {
+				name   string
+				db     *sql.DB
+				record *referenceRecorder
+			}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run(referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
+					var previous int64
+					for _, prepared := range []bool{false, true} {
+						for _, parameterized := range []bool{false, true} {
+							run(referenceExec("DELETE FROM iv", previous))
+							s := referenceExec("INSERT INTO iv VALUES('"+tc.input+"')", 1)
+							if parameterized {
+								s = referenceExec("INSERT INTO iv VALUES($1)", 1, tc.input)
+							}
+							s.prepared = prepared
+							run(s)
+							previous = 1
+							run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
+							s = referenceSelect("SELECT INTERVAL '"+tc.input+"' AS v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}})
+							s.prepared = prepared
+							run(s)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestReferenceIntervalISONonfinite(t *testing.T) {
+	for _, tc := range []struct{ input, code, primary string }{
+		{"PT-NaNS", "22015", "interval field value out of range"},
+		{"PT-InfS", "22015", "interval field value out of range"},
+		{"PT-InfinityS", "22015", "interval field value out of range"},
+		{"PT-NaN(foo)S", "22015", "interval field value out of range"},
+		{"P1DT-NaNS", "22015", "interval field value out of range"},
+		{"P1DT-InfS", "22015", "interval field value out of range"},
+		{"P1DT-InfinityS", "22015", "interval field value out of range"},
+		{"P1DT-NaN(foo)S", "22015", "interval field value out of range"},
+		{"PT-nanS", "22015", "interval field value out of range"},
+		{"P1DT-INFS", "22015", "interval field value out of range"},
+		{"PT-nan(badS", "22015", "interval field value out of range"},
+		{"PTNaNS", "22007", "invalid input syntax for type interval"},
+		{"PTInfS", "22007", "invalid input syntax for type interval"},
+		{"P1DTNaNS", "22007", "invalid input syntax for type interval"},
+		{"P1DTInfS", "22007", "invalid input syntax for type interval"},
+		{"PT0x1pS", "22007", "invalid input syntax for type interval"},
+		{"P1DT0x1pS", "22007", "invalid input syntax for type interval"},
+		{"PT0x1p+S", "22007", "invalid input syntax for type interval"},
+		{"PT0xS", "22007", "invalid input syntax for type interval"},
+		{"PT0x.p0S", "22007", "invalid input syntax for type interval"},
+		{"PT+0x1p0S", "22007", "invalid input syntax for type interval"},
+		{"P1DT0x1p+S", "22007", "invalid input syntax for type interval"},
+		{"P1DT0xS", "22007", "invalid input syntax for type interval"},
+		{"P1DT0x.p0S", "22007", "invalid input syntax for type interval"},
+		{"P1DT+0x1p0S", "22007", "invalid input syntax for type interval"},
+		{"PT0x1p1024S", "22007", "invalid input syntax for type interval"},
+		{"P1DT0x1p1024S", "22007", "invalid input syntax for type interval"},
+		{"PT0x1p-1075S", "22007", "invalid input syntax for type interval"},
+		{"P1DT0x1p-1075S", "22007", "invalid input syntax for type interval"},
+		{"PT0x1.8p-1074S", "22007", "invalid input syntax for type interval"},
+		{"P1DT0x1.8p-1074S", "22007", "invalid input syntax for type interval"},
+		{"PT0x1p50S", "22015", "interval field value out of range"},
+		{"P1DT0x1p50S", "22015", "interval field value out of range"},
+		{"PT0x1p49S", "22015", "interval field value out of range"},
+		{"P1DT0x1p49S", "22015", "interval field value out of range"},
+		{"PT1000000000000001e+S", "22015", "interval field value out of range"},
+		{"P1DT1000000000000001e+S", "22015", "interval field value out of range"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			p := newReferencePair(t)
+			for _, backend := range []struct {
+				name   string
+				db     *sql.DB
+				record *referenceRecorder
+			}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run(referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
+					run(referenceExec("INSERT INTO iv VALUES('1 second')", 1))
+					base := referenceDiagnostic{Code: tc.code, Message: tc.primary + ": \"" + tc.input + "\""}
+					for _, prepared := range []bool{false, true} {
+						for _, literal := range []struct{ q, pos string }{
+							{"SELECT INTERVAL '" + tc.input + "' FROM iv", "17"},
+							{"INSERT INTO iv VALUES('" + tc.input + "')", "23"},
+							{"INSERT INTO iv VALUES('PT0x1p0S'),('" + tc.input + "')", "36"},
+						} {
+							want := base
+							want.Position = literal.pos
+							s := referenceImplicitError(literal.q, want)
+							s.prepared = prepared
+							s.errorStage = "execute"
+							if prepared {
+								s.errorStage = "prepare"
+							}
+							run(s)
+							run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"00:00:01"}}))
+						}
+						for _, parameter := range []struct {
+							q, context string
+							args       []any
+						}{
+							{"INSERT INTO iv VALUES($1)", "unnamed portal parameter $1 = '...'", []any{tc.input}},
+							{"INSERT INTO iv VALUES($1),($2)", "unnamed portal parameter $2 = '...'", []any{"PT0x1p0S", tc.input}},
+						} {
+							s := referenceImplicitError(parameter.q, base, parameter.args...)
+							s.prepared = prepared
+							s.errorStage = "execute"
+							pg := *s.diagnostic
+							pg.Context = parameter.context
+							s.postgresDiagnostic = &pg
+							run(s)
+							run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"00:00:01"}}))
+						}
+					}
+				})
+			}
+		})
 	}
 }
