@@ -280,6 +280,8 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 	}
 	s.input.Zone, s.output.Zone = zone.zone, zone.zone
 	s.input.DateStyle, s.output.DateStyle = style.dateStyle, style.dateStyle
+	s.output.IntervalStyle = sqltype.ParseIntervalStyle(settings.value("intervalstyle"))
+	s.input.IntervalStyle = s.output.IntervalStyle
 	settings.mu.Unlock()
 	return s, nil
 }

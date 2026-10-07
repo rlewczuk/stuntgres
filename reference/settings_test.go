@@ -100,6 +100,7 @@ func TestReferenceSettingsSQL(t *testing.T) {
 						"TimeZone":                      {"UTC", "Sets the time zone for displaying and interpreting time stamps."},
 						"application_name":              {"", "Sets the application name to be reported in statistics and logs."},
 						"bytea_output":                  {"hex", "Sets the output format for bytea."},
+						"IntervalStyle":                 {"postgres", "Sets the display format for interval values."},
 						"client_min_messages":           {"notice", "Sets the message levels that are sent to the client."},
 						"default_transaction_isolation": {"read committed", "Sets the transaction isolation level of each new transaction."},
 						"default_transaction_read_only": {"off", "Sets the default read-only status of new transactions."},
@@ -116,7 +117,7 @@ func TestReferenceSettingsSQL(t *testing.T) {
 					if backend.name == "postgres" {
 						expected["TimeZone"] = [2]string{"Etc/UTC", "Sets the time zone for displaying and interpreting time stamps."}
 						// Project the genuine registry, not fabricated whole-catalog parity.
-						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','application_name','bytea_output','client_min_messages','default_transaction_isolation','default_transaction_read_only','lock_timeout','log_statement_stats','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_isolation','transaction_read_only') ORDER BY name"
+						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','application_name','bytea_output','client_min_messages','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_isolation','transaction_read_only') ORDER BY lower(name)"
 						run(referenceSelect("SELECT name FROM pg_settings WHERE name='demo.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
 					}
 					var rows *sql.Rows
@@ -154,14 +155,10 @@ func TestReferenceSettingsSQL(t *testing.T) {
 							t.Fatal(err)
 						}
 						want, ok := expected[name]
-						orderName := name
-						if backend.name == "native" {
-							orderName = strings.ToLower(name)
-						}
-						if orderName <= last || !ok || value != want[0] || description != want[1] {
+						if strings.ToLower(name) <= last || !ok || value != want[0] || description != want[1] {
 							t.Fatal(name, value, description, want)
 						}
-						last = orderName
+						last = strings.ToLower(name)
 						delete(expected, name)
 					}
 					if rows.Err() != nil || len(expected) != 0 {

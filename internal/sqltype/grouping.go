@@ -99,6 +99,13 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 	}
 	byteHash(1)
 	switch v.typ.id {
+	case Interval:
+		byteHash(byte(intervalInfinity(v) + 1))
+		if intervalInfinity(v) == 0 {
+			hi, lo := intervalSpan(v)
+			integerHash(uint64(hi))
+			integerHash(lo)
+		}
 	case Oid:
 		integerHash(uint64(v.oid))
 	case Bool:

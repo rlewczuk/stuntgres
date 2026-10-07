@@ -94,14 +94,22 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		if column := element.Column; column != nil && len(column.TypeName.Modifiers) > 0 {
 			i := d.index[column.Name]
 			// Temporal modifiers emit a second descriptor-build warning.
-			if id := d.columns[i].Usage.Type.ID(); id != sqltype.Timestamp && id != sqltype.Time && id != sqltype.Timestamptz && id != sqltype.Timetz {
+			if id := d.columns[i].Usage.Type.ID(); id != sqltype.Interval && id != sqltype.Timestamp && id != sqltype.Time && id != sqltype.Timestamptz && id != sqltype.Timetz {
 				continue
 			}
-			modifier := column.TypeName.Modifiers[0]
-			if modifier.Integer == nil {
+			modifiers := make([]int32, len(column.TypeName.Modifiers))
+			valid := true
+			for j, modifier := range column.TypeName.Modifiers {
+				if modifier.Integer == nil {
+					valid = false
+					break
+				}
+				modifiers[j] = *modifier.Integer
+			}
+			if !valid {
 				continue
 			}
-			usage, warning, err := d.columns[i].Usage.Type.ResolveModifiers(*modifier.Integer)
+			usage, warning, err := d.columns[i].Usage.Type.ResolveModifiers(modifiers...)
 			if err != nil {
 				return err
 			}

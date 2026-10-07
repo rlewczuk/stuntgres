@@ -24,6 +24,7 @@ type InputEnvironment struct {
 	TransactionStart time.Time
 	Zone             *Zone
 	DateStyle        DateStyle
+	IntervalStyle    IntervalStyle
 }
 
 func TimestampValue(d *Descriptor, n int64) (Value, error) {
@@ -42,7 +43,7 @@ func (v Value) Timestamp() (int64, error) {
 	return v.integer, nil
 }
 func (d *Descriptor) validTypmod(p int32) bool {
-	return p == -1 || (d.id == Timestamp || d.id == Time || d.id == Timestamptz || d.id == Timetz) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
+	return p == -1 || d.id == Interval && intervalTypmodValid(p) || (d.id == Timestamp || d.id == Time || d.id == Timestamptz || d.id == Timetz) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
 }
 func (u Usage) Valid() bool {
 	if !u.Type.Concrete() || !u.Type.validTypmod(u.Typmod) {
@@ -55,7 +56,7 @@ func (u Usage) Valid() bool {
 // statement owner interprets raw modifier expressions.
 func (d *Descriptor) CheckModifierSupport() error {
 	switch d.id {
-	case Numeric, Timestamp, Time, Timestamptz, Timetz, BPChar, VarChar:
+	case Numeric, Timestamp, Time, Timestamptz, Timetz, Interval, BPChar, VarChar:
 		return nil
 	case Text:
 		return failure("42601", `type modifier is not allowed for type "text"`)
@@ -76,6 +77,9 @@ func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Erro
 	u := d.Usage()
 	if err := d.CheckModifierSupport(); err != nil {
 		return u, nil, err
+	}
+	if d.id == Interval {
+		return d.intervalModifiers(modifiers)
 	}
 	if d.id == BPChar || d.id == VarChar {
 		if len(modifiers) != 1 {
@@ -140,6 +144,9 @@ func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Erro
 func (u Usage) Declaration() (string, error) {
 	if !u.Valid() {
 		return "", fmt.Errorf("invalid declaration usage")
+	}
+	if u.Type.id == Interval {
+		return intervalDeclaration(u.Typmod), nil
 	}
 	if u.Type.id == Numeric && u.Typmod >= 0 {
 		p, s := numericParts(u.Typmod)
@@ -383,6 +390,9 @@ func coreDateWord(s string) bool {
 // Token categories and punctuation boundaries mirror release ParseDateTime.
 // Fixed fields and the release token-buffer budget bound decoder storage.
 func tokenizeTimestamp(s string) ([25]dateToken, int, bool) {
+	return tokenizeDateTime(s, 153)
+}
+func tokenizeDateTime(s string, budget int) ([25]dateToken, int, bool) {
 	var fields [25]dateToken
 	nf, used := 0, 0
 	for i := 0; i < len(s); {
@@ -488,7 +498,7 @@ func tokenizeTimestamp(s string) ([25]dateToken, int, bool) {
 			tokenLen = 1 + len(strings.TrimLeft(token[1:], " \t\n\r\f\v"))
 		}
 		used += tokenLen + 1
-		if nf == len(fields) || used > 153 {
+		if nf == len(fields) || used > budget {
 			return fields, 0, false
 		}
 		fields[nf] = dateToken{token, kind}

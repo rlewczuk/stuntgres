@@ -21,6 +21,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"DateStyle", "ISO, MDY", "Sets the display format for date and time values."},
 		{"default_transaction_isolation", "read committed", "Sets the transaction isolation level of each new transaction."},
 		{"default_transaction_read_only", "off", "Sets the default read-only status of new transactions."},
+		{"IntervalStyle", "postgres", "Sets the display format for interval values."},
 		{"lock_timeout", "0", "Sets the maximum allowed duration of any wait for a lock."},
 		{"log_statement_stats", "off", "Writes cumulative performance statistics to the server log."},
 		{"search_path", `"$user", public`, "Sets the schema search order for names that are not schema-qualified."},

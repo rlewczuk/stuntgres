@@ -35,6 +35,7 @@ const (
 	Time        ID = 1083
 	Timestamp   ID = 1114
 	Timestamptz ID = 1184
+	Interval    ID = 1186
 	Timetz      ID = 1266
 	Numeric     ID = 1700
 	Regclass    ID = 2205
@@ -130,6 +131,7 @@ func Builtins() []*Descriptor {
 		{Time, "time", "TIME", "TIME"},
 		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
 		{Timestamptz, "timestamptz", "TIMESTAMP WITH TIME ZONE", "TIMESTAMPTZ"},
+		{Interval, "interval", "INTERVAL", "INTERVAL"},
 		{Timetz, "timetz", "TIME WITH TIME ZONE", "TIMETZ"},
 		{Numeric, "numeric", "NUMERIC", "NUMERIC"},
 		{UUID, "uuid", "UUID", "UUID"},
@@ -153,6 +155,7 @@ type Value struct {
 	negative        bool
 	special         uint8
 	uuid            [16]byte
+	months, days    int32
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -343,6 +346,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.civilInput(text, typmod, env)
 	case Time, Timetz:
 		return d.timeInput(text, typmod, env)
+	case Interval:
+		return d.intervalInput(ctx, text, typmod, env)
 	case Numeric:
 		return d.numericInput(text, typmod)
 	case Timestamp, Timestamptz:
@@ -507,6 +512,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return timeOutput(v.integer), nil
 	case Timetz:
 		return timeOutput(v.integer) + zoneOffsetOutput(-v.west), nil
+	case Interval:
+		return intervalOutput(v, env.IntervalStyle)
 	case Numeric:
 		return numericOutput(v), nil
 	case Timestamp:
@@ -558,6 +565,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00'", nil
 		}
 		return "'" + timestamptzOutput(v.integer, OutputEnvironment{}) + "'", nil
+	case Interval:
+		return "INTERVAL '" + intervalCanonical(v) + "'", nil
 	case Timestamp:
 		if v.integer == timestampEnd {
 			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
@@ -787,6 +796,9 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value, input InputEnvironment
 		}
 		return TimestampValue(p.target.Type, v.integer*microsPerDay)
 	case identity:
+		if p.target.Type.id == Interval {
+			return adjustInterval(v, p.target.Typmod)
+		}
 		if IsCharacter(p.target.Type.id) {
 			return sizeCharacter(v, p.target.Typmod, p.context == Explicit)
 		}
@@ -983,6 +995,8 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		if a.oid > b.oid {
 			return 1, nil
 		}
+	case Interval:
+		return compareIntervals(a, b), nil
 	case Oid:
 		if a.oid < b.oid {
 			return -1, nil

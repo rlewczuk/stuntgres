@@ -28,9 +28,10 @@ const (
 )
 
 type OutputEnvironment struct {
-	ByteaOutput ByteaOutput
-	Zone        *Zone
-	DateStyle   DateStyle
+	ByteaOutput   ByteaOutput
+	Zone          *Zone
+	DateStyle     DateStyle
+	IntervalStyle IntervalStyle
 }
 
 func hexNibble(text string) (byte, error) {

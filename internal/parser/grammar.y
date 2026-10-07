@@ -111,8 +111,9 @@ package parser
 %nonassoc TYPE_NAME
 /* Postfix casts put projection labels in the follow set of type names.
  * Preserve declaration grammar's deliberate type-tail shift rather than
- * leaving those decisions as implicit shift/reduce conflicts. */
-%nonassoc IDENT SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC '.'
+ * leaving those decisions as implicit shift/reduce conflicts. Interval field
+ * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
+%nonassoc IDENT SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC YEAR MONTH DAY HOUR MINUTE SECOND '.'
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
 %nonassoc '('
 %nonassoc KW_T CROSS INNER JOIN NATURAL LIKE WITH WITHOUT
@@ -145,6 +146,7 @@ package parser
 %type <tok> operator_symbol
 %type <dropMode> drop_mode
 %type <typ> type temporal_type generic_precision generic_modifiers type_modifier_head date_literal_precision
+%type <typ> interval_type interval_fields interval_second_fields interval_type_qualifier
 %type <constraints> nullability column_constraints
 %type <constraint> column_constraint
 %type <notNull> table_not_null
@@ -465,7 +467,7 @@ column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Constrain
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT %prec TYPE_NAME { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
  | temporal_type { $$=$1 }
- | INTERVAL { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset); return 1 }
+ | interval_type { $$=$1 }
  | type_modifier_head generic_modifiers ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Modifiers=$2.Modifiers };sqllex.(*lexer).characterPrecision=false;sqllex.(*lexer).characterGeneric=false }
  | type_name type_name %prec TYPE_NAME { if $1.keyword!=nil && $2.keyword!=nil && ($1.text=="double" && $2.text=="precision" || $1.text=="character" && $2.text=="varying") { $$=TypeName{Name:$1.text+" "+$2.text,Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
@@ -492,6 +494,26 @@ temporal_type: TIMESTAMP %prec TYPE_NAME { $$=TypeName{Name:$1.text,Pos:$1.pos} 
  | TIME '(' NUMBER ')' WITHOUT TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
  | TIME WITH TIME ZONE {$$=TypeName{Name:"timetz",Pos:$1.pos}}
  | TIME '(' NUMBER ')' WITH TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timetz";$$.Pos=$1.pos} ;
+interval_type: INTERVAL %prec TYPE_NAME { $$=TypeName{Name:"interval",Pos:$1.pos} }
+ | INTERVAL interval_type_qualifier { $$=$2;$$.Name="interval";$$.Pos=$1.pos }
+ | INTERVAL '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=intervalPrecision(sqllex,32767,$3,$2);if !ok{return 1};$$.Name="interval";$$.Pos=$1.pos} ;
+interval_type_qualifier: interval_fields %prec TYPE_NAME {$$=$1}
+ | interval_second_fields '(' NUMBER ')' {var ok bool;$$,ok=intervalPrecision(sqllex,*$1.Modifiers[0].Integer,$3,$2);if !ok{return 1}}
+ | interval_fields '(' {sqllex.(*lexer).syntax($2);return 1} ;
+interval_fields: YEAR %prec TYPE_NAME {$$=intervalField(4,$1.pos)}
+ | MONTH %prec TYPE_NAME {$$=intervalField(2,$1.pos)}
+ | DAY %prec TYPE_NAME {$$=intervalField(8,$1.pos)}
+ | HOUR %prec TYPE_NAME {$$=intervalField(1024,$1.pos)}
+ | MINUTE %prec TYPE_NAME {$$=intervalField(2048,$1.pos)}
+ | YEAR TO MONTH {$$=intervalField(6,$1.pos)}
+ | DAY TO HOUR {$$=intervalField(1032,$1.pos)}
+ | DAY TO MINUTE {$$=intervalField(3080,$1.pos)}
+ | HOUR TO MINUTE {$$=intervalField(3072,$1.pos)}
+ | interval_second_fields %prec TYPE_NAME {$$=$1} ;
+interval_second_fields: SECOND %prec TYPE_NAME {$$=intervalField(4096,$1.pos)}
+ | DAY TO SECOND {$$=intervalField(7176,$1.pos)}
+ | HOUR TO SECOND {$$=intervalField(7168,$1.pos)}
+ | MINUTE TO SECOND {$$=intervalField(6144,$1.pos)} ;
 generic_precision: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=temporalPrecision(sqllex,$1,false)};if !ok{return 1}}
  | '-' {if sqllex.(*lexer).floatPrecision || sqllex.(*lexer).characterPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
  | '+' {if sqllex.(*lexer).floatPrecision || sqllex.(*lexer).characterPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos}
@@ -623,10 +645,12 @@ scalar: scalar_atom { $$=$1 }
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
  | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
+ | INTERVAL STRING %prec TYPE_NAME {$$=TypedLiteralExpr{TypeName:TypeName{Name:"interval",Pos:$1.pos},Text:$2.text,Pos:$2.pos}}
+ | INTERVAL STRING interval_type_qualifier {raw:=$3;raw.Name="interval";raw.Pos=$1.pos;$$=TypedLiteralExpr{TypeName:raw,Text:$2.text,Pos:$2.pos}}
+ | INTERVAL '(' NUMBER ')' STRING {raw,ok:=intervalPrecision(sqllex,32767,$3,$2);if !ok{return 1};raw.Name="interval";raw.Pos=$1.pos;$$=TypedLiteralExpr{TypeName:raw,Text:$5.text,Pos:$5.pos}}
  /* DATE is an IDENT (also when quoted). TIME/TIMESTAMP STRING continuations
   * belong exclusively to temporal_type, not the ordinary name reduction. */
  | IDENT STRING { if $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
- | INTERVAL STRING {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1}
  | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
  | name '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
  | name '.' col_label STRING {raw,ok:=qualifiedTimezoneLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
@@ -786,14 +810,14 @@ direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } 
 sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST ;
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word_without_between: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
- | UNKNOWN | OPERATOR | sequence_name_word | conditional_word ;
+setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+ | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word ;
 setting_word: setting_word_without_between | BETWEEN ;
 non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
- | CROSS | INNER | JOIN | NATURAL | OPERATOR ;
+ | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;

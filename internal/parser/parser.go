@@ -433,6 +433,22 @@ func temporalPrecision(l sqlLexer, tok lexeme, negative bool) (TypeName, bool) {
 	p := int32(n)
 	return TypeName{Modifiers: []TypeModifier{{Integer: &p, Pos: tok.pos}}}, true
 }
+func intervalField(mask int32, pos Position) TypeName {
+	return TypeName{Modifiers: []TypeModifier{{Integer: &mask, Pos: pos}}}
+}
+func intervalPrecision(l sqlLexer, mask int32, tok, open lexeme) (TypeName, bool) {
+	if tok.numeric {
+		l.(*lexer).syntax(tok)
+		return TypeName{}, false
+	}
+	raw, ok := temporalPrecision(l, tok, false)
+	if !ok {
+		return raw, false
+	}
+	field := intervalField(mask, open.pos)
+	field.Modifiers = append(field.Modifiers, raw.Modifiers...)
+	return field, true
+}
 func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 	raw := columnType(tok)
 	if tok.keyword != nil && tok.text == "float" {
@@ -454,12 +470,12 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).multipleModifiers = false
 		return raw, true
 	}
-	if raw.Name != "bytea" && raw.Name != "date" && raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
+	if raw.Name != "interval" && raw.Name != "bytea" && raw.Name != "date" && raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
 		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
 		return TypeName{}, false
 	}
 	l.(*lexer).genericModifier = true
-	l.(*lexer).multipleModifiers = raw.Name == "numeric" || !raw.Quoted && (raw.Name == "decimal" || raw.Name == "dec")
+	l.(*lexer).multipleModifiers = raw.Name == "interval" || raw.Name == "numeric" || !raw.Quoted && (raw.Name == "decimal" || raw.Name == "dec")
 	return raw, true
 }
 
@@ -472,11 +488,6 @@ func excludedTypeTail(first, tail lexeme) bool {
 		return tail.text == "varying"
 	case "time", "timestamp":
 		return tail.text == "with" || tail.text == "without"
-	case "interval":
-		switch tail.text {
-		case "year", "month", "day", "hour", "minute", "second":
-			return true
-		}
 	}
 	return false
 }

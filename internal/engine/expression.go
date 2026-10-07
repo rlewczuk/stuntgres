@@ -821,7 +821,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			if u.Type == nil {
 				u = b.typ(sqltype.Text).Usage()
 			}
-			value, err = b.inputConstant(v.Text, u.Type.Usage(), v.Pos)
+			inputUsage := u.Type.Usage()
+			if u.Type.ID() == sqltype.Interval {
+				inputUsage = u
+			}
+			value, err = b.inputConstant(v.Text, inputUsage, v.Pos)
 		case parser.NumericValue:
 			value, err = b.inputConstant(v.Text, b.typ(sqltype.Numeric).Usage(), v.Pos)
 		case parser.IntegerValue:
@@ -1076,7 +1080,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 	}
 }
 func inputErrorAt(err error, pos parser.Position) error {
-	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "22P02" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22023" || d.Code == "42601") {
+	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "22P02" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
 		copy := *d
 		if pos.Character > 0 {
 			copy.Position = strconv.Itoa(pos.Character)
@@ -1126,7 +1130,7 @@ func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalCo
 	return temporalConstant{}, false, nil
 }
 func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
-	if u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
+	if u.Type.ID() != sqltype.Interval && u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
 		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
 	}
 	c, found, err := b.captured(pos.Offset, u)
@@ -1137,6 +1141,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		if c.typeID == sqltype.Timetz {
 			return sqltype.TimetzValue(u.Type, c.scalar, c.west)
 		}
+		if c.typeID == sqltype.Interval {
+			return sqltype.IntervalValue(u.Type, c.months, c.days, c.scalar)
+		}
 		if c.typeID == sqltype.Time {
 			return sqltype.TimeValue(u.Type, c.scalar)
 		}
@@ -1145,12 +1152,16 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		return sqltype.TimestampValue(u.Type, c.scalar)
 	}
-	v, err := u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
+	inputTypmod := int32(-1)
+	if u.Type.ID() == sqltype.Interval {
+		inputTypmod = u.Typmod
+	}
+	v, err := u.Type.InputWithEnvironment(b.ctx, text, inputTypmod, b.input)
 	if err == nil && u.Typmod >= 0 {
 		var p sqltype.CoercionPlan
 		p, err = sqltype.PlanCoercion(u.Type.Usage(), u, sqltype.Assignment)
 		if err == nil {
-			v, err = p.Apply(b.ctx, v, b.input, sqltype.OutputEnvironment{Zone: b.input.Zone, DateStyle: b.input.DateStyle})
+			v, err = p.Apply(b.ctx, v, b.input, sqltype.OutputEnvironment{Zone: b.input.Zone, DateStyle: b.input.DateStyle, IntervalStyle: b.input.IntervalStyle})
 		}
 	}
 	if err != nil {
@@ -1158,8 +1169,11 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	}
 	if b.expected == nil {
 		var n int64
+		var months, days int32
 		var err error
-		if u.Type.ID() == sqltype.Time || u.Type.ID() == sqltype.Timetz {
+		if u.Type.ID() == sqltype.Interval {
+			months, days, n, err = v.Interval()
+		} else if u.Type.ID() == sqltype.Time || u.Type.ID() == sqltype.Timetz {
 			n, err = v.Time()
 		} else if u.Type.ID() == sqltype.Date {
 			n, err = v.Date()
@@ -1181,7 +1195,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 				return sqltype.Value{}, err
 			}
 		}
-		b.temporals[i] = temporalConstant{offset: pos.Offset, scalar: n, typmod: u.Typmod, typeID: u.Type.ID(), west: west}
+		b.temporals[i] = temporalConstant{offset: pos.Offset, scalar: n, typmod: u.Typmod, typeID: u.Type.ID(), west: west, months: months, days: days}
 	}
 	return v, nil
 }

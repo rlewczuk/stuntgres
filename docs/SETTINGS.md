@@ -29,6 +29,7 @@ return one nullable TEXT row, with affected count one for Exec.
 SHOW, SHOW ALL and setting-function rows own immutable anonymous snapshots:
 statement completion releases the implicit transaction, not the returned rows.
 Later setting changes or physical-session teardown do not change captured values.
+
 Setting-function arguments accept strings, NULL, booleans in the third position,
 and positional parameters through the existing binder. NULL current_setting
 returns SQL NULL; NULL set_config name fails 22004; NULL value resets;
@@ -56,6 +57,7 @@ The exact supported builtin registry contains these fifteen settings:
 | --- | --- | --- |
 | application_name | empty / session | Normalized descriptive session value |
 | client_min_messages | notice / session | Filters structured connector notices; debug aliases debug2 |
+| IntervalStyle | postgres / session | Actual interval input/output; immutable statement presentation capture |
 | search_path | `"$user", public` / session | Stored explicit path; effective lookup skips absent/inaccessible schemas and expands current user |
 | standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
 | bytea_output | hex / session | Selects hex or escape BYTEA output |
@@ -202,8 +204,8 @@ LOCAL or DEFAULT. `SHOW TIME ZONE`, `RESET TIME ZONE` and the ordinary
 `timezone` name use the same typed setting owner as current_setting/set_config.
 Numeric hours are east-positive: `5.5` means +05:30. POSIX names are west-positive:
 `UTC-2` means +02:00. INTERVAL offsets reject months/days; HOUR,
-HOUR TO MINUTE and MINUTE qualifiers are accepted. This utility syntax does not
-provide a general INTERVAL SQL type or arithmetic. Numeric/interval SET offsets
+HOUR TO MINUTE and MINUTE qualifiers are accepted. This bounded utility operand
+does not provide INTERVAL arithmetic. Numeric/interval SET offsets
 are bounded to 167:59:59; literal datetime offsets to 15:59:59.
 The bounded interval decoder uses PostgreSQL 18's aliases for its existing
 fields, attached or separated (`1hr` / `1 hr`, `hrs`, `min` / `mins`,
@@ -213,7 +215,7 @@ Long unit tokens use PostgreSQL's first-ten-byte matching, including
 `millisecond(s)` and `microsecond(s)`. Calendar aliases such as `c` / `cent`,
 `dec` / `decs`, `mil` / `mils` and `yr` / `yrs` still decode to months and
 are rejected; week/day aliases still fail the day restriction. This vocabulary
-does not add quarter/timezone extraction fields or general INTERVAL expressions.
+does not add quarter/timezone extraction fields or INTERVAL arithmetic.
 Marker-only intervals such as `@` or `@ ago` fail with 22007; an actual zero
 field such as `0 seconds` is valid. Quoted textual `INTERVAL '...'` values
 through ordinary SET or set_config preserve interval-input diagnostics (22007
@@ -237,4 +239,28 @@ presentation even after SET. Prepared typed temporal constants freeze at analysi
 parameter input, column casts/comparisons and AT LOCAL use execution settings.
 TIME/TIMETZ clock output is independent of DateStyle. For finite TIMESTAMP Go
 time.Time exports, use an explicit SQL TEXT cast to observe DateStyle formatting.
+
+## IntervalStyle — change note
+
+IntervalStyle is a session enum with default `postgres`; admitted values are
+`postgres`, `postgres_verbose`, `sql_standard`, `iso_8601`, case-insensitively.
+Diagnostics and SHOW column/name presentation retain PostgreSQL's `IntervalStyle`
+casing. It controls actual interval input/output, not a descriptive no-op.
+For components(-14months,+3days,-4:05:06), output respectively is
+`-1 years -2 mons +3 days -04:05:06`,
+`@ 1 year 2 mons -3 days 4 hours 5 mins 6 secs ago`,
+`-1-2 +3 -4:05:06`, `P-1Y-2M3DT-4H-5M-6S`.
+
+Under sql_standard, a leading minus without later explicit signs applies to all
+fields: `-1 2:03:04` means negative days and negative time. Other styles retain
+independent field signs. Prepared typed/contextual literals freeze Prepare-time
+input; parameters read Execute-time input. Query output captures Execute-time
+style, never a live session lookup from Next. Retained rows survive later settings,
+physical close and native replacement. Pooled peer sessions share data, not style.
+SET/RESET/DEFAULT and SET LOCAL rollback/savepoint behavior reuse the ordinary
+session setting lifecycle. Dump/Restore neither stores nor changes IntervalStyle.
+
+Invalid input is22023 `invalid value for parameter "IntervalStyle": "invalid"`
+with hint `Available values: postgres, postgres_verbose, sql_standard, iso_8601.`
+Feature smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 

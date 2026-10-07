@@ -42,8 +42,8 @@ type ParameterInfo struct {
 	Types []sqltype.Usage
 }
 type Result struct {
-	Count int64
-	Rows  RowResult
+	Count  int64
+	Rows   RowResult
 }
 type binding struct {
 	relation          *relationDescriptor
@@ -241,7 +241,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if err != nil {
 			return StatementDescription{}, err
 		}
-		return StatementDescription{Results: settingColumns(typ, d.Name)}, nil
+		return StatementDescription{Results: settingColumns(typ, settingDisplayName(d.Name))}, nil
 	case *parser.SettingCall:
 		e.mu.Lock()
 		defer e.mu.Unlock()

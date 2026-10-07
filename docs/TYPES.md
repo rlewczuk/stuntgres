@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp with or without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, exact NUMERIC and canonical UUID), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp with or without time zone, interval, uuid and bytea. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC and canonical UUID), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, TIMETZ 1266, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -14,7 +14,7 @@ and mixed-destination reuse remains the bounded native `0A000` limitation,
 including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
 OID and INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
-DATE/TIME as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infinity as fresh
+DATE/TIME/INTERVAL as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
 
@@ -1051,7 +1051,7 @@ analysis. Parameters, column casts/comparisons and AT LOCAL read execution setti
 Held cursors retain captured presentation and metadata across settings changes
 and native replacement. Dump uses canonical ISO/UTC timestamptz and stored timetz
 offsets, independent of TimeZone/DateStyle, and Restore preserves live settings.
-No timezone catalog views, general INTERVAL values/arithmetic, timezone(...)
+No timezone catalog views, INTERVAL arithmetic, timezone(...)
 aliases or CURRENT_* producer-family expansion are delivered here.
 
 Feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
@@ -1066,4 +1066,55 @@ it is not a new permission to parse arbitrary initially out-of-range input.
 An explicit offset that moves an initially finite input beyond either endpoint
 fails with SQLSTATE `22008` and `timestamp out of range: "<original input>"`,
 not the zoned type label used by malformed timestamptz input.
+
+
+## INTERVAL — change note
+
+INTERVAL (OID1186) stores signed32-bit months, signed32-bit days and signed64-bit
+microseconds independently. `24 hours` stays `24:00:00`, not `1 day`; `30 days`
+stays `30 days`, not `1 mon`. SQL comparison and grouping use the widened span
+`(months*30+days)*86400000000+microseconds`, so those pairs compare equal while
+native serialization retains their distinct representations. Infinity sorts
+below/above finite values and is unchanged by field restrictions.
+Existing GROUP BY consumes the same equality classes; SELECT DISTINCT and
+aggregate DISTINCT remain outside the supported query surface.
+
+Declarations admit INTERVAL, INTERVAL(p), YEAR/MONTH/DAY/HOUR/MINUTE/SECOND,
+YEAR TO MONTH, DAY TO HOUR/MINUTE/SECOND, HOUR TO MINUTE/SECOND and MINUTE TO
+SECOND. Precision may accompany SECOND-ending ranges; p0–6 rounds fractional
+time half away from zero. Larger p succeeds with warning22023 and effective6.
+Restrictions truncate lower fields toward zero, never remove higher fields:
+YEAR removes leftover months/days/time, MONTH removes days/time, DAY removes
+time, HOUR/MINUTE endings discard smaller time fields. Quoted generic
+`"interval"(range[,precision])` takes PostgreSQL's raw range mask, unlike
+keyword INTERVAL(p)'s precision shorthand.
+Precision warnings identify the INTERVAL keyword: at analysis/Prepare for typed
+literals, and at Execute for CREATE (alongside the existing unpositioned
+descriptor-build warning). Invalid generic CREATE modifiers likewise fail at
+Execute, while invalid field grammar is a syntax error.
+
+Input accepts verbose quantity/unit forms, optional @/ago, SQL year-month and
+day-time forms, ISO8601 designators and basic/extended alternatives. Fractional
+months/weeks spill downward using30days/month and24hours/day. Verbose duplicate
+fields fail22007; ISO repeated designators accumulate. Months, days and time
+have checked independent domains; malformed input uses22007, decoder overflow
+22015 and final conversion/precision overflow22008 without partial publication.
+
+Unknown literals read the destination typmod: `'1'` assigned INTERVAL YEAR means
+`1 year`. Parameters parse unrestricted first, then apply assignment restrictions:
+the same parameter becomes `00:00:00`. Typed literals carry their own modifiers,
+for example `INTERVAL '1:02.345' MINUTE TO SECOND(2)`. Prepared literals freeze
+Prepare-time input meaning; bound parameters use Execute-time IntervalStyle.
+String/textual owned bytes and nil use the existing parameter importer.
+
+Native results are string/nil with INTERVAL/string metadata; numeric DecimalSize
+and Length are unavailable, including SECOND(p). pq reports an interface ScanType
+instead of native string. Output captures Execute-time style and retained cursors
+keep that style through later SET, close, Reset or Restore. Dump/Restore emits
+canonical typed, explicitly signed interval input independent of either session's
+style, including defaults/views and NULL/infinities. Interval arithmetic,
+timestamp+interval, justify/extract/make_interval and cross-family casts are not
+added. See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
+Feature smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+
 

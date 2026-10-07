@@ -29,11 +29,12 @@ type StatementDescription struct {
 }
 
 type temporalConstant struct {
-	offset int
-	scalar int64
-	typmod int32
-	typeID sqltype.ID
-	west   int32
+	offset       int
+	scalar       int64
+	typmod       int32
+	typeID       sqltype.ID
+	west         int32
+	months, days int32
 }
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
@@ -203,7 +204,7 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 		return true
 	case "money", "char",
 		"bit", "varbit", "timetz",
-		"timestamptz", "interval", "json", "jsonb", "xml",
+		"timestamptz", "json", "jsonb", "xml",
 		"name", "inet", "cidr", "macaddr", "macaddr8", "point", "line",
 		"lseg", "box", "path", "polygon", "circle", "tsvector", "tsquery", "record":
 		return true

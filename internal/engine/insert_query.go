@@ -97,6 +97,8 @@ func typeCategory(t *sqltype.Descriptor) byte {
 		return 'S'
 	case sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Timetz:
 		return 'D'
+	case sqltype.Interval:
+		return 'T'
 	case sqltype.Bytea, sqltype.UUID:
 		return 'U'
 	}

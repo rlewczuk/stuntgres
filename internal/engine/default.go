@@ -638,6 +638,15 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 		return literal, err
 	}
 	switch u.Type.ID() {
+	case sqltype.Interval:
+		declaration, err := u.Declaration()
+		if err != nil {
+			return "", err
+		}
+		if strings.HasPrefix(declaration, "INTERVAL(") {
+			return declaration + strings.TrimPrefix(literal, "INTERVAL"), nil
+		}
+		return literal + strings.TrimPrefix(declaration, "INTERVAL"), nil
 	case sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Timetz:
 		// The endpoint encoding can already carry its required precision.
 		if strings.HasPrefix(literal, "TIMESTAMP") {

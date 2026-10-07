@@ -17,7 +17,7 @@ its fixed offset. Rules are embedded from the pinned PostgreSQL 18.0 image,
 not the host timezone installation. See [temporal types](docs/TYPES.md#time-zone-aware-values)
 and [session settings](docs/SETTINGS.md#temporal-settings).
 Native logical Dump/Restore preserves these values independently of session
-presentation. This does not add timezone catalog views, general INTERVAL,
+presentation. This does not add timezone catalog views, general INTERVAL arithmetic,
 or the CURRENT_* producer family.
 Public feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
 
@@ -122,6 +122,15 @@ FLOAT8 and integer overloads. NUMERIC ties round away from zero; negative
 scales and exact remainder never pass through floating point. See
 [the signature and behavior note](docs/DIALECT.md#scale-and-rounding-functions--change-note).
 Public feature smoke: `make smoke RUN='^TestMathSmoke$' VERBOSE=0`.
+
+INTERVAL retains independent months/days/microseconds, permitted field ranges
+and fractional precision, verbose/SQL/ISO input, SQL comparison/grouping and
+canonical native Dump/Restore. Each physical session owns its IntervalStyle;
+prepared literals freeze input meaning and retained rows capture output style.
+See [interval values](docs/TYPES.md#interval--change-note) and
+[IntervalStyle](docs/SETTINGS.md#intervalstyle--change-note).
+Public feature smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+
 
 
 ## Minimal example: one unit test

@@ -65,6 +65,8 @@ func settingDisplayName(name string) string {
 		return "TimeZone"
 	case "datestyle":
 		return "DateStyle"
+	case "intervalstyle":
+		return "IntervalStyle"
 	}
 	return name
 }
@@ -89,6 +91,7 @@ var builtinSettings = []SettingDefinition{
 	{Name: "bytea_output", Type: SettingEnum, BootDefault: "hex", EnumValues: []string{"escape", "hex"}, Description: "Sets the output format for bytea."},
 	{Name: "timezone", Type: SettingString, BootDefault: "UTC", Description: "Sets the time zone for displaying and interpreting time stamps."},
 	{Name: "datestyle", Type: SettingString, BootDefault: "ISO, MDY", Description: "Sets the display format for date and time values."},
+	{Name: "intervalstyle", Type: SettingEnum, BootDefault: "postgres", EnumValues: []string{"postgres", "postgres_verbose", "sql_standard", "iso_8601"}, Description: "Sets the display format for interval values."},
 	clientMinMessages,
 	{Name: "search_path", Type: SettingString, BootDefault: `"$user", public`, Description: "Sets the schema search order for names that are not schema-qualified."},
 	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},
@@ -250,7 +253,7 @@ func settingDiagnostic(message, hint string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: message, Hint: hint}
 }
 func (d SettingDefinition) invalid(input, hint string) error {
-	return settingDiagnostic(fmt.Sprintf(`invalid value for parameter "%s": "%s"`, d.Name, input), hint)
+	return settingDiagnostic(fmt.Sprintf(`invalid value for parameter "%s": "%s"`, settingDisplayName(d.Name), input), hint)
 }
 
 func (d SettingDefinition) parse(input string) (settingValue, error) {

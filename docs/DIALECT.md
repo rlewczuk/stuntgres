@@ -8,6 +8,20 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
 
+### Interval values — change note
+
+The supported type surface also includes INTERVAL with every permitted field
+range and precision declaration, verbose/SQL/ISO8601 input, NULL/prepared binds,
+comparison/grouping and native round trips. Month/day/time representations stay
+distinct even where SQL30-day-month/24-hour-day comparison considers them equal.
+IntervalStyle is real per-session input/output state; prepared constants capture
+input at Prepare and cursor output at Execute. See [types](TYPES.md#interval--change-note)
+and [settings](SETTINGS.md#intervalstyle--change-note).
+Malformed/range/precision errors use originating PostgreSQL logical diagnostics
+and atomic publication. No interval arithmetic, date-time cross-family cast,
+justify/extract/make_interval, wire protocol or physical storage is added.
+Smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+
 FROM supports comma products, CROSS JOIN, JOIN/INNER JOIN ON or USING, and
 NATURAL [INNER] JOIN, chains and parentheses. Table/whole-join aliases with or
 without AS support positional column aliases; qualified columns and mixed stars
@@ -1428,9 +1442,9 @@ supported in existing scalar positions, including direct and prepared queries.
 For example, `TIMESTAMP 'epoch'::timestamp` preserves the timestamp value and
 `CAST(TIMESTAMP 'epoch' AS text)` renders `1970-01-01 00:00:00` under ISO DateStyle.
 This does not expand unrelated cast families: integer-to-VARCHAR remains excluded.
-Timezone name/abbreviation views, general INTERVAL declarations/literals/values
-and arithmetic, timezone(...) aliases and CURRENT_* producer-family expansion
-are excluded. The timezone-only INTERVAL operand of SET TIME ZONE is supported;
-it does not introduce a general INTERVAL type.
+Timezone name/abbreviation views, INTERVAL arithmetic, timezone(...) aliases and
+CURRENT_* producer-family expansion are excluded. The timezone-only INTERVAL
+operand of SET TIME ZONE remains bounded independently of the general
+[interval value type](#interval-values--change-note).
 Feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
 
