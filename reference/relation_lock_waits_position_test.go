@@ -31,7 +31,9 @@ func TestReferenceRelationLockWaitsTimeoutPosition(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer cached.Close()
-					referenceLockExec(t, ctx, b, "SET lock_timeout='200ms'", 0)
+					// Observe the actual PostgreSQL lock queue before collecting
+					// the timeout; the same bound applies to all three phases.
+					referenceLockExec(t, ctx, b, "SET lock_timeout='100ms'", 0)
 					holder, err := a.BeginTx(ctx, nil)
 					if err != nil {
 						t.Fatal(err)

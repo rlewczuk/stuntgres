@@ -35,7 +35,9 @@ func TestReferenceRelationLockWaitsFairness(t *testing.T) {
 						cp = referenceLockPID(t, ctx, c)
 					}
 					if timeout {
-						referenceLockExec(t, ctx, b, "SET lock_timeout='1s'", 0)
+						// Allow both PostgreSQL queue observations before AX
+						// expires, without a full second per backend.
+						referenceLockExec(t, ctx, b, "SET lock_timeout='250ms'", 0)
 					}
 					holder, err := a.BeginTx(ctx, nil)
 					if err != nil {

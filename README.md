@@ -174,6 +174,7 @@ or replace database contents. Those controls require a native stuntgres pool.
 Use Go 1.26 or later and GNU `timeout`. From the repository root:
 
 ```sh
+
 make build      # compile production packages
 make test       # uncached Docker-free unit and public smoke tests
 make smoke      # public API scenarios only

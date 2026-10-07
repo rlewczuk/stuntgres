@@ -48,4 +48,12 @@ prepared analysis retains its separate catalog-epoch fence. Sequence row results
 already returned remain immutable. Native log_cnt is always zero: no controls
 promise physical WAL, crash recovery or cache durability.
 
+The internal native catalog-fixture replacement seam imports only a persistent
+source projection. Repeated self replacement preserves destination live TEMP
+once; foreign or retired source TEMP is never imported or resurrected.
+Destination TEMP identity, builtin type dependencies, generator, local values
+and cache remain exact. Persistent metadata and detached values use coherent
+type identities without mutating retained source catalogs or rows. Public Restore
+still rejects TEMP declarations rather than importing them.
+
 `go test -count=1 -run '^TestCatalogOwnersPublicWitness$' ./smoke` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.

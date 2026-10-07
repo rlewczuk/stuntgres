@@ -799,6 +799,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	if err := ctx.Err(); err != nil {
 		return ChangeSet{}, err
 	}
+	replacement = persistentReplacementCatalog(replacement)
 	targetRoles := e.Roles()
 	for _, d := range replacement.state.descriptors {
 		p := e.providers[d.Address().ClassID]
@@ -847,7 +848,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		if replacement.Epoch() != e.state.epoch {
 			return ChangeSet{}, ErrCatalogReplaced
 		}
-		next = cloneCatalog(replacement.state)
+		next = replacement.state
 		if err := copyRows(e.storage, e.commitSeq); err != nil {
 			return ChangeSet{}, err
 		}
@@ -939,7 +940,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	if e.commitSeq == CommitSeq(^uint64(0)) {
 		return ChangeSet{}, fmt.Errorf("stuntgres: commit sequence exhausted")
 	}
-	next, err = e.remapCatalog(replacement.state, sourceRoles, targetRoles, replacement.owner.importTargets)
+	next, err = e.remapPreparedCatalog(replacement.state, sourceRoles, targetRoles, replacement.owner.importTargets)
 	if err != nil {
 		return ChangeSet{}, err
 	}

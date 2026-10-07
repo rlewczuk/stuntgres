@@ -1174,6 +1174,9 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 			return nil, err
 		}
 		rp := r.Properties()
+		if rp.Volatility > p.Volatility {
+			p.Volatility = rp.Volatility
+		}
 		p.RowDependent = p.RowDependent || rp.RowDependent
 		p.ParameterDependent = p.ParameterDependent || rp.ParameterDependent
 		p.StageDependent = p.StageDependent || rp.StageDependent

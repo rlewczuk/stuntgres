@@ -96,11 +96,14 @@ func TestReferenceRelationLockWaitsNowait(t *testing.T) {
 
 func TestReferenceRelationLockWaitsTimeout(t *testing.T) {
 	for _, phase := range []string{"direct", "prepare", "cached"} {
+		// Keep the winning wait long enough for the PostgreSQL queue observer,
+		// with a tenfold gap for unequal deadlines. The holder stays locked
+		// until the diagnostic is checked; elapsed time is not the wait proof.
 		for _, tc := range []struct{ lock, statement, code, message string }{
-			{"200ms", "0", "55P03", "canceling statement due to lock timeout"},
-			{"200ms", "2s", "55P03", "canceling statement due to lock timeout"},
-			{"2s", "200ms", "57014", "canceling statement due to statement timeout"},
-			{"200ms", "200ms", "57014", "canceling statement due to statement timeout"},
+			{"100ms", "0", "55P03", "canceling statement due to lock timeout"},
+			{"100ms", "1s", "55P03", "canceling statement due to lock timeout"},
+			{"1s", "100ms", "57014", "canceling statement due to statement timeout"},
+			{"100ms", "100ms", "57014", "canceling statement due to statement timeout"},
 		} {
 			t.Run(phase+"/"+tc.lock+"/"+tc.statement, func(t *testing.T) {
 				p := newReferencePair(t)

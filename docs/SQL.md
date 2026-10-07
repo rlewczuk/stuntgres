@@ -65,9 +65,10 @@ default_expression := value | comparison | (logical_target)
 
 `CREATE [TEMPORARY | TEMP | UNLOGGED] SEQUENCE [IF NOT EXISTS] name` supports
 `AS SMALLINT|INTEGER|BIGINT`, `INCREMENT [BY] n`, `[NO] MINVALUE`,
-`[NO] MAXVALUE`, `START [WITH] n`, `RESTART [WITH n]`, `CACHE n`,
-`[NO] CYCLE` and `OWNED BY table.column|NONE`. ALTER SEQUENCE supports these options,
-`RENAME TO`, `OWNER TO role|CURRENT_ROLE|CURRENT_USER|SESSION_USER`, `SET SCHEMA`, and
+`[NO] MAXVALUE`, `START [WITH] n`, bare `RESTART` or `RESTART [WITH] n`,
+`CACHE n`, `[NO] CYCLE` and `OWNED BY table.column|NONE`.
+ALTER SEQUENCE supports these options, `RENAME TO`,
+`OWNER TO role|CURRENT_ROLE|CURRENT_USER|SESSION_USER`, `SET SCHEMA`, and
 `SET LOGGED|UNLOGGED`; DROP supports grouped targets, IF EXISTS and
 RESTRICT/CASCADE. Sequence and table names share one relation namespace.
 OWNED BY is a stable-column AUTO dependency: dropping its column or table
@@ -79,6 +80,15 @@ transfers bypass destination schema CREATE. Ordinary genuine transfers retain
 destination-role and schema authority checks. An OWNED BY-linked sequence cannot
 change owners independently of its table; successful transfers remap owner ACL
 identities while preserving unrelated grants.
+
+CREATE/ALTER `OWNED BY table.column` acquires transaction-owned AccessShare on
+the referenced table before final validation of its exact identity, column,
+owner and schema. It waits behind table AccessExclusive and retains the hold
+until transaction end; cancellation or lock timeout publishes no new sequence
+or association. OWNED BY NONE and skipped IF NOT EXISTS/IF EXISTS commands
+do not acquire dependency-table locks. ALTER locks the sequence before the table,
+so conflicting cycles require caller deadlines or lock_timeout: the native
+engine has no deadlock detection and does not promise 40P01.
 
 Generic `ALTER TABLE sequence_name RENAME TO name` also renames sequences and
 invalidates held sequence source analysis just like the dedicated rename form.
@@ -92,6 +102,9 @@ RESTART first returns 5. Bare CREATE RESTART uses the configured START too.
 ALTER START alone does not reset the current generator. The default ascending
 BIGINT sequence returns 1 then 2; descending defaults start at the type's
 maximum descending bound (-1). Bounds and CYCLE use MINVALUE/MAXVALUE, not START.
+CREATE and ALTER share option validation, including START/restart bounds and
+conflicting or redundant options. CREATE initializes an uncalled generator;
+RESTART 9 and RESTART WITH 9 select the same first value.
 
 currval before local nextval and lastval before any local nextval fail with
 55000. Two-argument or true setval makes the next nextval advance and updates
@@ -101,7 +114,10 @@ changing currval. setval does not select a different sequence for lastval.
 `nextval(regclass)`, `currval(regclass)`, `lastval()`,
 `setval(regclass,bigint)` and `setval(regclass,bigint,boolean)` return INT8,
 including for smallint/integer sequences. They work in existing scalar
-SELECT/INSERT positions and selected relationless SELECT targets.
+SELECT/INSERT positions, UPDATE RHS, DELETE predicates and selected relationless
+SELECT targets. Arithmetic and nonidentity casts retain child volatility;
+filtered or empty projections do not allocate or read session sequence memory,
+while imported argument errors still precede demanded effects.
 The selected explicit `::regclass` / `CAST(... AS regclass)` syntax does
 not introduce general casts. Preparation consumes no values. Prepared sequence
 SQL retains a coherent group of analyzed regclass literals until a dependency
@@ -111,8 +127,16 @@ allocating, and DROP/recreation can resolve a new same-name sequence. Nonnull
 regclass parameters resolve to OIDs at each execution's parameter-import boundary,
 before zero-row evaluation, runtime NULL checks or nested function effects.
 Symbolic input errors retain portal parameter Context without a literal Position.
-Numeric and `-` input remains valid without an existing relation; separately
-retained numeric regclass/OID identity follows rename/move and never adopts a recreated name.
+Exact nonempty ASCII digit strings and exact `-` remain valid without an existing
+relation; retained numeric regclass/OID identity follows rename/move and never
+adopts a recreated name. Surrounding whitespace instead selects symbolic lookup.
+Regclass text uses qualified-name input rules, not SQL tokenization. Punctuation
+and comment-looking bytes belong to unquoted names: `s--suffix` and `s/*suffix*/`
+never select the prefix `s`. Dots and ASCII whitespace separate components;
+quoted components preserve case and embedded dots, and doubled quotes decode
+to one quote. Names use ASCII folding and UTF8-safe 63-byte clipping.
+Input-boundary smoke: `make smoke RUN='^TestSequenceRegclassInputSmoke$' VERBOSE=0`.
+
 Standalone selected regclass casts have column label `regclass` and export
 the visible relation name, or a schema-qualified name when shadowed/off-path,
 with PostgreSQL identifier quoting. Missing nonzero OIDs export decimal text;
@@ -164,9 +188,22 @@ transactional without expanding other transactional DDL.
 
 TEMP sequences shadow persistent names only for their creating physical
 session, accept its `pg_temp` alias, and disappear at physical end.
-Native Reset/Restore retain live temporary sequences and their local state.
+Native Reset/Restore retain live temporary sequence identities, local values and
+pending cached reservations.
 They are excluded from Dump. LOGGED/UNLOGGED preserve SQL options but do
 not claim WAL, replication or disk durability in this in-process engine.
+Sequence creation resolves explicit namespace identities and checks CREATE before
+validating persistence. TEMP accepts its actual caller-owned temporary namespace;
+ordinary logged creation there becomes temporary, while UNLOGGED is rejected.
+IF NOT EXISTS does not bypass these checks. SET SCHEMA cannot move a sequence into
+or out of a temporary namespace; a foreign temporary destination is rejected by
+creation authority before the move restriction.
+
+Temporary namespaces remain sequence-only. Ordinary CREATE TABLE into an
+initialized `pg_temp` search path or an actual own/peer temporary namespace
+rejects `0A000` before IF NOT EXISTS can skip a target, without creating storage.
+Smoke: `make smoke RUN='^TestSequenceTemporaryTableBoundarySmoke$' VERBOSE=0`.
+
 
 Reading a sequence returns one captured nonnull row with
 `last_value INT8, log_cnt INT8, is_called BOOL`; native log_cnt is always0

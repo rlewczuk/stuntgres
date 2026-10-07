@@ -354,7 +354,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	default:
 	}
 	e.mu.Lock()
-	next, err := e.remapCatalog(replacement.state, sourceRoles, targetRoles, nil)
+	next, err := e.remapPreparedCatalog(cloneCatalog(replacement.state), sourceRoles, targetRoles, nil)
 	if err == nil {
 		nextRevision := e.nextRevision
 		for _, descriptor := range next.descriptors {

@@ -87,7 +87,10 @@ func (e *Engine) sequenceColumnsLocked() []ColumnDescriptor {
 	b, _ := view.LookupType(sqltype.Bool)
 	return []ColumnDescriptor{{Name: "last_value", Usage: i.Usage(), NullabilityKnown: true}, {Name: "log_cnt", Usage: i.Usage(), NullabilityKnown: true}, {Name: "is_called", Usage: b.Usage(), NullabilityKnown: true}}
 }
-func (e *Engine) ownedSequenceLocked(auth AuthorizationView, d *relationDescriptor, raw parser.ObjectName) (ObjectAddress, error) {
+
+// Caller holds Engine.mu. Drop it for manager admission and restore it on every
+// return; the dependency lock belongs to the statement's transaction ticket.
+func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *sequenceChanges, d *relationDescriptor, raw parser.ObjectName) (ObjectAddress, error) {
 	if len(raw.Parts) == 1 && raw.Parts[0].Text == "none" {
 		return ObjectAddress{}, nil
 	}
@@ -95,11 +98,27 @@ func (e *Engine) ownedSequenceLocked(auth AuthorizationView, d *relationDescript
 		return ObjectAddress{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "invalid OWNED BY option", Hint: "Specify OWNED BY table.column or OWNED BY NONE."}
 	}
 	table := parser.ObjectName{Parts: raw.Parts[:len(raw.Parts)-1]}
-	ref, err := e.resolveRelationReference(auth, table, false)
+	ref, err := e.resolveRelationReference(*auth, table, false)
 	if err != nil {
 		return ObjectAddress{}, err
 	}
-	r := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	e.mu.Unlock()
+	err = scope.acquireSequence(ref, accessShare)
+	e.mu.Lock()
+	if err != nil {
+		return ObjectAddress{}, err
+	}
+	fresh, err := e.authorizationLocked(scope.op)
+	if err != nil {
+		return ObjectAddress{}, err
+	}
+	fresh.catalog = e.sequenceCatalogLocked(changes)
+	*auth = fresh
+	// Keep the captured incarnation, not a replacement now found by name.
+	r, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+	if !ok {
+		return ObjectAddress{}, ErrCatalogReplaced
+	}
 	if r.relationKind != tableRelation {
 		return ObjectAddress{}, sqlError("42809", fmt.Sprintf(`referenced relation "%s" is not a table`, r.name))
 	}
@@ -139,10 +158,11 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		var options sequenceOptions
+		var restart *int64
 		// Ordinary CREATE validates options before DefineRelation checks CREATE
 		// authority. IF NOT EXISTS checks the namespace before options or skip.
 		if !s.IfNotExists {
-			options, _, err = bindSequenceOptions(nil, sequenceGenerator{}, s.Options)
+			options, restart, err = bindSequenceOptions(nil, sequenceGenerator{}, s.Options)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -152,10 +172,15 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		ns, err := e.sequenceCreationNamespaceLocked(auth, s, changes)
 		if err != nil {
 			e.mu.Unlock()
-			return Result{}, creationError(err, s.Name)
+			return Result{}, err
 		}
 		auth.catalog = e.sequenceCatalogLocked(changes)
 		if err = auth.CheckCreate(ns); err != nil && !op.restoreTableDestination {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+		persistence, err := adjustSequenceCreationPersistence(auth, ns, s.Persistence)
+		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -170,22 +195,13 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		if s.IfNotExists {
-			options, _, err = bindSequenceOptions(nil, sequenceGenerator{}, s.Options)
+			options, restart, err = bindSequenceOptions(nil, sequenceGenerator{}, s.Options)
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
 		}
-		for _, option := range s.Options {
-			if option.Name == "restart" {
-				e.mu.Unlock()
-				return Result{}, expressionError("42601", `syntax error at or near "restart"`, option.Pos)
-			}
-		}
-		options.persistence = s.Persistence
-		if nsdesc, ok := auth.catalog.state.descriptors[ns.Address].(*namespaceDescriptor); ok && nsdesc.temporary != (SessionToken{}) {
-			options.persistence = "temporary"
-		}
+		options.persistence = persistence
 		oid, err := e.allocateOIDLocked()
 		if err != nil {
 			e.mu.Unlock()
@@ -200,7 +216,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: rev, sequencePlanStamp: rev, owner: auth.state.CurrentUser, columns: columns, index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
 		for _, option := range s.Options {
 			if option.Name == "owned" {
-				options.owned, err = e.ownedSequenceLocked(auth, d, option.Owned)
+				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
 				if err != nil {
 					e.mu.Unlock()
 					return Result{}, err
@@ -208,7 +224,11 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 		}
 		e.sequenceChangeLocked(changes, d.address, d)
-		changes.generators[d.address] = &sequenceGenerator{last: options.start, generation: rev}
+		initial := options.start
+		if restart != nil {
+			initial = *restart
+		}
+		changes.generators[d.address] = &sequenceGenerator{last: initial, generation: rev}
 		scope.sequences = changes
 		e.mu.Unlock()
 		return Result{}, nil
@@ -278,11 +298,14 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		d.sequence = &options
 		for _, option := range s.Options {
 			if option.Name == "owned" {
-				options.owned, err = e.ownedSequenceLocked(auth, &d, option.Owned)
+				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, &d, option.Owned)
 				if err != nil {
 					return Result{}, err
 				}
 			}
+		}
+		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+			return Result{}, err
 		}
 		switch s.Action {
 		case "rename":
@@ -328,14 +351,26 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				a.SubID = 0
 				return Result{}, sequenceLinkedError(&d, auth.catalog.state.descriptors[a].(*relationDescriptor), true)
 			}
-			ns, ok := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: s.Target.Text}]
-			if !ok {
-				return Result{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, s.Target.Text))
-			}
-			if err = auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: ns}); err != nil {
+			destination := &parser.CreateSequence{Name: parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.name}}}, Persistence: "logged"}
+			ns, err := e.sequenceCreationNamespaceLocked(auth, destination, changes)
+			if err != nil {
 				return Result{}, err
 			}
-			d.namespace = ns
+			// pg_temp may stage a namespace. Resolve permissions and endpoints
+			// against that same private catalog, without publishing on rejection.
+			auth.catalog = e.sequenceCatalogLocked(changes)
+			if err = auth.CheckCreate(ns); err != nil {
+				return Result{}, err
+			}
+			if _, err = adjustSequenceCreationPersistence(auth, ns, destination.Persistence); err != nil {
+				return Result{}, err
+			}
+			oldNamespace := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
+			newNamespace := auth.catalog.state.descriptors[ns.Address].(*namespaceDescriptor)
+			if oldNamespace.temporary != (SessionToken{}) || newNamespace.temporary != (SessionToken{}) {
+				return Result{}, sqlError("0A000", "cannot move objects into or out of temporary schemas")
+			}
+			d.namespace = ns.Address
 		}
 		rewrite := false
 		for _, option := range s.Options {

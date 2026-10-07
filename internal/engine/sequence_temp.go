@@ -25,15 +25,19 @@ func temporaryNamespace(auth AuthorizationView) ObjectAddress {
 	return ObjectAddress{}
 }
 func (e *Engine) sequenceCreationNamespaceLocked(auth AuthorizationView, s *parser.CreateSequence, c *sequenceChanges) (ObjectRef, error) {
-	temp := s.Persistence == "temporary" || len(s.Name.Parts) == 2 && s.Name.Parts[0].Text == "pg_temp"
-	if !temp && len(s.Name.Parts) == 1 {
-		_, temp, _ = e.explicitPath(auth)
-	}
-	if !temp {
+	if len(s.Name.Parts) == 2 && s.Name.Parts[0].Text != "pg_temp" {
 		return e.creationNamespace(auth, s.Name)
 	}
-	if len(s.Name.Parts) == 2 && s.Name.Parts[0].Text != "pg_temp" {
-		return ObjectRef{}, sqlError("42P16", "cannot create temporary relation in non-temporary schema")
+	temp := s.Persistence == "temporary" || len(s.Name.Parts) == 2
+	if !temp {
+		var err error
+		_, temp, err = e.explicitPath(auth)
+		if err != nil {
+			return ObjectRef{}, err
+		}
+		if !temp {
+			return e.creationNamespace(auth, s.Name)
+		}
 	}
 	if a := temporaryNamespace(auth); a != (ObjectAddress{}) {
 		return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: a}, nil
@@ -49,6 +53,36 @@ func (e *Engine) sequenceCreationNamespaceLocked(auth AuthorizationView, s *pars
 	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.id), revision: rev, owner: auth.state.CurrentUser, temporary: auth.session.token}
 	e.sequenceChangeLocked(c, ns.address, ns)
 	return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns.address}, nil
+}
+
+// Creation permission precedes persistence adjustment, including for SET SCHEMA.
+// Callers supply the coherent catalog containing any privately staged namespace.
+func adjustSequenceCreationPersistence(auth AuthorizationView, ref ObjectRef, requested string) (string, error) {
+	ns := auth.catalog.state.descriptors[ref.Address].(*namespaceDescriptor)
+	temporary := ns.temporary != (SessionToken{})
+	own := temporary && auth.session != nil && ns.temporary == auth.session.token
+	switch requested {
+	case "temporary":
+		if own {
+			return requested, nil
+		}
+		if temporary {
+			return "", sqlError("42P16", "cannot create relations in temporary schemas of other sessions")
+		}
+		return "", sqlError("42P16", "cannot create temporary relation in non-temporary schema")
+	case "logged":
+		if own {
+			return "temporary", nil
+		}
+		if temporary {
+			return "", sqlError("42P16", "cannot create relations in temporary schemas of other sessions")
+		}
+	default:
+		if temporary {
+			return "", sqlError("42P16", "only temporary relations may be created in temporary schemas")
+		}
+	}
+	return requested, nil
 }
 
 // Physical-end cleanup occurs after command drain. Catalog edits remain coherent

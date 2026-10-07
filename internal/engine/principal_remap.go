@@ -2,9 +2,11 @@ package engine
 
 import "fmt"
 
-// remapCatalog runs with the target install lock against captured authorities.
-// No callbacks, source lock or external I/O run while installing the result.
-func (e *Engine) remapCatalog(state *catalogState, source, targetSnapshot RoleRead, expected map[PrincipalRef]PrincipalRef) (*catalogState, error) {
+// remapPreparedCatalog consumes an unpublished private candidate under the target
+// install lock against captured authorities. No callbacks, source lock or external
+// I/O run here. ReplaceCatalog already projected its immutable source into private
+// maps, so principal remapping does not need another catalog clone.
+func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapshot RoleRead, expected map[PrincipalRef]PrincipalRef) (*catalogState, error) {
 	mapping := make(map[PrincipalRef]PrincipalRef)
 	remap := func(ref PrincipalRef) (PrincipalRef, error) {
 		if target, ok := mapping[ref]; ok {
@@ -45,7 +47,6 @@ func (e *Engine) remapCatalog(state *catalogState, source, targetSnapshot RoleRe
 		}
 		return n, nil
 	}
-	next := cloneCatalog(state)
 	for addr, d := range state.descriptors {
 		switch d := d.(type) {
 		case *typeDescriptor:
@@ -61,7 +62,7 @@ func (e *Engine) remapCatalog(state *catalogState, source, targetSnapshot RoleRe
 			if err != nil {
 				return nil, err
 			}
-			next.descriptors[addr] = &n
+			state.descriptors[addr] = &n
 		case *relationDescriptor:
 			n := *d
 			var err error
@@ -82,12 +83,12 @@ func (e *Engine) remapCatalog(state *catalogState, source, targetSnapshot RoleRe
 					}
 				}
 			}
-			next.descriptors[addr] = &n
+			state.descriptors[addr] = &n
 		default:
 			return nil, fmt.Errorf("stuntgres: catalog provider has no principal remapping contract")
 		}
 	}
-	return next, nil
+	return state, nil
 }
 
 func (e *Engine) restoreStage() *Engine {

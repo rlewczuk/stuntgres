@@ -93,6 +93,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, creationError(er, s.Name)
 		}
+		if er = checkTableCreationNamespace(auth.catalog, nsref.Address); er != nil {
+			e.mu.Unlock()
+			return Result{}, er
+		}
 		if op.restoreTableDestination {
 			bootstrap, er := auth.roles.Descriptor(auth.state.Authenticated)
 			if er != nil || !bootstrap.Superuser || e.importTargets == nil {
@@ -153,8 +157,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					return Result{}, authErr
 				}
 				resolved, resolveErr := e.creationNamespace(currentAuth, s.Name)
+				var destinationErr error
+				if resolveErr == nil {
+					destinationErr = checkTableCreationNamespace(currentAuth.catalog, resolved.Address)
+				}
 				_, exists := e.state.names[key]
-				same := resolveErr == nil && resolved.Address == ns && current.Epoch() == base.Epoch()
+				same := resolveErr == nil && destinationErr == nil && resolved.Address == ns && current.Epoch() == base.Epoch()
 				var accessErr error
 				if same && exists {
 					accessErr = currentAuth.CheckCreate(resolved)
@@ -166,6 +174,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				}
 				if resolveErr != nil {
 					return Result{}, creationError(resolveErr, s.Name)
+				}
+				if destinationErr != nil {
+					return Result{}, destinationErr
 				}
 				if accessErr != nil {
 					return Result{}, creationError(accessErr, s.Name)

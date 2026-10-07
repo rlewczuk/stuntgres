@@ -181,7 +181,7 @@ func sequenceInputError(err error, pos parser.Position, context string, paramete
 	return err
 }
 func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef, error) {
-	input := strings.TrimSpace(text)
+	input := text
 	if input == "-" {
 		input = "0"
 	}

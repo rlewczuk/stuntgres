@@ -517,6 +517,10 @@ input; arithmetic roots still evaluate with rows. Computed arithmetic hidden
 under casts remains excluded from bounded null-count arguments. Standard/function
 cast labels and standalone identity-cast origins retain their existing contracts;
 arithmetic results retain computed metadata and no physical origin.
+Sequence calls retain their maximum child volatility through arithmetic and
+nonidentity casts. Empty or filtered projections do not allocate or read session
+sequence memory; imported argument errors still precede demanded effects.
+Composition smoke: `make smoke RUN='^TestSequenceArithmeticCompositionSmoke$' VERBOSE=1`.
 Arithmetic INSERT and parameter-free Restore use existing staged publication;
 Dump emits canonical stored values, and failed/canceled replacement preserves
 old state and retained computed cursors. No external pg_dump, physical storage
@@ -886,6 +890,13 @@ Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE T
 
 Sequence objects support the PostgreSQL18 CREATE/ALTER/DROP option and administrative forms documented in the [SQL reference](SQL.md#sequences), including TEMP/UNLOGGED, optional BY/WITH, CREATE/ALTER RESTART, NO MINVALUE/MAXVALUE/CYCLE, OWNED BY, IF [NOT] EXISTS and grouped DROP. RESTART sets the current uncalled value, not configured START: CREATE START 5 RESTART 9 returns 9 first, and a later bare ALTER RESTART returns 5. Numeric options are integral and bounded by the declared smallint/integer/bigint type; function results always use INT8. Constant-space reservation arithmetic handles large CACHE and int64 extremes without allocating cached arrays. CYCLE wraps on reservation boundaries and can repeat values; it is not a uniqueness constraint.
 
+CREATE accepts bare `RESTART`, `RESTART n` and `RESTART WITH n` through the
+same option validation as ALTER, including START/restart bounds and duplicate
+options. It initializes an uncalled generator at configured START (bare) or
+the explicit restart value without changing START.
+`CREATE SEQUENCE s START 5 RESTART 9` first yields9 from `nextval('s')`;
+later bare `ALTER SEQUENCE s RESTART` makes the next call yield5.
+
 Generic ALTER TABLE relation rename also accepts a sequence and atomically
 publishes its fresh sequence-plan stamp without changing identity/generator/cache.
 Generic sequence column rename rejects with42809 `cannot rename columns of relation
@@ -900,7 +911,53 @@ transfers bypass those transition checks. Actual linked-sequence owner changes
 remain forbidden; successful transfers remap owner grantor/grantee identities
 while preserving unrelated grants and same-owner requests preserve ACL/state.
 
+CREATE/ALTER OWNED BY takes transaction-owned AccessShare on the referenced
+table before fresh exact identity/column/owner/schema validation, waits behind
+AccessExclusive and holds through transaction end. Canceled or timed-out
+acquisition publishes no new sequence or association. OWNED BY NONE and
+skipped IF NOT EXISTS/IF EXISTS commands take no dependency-table lock.
+ALTER retains sequence-before-table ordering; cycles need caller deadlines or
+lock_timeout because native deadlock detection/40P01 is not supported.
+
+Sequence SET SCHEMA rejects moves into or out of temporary namespaces with
+`0A000` / `cannot move objects into or out of temporary schemas`, including the
+`pg_temp` creation alias and the caller's actual temporary namespace identity.
+Another session's temporary destination is rejected earlier by creation authority
+with `42P16` / `cannot create relations in temporary schemas of other sessions`.
+Linked-sequence and destination missing/CREATE checks retain their precedence. A
+rejected move leaves identity, cached values, held analysis and physical-session
+ownership unchanged; ordinary persistent-to-persistent moves remain valid.
+Smoke: `make smoke RUN='^TestSequenceTempMoveSmoke$' VERBOSE=1`.
+
+CREATE SEQUENCE resolves explicit actual namespace identities before CREATE and
+requested-persistence checks. TEMP accepts its caller-owned temporary namespace;
+ordinary logged creation there becomes temporary. TEMP in a persistent namespace
+fails `42P16` / `cannot create temporary relation in non-temporary schema`;
+UNLOGGED in any temporary namespace fails `42P16` /
+`only temporary relations may be created in temporary schemas`. Foreign TEMP
+creation retains the `42P16` ownership record above. Missing/denied namespaces
+retain `3F000`/`42501` precedence, including IF NOT EXISTS; failures publish no
+private namespace or sequence state.
+Smoke: `make smoke RUN='^TestSequenceTempCreationSmoke$' VERBOSE=1`.
+
+Temporary namespaces remain sequence-only. Ordinary CREATE TABLE rejects actual
+own/peer temporary namespaces and an initialized `search_path=pg_temp` with
+`0A000` / `temporary schema creation is unsupported`, before IF NOT EXISTS or
+descriptor/storage publication. This ordinary-table guard does not change the
+supported sequence creation rules above. Actual namespace/path errors have no
+Position; the existing explicit `pg_temp` creation alias retains Position14.
+Smoke: `make smoke RUN='^TestSequenceTemporaryTableBoundarySmoke$' VERBOSE=1`.
+
 The four selected sequence functions and minimal regclass casts reuse the common typed scalar binder/eager evaluator. Literal regclass lookup happens at Prepare with character positions. Nonnull regclass parameters become canonical OIDs during coherent Execute parameter import, before zero-row evaluation, runtime NULL checks or nested function effects; input errors retain portal Context without a literal Position. Numeric/dash inputs require no existing relation. NULL arguments are strict and do not open a sequence. Exact session-before-use, missing/wrong-kind, option, bound, ACL and NOTICE diagnostics have independent pinned-release fixtures. This does not admit arbitrary relationless SELECT, user-defined functions or general casts.
+
+Regclass input follows PostgreSQL qualified-name splitting, separately from the
+SQL statement lexer. Unquoted punctuation and comment-looking bytes remain part
+of the name; only dots and six ASCII whitespace bytes delimit components.
+Quoted components preserve case/embedded dots and decode doubled quotes; names
+fold ASCII and clip at 63 UTF8-safe bytes. Only exact nonempty ASCII digit strings
+or exact `-` select the opening-free OID path. Padded digit/dash strings instead
+resolve symbolic names, and malformed complete input rejects before effects.
+Smoke: `make smoke RUN='^TestSequenceRegclassInputSmoke$' VERBOSE=1`.
 
 Both `value::regclass` and `CAST(value AS regclass)` are admitted through the shared cast syntax alongside the existing bounded explicit-cast matrix above; unsupported source/target pairs retain that matrix's diagnostics. Regclass (OID2205) is a sequence expression/result identity, not an admitted stored column type. Valid sequence CREATE prepares without namespace permission checks. At execution, schema CREATE denial has no Position; ordinary CREATE validates options first, while IF NOT EXISTS checks namespace authority before skipping an existing relation or validating options. Literal regclass schema USAGE denial remains an analysis/Prepare error positioned at the input literal.
 
@@ -914,6 +971,14 @@ typed OID datums or adding general OID casts/catalog queries.
 Sequence metadata, transactional generator replacements and INSERT/UPDATE/DELETE row versions publish together at Finish/COMMIT through the same immutable prepare/validate/install frontier. Ordinary nextval/setval effects and physical-session memories are outside rollback. RX protects demanded nonnull function calls; ALTER uses SRX and administrative rename/schema changes use AX. Sequence row reads use AS and retain captured data/types through subsequent changes. Native log_cnt0 intentionally differs from PostgreSQL WAL prelogging counters; tests assert both independently.
 
 Sequence DDL and COMMENT ON SEQUENCE are the bounded exception to the general explicit-transaction DDL exclusion above. TEMP sequence namespaces are session-private, shadow persistent relations, and survive persistent Reset/Restore until physical end. Controls preserve settings/roles/temp memories, exclude TEMP objects from Dump, serialize effective persistent options and called state, and reject invalid staged replacement atomically.
+
+The internal native catalog-fixture replacement seam imports a persistent source
+projection only. Repeated self replacement preserves destination live TEMP once;
+foreign or already-retired source TEMP is never imported or resurrected.
+Destination TEMP identity, builtin type dependencies, generator, local values
+and cache remain exact; imported persistent metadata and detached values use
+coherent type identities without mutating retained source catalogs or rows.
+Public Restore still rejects TEMP declarations rather than importing them.
 
 Prepared sequence SQL is source, not a permanently retained regclass datum.
 Its complete literal group reanalyzes through the existing binder at Execute

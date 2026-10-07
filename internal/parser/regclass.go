@@ -1,34 +1,79 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+	"unicode/utf8"
+)
 
-// ParseRegclassName reuses SQL identifier scanning and normalization, including
-// quoted embedded dots and UTF8 clipping, without executing a SQL statement.
+// ParseRegclassName parses qualified-name type input, not SQL tokens.
+// Only dots and ASCII scanner whitespace delimit unquoted components;
+// punctuation and comment-looking bytes remain part of the name.
 func ParseRegclassName(input string) (ObjectName, error) {
-	l := &lexer{input: input}
-	var parts []Identifier
+	parts := make([]Identifier, 0, 3)
+	offset, positionOffset, characters := 0, 0, 0
 	for {
-		token := l.nextRaw()
-		if l.err != nil || token.code == 0 {
+		for offset < len(input) && space(input[offset]) {
+			offset++
+		}
+		if offset == len(input) || input[offset] == '.' {
 			return ObjectName{}, fmt.Errorf("invalid name syntax")
 		}
-		raw := token.lexeme.raw
-		if raw == "" || raw[0] != '"' && !initial(raw[0]) {
-			return ObjectName{}, fmt.Errorf("invalid name syntax")
+		start := offset
+		characters += utf8.RuneCountInString(input[positionOffset:start])
+		positionOffset = start
+		pos := Position{Offset: start, Character: characters + 1}
+		var text string
+		if input[offset] == '"' {
+			offset++
+			segment := offset
+			var decoded strings.Builder
+			for {
+				if offset == len(input) {
+					return ObjectName{}, fmt.Errorf("invalid name syntax")
+				}
+				if input[offset] != '"' {
+					offset++
+					continue
+				}
+				if offset+1 < len(input) && input[offset+1] == '"' {
+					decoded.WriteString(input[segment : offset+1])
+					offset += 2
+					segment = offset
+					continue
+				}
+				if segment == start+1 {
+					text = input[segment:offset]
+				} else {
+					decoded.WriteString(input[segment:offset])
+					text = decoded.String()
+				}
+				offset++
+				break
+			}
+			text = truncateName(text)
+		} else {
+			needsFold := false
+			for offset < len(input) && input[offset] != '.' && !space(input[offset]) {
+				c := input[offset]
+				needsFold = needsFold || offset-start < 63 && c >= 'A' && c <= 'Z'
+				offset++
+			}
+			text = truncateName(input[start:offset])
+			if needsFold {
+				text = fold(text)
+			}
 		}
-		parts = append(parts, Identifier{Text: token.lexeme.text, Pos: token.lexeme.pos})
-		if len(parts) > 3 {
-			return ObjectName{}, fmt.Errorf("invalid name syntax")
+		parts = append(parts, Identifier{Text: text, Pos: pos})
+		for offset < len(input) && space(input[offset]) {
+			offset++
 		}
-		separator := l.nextRaw()
-		if l.err != nil {
-			return ObjectName{}, l.err
-		}
-		if separator.code == 0 {
+		if offset == len(input) {
 			return ObjectName{Parts: parts}, nil
 		}
-		if separator.code != '.' {
+		if input[offset] != '.' || len(parts) == 3 {
 			return ObjectName{}, fmt.Errorf("invalid name syntax")
 		}
+		offset++
 	}
 }

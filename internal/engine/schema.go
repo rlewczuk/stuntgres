@@ -36,7 +36,22 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (PrincipalR
 	}
 	return role.Ref, nil
 }
+// Ordinary tables cannot consume the sequence-only temporary namespace surface.
+func checkTableCreationNamespace(catalog CatalogRead, namespace ObjectAddress) error {
+	if catalog.state.descriptors[namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
+		return sqlError("0A000", "temporary schema creation is unsupported")
+	}
+	return nil
+}
+
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ObjectAddress, owner PrincipalRef, input sqltype.InputEnvironment) error {
+	auth.catalog = stage.base
+	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
+		auth.catalog = e.stageRead(stage)
+	}
+	if err := checkTableCreationNamespace(auth.catalog, ns); err != nil {
+		return err
+	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
 	key := NameKey{ClassID: RelationClassID, Namespace: ns, Name: name}
 	_, baseExists := stage.base.state.names[key]
@@ -47,10 +62,6 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			return nil
 		}
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
-	}
-	auth.catalog = stage.base
-	if len(stage.descriptors) != 0 || len(stage.removals) != 0 || len(stage.oldNames) != 0 {
-		auth.catalog = e.stageRead(stage)
 	}
 	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, input, op, nil)
 	if err != nil {

@@ -5,7 +5,31 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
+
+// Replacement transfers only portable objects. SessionToken authority belongs
+// to the source physical session and cannot be imported, even by self replacement:
+// the destination overlays its exact current live TEMP objects after capture.
+// Keep the supplied published view immutable and use this private candidate for
+// provider validation and generator/storage capture as well as installation.
+func persistentReplacementCatalog(view CatalogRead) CatalogRead {
+	next := cloneCatalog(view.state)
+	for a, d := range view.state.descriptors {
+		ns, isNamespace := d.(*namespaceDescriptor)
+		parent, hasParent := view.state.descriptors[d.Namespace()].(*namespaceDescriptor)
+		if isNamespace && ns.temporary != (SessionToken{}) || hasParent && parent.temporary != (SessionToken{}) {
+			delete(next.descriptors, a)
+		}
+	}
+	for key, a := range view.state.names {
+		parent, hasParent := view.state.descriptors[key.Namespace].(*namespaceDescriptor)
+		if view.state.descriptors[a] != nil && next.descriptors[a] == nil || hasParent && parent.temporary != (SessionToken{}) {
+			delete(next.names, key)
+		}
+	}
+	return CatalogRead{owner: view.owner, state: next}
+}
 
 // Called under source synchronization; generator scalars are detached from the
 // source, unlike immutable relation descriptors.
@@ -38,6 +62,96 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 	for a, d := range e.state.descriptors {
 		if temporary[d.Namespace()] != nil {
 			temporary[a] = d
+		}
+	}
+	// Exact retained sequence descriptors also retain their builtin type
+	// generation. Keep those dependencies, then retag only affected imported
+	// columns and detached live values; never rewrite retained TEMP or source rows.
+	var retainedInt8, retainedBool *sqltype.Descriptor
+	for _, d := range temporary {
+		if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
+			retainedInt8 = r.columns[0].Usage.Type
+			retainedBool = r.columns[2].Usage.Type
+		}
+	}
+	typesChanged := false
+	for _, typ := range [...]*sqltype.Descriptor{retainedInt8, retainedBool} {
+		if typ == nil {
+			continue
+		}
+		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
+		if imported, ok := next.descriptors[address].(*typeDescriptor); ok && imported.typ != typ {
+			next.descriptors[address] = e.state.descriptors[address]
+			typesChanged = true
+		}
+	}
+	if typesChanged {
+		retainedType := func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+			if typ.ID() == sqltype.Int8 && retainedInt8 != nil {
+				return retainedInt8
+			}
+			if typ.ID() == sqltype.Bool && retainedBool != nil {
+				return retainedBool
+			}
+			return typ
+		}
+		for address, d := range next.descriptors {
+			r, ok := d.(*relationDescriptor)
+			if !ok {
+				continue
+			}
+			var columns []ColumnDescriptor
+			for i, column := range r.columns {
+				typ := retainedType(column.Usage.Type)
+				if typ != column.Usage.Type {
+					if columns == nil {
+						columns = append([]ColumnDescriptor(nil), r.columns...)
+					}
+					columns[i].Usage.Type = typ
+				}
+			}
+			if columns != nil {
+				n := *r
+				n.columns = columns
+				next.descriptors[address] = &n
+			}
+		}
+		for _, relation := range storage {
+			for i, row := range relation.versions {
+				var values []sqltype.Value
+				for j, value := range row.values {
+					typ := retainedType(value.Type())
+					if typ == value.Type() {
+						continue
+					}
+					var rebound sqltype.Value
+					if value.IsNull() {
+						rebound = sqltype.Null(typ)
+					} else if typ.ID() == sqltype.Int8 {
+						number, err := value.Integer()
+						if err != nil {
+							return err
+						}
+						rebound, err = sqltype.Integer(typ, number)
+						if err != nil {
+							return err
+						}
+					} else {
+						flag, err := value.Boolean()
+						if err != nil {
+							return err
+						}
+						rebound = sqltype.Boolean(typ, flag)
+					}
+					if values == nil {
+						values = append([]sqltype.Value(nil), row.values...)
+					}
+					values[j] = rebound
+				}
+				if values != nil {
+					relation.versions[i].values = values
+				}
+			}
 		}
 	}
 	mapping := make(map[ObjectAddress]ObjectAddress)
