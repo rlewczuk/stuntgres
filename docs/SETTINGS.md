@@ -73,10 +73,15 @@ caller cancellation/deadlines remain ordinary context errors. Zero disables
 the timer. RESET ALL resets session-settable definitions and placeholders,
 skipping read-only and privileged definitions.
 
-Settings participate in whole transactions. SESSION (also plain SET) persists
-on commit and restores its pretransaction value on rollback or immediate abort.
-LOCAL expires on either end. SESSION followed by LOCAL commits the masked
-SESSION value; a subsequent SESSION or RESET supersedes that candidate.
+Settings participate in transactions and named savepoint marks. SESSION (also
+plain SET) persists on commit and restores its pretransaction value on rollback
+or an abort without marks. ROLLBACK TO and recoverable errors restore the saved
+typed overrides and SESSION/LOCAL original/candidate journal; RELEASE keeps
+ordinary settings, including LOCAL until outer end. LOCAL expires on either
+outer end. SESSION followed by LOCAL commits the masked SESSION value; a
+subsequent SESSION or RESET supersedes that candidate. Placeholder recognition
+is session-owned: a name first set after a mark remains recognized with an
+empty value after rollback when no earlier override existed.
 Go `sql.Tx.Commit` on an aborted transaction restores originals and returns
 the existing ordinary `pq: could not complete operation in a failed transaction`
 error, not a SQLSTATE diagnostic. SQL COMMIT/END succeeds by rollback while
@@ -90,7 +95,7 @@ validation and its effective value expires at implicit completion. Validated
 dotted placeholder names remain recognized in that physical session.
 Function set_config with true outside a transaction returns its transient,
 normalized value without that warning; the next command sees the original.
-Savepoints, TIME ZONE, NAMES, timezone and client_encoding remain unsupported.
+TIME ZONE, NAMES, timezone and client_encoding remain unsupported.
 
 With `standard_conforming_strings=off`, a `U&'...'` string opener immediately
 fails with 0A000 `unsafe use of string constant with Unicode escapes`, before

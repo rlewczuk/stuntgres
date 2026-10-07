@@ -80,7 +80,8 @@ type transactionOwner struct {
 	snapshotSet    bool
 	frontier       CommitSeq
 	roots          map[ObjectAddress]transactionRoot
-	sequences *sequenceChanges
+	sequences      *sequenceChanges
+	savepoints     []savepointMark
 }
 
 func (t *transactionOwner) clear() {
@@ -94,6 +95,8 @@ func (t *transactionOwner) clear() {
 	t.frontier = 0
 	t.roots = nil
 	t.sequences = nil
+	clear(t.savepoints)
+	t.savepoints = nil
 }
 
 func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
@@ -286,6 +289,9 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return nil
 	}
 	s.worked = true
+	if control, ok := stmt.(*parser.SavepointControl); ok {
+		return s.gateSavepoint(control)
+	}
 	if control, ok := stmt.(*parser.TransactionControl); ok {
 		s.owner.mu.Lock()
 		defer s.owner.mu.Unlock()
@@ -432,6 +438,10 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if err := s.gate(stmt); err != nil {
 		return StatementDescription{}, err
 	}
+	if _, ok := stmt.(*parser.SavepointControl); ok {
+		s.controlOutcome = controlDescribed
+		return StatementDescription{}, nil
+	}
 	if _, ok := stmt.(*parser.TransactionControl); ok {
 		if err := validateModes(stmt.(*parser.TransactionControl).Modes); err != nil {
 			return StatementDescription{}, err
@@ -458,6 +468,9 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	// Adapter argument normalization precedes scope admission.
 	if err := s.gate(stmt); err != nil {
 		return Result{}, err
+	}
+	if control, ok := stmt.(*parser.SavepointControl); ok {
+		return s.executeSavepoint(control, count)
 	}
 	if control, ok := stmt.(*parser.TransactionControl); ok {
 		return s.executeControl(control, count)
@@ -587,17 +600,28 @@ func (s *StatementScope) Finish(err error) error {
 		t.ticket = nil
 		t.clear()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
-		t.session.settings.finishTransaction(false)
-		t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
-		t.syncCharacteristics()
-		t.state = TxAborted
-		t.writes = nil
-		t.deletes = nil
-		t.roots = nil
-		t.frontier = 0
-		t.sequences = nil
-		endedTicket = t.ticket
-		t.ticket = nil
+		if errors.Is(err, ErrCatalogReplaced) {
+			t.truncateSavepoints(0)
+		}
+		if len(t.savepoints) != 0 {
+			if t.state == TxActive {
+				mark := t.savepoints[len(t.savepoints)-1]
+				t.restoreSavepoint(mark, mark.settings.clone())
+			}
+			t.state = TxAborted
+		} else {
+			t.session.settings.finishTransaction(false)
+			t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
+			t.syncCharacteristics()
+			t.state = TxAborted
+			t.writes = nil
+			t.deletes = nil
+			t.roots = nil
+			t.frontier = 0
+			t.sequences = nil
+			endedTicket = t.ticket
+			t.ticket = nil
+		}
 	}
 	if s.view != nil {
 		s.view.Release()
@@ -636,4 +660,3 @@ func publicationOperationLocked(e *Engine, op *Operation) error {
 	}
 	return op.ctx.Err()
 }
-

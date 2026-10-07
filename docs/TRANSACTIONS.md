@@ -12,7 +12,7 @@ omitted modes inherit session defaults. INSERT (VALUES or SELECT), scalar UPDATE
 SELECT, DELETE, settings and the single-target AX utility are supported, including
 prepared execution. CREATE tables before a block; sequence DDL and COMMENT ON
 SEQUENCE are the bounded transactional DDL exceptions. Other transactional DDL,
-savepoints, SERIALIZABLE/SSI and DEFERRABLE safe snapshots remain unsupported.
+SERIALIZABLE/SSI and DEFERRABLE safe snapshots remain unsupported.
 In read-write explicit blocks, role creation/removal and SET/RESET SESSION
 AUTHORIZATION retain native `0A000` capability boundaries, not PostgreSQL parity.
 Identity SELECT remains supported in both access modes.
@@ -49,8 +49,8 @@ CHARACTERISTICS AS TRANSACTION` changes next-transaction defaults. Complete
 SERIALIZABLE and [NOT] DEFERRABLE modes fail native `0A000`,
 `transaction mode is unsupported`; malformed clauses/suffixes retain `42601`.
 These excluded modes are not implemented as aliases or successful no-ops.
-Complete SAVEPOINT/RELEASE/ROLLBACK TO and two-phase PREPARE TRANSACTION/
-COMMIT PREPARED/ROLLBACK PREPARED similarly fail `0A000` without effects.
+Two-phase PREPARE TRANSACTION/COMMIT PREPARED/ROLLBACK PREPARED fail `0A000`
+without effects.
 
 SQL BEGIN groups private writes on the physical session. Redundant BEGIN/START
 succeeds with count zero and WARNING `25001`, `there is already a transaction in
@@ -64,18 +64,22 @@ parameters/results and affected count zero. State warnings/errors have exact
 WARNING/ERROR and nonlocalized severity; optional diagnostic fields are absent.
 
 AND CHAIN ends the old block, releases its holds **after publication**, and
-installs a fresh healthy Active incarnation with command zero and the current
-isolation/access modes, no inherited snapshot, private writes, deletes or locks.
-Healthy CHAIN preserves the block's final modes despite changed session defaults.
-An admitted failure first restores current modes to the defaults captured at
-transaction entry (before BEGIN/Go overrides), and rolls back in-block default
-changes. Aborted CHAIN carries those restored modes, not the failed overrides.
+installs a fresh healthy Active incarnation with command zero, no inherited
+snapshot, private writes, deletes or locks. Successful COMMIT AND CHAIN preserves
+the current final modes despite changed session defaults, including a live
+child's read-only mode. ROLLBACK AND CHAIN and failed-block COMMIT AND CHAIN
+first unwind all retained savepoint levels and carry the oldest mark's parent
+read-only mode, not a child mode. Isolation cannot change within those levels.
+Without marks, admitted failure restores current modes to the defaults captured
+at transaction entry (before BEGIN/Go overrides) and rolls back in-block defaults.
+With marks, failure restores the failed level; full aborted CHAIN additionally
+unwinds remaining parents before choosing the next block's read-only mode.
 Same-epoch failed-block SQL COMMIT rolls back successfully.
 A fresh chained block's abort baseline is its carried modes, not its session
 defaults; later failed mode overrides restore that carried baseline.
 AND NO CHAIN and plain ends leave Idle; the next ordinary INSERT autocommits.
 Both SQL and Go ends resolve the same settings actions. COMMIT preserves SESSION
-changes and expires LOCAL; ROLLBACK and abort restore pretransaction values.
+changes and expires LOCAL; whole ROLLBACK and abort without marks restore originals.
 CHAIN resolves those old actions before installing the next block, which inherits
 committed SESSION values but no LOCAL values or pending settings actions.
 Chain birth/ticket capacity is preflighted before old publication under a short
@@ -102,6 +106,56 @@ for public direct/held-prepared peer visibility, recovery, aliases, chains and
 complete warning/error/count/INT4 assertions. Independent real PostgreSQL
 coverage is selected by `go test -tags=reference -count=1 -v -timeout=300s
 -run '^TestReferenceTransactionControls' ./reference`.
+
+## Savepoints and recoverable errors
+
+```sql
+SAVEPOINT name
+ROLLBACK [WORK | TRANSACTION] TO [SAVEPOINT] name
+RELEASE [SAVEPOINT] name
+```
+
+SAVEPOINT is an unreserved identifier as well as a command keyword.
+`SAVEPOINT savepoint` creates that name; bare `RELEASE SAVEPOINT` and
+`ROLLBACK TO SAVEPOINT` refer to it (they are not missing-name syntax).
+`RELEASE SAVEPOINT savepoint` and `ROLLBACK TO SAVEPOINT savepoint` explicitly
+include the optional keyword and refer to the same name.
+
+Savepoints require an explicit block and affect zero rows. Names use ordinary
+identifier folding/quoting. The newest equal name shadows earlier marks:
+releasing it reveals the earlier one. ROLLBACK TO restores writes, deletes,
+sequence catalog overlays, typed settings and their SESSION/LOCAL journal,
+retains its target for repeated rollback, and removes later marks. RELEASE
+keeps those changes but removes the target and all later marks. PostgreSQL's
+read-only exception is preserved: RELEASE restores the selected mark's parent
+read-only mode; ordinary LOCAL settings survive until outer end.
+
+An admitted error with marks restores the newest mark's effects, preserves
+ancestors and leaves the block Aborted. Only execution of a known ROLLBACK TO
+recovers it. Unknown targets use `3B001`, `savepoint "<name>" does not exist`;
+SAVEPOINT/RELEASE in Aborted use `25P02`. Preparing controls has no effects or
+name lookup; Idle preparation succeeds, but execution outside a block raises
+`25P01` with the canonical command tag. Aborted rollback preparation succeeds
+without recovery; cached handles resolve execution-time marks and block state.
+Full SQL/Go ends and physical session end clear all marks.
+
+Sequence nextval/setval and session currval/lastval never rewind. Rollback of
+post-mark CREATE/RESTART restores the prior logical generator binding, not a
+copy of its counter. REPEATABLE READ's first snapshot and characteristic timing
+remain transaction-monotonic even when the first query followed the mark.
+Changed isolation is forbidden inside a savepoint level; identical assignment
+is allowed. Read-only to read-write is forbidden inside a read-only child.
+
+**Native exclusion:** locks remain on the existing outer transaction ticket.
+Post-mark relation/row locks survive rollback-to and recoverable errors until
+outer end. This is not PostgreSQL subtransaction lock parity; per-mark lock
+rollback, cursor state and PL/pgSQL subtransactions are not implemented.
+Successful Reset/Restore fences and discards stale private marks; rollback-to
+cannot resurrect an old catalog epoch. Full rollback remains recovery-eligible.
+Dump omits private writes; Restore does not accept transaction controls.
+
+Feature smoke: `make smoke VERBOSE=0 RUN='^TestSavepointsSmoke$'`.
+
 
 ## Relation locks
 
@@ -134,23 +188,25 @@ an exact absolute tie favors lock timeout. Equal configured durations normally
 favor statement timeout because command admission occurs first. Caller context
 cancellation/deadlines retain their original Go error identity, not SQLSTATE.
 Failed waits remove provisional state and wake eligible successors without
-disturbing holders; mandatory statement cleanup aborts explicit transactions
-and discards private writes/releases prior locks, or returns implicit work to Idle.
+disturbing holders; mandatory statement cleanup aborts explicit transactions.
+Without marks it discards private writes/releases prior locks; with marks it
+preserves recoverable prefixes and conservatively retains outer holds.
+Implicit work returns to Idle.
 
 ACCESS EXCLUSIVE conflicts with all automatic modes and another transaction's
 AX. Conflicting operations wait using their command context, with compatible
 cohorts and earlier incompatible waiter ordering. An owner can SELECT/INSERT/UPDATE/DELETE
 under its own AX. SELECT captures its READ COMMITTED view after the wait: holder
 commits are visible, holder rollbacks are absent. Explicit locks survive
-statement/Rows close, until commit/rollback, admitted failure or physical end.
-Failures immediately discard private writes and release all holds, even before
-the client rolls back the aborted transaction. Implicit completion publishes
+statement/Rows close, until commit/rollback or physical end. Without marks,
+admitted failures discard private writes and release all holds even before
+client rollback; recoverable failures retain the outer ticket. Implicit completion publishes
 first and releases afterward. Canceled pending requests are removed and wake
 eligible successors; caller interruption remains an ordinary context error.
 
 Semantic SELECT/INSERT/UPDATE/DELETE Prepare acquires the same AS/RX as execution. Implicit
 Prepare releases at completion; explicit Prepare retains until transaction end
-or failure, not stmt.Close. Data preparation fixes characteristic timing and,
+or failure without marks, not stmt.Close. Data preparation fixes characteristic timing and,
 in REPEATABLE READ, the transaction snapshot before semantic relation waits.
 READ COMMITTED/UNCOMMITTED execution still captures fresh data after grant.
 Cached statements retain descriptions, not an owner or future execution snapshot.
@@ -179,10 +235,11 @@ conflicting queued requests create soft dependencies. It searches finite queue
 ordering constraints before aborting: a compatible queue rearrangement resolves
 an avoidable soft cycle without an error or revoking any held lock. An unavoidable
 cycle terminalizes one actual cycle member with `40P01`, `deadlock detected`.
-Victim choice is unspecified. The failing statement's mandatory Finish discards
-all private transactional effects before releasing its locks, so the survivor can
-complete before the victim explicitly issues ROLLBACK. An explicit victim is
-Aborted (`25P02` on ordinary commands); ROLLBACK permits a new healthy transaction.
+Victim choice is unspecified. Without savepoints, mandatory Finish discards
+all private effects and releases locks, allowing a survivor to complete before
+explicit ROLLBACK. With marks, the failed level's effects roll back but native
+locks remain until outer end. An explicit victim is Aborted; known ROLLBACK TO
+or full ROLLBACK recovers according to the boundaries above.
 
 Detection normalizes live waits using the same cancellation and absolute-deadline
 arbitration as ordinary queue settling, both before searching and immediately
@@ -229,7 +286,9 @@ execution imports a typed frame against the current coherent binding. Query
 filtering/ordering and Dump use the type-owned operators and literal codecs.
 
 Admitted SQL errors, preparation/binding failures and statement cancellation
-abort an explicit transaction and discard its private writes. Valid subsequent
+leave an explicit block Aborted. Without marks they discard all private writes
+and release holds; with recoverable marks they restore the newest mark's effects
+and retain native outer-ticket holds until full end. Valid subsequent
 commands are rejected before semantic analysis; malformed SQL still reports its
 original syntax error. Full SQL/Go Rollback succeeds. Within the same catalog
 epoch, SQL COMMIT of aborted work successfully rolls back with count zero; Go
@@ -341,7 +400,7 @@ incarnation-qualified TxRef, StatementScope/Finish, current ResolutionCatalog,
 conditional AcquireDataView, immutable version WriteStage and indivisible end
 publication. INSERT/UPDATE/SELECT use the existing binder and identity-keyed storage;
 there is no parallel catalog/store, retrying SQL executor, or placeholder
-savepoint/SSI/provider implementation.
+SSI/provider implementation.
 
 Run `go test -count=1 -run '^TestTransactionSmoke$' ./smoke` (also included in
 `make smoke` and `make test`). It asserts direct/prepared visibility,

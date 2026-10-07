@@ -112,7 +112,6 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"SELECT * FROM t JOIN u ON t.x = u.x", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"DELETE FROM t USING u", "0A000"},
-		{"SAVEPOINT x", "0A000"}, {"RELEASE x", "0A000"},
 		{"CREATE TABLE \"\" (x INT)", "42601"}, {"SELECT * FROM \"unterminated", "42601"},
 		{"INSERT INTO t VALUES ('unterminated)", "42601"}, {"/* unterminated", "42601"},
 		{"SELECT * FROM t\x00", "42601"}, {"INSERT INTO t VALUES ('\x00')", "42601"},

@@ -26,8 +26,10 @@ Public feature smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
 Supported transaction-owned relation and logical row locks include deadlock
 detection: compatible queue reordering resolves avoidable soft cycles; an
 unavoidable cycle returns `40P01` / `deadlock detected` to an unspecified cycle
-member. Statement completion rolls back that victim before releasing its locks,
-allowing survivors to proceed before explicit ROLLBACK. See
+member. Without a savepoint, statement completion rolls back that victim and
+releases its locks before explicit ROLLBACK. With recoverable savepoints,
+pre-mark effects survive but native locks conservatively persist until the
+outer transaction ends; PostgreSQL subtransaction lock rollback is excluded. See
 [transaction recovery and logical diagnostics](docs/TRANSACTIONS.md).
 
 ## Minimal example: one unit test

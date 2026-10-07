@@ -252,24 +252,22 @@ transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,P
  | commit_word opt_transaction opt_chain { $$=&TransactionControl{Kind:KindCommit,Chain:$3,Pos:$1.pos} }
  | rollback_start opt_chain { $$=&TransactionControl{Kind:KindRollback,Chain:$2,Pos:$1.pos} }
  | ABORT opt_transaction opt_chain { $$=&TransactionControl{Kind:KindRollback,Chain:$3,Pos:$1.pos} }
- | SAVEPOINT name { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil }
- | RELEASE optional_savepoint name { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil }
- | rollback_start TO optional_savepoint name { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil }
+ | SAVEPOINT name { $$=&SavepointControl{Kind:CreateSavepoint,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | RELEASE name { $$=&SavepointControl{Kind:ReleaseSavepoint,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | RELEASE SAVEPOINT name { $$=&SavepointControl{Kind:ReleaseSavepoint,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
+ | rollback_start TO name { $$=&SavepointControl{Kind:RollbackSavepoint,Name:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
+ | rollback_start TO SAVEPOINT name { $$=&SavepointControl{Kind:RollbackSavepoint,Name:Identifier{Text:$4.text,Pos:$4.pos},Pos:$1.pos} }
  | PREPARE TRANSACTION STRING { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil }
  | COMMIT PREPARED STRING { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil }
  | ROLLBACK PREPARED STRING { sqllex.(*lexer).deferUnsupported($1,"statement is unsupported"); $$=nil } ;
 transaction_start: BEGIN opt_transaction { $$=$1 } | START TRANSACTION { $$=$1 } ;
 commit_word: COMMIT | END ;
 /* Share the entire ROLLBACK [WORK|TRANSACTION] prefix before choosing an
- * executable end or failure-only TO. Never shift optional words into TO-only
+ * executable end or rollback-to. Never shift optional words into TO-only
  * syntax while reducing a competing bare ROLLBACK end introducer. */
 rollback_start: ROLLBACK opt_transaction { $$=$1 } ;
 opt_transaction: /* empty */ | WORK | TRANSACTION ;
 opt_chain: /* empty */ { $$=false } | AND CHAIN { $$=true } | AND NO CHAIN { $$=false } ;
-/* PostgreSQL shifts the optional SAVEPOINT keyword before parsing its name:
- * RELEASE SAVEPOINT and ROLLBACK TO SAVEPOINT still require an operand.
- * SAVEPOINT stays name-eligible in actual name positions. */
-optional_savepoint: /* empty */ %prec NAME_LIST | SAVEPOINT ;
 characteristics_word: KW_U { if $1.text!="characteristics" { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 transaction_modes: transaction_mode { $$=[]TransactionMode{$1} }
  | transaction_modes ',' transaction_mode { $$=append($1,$3) }

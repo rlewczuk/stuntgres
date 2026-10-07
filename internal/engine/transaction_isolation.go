@@ -62,9 +62,15 @@ func (t *transactionOwner) assignModes(modes []parser.TransactionMode) error {
 			if t.snapshotSet && next != isolation {
 				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
 			}
+			if len(t.savepoints) != 0 && next != isolation {
+				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must not be called in a subtransaction")
+			}
 			isolation = next
 		}
 		if mode.AccessSet {
+			if len(t.savepoints) != 0 && readOnly && !mode.ReadOnly {
+				return sqlError("25001", "cannot set transaction read-write mode inside a read-only transaction")
+			}
 			if t.snapshotSet && readOnly && !mode.ReadOnly {
 				return sqlError("25001", "transaction read-write mode must be set before any query")
 			}

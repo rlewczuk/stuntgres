@@ -118,6 +118,12 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	}
 	var next TxRef
 	isolation, readOnly := t.isolation, t.readOnly
+	if chain && (!commit || t.state == TxAborted) && len(t.savepoints) != 0 {
+		// Abort pops every retained child before PostgreSQL selects CHAIN
+		// characteristics. Healthy commit instead carries the current child
+		// mode; do not apply abort unwinding to that distinct disposition.
+		readOnly = t.savepoints[0].readOnly
+	}
 	if chain {
 		if t.next == TxID(^uint64(0)) {
 			return EndResult{}, errors.New("stuntgres: transaction identity exhausted")

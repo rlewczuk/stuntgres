@@ -423,6 +423,22 @@ type TransactionControl struct {
 
 func (*TransactionControl) statement() {}
 
+type SavepointControlKind uint8
+
+const (
+	CreateSavepoint SavepointControlKind = iota
+	RollbackSavepoint
+	ReleaseSavepoint
+)
+
+type SavepointControl struct {
+	Kind SavepointControlKind
+	Name Identifier
+	Pos  Position
+}
+
+func (*SavepointControl) statement() {}
+
 type Order struct {
 	Column   string
 	Constant *OrderConstant
