@@ -29,6 +29,15 @@ func (e bitwiseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	return e.provider.Binary(c.Context, a, b)
 }
+
+// Only a physical SQL constant NULL is decisive after complete analysis and
+// child planning. Imported parameter values and row-owned NULLs are not planning
+// facts; conservative row/stage dependence on an already-pruned literal remains.
+func bitwiseConstantNull(node BoundExpr) bool {
+	literal, ok := node.(literalExpression)
+	return ok && !literal.properties.ParameterDependent && literal.value.IsNull()
+}
+
 func integralBitwiseType(t *sqltype.Descriptor) bool {
 	return t != nil && (t.ID() == sqltype.Int2 || t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8)
 }

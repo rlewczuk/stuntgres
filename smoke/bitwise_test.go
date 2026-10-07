@@ -147,6 +147,11 @@ func TestBitwiseSmoke(t *testing.T) {
 	exec("INSERT INTO atomic VALUES(99,99)", 1)
 	exec("CREATE TABLE source(id INTEGER,x TEXT)", 0)
 	exec("INSERT INTO source VALUES(1,'1'),(2,'bad')", 2)
+	check("SELECT NULL::integer & CAST(x AS integer),CAST(x AS bigint) >> NULL::integer,NULL::smallint << CAST(x AS integer) FROM source ORDER BY id", []string{"INT4", "INT8", "INT2"}, [][]any{{nil, nil, nil}, {nil, nil, nil}})
+	exec("CREATE TABLE null_write(id INTEGER,s SMALLINT,b BIGINT)", 0)
+	exec("INSERT INTO null_write SELECT id,NULL::smallint << CAST(x AS integer),CAST(x AS bigint) | NULL::bigint FROM source ORDER BY id", 2)
+	exec("UPDATE null_write SET b=NULL::bigint >> id", 2)
+	check("SELECT s,b FROM null_write ORDER BY id", []string{"INT2", "INT8"}, [][]any{{nil, nil}, {nil, nil}})
 	if _, err := db.ExecContext(ctx, "INSERT INTO atomic SELECT id,CAST(x AS INTEGER) & 1 FROM source ORDER BY id"); err == nil {
 		t.Fatal("later decoding published")
 	}

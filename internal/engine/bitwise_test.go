@@ -2,6 +2,9 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"reflect"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -151,5 +154,142 @@ func TestBitwiseScopedCastDefaultSerializationAndRetag(t *testing.T) {
 		} else if n, err := value.Integer(); err != nil || n != -2 {
 			t.Fatal("width changed on replay", value)
 		}
+	}
+}
+
+func TestBitwiseConstantNullPlanning(t *testing.T) {
+	e := New()
+	view := e.CatalogRead()
+	integer, _ := view.LookupType(sqltype.Int4)
+	text, _ := view.LookupType(sqltype.Text)
+	plan, err := sqltype.PlanCoercion(text.Usage(), integer.Usage(), sqltype.Explicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider, err := sqltype.BindBitwise(sqltype.BitwiseAnd, integer, integer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rowInfo := expressionInfo{usage: text.Usage(), properties: ExprProperties{RowDependent: true}}
+	column := columnExpression{expressionInfo: rowInfo, scope: 1, frame: 1, slot: 0}
+	conversion := coercionExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: rowInfo.properties}, child: column, plan: plan, mode: sqltype.Explicit}
+	null := literalExpression{expressionInfo: expressionInfo{usage: integer.Usage()}, value: sqltype.Null(integer)}
+	info := expressionInfo{usage: integer.Usage(), pos: parser.Position{Offset: 7}, properties: ExprProperties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
+	bad, err := text.Input(context.Background(), "bad", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1, Row: []sqltype.Value{bad}}
+	for _, simplify := range []func(*EvalContext, BoundExpr, bool) (BoundExpr, bool, error){preflightCoercionsWithPolicy, simplifyConditional} {
+		for _, reverse := range []bool{false, true} {
+			root := bitwiseExpression{expressionInfo: info, left: null, right: conversion, provider: provider, operator: sqltype.BitwiseAnd}
+			if reverse {
+				root.left, root.right = root.right, root.left
+			}
+			original := root
+			for _, defaults := range []bool{false, true} {
+				planned, changed, err := simplify(ctx, root, defaults)
+				if err != nil || !changed {
+					t.Fatal(planned, changed, err)
+				}
+				literal, ok := planned.(literalExpression)
+				if !ok || !reflect.DeepEqual(literal.expressionInfo, info) || literal.value.Type() != integer || !literal.value.IsNull() {
+					t.Fatal("lost analyzed metadata or NULL type", planned)
+				}
+				if !reflect.DeepEqual(root, original) {
+					t.Fatal("analysis tree mutated")
+				}
+				if _, err := root.Eval(ctx); err == nil {
+					t.Fatal("runtime NULL incorrectly skipped bad row conversion")
+				}
+				if value, err := planned.Eval(ctx); err != nil || !value.IsNull() {
+					t.Fatal(value, err)
+				}
+				identity, err := sqltype.PlanCoercion(integer.Usage(), integer.Usage(), sqltype.Explicit)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wrapper := coercionExpression{expressionInfo: info, child: root, plan: identity, mode: sqltype.Explicit}
+				nested, changed, err := simplify(ctx, wrapper, defaults)
+				if err != nil || !changed || !reflect.DeepEqual(nested.ResultUsage(), info.usage) || nested.Properties() != info.properties || nested.SourcePosition() != info.pos {
+					t.Fatal("nested coercion lost metadata", nested, changed, err)
+				}
+				if value, err := nested.Eval(ctx); err != nil || !value.IsNull() {
+					t.Fatal(value, err)
+				}
+				canceled, cancel := context.WithCancel(ctx.Context)
+				cancel()
+				cancelCtx := *ctx
+				cancelCtx.Context = canceled
+				if _, _, err := simplify(&cancelCtx, root, defaults); !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
+				}
+				if _, err := planned.Eval(&cancelCtx); !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
+				}
+			}
+		}
+		// Imported NULL parameters may become physical literals during cast
+		// preflight, but their conservative parameter ownership is retained.
+		parameter := parameterExpression{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{ParameterDependent: true}}, number: 1}
+		parameterCast := coercionExpression{expressionInfo: expressionInfo{usage: integer.Usage(), properties: parameter.properties}, child: parameter, plan: plan, mode: sqltype.Explicit}
+		root := bitwiseExpression{expressionInfo: info, left: parameterCast, right: conversion, provider: provider, operator: sqltype.BitwiseAnd}
+		valid, err := text.Input(ctx.Context, "3", -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, value := range []sqltype.Value{sqltype.Null(text), valid} {
+			ctx.Parameters = []sqltype.Value{value}
+			planned, _, err := simplify(ctx, root, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := planned.(bitwiseExpression); !ok {
+				t.Fatal("parameter used as SQL constant", planned)
+			}
+			if _, err := planned.Eval(ctx); err == nil {
+				t.Fatal("parameter skipped row conversion")
+			}
+		}
+		// An immutable bad conversion still fails during child planning, even
+		// though a constant NULL makes the operator itself unnecessary.
+		constantBad := conversion
+		constantBad.properties = ExprProperties{}
+		constantBad.child = literalExpression{expressionInfo: expressionInfo{usage: text.Usage()}, value: bad}
+		root.left, root.right = null, constantBad
+		if _, _, err := simplify(ctx, root, false); err == nil {
+			t.Fatal("immutable bad conversion hidden")
+		}
+	}
+}
+
+func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE null_default(v INTEGER DEFAULT (NULL::integer & 1))")
+	view := e.CatalogRead()
+	ref := roleTableRef(t, e, "null_default")
+	table := view.state.descriptors[ref.Address].(*relationDescriptor)
+	original := table.defaults[1].expression
+	before, err := defaultSQL(context.Background(), view, original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &EvalContext{Context: context.Background()}
+	planned, changed, err := preflightCoercionsWithPolicy(ctx, original, true)
+	if err != nil || !changed {
+		t.Fatal(planned, changed, err)
+	}
+	if value, err := planned.Eval(ctx); err != nil || !value.IsNull() || value.Type() != original.ResultUsage().Type {
+		t.Fatal(value, err)
+	}
+	if _, ok := table.defaults[1].expression.(bitwiseExpression); !ok {
+		t.Fatal("stored default replaced")
+	}
+	after, err := defaultSQL(context.Background(), view, table.defaults[1].expression)
+	if err != nil || before != after {
+		t.Fatal(before, after, err)
+	}
+	if err := (relationProvider{}).Validate(view, table); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -234,6 +234,9 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			}
 		}
 		e.left, e.right = left, right
+		if bitwiseConstantNull(left) || bitwiseConstantNull(right) {
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
 		if decisiveDefaults {
 			_, l := left.(literalExpression)
 			_, r := right.(literalExpression)

@@ -148,6 +148,9 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if err == nil {
 			e.right, err = child(e.right)
 		}
+		if err == nil && (bitwiseConstantNull(e.left) || bitwiseConstantNull(e.right)) {
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
 		expression = e
 	case arithmeticExpression:
 		e.left, err = child(e.left)

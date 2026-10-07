@@ -381,7 +381,17 @@ INTEGER counts resolve to INTEGER; SMALLINT counts leave them ambiguous.
 Unknown-only AND/OR/XOR or unary NOT report42725, not a default INTEGER
 signature. Unsupported concrete signatures report42883 at the operator.
 Quoted input errors retain existing width-specific English diagnostics.
-Typed NULL propagates after analysis; it does not hide malformed input.
+After complete analysis, a known constant NULL simplifies a selected strict
+bitwise expression to its resolved typed NULL, so a row-dependent conversion in
+the other operand is not evaluated. For example,
+`NULL::integer & CAST(x AS integer)` returns INT4 NULL even when stored TEXT
+`x` is `'bad'`. This planning rule also covers either shift operand and retains
+the left operand's result width. Eager quoted-input errors and immutable
+conversion preflight errors remain errors; `NULL::integer & 'bad'` still fails.
+A NULL obtained only from a row or imported parameter is not this SQL constant
+planning fact: ordinary runtime operand evaluation remains left-to-right.
+Stored default/view definitions, conservative dependencies and computed result
+metadata are preserved.
 
 These operators compose in existing table queries, writes, conditionals,
 aggregate expressions, defaults and views. Defaults preserve each operand's

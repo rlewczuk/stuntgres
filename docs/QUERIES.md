@@ -830,6 +830,11 @@ BIGINT in the same general scalar consumers, plus defaults and view replay.
 They are separate from ordinary arithmetic: mixed AND/OR/XOR widen, unary
 NOT and shifts preserve left width, and shift counts resolve to INTEGER.
 Generic operator precedence is below addition and above comparison.
+After complete binding, a known SQL constant NULL eliminates the selected strict
+bitwise operation in execution-private planning, retaining its resolved width,
+computed metadata and conservative dependencies. Row-dependent conversions in
+the eliminated peer are not evaluated; unknown quoted input still fails eagerly.
+Runtime row/parameter NULLs do not globally short-circuit operand evaluation.
 See [integral widths, NULL and pinned shift counts](TYPES.md#integral-bitwise-operators).
 Computed bitwise expressions remain excluded from bounded null-count
 arguments and singleton SELECT admission. No NUMERIC/float explicit casts,
