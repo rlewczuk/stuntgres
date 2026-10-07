@@ -77,6 +77,20 @@ func TestReferenceIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 		{"year_month_year", "1 1-2", "INTERVAL YEAR", "22007", "invalid input syntax for type interval", "00:00:00"},
 		{"year_month_minute", "1 1-2", "INTERVAL MINUTE TO SECOND(2)", "22007", "invalid input syntax for type interval", "00:00:01"},
 		{"precision", "2562047788:00:54.775807", "INTERVAL SECOND(2)", "22008", "interval out of range", "00:00:01"},
+		{"original_iso_leading", " PT1S", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_trailing", "PT1S ", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_hex_leading", " P1DT0x1p0S", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_tab", "\tPT1S", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_newline", "PT1S\n", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_nbsp", "\u00a0PT1S", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_verbose_nbsp", "\u00a01 second", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_infinity_nbsp", "\u00a0infinity", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_nbsp_trailing", "PT1S\u00a0", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_verbose_nbsp_trailing", "1 second\u00a0", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_infinity_nbsp_trailing", "infinity\u00a0", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"precision_offset_positive", "9223372036854775804 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
+		{"precision_offset_negative", "-9223372036854775804 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
+		{"precision_offset_closest_positive", "9223372036854775803 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newReferencePair(t)
@@ -110,30 +124,45 @@ func TestReferenceIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 							run(s)
 							sentinel()
 						}
-						s := referenceImplicitError("INSERT INTO iv VALUES($1),($2)", base, "1 day", tc.input)
-						s.prepared = prepared
-						s.errorStage = "execute"
-						if tc.code != "22008" {
-							pg := *s.diagnostic
-							pg.Context = "unnamed portal parameter $2 = '...'"
-							s.postgresDiagnostic = &pg
-						}
-						run(s)
-						sentinel()
-					}
-					if tc.code == "22008" {
-						for _, prepared := range []bool{false, true} {
-							want := base
-							want.Position = "17"
-							s := referenceImplicitError("SELECT INTERVAL '"+tc.input+"' SECOND(2) FROM iv", want)
+						for _, parameter := range []struct {
+							q, context string
+							args       []any
+						}{
+							{"INSERT INTO iv VALUES($1)", "unnamed portal parameter $1 = '...'", []any{tc.input}},
+							{"INSERT INTO iv VALUES($1),($2)", "unnamed portal parameter $2 = '...'", []any{"1 day", tc.input}},
+						} {
+							s := referenceImplicitError(parameter.q, base, parameter.args...)
 							s.prepared = prepared
 							s.errorStage = "execute"
-							if prepared {
-								s.errorStage = "prepare"
+							if tc.code != "22008" {
+								pg := *s.diagnostic
+								pg.Context = parameter.context
+								s.postgresDiagnostic = &pg
 							}
 							run(s)
 							sentinel()
 						}
+					}
+					q := "SELECT INTERVAL '" + tc.input + "'"
+					if tc.code == "22008" {
+						precision := "2"
+						if tc.usage == "INTERVAL SECOND(5)" {
+							precision = "5"
+						}
+						q += " SECOND(" + precision + ")"
+					}
+					q += " FROM iv"
+					for _, prepared := range []bool{false, true} {
+						want := base
+						want.Position = "17"
+						s := referenceImplicitError(q, want)
+						s.prepared = prepared
+						s.errorStage = "execute"
+						if prepared {
+							s.errorStage = "prepare"
+						}
+						run(s)
+						sentinel()
 					}
 				})
 			}
@@ -170,34 +199,101 @@ func TestReferenceIntervalISOAlternativeExponentWidth(t *testing.T) {
 }
 
 func TestReferenceIntervalPrecisionOverflowSessionIsolation(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("CREATE TABLE iv(v INTERVAL SECOND(2))", 0))
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("INSERT INTO iv VALUES('1 second')", 1))
-		a, err := backend.db.Conn(p.ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer a.Close()
-		b, err := backend.db.Conn(p.ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer b.Close()
-		referenceRunStep(t, p.ctx, a, backend.record, referenceExec("SET IntervalStyle=sql_standard", 0))
-		referenceRunStep(t, p.ctx, b, backend.record, referenceExec("SET IntervalStyle=iso_8601", 0))
-		for _, prepared := range []bool{false, true} {
-			s := referenceImplicitError("INSERT INTO iv VALUES($1),($2)", referenceDiagnostic{Code: "22008", Message: "interval out of range"}, "1 day", "2562047788:00:54.775807")
-			s.prepared = prepared
-			s.errorStage = "execute"
-			referenceRunStep(t, p.ctx, a, backend.record, s)
-			referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
-			referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
-			referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"0:00:01"}}))
-			referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
-		}
+	for _, tc := range []struct{ name, usage, input string }{
+		{"rounded_result", "INTERVAL SECOND(2)", "2562047788:00:54.775807"},
+		{"offset_positive", "INTERVAL SECOND(5)", "9223372036854775804 microseconds"},
+		{"offset_negative", "INTERVAL SECOND(5)", "-9223372036854775804 microseconds"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newReferencePair(t)
+			for _, backend := range []struct {
+				db     *sql.DB
+				record *referenceRecorder
+			}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
+				referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("CREATE TABLE iv(v "+tc.usage+")", 0))
+				referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("INSERT INTO iv VALUES('1 second')", 1))
+				a, err := backend.db.Conn(p.ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer a.Close()
+				b, err := backend.db.Conn(p.ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer b.Close()
+				referenceRunStep(t, p.ctx, a, backend.record, referenceExec("SET IntervalStyle=sql_standard", 0))
+				referenceRunStep(t, p.ctx, b, backend.record, referenceExec("SET IntervalStyle=iso_8601", 0))
+				for _, prepared := range []bool{false, true} {
+					s := referenceImplicitError("INSERT INTO iv VALUES($1),($2)", referenceDiagnostic{Code: "22008", Message: "interval out of range"}, "1 day", tc.input)
+					s.prepared = prepared
+					s.errorStage = "execute"
+					referenceRunStep(t, p.ctx, a, backend.record, s)
+					referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
+					referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
+					referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"0:00:01"}}))
+					referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
+				}
+			}
+		})
+	}
+}
+
+func TestReferenceIntervalOriginalBoundaryAndPrecisionControls(t *testing.T) {
+	for _, tc := range []struct{ name, input, usage, qualifier, out string }{
+		{"verbose_leading", " 1 second", "INTERVAL", "", "00:00:01"},
+		{"verbose_trailing", "1 second ", "INTERVAL", "", "00:00:01"},
+		{"verbose_c_whitespace", "\t1 second\n", "INTERVAL", "", "00:00:01"},
+		{"verbose_all_c_whitespace", " \t1 second\r\n\f\v", "INTERVAL", "", "00:00:01"},
+		{"infinity_leading", " infinity", "INTERVAL", "", "infinity"},
+		{"infinity_trailing", "infinity ", "INTERVAL", "", "infinity"},
+		{"negative_infinity_c_whitespace", "\t-infinity\n", "INTERVAL", "", "-infinity"},
+		{"offset_positive_neighbor", "9223372036854775802 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "2562047788:00:54.7758"},
+		{"offset_negative_neighbor", "-9223372036854775803 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "-2562047788:00:54.7758"},
+		{"offset_positive_multiple", "9223372036854775800 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "2562047788:00:54.7758"},
+		{"offset_negative_multiple", "-9223372036854775800 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "-2562047788:00:54.7758"},
+		{"unrestricted_positive", "9223372036854775804 microseconds", "INTERVAL", "", "2562047788:00:54.775804"},
+		{"unrestricted_negative", "-9223372036854775804 microseconds", "INTERVAL", "", "-2562047788:00:54.775804"},
+		{"precision_six_positive", "9223372036854775804 microseconds", "INTERVAL SECOND(6)", " SECOND(6)", "2562047788:00:54.775804"},
+		{"precision_six_negative", "-9223372036854775804 microseconds", "INTERVAL SECOND(6)", " SECOND(6)", "-2562047788:00:54.775804"},
+		{"restriction_before_offset_positive", "9223372036854775804 microseconds", "\"interval\"(8,5)", " DAY", "00:00:00"},
+		{"restriction_before_offset_negative", "-9223372036854775804 microseconds", "\"interval\"(8,5)", " DAY", "00:00:00"},
+		{"positive_tie", "5 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "00:00:00.00001"},
+		{"negative_tie", "-5 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "-00:00:00.00001"},
+		{"precision_positive_infinity", "infinity", "INTERVAL SECOND(5)", " SECOND(5)", "infinity"},
+		{"precision_negative_infinity", "-infinity", "INTERVAL SECOND(5)", " SECOND(5)", "-infinity"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newReferencePair(t)
+			for _, backend := range []struct {
+				name   string
+				db     *sql.DB
+				record *referenceRecorder
+			}{
+				{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord},
+			} {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run(referenceExec("CREATE TABLE iv(v "+tc.usage+")", 0))
+					var previous int64
+					for _, prepared := range []bool{false, true} {
+						for _, parameterized := range []bool{false, true} {
+							run(referenceExec("DELETE FROM iv", previous))
+							s := referenceExec("INSERT INTO iv VALUES('"+tc.input+"')", 1)
+							if parameterized {
+								s = referenceExec("INSERT INTO iv VALUES($1)", 1, tc.input)
+							}
+							s.prepared = prepared
+							run(s)
+							previous = 1
+							run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
+							s = referenceSelect("SELECT INTERVAL '"+tc.input+"'"+tc.qualifier+" AS v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}})
+							s.prepared = prepared
+							run(s)
+						}
+					}
+				})
+			}
+		})
 	}
 }

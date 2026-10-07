@@ -138,3 +138,148 @@ func TestIntervalPrecisionOverflowBranches(t *testing.T) {
 	_, err = plan.Apply(ctx, v)
 	intervalBoundaryError(t, err, "22008", "interval out of range")
 }
+
+func TestIntervalOriginalInputBoundaries(t *testing.T) {
+	d := testTypes()[Interval]
+	for _, input := range []string{" PT1S", "PT1S ", " P1DT0x1p0S", "\tPT1S", "PT1S\n", "\u00a0PT1S", "\u00a01 second", "\u00a0infinity", "PT1S\u00a0", "1 second\u00a0", "infinity\u00a0"} {
+		t.Run(input, func(t *testing.T) {
+			_, err := d.Input(context.Background(), input, -1)
+			intervalBoundaryError(t, err, "22007", "invalid input syntax for type interval: \""+input+"\"")
+		})
+	}
+	for _, tc := range []struct {
+		input        string
+		months, days int32
+		us           int64
+	}{
+		{" 1 second", 0, 0, 1000000}, {"1 second ", 0, 0, 1000000},
+		{"\t1 second\n", 0, 0, 1000000}, {" \t1 second\r\n\f\v", 0, 0, 1000000},
+		{" infinity", math.MaxInt32, math.MaxInt32, math.MaxInt64},
+		{"infinity ", math.MaxInt32, math.MaxInt32, math.MaxInt64},
+		{"\t-infinity\n", math.MinInt32, math.MinInt32, math.MinInt64},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			v, err := d.Input(context.Background(), tc.input, -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			months, days, us, err := v.Interval()
+			if err != nil || months != tc.months || days != tc.days || us != tc.us {
+				t.Fatal(months, days, us, err)
+			}
+		})
+	}
+}
+
+func TestIntervalPrecisionOffsetOverflow(t *testing.T) {
+	ctx := context.Background()
+	d := testTypes()[Interval]
+	u, _, err := d.ResolveModifiers(IntervalSecond, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := PlanCoercion(d.Usage(), u, Assignment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		input string
+		us    int64
+	}{
+		{"9223372036854775804 microseconds", 9223372036854775804},
+		{"-9223372036854775804 microseconds", -9223372036854775804},
+		{"9223372036854775803 microseconds", 9223372036854775803},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			v, err := d.Input(ctx, tc.input, -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			months, days, us, err := v.Interval()
+			if err != nil || months != 0 || days != 0 || us != tc.us {
+				t.Fatal(months, days, us, err)
+			}
+			_, err = d.Input(ctx, tc.input, u.Typmod)
+			intervalBoundaryError(t, err, "22008", "interval out of range")
+			_, err = plan.Apply(ctx, v)
+			intervalBoundaryError(t, err, "22008", "interval out of range")
+		})
+	}
+}
+
+func TestIntervalPrecisionOffsetControls(t *testing.T) {
+	ctx := context.Background()
+	d := testTypes()[Interval]
+	for _, tc := range []struct {
+		input     string
+		precision int32
+		want      int64
+	}{
+		{"9223372036854775802 microseconds", 5, 9223372036854775800},
+		{"-9223372036854775803 microseconds", 5, -9223372036854775800},
+		{"9223372036854775800 microseconds", 5, 9223372036854775800},
+		{"-9223372036854775800 microseconds", 5, -9223372036854775800},
+		{"9223372036854775804 microseconds", 6, 9223372036854775804},
+		{"-9223372036854775804 microseconds", 6, -9223372036854775804},
+		{"4 microseconds", 5, 0}, {"-4 microseconds", 5, 0},
+		{"5 microseconds", 5, 10}, {"-5 microseconds", 5, -10},
+		{"14 microseconds", 5, 10}, {"-14 microseconds", 5, -10},
+		{"15 microseconds", 5, 20}, {"-15 microseconds", 5, -20},
+	} {
+		t.Run(tc.input+"/"+string(rune('0'+tc.precision)), func(t *testing.T) {
+			u, _, err := d.ResolveModifiers(IntervalSecond, tc.precision)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input, err := d.Input(ctx, tc.input, -1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan, err := PlanCoercion(d.Usage(), u, Assignment)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assigned, err := plan.Apply(ctx, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			parsed, err := d.Input(ctx, tc.input, u.Typmod)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, v := range []Value{parsed, assigned} {
+				months, days, us, err := v.Interval()
+				if err != nil || months != 0 || days != 0 || us != tc.want {
+					t.Fatal(months, days, us, err)
+				}
+			}
+		})
+	}
+	u, _, err := d.ResolveModifiers(IntervalDay, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []string{"9223372036854775804 microseconds", "-9223372036854775804 microseconds"} {
+		v, err := d.Input(ctx, input, u.Typmod)
+		if err != nil {
+			t.Fatal(err)
+		}
+		months, days, us, err := v.Interval()
+		if err != nil || months != 0 || days != 0 || us != 0 {
+			t.Fatal(months, days, us, err)
+		}
+	}
+	u, _, err = d.ResolveModifiers(IntervalSecond, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		input string
+		sign  int
+	}{{"infinity", 1}, {"-infinity", -1}} {
+		v, err := d.Input(ctx, tc.input, u.Typmod)
+		if err != nil || intervalInfinity(v) != tc.sign {
+			t.Fatal(v, err)
+		}
+	}
+}

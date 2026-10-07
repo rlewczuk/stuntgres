@@ -1103,6 +1103,12 @@ months/weeks spill downward using30days/month and24hours/day. Verbose duplicate
 fields fail22007; ISO repeated designators accumulate. Months, days and time
 have checked independent domains; malformed input uses22007, decoder overflow
 22015 and final conversion/precision overflow22008 without partial publication.
+Generic verbose/SQL input uses C-locale ASCII whitespace, without Unicode boundary
+stripping. ISO retry receives the original bytes: ` PT1S`, `PT1S ` and ISO input
+bounded by tabs/newlines fail22007, with the original whitespace retained in the
+diagnostic. Non-C whitespace such as NBSP is not accepted around ISO, verbose or
+infinity input. Ordinary ASCII whitespace around `1 second` or `infinity` remains
+valid. Only generic malformed syntax retries ISO; generic range errors do not.
 The SQL year-month form `1-2` means14months; a preceding bare quantity in
 `1 1-2` duplicates the month field and fails22007, including restricted columns.
 ISO exponent notation retains basic-format integral width:
@@ -1123,6 +1129,13 @@ A parsed ISO magnitude outside ±1e15 is decoder overflow22015, not malformed
 input. Unrestricted `2562047788:00:54.775807` is the largest finite microsecond
 component, but rounding it for SECOND(2) fails22008; a later overflowing parameter
 cannot publish an earlier valid row from the same statement.
+Precision sizing checks the signed half-unit offset before truncating, after field
+restriction. Intermediate offset overflow is22008 even if the mathematically
+rounded result would fit. At SECOND(5), both `9223372036854775804 microseconds`
+and its negative fail. The accepted neighboring positive `9223372036854775802`
+and negative `-9223372036854775803` microseconds round to their respective signed
+`9223372036854775800` values. Precision6 preserves the exact finite component,
+and infinities bypass finite precision sizing.
 ISO floating underflow follows the pinned reference number parser, not an exponent
 blacklist: `PT1e-400S` and inexact `PT5e-324S` fail22007, while `PT0e-400S`,
 `PT-0e-400S`, exact subnormal values and bounded `PT1e-300S` remain valid zero

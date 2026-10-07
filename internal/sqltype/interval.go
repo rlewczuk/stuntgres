@@ -164,16 +164,15 @@ func adjustInterval(v Value, p int32) (Value, error) {
 		for i := precision; i < 6; i++ {
 			unit *= 10
 		}
-		q, rem := v.integer/unit, v.integer%unit
-		if rem >= unit/2 {
-			q++
-		} else if rem <= -unit/2 {
-			q--
+		offset := unit / 2
+		if v.integer < 0 {
+			offset = -offset
 		}
-		if q > math.MaxInt64/unit || q < math.MinInt64/unit {
+		rounded, ok := intervalAdd(v.integer, offset)
+		if !ok {
 			return Value{}, failure("22008", "interval out of range")
 		}
-		v.integer = q * unit
+		v.integer = rounded / unit * unit
 	}
 	return v, nil
 }
@@ -579,177 +578,22 @@ func intervalDefaultUnit(r int32) string {
 	return "second"
 }
 func (d *Descriptor) intervalInput(ctx context.Context, original string, pmod int32, env InputEnvironment) (Value, error) {
-	bad := func() (Value, error) {
-		return Value{}, failure("22007", fmt.Sprintf("invalid input syntax for type interval: \"%s\"", original))
-	}
-	overflow := func() (Value, error) {
-		return Value{}, failure("22015", fmt.Sprintf("interval field value out of range: \"%s\"", original))
-	}
-	s := strings.TrimSpace(original)
-	if len(s) == 0 {
-		return bad()
-	}
-	switch strings.ToLower(s) {
-	case "infinity", "+infinity":
-		return IntervalValue(d, math.MaxInt32, math.MaxInt32, math.MaxInt64)
-	case "-infinity":
-		return IntervalValue(d, math.MinInt32, math.MinInt32, math.MinInt64)
-	}
 	var parts intervalParts
-	if s[0] == 'P' {
-		ok, rangeError := parts.iso(ctx, s)
-		if err := ctx.Err(); err != nil {
-			return Value{}, err
+	ok, rangeError := parts.generic(original, pmod, env)
+	if !ok && !rangeError {
+		// Release interval_in retries only generic BAD_FORMAT, preserving the
+		// original bytes and discarding any partially decoded components.
+		parts = intervalParts{}
+		ok, rangeError = parts.iso(ctx, original)
+	}
+	if err := ctx.Err(); err != nil {
+		return Value{}, err
+	}
+	if !ok {
+		if rangeError {
+			return Value{}, failure("22015", fmt.Sprintf("interval field value out of range: \"%s\"", original))
 		}
-		if !ok {
-			if rangeError {
-				return overflow()
-			}
-			return bad()
-		}
-	} else {
-		fields, nf, ok := tokenizeDateTime(s, 256)
-		if !ok || nf == 0 {
-			return bad()
-		}
-		var tokenArray [25]string
-		for i := range nf {
-			token := fields[i].text
-			if len(token) > 1 && (token[0] == '+' || token[0] == '-') && space(token[1]) {
-				token = token[:1] + strings.TrimLeft(token[1:], " \t\n\r\f\v")
-			}
-			tokenArray[i] = token
-		}
-		tokens := tokenArray[:nf]
-		ago := false
-		if strings.EqualFold(tokens[len(tokens)-1], "ago") {
-			ago = true
-			tokens = tokens[:len(tokens)-1]
-		}
-		if len(tokens) == 0 {
-			return bad()
-		}
-		force := env.IntervalStyle == IntervalSQLStandard && strings.HasPrefix(tokens[0], "-")
-		for _, token := range tokens[1:] {
-			if strings.HasPrefix(token, "+") || strings.HasPrefix(token, "-") {
-				force = false
-			}
-		}
-		r := IntervalFullRange
-		if pmod >= 0 {
-			r = pmod >> 16
-		}
-		unit := intervalDefaultUnit(r)
-		var mask uint32
-		for i := len(tokens) - 1; i >= 0; i-- {
-			tok := tokens[i]
-			if u, _ := intervalUnit(tok); u != "" {
-				unit = u
-				i--
-				if i < 0 {
-					return bad()
-				}
-				tok = tokens[i]
-			}
-			chosen := unit
-			var field uint32
-			if strings.Contains(tok, ":") {
-				value, ok, rangeError := intervalParseClock(tok, r)
-				if !ok {
-					if rangeError && tok[0] != '+' && tok[0] != '-' {
-						return overflow()
-					}
-					return bad()
-				}
-				if force && value > 0 {
-					value = -value
-				}
-				parts.time = value
-				field = 8 | 16 | 32 | 64 | 128
-				unit = "day"
-			} else {
-				// SQL year-month fields have a second dash after the leading sign.
-				start := 0
-				if tok[0] == '+' || tok[0] == '-' {
-					start = 1
-				}
-				dash := strings.IndexByte(tok[start:], '-')
-				var n int64
-				var f float64
-				var ok, rangeError bool
-				if dash >= 0 {
-					dash += start
-					years, e := strconv.ParseInt(tok[:dash], 10, 64)
-					monthText := tok[dash+1:]
-					months := int64(0)
-					var e2 error
-					if monthText != "" {
-						months, e2 = strconv.ParseInt(monthText, 10, 64)
-					}
-					if errors.Is(e, strconv.ErrRange) || errors.Is(e2, strconv.ErrRange) || months < 0 || months >= 12 {
-						return overflow()
-					}
-					if e != nil || e2 != nil {
-						return bad()
-					}
-					n, ok = intervalMultiply(years, 12)
-					if !ok {
-						return overflow()
-					}
-					if tok[0] == '-' {
-						months = -months
-					}
-					n, ok = intervalAdd(n, months)
-					if !ok {
-						return overflow()
-					}
-					chosen = "month"
-					unit = "month"
-				} else {
-					n, f, ok, rangeError = intervalNumber(tok)
-					if !ok {
-						if rangeError {
-							return overflow()
-						}
-						return bad()
-					}
-				}
-				if force {
-					if n > 0 {
-						n = -n
-					}
-					if f > 0 {
-						f = -f
-					}
-				}
-				if !parts.add(chosen, n, f) {
-					return overflow()
-				}
-				_, field = intervalUnit(chosen)
-				if chosen == "second" && f != 0 {
-					field = 32 | 64 | 128
-				}
-				if chosen == "hour" {
-					unit = "day"
-				}
-			}
-			if mask&field != 0 {
-				return bad()
-			}
-			mask |= field
-		}
-		if mask == 0 {
-			return bad()
-		}
-		if ago {
-			if parts.years == math.MinInt32 || parts.months == math.MinInt32 || parts.days == math.MinInt32 || parts.time == math.MinInt64 {
-				return overflow()
-			}
-			parts.years = -parts.years
-			parts.months = -parts.months
-			parts.days = -parts.days
-			parts.time = -parts.time
-		}
+		return Value{}, failure("22007", fmt.Sprintf("invalid input syntax for type interval: \"%s\"", original))
 	}
 	months := parts.years*12 + parts.months
 	if months < math.MinInt32 || months > math.MaxInt32 {
@@ -757,6 +601,162 @@ func (d *Descriptor) intervalInput(ctx context.Context, original string, pmod in
 	}
 	v, _ := IntervalValue(d, int32(months), int32(parts.days), parts.time)
 	return adjustInterval(v, pmod)
+}
+
+func (parts *intervalParts) generic(s string, pmod int32, env InputEnvironment) (bool, bool) {
+	fields, nf, ok := tokenizeDateTime(s, 256)
+	if !ok || nf == 0 {
+		return false, false
+	}
+	var tokenArray [25]string
+	for i := range nf {
+		token := fields[i].text
+		if len(token) > 1 && (token[0] == '+' || token[0] == '-') && space(token[1]) {
+			token = token[:1] + strings.TrimLeft(token[1:], " \t\n\r\f\v")
+		}
+		tokenArray[i] = token
+	}
+	tokens := tokenArray[:nf]
+	if len(tokens) == 1 {
+		negative := strings.EqualFold(tokens[0], "-infinity")
+		if negative || strings.EqualFold(tokens[0], "infinity") || strings.EqualFold(tokens[0], "+infinity") {
+			parts.months, parts.days, parts.time = math.MaxInt32, math.MaxInt32, math.MaxInt64
+			if negative {
+				parts.months, parts.days, parts.time = math.MinInt32, math.MinInt32, math.MinInt64
+			}
+			return true, false
+		}
+	}
+	ago := false
+	if strings.EqualFold(tokens[len(tokens)-1], "ago") {
+		ago = true
+		tokens = tokens[:len(tokens)-1]
+	}
+	if len(tokens) == 0 {
+		return false, false
+	}
+	force := env.IntervalStyle == IntervalSQLStandard && strings.HasPrefix(tokens[0], "-")
+	for _, token := range tokens[1:] {
+		if strings.HasPrefix(token, "+") || strings.HasPrefix(token, "-") {
+			force = false
+		}
+	}
+	r := IntervalFullRange
+	if pmod >= 0 {
+		r = pmod >> 16
+	}
+	unit := intervalDefaultUnit(r)
+	var mask uint32
+	for i := len(tokens) - 1; i >= 0; i-- {
+		tok := tokens[i]
+		if u, _ := intervalUnit(tok); u != "" {
+			unit = u
+			i--
+			if i < 0 {
+				return false, false
+			}
+			tok = tokens[i]
+		}
+		chosen := unit
+		var field uint32
+		if strings.Contains(tok, ":") {
+			value, ok, rangeError := intervalParseClock(tok, r)
+			if !ok {
+				if rangeError && tok[0] != '+' && tok[0] != '-' {
+					return false, true
+				}
+				return false, false
+			}
+			if force && value > 0 {
+				value = -value
+			}
+			parts.time = value
+			field = 8 | 16 | 32 | 64 | 128
+			unit = "day"
+		} else {
+			// SQL year-month fields have a second dash after the leading sign.
+			start := 0
+			if tok[0] == '+' || tok[0] == '-' {
+				start = 1
+			}
+			dash := strings.IndexByte(tok[start:], '-')
+			var n int64
+			var f float64
+			var ok, rangeError bool
+			if dash >= 0 {
+				dash += start
+				years, e := strconv.ParseInt(tok[:dash], 10, 64)
+				monthText := tok[dash+1:]
+				months := int64(0)
+				var e2 error
+				if monthText != "" {
+					months, e2 = strconv.ParseInt(monthText, 10, 64)
+				}
+				if errors.Is(e, strconv.ErrRange) || errors.Is(e2, strconv.ErrRange) || months < 0 || months >= 12 {
+					return false, true
+				}
+				if e != nil || e2 != nil {
+					return false, false
+				}
+				n, ok = intervalMultiply(years, 12)
+				if !ok {
+					return false, true
+				}
+				if tok[0] == '-' {
+					months = -months
+				}
+				n, ok = intervalAdd(n, months)
+				if !ok {
+					return false, true
+				}
+				chosen = "month"
+				unit = "month"
+			} else {
+				n, f, ok, rangeError = intervalNumber(tok)
+				if !ok {
+					if rangeError {
+						return false, true
+					}
+					return false, false
+				}
+			}
+			if force {
+				if n > 0 {
+					n = -n
+				}
+				if f > 0 {
+					f = -f
+				}
+			}
+			if !parts.add(chosen, n, f) {
+				return false, true
+			}
+			_, field = intervalUnit(chosen)
+			if chosen == "second" && f != 0 {
+				field = 32 | 64 | 128
+			}
+			if chosen == "hour" {
+				unit = "day"
+			}
+		}
+		if mask&field != 0 {
+			return false, false
+		}
+		mask |= field
+	}
+	if mask == 0 {
+		return false, false
+	}
+	if ago {
+		if parts.years == math.MinInt32 || parts.months == math.MinInt32 || parts.days == math.MinInt32 || parts.time == math.MinInt64 {
+			return false, true
+		}
+		parts.years = -parts.years
+		parts.months = -parts.months
+		parts.days = -parts.days
+		parts.time = -parts.time
+	}
+	return true, false
 }
 func intervalParseClock(s string, r int32) (int64, bool, bool) {
 	negative := false
@@ -955,6 +955,9 @@ func isoIntegerWidth(s string) int {
 	return end - start
 }
 func (p *intervalParts) iso(ctx context.Context, s string) (bool, bool) {
+	if len(s) == 0 || s[0] != 'P' {
+		return false, false
+	}
 	s = s[1:]
 	if s == "" {
 		return false, false

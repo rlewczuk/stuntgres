@@ -187,6 +187,8 @@ func TestIntervalSmoke(t *testing.T) {
 	exec("INSERT INTO ivbounds VALUES('1 second')", 1)
 	exec("CREATE TABLE ivprecision(v INTERVAL SECOND(2))", 0)
 	exec("INSERT INTO ivprecision VALUES('1 second')", 1)
+	exec("CREATE TABLE ivoffset(v INTERVAL SECOND(5))", 0)
+	exec("INSERT INTO ivoffset VALUES('1 second')", 1)
 	exec("CREATE TABLE ivhex(id INTEGER,v INTERVAL DEFAULT INTERVAL 'PT0x.8p0S')", 0)
 	exec("INSERT INTO ivhex VALUES(1,'PT0x1.8S')", 1)
 	hexstmt, err := db.PrepareContext(ctx, "INSERT INTO ivhex VALUES($1,$2)")
@@ -217,7 +219,12 @@ func TestIntervalSmoke(t *testing.T) {
 		{"ivbounds", "P1DT0x1.8p-1074S", "22007", "invalid input syntax for type interval: \"P1DT0x1.8p-1074S\""},
 		{"ivbounds", "P1DT-NaNS", "22015", "interval field value out of range: \"P1DT-NaNS\""},
 		{"ivbounds", "P1DT-InfS", "22015", "interval field value out of range: \"P1DT-InfS\""},
+		{"ivbounds", " PT1S", "22007", "invalid input syntax for type interval: \" PT1S\""},
+		{"ivbounds", "PT1S ", "22007", "invalid input syntax for type interval: \"PT1S \""},
+		{"ivbounds", "\u00a01 second", "22007", "invalid input syntax for type interval: \"\u00a01 second\""},
 		{"ivprecision", "2562047788:00:54.775807", "22008", "interval out of range"},
+		{"ivoffset", "9223372036854775804 microseconds", "22008", "interval out of range"},
+		{"ivoffset", "-9223372036854775804 microseconds", "22008", "interval out of range"},
 	} {
 		boundary, err := db.PrepareContext(ctx, "INSERT INTO "+tc.table+" VALUES($1),($2)")
 		if err != nil {
@@ -232,6 +239,13 @@ func TestIntervalSmoke(t *testing.T) {
 		}
 		check(db, "SELECT v FROM "+tc.table, [][]any{{"00:00:01"}})
 	}
+	exec("INSERT INTO ivoffset VALUES('9223372036854775802 microseconds')", 1)
+	exec("INSERT INTO ivoffset VALUES($1)", 1, "-9223372036854775803 microseconds")
+	check(db, "SELECT v FROM ivoffset ORDER BY v", [][]any{{"-2562047788:00:54.7758"}, {"00:00:01"}, {"2562047788:00:54.7758"}})
+	exec("INSERT INTO ivbounds VALUES($1)", 1, "\t1 second\n")
+	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL '1 second'", [][]any{{"00:00:01"}, {"00:00:01"}})
+	exec("INSERT INTO ivbounds VALUES(' infinity ')", 1)
+	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL 'infinity'", [][]any{{"infinity"}})
 	exec("INSERT INTO ivbounds VALUES('P00021015e0')", 1)
 	exec("INSERT INTO ivbounds VALUES($1)", 1, "PT001020e0")
 	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL '2 years 10 months 15 days'", [][]any{{"2 years 10 mons 15 days"}})
@@ -282,6 +296,7 @@ func TestIntervalSmoke(t *testing.T) {
 	check(dest, "SELECT v FROM ivgenericview", [][]any{{"1 year"}})
 	check(dest, "SELECT v FROM ivprecision", [][]any{{"00:00:01"}})
 	check(dest, "SELECT id,v FROM ivhex ORDER BY id", [][]any{{int64(1), "00:00:01.5"}, {int64(2), "1 day 00:00:01"}, {int64(3), "00:00:00.5"}, {int64(4), "00:00:00"}})
+	check(dest, "SELECT v FROM ivoffset ORDER BY v", [][]any{{"-2562047788:00:54.7758"}, {"00:00:01"}, {"2562047788:00:54.7758"}})
 	if err = stuntgres.Reset(ctx, db); err != nil {
 		t.Fatal(err)
 	}

@@ -77,6 +77,20 @@ func TestIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 		{"year_month_year", "1 1-2", "INTERVAL YEAR", "22007", "invalid input syntax for type interval", "00:00:00"},
 		{"year_month_minute", "1 1-2", "INTERVAL MINUTE TO SECOND(2)", "22007", "invalid input syntax for type interval", "00:00:01"},
 		{"precision", "2562047788:00:54.775807", "INTERVAL SECOND(2)", "22008", "interval out of range", "00:00:01"},
+		{"original_iso_leading", " PT1S", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_trailing", "PT1S ", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_hex_leading", " P1DT0x1p0S", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_tab", "\tPT1S", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_newline", "PT1S\n", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_nbsp", "\u00a0PT1S", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_verbose_nbsp", "\u00a01 second", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_infinity_nbsp", "\u00a0infinity", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_iso_nbsp_trailing", "PT1S\u00a0", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_verbose_nbsp_trailing", "1 second\u00a0", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"original_infinity_nbsp_trailing", "infinity\u00a0", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"precision_offset_positive", "9223372036854775804 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
+		{"precision_offset_negative", "-9223372036854775804 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
+		{"precision_offset_closest_positive", "9223372036854775803 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db := openLocal(t, stuntgres.NewDriver(), t.Name())
@@ -111,39 +125,53 @@ func TestIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 					intervalPublicBoundaryError(t, err, want)
 					sentinel()
 				}
-				const q = "INSERT INTO iv VALUES($1),($2)"
-				var err error
-				if prepared {
-					stmt, e := db.Prepare(q)
-					if e != nil {
-						t.Fatal(e)
-					}
-					_, err = stmt.Exec("1 day", tc.input)
-					stmt.Close()
-				} else {
-					_, err = db.Exec(q, "1 day", tc.input)
-				}
-				intervalPublicBoundaryError(t, err, base)
-				sentinel()
-			}
-			if tc.code == "22008" {
-				q := "SELECT INTERVAL '" + tc.input + "' SECOND(2) FROM iv"
-				for _, prepared := range []bool{false, true} {
+				for _, parameter := range []struct {
+					q    string
+					args []any
+				}{
+					{"INSERT INTO iv VALUES($1)", []any{tc.input}},
+					{"INSERT INTO iv VALUES($1),($2)", []any{"1 day", tc.input}},
+				} {
+					q := parameter.q
 					var err error
 					if prepared {
 						stmt, e := db.Prepare(q)
-						err = e
-						if stmt != nil {
-							stmt.Close()
+						if e != nil {
+							t.Fatal(e)
 						}
+						_, err = stmt.Exec(parameter.args...)
+						stmt.Close()
 					} else {
-						_, err = db.Exec(q)
+						_, err = db.Exec(q, parameter.args...)
 					}
-					want := base
-					want.Position = "17"
-					intervalPublicBoundaryError(t, err, want)
+					intervalPublicBoundaryError(t, err, base)
 					sentinel()
 				}
+			}
+			q := "SELECT INTERVAL '" + tc.input + "'"
+			if tc.code == "22008" {
+				precision := "2"
+				if tc.usage == "INTERVAL SECOND(5)" {
+					precision = "5"
+				}
+				q += " SECOND(" + precision + ")"
+			}
+			q += " FROM iv"
+			for _, prepared := range []bool{false, true} {
+				var err error
+				if prepared {
+					stmt, e := db.Prepare(q)
+					err = e
+					if stmt != nil {
+						stmt.Close()
+					}
+				} else {
+					_, err = db.Exec(q)
+				}
+				want := base
+				want.Position = "17"
+				intervalPublicBoundaryError(t, err, want)
+				sentinel()
 			}
 		})
 	}
@@ -195,55 +223,147 @@ func TestIntervalISOAlternativeExponentPublic(t *testing.T) {
 }
 
 func TestIntervalPrecisionOverflowSessionIsolation(t *testing.T) {
-	ctx := context.Background()
-	db := openLocal(t, stuntgres.NewDriver(), t.Name())
-	execSQL(t, db, "CREATE TABLE iv(v INTERVAL SECOND(2))")
-	execSQL(t, db, "INSERT INTO iv VALUES('1 second')")
-	a, err := db.Conn(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer a.Close()
-	b, err := db.Conn(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer b.Close()
-	if _, err = a.ExecContext(ctx, "SET IntervalStyle=sql_standard"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = b.ExecContext(ctx, "SET IntervalStyle=iso_8601"); err != nil {
-		t.Fatal(err)
-	}
-	for _, prepared := range []bool{false, true} {
-		const q = "INSERT INTO iv VALUES($1),($2)"
-		if prepared {
-			stmt, e := a.PrepareContext(ctx, q)
-			if e != nil {
-				t.Fatal(e)
+	for _, tc := range []struct{ name, usage, input string }{
+		{"rounded_result", "INTERVAL SECOND(2)", "2562047788:00:54.775807"},
+		{"offset_positive", "INTERVAL SECOND(5)", "9223372036854775804 microseconds"},
+		{"offset_negative", "INTERVAL SECOND(5)", "-9223372036854775804 microseconds"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			db := openLocal(t, stuntgres.NewDriver(), t.Name())
+			execSQL(t, db, "CREATE TABLE iv(v "+tc.usage+")")
+			execSQL(t, db, "INSERT INTO iv VALUES('1 second')")
+			a, err := db.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
 			}
-			_, err = stmt.ExecContext(ctx, "1 day", "2562047788:00:54.775807")
-			stmt.Close()
-		} else {
-			_, err = a.ExecContext(ctx, q, "1 day", "2562047788:00:54.775807")
-		}
-		intervalPublicBoundaryError(t, err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22008", Message: "interval out of range"})
-		var own, peer string
-		if err = a.QueryRowContext(ctx, "SHOW IntervalStyle").Scan(&own); err != nil || own != "sql_standard" {
-			t.Fatal(own, err)
-		}
-		if err = b.QueryRowContext(ctx, "SHOW IntervalStyle").Scan(&peer); err != nil || peer != "iso_8601" {
-			t.Fatal(peer, err)
-		}
-		rows, err := a.QueryContext(ctx, "SELECT v FROM iv")
-		if err != nil {
-			t.Fatal(err)
-		}
-		intervalRows(t, rows, [][]any{{"0:00:01"}})
-		rows, err = b.QueryContext(ctx, "SELECT v FROM iv")
-		if err != nil {
-			t.Fatal(err)
-		}
-		intervalRows(t, rows, [][]any{{"PT1S"}})
+			defer a.Close()
+			b, err := db.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer b.Close()
+			if _, err = a.ExecContext(ctx, "SET IntervalStyle=sql_standard"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = b.ExecContext(ctx, "SET IntervalStyle=iso_8601"); err != nil {
+				t.Fatal(err)
+			}
+			for _, prepared := range []bool{false, true} {
+				const q = "INSERT INTO iv VALUES($1),($2)"
+				if prepared {
+					stmt, e := a.PrepareContext(ctx, q)
+					if e != nil {
+						t.Fatal(e)
+					}
+					_, err = stmt.ExecContext(ctx, "1 day", tc.input)
+					stmt.Close()
+				} else {
+					_, err = a.ExecContext(ctx, q, "1 day", tc.input)
+				}
+				intervalPublicBoundaryError(t, err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22008", Message: "interval out of range"})
+				var own, peer string
+				if err = a.QueryRowContext(ctx, "SHOW IntervalStyle").Scan(&own); err != nil || own != "sql_standard" {
+					t.Fatal(own, err)
+				}
+				if err = b.QueryRowContext(ctx, "SHOW IntervalStyle").Scan(&peer); err != nil || peer != "iso_8601" {
+					t.Fatal(peer, err)
+				}
+				rows, err := a.QueryContext(ctx, "SELECT v FROM iv")
+				if err != nil {
+					t.Fatal(err)
+				}
+				intervalRows(t, rows, [][]any{{"0:00:01"}})
+				rows, err = b.QueryContext(ctx, "SELECT v FROM iv")
+				if err != nil {
+					t.Fatal(err)
+				}
+				intervalRows(t, rows, [][]any{{"PT1S"}})
+			}
+		})
+	}
+}
+
+func TestIntervalOriginalBoundaryAndPrecisionControls(t *testing.T) {
+	for _, tc := range []struct{ name, input, usage, qualifier, out string }{
+		{"verbose_leading", " 1 second", "INTERVAL", "", "00:00:01"},
+		{"verbose_trailing", "1 second ", "INTERVAL", "", "00:00:01"},
+		{"verbose_c_whitespace", "\t1 second\n", "INTERVAL", "", "00:00:01"},
+		{"verbose_all_c_whitespace", " \t1 second\r\n\f\v", "INTERVAL", "", "00:00:01"},
+		{"infinity_leading", " infinity", "INTERVAL", "", "infinity"},
+		{"infinity_trailing", "infinity ", "INTERVAL", "", "infinity"},
+		{"negative_infinity_c_whitespace", "\t-infinity\n", "INTERVAL", "", "-infinity"},
+		{"offset_positive_neighbor", "9223372036854775802 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "2562047788:00:54.7758"},
+		{"offset_negative_neighbor", "-9223372036854775803 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "-2562047788:00:54.7758"},
+		{"offset_positive_multiple", "9223372036854775800 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "2562047788:00:54.7758"},
+		{"offset_negative_multiple", "-9223372036854775800 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "-2562047788:00:54.7758"},
+		{"unrestricted_positive", "9223372036854775804 microseconds", "INTERVAL", "", "2562047788:00:54.775804"},
+		{"unrestricted_negative", "-9223372036854775804 microseconds", "INTERVAL", "", "-2562047788:00:54.775804"},
+		{"precision_six_positive", "9223372036854775804 microseconds", "INTERVAL SECOND(6)", " SECOND(6)", "2562047788:00:54.775804"},
+		{"precision_six_negative", "-9223372036854775804 microseconds", "INTERVAL SECOND(6)", " SECOND(6)", "-2562047788:00:54.775804"},
+		{"restriction_before_offset_positive", "9223372036854775804 microseconds", "\"interval\"(8,5)", " DAY", "00:00:00"},
+		{"restriction_before_offset_negative", "-9223372036854775804 microseconds", "\"interval\"(8,5)", " DAY", "00:00:00"},
+		{"positive_tie", "5 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "00:00:00.00001"},
+		{"negative_tie", "-5 microseconds", "INTERVAL SECOND(5)", " SECOND(5)", "-00:00:00.00001"},
+		{"precision_positive_infinity", "infinity", "INTERVAL SECOND(5)", " SECOND(5)", "infinity"},
+		{"precision_negative_infinity", "-infinity", "INTERVAL SECOND(5)", " SECOND(5)", "-infinity"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), t.Name())
+			execSQL(t, db, "CREATE TABLE iv(v "+tc.usage+")")
+			for _, prepared := range []bool{false, true} {
+				for _, parameterized := range []bool{false, true} {
+					execSQL(t, db, "DELETE FROM iv")
+					q := "INSERT INTO iv VALUES('" + tc.input + "')"
+					var args []any
+					if parameterized {
+						q = "INSERT INTO iv VALUES($1)"
+						args = []any{tc.input}
+					}
+					if prepared {
+						stmt, err := db.Prepare(q)
+						if err != nil {
+							t.Fatal(err)
+						}
+						result, err := stmt.Exec(args...)
+						stmt.Close()
+						if err != nil {
+							t.Fatal(err)
+						}
+						if n, err := result.RowsAffected(); err != nil || n != 1 {
+							t.Fatal(n, err)
+						}
+					} else {
+						result, err := db.Exec(q, args...)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if n, err := result.RowsAffected(); err != nil || n != 1 {
+							t.Fatal(n, err)
+						}
+					}
+					rows, err := db.Query("SELECT v FROM iv")
+					if err != nil {
+						t.Fatal(err)
+					}
+					intervalRows(t, rows, [][]any{{tc.out}})
+					q = "SELECT INTERVAL '" + tc.input + "'" + tc.qualifier + " AS v FROM iv"
+					if prepared {
+						stmt, e := db.Prepare(q)
+						if e != nil {
+							t.Fatal(e)
+						}
+						rows, err = stmt.Query()
+						stmt.Close()
+					} else {
+						rows, err = db.Query(q)
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					intervalRows(t, rows, [][]any{{tc.out}})
+				}
+			}
+		})
 	}
 }

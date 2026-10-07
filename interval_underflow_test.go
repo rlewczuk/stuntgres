@@ -139,6 +139,9 @@ func TestIntervalISOUnderflowSessionIsolation(t *testing.T) {
 		{"P1DT0x1p-1075S", "22007", "invalid input syntax for type interval"},
 		{"P1DT-NaNS", "22015", "interval field value out of range"},
 		{"P1DT-InfS", "22015", "interval field value out of range"},
+		{" PT1S", "22007", "invalid input syntax for type interval"},
+		{"PT1S ", "22007", "invalid input syntax for type interval"},
+		{"\u00a01 second", "22007", "invalid input syntax for type interval"},
 	} {
 		for _, prepared := range []bool{false, true} {
 			const q = "INSERT INTO iv VALUES($1),($2)"
