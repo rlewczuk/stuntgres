@@ -856,3 +856,136 @@ For an INSERT without a target list, uniform VALUES rows may supply any positive
 Preparation checks assignment compatibility; typed integer literals assigned to INT4 are range-checked during execution, before NOT NULL checks. Thus preparing a short INSERT containing `2147483648` succeeds, but executing it fails with `22003` (`integer out of range`) without publishing rows. Unknown quoted numeric strings still run the destination input function during preparation and retain their input-specific diagnostic and cursor position.
 
 That feature smoke exercises both direct execution and an actual prepared short INSERT, checks declaration-order metadata and statement atomicity, and retains a cursor across Reset/Restore. It also checks deterministic full-row Dump/Restore, successful hand-authored short-row Restore, and catalog preservation when a staged short INSERT omits a NOT NULL tail. Go test reports whether those public API assertions pass.
+
+## Conditional expressions
+
+Simple and searched `CASE`, `COALESCE`, `NULLIF`, `GREATEST` and `LEAST` are
+closed SQL scalar constructs, not ordinary routine lookup. They compose with
+the existing projections, predicates, arithmetic/casts, selected call arguments,
+INSERT VALUES/SELECT sources, UPDATE RHS/WHERE, DELETE WHERE and stored DEFAULTs.
+Existing consumer restrictions still apply recursively: INSERT scalar inputs
+cannot hide columns, DEFAULTs cannot hide columns/parameters/sequence calls,
+and qualified references remain DELETE-only (and excluded inside casts).
+There is no new ordinary no-FROM SELECT, alias, ORDER expression, array or
+VARIADIC admission. CASE requires at least one WHEN; lists are nonempty and
+NULLIF has exactly two arguments.
+
+Conditionals also compose with the admitted `count(*)` aggregate in SELECT and
+HAVING, and may serve as structural GROUP BY keys. For example,
+`SELECT COALESCE(count(*),0) FROM t` returns one INT8 aggregate result.
+Aggregate occurrences in every CASE test/WHEN/result/ELSE and list argument are
+analyzed before conditional pruning. Thus a dead-arm ungrouped column still
+fails grouping validation, and aggregates hidden in WHERE or GROUP BY remain
+`42803` errors. Conditional grouping keys use the same structural identity as
+other scalar keys; rewriting them does not mutate prepared expression trees.
+This does not admit `count(expression)`, aggregate modifiers, or relationless
+aggregate SELECT.
+
+```sql
+SELECT CASE WHEN v=0 THEN 0 ELSE 10/v END,
+       CASE v WHEN 0 THEN 'zero' WHEN 2 THEN 'two' ELSE 'other' END,
+       COALESCE(s,'fallback'), NULLIF(v,0),
+       GREATEST(v,NULL,2), LEAST(v,NULL,2)
+FROM t;
+```
+
+Searched CASE takes the first TRUE condition; FALSE and NULL fall through.
+Simple CASE evaluates its test once and uses each WHEN's resolved equality
+operator. A NULL test does not match a NULL WHEN. Only the selected result is
+evaluated; missing ELSE produces a typed NULL. COALESCE stops at the first
+nonnull value and yields typed NULL if all arguments are NULL. Extrema evaluate
+every argument, ignore NULLs, return NULL only if all arguments are NULL and
+retain the first argument on ties. Ordering/equality use type-owned providers,
+including NaN equality and BPCHAR's trailing-space semantics. NULLIF evaluates
+both arguments, including its second when the first is NULL; strict equality
+returns a typed NULL when equal and the first resolved operand otherwise.
+
+### Result types and metadata
+
+CASE outputs and COALESCE/extrema arguments resolve one common type across all
+inputs. Unknown quoted literals, NULL and unresolved parameter occurrences stay
+provisional until this resolution; all-unknown inputs resolve TEXT. Known types
+must have compatible categories and direct implicit coercions to the chosen
+type, not assignment conversions or a transitive cast chain. CASE considers
+ELSE before THEN outputs when choosing the type, while analysis still visits
+test, each WHEN/THEN, then ELSE in source order. The surrounding INSERT/UPDATE
+destination cannot redefine the construct's common type: COALESCE(NULL,NULL)
+is TEXT even when assigned to an INTEGER column.
+
+The bounded mechanics execute for all supported scalar identities. Numeric
+promotion uses existing direct conversions; DATE→TIMESTAMP is implicit with
+infinity preservation and checked finite range (`22008`, `date out of range
+for timestamp`). DATE/TIME and TIMESTAMP/TIME cannot be made compatible merely
+because they share a category. Name→TEXT and TEXT/BPCHAR/VARCHAR→Name are implicit;
+Name→BPCHAR/VARCHAR requires assignment conversion. Name input/conversion retains
+the UTF8-safe 63-byte bound. Incompatible categories fail `42804`; a same-category input without
+the required direct conversion fails `42846`, at that input.
+
+NULLIF resolves a builtin equality signature instead of a common result type.
+The result is its coerced first operand: NULLIF(1,2147483648) remains INT4
+(cross-width integer equality), while NULLIF(1,2.2) is NUMERIC.
+FLOAT4/FLOAT8 equality preserves each operand, so NULLIF's result keeps its
+first float type. An integer paired with REAL uses FLOAT8 on the integer side
+but retains FLOAT4 on the REAL side: NULLIF(integer,real) is FLOAT8, while
+NULLIF(real,integer) is FLOAT4. VARCHAR equality resolves TEXT; equal BPCHAR inputs retain
+BPCHAR. DATE/TIMESTAMP equality preserves each operand and compares even a
+finite DATE outside TIMESTAMP's range without overflowing a conversion.
+Unsupported or ambiguous signatures have the operator SQLSTATE, English
+diagnostic, Hint and original source position, rather than a routine fallback.
+
+CASE takes a strongly named ELSE expression's label when available, otherwise
+`case`; other labels are `coalesce`, `nullif`, `greatest`, `least`. Conditional
+results have no physical column origin and conservative nullability metadata.
+CASE/COALESCE/extrema retain a typmod only when every final input agrees;
+omitted ELSE or unknown NULL normally loses it. NULLIF retains the first
+operand's typmod unless signature coercion changes its type. Direct, Prepare
+and repeated execution retain the same logical schema, independent of values
+or nil parameters; argument Go types never choose the SQL signature.
+
+### Analysis, planning and runtime demand
+
+All children are analyzed, input-decoded, dependency-tracked and authorized,
+including runtime-dead arms. `CASE WHEN TRUE THEN 1 ELSE 'bad' END` still fails
+integer input decoding during analysis. Prepare analyzes but does not run
+sequences, import Go arguments or fold constant division beneath row-dependent
+CASE. Execution planning folds truly immutable row/parameter/stage-independent
+subtrees outside publication locks. Decisive FALSE/NULL CASE arms are discarded
+without folding their results; TRUE drops later arms/ELSE. A constant nonnull
+COALESCE argument drops following arguments.
+
+Supplied INSERT VALUES, query sources and consumed defaults share the existing
+unlocked planning phase. Context, existing consumer-specific relation identity
+contracts and current authorization are revalidated before data capture or
+staged publication. INSERT retains strict grant-time descriptor identity;
+conditional planning does not broaden that admission contract.
+
+Consequently `CASE WHEN TRUE THEN 1 ELSE 1/0 END` and `COALESCE(1,1/0)` succeed,
+but `CASE WHEN v=0 THEN 0 ELSE 1/0 END` or `COALESCE(v,1/0)` can fail `22012`
+during execution planning even for empty input or rows that would skip the
+division. Row-dependent division and parameter-dependent casts remain lazy
+inside CASE/COALESCE: `CASE WHEN b THEN 1 ELSE CAST(CAST($1 AS TEXT) AS INTEGER) END` need not decode
+bad TEXT through the cast when only TRUE rows select the other result.
+The parameter itself must still import according to its analyzed SQL type.
+Ordinary queries do not gain consumed-default constant AND/OR pruning; this
+feature is not a general Boolean short-circuit or optimizer promise.
+Consumed stored defaults alone retain their existing decisive FALSE-AND and
+TRUE-OR policy through CASE/COALESCE nesting, without demanding the skipped
+right child or replacing the stored definition.
+
+Stored defaults preserve the original conditional structure and saved-test
+form through Dump/Restore without Eval. CREATE and Dump do not demand dormant
+runtime errors; only a consumed default is execution-planned. Explicit values
+(including NULL) bypass their defaults. Retagged catalog descriptors rebuild
+typed providers without changing old result snapshots. Restore traverses every
+conditional child, rejects even a dead-arm parameter and publishes no partial
+replacement. Multirow INSERT/UPDATE/DELETE failures likewise publish no partial
+row mutation; sequence side effects retain their existing separate contract.
+
+Permanent public witnesses:
+`make smoke RUN='^TestConditionalSmoke$' VERBOSE=0`,
+`make smoke RUN='^TestConditionalAggregateSmoke$' VERBOSE=0`,
+`make test RUN='^TestConditional' PACKAGES='. ./internal/parser ./internal/sqltype ./internal/engine' VERBOSE=0`,
+and `make reference RUN='^TestReferenceConditional' VERBOSE=0` against the real
+pinned PostgreSQL 18.0 fixture. These commands must be executed to establish
+verification; expectations precede backend comparison.
+

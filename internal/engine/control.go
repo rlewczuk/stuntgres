@@ -501,6 +501,47 @@ func commentLiteral(text string) string {
 
 func restoreScalar(raw parser.Expr) error {
 	switch r := raw.(type) {
+	case parser.CaseExpr:
+		if r.Test != nil {
+			if err := restoreScalar(r.Test); err != nil {
+				return err
+			}
+		}
+		for _, arm := range r.Arms {
+			if err := restoreScalar(arm.Condition); err != nil {
+				return err
+			}
+			if err := restoreScalar(arm.Result); err != nil {
+				return err
+			}
+		}
+		if r.Else != nil {
+			return restoreScalar(r.Else)
+		}
+		return nil
+	case parser.ConditionalExpr:
+		for _, child := range r.Args {
+			if err := restoreScalar(child); err != nil {
+				return err
+			}
+		}
+		return nil
+	case parser.LogicalExpr:
+		if err := restoreScalar(r.Left); err != nil {
+			return err
+		}
+		if r.Right != nil {
+			return restoreScalar(r.Right)
+		}
+		return nil
+	case parser.PredicateExpr:
+		if err := restoreScalar(r.Left); err != nil {
+			return err
+		}
+		if r.Right != nil {
+			return restoreScalar(r.Right)
+		}
+		return nil
 	case parser.CastExpr:
 		return restoreScalar(r.Child)
 	case parser.ParameterExpr:
@@ -508,7 +549,7 @@ func restoreScalar(raw parser.Expr) error {
 	case parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:
 		return nil
 	case parser.OperatorExpr:
-		if len(r.Name.Parts) != 1 || (!arithmeticName(r.Name.Parts[0].Text) && !symbolicArithmeticName(r.Name.Parts[0].Text)) {
+		if len(r.Name.Parts) != 1 {
 			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
 		for _, child := range r.Args {

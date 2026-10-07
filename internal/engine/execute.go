@@ -274,40 +274,40 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	expressionsChanged := false
 	evaluation := EvalContext{Context: ctx, Parameters: canonical, sequenceScope: scope}
 	_, inserting := stmt.(*parser.Insert)
-	if inserting {
-		// Preflight frame-only conversions before executor ACL/constraints.
-		// Only changed rows and the outer slice need execution-private copies.
-		for i, row := range b.expressions {
-			var privateRow []BoundExpr
-			for j, expression := range row {
-				folded, changed, foldErr := preflightCoercions(&evaluation, expression)
-				if foldErr != nil {
-					e.mu.Unlock()
-					return Result{}, insertValueError(auth.catalog, foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j], nil)
-				}
-				if changed {
-					if privateRow == nil {
-						privateRow = append([]BoundExpr(nil), row...)
-					}
-					privateRow[j] = folded
-				}
-			}
-			if privateRow != nil {
-				if !expressionsChanged {
-					expressions = append([][]BoundExpr(nil), b.expressions...)
-					expressionsChanged = true
-				}
-				expressions[i] = privateRow
-			}
-		}
-	}
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
-	if b.update != nil || b.query != nil || (deleting && b.predicate != nil) || len(b.defaults) != 0 {
+	if inserting || b.update != nil || b.query != nil || (deleting && b.predicate != nil) || len(b.defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
 		e.mu.Unlock()
+		if inserting {
+			// Supplied values retain priority over defaults and executor ACLs.
+			// Constant planning and frame conversions both run unlocked; only
+			// changed rows and the outer slice need execution-private copies.
+			for i, row := range b.expressions {
+				var privateRow []BoundExpr
+				for j, expression := range row {
+					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
+					if foldErr != nil {
+						return Result{}, insertValueError(auth.catalog, foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j], nil)
+					}
+					if changed {
+						if privateRow == nil {
+							privateRow = append([]BoundExpr(nil), row...)
+						}
+						privateRow[j] = folded
+					}
+				}
+				if privateRow != nil {
+					if !expressionsChanged {
+						expressions = append([][]BoundExpr(nil), b.expressions...)
+						expressionsChanged = true
+					}
+					expressions[i] = privateRow
+				}
+			}
+		}
 		if b.update != nil {
 			b.update, err = preflightUpdate(&evaluation, b.update)
 		} else if b.query != nil {

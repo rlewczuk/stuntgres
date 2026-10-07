@@ -112,46 +112,10 @@ func preferredType(t *sqltype.Descriptor) bool {
 	return t.ID() == sqltype.Text || t.ID() == sqltype.Float8 || t.ID() == sqltype.Bool
 }
 func commonValuesUsage(nodes [][]BoundExpr, column int, text sqltype.Usage) (sqltype.Usage, error) {
-	var candidate sqltype.Usage
-	typmod := int32(-1)
-	sameMod := true
-	for _, row := range nodes {
-		u := row[column].ResultUsage()
-		if u.Type == nil {
-			sameMod = false
-			continue
-		}
-		if candidate.Type == nil {
-			candidate = u
-			typmod = u.Typmod
-			continue
-		}
-		if u.Type != candidate.Type || u.Typmod != typmod {
-			sameMod = false
-		}
-		if candidate.Type == u.Type {
-			continue
-		}
-		if typeCategory(candidate.Type) != typeCategory(u.Type) {
-			return sqltype.Usage{}, expressionError("42804", fmt.Sprintf("VALUES types %s and %s cannot be matched", candidate.Type.DiagnosticName(), u.Type.DiagnosticName()), row[column].SourcePosition())
-		}
-		if !preferredType(candidate.Type) {
-			_, forward := sqltype.PlanCoercion(candidate.Type.Usage(), u.Type.Usage(), sqltype.Implicit)
-			_, reverse := sqltype.PlanCoercion(u.Type.Usage(), candidate.Type.Usage(), sqltype.Implicit)
-			if forward == nil && reverse != nil {
-				candidate = u
-			}
-		}
-	}
-	if candidate.Type == nil {
-		return text, nil
-	}
-	if !sameMod {
-		candidate.Typmod = -1
-	} else {
-		candidate.Typmod = typmod
-	}
-	return candidate, nil
+	return selectCommonUsage(len(nodes), func(i int) comparisonOperand {
+		node := nodes[i][column]
+		return comparisonOperand{node: node}
+	}, text, "VALUES")
 }
 func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery, error) {
 	width := len(source.Rows[0])

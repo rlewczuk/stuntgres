@@ -50,6 +50,29 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case distinctExpression:
 		o, ok := other.(distinctExpression)
 		return ok && e.equality == o.equality && e.not == o.not && same(e.left, o.left) && same(e.right, o.right)
+	case caseExpression:
+		o, ok := other.(caseExpression)
+		if !ok || len(e.arms) != len(o.arms) || !same(e.test, o.test) || !same(e.otherwise, o.otherwise) {
+			return false
+		}
+		for i, arm := range e.arms {
+			otherArm := o.arms[i]
+			if arm.testPlan != otherArm.testPlan || arm.equality != otherArm.equality || arm.testUsage != otherArm.testUsage || !same(arm.condition, otherArm.condition) || !same(arm.result, otherArm.result) {
+				return false
+			}
+		}
+		return true
+	case conditionalExpression:
+		o, ok := other.(conditionalExpression)
+		if !ok || e.kind != o.kind || e.comparison != o.comparison || len(e.args) != len(o.args) {
+			return false
+		}
+		for i := range e.args {
+			if !same(e.args[i], o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case sequenceCallExpression:
 		o, ok := other.(sequenceCallExpression)
 		if !ok || e.name != o.name || e.ref != o.ref || e.temporary != o.temporary || len(e.args) != len(o.args) {
@@ -135,6 +158,23 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		e.right = rewrite(e.right)
 		stage(&e.expressionInfo)
 		expr = e
+	case caseExpression:
+		e.test = rewrite(e.test)
+		e.arms = append([]caseBranch(nil), e.arms...)
+		for i := range e.arms {
+			e.arms[i].condition = rewrite(e.arms[i].condition)
+			e.arms[i].result = rewrite(e.arms[i].result)
+		}
+		e.otherwise = rewrite(e.otherwise)
+		stage(&e.expressionInfo)
+		expr = e
+	case conditionalExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case sequenceCallExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
@@ -180,6 +220,17 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case distinctExpression:
 		walk(e.left)
 		walk(e.right)
+	case caseExpression:
+		walk(e.test)
+		for _, arm := range e.arms {
+			walk(arm.condition)
+			walk(arm.result)
+		}
+		walk(e.otherwise)
+	case conditionalExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
 	case sequenceCallExpression:
 		for _, arg := range e.args {
 			walk(arg)

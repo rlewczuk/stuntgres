@@ -159,6 +159,30 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return nil, false, err
 	}
 	switch e := expression.(type) {
+	case caseExpression:
+		return simplifyConditional(c, expression, decisiveDefaults)
+	case conditionalExpression:
+		if e.kind == parser.Coalesce {
+			return simplifyConditional(c, expression, decisiveDefaults)
+		}
+		var args []BoundExpr
+		for i, arg := range e.args {
+			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = next
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || args != nil, err
 	case coercionExpression:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
 		if err != nil {
@@ -514,7 +538,10 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error)
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
-	if len(raw.Name.Parts) == 0 || len(raw.Name.Parts) > 2 || (len(raw.Name.Parts) == 2 && !b.deleteTarget) {
+	if len(raw.Name.Parts) == 2 && !b.deleteTarget {
+		return nil, expressionError("0A000", "qualified column references are unsupported", raw.Pos)
+	}
+	if len(raw.Name.Parts) == 0 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
@@ -593,6 +620,18 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			b.aggregates = append(b.aggregates, provider)
 		}
 		node = aggregateExpression{b.info(provider.ResultUsage(), r.Pos, ExprProperties{StageDependent: true}), 0}
+	case parser.CaseExpr:
+		var err error
+		node, err = b.bindCase(r)
+		if err != nil {
+			return nil, err
+		}
+	case parser.ConditionalExpr:
+		var err error
+		node, err = b.bindConditional(r)
+		if err != nil {
+			return nil, err
+		}
 	case parser.FunctionExpr:
 		var err error
 		node, err = b.bindFunction(r)
@@ -763,6 +802,11 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 }
 
 func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
+	if !b.defaultConsumer {
+		if err := qualifiedCastChild(raw.Child); err != nil {
+			return nil, err
+		}
+	}
 	if raw.Syntax == parser.FunctionCast && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool" {
 		source := "unknown"
 		if literal, ok := raw.Child.(parser.LiteralExpr); !ok || (literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue) {
@@ -833,6 +877,15 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
 		return r.Name, true
+	case parser.ConditionalExpr:
+		return conditionalName(r), true
+	case parser.CaseExpr:
+		if r.Else != nil {
+			if name, strong := expressionName(r.Else, usage); strong {
+				return name, true
+			}
+		}
+		return "case", false
 	case parser.ColumnExpr:
 		return r.Name.Parts[0].Text, true
 	case parser.FunctionExpr:
@@ -968,12 +1021,12 @@ func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand
 		return comparisonOperand{raw: raw}, nil
 	}
 	switch raw.(type) {
-	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr:
+	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
-	return comparisonOperand{node: node}, err
+	return comparisonOperand{node: node, raw: raw}, err
 }
 
 func (b *expressionBinder) coerceParameter(p parameterExpression, u sqltype.Usage) (BoundExpr, error) {

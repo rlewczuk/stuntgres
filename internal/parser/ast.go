@@ -301,6 +301,23 @@ func (s *Select) IsSingleton() bool {
 
 func singletonArgument(expr Expr) bool {
 	switch e := expr.(type) {
+	case CaseExpr:
+		if e.Test != nil && !singletonArgument(e.Test) {
+			return false
+		}
+		for _, arm := range e.Arms {
+			if !singletonArgument(arm.Condition) || !singletonArgument(arm.Result) {
+				return false
+			}
+		}
+		return e.Else == nil || singletonArgument(e.Else)
+	case ConditionalExpr:
+		for _, arg := range e.Args {
+			if !singletonArgument(arg) {
+				return false
+			}
+		}
+		return true
 	case LiteralExpr, TypedLiteralExpr, ParameterExpr:
 		return true
 	case CastExpr:
@@ -567,6 +584,21 @@ func containsAggregate(expr Expr) bool {
 	switch e := expr.(type) {
 	case AggregateExpr:
 		return true
+	case CaseExpr:
+		if containsAggregate(e.Test) || containsAggregate(e.Else) {
+			return true
+		}
+		for _, arm := range e.Arms {
+			if containsAggregate(arm.Condition) || containsAggregate(arm.Result) {
+				return true
+			}
+		}
+	case ConditionalExpr:
+		for _, arg := range e.Args {
+			if containsAggregate(arg) {
+				return true
+			}
+		}
 	case CastExpr:
 		return containsAggregate(e.Child)
 	case RegclassExpr:

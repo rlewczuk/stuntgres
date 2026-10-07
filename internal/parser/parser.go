@@ -285,6 +285,27 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 
 func (l *lexer) scalarInput(expr Expr) bool {
 	switch r := expr.(type) {
+	case CaseExpr:
+		if r.Test != nil && !l.scalarInput(r.Test) {
+			return false
+		}
+		for _, arm := range r.Arms {
+			if !l.scalarInput(arm.Condition) || !l.scalarInput(arm.Result) {
+				return false
+			}
+		}
+		return r.Else == nil || l.scalarInput(r.Else)
+	case ConditionalExpr:
+		for _, child := range r.Args {
+			if !l.scalarInput(child) {
+				return false
+			}
+		}
+		return true
+	case LogicalExpr:
+		return l.scalarInput(r.Left) && (r.Right == nil || l.scalarInput(r.Right))
+	case PredicateExpr:
+		return l.scalarInput(r.Left) && (r.Right == nil || l.scalarInput(r.Right))
 	case CastExpr:
 		return l.scalarInput(r.Child)
 	case OperatorExpr:

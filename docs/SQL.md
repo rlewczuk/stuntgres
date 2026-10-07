@@ -46,6 +46,10 @@ type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN
 value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | DATE 'input' | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] 'input'
 scalar := unqualified column | value | (scalar) | CAST(scalar AS cast_type) | scalar::cast_type
         | (int4 | int8 | text | bool)(scalar)
+        | CASE [logical_target] WHEN logical_target THEN logical_target
+          [WHEN logical_target THEN logical_target ...] [ELSE logical_target] END
+        | (COALESCE | GREATEST | LEAST)(logical_target [, ...])
+        | NULLIF(logical_target, logical_target)
 cast_type := INTEGER | INT | INT4 | BIGINT | INT8 | BOOLEAN | BOOL | TEXT
            | (CHAR | CHARACTER | BPCHAR | VARCHAR | CHARACTER VARYING) [(length)]
 comparison := scalar (= | <> | != | < | <= | > | >=) scalar
@@ -60,6 +64,11 @@ null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
 default_expression := value | comparison | (logical_target)
                     | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
+Conditional expressions compose with the existing scalar consumers, including
+INSERT sources, mutation predicates/RHS and stored DEFAULTs. Their common types,
+NULLIF equality signatures, result metadata and analysis-versus-execution demand
+are described in [Conditional expressions](QUERIES.md#conditional-expressions).
+
 
 ## Sequences
 

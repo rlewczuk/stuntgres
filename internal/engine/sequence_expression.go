@@ -121,6 +121,9 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 	if b.defaultConsumer {
 		return nil, ObjectRef{}, expressionError("0A000", "regclass is unsupported in DEFAULT expressions", parser.ExpressionStart(raw))
 	}
+	if err := qualifiedCastChild(raw); err != nil {
+		return nil, ObjectRef{}, err
+	}
 	if cast, ok := raw.(parser.RegclassExpr); ok {
 		return b.bindRegclass(cast.Child)
 	}

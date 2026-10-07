@@ -12,6 +12,21 @@ func sequenceProjection(s *Select) bool {
 	var contains func(Expr) bool
 	contains = func(e Expr) bool {
 		switch n := e.(type) {
+		case CaseExpr:
+			if contains(n.Test) || contains(n.Else) {
+				return true
+			}
+			for _, arm := range n.Arms {
+				if contains(arm.Condition) || contains(arm.Result) {
+					return true
+				}
+			}
+		case ConditionalExpr:
+			for _, arg := range n.Args {
+				if contains(arg) {
+					return true
+				}
+			}
 		case CallExpr:
 			return true
 		case RegclassExpr:

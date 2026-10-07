@@ -472,6 +472,7 @@ const (
 	floatIntegerConversion
 	stringConversion
 	nameConversion
+	dateTimestampConversion
 )
 
 type CoercionPlan struct {
@@ -489,6 +490,13 @@ type castSpec struct {
 // Fixed provider definitions are read-only; identity/ownership comes from the
 // source and target catalog descriptors retained by each bound plan.
 var baselineCasts = [...]castSpec{
+	{Date, Timestamp, Implicit, dateTimestampConversion},
+	{Name, Text, Implicit, stringConversion},
+	{Name, BPChar, Assignment, stringConversion},
+	{Name, VarChar, Assignment, stringConversion},
+	{Text, Name, Implicit, nameConversion},
+	{BPChar, Name, Implicit, nameConversion},
+	{VarChar, Name, Implicit, nameConversion},
 	{Int2, Int4, Implicit, integerConversion},
 	{Int2, Int8, Implicit, integerConversion},
 	{Int4, Int2, Assignment, integerConversion},
@@ -594,6 +602,14 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case dateTimestampConversion:
+		if v.integer == DateNegativeInfinity || v.integer == DatePositiveInfinity {
+			return TimestampValue(p.target.Type, v.integer)
+		}
+		if v.integer < timestampMinimum/microsPerDay || v.integer >= timestampEnd/microsPerDay {
+			return Value{}, failure("22008", "date out of range for timestamp")
+		}
+		return TimestampValue(p.target.Type, v.integer*microsPerDay)
 	case identity:
 		if IsCharacter(p.target.Type.id) {
 			return sizeCharacter(v, p.target.Typmod, p.context == Explicit)
@@ -696,6 +712,18 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 	}
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return 0, fmt.Errorf("invalid comparison values")
+	}
+	if p.left.id == Date && p.right.id == Timestamp || p.left.id == Timestamp && p.right.id == Date {
+		day, stamp := a.integer, b.integer
+		reverse := p.left.id == Timestamp
+		if reverse {
+			day, stamp = b.integer, a.integer
+		}
+		sign := compareDateTimestamp(day, stamp)
+		if reverse {
+			sign = -sign
+		}
+		return sign, nil
 	}
 	if IsCharacter(p.left.id) && IsCharacter(p.right.id) {
 		left, right := a.text, b.text

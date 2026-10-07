@@ -84,6 +84,8 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		return "", fmt.Errorf("stuntgres: foreign default type")
 	}
 	switch n := node.(type) {
+	case caseExpression, conditionalExpression:
+		return conditionalDefaultSQL(ctx, view, node)
 	case literalExpression:
 		if n.value.Type() != u.Type {
 			return "", fmt.Errorf("stuntgres: invalid default literal")
@@ -346,6 +348,60 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case caseExpression:
+		n.test, n.otherwise = child(n.test), child(n.otherwise)
+		var arms []caseBranch
+		for i, old := range n.arms {
+			arm := old
+			arm.condition, arm.result = child(arm.condition), child(arm.result)
+			if n.test != nil && err == nil {
+				arm.testUsage.Type = retainedType(arm.testUsage.Type)
+				arm.testPlan, err = sqltype.PlanCoercion(n.test.ResultUsage(), arm.testUsage, sqltype.Implicit)
+				if err == nil {
+					arm.equality, err = sqltype.BindEqualityComparison(arm.testUsage.Type, arm.condition.ResultUsage().Type)
+				}
+			}
+			if changed && arms == nil {
+				arms = append([]caseBranch(nil), n.arms...)
+			}
+			if arms != nil {
+				arms[i] = arm
+			}
+		}
+		if !changed {
+			return node, false, err
+		}
+		if arms != nil {
+			n.arms = arms
+		}
+		n.expressionInfo = info
+		rebound = n
+	case conditionalExpression:
+		var args []BoundExpr
+		for i, old := range n.args {
+			next := child(old)
+			if changed && args == nil {
+				args = append([]BoundExpr(nil), n.args...)
+			}
+			if args != nil {
+				args[i] = next
+			}
+		}
+		if !changed {
+			return node, false, err
+		}
+		if args != nil {
+			n.args = args
+		}
+		if err == nil && n.kind != parser.Coalesce {
+			left, right := typ, typ
+			if n.kind == parser.NullIf {
+				left, right = n.args[0].ResultUsage().Type, n.args[1].ResultUsage().Type
+			}
+			n.comparison, err = sqltype.BindEqualityComparison(left, right)
+		}
+		n.expressionInfo = info
+		rebound = n
 	case literalExpression:
 		if !changed {
 			return node, false, nil

@@ -47,6 +47,8 @@ package parser
  alterSequence *AlterSequence
  integer int64
  persistence string
+ caseArms []CaseArm
+ caseArm CaseArm
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -62,6 +64,7 @@ package parser
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
 %token <tok> NULL_COUNT_FUNC VARIADIC
+%token <tok> CASE WHEN THEN ELSE COALESCE NULLIF GREATEST LEAST
 %token <tok> IF EXISTS
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
 %token <tok> LOCK ACCESS EXCLUSIVE MODE IN
@@ -75,7 +78,7 @@ package parser
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
-%nonassoc INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP IN AND SAVEPOINT
+%nonassoc INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
 /* Predicate continuations reduce a completed cast type before consuming IS,
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
@@ -94,6 +97,7 @@ package parser
  * Preserve declaration grammar's deliberate type-tail shift rather than
  * leaving those decisions as implicit shift/reduce conflicts. */
 %nonassoc IDENT NULL_COUNT_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC '.'
+%nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
 %nonassoc '('
 %nonassoc KW_T LIKE WITH WITHOUT
 %nonassoc '='
@@ -139,6 +143,11 @@ package parser
 %type <expr> having
 %type <value> value
 %type <expr> scalar scalar_atom operand target default_target where target_not target_and target_or projection_target function function_argument insert_value
+%type <expr> conditional case_test case_else
+%type <caseArms> case_arms
+%type <caseArm> case_arm
+%type <row> conditional_args
+%type <tok> conditional_word
 %type <tok> comparison_operator
 %type <call> function_args
 %type <predicate> truth_kind
@@ -542,7 +551,18 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
   * belong exclusively to temporal_type, not the ordinary name reduction. */
  | IDENT STRING { if $1.text!="date" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+ | conditional { $$=$1 }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:Identifier{Text:$1.text,Pos:$1.pos},Args:$3} } ;
+conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$3,Else:$4,Pos:$1.pos} }
+ | COALESCE '(' conditional_args ')' { $$=ConditionalExpr{Kind:Coalesce,Args:$3,Pos:$1.pos} }
+ | GREATEST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Greatest,Args:$3,Pos:$1.pos} }
+ | LEAST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Least,Args:$3,Pos:$1.pos} }
+ | NULLIF '(' delete_or ',' delete_or ')' { $$=ConditionalExpr{Kind:NullIf,Args:[]Expr{$3,$5},Pos:$1.pos} } ;
+case_test: /* empty */ { $$=nil } | delete_or { $$=$1 } ;
+case_arms: case_arm { $$=[]CaseArm{$1} } | case_arms case_arm { $$=append($1,$2) } ;
+case_arm: WHEN delete_or THEN delete_or { $$=CaseArm{Condition:$2,Result:$4,Pos:$1.pos} } ;
+case_else: /* empty */ { $$=nil } | ELSE delete_or { $$=$2 } ;
+conditional_args: delete_or { $$=[]Expr{$1} } | conditional_args ',' delete_or { $$=append($1,$3) } ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 date_literal_precision: DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$1,false);if !ok{return 1}}
  | '-' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
@@ -621,13 +641,15 @@ where: /* empty */ { $$ = nil }
  | WHERE target_or { $$=$2 }
  | WHERE name predicate_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 }
  | WHERE name KW_C { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 } ;
-group: /* empty */ { $$=nil } | GROUP BY group_keys { $$=$3 }
+/* GROUP/HAVING are admitted clause openers and retained suffix guards. Prefer
+ * their real clauses over reducing the optional clause to reach a guard. */
+group: /* empty */ %prec NAME_LIST { $$=nil } | GROUP BY group_keys { $$=$3 }
  | GROUP BY '(' ')' { sqllex.(*lexer).failAt("0A000","empty grouping sets are unsupported",$1.pos.Offset);return 1 }
  | GROUP BY DISTINCT group_keys { sqllex.(*lexer).failAt("0A000","GROUP BY DISTINCT is unsupported",$3.pos.Offset);return 1 }
  | GROUP BY ALL group_keys { sqllex.(*lexer).failAt("0A000","GROUP BY ALL is unsupported",$3.pos.Offset);return 1 }
  | GROUP BY KW_C name '(' group_keys ')' { if $3.text!="grouping" || $4.text!="sets" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).failAt("0A000","grouping sets are unsupported",$3.pos.Offset);return 1 } ;
 group_keys: target_or { $$=[]Expr{$1} } | group_keys ',' target_or { $$=append($1,$3) } ;
-having: /* empty */ { $$=nil } | HAVING target_or { $$=$2 } ;
+having: /* empty */ %prec NAME_LIST { $$=nil } | HAVING target_or { $$=$2 } ;
 order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$3.text, Pos:$3.pos, Desc:$4} }
  | ORDER BY name direction ',' { sqllex.(*lexer).fail("0A000","multiple sort keys are unsupported"); return 1 }
  | ORDER BY name direction nulls_keyword nulls_position { sqllex.(*lexer).failAt("0A000","NULLS ordering is unsupported",$5.pos.Offset); return 1 } ;
@@ -635,16 +657,17 @@ nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
 sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST ;
+conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word: IDENT | DELETE | NULL_COUNT_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
- | UNKNOWN | sequence_name_word ;
+ | UNKNOWN | sequence_name_word | conditional_word ;
 name: setting_word | ROLE | LOCAL ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
-type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word ;
+type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | NULL_COUNT_FUNC | KW_U | KW_C | KW_T | KW_R | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT ;
+generic_word_base: IDENT | NULL_COUNT_FUNC | KW_U | KW_C | KW_T | KW_R | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | conditional_word ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
 bare_label: name { if $1.keyword!=nil && ($1.text=="filter" || $1.text=="over") {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$1.pos.Offset);return 1}; if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | LIKE { $$=$1 }
@@ -653,8 +676,9 @@ bare_label: name { if $1.keyword!=nil && ($1.text=="filter" || $1.text=="over") 
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
- | VARIADIC | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | DISTINCT ;
-col_label: name | VARIADIC | LIKE | KW_T | KW_R | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT ;
+ | VARIADIC | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | DISTINCT
+ | CASE | WHEN | THEN | ELSE ;
+col_label: name | VARIADIC | LIKE | KW_T | KW_R | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CASE | WHEN | THEN | ELSE ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

@@ -34,6 +34,20 @@ from runtime typed grouping equality.
 Feature smoke: `make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0`;
 real independent oracle: `make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0`.
 
+Simple/searched CASE, COALESCE, NULLIF, GREATEST and LEAST are scalar constructs
+in every existing general-scalar consumer, including DEFAULT/native roundtrip.
+CASE and COALESCE skip unneeded runtime children; NULLIF and extrema demand all
+arguments. All children still undergo analysis and authorization. A bounded
+execution-only constant simplifier can reject constant division by zero beneath
+a row-dependent CASE/COALESCE, while decisive constant branches prune their
+unneeded runtime expressions. This is not general Boolean short-circuiting.
+Common-type and equality-overload resolution execute across the already-supported
+scalar types, including implicit DATE→TIMESTAMP; this does not add general casts,
+ordinary routines, arrays/VARIADIC, aliases, ORDER expressions or ordinary
+relationless SELECT. See [conditional expressions](QUERIES.md#conditional-expressions).
+Feature witnesses: `make smoke RUN='^TestConditionalSmoke$' VERBOSE=0` and
+`make reference RUN='^TestReferenceConditional' VERBOSE=0`.
+
 INSERT additionally accepts SELECT sources with the existing projection/filter/
 one-column sort surface, parenthesized sources and INSERT-only no-FROM literal/
 parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;
@@ -196,8 +210,9 @@ NULL/nondecisive left operands still demand right operations; a bad left is not
 rescued by a decisive right. CREATE continues analyzing both operands.
 The schedule uses lazy private copies; catalog definitions remain unfolded.
 Remaining runtime expressions evaluate only in rows/cells consuming the default.
-No ordinary query/DELETE/UPDATE/supplied preflight or runtime logical
-evaluator behavior changes, and no general short-circuit/optimizer promise is made.
+Outside conditional boundaries, ordinary query/DELETE/UPDATE/supplied preflight
+and runtime logical evaluator behavior are unchanged; no general Boolean
+short-circuit/optimizer promise is made.
 ORDER-decorated DEFAULT is42601 `DEFAULT is not allowed in this context` at its
 marker; direct Execute/prepared Prepare. Ordinary and parenthesized undecorated
 VALUES retain requests. LIMIT and FROM-less WHERE remain outside the source
