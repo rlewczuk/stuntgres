@@ -147,7 +147,7 @@ func TestFloatProvidersOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n, err := cmp.Compare(ctx, a, b); err != nil || n != -1 {
+	if n, err := cmp.Compare(ctx, a, b, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal(n, err)
 	}
 	for _, pair := range [][2]ID{{Float4, Float8}, {Float8, Float4}, {Float4, Float4}} {
@@ -157,11 +157,11 @@ func TestFloatProvidersOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, err := eq.Evaluate(ctx, left, right)
+		v, err := eq.Evaluate(ctx, left, right, InputEnvironment{})
 		if err != nil || !v.boolean {
 			t.Fatal(v, err)
 		}
-		v, err = eq.Evaluate(ctx, left, Null(right.Type()))
+		v, err = eq.Evaluate(ctx, left, Null(right.Type()), InputEnvironment{})
 		if err != nil || !v.IsNull() || v.Type() != types[Bool] {
 			t.Fatal(v, err)
 		}
@@ -180,12 +180,12 @@ func TestFloatProvidersOwnership(t *testing.T) {
 	}
 	for _, n := range []float64{math.MaxFloat64, math.SmallestNonzeroFloat64} {
 		v, _ := Float(types[Float8], n)
-		if _, err := plan.Apply(ctx, v); err == nil {
+		if _, err := plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{}); err == nil {
 			t.Fatal("range accepted", n)
 		}
 	}
 	foreign, _ := Float(testTypes()[Float8], 1)
-	if _, err := plan.Apply(ctx, foreign); err == nil {
+	if _, err := plan.Apply(ctx, foreign, InputEnvironment{}, OutputEnvironment{}); err == nil {
 		t.Fatal("foreign value")
 	}
 	if _, err := types[Float4].Output(ctx, foreign); err == nil {
@@ -204,7 +204,7 @@ func TestFloatProvidersOwnership(t *testing.T) {
 	if _, err := types[Float4].Input(canceled, "1", -1); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, err := cmp.Compare(canceled, a, b); !errors.Is(err, context.Canceled) {
+	if _, err := cmp.Compare(canceled, a, b, InputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -235,7 +235,7 @@ func TestFloatCoercionsAndExactDiagnostics(t *testing.T) {
 			t.Fatal(err)
 		}
 		integer, _ := Integer(types[Int8], 16777217)
-		v, err := plan.Apply(ctx, integer)
+		v, err := plan.Apply(ctx, integer, InputEnvironment{}, OutputEnvironment{})
 		want := float64(16777217)
 		if id == Float4 {
 			want = 16777216
@@ -247,18 +247,18 @@ func TestFloatCoercionsAndExactDiagnostics(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		text, err := ioPlan.Apply(ctx, v)
+		text, err := ioPlan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		if err != nil || text.text == "" {
 			t.Fatal(text, err)
 		}
-		null, err := plan.Apply(ctx, Null(types[Int8]))
+		null, err := plan.Apply(ctx, Null(types[Int8]), InputEnvironment{}, OutputEnvironment{})
 		if err != nil || !null.IsNull() || null.Type() != d {
 			t.Fatal(null, err)
 		}
 		positive, _ := Float(d, 0)
 		negative, _ := Float(d, math.Copysign(0, -1))
 		cmp, _ := BindComparison(d, d)
-		if n, err := cmp.Compare(ctx, positive, negative); err != nil || n != 0 {
+		if n, err := cmp.Compare(ctx, positive, negative, InputEnvironment{}); err != nil || n != 0 {
 			t.Fatal(n, err)
 		}
 	}
@@ -266,12 +266,12 @@ func TestFloatCoercionsAndExactDiagnostics(t *testing.T) {
 	a, _ := Float(types[Float8], 9007199254740992)
 	b, _ := Integer(types[Int8], 9007199254740993)
 	cmp, _ := BindComparison(a.Type(), b.Type())
-	if n, err := cmp.Compare(ctx, a, b); err != nil || n != 0 {
+	if n, err := cmp.Compare(ctx, a, b, InputEnvironment{}); err != nil || n != 0 {
 		t.Fatal(n, err)
 	}
 	x, _ := Integer(types[Int8], 9007199254740992)
 	exact, _ := BindComparison(x.Type(), b.Type())
-	if n, err := exact.Compare(ctx, x, b); err != nil || n != -1 {
+	if n, err := exact.Compare(ctx, x, b, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal(n, err)
 	}
 }

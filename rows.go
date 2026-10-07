@@ -90,7 +90,7 @@ func (r *rows) Next(dst []driver.Value) error {
 		if !v.IsNull() && v.Type().ID() == sqltype.Regclass {
 			value, err = r.cursor.RegclassText(v)
 		} else {
-			value, err = exportValue(r.ctx, v)
+			value, err = exportValue(r.ctx, v, r.cursor.OutputEnvironment())
 		}
 		if err != nil {
 			return r.fail(err)

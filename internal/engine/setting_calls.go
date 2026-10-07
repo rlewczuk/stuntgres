@@ -53,7 +53,7 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 	info, err := binder.finish()
 	return info, bound, err
 }
-func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment) (Result, error) {
+func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.mu.Lock()
 	info, bound, err := e.describeSettingCall(op.ctx, s, input, op)
 	typ, typeOK := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Text)
@@ -82,7 +82,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		}
 	}
 	var inputs [3]sqltype.Value
-	evaluation := EvalContext{Context: op.ctx, Parameters: frame}
+	evaluation := EvalContext{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment}
 	for i, v := range bound {
 		inputs[i], err = v.Eval(&evaluation)
 		if err != nil {

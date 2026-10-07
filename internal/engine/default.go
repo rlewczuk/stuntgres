@@ -37,7 +37,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 			}
 			return nil, err
 		}
-		node = coercionExpression{b.info(column.Usage, parser.Position{}, node.Properties()), node, plan, sqltype.Assignment}
+		node = coercionExpression{b.info(column.Usage, parser.Position{}, coercionProperties(node, plan)), node, plan, sqltype.Assignment}
 	}
 	return node, nil
 }
@@ -88,6 +88,19 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		return conditionalDefaultSQL(ctx, view, node)
 	case literalExpression:
 		return literalSQL(ctx, n)
+	case timeZoneExpression:
+		value, err := defaultSQL(ctx, view, n.value)
+		if err != nil {
+			return "", err
+		}
+		if n.local {
+			return "(" + value + " AT LOCAL)", nil
+		}
+		zone, err := defaultSQL(ctx, view, n.zone)
+		if err != nil {
+			return "", err
+		}
+		return "(" + value + " AT TIME ZONE " + zone + ")", nil
 	case coercionExpression:
 		if n.child == nil {
 			return "", fmt.Errorf("stuntgres: missing default coercion child")
@@ -497,6 +510,16 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 		n.value, err = n.value.Retag(typ)
 		n.expressionInfo = info
 		rebound = n
+	case timeZoneExpression:
+		n.value = child(n.value)
+		if !n.local {
+			n.zone = child(n.zone)
+		}
+		if !changed {
+			return node, false, err
+		}
+		n.expressionInfo = info
+		rebound = n
 	case coercionExpression:
 		n.child = child(n.child)
 		if !changed {
@@ -613,7 +636,7 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 		return literal, err
 	}
 	switch u.Type.ID() {
-	case sqltype.Date, sqltype.Time, sqltype.Timestamp:
+	case sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Timetz:
 		// The endpoint encoding can already carry its required precision.
 		if strings.HasPrefix(literal, "TIMESTAMP") {
 			return literal, nil

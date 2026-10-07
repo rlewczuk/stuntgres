@@ -77,7 +77,7 @@ func TestNameCoercion(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		v, err := p.Apply(ctx, String(ds[tc.source], tc.in))
+		v, err := p.Apply(ctx, String(ds[tc.source], tc.in), InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +85,7 @@ func TestNameCoercion(t *testing.T) {
 		if err != nil || got != tc.want || v.Type() != ds[tc.target] {
 			t.Fatal(tc, got, err)
 		}
-		v, err = p.Apply(ctx, Null(ds[tc.source]))
+		v, err = p.Apply(ctx, Null(ds[tc.source]), InputEnvironment{}, OutputEnvironment{})
 		if err != nil || !v.IsNull() || v.Type() != ds[tc.target] {
 			t.Fatal(v, err)
 		}
@@ -95,7 +95,7 @@ func TestNameCoercion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, err := p.Apply(ctx, Boolean(ds[Bool], value))
+		v, err := p.Apply(ctx, Boolean(ds[Bool], value), InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +121,7 @@ func TestNameCoercion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = p.Apply(ctx, String(foreign, "x")); err == nil {
+	if _, err = p.Apply(ctx, String(foreign, "x"), InputEnvironment{}, OutputEnvironment{}); err == nil {
 		t.Fatal("foreign value accepted")
 	}
 }
@@ -142,7 +142,7 @@ func TestNameComparison(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		got, err := p.Compare(ctx, String(ds[tc.left], tc.a), String(ds[tc.right], tc.b))
+		got, err := p.Compare(ctx, String(ds[tc.left], tc.a), String(ds[tc.right], tc.b), InputEnvironment{})
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}
@@ -153,7 +153,7 @@ func TestNameComparison(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, operands := range [][2]Value{{Null(ds[Name]), String(ds[Name], "x")}, {String(ds[Name], "x"), Null(ds[Name])}, {Null(ds[Name]), Null(ds[Name])}} {
-			v, err := p.Evaluate(ctx, operands[0], operands[1])
+			v, err := p.Evaluate(ctx, operands[0], operands[1], InputEnvironment{})
 			if err != nil || !v.IsNull() || v.Type() != ds[Bool] {
 				t.Fatal(v, err)
 			}

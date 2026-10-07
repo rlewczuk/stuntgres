@@ -76,6 +76,15 @@ The shared object allocator skips live namespace and relation identities importe
 by Restore, so subsequent schema and table creation continues without collisions.
 Replacement does not rewind the destination's nonreuse counter.
 
+Timezone-aware declarations, precision, frozen defaults, NULLs, BC and infinities
+use the existing canonical SQL replay. TIMESTAMPTZ literals are ISO UTC with an
+explicit +00; TIMETZ literals retain clock and stored fixed offset. Dump is
+independent of source TimeZone/DateStyle and does not serialize session settings.
+Restore preserves target live settings. Old cursors retain their captured
+presentation and metadata after replacement; later invalid temporal input,
+unknown zones, I/O errors or cancellation never publish a partial catalog.
+This is native logical fixture replay, not PostgreSQL physical backup.
+
 Dump excludes TEMP sequences and records persistent sequence options, owner,
 comment, OWNED BY association and generator high-water/called state. Restore
 installs new persistent generator identities atomically; it does not serialize

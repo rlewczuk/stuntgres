@@ -106,7 +106,7 @@ func TestOIDCasts(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			out, err := p.Apply(ctx, v)
+			out, err := p.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 			if err != nil {
 				t.Fatal(tc, err)
 			}
@@ -114,7 +114,7 @@ func TestOIDCasts(t *testing.T) {
 			if err != nil || s != tc.want {
 				t.Fatal(tc, s, err)
 			}
-			null, err := p.Apply(ctx, Null(ts[tc.from]))
+			null, err := p.Apply(ctx, Null(ts[tc.from]), InputEnvironment{}, OutputEnvironment{})
 			if err != nil || !null.IsNull() || null.Type() != ts[tc.to] {
 				t.Fatal(tc, null, err)
 			}
@@ -123,7 +123,7 @@ func TestOIDCasts(t *testing.T) {
 	for _, input := range []string{"-1", "4294967296"} {
 		v, _ := ts[Int8].Input(ctx, input, -1)
 		p, _ := PlanCoercion(ts[Int8].Usage(), ts[Oid].Usage(), Implicit)
-		_, err := p.Apply(ctx, v)
+		_, err := p.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		var e *sqlstate.Error
 		if !errors.As(err, &e) || e.Code != "22003" || e.Message != "OID out of range" || e.Position != "" {
 			t.Fatal(err)
@@ -157,7 +157,7 @@ func TestOIDComparisonGrouping(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				v, err := p.Evaluate(ctx, av, bv)
+				v, err := p.Evaluate(ctx, av, bv, InputEnvironment{})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -166,7 +166,7 @@ func TestOIDComparisonGrouping(t *testing.T) {
 				if got != want {
 					t.Fatal(i, j, op, got)
 				}
-				n, err := p.Evaluate(ctx, av, Null(d))
+				n, err := p.Evaluate(ctx, av, Null(d), InputEnvironment{})
 				if err != nil || !n.IsNull() || n.Type() != ts[Bool] {
 					t.Fatal(n, err)
 				}

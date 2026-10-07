@@ -171,9 +171,9 @@ func TestTimePrecisionAndComparison(t *testing.T) {
 	for _, pair := range [][2]int64{{0, 14706100000}, {14706100000, 14706200000}, {14706200000, microsPerDay}, {0, microsPerDay}} {
 		a, _ := TimeValue(d, pair[0])
 		b, _ := TimeValue(d, pair[1])
-		n, _ := cmp.Compare(ctx, a, b)
-		reverse, _ := cmp.Compare(ctx, b, a)
-		equal, _ := cmp.Compare(ctx, a, a)
+		n, _ := cmp.Compare(ctx, a, b, InputEnvironment{})
+		reverse, _ := cmp.Compare(ctx, b, a, InputEnvironment{})
+		equal, _ := cmp.Compare(ctx, a, a, InputEnvironment{})
 		if n != -1 || reverse != 1 || equal != 0 {
 			t.Fatal(pair, n, reverse, equal)
 		}
@@ -189,7 +189,7 @@ func TestTimePrecisionAndComparison(t *testing.T) {
 	}
 	eq, _ := BindComparisonPredicate(CompareEqual, d, d, boolType)
 	v, _ := TimeValue(d, 0)
-	null, err := eq.Evaluate(ctx, Null(d), v)
+	null, err := eq.Evaluate(ctx, Null(d), v, InputEnvironment{})
 	if err != nil || !null.IsNull() || null.Type() != boolType {
 		t.Fatal(null, err)
 	}

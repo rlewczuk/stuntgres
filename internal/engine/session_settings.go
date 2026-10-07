@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -199,6 +200,19 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 		var err error
 		if d.Normalize != nil {
 			v.text, notice, err = d.Normalize(*input)
+		} else if d.Name == "datestyle" {
+			owner.mu.Lock()
+			current, ok := owner.typed[d.Name]
+			if !ok {
+				current = owner.defaultTyped[d.Name]
+			}
+			defaults := owner.defaultTyped[d.Name]
+			owner.mu.Unlock()
+			style, detail := sqltype.ParseDateStyle(*input, current.dateStyle, defaults.dateStyle)
+			if detail != "" {
+				err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "DateStyle": "%s"`, *input), Detail: detail}
+			}
+			v.dateStyle, v.text = style, style.String()
 		} else {
 			v, err = d.parse(*input)
 		}
@@ -253,8 +267,21 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 		if s.Local && implicit {
 			op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
 		}
-		if !s.Default {
-			if strings.EqualFold(name, "search_path") {
+		if atom := s.Interval; atom != nil {
+			precision := atom.Precision
+			if precision > 6 {
+				op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "INTERVAL(" + strconv.FormatInt(int64(precision), 10) + ") precision reduced to maximum allowed, 6"})
+				precision = 6
+			}
+			interval, err := sqltype.DecodeZoneInterval(atom.Text, atom.Qualifier, precision)
+			if err != nil {
+				return Result{}, err
+			}
+			value := "INTERVAL '" + interval.String() + "'"
+			input = &value
+		}
+		if !s.Default && s.Interval == nil {
+			if strings.EqualFold(name, "search_path") || strings.EqualFold(name, "datestyle") {
 				value := strings.Join(s.Values, ", ")
 				input = &value
 			} else {
@@ -312,7 +339,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 				return Result{}, err
 			}
 			d := e.settingsDefinitions[key]
-			rows = append(rows, []sqltype.Value{sqltype.String(typ, key), sqltype.String(typ, owner.value(key)), sqltype.String(typ, d.Description)})
+			rows = append(rows, []sqltype.Value{sqltype.String(typ, settingDisplayName(key)), sqltype.String(typ, owner.value(key)), sqltype.String(typ, d.Description)})
 		}
 		if err := op.ctx.Err(); err != nil {
 			return Result{}, err
@@ -336,5 +363,5 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	if err := op.ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	return anonymousResult(settingColumns(typ, d.Name), [][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, 0)
+	return anonymousResult(settingColumns(typ, settingDisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, 0)
 }

@@ -95,7 +95,7 @@ func typeCategory(t *sqltype.Descriptor) byte {
 		return 'N'
 	case sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name:
 		return 'S'
-	case sqltype.Date, sqltype.Time, sqltype.Timestamp:
+	case sqltype.Date, sqltype.Time, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Timetz:
 		return 'D'
 	case sqltype.Bytea, sqltype.UUID:
 		return 'U'
@@ -158,7 +158,7 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery,
 			if err != nil {
 				return nil, expressionError("42846", fmt.Sprintf("VALUES could not convert type %s to %s", node.ResultUsage().Type.DiagnosticName(), common.Type.DiagnosticName()), node.SourcePosition())
 			}
-			node = coercionExpression{b.info(common, node.SourcePosition(), node.Properties()), node, plan, sqltype.Implicit}
+			node = coercionExpression{b.info(common, node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Implicit}
 			nodes[i][j] = node
 		}
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
@@ -269,16 +269,16 @@ func valuesColumnDistance(name string, key, left, right []int, limit int) int {
 
 // evaluateInsertQuery owns the source pin and all destination rows. Evaluation
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
-func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
+func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
 	defer source.close()
-	stage, err := openQueryNode(ctx, &queryState{source: source, parameters: parameters}, b.query.Root)
+	stage, err := openQueryNode(ctx, &queryState{source: source, parameters: parameters, input: input, output: output}, b.query.Root)
 	if err != nil {
 		return nil, err
 	}
-	return assembleInsertRows(ctx, b, &stage, stage.count(), schema, output)
+	return assembleInsertRows(ctx, b, &stage, stage.count(), schema, input, output)
 }
 
-func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, output sqltype.OutputEnvironment) (rows [][]sqltype.Value, err error) {
+func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (rows [][]sqltype.Value, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -298,7 +298,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 	if count != 0 {
 		scratch = make([]sqltype.Value, len(b.targets))
 	}
-	evaluation := EvalContext{Context: ctx}
+	evaluation := EvalContext{Context: ctx, Input: input, Output: output}
 	for i := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err

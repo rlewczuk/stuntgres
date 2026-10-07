@@ -28,7 +28,7 @@ func TestUpdateCoreFloatIntegerAssignment(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				got, err := plan.Apply(ctx, value)
+				got, err := plan.Apply(ctx, value, InputEnvironment{}, OutputEnvironment{})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -40,21 +40,21 @@ func TestUpdateCoreFloatIntegerAssignment(t *testing.T) {
 			name := map[ID]string{Int2: "smallint", Int4: "integer", Int8: "bigint"}[target]
 			for _, n := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
 				v, _ := Float(types[source], n)
-				_, err := plan.Apply(ctx, v)
+				_, err := plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 				numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: name + " out of range"})
 			}
-			null, err := plan.Apply(ctx, Null(types[source]))
+			null, err := plan.Apply(ctx, Null(types[source]), InputEnvironment{}, OutputEnvironment{})
 			if err != nil || !null.IsNull() || null.Type() != types[target] {
 				t.Fatal(null, err)
 			}
 			canceled, cancel := context.WithCancel(ctx)
 			cancel()
 			value, _ := Float(types[source], 1)
-			if _, err := plan.Apply(canceled, value); !errors.Is(err, context.Canceled) {
+			if _, err := plan.Apply(canceled, value, InputEnvironment{}, OutputEnvironment{}); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
 			foreign, _ := Float(testTypes()[source], 1)
-			if _, err := plan.Apply(ctx, foreign); err == nil {
+			if _, err := plan.Apply(ctx, foreign, InputEnvironment{}, OutputEnvironment{}); err == nil {
 				t.Fatal("foreign source descriptor accepted")
 			}
 		}
@@ -79,7 +79,7 @@ func TestUpdateCoreFloatIntegerAssignment(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := plan.Apply(ctx, value)
+		got, err := plan.Apply(ctx, value, InputEnvironment{}, OutputEnvironment{})
 		if tc.fail {
 			name := map[ID]string{Int2: "smallint", Int4: "integer", Int8: "bigint"}[tc.target]
 			numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: name + " out of range"})

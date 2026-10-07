@@ -27,7 +27,11 @@ const (
 	ByteaEscape
 )
 
-type OutputEnvironment struct{ ByteaOutput ByteaOutput }
+type OutputEnvironment struct {
+	ByteaOutput ByteaOutput
+	Zone        *Zone
+	DateStyle   DateStyle
+}
 
 func hexNibble(text string) (byte, error) {
 	c := text[0]

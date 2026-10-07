@@ -85,7 +85,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 		if err != nil {
 			t.Fatal(id, err)
 		}
-		got, err := p.Apply(ctx, v)
+		got, err := p.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		if err != nil || got.Type() != types[id] {
 			t.Fatal(got, err)
 		}
@@ -93,7 +93,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 		if err != nil || s != "32767" {
 			t.Fatal(s, err)
 		}
-		null, err := p.Apply(ctx, Null(d))
+		null, err := p.Apply(ctx, Null(d), InputEnvironment{}, OutputEnvironment{})
 		if err != nil || !null.IsNull() || null.Type() != types[id] {
 			t.Fatal(null, err)
 		}
@@ -108,7 +108,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 		}
 		for _, n := range []int64{-32768, 32767} {
 			wide, _ := Integer(types[id], n)
-			got, err := p.Apply(ctx, wide)
+			got, err := p.Apply(ctx, wide, InputEnvironment{}, OutputEnvironment{})
 			if err != nil || got.Type() != d {
 				t.Fatal(got, err)
 			}
@@ -117,13 +117,13 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 				t.Fatal(actual, err)
 			}
 		}
-		null, err := p.Apply(ctx, Null(types[id]))
+		null, err := p.Apply(ctx, Null(types[id]), InputEnvironment{}, OutputEnvironment{})
 		if err != nil || !null.IsNull() || null.Type() != d {
 			t.Fatal(null, err)
 		}
 		for _, n := range []int64{-32769, 32768} {
 			wide, _ := Integer(types[id], n)
-			got, err := p.Apply(ctx, wide)
+			got, err := p.Apply(ctx, wide, InputEnvironment{}, OutputEnvironment{})
 			smallintError(t, err, "22003", "smallint out of range")
 			if got.Type() != nil {
 				t.Fatal(got)
@@ -155,7 +155,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			n, err := p.Compare(ctx, a, b)
+			n, err := p.Compare(ctx, a, b, InputEnvironment{})
 			if err != nil || n != want {
 				t.Fatal(id, n, err)
 			}
@@ -163,7 +163,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			null, err := eq.Evaluate(ctx, Null(a.Type()), b)
+			null, err := eq.Evaluate(ctx, Null(a.Type()), b, InputEnvironment{})
 			if err != nil || !null.IsNull() {
 				t.Fatal(null, err)
 			}
@@ -172,7 +172,7 @@ func TestSmallintCoercionAndComparison(t *testing.T) {
 	min, _ := Integer(d, -32768)
 	max, _ := Integer(types[Int8], 9223372036854775807)
 	p, _ := BindComparison(d, types[Int8])
-	if n, err := p.Compare(ctx, min, max); err != nil || n != -1 {
+	if n, err := p.Compare(ctx, min, max, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal(n, err)
 	}
 }

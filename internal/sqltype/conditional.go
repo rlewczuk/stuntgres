@@ -10,6 +10,8 @@ var equalitySignatures = [...]EqualitySignature{
 	{Float4, Float4}, {Float4, Float8}, {Float8, Float4}, {Float8, Float8}, {Numeric, Numeric}, {Bool, Bool},
 	{Text, Text}, {BPChar, BPChar}, {Name, Name}, {Name, Text}, {Text, Name},
 	{Date, Date}, {Time, Time}, {Timestamp, Timestamp}, {Date, Timestamp}, {Timestamp, Date}, {UUID, UUID}, {Bytea, Bytea},
+	{Timestamptz, Timestamptz}, {Timetz, Timetz},
+	{Date, Timestamptz}, {Timestamptz, Date}, {Timestamp, Timestamptz}, {Timestamptz, Timestamp},
 }
 
 func equalityCategory(id ID) byte {
@@ -20,14 +22,16 @@ func equalityCategory(id ID) byte {
 		return 'N'
 	case Text, VarChar, BPChar, Name:
 		return 'S'
-	case Date, Time, Timestamp:
+	case Date, Time, Timestamp, Timestamptz, Timetz:
 		return 'D'
 	case UUID, Bytea:
 		return 'U'
 	}
 	return 0
 }
-func equalityPreferred(id ID) bool { return id == Oid || id == Text || id == Float8 || id == Bool }
+func equalityPreferred(id ID) bool {
+	return id == Oid || id == Text || id == Float8 || id == Bool || id == Timestamptz
+}
 func equalityImplicit(from, to ID) bool {
 	if from == to {
 		return true
@@ -225,8 +229,7 @@ func compareDateTimestamp(day, stamp int64) int {
 	return 0
 }
 
-// BindEqualityComparison supplies the conditional-only cross-temporal builtin
-// without widening the legacy general predicate admission.
+// BindEqualityComparison uses the same typed ordering as ordinary predicates.
 func BindEqualityComparison(left, right *Descriptor) (Comparison, error) {
 	if left != nil && right != nil && left.Concrete() && right.Concrete() && (left.ID() == Name && right.ID() == Text || left.ID() == Text && right.ID() == Name) {
 		return Comparison{left, right}, nil

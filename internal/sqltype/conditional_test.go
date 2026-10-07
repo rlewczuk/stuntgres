@@ -70,7 +70,7 @@ func TestConditionalTemporalAndNameCoercion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := plan.Apply(ctx, v)
+		got, err := plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,12 +80,12 @@ func TestConditionalTemporalAndNameCoercion(t *testing.T) {
 		}
 	}
 	v, _ := DateValue(types[Date], dateMaximum)
-	_, err = plan.Apply(ctx, v)
+	_, err = plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22008" || d.Message != "date out of range for timestamp" {
 		t.Fatal(err)
 	}
-	got, err := plan.Apply(ctx, Null(types[Date]))
+	got, err := plan.Apply(ctx, Null(types[Date]), InputEnvironment{}, OutputEnvironment{})
 	if err != nil || !got.IsNull() || got.Type() != types[Timestamp] {
 		t.Fatal(got, err)
 	}
@@ -99,7 +99,7 @@ func TestConditionalTemporalAndNameCoercion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sign, err := p.Compare(ctx, a, b)
+		sign, err := p.Compare(ctx, a, b, InputEnvironment{})
 		if err != nil || sign != tc.sign {
 			t.Fatal(tc, sign, err)
 		}
@@ -107,7 +107,7 @@ func TestConditionalTemporalAndNameCoercion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sign, err = p.Compare(ctx, b, a)
+		sign, err = p.Compare(ctx, b, a, InputEnvironment{})
 		if err != nil || sign != -tc.sign {
 			t.Fatal(tc, sign, err)
 		}
@@ -126,7 +126,7 @@ func TestConditionalTemporalAndNameCoercion(t *testing.T) {
 			t.Fatal(err)
 		}
 		v := String(types[id], "x")
-		got, err := p.Apply(ctx, v)
+		got, err := p.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		if err != nil || got.Type() != types[Name] {
 			t.Fatal(got, err)
 		}
@@ -139,7 +139,7 @@ func TestConditionalTemporalAndNameCoercion(t *testing.T) {
 	for range 32 {
 		wide += "é"
 	}
-	got, err = p.Apply(ctx, String(types[Text], wide))
+	got, err = p.Apply(ctx, String(types[Text], wide), InputEnvironment{}, OutputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestConditionalNameEqualityProvider(t *testing.T) {
 			t.Fatal(err)
 		}
 		a, b := String(types[pair[0]], "same"), String(types[pair[1]], "same")
-		sign, err := p.Compare(ctx, a, b)
+		sign, err := p.Compare(ctx, a, b, InputEnvironment{})
 		if err != nil || sign != 0 {
 			t.Fatal(sign, err)
 		}

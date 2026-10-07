@@ -18,8 +18,10 @@ func SameDatum(a, b Value) bool {
 		return a.oid == b.oid
 	case Bool:
 		return a.boolean == b.boolean
-	case Int2, Int4, Int8, Date, Time, Timestamp:
+	case Int2, Int4, Int8, Date, Time, Timestamp, Timestamptz:
 		return a.integer == b.integer
+	case Timetz:
+		return a.integer == b.integer && a.west == b.west
 	case Float4:
 		return math.Float32bits(float32(a.floating)) == math.Float32bits(float32(b.floating))
 	case Float8:

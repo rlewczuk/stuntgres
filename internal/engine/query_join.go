@@ -72,7 +72,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	}
 	frame := make([]sqltype.Value, width)
 	out := &querySource{flatWidth: width, materialized: true}
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, Row: frame, statementScope: state.source.scope}
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, Row: frame, statementScope: state.source.scope, Input: state.input, Output: state.output}
 	maxInt := int(^uint(0) >> 1)
 	for i := range left.count() {
 		lrow := left.source.row(left.index(i))

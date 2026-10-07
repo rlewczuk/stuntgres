@@ -62,6 +62,9 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 			return sqltype.Null(target.Type), nil
 		}
 	case time.Time:
+		if target.Type.ID() == sqltype.Timestamptz {
+			return sqltype.TimestampFromTime(target.Type, v.UTC())
+		}
 		if target.Type.ID() == sqltype.Timestamp {
 			return sqltype.TimestampFromTime(target.Type, v)
 		}
@@ -109,7 +112,7 @@ func frameImporter(values []driver.Value) engine.FrameImporter {
 	}
 }
 
-func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
+func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvironment) (driver.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -131,9 +134,9 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 			return nil, err
 		}
 		return []byte(raw), nil
-	case sqltype.Void, sqltype.UUID, sqltype.Time, sqltype.Numeric, sqltype.Date, sqltype.Char:
-		return v.Type().Output(ctx, v)
-	case sqltype.Timestamp:
+	case sqltype.Void, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Char:
+		return v.Type().OutputWithEnvironment(ctx, v, output)
+	case sqltype.Timestamp, sqltype.Timestamptz:
 		n, err := v.Timestamp()
 		if err != nil {
 			return nil, err
@@ -144,7 +147,15 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 		if n == sqltype.TimestampPositiveInfinity {
 			return []byte("infinity"), nil
 		}
-		return v.TimestampTime()
+		result, err := v.TimestampTime()
+		if err != nil {
+			return nil, err
+		}
+		if v.Type().ID() == sqltype.Timestamptz {
+			east, name := output.Zone.OffsetAt(result.Unix())
+			result = result.In(time.FixedZone(name, int(east)))
+		}
+		return result, nil
 	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
 		return v.Integer()
 	case sqltype.Float4, sqltype.Float8:
@@ -161,13 +172,13 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 	switch d.ID() {
 	case sqltype.Bytea:
 		return reflect.TypeFor[[]byte]()
-	case sqltype.Timestamp:
+	case sqltype.Timestamp, sqltype.Timestamptz:
 		return reflect.TypeFor[time.Time]()
 	case sqltype.Oid, sqltype.Int2, sqltype.Int4, sqltype.Int8:
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
-	case sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.NameArray, sqltype.UUID, sqltype.Time, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Char:
+	case sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.NameArray, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Char:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:
 		return reflect.TypeFor[bool]()

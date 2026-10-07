@@ -60,7 +60,7 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 	if a.typ.id == Regclass {
 		return a.text == b.text, ctx.Err()
 	}
-	n, err := g.comparison.Compare(ctx, a, b)
+	n, err := g.comparison.Compare(ctx, a, b, InputEnvironment{})
 	if err != nil {
 		return false, err
 	}
@@ -107,8 +107,11 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		} else {
 			byteHash(0)
 		}
-	case Int2, Int4, Int8, Date, Time, Timestamp:
+	case Int2, Int4, Int8, Date, Time, Timestamp, Timestamptz:
 		integerHash(uint64(v.integer))
+	case Timetz:
+		integerHash(uint64(v.integer))
+		integerHash(uint64(int64(v.west)))
 	case Float4, Float8:
 		bits := math.Float64bits(v.floating)
 		if math.IsNaN(v.floating) {

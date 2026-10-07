@@ -129,6 +129,15 @@ type RegclassExpr struct {
 func (RegclassExpr) expression()                {}
 func (e RegclassExpr) SourcePosition() Position { return e.Pos }
 
+type TimeZoneExpr struct {
+	Value, Zone Expr
+	Local       bool
+	Pos         Position
+}
+
+func (TimeZoneExpr) expression()                {}
+func (e TimeZoneExpr) SourcePosition() Position { return e.Pos }
+
 type TableElement struct {
 	Column  *Column
 	Like    *TableLike
@@ -344,6 +353,8 @@ func singletonArgument(expr Expr) bool {
 		return true
 	case CastExpr:
 		return singletonArgument(e.Child)
+	case TimeZoneExpr:
+		return singletonArgument(e.Value) && (e.Local || singletonArgument(e.Zone))
 	case OperatorExpr:
 		// Preserve the former signed literal input spelling, not computed
 		// arithmetic through the selected singleton projection exception.
@@ -650,6 +661,8 @@ func containsAggregate(expr Expr) bool {
 		}
 	case CastExpr:
 		return containsAggregate(e.Child)
+	case TimeZoneExpr:
+		return containsAggregate(e.Value) || !e.Local && containsAggregate(e.Zone)
 	case RegclassExpr:
 		return containsAggregate(e.Child)
 	case FunctionExpr:
@@ -735,14 +748,22 @@ func ExpressionStart(expr Expr) Position {
 
 // Set uses setting-specific scalar text; Default is distinct from quoted text.
 type Set struct {
-	Name    Identifier
-	Local   bool
-	Default bool
-	Values  []string
-	Pos     Position
+	Name     Identifier
+	Local    bool
+	Default  bool
+	Values   []string
+	Interval *TimeZoneInterval
+	Pos      Position
 }
 
 func (*Set) statement() {}
+
+type TimeZoneInterval struct {
+	Text      string
+	Precision int32
+	Qualifier string
+	Pos       Position
+}
 
 type Show struct {
 	Name Identifier

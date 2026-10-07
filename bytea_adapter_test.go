@@ -36,7 +36,7 @@ func TestByteaAdapterOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		exported, err := exportValue(ctx, v)
+		exported, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
 		if err != nil || !reflect.DeepEqual(exported, []byte{0, 128, 255}) {
 			t.Fatal(exported, err)
 		}
@@ -56,7 +56,7 @@ func TestByteaAdapterOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := exportValue(ctx, v)
+		got, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
 		if err != nil || !reflect.DeepEqual(got, tc.want) {
 			t.Fatal(tc.raw, got, tc.want, err)
 		}
@@ -82,7 +82,7 @@ func TestByteaAdapterOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := exportValue(ctx, v)
+		got, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}

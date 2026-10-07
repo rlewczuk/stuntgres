@@ -270,6 +270,16 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 	if settings.value("bytea_output") == "escape" {
 		s.output.ByteaOutput = sqltype.ByteaEscape
 	}
+	zone, ok := settings.typed["timezone"]
+	if !ok {
+		zone = settings.defaultTyped["timezone"]
+	}
+	style, ok := settings.typed["datestyle"]
+	if !ok {
+		style = settings.defaultTyped["datestyle"]
+	}
+	s.input.Zone, s.output.Zone = zone.zone, zone.zone
+	s.input.DateStyle, s.output.DateStyle = style.dateStyle, style.dateStyle
 	settings.mu.Unlock()
 	return s, nil
 }
@@ -343,7 +353,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 	s.ticket = t.ticket
 	s.txRef = t.ref
 	s.implicit = t.state == TxImplicit
-	s.input = sqltype.InputEnvironment{TransactionStart: t.start}
+	s.input.TransactionStart = t.start
 	s.command = t.command
 	s.ownWrites = t.writes
 	s.ownDeletes = t.deletes

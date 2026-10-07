@@ -122,7 +122,7 @@ func TestUUIDComparisonAndNull(t *testing.T) {
 			a, b Value
 			want int
 		}{{a, b, -1}, {b, a, 1}, {a, a, 0}} {
-			got, err := p.Compare(ctx, tc.a, tc.b)
+			got, err := p.Compare(ctx, tc.a, tc.b, InputEnvironment{})
 			if err != nil || got != tc.want {
 				t.Fatal(got, err)
 			}
@@ -130,7 +130,7 @@ func TestUUIDComparisonAndNull(t *testing.T) {
 	}
 	a, _ := d.Input(ctx, "a0eebc999c0b4ef8bb6d6bb9bd380a11", -1)
 	b, _ := d.Input(ctx, "{A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11}", -1)
-	if n, err := p.Compare(ctx, a, b); err != nil || n != 0 {
+	if n, err := p.Compare(ctx, a, b, InputEnvironment{}); err != nil || n != 0 {
 		t.Fatal(n, err)
 	}
 	boolType := Builtins()[0]
@@ -139,21 +139,21 @@ func TestUUIDComparisonAndNull(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pair := range [][2]Value{{Null(d), a}, {a, Null(d)}} {
-		v, err := eq.Evaluate(ctx, pair[0], pair[1])
+		v, err := eq.Evaluate(ctx, pair[0], pair[1], InputEnvironment{})
 		if err != nil || !v.IsNull() || v.Type() != boolType {
 			t.Fatal(v, err)
 		}
 	}
-	if _, err := p.Compare(ctx, a, Null(d)); err == nil {
+	if _, err := p.Compare(ctx, a, Null(d), InputEnvironment{}); err == nil {
 		t.Fatal("NULL comparison")
 	}
 	foreign, _ := uuidDescriptor().Input(ctx, "00000000000000000000000000000000", -1)
-	if _, err := p.Compare(ctx, a, foreign); err == nil {
+	if _, err := p.Compare(ctx, a, foreign, InputEnvironment{}); err == nil {
 		t.Fatal("foreign comparison")
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := p.Compare(canceled, a, b); !errors.Is(err, context.Canceled) {
+	if _, err := p.Compare(canceled, a, b, InputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }

@@ -20,10 +20,14 @@ const (
 	microsPerDay              int64 = 86400000000
 )
 
-type InputEnvironment struct{ TransactionStart time.Time }
+type InputEnvironment struct {
+	TransactionStart time.Time
+	Zone             *Zone
+	DateStyle        DateStyle
+}
 
 func TimestampValue(d *Descriptor, n int64) (Value, error) {
-	if d == nil || d.id != Timestamp {
+	if d == nil || (d.id != Timestamp && d.id != Timestamptz) {
 		return Value{}, fmt.Errorf("invalid timestamp descriptor")
 	}
 	if n != TimestampNegativeInfinity && n != TimestampPositiveInfinity && (n < timestampMinimum || n > timestampEnd) {
@@ -32,13 +36,13 @@ func TimestampValue(d *Descriptor, n int64) (Value, error) {
 	return Value{typ: d, integer: n}, nil
 }
 func (v Value) Timestamp() (int64, error) {
-	if v.null || v.typ == nil || v.typ.id != Timestamp {
+	if v.null || v.typ == nil || (v.typ.id != Timestamp && v.typ.id != Timestamptz) {
 		return 0, fmt.Errorf("not a timestamp value")
 	}
 	return v.integer, nil
 }
 func (d *Descriptor) validTypmod(p int32) bool {
-	return p == -1 || (d.id == Timestamp || d.id == Time) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
+	return p == -1 || (d.id == Timestamp || d.id == Time || d.id == Timestamptz || d.id == Timetz) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
 }
 func (u Usage) Valid() bool {
 	if !u.Type.Concrete() || !u.Type.validTypmod(u.Typmod) {
@@ -51,7 +55,7 @@ func (u Usage) Valid() bool {
 // statement owner interprets raw modifier expressions.
 func (d *Descriptor) CheckModifierSupport() error {
 	switch d.id {
-	case Numeric, Timestamp, Time, BPChar, VarChar:
+	case Numeric, Timestamp, Time, Timestamptz, Timetz, BPChar, VarChar:
 		return nil
 	case Text:
 		return failure("42601", `type modifier is not allowed for type "text"`)
@@ -112,13 +116,24 @@ func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Erro
 		return u, nil, fmt.Errorf("type modifiers are unsupported")
 	}
 	p := modifiers[0]
+	name := ""
+	if p < 0 || p > 6 {
+		base, suffix := d.SQLName(), ""
+		if d.id == Timestamptz {
+			base, suffix = "TIMESTAMP", " WITH TIME ZONE"
+		}
+		if d.id == Timetz {
+			base, suffix = "TIME", " WITH TIME ZONE"
+		}
+		name = fmt.Sprintf("%s(%d)%s", base, p, suffix)
+	}
 	if p < 0 {
-		return u, nil, failure("22023", fmt.Sprintf("%s(%d) precision must not be negative", d.SQLName(), p))
+		return u, nil, failure("22023", name+" precision must not be negative")
 	}
 	u.Typmod = p
 	if p > 6 {
 		u.Typmod = 6
-		return u, &sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: fmt.Sprintf("%s(%d) precision reduced to maximum allowed, 6", d.SQLName(), p)}, nil
+		return u, &sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: name + " precision reduced to maximum allowed, 6"}, nil
 	}
 	return u, nil, nil
 }
@@ -136,6 +151,16 @@ func (u Usage) Declaration() (string, error) {
 			name = "VARCHAR"
 		}
 		return fmt.Sprintf("%s(%d)", name, u.Typmod-4), nil
+	}
+	if u.Type.id == Timestamptz || u.Type.id == Timetz {
+		name := "TIMESTAMP"
+		if u.Type.id == Timetz {
+			name = "TIME"
+		}
+		if u.Typmod >= 0 {
+			name = fmt.Sprintf("%s(%d)", name, u.Typmod)
+		}
+		return name + " WITH TIME ZONE", nil
 	}
 	if u.Typmod >= 0 {
 		return fmt.Sprintf("%s(%d)", u.Type.SQLName(), u.Typmod), nil
@@ -334,24 +359,6 @@ func timestampASCIIEqual(s, lower string) bool {
 	return true
 }
 
-func timestampASCIICompare(s, lower string) int {
-	for i := 0; i < len(s) && i < len(lower); i++ {
-		c := timestampASCIILower(s[i])
-		if c < lower[i] {
-			return -1
-		}
-		if c > lower[i] {
-			return 1
-		}
-	}
-	if len(s) < len(lower) {
-		return -1
-	}
-	if len(s) > len(lower) {
-		return 1
-	}
-	return 0
-}
 func coreDateWord(s string) bool {
 	if monthNumber(s) != 0 || weekday(s) {
 		return true
@@ -628,6 +635,8 @@ type timestampDecoder struct {
 	dstSet, daylightSet                                                     bool
 	mer                                                                     int
 	doy                                                                     int
+	zone                                                                    zoneSpecification
+	order                                                                   DateOrder
 }
 
 func (p *timestampDecoder) number(s string, textMonth bool) timestampDecodeStatus {
@@ -662,15 +671,21 @@ func (p *timestampDecoder) number(s string, textMonth bool) timestampDecodeStatu
 	}
 	switch p.mask {
 	case 0:
-		if len(s) >= 3 {
+		if len(s) >= 3 || p.order == DateYMD {
 			p.y = n
 			p.short = len(s) <= 2
 			p.mask |= dateYear
+		} else if p.order == DateDMY {
+			p.d = n
+			p.mask |= dateDay
 		} else {
 			p.m = n
 			p.mask |= dateMonth
 		}
 	case dateYear:
+		p.m = n
+		p.mask |= dateMonth
+	case dateDay:
 		p.m = n
 		p.mask |= dateMonth
 	case dateMonth:
@@ -887,6 +902,12 @@ func timestampError(text, kind string, hint bool) error {
 	return civilInputError("timestamp", text, kind, hint)
 }
 func civilInputError(typeName, text, kind string, hint bool) error {
+	if typeName == "timestamptz" {
+		typeName = "timestamp with time zone"
+	}
+	if typeName == "timetz" {
+		typeName = "time with time zone"
+	}
 	code, msg := "22007", fmt.Sprintf("invalid input syntax for type %s: \"%s\"", typeName, text)
 	switch kind {
 	case "field":

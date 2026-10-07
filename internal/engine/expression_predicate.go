@@ -67,7 +67,7 @@ func (e distinctExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	distinct := a.IsNull() != b.IsNull()
 	if !a.IsNull() && !b.IsNull() {
-		equal, err := e.equality.Evaluate(c.Context, a, b)
+		equal, err := e.equality.Evaluate(c.Context, a, b, c.Input)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -194,6 +194,9 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		p.StageDependent = p.StageDependent || right.Properties().StageDependent
 		if volatility := right.Properties().Volatility; volatility > p.Volatility {
 			p.Volatility = volatility
+		}
+		if equality.SessionDependent() && p.Volatility < Stable {
+			p.Volatility = Stable
 		}
 		return distinctExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), left, right, equality, raw.Kind == parser.IsNotDistinct}, nil
 	default:

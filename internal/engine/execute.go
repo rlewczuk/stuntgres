@@ -50,7 +50,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return result, err
 	case *parser.SettingCall:
-		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame, scope.input)
+		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame, scope.input, scope.output)
 		if err == nil {
 			scope.completed = true
 		}
@@ -274,7 +274,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	expressions := b.expressions
 	expressionsChanged := false
-	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope}
+	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope, Input: scope.input, Output: scope.output}
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
@@ -402,7 +402,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, err
 			}
 			b.query = &BoundQuery{Root: queryRoot}
-			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.output)
+			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.input, scope.output)
 			if queryErr != nil {
 				return Result{}, queryErr
 			}

@@ -33,6 +33,8 @@ func sequenceProjection(s *Select) bool {
 			return true
 		case CastExpr:
 			return contains(n.Child)
+		case TimeZoneExpr:
+			return contains(n.Value) || !n.Local && contains(n.Zone)
 		case FunctionExpr:
 			for _, arg := range n.Args {
 				if contains(arg) {

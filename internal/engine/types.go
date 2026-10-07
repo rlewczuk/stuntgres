@@ -33,6 +33,7 @@ type temporalConstant struct {
 	scalar int64
 	typmod int32
 	typeID sqltype.ID
+	west   int32
 }
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership

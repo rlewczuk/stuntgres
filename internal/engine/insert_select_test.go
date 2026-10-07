@@ -180,7 +180,7 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 			if phase == "sorting" {
 				evaluationContext = &queryCountingContext{Context: ctx, remaining: 16}
 			}
-			rows, err := evaluateInsertQuery(evaluationContext, b, source, nil, "public", sqltype.OutputEnvironment{})
+			rows, err := evaluateInsertQuery(evaluationContext, b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 			want := error(context.Canceled)
 			if phase == "late source" {
 				want = sentinel
@@ -224,7 +224,7 @@ func TestInsertSelectRequiredClose(t *testing.T) {
 			cancel()
 			ctx = cancelled
 		}
-		rows, err := assembleInsertRows(ctx, b, cursor, stage.count(), "public", sqltype.OutputEnvironment{})
+		rows, err := assembleInsertRows(ctx, b, cursor, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		want := error(closeErr)
 		if primary {
 			want = context.Canceled
@@ -246,7 +246,7 @@ func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	closing := &insertCloseCursor{RowCursor: &stage, cancel: cancel}
-	rows, err := assembleInsertRows(ctx, b, closing, stage.count(), "public", sqltype.OutputEnvironment{})
+	rows, err := assembleInsertRows(ctx, b, closing, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if !errors.Is(err, context.Canceled) || rows != nil || closing.closes != 1 {
 		t.Fatal(rows, err, closing.closes)
 	}

@@ -45,12 +45,12 @@ func (e caseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		match := false
 		if e.test != nil {
-			view, err := arm.testPlan.Apply(c.Context, test)
+			view, err := arm.testPlan.Apply(c.Context, test, c.Input, c.Output)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
 			if !view.IsNull() && !condition.IsNull() {
-				sign, err := arm.equality.Compare(c.Context, view, condition)
+				sign, err := arm.equality.Compare(c.Context, view, condition, c.Input)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -96,7 +96,7 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid NULLIF operand value")
 		}
 		if !left.IsNull() && !right.IsNull() {
-			sign, err := e.comparison.Compare(c.Context, left, right)
+			sign, err := e.comparison.Compare(c.Context, left, right, c.Input)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -125,7 +125,7 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			best = value
 			continue
 		}
-		sign, err := e.comparison.Compare(c.Context, value, best)
+		sign, err := e.comparison.Compare(c.Context, value, best, c.Input)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -205,7 +205,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if err != nil {
 		return nil, expressionError("42846", fmt.Sprintf("%s could not convert type %s to %s", label, node.ResultUsage().Type.DiagnosticName(), target.Type.DiagnosticName()), commonOperandStart(o))
 	}
-	return coercionExpression{b.info(target.Type.Usage(), node.SourcePosition(), node.Properties()), node, plan, sqltype.Implicit}, nil
+	return coercionExpression{b.info(target.Type.Usage(), node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Implicit}, nil
 }
 func equalityError(err error, left, right *sqltype.Descriptor, pos parser.Position) error {
 	d, ok := err.(*sqlstate.Error)
@@ -394,6 +394,13 @@ func qualifiedCastChild(raw parser.Expr) error {
 		}
 	case parser.CastExpr:
 		return qualifiedCastChild(e.Child)
+	case parser.TimeZoneExpr:
+		if child := qualifiedCastChild(e.Value); child != nil {
+			return child
+		}
+		if !e.Local {
+			return qualifiedCastChild(e.Zone)
+		}
 	case parser.RegclassExpr:
 		return qualifiedCastChild(e.Child)
 	case parser.OperatorExpr:

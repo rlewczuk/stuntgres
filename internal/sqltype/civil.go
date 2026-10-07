@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 )
 
 // civilInput shares DecodeDateTime field decoding and calendar completion.
@@ -17,7 +18,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 	if !ok || n == 0 {
 		return Value{}, timestampError(text, "", false)
 	}
-	p := timestampDecoder{}
+	p := timestampDecoder{order: env.DateStyle.Order, zone: zoneSpecification{zone: env.Zone}}
 	// Special results still consume fields and check the whole input. The
 	// caller ignores civil components for epoch and either infinity.
 	const (
@@ -57,7 +58,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 			if f.kind == 'd' {
 				// Release's Julian DTK_DATE branch expects a numeric zone,
 				// not a fraction: a bare trailing dot is consequently invalid.
-				if status := numericZone(s[end:]); status != timestampDecoded {
+				if status := p.setNumericZone(s[end:]); status != timestampDecoded {
 					return Value{}, status.inputErrorFor(text, typeName)
 				}
 				claimsTime, claimsZone = true, true
@@ -81,7 +82,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 			continue
 		}
 		if f.kind == 'z' {
-			if status := numericZone(s); status != timestampDecoded {
+			if status := p.setNumericZone(s); status != timestampDecoded {
 				return Value{}, status.inputErrorFor(text, typeName)
 			}
 			if p.zoneSet {
@@ -112,7 +113,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 					}
 					split := strings.IndexByte(s, '-')
 					if split > 0 {
-						if status := numericZone(s[split:]); status != timestampDecoded {
+						if status := p.setNumericZone(s[split:]); status != timestampDecoded {
 							return Value{}, status.inputErrorFor(text, typeName)
 						}
 						if status := p.compact(s[:split]); status != timestampDecoded {
@@ -127,9 +128,11 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 					}
 					return Value{}, timestampError(text, "", false)
 				}
-				if !recognizedTimestampZone(s) {
-					return Value{}, failure("22023", fmt.Sprintf("time zone \"%s\" not recognized", strings.ToLower(s)))
+				zone, err := resolveInputZone(s, env.Zone)
+				if err != nil {
+					return Value{}, err
 				}
+				p.zone = zone
 				if p.zoneSet {
 					return Value{}, timestampError(text, "", false)
 				}
@@ -262,6 +265,7 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 				return Value{}, timestampError(text, "", false)
 			}
 			p.timeSet, p.zoneSet = true, true
+			p.zone = zoneSpecification{fixed: true}
 			continue
 		case timestampASCIIEqual(s, "now"), timestampASCIIEqual(s, "today"), timestampASCIIEqual(s, "tomorrow"), timestampASCIIEqual(s, "yesterday"):
 			if p.mask != 0 || timestampASCIIEqual(s, "now") && (p.timeSet || p.zoneSet) {
@@ -270,7 +274,8 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 			if env.TransactionStart.IsZero() {
 				return Value{}, fmt.Errorf("missing timestamp input environment")
 			}
-			t := env.TransactionStart.UTC()
+			east, _ := env.Zone.OffsetAt(env.TransactionStart.Unix())
+			t := env.TransactionStart.UTC().Add(time.Duration(east) * time.Second)
 			y, m, day := t.Date()
 			days := civilDay(y, int(m), day)
 			if timestampASCIIEqual(s, "tomorrow") {
@@ -284,16 +289,18 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 				p.h, p.min, p.s = t.Clock()
 				p.u = int(math.RoundToEven(float64(t.Nanosecond()) / 1000))
 				p.timeSet, p.zoneSet = true, true
+				p.zone = zoneSpecification{east: east, fixed: true}
 			}
 			continue
 		}
-		zoneKind := timestampZoneKind(s)
-		if p.zoneSet || zoneKind == timestampUnknownZone || zoneKind == timestampDaylightZone && p.daylightSet {
+		zone, err := resolveInputZone(s, env.Zone)
+		kind := inputAbbreviationKind(s, env.Zone)
+		if p.zoneSet || err != nil || kind == timestampDaylightZone && p.daylightSet {
 			return Value{}, timestampError(text, "", false)
 		}
-		p.zoneSet = true
-		p.daylightSet = p.daylightSet || zoneKind == timestampDaylightZone
-		namedZone = namedZone || zoneKind == timestampNamedZone || zoneKind == timestampDynamicZone
+		p.zone, p.zoneSet = zone, true
+		p.daylightSet = p.daylightSet || kind == timestampDaylightZone
+		namedZone = namedZone || !zone.fixed
 	}
 	if prefix != noPrefix {
 		return Value{}, timestampError(text, "", false)
@@ -367,7 +374,17 @@ func (d *Descriptor) civilInput(text string, typmod int32, env InputEnvironment)
 	}
 	days := civilDay(p.y, p.m, p.d)
 	tod := int64(p.h)*3600000000 + int64(p.min)*60000000 + int64(p.s)*1000000 + int64(p.u)
+	if days < timestampMinimum/microsPerDay || days > timestampEnd/microsPerDay {
+		return Value{}, timestampError(text, "range", false)
+	}
 	nval := days*microsPerDay + tod
+	if d.id == Timestamptz {
+		east := p.zone.offsetCivil(floorDiv(nval, 1000000) + 946684800)
+		if p.dstSet {
+			east += 3600
+		}
+		nval -= int64(east) * 1000000
+	}
 	if nval < timestampMinimum || nval >= timestampEnd {
 		return Value{}, timestampError(text, "range", false)
 	}

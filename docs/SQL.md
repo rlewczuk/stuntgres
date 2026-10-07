@@ -54,11 +54,13 @@ from_item := [schema.]name [[AS] alias [(column [, ...])]]
 SELECT selected_call [, selected_call ...]
 type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
-       | DATE | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] | UUID | BYTEA
+       | DATE | (TIME | TIMESTAMP) [(precision)] [WITH | WITHOUT TIME ZONE]
+       | (TIMETZ | TIMESTAMPTZ) [(precision)] | UUID | BYTEA
        | (CHAR | CHARACTER | BPCHAR | VARCHAR | CHARACTER VARYING) [(length)]
-value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | DATE 'input' | (TIME | TIMESTAMP) [(precision)] [WITHOUT TIME ZONE] 'input'
+value := signed-64-bit integer | 'string' | E'escape string' | U&'Unicode string' [UESCAPE 'escape'] | $$string$$ | $tag$string$tag$ | TRUE | FALSE | NULL | $n | DATE 'input' | (TIME | TIMESTAMP) [(precision)] [WITH | WITHOUT TIME ZONE] 'input' | (TIMETZ | TIMESTAMPTZ) [(precision)] 'input'
 scalar := query_column | value | (scalar) | CAST(scalar AS cast_type) | scalar::cast_type
         | (int4 | int8 | text | bool)(scalar)
+        | scalar AT TIME ZONE scalar | scalar AT LOCAL
         | CASE [logical_target] WHEN logical_target THEN logical_target
           [WHEN logical_target THEN logical_target ...] [ELSE logical_target] END
         | (COALESCE | GREATEST | LEAST)(logical_target [, ...])
@@ -415,7 +417,7 @@ authority, coherent multi-literal groups and native temp-only replacement.
 
 Database-qualified relation names, temporary tables (TEMP sequences are supported),
 outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
-casts outside the bounded baseline/character-family/selected regclass sets,
+casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary
 keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING,
 LIMIT/OFFSET, general COLLATE, two-phase commit, transactional table/schema/view
@@ -423,3 +425,18 @@ DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe
 snapshots, SQL ACL mutation, or catalog columns beyond the bounded view providers
 are not supported. Declared DEFAULT expressions remain bounded and reject sequence
 calls, including calls with constant NULL arguments.
+
+## Temporal zone conversion
+
+`AT TIME ZONE` takes a TEXT zone operand; `AT LOCAL` uses session TimeZone.
+TIMESTAMP produces TIMESTAMPTZ and vice versa; TIMETZ produces TIMETZ using
+the destination offset at transaction start. Strict NULL preserves result
+metadata. Temporal-to-TEXT casts observe DateStyle; selected datetime casts
+use session-local civil/instant interpretation. See [types](TYPES.md#time-zone-aware-values).
+
+`SET [SESSION | LOCAL] TIME ZONE {name | numeric_hours | INTERVAL 'input' | LOCAL | DEFAULT}`
+and SHOW/RESET TIME ZONE use the existing settings utility. Optional interval
+precision and HOUR/HOUR TO MINUTE/MINUTE qualifiers apply only to this
+timezone-setting atom, not general INTERVAL expressions.
+No timezone(...) alias, CURRENT_* expansion or timezone catalog views are added.
+

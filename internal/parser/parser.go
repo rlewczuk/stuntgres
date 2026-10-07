@@ -288,7 +288,7 @@ func (l *lexer) call(callee, opener lexeme) {
 
 func (l *lexer) castFunction(callee, opener lexeme) bool {
 	switch callee.text {
-	case "date":
+	case "date", "timestamptz", "timetz":
 		l.genericModifier = true
 		l.dateLiteralModifier = true
 		return true
@@ -338,6 +338,8 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 		return l.scalarInputTree(r.Left) && (r.Right == nil || l.scalarInputTree(r.Right))
 	case CastExpr:
 		return l.scalarInputTree(r.Child)
+	case TimeZoneExpr:
+		return l.scalarInputTree(r.Value) && (r.Local || l.scalarInputTree(r.Zone))
 	case OperatorExpr:
 		for _, child := range r.Args {
 			if !l.scalarInputTree(child) {

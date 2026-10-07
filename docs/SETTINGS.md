@@ -41,8 +41,8 @@ Unquoted radix-prefixed and underscore-separated numeric setting values,
 including signed forms, are unsupported (`0A000`) and cannot mutate settings.
 Quoted `'0x2a'`, fractions and exponents reach the full typed setting input
 rules; quoted `'1_000'` is valid text but invalid numeric configuration input.
-Unquoted floating/exponent SET syntax remains unsupported. These deliberate
-setting-grammar boundaries do not change INSERT/SELECT numeric support.
+Unquoted floating/exponent SET syntax remains unsupported except the bounded
+numeric-hour operand of `SET TIME ZONE`; ordinary setting grammar is unchanged.
 The application_name value clips original UTF8 to 63 bytes before escaping nonprintable/non-ASCII
 bytes as lowercase literal `\xNN`. Clipping succeeds and emits a structured
 NOTICE when a connector handler is configured and the session filter permits it.
@@ -58,6 +58,8 @@ Supported builtins are deliberately bounded:
 | client_min_messages | notice / session | Filters structured connector notices; debug aliases debug2 |
 | search_path | `"$user", public` / session | Stored explicit path; effective lookup skips absent/inaccessible schemas and expands current user |
 | standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
+| TimeZone | UTC / session | Typed embedded timezone rules for input, output and conversions |
+| DateStyle | `ISO, MDY` / session | ISO/SQL/Postgres/German output and MDY/DMY/YMD input order |
 | statement_timeout | 0 / session | Millisecond command-admission timer covering parse, Prepare and Execute |
 | lock_timeout | 0 / session | Millisecond limit for each queued lock acquisition; 0 disables |
 | server_encoding | UTF8 / read-only | Actual UTF8 invariant; writes and individual RESET fail 55P02 |
@@ -95,7 +97,7 @@ validation and its effective value expires at implicit completion. Validated
 dotted placeholder names remain recognized in that physical session.
 Function set_config with true outside a transaction returns its transient,
 normalized value without that warning; the next command sees the original.
-TIME ZONE, NAMES, timezone and client_encoding remain unsupported.
+NAMES and client_encoding remain unsupported.
 
 With `standard_conforming_strings=off`, a `U&'...'` string opener immediately
 fails with 0A000 `unsafe use of string constant with Unicode escapes`, before
@@ -186,3 +188,31 @@ and bounds, SET/RESET/SHOW/SHOW ALL/current_setting/set_config behavior,
 prepare-time parser mode, healthy sessions after 57014 timeouts, 55P02/42501
 access failures, transactional local scope, retained settings on reuse,
 and replacement defaults with surviving data. Go test reports the result.
+
+## Temporal settings
+
+`SET [SESSION | LOCAL] TIME ZONE` accepts a quoted name/POSIX specification,
+numeric hours (including fractions/exponents), a timezone-only INTERVAL atom,
+LOCAL or DEFAULT. `SHOW TIME ZONE`, `RESET TIME ZONE` and the ordinary
+`timezone` name use the same typed setting owner as current_setting/set_config.
+Numeric hours are east-positive: `5.5` means +05:30. POSIX names are west-positive:
+`UTC-2` means +02:00. INTERVAL offsets reject months/days; HOUR,
+HOUR TO MINUTE and MINUTE qualifiers are accepted. This utility syntax does not
+provide a general INTERVAL SQL type or arithmetic. Numeric/interval SET offsets
+are bounded to 167:59:59; literal datetime offsets to 15:59:59.
+
+DateStyle combines one style and one order. Partial updates preserve the other
+component; German implies DMY unless order is explicit. DEFAULT uses captured
+session defaults, and SHOW emits canonical strings such as `ISO, MDY`.
+For ambiguous `01/02/03`, MDY yields 2003-01-02, DMY 2003-02-01 and
+YMD 2001-02-03. ISO input remains unambiguous. Conflicting components and malformed
+lists fail atomically. RESET, RESET ALL, transactions, savepoints and LOCAL
+restore typed rules/style and displayed text together; healthy pool reuse retains
+both, while physical replacement starts with captured defaults.
+
+Execution captures one immutable temporal environment. Held rows keep that
+presentation even after SET. Prepared typed temporal constants freeze at analysis;
+parameter input, column casts/comparisons and AT LOCAL use execution settings.
+TIME/TIMETZ clock output is independent of DateStyle. For finite TIMESTAMP Go
+time.Time exports, use an explicit SQL TEXT cast to observe DateStyle formatting.
+

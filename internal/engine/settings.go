@@ -13,6 +13,7 @@ import (
 
 	"stuntgres/internal/sqlstate"
 )
+import "stuntgres/internal/sqltype"
 
 type SettingType uint8
 
@@ -58,6 +59,16 @@ type SettingDefinition struct {
 	bootValue settingValue
 }
 
+func settingDisplayName(name string) string {
+	switch name {
+	case "timezone":
+		return "TimeZone"
+	case "datestyle":
+		return "DateStyle"
+	}
+	return name
+}
+
 // SessionDefaultProvider is evaluated once per definition at physical creation.
 // DEFAULT and RESET restore that captured default, not a live provider value.
 type SessionDefaultProvider interface {
@@ -76,6 +87,8 @@ var builtinSettings = []SettingDefinition{
 	{Name: "default_transaction_read_only", Type: SettingBoolean, BootDefault: "off", Description: "Sets the default read-only status of new transactions."},
 	{Name: "transaction_read_only", Type: SettingBoolean, BootDefault: "off", Description: "Sets the current transaction's read-only status."},
 	{Name: "bytea_output", Type: SettingEnum, BootDefault: "hex", EnumValues: []string{"escape", "hex"}, Description: "Sets the output format for bytea."},
+	{Name: "timezone", Type: SettingString, BootDefault: "UTC", Description: "Sets the time zone for displaying and interpreting time stamps."},
+	{Name: "datestyle", Type: SettingString, BootDefault: "ISO, MDY", Description: "Sets the display format for date and time values, as well as the rules for interpreting ambiguous date input values."},
 	clientMinMessages,
 	{Name: "search_path", Type: SettingString, BootDefault: `"$user", public`, Description: "Sets the schema search order for names that are not schema-qualified."},
 	{Name: "log_statement_stats", Type: SettingBoolean, Access: SettingPrivileged, BootDefault: "off", Description: "Writes cumulative performance statistics to the server log."},
@@ -225,10 +238,12 @@ func normalizeApplicationName(value string) (string, *sqlstate.Error, error) {
 }
 
 type settingValue struct {
-	text    string
-	number  float64
-	boolean bool
-	path    []string
+	text      string
+	number    float64
+	boolean   bool
+	path      []string
+	zone      *sqltype.Zone
+	dateStyle sqltype.DateStyle
 }
 
 func settingDiagnostic(message, hint string) error {
@@ -240,6 +255,22 @@ func (d SettingDefinition) invalid(input, hint string) error {
 
 func (d SettingDefinition) parse(input string) (settingValue, error) {
 	v := settingValue{}
+	if d.Name == "timezone" {
+		zone, detail, err := sqltype.ParseSessionZone(input)
+		if err != nil {
+			return v, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "TimeZone": "%s"`, input), Detail: detail}
+		}
+		v.zone, v.text = zone, zone.Name()
+		return v, nil
+	}
+	if d.Name == "datestyle" {
+		style, detail := sqltype.ParseDateStyle(input, sqltype.DateStyle{}, sqltype.DateStyle{})
+		if detail != "" {
+			return v, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "DateStyle": "%s"`, input), Detail: detail}
+		}
+		v.dateStyle, v.text = style, style.String()
+		return v, nil
+	}
 	switch d.Type {
 	case SettingString:
 		if !utf8.ValidString(input) || strings.IndexByte(input, 0) >= 0 {

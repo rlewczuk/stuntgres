@@ -1040,10 +1040,12 @@ errors; this feature does not introduce general function resolution.
 
 NULL retains the target type; unsupported pairs fail even for typed NULL or empty
 relations. No transitive conversion is inferred. Explicit casts involving INT2,
-NUMERIC, floats, temporal types or UUID remain native `0A000` boundaries, including
-same-type casts. Existing assignment/implicit policies are unchanged: for example,
-BOOL cannot assign to INT4 without a cast, and concrete TEXT cannot assign to INT4.
-Unknown quoted input may still acquire a destination type directly.
+NUMERIC, floats or UUID remain native `0A000` boundaries, including same-type
+casts. Selected datetime casts are now admitted through the same binder;
+see [temporal types](TYPES.md#time-zone-aware-values). Existing non-temporal
+assignment/implicit policies are unchanged: BOOL cannot assign to INT4 without
+a cast, and concrete TEXT cannot assign to INT4. Unknown quoted input may still
+acquire a destination type directly.
 
 The first standard/postfix cast of an unresolved parameter fixes its source type:
 `SELECT $1::int4,$1::text FROM t` imports INT4 and returns INT4/TEXT. Later casts
@@ -1196,8 +1198,9 @@ is TEXT even when assigned to an INTEGER column.
 The bounded mechanics execute for all supported scalar identities. Numeric
 promotion uses existing direct conversions; DATE→TIMESTAMP is implicit with
 infinity preservation and checked finite range (`22008`, `date out of range
-for timestamp`). DATE/TIME and TIMESTAMP/TIME cannot be made compatible merely
-because they share a category. Name→TEXT and TEXT/BPCHAR/VARCHAR→Name are implicit;
+for timestamp`). DATE→TIMESTAMPTZ and TIMESTAMP→TIMESTAMPTZ use the session
+zone through direct datetime providers. Sharing a category alone never creates a
+conversion: DATE/TIME remain incompatible. Name→TEXT and TEXT/BPCHAR/VARCHAR→Name are implicit;
 Name→BPCHAR/VARCHAR requires assignment conversion. Name input/conversion retains
 the UTF8-safe 63-byte bound. Incompatible categories fail `42804`; a same-category input without
 the required direct conversion fails `42846`, at that input.
@@ -1269,4 +1272,18 @@ Permanent public witnesses:
 and `make reference RUN='^TestReferenceConditional' VERBOSE=0` against the real
 pinned PostgreSQL 18.0 fixture. These commands must be executed to establish
 verification; expectations precede backend comparison.
+
+
+## Captured temporal query environment
+
+AT TIME ZONE and AT LOCAL are scalar temporal expressions, not a general function
+registry or no-FROM SELECT expansion. TIMESTAMPTZ equality, order, DISTINCT,
+grouping and extrema use instant identity; TIMETZ keys include its offset
+tie-break, not modulo-24-hour equality. Civil DATE/TIMESTAMP compared with
+TIMESTAMPTZ is interpreted in the captured session zone. Conditional/coercion
+and comparison paths use this same environment, including prepared execution.
+Typed temporal literals freeze at analysis; execution settings control parameters,
+column conversions, AT LOCAL and output. Cursors retain captured presentation
+after SET/Reset/Restore. See [types](TYPES.md#time-zone-aware-values) and
+[settings](SETTINGS.md#temporal-settings) for bounded support and adapter differences.
 

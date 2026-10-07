@@ -44,6 +44,11 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 		} else if len(e.Name.Parts) > 2 {
 			result.reject(".", e.ExtraQualificationPos)
 		}
+	case TimeZoneExpr:
+		absorb(e.Value)
+		if !e.Local {
+			absorb(e.Zone)
+		}
 	case CastExpr:
 		if column, ok := e.Child.(ColumnExpr); ok && len(column.Name.Parts) > 1 && e.Syntax == PostfixCast {
 			result = scanDeleteQualification(e.Child, false)
@@ -117,6 +122,13 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
 			return &lexeme{raw: ".", pos: e.QualificationPos}, assignment && !e.QualificationGrouped
+		}
+	case TimeZoneExpr:
+		if token, reject := nonqueryQualification(e.Value, assignment); token != nil {
+			return token, reject
+		}
+		if !e.Local {
+			return nonqueryQualification(e.Zone, assignment)
 		}
 	case CastExpr:
 		if column, ok := e.Child.(ColumnExpr); ok && len(column.Name.Parts) > 1 && e.Syntax == PostfixCast {
@@ -207,6 +219,17 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 		// Parser-owned argument slices need no copy or parent replacement.
 		for i, child := range e.Args {
 			e.Args[i], _ = markGroupedQualification(child)
+		}
+	case TimeZoneExpr:
+		value, changed := markGroupedQualification(e.Value)
+		e.Value = value
+		if !e.Local {
+			zone, did := markGroupedQualification(e.Zone)
+			e.Zone = zone
+			changed = changed || did
+		}
+		if changed {
+			return e, true
 		}
 	case CastExpr:
 		child, changed := markGroupedQualification(e.Child)

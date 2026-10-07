@@ -107,7 +107,7 @@ func TestCharacterSizingContextsConversionsAndComparisons(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v, err := plan.Apply(ctx, String(d, tc.in))
+			v, err := plan.Apply(ctx, String(d, tc.in), InputEnvironment{}, OutputEnvironment{})
 			if tc.fails {
 				numericProviderError(t, err, "22001", "value too long for type "+map[ID]string{BPChar: "character(2)", VarChar: "character varying(2)"}[id])
 				continue
@@ -123,7 +123,7 @@ func TestCharacterSizingContextsConversionsAndComparisons(t *testing.T) {
 			if err != nil || e != nil || got != want {
 				t.Fatal(id, tc, got, err, e)
 			}
-			null, e := plan.Apply(ctx, Null(d))
+			null, e := plan.Apply(ctx, Null(d), InputEnvironment{}, OutputEnvironment{})
 			if e != nil || !null.IsNull() || null.Type() != d {
 				t.Fatal(null, e)
 			}
@@ -138,7 +138,7 @@ func TestCharacterSizingContextsConversionsAndComparisons(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		v, err := p.Apply(ctx, String(types[BPChar], "a   "))
+		v, err := p.Apply(ctx, String(types[BPChar], "a   "), InputEnvironment{}, OutputEnvironment{})
 		got, e := v.Text()
 		want := "a"
 		if target == BPChar {
@@ -166,7 +166,7 @@ func TestCharacterSizingContextsConversionsAndComparisons(t *testing.T) {
 		if pair.right == BPChar {
 			b = "a   "
 		}
-		got, err := p.Compare(ctx, String(types[pair.left], a), String(types[pair.right], b))
+		got, err := p.Compare(ctx, String(types[pair.left], a), String(types[pair.right], b), InputEnvironment{})
 		if err != nil || got != pair.want {
 			t.Fatal(pair, got, err)
 		}

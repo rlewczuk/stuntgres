@@ -16,28 +16,30 @@ import (
 type ID uint32
 
 const (
-	Bool      ID = 16
-	Bytea     ID = 17
-	Char      ID = 18
-	Name      ID = 19
-	Int8      ID = 20
-	Int2      ID = 21
-	Int4      ID = 23
-	Text      ID = 25
-	Oid       ID = 26
-	Float4    ID = 700
-	Float8    ID = 701
-	Unknown   ID = 705
-	NameArray ID = 1003
-	BPChar    ID = 1042
-	VarChar   ID = 1043
-	Date      ID = 1082
-	Time      ID = 1083
-	Timestamp ID = 1114
-	Numeric   ID = 1700
-	Regclass  ID = 2205
-	Void      ID = 2278
-	UUID      ID = 2950
+	Bool        ID = 16
+	Bytea       ID = 17
+	Char        ID = 18
+	Name        ID = 19
+	Int8        ID = 20
+	Int2        ID = 21
+	Int4        ID = 23
+	Text        ID = 25
+	Oid         ID = 26
+	Float4      ID = 700
+	Float8      ID = 701
+	Unknown     ID = 705
+	NameArray   ID = 1003
+	BPChar      ID = 1042
+	VarChar     ID = 1043
+	Date        ID = 1082
+	Time        ID = 1083
+	Timestamp   ID = 1114
+	Timestamptz ID = 1184
+	Timetz      ID = 1266
+	Numeric     ID = 1700
+	Regclass    ID = 2205
+	Void        ID = 2278
+	UUID        ID = 2950
 )
 
 type CollationDerivation uint8
@@ -81,6 +83,12 @@ func (d *Descriptor) DiagnosticName() string {
 	if d.id == Time {
 		return "time without time zone"
 	}
+	if d.id == Timestamptz {
+		return "timestamp with time zone"
+	}
+	if d.id == Timetz {
+		return "time with time zone"
+	}
 	if d.id == BPChar {
 		return "character"
 	}
@@ -121,6 +129,8 @@ func Builtins() []*Descriptor {
 		{Date, "date", "DATE", "DATE"},
 		{Time, "time", "TIME", "TIME"},
 		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
+		{Timestamptz, "timestamptz", "TIMESTAMP WITH TIME ZONE", "TIMESTAMPTZ"},
+		{Timetz, "timetz", "TIME WITH TIME ZONE", "TIMETZ"},
 		{Numeric, "numeric", "NUMERIC", "NUMERIC"},
 		{UUID, "uuid", "UUID", "UUID"},
 		{Regclass, "regclass", "REGCLASS", "REGCLASS"},
@@ -134,6 +144,7 @@ type Value struct {
 	typ             *Descriptor
 	null            bool
 	integer         int64
+	west            int32
 	oid             uint32
 	floating        float64
 	boolean         bool
@@ -330,11 +341,11 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.uuidInput(text)
 	case Date:
 		return d.civilInput(text, typmod, env)
-	case Time:
+	case Time, Timetz:
 		return d.timeInput(text, typmod, env)
 	case Numeric:
 		return d.numericInput(text, typmod)
-	case Timestamp:
+	case Timestamp, Timestamptz:
 		return d.civilInput(text, typmod, env)
 	case Text, BPChar, VarChar:
 		return sizeCharacter(String(d, text), typmod, false)
@@ -491,13 +502,17 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	case UUID:
 		return uuidOutput(v.uuid), nil
 	case Date:
-		return dateOutput(v.integer), nil
+		return dateStyledOutput(v.integer, env.DateStyle), nil
 	case Time:
 		return timeOutput(v.integer), nil
+	case Timetz:
+		return timeOutput(v.integer) + zoneOffsetOutput(-v.west), nil
 	case Numeric:
 		return numericOutput(v), nil
 	case Timestamp:
-		return timestampOutput(v.integer), nil
+		return timestampStyledOutput(v.integer, env.DateStyle, "", 0, false), nil
+	case Timestamptz:
+		return timestamptzOutput(v.integer, env), nil
 	case Int2, Int4, Int8:
 		return strconv.FormatInt(v.integer, 10), nil
 	case Float4, Float8:
@@ -536,6 +551,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + dateOutput(v.integer) + "'", nil
 	case Time:
 		return "'" + timeOutput(v.integer) + "'", nil
+	case Timetz:
+		return timetzSQLLiteral(v), nil
+	case Timestamptz:
+		if v.integer == timestampEnd {
+			return "TIMESTAMPTZ(0) '294276-12-31 23:59:59.999999+00'", nil
+		}
+		return "'" + timestamptzOutput(v.integer, OutputEnvironment{}) + "'", nil
 	case Timestamp:
 		if v.integer == timestampEnd {
 			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
@@ -590,6 +612,7 @@ const (
 	nameConversion
 	dateTimestampConversion
 	oidConversion
+	datetimeConversion
 )
 
 type CoercionPlan struct {
@@ -613,6 +636,16 @@ var baselineCasts = [...]castSpec{
 	{Oid, Int4, Assignment, oidConversion},
 	{Oid, Int8, Assignment, oidConversion},
 	{Date, Timestamp, Implicit, dateTimestampConversion},
+	{Date, Timestamptz, Implicit, datetimeConversion},
+	{Time, Timetz, Implicit, datetimeConversion},
+	{Timestamp, Date, Assignment, datetimeConversion},
+	{Timestamp, Time, Assignment, datetimeConversion},
+	{Timestamp, Timestamptz, Implicit, datetimeConversion},
+	{Timestamptz, Date, Assignment, datetimeConversion},
+	{Timestamptz, Time, Assignment, datetimeConversion},
+	{Timestamptz, Timestamp, Assignment, datetimeConversion},
+	{Timestamptz, Timetz, Assignment, datetimeConversion},
+	{Timetz, Time, Assignment, datetimeConversion},
 	{Name, Text, Implicit, stringConversion},
 	{Name, BPChar, Assignment, stringConversion},
 	{Name, VarChar, Assignment, stringConversion},
@@ -721,7 +754,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	}
 	return p, failure("42804", "incompatible source and destination types")
 }
-func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
+func (p CoercionPlan) Apply(ctx context.Context, v Value, input InputEnvironment, output OutputEnvironment) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
@@ -734,6 +767,8 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 	switch p.method {
 	case oidConversion:
 		return oidCoercion(v, p.target.Type)
+	case datetimeConversion:
+		return temporalConversion(v, p.target, input)
 	case dateTimestampConversion:
 		if v.integer == DateNegativeInfinity || v.integer == DatePositiveInfinity {
 			return TimestampValue(p.target.Type, v.integer)
@@ -749,7 +784,7 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 		if p.target.Type.id == Numeric {
 			return sizeNumeric(v, p.target.Typmod)
 		}
-		if p.target.Type.id == Timestamp || p.target.Type.id == Time {
+		if p.target.Type.id == Timestamp || p.target.Type.id == Time || p.target.Type.id == Timestamptz || p.target.Type.id == Timetz {
 			v.integer = roundTimestamp(v.integer, p.target.Typmod)
 		}
 		return v, nil
@@ -802,11 +837,11 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 		}
 		return Float(p.target.Type, n)
 	case viaIO:
-		text, err := p.source.Type.Output(ctx, v)
+		text, err := p.source.Type.OutputWithEnvironment(ctx, v, output)
 		if err != nil {
 			return Value{}, err
 		}
-		return p.target.Type.Input(ctx, text, p.target.Typmod)
+		return p.target.Type.InputWithEnvironment(ctx, text, p.target.Typmod, input)
 	case booleanText:
 		// Boolean string conversion uses true/false rather than boolout's t/f.
 		return sizeCharacter(String(p.target.Type, strconv.FormatBool(v.boolean)), p.target.Typmod, false)
@@ -826,7 +861,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
 	}
 	switch u.Type.id {
-	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Numeric, UUID, Regclass:
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Numeric, UUID, Regclass:
 	case Void, NameArray:
 		message := "could not identify an ordering operator for type void"
 		if u.Type.id == NameArray {
@@ -843,10 +878,17 @@ func BindOrdering(u Usage) (Comparison, error) {
 	return BindComparison(u.Type, u.Type)
 }
 
+func (p Comparison) SessionDependent() bool {
+	return p.left != nil && p.right != nil && p.left.id != p.right.id && (p.left.id == Timestamptz || p.right.id == Timestamptz)
+}
+
 func BindComparison(left, right *Descriptor) (Comparison, error) {
 	p := Comparison{left, right}
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
+	}
+	if dateTimestampType(left.id) && dateTimestampType(right.id) {
+		return p, nil
 	}
 	if IsCharacter(left.id) && IsCharacter(right.id) {
 		return p, nil
@@ -865,24 +907,15 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 	}
 	return p, failure("42883", "incompatible comparison operands")
 }
-func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
+func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironment) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return 0, fmt.Errorf("invalid comparison values")
 	}
-	if p.left.id == Date && p.right.id == Timestamp || p.left.id == Timestamp && p.right.id == Date {
-		day, stamp := a.integer, b.integer
-		reverse := p.left.id == Timestamp
-		if reverse {
-			day, stamp = b.integer, a.integer
-		}
-		sign := compareDateTimestamp(day, stamp)
-		if reverse {
-			sign = -sign
-		}
-		return sign, nil
+	if p.left.id != p.right.id && dateTimestampType(p.left.id) && dateTimestampType(p.right.id) {
+		return compareDatetime(a, b, input), nil
 	}
 	if IsCharacter(p.left.id) && IsCharacter(p.right.id) {
 		left, right := a.text, b.text
@@ -914,6 +947,22 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 	if p.left.id == Numeric || p.right.id == Numeric {
 		return compareNumeric(a, b), nil
 	}
+	if p.left.id == Timetz {
+		ak, bk := a.integer+int64(a.west)*1000000, b.integer+int64(b.west)*1000000
+		if ak < bk {
+			return -1, nil
+		}
+		if ak > bk {
+			return 1, nil
+		}
+		if a.west < b.west {
+			return -1, nil
+		}
+		if a.west > b.west {
+			return 1, nil
+		}
+		return 0, nil
+	}
 	switch p.left.id {
 	case Regclass:
 		if a.integer != 1 || b.integer != 1 {
@@ -941,7 +990,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 				return 1, nil
 			}
 		}
-	case Int2, Int4, Int8, Timestamp, Time, Date:
+	case Int2, Int4, Int8, Timestamp, Timestamptz, Time, Date:
 		if a.integer < b.integer {
 			return -1, nil
 		}
@@ -980,6 +1029,8 @@ type ComparisonPredicate struct {
 	operator ComparisonOperator
 }
 
+func (p ComparisonPredicate) SessionDependent() bool { return p.operands.SessionDependent() }
+
 func BindComparisonPredicate(operator ComparisonOperator, left, right, result *Descriptor) (ComparisonPredicate, error) {
 	if operator > CompareGreaterEqual || result == nil || result.id != Bool || !result.Concrete() {
 		return ComparisonPredicate{}, fmt.Errorf("invalid comparison predicate")
@@ -991,7 +1042,7 @@ func BindComparisonPredicate(operator ComparisonOperator, left, right, result *D
 	return ComparisonPredicate{operands: operands, result: result, operator: operator}, nil
 }
 
-func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value) (Value, error) {
+func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value, input InputEnvironment) (Value, error) {
 	if p.operator > CompareGreaterEqual || a.typ != p.operands.left || b.typ != p.operands.right || !p.operands.left.Concrete() || !p.operands.right.Concrete() || !p.result.Concrete() || p.result.id != Bool {
 		return Value{}, fmt.Errorf("invalid comparison predicate values")
 	}
@@ -1001,7 +1052,7 @@ func (p ComparisonPredicate) Evaluate(ctx context.Context, a, b Value) (Value, e
 	if a.null || b.null {
 		return Null(p.result), nil
 	}
-	sign, err := p.operands.Compare(ctx, a, b)
+	sign, err := p.operands.Compare(ctx, a, b, input)
 	if err != nil {
 		return Value{}, err
 	}

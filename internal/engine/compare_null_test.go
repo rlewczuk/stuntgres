@@ -63,7 +63,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 			}
 		}
 	}
-	strict, err := equality.Evaluate(evalContext.Context, sqltype.Null(intType), integer)
+	strict, err := equality.Evaluate(evalContext.Context, sqltype.Null(intType), integer, sqltype.InputEnvironment{})
 	if err != nil || strict.Type() != boolType || !strict.IsNull() {
 		t.Fatal("ordinary equality lost UNKNOWN", strict, err)
 	}

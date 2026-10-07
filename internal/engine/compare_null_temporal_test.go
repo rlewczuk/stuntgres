@@ -52,7 +52,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, pair := range [][2]sqltype.Value{{beforeLeft, afterLeft}, {beforeRight, afterRight}} {
-			equal, err := equality.Evaluate(ctx, pair[0], pair[1])
+			equal, err := equality.Evaluate(ctx, pair[0], pair[1], sqltype.InputEnvironment{})
 			truth, truthErr := TruthOf(equal)
 			if err != nil || truthErr != nil || truth != True {
 				t.Fatal("prepared operand reread transaction clock", pair, err, truthErr)

@@ -325,7 +325,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 							return nil, queryNamespace{}, err
 						}
 						column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1}
-						join.merges = append(join.merges, coercionExpression{b.info(usage, pos, le.Properties()), le, plan, sqltype.Implicit})
+						join.merges = append(join.merges, coercionExpression{b.info(usage, pos, coercionProperties(le, plan)), le, plan, sqltype.Implicit})
 						ns.frame = append(ns.frame, column.descriptor)
 					}
 				}

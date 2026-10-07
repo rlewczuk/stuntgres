@@ -1,0 +1,33 @@
+package parser
+
+import (
+	"strconv"
+	"strings"
+)
+
+func timezoneIntervalPrecision(l sqlLexer, tok lexeme) (int64, bool) {
+	if tok.numeric {
+		l.(*lexer).syntax(tok)
+		return 0, false
+	}
+	text := strings.ReplaceAll(tok.text, "_", "")
+	base := 10
+	if len(text) > 2 && text[0] == '0' && strings.ContainsRune("xXoObB", rune(text[1])) {
+		base = 0
+	}
+	n, err := strconv.ParseInt(text, base, 32)
+	if err != nil {
+		l.(*lexer).syntax(tok)
+		return 0, false
+	}
+	return n, true
+}
+func qualifiedTimezoneLiteral(l sqlLexer, schema, name lexeme) (TypeName, bool) {
+	if schema.text != "pg_catalog" || name.text != "timestamptz" && name.text != "timetz" {
+		l.(*lexer).failAt("0A000", "typed literals are unsupported", schema.pos.Offset)
+		return TypeName{}, false
+	}
+	raw := columnType(name)
+	raw.Pos = schema.pos
+	return raw, true
+}

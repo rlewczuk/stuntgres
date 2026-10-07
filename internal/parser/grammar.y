@@ -57,6 +57,7 @@ package parser
  identifier *Identifier
  viewOptions []ViewOption
  viewOption ViewOption
+ zoneSet *Set
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -73,6 +74,8 @@ package parser
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
+%token <tok> AT
+%token <tok> INTERVAL HOUR MINUTE SECOND DAY MONTH YEAR
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
 %token <tok> SELECTED_FUNC VARIADIC
 %token <tok> CASE WHEN THEN ELSE COALESCE NULLIF GREATEST LEAST
@@ -97,6 +100,7 @@ package parser
 %left SYMBOLIC_OPERATOR OPERATOR
 %left '+' '-'
 %left '*' '/' '%'
+%left AT
 %right UNARY
 /* KW_T, LIKE and WITH also start suffixes. Shift an adjacent type tail before
  * completing a single type name: known excluded families use their first type
@@ -150,6 +154,10 @@ package parser
 %type <tok> predicate_suffix
 %type <tok> cast_function
 %type <settingName> setting_name set_name local_setting_name
+%type <zoneSet> zone_setting
+%type <integer> interval_precision
+%type <tok> interval_qualifier interval_field
+%type <typ> timezone_literal_head
 %type <targets> insert_targets
 %type <objectName> relation_name
 %type <fromItem> from_list joined_table from_atom from_base
@@ -346,6 +354,9 @@ set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier
  | SET LOCAL local_setting_name setting_assignment DEFAULT { $$=&Set{Name:$3.identifier(),Default:true,Local:true,Pos:$1.pos} }
  | SET SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$2.pos},settingList{values:[]string{$3.text},stringValues:[]bool{true}},$1.pos) }
  | SET SESSION SCHEMA STRING { $$=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true}},$1.pos) }
+ | SET TIME ZONE zone_setting { $$=$4; $4.Name=Identifier{Text:"timezone",Pos:$2.pos};$4.Pos=$1.pos }
+ | SET SESSION TIME ZONE zone_setting { $$=$5; $5.Name=Identifier{Text:"timezone",Pos:$3.pos};$5.Pos=$1.pos }
+ | SET LOCAL TIME ZONE zone_setting { $$=$5; $5.Name=Identifier{Text:"timezone",Pos:$3.pos};$5.Pos=$1.pos;$5.Local=true }
  | SET LOCAL SCHEMA STRING { s:=parsedSet(Identifier{Text:"search_path",Pos:$3.pos},settingList{values:[]string{$4.text},stringValues:[]bool{true}},$1.pos);s.Local=true;$$=s } ;
 setting_assignment: TO | '=' ;
 setting_values: setting_value { $$=settingList{values:[]string{$1.text},stringValues:[]bool{$1.isString}} } | setting_values ',' setting_value { $$=$1;$$.values=append($$.values,$3.text);$$.stringValues=append($$.stringValues,$3.isString) } ;
@@ -355,9 +366,24 @@ setting_value: STRING { $$=settingAtom{text:$1.text,isString:true} } | name { $$
  | NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$1,false); if !ok { return 1 } }
  | '+' NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$2,false); if !ok { return 1 } }
  | '-' NUMBER { var ok bool; $$.text, ok=settingInteger(sqllex,$2,true); if !ok { return 1 } } ;
+zone_setting: STRING { $$=&Set{Values:[]string{$1.text}} }
+ | NUMBER { $$=&Set{Values:[]string{$1.text}} }
+ | '+' NUMBER { $$=&Set{Values:[]string{$2.text}} }
+ | '-' NUMBER { $$=&Set{Values:[]string{"-"+$2.text}} }
+ | DEFAULT { $$=&Set{Default:true} }
+ | LOCAL { $$=&Set{Default:true} }
+ | INTERVAL interval_precision STRING interval_qualifier { $$=&Set{Interval:&TimeZoneInterval{Text:$3.text,Precision:int32($2),Qualifier:$4.text,Pos:$1.pos}} } ;
+interval_precision: /* empty */ { $$=-1 }
+ | '(' NUMBER ')' { var ok bool;$$,ok=timezoneIntervalPrecision(sqllex,$2);if !ok{return 1} } ;
+interval_field: HOUR | MINUTE | SECOND | DAY | MONTH | YEAR ;
+interval_qualifier: /* empty */ { $$=lexeme{} }
+ | interval_field { if $1.text!="hour" && $1.text!="minute" {sqllex.(*lexer).failAt("42601","time zone interval must be HOUR or HOUR TO MINUTE",$1.pos.Offset);return 1};$$=$1 }
+ | interval_field TO interval_field { if $1.text!="hour" || $3.text!="minute" {sqllex.(*lexer).failAt("42601","time zone interval must be HOUR or HOUR TO MINUTE",$1.pos.Offset);return 1};$$=$1;$$.text="hour to minute" } ;
 show: SHOW setting_name { $$=&Show{Name:$2.identifier(),Pos:$1.pos} }
+ | SHOW TIME ZONE { $$=&Show{Name:Identifier{Text:"timezone",Pos:$2.pos},Pos:$1.pos} }
  | SHOW ALL { $$=&Show{All:true,Pos:$1.pos} } ;
 reset: RESET set_name { $$=&Reset{Name:$2.identifier(),Pos:$1.pos} }
+ | RESET TIME ZONE { $$=&Reset{Name:Identifier{Text:"timezone",Pos:$2.pos},Pos:$1.pos} }
  | RESET LOCAL { $$=&Reset{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | RESET ALL { $$=&Reset{All:true,Pos:$1.pos} } ;
 setting_name: name { $$=settingName{first:$1} }
@@ -457,14 +483,14 @@ temporal_type: TIMESTAMP %prec TYPE_NAME { $$=TypeName{Name:$1.text,Pos:$1.pos} 
  | TIMESTAMP '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
  | TIMESTAMP WITHOUT TIME ZONE {$$=TypeName{Name:$1.text,Pos:$1.pos}}
  | TIMESTAMP '(' NUMBER ')' WITHOUT TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
- | TIMESTAMP WITH {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1}
- | TIMESTAMP '(' NUMBER ')' WITH {if _,ok:=temporalPrecision(sqllex,$3,false);!ok{return 1};sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1}
+ | TIMESTAMP WITH TIME ZONE {$$=TypeName{Name:"timestamptz",Pos:$1.pos}}
+ | TIMESTAMP '(' NUMBER ')' WITH TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timestamptz";$$.Pos=$1.pos}
  | TIME %prec TYPE_NAME { $$=TypeName{Name:$1.text,Pos:$1.pos} }
  | TIME '(' NUMBER ')' %prec TYPE_NAME {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
  | TIME WITHOUT TIME ZONE {$$=TypeName{Name:$1.text,Pos:$1.pos}}
  | TIME '(' NUMBER ')' WITHOUT TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name=$1.text;$$.Pos=$1.pos}
- | TIME WITH {sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1}
- | TIME '(' NUMBER ')' WITH {if _,ok:=temporalPrecision(sqllex,$3,false);!ok{return 1};sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset);return 1} ;
+ | TIME WITH TIME ZONE {$$=TypeName{Name:"timetz",Pos:$1.pos}}
+ | TIME '(' NUMBER ')' WITH TIME ZONE {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Name="timetz";$$.Pos=$1.pos} ;
 generic_precision: NUMBER {var ok bool;if sqllex.(*lexer).floatPrecision {$$,ok=floatType(sqllex,lexeme{text:"float"},$1)} else {$$,ok=temporalPrecision(sqllex,$1,false)};if !ok{return 1}}
  | '-' {if sqllex.(*lexer).floatPrecision || sqllex.(*lexer).characterPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
  | '+' {if sqllex.(*lexer).floatPrecision || sqllex.(*lexer).characterPrecision {sqllex.(*lexer).syntax($1);return 1}} NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$3,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos}
@@ -579,6 +605,7 @@ scalar: scalar_atom { $$=$1 }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
   * them as scalar literals (which would convert overflowing numbers too early). */
  | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
+ | timezone_literal_head date_literal_precision ')' STRING {raw:=$1;raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | '+' scalar %prec UNARY { $$=arithmeticExpr($1,$2,nil) }
  | '-' scalar %prec UNARY { $$=negateExpr(sqllex,$1,$2) }
  | SYMBOLIC_OPERATOR scalar %prec SYMBOLIC_OPERATOR { $$=arithmeticExpr($1,$2,nil) }
@@ -587,6 +614,8 @@ scalar: scalar_atom { $$=$1 }
  | scalar '*' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar '/' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar '%' scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar AT TIME ZONE scalar %prec AT { $$=TimeZoneExpr{Value:$1,Zone:$5,Pos:$2.pos} }
+ | scalar AT LOCAL %prec AT { $$=TimeZoneExpr{Value:$1,Local:true,Pos:$2.pos} }
  | scalar SYMBOLIC_OPERATOR scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
@@ -595,9 +624,11 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
  /* DATE is an IDENT (also when quoted). TIME/TIMESTAMP STRING continuations
   * belong exclusively to temporal_type, not the ordinary name reduction. */
- | IDENT STRING { if $1.text!="date" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
+ | IDENT STRING { if $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
+ | INTERVAL STRING {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1}
  | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
  | name '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
+ | name '.' col_label STRING {raw,ok:=qualifiedTimezoneLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} }
  | conditional { $$=$1 }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
@@ -613,6 +644,7 @@ case_arm: WHEN delete_or THEN delete_or { $$=CaseArm{Condition:$2,Result:$4,Pos:
 case_else: /* empty */ { $$=nil } | ELSE delete_or { $$=$2 } ;
 conditional_args: delete_or { $$=[]Expr{$1} } | conditional_args ',' delete_or { $$=append($1,$3) } ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
+timezone_literal_head: name '.' col_label '(' {var ok bool;$$,ok=qualifiedTimezoneLiteral(sqllex,$1,$3);if !ok{return 1};sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).dateLiteralModifier=true} ;
 date_literal_precision: DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$1,false);if !ok{return 1}}
  | '-' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
  | '+' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos} ;
@@ -751,7 +783,7 @@ direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } 
 sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST ;
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
-setting_word_without_between: IDENT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+setting_word_without_between: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | UNKNOWN | OPERATOR | sequence_name_word | conditional_word ;
 setting_word: setting_word_without_between | BETWEEN ;
 non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW ;
@@ -762,7 +794,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | SELECTED_FUNC | KW_U | KW_C | KW_T | KW_R | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR ;
+generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | KW_U | KW_C | KW_T | KW_R | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */

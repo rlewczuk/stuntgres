@@ -34,7 +34,7 @@ func TestTypeCoreAdapterOwnershipAndErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	exported, err := exportValue(ctx, v)
+	exported, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
 	if err != nil || exported != "owned" {
 		t.Fatal(exported, err)
 	}
@@ -45,7 +45,7 @@ func TestTypeCoreAdapterOwnershipAndErrors(t *testing.T) {
 	if scanType(integer) != reflect.TypeFor[int64]() {
 		t.Fatal(scanType(integer))
 	}
-	exported, err = exportValue(ctx, sqltype.Null(integer))
+	exported, err = exportValue(ctx, sqltype.Null(integer), sqltype.OutputEnvironment{})
 	if err != nil || exported != nil {
 		t.Fatal(exported, err)
 	}
@@ -65,7 +65,7 @@ func TestTypeCoreAdapterOwnershipAndErrors(t *testing.T) {
 			t.Fatal("ordinary argument error", err)
 		}
 	}
-	if _, err = exportValue(ctx, sqltype.Value{}); err == nil {
+	if _, err = exportValue(ctx, sqltype.Value{}, sqltype.OutputEnvironment{}); err == nil {
 		t.Fatal("zero result accepted")
 	}
 }
@@ -163,7 +163,7 @@ func TestFloatAdapterImports(t *testing.T) {
 			if err != nil || v.Type() != target {
 				t.Fatal(v, err)
 			}
-			got, err := exportValue(ctx, v)
+			got, err := exportValue(ctx, v, sqltype.OutputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}

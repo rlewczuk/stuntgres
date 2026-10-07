@@ -63,7 +63,7 @@ func TestCompareOpsProvidersAndStrictNull(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					result, err := p.Evaluate(ctx, left, right)
+					result, err := p.Evaluate(ctx, left, right, InputEnvironment{})
 					if err != nil || result.Type() != types[Bool] || result.IsNull() {
 						t.Fatal(result, err)
 					}
@@ -72,7 +72,7 @@ func TestCompareOpsProvidersAndStrictNull(t *testing.T) {
 						t.Fatal(op, truth, want, err)
 					}
 					for _, pair := range [][2]Value{{Null(left.Type()), right}, {left, Null(right.Type())}, {Null(left.Type()), Null(right.Type())}} {
-						v, err := p.Evaluate(ctx, pair[0], pair[1])
+						v, err := p.Evaluate(ctx, pair[0], pair[1], InputEnvironment{})
 						if err != nil || !v.IsNull() || v.Type() != types[Bool] {
 							t.Fatal(v, err)
 						}
@@ -115,7 +115,7 @@ func TestCompareOpsPredicateInvariantsAndCancellation(t *testing.T) {
 	a, _ := Integer(types[Int4], 1)
 	b, _ := Integer(types[Int8], 2)
 	for _, pair := range [][2]Value{{{}, b}, {a, {}}, {Null(types[Text]), b}, {a, Null(types[Int4])}} {
-		_, err := p.Evaluate(context.Background(), pair[0], pair[1])
+		_, err := p.Evaluate(context.Background(), pair[0], pair[1], InputEnvironment{})
 		var diagnostic *sqlstate.Error
 		if err == nil || errors.As(err, &diagnostic) {
 			t.Fatal(err)
@@ -124,11 +124,11 @@ func TestCompareOpsPredicateInvariantsAndCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, pair := range [][2]Value{{a, b}, {Null(a.Type()), b}, {a, Null(b.Type())}, {Null(a.Type()), Null(b.Type())}} {
-		if _, err := p.Evaluate(ctx, pair[0], pair[1]); !errors.Is(err, context.Canceled) {
+		if _, err := p.Evaluate(ctx, pair[0], pair[1], InputEnvironment{}); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := (ComparisonPredicate{}).Evaluate(context.Background(), Value{}, Value{}); err == nil {
+	if _, err := (ComparisonPredicate{}).Evaluate(context.Background(), Value{}, Value{}, InputEnvironment{}); err == nil {
 		t.Fatal("zero predicate accepted")
 	}
 }

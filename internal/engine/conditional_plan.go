@@ -46,10 +46,10 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 				} else if test, ok := e.test.(literalExpression); ok {
 					known = true
 					var view sqltype.Value
-					view, err = arm.testPlan.Apply(c.Context, test.value)
+					view, err = arm.testPlan.Apply(c.Context, test.value, c.Input, c.Output)
 					if err == nil && !view.IsNull() && !condition.value.IsNull() {
 						var sign int
-						sign, err = arm.equality.Compare(c.Context, view, condition.value)
+						sign, err = arm.equality.Compare(c.Context, view, condition.value, c.Input)
 						match = sign == 0
 					}
 				}
@@ -138,6 +138,12 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		}
 		if len(e.args) == 0 {
 			return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+		}
+		expression = e
+	case timeZoneExpression:
+		e.value, err = child(e.value)
+		if err == nil && !e.local {
+			e.zone, err = child(e.zone)
 		}
 		expression = e
 	case coercionExpression:
@@ -283,7 +289,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		return nil, false, err
 	}
 	p := expression.Properties()
-	if _, literal := expression.(literalExpression); !literal && conditionalConstantInputs(expression) {
+	if _, literal := expression.(literalExpression); !literal && p.Volatility == Immutable && conditionalConstantInputs(expression) {
 		value, err := expression.Eval(c)
 		if err != nil {
 			return nil, false, err

@@ -102,7 +102,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 				}
 				return err
 			}
-			source = coercionExpression{binder.info(dest.Usage, a.Value.SourcePosition(), source.Properties()), source, plan, sqltype.Assignment}
+			source = coercionExpression{binder.info(dest.Usage, a.Value.SourcePosition(), coercionProperties(source, plan)), source, plan, sqltype.Assignment}
 			u.assignments[i] = source
 		}
 	}
@@ -180,7 +180,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate upd
 
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.close()
-	eval := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s}
+	eval := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}
 	// The candidate set is frozen before the first row wait. Rechecks can remove
 	// candidates but never discover rows that did not qualify in this snapshot.
 	var candidates []updateCandidate

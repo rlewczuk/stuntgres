@@ -149,7 +149,7 @@ func TestTypeCoreBooleanAndCoercion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		text, err := plan.Apply(ctx, v)
+		text, err := plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -179,7 +179,7 @@ func TestTypeCoreBooleanAndCoercion(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, _ := Integer(types[Int4], 2147483647)
-	converted, err := wide.Apply(ctx, v)
+	converted, err := wide.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 	if err != nil || converted.Type() != types[Int8] {
 		t.Fatal(converted, err)
 	}
@@ -188,18 +188,18 @@ func TestTypeCoreBooleanAndCoercion(t *testing.T) {
 		t.Fatal(err)
 	}
 	v, _ = Integer(types[Int8], 2147483648)
-	_, err = narrow.Apply(ctx, v)
+	_, err = narrow.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 	var got *sqlstate.Error
 	if !errors.As(err, &got) || got.Code != "22003" || got.Message != "integer out of range" {
 		t.Fatal(err)
 	}
-	null, err := wide.Apply(ctx, Null(types[Int4]))
+	null, err := wide.Apply(ctx, Null(types[Int4]), InputEnvironment{}, OutputEnvironment{})
 	if err != nil || !null.IsNull() || null.Type() != types[Int8] {
 		t.Fatal(null, err)
 	}
 	other := testTypes()
 	foreign, _ := Integer(other[Int4], 1)
-	if _, err := wide.Apply(ctx, foreign); err == nil {
+	if _, err := wide.Apply(ctx, foreign, InputEnvironment{}, OutputEnvironment{}); err == nil {
 		t.Fatal("foreign value accepted")
 	}
 	cmp, err := BindComparison(types[Int4], types[Int8])
@@ -208,7 +208,7 @@ func TestTypeCoreBooleanAndCoercion(t *testing.T) {
 	}
 	a, _ := Integer(types[Int4], 2147483647)
 	b, _ := Integer(types[Int8], 9223372036854775807)
-	if n, err := cmp.Compare(ctx, a, b); err != nil || n != -1 {
+	if n, err := cmp.Compare(ctx, a, b, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal(n, err)
 	}
 }
@@ -222,7 +222,7 @@ func TestTypeCoreStrictEqualityAndSerialization(t *testing.T) {
 	}
 	a, _ := Integer(types[Int4], 7)
 	b, _ := Integer(types[Int8], 7)
-	result, err := equality.Evaluate(ctx, a, b)
+	result, err := equality.Evaluate(ctx, a, b, InputEnvironment{})
 	if err != nil || result.Type() != types[Bool] || result.IsNull() {
 		t.Fatal(result, err)
 	}
@@ -230,7 +230,7 @@ func TestTypeCoreStrictEqualityAndSerialization(t *testing.T) {
 	if err != nil || !equal {
 		t.Fatal(equal, err)
 	}
-	result, err = equality.Evaluate(ctx, a, Null(types[Int8]))
+	result, err = equality.Evaluate(ctx, a, Null(types[Int8]), InputEnvironment{})
 	if err != nil || result.Type() != types[Bool] || !result.IsNull() {
 		t.Fatal(result, err)
 	}

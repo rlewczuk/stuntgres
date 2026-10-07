@@ -83,7 +83,7 @@ func TestNumericTypmodsAndImmutableSizing(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sized, err := plan.Apply(ctx, v)
+		sized, err := plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -136,7 +136,7 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 		b, _ := d.Input(ctx, tc.b, -1)
 		before := a
 		p, _ := BindComparison(d, d)
-		got, err := p.Compare(ctx, a, b)
+		got, err := p.Compare(ctx, a, b, InputEnvironment{})
 		if err != nil || got != tc.want || a != before {
 			t.Fatal(tc, got, err)
 		}
@@ -158,7 +158,7 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out, err := p.Apply(ctx, v)
+		out, err := p.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -181,7 +181,7 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 	} {
 		v, _ := d.Input(ctx, tc.in, -1)
 		p, _ := PlanCoercion(d.Usage(), types[tc.id].Usage(), Assignment)
-		_, err := p.Apply(ctx, v)
+		_, err := p.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		code := "22003"
 		if tc.in == "NaN" || tc.in == "Infinity" || tc.in == "-Infinity" {
 			code = "0A000"
@@ -194,7 +194,7 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 	}{{Float4, "1.23456789", "1.23457"}, {Float8, "1.2345678901234567", "1.23456789012346"}} {
 		v, _ := types[tc.id].Input(ctx, tc.in, -1)
 		p, _ := PlanCoercion(types[tc.id].Usage(), d.Usage(), Assignment)
-		out, err := p.Apply(ctx, v)
+		out, err := p.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,16 +206,16 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 	integer, _ := Integer(types[Int8], 9007199254740993)
 	decimal, _ := d.Input(ctx, "9007199254740993.0", -1)
 	p, _ := BindComparison(types[Int8], d)
-	if n, err := p.Compare(ctx, integer, decimal); err != nil || n != 0 {
+	if n, err := p.Compare(ctx, integer, decimal, InputEnvironment{}); err != nil || n != 0 {
 		t.Fatal(n, err)
 	}
 	huge, _ := d.Input(ctx, "1e400", -1)
 	f, _ := Float(types[Float8], 1)
 	p, _ = BindComparison(d, types[Float8])
-	_, err := p.Compare(ctx, huge, f)
+	_, err := p.Compare(ctx, huge, f, InputEnvironment{})
 	numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: `"` + "1" + strings.Repeat("0", 400) + `" is out of range for type double precision`})
 	equality, _ := BindComparisonPredicate(CompareEqual, d, d, types[Bool])
-	null, err := equality.Evaluate(ctx, Null(d), decimal)
+	null, err := equality.Evaluate(ctx, Null(d), decimal, InputEnvironment{})
 	if err != nil || !null.IsNull() || null.Type() != types[Bool] {
 		t.Fatal(null, err)
 	}
@@ -228,16 +228,16 @@ func TestNumericComparisonAndConversions(t *testing.T) {
 	real, _ := types[Float4].Input(ctx, "16777217", -1)
 	known, _ := d.Input(ctx, "16777217.0", -1)
 	comparison, _ := BindComparison(types[Float4], d)
-	if n, err := comparison.Compare(ctx, real, known); err != nil || n != -1 {
+	if n, err := comparison.Compare(ctx, real, known, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal("known numeric narrowed to REAL", n, err)
 	}
 	wide, _ := d.Input(ctx, "1e100", -1)
-	if n, err := comparison.Compare(ctx, real, wide); err != nil || n != -1 {
+	if n, err := comparison.Compare(ctx, real, wide, InputEnvironment{}); err != nil || n != -1 {
 		t.Fatal("known numeric comparison selected REAL", n, err)
 	}
 	tiny, _ := d.Input(ctx, "1e-400", -1)
 	cast, _ := PlanCoercion(d.Usage(), types[Float8].Usage(), Implicit)
-	_, err = cast.Apply(ctx, tiny)
+	_, err = cast.Apply(ctx, tiny, InputEnvironment{}, OutputEnvironment{})
 	numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: `"` + "0." + strings.Repeat("0", 399) + "1" + `" is out of range for type double precision`})
 }
 
@@ -271,7 +271,7 @@ func TestNumericFloatConversionBoundaryDiagnostics(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = plan.Apply(ctx, v)
+		_, err = plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: `"` + tc.text + `" is out of range for type ` + tc.name})
 	}
 	for _, id := range []ID{Float4, Float8} {
@@ -291,7 +291,7 @@ func TestNumericFloatConversionBoundaryDiagnostics(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = comparison.Compare(ctx, one, v)
+			_, err = comparison.Compare(ctx, one, v, InputEnvironment{})
 			numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: `"` + tc.text + `" is out of range for type double precision`})
 		}
 	}
@@ -315,7 +315,7 @@ func TestNumericExistingSmallintCoercionAndComparison(t *testing.T) {
 			t.Fatal(err)
 		}
 		// Precision 5, scale 2 fits three integer digits only.
-		out, err := cast.Apply(ctx, integer)
+		out, err := cast.Apply(ctx, integer, InputEnvironment{}, OutputEnvironment{})
 		if n == -32768 || n == 32767 {
 			numericProviderDiagnostic(t, err, sqlstate.Error{Code: "22003", Message: "numeric field overflow", Detail: "A field with precision 5, scale 2 must round to an absolute value less than 10^3."})
 		} else {
@@ -332,7 +332,7 @@ func TestNumericExistingSmallintCoercionAndComparison(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		exact, err := exactCast.Apply(ctx, integer)
+		exact, err := exactCast.Apply(ctx, integer, InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -349,7 +349,7 @@ func TestNumericExistingSmallintCoercionAndComparison(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			equal, err := equality.Evaluate(ctx, left, right)
+			equal, err := equality.Evaluate(ctx, left, right, InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -357,13 +357,13 @@ func TestNumericExistingSmallintCoercionAndComparison(t *testing.T) {
 			if err != nil || !got {
 				t.Fatal(got, err)
 			}
-			null, err := equality.Evaluate(ctx, Null(left.Type()), right)
+			null, err := equality.Evaluate(ctx, Null(left.Type()), right, InputEnvironment{})
 			if err != nil || !null.IsNull() || null.Type() != types[Bool] {
 				t.Fatal(null, err)
 			}
 		}
 	}
-	null, err := cast.Apply(ctx, Null(small))
+	null, err := cast.Apply(ctx, Null(small), InputEnvironment{}, OutputEnvironment{})
 	if err != nil || !null.IsNull() || null.Type() != numeric {
 		t.Fatal(null, err)
 	}
@@ -385,7 +385,7 @@ func TestNumericExistingSmallintCoercionAndComparison(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got, err := comparison.Compare(ctx, left, right); err != nil || got != want {
+			if got, err := comparison.Compare(ctx, left, right, InputEnvironment{}); err != nil || got != want {
 				t.Fatal(tc, reverse, got, err, want)
 			}
 		}
@@ -403,7 +403,7 @@ func TestNumericSmallintAssignmentContextAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	null, err := cast.Apply(ctx, Null(numeric))
+	null, err := cast.Apply(ctx, Null(numeric), InputEnvironment{}, OutputEnvironment{})
 	if err != nil || !null.IsNull() || null.Type() != small {
 		t.Fatal(null, err)
 	}

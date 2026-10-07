@@ -24,6 +24,7 @@ type RowCursor interface {
 type RowResult interface {
 	RowCursor
 	RegclassText(sqltype.Value) (string, error)
+	OutputEnvironment() sqltype.OutputEnvironment
 }
 
 type querySchema []ColumnDescriptor
@@ -341,6 +342,8 @@ func (s *querySource) close() {
 type queryState struct {
 	source     *querySource
 	parameters []sqltype.Value
+	input      sqltype.InputEnvironment
+	output     sqltype.OutputEnvironment
 }
 type indexedStage struct {
 	source      *querySource
@@ -442,7 +445,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
 		rows := make([][]sqltype.Value, len(n.rows))
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope}
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
 		for i, expressions := range n.rows {
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
@@ -496,7 +499,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return indexedStage{}, err
 		}
 		selection := make([]int, 0, child.count())
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope}
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
 		for i := range child.count() {
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
@@ -532,7 +535,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			child.cacheWidth = n.cacheWidth
 			child.orderValues = make([]sqltype.Value, child.count()*n.cacheWidth)
 			child.permutation = make([]int, child.count())
-			evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope}
+			evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
 			for i := range child.count() {
 				child.permutation[i] = i
 				evaluation.Row = child.source.row(child.selection[i])
@@ -588,7 +591,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 					}
 					return 1, nil
 				}
-				sign, err := key.comparison.Compare(ctx, left, right)
+				sign, err := key.comparison.Compare(ctx, left, right, state.input)
 				if err != nil {
 					return 0, err
 				}
@@ -609,7 +612,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		child.schema = n.Schema()
 		child.expressions = n.expressions
-		child.evaluation = EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope}
+		child.evaluation = EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
 		return child, nil
 	default:
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid logical query node")
@@ -680,6 +683,7 @@ type finalRows struct {
 	count, position   int
 	terminal          error
 	exhausted, closed bool
+	output            sqltype.OutputEnvironment
 }
 
 func newFinalRows(schema []ColumnDescriptor, count int) *finalRows {
@@ -687,7 +691,8 @@ func newFinalRows(schema []ColumnDescriptor, count int) *finalRows {
 	r.self = r
 	return r
 }
-func (r *finalRows) Schema() []ColumnDescriptor { return r.schema }
+func (r *finalRows) Schema() []ColumnDescriptor                   { return r.schema }
+func (r *finalRows) OutputEnvironment() sqltype.OutputEnvironment { return r.output }
 func (r *finalRows) RegclassText(v sqltype.Value) (string, error) {
 	key, err := v.Text()
 	if err != nil {
@@ -774,12 +779,17 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
-	stage, err := openQueryNode(ctx, &queryState{source: source, parameters: parameters}, project)
+	state := &queryState{source: source, parameters: parameters}
+	if source.scope != nil {
+		state.input, state.output = source.scope.input, source.scope.output
+	}
+	stage, err := openQueryNode(ctx, state, project)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer stage.Close()
 	r := newFinalRows(project.Schema(), stage.count())
+	r.output = state.output
 	var slots []int
 	direct := true
 	for _, expr := range project.expressions {
@@ -804,7 +814,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		for i, expr := range project.expressions {
 			slots[i] = expr.(columnExpression).slot
 		}
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters}
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, Input: state.input, Output: state.output}
 		for i := range r.count {
 			if err := ctx.Err(); err != nil {
 				return nil, 0, err

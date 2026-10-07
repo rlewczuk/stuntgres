@@ -75,7 +75,7 @@ func TestGroupingConcreteTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v, err := strict.Evaluate(ctx, Null(d), Null(d))
+			v, err := strict.Evaluate(ctx, Null(d), Null(d), InputEnvironment{})
 			if err != nil || !v.IsNull() {
 				t.Fatal(v, err)
 			}

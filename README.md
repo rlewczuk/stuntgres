@@ -10,6 +10,17 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Time-zone-aware `TIMESTAMPTZ` and `TIMETZ` values support per-physical-session
+TimeZone/DateStyle, named IANA zones, abbreviations, fixed offsets and
+`AT TIME ZONE` / `AT LOCAL`. Timestamptz stores an instant; timetz retains
+its fixed offset. Rules are embedded from the pinned PostgreSQL 18.0 image,
+not the host timezone installation. See [temporal types](docs/TYPES.md#time-zone-aware-values)
+and [session settings](docs/SETTINGS.md#temporal-settings).
+Native logical Dump/Restore preserves these values independently of session
+presentation. This does not add timezone catalog views, general INTERVAL,
+or the CURRENT_* producer family.
+Public feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
+
 SELECT and INSERT SELECT support comma products, CROSS JOIN and inner joins
 with ON, USING or NATURAL, including nested joins, FROM/column aliases and the
 special USING alias. Qualified columns and mixed qualified stars preserve

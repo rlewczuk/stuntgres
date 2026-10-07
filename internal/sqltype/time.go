@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 )
 
 // TIME is an inline civil clock, including the distinct end-of-day endpoint.
 func TimeValue(d *Descriptor, n int64) (Value, error) {
-	if d == nil || d.id != Time {
+	if d == nil || (d.id != Time && d.id != Timetz) {
 		return Value{}, fmt.Errorf("invalid time descriptor")
 	}
 	if n < 0 || n > microsPerDay {
@@ -18,7 +19,7 @@ func TimeValue(d *Descriptor, n int64) (Value, error) {
 }
 
 func (v Value) Time() (int64, error) {
-	if v.null || v.typ == nil || v.typ.id != Time {
+	if v.null || v.typ == nil || (v.typ.id != Time && v.typ.id != Timetz) {
 		return 0, fmt.Errorf("not a time value")
 	}
 	return v.integer, nil
@@ -32,9 +33,9 @@ func timeOutput(n int64) string {
 	return s
 }
 
-func timeInputError(text string, status timestampDecodeStatus, hint bool) error {
+func timeInputError(typeName, text string, status timestampDecodeStatus, hint bool) error {
 	if status == timestampMalformed {
-		return failure("22007", fmt.Sprintf("invalid input syntax for type time: \"%s\"", text))
+		return civilInputError(typeName, text, "", false)
 	}
 	kind := "field"
 	if status == timestampZoneOverflow {
@@ -49,12 +50,12 @@ func timeInputError(text string, status timestampDecodeStatus, hint bool) error 
 func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) (Value, error) {
 	fields, n, ok := tokenizeTimestamp(text)
 	bad := func(status timestampDecodeStatus) (Value, error) {
-		return Value{}, timeInputError(text, status, false)
+		return Value{}, timeInputError(d.Name(), text, status, false)
 	}
 	if !ok || n == 0 {
 		return bad(timestampMalformed)
 	}
-	p := timestampDecoder{}
+	p := timestampDecoder{order: env.DateStyle.Order, zone: zoneSpecification{zone: env.Zone}}
 	const (
 		noPrefix = iota
 		timePrefix
@@ -86,7 +87,7 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				if index < 0 {
 					return bad(timestampMalformed)
 				}
-				status = numericZone(s[index:])
+				status = p.setNumericZone(s[index:])
 				if status == timestampDecoded {
 					status = compact(s[:index])
 				}
@@ -95,9 +96,11 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				}
 				p.zoneSet = true
 			} else {
-				if timestampZoneKind(s) != timestampNamedZone {
-					return Value{}, failure("22023", fmt.Sprintf("time zone \"%s\" not recognized", strings.ToLower(s)))
+				zone, err := resolveInputZone(s, env.Zone)
+				if err != nil {
+					return Value{}, err
 				}
+				p.zone = zone
 				if p.zoneSet {
 					return bad(timestampMalformed)
 				}
@@ -116,7 +119,7 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				p.timeSet = true
 			}
 		case 'z':
-			status = numericZone(s)
+			status = p.setNumericZone(s)
 			if status == timestampDecoded && p.zoneSet {
 				return bad(timestampMalformed)
 			}
@@ -165,12 +168,17 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				status = compact(s)
 			}
 		case 's':
-			kind := timestampAbbreviationKind(s)
+			kind := inputAbbreviationKind(s, env.Zone)
 			if kind != timestampUnknownZone {
 				if p.zoneSet || kind == timestampDaylightZone && p.daylightSet {
 					return bad(timestampMalformed)
 				}
 				p.zoneSet = true
+				zone, err := resolveInputZone(s, env.Zone)
+				if err != nil {
+					return Value{}, err
+				}
+				p.zone = zone
 				p.daylightSet = p.daylightSet || kind == timestampDaylightZone
 				dynamicZone = kind == timestampDynamicZone
 				break
@@ -206,14 +214,17 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				if env.TransactionStart.IsZero() {
 					return Value{}, fmt.Errorf("missing time input environment")
 				}
-				t := env.TransactionStart.UTC()
+				east, _ := env.Zone.OffsetAt(env.TransactionStart.Unix())
+				t := env.TransactionStart.UTC().Add(time.Duration(east) * time.Second)
 				p.h, p.min, p.s = t.Clock()
 				p.u, p.timeSet = int(math.RoundToEven(float64(t.Nanosecond())/1000)), true
+				p.zone = zoneSpecification{east: east, fixed: true}
 			case timestampASCIIEqual(s, "allballs"):
 				if p.timeSet || p.zoneSet {
 					return bad(timestampMalformed)
 				}
 				p.timeSet, p.zoneSet = true, true
+				p.zone = zoneSpecification{fixed: true}
 			case timestampASCIIEqual(s, "t"), timestampASCIIEqual(s, "j"), timestampASCIIEqual(s, "jd"), timestampASCIIEqual(s, "julian"):
 				if prefix != noPrefix {
 					return bad(timestampMalformed)
@@ -228,9 +239,11 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 				}
 				prefix = unsupportedPrefix
 			default:
-				if coreDateWord(s) || timestampZoneKind(s) != timestampNamedZone || p.zoneSet {
+				zone, err := resolveInputZone(s, env.Zone)
+				if coreDateWord(s) || err != nil || p.zoneSet {
 					return bad(timestampMalformed)
 				}
+				p.zone = zone
 				p.zoneSet, namedZone = true, s
 			}
 		default:
@@ -264,7 +277,7 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 		p.y, p.m, p.d = dayCivil(civilDay(p.y, 1, 1) + int64(p.doy) - 1)
 	}
 	if p.mask&dateMonth != 0 && (p.m < 1 || p.m > 12) || p.mask&dateDay != 0 && (p.d < 1 || p.d > 31) {
-		return Value{}, timeInputError(text, timestampFieldOverflow, true)
+		return Value{}, timeInputError(d.Name(), text, timestampFieldOverflow, true)
 	}
 	if p.mask == dateComplete && p.d > monthDays(p.y, p.m) {
 		return bad(timestampFieldOverflow)
@@ -285,6 +298,24 @@ func (d *Descriptor) timeInput(text string, typmod int32, env InputEnvironment) 
 	}
 	if !p.timeSet || p.dstSet && (!p.zoneSet || namedZone != "" || dynamicZone) || namedZone != "" && !fixedTimeZone(namedZone) && p.mask != dateComplete {
 		return bad(timestampMalformed)
+	}
+	if d.id == Timetz {
+		day := civilDay(p.y, p.m, p.d)
+		if p.mask != dateComplete {
+			if env.TransactionStart.IsZero() && !p.zone.fixed && !p.zone.zone.isFixed() {
+				return Value{}, fmt.Errorf("missing timetz input environment")
+			}
+			t := env.TransactionStart
+			east, _ := env.Zone.OffsetAt(t.Unix())
+			day = floorDiv(t.Unix()+int64(east), 86400) + unixEpochCivilDay
+		}
+		east := p.zone.offsetCivil((day-unixEpochCivilDay)*86400 + floorDiv(nval, 1000000))
+		if p.dstSet {
+			east += 3600
+		}
+		v, err := TimeValue(d, roundTimestamp(nval, typmod))
+		v.west = -east
+		return v, err
 	}
 	return TimeValue(d, roundTimestamp(nval, typmod))
 }

@@ -24,7 +24,7 @@ func TestExplicitCoercionMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatal(source, target, err)
 			}
-			null, err := plan.Apply(ctx, Null(types[source]))
+			null, err := plan.Apply(ctx, Null(types[source]), InputEnvironment{}, OutputEnvironment{})
 			if err != nil || null.Type() != types[target] || !null.IsNull() {
 				t.Fatal(source, target, null, err)
 			}
@@ -36,7 +36,7 @@ func TestExplicitCoercionMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := plan.Apply(ctx, value)
+			got, err := plan.Apply(ctx, value, InputEnvironment{}, OutputEnvironment{})
 			if err != nil || got.Type() != types[target] {
 				t.Fatal(source, target, got, err)
 			}
@@ -80,7 +80,7 @@ func TestExplicitCoercionValueBoundaries(t *testing.T) {
 	plan, _ := PlanCoercion(types[Int4].Usage(), types[Bool].Usage(), Explicit)
 	for _, n := range []int64{-2147483648, -2, 0, 2, 2147483647} {
 		value, _ := Integer(types[Int4], n)
-		got, err := plan.Apply(ctx, value)
+		got, err := plan.Apply(ctx, value, InputEnvironment{}, OutputEnvironment{})
 		b, accessErr := got.Boolean()
 		if err != nil || accessErr != nil || b != (n != 0) {
 			t.Fatal(n, got, err, accessErr)
@@ -89,7 +89,7 @@ func TestExplicitCoercionValueBoundaries(t *testing.T) {
 	narrow, _ := PlanCoercion(types[Int8].Usage(), types[Int4].Usage(), Explicit)
 	for _, n := range []int64{-2147483649, 2147483648} {
 		value, _ := Integer(types[Int8], n)
-		_, err := narrow.Apply(ctx, value)
+		_, err := narrow.Apply(ctx, value, InputEnvironment{}, OutputEnvironment{})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "22003" || d.Position != "" {
 			t.Fatal(err)
@@ -97,11 +97,11 @@ func TestExplicitCoercionValueBoundaries(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := plan.Apply(canceled, Null(types[Int4])); !errors.Is(err, context.Canceled) {
+	if _, err := plan.Apply(canceled, Null(types[Int4]), InputEnvironment{}, OutputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	other := testTypes()
-	if _, err := plan.Apply(ctx, Null(other[Int4])); err == nil {
+	if _, err := plan.Apply(ctx, Null(other[Int4]), InputEnvironment{}, OutputEnvironment{}); err == nil {
 		t.Fatal("foreign descriptor admitted")
 	}
 }

@@ -99,7 +99,7 @@ func TestByteaOutputAndCompare(t *testing.T) {
 			if mode == ByteaEscape {
 				want = tc.escape
 			}
-			if got, err := d.OutputWithEnvironment(ctx, v, OutputEnvironment{mode}); err != nil || got != want {
+			if got, err := d.OutputWithEnvironment(ctx, v, OutputEnvironment{ByteaOutput: mode}); err != nil || got != want {
 				t.Fatalf("got %q want %q: %v", got, want, err)
 			}
 			if got, err := d.SQLLiteral(ctx, v); err != nil || got != "'"+tc.hex+"'" {
@@ -114,7 +114,7 @@ func TestByteaOutputAndCompare(t *testing.T) {
 		t.Fatal("null output")
 	}
 	v, _ := Binary(d, "")
-	if _, err := d.OutputWithEnvironment(ctx, v, OutputEnvironment{99}); err == nil {
+	if _, err := d.OutputWithEnvironment(ctx, v, OutputEnvironment{ByteaOutput: 99}); err == nil {
 		t.Fatal("invalid mode")
 	}
 	canceled, cancel := context.WithCancel(ctx)
@@ -131,7 +131,7 @@ func TestByteaOutputAndCompare(t *testing.T) {
 		for j, b := range corpus {
 			av, _ := Binary(d, a)
 			bv, _ := Binary(d, b)
-			got, err := cmp.Compare(ctx, av, bv)
+			got, err := cmp.Compare(ctx, av, bv, InputEnvironment{})
 			want := 0
 			if i < j {
 				want = -1

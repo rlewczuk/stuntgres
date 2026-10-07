@@ -625,6 +625,14 @@ func restoreScalar(raw parser.Expr) error {
 		return nil
 	case parser.CastExpr:
 		return restoreScalar(r.Child)
+	case parser.TimeZoneExpr:
+		if err := restoreScalar(r.Value); err != nil {
+			return err
+		}
+		if !r.Local {
+			return restoreScalar(r.Zone)
+		}
+		return nil
 	case parser.ParameterExpr:
 		return expressionError("42P02", "parameters are not allowed in restore", r.Pos)
 	case parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:

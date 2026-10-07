@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp with or without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, exact NUMERIC and canonical UUID), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, TIMETZ 1266, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -639,8 +639,8 @@ and AM/PM conversion. Thus duplicate zones in `25:00 UTC UTC` yield `22007`
 before the deferred hour overflow, and `2003-13-07 25:00` retains the DateStyle
 Hint. TIMESTAMP keeps its distinct early whole-clock check. Incompatible typed
 assignments identify the actual source (`time without time zone` for TIME).
-PostgreSQL's TIMESTAMP-to-TIME assignment cast is an explicit unsupported native
-boundary, not a claimed parity behavior.
+Temporal assignment and explicit casts follow the bounded datetime cast pairs
+described below; they are not permission for arbitrary cross-category casts.
 
 Numeric zones, release abbreviations and full names are **validated then ignored**;
 `04:05:06-08` stays `04:05:06`. Unknown zones and invalid displacements fail;
@@ -648,20 +648,20 @@ unknown full-zone diagnostics use the lowercased token, e.g.
 `time zone "america/bogus" not recognized` for `America/Bogus`.
 Historically varying full names (including currently no-DST Asia/Kolkata) need
 a valid supplied date; historically fixed names/aliases such as Etc/GMT+5 need
-none. The immutable inventory covers every REL_18_0 IANA 2025b Zone/Link,
-classified from historical fat TZif ttinfos and release-loaded footer offsets,
-with no runtime zone I/O or host-zone dependence. Dynamic abbreviations need no
+none. The immutable timezone rules come from the pinned PostgreSQL 18.0 image's
+IANA 2025b dataset, including backzone history, without runtime zone I/O or
+host-zone dependence. Dynamic abbreviations need no
 date; DST-modifier and duplicate-field restrictions still apply.
 Single-token POSIX `X0` and equal-offset `X0Y0` are fixed, unlike `X0Y`.
 
-`allballs` is midnight. `now` uses the transaction-owned UTC start; held typed
+`allballs` is midnight. `now` uses the transaction-owned session-local start; held typed
 and contextual constants freeze at analysis, while parameters read each execution
 start (shared within one explicit transaction). TIME `now` does not reserve a
 zone field, unlike TIMESTAMP `now`; `allballs` does. Malformed fields, modifiers,
 later tuples and staged Restore failures never publish partial state. Dump quotes
 canonical clocks and Restore preserves precisions, NULLs, endpoints and old cursors.
-TIME WITH TIME ZONE/timetz, session TimeZone/DateStyle, temporal functions,
-casts and no-FROM SELECT remain outside this feature.
+See the timezone-aware section below for TIMETZ, session settings and conversions.
+General temporal arithmetic/functions and ordinary no-FROM SELECT remain excluded.
 
 Feature smoke: `make smoke RUN='^TestTimeSmoke$' VERBOSE=1`.
 Native coverage: `make test PACKAGES=. RUN='^TestTime.*$' VERBOSE=1`.
@@ -697,10 +697,10 @@ Strings, owned textual bytes and nil use the existing type-owned input path.
 The pinned pq adapter shifts BC `time.Time` years with Go `AddDate` before
 encoding: its year-zero February 29 bind becomes `0001-03-01 BC`. Native DATE
 preserves `0001-02-29 BC`; textual BC input avoids that pq encoding limitation.
-`now`, `today`, `yesterday` and `tomorrow` use transaction-start UTC; prepared
-typed/contextual constants freeze at analysis, while parameters read execution
-start. No DateStyle/TimeZone settings, CURRENT_DATE function, cross-temporal casts,
-arithmetic, arrays or no-FROM SELECT are added.
+`now`, `today`, `yesterday` and `tomorrow` use session-local transaction start;
+prepared typed/contextual constants freeze at analysis, while parameters read
+execution start. DateStyle affects input/output as described below. CURRENT_DATE,
+general temporal arithmetic, arrays and ordinary no-FROM SELECT remain excluded.
 
 Malformed input is `22007`; invalid calendar fields and finite-range failures
 are `22008`, preserving original input and English diagnostics.
@@ -759,12 +759,13 @@ An authorized existing IF NOT EXISTS table skips semantic precision validation,
 not malformed syntax. `client_min_messages=error` filters these warnings.
 Unicode-escaped quoted identifiers resolving to `"timestamp"` use the same
 modifier rule. Timestamp-related keywords retain their release identifier and
-bare-label categories. A cast applied to a typed timestamp literal remains a
-positioned `0A000` unsupported cast, not an executable expression.
+bare-label categories. Standard/postfix timestamp casts follow the selected
+datetime cast matrix; unrelated cast pairs remain unsupported.
 
-Input combines dates and times using fixed **MDY** ambiguous ordering, and output
-is fixed **ISO** civil date/time with a space, seconds, trimmed fractional zeros
-and no offset. Supported families include ISO dates/space or T separators,
+Input combines dates and times using captured DateStyle ordering (default MDY).
+Output uses captured ISO/SQL/Postgres/German style; default ISO has a space,
+seconds, trimmed fractional zeros and no offset for plain TIMESTAMP. Supported
+families include ISO dates/space or T separators,
 full/abbreviated text months and mixed delimiters, MDY slash/dash/dot dates,
 compact dates/times, short-year pivot 00–69→2000–2069 / 70–99→1970–1999,
 ordinal year/day and Julian day (including fractions), colon times, AM/PM,
@@ -864,13 +865,13 @@ rounded endpoint with `TIMESTAMP(0) '294276-12-31 23:59:59.999999'`, so staged R
 reconstructs it through the ordinary parser/input/sizing path even into a p6 column.
 
 Native `now`, `today`, `tomorrow` and `yesterday` strings use the transaction-owned
-UTC civil start, captured once for an explicit/implicit transaction. All rows and
+session-local civil start, captured once for an explicit/implicit transaction. All rows and
 statements in one explicit transaction share it. Prepared timestamp constants,
 including contextual quoted inputs, freeze when analyzed; string/byte parameters
 are read afresh at execution using that execution transaction's start.
 SQL BEGIN and native BeginTx use the same clock owner. COMMIT/ROLLBACK AND CHAIN,
 including recovery by COMMIT AND CHAIN from an aborted block, capture a fresh
-UTC start for the new incarnation; redundant BEGIN and control Prepare do not
+transaction start for the new incarnation; redundant BEGIN and control Prepare do not
 reset it. Plain COMMIT/ROLLBACK clear it before the next implicit transaction.
 Independent public, codec/engine and pinned reference assertions retain both
 the floating-point and timestamp contracts after integration.
@@ -897,7 +898,7 @@ adjacent digits or plus signs; they are not reinterpreted as POSIX zone names.
 For example, a completed date/time followed by `now1` or `now+2` is invalid,
 while genuine short POSIX names such as `e2` retain their ignored-zone behavior.
 This is context-sensitive: standalone `today+2` is a valid date and numeric
-zone, with the same UTC civil midnight as `today`, not an adjacency blacklist.
+zone, with the same session-local civil midnight as `today`, not an adjacency blacklist.
 Delimited and dotted-ordinal dates must complete the global date-field mask:
 prior clock/`allballs`, weekday, AD/BC or AM/PM fields make that branch invalid;
 only ordinal and timezone fields are excluded from its completion test.
@@ -959,9 +960,9 @@ Malformed/date/time/range/zone errors publish no partial INSERT or Restore
 replacement. Retained cursors keep original values, precision and origin metadata
 across append/Reset/Restore; exported infinity buffers cannot mutate stored values.
 
-No timestamp-with-time-zone type, DateStyle/TimeZone settings, temporal functions,
-casts, no-FROM SELECT or broader expression syntax is enabled by this feature.
-DMY/YMD setting-dependent interpretations are not native defaults.
+Timezone-aware types, DateStyle/TimeZone and selected temporal casts/conversions
+are described below. General temporal functions/arithmetic and ordinary no-FROM
+SELECT remain excluded; the default input order is MDY.
 Run `go test -count=1 -v -run '^TestTimestampSmoke$' ./smoke` for the feature smoke,
 `go test -count=1 -v -run '^TestTimestamp.*$' .` for public acceptance, and
 `go test -tags reference -count=1 -v -run '^TestReferenceTimestamp.*$' ./reference`
@@ -970,3 +971,78 @@ Codec corner cases and allocation assertions can be selected with
 `go test -count=1 -v -run '^TestTimestamp.*$' ./internal/sqltype`;
 `go test -count=1 -v -run '^TestTimestamp.*Allocations$' ./internal/sqltype`
 includes signed-whitespace and revised numeric/prefix/DST branches.
+
+## Time-zone-aware values
+
+`TIMESTAMPTZ(p)` / `TIMESTAMP(p) WITH TIME ZONE` (OID1184) stores a UTC
+microsecond instant, not the input zone name. `TIMETZ(p)` / `TIME(p) WITH TIME ZONE`
+(OID1266) stores a civil clock and fixed seconds-west offset. Precision 0–6
+uses existing microsecond sizing; above6 warns/clamps. Precision precedes WITH,
+for example `TIMESTAMP(3) WITH TIME ZONE`. Plain TIMESTAMP/TIME remain without-zone.
+NULL retains the concrete type and metadata. Native DatabaseTypeName is
+TIMESTAMPTZ/TIMETZ and ScanType is time.Time/string respectively; temporal
+Length/DecimalSize are unavailable. Finite timestamptz time.Time exports preserve
+the exact instant with the execution-captured zone offset, whereas infinity
+exports fresh owned bytes. A time.Time parameter inferred as timestamptz preserves
+its instant; one inferred as plain timestamp preserves its civil fields.
+
+Explicit input offsets/names convert to an instant; absent zones use session
+TimeZone. Output renders that instant in the captured session zone. Thus
+`2004-10-19 10:23:54+02` renders `2004-10-19 08:23:54+00` in UTC and
+`2004-10-19 04:23:54-04` in New York, but compares equal in both sessions.
+IANA names and aliases are case-insensitive. Session-zone abbreviation meanings
+precede installed Default abbreviations; dynamic abbreviations retain historical
+meanings, not just today's active offset. Rule bytes are embedded from the pinned
+PostgreSQL 18.0 Debian image's IANA2025b/backzone data; runtime never consults host
+zone files. Historical second offsets and future rules use the same provider.
+
+PostgreSQL's DST gap/fold preference is intentional, not an error:
+New York `2018-03-11 02:30` uses the pre-transition offset (07:30 UTC);
+`2018-11-04 01:30` uses the post-transition offset (06:30 UTC).
+Explicit EDT selects 05:30 UTC in that fold. Malformed/conflicting fields,
+unknown zones and invalid offsets still fail with positioned English diagnostics.
+Literal ISO offsets are east-positive and bounded to ±15:59:59.
+POSIX specifications have the opposite sign (`UTC-2` means +02:00).
+
+`TIMESTAMP AT TIME ZONE text` produces TIMESTAMPTZ; TIMESTAMPTZ converts back
+to civil TIMESTAMP. AT LOCAL uses session TimeZone. TIMETZ converts to TIMETZ,
+shifting/wrapping its clock and replacing its offset. Named destination offsets
+are chosen at transaction-start instant, not the source literal's date or a
+per-row wall clock. A full DST-bearing zone in timetz input requires a supplied
+date; stored timetz output remains fixed when session TimeZone changes.
+
+Stored/provider-derived TIMETZ offsets can reach ±169 hours. This is distinct
+from literal input's ±15:59:59 bound: a valid wide POSIX/session rule may produce
+a timetz offset that cannot be entered as an ordinary numeric-offset literal.
+Prepared capture, comparison, conversion and native replay retain that identity.
+Timestamptz equality/order uses the instant. Timetz compares non-modular UTC-clock
+keys and then seconds-west offset: `09:00+01` sorts before, and is unequal to,
+`08:00+00`. Grouping/DISTINCT/conditional providers share these semantics.
+
+Selected datetime casts interpret civil DATE/TIMESTAMP in session TimeZone when
+converting/comparing with an instant; reverse casts use local civil fields.
+DATE/TIMESTAMP midnight equals the corresponding local-midnight timestamptz.
+Dropping timetz's zone retains its clock. Temporal TEXT casts honor DateStyle:
+ISO/SQL/Postgres/German output and MDY/DMY/YMD numeric input ordering.
+TIME/TIMETZ output clocks do not depend on DateStyle. Use explicit SQL TEXT casts
+to witness non-ISO timestamp formatting; Go time.Time string scans are not a
+PostgreSQL wire-format equivalence claim.
+
+Prepared typed/default constants freeze value, precision and timetz offset at
+analysis. Parameters, column casts/comparisons and AT LOCAL read execution settings.
+Held cursors retain captured presentation and metadata across settings changes
+and native replacement. Dump uses canonical ISO/UTC timestamptz and stored timetz
+offsets, independent of TimeZone/DateStyle, and Restore preserves live settings.
+No timezone catalog views, general INTERVAL values/arithmetic, timezone(...)
+aliases or CURRENT_* producer-family expansion are delivered here.
+
+Feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
+Public/provider witnesses: `make test RUN='^TestTimezone' VERBOSE=0`.
+Independent pinned oracle: `make reference RUN='^TestReferenceTimezone' VERBOSE=0`.
+
+
+Initial timestamptz input range checking and typmod rounding are distinct:
+rounding the valid upper input `294276-12-31 23:59:59.999999+00` to precision0
+can produce `294277-01-01 00:00:00+00`. That PostgreSQL-compatible carry succeeds;
+it is not a new permission to parse arbitrary initially out-of-range input.
+

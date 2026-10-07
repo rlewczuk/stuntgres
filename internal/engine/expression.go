@@ -39,6 +39,8 @@ type EvalContext struct {
 	Parameters     []sqltype.Value
 	orderValues    []sqltype.Value
 	statementScope *StatementScope
+	Input          sqltype.InputEnvironment
+	Output         sqltype.OutputEnvironment
 }
 type expressionInfo struct {
 	usage      sqltype.Usage
@@ -124,7 +126,14 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.plan.Apply(c.Context, v)
+	return e.plan.Apply(c.Context, v, c.Input, c.Output)
+}
+func coercionProperties(child BoundExpr, plan sqltype.CoercionPlan) ExprProperties {
+	properties := child.Properties()
+	if plan.SessionDependent() && properties.Volatility < Stable {
+		properties.Volatility = Stable
+	}
+	return properties
 }
 
 type comparisonExpression struct {
@@ -144,7 +153,7 @@ func (e comparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.predicate.Evaluate(c.Context, a, b)
+	return e.predicate.Evaluate(c.Context, a, b, c.Input)
 }
 
 // preflightCoercions materializes immutable conversions from the imported
@@ -194,6 +203,21 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
+	case timeZoneExpression:
+		value, changed, err := preflightCoercionsWithPolicy(c, e.value, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.value = value
+		if !e.local {
+			zone, zoneChanged, err := preflightCoercionsWithPolicy(c, e.zone, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			e.zone = zone
+			changed = changed || zoneChanged
+		}
+		return e, changed, nil
 	case coercionExpression:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
 		if err != nil {
@@ -842,6 +866,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
+	case parser.TimeZoneExpr:
+		var err error
+		node, err = b.bindTimeZone(r, policy)
+		if err != nil {
+			return nil, err
+		}
 	case parser.LogicalExpr:
 		var err error
 		node, err = b.bindLogical(r, policy.context)
@@ -891,7 +921,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			}
 			return node, err
 		}
-		node = coercionExpression{b.info(policy.expected, raw.SourcePosition(), node.Properties()), node, plan, policy.mode}
+		node = coercionExpression{b.info(policy.expected, raw.SourcePosition(), coercionProperties(node, plan)), node, plan, policy.mode}
 	}
 	return node, nil
 }
@@ -1004,7 +1034,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 	if start := child.SourcePosition(); start.Character > 0 && (pos.Character <= 0 || start.Character < pos.Character) {
 		pos = start
 	}
-	return coercionExpression{b.info(target, pos, child.Properties()), child, plan, sqltype.Explicit}, nil
+	return coercionExpression{b.info(target, pos, coercionProperties(child, plan)), child, plan, sqltype.Explicit}, nil
 }
 
 // Strong column/function names survive standard casts; weak literal names do not.
@@ -1029,6 +1059,8 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.RegclassExpr:
 		return "regclass", false
+	case parser.TimeZoneExpr:
+		return "timezone", true
 	case parser.CastExpr:
 		if r.Syntax == parser.FunctionCast {
 			return r.Callee, true
@@ -1094,7 +1126,7 @@ func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalCo
 	return temporalConstant{}, false, nil
 }
 func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
-	if u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date {
+	if u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
 		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
 	}
 	c, found, err := b.captured(pos.Offset, u)
@@ -1102,6 +1134,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		return sqltype.Value{}, err
 	}
 	if found {
+		if c.typeID == sqltype.Timetz {
+			return sqltype.TimetzValue(u.Type, c.scalar, c.west)
+		}
 		if c.typeID == sqltype.Time {
 			return sqltype.TimeValue(u.Type, c.scalar)
 		}
@@ -1115,7 +1150,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		var p sqltype.CoercionPlan
 		p, err = sqltype.PlanCoercion(u.Type.Usage(), u, sqltype.Assignment)
 		if err == nil {
-			v, err = p.Apply(b.ctx, v)
+			v, err = p.Apply(b.ctx, v, b.input, sqltype.OutputEnvironment{Zone: b.input.Zone, DateStyle: b.input.DateStyle})
 		}
 	}
 	if err != nil {
@@ -1124,7 +1159,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 	if b.expected == nil {
 		var n int64
 		var err error
-		if u.Type.ID() == sqltype.Time {
+		if u.Type.ID() == sqltype.Time || u.Type.ID() == sqltype.Timetz {
 			n, err = v.Time()
 		} else if u.Type.ID() == sqltype.Date {
 			n, err = v.Date()
@@ -1139,7 +1174,14 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		i := sort.Search(len(b.temporals), func(i int) bool { return b.temporals[i].offset >= pos.Offset })
 		b.temporals = append(b.temporals, temporalConstant{})
 		copy(b.temporals[i+1:], b.temporals[i:])
-		b.temporals[i] = temporalConstant{pos.Offset, n, u.Typmod, u.Type.ID()}
+		west := int32(0)
+		if u.Type.ID() == sqltype.Timetz {
+			west, err = v.TimeZoneOffset()
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+		}
+		b.temporals[i] = temporalConstant{offset: pos.Offset, scalar: n, typmod: u.Typmod, typeID: u.Type.ID(), west: west}
 	}
 	return v, nil
 }
@@ -1241,7 +1283,7 @@ func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (Boun
 	if err != nil {
 		return nil, nil, err
 	}
-	converted := coercionExpression{b.info(target, child.SourcePosition(), child.Properties()), child, plan, sqltype.Implicit}
+	converted := coercionExpression{b.info(target, child.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Implicit}
 	if lt.ID() == sqltype.Oid {
 		right = converted
 	} else {
@@ -1319,6 +1361,9 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	p.StageDependent = p.StageDependent || rp.StageDependent
 	if rp.Volatility > p.Volatility {
 		p.Volatility = rp.Volatility
+	}
+	if predicate.SessionDependent() && p.Volatility < Stable {
+		p.Volatility = Stable
 	}
 	namespace := ""
 	if len(raw.Name.Parts) == 2 {
@@ -1451,7 +1496,7 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 			if err != nil {
 				return nil, err
 			}
-			n = coercionExpression{b.info(typ.Usage(), n.SourcePosition(), n.Properties()), n, plan, sqltype.Implicit}
+			n = coercionExpression{b.info(typ.Usage(), n.SourcePosition(), coercionProperties(n, plan)), n, plan, sqltype.Implicit}
 		}
 		return n, nil
 	}

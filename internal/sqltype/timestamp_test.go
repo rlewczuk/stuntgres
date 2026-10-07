@@ -278,13 +278,13 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		v, e = plan.Apply(ctx, v)
+		v, e = plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 		got, _ := d.Output(ctx, v)
 		if e != nil || got != out {
 			t.Fatal(p, got, e)
 		}
 		for _, v := range []Value{Null(d), {typ: d, integer: TimestampPositiveInfinity}, {typ: d, integer: TimestampNegativeInfinity}} {
-			got, e := plan.Apply(ctx, v)
+			got, e := plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 			if e != nil || got != v {
 				t.Fatal(got, e)
 			}
@@ -312,8 +312,8 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 	u2, _, _ := d.ResolveModifiers(2)
 	p3, _ := PlanCoercion(d.Usage(), u3, Assignment)
 	p2, _ := PlanCoercion(u3, u2, Assignment)
-	v, _ = p3.Apply(ctx, v)
-	v, _ = p2.Apply(ctx, v)
+	v, _ = p3.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
+	v, _ = p2.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 	out, _ := d.Output(ctx, v)
 	if out != "2000-01-01 00:00:00.13" {
 		t.Fatal(out)
@@ -326,12 +326,12 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 			t.Fatal(e)
 		}
 		if i > 0 {
-			n, e := cmp.Compare(ctx, prev, v)
+			n, e := cmp.Compare(ctx, prev, v, InputEnvironment{})
 			if e != nil || n != -1 {
 				t.Fatal(n, e)
 			}
 		}
-		n, e := cmp.Compare(ctx, v, v)
+		n, e := cmp.Compare(ctx, v, v, InputEnvironment{})
 		if e != nil || n != 0 {
 			t.Fatal(n, e)
 		}
@@ -352,13 +352,13 @@ func TestTimestampPrecisionAndComparison(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := cmp.Compare(ctx, left, right)
+		got, err := cmp.Compare(ctx, left, right, InputEnvironment{})
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}
 	}
 	eq, _ := BindComparisonPredicate(CompareEqual, d, d, types[Bool])
-	v, e := eq.Evaluate(ctx, Null(d), prev)
+	v, e := eq.Evaluate(ctx, Null(d), prev, InputEnvironment{})
 	if e != nil || !v.IsNull() || v.Type() != types[Bool] {
 		t.Fatal(v, e)
 	}
@@ -453,13 +453,13 @@ func TestTimestampEnvironmentAndCivilTime(t *testing.T) {
 			t.Fatal(out, e)
 		}
 	}
-	for _, name := range timestampZoneNames {
+	zones.once.Do(initializeZones)
+	for name := range zones.members {
 		if !recognizedTimestampZone(name) {
 			t.Fatal(name)
 		}
 	}
-	for _, abbreviation := range timestampAbbreviations {
-		name := abbreviation.name
+	for name := range zones.abbreviations {
 		v, e := d.Input(ctx, "1999-01-08 04:05:06 "+name, -1)
 		out, _ := d.Output(ctx, v)
 		if e != nil || out != "1999-01-08 04:05:06" {
