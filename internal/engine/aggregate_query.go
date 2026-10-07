@@ -23,6 +23,14 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	if err != nil {
 		return indexedStage{}, err
 	}
+	if state.source.locks != nil {
+		original := child
+		child, err = arbitrateViewQuery(ctx, state, n.child, original)
+		original.Close()
+		if err != nil {
+			return indexedStage{}, err
+		}
+	}
 	defer child.Close()
 	groups := make([]queryGroup, 0)
 	var buckets map[uint64][]int

@@ -19,14 +19,15 @@ func (s *StatementScope) acquireViewSources() error {
 		e.mu.Unlock()
 		return nil
 	}
-	seen := make(map[ObjectRef]bool)
+	seen := make(map[ObjectRef]relationLockMode)
 	var refs []ObjectRef
-	var visit func(ObjectRef) error
-	visit = func(ref ObjectRef) error {
-		if ref == (ObjectRef{}) || seen[ref] {
+	var visit func(ObjectRef, relationLockMode) error
+	visit = func(ref ObjectRef, mode relationLockMode) error {
+		prior, visited := seen[ref]
+		if ref == (ObjectRef{}) || visited && strongerQueryRowMode(prior, mode) == prior {
 			return nil
 		}
-		seen[ref] = true
+		seen[ref] = strongerQueryRowMode(prior, mode)
 		d, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
 		if ref.owner != e.owner || ref.Epoch != e.state.epoch || !ok {
 			return ErrCatalogReplaced
@@ -35,12 +36,13 @@ func (s *StatementScope) acquireViewSources() error {
 		for _, leaf := range s.querySources {
 			admitted = admitted || ref == leaf.ref
 		}
-		if !admitted {
+		if !admitted && !visited || admitted && mode != 0 && prior == 0 && s.queryLockMode == 0 {
 			refs = append(refs, ref)
 		}
 		if d.view != nil {
+			mode = viewRowMode(d.view, mode)
 			for _, leaf := range d.view.sources {
-				if err := visit(leaf.ref); err != nil {
+				if err := visit(leaf.ref, mode); err != nil {
 					return err
 				}
 			}
@@ -48,7 +50,7 @@ func (s *StatementScope) acquireViewSources() error {
 				if dependency.ref.Address.ClassID == RelationClassID {
 					child := dependency.ref
 					child.Address.SubID = 0
-					if err := visit(child); err != nil {
+					if err := visit(child, 0); err != nil {
 						return err
 					}
 				}
@@ -56,26 +58,34 @@ func (s *StatementScope) acquireViewSources() error {
 		}
 		return nil
 	}
-	err := visit(s.lockedRef)
+	err := visit(s.lockedRef, 0)
 	for _, leaf := range s.querySources {
 		if err != nil {
 			break
 		}
-		err = visit(leaf.ref)
+		err = visit(leaf.ref, s.queryLockMode)
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	return s.acquireBoundViewRelations(refs)
+	return s.acquireBoundViewRelationModes(refs, seen)
 }
 
 func (s *StatementScope) acquireBoundViewRelations(refs []ObjectRef) error {
+	return s.acquireBoundViewRelationModes(refs, nil)
+}
+
+func (s *StatementScope) acquireBoundViewRelationModes(refs []ObjectRef, modes map[ObjectRef]relationLockMode) error {
 	e := s.op.session.Engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
 	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	for _, ref := range refs {
-		request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, accessShare, policy)
+		mode := accessShare
+		if modes[ref] != 0 {
+			mode = relationRowShare
+		}
+		request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			if s.replacementRead {
 				e.replacementMu.RUnlock()

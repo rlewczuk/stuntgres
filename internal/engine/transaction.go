@@ -227,6 +227,8 @@ type StatementScope struct {
 	lockedRef          ObjectRef
 	lockedDescriptor   Descriptor
 	querySources       []queryLeaf
+	queryLocks         *queryLockContext
+	queryLockMode      relationLockMode
 	lockedStorage      *relationStorage
 	lockedIdentityOnly bool
 	txRef              TxRef
@@ -647,6 +649,8 @@ func (s *StatementScope) Finish(err error) error {
 	s.lockedDescriptor = nil
 	s.lockedStorage = nil
 	s.querySources = nil
+	s.queryLocks = nil
+	s.queryLockMode = 0
 	s.lockedIdentityOnly = false
 	s.finished = true
 	s.result = err

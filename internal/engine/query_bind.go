@@ -224,6 +224,20 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		results[i] = result
 	}
 	grouped := len(keys) > 0 || len(b.aggregates) > 0 || having != nil
+	if s.Locking != nil {
+		suffix := ""
+		switch {
+		case len(s.GroupBy) != 0:
+			suffix = "GROUP BY clause"
+		case s.Having != nil:
+			suffix = "HAVING clause"
+		case len(b.aggregates) != 0:
+			suffix = "aggregate functions"
+		}
+		if suffix != "" {
+			return nil, sqlError("0A000", s.Locking.Mode+" is not allowed with "+suffix)
+		}
+	}
 	if grouped {
 		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates))
 		for i, key := range keys {
@@ -258,6 +272,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	root, err = b.finishOrder(root, order, projection)
 	if err != nil {
 		return nil, err
+	}
+	if s.Locking != nil {
+		root = &rowLockNode{querySchema: root.Schema(), child: root, mode: queryRowMode(s.Locking.Mode)}
 	}
 	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}, regclassOutput: regclassOutput}, nil
 }

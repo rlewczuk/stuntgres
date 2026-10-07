@@ -149,8 +149,9 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		}
 	}
 	for j, output := range projection {
-		for _, key := range keys {
+		for k, key := range keys {
 			if key.cache >= 0 && b.sameGroupExpression(output, key.expression) {
+				keys[k].output = true
 				properties := output.Properties()
 				properties.StageDependent = true
 				projection[j] = cachedOrderExpression{

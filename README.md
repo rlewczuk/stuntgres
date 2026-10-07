@@ -69,6 +69,19 @@ have no portable relative order. LIMIT/OFFSET and general COLLATE remain exclude
 See [ordering semantics](docs/QUERIES.md#expression-ordering--change-note-changelog).
 Public feature smoke: `make smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
 
+SELECT (including existing inner/cross joins, persistent scalar views and INSERT
+SELECT sources) supports one trailing `FOR KEY SHARE`, `FOR SHARE`,
+`FOR NO KEY UPDATE` or `FOR UPDATE`. Locks belong to contributing physical base
+RowIDs, not view output values or the entire table. Stored view clauses also apply
+to otherwise ordinary reads; unmarked SELECT remains a nonblocking MVCC read.
+READ COMMITTED lockers recheck
+the current version after contention; REPEATABLE READ KEY SHARE retains snapshot
+values after compatible keyless updates, while stronger modes and deletions fail.
+Native keyless UPDATE uses NO KEY UPDATE; DELETE uses UPDATE. See
+[row locking](docs/TRANSACTIONS.md#row-locks--change-note) for the compatibility
+matrix, privileges, eager execution and bounded syntax.
+Feature smoke: `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
+
 The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling
 is preserved, textual input clips at a63-byte UTF8 boundary, and comparisons use
 C byte order. NAME has distinct metadata from TEXT and round-trips through

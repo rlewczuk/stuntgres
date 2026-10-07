@@ -90,6 +90,27 @@ corresponding privilege on **any live column** suffice. Empty/filtered INSERT
 sources still require source SELECT authorization; grants on dropped columns
 never qualify. UPDATE needs SELECT only on actual RHS/WHERE reads, not on
 columns merely retained.
+All four SELECT row-locking clauses additionally need UPDATE privilege on at
+least one live column of every selected base table, including unprojected join
+sources and empty/filtered results. This does not replace SELECT checks or require
+UPDATE on the projected/predicate columns. Prepare checks namespace/shape as
+usual; execution reevaluates the current principal's locking authority.
+Sequence row marks first require sequence SELECT and UPDATE privileges; a
+SELECT-only actor receives42501 `permission denied for sequence s` before the
+42809 relation-kind error. With both rights (or owner/superuser authority),
+locking a sequence is still prohibited at Execute. No sequence column-ACL
+alternative is invented, and Prepare checks neither executor ACL nor row-mark kind.
+
+For marked view descendants, the extra base UPDATE check uses that boundary's
+current owner, or the original statement invoker for security_invoker definitions
+even below an ordinary owner view. Named-view SELECT/UPDATE checks are unchanged;
+a stored mark in an ordinary read does not invent named-view UPDATE privilege.
+An UPDATE grant on an unprojected live base column suffices. Prepare performs no
+executor ACL checks; Execute rechecks before capture and after view preflight.
+CREATE VIEW stores clauses without executing the body or requiring base SELECT/
+UPDATE. These relation principals never change function/sequence evaluation
+identity. Inner qualification still precedes outer error-producing expressions;
+locking adds no predicate pushdown or security-barrier reorder.
 Schema USAGE is checked during relation lookup, including preparation: qualified
 references to an inaccessible schema fail with `42501` / `permission denied for
 schema public` before column/input binding. Unqualified lookup omits inaccessible

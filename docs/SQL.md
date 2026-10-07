@@ -154,6 +154,15 @@ Unknown-only outputs become TEXT. Creation-time `*` expansion and output types
 are fixed; zero-column views retain real source occurrences and count semantics.
 CREATE has affected count zero and no result columns or runtime parameters.
 
+A legal scalar definition may store one trailing FOR KEY SHARE/FOR SHARE/
+FOR NO KEY UPDATE/FOR UPDATE clause. CREATE remains row-lock-free; the immutable
+mark survives identity remapping, canonical deparse (after ORDER BY), Dump and
+Restore. Ordinary reads enforce stored marks on their physical base subtree.
+An outer clause combines using the strongest SQL mode; unrelated sources are
+not marked by a definition. Ordinary aggregation over a marked view is legal
+and locks qualifying input before grouping/HAVING, even if output is empty.
+A clause reaching a grouped/aggregate view is instead mode-specific0A000.
+
 Explicit SELECT target `AS label` and eligible bare labels preserve view output
 names, including after base-column renames; CREATE VIEW's explicit column list
 then overrides that output prefix. FROM aliases, alias column lists, qualified
@@ -166,10 +175,14 @@ locking and eager query finalization. The caller needs SELECT on the named view.
 Ordinary definitions check underlying relation reads as the current view owner;
 `security_invoker=true` uses the original statement invoker, including beneath
 an ordinary outer view. CREATE needs namespace CREATE/lookup USAGE, not base
-SELECT. These principals change relation authority only, not session identity
-or sequence/function execution authority. Each view boundary finishes its inner
+SELECT or UPDATE. Marked descendants additionally need base UPDATE on any live
+column under these same principals, checked at Execute, not Describe/Prepare.
+These principals change relation authority only, not session identity or
+sequence/function execution authority. Each view boundary finishes its inner
 qualification before outer expressions: no predicate pushdown, even without
-`security_barrier`. Rejected rows never reach outer error-producing casts.
+security_barrier. Rejected rows never reach outer error-producing casts. Native
+scalar locking is delayed until outer qualification; PostgreSQL security-barrier
+planner lock placement is an independent control, not a fabricated native match.
 
 Dependencies include hidden filter/order/group attributes. Base and column
 renames retain identity, and reuse of an old source name cannot retarget a view.
@@ -192,6 +205,12 @@ and Dump share identity-aware reconstruction after renames; PostgreSQL pretty
 printing byte equality is not promised. Unsupported columns, including
 `reloptions`, `ev_action` and `ev_qual`, give ordinary42703; no fake pg_node_tree.
 Built-in source output is derived, never persisted as table data.
+
+These native catalog rows are derived and have no durable physical row identity.
+Direct, nested, stored or empty marked reads fail0A000 `row locking is not
+supported for virtual catalog relations`, without Position/Detail/Hint or partial
+physical grants. Ordinary catalog reads remain supported. PostgreSQL physical
+catalog row locking is a separate release-pinned control, not native parity.
 
 Joined definitions expand every star at creation. Reconstruction uses current
 relation identities with full positional alias lists mapping surviving attribute
@@ -221,7 +240,7 @@ native DateStyle and TimeZone settings are supported. Canonical replay remains
 independent of presentation settings.
 
 Replacement, recursive/TEMP views, view writes/check options, general ALTER/
-DROP VIEW, joins/subqueries/bare or table aliases, public GRANT, RLS, UDFs and optimizer
+DROP VIEW, subqueries, public GRANT, RLS, UDFs and optimizer
 introspection are separate unsupported capabilities. Native ACL unit controls
 and PostgreSQL-only GRANT witnesses do not imply a public native ACL API.
 Smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`;

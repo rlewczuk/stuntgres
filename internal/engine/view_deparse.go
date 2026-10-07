@@ -91,6 +91,9 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 		}
 		text += " ORDER BY " + strings.Join(keys, ", ")
 	}
+	if s.Locking != nil {
+		text += " " + s.Locking.Mode
+	}
 	return text, nil
 }
 

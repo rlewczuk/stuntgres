@@ -53,6 +53,7 @@ type sortKey struct {
 	position         int // Original ORDER reference character position, not reused output syntax.
 	slot, cache      int
 	desc, nullsFirst bool
+	output           bool // This cache slot supplies a visible projection.
 }
 type sortNode struct {
 	querySchema
@@ -73,6 +74,17 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return nil, err
 	}
 	switch n := node.(type) {
+	case *rowLockNode:
+		child, err := preflightQuery(c, n.child)
+		if err != nil {
+			return nil, err
+		}
+		if child != n.child {
+			copy := *n
+			copy.child = child
+			return &copy, nil
+		}
+		return n, nil
 	case *joinNode:
 		return preflightJoin(c, n)
 	case *sourceNode, *singletonNode:
@@ -222,6 +234,12 @@ type querySource struct {
 	input                *querySource
 	layout               []int
 	scratch              []sqltype.Value
+	locks                *queryLockContext
+	lineage              *queryLockLineage
+	// Only locking joins populate provenance; ordinary query work is unchanged.
+	occurrence  int
+	occurrences []int
+	provenance  []int
 }
 
 func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
@@ -316,13 +334,27 @@ func (s *querySource) close() {
 		}
 	}
 	s.flat = nil
+	s.occurrences = nil
+	s.provenance = nil
 	s.flatCount = 0
 	s.flatWidth = 0
 	s.materialized = false
+	lineage := s.lineage
+	s.lineage = nil
+	stageClosed := lineage != nil && s.final != nil && s.final.source == lineage.stage
 	if s.final != nil {
 		s.final.Close()
 		s.final = nil
 	}
+	if lineage != nil {
+		if !stageClosed {
+			lineage.stage.close()
+		}
+		if lineage.inputs != lineage.stage {
+			lineage.inputs.close()
+		}
+	}
+	s.locks = nil
 	if s.input != nil {
 		s.input.close()
 		s.input = nil
@@ -344,19 +376,22 @@ type queryState struct {
 	parameters []sqltype.Value
 	input      sqltype.InputEnvironment
 	output     sqltype.OutputEnvironment
+	locking    bool
+	deferLocks bool
 }
 type indexedStage struct {
-	source      *querySource
-	selection   []int
-	permutation []int
-	orderValues []sqltype.Value
-	cacheWidth  int
-	schema      []ColumnDescriptor
-	expressions []BoundExpr
-	evaluation  EvalContext
-	position    int
-	terminal    error
-	closed      bool
+	source           *querySource
+	selection        []int
+	permutation      []int
+	orderValues      []sqltype.Value
+	cacheOccurrences []int
+	cacheWidth       int
+	schema           []ColumnDescriptor
+	expressions      []BoundExpr
+	evaluation       EvalContext
+	position         int
+	terminal         error
+	closed           bool
 }
 
 func (s indexedStage) count() int {
@@ -399,8 +434,7 @@ func (s *indexedStage) Next(ctx context.Context, dst []sqltype.Value) (bool, err
 	} else {
 		s.evaluation.Context, s.evaluation.Row = ctx, row
 		if s.cacheWidth != 0 {
-			occurrence := s.permutation[s.position]
-			s.evaluation.orderValues = s.orderValues[occurrence*s.cacheWidth : (occurrence+1)*s.cacheWidth]
+			s.evaluation.orderValues = s.orderRow(s.position)
 		}
 		for i, expr := range s.expressions {
 			value, err := expr.Eval(&s.evaluation)
@@ -423,6 +457,7 @@ func (s *indexedStage) release() {
 	s.expressions = nil
 	s.permutation = nil
 	s.orderValues = nil
+	s.cacheOccurrences = nil
 	s.evaluation = EvalContext{}
 }
 func (s *indexedStage) Close() error {
@@ -436,6 +471,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
+	case *rowLockNode:
+		return openRowLockNode(ctx, state, n)
 	case *joinNode:
 		return openJoinNode(ctx, state, n)
 	case *aggregateNode:
@@ -769,6 +806,10 @@ func (r *finalRows) Close() error {
 
 // finalizeQuery consumes an already-preflighted execution-private root.
 func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
+	return finalizeQueryWithLineage(ctx, root, source, parameters, nil)
+}
+
+func finalizeQueryWithLineage(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value, lineage **queryLockLineage) (RowResult, int, error) {
 	keep := false
 	defer func() {
 		if !keep {
@@ -779,13 +820,25 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
-	state := &queryState{source: source, parameters: parameters}
+	aggregating := queryOwnAggregate(project.child)
+	if aggregating {
+		lineage = nil
+	}
+	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil, deferLocks: source.locks != nil}
 	if source.scope != nil {
 		state.input, state.output = source.scope.input, source.scope.output
 	}
 	stage, err := openQueryNode(ctx, state, project)
 	if err != nil {
 		return nil, 0, err
+	}
+	if source.locks != nil && lineage == nil && !aggregating {
+		original := stage
+		stage, err = arbitrateViewQuery(ctx, state, project.child, original)
+		original.Close()
+		if err != nil {
+			return nil, 0, err
+		}
 	}
 	defer stage.Close()
 	r := newFinalRows(project.Schema(), stage.count())
@@ -842,13 +895,19 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		}
 	}
 	selection := stage.selection
-	if direct && stage.permutation != nil {
-		// Transfer the execution-owned permutation after flattening it. Keep
-		// the admitted-source mapping intact until every occurrence is read.
+	orderValues, cacheWidth := stage.orderValues, stage.cacheWidth
+	cacheOccurrences := stage.cacheOccurrences
+	if stage.permutation != nil && (direct || lineage != nil) {
+		if lineage != nil && cacheWidth != 0 && cacheOccurrences == nil {
+			cacheOccurrences = append([]int(nil), stage.permutation...)
+		}
+		// Physical output order and cache occurrence identity are independent.
 		selection = stage.permutation
 		for i, occurrence := range selection {
 			selection[i] = stage.selection[occurrence]
 		}
+	} else if lineage != nil && cacheWidth != 0 && cacheOccurrences == nil {
+		cacheOccurrences = stage.permutation
 	}
 	stageSource := stage.source
 	if err := stage.Close(); err != nil {
@@ -857,10 +916,14 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
 	}
+	if lineage != nil {
+		*lineage = &queryLockLineage{root: root, inputs: source, stage: stageSource, selection: selection, orderValues: orderValues, cacheWidth: cacheWidth, cacheOccurrences: cacheOccurrences}
+		keep = true
+	}
 	if direct && r.count > 0 {
 		r.source, r.selection, r.slots = stageSource, selection, slots
 		keep = true
-		if stageSource != source {
+		if stageSource != source && lineage == nil {
 			source.close()
 		}
 	}

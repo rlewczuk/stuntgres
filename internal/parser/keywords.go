@@ -216,7 +216,7 @@ var keywords = [...]keyword{
 	{"first", Unreserved, true, 0},
 	{"float", ColumnName, true, 0},
 	{"following", Unreserved, true, 0},
-	{"for", Reserved, false, 0},
+	{"for", Reserved, false, FOR},
 	{"force", Unreserved, true, 0},
 	{"foreign", Reserved, true, 0},
 	{"format", Unreserved, true, 0},

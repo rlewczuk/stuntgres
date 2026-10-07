@@ -48,6 +48,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		name = v.From.(*parser.TableReference).Name
 		mode = accessShare
+		if v.Locking != nil {
+			mode = relationRowShare
+		}
 	case *parser.Insert:
 		name = v.Name
 		mode = rowExclusive

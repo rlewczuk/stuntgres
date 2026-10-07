@@ -573,6 +573,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	if err != nil {
 		return b, err
 	}
+	if b.query != nil {
+		if err := validateQueryViewRowMarks(b.querySources, queryRootRowMode(b.query.Root), auth.catalog); err != nil {
+			return b, err
+		}
+	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
 	b.sequenceConstants = binder.sequenceConstants
 	b.viewLiterals = binder.viewLiterals

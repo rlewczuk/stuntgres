@@ -200,6 +200,10 @@ func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.CreateView:
 		return "CREATE VIEW"
+	case *parser.Select:
+		if sel := stmt.(*parser.Select); sel.Locking != nil {
+			return "SELECT " + sel.Locking.Mode
+		}
 	case *parser.CreateSequence:
 		return "CREATE SEQUENCE"
 	case *parser.AlterSequence:
@@ -236,7 +240,7 @@ func modifyingTag(stmt parser.Statement) string {
 func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error {
 	t := s.owner
 	switch stmt.(type) {
-	case *parser.Insert, *parser.Update, *parser.Delete:
+	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete:
 		return nil
 	}
 	t.mu.Lock()

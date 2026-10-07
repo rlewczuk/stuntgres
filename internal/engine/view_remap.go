@@ -152,6 +152,8 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 	}
 	var next LogicalNode
 	switch n := node.(type) {
+	case *rowLockNode:
+		next = &rowLockNode{querySchema: schema, child: child(n.child), mode: n.mode}
 	case *sourceNode:
 		next = &sourceNode{querySchema: schema, ref: ref(n.ref), occurrence: n.occurrence}
 	case *joinNode:

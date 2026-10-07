@@ -204,6 +204,7 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 
 func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 	occurrence := 0
+	marked := false
 	var visit func(LogicalNode) error
 	visit = func(node LogicalNode) error {
 		for _, column := range node.Schema() {
@@ -246,6 +247,12 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				return err
 			}
 			return visit(n.right)
+		case *rowLockNode:
+			if marked || definition.syntax.Locking == nil || queryRowClause(n.mode) == "" || queryRowClause(n.mode) != definition.syntax.Locking.Mode {
+				return fmt.Errorf("stuntgres: invalid stored view rowmark")
+			}
+			marked = true
+			return visit(n.child)
 		case *filterNode:
 			return visit(n.child)
 		case *sortNode:
@@ -265,6 +272,9 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 	}
 	if occurrence != len(definition.sources) {
 		return fmt.Errorf("stuntgres: invalid view source manifest")
+	}
+	if definition.syntax.Locking != nil && !marked {
+		return fmt.Errorf("stuntgres: missing stored view rowmark")
 	}
 	return nil
 }

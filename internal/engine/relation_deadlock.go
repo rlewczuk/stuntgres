@@ -335,6 +335,12 @@ func deadlockMode(mode relationLockMode) string {
 		return "Update"
 	case noKeyUpdate:
 		return "NoKeyUpdate"
+	case keyShare:
+		return "KeyShare"
+	case rowShare:
+		return "Share"
+	case relationRowShare:
+		return "RowShareLock"
 	}
 	panic("invalid deadlock request mode")
 }

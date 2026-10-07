@@ -301,13 +301,20 @@ type Select struct {
 	Having  Expr
 	Order   *Order
 	Pos     Position
+	Locking *RowLockClause
 }
 
 func (*Select) statement() {}
 
+// RowLockClause is one positioned trailing locking clause.
+type RowLockClause struct {
+	Mode string
+	Pos  Position
+}
+
 // IsSingleton admits only selected-call projections without a relation.
 func (s *Select) IsSingleton() bool {
-	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) == 0 {
+	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
 		return false
 	}
 	for _, target := range s.Targets {

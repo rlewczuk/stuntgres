@@ -558,8 +558,8 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
-	if _, query := stmt.(*parser.Select); query {
-		return v.checkQuerySources(b.querySources)
+	if sel, query := stmt.(*parser.Select); query {
+		return v.checkSelectSources(b.querySources, sel)
 	}
 	if b.relation == nil {
 		return nil
@@ -568,6 +568,10 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 	case *parser.Insert:
 		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {
 			return err
+		}
+		insert := stmt.(*parser.Insert)
+		if insert.Source != nil && insert.Source.Select != nil {
+			return v.checkSelectSources(b.querySources, insert.Source.Select)
 		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Delete:
@@ -589,6 +593,31 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 	default:
 		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
 	}
+}
+
+func (v AuthorizationView) checkSelectSources(sources []queryLeaf, sel *parser.Select) error {
+	if err := v.checkQuerySources(sources); err != nil {
+		return err
+	}
+	if sel.Locking != nil {
+		for _, source := range sources {
+			if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, UpdatePrivilege, nil); err != nil {
+				return err
+			}
+		}
+	}
+	mode := relationLockMode(0)
+	if sel.Locking != nil {
+		mode = queryRowMode(sel.Locking.Mode)
+	}
+	for _, source := range sources {
+		if source.relation.view != nil && (mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
+			if err := v.checkViewRowMarks(source.relation, mode, v.state.CurrentUser); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	for _, source := range sources {

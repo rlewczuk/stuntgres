@@ -129,14 +129,14 @@ func deadlockPublicError(t *testing.T, err error, position string) *stuntgres.Er
 	if len(lines) != 2 {
 		t.Fatalf("two-edge detail: %q", d.Detail)
 	}
-	pattern := regexp.MustCompile(`^Transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\) waits for (AccessShareLock|RowExclusiveLock|AccessExclusiveLock|Update|NoKeyUpdate) on relation ([1-9][0-9]*) \(class ([1-9][0-9]*), sub-ID 0, epoch ([1-9][0-9]*)\)( row ([1-9][0-9]*))?; blocked by transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\)\.$`)
+	pattern := regexp.MustCompile(`^Transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\) waits for (AccessShareLock|RowShareLock|RowExclusiveLock|ShareUpdateExclusiveLock|ShareRowExclusiveLock|AccessExclusiveLock|Update|NoKeyUpdate|Share|KeyShare) on relation ([1-9][0-9]*) \(class ([1-9][0-9]*), sub-ID 0, epoch ([1-9][0-9]*)\)( row ([1-9][0-9]*))?; blocked by transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\)\.$`)
 	a := pattern.FindStringSubmatch(lines[0])
 	b := pattern.FindStringSubmatch(lines[1])
 	if a == nil || b == nil || a[1] != b[10] || b[1] != a[10] || a[2] != b[11] || b[2] != a[11] || a[3] != b[12] || b[3] != a[12] {
 		t.Fatalf("complete closed native cycle identity: %q", d.Detail)
 	}
 	for _, edge := range [][]string{a, b} {
-		if edge[6] != "1259" || edge[7] != edge[3] || (edge[4] == "Update" || edge[4] == "NoKeyUpdate") != (edge[9] != "") {
+		if edge[6] != "1259" || edge[7] != edge[3] || (edge[4] == "Update" || edge[4] == "NoKeyUpdate" || edge[4] == "Share" || edge[4] == "KeyShare") != (edge[9] != "") {
 			t.Fatalf("resource class/epoch/row-mode identity: %q", d.Detail)
 		}
 	}

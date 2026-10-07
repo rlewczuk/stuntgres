@@ -15,6 +15,8 @@ func viewSourceAlias(occurrence int) string {
 func viewFromRoot(node LogicalNode) LogicalNode {
 	for {
 		switch n := node.(type) {
+		case *rowLockNode:
+			node = n.child
 		case *projectNode:
 			node = n.child
 		case *filterNode:

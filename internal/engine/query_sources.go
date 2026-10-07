@@ -15,10 +15,13 @@ type queryLeaf struct {
 }
 
 func (s *StatementScope) acquireQueryRelations(sel *parser.Select, authorityStmt parser.Statement, execute bool) error {
+	if sel.Locking != nil {
+		s.queryLockMode = queryRowMode(sel.Locking.Mode)
+	}
 	for _, table := range parser.FromTables(sel.From) {
 		// Keep the enclosing CREATE VIEW authority for each leaf, including
-		// aliased and joined sources. The leaf SELECT only identifies the lock.
-		if err := s.acquireRelationTarget(&parser.Select{From: table}, authorityStmt, execute, true); err != nil {
+		// aliased and joined sources. The leaf SELECT identifies its lock mode.
+		if err := s.acquireRelationTarget(&parser.Select{From: table, Locking: sel.Locking}, authorityStmt, execute, true); err != nil {
 			return err
 		}
 	}
@@ -70,12 +73,13 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 			break
 		}
 	}
-	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker)
+	mode := scope.queryLockMode
+	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, mode, scope.queryLocks)
 }
 
-func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef) (*querySource, error) {
+func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
 	if len(leaves) == 0 {
-		return &querySource{singleton: singleton, scope: scope}, nil
+		return &querySource{singleton: singleton, scope: scope, locks: locks}, nil
 	}
 	var single [1]ObjectRef
 	refs := single[:0]
@@ -141,7 +145,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			source, err = captureQueryPrefix(view, leaf.ref)
 		default:
 			// Recursive view opening consumes the lock, including failures.
-			source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker)
+			source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker, mode, locks)
 			e.mu.Lock()
 		}
 		if err != nil {
@@ -156,6 +160,12 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			return nil, err
 		}
 		source.scope = scope
+		source.occurrence = i
+		source.locks = locks
+		if locks != nil && source.lineage == nil {
+			source.occurrence = len(locks.leaves)
+			locks.leaves = append(locks.leaves, queryLockLeaf{leaf: leaf, source: source, mode: mode})
+		}
 		if i == 0 {
 			first = source
 		}

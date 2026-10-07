@@ -7,7 +7,7 @@ import (
 
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
 // principals affect ACL checks only; the operation remains the original invoker.
-func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, invoker PrincipalRef) (*querySource, error) {
+func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
 	ctx := scope.op.Context()
 	if err := ctx.Err(); err != nil {
 		e.mu.Unlock()
@@ -29,7 +29,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		return source, err
 	case viewRelation:
 		definition := d.view
-		if err := e.authorizeViewSourceLocked(scope, ref, definition, invoker); err != nil {
+		if mode == 0 && !viewHasStoredRowMarks(d, e.sequenceCatalogLocked(scope.owner.sequences)) {
+			locks = nil
+		}
+		if err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mode); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -40,7 +43,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			return nil, err
 		}
 		e.mu.Lock()
-		if err = e.authorizeViewSourceLocked(scope, ref, definition, invoker); err != nil {
+		if err = e.authorizeViewSourceLocked(scope, ref, definition, invoker, mode); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -50,7 +53,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			relation := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
 			leaves[i] = queryLeaf{ref: leaf.ref, relation: relation, storage: e.storage[leaf.ref.Address]}
 		}
-		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker)
+		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, viewRowMode(definition, mode), locks)
 		e.mu.Unlock()
 		if err != nil {
 			return nil, err
@@ -88,7 +91,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 						}
 					}
 				}
-				child = &querySource{ref: leaf.ref, input: child, layout: layout, scratch: make([]sqltype.Value, len(layout)), scope: scope}
+				child = &querySource{ref: leaf.ref, input: child, layout: layout, scratch: make([]sqltype.Value, len(layout)), scope: scope, locks: child.locks, occurrence: child.occurrence}
 			}
 			if sources != nil {
 				sources[i] = child
@@ -101,12 +104,18 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			source.sources = sources
 		}
 		source.scope = scope
-		rows, _, err := finalizeQuery(ctx, root, source, nil)
+		var lineage *queryLockLineage
+		var rows RowResult
+		if locks != nil {
+			rows, _, err = finalizeQueryWithLineage(ctx, root, source, nil, &lineage)
+		} else {
+			rows, _, err = finalizeQuery(ctx, root, source, nil)
+		}
 		if err != nil {
 			return nil, err
 		}
 		final := rows.(*finalRows)
-		bridge := &querySource{ref: ref, final: final, scope: scope}
+		bridge := &querySource{ref: ref, final: final, scope: scope, locks: locks, lineage: lineage}
 		if final.source != nil {
 			bridge.scratch = make([]sqltype.Value, len(final.schema))
 		}
@@ -126,7 +135,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 
 // Called before unlocked preflight and immediately before source capture. Each
 // leaf checks current ACLs; an ordinary outer owner never replaces the invoker.
-func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker PrincipalRef) error {
+func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef, definition *viewDefinition, invoker PrincipalRef, mode relationLockMode) error {
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
 		return err
@@ -163,6 +172,9 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 		if err := auth.checkColumns(binding{ref: leaf.ref, relation: source}, SelectPrivilege, indices); err != nil {
 			return err
 		}
+	}
+	if mode != 0 || viewHasStoredRowMarks(d, auth.catalog) {
+		return auth.checkViewRowMarks(d, mode, invoker)
 	}
 	return nil
 }

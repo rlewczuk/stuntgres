@@ -370,9 +370,26 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if tag := modifyingTag(stmt); scope.owner.readOnly && tag != "" {
+	tag := modifyingTag(stmt)
+	if _, selecting := stmt.(*parser.Select); selecting && tag == "" && scope.owner.readOnly && b.query != nil {
+		mode, modeErr := e.firstQueryRowModeLocked(scope, queryRoot, b.querySources)
+		if modeErr != nil {
+			e.mu.Unlock()
+			return Result{}, modeErr
+		}
+		if mode != 0 {
+			tag = "SELECT " + queryRowClause(mode)
+		}
+	}
+	if scope.owner.readOnly && tag != "" {
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
+	}
+	if b.query != nil {
+		if err = e.initializeQueryLocksLocked(scope, queryRoot, b.querySources); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
 	}
 	switch s := stmt.(type) {
 	case *parser.Update:

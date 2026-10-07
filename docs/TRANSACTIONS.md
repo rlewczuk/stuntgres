@@ -159,11 +159,12 @@ Feature smoke: `make smoke VERBOSE=0 RUN='^TestSavepointsSmoke$'`.
 
 ## Relation locks
 
-SELECT acquires transaction-owned ACCESS SHARE; INSERT and DELETE acquire ROW EXCLUSIVE.
-These automatic modes coexist, including concurrent readers and writers. COMMENT
+Ordinary SELECT acquires transaction-owned ACCESS SHARE; locking SELECT acquires
+ROW SHARE; INSERT, UPDATE and DELETE acquire ROW EXCLUSIVE. These automatic
+relation modes coexist, including concurrent readers and writers. COMMENT
 TABLE/COLUMN acquires internal SHARE UPDATE EXCLUSIVE at Execute (not Prepare):
 it coexists with AS/RX, but conflicts with another owner's SUE and AX.
-`LOCK TABLE <name> IN ACCESS EXCLUSIVE MODE` is the only explicit lock syntax:
+`LOCK TABLE <name> IN ACCESS EXCLUSIVE MODE` is the only explicit table-lock syntax:
 one existing optionally qualified/quoted table, no ONLY/list/star/default mode
 or other modes; optional `NOWAIT` is supported. Execution requires an explicit SQL or driver block and the
 current role's existing superuser authority. Ordinary SELECT/INSERT privileges
@@ -416,3 +417,111 @@ remains pinned PostgreSQL **18.0 UTF8/C**; current official `/docs/18/` manuals
 identify **18.6**, and local **20devel** sources are research only. See
 [READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED)
 and [transactions](https://www.postgresql.org/docs/18/tutorial-transactions.html).
+
+## Row locks — change note
+
+SELECT supports one trailing `FOR KEY SHARE`, `FOR SHARE`, `FOR NO KEY UPDATE`
+or `FOR UPDATE`, after the existing ORDER BY clause. Existing inner/cross joins
+and INSERT SELECT sources use the same locking executor. `OF`, `NOWAIT`,
+`SKIP LOCKED` and multiple locking clauses remain excluded; LOCK TABLE's
+independent NOWAIT support does not admit SELECT options.
+
+Different owners conflict only on the same logical row. This matrix lists
+requested modes as rows and held modes as columns; **yes** means conflict:
+
+| Requested / held | KEY SHARE | SHARE | NO KEY UPDATE | UPDATE |
+|---|---|---|---|---|
+| KEY SHARE | no | no | no | yes |
+| SHARE | no | no | yes | yes |
+| NO KEY UPDATE | no | yes | yes | yes |
+| UPDATE | yes | yes | yes | yes |
+
+One owner accumulates modes without blocking itself. Native tables have no
+eligible unique-key metadata: supported UPDATE automatically takes NO KEY UPDATE,
+and DELETE takes UPDATE. PostgreSQL unique-key-update controls in the reference
+suite do not imply native indexes/constraints. Other rows and ordinary MVCC
+SELECT are not blocked by row locks, including reads of a peer's privately
+updated/deleted row (which return the committed visible version).
+
+Execution eagerly freezes qualifying row identities and initial sort order,
+then acquires row grants before returning a cursor. Prepare takes ROW SHARE
+relation authority but no row grants. Explicit holds survive Rows.Close and
+Stmt.Close until transaction end; implicit Finish releases holds before exposing
+the eager result. The existing conservative native savepoint boundary remains:
+ROLLBACK TO/RELEASE does not release or downgrade outer-ticket row grants.
+Reset/Restore fences exact old identities; already finalized results remain valid.
+
+At READ COMMITTED, a committed peer update supplies the latest same-row values
+and triggers predicate/join recheck. A deleted or now-nonqualifying candidate is
+omitted; acquired grants remain held even when recheck rejects the output.
+Rollback preserves the original candidate. No new rows or new join combinations
+are discovered after a wait, and results are not re-sorted: ORDER BY before
+locking can return changed sort values out of order. Joined lockers lock all
+contributing base rows, including unprojected tables, not unmatched source rows.
+Duplicate/self-join occurrences retain bag multiplicity.
+
+ORDER output caches retain their admitted occurrence identity separately from
+physical row indexes and accepted-result compaction. Unchanged candidates,
+rollback and compatible REPEATABLE READ KEY SHARE reuse the original evaluated
+outputs, including volatile keys. A qualifying READ COMMITTED replacement
+refreshes each visible-output-referenced key once at its original query level;
+duplicate keys share that evaluation. Nested views retain independent caches.
+Rejected replacements do not evaluate final outputs, and no replacement triggers
+sorting again. Thus initially ordered values 11,21 can become 31,21 after a wait.
+
+Volatile timing depends on query-level lock placement. When nextval, ORDER and
+FOR occur together (including within a stored view definition), a replacement
+refreshes the cached value once. A stored row-only FOR below an ordinary outer
+volatile ORDER is a qualified native/PostgreSQL difference: native delayed scalar
+arbitration can evaluate before waiting and refresh afterward, whereas PostgreSQL
+can acquire the lower LockRows before evaluating the outer volatile key. The
+independent reference controls distinguish these placements rather than claim
+identical sequence advancement for every marked-view shape.
+
+Scalar views retain a private execution lineage back to physical base RowIDs,
+including hidden/self-join contributors, duplicates and zero-width outputs.
+Locks are arbitrated after outer scalar WHERE/joins/order, not on every inner
+view row. A clause stored in a view applies to ordinary reads of that subtree;
+unrelated outer sources stay unmarked. Overlapping marks normalize to the
+strongest SQL mode, KEY SHARE < SHARE < NO KEY UPDATE < UPDATE.
+Unmarked upper aggregation over a marked view consumes locks at its pre-group
+input frontier. Recheck precedes grouping/aggregate Advance; HAVING FALSE and
+outer filtering of aggregate outputs cannot release qualifying input locks.
+Frozen aggregate outputs never invent row identities or variable contributor lists.
+
+REPEATABLE READ KEY SHARE can lock a live chain after a committed keyless UPDATE:
+it retains the original snapshot values and predicates, rather than promoting to
+the latest values. SHARE, NO KEY UPDATE and UPDATE instead report `40001`,
+`could not serialize access due to concurrent update`, for a newer committed
+replacement. Deletion (including replacement followed by deletion) reports that
+same error for all four modes. This does not change DELETE/UPDATE's existing
+direct-delete wording. Read-only transactions
+reject locking SELECT at Execute with `25006`, `cannot execute SELECT FOR
+<mode> in a read-only transaction`; Prepare still analyzes normally, including
+ordinary reads of stored-mark views. All modes require SELECT on used columns
+plus UPDATE on any live column of each marked base source. View descendant
+authority uses the current owner or original security_invoker, only at Execute.
+Sequences reject row marks with42809, `cannot lock rows in sequence "s"`.
+A clause reaching GROUP BY, HAVING or aggregate output rejects with mode-specific
+0A000 without a synthetic Position. Expanded grouped-view legality is structural
+at native Prepare; PostgreSQL18 reports it when Bind builds the plan.
+Native virtual catalogs fail0A000 `row locking is not supported for virtual
+catalog relations`, even beneath views or when empty. PostgreSQL physical
+catalog row locking is separately exercised, not claimed as native parity.
+
+Waits reuse the existing timeout/cancellation/deadlock authority and diagnostics;
+native context cancellation remains an ordinary Go error. PostgreSQL physical
+tuple wait Context is independently checked only by reference controls, never
+fabricated from native logical RowIDs.
+
+Feature checks: `make test PACKAGES=./internal/engine RUN='^TestRowLock' VERBOSE=0`,
+`make test PACKAGES=. RUN='^TestRowLock' VERBOSE=0`,
+`make reference RUN='^TestReferenceRowLock' VERBOSE=0`, and
+`make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`.
+Exact native queue witnesses live in engine tests; public native deadlines are
+conflict boundaries, not enqueue proof. PostgreSQL resumed-version witnesses use
+actual Lock wait state and pg_blocking_pids, not relation-only pg_locks probes.
+
+Sources: [PostgreSQL 18 row locks](https://www.postgresql.org/docs/18/explicit-locking.html#LOCKING-ROWS),
+[READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED),
+and [SELECT locking](https://www.postgresql.org/docs/18/sql-select.html#SQL-FOR-UPDATE-SHARE).

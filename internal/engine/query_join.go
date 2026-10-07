@@ -72,6 +72,10 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	}
 	frame := make([]sqltype.Value, width)
 	out := &querySource{flatWidth: width, materialized: true}
+	if state.locking {
+		out.occurrences = appendQueryOccurrences(out.occurrences, left.source)
+		out.occurrences = appendQueryOccurrences(out.occurrences, right.source)
+	}
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, Row: frame, statementScope: state.source.scope, Input: state.input, Output: state.output}
 	maxInt := int(^uint(0) >> 1)
 	for i := range left.count() {
@@ -118,6 +122,10 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 				return indexedStage{}, fmt.Errorf("stuntgres: join result is too large")
 			}
 			out.flat = append(out.flat, frame...)
+			if state.locking {
+				out.provenance = appendQueryProvenance(out.provenance, left.source, left.index(i))
+				out.provenance = appendQueryProvenance(out.provenance, right.source, right.index(j))
+			}
 			out.flatCount++
 		}
 	}

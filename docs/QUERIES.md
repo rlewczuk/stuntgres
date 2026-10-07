@@ -32,6 +32,14 @@ globally merged. Selected nextval ORDER labels/ordinals return the evaluated val
 not fresh sequence calls. Prepared plans contain no mutable datum cache:
 every execution owns its keys/permutation/parameters.
 
+Locking SELECT preserves those execution-private caches through row arbitration
+and nested scalar-view lineage. Accepted-result compaction does not change the
+cache occurrence, and unchanged rows do not redraw volatile ordered outputs.
+Qualifying READ COMMITTED replacements refresh output-referenced keys once,
+without re-sorting the admitted rank; hidden ordering keys are not re-evaluated
+merely to reorder replacement rows. See the query-level volatile placement
+qualification in [transactions](TRANSACTIONS.md).
+
 Ordering capability and the bounded UTF8/C collation are checked during analysis
 even for empty/single/all-NULL inputs. Existing type providers supply numeric,
 NaN, temporal, bytea, UUID and character semantics; REGCLASS compares canonical
@@ -442,8 +450,10 @@ authorization and lock acquisition, as well as the native explicit-utility
 boundary. DML retains semantic analysis before its read-only execution check.
 Valid data-write Prepare analyzes/describes without execution rejection;
 utility Prepare inside an explicit transaction remains native `0A000`.
-Held statements recheck at Execute. SELECT, settings, controls and supported
-ACCESS EXCLUSIVE LOCK remain allowed. Failures abort/discard prior private work.
+Held statements recheck at Execute. Ordinary (nonlocking) SELECT, settings,
+controls and supported ACCESS EXCLUSIVE LOCK remain allowed. Locking SELECT
+uses analysis-before-read-only execution diagnostics like DML. Failures
+abort/discard prior private work.
 Feature smoke: `make smoke RUN='^TestTransactionIsolationSmoke$$' VERBOSE=1`.
 
 INSERT query sources use that same live view, including earlier own deletions:
@@ -1314,3 +1324,58 @@ Stored-view timezone regressions:
 The latter independently asserts results against the pinned PostgreSQL 18.0
 fixture; native replay and catalog identity replacement are native controls.
 
+## SELECT row locking — change note
+
+Existing table/view SELECT and INSERT SELECT sources admit one trailing
+`FOR KEY SHARE`, `FOR SHARE`, `FOR NO KEY UPDATE` or `FOR UPDATE`, after ORDER BY
+when present. Qualified/quoted sources, parameters, aliases and existing
+inner/cross join forms retain their metadata and bag multiplicity. Unqualified
+locking covers contributing physical base relations beneath scalar views,
+including hidden contributors and zero-column outputs; no synthetic view RowIDs
+are used.
+
+The query pipeline is FROM/join → WHERE → ORDER → lock/recheck → projection.
+Everything is finalized before the adapter exposes Rows: Next/Close never acquires
+grants or evaluates SQL. After a READ COMMITTED wait, only frozen contributing
+RowIDs are followed to their current heads. Updated rows rebuild the same bound
+join frame, including USING/NATURAL merged values and frozen view attribute
+layouts, then recheck inner ON/WHERE/projection and outer ON/WHERE. Deleted or
+nonqualifying combinations disappear without discovering new matches or
+resorting current values. Ordinary unmarked queries carry no locking provenance.
+
+View definitions may store a supported clause. Scalar locking waits until the
+outer scalar qualification has selected contributors; it does not gratuitously
+lock every row of a materialized view. Definition marks cover only their subtree;
+unrelated sources stay unmarked. Overlapping marks on one occurrence use the
+strongest SQL mode, KEY SHARE < SHARE < NO KEY UPDATE < UPDATE. An ordinary upper
+aggregate over a marked view is legal: it locks/rechecks the qualifying input
+before grouping and aggregate Advance. HAVING FALSE or an outer filter excluding
+aggregate output does not undo those input locks. Aggregate outputs and unmarked
+aggregate siblings are frozen values, not physical row identities.
+
+All four clauses need SELECT privileges for actual reads and UPDATE on any live
+column of every marked base source, using each view's current owner or original
+security_invoker principal. Empty/filtered results still require authority and
+ROW SHARE relation locks. Prepare is row-lock-free and does not check executor
+UPDATE privileges; Execute refreshes candidates and authority. A clause reaching
+GROUP BY, HAVING or aggregate output produces `0A000`, `<clause> is not allowed
+with GROUP BY clause` / `HAVING clause` / `aggregate functions`, without Position.
+Native Describe rejects an expanded grouped-view mark during Prepare; PostgreSQL
+18 Describe does not plan that expansion and reports the same error at Bind/
+execution. Tests retain independently specified phase evidence for this boundary.
+Sequences produce `42809`, `cannot lock rows in sequence "s"` at execution;
+ordinary sequence SELECT is unchanged. READ ONLY and REPEATABLE READ diagnostics
+and the four-by-four matrix are documented in
+[row locks](TRANSACTIONS.md#row-locks--change-note).
+
+Native virtual catalogs (`pg_class`, `pg_rewrite`, `pg_views`) have no durable
+physical tuple identity. Marked direct, nested, stored and empty reads fail0A000
+`row locking is not supported for virtual catalog relations`, without partial
+row grants or Position/Detail/Hint. Ordinary catalog reads remain supported;
+PostgreSQL physical catalog lockers are separately labeled reference controls.
+
+SELECT OF/NOWAIT/SKIP LOCKED/repeated clauses remain whole-input rejected with no
+prefix effects. No outer/derived joins, keys/indexes, LIMIT/OFFSET,
+set operations or additional locking subsystem are introduced.
+Smoke: `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`;
+reference: `make reference RUN='^TestReferenceRowLock' VERBOSE=0`.

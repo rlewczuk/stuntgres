@@ -56,6 +56,31 @@ and normal output metadata. ORDER resolves output labels and ordinals alongside
 input expressions and accepts multiple keys. WHERE/HAVING do not expose output
 labels; GROUP BY retains its input-name priority and existing ordinal rules.
 
+Four trailing SELECT locking clauses are supported: `FOR KEY SHARE`, `FOR SHARE`,
+`FOR NO KEY UPDATE` and `FOR UPDATE`, including current inner/cross joins,
+persistent scalar views and INSERT SELECT sources. They lock contributing base
+RowIDs eagerly before result exposure and recheck the same frozen candidate
+combinations after READ COMMITTED contention. Unmarked reads remain nonblocking.
+Marks stored in a view apply to ordinary reads of that subtree, not unrelated
+sources; overlapping clauses normalize KEY SHARE < SHARE < NO KEY UPDATE < UPDATE.
+An unmarked upper aggregate may consume a marked view: input locks precede
+grouping/HAVING, so an empty HAVING result does not release them. A FOR clause
+reaching GROUP BY/HAVING/aggregate output fails mode-specific0A000; sequences
+fail42809 at Execute. Native virtual catalogs reject marks with0A000
+`row locking is not supported for virtual catalog relations`, including empty
+and nested view paths. PostgreSQL's physical catalog lockability is an independent
+reference control, not native parity. READ ONLY
+fails25006 at Execute. At RR, KEY SHARE preserves snapshot values after a
+compatible keyless UPDATE; stronger modes and all concurrent deletions fail40001
+with concurrent-update wording. Every table needs used-column SELECT plus
+UPDATE on any live column. `OF`, `NOWAIT`, `SKIP LOCKED` and repeated SELECT
+locking clauses remain excluded, as do new keys/indexes and adjacent query syntax.
+Native UPDATE is keyless NO KEY UPDATE; DELETE is UPDATE. Matrix, lifetime,
+conservative savepoint boundary and exact diagnostics:
+[row locks](TRANSACTIONS.md#row-locks--change-note).
+Smoke: `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`;
+reference: `make reference RUN='^TestReferenceRowLock' VERBOSE=0`.
+
 OID is also a supported column type: distinct unsigned32 type26, native int64
 results, unsigned comparison/order and directional integer casts. See
 [OID scalar semantics](TYPES.md#oid--unsigned-scalar-change-note) for text syntax,
@@ -408,8 +433,8 @@ READ COMMITTED fixes candidates before waits; physical ordinals are hints, stabl
 RowIDs identify latest predecessors. Peer deletion makes waiting UPDATE count0;
 changed peer UPDATE values require predicate recheck for UPDATE/DELETE without
 widening the captured set. DELETE ends the actual latest version. Relation RX
-and distinct mutually conflicting NO KEY UPDATE/row UPDATE modes use one manager
-resource; ordinary readers/different rows do not conflict. Prepare takes RX, no
+and distinct NO KEY UPDATE/row UPDATE modes use the shared four-mode matrix on
+one logical row resource; ordinary readers/different rows do not conflict. Prepare takes RX, no
 row locks or data scan. Head vectors and immutable end roots share one all-relation
 storage/length/generation/end preflight and frontier install. Cancellation/failure
 publishes none and discards both kinds of prior private work, releases holds and
@@ -1177,8 +1202,8 @@ recovers across epochs, including fresh current-epoch ROLLBACK AND CHAIN.
 End Prepare remains effect-free/eligible; retained handles are not deleted.
 
 
-Relation locking is transaction-owned AS for SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for UPDATE, internal SUE for COMMENT TABLE/COLUMN Execute, owner-authorized AX for selected ALTER utilities, and explicit single-target `LOCK TABLE name IN ACCESS EXCLUSIVE MODE [NOWAIT]` in an explicit block under the current superuser role. The two row modes are distinct, mutually conflicting bits on one logical row resource, not separate domains. AS/RX coexist with SUE; SUE conflicts with other-owner SUE; AX conflicts across owners; same-owner operations reenter. Semantic data Prepare acquires AS/RX, fixes characteristic timing and the explicit RR snapshot before waits (implicit Finish releases, explicit retains despite stmt.Close), never row holds; LOCK, COMMENT and ALTER Prepare are metadata-only. Earlier conflicting waiters prevent barging except for compatible deadlock-resolving queue rearrangement. NOWAIT fails without enqueue with 55P03/relation-name message. Typed lock_timeout defaults to 0/off, uses the existing millisecond SET/RESET/local lifecycle and times each queued acquisition separately, including preparation and UPDATE/DELETE rows, never immediate grants or whole operations. Earlier absolute SQL deadline wins (exact tie favors lock timeout); caller context errors retain Go identity. Abort/end releases exact owner state; commit publishes before waking successors. Interruption removes requests and wakes successors without disturbing holders. Successful replacement fences old held/waiting epochs outside metadata locks; only genuinely queued implicit SQL drops replacement admission and revalidates exact identity afterward. UPDATE/DELETE never widen candidates to peer inserts: RC/RU skip committed deletion and recheck changed predecessor values, while RR rejects newer committed heads/ends with40001 after real immediate/queued grant. ALTER releases replacement admission before catalog provider validation and checks descriptor/storage generation/end-root tokens at publication. Additional exposed modes, advisory resources and introspection remain excluded.
-Lock-timeout55P03 and deadlock40P01 during direct SELECT/INSERT/UPDATE/DELETE relation analysis or semantic Prepare carry the original ObjectName's first token character Position (schema token for qualified names). Cached Execute, UPDATE/DELETE row waits and utility errors have no parse-analysis Position;57014 is excluded from this decoration. Do not put source-position policy into manager resources or fabricate Schema/Table fields.
+Relation locking is transaction-owned AS for ordinary SELECT, ROW SHARE for locking SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for keyless UPDATE, internal SUE for COMMENT TABLE/COLUMN Execute, owner-authorized AX for selected ALTER utilities, and explicit single-target `LOCK TABLE name IN ACCESS EXCLUSIVE MODE [NOWAIT]` in an explicit block under the current superuser role. Four row modes share one logical resource and compatibility authority; see [row locks](TRANSACTIONS.md#row-locks--change-note). AS/ROW SHARE/RX coexist with SUE; SUE conflicts with other-owner SUE; AX conflicts across owners; same-owner operations reenter. Semantic data Prepare acquires AS/ROW SHARE/RX, fixes characteristic timing and the explicit RR snapshot before waits (implicit Finish releases, explicit retains despite stmt.Close), never row holds; LOCK, COMMENT and ALTER Prepare are metadata-only. Earlier conflicting waiters prevent barging except for compatible deadlock-resolving queue rearrangement. LOCK TABLE NOWAIT fails without enqueue with55P03/relation-name message. Typed lock_timeout defaults to0/off, uses the existing millisecond SET/RESET/local lifecycle and times each queued acquisition separately, including preparation and SELECT/UPDATE/DELETE rows, never immediate grants or whole operations. Earlier absolute SQL deadline wins (exact tie favors lock timeout); caller context errors retain Go identity. Abort/end releases exact owner state; commit publishes before waking successors. Interruption removes requests and wakes successors without disturbing holders. Successful replacement fences old held/waiting epochs outside metadata locks; only genuinely queued implicit SQL drops replacement admission and revalidates exact identity afterward. UPDATE/DELETE never widen candidates to peer inserts: RC/RU skip committed deletion and recheck changed predecessor values, while RR rejects newer committed heads/ends with40001 after real immediate/queued grant. ALTER releases replacement admission before catalog provider validation and checks descriptor/storage generation/end-root tokens at publication. Additional table modes, advisory resources and introspection remain excluded.
+Lock-timeout55P03 and deadlock40P01 during direct SELECT/INSERT/UPDATE/DELETE relation analysis or semantic Prepare carry the original ObjectName's first token character Position (schema token for qualified names). Cached Execute, SELECT/UPDATE/DELETE row waits and utility errors have no parse-analysis Position;57014 is excluded from this decoration. Do not put source-position policy into manager resources or fabricate Schema/Table fields.
 The canonical manager searches finite stable queue-order constraints to resolve soft cycles without aborting; unavoidable relation/row cycles fail an unspecified actual cycle member with ERROR40P01 `deadlock detected` and Hint `See server log for query details.` Native Detail describes exact logical transaction/session/epoch, mode, relation ObjectRef and optional RowID cycle edges, not physical PostgreSQL PID/XID/ctid identities or tuple Context. Without marks, mandatory Finish discards victim private effects and releases held locks, allowing survivors to proceed before explicit victim ROLLBACK. With recoverable marks it restores the newest mark's effects and conservatively retains native outer-ticket holds until full end. Explicit victims retain the existing25P02 recovery gate. SSI remains unsupported and is not a blocking dependency.
 Queued work binds the grant-time descriptor of the exact retained ObjectRef; a same-identity definition revision is valid, while epoch changes/removal/recreation remain fenced. Keep subsequent grant-time descriptor pinning and catalog/storage publication guards. Post-drop quoted expression errors use literal decoded identifiers and character positions. Positive qualified ordinary-owner controls use one ordinary schema/table owner; separate distinct-owner Restore/denial/replay witnesses retain the namespace-USAGE and explicit-ACL Dump boundaries without adding native GRANT.
 ALTER re-resolution must compare the complete ObjectRef with scope.lockedRef before owner/column semantics, notices or staging, then use the validated grant-time lockedDescriptor. A search_path shadow created during an AX wait fails ErrCatalogReplaced without effects or reacquisition; PostgreSQL's independently asserted utility behavior instead reacquires the shadow AX. Never reinstate a pre-wait descriptor-revision fence.
