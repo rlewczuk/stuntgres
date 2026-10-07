@@ -328,6 +328,12 @@ Real pinned PostgreSQL witnesses:
 `make reference RUN='^TestReferenceNumeric.*$' VERBOSE=1`.
 Native logical negative-scale metadata is asserted independently of lib/pq's
 unsigned-scale decoding defect, not by accepting its incorrect DecimalSize.
+For unconstrained NUMERIC results (including bounded random), pinned lib/pq
+reports DecimalSize `(65535,65531,true)` in direct and prepared queries by
+unsigned decoding of server typmod-1. Native metadata remains `(0,0,false)`;
+this adapter defect does not constrain the result's actual display scale or
+precision. Reference fixtures assert the exact adapter difference independently
+while retaining exact output/range/scale expectations.
 
 ## Binary floating point
 

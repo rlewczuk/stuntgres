@@ -126,21 +126,34 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr) (BoundExpr, error
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	name := raw.Name.Parts[0].Text
-	args := make([]BoundExpr, len(raw.Args))
-	unknown := make([]bool, len(raw.Args))
+	var args []BoundExpr
+	var unknown []bool
+	if len(raw.Args) <= 100 {
+		args = make([]BoundExpr, len(raw.Args))
+		unknown = make([]bool, len(raw.Args))
+	}
 	for i, r := range raw.Args {
 		if l, ok := r.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
-			unknown[i] = true
 			// Leave unknown literal input uninterpreted until overload selection.
-			args[i] = literalExpression{expressionInfo: expressionInfo{pos: r.SourcePosition()}}
+			if args != nil {
+				unknown[i] = true
+				args[i] = literalExpression{expressionInfo: expressionInfo{pos: r.SourcePosition()}}
+			}
 			continue
 		}
 		x, err := b.bind(r, expressionPolicy{context: projectionContext})
 		if err != nil {
 			return nil, err
 		}
-		args[i] = x
-		unknown[i] = x.ResultUsage().Type == nil
+		if args != nil {
+			args[i] = x
+			unknown[i] = x.ResultUsage().Type == nil
+		}
+	}
+	// PostgreSQL's general function-call limit precedes overload lookup, but
+	// only after every child has been analyzed for its own errors/captures.
+	if len(raw.Args) > 100 {
+		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	id := sqltype.Float8
 	valid := !raw.Variadic

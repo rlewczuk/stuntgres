@@ -491,6 +491,8 @@ pipeline and selected-call-only singleton exception:
 | `random_normal([mean[,stddev]])` | FLOAT8 | Defaults mean0/stddev1; ordinary IEEE results, including negative deviation and specials |
 | `setseed(seed)` | VOID | Finite inclusive [-1,1]; nonnull empty string result |
 
+The decimal lattice can exceed2^64 points and retains numeric's full supported
+display-scale/weight range; large coefficients do not pass through floating point.
 Equal bounds return the endpoint without consuming a draw. Numeric results are
 unconstrained, not resized to a source column typmod. Mixed INTEGER/BIGINT
 chooses BIGINT; integer/NUMERIC chooses NUMERIC. Bounded FLOAT4/FLOAT8 calls are
@@ -498,6 +500,10 @@ not released overloads. Two unknown bounds and SMALLINT/SMALLINT are ambiguous
 (42725 with the explicit-casts Hint); inferred parameter types do not depend on
 supplied Go values. Missing signatures use42883 and the standard function Hint
 at the function token's character Position.
+The general PostgreSQL function-call limit is100 arguments: larger admitted calls
+fail54023 `cannot pass more than 100 arguments to a function`, with function-token
+Position and no Hint. Child-analysis errors precede that limit; calls within the
+limit still resolve against each selected function's smaller released arities.
 
 All selected random calls are volatile and strict. Preparing/describing them
 does not invoke them. Literal NULL can eliminate a call and its volatile sibling

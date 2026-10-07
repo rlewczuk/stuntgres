@@ -167,6 +167,21 @@ func TestRandomSeedDefaultsAndStrictness(t *testing.T) {
 	if v := randomOne(t, c, "SELECT random()"); v != second {
 		t.Fatal("runtime NULL skipped sibling", v, second)
 	}
+	held, e := c.PrepareContext(context.Background(), "SELECT random_normal(mean,random()) FROM null_inputs WHERE id=$1")
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer held.Close()
+	for range 2 {
+		randomSeed(t, c, .25)
+		var value any
+		if e := held.QueryRowContext(context.Background(), 1).Scan(&value); e != nil || value != nil {
+			t.Fatal("held prepared row NULL", value, e)
+		}
+		if randomOne(t, c, "SELECT random()") != second {
+			t.Fatal("held prepared runtime NULL skipped sibling")
+		}
+	}
 }
 
 func TestRandomSessionIsolationAndRollback(t *testing.T) {

@@ -168,6 +168,21 @@ func TestReferenceRandomSessionLifecycle(t *testing.T) {
 			if one(a, "SELECT random()") != second {
 				t.Fatal("runtime NULL sibling was skipped")
 			}
+			held, e := a.PrepareContext(p.ctx, "SELECT random_normal(mean,random()) FROM null_inputs WHERE id=$1")
+			if e != nil {
+				t.Fatal(e)
+			}
+			for range 2 {
+				seed(a)
+				var value any
+				if e := held.QueryRowContext(p.ctx, 1).Scan(&value); e != nil || value != nil {
+					t.Fatal("prepared row NULL", value, e)
+				}
+				if one(a, "SELECT random()") != second {
+					t.Fatal("held prepared runtime NULL sibling was skipped")
+				}
+			}
+			held.Close()
 			// Retain exactly one physical session across pool return, independently
 			// checking its identity (native through public Raw; PG through backend PID).
 			backend.db.SetMaxIdleConns(0)
