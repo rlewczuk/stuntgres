@@ -81,6 +81,89 @@ func notNullSmokeQuery(t *testing.T, db *sql.DB, q string, names, types []string
 	}
 }
 
+func TestDropNotNullSystemColumnSmoke(t *testing.T) {
+	var notices []stuntgres.Error
+	db := alterDropSmokePool(t, &notices)
+	notNullSmokeExec(t, db, false, "CREATE TABLE t(a INT CONSTRAINT a_nn NOT NULL)", 0)
+	notNullSmokeExec(t, db, false, "INSERT INTO t VALUES(7)", 1)
+	for _, prepared := range []bool{false, true} {
+		for _, column := range []string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid"} {
+			q := "ALTER TABLE t ALTER " + column + " DROP NOT NULL"
+			var result sql.Result
+			var err error
+			if prepared {
+				stmt, e := db.Prepare(q)
+				if e != nil {
+					t.Fatal("effect-free Prepare", e)
+				}
+				result, err = stmt.Exec()
+				stmt.Close()
+			} else {
+				result, err = db.Exec(q)
+			}
+			if result != nil {
+				t.Fatal("failed utility returned result")
+			}
+			notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: `cannot alter system column "` + column + `"`})
+		}
+	}
+	_, err := db.Exec("UPDATE t SET a=NULL")
+	notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "a"})
+	notNullSmokeQuery(t, db, "SELECT * FROM t", []string{"a"}, []string{"INT4"}, []bool{false}, [][]any{{int64(7)}})
+	if len(notices) != 0 {
+		t.Fatal(notices)
+	}
+}
+
+func TestDropConstraintOwnedSequenceSmoke(t *testing.T) {
+	for _, q := range []string{"ALTER TABLE t DROP CONSTRAINT a_nn", "ALTER TABLE t DROP CONSTRAINT a_nn RESTRICT", "ALTER TABLE t DROP CONSTRAINT a_nn CASCADE", "ALTER TABLE t ALTER a DROP NOT NULL"} {
+		for _, prepared := range []bool{false, true} {
+			t.Run(q+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
+				var notices []stuntgres.Error
+				db := alterDropSmokePool(t, &notices)
+				ctx := context.Background()
+				notNullSmokeExec(t, db, false, "CREATE TABLE t(a INT CONSTRAINT a_nn NOT NULL,b INT DEFAULT 8 CONSTRAINT b_nn NOT NULL)", 0)
+				notNullSmokeExec(t, db, false, "CREATE SEQUENCE s START 17 OWNED BY t.a", 0)
+				notNullSmokeExec(t, db, false, "COMMENT ON COLUMN t.a IS 'survivor'", 0)
+				notNullSmokeExec(t, db, false, "INSERT INTO t VALUES(7,8)", 1)
+				notNullSmokeExec(t, db, prepared, q, 0)
+				var n int64
+				if err := db.QueryRow("SELECT nextval('s')").Scan(&n); err != nil || n != 17 {
+					t.Fatal("drop changed owned generator", n, err)
+				}
+				notNullSmokeExec(t, db, prepared, "UPDATE t SET a=NULL", 1)
+				notNullSmokeExec(t, db, prepared, "INSERT INTO t(a) VALUES(NULL)", 1)
+				var dump bytes.Buffer
+				if err := stuntgres.Dump(ctx, db, &dump); err != nil {
+					t.Fatal(err)
+				}
+				if strings.Contains(dump.String(), `CONSTRAINT "a_nn"`) || !strings.Contains(dump.String(), `CONSTRAINT "b_nn" NOT NULL`) {
+					t.Fatal("dump did not capture post-drop constraints", dump.String())
+				}
+				if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+					t.Fatal(err)
+				}
+				var redump bytes.Buffer
+				if err := stuntgres.Dump(ctx, db, &redump); err != nil || dump.String() != redump.String() {
+					t.Fatal("post-drop roundtrip changed persistent state", err, redump.String())
+				}
+				notNullSmokeQuery(t, db, "SELECT * FROM t", []string{"a", "b"}, []string{"INT4", "INT4"}, []bool{true, false}, [][]any{{nil, int64(8)}, {nil, int64(8)}})
+				_, err := db.Exec("INSERT INTO t VALUES(NULL,NULL)")
+				notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "b" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null, null).", Schema: "public", Table: "t", Column: "b"})
+				if err = db.QueryRow("SELECT nextval('s')").Scan(&n); err != nil || n != 18 {
+					t.Fatal("restored generator state", n, err)
+				}
+				notNullSmokeExec(t, db, false, "ALTER TABLE t DROP a", 0)
+				_, err = db.Exec("SELECT nextval('s')")
+				notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "s" does not exist`, Position: "16"})
+				if len(notices) != 0 {
+					t.Fatal(notices)
+				}
+			})
+		}
+	}
+}
+
 func TestNotNullSmoke(t *testing.T) {
 	var notices []stuntgres.Error
 	db := alterDropSmokePool(t, &notices)

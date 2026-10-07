@@ -2,7 +2,9 @@ package engine
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
+	"reflect"
 	"strings"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -10,36 +12,87 @@ import (
 )
 
 func TestNotNullAXWaitCancellationAndEnd(t *testing.T) {
-	for _, ending := range []bool{false, true} {
-		e := New()
-		a := sessionStart(t, e, nil)
-		b := sessionStart(t, e, nil)
-		sessionSQL(t, a, "CREATE TABLE t(a INT)")
-		ref := roleTableRef(t, e, "t")
-		old := e.state.descriptors[ref.Address]
-		tx := transactionBegin(t, a)
-		sessionSQL(t, a, "INSERT INTO t VALUES(7)")
-		ctx, cancel := context.WithCancel(context.Background())
-		done := lockAsync(e, b, ctx, "ALTER TABLE t ALTER a SET NOT NULL", false)
-		lockPending(t, e, 1)
-		if ending {
-			b.RequestEnd(CleanClose)
-		} else {
-			cancel()
+	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ALTER a DROP NOT NULL", "ALTER TABLE t DROP CONSTRAINT a_nn", "ALTER TABLE t DROP CONSTRAINT a_nn RESTRICT", "ALTER TABLE t DROP CONSTRAINT a_nn CASCADE"} {
+		for _, ending := range []bool{false, true} {
+			t.Run(q+map[bool]string{false: "/cancel", true: "/end"}[ending], func(t *testing.T) {
+				e := New()
+				a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+				dropping := strings.Contains(q, "DROP")
+				if dropping {
+					sessionSQL(t, a, "CREATE TABLE t(a INT CONSTRAINT a_nn NOT NULL,b INT CONSTRAINT b_nn NOT NULL)")
+				} else {
+					sessionSQL(t, a, "CREATE TABLE t(a INT,b INT CONSTRAINT b_nn NOT NULL)")
+				}
+				sessionSQL(t, a, "INSERT INTO t VALUES(7,8)")
+				ref := roleTableRef(t, e, "t")
+				old, storage := e.state.descriptors[ref.Address], e.storage[ref.Address]
+				ends, generation := storage.ends, storage.generation
+				tx := transactionBegin(t, a)
+				sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				done := lockAsync(e, b, ctx, q, false)
+				lockPending(t, e, 1)
+				if ending {
+					b.RequestEnd(CleanClose)
+				} else {
+					cancel()
+				}
+				lockAwait(t, done, context.Canceled)
+				lockPending(t, e, 0)
+				if e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
+					t.Fatal("canceled waiter changed schema/storage")
+				}
+				transactionEnd(t, a, tx, false)
+				lockEmpty(t, e)
+				if dropping {
+					notNullDropEnforcement(t, e)
+				}
+				notNullDropRows(t, e, 7, 1)
+				c := sessionStart(t, e, nil)
+				sessionSQL(t, c, q)
+				if dropping {
+					sessionSQL(t, c, "UPDATE t SET a=NULL")
+					sessionSQL(t, c, "INSERT INTO t VALUES(NULL,9)")
+					notNullRemainingEnforcement(t, e)
+				}
+				lockEmpty(t, e)
+			})
 		}
-		lockAwait(t, done, context.Canceled)
-		cancel()
-		lockPending(t, e, 0)
-		if e.state.descriptors[ref.Address] != old {
-			t.Fatal("canceled waiter changed schema")
+	}
+}
+
+func notNullDropEnforcement(t *testing.T, e *Engine) {
+	t.Helper()
+	for _, q := range []string{"INSERT INTO t VALUES(NULL,8)", "UPDATE t SET a=NULL"} {
+		_, err := testExecute(e, context.Background(), statement(t, q), nil)
+		var got *sqlstate.Error
+		if !errors.As(err, &got) || got.Code != "23502" || got.Column != "a" {
+			t.Fatal(q, err)
 		}
-		transactionEnd(t, a, tx, true)
-		lockEmpty(t, e)
-		if !ending {
-			sessionSQL(t, b, "ALTER TABLE t ALTER a SET NOT NULL")
-			sessionSQL(t, b, "ALTER TABLE t DROP CONSTRAINT t_a_not_null")
-			lockEmpty(t, e)
+	}
+	notNullRemainingEnforcement(t, e)
+}
+
+func notNullRemainingEnforcement(t *testing.T, e *Engine) {
+	t.Helper()
+	for _, q := range []string{"INSERT INTO t VALUES(7,NULL)", "UPDATE t SET b=NULL"} {
+		_, err := testExecute(e, context.Background(), statement(t, q), nil)
+		var got *sqlstate.Error
+		if !errors.As(err, &got) || got.Code != "23502" || got.Column != "b" {
+			t.Fatal(q, err)
 		}
+	}
+}
+
+func notNullDropRows(t *testing.T, e *Engine, a int64, count int) {
+	t.Helper()
+	want := make([][]driver.Value, count)
+	for i := range want {
+		want[i] = []driver.Value{a, int64(8)}
+	}
+	if got := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(got, want) {
+		t.Fatal("failed alteration changed rows", got, want)
 	}
 }
 
@@ -195,14 +248,22 @@ func TestNotNullOwnerOnlyACLAndNamespace(t *testing.T) {
 }
 
 func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
-	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ALTER a DROP NOT NULL", "ALTER TABLE t ADD NOT NULL a", "ALTER TABLE t DROP CONSTRAINT IF EXISTS missing"} {
+	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ALTER a DROP NOT NULL", "ALTER TABLE t ADD NOT NULL a", "ALTER TABLE t DROP CONSTRAINT IF EXISTS missing", "ALTER TABLE t DROP CONSTRAINT a_nn", "ALTER TABLE t DROP CONSTRAINT a_nn RESTRICT", "ALTER TABLE t DROP CONSTRAINT a_nn CASCADE"} {
 		t.Run(q, func(t *testing.T) {
 			e := New()
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			sessionSQL(t, a, "CREATE TABLE t(a INT)")
+			dropping := strings.Contains(q, "DROP") && !strings.Contains(q, "missing")
+			if dropping {
+				sessionSQL(t, a, "CREATE TABLE t(a INT CONSTRAINT a_nn NOT NULL,b INT CONSTRAINT b_nn NOT NULL)")
+			} else {
+				sessionSQL(t, a, "CREATE TABLE t(a INT,b INT CONSTRAINT b_nn NOT NULL)")
+			}
+			sessionSQL(t, a, "INSERT INTO t VALUES(7,8)")
 			sessionSQL(t, b, "SET lock_timeout='80ms'")
 			ref := roleTableRef(t, e, "t")
 			old := e.state.descriptors[ref.Address]
+			storage := e.storage[ref.Address]
+			ends, generation := storage.ends, storage.generation
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			done := waitsCommandAsync(e, b, context.Background(), q, false)
@@ -214,11 +275,20 @@ func TestNotNullIntegratedAXLockTimeout(t *testing.T) {
 				t.Fatal("NOT NULL AX waiter did not time out")
 			}
 			lockPending(t, e, 0)
-			if e.state.descriptors[ref.Address] != old {
-				t.Fatal("timed-out utility mutated descriptor")
+			if e.state.descriptors[ref.Address] != old || e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != 1 {
+				t.Fatal("timed-out utility mutated descriptor/storage")
 			}
 			transactionEnd(t, a, tx, false)
+			if dropping {
+				notNullDropEnforcement(t, e)
+			}
+			notNullDropRows(t, e, 7, 1)
 			sessionSQL(t, b, q)
+			if dropping {
+				sessionSQL(t, b, "UPDATE t SET a=NULL")
+				sessionSQL(t, b, "INSERT INTO t VALUES(NULL,9)")
+				notNullRemainingEnforcement(t, e)
+			}
 			lockEmpty(t, e)
 		})
 	}

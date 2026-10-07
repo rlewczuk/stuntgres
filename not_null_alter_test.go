@@ -11,6 +11,75 @@ import (
 	"unicode/utf8"
 )
 
+func TestDropNotNullSystemColumnDiagnostics(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), t.Name())
+			execSQL(t, db, "CREATE TABLE t(a INT CONSTRAINT a_nn NOT NULL,oid INT)")
+			execSQL(t, db, "INSERT INTO t VALUES(7,9)")
+			for _, column := range []string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid"} {
+				q := "ALTER TABLE t ALTER " + column + " DROP NOT NULL"
+				var err error
+				if prepared {
+					stmt, e := db.Prepare(q)
+					if e != nil {
+						t.Fatal("effect-free Prepare", e)
+					}
+					_, err = stmt.Exec()
+					stmt.Close()
+				} else {
+					_, err = db.Exec(q)
+				}
+				notNullDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: `cannot alter system column "` + column + `"`})
+			}
+			for _, column := range []string{"missing", `"CTID"`} {
+				q := "ALTER TABLE t ALTER " + column + " DROP NOT NULL"
+				name := strings.Trim(column, `"`)
+				var err error
+				if prepared {
+					stmt, e := db.Prepare(q)
+					if e != nil {
+						t.Fatal(e)
+					}
+					_, err = stmt.Exec()
+					stmt.Close()
+				} else {
+					_, err = db.Exec(q)
+				}
+				notNullDiagnostic(t, err, stuntgres.Error{Code: "42703", Message: `column "` + name + `" of relation "t" does not exist`})
+			}
+			tableCoreExec(t, db, prepared, "ALTER TABLE t ALTER oid DROP NOT NULL", 0)
+			_, err := db.Exec("UPDATE t SET a=NULL")
+			notNullDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null, 9).", Schema: "public", Table: "t", Column: "a"})
+			wantTuples(t, db, "SELECT * FROM t", [][]any{{int64(7), int64(9)}})
+		})
+	}
+}
+
+func TestNotNullSystemColumnSetAddBoundaries(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		db := openLocal(t, stuntgres.NewDriver(), t.Name()+strconv.FormatBool(prepared))
+		execSQL(t, db, "CREATE TABLE t(a INT)")
+		for _, tc := range []struct{ q, message string }{
+			{"ALTER TABLE t ALTER ctid SET NOT NULL", "system-column nullability is unsupported"},
+			{"ALTER TABLE t ADD NOT NULL ctid", `cannot add not-null constraint on system column "ctid"`},
+		} {
+			var err error
+			if prepared {
+				stmt, e := db.Prepare(tc.q)
+				if e != nil {
+					t.Fatal(e)
+				}
+				_, err = stmt.Exec()
+				stmt.Close()
+			} else {
+				_, err = db.Exec(tc.q)
+			}
+			notNullDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: tc.message})
+		}
+	}
+}
+
 func TestNotNullAlterNoticeOwnershipAndTransaction(t *testing.T) {
 	base, err := stuntgres.NewDriver().OpenConnector(t.Name())
 	if err != nil {

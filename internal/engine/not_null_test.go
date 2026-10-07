@@ -218,14 +218,26 @@ func TestNotNullSameStorageLengthFence(t *testing.T) {
 }
 
 func TestNotNullProviderPublicationFences(t *testing.T) {
+	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ALTER a DROP NOT NULL", "ALTER TABLE t DROP CONSTRAINT a_nn", "ALTER TABLE t DROP CONSTRAINT a_nn RESTRICT", "ALTER TABLE t DROP CONSTRAINT a_nn CASCADE"} {
+		t.Run(q, func(t *testing.T) { notNullProviderPublicationFences(t, q) })
+	}
+}
+
+func notNullProviderPublicationFences(t *testing.T, q string) {
 	for _, kind := range []string{"cancel", "reset", "insert", "descriptor", "restore", "role", "auth", "end"} {
 		t.Run(kind, func(t *testing.T) {
 			e := New()
-			run(t, e, "CREATE TABLE t(a INT)")
-			run(t, e, "INSERT INTO t VALUES(1)")
+			dropping := strings.Contains(q, "DROP")
+			if dropping {
+				run(t, e, "CREATE TABLE t(a INT CONSTRAINT a_nn NOT NULL,b INT CONSTRAINT b_nn NOT NULL)")
+			} else {
+				run(t, e, "CREATE TABLE t(a INT,b INT CONSTRAINT b_nn NOT NULL)")
+			}
+			run(t, e, "INSERT INTO t VALUES(1,8)")
 			ref := roleTableRef(t, e, "t")
 			old := e.state.descriptors[ref.Address]
 			storage := e.storage[ref.Address]
+			ends, generation := storage.ends, storage.generation
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			provider := e.providers[RelationClassID]
@@ -249,8 +261,11 @@ func TestNotNullProviderPublicationFences(t *testing.T) {
 					}
 				case "insert":
 					value := sqltype.Null(testUsage(e, sqltype.Int4).Type)
+					if dropping {
+						value = storage.versions[0].values[0]
+					}
 					e.mu.Lock()
-					storage.versions = append(storage.versions, rowVersion{row: 99, version: 99, born: e.commitSeq, values: []sqltype.Value{value}})
+					storage.versions = append(storage.versions, rowVersion{row: 99, version: 99, born: e.commitSeq, values: []sqltype.Value{value, storage.versions[0].values[1]}})
 					e.mu.Unlock()
 				case "descriptor":
 					next := *old.(*relationDescriptor)
@@ -277,9 +292,9 @@ func TestNotNullProviderPublicationFences(t *testing.T) {
 					op.session.RequestEnd(CleanClose)
 				}
 			}}
-			_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), 0, nil)
+			_, err = e.Execute(op, statement(t, q), 0, nil)
 			if err == nil {
-				t.Fatal("stale scan installed")
+				t.Fatal("stale alteration published")
 			}
 			if kind == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
@@ -290,6 +305,23 @@ func TestNotNullProviderPublicationFences(t *testing.T) {
 				}
 			} else if kind != "descriptor" && e.state.descriptors[ref.Address] != old {
 				t.Fatal("descriptor changed", err)
+			}
+			if kind != "reset" && kind != "restore" {
+				if e.storage[ref.Address] != storage || storage.ends != ends || storage.generation != generation || len(storage.versions) != map[bool]int{false: 1, true: 2}[kind == "insert"] {
+					t.Fatal("failed alteration changed storage", err)
+				}
+				if dropping {
+					current := e.state.descriptors[ref.Address].(*relationDescriptor)
+					if !reflect.DeepEqual(current.notNullConstraints, old.(*relationDescriptor).notNullConstraints) || current.columns[0].Nullable || current.columns[1].Nullable {
+						t.Fatal("failed drop removed enforcement", current)
+					}
+					notNullDropEnforcement(t, e)
+					count := 1
+					if kind == "insert" {
+						count++
+					}
+					notNullDropRows(t, e, 1, count)
+				}
 			}
 		})
 	}

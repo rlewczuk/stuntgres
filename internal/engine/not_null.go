@@ -62,6 +62,9 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 			if s.Action == parser.AddNotNull {
 				return fail(sqlError("0A000", fmt.Sprintf(`cannot add not-null constraint on system column "%s"`, s.Column.Text)))
 			}
+			if s.Action == parser.DropNotNull {
+				return fail(sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text)))
+			}
 			return fail(sqlError("0A000", "system-column nullability is unsupported"))
 		}
 		var exists bool

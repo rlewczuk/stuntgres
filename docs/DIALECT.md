@@ -713,6 +713,16 @@ failing-row Detail even for a named constraint. Both identify the decoded column
 literally; all failures preserve schema/data. Compatible SET/ADD retains existing
 name; DROP makes nullable; redundant operations are count-zero/no-revision.
 Missing DROP42704 or IF EXISTS NOTICE00000 uses the relation/name diagnostic.
+DROP NOT NULL on ctid/xmin/cmin/xmax/cmax/tableoid fails0A000 with
+`cannot alter system column "name"`; ordinary absent columns remain42703.
+DROP's default RESTRICT, explicit RESTRICT and CASCADE remove the selected
+NOT NULL identity equivalently: supported NOT NULL constraints have no inbound
+constraint dependents and own no SQL index. These modes do not implement a
+general constraint dependency closure. PK/UNIQUE/FK constraints and SQL indexes
+are unsupported engine capabilities, not external-only mechanisms; constraint-owned
+index deletion and referenced-key RESTRICT/CASCADE behavior require those
+capabilities first. Unrelated NOT NULL identities and sequences owned by the
+still-live table attribute survive even CASCADE.
 Stable attribute IDs, ACL/comments and original storage/backing survive ALTER;
 independently captured storage length fences a stale scan. DROP COLUMN removes
 only the dropped identity. Retained prepared SELECT and parameterized INSERT
@@ -728,13 +738,18 @@ NOT NULL enforcement (see below). Inheritance and NOT VALID/VALIDATE/NO INHERIT
 remain explicit native0A000 boundaries with real PostgreSQL-only witnesses.
 CHECK/PK/domains/general ALTER lists and explicit-transaction DDL remain
 excluded, never successful no-ops.
+Post-drop Dump/Restore captures nullable declarations, remaining NOT NULL
+identities, rows, defaults/comments and owned-sequence state/associations; it
+does not replay ALTER history or add ALTER to the Restore whitelist. Physical
+server/WAL/crash durability, a wire/server process and external pg_dump/archive
+mechanics remain outside the embedded engine.
 
 Native INHERITS failure-only grammar allows one complete parent list on either
 CREATE TABLE form; qualified/quoted/multiple parents and IF NOT EXISTS remain
 0A000 at INHERITS, never a conditional bypass. Malformed/repeated/extra-tail
 input is42601; script prefixes do not execute on these full-input rejections.
 
-Public smoke: `make smoke RUN='^TestNotNull(Smoke|ControlsSmoke)$' VERBOSE=1`.
+Public smoke: `make smoke RUN='^Test(NotNull(Smoke|ControlsSmoke)|DropNotNullSystemColumnSmoke|DropConstraintOwnedSequenceSmoke)$' VERBOSE=0`.
 
 
 Standalone ALTER TABLE RENAME [COLUMN] old TO new and RENAME TO new support
