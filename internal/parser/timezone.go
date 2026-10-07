@@ -28,6 +28,7 @@ func qualifiedTimezoneLiteral(l sqlLexer, schema, name lexeme) (TypeName, bool) 
 		return TypeName{}, false
 	}
 	raw := columnType(name)
+	raw.Schema = &Identifier{Text: schema.text, Pos: schema.pos}
 	raw.Pos = schema.pos
 	return raw, true
 }

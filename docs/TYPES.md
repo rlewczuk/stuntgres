@@ -979,6 +979,10 @@ microsecond instant, not the input zone name. `TIMETZ(p)` / `TIME(p) WITH TIME Z
 (OID1266) stores a civil clock and fixed seconds-west offset. Precision 0–6
 uses existing microsecond sizing; above6 warns/clamps. Precision precedes WITH,
 for example `TIMESTAMP(3) WITH TIME ZONE`. Plain TIMESTAMP/TIME remain without-zone.
+Qualified `pg_catalog.timestamptz` / `pg_catalog.timetz` typed literals retain
+their explicit namespace, with or without precision and quoted type names.
+Resolution uses the existing namespace-USAGE authority, not the session's
+unqualified type lookup route.
 NULL retains the concrete type and metadata. Native DatabaseTypeName is
 TIMESTAMPTZ/TIMETZ and ScanType is time.Time/string respectively; temporal
 Length/DecimalSize are unavailable. Finite timestamptz time.Time exports preserve
