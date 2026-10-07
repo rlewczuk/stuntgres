@@ -73,13 +73,13 @@ type CreateSequence struct {
 func (*CreateSequence) statement() {}
 
 type AlterSequence struct {
-	Name     ObjectName
-	Options  []SequenceOption
-	Action   string
-	Target   Identifier
+	Name          ObjectName
+	Options       []SequenceOption
+	Action        string
+	Target        Identifier
 	OwnerIdentity bool
-	IfExists bool
-	Pos      Position
+	IfExists      bool
+	Pos           Position
 }
 
 func (*AlterSequence) statement() {}
@@ -269,6 +269,8 @@ type Select struct {
 	StarPos Position
 	Targets []Expr
 	Where   Expr
+	GroupBy []Expr
+	Having  Expr
 	Order   *Order
 	Pos     Position
 }
@@ -277,8 +279,13 @@ func (*Select) statement() {}
 
 // IsSingleton admits only selected-call projections without a relation.
 func (s *Select) IsSingleton() bool {
-	if len(s.Name.Parts) != 0 || s.Star || s.Where != nil || s.Order != nil || len(s.Targets) == 0 {
+	if len(s.Name.Parts) != 0 || s.Star || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) == 0 {
 		return false
+	}
+	for _, target := range s.Targets {
+		if containsAggregate(target) {
+			return false
+		}
 	}
 	if sequenceProjection(s) {
 		return true
@@ -544,6 +551,50 @@ type FunctionExpr struct {
 	Args     []Expr
 	Pos      Position
 	Variadic bool
+}
+
+// AggregateExpr distinguishes count-star from scalar calls and argument lists.
+type AggregateExpr struct {
+	Name string
+	Star bool
+	Pos  Position
+}
+
+func (AggregateExpr) expression()                {}
+func (e AggregateExpr) SourcePosition() Position { return e.Pos }
+
+func containsAggregate(expr Expr) bool {
+	switch e := expr.(type) {
+	case AggregateExpr:
+		return true
+	case CastExpr:
+		return containsAggregate(e.Child)
+	case RegclassExpr:
+		return containsAggregate(e.Child)
+	case FunctionExpr:
+		for _, arg := range e.Args {
+			if containsAggregate(arg) {
+				return true
+			}
+		}
+	case CallExpr:
+		for _, arg := range e.Args {
+			if containsAggregate(arg) {
+				return true
+			}
+		}
+	case OperatorExpr:
+		for _, arg := range e.Args {
+			if containsAggregate(arg) {
+				return true
+			}
+		}
+	case PredicateExpr:
+		return containsAggregate(e.Left) || containsAggregate(e.Right)
+	case LogicalExpr:
+		return containsAggregate(e.Left) || containsAggregate(e.Right)
+	}
+	return false
 }
 
 type CastSyntax uint8

@@ -8,6 +8,32 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
 
+Table SELECT and shared INSERT SELECT also support scalar/multiple GROUP BY
+keys, one-based output ordinals, contextual BOOL HAVING, and count(*) as the
+initial aggregate (count/INT8/int64). Global empty input returns one count0;
+empty keyed grouping returns no rows with full schema. HAVING alone creates a
+global group, and hidden count calls can filter groups without changing output
+metadata. Typed NULL keys compare equal; numeric scale, NaNs/signed zero and
+BPCHAR padding use typed equality, not text keys. Group order is unspecified and
+projection duplicates remain separate occurrences. Ungrouped SELECT/HAVING/ORDER
+source leaves and aggregate calls in WHERE/GROUP BY give positioned42803.
+Bare int32 integer keys are output ordinals (including minus/parentheses);
+out-of-list keys42P10 and raw noninteger constants42601. Unary-plus numeric keys
+are constant expressions, not ordinals. Count-star requires table SELECT or a
+live-column SELECT grant; actual key/HAVING/hidden ORDER reads retain column ACLs.
+Eager group finalization preserves cancellation, result ownership and INSERT
+atomicity; public Next performs no aggregate work. See [grouping](QUERIES.md#grouping-and-count--change-note).
+
+Grouping does not admit standalone SELECT without FROM, count(expr), count(),
+other aggregates, FILTER/DISTINCT/in-call ORDER/OVER, DISTINCT/ALL grouping,
+grouping sets/ROLLUP/CUBE/empty grouping sets, aliases, joins or expanded ORDER syntax.
+No-FROM aggregate exclusion applies recursively across all targets, including
+siblings of selected sequence/REGCLASS singleton expressions. Group-expression
+constant identity preserves representation (including NUMERIC scale), separately
+from runtime typed grouping equality.
+Feature smoke: `make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0`;
+real independent oracle: `make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0`.
+
 INSERT additionally accepts SELECT sources with the existing projection/filter/
 one-column sort surface, parenthesized sources and INSERT-only no-FROM literal/
 parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;

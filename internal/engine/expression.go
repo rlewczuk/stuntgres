@@ -433,6 +433,8 @@ type expressionBinder struct {
 	targetAlias       string
 	defaultConsumer   bool
 	sequenceConstants []sequenceConstant
+	aggregateClause   string
+	aggregates        []aggregateProvider
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -576,6 +578,21 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	}
 	var node BoundExpr
 	switch r := raw.(type) {
+	case parser.AggregateExpr:
+		if b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" {
+			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" {
+				return nil, expressionError("42803", "aggregate functions are not allowed in "+b.aggregateClause, r.Pos)
+			}
+			return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", r.Pos)
+		}
+		provider, ok := b.aggregateProvider(r.Name, r.Star)
+		if !ok {
+			return nil, expressionError("0A000", "aggregate call is unsupported", r.Pos)
+		}
+		if len(b.aggregates) == 0 {
+			b.aggregates = append(b.aggregates, provider)
+		}
+		node = aggregateExpression{b.info(provider.ResultUsage(), r.Pos, ExprProperties{StageDependent: true}), 0}
 	case parser.FunctionExpr:
 		var err error
 		node, err = b.bindFunction(r)
@@ -814,6 +831,8 @@ func (b *expressionBinder) cast(raw parser.CastExpr) (BoundExpr, error) {
 // Strong column/function names survive standard casts; weak literal names do not.
 func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 	switch r := raw.(type) {
+	case parser.AggregateExpr:
+		return r.Name, true
 	case parser.ColumnExpr:
 		return r.Name.Parts[0].Text, true
 	case parser.FunctionExpr:
@@ -949,7 +968,7 @@ func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand
 		return comparisonOperand{raw: raw}, nil
 	}
 	switch raw.(type) {
-	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr:
+	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

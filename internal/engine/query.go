@@ -95,6 +95,32 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			copy.rows = rows
 			return &copy, nil
 		}
+	case *aggregateNode:
+		var keys []BoundExpr
+		for i, key := range n.keys {
+			folded, replacement, err := preflightCoercions(c, key)
+			if err != nil {
+				return nil, err
+			}
+			if replacement {
+				if keys == nil {
+					keys = append([]BoundExpr(nil), n.keys...)
+				}
+				keys[i] = folded
+			}
+		}
+		child, err := preflightQuery(c, n.child)
+		if err != nil {
+			return nil, err
+		}
+		if keys != nil || child != n.child {
+			copy := *n
+			copy.child = child
+			if keys != nil {
+				copy.keys = keys
+			}
+			return &copy, nil
+		}
 	case *filterNode:
 		predicate, changed, err := preflightCoercions(c, n.predicate)
 		if err != nil {
@@ -301,6 +327,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
+	case *aggregateNode:
+		return openAggregateNode(ctx, state, n)
 	case *valuesNode:
 		if state.source == nil || state.source.view != nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
@@ -612,7 +640,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 			if err := ctx.Err(); err != nil {
 				return nil, 0, err
 			}
-			evaluation.Row = source.row(stage.index(i))
+			evaluation.Row = stage.source.row(stage.index(i))
 			for j, expr := range project.expressions {
 				value, err := expr.Eval(&evaluation)
 				if err != nil {
@@ -635,6 +663,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		}
 	}
 	selection := stage.selection
+	stageSource := stage.source
 	if err := stage.Close(); err != nil {
 		return nil, 0, err
 	}
@@ -642,7 +671,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		return nil, 0, err
 	}
 	if direct && r.count > 0 {
-		r.source, r.selection, r.slots = source, selection, slots
+		r.source, r.selection, r.slots = stageSource, selection, slots
 		keep = true
 	}
 	return r, r.count, nil

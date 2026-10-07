@@ -235,7 +235,7 @@ var keywords = [...]keyword{
 	{"grouping", ColumnName, true, 0},
 	{"groups", Unreserved, true, 0},
 	{"handler", Unreserved, true, 0},
-	{"having", Reserved, false, 0},
+	{"having", Reserved, false, HAVING},
 	{"header", Unreserved, true, 0},
 	{"hold", Unreserved, true, 0},
 	{"hour", Unreserved, false, 0},

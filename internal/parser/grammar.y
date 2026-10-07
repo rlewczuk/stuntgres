@@ -56,6 +56,7 @@ package parser
 %token <tok> SYMBOLIC_OPERATOR
 %token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
+%token <tok> HAVING
 %token <tok> DELETE
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
@@ -122,6 +123,7 @@ package parser
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
 %type <tok> name setting_word role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
+%type <tok> predicate_suffix
 %type <tok> cast_function
 %type <settingName> setting_name set_name local_setting_name
 %type <targets> insert_targets
@@ -133,6 +135,8 @@ package parser
 %type <names> names
 %type <rows> rows
 %type <row> row values call_args scalar_targets function_values insert_values sequence_args sequence_values
+%type <row> group_keys group
+%type <expr> having
 %type <value> value
 %type <expr> scalar scalar_atom operand target default_target where target_not target_and target_or projection_target function function_argument insert_value
 %type <tok> comparison_operator
@@ -443,7 +447,7 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
-column_suffix: LIKE | KW_T | KW_R | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
+column_suffix: LIKE | KW_T | KW_R | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
 update: UPDATE relation_name SET update_assignments where { $$=&Update{Name:$2,Assignments:$4,Where:$5,Pos:$1.pos} }
  | UPDATE relation_name SET update_assignments where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
  | UPDATE relation_name SET update_assignments where FROM { sqllex.(*lexer).failAt("0A000","UPDATE FROM is unsupported",$6.pos.Offset);return 1 }
@@ -490,9 +494,9 @@ insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | inser
 insert_input: VALUES rows values_order { $$=&InsertSource{Rows:$2,Order:$3} }
  | insert_select { $$=&InsertSource{Select:$1} }
  | '(' insert_input ')' { $$=$2 } ;
-insert_select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=$5; $2.Order=$6; $2.Pos=$1.pos; $$=$2 }
+insert_select: SELECT projection FROM relation_name where group having order { $2.Name=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
  | SELECT projection { $2.Pos=$1.pos; $$=$2 }
- | SELECT FROM relation_name where order { $$=&Select{Name:$3,Where:$4,Order:$5,Pos:$1.pos} }
+ | SELECT FROM relation_name where group having order { $$=&Select{Name:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Pos:$1.pos} }
  /* Prefer a projection operand/suffix over completing the zero-width source. */
  | SELECT %prec NAME_LIST { $$=&Select{Pos:$1.pos} } ;
 values_order: /* empty */ { $$=nil }
@@ -514,7 +518,12 @@ scalar: scalar_atom { $$=$1 }
  | '(' scalar ')' { $$=$2 }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && len($3.Modifiers)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
- | cast_function scalar ')' { $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
+ | cast_function scalar ')' { if $1.text=="count" {sqllex.(*lexer).failAt("0A000","count arguments are unsupported",$1.pos.Offset);return 1}; $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
+ | cast_function '*' ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1}; $$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
+ | cast_function ')' { sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1 }
+ | cast_function DISTINCT scalar ')' { sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.pos.Offset);return 1 }
+ | cast_function '*' ORDER BY name direction ')' { sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1 }
+ | cast_function scalar ORDER BY name direction ')' { sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1 }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
   * them as scalar literals (which would convert overflowing numbers too early). */
  | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
@@ -549,12 +558,12 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | AUTHORIZATION '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | ISNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
-select: SELECT projection FROM relation_name where order { $2.Name=$4; $2.Where=$5; $2.Order=$6; $2.Pos=$1.pos; $$=$2 }
+select: SELECT projection FROM relation_name where group having order { $2.Name=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
  | SELECT projection { $2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection FROM relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$5.pos.Offset); return 1 }
  | SELECT projection FROM relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$6.pos.Offset); return 1 }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
- | SELECT projection FROM relation_name where order suffix { sqllex.(*lexer).capability($7,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
+ | SELECT projection FROM relation_name where group having order suffix { sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 sequence_args: /* empty */ { $$=nil } | sequence_values { $$=$1 } ;
@@ -610,8 +619,15 @@ projection: '*' { $$ = &Select{Star:true,StarPos:$1.pos} } | scalar_targets %pre
  | scalar_targets '.' { sqllex.(*lexer).fail("0A000","qualified column references are unsupported"); return 1 } ;
 where: /* empty */ { $$ = nil }
  | WHERE target_or { $$=$2 }
- | WHERE name suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 }
+ | WHERE name predicate_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 }
  | WHERE name KW_C { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 } ;
+group: /* empty */ { $$=nil } | GROUP BY group_keys { $$=$3 }
+ | GROUP BY '(' ')' { sqllex.(*lexer).failAt("0A000","empty grouping sets are unsupported",$1.pos.Offset);return 1 }
+ | GROUP BY DISTINCT group_keys { sqllex.(*lexer).failAt("0A000","GROUP BY DISTINCT is unsupported",$3.pos.Offset);return 1 }
+ | GROUP BY ALL group_keys { sqllex.(*lexer).failAt("0A000","GROUP BY ALL is unsupported",$3.pos.Offset);return 1 }
+ | GROUP BY KW_C name '(' group_keys ')' { if $3.text!="grouping" || $4.text!="sets" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).failAt("0A000","grouping sets are unsupported",$3.pos.Offset);return 1 } ;
+group_keys: target_or { $$=[]Expr{$1} } | group_keys ',' target_or { $$=append($1,$3) } ;
+having: /* empty */ { $$=nil } | HAVING target_or { $$=$2 } ;
 order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$3.text, Pos:$3.pos, Desc:$4} }
  | ORDER BY name direction ',' { sqllex.(*lexer).fail("0A000","multiple sort keys are unsupported"); return 1 }
  | ORDER BY name direction nulls_keyword nulls_position { sqllex.(*lexer).failAt("0A000","NULLS ordering is unsupported",$5.pos.Offset); return 1 } ;
@@ -628,9 +644,9 @@ type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZON
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | NULL_COUNT_FUNC | KW_U | KW_C | KW_T | KW_R | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT ;
+generic_word_base: IDENT | NULL_COUNT_FUNC | KW_U | KW_C | KW_T | KW_R | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT ;
 /* Structural SELECT delimiters cannot be reduced to bare labels. */
-bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
+bare_label: name { if $1.keyword!=nil && ($1.text=="filter" || $1.text=="over") {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$1.pos.Offset);return 1}; if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | LIKE { $$=$1 }
  | COLUMN { $$=$1 }
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
@@ -638,8 +654,9 @@ bare_label: name { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NOT | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | DISTINCT ;
-col_label: name | VARIADIC | LIKE | KW_T | KW_R | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT ;
-suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | GROUP | WITH | USER | IN | CONSTRAINT ;
+col_label: name | VARIADIC | LIKE | KW_T | KW_R | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT ;
+suffix: predicate_suffix | GROUP | HAVING ;
+predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }

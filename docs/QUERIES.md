@@ -2,6 +2,82 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Grouping and count — change note
+
+Table SELECT and shared INSERT SELECT now accept scalar, comma-separated
+`GROUP BY` keys and optional `HAVING` before the existing one-column ORDER BY.
+The initial aggregate is `count(*)`, counting every source occurrence, including
+NULL and zero-column rows. Its label is `count`, SQL type `INT8`, and Go value
+`int64`. Without keys, aggregate calls or HAVING create one global group: an empty
+source has count zero. Empty keyed grouping instead has no rows, but retains the
+complete result schema. HAVING alone also creates a global group.
+
+```sql
+CREATE TABLE grouped_rows(k TEXT, v INT);
+INSERT INTO grouped_rows VALUES ('a',1),('a',NULL),(NULL,2);
+SELECT k,count(*) FROM grouped_rows GROUP BY k;
+SELECT k FROM grouped_rows GROUP BY k HAVING count(*)>1;
+SELECT (v+1)*2,count(*) FROM grouped_rows GROUP BY v+1;
+```
+
+The first query returns the unordered bag `('a',2),(NULL,1)`. NULL grouping keys
+compare equal without changing strict SQL equality or three-valued predicates.
+Numeric display scale, floating NaNs/signed zero and BPCHAR trailing padding
+follow typed comparison semantics. Multiple keys are complete tuples, not
+concatenated text. Repeated keys do not duplicate groups; equal projected values
+from different groups remain separate occurrences. No group ordering is promised.
+
+Grouping expressions match whole bound subtrees before their children, ignoring
+parentheses and positions, not algebraically rewriting operators. Constant
+identity retains its typed datum representation, including NUMERIC display scale,
+BPCHAR bytes and floating sign/NaN bits; it is not runtime grouping equality.
+For example, `v=1.0` is not the identical expression `v=1.00` even though the two
+constants compare equal as group values. Source leaves
+in SELECT/HAVING/ORDER must be grouped or used inside an aggregate; otherwise
+analysis gives `42803`, `column "table.column" must appear in the GROUP BY clause
+or be used in an aggregate function`, even for empty sources or HAVING FALSE.
+WHERE remains a source-row predicate. Aggregate calls in WHERE/GROUP BY give
+`42803`, `aggregate functions are not allowed in WHERE` / `... GROUP BY`.
+HAVING uses contextual BOOL typing and keeps only TRUE, never FALSE or NULL.
+Its count calls may be hidden from the projection schema.
+
+Bare integer keys, including parenthesized integers, are one-based output
+ordinals: `GROUP BY 1` groups the first expanded target. Zero, negative and
+out-of-list positions give `42P10`; fractional, oversized, string, BOOL and NULL
+raw constants give `42601`, `non-integer constant in GROUP BY`. As with VALUES
+ORDER keys, unsigned tokens must fit int32 (minus does not admit2147483648).
+Unary-plus numeric expressions such as `+1` and `+1.5` are constant keys, not
+ordinals. Names prefer input columns; output aliases remain excluded.
+
+Every group is finalized eagerly outside the engine lock before HAVING, sorting,
+projection, statement completion or public row publication. Context/key/provider
+errors veto the entire result or INSERT batch. Returned rows retain finalized
+values/schema through source changes and native Reset/Restore. Prepared execution
+freshly binds rights/catalog/source data. Count-star requires table SELECT or
+SELECT on any live column; real grouping/HAVING/hidden ORDER reads require their
+column rights even on empty input. No all-column read is invented by count-star.
+INSERT assignment and RowsAffected use selected output occurrences, not the count
+datum. Restore's generated-sequence SELECT whitelist is unchanged.
+
+This does not admit standalone SELECT without FROM, count(expr), count(),
+other aggregates, FILTER, DISTINCT/ALL grouping modifiers, within-call ORDER,
+OVER, grouping sets/ROLLUP/CUBE/empty sets, aliases, joins, new scalar calls,
+general standalone ORDER expressions or optimizer/spill/parallel machinery.
+Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded
+even with a selected sequence/REGCLASS sibling; those aggregate-free singleton
+exceptions and INSERT-only producer rules remain separate and unchanged.
+
+Feature checks (repository root, quiet output):
+
+```sh
+make test PACKAGES=. RUN='^TestQueryAggregate' VERBOSE=0
+make test PACKAGES=./internal/engine RUN='^TestQueryAggregate' VERBOSE=0
+make test PACKAGES=./internal/parser RUN='^TestQueryAggregate' VERBOSE=0
+make test PACKAGES=./internal/sqltype RUN='^TestGrouping' VERBOSE=0
+make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
+make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0
+```
+
 ## INSERT from query — change note
 
 INSERT now accepts SELECT sources through the common query pipeline, including

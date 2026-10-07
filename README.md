@@ -165,6 +165,15 @@ to the calling test; `t.Cleanup` closes the pool even when an assertion fails.
 For larger fixtures, [native Reset, Dump and Restore](docs/FIXTURES.md) can clear
 or replace database contents. Those controls require a native stuntgres pool.
 
+Table queries also support scalar/multiple `GROUP BY` keys, output ordinals,
+`HAVING`, and the initial aggregate `count(*)` (an `INT8` result). Equal typed
+keys, including NULL keys, form one group; empty global count returns one row
+containing zero, while empty grouped input returns no rows. Group order is not
+promised. The same eager pipeline serves direct/prepared queries and
+`INSERT ... SELECT`; public rows never evaluate aggregates during `Next`.
+See [query grouping](docs/QUERIES.md#grouping-and-count--change-note) for examples,
+diagnostics and deliberate exclusions.
+
 ## Documentation
 
 - [SQL dialect and compatibility limits](docs/DIALECT.md): check support before
