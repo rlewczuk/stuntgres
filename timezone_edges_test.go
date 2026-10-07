@@ -84,10 +84,10 @@ func TestTimezoneGroupingExtremaJoinsAndCasts(t *testing.T) {
 	timezoneExec(t, c, "CREATE TABLE tz_witness(id INTEGER,z TIMESTAMPTZ,q TIMETZ)", 0)
 	timezoneExec(t, c, "INSERT INTO tz_witness VALUES(1,'2004-01-01 12:00+02','09:00+01'),(2,'2004-01-01 10:00+00','08:00+00'),(3,'2004-01-01 10:00+00','09:00+01')", 3)
 	timezoneRows(t, c, "SELECT z::TEXT,count(*) FROM tz_witness GROUP BY z", []string{"TEXT", "INT8"}, [][]any{{"2004-01-01 10:00:00+00", int64(3)}})
-	timezoneRows(t, c, "SELECT q::TEXT,count(*) FROM tz_witness GROUP BY q ORDER BY q", []string{"TEXT", "INT8"}, [][]any{{"09:00:00+01", int64(2)}, {"08:00:00+00", int64(1)}})
-	// Equal q values also have identical projected z values, so duplicate ties
-	// remain deterministic without requiring unsupported multiple sort keys.
-	timezoneRows(t, c, "SELECT q::TEXT,z::TEXT FROM tz_witness ORDER BY q", []string{"TEXT", "TEXT"}, [][]any{{"09:00:00+01", "2004-01-01 10:00:00+00"}, {"09:00:00+01", "2004-01-01 10:00:00+00"}, {"08:00:00+00", "2004-01-01 10:00:00+00"}})
+	timezoneRows(t, c, "SELECT q::TEXT,count(*) FROM tz_witness GROUP BY q ORDER BY tz_witness.q", []string{"TEXT", "INT8"}, [][]any{{"09:00:00+01", int64(2)}, {"08:00:00+00", int64(1)}})
+	// Qualify the input sort key: the projected q label denotes TEXT.
+	// Equal q values also have identical projected z values.
+	timezoneRows(t, c, "SELECT q::TEXT,z::TEXT FROM tz_witness ORDER BY tz_witness.q", []string{"TEXT", "TEXT"}, [][]any{{"09:00:00+01", "2004-01-01 10:00:00+00"}, {"09:00:00+01", "2004-01-01 10:00:00+00"}, {"08:00:00+00", "2004-01-01 10:00:00+00"}})
 	timezoneRows(t, c, "SELECT a.id FROM tz_witness a JOIN tz_witness b(bid,bz,bq) ON a.q=b.bq WHERE b.bid=1 ORDER BY id", []string{"INT4"}, [][]any{{int64(1)}, {int64(3)}})
 	timezoneRows(t, c, "SELECT COALESCE(NULL::TIMESTAMPTZ,z)::TEXT,NULLIF(q,TIMETZ '09:00+01'),q::TIME,DATE '2004-01-01'::TIMESTAMPTZ::TEXT FROM tz_witness WHERE id=1", []string{"TEXT", "TIMETZ", "TIME", "TEXT"}, [][]any{{"2004-01-01 10:00:00+00", nil, "09:00:00", "2004-01-01 00:00:00+00"}})
 }
@@ -97,7 +97,7 @@ func TestTimezoneFiniteEndpointsAndWideDateComparison(t *testing.T) {
 	c := timezoneConn(t, db)
 	timezoneExec(t, c, "CREATE TABLE tz_witness(v TIMESTAMPTZ)", 0)
 	timezoneExec(t, c, "INSERT INTO tz_witness VALUES('4714-11-24 00:00+00 BC'),('294276-12-31 23:59:59.999999+00')", 2)
-	timezoneRows(t, c, "SELECT v::TEXT FROM tz_witness ORDER BY v", []string{"TEXT"}, [][]any{{"4714-11-24 00:00:00+00 BC"}, {"294276-12-31 23:59:59.999999+00"}})
+	timezoneRows(t, c, "SELECT v::TEXT FROM tz_witness ORDER BY tz_witness.v", []string{"TEXT"}, [][]any{{"4714-11-24 00:00:00+00 BC"}, {"294276-12-31 23:59:59.999999+00"}})
 	timezoneRows(t, c, "SELECT DATE '5874897-12-31'>v,v<DATE '5874897-12-31' FROM tz_witness", []string{"BOOL", "BOOL"}, [][]any{{true, true}, {true, true}})
 	for _, input := range []string{"4714-11-24 00:00+01 BC", "294276-12-31 23:59:59.999999-01"} {
 		_, err := c.ExecContext(context.Background(), "INSERT INTO tz_witness VALUES($1)", input)

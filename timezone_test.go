@@ -143,7 +143,7 @@ func TestTimezoneConversionComparisonAndComposition(t *testing.T) {
 	timezoneExec(t, c, "SET TIME ZONE 'America/New_York'", 0)
 	timezoneRows(t, c, "SELECT DATE '2004-10-19'=z,z=TIMESTAMP '2004-10-19 00:00',DATE '2004-10-19' BETWEEN z AND z,z IS DISTINCT FROM NULL FROM tz_witness WHERE z IS NOT NULL", []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, true}, {true, true, true, true}})
 	timezoneRows(t, c, "SELECT z::TEXT,count(*) FROM tz_witness WHERE z IS NOT NULL GROUP BY z", []string{"TEXT", "INT8"}, [][]any{{"2004-10-19 00:00:00-04", int64(2)}})
-	timezoneRows(t, c, "SELECT q::TEXT FROM tz_witness WHERE q IS NOT NULL ORDER BY q", []string{"TEXT"}, [][]any{{"09:00:00+01"}, {"08:00:00+00"}})
+	timezoneRows(t, c, "SELECT q::TEXT FROM tz_witness WHERE q IS NOT NULL ORDER BY tz_witness.q", []string{"TEXT"}, [][]any{{"09:00:00+01"}, {"08:00:00+00"}})
 	timezoneRows(t, c, "SELECT TIMETZ '09:00+01'=TIMETZ '08:00+00',TIMETZ '09:00+01'<TIMETZ '08:00+00',TIMETZ '05:34:17-05' AT TIME ZONE 'UTC',TIMETZ '23:30+00' AT TIME ZONE 'UTC-2' FROM tz_witness WHERE q=TIMETZ '09:00+01'", []string{"BOOL", "BOOL", "TIMETZ", "TIMETZ"}, [][]any{{false, true, "10:34:17+00", "01:30:00+02"}})
 	timezoneRows(t, c, "SELECT (TIMESTAMP '2004-07-01 12:00' AT TIME ZONE 'America/New_York') AT TIME ZONE 'UTC',(TIMESTAMP '2004-07-01 12:00' AT LOCAL)::TEXT,(NULL::TIMESTAMPTZ AT LOCAL),CASE WHEN TRUE THEN 'safe' ELSE (TIMESTAMP '2004-07-01' AT TIME ZONE 'No/Such_Zone')::TEXT END FROM tz_witness WHERE q=TIMETZ '09:00+01'", []string{"TIMESTAMP", "TEXT", "TIMESTAMP", "TEXT"}, [][]any{{time.Date(2004, 7, 1, 16, 0, 0, 0, time.UTC), "2004-07-01 12:00:00-04", nil, "safe"}})
 	timezoneExec(t, c, "SET TIME ZONE 'UTC'", 0)

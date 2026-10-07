@@ -28,11 +28,11 @@ func TestOrderingRegclassRegression(t *testing.T) {
 		{"0", "1", -1},
 	} {
 		t.Run(tc.a+"/"+tc.b, func(t *testing.T) {
-			got, err := provider.Compare(ctx, String(d, tc.a), String(d, tc.b), DefaultInputEnvironment())
+			got, err := provider.Compare(ctx, String(d, tc.a), String(d, tc.b), InputEnvironment{})
 			if err != nil || got != tc.want {
 				t.Fatalf("comparison got %d, %v; want %d", got, err, tc.want)
 			}
-			reverse, err := provider.Compare(ctx, String(d, tc.b), String(d, tc.a), DefaultInputEnvironment())
+			reverse, err := provider.Compare(ctx, String(d, tc.b), String(d, tc.a), InputEnvironment{})
 			if err != nil || reverse != -tc.want {
 				t.Fatalf("reverse got %d, %v; want %d", reverse, err, -tc.want)
 			}

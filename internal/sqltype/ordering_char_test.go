@@ -27,11 +27,11 @@ func TestOrderingCatalogChar(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := provider.Compare(ctx, a, b, DefaultInputEnvironment())
+		got, err := provider.Compare(ctx, a, b, InputEnvironment{})
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}
-		reverse, err := provider.Compare(ctx, b, a, DefaultInputEnvironment())
+		reverse, err := provider.Compare(ctx, b, a, InputEnvironment{})
 		if err != nil || reverse != -tc.want {
 			t.Fatal(tc, reverse, err)
 		}
