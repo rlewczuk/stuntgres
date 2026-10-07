@@ -22,7 +22,7 @@ func TestTimezoneReviewStoredStableDefaultValidation(t *testing.T) {
 		"TIMESTAMP '2004-07-01 12:00' AT TIME ZONE 'No/Such_Zone'",
 	} {
 		t.Run(expression, func(t *testing.T) {
-			binder := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+			binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 			node, err := binder.bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{context: projectionContext})
 			if err != nil {
 				t.Fatal(err)
@@ -46,7 +46,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 		{Volatility: Stable, ParameterDependent: true},
 		{Volatility: Stable, StageDependent: true},
 	} {
-		binder := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		node, err := binder.bind(castTarget(t, "SELECT TRUE FROM t"), expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(err)
@@ -58,7 +58,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 		}
 	}
 	for _, expression := range []string{"id", "$1", "random()", "nextval('s')"} {
-		binder := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		typ, ok := e.CatalogRead().LookupType(sqltype.Int4)
 		if !ok {
 			t.Fatal("missing int4")

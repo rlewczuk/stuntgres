@@ -24,7 +24,7 @@ func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
 		"SELECT DATE '2004-10-19'=TIMESTAMPTZ '2004-10-19 04:00+00' FROM t",
 		"SELECT DATE '2004-10-19' IS DISTINCT FROM TIMESTAMPTZ '2004-10-19 04:00+00' FROM t",
 	} {
-		binder := newExpressionBinder(ctx, e, sqltype.InputEnvironment{TransactionStart: clock}, nil, nil)
+		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{TransactionStart: clock}, nil)
 		node, err := binder.bind(castTarget(t, query), expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(query, err)
@@ -57,14 +57,14 @@ func TestTimezonePreparedTemporalPayloads(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		first := newExpressionBinder(ctx, e, sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 7, 1, 0, 0, 0, 0, time.UTC)}, nil, nil)
+		first := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 7, 1, 0, 0, 0, 0, time.UTC)}, nil)
 		raw := castTarget(t, tc.query)
 		original, err := first.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
 		expected := &StatementDescription{temporals: first.temporals}
-		second := newExpressionBinder(ctx, e, sqltype.InputEnvironment{TransactionStart: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}, nil, expected)
+		second := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{TransactionStart: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}, expected)
 		replayed, err := second.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
@@ -102,7 +102,7 @@ func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
 		{"SELECT (NULL::TIMESTAMP AT TIME ZONE 'No/Such_Zone') IS DISTINCT FROM NULL::TIMESTAMPTZ FROM t", sqltype.Bool, false, "f"},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
-			binder := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+			binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 			node, err := binder.bind(castTarget(t, tc.query), expressionPolicy{context: projectionContext})
 			if err != nil {
 				t.Fatal(err)
@@ -125,7 +125,7 @@ func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
 }
 
 func TestTimezoneCastScopeRetainsCharacterExclusion(t *testing.T) {
-	binder := newExpressionBinder(context.Background(), New(), sqltype.InputEnvironment{}, nil, nil)
+	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	_, err := binder.bind(castTarget(t, "SELECT CAST(1 AS varchar(2)) FROM t"), expressionPolicy{context: projectionContext})
 	state(t, err, "0A000")
 }

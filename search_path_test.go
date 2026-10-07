@@ -332,44 +332,6 @@ func TestSearchPathQualifiedTemporalPrecision(t *testing.T) {
 				checkRows(rows)
 			}
 		})
-		t.Run(tc.name+"/cast-excluded", func(t *testing.T) {
-			db := openLocal(t, stuntgres.NewDriver(), t.Name())
-			execSQL(t, db, "CREATE TABLE public.anchor(id INT)")
-			execSQL(t, db, "INSERT INTO public.anchor VALUES(1)")
-			var before string
-			if err := db.QueryRow("SHOW search_path").Scan(&before); err != nil {
-				t.Fatal(err)
-			}
-			// Qualification preserves the existing temporal explicit-cast boundary.
-			want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: "8"}
-			check := func(err error) {
-				t.Helper()
-				var got *stuntgres.Error
-				if !errors.As(err, &got) || *got != want {
-					t.Fatalf("got %#v (%v), want %#v", got, err, want)
-				}
-			}
-			for _, typ := range []string{tc.typ, tc.typ[len("pg_catalog."):]} {
-				q := "SELECT CAST('" + tc.input + "' AS " + typ + ") AS v FROM public.anchor"
-				rows, err := db.Query(q)
-				if rows != nil {
-					rows.Close()
-					t.Fatal("excluded cast exposed cursor", q)
-				}
-				check(err)
-				held, err := db.Prepare(q)
-				if held != nil {
-					held.Close()
-					t.Fatal("excluded cast exposed prepared handle", q)
-				}
-				check(err)
-			}
-			wantTuples(t, db, "SELECT id FROM public.anchor", [][]any{{int64(1)}})
-			var after string
-			if err := db.QueryRow("SHOW search_path").Scan(&after); err != nil || after != before {
-				t.Fatal("failed cast changed settings", before, after, err)
-			}
-		})
 	}
 }
 

@@ -17,7 +17,7 @@ func TestTimezoneReviewConditionalProperties(t *testing.T) {
 		"CASE WHEN TRUE THEN DATE '2004-10-19' ELSE TIMESTAMPTZ '2004-10-19 04:00+00' END",
 	} {
 		t.Run(expression, func(t *testing.T) {
-			binder := newExpressionBinder(ctx, New(), sqltype.InputEnvironment{}, nil, nil)
+			binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 			node, err := binder.bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{context: projectionContext})
 			if err != nil {
 				t.Fatal(err)
@@ -51,7 +51,7 @@ func TestTimezoneReviewATVolatility(t *testing.T) {
 			{"CASE WHEN nextval($1)>0 THEN TIMESTAMP '2004-10-19 00:00' ELSE TIMESTAMP 'epoch' END", ExprProperties{Volatility: Volatile, ParameterDependent: true}},
 		} {
 			t.Run(tc.operand+" "+suffix, func(t *testing.T) {
-				binder := newExpressionBinder(ctx, New(), sqltype.InputEnvironment{}, nil, nil)
+				binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 				node, err := binder.bind(castTarget(t, "SELECT ("+tc.operand+") "+suffix+" FROM t"), expressionPolicy{context: projectionContext})
 				if err != nil {
 					t.Fatal(err)

@@ -42,7 +42,7 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 		})
 	}
 	d, _ := e.CatalogRead().LookupType(sqltype.Time)
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp"}, Text: "2003-07-07 04:05:06"}
 	bound, err := b.bind(raw, expressionPolicy{context: assignmentContext, expected: d.Usage(), mode: sqltype.Assignment})
 	if err != nil {

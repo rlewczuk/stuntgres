@@ -157,7 +157,7 @@ package parser
 %type <zoneSet> zone_setting
 %type <integer> interval_precision
 %type <tok> interval_qualifier interval_field
-%type <typ> timezone_literal_head
+%type <typ> qualified_call_head
 %type <targets> insert_targets
 %type <objectName> relation_name
 %type <fromItem> from_list joined_table from_atom from_base
@@ -596,8 +596,8 @@ scalar: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
  | cast_function scalar ')' { if $1.text=="count" {sqllex.(*lexer).failAt("0A000","count arguments are unsupported",$1.pos.Offset);return 1}; $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
- | name '.' name '(' scalar ')' { $$=CastExpr{Child:$5,TypeName:TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos},Syntax:FunctionCast,Callee:$3.text,Pos:$1.pos} }
- | name '.' name '(' '*' ')' { if $3.text!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$3.text,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Star:true,Pos:$1.pos} }
+ | qualified_call_head scalar ')' { $$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos} }
+ | qualified_call_head '*' ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Pos:$1.Pos} }
  | cast_function '*' ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1}; $$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
  | cast_function ')' { sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1 }
  | cast_function DISTINCT scalar ')' { sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.pos.Offset);return 1 }
@@ -606,7 +606,7 @@ scalar: scalar_atom { $$=$1 }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
   * them as scalar literals (which would convert overflowing numbers too early). */
  | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
- | timezone_literal_head date_literal_precision ')' STRING {raw:=$1;raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
+ | qualified_call_head date_literal_precision ')' STRING {raw:=$1;raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | '+' scalar %prec UNARY { $$=arithmeticExpr($1,$2,nil) }
  | '-' scalar %prec UNARY { $$=negateExpr(sqllex,$1,$2) }
  | SYMBOLIC_OPERATOR scalar %prec SYMBOLIC_OPERATOR { $$=arithmeticExpr($1,$2,nil) }
@@ -645,7 +645,9 @@ case_arm: WHEN delete_or THEN delete_or { $$=CaseArm{Condition:$2,Result:$4,Pos:
 case_else: /* empty */ { $$=nil } | ELSE delete_or { $$=$2 } ;
 conditional_args: delete_or { $$=[]Expr{$1} } | conditional_args ',' delete_or { $$=append($1,$3) } ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
-timezone_literal_head: name '.' col_label '(' {var ok bool;$$,ok=qualifiedTimezoneLiteral(sqllex,$1,$3);if !ok{return 1};sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).dateLiteralModifier=true} ;
+/* Qualified calls and precision literals share their opener so a function-call
+ * shift cannot consume the precision before the literal STRING continuation. */
+qualified_call_head: name '.' col_label '(' {$$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos};if $1.text=="pg_catalog" && ($3.text=="timestamptz" || $3.text=="timetz") {sqllex.(*lexer).genericModifier=true;sqllex.(*lexer).dateLiteralModifier=true}} ;
 date_literal_precision: DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$1,false);if !ok{return 1}}
  | '-' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,true);if !ok{return 1};$$.Modifiers[0].Pos=$1.pos}
  | '+' DATE_MODIFIER_NUMBER {var ok bool;$$,ok=temporalPrecision(sqllex,$2,false);if !ok{return 1};$$.Modifiers[0].UnaryPlus=true;$$.Modifiers[0].Pos=$1.pos} ;
