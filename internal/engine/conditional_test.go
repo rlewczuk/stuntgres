@@ -98,7 +98,7 @@ func TestConditionalAnalysisOrderAndMetadata(t *testing.T) {
 		{"NULLIF(1,2.2)", sqltype.Numeric, nil},
 		{"CASE WHEN TRUE THEN 1 ELSE 2147483648 END", sqltype.Int8, nil},
 	} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		ast := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select)
 		node, err := b.bind(ast.Targets[0], expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -125,7 +125,7 @@ func TestConditionalAnalysisOrderAndMetadata(t *testing.T) {
 		{"SELECT CASE $1 WHEN 1 THEN 2 END FROM t", "42883", "operator does not exist: text = integer", "16", ""},
 		{"SELECT $1,COALESCE($1,1) FROM t", "42P08", "inconsistent types deduced for parameter $1", "8", "integer versus text"},
 	} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		ast := statement(t, tc.q).(*parser.Select)
 		var nodes []BoundExpr
 		var err error
@@ -155,7 +155,7 @@ func TestConditionalAnalysisOrderAndMetadata(t *testing.T) {
 func TestConditionalCoercionOperandPosition(t *testing.T) {
 	e := New()
 	for _, q := range []string{"SELECT COALESCE(DATE '2000-01-01',TIME '00:00:00') FROM t", "SELECT CASE WHEN TRUE THEN TIME '00:00:00' ELSE DATE '2000-01-01' END FROM t"} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, q).(*parser.Select).Targets[0]
 		_, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		var d *sqlstate.Error
@@ -182,7 +182,7 @@ func TestConditionalPlanningDemand(t *testing.T) {
 		{"CASE WHEN $1 THEN 1 ELSE 1/0 END", "22012"}, {"COALESCE($1,1/0)", "22012"},
 		{"CASE WHEN $1 THEN (CASE WHEN TRUE THEN 1 ELSE CAST(CAST($2 AS TEXT) AS INTEGER) END)/0 ELSE 1 END", "22012"},
 	} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select).Targets[0]
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -197,7 +197,7 @@ func TestConditionalPlanningDemand(t *testing.T) {
 			state(t, err, tc.code)
 		}
 	}
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT CASE WHEN $1 THEN 1 ELSE CAST(CAST($2 AS TEXT) AS INTEGER) END FROM t").(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
@@ -301,7 +301,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 		{"GREATEST($1,'other')", "same", false},
 		{"CASE $1 WHEN 'same' THEN $1 ELSE 'other' END", "same", false},
 	} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.parameters[1] = name.Usage()
 		raw := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select).Targets[0]
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -329,7 +329,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 
 func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	source, target := New(), New()
-	b := newExpressionBinder(context.Background(), source, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), source, sqltype.InputEnvironment{}, nil)
 	b.defaultConsumer = true
 	raw := statement(t, "SELECT CASE 2147483648 WHEN 2147483648 THEN COALESCE(NULL,NULLIF(2147483649,2147483650)) ELSE GREATEST(2147483651,2147483652) END FROM t").(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})

@@ -83,7 +83,7 @@ func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 // Called only by the existing binder against its current coherent catalog.
 func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage, error) {
 	name := raw.Name
-	if !raw.Quoted {
+	if !raw.Quoted && raw.Schema == nil {
 		switch name {
 		case "smallint":
 			name = "int2"
@@ -105,16 +105,34 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 			name = "varchar"
 		}
 	}
-	view := CatalogRead{owner: e, state: e.state}
-	found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}, Name: name})
+	auth, err := e.authorizationLocked(op)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	view := CatalogRead{owner: e, state: auth.catalog.state}
+	object := parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}
+	if raw.Schema != nil {
+		object.Parts = []parser.Identifier{*raw.Schema, {Text: name, Pos: raw.Pos}}
+	}
+	path, err := e.lookupNamespaces(auth, object, typeLookup)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	var found []ObjectAddress
+	for i := range path.count() {
+		found = view.Lookup(NameKey{ClassID: TypeClassID, Namespace: path.at(i), Name: name})
+		if len(found) != 0 {
+			break
+		}
+	}
 	if len(found) != 1 {
-		if unsupportedColumnType(raw) {
+		if raw.Schema == nil && unsupportedColumnType(raw) {
 			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 		}
-		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, raw.Name))
+		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
 	}
 	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
-	if !d.Concrete() || d.ID() == sqltype.Char || d.ID() == sqltype.Void {
+	if !d.Concrete() || d.ID() == sqltype.Char || d.ID() == sqltype.Void || d.ID() == sqltype.NameArray {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()

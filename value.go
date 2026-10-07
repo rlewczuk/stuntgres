@@ -120,6 +120,8 @@ func exportValue(ctx context.Context, v sqltype.Value) (driver.Value, error) {
 		return nil, nil
 	}
 	switch v.Type().ID() {
+	case sqltype.NameArray:
+		return v.NamesOutput()
 	case sqltype.Oid:
 		n, err := v.OID()
 		return int64(n), err
@@ -165,7 +167,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
-	case sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Char:
+	case sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.NameArray, sqltype.UUID, sqltype.Time, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Char:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:
 		return reflect.TypeFor[bool]()

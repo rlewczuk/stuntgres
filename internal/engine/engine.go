@@ -219,6 +219,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.IdentitySelect:
 		e.mu.Lock()
 		defer e.mu.Unlock()
+		if err := e.validateIdentityCall(op, s); err != nil {
+			return StatementDescription{}, err
+		}
 		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Name)
 		columns := make([]ColumnDescriptor, len(s.Names))
 		for i, name := range s.Names {
@@ -618,39 +621,29 @@ func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.Ob
 	relname := name.Parts[len(name.Parts)-1].Text
 	var a ObjectAddress
 	var ok bool
-	if len(name.Parts) == 1 {
-		path, err := e.referencePath(auth)
-		if err != nil {
-			return ObjectRef{}, err
-		}
-		for _, ns := range path {
-			a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
-			if ok {
-				break
-			}
-		}
-	} else {
+	if comment && len(name.Parts) == 2 {
 		ns := view.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
 		if name.Parts[0].Text == "pg_temp" {
 			ns = temporaryNamespace(auth)
 		}
-		if d, exists := view.state.descriptors[ns].(*namespaceDescriptor); exists && d.temporary != (SessionToken{}) && (auth.session == nil || d.temporary != auth.session.token) {
-			return ObjectRef{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", d.name))
-		}
-		if comment && ns == (ObjectAddress{}) {
+		if ns == (ObjectAddress{}) {
 			return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
 		}
-		if ns != (ObjectAddress{}) {
-			if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: view.Epoch(), Address: ns}); err != nil {
-				if sqlErr, ok := err.(*sqlstate.Error); ok && !comment {
-					copy := *sqlErr
-					copy.Position = strconv.Itoa(name.Parts[0].Pos.Character)
-					return ObjectRef{}, &copy
-				}
-				return ObjectRef{}, err
-			}
+	}
+	path, err := e.lookupNamespaces(auth, name, relationLookup)
+	if err != nil {
+		if d, yes := err.(*sqlstate.Error); yes && comment {
+			copy := *d
+			copy.Position = ""
+			err = &copy
 		}
-		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relname}]
+		return ObjectRef{}, err
+	}
+	for i := range path.count() {
+		a, ok = view.state.names[NameKey{ClassID: RelationClassID, Namespace: path.at(i), Name: relname}]
+		if ok {
+			break
+		}
 	}
 	if !ok {
 		return ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))

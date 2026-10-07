@@ -742,6 +742,9 @@ preserve left width. Shift counts require INTEGER. Typed NULL and computed
 INT2/INT4/INT8 metadata survive empty results and replay. Unsupported signatures
 report42883 and ambiguous unknown signatures42725, with English messages and
 operator positions. See [width/count behavior](TYPES.md#integral-bitwise-operators).
+Catalog-qualified OPERATOR(pg_catalog.symbol) forms retain these same bitwise
+providers and scoped cast rules; wrong namespaces do not bypass lookup, and
+canonical defaults/views preserve explicit qualification.
 No BIT/VARBIT provider, ordinary SMALLINT arithmetic or no-FROM widening is added.
 Standard SMALLINT `CAST`/`::` is bounded to selected bitwise operands/counts
 and integral wrappers of bitwise results used by default/view replay; standalone
@@ -1169,6 +1172,43 @@ DROP COLUMN compaction removes only the dropped stable SubID's column comment an
 Successful CatalogStage publication advances the shared revision allocator past staged installed revisions without lowering an already-leading frontier; MaxUint64 saturates and later allocations fail ordinarily. DROP keeps old revision + 1, with no early allocator reservation. Commit the candidate frontier with descriptor/storage installation only after final fences, so failed/canceled stages and skips do not consume revision tokens. Later TABLE/COLUMN COMMENT must publish strictly fresh tokens at the retained identity.
 
 CREATE/ALTER/DROP SCHEMA and search_path/current_schema reuse existing catalog/session/role seams. Nested CREATE SCHEMA elements are CREATE TABLE only with atomic publication. Schema provisioning/rename uses effective-superuser database-CREATE baseline; fixed native database label stuntgres is diagnostic-only. Native public retains PUBLIC USAGE|CREATE. Prepared AST re-resolution has a coherent frozen signature guard, not full PostgreSQL cached-plan caveat parity. Absent pg_temp lookup never allocates; pending creation fails 0A000.
+
+Search-path namespace selection has one kind-aware authority. Explicit entries
+retain decoded order and deduplicate by namespace identity; missing, empty,
+no-USAGE and foreign TEMP entries are ignored. `$user` expands CURRENT_USER.
+An absent explicit pg_catalog is inserted before the explicit path; initialized
+own TEMP is inserted before catalog for relation/type lookup only. Explicit
+catalog/TEMP keep their stated placement. Unqualified function/operator lookup
+excludes TEMP even when explicitly listed; qualified lookup restricts candidates
+to its validated namespace, never falls back by familiar spelling.
+Supported builtin type identifiers, null-count/sequence/settings functions,
+random/random_normal/setseed, current_schema(), type-input functions, count(*) and arithmetic/comparison
+operators accept catalog qualification in their existing expression contexts.
+The existing min_scale/round/scale/trim_scale/trunc/sign/mod owners also accept
+catalog qualification through this resolver, without changing numeric overloads
+or allowing familiar spellings in a wrong namespace to bypass lookup.
+Qualified type names use catalog identifiers, not SQL aliases:
+pg_catalog.int4 is valid, pg_catalog.integer is not an alias. Qualified operators
+use OPERATOR(schema.symbol) and generic operator precedence.
+
+The scalar function owner exposes stable, strict current_schemas(boolean).
+FALSE returns the explicit searchable path; TRUE includes implicit namespaces.
+Prepared BOOL parameters observe fresh settings/current-role state at execution;
+returned values are immutable snapshots. NULL returns typed NULL; an empty
+explicit path returns `{}`. NAME[] has OID1003, catalog name _name, public
+DatabaseTypeName `_NAME`, typmod-1, no origin and NAME-element collation950.
+Native ScanType/export are string; PostgreSQL/libpq reports interface{} and
+raw []byte instead. This is a result-only descriptor, not TEXT or general array
+input/storage/casts/comparison/DDL. Array output quotes and escapes special names.
+Native current_schema/current_schemas omit absent TEMP without materializing it;
+PostgreSQL current_schemas may materialize a pending leading pg_temp. Once a
+supported TEMP sequence creates the namespace, normal ordering/dedup applies.
+SQL routine/type/operator DDL and general overload resolution remain excluded.
+Native Dump/Restore preserves qualified persistent expression spelling and
+objects/data, not session search_path; it is not external pg_dump, wire protocol,
+server configuration or filesystem durability.
+Feature smoke: `make smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
+
 
 COMMENT supports TABLE/COLUMN/SCHEMA/ROLE only, with decoded literals and NULL/empty removal (whitespace persists). Store text in immutable descriptors, column maps keyed by stable SubID, or shared RoleDescriptor values; never name-keyed side storage or adjacent SQL description functions. Lookup and live ownership precede mutation; COLUMN nonowner says relation, TABLE says table. Ordinary roles cannot self-comment; CREATEROLE/ADMIN expansion is excluded. Explicit-TX COMMENT remains native 0A000. Rename/owner transfer retains text; drop/recreate clears it; LIKE does not copy it. Database Dump excludes shared role comments, Reset/Restore retain them.
 

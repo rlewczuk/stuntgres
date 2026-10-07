@@ -13,6 +13,7 @@ type bitwiseExpression struct {
 	left, right BoundExpr
 	provider    sqltype.Bitwise
 	operator    sqltype.BitwiseOperator
+	namespace   string
 }
 
 func (e bitwiseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -65,7 +66,7 @@ func bitwiseCastSource(raw parser.Expr) bool {
 	case parser.CastExpr:
 		return n.Syntax != parser.FunctionCast && bitwiseCastSource(n.Child)
 	case parser.OperatorExpr:
-		return len(n.Name.Parts) == 1 && selectedBitwiseName(n.Name.Parts[0].Text)
+		return len(n.Name.Parts) >= 1 && len(n.Name.Parts) <= 2 && selectedBitwiseName(n.Name.Parts[len(n.Name.Parts)-1].Text)
 	}
 	return false
 }
@@ -80,10 +81,14 @@ func planExpressionCoercion(source, target sqltype.Usage, mode sqltype.CoercionC
 	return sqltype.PlanCoercion(source, target, mode)
 }
 func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, error) {
-	if len(raw.Name.Parts) != 1 || len(raw.Args) < 1 || len(raw.Args) > 2 {
+	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid bitwise expression")
 	}
-	name := raw.Name.Parts[0].Text
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	if err != nil {
+		return nil, err
+	}
 	policy := expressionPolicy{context: projectionContext, bitwiseOperand: selectedBitwiseName(name)}
 	left, err := b.comparisonOperandPolicy(raw.Args[0], policy)
 	if err != nil {
@@ -100,6 +105,9 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 	missing := func() error {
 		return operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
 	}
+	if !visible {
+		return nil, missing()
+	}
 	ambiguous := func() error {
 		typeName := func(t *sqltype.Descriptor) string {
 			if t == nil {
@@ -107,9 +115,9 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 			}
 			return t.DiagnosticName()
 		}
-		signature := name + " " + typeName(lt)
+		signature := objectNameText(raw.Name) + " " + typeName(lt)
 		if len(raw.Args) == 2 {
-			signature = typeName(lt) + " " + name + " " + typeName(rt)
+			signature = typeName(lt) + " " + objectNameText(raw.Name) + " " + typeName(rt)
 		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42725", Message: "operator is not unique: " + signature, Hint: "Could not choose a best candidate operator. You might need to add explicit type casts.", Position: strconv.Itoa(raw.Pos.Character)}
 	}
@@ -215,5 +223,9 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 	if err != nil {
 		return nil, err
 	}
-	return bitwiseExpression{b.info(target.Usage(), parser.ExpressionStart(raw), p), l, r, provider, op}, nil
+	namespace := ""
+	if len(raw.Name.Parts) == 2 {
+		namespace = raw.Name.Parts[0].Text
+	}
+	return bitwiseExpression{b.info(target.Usage(), parser.ExpressionStart(raw), p), l, r, provider, op, namespace}, nil
 }

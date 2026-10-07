@@ -33,12 +33,12 @@ type BoundExpr interface {
 	Eval(*EvalContext) (sqltype.Value, error)
 }
 type EvalContext struct {
-	Context       context.Context
-	Scope, Frame  uint32
-	Row           []sqltype.Value
-	Parameters    []sqltype.Value
-	orderValues   []sqltype.Value
-	sequenceScope *StatementScope
+	Context        context.Context
+	Scope, Frame   uint32
+	Row            []sqltype.Value
+	Parameters     []sqltype.Value
+	orderValues    []sqltype.Value
+	statementScope *StatementScope
 }
 type expressionInfo struct {
 	usage      sqltype.Usage
@@ -132,6 +132,7 @@ type comparisonExpression struct {
 	left, right BoundExpr
 	predicate   sqltype.ComparisonPredicate
 	operator    string
+	namespace   string
 }
 
 func (e comparisonExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -160,6 +161,15 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		return nil, false, err
 	}
 	switch e := expression.(type) {
+	case currentSchemasExpression:
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		if changed {
+			e.arg = arg
+		}
+		return e, changed, nil
 	case caseExpression:
 		return simplifyConditional(c, expression, decisiveDefaults)
 	case conditionalExpression:
@@ -694,6 +704,17 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			}
 			return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", r.Pos)
 		}
+		name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
+		if r.Schema != nil {
+			name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
+		}
+		visible, err := b.builtinVisible(name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+		if !visible {
+			return nil, b.sequenceSignatureError(parser.CallExpr{Name: name})
+		}
 		provider, ok := b.aggregateProvider(r.Name, r.Star)
 		if !ok {
 			return nil, expressionError("0A000", "aggregate call is unsupported", r.Pos)
@@ -838,9 +859,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 	case parser.OperatorExpr:
 		var err error
-		if len(r.Name.Parts) == 1 && bitwiseName(r.Name.Parts[0].Text) {
+		if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 			node, err = b.bindBitwise(r)
-		} else if len(r.Name.Parts) == 1 && (arithmeticName(r.Name.Parts[0].Text) || symbolicArithmeticName(r.Name.Parts[0].Text)) {
+		} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {
 			node, err = b.bindArithmetic(r)
 		} else {
 			if policy.context == assignmentContext {
@@ -883,7 +904,11 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 		code, ending = "42725", "is not unique"
 		hint = "Could not choose a best candidate function. You might need to add explicit type casts."
 	}
-	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", raw.Callee, source, ending), raw.Pos).(*sqlstate.Error)
+	name := raw.Callee
+	if raw.TypeName.Schema != nil {
+		name = raw.TypeName.Schema.Text + "." + name
+	}
+	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", name, source, ending), raw.Pos).(*sqlstate.Error)
 	d.Hint = hint
 	return d
 }
@@ -894,7 +919,19 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 			return nil, err
 		}
 	}
-	if raw.Syntax == parser.FunctionCast && raw.Callee != "oid" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool" {
+	visible := true
+	if raw.Syntax == parser.FunctionCast {
+		name := parser.ObjectName{Parts: []parser.Identifier{{Text: raw.Callee, Pos: raw.Pos}}}
+		if raw.TypeName.Schema != nil {
+			name.Parts = []parser.Identifier{*raw.TypeName.Schema, {Text: raw.Callee, Pos: raw.Pos}}
+		}
+		var err error
+		visible, err = b.builtinVisible(name, functionLookup)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if raw.Syntax == parser.FunctionCast && (!visible || raw.Callee != "oid" && raw.Callee != "int4" && raw.Callee != "int8" && raw.Callee != "text" && raw.Callee != "bool") {
 		source := "unknown"
 		if literal, ok := raw.Child.(parser.LiteralExpr); !ok || (literal.Value.Kind != parser.StringValue && literal.Value.Kind != parser.NullValue) {
 			child, err := b.bind(raw.Child, expressionPolicy{context: projectionContext})
@@ -910,6 +947,10 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 	target, err := b.engine.resolveType(raw.TypeName, b.op)
 	if err != nil {
 		return nil, err
+	}
+	if target.Type.ID() == sqltype.Regclass {
+		node, _, err := b.bindRegclass(raw.Child)
+		return node, err
 	}
 	bitwiseCast := raw.Syntax != parser.FunctionCast && (bitwiseOperand || bitwiseCastSource(raw.Child))
 	if !sqltype.BaselineCastType(target.Type.ID()) && target.Type.ID() != sqltype.Oid && target.Type.ID() != sqltype.Int2 && !sqltype.IsCharacter(target.Type.ID()) {
@@ -983,9 +1024,9 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 	case parser.ColumnExpr:
 		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.FunctionExpr:
-		return r.Name.Parts[0].Text, true
+		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.CallExpr:
-		return r.Name.Text, true
+		return r.Name.Parts[len(r.Name.Parts)-1].Text, true
 	case parser.RegclassExpr:
 		return "regclass", false
 	case parser.CastExpr:
@@ -1115,10 +1156,10 @@ func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw par
 		return t.DiagnosticName()
 	}
 	if len(raw.Args) == 1 {
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s", raw.Name.Parts[0].Text, name(left))
+		copy.Message = fmt.Sprintf("operator does not exist: %s %s", objectNameText(raw.Name), name(left))
 		copy.Hint = "No operator matches the given name and argument type. You might need to add an explicit type cast."
 	} else {
-		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), raw.Name.Parts[0].Text, name(right))
+		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), objectNameText(raw.Name), name(right))
 		copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
 	}
 	copy.Position = strconv.Itoa(raw.Pos.Character)
@@ -1210,11 +1251,11 @@ func (b *expressionBinder) coerceComparisonOperands(left, right BoundExpr) (Boun
 }
 
 func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, error) {
-	if len(raw.Args) != 2 || len(raw.Name.Parts) != 1 {
+	if len(raw.Args) != 2 || len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid comparison expression")
 	}
 	var operator sqltype.ComparisonOperator
-	switch raw.Name.Parts[0].Text {
+	switch raw.Name.Parts[len(raw.Name.Parts)-1].Text {
 	case "=":
 		operator = sqltype.CompareEqual
 	case "<>":
@@ -1240,6 +1281,13 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 		return nil, err
 	}
 	lt, rt := left.descriptor(), right.descriptor()
+	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	if err != nil {
+		return nil, err
+	}
+	if !visible {
+		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), lt, rt, raw)
+	}
 	if lt == nil {
 		lt = rt
 	}
@@ -1272,7 +1320,11 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	if rp.Volatility > p.Volatility {
 		p.Volatility = rp.Volatility
 	}
-	return comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), l, r, predicate, raw.Name.Parts[0].Text}, nil
+	namespace := ""
+	if len(raw.Name.Parts) == 2 {
+		namespace = raw.Name.Parts[0].Text
+	}
+	return comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, p), l, r, predicate, raw.Name.Parts[len(raw.Name.Parts)-1].Text, namespace}, nil
 }
 
 type arithmeticExpression struct {
@@ -1280,6 +1332,7 @@ type arithmeticExpression struct {
 	left, right BoundExpr
 	provider    sqltype.Arithmetic
 	operator    sqltype.ArithmeticOperator
+	namespace   string
 }
 
 func (e arithmeticExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -1314,13 +1367,13 @@ func integerArithmeticType(t *sqltype.Descriptor) bool {
 	return t != nil && (t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8)
 }
 func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, error) {
-	if len(raw.Name.Parts) != 1 || len(raw.Args) < 1 || len(raw.Args) > 2 {
+	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid arithmetic expression")
 	}
-	name := raw.Name.Parts[0].Text
-	// Numeric unary plus is identity. Input errors belong to its operand token,
-	// not to the operator; ORDER expressions share this same binding path.
-	if name == "+" && len(raw.Args) == 1 {
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	// Unqualified numeric unary plus is identity; input errors belong to its
+	// operand token, including ORDER expressions. Qualified calls use lookup.
+	if name == "+" && len(raw.Args) == 1 && len(raw.Name.Parts) == 1 {
 		if literal, ok := raw.Args[0].(parser.LiteralExpr); ok && literal.Value.Kind == parser.NumericValue {
 			return b.bind(literal, expressionPolicy{context: projectionContext})
 		}
@@ -1348,6 +1401,13 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		}
 	}
 	lt, rt := left.descriptor(), right.descriptor()
+	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	if err != nil {
+		return nil, err
+	}
+	if !visible {
+		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), lt, rt, raw)
+	}
 	if symbolicArithmeticName(name) {
 		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
 	}
@@ -1425,5 +1485,9 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 			}
 		}
 	}
-	return arithmeticExpression{b.info(typ.Usage(), pos, p), l, r, provider, operator}, nil
+	namespace := ""
+	if len(raw.Name.Parts) == 2 {
+		namespace = raw.Name.Parts[0].Text
+	}
+	return arithmeticExpression{b.info(typ.Usage(), pos, p), l, r, provider, operator, namespace}, nil
 }

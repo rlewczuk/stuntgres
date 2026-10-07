@@ -18,7 +18,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	later := sqltype.InputEnvironment{TransactionStart: time.Date(2004, 8, 8, 12, 13, 14, 123456000, time.UTC)}
 	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "time", Modifiers: []parser.TypeModifier{{Integer: &precision}}, Pos: parser.Position{Offset: 7, Character: 8}}, Text: "now", Pos: parser.Position{Offset: 15, Character: 16}}
 	stamp := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp", Pos: parser.Position{Offset: 30, Character: 31}}, Text: "now", Pos: parser.Position{Offset: 40, Character: 41}}
-	b := newExpressionBinder(ctx, e, first, nil, nil)
+	b := newTestExpressionBinder(t, ctx, e, first, nil)
 	for _, expr := range []parser.Expr{raw, stamp} {
 		if _, err := b.bind(expr, expressionPolicy{context: projectionContext}); err != nil {
 			t.Fatal(err)
@@ -33,7 +33,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	current, _ := e.CatalogRead().LookupType(sqltype.Time)
-	b = newExpressionBinder(ctx, e, later, nil, &desc)
+	b = newTestExpressionBinder(t, ctx, e, later, &desc)
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
@@ -71,13 +71,13 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	// Contextual UNKNOWN inputs freeze; actual parameters never become captures.
 	contextual := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "now", Pos: parser.Position{Offset: 3, Character: 4}}}
 	policy := expressionPolicy{context: assignmentContext, expected: current.Usage(), mode: sqltype.Assignment}
-	b = newExpressionBinder(ctx, e, first, nil, nil)
+	b = newTestExpressionBinder(t, ctx, e, first, nil)
 	node, err = b.bind(contextual, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
 	contextDesc := StatementDescription{temporals: b.temporals}
-	b = newExpressionBinder(ctx, e, later, nil, &contextDesc)
+	b = newTestExpressionBinder(t, ctx, e, later, &contextDesc)
 	node, err = b.bind(contextual, policy)
 	if err != nil {
 		t.Fatal(err)
@@ -87,7 +87,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil || out != "04:05:06.4995" {
 		t.Fatal(out, err)
 	}
-	b = newExpressionBinder(ctx, e, later, nil, &contextDesc)
+	b = newTestExpressionBinder(t, ctx, e, later, &contextDesc)
 	_, err = b.bind(parser.ParameterExpr{Number: 1}, policy)
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	// A TIME capture cannot silently reconstruct through a TIMESTAMP descriptor.
 	foreign := stamp
 	foreign.Pos = raw.Pos
-	b = newExpressionBinder(ctx, e, later, nil, &desc)
+	b = newTestExpressionBinder(t, ctx, e, later, &desc)
 	if _, err = b.bind(foreign, expressionPolicy{context: projectionContext}); err == nil {
 		t.Fatal("capture type changed")
 	}

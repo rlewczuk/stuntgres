@@ -77,7 +77,7 @@ func TestCharacterSourceValuesSchemaAndTypmods(t *testing.T) {
 		{"'a'::varchar(2)", "'b'::char(2)", sqltype.VarChar, -1},
 		{"NULL", "'a'::char(2)", sqltype.BPChar, -1},
 	} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "INSERT INTO dst VALUES("+tc.first+"),("+tc.second+") ORDER BY 1").(*parser.Insert)
 		query, err := b.bindValues(raw.Source)
 		if err != nil {
@@ -141,7 +141,7 @@ func TestCharacterInsertCastResolvedSourceDiagnostic(t *testing.T) {
 		{"varchar(2)", "character varying", sqltype.VarChar},
 	} {
 		t.Run(tc.cast, func(t *testing.T) {
-			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "/*é🙂*/ INSERT INTO dst VALUES(CAST('a' AS "+tc.cast+"))").(*parser.Insert).Rows[0][0]
 			node, err := b.bind(raw, expressionPolicy{context: assignmentContext, expected: integer.Usage(), mode: sqltype.Assignment})
 			if node == nil || err == nil || node.ResultUsage().Type.ID() != tc.id || node.ResultUsage().Typmod != 6 {

@@ -10,6 +10,7 @@ type TypeName struct {
 	Name      string
 	Pos       Position
 	Quoted    bool
+	Schema    *Identifier
 	Modifiers []TypeModifier
 }
 
@@ -108,12 +109,17 @@ type DropSequence struct {
 func (*DropSequence) statement() {}
 
 type CallExpr struct {
-	Name Identifier
+	Name ObjectName
 	Args []Expr
 }
 
-func (CallExpr) expression()                {}
-func (e CallExpr) SourcePosition() Position { return e.Name.Pos }
+func (CallExpr) expression() {}
+func (e CallExpr) SourcePosition() Position {
+	if len(e.Name.Parts) == 0 {
+		return Position{}
+	}
+	return e.Name.Parts[0].Pos
+}
 
 type RegclassExpr struct {
 	Child Expr
@@ -355,11 +361,11 @@ func singletonArgument(expr Expr) bool {
 		literal, ok := child.(LiteralExpr)
 		return ok && (literal.Value.Kind == IntegerValue || literal.Value.Kind == NumericValue)
 	case FunctionExpr:
-		if len(e.Name.Parts) != 1 {
+		if len(e.Name.Parts) < 1 || len(e.Name.Parts) > 2 {
 			return false
 		}
-		switch e.Name.Parts[0].Text {
-		case "num_nulls", "num_nonnulls", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
+		switch e.Name.Parts[len(e.Name.Parts)-1].Text {
+		case "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
 		default:
 			return false
 		}
@@ -614,9 +620,10 @@ type FunctionExpr struct {
 
 // AggregateExpr distinguishes count-star from scalar calls and argument lists.
 type AggregateExpr struct {
-	Name string
-	Star bool
-	Pos  Position
+	Name   string
+	Star   bool
+	Schema *Identifier
+	Pos    Position
 }
 
 func (AggregateExpr) expression()                {}
@@ -766,7 +773,11 @@ type SessionAuthorization struct {
 
 func (*SessionAuthorization) statement() {}
 
-type IdentitySelect struct{ Names []string }
+type IdentitySelect struct {
+	Names  []string
+	Schema *Identifier
+	Pos    Position
+}
 
 func (*IdentitySelect) statement() {}
 
@@ -796,9 +807,10 @@ type Reset struct {
 func (*Reset) statement() {}
 
 type SettingCall struct {
-	Name string
-	Args []Expr
-	Pos  Position
+	Name   string
+	Args   []Expr
+	Pos    Position
+	Schema *Identifier
 }
 
 func (*SettingCall) statement() {}

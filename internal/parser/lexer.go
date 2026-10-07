@@ -631,7 +631,15 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		token.lexeme.text = text
 	}
 	switch token.lexeme.text {
-	case "num_nulls", "num_nonnulls", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
+	case "operator":
+		if token.lexeme.keyword != nil {
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.code == '(' {
+				token.code = OPERATOR
+			}
+		}
+	case "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}

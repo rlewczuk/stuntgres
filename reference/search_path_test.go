@@ -1,0 +1,330 @@
+//go:build reference
+
+package reference_test
+
+import (
+	"database/sql"
+	"reflect"
+	"strings"
+	"testing"
+)
+
+func TestReferenceSearchPathCurrentSchemas(t *testing.T) {
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "sp1", "sp2", "path,comma", "path{brace}", "NULL", "path space", "path\"quote", "path\\slash")
+	for _, q := range []string{"CREATE SCHEMA sp1", "CREATE SCHEMA sp2", `CREATE SCHEMA "path,comma"`, `CREATE SCHEMA "path{brace}"`, `CREATE SCHEMA "NULL"`, `CREATE SCHEMA "path space"`, `CREATE SCHEMA "path""quote"`, `CREATE SCHEMA "path\slash"`} {
+		p.step(t, referenceExec(q, 0))
+	}
+	for _, backend := range []struct {
+		name   string
+		db     *sql.DB
+		record *referenceRecorder
+	}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+		t.Run(backend.name, func(t *testing.T) {
+			a, err := backend.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer a.Close()
+			b, err := backend.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer b.Close()
+			run := func(c *sql.Conn, s referenceStep) { referenceRunStep(t, p.ctx, c, backend.record, s) }
+			run(a, referenceExec("SET search_path TO missing,sp2,sp2,sp1", 0))
+			run(b, referenceExec("SET search_path TO sp1", 0))
+			held, err := a.PrepareContext(p.ctx, "SELECT current_schemas($1)")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer held.Close()
+			check := func(flag any, want any) {
+				t.Helper()
+				rows, err := held.QueryContext(p.ctx, flag)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer rows.Close()
+				types, err := rows.ColumnTypes()
+				if err != nil || len(types) != 1 {
+					t.Fatal(types, err)
+				}
+				scan := reflect.TypeOf("")
+				if backend.name == "postgres" {
+					scan = reflect.TypeOf((*any)(nil)).Elem()
+				}
+				if types[0].Name() != "current_schemas" || types[0].DatabaseTypeName() != "_NAME" || types[0].ScanType() != scan {
+					t.Fatalf("metadata %s %s %v want %v", types[0].Name(), types[0].DatabaseTypeName(), types[0].ScanType(), scan)
+				}
+				if !rows.Next() {
+					t.Fatal(rows.Err())
+				}
+				var raw any
+				if err := rows.Scan(&raw); err != nil {
+					t.Fatal(err)
+				}
+				var got any = raw
+				if want != nil && backend.name == "postgres" {
+					bytes, ok := raw.([]byte)
+					if !ok {
+						t.Fatalf("pq array export %T", raw)
+					}
+					got = string(bytes)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("value %#v want %#v", got, want)
+				}
+				if rows.Next() || rows.Err() != nil {
+					t.Fatal(rows.Err())
+				}
+			}
+			run(a, referencePrepared(referenceExec("SELECT current_schemas(false)", 1)))
+			check(false, "{sp2,sp1}")
+			check(true, "{pg_catalog,sp2,sp1}")
+			check(nil, nil)
+			run(a, referencePrepared(referenceSelect("SELECT pg_catalog.current_schemas(false)", []string{"current_schemas"}, []string{"_NAME"}, [][]any{{"{sp2,sp1}"}})))
+			run(a, referenceExec("SET search_path TO sp2,pg_catalog,sp1", 0))
+			check(false, "{sp2,pg_catalog,sp1}")
+			check(true, "{sp2,pg_catalog,sp1}")
+			run(a, referenceExec("SELECT set_config('search_path','',false)", 1))
+			check(false, "{}")
+			check(true, "{pg_catalog}")
+			run(b, referenceSelect("SELECT current_schemas(false)", []string{"current_schemas"}, []string{"_NAME"}, [][]any{{"{sp1}"}}))
+			run(a, referenceExec(`SET search_path TO "path,comma","path{brace}","NULL","path space","path""quote","path\slash"`, 0))
+			check(false, `{"path,comma","path{brace}","NULL","path space","path\"quote","path\\slash"}`)
+			run(a, referenceExec("SET search_path TO sp1", 0))
+			run(a, referenceExec("CREATE TEMP SEQUENCE search_path_temp", 0))
+			var temp string
+			run(a, referenceExec("SET search_path TO pg_temp,sp1", 0))
+			if err := a.QueryRowContext(p.ctx, "SELECT current_schema()").Scan(&temp); err != nil || !strings.HasPrefix(temp, "pg_temp_") {
+				t.Fatal(temp, err)
+			}
+			run(a, referenceExec("SET search_path TO sp1", 0))
+			check(false, "{sp1}")
+			check(true, "{"+temp+",pg_catalog,sp1}")
+			run(a, referenceExec("SET search_path TO sp1,pg_temp,pg_temp", 0))
+			check(false, "{sp1,"+temp+"}")
+			check(true, "{pg_catalog,sp1,"+temp+"}")
+			run(a, referenceSelect("SELECT num_nulls(NULL)", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}))
+		})
+	}
+}
+
+func TestReferenceSearchPathQualifiedProviders(t *testing.T) {
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "sp1")
+	for _, q := range []string{"CREATE SCHEMA sp1", "CREATE TABLE sp1.t(id pg_catalog.int4)", "INSERT INTO sp1.t VALUES(7)"} {
+		n := int64(0)
+		if strings.HasPrefix(q, "INSERT") {
+			n = 1
+		}
+		p.step(t, referenceExec(q, n))
+	}
+	for _, tc := range []struct {
+		q, label, typ string
+		want          any
+	}{
+		{"SELECT pg_catalog.num_nulls(NULL,7)", "num_nulls", "INT4", int64(1)},
+		{"SELECT CAST(id AS pg_catalog.int4) FROM sp1.t", "id", "INT4", int64(7)},
+		{"SELECT pg_catalog.int4(id) FROM sp1.t", "int4", "INT4", int64(7)},
+		{"SELECT pg_catalog.count(*) FROM sp1.t", "count", "INT8", int64(1)},
+		{"SELECT id OPERATOR(pg_catalog.+) 1 FROM sp1.t", "?column?", "INT4", int64(8)},
+		{"SELECT id OPERATOR(pg_catalog.=) 7 FROM sp1.t", "?column?", "BOOL", true},
+		{"SELECT id OPERATOR(pg_catalog.-) 2 + 3 FROM sp1.t", "?column?", "INT4", int64(2)},
+		{"SELECT id - 2 + 3 FROM sp1.t", "?column?", "INT4", int64(8)},
+		{"SELECT OPERATOR(pg_catalog.-) id + 3 FROM sp1.t", "?column?", "INT4", int64(-10)},
+	} {
+		s := referenceSelect(tc.q, []string{tc.label}, []string{tc.typ}, [][]any{{tc.want}})
+		p.step(t, s)
+		p.step(t, referencePrepared(s))
+	}
+	p.step(t, referenceExec("CREATE SEQUENCE sp1.seq", 0))
+	p.step(t, referenceSelect("SELECT pg_catalog.nextval('sp1.seq')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(1)}}))
+	p.step(t, referencePrepared(referenceSelect("SELECT pg_catalog.currval('sp1.seq')", []string{"currval"}, []string{"INT8"}, [][]any{{int64(1)}})))
+	p.step(t, referenceSelect("SELECT pg_catalog.set_config('search_path','sp1',false)", []string{"set_config"}, []string{"TEXT"}, [][]any{{"sp1"}}))
+	p.step(t, referencePrepared(referenceSelect("SELECT pg_catalog.current_setting('search_path')", []string{"current_setting"}, []string{"TEXT"}, [][]any{{"sp1"}})))
+}
+
+func TestReferenceSearchPathDiagnostics(t *testing.T) {
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "sp1")
+	p.step(t, referenceExec("CREATE SCHEMA sp1 CREATE TABLE t(id INT)", 0))
+	p.step(t, referenceExec("INSERT INTO sp1.t VALUES(7)", 1))
+	const fh = "No function matches the given name and argument types. You might need to add explicit type casts."
+	const oh = "No operator matches the given name and argument types. You might need to add explicit type casts."
+	for _, tc := range []struct{ q, code, message, hint, pos string }{
+		{"SELECT current_schemas()", "42883", "function current_schemas() does not exist", fh, "8"},
+		{"SELECT current_schemas(1)", "42883", "function current_schemas(integer) does not exist", fh, "8"},
+		{"SELECT public.num_nulls(1)", "42883", "function public.num_nulls(integer) does not exist", fh, "8"},
+		{"SELECT 1 OPERATOR(public.+) 2 FROM sp1.t", "42883", "operator does not exist: integer public.+ integer", oh, "10"},
+		{"SELECT 1::public.int4 FROM sp1.t", "42704", `type "public.int4" does not exist`, "", "11"},
+		{"SELECT missing_path_ns.num_nulls(1)", "3F000", `schema "missing_path_ns" does not exist`, "", "8"},
+		{"SELECT pg_temp.num_nulls(1)", "3F000", `schema "pg_temp" does not exist`, "", "8"},
+		{"SELECT 1 OPERATOR(missing_path_ns.+) 2 FROM sp1.t", "3F000", `schema "missing_path_ns" does not exist`, "", "10"},
+		{"SELECT 1::missing_path_ns.int4 FROM sp1.t", "3F000", `schema "missing_path_ns" does not exist`, "", "11"},
+	} {
+		s := referenceErrorDiagnostic(tc.q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Hint: tc.hint, Position: tc.pos})
+		p.step(t, s)
+		s = referencePrepared(s)
+		s.errorStage = "prepare"
+		p.step(t, s)
+	}
+}
+
+func TestReferenceSearchPathPendingTempBoundary(t *testing.T) {
+	p := newReferencePair(t)
+	for _, backend := range []struct {
+		name string
+		db   *sql.DB
+	}{{"memory", p.memory}, {"postgres", p.postgres}} {
+		t.Run(backend.name, func(t *testing.T) {
+			c, err := backend.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			if _, err := c.ExecContext(p.ctx, "SET search_path TO pg_temp,public"); err != nil {
+				t.Fatal(err)
+			}
+			var got string
+			if err := c.QueryRowContext(p.ctx, "SELECT current_schemas(false)").Scan(&got); err != nil {
+				t.Fatal(err)
+			}
+			if backend.name == "memory" {
+				if got != "{public}" {
+					t.Fatal(got)
+				}
+			} else {
+				var temp string
+				if err := c.QueryRowContext(p.ctx, "SELECT current_schema()").Scan(&temp); err != nil || !strings.HasPrefix(temp, "pg_temp_") {
+					t.Fatal(temp, err)
+				}
+				if got != "{"+temp+",public}" {
+					t.Fatal(got, temp)
+				}
+			}
+		})
+	}
+}
+
+func TestReferenceSearchPathCurrentUser(t *testing.T) {
+	roleReferenceCleanup(t, []string{"path_role_a", "path_role_b"})
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "path_role_a", "path_role_b")
+	for _, q := range []string{"CREATE USER path_role_a", "CREATE USER path_role_b", "CREATE SCHEMA path_role_a AUTHORIZATION path_role_a", "CREATE SCHEMA path_role_b AUTHORIZATION path_role_b"} {
+		p.step(t, referenceExec(q, 0))
+	}
+	for _, backend := range []struct {
+		name string
+		db   *sql.DB
+	}{{"memory", p.memory}, {"postgres", p.postgres}} {
+		t.Run(backend.name, func(t *testing.T) {
+			c, err := backend.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			defer c.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
+			if _, err := c.ExecContext(p.ctx, `SET search_path TO "$user",public`); err != nil {
+				t.Fatal(err)
+			}
+			held, err := c.PrepareContext(p.ctx, "SELECT current_schemas($1)")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer held.Close()
+			for _, role := range []string{"path_role_a", "path_role_b"} {
+				if _, err := c.ExecContext(p.ctx, "SET SESSION AUTHORIZATION "+role); err != nil {
+					t.Fatal(err)
+				}
+				for _, tc := range []struct {
+					flag bool
+					want string
+				}{{false, "{" + role + ",public}"}, {true, "{pg_catalog," + role + ",public}"}} {
+					rows, err := held.QueryContext(p.ctx, tc.flag)
+					if err != nil {
+						t.Fatal(err)
+					}
+					schemaReferenceRow(t, rows, "current_schemas", "_NAME", tc.want)
+				}
+			}
+		})
+	}
+}
+
+func TestReferenceSearchPathQualifiedRandomProviders(t *testing.T) {
+	p := newReferencePair(t)
+	for _, tc := range []struct {
+		sql, label, typ string
+		want            any
+	}{
+		{"SELECT pg_catalog.random(7,7)", "random", "INT4", int64(7)},
+		{"SELECT pg_catalog.random_normal(7,0)", "random_normal", "FLOAT8", float64(7)},
+		{"SELECT pg_catalog.setseed(0)", "setseed", "VOID", ""},
+	} {
+		s := referenceSelect(tc.sql, []string{tc.label}, []string{tc.typ}, [][]any{{tc.want}})
+		p.step(t, s)
+		p.step(t, referencePrepared(s))
+	}
+	s := referenceErrorDiagnostic("SELECT public.random()", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function public.random() does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
+	p.step(t, s)
+	s = referencePrepared(s)
+	s.errorStage = "prepare"
+	p.step(t, s)
+}
+
+func TestReferenceSearchPathQualifiedMathProviders(t *testing.T) {
+	p := newReferencePair(t)
+	for _, tc := range []struct {
+		name, args, typ, signature string
+		want any
+	}{
+		{"min_scale", "8.4100", "INT4", "numeric", int64(2)},
+		{"scale", "8.4100", "INT4", "numeric", int64(4)},
+		{"trim_scale", "8.4100", "NUMERIC", "numeric", "8.41"},
+		{"round", "1.25,1", "NUMERIC", "numeric, integer", "1.3"},
+		{"trunc", "1.25,1", "NUMERIC", "numeric, integer", "1.2"},
+		{"sign", "-13.000", "NUMERIC", "numeric", "-1"},
+		{"mod", "9,4", "INT4", "integer, integer", int64(1)},
+	} {
+		q := "SELECT pg_catalog."+tc.name+"("+tc.args+")"
+		s := referenceSelect(q, []string{tc.name}, []string{tc.typ}, [][]any{{tc.want}})
+		p.step(t, s)
+		p.step(t, referencePrepared(s))
+		s = referenceErrorDiagnostic("SELECT public."+tc.name+"("+tc.args+")", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function public."+tc.name+"("+tc.signature+") does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
+		p.step(t, s)
+		s = referencePrepared(s)
+		s.errorStage = "prepare"
+		p.step(t, s)
+	}
+}
+
+func TestReferenceSearchPathQualifiedBitwiseProviders(t *testing.T) {
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "bit_path")
+	p.step(t, referenceExec("CREATE SCHEMA bit_path", 0))
+	p.step(t, referenceExec("CREATE TABLE bit_path.t(id INT)", 0))
+	p.step(t, referenceExec("INSERT INTO bit_path.t VALUES(7)", 1))
+	for _, tc := range []struct {
+		expression, typ string
+		want int64
+	}{
+		{"id OPERATOR(pg_catalog.&) 3", "INT4", 3},
+		{"id OPERATOR(pg_catalog.|) 8", "INT4", 15},
+		{"id OPERATOR(pg_catalog.#) 3", "INT4", 4},
+		{"id OPERATOR(pg_catalog.<<) 1", "INT4", 14},
+		{"id OPERATOR(pg_catalog.>>) 1", "INT4", 3},
+		{"OPERATOR(pg_catalog.~) id", "INT4", -8},
+		{"CAST(id OPERATOR(pg_catalog.&) 3 AS pg_catalog.int2)", "INT2", 3},
+	} {
+		s := referenceSelect("SELECT "+tc.expression+" AS v FROM bit_path.t", []string{"v"}, []string{tc.typ}, [][]any{{tc.want}})
+		p.step(t, s)
+		p.step(t, referencePrepared(s))
+	}
+	s := referenceErrorDiagnostic("SELECT id OPERATOR(public.&) 3 FROM bit_path.t", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "operator does not exist: integer public.& integer", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: "11"})
+	p.step(t, s)
+	s = referencePrepared(s)
+	s.errorStage = "prepare"
+	p.step(t, s)
+}

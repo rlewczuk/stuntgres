@@ -29,7 +29,7 @@ func TestRandomBinder(t *testing.T) {
 		{"setseed", []parser.Expr{lit(0)}, sqltype.ID(2278)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			b := newExpressionBinder(context.Background(), New(), sqltype.InputEnvironment{}, nil, nil)
+			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			x, err := b.bind(nullCountRaw(tc.name, tc.args...), expressionPolicy{context: projectionContext})
 			if err != nil {
 				t.Fatal(err)
@@ -42,7 +42,7 @@ func TestRandomBinder(t *testing.T) {
 }
 
 func TestRandomBinderAmbiguousParameters(t *testing.T) {
-	b := newExpressionBinder(context.Background(), New(), sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	_, err := b.bind(nullCountRaw("random", parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}), expressionPolicy{context: projectionContext})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42725", Message: "function random(unknown, unknown) is not unique", Position: "8", Hint: "Could not choose a best candidate function. You might need to add explicit type casts."})
 }
@@ -77,7 +77,7 @@ func TestRandomIntegerSampler(t *testing.T) {
 }
 
 func TestRandomRuntimeNullEvaluatesSibling(t *testing.T) {
-	b := newExpressionBinder(context.Background(), New(), sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	d := b.typ(sqltype.Float8)
 	v, err := sqltype.Float(d, 1)
 	if err != nil {

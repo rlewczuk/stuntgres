@@ -180,7 +180,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate upd
 
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.close()
-	eval := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, sequenceScope: s}
+	eval := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s}
 	// The candidate set is frozen before the first row wait. Rechecks can remove
 	// candidates but never discover rows that did not qualify in this snapshot.
 	var candidates []updateCandidate

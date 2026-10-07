@@ -102,7 +102,6 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 		"SELECT num_nulls(NULL) ORDER BY 1", "SELECT num_nulls(VARIADIC ARRAY[1,NULL])",
 		"SELECT id FROM t WHERE num_nulls(v)", "INSERT INTO t VALUES(num_nulls(NULL))",
 		"SELECT current_setting(num_nulls(NULL))", "SELECT abs(1) FROM t",
-		"SELECT pg_catalog.num_nulls(NULL) FROM t",
 		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
 		"SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
 		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", "SELECT num_nulls(1) OVER () FROM t",

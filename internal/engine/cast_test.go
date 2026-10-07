@@ -17,7 +17,7 @@ func castTarget(t *testing.T, q string) parser.Expr {
 
 func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 	e := New()
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	first, err := b.bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 	if err != nil || accessErr != nil || text != "2" {
 		t.Fatal(got, err, accessErr)
 	}
-	earlierBinder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	earlierBinder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	earlier, err := earlierBinder.bind(castTarget(t, "SELECT $1 FROM t"), expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +57,7 @@ func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 		{"SELECT CAST(NULL::int8 AS bool) FROM t", "42846", "8", false},
 		{"SELECT bool(NULL::int8) FROM t", "42883", "8", false},
 	} {
-		binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		expr, err := binder.bind(castTarget(t, tc.q), expressionPolicy{context: projectionContext})
 		if tc.evaluation {
 			if err != nil {

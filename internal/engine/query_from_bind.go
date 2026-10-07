@@ -304,7 +304,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 				if err != nil {
 					return nil, queryNamespace{}, equalityError(err, le.ResultUsage().Type, re.ResultUsage().Type, pos)
 				}
-				eq := comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, ExprProperties{RowDependent: true}), le, re, predicate, "="}
+				eq := comparisonExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, ExprProperties{RowDependent: true}), le, re, predicate, "=", ""}
 				if join.predicate == nil {
 					join.predicate = eq
 				} else {

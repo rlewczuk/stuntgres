@@ -13,7 +13,7 @@ import (
 
 func TestExpressionCompareNullTypedEval(t *testing.T) {
 	e := New()
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	boolType := b.typ(sqltype.Bool)
 	intType := b.typ(sqltype.Int4)
 	evalContext := &EvalContext{Context: context.Background(), Scope: 1, Frame: 1}
@@ -121,7 +121,7 @@ func TestExpressionCompareNullOccurrenceTyping(t *testing.T) {
 		{q: "SELECT $1 FROM t WHERE v IS DISTINCT FROM $1", code: "42P08", message: "inconsistent types deduced for parameter $1", detail: "integer versus text", position: "8"},
 		{q: "SELECT $1 IS DISTINCT FROM v,$1 IS TRUE FROM t", code: "42804", message: "argument of IS TRUE must be type boolean, not type integer", position: "30"},
 	} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.relation = &relationDescriptor{columns: []ColumnDescriptor{{Name: "v", Usage: b.typ(sqltype.Int4).Usage()}}, index: map[string]int{"v": 0}, attributes: []int32{1}}
 		s := statement(t, tc.q).(*parser.Select)
 		targets := []BoundExpr{}
@@ -233,7 +233,7 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 	e := New()
 	ctx := context.Background()
 	for _, q := range []string{"SELECT NULL IS NULL FROM t", "SELECT TRUE IS NOT FALSE FROM t", "SELECT 1 IS DISTINCT FROM 2 FROM t"} {
-		b := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		node, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(err)
@@ -242,7 +242,7 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 			t.Fatal("constant dependency", node.Properties())
 		}
 	}
-	b := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT $1 IS TRUE FROM t").(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {

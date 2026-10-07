@@ -85,7 +85,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 }
 
 func TestBetweenTemporalCaptureContextKey(t *testing.T) {
-	b := newExpressionBinder(context.Background(), New(), sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	captures := []temporalConstant{
 		{offset: 7, typeID: sqltype.Date, typmod: -1, scalar: 1},
 		{offset: 7, typeID: sqltype.Timestamp, typmod: -1, scalar: 86400000000},

@@ -13,6 +13,21 @@ import (
 func roleDiagnostic(code, message, detail string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
 }
+func (e *Engine) validateIdentityCall(op *Operation, s *parser.IdentitySelect) error {
+	if s.Schema == nil {
+		return nil
+	}
+	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	name := parser.ObjectName{Parts: []parser.Identifier{*s.Schema, {Text: "current_schema", Pos: s.Pos}}}
+	visible, err := b.builtinVisible(name, functionLookup)
+	if err != nil {
+		return err
+	}
+	if !visible {
+		return b.sequenceSignatureError(parser.CallExpr{Name: name})
+	}
+	return nil
+}
 func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -29,6 +44,9 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 	actor, _ := v.roles.Descriptor(v.state.CurrentUser)
 	switch s := stmt.(type) {
 	case *parser.IdentitySelect:
+		if err := e.validateIdentityCall(op, s); err != nil {
+			return Result{}, err
+		}
 		typ, _ := v.catalog.LookupType(sqltype.Name)
 		columns := make([]ColumnDescriptor, len(s.Names))
 		row := make([]sqltype.Value, len(s.Names))

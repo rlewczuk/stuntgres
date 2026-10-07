@@ -47,16 +47,23 @@ func (e nullCountExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 }
 
 func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, error) {
-	if len(raw.Name.Parts) != 1 {
-		return nil, fmt.Errorf("stuntgres: qualified function is unsupported")
+	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
+		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
-	name := raw.Name.Parts[0].Text
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if name == "current_schemas" {
+		return b.bindCurrentSchemas(raw)
+	}
+	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	if err != nil {
+		return nil, err
+	}
 	var kind nullCountKind
 	switch name {
 	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
-		return b.bindMath(raw)
+		return b.bindMath(raw, visible)
 	case "random", "random_normal", "setseed":
-		return b.bindRandom(raw)
+		return b.bindRandom(raw, visible)
 	case "num_nulls":
 		kind = countNulls
 	case "num_nonnulls":
@@ -127,7 +134,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
-	if len(args) == 0 || (raw.Variadic && len(args) != 1) {
+	if !visible || len(args) == 0 || (raw.Variadic && len(args) != 1) {
 		types := make([]string, len(args))
 		for i, arg := range args {
 			types[i] = "unknown"
@@ -138,7 +145,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 				types[i] = arg.ResultUsage().Type.DiagnosticName()
 			}
 		}
-		d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", name, strings.Join(types, ", ")), raw.Pos).(*sqlstate.Error)
+		d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(raw.Name), strings.Join(types, ", ")), raw.Pos).(*sqlstate.Error)
 		d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 		return nil, d
 	}
@@ -148,4 +155,101 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return nil, expressionError("42804", "VARIADIC argument must be an array", raw.Args[len(raw.Args)-1].SourcePosition())
 	}
 	return nullCountExpression{expressionInfo: b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), kind: kind, args: args}, nil
+}
+
+type currentSchemasExpression struct {
+	expressionInfo
+	arg BoundExpr
+}
+
+func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	v, err := e.arg.Eval(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if v.IsNull() {
+		return sqltype.Null(e.usage.Type), nil
+	}
+	implicit, err := v.Boolean()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	scope := c.statementScope
+	if scope == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
+	}
+	if scope.searchPathResults[0].Type() == nil {
+		engine := scope.op.session.Engine()
+		engine.mu.Lock()
+		defer engine.mu.Unlock()
+		auth, err := engine.authorizationLocked(scope.op)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		explicit, _, err := engine.explicitPath(auth)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		effective := engine.effectivePath(auth, explicit, relationLookup)
+		names := make([]string, len(effective))
+		for i, path := range [2][]ObjectAddress{explicit, effective} {
+			for j, a := range path {
+				names[j] = auth.catalog.state.descriptors[a].Name()
+			}
+			scope.searchPathResults[i], err = sqltype.Names(e.usage.Type, names[:len(path)])
+			if err != nil {
+				scope.searchPathResults = [2]sqltype.Value{}
+				return sqltype.Value{}, err
+			}
+		}
+	}
+	if implicit {
+		return scope.searchPathResults[1], nil
+	}
+	return scope.searchPathResults[0], nil
+}
+
+func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (BoundExpr, error) {
+	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	if err != nil {
+		return nil, err
+	}
+	args := make([]BoundExpr, len(raw.Args))
+	for i, rawArg := range raw.Args {
+		args[i], err = b.bind(rawArg, expressionPolicy{context: projectionContext})
+		if err != nil {
+			return nil, err
+		}
+	}
+	missing := func() error {
+		names := make([]string, len(args))
+		for i, arg := range args {
+			names[i] = "unknown"
+			if arg.ResultUsage().Type != nil {
+				names[i] = arg.ResultUsage().Type.DiagnosticName()
+			}
+			if literal, ok := raw.Args[i].(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+				names[i] = "unknown"
+			}
+		}
+		d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(raw.Name), strings.Join(names, ", ")), raw.Pos).(*sqlstate.Error)
+		d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+		return d
+	}
+	if !visible || len(args) != 1 || raw.Variadic {
+		return nil, missing()
+	}
+	arg, err := b.bind(raw.Args[0], expressionPolicy{context: functionArgumentContext, expected: b.typ(sqltype.Bool).Usage(), mode: sqltype.Implicit})
+	if err != nil {
+		if d, ok := err.(*sqlstate.Error); ok && (d.Code == "42804" || d.Code == "42846") {
+			return nil, missing()
+		}
+		return nil, err
+	}
+	typ := b.typ(sqltype.NameArray)
+	p := arg.Properties()
+	if p.Volatility < Stable {
+		p.Volatility = Stable
+	}
+	return currentSchemasExpression{b.info(typ.Usage(), raw.Pos, p), arg}, nil
 }

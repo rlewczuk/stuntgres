@@ -34,10 +34,10 @@ func (x randomExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(x.usage.Type), nil
 		}
 	}
-	if c.sequenceScope == nil || c.sequenceScope.op == nil || c.sequenceScope.op.session == nil {
+	if c.statementScope == nil || c.statementScope.op == nil || c.statementScope.op.session == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing random session scope")
 	}
-	s := &c.sequenceScope.op.session.random
+	s := &c.statementScope.op.session.random
 	if x.name == "setseed" {
 		seed, err := values[0].Float()
 		if err != nil {
@@ -116,16 +116,16 @@ func (b *expressionBinder) randomSignature(raw parser.FunctionExpr, args []Bound
 	if ambiguous {
 		code, ending, hint = "42725", "is not unique", "Could not choose a best candidate function. You might need to add explicit type casts."
 	}
-	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", raw.Name.Parts[0].Text, strings.Join(types, ", "), ending), raw.Pos).(*sqlstate.Error)
+	d := expressionError(code, fmt.Sprintf("function %s(%s) %s", objectNameText(raw.Name), strings.Join(types, ", "), ending), raw.Pos).(*sqlstate.Error)
 	d.Hint = hint
 	return d
 }
 
-func (b *expressionBinder) bindRandom(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	if b.defaultConsumer {
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
-	name := raw.Name.Parts[0].Text
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var args []BoundExpr
 	var unknown []bool
 	if len(raw.Args) <= 100 {
@@ -156,7 +156,7 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr) (BoundExpr, error
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	id := sqltype.Float8
-	valid := !raw.Variadic
+	valid := visible && !raw.Variadic
 	switch name {
 	case "setseed":
 		valid = valid && len(args) == 1

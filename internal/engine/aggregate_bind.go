@@ -23,6 +23,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case groupExpression:
 		o, ok := other.(groupExpression)
 		return ok && e.slot == o.slot
+	case currentSchemasExpression:
+		o, ok := other.(currentSchemasExpression)
+		return ok && same(e.arg, o.arg)
 	case literalExpression:
 		o, ok := other.(literalExpression)
 		if !ok {
@@ -153,6 +156,10 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 	}
 	stage := func(info *expressionInfo) { info.properties.StageDependent = true }
 	switch e := expr.(type) {
+	case currentSchemasExpression:
+		e.arg = rewrite(e.arg)
+		stage(&e.expressionInfo)
+		expr = e
 	case aggregateExpression:
 		return groupExpression{e.expressionInfo, len(keys) + e.slot}, nil
 	case columnExpression:
@@ -264,6 +271,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	}
 	switch e := expr.(type) {
+	case currentSchemasExpression:
+		walk(e.arg)
 	case aggregateExpression:
 		return &e
 	case coercionExpression:

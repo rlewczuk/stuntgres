@@ -26,7 +26,7 @@ func TestLogicalLongBindingPositions(t *testing.T) {
 		}
 		raw := stmts[0].(*parser.Select).Targets[0].(parser.LogicalExpr)
 		operatorPosition := raw.Pos
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(err)

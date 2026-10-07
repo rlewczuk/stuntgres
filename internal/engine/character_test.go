@@ -61,7 +61,7 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 
 func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 	e := New()
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	source := b.typ(sqltype.BPChar).Usage()
 	b.parameters[1] = source
 	raw := statement(t, "SELECT CAST($1 AS text) FROM seed").(*parser.Select).Targets[0]

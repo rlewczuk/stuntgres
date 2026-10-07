@@ -630,7 +630,7 @@ func restoreScalar(raw parser.Expr) error {
 	case parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:
 		return nil
 	case parser.OperatorExpr:
-		if len(r.Name.Parts) != 1 {
+		if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
 			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
 		for _, child := range r.Args {

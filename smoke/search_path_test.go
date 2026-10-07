@@ -1,0 +1,183 @@
+package smoke_test
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"reflect"
+	"strings"
+	"stuntgres"
+	"testing"
+)
+
+func TestSearchPathSmoke(t *testing.T) {
+	ctx := context.Background()
+	connector, err := stuntgres.NewDriver().OpenConnector(t.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := sql.OpenDB(connector)
+	defer db.Close()
+	a, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	b, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	exec := func(c *sql.Conn, q string) {
+		t.Helper()
+		if _, err := c.ExecContext(ctx, q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	value := func(c *sql.Conn, q string, want any) {
+		t.Helper()
+		var got any
+		if err := c.QueryRowContext(ctx, q).Scan(&got); err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s: %#v want %#v: %v", q, got, want, err)
+		}
+	}
+	for _, q := range []string{"CREATE SCHEMA sp1", "CREATE SCHEMA sp2", "CREATE TABLE sp1.t(id pg_catalog.int4)", "CREATE TABLE sp2.t(id INT)", "INSERT INTO sp1.t VALUES(7)", "INSERT INTO sp2.t VALUES(9)", "SET search_path TO missing,sp1,sp1,sp2"} {
+		exec(a, q)
+	}
+	exec(b, "SET search_path TO sp1,sp2")
+	table, err := a.PrepareContext(ctx, "SELECT id FROM t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Close()
+	schemas, err := a.PrepareContext(ctx, "SELECT current_schemas($1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer schemas.Close()
+	read := func(flag any, want any) {
+		t.Helper()
+		rows, err := schemas.QueryContext(ctx, flag)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		types, err := rows.ColumnTypes()
+		if err != nil || len(types) != 1 {
+			t.Fatal(types, err)
+		}
+		if types[0].Name() != "current_schemas" || types[0].DatabaseTypeName() != "_NAME" || types[0].ScanType() != reflect.TypeOf("") {
+			t.Fatal(types)
+		}
+		if !rows.Next() {
+			t.Fatal(rows.Err())
+		}
+		var got any
+		if err := rows.Scan(&got); err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatal(got, want, err)
+		}
+		if rows.Next() || rows.Err() != nil {
+			t.Fatal(rows.Err())
+		}
+	}
+	read(false, "{sp1,sp2}")
+	read(true, "{pg_catalog,sp1,sp2}")
+	read(nil, nil)
+	var id int64
+	if err := table.QueryRowContext(ctx).Scan(&id); err != nil || id != 7 {
+		t.Fatal(id, err)
+	}
+	retained, err := schemas.QueryContext(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec(a, "SET search_path TO sp2,sp1")
+	if !retained.Next() {
+		t.Fatal(retained.Err())
+	}
+	var old string
+	if err := retained.Scan(&old); err != nil || old != "{sp1,sp2}" {
+		t.Fatal(old, err)
+	}
+	retained.Close()
+	read(false, "{sp2,sp1}")
+	if err := table.QueryRowContext(ctx).Scan(&id); err != nil || id != 9 {
+		t.Fatal(id, err)
+	}
+	value(a, "SELECT id FROM sp1.t", int64(7))
+	value(b, "SELECT id FROM t", int64(7))
+	value(b, "SELECT current_schemas(false)", "{sp1,sp2}")
+	for _, tc := range []struct {
+		q    string
+		want any
+	}{
+		{"SELECT pg_catalog.num_nulls(NULL,7)", int64(1)},
+		{"SELECT pg_catalog.current_schemas(false)", "{sp2,sp1}"},
+		{"SELECT pg_catalog.current_setting('search_path')", "sp2, sp1"},
+		{"SELECT CAST(id AS pg_catalog.int4) FROM sp1.t", int64(7)},
+		{"SELECT pg_catalog.int4(id) FROM sp1.t", int64(7)},
+		{"SELECT pg_catalog.count(*) FROM sp1.t", int64(1)},
+		{"SELECT id OPERATOR(pg_catalog.-) 2 + 3 FROM sp1.t", int64(2)},
+		{"SELECT id OPERATOR(pg_catalog.=) 7 FROM sp1.t", true},
+	} {
+		value(a, tc.q, tc.want)
+	}
+	exec(a, "CREATE SEQUENCE sp1.seq")
+	value(a, "SELECT pg_catalog.nextval('sp1.seq')", int64(1))
+	value(a, "SELECT pg_catalog.set_config('search_path','sp1',false)", "sp1")
+	exec(a, "SET search_path TO pg_temp,sp1")
+	read(false, "{sp1}")
+	read(true, "{pg_catalog,sp1}")
+	exec(a, "CREATE TEMP SEQUENCE temp_seq")
+	var temp string
+	if err := a.QueryRowContext(ctx, "SELECT current_schema()").Scan(&temp); err != nil || !strings.HasPrefix(temp, "pg_temp_") {
+		t.Fatal(temp, err)
+	}
+	exec(a, "SET search_path TO sp1,pg_temp,pg_temp")
+	read(false, "{sp1,"+temp+"}")
+	read(true, "{pg_catalog,sp1,"+temp+"}")
+	value(a, "SELECT pg_catalog.num_nulls(NULL)", int64(1))
+	exec(a, `CREATE SCHEMA "path,comma"`)
+	exec(a, `SET search_path TO "path,comma"`)
+	read(false, `{"path,comma"}`)
+	exec(a, "SET search_path TO sp2")
+	_, err = a.ExecContext(ctx, "SELECT set_config('search_path','sp1,',false)")
+	if err := settingsFullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: `invalid value for parameter "search_path": "sp1,"`, Detail: "List syntax is invalid."}); err != nil {
+		t.Fatal(err)
+	}
+	read(false, "{sp2}")
+	exec(a, "SET search_path TO missing,sp2,sp1")
+	exec(a, "CREATE TABLE created(id INT)")
+	exec(a, "CREATE TABLE sp1.defaults(id INT DEFAULT (7 OPERATOR(pg_catalog.+) 1))")
+	exec(a, "INSERT INTO sp1.defaults DEFAULT VALUES")
+	exec(a, "CREATE VIEW sp1.v AS SELECT id OPERATOR(pg_catalog.+) 1 AS n FROM sp1.t")
+	value(a, "SELECT n FROM sp1.v", int64(8))
+	exec(a, "CREATE VIEW sp1.math_path AS SELECT pg_catalog.round(1.25,1) AS n FROM sp1.t")
+	value(a, "SELECT n FROM sp1.math_path", "1.3")
+	exec(a, "CREATE VIEW sp1.paths AS SELECT pg_catalog.current_schemas(false) AS paths FROM sp1.t")
+	value(a, "SELECT paths FROM sp1.paths", "{sp2,sp1}")
+	exec(a, "SET search_path TO sp1")
+	value(a, "SELECT paths FROM sp1.paths", "{sp1}")
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(dump.String(), "SET search_path") {
+		t.Fatal("dump serialized session path")
+	}
+	exec(a, "SET search_path TO sp2,sp1")
+	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	value(a, "SELECT id FROM sp1.t", int64(7))
+	value(a, "SELECT id FROM sp2.t", int64(9))
+	value(a, "SELECT id FROM sp1.defaults", int64(8))
+	value(a, "SELECT n FROM sp1.v", int64(8))
+	value(a, "SELECT n FROM sp1.math_path", "1.3")
+	read(false, "{sp2,sp1}")
+	value(a, "SELECT paths FROM sp1.paths", "{sp2,sp1}")
+	if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE broken(")); err == nil {
+		t.Fatal("invalid restore succeeded")
+	}
+	value(a, "SELECT id FROM sp1.t", int64(7))
+}

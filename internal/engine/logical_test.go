@@ -25,7 +25,7 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 		{1, 0, False, True, True}, {1, 1, False, False, True}, {1, 2, False, Unknown, True},
 		{2, 0, Unknown, True, Unknown}, {2, 1, False, Unknown, Unknown}, {2, 2, Unknown, Unknown, Unknown},
 	}
-	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	rawParam := func(n int) parser.Expr {
 		return parser.ParameterExpr{Number: n, Pos: parser.Position{Character: n + 7}}
 	}
@@ -100,7 +100,7 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 	for _, op := range []parser.LogicalOperator{parser.LogicalAnd, parser.LogicalOr, parser.LogicalNot} {
 		construct := map[parser.LogicalOperator]string{parser.LogicalAnd: "AND", parser.LogicalOr: "OR", parser.LogicalNot: "NOT"}[op]
 		for _, exprContext := range []expressionContext{projectionContext, filterContext} {
-			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := parser.LogicalExpr{Op: op, Left: literal(parser.IntegerValue), Pos: parser.Position{Character: 8}}
 			if op != parser.LogicalNot {
 				raw.Right = literal(parser.BooleanValue)
@@ -119,12 +119,12 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 		{Op: parser.LogicalOperator(99), Left: literal(parser.BooleanValue)},
 		{Op: parser.LogicalNot},
 	} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil {
 			t.Fatal("invalid raw logical node", raw)
 		}
 	}
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	_, err := b.bind(parser.ParameterExpr{Number: 1, Pos: pos}, expressionPolicy{context: projectionContext, expected: b.typ(sqltype.Int4).Usage()})
 	if err != nil {
 		t.Fatal(err)

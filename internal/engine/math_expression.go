@@ -59,10 +59,11 @@ func mathSignatures(name string) []mathSignature {
 	return nil
 }
 
-func (b *expressionBinder) bindMath(raw parser.FunctionExpr) (BoundExpr, error) {
+func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	if b.defaultConsumer {
 		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
+	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	var args []BoundExpr
 	var unknown []bool
 	if len(raw.Args) <= 100 {
@@ -89,14 +90,17 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr) (BoundExpr, error) 
 	if len(raw.Args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
+	if !visible {
+		return nil, b.randomSignature(raw, args, unknown, false)
+	}
 	// Released trunc also has nonnumeric overloads in other categories. An
 	// unknown unary argument cannot select the bounded numeric repertoire.
-	if raw.Name.Parts[0].Text == "trunc" && len(args) == 1 && unknown[0] && !raw.Variadic {
+	if name == "trunc" && len(args) == 1 && unknown[0] && !raw.Variadic {
 		return nil, b.randomSignature(raw, args, unknown, true)
 	}
 	var candidates []mathSignature
 	bestExact, bestPreferred := -1, -1
-	for _, s := range mathSignatures(raw.Name.Parts[0].Text) {
+	for _, s := range mathSignatures(name) {
 		if raw.Variadic || s.arity != len(args) {
 			continue
 		}
@@ -208,7 +212,7 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr) (BoundExpr, error) 
 		properties.StageDependent = properties.StageDependent || p.StageDependent
 	}
 	u := b.typ(s.result).Usage()
-	plan, err := sqltype.BindMath(raw.Name.Parts[0].Text, u, usages[:s.arity]...)
+	plan, err := sqltype.BindMath(name, u, usages[:s.arity]...)
 	if err != nil {
 		return nil, err
 	}

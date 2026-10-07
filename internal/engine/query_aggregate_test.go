@@ -292,7 +292,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	defer source.close()
 	node := query.Root.(*projectNode).child.(*aggregateNode)
 	key := node.keys[0].(arithmeticExpression)
-	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	equivalent := key
 	equivalent.pos.Character = 999
 	column := key.left.(columnExpression)

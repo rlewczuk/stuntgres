@@ -159,6 +159,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(mathExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(currentSchemasExpression); ok && len(r.Args) == 1 {
+			return child(r.Args[0], n.arg)
+		}
 		if n, ok := bound.(nullCountExpression); ok {
 			return children(r.Args, n.args)
 		}

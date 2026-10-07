@@ -138,6 +138,9 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			return "", fmt.Errorf("stuntgres: invalid default bitwise binding")
 		}
 		operator := [...]string{"&", "|", "#", "~", "<<", ">>"}[n.operator]
+		if n.namespace != "" {
+			operator = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + operator + ")"
+		}
 		operandSQL := func(child BoundExpr) (string, error) {
 			text, err := defaultSQL(ctx, view, child)
 			if err != nil {
@@ -187,6 +190,9 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			operator = "%"
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default arithmetic operator")
+		}
+		if n.namespace != "" {
+			operator = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + operator + ")"
 		}
 		operandSQL := func(child BoundExpr) (string, error) {
 			text, err := defaultSQL(ctx, view, child)
@@ -249,7 +255,11 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		if err != nil {
 			return "", err
 		}
-		return "(" + left + " " + n.operator + " " + right + ")", nil
+		spelling := n.operator
+		if n.namespace != "" {
+			spelling = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + spelling + ")"
+		}
+		return "(" + left + " " + spelling + " " + right + ")", nil
 	case nullTestExpression:
 		if u.Type.ID() != sqltype.Bool || n.child == nil {
 			return "", fmt.Errorf("stuntgres: invalid default null test")
@@ -390,6 +400,10 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 		n.expressionInfo = info
 		rebound = n
 	case cachedOrderExpression:
+		n.expressionInfo = info
+		rebound = n
+	case currentSchemasExpression:
+		n.arg = child(n.arg)
 		n.expressionInfo = info
 		rebound = n
 	case sequenceCallExpression:

@@ -131,6 +131,12 @@ func testExport(v sqltype.Value) driver.Value {
 		return nil
 	}
 	switch v.Type().ID() {
+	case sqltype.NameArray:
+		s, err := v.NamesOutput()
+		if err != nil {
+			panic(err)
+		}
+		return s
 	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
 		n, err := v.Integer()
 		if err != nil {

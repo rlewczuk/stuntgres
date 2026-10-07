@@ -50,28 +50,36 @@ func (b *expressionBinder) sequenceSignatureError(r parser.CallExpr) error {
 			}
 		}
 	}
-	diagnostic := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", r.Name.Text, strings.Join(names, ", ")), r.Name.Pos).(*sqlstate.Error)
+	diagnostic := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(r.Name), strings.Join(names, ", ")), r.SourcePosition()).(*sqlstate.Error)
 	diagnostic.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	return diagnostic
 }
 func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error) {
 	if b.defaultConsumer {
-		return nil, expressionError("0A000", "functions are unsupported", r.Name.Pos)
+		return nil, expressionError("0A000", "functions are unsupported", r.SourcePosition())
+	}
+	name := r.Name.Parts[len(r.Name.Parts)-1].Text
+	visible, err := b.builtinVisible(r.Name, functionLookup)
+	if err != nil {
+		return nil, err
+	}
+	if !visible {
+		return nil, b.sequenceSignatureError(r)
 	}
 	count := len(r.Args)
 	want := 1
-	if r.Name.Text == "lastval" {
+	if name == "lastval" {
 		want = 0
 	}
-	if r.Name.Text == "setval" {
+	if name == "setval" {
 		want = 2
 	}
-	if count != want && !(r.Name.Text == "setval" && count == 3) {
+	if count != want && !(name == "setval" && count == 3) {
 		return nil, b.sequenceSignatureError(r)
 	}
 	args := make([]BoundExpr, count)
 	properties := ExprProperties{Volatility: Stable}
-	if r.Name.Text == "nextval" || r.Name.Text == "setval" {
+	if name == "nextval" || name == "setval" {
 		properties.Volatility = Volatile
 	}
 	var ref ObjectRef
@@ -112,10 +120,10 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 			// input even when another input is volatile. Keep analysis captures
 			// and parameter types, but never evaluate the eliminated argument tree.
 			typ := b.typ(sqltype.Int8)
-			return literalExpression{b.info(typ.Usage(), r.Name.Pos, ExprProperties{}), sqltype.Null(typ)}, nil
+			return literalExpression{b.info(typ.Usage(), r.SourcePosition(), ExprProperties{}), sqltype.Null(typ)}, nil
 		}
 	}
-	return sequenceCallExpression{expressionInfo: b.info(b.typ(sqltype.Int8).Usage(), r.Name.Pos, properties), name: r.Name.Text, args: args, ref: ref, temporary: temporary}, nil
+	return sequenceCallExpression{expressionInfo: b.info(b.typ(sqltype.Int8).Usage(), r.SourcePosition(), properties), name: name, args: args, ref: ref, temporary: temporary}, nil
 }
 func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, error) {
 	if b.defaultConsumer {
@@ -217,7 +225,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.sequenceScope == nil {
+	if c.statementScope == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: sequence call lacks statement authority")
 	}
 	var values [3]sqltype.Value
@@ -233,7 +241,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(x.usage.Type), nil
 		}
 	}
-	scope := c.sequenceScope
+	scope := c.statementScope
 	e := scope.op.session.Engine()
 	ref := x.ref
 	if x.name != "lastval" && ref.owner == nil {

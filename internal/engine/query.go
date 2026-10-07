@@ -442,7 +442,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
 		rows := make([][]sqltype.Value, len(n.rows))
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, sequenceScope: state.source.scope}
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope}
 		for i, expressions := range n.rows {
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
@@ -496,7 +496,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return indexedStage{}, err
 		}
 		selection := make([]int, 0, child.count())
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, sequenceScope: state.source.scope}
+		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope}
 		for i := range child.count() {
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
@@ -532,7 +532,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			child.cacheWidth = n.cacheWidth
 			child.orderValues = make([]sqltype.Value, child.count()*n.cacheWidth)
 			child.permutation = make([]int, child.count())
-			evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, sequenceScope: state.source.scope}
+			evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope}
 			for i := range child.count() {
 				child.permutation[i] = i
 				evaluation.Row = child.source.row(child.selection[i])
@@ -609,7 +609,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		child.schema = n.Schema()
 		child.expressions = n.expressions
-		child.evaluation = EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, sequenceScope: state.source.scope}
+		child.evaluation = EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope}
 		return child, nil
 	default:
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid logical query node")

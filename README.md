@@ -18,6 +18,21 @@ Prepared executions freshly bind every source, and eager results survive native
 Reset/Restore. See [join semantics and limits](docs/QUERIES.md#inner-and-cross-joins--change-note).
 Public feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
 
+Schema search paths are physical-session settings: missing/inaccessible entries
+are ignored, `$user` follows the current role, qualification ignores the path,
+and creation selects the first usable explicit schema without CREATE-denial
+fallback. The common namespace resolver routes relations, types and supported
+builtin functions/operators; `pg_catalog` qualification and
+`OPERATOR(pg_catalog.+)` preserve their provider boundaries.
+Existing `min_scale`, `round`, `scale`, `trim_scale`, `trunc`, `sign` and `mod`
+providers use the same namespace checks while retaining their numeric overloads.
+`SELECT current_schemas(false)` returns a genuine result-only NAME[] (`_NAME`)
+as a native string, or NULL for a NULL boolean argument. General arrays and
+SQL type/function/operator DDL remain excluded. TEMP remains sequence-only;
+introspection does not allocate an absent temporary namespace.
+Feature smoke: `make smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
+
+
 Persistent `CREATE VIEW` definitions use the ordinary typed SELECT pipeline,
 including admitted joins, repeated self-join occurrences, nested views, explicit
 output names and `security_invoker` / `security_barrier` options. Every source
@@ -55,6 +70,8 @@ Integral bitwise `&`, `|`, `#`, unary `~`, `<<` and `>>` support SMALLINT,
 INTEGER and BIGINT in existing scalar consumers, including replayable defaults
 and views. Width, signed results, typed NULL and prepared parameter inference
 are preserved; shifts use an INTEGER count. See [integral bitwise operators](docs/TYPES.md#integral-bitwise-operators).
+Catalog-qualified OPERATOR spellings use the same provider and namespace checks,
+including canonical defaults and view replay.
 Public feature smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
 
 Scalar comparison types also support inclusive `BETWEEN`/`NOT BETWEEN` and

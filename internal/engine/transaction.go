@@ -238,6 +238,7 @@ type StatementScope struct {
 	input              sqltype.InputEnvironment
 	output             sqltype.OutputEnvironment
 	sequences          *sequenceChanges
+	searchPathResults  [2]sqltype.Value
 }
 
 type WriteStage struct {

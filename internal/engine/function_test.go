@@ -29,7 +29,7 @@ func nullCountUnitDiagnostic(t *testing.T, err error, want sqlstate.Error) {
 func TestNullCountResolver(t *testing.T) {
 	e := New()
 	for _, name := range []string{"num_nulls", "num_nonnulls"} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		_, err := b.bind(nullCountRaw(name), expressionPolicy{context: projectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42883", Message: "function " + name + "() does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
 		args := make([]parser.Expr, 100)
@@ -58,7 +58,7 @@ func TestNullCountResolver(t *testing.T) {
 		_, err = b.bind(nullCountRaw(name, args...), expressionPolicy{context: projectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"})
 	}
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	arg := parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue, Pos: parser.Position{Character: 27}}}
 	raw := nullCountRaw("num_nulls", arg)
 	raw.Variadic = true
@@ -75,7 +75,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 	e := New()
 	ctx := context.Background()
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Bool} {
-		b := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		parameter := parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 18}}
 		bound, err := b.bind(nullCountRaw("num_nulls", parameter), expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -95,7 +95,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 		_, err = b.finish()
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P08", Message: "could not determine data type of parameter $1", Position: "18"})
 		// A concrete type known before call transformation is usable unchanged.
-		known := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+		known := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		if err := known.constrain(1, known.typ(id).Usage(), parameter.Pos); err != nil {
 			t.Fatal(err)
 		}
@@ -112,7 +112,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 			t.Fatal(v, err)
 		}
 	}
-	b := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	_, err := b.bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 2147483647}), expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func (w nullCountWitness) Eval(c *EvalContext) (sqltype.Value, error) {
 func TestNullCountTypedEvaluation(t *testing.T) {
 	e := New()
 	ctx := context.Background()
-	b := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	var args []BoundExpr
 	for _, tc := range []struct {
 		id    sqltype.ID

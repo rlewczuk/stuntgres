@@ -25,7 +25,7 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 		{"timestamp", sqltype.Int4, "2003-07-07", "integer", "timestamp without time zone"},
 	} {
 		t.Run(tc.source+"/"+tc.destination, func(t *testing.T) {
-			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			d, ok := e.CatalogRead().LookupType(tc.target)
 			if !ok {
 				t.Fatal("missing target")

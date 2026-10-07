@@ -25,7 +25,7 @@ func TestBetweenGroupedDefaultSerialization(t *testing.T) {
 	} {
 		t.Run(tc.expression, func(t *testing.T) {
 			e := New()
-			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			column := ColumnDescriptor{Name: "b", Usage: b.typ(sqltype.Bool).Usage()}
 			parseDefault := func(expression string) parser.Expr {
 				t.Helper()

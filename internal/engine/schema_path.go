@@ -101,17 +101,19 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, er
 			}
 			name = d.Name
 		}
+		var a ObjectAddress
 		if name == "pg_temp" {
-			if a := temporaryNamespace(auth); a != (ObjectAddress{}) {
-				result = append(result, a)
+			a = temporaryNamespace(auth)
+			if a == (ObjectAddress{}) {
+				if len(result) == 0 {
+					pendingTemp = true
+				}
 				continue
 			}
-			if len(result) == 0 {
-				pendingTemp = true
-			}
-			continue
+		} else {
+			a = auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
 		}
-		a, ok := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name}]
+		_, ok := auth.catalog.state.descriptors[a]
 		if !ok {
 			continue
 		}
@@ -139,10 +141,36 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ObjectAddress, bool, er
 	}
 	return result, pendingTemp, nil
 }
+
+type lookupKind uint8
+
+const (
+	relationLookup lookupKind = iota
+	typeLookup
+	functionLookup
+	operatorLookup
+)
+
 func (e *Engine) referencePath(auth AuthorizationView) ([]ObjectAddress, error) {
+	return e.lookupPath(auth, relationLookup)
+}
+func (e *Engine) lookupPath(auth AuthorizationView, kind lookupKind) ([]ObjectAddress, error) {
 	path, _, err := e.explicitPath(auth)
 	if err != nil {
 		return nil, err
+	}
+	return e.effectivePath(auth, path, kind), nil
+}
+func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kind lookupKind) []ObjectAddress {
+	if kind == functionLookup || kind == operatorLookup {
+		filtered := path[:0]
+		for _, a := range path {
+			ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
+			if ns.temporary == (SessionToken{}) {
+				filtered = append(filtered, a)
+			}
+		}
+		path = filtered
 	}
 	catalog := ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 	foundCatalog := false
@@ -155,7 +183,7 @@ func (e *Engine) referencePath(auth AuthorizationView) ([]ObjectAddress, error) 
 	if !foundCatalog {
 		path = append([]ObjectAddress{catalog}, path...)
 	}
-	if temp := temporaryNamespace(auth); temp != (ObjectAddress{}) {
+	if temp := temporaryNamespace(auth); temp != (ObjectAddress{}) && (kind == relationLookup || kind == typeLookup) {
 		found := false
 		for _, a := range path {
 			if a == temp {
@@ -166,7 +194,81 @@ func (e *Engine) referencePath(auth AuthorizationView) ([]ObjectAddress, error) 
 			path = append([]ObjectAddress{temp}, path...)
 		}
 	}
-	return path, nil
+	return path
+}
+
+// Qualified lookup carries its one address inline, without a singleton slice.
+type namespaceSelection struct {
+	path      []ObjectAddress
+	qualified ObjectAddress
+}
+
+func (p namespaceSelection) count() int {
+	if p.qualified != (ObjectAddress{}) {
+		return 1
+	}
+	return len(p.path)
+}
+func (p namespaceSelection) at(i int) ObjectAddress {
+	if p.qualified != (ObjectAddress{}) {
+		return p.qualified
+	}
+	return p.path[i]
+}
+
+// lookupNamespaces is the shared qualified/unqualified namespace authority.
+// Relations retain missing-object diagnostics; other named providers diagnose
+// a missing explicit namespace before considering signatures or type names.
+func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
+	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
+		return namespaceSelection{}, err
+	}
+	if len(name.Parts) == 1 {
+		path, err := e.lookupPath(auth, kind)
+		return namespaceSelection{path: path}, err
+	}
+	if len(name.Parts) != 2 {
+		return namespaceSelection{}, fmt.Errorf("stuntgres: invalid object name")
+	}
+	n := name.Parts[0]
+	a := auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: n.Text}]
+	if n.Text == "pg_temp" {
+		a = temporaryNamespace(auth)
+	}
+	if a == (ObjectAddress{}) {
+		if kind != relationLookup {
+			return namespaceSelection{}, expressionError("3F000", fmt.Sprintf(`schema "%s" does not exist`, n.Text), n.Pos)
+		}
+		return namespaceSelection{}, nil
+	}
+	ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)
+	if ns.temporary != (SessionToken{}) && (auth.session == nil || ns.temporary != auth.session.token) {
+		if kind == relationLookup {
+			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.name))
+		}
+		return namespaceSelection{}, expressionError("42501", fmt.Sprintf("permission denied for schema %s", ns.name), n.Pos)
+	}
+	if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: a}); err != nil {
+		return namespaceSelection{}, inputErrorAt(err, n.Pos)
+	}
+	return namespaceSelection{qualified: a}, nil
+}
+
+func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKind) (bool, error) {
+	auth, err := b.engine.authorizationLocked(b.op)
+	if err != nil {
+		return false, err
+	}
+	path, err := b.engine.lookupNamespaces(auth, name, kind)
+	if err != nil {
+		return false, err
+	}
+	for i := range path.count() {
+		if path.at(i).ObjectID == PGCatalogNamespaceOID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectName) (ObjectRef, error) {
 	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {

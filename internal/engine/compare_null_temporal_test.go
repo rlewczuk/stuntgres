@@ -14,7 +14,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 	first := sqltype.InputEnvironment{TransactionStart: time.Date(2024, 12, 31, 12, 34, 56, 0, time.UTC)}
 	for _, q := range []string{"SELECT 'now' IS DISTINCT FROM TIMESTAMP 'now' FROM t", "SELECT TIMESTAMP 'now' IS NOT DISTINCT FROM 'now' FROM t", "SELECT 'now' IS DISTINCT FROM TIME 'now' FROM t"} {
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		b := newExpressionBinder(ctx, e, first, nil, nil)
+		b := newTestExpressionBinder(t, ctx, e, first, nil)
 		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(err)
@@ -33,7 +33,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		}
 		description := StatementDescription{temporals: b.temporals}
 		later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(25 * time.Hour)}
-		rebound := newExpressionBinder(ctx, e, later, nil, &description)
+		rebound := newTestExpressionBinder(t, ctx, e, later, &description)
 		bound, err = rebound.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(err)

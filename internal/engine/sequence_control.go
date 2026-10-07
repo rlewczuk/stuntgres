@@ -355,7 +355,7 @@ func restoreSequenceState(s *parser.Select) bool {
 		}
 	}
 	call, ok := s.Targets[0].(parser.CallExpr)
-	if !ok || call.Name.Text != "setval" || len(call.Args) != 3 {
+	if !ok || len(call.Name.Parts) != 1 || call.Name.Parts[0].Text != "setval" || len(call.Args) != 3 {
 		return false
 	}
 	for _, a := range call.Args {

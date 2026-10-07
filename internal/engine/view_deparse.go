@@ -162,6 +162,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		left = viewComparisonOperandSQL(e.Args[0], left)
 		op := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if len(e.Name.Parts) == 2 {
+			op = "OPERATOR(" + quoteIdentifier(e.Name.Parts[0].Text) + "." + op + ")"
+		}
 		if len(e.Args) == 1 {
 			return "(" + op + " " + left + ")", nil
 		}
@@ -204,7 +207,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		return text + ")", nil
 	case parser.AggregateExpr:
-		return e.Name + "(*)", nil
+		name := e.Name
+		if e.Schema != nil {
+			name = quoteIdentifier(e.Schema.Text) + "." + quoteIdentifier(e.Name)
+		}
+		return name + "(*)", nil
 	case parser.ConditionalExpr:
 		text, err := args(e.Args)
 		return e.Kind.String() + "(" + text + ")", err
@@ -241,7 +248,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return objectNameText(e.Name) + "(" + text + ")", err
 	case parser.CallExpr:
 		text, err := args(e.Args)
-		return e.Name.Text + "(" + text + ")", err
+		return objectNameText(e.Name) + "(" + text + ")", err
 	case parser.RegclassExpr:
 		text, err := child(e.Child)
 		return "CAST(" + text + " AS regclass)", err
@@ -268,6 +275,9 @@ func syntaxTypeSQL(t parser.TypeName) string {
 	name := t.Name
 	if t.Quoted {
 		name = quoteIdentifier(name)
+	}
+	if t.Schema != nil {
+		name = quoteIdentifier(t.Schema.Text) + "." + quoteIdentifier(t.Name)
 	}
 	if len(t.Modifiers) > 0 {
 		parts := make([]string, len(t.Modifiers))

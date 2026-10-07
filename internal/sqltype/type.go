@@ -28,6 +28,7 @@ const (
 	Float4    ID = 700
 	Float8    ID = 701
 	Unknown   ID = 705
+	NameArray ID = 1003
 	BPChar    ID = 1042
 	VarChar   ID = 1043
 	Date      ID = 1082
@@ -94,7 +95,7 @@ func (d *Descriptor) Usage() Usage {
 	u := Usage{Type: d, Typmod: -1}
 	if IsCharacter(d.id) {
 		u.Collation = CollationRef{ID: 100, Derivation: Default}
-	} else if d.id == Name {
+	} else if d.id == Name || d.id == NameArray {
 		u.Collation = CollationRef{ID: 950, Derivation: Default}
 	}
 	return u
@@ -107,6 +108,7 @@ func Builtins() []*Descriptor {
 		{Bytea, "bytea", "BYTEA", "BYTEA"},
 		{Char, "char", "\"char\"", "CHAR"},
 		{Name, "name", "NAME", "NAME"},
+		{NameArray, "_name", "NAME[]", "_NAME"},
 		{Int8, "int8", "BIGINT", "INT8"},
 		{Int2, "int2", "SMALLINT", "INT2"},
 		{Int4, "int4", "INTEGER", "INT4"},
@@ -209,6 +211,48 @@ func String(d *Descriptor, s string) Value {
 		}
 	}
 	return v
+}
+
+// Names constructs only a result NAME[] datum, never a generic array input.
+func Names(d *Descriptor, names []string) (Value, error) {
+	if d == nil || d.id != NameArray {
+		return Value{}, fmt.Errorf("invalid NAME[] descriptor")
+	}
+	var out strings.Builder
+	out.WriteByte('{')
+	for i, name := range names {
+		if err := validateCharacterInput(name); err != nil {
+			return Value{}, err
+		}
+		if len(name) > 63 {
+			return Value{}, fmt.Errorf("invalid NAME[] element")
+		}
+		if i != 0 {
+			out.WriteByte(',')
+		}
+		quoted := name == "" || strings.EqualFold(name, "NULL") || strings.ContainsAny(name, " ,{}\"\\\t\n\r\f\v")
+		if quoted {
+			out.WriteByte('"')
+		}
+		for _, c := range name {
+			if c == '"' || c == '\\' {
+				out.WriteByte('\\')
+			}
+			out.WriteRune(c)
+		}
+		if quoted {
+			out.WriteByte('"')
+		}
+	}
+	out.WriteByte('}')
+	return Value{typ: d, text: out.String()}, nil
+}
+
+func (v Value) NamesOutput() (string, error) {
+	if v.null || v.typ == nil || v.typ.id != NameArray {
+		return "", fmt.Errorf("not a NAME[] value")
+	}
+	return v.text, nil
 }
 func (v Value) Integer() (int64, error) {
 	if v.null || v.typ == nil || (v.typ.id != Int2 && v.typ.id != Int4 && v.typ.id != Int8) {
@@ -463,7 +507,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return fmt.Sprintf("\\%03o", v.text[0]), nil
 		}
 		return v.text, nil
-	case Text, BPChar, VarChar, Name, Regclass:
+	case Text, BPChar, VarChar, Name, Regclass, NameArray:
 		return v.text, nil
 	case Bool:
 		if v.boolean {

@@ -274,7 +274,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	expressions := b.expressions
 	expressionsChanged := false
-	evaluation := EvalContext{Context: ctx, Parameters: canonical, sequenceScope: scope}
+	evaluation := EvalContext{Context: ctx, Parameters: canonical, statementScope: scope}
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)

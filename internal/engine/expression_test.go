@@ -127,7 +127,7 @@ func TestExpressionScalarBehaviorAndSparseDiagnostics(t *testing.T) {
 		}
 		r.Rows.Close()
 	}
-	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	_, err := binder.bind(parser.ParameterExpr{Number: 2147483647, Pos: parser.Position{Character: 8}}, expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestExpressionScalarBehaviorAndSparseDiagnostics(t *testing.T) {
 func TestExpressionOccurrenceSensitiveFallback(t *testing.T) {
 	e := New()
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Bool, sqltype.Text} {
-		b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}
 		target, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {

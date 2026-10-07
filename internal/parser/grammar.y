@@ -64,6 +64,7 @@ package parser
 %token <tok> DOT_DOT
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
 %token <tok> SYMBOLIC_OPERATOR
+%token <tok> OPERATOR
 %token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> HAVING
@@ -93,7 +94,7 @@ package parser
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
 %nonassoc BETWEEN NOT
-%left SYMBOLIC_OPERATOR
+%left SYMBOLIC_OPERATOR OPERATOR
 %left '+' '-'
 %left '*' '/' '%'
 %right UNARY
@@ -136,6 +137,8 @@ package parser
 %type <likeOption> like_option
 %type <tok> like_option_name
 %type <objectNames> relation_names
+%type <objectName> qualified_operator
+%type <tok> operator_symbol
 %type <dropMode> drop_mode
 %type <typ> type temporal_type generic_precision generic_modifiers type_modifier_head date_literal_precision
 %type <constraints> nullability column_constraints
@@ -439,12 +442,13 @@ type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeN
  | type_modifier_head generic_modifiers ')' { if sqllex.(*lexer).floatPrecision { $$=$2;$$.Pos=$1.Pos;sqllex.(*lexer).floatPrecision=false } else { $$=$1;$$.Modifiers=$2.Modifiers };sqllex.(*lexer).characterPrecision=false;sqllex.(*lexer).characterGeneric=false }
  | type_name type_name %prec TYPE_NAME { if $1.keyword!=nil && $2.keyword!=nil && ($1.text=="double" && $2.text=="precision" || $1.text=="character" && $2.text=="varying") { $$=TypeName{Name:$1.text+" "+$2.text,Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
- | type_name '.' { sqllex.(*lexer).failAt("0A000","qualified types are unsupported",$1.pos.Offset); return 1 } ;
+ | type_name '.' col_label { $$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos} } ;
 /* Descriptor modifiers share raw constant syntax; FLOAT and temporal types retain
  * their distinct unsigned/single precision contracts. */
 type_modifier_head: type_name '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2);if !ok{return 1}}
  | TEXT '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2);if !ok{return 1}}
- | type_name type_name '(' {if $1.keyword==nil || $2.keyword==nil || $1.text!="character" || $2.text!="varying" {sqllex.(*lexer).syntax($2);return 1};tok:=$1;tok.text="character varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3);if !ok{return 1}} ;
+ | type_name type_name '(' {if $1.keyword==nil || $2.keyword==nil || $1.text!="character" || $2.text!="varying" {sqllex.(*lexer).syntax($2);return 1};tok:=$1;tok.text="character varying";var ok bool;$$,ok=typeModifierHead(sqllex,tok,$3);if !ok{return 1}}
+ | type_name '.' col_label '(' {tok:=$3;tok.raw="\""+$3.text+"\"";tok.keyword=nil;var ok bool;$$,ok=typeModifierHead(sqllex,tok,$4);if !ok{return 1};$$.Name=$3.text;$$.Quoted=columnType($3).Quoted;$$.Schema=&Identifier{Text:$1.text,Pos:$1.pos};$$.Pos=$1.pos} ;
 generic_modifiers: generic_precision { $$=$1 }
  | generic_modifiers ',' {if !sqllex.(*lexer).multipleModifiers {sqllex.(*lexer).syntax($2);return 1}} generic_precision {$$=$1;$$.Modifiers=append($$.Modifiers,$4.Modifiers...) } ;
 /* Keep keyword tokens in these productions: a temporal_keyword reduction would
@@ -562,9 +566,11 @@ insert_value: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$=$1 }
 insert_values: insert_value { $$=[]Expr{$1} } | insert_values ',' insert_value { $$=append($1,$3) } ;
 scalar: scalar_atom { $$=$1 }
  | '(' scalar ')' { $$=groupedQualification($2) }
- | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
- | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && len($3.Modifiers)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
+ | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
+ | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
  | cast_function scalar ')' { if $1.text=="count" {sqllex.(*lexer).failAt("0A000","count arguments are unsupported",$1.pos.Offset);return 1}; $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
+ | name '.' name '(' scalar ')' { $$=CastExpr{Child:$5,TypeName:TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos},Syntax:FunctionCast,Callee:$3.text,Pos:$1.pos} }
+ | name '.' name '(' '*' ')' { if $3.text!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$3.text,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Star:true,Pos:$1.pos} }
  | cast_function '*' ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1}; $$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
  | cast_function ')' { sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1 }
  | cast_function DISTINCT scalar ')' { sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.pos.Offset);return 1 }
@@ -581,7 +587,9 @@ scalar: scalar_atom { $$=$1 }
  | scalar '*' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar '/' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar '%' scalar { $$=arithmeticExpr($2,$1,$3) }
- | scalar SYMBOLIC_OPERATOR scalar { $$=arithmeticExpr($2,$1,$3) } ;
+ | scalar SYMBOLIC_OPERATOR scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
+ | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
  | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
@@ -592,7 +600,8 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | name '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
  | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} }
  | conditional { $$=$1 }
- | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:Identifier{Text:$1.text,Pos:$1.pos},Args:$3} } ;
+ | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
+ | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} } ;
 conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$3,Else:$4,Pos:$1.pos} }
  | COALESCE '(' conditional_args ')' { $$=ConditionalExpr{Kind:Coalesce,Args:$3,Pos:$1.pos} }
  | GREATEST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Greatest,Args:$3,Pos:$1.pos} }
@@ -629,13 +638,16 @@ select: SELECT projection FROM from_list where group having order { $2.From=$4; 
  | SELECT projection { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | SELECT projection FROM from_list where group having order suffix { if $9.keyword!=nil && $9.keyword.token==ON {if _,table:=$4.(*TableReference);!table {sqllex.(*lexer).syntax($9);return 1}};sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
- | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } } ;
+ | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }
+ | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 sequence_args: /* empty */ { $$=nil } | sequence_values { $$=$1 } ;
 sequence_values: operand { $$=[]Expr{$1} }
  | sequence_values ',' operand { $$=append($1,$3) } ;
 operand: scalar %prec NAME_LIST { $$=$1 } ;
 comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
+qualified_operator: OPERATOR '(' name '.' operator_symbol ')' { $$=ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$1.pos},{Text:$5.text,Pos:$5.pos}}} } ;
+operator_symbol: '+' | '-' | '*' | '/' | '%' | SYMBOLIC_OPERATOR | comparison_operator ;
 /* CREATE DEFAULT follows restricted b_expr; parenthesized targets retain the
  * ordinary predicate/logical surface without changing SELECT admission. */
 default_target: target_base %prec NAME_LIST { $$=$1 }
@@ -683,7 +695,8 @@ projection_target: scalar_projection { $$=$1 }
 /* Selected calls remain standalone projection roots, not Boolean/comparison
  * leaves. Their arguments remain ordinary operands or nested selected calls. */
 function_argument: operand { $$=$1 } | function { $$=$1 } ;
-function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} } ;
+function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} } ;
 function_args: /* empty */ { $$=FunctionExpr{} }
  | function_values { $$=FunctionExpr{Args:$1} }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
@@ -815,7 +828,8 @@ excluded_role_assignment: /* empty */ | setting_assignment ;
 excluded_role_target: name | STRING | DEFAULT ;
 identity_name: SESSION_USER | CURRENT_USER | CURRENT_SCHEMA | CURRENT_SCHEMA '(' ')' { $$=$1 } ;
 identity_names: identity_name { $$=[]string{$1.text} } | identity_names ',' identity_name { $$=append($1,$3.text) } ;
-identity_select: SELECT identity_names { $$=&IdentitySelect{Names:$2} } ;
+identity_select: SELECT identity_names { $$=&IdentitySelect{Names:$2} }
+ | SELECT name '.' CURRENT_SCHEMA '(' ')' { $$=&IdentitySelect{Names:[]string{"current_schema"},Schema:&Identifier{Text:$2.text,Pos:$2.pos},Pos:$2.pos} } ;
 schema_owner: name | CURRENT_USER | CURRENT_ROLE | SESSION_USER ;
 schema_table: CREATE TABLE relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$3,Elements:$5,Pos:$1.pos} }
  | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$6,Elements:$8,Pos:$1.pos,IfNotExists:true} }
