@@ -38,7 +38,7 @@ func TestRowLockViewSmoke(t *testing.T) {
 				rowLockSmokeCheck(t, holder.Rollback())
 				_, err = a.ExecContext(ctx, "CREATE VIEW stored AS SELECT id,v FROM t ORDER BY id FOR UPDATE")
 				rowLockSmokeCheck(t, err)
-				_, err = a.ExecContext(ctx, "CREATE VIEW grouped AS SELECT count(*) AS n FROM stored WHERE id=1 HAVING FALSE")
+				_, err = a.ExecContext(ctx, "CREATE VIEW grouped AS SELECT count(*) AS n FROM stored WHERE id=1 HAVING count(*)=0")
 				rowLockSmokeCheck(t, err)
 				holder, err = a.BeginTx(ctx, nil)
 				rowLockSmokeCheck(t, err)

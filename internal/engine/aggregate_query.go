@@ -62,7 +62,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 			return indexedStage{}, err
 		}
 	}
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: child.source.scope, Input: state.input, Output: state.output}
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
 	for i := range child.count() {
 		if err := ctx.Err(); err != nil {
 			return indexedStage{}, err

@@ -45,6 +45,14 @@ func TestRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 			{"CREATE TABLE t(id INT,v INT)", "DELETE FROM t WHERE id=1", "t"},
 			{"CREATE TABLE t(id INT,v INT)", "  SELECT v FROM public.t", "public.t"},
 			{"CREATE TABLE \"猫\"(id INT,v INT)", "/*猫*/ SELECT v FROM \"猫\"", "\"猫\""},
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR KEY SHARE", "t"},
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR SHARE", "t"},
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR NO KEY UPDATE", "t"},
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR UPDATE", "t"},
+			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR KEY SHARE", "public.t"},
+			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR SHARE", "public.t"},
+			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR NO KEY UPDATE", "public.t"},
+			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR UPDATE", "public.t"},
 		} {
 			t.Run(fmt.Sprint(prepare)+"/"+tc.query, func(t *testing.T) {
 				e := New()

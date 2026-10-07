@@ -147,14 +147,14 @@ func deadlockPublicError(t *testing.T, err error, position string) *stuntgres.Er
 	if len(lines) != 2 {
 		t.Fatalf("two-edge detail: %q", d.Detail)
 	}
-	pattern := regexp.MustCompile(`^Transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\) waits for (AccessShareLock|RowExclusiveLock|AccessExclusiveLock|Update|NoKeyUpdate) on relation ([1-9][0-9]*) \(class ([1-9][0-9]*), sub-ID 0, epoch ([1-9][0-9]*)\)( row ([1-9][0-9]*))?; blocked by transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\)\.$`)
+	pattern := regexp.MustCompile(`^Transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\) waits for (AccessShareLock|RowShareLock|RowExclusiveLock|ShareUpdateExclusiveLock|ShareRowExclusiveLock|AccessExclusiveLock|Update|NoKeyUpdate|Share|KeyShare) on relation ([1-9][0-9]*) \(class ([1-9][0-9]*), sub-ID 0, epoch ([1-9][0-9]*)\)( row ([1-9][0-9]*))?; blocked by transaction ([1-9][0-9]*) \(session ([1-9][0-9]*), epoch ([1-9][0-9]*)\)\.$`)
 	a := pattern.FindStringSubmatch(lines[0])
 	b := pattern.FindStringSubmatch(lines[1])
 	if a == nil || b == nil || a[1] != b[10] || b[1] != a[10] || a[2] != b[11] || b[2] != a[11] || a[3] != b[12] || b[3] != a[12] {
 		t.Fatalf("complete closed native cycle identity: %q", d.Detail)
 	}
 	for _, edge := range [][]string{a, b} {
-		if edge[6] != "1259" || edge[7] != edge[3] || (edge[4] == "Update" || edge[4] == "NoKeyUpdate") != (edge[9] != "") {
+		if edge[6] != "1259" || edge[7] != edge[3] || (edge[4] == "Update" || edge[4] == "NoKeyUpdate" || edge[4] == "Share" || edge[4] == "KeyShare") != (edge[9] != "") {
 			t.Fatalf("resource class/epoch/row-mode identity: %q", d.Detail)
 		}
 	}
@@ -339,7 +339,11 @@ func deadlockPublicRowsMixed(t *testing.T) {
 // not. Victim is not predetermined: assert the phase of the actual loser.
 func deadlockPublicPreparation(t *testing.T) {
 	for _, phase := range []string{"direct", "prepare", "cached"} {
-		for _, tc := range []struct{ q, pos string }{{"SELECT v FROM t", "15"}, {"INSERT INTO t VALUES(1,7)", "13"}, {"UPDATE t SET v=7 WHERE id=1", "8"}, {"DELETE FROM t WHERE id=1", "13"}, {" SELECT v FROM public.t", "16"}} {
+		for _, tc := range []struct{ q, pos string }{
+			{"SELECT v FROM t", "15"}, {"INSERT INTO t VALUES(1,7)", "13"}, {"UPDATE t SET v=7 WHERE id=1", "8"}, {"DELETE FROM t WHERE id=1", "13"}, {" SELECT v FROM public.t", "16"},
+			{"SELECT v FROM t FOR KEY SHARE", "15"}, {"SELECT v FROM t FOR SHARE", "15"}, {"SELECT v FROM t FOR NO KEY UPDATE", "15"}, {"SELECT v FROM t FOR UPDATE", "15"},
+			{"/*é*/ SELECT v FROM public.t FOR KEY SHARE", "21"}, {"/*é*/ SELECT v FROM public.t FOR SHARE", "21"}, {"/*é*/ SELECT v FROM public.t FOR NO KEY UPDATE", "21"}, {"/*é*/ SELECT v FROM public.t FOR UPDATE", "21"},
+		} {
 			t.Run(phase+"/"+tc.q, func(t *testing.T) {
 				db := deadlockPublicDB(t)
 				ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

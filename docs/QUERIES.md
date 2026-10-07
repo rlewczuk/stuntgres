@@ -346,11 +346,14 @@ ORDER analysis follows target validation and VALUES width/common typing. Raw
 parsing always consumes the complete script first, so later syntax errors take
 precedence over ORDER analysis errors and prevent effects from a valid prefix.
 These VALUES/no-FROM forms do not add standalone VALUES or ordinary no-FROM SELECT.
-WITH/CTE, general casts/functions, LIMIT and locking decorations,
-RETURNING and ON CONFLICT remain outside this part's surface.
+WITH/CTE, general casts/functions, LIMIT, RETURNING and ON CONFLICT remain outside
+this INSERT producer surface. Supported SELECT row-lock clauses are described in
+[SELECT row locking](#select-row-locking--change-note).
 
-The target RX lock is acquired before source AS; target INSERT and source SELECT
-authority (projection, WHERE and hidden ORDER columns) are independently checked.
+The target RX lock is acquired before source relation locks: AS for ordinary
+sources, ROW SHARE for marked sources, including stored view clauses. Target
+INSERT and source SELECT authority (projection, WHERE and hidden ORDER columns)
+are independently checked.
 Self-insert reads a frozen prefix including earlier own transaction writes, never
 this command's newly assembled batch. Source scanning, sorting and conversion run
 outside the engine mutex; a failed cast, constraint, source evaluation, cancellation
@@ -1357,6 +1360,10 @@ aggregate over a marked view is legal: it locks/rechecks the qualifying input
 before grouping and aggregate Advance. HAVING FALSE or an outer filter excluding
 aggregate output does not undo those input locks. Aggregate outputs and unmarked
 aggregate siblings are frozen values, not physical row identities.
+Grouping keys retain the enclosing statement's execution authority even when
+locking or joins replace the physical input stage. Sequence-valued keys evaluate
+once per consumed input occurrence, including duplicates, for both SELECT and
+INSERT SELECT; their sequence effects survive transaction rollback.
 
 All four clauses need SELECT privileges for actual reads and UPDATE on any live
 column of every marked base source, using each view's current owner or original
@@ -1372,6 +1379,9 @@ Sequences produce `42809`, `cannot lock rows in sequence "s"` at execution;
 ordinary sequence SELECT is unchanged. READ ONLY and REPEATABLE READ diagnostics
 and the four-by-four matrix are documented in
 [row locks](TRANSACTIONS.md#row-locks--change-note).
+Relation-lock waits during direct analysis or Prepare retain the source-name
+character Position for `55P03` and `40P01`, including ROW SHARE sources. Cached
+execution, utility/row waits and `57014` cancellation remain unpositioned.
 
 Native virtual catalogs (`pg_class`, `pg_rewrite`, `pg_views`) have no durable
 physical tuple identity. Marked direct, nested, stored and empty reads fail0A000

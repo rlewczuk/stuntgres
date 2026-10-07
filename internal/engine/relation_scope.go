@@ -186,7 +186,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		// Parse analysis opens SELECT/INSERT/UPDATE/DELETE with a positioned
 		// error callback. Cached execution and utility locks do not. Query
 		// cancellation (57014) deliberately bypasses that callback.
-		if (mode == accessShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
+		if (mode == accessShare || mode == relationRowShare || mode == rowExclusive) && (!execute || s.Expected == nil) {
 			var diagnostic *sqlstate.Error
 			if errors.As(err, &diagnostic) && (diagnostic.Code == "55P03" || diagnostic.Code == "40P01") && name.Parts[0].Pos.Character > 0 {
 				copy := *diagnostic
