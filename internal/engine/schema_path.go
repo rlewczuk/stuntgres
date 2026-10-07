@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -249,7 +250,12 @@ func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName
 		return namespaceSelection{}, expressionError("42501", fmt.Sprintf("permission denied for schema %s", ns.name), n.Pos)
 	}
 	if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: a}); err != nil {
-		return namespaceSelection{}, inputErrorAt(err, n.Pos)
+		if diagnostic, ok := err.(*sqlstate.Error); ok && n.Pos.Character > 0 {
+			copy := *diagnostic
+			copy.Position = strconv.Itoa(n.Pos.Character)
+			return namespaceSelection{}, &copy
+		}
+		return namespaceSelection{}, err
 	}
 	return namespaceSelection{qualified: a}, nil
 }

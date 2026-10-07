@@ -1181,6 +1181,8 @@ own TEMP is inserted before catalog for relation/type lookup only. Explicit
 catalog/TEMP keep their stated placement. Unqualified function/operator lookup
 excludes TEMP even when explicitly listed; qualified lookup restricts candidates
 to its validated namespace, never falls back by familiar spelling.
+Qualified non-TEMP schema USAGE denials preserve the namespace token's position;
+COMMENT diagnostics retain their existing unpositioned utility policy.
 Supported builtin type identifiers, null-count/sequence/settings functions,
 random/random_normal/setseed, current_schema(), type-input functions, count(*) and arithmetic/comparison
 operators accept catalog qualification in their existing expression contexts.

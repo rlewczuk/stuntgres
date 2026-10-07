@@ -215,6 +215,11 @@ func TestReferenceSearchPathCurrentUser(t *testing.T) {
 	for _, q := range []string{"CREATE USER path_role_a", "CREATE USER path_role_b", "CREATE SCHEMA path_role_a AUTHORIZATION path_role_a", "CREATE SCHEMA path_role_b AUTHORIZATION path_role_b"} {
 		p.step(t, referenceExec(q, 0))
 	}
+	// PostgreSQL-only fixture setup: match the native public-USAGE baseline
+	// for these two roles; native does not expose SQL GRANT.
+	if _, err := p.postgres.ExecContext(p.ctx, "GRANT USAGE ON SCHEMA public TO path_role_a,path_role_b"); err != nil {
+		t.Fatal(err)
+	}
 	for _, backend := range []struct {
 		name string
 		db   *sql.DB

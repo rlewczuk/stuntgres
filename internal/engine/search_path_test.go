@@ -69,6 +69,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 		t.Fatal(c)
 	}
 	roleErrorPosition(t, e, op, "CREATE TABLE no_fallback(id INT)", "42501", "permission denied for schema visible", "", "14")
+	roleErrorPosition(t, e, op, "SELECT id FROM hidden.t", "42501", "permission denied for schema hidden", "", "16")
 	schemaFail(t, e, op, "CREATE TABLE public.bad(id pg_catalog._name)", "0A000")
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -80,12 +81,12 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []string
+	var names []string
 	for _, a := range path {
-		got = append(got, auth.catalog.state.descriptors[a].Name())
+		names = append(names, auth.catalog.state.descriptors[a].Name())
 	}
-	if !reflect.DeepEqual(got, []string{"visible", "public"}) {
-		t.Fatal(got)
+	if !reflect.DeepEqual(names, []string{"visible", "public"}) {
+		t.Fatal(names)
 	}
 	_, err = e.lookupNamespaces(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "hidden"}, {Text: "int4"}}}, typeLookup)
 	state(t, err, "42501")

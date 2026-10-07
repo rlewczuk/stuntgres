@@ -4,6 +4,8 @@ import "testing"
 
 func TestSearchPathQualifiedSyntax(t *testing.T) {
 	for _, q := range []string{
+		"CREATE TABLE operator(x INT)",
+		"SELECT operator FROM operator",
 		"CREATE TABLE s.t(id pg_catalog.int4,n pg_catalog.numeric(5,2),note pg_catalog.text)",
 		"SELECT CAST(id AS pg_catalog.int4),pg_catalog.int4(id),pg_catalog.count(*) FROM s.t",
 		"SELECT pg_catalog.num_nulls(NULL),pg_catalog.current_schemas($1)",
