@@ -53,11 +53,21 @@ COLLATE/ICU, sets/windows/aggregate-internal ordering and ordinary no-FROM SELEC
 remain excluded. The existing AND/OR bare-label ambiguity remains a bounded
 logical-grammar difference; AS and quoted forms can label those outputs.
 
-View definition export and native round trips retain qualified physical ORDER
-column identity even when a view output-name override shadows that input name.
-Output references remain frozen separately by position. Numeric unary-plus
+View definition export and native round trips retain qualified input ORDER
+identity even when a view output-name override shadows that input name. Synthetic
+USING columns retain their merged type/typmod through a collision-safe render-private
+USING alias, not a physical operand substitution or cast. Existing explicit USING
+and whole-join aliases remain authoritative. Output references are frozen separately
+by position. Numeric unary-plus
 ORDER expressions retain their analyzed operand occurrence and numeric lexical
 identity through definition replay; unary plus is not recategorized as an ordinal.
+
+The nested USING reference witness executes the same native-exported definition
+verbatim on both engines, with independently specified rows and sequence effects.
+Pinned PostgreSQL18.0's own `pg_views` deparser was observed to emit an alias-sensitive
+bare ORDER key for that nested output-override fixture: the original view and its
+own definition replay have different sequence-to-row associations. Native definition
+compatibility does not assume PostgreSQL's own deparse fidelity in that case.
 
 Feature smoke: `make smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
 View persistence smoke: `make smoke RUN='^TestQueryOrderViewSmoke$' VERBOSE=0`.

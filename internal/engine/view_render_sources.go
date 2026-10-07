@@ -114,6 +114,16 @@ func (v *viewRenderer) sourceAlias(occurrence int) string {
 	return name
 }
 
+func (v *viewRenderer) usingAlias(ordinal int) string {
+	base := "__view_using_" + strconv.Itoa(ordinal)
+	name := base
+	for suffix := 1; v.reserved[name]; suffix++ {
+		name = base + "_" + strconv.Itoa(suffix)
+	}
+	v.reserved[name] = true
+	return name
+}
+
 // Apply every alias in actual emitted order, mapping frozen labels by slot.
 // This handles prefixes after compaction and whole-join aliases hiding operands.
 func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name string) viewRenderFrom {
@@ -199,6 +209,23 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 	case *parser.JoinReference:
 		ordinal := v.join
 		v.join++
+		bound := viewJoinAt(viewFromRoot(v.query.Root), ordinal)
+		if bound == nil {
+			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view join occurrence")
+		}
+		usingAlias := ""
+		if n.UsingAlias != nil {
+			usingAlias = n.UsingAlias.Text
+		} else {
+			for i := range ns.keys {
+				if ns.columns[i].slot >= bound.leftWidth+bound.rightWidth {
+					// Reserve before rendering descendants. This qualifies the
+					// exact merged usage without hiding either physical input.
+					usingAlias = v.usingAlias(ordinal)
+					break
+				}
+			}
+		}
 		left, err := v.fromSQL(ctx, catalog, n.Left)
 		if err != nil {
 			return viewRenderFrom{}, err
@@ -206,10 +233,6 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 		right, err := v.fromSQL(ctx, catalog, n.Right)
 		if err != nil {
 			return viewRenderFrom{}, err
-		}
-		bound := viewJoinAt(viewFromRoot(v.query.Root), ordinal)
-		if bound == nil {
-			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view join occurrence")
 		}
 		from := viewRenderFrom{root: bound, slots: make(map[int]string, len(left.slots)+len(right.slots)+len(bound.merges))}
 		for slot, text := range left.slots {
@@ -239,16 +262,12 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 				// A synthetic merged value is recreated by USING's implicit
 				// common-type binder, never an unsupported explicit cast.
 				if c.slot >= bound.leftWidth+bound.rightWidth {
-					text := quoteIdentifier(key)
-					if n.UsingAlias != nil {
-						text = quoteIdentifier(n.UsingAlias.Text) + "." + text
-					}
-					from.slots[c.slot] = text
+					from.slots[c.slot] = quoteIdentifier(usingAlias) + "." + quoteIdentifier(key)
 				}
 			}
 			from.text = "(" + left.text + " JOIN " + right.text + " USING (" + strings.Join(keys, ", ") + ")"
-			if n.UsingAlias != nil {
-				from.text += " AS " + quoteIdentifier(n.UsingAlias.Text)
+			if usingAlias != "" {
+				from.text += " AS " + quoteIdentifier(usingAlias)
 			}
 			from.text += ")"
 		} else {
