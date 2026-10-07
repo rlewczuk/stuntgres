@@ -285,27 +285,96 @@ func TestReferenceSearchPathQualifiedRandomProviders(t *testing.T) {
 
 func TestReferenceSearchPathQualifiedMathProviders(t *testing.T) {
 	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "math_path")
+	p.step(t, referenceExec("CREATE SCHEMA math_path", 0))
+	p.step(t, referenceExec("CREATE TABLE math_path.source(id INT)", 0))
+	p.step(t, referenceExec("INSERT INTO math_path.source VALUES(7)", 1))
 	for _, tc := range []struct {
 		name, args, typ, signature string
-		want any
+		want                       any
 	}{
 		{"min_scale", "8.4100", "INT4", "numeric", int64(2)},
 		{"scale", "8.4100", "INT4", "numeric", int64(4)},
 		{"trim_scale", "8.4100", "NUMERIC", "numeric", "8.41"},
 		{"round", "1.25,1", "NUMERIC", "numeric, integer", "1.3"},
-		{"trunc", "1.25,1", "NUMERIC", "numeric, integer", "1.2"},
+		{"trunc", "-1.25,1", "NUMERIC", "numeric, integer", "-1.2"},
 		{"sign", "-13.000", "NUMERIC", "numeric", "-1"},
-		{"mod", "9,4", "INT4", "integer, integer", int64(1)},
+		{"mod", "-9,4", "INT4", "integer, integer", int64(-1)},
 	} {
-		q := "SELECT pg_catalog."+tc.name+"("+tc.args+")"
+		q := "SELECT pg_catalog." + tc.name + "(" + tc.args + ")"
 		s := referenceSelect(q, []string{tc.name}, []string{tc.typ}, [][]any{{tc.want}})
 		p.step(t, s)
 		p.step(t, referencePrepared(s))
-		s = referenceErrorDiagnostic("SELECT public."+tc.name+"("+tc.args+")", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function public."+tc.name+"("+tc.signature+") does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
+		s = referenceErrorDiagnostic("SELECT public."+tc.name+"("+tc.args+")", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function public." + tc.name + "(" + tc.signature + ") does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
 		p.step(t, s)
 		s = referencePrepared(s)
 		s.errorStage = "prepare"
 		p.step(t, s)
+	}
+	s := referenceErrorDiagnostic("SELECT missing_path_ns.round(1.25,1)", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "3F000", Message: `schema "missing_path_ns" does not exist`, Position: "8"})
+	p.step(t, s)
+	s = referencePrepared(s)
+	s.errorStage = "prepare"
+	p.step(t, s)
+	for _, backend := range []struct {
+		name   string
+		db     *sql.DB
+		record *referenceRecorder
+	}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+		t.Run(backend.name+"/held-path", func(t *testing.T) {
+			c, err := backend.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			run := func(step referenceStep) { referenceRunStep(t, p.ctx, c, backend.record, step) }
+			run(referenceExec("SET search_path TO public", 0))
+			held, err := c.PrepareContext(p.ctx, "SELECT pg_catalog.round(1.25,1)")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer held.Close()
+			for _, path := range []string{"public", "math_path"} {
+				run(referenceExec("SET search_path TO "+path, 0))
+				rows, err := held.QueryContext(p.ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				func() {
+					defer rows.Close()
+					metadata, err := rows.ColumnTypes()
+					scan := reflect.TypeFor[string]()
+					if backend.name == "postgres" {
+						scan = reflect.TypeFor[any]()
+					}
+					if err != nil || len(metadata) != 1 || metadata[0].Name() != "round" || metadata[0].DatabaseTypeName() != "NUMERIC" || metadata[0].ScanType() != scan {
+						t.Fatal("held math metadata", metadata, err, scan)
+					}
+					if !rows.Next() {
+						t.Fatal("missing held math row", rows.Err())
+					}
+					var raw any
+					if err := rows.Scan(&raw); err != nil {
+						t.Fatal(err)
+					}
+					if backend.name == "postgres" {
+						bytes, ok := raw.([]byte)
+						if !ok || string(bytes) != "1.3" {
+							t.Fatal("pq math export", raw)
+						}
+					} else if raw != "1.3" {
+						t.Fatal("native math export", raw)
+					}
+					if rows.Next() || rows.Err() != nil {
+						t.Fatal("extra held math row", rows.Err())
+					}
+				}()
+				run(referenceSelect("SELECT round(1.25,1)", []string{"round"}, []string{"NUMERIC"}, [][]any{{"1.3"}}))
+			}
+			run(referenceErrorDiagnostic("SELECT missing_path_ns.round(1.25,1)", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "3F000", Message: `schema "missing_path_ns" does not exist`, Position: "8"}))
+			run(referenceSelect("SHOW search_path", []string{"search_path"}, []string{"TEXT"}, [][]any{{"math_path"}}))
+			run(referenceSelect("SELECT id FROM math_path.source", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		})
 	}
 }
 

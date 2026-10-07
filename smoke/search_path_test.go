@@ -154,7 +154,40 @@ func TestSearchPathSmoke(t *testing.T) {
 	exec(a, "CREATE VIEW sp1.v AS SELECT id OPERATOR(pg_catalog.+) 1 AS n FROM sp1.t")
 	value(a, "SELECT n FROM sp1.v", int64(8))
 	exec(a, "CREATE VIEW sp1.math_path AS SELECT pg_catalog.round(1.25,1) AS n FROM sp1.t")
-	value(a, "SELECT n FROM sp1.math_path", "1.3")
+	checkMath := func(rows *sql.Rows) {
+		t.Helper()
+		defer rows.Close()
+		metadata, err := rows.ColumnTypes()
+		if err != nil || len(metadata) != 1 || metadata[0].Name() != "n" || metadata[0].DatabaseTypeName() != "NUMERIC" || metadata[0].ScanType() != reflect.TypeFor[string]() {
+			t.Fatal("persisted math metadata", metadata, err)
+		}
+		if !rows.Next() {
+			t.Fatal("missing persisted math row", rows.Err())
+		}
+		var raw any
+		if err := rows.Scan(&raw); err != nil || raw != "1.3" {
+			t.Fatal("persisted math value", raw, err)
+		}
+		if rows.Next() || rows.Err() != nil {
+			t.Fatal("extra persisted math row", rows.Err())
+		}
+	}
+	const mathQuery = "SELECT n FROM sp1.math_path"
+	mathRows, err := a.QueryContext(ctx, mathQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkMath(mathRows)
+	mathHeld, err := a.PrepareContext(ctx, mathQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mathHeld.Close()
+	mathRows, err = mathHeld.QueryContext(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkMath(mathRows)
 	exec(a, "CREATE VIEW sp1.paths AS SELECT pg_catalog.current_schemas(false) AS paths FROM sp1.t")
 	value(a, "SELECT paths FROM sp1.paths", "{sp2,sp1}")
 	exec(a, "SET search_path TO sp1")
@@ -206,6 +239,15 @@ func TestSearchPathSmoke(t *testing.T) {
 	if !strings.Contains(dump.String(), `CREATE TABLE "sp1"."temporal" ("t" TIME(3), "ts" TIMESTAMP(3))`) {
 		t.Fatal("dump lost canonical temporal precision", dump.String())
 	}
+	dumpText := dump.String()
+	viewStart := strings.Index(dumpText, `CREATE VIEW "sp1"."math_path"`)
+	if viewStart < 0 {
+		t.Fatal("dump lost qualified math view", dumpText)
+	}
+	viewLine, _, _ := strings.Cut(dumpText[viewStart:], "\n")
+	if !strings.Contains(viewLine, "pg_catalog.round(") || !strings.Contains(viewLine, `FROM "sp1"."t"`) {
+		t.Fatal("dump lost qualified math or source identity", viewLine)
+	}
 	exec(a, "SET search_path TO sp2,sp1")
 	freshConnector, err := stuntgres.NewDriver().OpenConnector(t.Name() + "-fresh-temporal")
 	if err != nil {
@@ -228,6 +270,11 @@ func TestSearchPathSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer restoredTemporal.Close()
+	freshMath, err := freshSession.PrepareContext(ctx, mathQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer freshMath.Close()
 	for _, path := range []string{"pg_catalog", "sp2"} {
 		exec(freshSession, "SET search_path TO "+path)
 		rows, err := freshSession.QueryContext(ctx, temporalQuery)
@@ -240,6 +287,16 @@ func TestSearchPathSmoke(t *testing.T) {
 			t.Fatal(err)
 		}
 		checkTemporal(rows)
+		rows, err = freshSession.QueryContext(ctx, mathQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkMath(rows)
+		rows, err = freshMath.QueryContext(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkMath(rows)
 	}
 	read(false, "{sp2,sp1}")
 	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
@@ -249,7 +306,16 @@ func TestSearchPathSmoke(t *testing.T) {
 	value(a, "SELECT id FROM sp2.t", int64(9))
 	value(a, "SELECT id FROM sp1.defaults", int64(8))
 	value(a, "SELECT n FROM sp1.v", int64(8))
-	value(a, "SELECT n FROM sp1.math_path", "1.3")
+	mathRows, err = a.QueryContext(ctx, mathQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkMath(mathRows)
+	mathRows, err = mathHeld.QueryContext(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkMath(mathRows)
 	read(false, "{sp2,sp1}")
 	value(a, "SELECT paths FROM sp1.paths", "{sp2,sp1}")
 	value(a, "SELECT t FROM sp1.temporal", "12:34:56.124")

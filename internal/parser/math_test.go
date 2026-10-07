@@ -17,7 +17,7 @@ func TestMathSignatures(t *testing.T) {
 			t.Fatal(query, s)
 		}
 	}
-	for _, query := range []string{"SELECT round(1+1)", "SELECT pg_catalog.round(1.0)", "SELECT 1"} {
+	for _, query := range []string{"SELECT round(1+1)", "SELECT 1"} {
 		s, err := Parse(query)
 		if err == nil && len(s) == 1 {
 			if selected, ok := s[0].(*Select); ok && selected.IsSingleton() {

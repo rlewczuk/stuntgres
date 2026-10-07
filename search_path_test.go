@@ -175,54 +175,109 @@ func TestSearchPathQualifiedRandomProviders(t *testing.T) {
 }
 
 func TestSearchPathQualifiedMathProviders(t *testing.T) {
+	ctx := context.Background()
 	db := openLocal(t, stuntgres.NewDriver(), t.Name())
-	for _, tc := range []struct {
-		name, args, signature string
-		want any
-	}{
-		{"min_scale", "8.4100", "numeric", int64(2)},
-		{"scale", "8.4100", "numeric", int64(4)},
-		{"trim_scale", "8.4100", "numeric", "8.41"},
-		{"round", "1.25,1", "numeric, integer", "1.3"},
-		{"trunc", "1.25,1", "numeric, integer", "1.2"},
-		{"sign", "-13.000", "numeric", "-1"},
-		{"mod", "9,4", "integer, integer", int64(1)},
-	} {
-		q := "SELECT pg_catalog."+tc.name+"("+tc.args+")"
-		var got any
-		if err := db.QueryRow(q).Scan(&got); err != nil || got != tc.want {
-			t.Fatal(q, got, tc.want, err)
-		}
-		held, err := db.Prepare(q)
-		if err != nil {
-			t.Fatal(q, err)
-		}
-		err = held.QueryRow().Scan(&got)
-		held.Close()
-		if err != nil || got != tc.want {
-			t.Fatal(q, got, tc.want, err)
-		}
-		missing := "SELECT public."+tc.name+"("+tc.args+")"
-		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function public."+tc.name+"("+tc.signature+") does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}
+	execSQL(t, db, "CREATE SCHEMA math_path")
+	execSQL(t, db, "CREATE TABLE math_path.source(id INT)")
+	execSQL(t, db, "INSERT INTO math_path.source VALUES(7)")
+	c, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	reject := func(q string, want stuntgres.Error) {
+		t.Helper()
 		check := func(err error) {
 			t.Helper()
 			var diagnostic *stuntgres.Error
 			if !errors.As(err, &diagnostic) || *diagnostic != want {
-				t.Fatal(missing, diagnostic, err, want)
+				t.Fatal(q, diagnostic, err, want)
 			}
 		}
-		rows, err := db.Query(missing)
+		rows, err := c.QueryContext(ctx, q)
 		if rows != nil {
 			rows.Close()
-			t.Fatal("wrong schema exposed math cursor", missing)
+			t.Fatal("unavailable math provider exposed cursor", q)
 		}
 		check(err)
-		held, err = db.Prepare(missing)
+		held, err := c.PrepareContext(ctx, q)
 		if held != nil {
 			held.Close()
-			t.Fatal("wrong schema exposed math statement", missing)
+			t.Fatal("unavailable math provider exposed statement", q)
 		}
 		check(err)
+	}
+	for _, tc := range []struct {
+		name, args, typ, signature string
+		want                       any
+	}{
+		{"min_scale", "8.4100", "INT4", "numeric", int64(2)},
+		{"scale", "8.4100", "INT4", "numeric", int64(4)},
+		{"trim_scale", "8.4100", "NUMERIC", "numeric", "8.41"},
+		{"round", "1.25,1", "NUMERIC", "numeric, integer", "1.3"},
+		{"trunc", "-1.25,1", "NUMERIC", "numeric, integer", "-1.2"},
+		{"sign", "-13.000", "NUMERIC", "numeric", "-1"},
+		{"mod", "-9,4", "INT4", "integer, integer", int64(-1)},
+	} {
+		checkRows := func(rows *sql.Rows) {
+			t.Helper()
+			defer rows.Close()
+			metadata, err := rows.ColumnTypes()
+			if err != nil || len(metadata) != 1 || metadata[0].Name() != tc.name || metadata[0].DatabaseTypeName() != tc.typ || metadata[0].ScanType() != reflect.TypeOf(tc.want) {
+				t.Fatal("qualified math metadata", metadata, err)
+			}
+			if !rows.Next() {
+				t.Fatal("missing math row", rows.Err())
+			}
+			var got any
+			if err := rows.Scan(&got); err != nil || got != tc.want {
+				t.Fatal(tc.name, got, tc.want, err)
+			}
+			if rows.Next() || rows.Err() != nil {
+				t.Fatal("extra math row", rows.Err())
+			}
+		}
+		if _, err := c.ExecContext(ctx, "SET search_path TO public"); err != nil {
+			t.Fatal(err)
+		}
+		q := "SELECT pg_catalog." + tc.name + "(" + tc.args + ")"
+		rows, err := c.QueryContext(ctx, q)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		checkRows(rows)
+		held, err := c.PrepareContext(ctx, q)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		for _, path := range []string{"public", "math_path"} {
+			if _, err := c.ExecContext(ctx, "SET search_path TO "+path); err != nil {
+				held.Close()
+				t.Fatal(err)
+			}
+			rows, err := held.QueryContext(ctx)
+			if err != nil {
+				held.Close()
+				t.Fatal(q, err)
+			}
+			checkRows(rows)
+		}
+		held.Close()
+		rows, err = c.QueryContext(ctx, "SELECT "+tc.name+"("+tc.args+")")
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkRows(rows)
+		reject("SELECT public."+tc.name+"("+tc.args+")", stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function public." + tc.name + "(" + tc.signature + ") does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
+	}
+	reject("SELECT missing_path_ns.round(1.25,1)", stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "3F000", Message: `schema "missing_path_ns" does not exist`, Position: "8"})
+	var path string
+	if err := c.QueryRowContext(ctx, "SHOW search_path").Scan(&path); err != nil || path != "math_path" {
+		t.Fatal("failed math lookup changed path", path, err)
+	}
+	var id int64
+	if err := c.QueryRowContext(ctx, "SELECT id FROM math_path.source").Scan(&id); err != nil || id != 7 {
+		t.Fatal("failed math lookup changed source", id, err)
 	}
 }
 
