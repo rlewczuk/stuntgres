@@ -393,13 +393,7 @@ func intervalCanonical(v Value) string {
 		s, _ := intervalOutput(v, IntervalPostgres)
 		return s
 	}
-	sign := func(n int64) string {
-		if n < 0 {
-			return "-"
-		}
-		return "+"
-	}
-	return fmt.Sprintf("%+d months %+d days %s%s", v.months, v.days, sign(v.integer), intervalClock(v.integer, true))
+	return fmt.Sprintf("%+d months %+d days %+d microseconds", v.months, v.days, v.integer)
 }
 
 // Accumulate years separately: decoder overflow (22015) and final year-to-month
@@ -816,12 +810,14 @@ func intervalParseClock(s string, r int32) (int64, bool, bool) {
 	if !ok {
 		return 0, false, true
 	}
-	if negative {
-		hours = -hours
-		tail = -tail
-	}
 	result, ok := intervalAdd(hours, tail)
-	return result, ok, !ok
+	if !ok {
+		return 0, false, true
+	}
+	if negative {
+		result = -result
+	}
+	return result, true, false
 }
 func isoNumber(s string) (int64, float64, int, bool, bool) {
 	if s == "" || s[0] == '+' {

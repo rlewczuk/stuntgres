@@ -1132,6 +1132,10 @@ A parsed ISO magnitude outside ±1e15 is decoder overflow22015, not malformed
 input. Unrestricted `2562047788:00:54.775807` is the largest finite microsecond
 component, but rounding it for SECOND(2) fails22008; a later overflowing parameter
 cannot publish an earlier valid row from the same statement.
+Clock input checks the positive magnitude before applying its sign:
+`-2562047788:00:54.775808` fails22007, while the adjacent signed clock
+`-2562047788:00:54.775807` and `-9223372036854775808 microseconds` remain
+valid finite values. The rejected spelling does not shrink the stored time domain.
 Precision sizing checks the signed half-unit offset before truncating, after field
 restriction. Intermediate offset overflow is22008 even if the mathematically
 rounded result would fit. At SECOND(5), both `9223372036854775804 microseconds`
@@ -1158,8 +1162,10 @@ Native results are string/nil with INTERVAL/string metadata; numeric DecimalSize
 and Length are unavailable, including SECOND(p). pq reports an interface ScanType
 instead of native string. Output captures Execute-time style and retained cursors
 keep that style through later SET, close, Reset or Restore. Dump/Restore emits
-canonical typed, explicitly signed interval input independent of either session's
-style, including defaults/views and NULL/infinities. Interval arithmetic,
+canonical typed interval input with explicitly signed month, day and exact integer
+microsecond quantities, independent of either session's style. This uniform encoding
+preserves the finite minimum time component through data, defaults and views;
+NULL/infinities retain their existing encoding. Interval arithmetic,
 timestamp+interval, justify/extract/make_interval and cross-family casts are not
 added. See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
 Feature smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.

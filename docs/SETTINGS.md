@@ -51,7 +51,7 @@ SET reuses the [literal decoding rules](LEXICAL.md): for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-The exact supported builtin registry contains these fifteen settings:
+The exact supported builtin registry contains these sixteen settings:
 
 | Name | Default / access | Actual behavior |
 | --- | --- | --- |

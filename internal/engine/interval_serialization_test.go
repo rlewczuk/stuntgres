@@ -21,7 +21,7 @@ func TestIntervalGenericStoredLiteralSQL(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	literal, err := literalSQL(ctx, literalExpression{b.info(u, parser.Position{}, ExprProperties{}), value})
-	if err != nil || literal != "INTERVAL '+12 months +0 days +00:00:00' YEAR" {
+	if err != nil || literal != "INTERVAL '+12 months +0 days +0 microseconds' YEAR" {
 		t.Fatal(literal, err)
 	}
 	statements, err := parser.Parse(`CREATE TABLE iv(v "interval"(4,2) DEFAULT ` + literal + ")")

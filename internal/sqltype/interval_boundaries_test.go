@@ -283,3 +283,82 @@ func TestIntervalPrecisionOffsetControls(t *testing.T) {
 		}
 	}
 }
+
+func TestIntervalClockMagnitudeEndpoint(t *testing.T) {
+	d := testTypes()[Interval]
+	for _, tc := range []struct{ input, code, primary string }{
+		{"-2562047788:00:54.775808", "22007", "invalid input syntax for type interval"},
+		{"+2562047788:00:54.775808", "22007", "invalid input syntax for type interval"},
+		{"2562047788:00:54.775808", "22015", "interval field value out of range"},
+	} {
+		if _, ok, over := intervalParseClock(tc.input, IntervalFullRange); ok || !over {
+			t.Fatal(tc.input, ok, over)
+		}
+		for style := IntervalPostgres; style <= IntervalISO8601; style++ {
+			_, err := d.InputWithEnvironment(context.Background(), tc.input, -1, InputEnvironment{IntervalStyle: style})
+			intervalBoundaryError(t, err, tc.code, tc.primary+": \""+tc.input+"\"")
+		}
+	}
+}
+
+func TestIntervalClockEndpointControls(t *testing.T) {
+	d := testTypes()[Interval]
+	for _, tc := range []struct {
+		input string
+		us    int64
+	}{
+		{"-2562047788:00:54.775807", -math.MaxInt64},
+		{"+2562047788:00:54.775807", math.MaxInt64},
+		{"2562047788:00:54.775807", math.MaxInt64},
+		{"-9223372036854775808 microseconds", math.MinInt64},
+		{"+9223372036854775807 microseconds", math.MaxInt64},
+	} {
+		v, err := d.Input(context.Background(), tc.input, -1)
+		if err != nil {
+			t.Fatal(tc.input, err)
+		}
+		m, days, us, err := v.Interval()
+		if err != nil || m != 0 || days != 0 || us != tc.us {
+			t.Fatal(tc.input, m, days, us, err)
+		}
+	}
+}
+
+func TestIntervalMinimumTimeCanonical(t *testing.T) {
+	ctx := context.Background()
+	d := testTypes()[Interval]
+	if literal, err := d.SQLLiteral(ctx, Null(d)); err != nil || literal != "NULL" {
+		t.Fatal(literal, err)
+	}
+	for _, tc := range []struct {
+		months, days int32
+		us           int64
+		literal      string
+	}{
+		{0, 0, math.MinInt64, "INTERVAL '+0 months +0 days -9223372036854775808 microseconds'"},
+		{-14, 3, -14706000000, "INTERVAL '-14 months +3 days -14706000000 microseconds'"},
+		{0, 0, math.MaxInt64, "INTERVAL '+0 months +0 days +9223372036854775807 microseconds'"},
+		{0, 0, 0, "INTERVAL '+0 months +0 days +0 microseconds'"},
+		{math.MinInt32, math.MaxInt32, math.MinInt64, "INTERVAL '-2147483648 months +2147483647 days -9223372036854775808 microseconds'"},
+		{math.MaxInt32, math.MinInt32, math.MaxInt64, "INTERVAL '+2147483647 months -2147483648 days +9223372036854775807 microseconds'"},
+		{math.MinInt32, math.MaxInt32, 0, "INTERVAL '-2147483648 months +2147483647 days +0 microseconds'"},
+		{math.MinInt32, math.MinInt32, math.MinInt64, "INTERVAL '-infinity'"},
+		{math.MaxInt32, math.MaxInt32, math.MaxInt64, "INTERVAL 'infinity'"},
+	} {
+		v, err := IntervalValue(d, tc.months, tc.days, tc.us)
+		if err != nil {
+			t.Fatal(err)
+		}
+		literal, err := d.SQLLiteral(ctx, v)
+		if err != nil || literal != tc.literal {
+			t.Fatal(literal, err, tc.literal)
+		}
+		input := literal[len("INTERVAL '") : len(literal)-1]
+		for style := IntervalPostgres; style <= IntervalISO8601; style++ {
+			got, err := d.InputWithEnvironment(ctx, input, -1, InputEnvironment{IntervalStyle: style})
+			if err != nil || !SameDatum(got, v) {
+				t.Fatal(style, got, err)
+			}
+		}
+	}
+}

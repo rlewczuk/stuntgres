@@ -222,6 +222,7 @@ func TestIntervalSmoke(t *testing.T) {
 		{"ivbounds", " PT1S", "22007", "invalid input syntax for type interval: \" PT1S\""},
 		{"ivbounds", "PT1S ", "22007", "invalid input syntax for type interval: \"PT1S \""},
 		{"ivbounds", "\u00a01 second", "22007", "invalid input syntax for type interval: \"\u00a01 second\""},
+		{"ivbounds", "-2562047788:00:54.775808", "22007", "invalid input syntax for type interval: \"-2562047788:00:54.775808\""},
 		{"ivprecision", "2562047788:00:54.775807", "22008", "interval out of range"},
 		{"ivoffset", "9223372036854775804 microseconds", "22008", "interval out of range"},
 		{"ivoffset", "-9223372036854775804 microseconds", "22008", "interval out of range"},
@@ -253,6 +254,10 @@ func TestIntervalSmoke(t *testing.T) {
 	exec("INSERT INTO ivbounds VALUES('PT0e-400S')", 1)
 	exec("INSERT INTO ivbounds VALUES($1)", 1, "PT1e-300S")
 	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL '0'", [][]any{{"00:00:00"}, {"00:00:00"}})
+	exec("CREATE TABLE ivmin(id INTEGER,v INTERVAL DEFAULT INTERVAL '-9223372036854775808 microseconds')", 0)
+	exec("INSERT INTO ivmin VALUES(1,'-9223372036854775808 microseconds'),(2,'-2562047788:00:54.775807'),(3,'2562047788:00:54.775807')", 3)
+	exec("CREATE VIEW ivminview AS SELECT INTERVAL '-9223372036854775808 microseconds' AS v FROM ivmin WHERE id=1", 0)
+	check(db, "SELECT id,v FROM ivmin ORDER BY id", [][]any{{int64(1), "-2562047788:00:54.775808"}, {int64(2), "-2562047788:00:54.775807"}, {int64(3), "2562047788:00:54.775807"}})
 	raw, err := drv.Open(t.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -297,6 +302,38 @@ func TestIntervalSmoke(t *testing.T) {
 	check(dest, "SELECT v FROM ivprecision", [][]any{{"00:00:01"}})
 	check(dest, "SELECT id,v FROM ivhex ORDER BY id", [][]any{{int64(1), "00:00:01.5"}, {int64(2), "1 day 00:00:01"}, {int64(3), "00:00:00.5"}, {int64(4), "00:00:00"}})
 	check(dest, "SELECT v FROM ivoffset ORDER BY v", [][]any{{"-2562047788:00:54.7758"}, {"00:00:01"}, {"2562047788:00:54.7758"}})
+	check(dest, "SELECT v FROM ivminview", [][]any{{"-2562047788:00:54.775808"}})
+	if _, err = dest.Exec("INSERT INTO ivmin(id) VALUES(4)"); err != nil {
+		t.Fatal(err)
+	}
+	check(dest, "SELECT v FROM ivmin WHERE id=4", [][]any{{"-2562047788:00:54.775808"}})
+	for _, style := range []string{"postgres", "postgres_verbose", "sql_standard", "iso_8601"} {
+		if _, err = db.Exec("SET IntervalStyle=" + style); err != nil {
+			t.Fatal(err)
+		}
+		var styled bytes.Buffer
+		if err = stuntgres.Dump(ctx, db, &styled); err != nil || styled.String() != dump.String() {
+			t.Fatal(style, err, "style-dependent minimum dump")
+		}
+		if _, err = dest.Exec("SET IntervalStyle=" + style); err != nil {
+			t.Fatal(err)
+		}
+		if err = stuntgres.Restore(ctx, dest, bytes.NewReader(styled.Bytes())); err != nil {
+			t.Fatal(style, err)
+		}
+		var redump bytes.Buffer
+		if err = stuntgres.Dump(ctx, dest, &redump); err != nil || redump.String() != dump.String() {
+			t.Fatal(style, err, "minimum canonical redump changed")
+		}
+		if _, err = dest.Exec("INSERT INTO ivmin(id) VALUES(4)"); err != nil {
+			t.Fatal(style, err)
+		}
+		if _, err = dest.Exec("SET IntervalStyle=postgres"); err != nil {
+			t.Fatal(err)
+		}
+		check(dest, "SELECT v FROM ivmin WHERE id=4", [][]any{{"-2562047788:00:54.775808"}})
+		check(dest, "SELECT v FROM ivminview", [][]any{{"-2562047788:00:54.775808"}})
+	}
 	if err = stuntgres.Reset(ctx, db); err != nil {
 		t.Fatal(err)
 	}
@@ -315,4 +352,5 @@ func TestIntervalSmoke(t *testing.T) {
 	if err = dest.QueryRow("SELECT COUNT(*) FROM iv").Scan(&count); err != nil || count != 8 {
 		t.Fatal(count, err)
 	}
+	check(dest, "SELECT id,v FROM ivmin ORDER BY id", [][]any{{int64(1), "-2562047788:00:54.775808"}, {int64(2), "-2562047788:00:54.775807"}, {int64(3), "2562047788:00:54.775807"}, {int64(4), "-2562047788:00:54.775808"}})
 }

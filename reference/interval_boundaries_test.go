@@ -91,6 +91,9 @@ func TestReferenceIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 		{"precision_offset_positive", "9223372036854775804 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
 		{"precision_offset_negative", "-9223372036854775804 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
 		{"precision_offset_closest_positive", "9223372036854775803 microseconds", "INTERVAL SECOND(5)", "22008", "interval out of range", "00:00:01"},
+		{"clock_signed_minimum", "-2562047788:00:54.775808", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"clock_signed_positive", "+2562047788:00:54.775808", "INTERVAL", "22007", "invalid input syntax for type interval", "00:00:01"},
+		{"clock_unsigned_overflow", "2562047788:00:54.775808", "INTERVAL", "22015", "interval field value out of range", "00:00:01"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newReferencePair(t)
