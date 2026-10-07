@@ -114,7 +114,7 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, raw.Name))
 	}
 	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
-	if !d.Concrete() || d.ID() == sqltype.Name {
+	if !d.Concrete() {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()

@@ -37,8 +37,8 @@ authenticated** superuser may select another principal (including NOLOGIN);
 an ordinary authenticated role may select itself or reset/default only.
 Failed switches preserve both identities and application_name. Identity
 projections have NAME metadata, exact lowercase labels and one string row;
-prepared projections read execution-time identity. NAME is not a supported
-table column/storage type. Exec of identity SELECT reports one selected row;
+prepared projections read execution-time identity. Ordinary NAME columns follow
+the [NAME value contract](TYPES.md#name). Exec of identity SELECT reports one selected row;
 role and authorization commands affect zero rows.
 
 ```go
@@ -96,7 +96,8 @@ Retained identity Rows keep their
 original NAME metadata and values across session switches and native Reset/Restore,
 while new execution observes the current session identity.
 NAME identity results use the same catalog-owned typed values and retained
-snapshots as ordinary rows (builtin OID 19); NAME table columns remain unsupported.
+snapshots as ordinary NAME columns (builtin OID19, C collation950); stored NAME
+values preserve spelling rather than applying role/identifier normalization.
 
 **Bootstrap divergence from fresh PostgreSQL 18:** native public has an
 explicit host-convenience PUBLIC USAGE|CREATE ACL; pg_catalog has PUBLIC USAGE

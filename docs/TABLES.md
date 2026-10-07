@@ -173,14 +173,14 @@ Neither INCLUDING nor EXCLUDING is an inert successful option. PostgreSQL's
 EXCLUDING CONSTRAINTS still copies NOT NULL; native support is plain LIKE only.
 Unknown syntactically valid type names prepare successfully and fail execution
 with `42704`, `type "name" does not exist`, at the type's character position.
-Known single-name types outside INT2/INT4/INT8/TEXT/BPCHAR/VARCHAR/BOOL/FLOAT4/FLOAT8/DATE/TIME/TIMESTAMP/NUMERIC/UUID/BYTEA fail
+Known single-name types outside INT2/INT4/INT8/NAME/TEXT/BPCHAR/VARCHAR/BOOL/FLOAT4/FLOAT8/DATE/TIME/TIMESTAMP/NUMERIC/UUID/BYTEA fail
 execution with `0A000`. Excluded multiword families (BIT VARYING,
 TIME WITH TIME ZONE, TIMESTAMP WITH TIME ZONE and qualified INTERVAL
 fields), qualified type names, arrays and modifiers other than FLOAT(p),
-numeric precision/scale, character length, temporal precision and admitted single BYTEA modifiers
-remain parser-level `0A000` boundaries. DATE, BYTEA and TEXT modifier syntax is admitted only
+numeric precision/scale, character length, temporal precision and admitted BYTEA/NAME modifiers
+remain parser-level `0A000` boundaries. DATE, BYTEA, TEXT and NAME modifier syntax is admitted only
 to reject it semantically with `42601`, `type modifier is not allowed for type
-"date"`, `"bytea"` or `"text"`, at the type token, before validating modifier operands.
+"date"`, `"bytea"`, `"text"` or `"name"`, at the type token, before validating modifier operands.
 CREATE Prepare is metadata-only and succeeds; direct or prepared execution rejects
 the modifier without publishing a table. TIME/TIMESTAMP precision has its own bounded integer grammar.
 Even an existing IF NOT EXISTS target cannot bypass excluded syntax forms;
@@ -191,8 +191,8 @@ Type keyword aliases are not quoted catalog names: `"smallint"`, `"integer"`,
 `"bigint"` and `"boolean"` fail with `42704`, while `"int2"`, `"int4"`, `"int8"`,
 `"text"` and `"bool"` select the supported concrete types. Quoted case is significant (`"INT2"` or `"INT4"` is
 missing), and diagnostic names retain decoded quotes and backslashes without
-SQL or Go re-escaping. Genuine unsupported catalog names such as
-`"name"` fail with `0A000`. Lowercase serial pseudo names, including quoted
+SQL or Go re-escaping. NAME and quoted `"name"` are supported distinct from TEXT;
+quoted `"NAME"` is missing. Lowercase serial pseudo names, including quoted
 `"serial"`, remain a `0A000` CREATE-utility boundary rather than nonexistent
 types; uppercase quoted `"SERIAL"` is missing. No serial sequence or default
 is implemented.

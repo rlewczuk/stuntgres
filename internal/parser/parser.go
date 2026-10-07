@@ -391,7 +391,7 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).multipleModifiers = false
 		return raw, true
 	}
-	if raw.Name == "bpchar" || raw.Name == "varchar" || raw.Name == "text" {
+	if raw.Name == "bpchar" || raw.Name == "varchar" || raw.Name == "text" || raw.Name == "name" {
 		l.(*lexer).characterGeneric = true
 		l.(*lexer).genericModifier = true
 		l.(*lexer).multipleModifiers = true

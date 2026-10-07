@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including character types, DATE, TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -13,10 +13,72 @@ kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
 and mixed-destination reuse remains the bounded native `0A000` limitation,
 including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private typed frame
 against the current coherent binding. Driver adapters detach bytes and export
-INT2/INT4/INT8 as `int64`, TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+INT2/INT4/INT8 as `int64`, NAME/TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
 DATE/TIME as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infinity as fresh
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
+
+## NAME
+
+NAME is the distinct PostgreSQL identifier-value type (OID19, typmod -1,
+C collation950), not a TEXT alias or CHAR(64). `NAME` and quoted `"name"`
+declare columns; quoted `"NAME"` is a missing type. Ordinary values preserve
+case, empty strings, whitespace, trailing spaces, Unicode, apostrophes,
+backslashes and newlines. They do not undergo SQL identifier folding or quoting.
+Textual input silently keeps the longest complete UTF8-code-point prefix within
+63 bytes, without a truncation notice: 61 ASCII bytes plus `éZ` keeps `é`,
+whereas 62 ASCII bytes plus `é` keeps only the ASCII prefix. This is not a
+63-character or grapheme limit, and does not normalize Unicode.
+
+The full input is validated before clipping. NUL and malformed UTF8, even in a
+discarded suffix, fail22021 with `invalid byte sequence for encoding "UTF8":`
+and the offending hexadecimal bytes. Native bind errors have no Position or
+Context; PostgreSQL text Bind encoding errors have `unnamed portal parameter $1`
+without a value suffix. String, textual `[]byte` and Valuer binds share the
+existing owned-input boundary; changing the source buffer cannot change rows.
+Nil interface is SQL NULL; native typed nil `[]byte` is an empty textual value,
+as for other non-BYTEA destinations. SQL TRUE/FALSE assignment uses boolout
+`t`/`f`, while inferred NAME Go bool binds encode `true`/`false`.
+Modifiers such as `name(3)` are retained by CREATE utility Prepare but fail at
+Execute with positioned42601, `type modifier is not allowed for type "name"`,
+before modifier operand conversion.
+
+TEXT/VARCHAR-to-NAME assignment and implicit conversion clip without trimming.
+BPCHAR-to-NAME clips first, then removes trailing ASCII spaces. NAME-to-TEXT
+is implicit and preserves tails; NAME-to-VARCHAR/BPCHAR is assignment-only and
+uses the destination's existing sizing rules. Supported scalar-to-NAME
+assignment uses output/input conversion, not new explicit cast edges.
+NAME-to-integer assignment fails42804; NAME compared with BOOL fails42883.
+Explicit NAME casts, typed literals and name functions remain excluded.
+
+NAME/NAME and NAME/TEXT comparisons in both directions use UTF8/C byte order,
+with case and spaces significant and shorter prefixes first. A typed TEXT
+operand is compared in full, never clipped into NAME. An unknown quoted operand
+or NAME-inferred parameter does pass through NAME input: a64-byte input equals
+its stored63-byte prefix, but a typed TEXT64-byte value is greater. Strict NULL
+predicates and ASC NULLS LAST/DESC NULLS FIRST retain the existing policy.
+
+Native DatabaseTypeName/ScanType are NAME/string; nonnull `any` results are
+string. lib/pq reports NAME/interface{} and returns nonnull `[]byte`, independently
+of fixture normalization. Both adapters support database/sql scans into string,
+[]byte, any and sql.NullString. Length/DecimalSize are unavailable, not64 or63;
+native origin-column nullability is known while pq's is unavailable. NULL-only
+and empty results still retain NAME metadata. Dump/Reset/Restore preserve NAME
+declarations, visible values, NULL and empty tables; retained cursors keep their
+original descriptor/data, and failed staged Restore does not replace the target.
+
+PostgreSQL's physical64-byte padded representation, arrays (OID1003), binary
+`namerecv`/`namesend`, non-C collations and wire serving are external-only.
+Binary NAME receive rejects64 bytes with42622 `identifier too long`, rather
+than text input's clipping; native ordinary byte binds are textual, not binary.
+Native persistence here is public in-memory logical Dump/Restore, not disk/WAL
+durability or PostgreSQL backup tools.
+
+Feature smoke: `make smoke RUN='^TestNameSmoke$' VERBOSE=0`.
+Native coverage: `make test PACKAGES=. RUN='^TestName' VERBOSE=0`;
+codec coverage: `make test PACKAGES=./internal/sqltype RUN='^TestName' VERBOSE=0`;
+pinned reference: `make reference RUN='^TestReferenceName' VERBOSE=0`.
+
 
 ## BYTEA
 

@@ -10,6 +10,13 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling
+is preserved, textual input clips at a63-byte UTF8 boundary, and comparisons use
+C byte order. NAME has distinct metadata from TEXT and round-trips through
+native Dump/Restore; it does not change SQL identifier folding or add general
+name casts/functions. Public feature smoke:
+`make smoke RUN='^TestNameSmoke$' VERBOSE=0`.
+
 ## Minimal example: one unit test
 
 In a checkout of this module, save the following as `example_test.go` and run

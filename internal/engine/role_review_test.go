@@ -461,13 +461,17 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 		}
 	}
 	roleIdentity(t, e, op, "typed_owner")
-	// Host AST input also uses the same binder rejection, never NAME storage.
-	_, err = e.Execute(op, &parser.CreateTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unsupported_name"}}}, Elements: []parser.TableElement{{Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "name"}}}}}, 0, nil)
-	state(t, err, "0A000")
-	_, err = e.Execute(op, statement(t, "SELECT id FROM unsupported_name"), 0, nil)
-	state(t, err, "42P01")
+	// Host AST input shares normal NAME column admission and value semantics.
+	_, err = e.Execute(op, &parser.CreateTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "stored_name"}}}, Elements: []parser.TableElement{{Column: &parser.Column{Name: "id", TypeName: parser.TypeName{Name: "name"}}}}}, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roleExecute(t, e, op, "INSERT INTO stored_name VALUES('MiXeD')")
+	if got := tuples(roleExecute(t, e, op, "SELECT id FROM stored_name")); !reflect.DeepEqual(got, [][]driver.Value{{"MiXeD"}}) {
+		t.Fatal("stored NAME value", got)
+	}
 	if got := tuples(roleExecute(t, e, op, "SELECT id FROM typed_owned")); !reflect.DeepEqual(got, [][]driver.Value{{int64(9)}}) {
-		t.Fatal("unsupported NAME creation changed restored sentinel", got)
+		t.Fatal("NAME creation changed restored sentinel", got)
 	}
 }
 

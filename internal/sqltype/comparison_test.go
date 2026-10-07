@@ -101,7 +101,7 @@ func TestCompareOpsPredicateInvariantsAndCancellation(t *testing.T) {
 			t.Fatal("invariant acquired SQLSTATE", err)
 		}
 	}
-	for _, pair := range [][2]ID{{Int4, Bool}, {Text, Int4}, {Time, Timestamp}, {Name, Text}} {
+	for _, pair := range [][2]ID{{Int4, Bool}, {Text, Int4}, {Time, Timestamp}, {Name, Bool}} {
 		_, err := BindComparisonPredicate(CompareLess, types[pair[0]], types[pair[1]], types[Bool])
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" {

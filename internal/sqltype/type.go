@@ -18,7 +18,7 @@ type ID uint32
 const (
 	Bool      ID = 16
 	Bytea     ID = 17
-	Name      ID = 19 // Result identity only; not admitted as a stored column type.
+	Name      ID = 19
 	Int8      ID = 20
 	Int2      ID = 21
 	Int4      ID = 23
@@ -91,6 +91,8 @@ func (d *Descriptor) Usage() Usage {
 	u := Usage{Type: d, Typmod: -1}
 	if IsCharacter(d.id) {
 		u.Collation = CollationRef{ID: 100, Derivation: Default}
+	} else if d.id == Name {
+		u.Collation = CollationRef{ID: 950, Derivation: Default}
 	}
 	return u
 }
@@ -211,7 +213,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
 	}
-	if IsCharacter(d.id) {
+	if IsCharacter(d.id) || d.id == Name {
 		if err := validateCharacterInput(text); err != nil {
 			return Value{}, err
 		}
@@ -219,6 +221,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return Value{}, failure("22P02", "invalid textual input")
 	}
 	switch d.id {
+	case Name:
+		return String(d, clipName(text)), nil
 	case Bytea:
 		return d.byteaInput(text)
 	case UUID:
@@ -467,6 +471,7 @@ const (
 	booleanInteger
 	floatIntegerConversion
 	stringConversion
+	nameConversion
 )
 
 type CoercionPlan struct {
@@ -547,6 +552,18 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	if source.Type == target.Type {
 		return p, nil
 	}
+	if target.Type.id == Name && IsCharacter(source.Type.id) {
+		p.method = nameConversion
+		return p, nil
+	}
+	if source.Type.id == Name && (target.Type.id == Text || context == Assignment && IsCharacter(target.Type.id)) {
+		p.method = stringConversion
+		return p, nil
+	}
+	if context == Assignment && target.Type.id == Name {
+		p.method = viaIO
+		return p, nil
+	}
 	if IsCharacter(source.Type.id) && IsCharacter(target.Type.id) {
 		p.method = stringConversion
 		return p, nil
@@ -588,6 +605,12 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 			v.integer = roundTimestamp(v.integer, p.target.Typmod)
 		}
 		return v, nil
+	case nameConversion:
+		text := clipName(v.text)
+		if v.typ.id == BPChar {
+			text = strings.TrimRight(text, " ")
+		}
+		return String(p.target.Type, text), nil
 	case stringConversion:
 		if v.typ.id == BPChar && p.target.Type.id != BPChar {
 			v.text = strings.TrimRight(v.text, " ")
@@ -653,6 +676,9 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 	if IsCharacter(left.id) && IsCharacter(right.id) {
 		return p, nil
 	}
+	if left.id == Name && right.id == Text || left.id == Text && right.id == Name {
+		return p, nil
+	}
 	if exactNumber(left.id) && exactNumber(right.id) {
 		return p, nil
 	}
@@ -683,6 +709,9 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 			left, right = strings.TrimRight(left, " "), strings.TrimRight(right, " ")
 		}
 		return strings.Compare(left, right), nil
+	}
+	if p.left.id == Name && p.right.id == Text || p.left.id == Text && p.right.id == Name {
+		return strings.Compare(a.text, b.text), nil
 	}
 	if isFloat(p.left.id) || isFloat(p.right.id) {
 		left, err := checkedFloatOperand(ctx, a)

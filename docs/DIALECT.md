@@ -6,7 +6,7 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
-CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
+CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports star or scalar literal/unqualified-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one column ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
 
 INSERT additionally accepts SELECT sources with the existing projection/filter/
 one-column sort surface, parenthesized sources and INSERT-only no-FROM literal/
@@ -588,9 +588,42 @@ through the existing integer input path; keyword lengths remain unsigned-only.
 TEXT's modifier prohibition wins before modifier expression/input errors.
 Native controls preserve constrained/unlimited declarations, physical
 padding/tails/Unicode/escapes/NULL and retained readers, with atomic failed
-Restore. Internal `"char"`/name are distinct unsupported identities.
+Restore. Internal `"char"` remains a distinct unsupported identity; NAME has
+the separate bounded value contract below, not character-family typmods/casts.
 Smoke: `make smoke RUN='^TestCharacterSmoke$'`; permanent pinned reference:
 `make reference RUN='^TestReferenceCharacter'`.
+
+NAME columns reuse builtin OID19 with typmod -1 and C collation950. Textual
+input preserves case and whitespace and silently clips to63 bytes at a complete
+UTF8-code-point boundary, not63 characters; it does not apply identifier folding.
+Full input validation precedes clipping, so malformed UTF8/NUL in a discarded
+suffix still fails22021 with the English hexadecimal-byte diagnostic. Ordinary
+string/[]byte/Valuer binds are textual, nil is typed NULL, and native typed nil
+[]byte retains the existing non-BYTEA empty-text convention. NAME output contains
+only visible spelling, not padding. Native metadata is NAME/string with no
+Length/DecimalSize; pq instead exposes NAME/interface{} and []byte values.
+Native column origin/nullability and NULL/empty metadata remain intact.
+
+NAME/NAME and NAME/TEXT in either direction use C byte ordering with case/tails
+significant. Known TEXT is compared without clipping; unknown quoted operands
+and NAME-inferred binds clip first. TEXT/VARCHAR-to-NAME is implicit; BPCHAR
+conversion clips before removing ASCII tails. NAME-to-TEXT preserves tails
+implicitly; NAME-to-VARCHAR/BPCHAR assignment uses existing target sizing.
+Other supported scalar assignment uses output/input: SQL TRUE/FALSE stores t/f,
+while bound Go bool stores true/false. NAME-to-integer assignment and NAME/BOOL
+comparison retain42804/42883 and existing hints/positions. NAME modifiers reach
+CREATE utility Execute's positioned42601 prohibition before operand conversion;
+Prepare remains metadata-only.
+
+Native Dump/Restore preserves NAME schemas/data/typed NULL/empty tables and old
+cursors, with deterministic redumps and no replacement on failed staging.
+Explicit NAME casts/typed literals/functions, arrays, internal `"char"`,
+non-C COLLATE, binary wire serving and PostgreSQL physical storage are not added.
+PostgreSQL binary namerecv rejects64-byte input rather than clipping; native
+byte binds do not implement that protocol. See [NAME values](TYPES.md#name).
+Feature smoke: `make smoke RUN='^TestNameSmoke$' VERBOSE=0`;
+pinned reference: `make reference RUN='^TestReferenceName' VERBOSE=0`.
+
 
 
 UUID declarations use contextual quoted values or binds, not UUID typed literals.

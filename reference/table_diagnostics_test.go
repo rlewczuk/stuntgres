@@ -111,9 +111,9 @@ func TestReferenceTableCoreQuotedTypeNamesAndBoundaries(t *testing.T) {
 			}
 			run(referenceExec(`CREATE TABLE IF NOT EXISTS raw(id "integer")`, 0))
 			run(unchanged)
-			// Genuine unsupported raw names and serial utility pseudo names are separate
-			// external-only controls, not nonexistent-type parity or native family support.
-			for _, name := range []string{"name", "serial", "smallserial", "bigserial"} {
+			// Serial utility pseudo names remain external-only controls, not
+			// nonexistent-type parity or native family support.
+			for _, name := range []string{"serial", "smallserial", "bigserial"} {
 				q := `CREATE TABLE bad (id "` + name + `")`
 				s := referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "unsupported column type", Position: "22"})
 				s.prepared = prepared

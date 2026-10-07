@@ -59,6 +59,8 @@ func (d *Descriptor) CheckModifierSupport() error {
 		return failure("42601", `type modifier is not allowed for type "date"`)
 	case Bytea:
 		return failure("42601", `type modifier is not allowed for type "bytea"`)
+	case Name:
+		return failure("42601", `type modifier is not allowed for type "name"`)
 	default:
 		return fmt.Errorf("type modifiers are unsupported")
 	}

@@ -86,7 +86,7 @@ func TestCharacterAliasesAndMetadata(t *testing.T) {
 			execSQL(t, db, "CREATE TABLE c(v "+decl+")")
 		})
 	}
-	for _, decl := range []string{`"char"`, "name"} {
+	for _, decl := range []string{`"char"`} {
 		t.Run("unsupported_"+decl, func(t *testing.T) {
 			db := openLocal(t, stuntgres.NewDriver(), t.Name())
 			_, err := db.Exec("CREATE TABLE c(v " + decl + ")")

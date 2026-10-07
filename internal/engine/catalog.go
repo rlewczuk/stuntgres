@@ -193,7 +193,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if r.attributes[i] <= 0 || i > 0 && r.attributes[i] <= r.attributes[i-1] || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
 		}
-		if !c.Usage.Type.Concrete() || c.Usage.Type.ID() == sqltype.Name {
+		if !c.Usage.Type.Concrete() {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 		typ, exists := v.LookupType(c.Usage.Type.ID())
