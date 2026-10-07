@@ -30,15 +30,15 @@ func TestRowLockOrderedCacheSmoke(t *testing.T) {
 				holder, err := a.BeginTx(ctx, nil)
 				rowLockSmokeCheck(t, err)
 				defer holder.Rollback()
-				rowLockSmokeCheck(t, transactionSelectValues(ctx, holder, query, prepared, want...))
+				rowLockSmokeCheck(t, transactionSelectTypedValues(ctx, holder, query, prepared, "k", "INT4", want...))
 				rowLockSmokeBlocked(t, b, "DELETE FROM t WHERE id=1", prepared)
 				rowLockSmokeCheck(t, holder.Rollback())
 				query = "SELECT nextval('s') AS n FROM " + source + " WHERE id=1 ORDER BY n,n"
 				if source != "stored" {
 					query += " FOR UPDATE"
 				}
-				rowLockSmokeCheck(t, transactionSelectValues(ctx, a, query, prepared, 1))
-				rowLockSmokeCheck(t, transactionSelectValues(ctx, a, "SELECT currval('s')", false, 1))
+				rowLockSmokeCheck(t, transactionSelectTypedValues(ctx, a, query, prepared, "n", "INT8", 1))
+				rowLockSmokeCheck(t, transactionSelectTypedValues(ctx, a, "SELECT currval('s') AS n", false, "n", "INT8", 1))
 				rowLockSmokeCheck(t, transactionAffected(ctx, b, "UPDATE t SET v=v WHERE id=1", prepared, 1))
 			})
 		}

@@ -87,11 +87,32 @@ func TestRowLockControls(t *testing.T) {
 	}
 	t.Run("immediate_admission", func(t *testing.T) {
 		e, _, b, _ := rowLockEngineFixture(t)
-		ctx := &deleteAdmissionContext{Context: context.Background(), engine: e}
-		done := deleteAsync(t, b, ctx, "SELECT v FROM t ORDER BY v FOR SHARE")
-		rowLockAwait(t, done, 10, 20)
+		op := transactionOperation(t, b)
+		defer op.Done()
+		scope, err := e.StartStatement(op)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = scope.Finish(errors.New("test cleanup")) }()
+		stmt := statement(t, "SELECT v FROM t ORDER BY v FOR SHARE")
+		if err = scope.gate(stmt); err != nil {
+			t.Fatal(err)
+		}
+		ctx := &deleteAdmissionContext{Context: op.Context(), engine: e}
+		op.ctx = ctx
+		result, err := scope.Execute(stmt, 0, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := tuples(result)
+		if len(got) != 2 || got[0][0] != int64(10) || got[1][0] != int64(20) {
+			t.Fatal(got)
+		}
 		if ctx.lost || ctx.checks == 0 {
 			t.Fatal("uncontended statement lost continuous admission", ctx)
+		}
+		if err = scope.Finish(nil); err != nil {
+			t.Fatal(err)
 		}
 		lockEmpty(t, e)
 		deleteReplacementAdmissionEmpty(t, e)

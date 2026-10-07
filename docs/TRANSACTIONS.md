@@ -478,6 +478,12 @@ can acquire the lower LockRows before evaluating the outer volatile key. The
 independent reference controls distinguish these placements rather than claim
 identical sequence advancement for every marked-view shape.
 
+Immutable ordering has the same placement qualification: a direct same-level
+ORDER followed by FOR retains pre-wait rank on both engines. PostgreSQL can
+sort upper expressions after acquiring lower view locks, so the independent
+nested-view control returns 23,33 (stored row-only marks: 21,31), while native's
+documented delayed scalar frontier retains 33,23 (31,21 respectively).
+
 Scalar views retain a private execution lineage back to physical base RowIDs,
 including hidden/self-join contributors, duplicates and zero-width outputs.
 Locks are arbitrated after outer scalar WHERE/joins/order, not on every inner
@@ -488,6 +494,11 @@ Unmarked upper aggregation over a marked view consumes locks at its pre-group
 input frontier. Recheck precedes grouping/aggregate Advance; HAVING FALSE and
 outer filtering of aggregate outputs cannot release qualifying input locks.
 Frozen aggregate outputs never invent row identities or variable contributor lists.
+This native eager frontier is not a PostgreSQL optimizer-parity claim. PostgreSQL
+can gate constant HAVING FALSE or an upper WHERE FALSE before consuming a marked
+child, acquiring no input row grants; native retains qualifying input grants.
+Aggregate-dependent HAVING count(*)=0 and upper count-output predicates exercise
+genuine executed-input, empty-output lock retention independently.
 
 REPEATABLE READ KEY SHARE can lock a live chain after a committed keyless UPDATE:
 it retains the original snapshot values and predicates, rather than promoting to
@@ -495,10 +506,11 @@ the latest values. SHARE, NO KEY UPDATE and UPDATE instead report `40001`,
 `could not serialize access due to concurrent update`, for a newer committed
 replacement. Deletion (including replacement followed by deletion) reports that
 same error for all four modes. This does not change DELETE/UPDATE's existing
-direct-delete wording. Read-only transactions
-reject locking SELECT at Execute with `25006`, `cannot execute SELECT FOR
-<mode> in a read-only transaction`; Prepare still analyzes normally, including
-ordinary reads of stored-mark views. All modes require SELECT on used columns
+direct-delete wording. Read-only transactions reject locking SELECT at Execute
+with `25006`. An explicit outer clause reports `cannot execute SELECT FOR <mode>
+in a read-only transaction`; an ordinary outer read of stored-mark views reports
+`cannot execute SELECT in a read-only transaction`. Prepare analyzes normally.
+All modes require SELECT on used columns
 plus UPDATE on any live column of each marked base source. View descendant
 authority uses the current owner or original security_invoker, only at Execute.
 Sequences reject row marks with42809, `cannot lock rows in sequence "s"`.
@@ -517,7 +529,7 @@ fabricated from native logical RowIDs.
 Feature checks: `make test PACKAGES=./internal/engine RUN='^TestRowLock' VERBOSE=0`,
 `make test PACKAGES=. RUN='^TestRowLock' VERBOSE=0`,
 `make reference RUN='^TestReferenceRowLock' VERBOSE=0`, and
-`make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`.
+`make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
 Exact native queue witnesses live in engine tests; public native deadlines are
 conflict boundaries, not enqueue proof. PostgreSQL resumed-version witnesses use
 actual Lock wait state and pg_blocking_pids, not relation-only pg_locks probes.

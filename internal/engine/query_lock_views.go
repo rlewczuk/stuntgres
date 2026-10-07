@@ -335,7 +335,7 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 		return frame, true, nil
 	}
 	if source.lineage != nil {
-		if !changedQueryLockSource(source.lineage.stage) {
+		if !changedQueryLockSource(source.lineage.stage, evaluation.statementScope.queryLocks) {
 			return source.row(source.lineage.currentIndex), true, nil
 		}
 		previous := evaluation.orderValues

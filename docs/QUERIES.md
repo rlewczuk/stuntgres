@@ -39,6 +39,11 @@ Qualifying READ COMMITTED replacements refresh output-referenced keys once,
 without re-sorting the admitted rank; hidden ordering keys are not re-evaluated
 merely to reorder replacement rows. See the query-level volatile placement
 qualification in [transactions](TRANSACTIONS.md).
+That placement qualification also covers immutable nested-view keys: native
+keeps its admitted outer rank, while PostgreSQL can sort upper expressions after
+lower view lock acquisition. Native's eager marked aggregate input frontier can
+retain grants under constant-false output gates that PostgreSQL skips; runtime
+aggregate-dependent empty-output retention has separate executed-input witnesses.
 
 Ordering capability and the bounded UTF8/C collation are checked during analysis
 even for empty/single/all-NULL inputs. Existing type providers supply numeric,

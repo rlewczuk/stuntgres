@@ -50,6 +50,9 @@ func transactionAffected(ctx context.Context, x transactionExecutor, q string, p
 	return nil
 }
 func transactionValues(rows *sql.Rows, want ...int64) error {
+	return transactionTypedValues(rows, "v", "INT4", want...)
+}
+func transactionTypedValues(rows *sql.Rows, name, typ string, want ...int64) error {
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
@@ -59,7 +62,7 @@ func transactionValues(rows *sql.Rows, want ...int64) error {
 	if err != nil {
 		return err
 	}
-	if !reflect.DeepEqual(columns, []string{"v"}) || len(types) != 1 || types[0].DatabaseTypeName() != "INT4" || types[0].ScanType() != reflect.TypeFor[int64]() {
+	if !reflect.DeepEqual(columns, []string{name}) || len(types) != 1 || types[0].DatabaseTypeName() != typ || types[0].ScanType() != reflect.TypeFor[int64]() {
 		return fmt.Errorf("wrong metadata %v %v", columns, types)
 	}
 	got := make([]int64, 0)
@@ -88,6 +91,9 @@ func transactionValues(rows *sql.Rows, want ...int64) error {
 	return nil
 }
 func transactionSelectValues(ctx context.Context, x transactionExecutor, q string, prepared bool, want ...int64) error {
+	return transactionSelectTypedValues(ctx, x, q, prepared, "v", "INT4", want...)
+}
+func transactionSelectTypedValues(ctx context.Context, x transactionExecutor, q string, prepared bool, name, typ string, want ...int64) error {
 	var rows *sql.Rows
 	var err error
 	if prepared {
@@ -103,7 +109,7 @@ func transactionSelectValues(ctx context.Context, x transactionExecutor, q strin
 	if err != nil {
 		return err
 	}
-	return transactionValues(rows, want...)
+	return transactionTypedValues(rows, name, typ, want...)
 }
 func transactionDiagnostic(err error, want stuntgres.Error) error {
 	var got *stuntgres.Error

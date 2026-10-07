@@ -102,7 +102,7 @@ func TestReferenceRowLockViewProvenance(t *testing.T) {
 	} {
 		t.Run(body, func(t *testing.T) {
 			p := newReferencePair(t)
-			for _, s := range []referenceStep{referenceExec("CREATE TABLE t(id INT,v INT)", 0), referenceExec("INSERT INTO t VALUES(1,10),(2,20)", 2), referenceExec("CREATE TABLE u(id INT)", 0), referenceExec("INSERT INTO u VALUES(1),(1),(3)", 3), referenceExec("CREATE VIEW constant_view AS SELECT 1 AS n", 0), referenceExec("CREATE VIEW joined AS "+body, 0)} {
+			for _, s := range []referenceStep{referenceExec("CREATE TABLE t(id INT,v INT)", 0), referenceExec("INSERT INTO t VALUES(1,10),(2,20)", 2), referenceExec("CREATE TABLE u(id INT)", 0), referenceExec("INSERT INTO u VALUES(1),(1),(3)", 3), referenceExec("CREATE VIEW constant_view AS SELECT num_nulls(NULL) AS n", 0), referenceExec("CREATE VIEW joined AS "+body, 0)} {
 				p.step(t, s)
 			}
 			want := [][]any{{int64(11)}}

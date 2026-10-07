@@ -21,7 +21,7 @@ func TestRowLockViewSequenceDiagnostics(t *testing.T) {
 					t.Fatal("sequence error cursor")
 				}
 				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "42809", Message: `cannot lock rows in sequence "s"`})
-				transactionSelect(t, ctx, b, "SELECT last_value FROM sequence_view", prepared, 1)
+				rowLockPublicSelect(t, ctx, b, "SELECT last_value FROM sequence_view", prepared, "last_value", "INT8", 1)
 			})
 		}
 	}

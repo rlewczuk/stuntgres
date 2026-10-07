@@ -11,15 +11,16 @@ func TestRowLockOrderingIntegrationFailingFirst(t *testing.T) {
 				_, a, _, ctx := rowLockPublicViewFixture(t)
 				for _, test := range []struct {
 					query string
+					name  string
 					want  []int64
 				}{
-					{"SELECT v+1 AS val FROM t WHERE id<3 ORDER BY val DESC NULLS FIRST,id ASC " + clause, []int64{21, 11}},
-					{"SELECT val+1 AS shifted FROM w ORDER BY shifted DESC NULLS LAST,id ASC " + clause, []int64{22, 12}},
+					{"SELECT v+1 AS val FROM t WHERE id<3 ORDER BY val DESC NULLS FIRST,id ASC " + clause, "val", []int64{21, 11}},
+					{"SELECT val+1 AS shifted FROM w ORDER BY shifted DESC NULLS LAST,id ASC " + clause, "shifted", []int64{22, 12}},
 				} {
-					transactionSelect(t, ctx, a, test.query, prepared, test.want...)
+					rowLockPublicSelect(t, ctx, a, test.query, prepared, test.name, "INT4", test.want...)
 				}
 				transactionAffected(t, ctx, a, "CREATE VIEW ordered_stored AS SELECT id,v FROM t WHERE id<3 ORDER BY v+1 DESC,id ASC FOR UPDATE", false, 0)
-				transactionSelect(t, ctx, a, "SELECT v+1 AS val FROM ordered_stored ORDER BY val DESC NULLS FIRST,id ASC", prepared, 21, 11)
+				rowLockPublicSelect(t, ctx, a, "SELECT v+1 AS val FROM ordered_stored ORDER BY val DESC NULLS FIRST,id ASC", prepared, "val", "INT4", 21, 11)
 			})
 		}
 	}

@@ -378,7 +378,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, modeErr
 		}
 		if mode != 0 {
-			tag = "SELECT " + queryRowClause(mode)
+			tag = "SELECT"
 		}
 	}
 	if scope.owner.readOnly && tag != "" {

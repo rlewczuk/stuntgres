@@ -809,6 +809,25 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	return finalizeQueryWithLineage(ctx, root, source, parameters, nil)
 }
 
+// SELECT finalization and INSERT's direct destination assembly open the same
+// projection frontier. Marked scalar views defer arbitration until the complete
+// outer qualification/order; aggregate nodes consume their own marked inputs.
+func openQueryProjectStage(ctx context.Context, state *queryState, project *projectNode, arbitrate bool) (indexedStage, error) {
+	stage, err := openQueryNode(ctx, state, project)
+	if err != nil {
+		return indexedStage{}, err
+	}
+	if state.source.locks != nil && arbitrate {
+		original := stage
+		stage, err = arbitrateViewQuery(ctx, state, project.child, original)
+		original.Close()
+		if err != nil {
+			return indexedStage{}, err
+		}
+	}
+	return stage, nil
+}
+
 func finalizeQueryWithLineage(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value, lineage **queryLockLineage) (RowResult, int, error) {
 	keep := false
 	defer func() {
@@ -828,17 +847,9 @@ func finalizeQueryWithLineage(ctx context.Context, root LogicalNode, source *que
 	if source.scope != nil {
 		state.input, state.output = source.scope.input, source.scope.output
 	}
-	stage, err := openQueryNode(ctx, state, project)
+	stage, err := openQueryProjectStage(ctx, state, project, lineage == nil && !aggregating)
 	if err != nil {
 		return nil, 0, err
-	}
-	if source.locks != nil && lineage == nil && !aggregating {
-		original := stage
-		stage, err = arbitrateViewQuery(ctx, state, project.child, original)
-		original.Close()
-		if err != nil {
-			return nil, 0, err
-		}
 	}
 	defer stage.Close()
 	r := newFinalRows(project.Schema(), stage.count())

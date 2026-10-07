@@ -25,8 +25,8 @@ func TestRowLockViewSmoke(t *testing.T) {
 				holder, err := a.BeginTx(ctx, nil)
 				rowLockSmokeCheck(t, err)
 				defer holder.Rollback()
-				rowLockSmokeCheck(t, transactionSelectValues(ctx, holder, "SELECT val FROM w WHERE id=1 "+clause, prepared, 11))
-				rowLockSmokeCheck(t, transactionSelectValues(ctx, b, "SELECT val FROM w WHERE id=1", prepared, 11))
+				rowLockSmokeCheck(t, transactionSelectTypedValues(ctx, holder, "SELECT val FROM w WHERE id=1 "+clause, prepared, "val", "INT4", 11))
+				rowLockSmokeCheck(t, transactionSelectTypedValues(ctx, b, "SELECT val FROM w WHERE id=1", prepared, "val", "INT4", 11))
 				rowLockSmokeCheck(t, transactionAffected(ctx, b, "UPDATE t SET v=v WHERE id=2", prepared, 1))
 				rowLockSmokeCheck(t, transactionAffected(ctx, b, "UPDATE t SET v=v WHERE id=3", prepared, 1))
 				if clause == "FOR KEY SHARE" {
@@ -43,7 +43,7 @@ func TestRowLockViewSmoke(t *testing.T) {
 				holder, err = a.BeginTx(ctx, nil)
 				rowLockSmokeCheck(t, err)
 				defer holder.Rollback()
-				rowLockSmokeCheck(t, transactionSelectValues(ctx, holder, "SELECT n FROM grouped", prepared))
+				rowLockSmokeCheck(t, transactionSelectTypedValues(ctx, holder, "SELECT n FROM grouped", prepared, "n", "INT8"))
 				rowLockSmokeBlocked(t, b, "DELETE FROM t WHERE id=1", prepared)
 				rowLockSmokeCheck(t, transactionAffected(ctx, b, "UPDATE t SET v=v WHERE id=2", prepared, 1))
 				rowLockSmokeCheck(t, holder.Rollback())
@@ -65,7 +65,7 @@ func TestRowLockViewSmoke(t *testing.T) {
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "row locking is not supported for virtual catalog relations" || diagnostic.Position != "" || diagnostic.Detail != "" || diagnostic.Hint != "" {
 					t.Fatal(err)
 				}
-				rowLockSmokeCheck(t, transactionSelectValues(ctx, b, "SELECT val FROM w WHERE id=1", prepared, 11))
+				rowLockSmokeCheck(t, transactionSelectTypedValues(ctx, b, "SELECT val FROM w WHERE id=1", prepared, "val", "INT4", 11))
 			})
 		}
 	}

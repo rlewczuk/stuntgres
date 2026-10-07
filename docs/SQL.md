@@ -162,6 +162,11 @@ An outer clause combines using the strongest SQL mode; unrelated sources are
 not marked by a definition. Ordinary aggregation over a marked view is legal
 and locks qualifying input before grouping/HAVING, even if output is empty.
 A clause reaching a grouped/aggregate view is instead mode-specific0A000.
+Native retains its eager input frontier even for constant HAVING FALSE or an
+upper WHERE FALSE. PostgreSQL can gate those constants before consuming the
+marked child and therefore acquire no input grants. Runtime aggregate-dependent
+HAVING count(*)=0 and count-output predicates separately exercise empty-output
+retention after genuine input consumption.
 
 Explicit SELECT target `AS label` and eligible bare labels preserve view output
 names, including after base-column renames; CREATE VIEW's explicit column list
@@ -172,6 +177,10 @@ BY retains its input-name priority and existing ordinal rules.
 
 Reads and INSERT SELECT share normal relation admission, dynamic ACL checks,
 locking and eager query finalization. The caller needs SELECT on the named view.
+Both consumers use the same marked projection/arbitration frontier, including
+stored marks and joined/nested provenance. INSERT assembles destination rows
+directly from that indexed stage only after source lock/recheck; any source
+failure publishes no destination rows.
 Ordinary definitions check underlying relation reads as the current view owner;
 `security_invoker=true` uses the original statement invoker, including beneath
 an ordinary outer view. CREATE needs namespace CREATE/lookup USAGE, not base
@@ -183,6 +192,11 @@ qualification before outer expressions: no predicate pushdown, even without
 security_barrier. Rejected rows never reach outer error-producing casts. Native
 scalar locking is delayed until outer qualification; PostgreSQL security-barrier
 planner lock placement is an independent control, not a fabricated native match.
+ORDER placement is likewise qualified: native freezes the complete admitted
+outer rank before scalar row arbitration, while PostgreSQL can sort upper
+expressions after acquiring lower view marks. Nested immutable replacement and
+outer volatile-key controls assert each backend's literal results independently;
+direct same-query ORDER followed by FOR retains its pre-wait rank on both.
 
 Dependencies include hidden filter/order/group attributes. Base and column
 renames retain identity, and reuse of an old source name cannot retarget a view.

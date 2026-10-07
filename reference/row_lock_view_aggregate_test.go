@@ -13,19 +13,23 @@ func TestReferenceRowLockViewAggregateComposition(t *testing.T) {
 			query     string
 			want      []int64
 			blockedID string
+			pgLocks   bool
 		}{
-			{"SELECT count(*) AS n FROM stored WHERE id=1", []int64{1}, "1"},
-			{"SELECT count(*) AS n FROM stored", []int64{3}, "2"},
-			{"SELECT n FROM grouped ORDER BY id", []int64{1, 1, 1}, "3"},
-			{"SELECT n FROM hidden", nil, "2"},
-			{"SELECT n FROM grouped WHERE FALSE", nil, "2"},
-			{"SELECT count(*) AS n FROM grouped", []int64{3}, "2"},
+			{"SELECT count(*) AS n FROM stored WHERE id=1", []int64{1}, "1", true},
+			{"SELECT count(*) AS n FROM stored", []int64{3}, "2", true},
+			{"SELECT n FROM grouped ORDER BY id", []int64{1, 1, 1}, "3", true},
+			{"SELECT n FROM hidden", nil, "2", false},
+			{"SELECT n FROM grouped WHERE FALSE", nil, "2", false},
+			{"SELECT n FROM runtime_hidden", nil, "2", true},
+			{"SELECT n FROM grouped WHERE n=0", nil, "2", true},
+			{"SELECT count(*) AS n FROM grouped", []int64{3}, "2", true},
 		} {
 			t.Run(tc.query+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 				p := referenceViewFixture(t)
 				for _, step := range []referenceStep{referenceExec("CREATE VIEW stored AS SELECT id,v FROM t FOR UPDATE", 0), referenceExec("CREATE VIEW grouped AS SELECT id,count(*) AS n FROM stored GROUP BY id", 0), referenceExec("CREATE VIEW hidden AS SELECT count(*) AS n FROM stored HAVING FALSE", 0)} {
 					p.step(t, step)
 				}
+				p.step(t, referenceExec("CREATE VIEW runtime_hidden AS SELECT count(*) AS n FROM stored HAVING count(*)=0", 0))
 				values := make([][]any, len(tc.want))
 				for i, value := range tc.want {
 					values[i] = []any{value}
@@ -56,6 +60,11 @@ func TestReferenceRowLockViewAggregateComposition(t *testing.T) {
 							referenceViewNativeBlocked(t, p.ctx, b, query, prepared)
 							holder.Rollback()
 							referenceRowAffected(t, p.ctx, b, query, prepared, 1)
+						} else if !tc.pgLocks {
+							// PostgreSQL constant gating skips the lower marked input;
+							// native deliberately retains its documented eager input frontier.
+							referenceRowAffected(t, p.ctx, b, query, prepared, 1)
+							holder.Rollback()
 						} else {
 							ap, bp := referenceRowPIDs(t, p.ctx, a, b)
 							done := referenceRowAsync(t, p.ctx, b, query, prepared, false)

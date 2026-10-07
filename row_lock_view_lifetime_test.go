@@ -21,7 +21,7 @@ func TestRowLockViewLifetime(t *testing.T) {
 			}
 			defer closeQuery()
 			transactionAffected(t, ctx, b, "UPDATE t SET v=20 WHERE id=1", prepared, 1)
-			transactionValues(t, rows, 11, 21)
+			rowLockPublicValues(t, rows, "val", "INT4", 11, 21)
 			closeQuery()
 			transactionAffected(t, ctx, a, "CREATE TABLE target(v INT)", false, 0)
 			transactionAffected(t, ctx, a, "UPDATE t SET v=10 WHERE id=1", false, 1)
@@ -35,7 +35,7 @@ func TestRowLockViewLifetime(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer holder.Rollback()
-			transactionSelect(t, ctx, holder, "SELECT val FROM w WHERE id=1 FOR UPDATE", prepared, 11)
+			rowLockPublicSelect(t, ctx, holder, "SELECT val FROM w WHERE id=1 FOR UPDATE", prepared, "val", "INT4", 11)
 			bounded, cancel := context.WithTimeout(ctx, 30*time.Millisecond)
 			defer cancel()
 			blocked, closeBlocked, err := transactionQuery(bounded, b, "SELECT val FROM w WHERE id=1 FOR SHARE", prepared)
@@ -62,9 +62,9 @@ func TestRowLockViewLifetime(t *testing.T) {
 			if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE t(id INT,v INT);INSERT INTO t VALUES(1,99);CREATE VIEW w AS SELECT id,v+1 AS val FROM t")); err != nil {
 				t.Fatal(err)
 			}
-			transactionValues(t, rows, 11, 21)
+			rowLockPublicValues(t, rows, "val", "INT4", 11, 21)
 			closeQuery()
-			transactionSelect(t, ctx, a, "SELECT val FROM w FOR UPDATE", prepared, 100)
+			rowLockPublicSelect(t, ctx, a, "SELECT val FROM w FOR UPDATE", prepared, "val", "INT4", 100)
 		})
 	}
 }

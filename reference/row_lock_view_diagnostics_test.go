@@ -44,7 +44,7 @@ func TestReferenceRowLockViewDiagnostics(t *testing.T) {
 			}
 			func() {
 				defer reader.Rollback()
-				failure := referenceImplicitError("SELECT v FROM "+name+" WHERE FALSE", referenceDiagnostic{Code: "25006", Message: "cannot execute SELECT " + clause + " in a read-only transaction"})
+				failure := referenceImplicitError("SELECT v FROM "+name+" WHERE FALSE", referenceDiagnostic{Code: "25006", Message: "cannot execute SELECT in a read-only transaction"})
 				failure.selectRows, failure.prepared, failure.errorStage = true, true, "execute"
 				referenceRunStep(t, p.ctx, reader, backend.record, failure)
 			}()
@@ -82,7 +82,7 @@ func TestReferenceRowLockCatalogControl(t *testing.T) {
 			func() {
 				defer holder.Rollback()
 				query := "SELECT oid FROM pg_catalog.pg_class WHERE oid=" + strconv.FormatInt(oid, 10) + " " + clause
-				step := referenceSelect(query, []string{"oid"}, []string{"OID"}, [][]any{{oid}})
+				step := referenceSelect(query, []string{"oid"}, []string{"OID"}, [][]any{{strconv.FormatInt(oid, 10)}})
 				step.prepared = prepared
 				referenceRunStep(t, p.ctx, holder, p.postgresRecord, step)
 				referenceRunStep(t, p.ctx, b, p.postgresRecord, referenceSelect("SELECT v FROM t WHERE id=1", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))

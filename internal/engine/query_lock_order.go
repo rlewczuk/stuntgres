@@ -57,23 +57,25 @@ func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContex
 	return nil
 }
 
-func changedQueryLockSource(source *querySource) bool {
+// Joined materialized stages carry occurrence IDs, not a StatementScope. Use
+// the enclosing execution's manifest through every physical/view recursion.
+func changedQueryLockSource(source *querySource, locks *queryLockContext) bool {
 	if source.input != nil {
-		return changedQueryLockSource(source.input)
+		return changedQueryLockSource(source.input, locks)
 	}
 	if source.lineage != nil {
-		return changedQueryLockSource(source.lineage.stage)
+		return changedQueryLockSource(source.lineage.stage, locks)
 	}
 	if source.singleton {
 		return false
 	}
 	if source.materialized {
 		for _, occurrence := range source.occurrences {
-			if source.scope.queryLocks.leaves[occurrence].changed {
+			if locks.leaves[occurrence].changed {
 				return true
 			}
 		}
 		return false
 	}
-	return source.scope.queryLocks.leaves[source.occurrence].changed
+	return locks.leaves[source.occurrence].changed
 }

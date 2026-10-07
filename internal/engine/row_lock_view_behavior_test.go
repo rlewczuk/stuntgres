@@ -364,7 +364,7 @@ func TestRowLockViewDiagnostics(t *testing.T) {
 				result.Rows.Close()
 				t.Fatal("readonly cursor")
 			}
-			waitsDiagnostic(t, err, "25006", "cannot execute SELECT "+clause+" in a read-only transaction")
+			waitsDiagnostic(t, err, "25006", "cannot execute SELECT in a read-only transaction")
 			sessionSQL(t, a, "ROLLBACK")
 			lockEmpty(t, e)
 		})

@@ -46,6 +46,12 @@ func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 								want = want[1:]
 							} else {
 								want[0] += 20
+								if source != "t" {
+									// Pinned PostgreSQL acquires lower view locks before
+									// this upper Sort; native's delayed scalar frontier
+									// is independently asserted by the engine fixture.
+									want[0], want[1] = want[1], want[0]
+								}
 							}
 						} else {
 							err = holder.Rollback()

@@ -40,7 +40,7 @@ func TestRowLockViewAggregateComposition(t *testing.T) {
 				if err != nil || len(types) != 1 || types[0].Name() != "n" || types[0].DatabaseTypeName() != "INT8" {
 					t.Fatal(types, err)
 				}
-				transactionValues(t, rows, tc.want...)
+				rowLockPublicValues(t, rows, "n", "INT8", tc.want...)
 				closeQuery()
 				rowLockPublicViewBlocked(t, b, "DELETE FROM t WHERE id="+tc.blocked, prepared)
 				if tc.blocked == "1" {
@@ -72,7 +72,7 @@ func TestRowLockViewSnapshot(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer reader.Rollback()
-						transactionSelect(t, ctx, reader, "SELECT val FROM w WHERE id=1", false, 11)
+						rowLockPublicSelect(t, ctx, reader, "SELECT val FROM w WHERE id=1", false, "val", "INT4", 11)
 						change := "UPDATE t SET v=20 WHERE id=1"
 						if deleted {
 							change = "DELETE FROM t WHERE id=1"
@@ -90,7 +90,11 @@ func TestRowLockViewSnapshot(t *testing.T) {
 								t.Fatal(err)
 							}
 							defer closeQuery()
-							transactionValues(t, rows, value)
+							name := "val"
+							if aggregate {
+								name = "v"
+							}
+							rowLockPublicValues(t, rows, name, "INT4", value)
 							closeQuery()
 						} else {
 							if closeQuery != nil {

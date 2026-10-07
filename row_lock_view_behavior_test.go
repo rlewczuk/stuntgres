@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
 	"strings"
 	"stuntgres"
 	"testing"
@@ -32,6 +33,31 @@ func rowLockPublicViewBlocked(t *testing.T, x transactionExecutor, q string, pre
 		t.Fatal("view conflict", q, result, err)
 	}
 }
+func rowLockPublicValues(t *testing.T, rows *sql.Rows, name, typ string, want ...int64) {
+	t.Helper()
+	defer rows.Close()
+	columns, err := rows.Columns()
+	if err != nil || !reflect.DeepEqual(columns, []string{name}) {
+		t.Fatal(columns, err)
+	}
+	types, err := rows.ColumnTypes()
+	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != typ || types[0].ScanType() != reflect.TypeFor[int64]() {
+		t.Fatal("metadata", types, err)
+	}
+	transactionRowValues(t, rows, want...)
+}
+func rowLockPublicSelect(t *testing.T, ctx context.Context, x transactionExecutor, q string, prepared bool, name, typ string, want ...int64) {
+	t.Helper()
+	rows, closeQuery, err := transactionQuery(ctx, x, q, prepared)
+	if err != nil {
+		t.Fatal(q, err)
+	}
+	defer closeQuery()
+	rowLockPublicValues(t, rows, name, typ, want...)
+	if err := closeQuery(); err != nil {
+		t.Fatal(err)
+	}
+}
 func TestRowLockViews(t *testing.T) {
 	for _, clause := range rowLockPublicClauses {
 		for _, prepared := range []bool{false, true} {
@@ -51,9 +77,9 @@ func TestRowLockViews(t *testing.T) {
 				if err != nil || len(types) != 1 || types[0].Name() != "val" || types[0].DatabaseTypeName() != "INT4" {
 					t.Fatal(types, err)
 				}
-				transactionValues(t, rows, 11)
+				rowLockPublicValues(t, rows, "val", "INT4", 11)
 				closeQuery()
-				transactionSelect(t, ctx, b, "SELECT val FROM w WHERE id=1", prepared, 11)
+				rowLockPublicSelect(t, ctx, b, "SELECT val FROM w WHERE id=1", prepared, "val", "INT4", 11)
 				transactionAffected(t, ctx, b, "UPDATE t SET v=v+1 WHERE id=2", prepared, 1)
 				transactionAffected(t, ctx, b, "UPDATE t SET v=v+1 WHERE id=3", prepared, 1)
 				if clause == "FOR KEY SHARE" {
@@ -151,7 +177,7 @@ func TestRowLockViewDiagnostics(t *testing.T) {
 					rows.Close()
 					t.Fatal("readonly error cursor")
 				}
-				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "25006", Message: "cannot execute SELECT " + clause + " in a read-only transaction"})
+				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "25006", Message: "cannot execute SELECT in a read-only transaction"})
 			})
 		}
 	}
@@ -202,7 +228,7 @@ func TestRowLockViewAggregation(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer holder.Rollback()
-			transactionSelect(t, ctx, holder, "SELECT n FROM grouped", prepared, 2)
+			rowLockPublicSelect(t, ctx, holder, "SELECT n FROM grouped", prepared, "n", "INT8", 2)
 			rowLockPublicViewBlocked(t, b, "DELETE FROM t WHERE id=1", prepared)
 			rowLockPublicViewBlocked(t, b, "DELETE FROM t WHERE id=2", prepared)
 			transactionAffected(t, ctx, b, "UPDATE t SET v=31 WHERE id=3", prepared, 1)
@@ -212,7 +238,7 @@ func TestRowLockViewAggregation(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer holder.Rollback()
-			transactionSelect(t, ctx, holder, "SELECT ordinary_group.n FROM stored CROSS JOIN ordinary_group WHERE stored.id=1", prepared, 3)
+			rowLockPublicSelect(t, ctx, holder, "SELECT ordinary_group.n FROM stored CROSS JOIN ordinary_group WHERE stored.id=1", prepared, "n", "INT8", 3)
 			rowLockPublicViewBlocked(t, b, "DELETE FROM t WHERE id=1", prepared)
 			transactionAffected(t, ctx, b, "UPDATE t SET v=22 WHERE id=2", prepared, 1)
 		})

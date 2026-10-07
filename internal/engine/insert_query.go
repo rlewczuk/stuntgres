@@ -273,7 +273,12 @@ func valuesColumnDistance(name string, key, left, right []int, limit int) int {
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
 func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
 	defer source.close()
-	stage, err := openQueryNode(ctx, &queryState{source: source, parameters: parameters, input: input, output: output}, b.query.Root)
+	project, ok := b.query.Root.(*projectNode)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: INSERT query lacks final projection")
+	}
+	state := &queryState{source: source, parameters: parameters, input: input, output: output, locking: source.locks != nil, deferLocks: source.locks != nil}
+	stage, err := openQueryProjectStage(ctx, state, project, !queryOwnAggregate(project.child))
 	if err != nil {
 		return nil, err
 	}
