@@ -49,7 +49,7 @@ func tableKind(d *relationDescriptor, operation string) error {
 		message = fmt.Sprintf(`cannot lock relation "%s"`, d.name)
 		detail = "This operation is not supported for sequences."
 	default:
-		if operation != "insert into" && operation != "delete from" {
+		if operation != "insert into" && operation != "delete from" && operation != "change" {
 			message = fmt.Sprintf(`ALTER action %s cannot be performed on relation "%s"`, operation, d.name)
 			detail = "This operation is not supported for sequences."
 		}

@@ -110,9 +110,31 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 					columns[i].Usage.Type = typ
 				}
 			}
-			if columns != nil {
+			var defaults map[int32]columnDefault
+			for attribute, definition := range r.defaults {
+				expression, changed, err := retagDefaultTypes(definition.expression, retainedType)
+				if err != nil {
+					return err
+				}
+				if changed {
+					if defaults == nil {
+						defaults = make(map[int32]columnDefault, len(r.defaults))
+						for key, original := range r.defaults {
+							defaults[key] = original
+						}
+					}
+					definition.expression = expression
+					defaults[attribute] = definition
+				}
+			}
+			if columns != nil || defaults != nil {
 				n := *r
-				n.columns = columns
+				if columns != nil {
+					n.columns = columns
+				}
+				if defaults != nil {
+					n.defaults = defaults
+				}
 				next.descriptors[address] = &n
 			}
 		}

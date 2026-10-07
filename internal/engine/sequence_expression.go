@@ -56,7 +56,7 @@ func (b *expressionBinder) sequenceSignatureError(r parser.CallExpr) error {
 }
 func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error) {
 	if b.defaultConsumer {
-		return nil, expressionError("0A000", "sequence functions are unsupported in DEFAULT expressions", r.Name.Pos)
+		return nil, expressionError("0A000", "functions are unsupported", r.Name.Pos)
 	}
 	count := len(r.Args)
 	want := 1

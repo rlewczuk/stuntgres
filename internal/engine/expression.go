@@ -415,23 +415,23 @@ type expressionDependency struct {
 	revision DefinitionRevision
 }
 type expressionBinder struct {
-	engine           *Engine
-	ctx              context.Context
-	relation         *relationDescriptor
-	ref              ObjectRef
-	parameters       map[int]sqltype.Usage
-	updateParameters bool
-	uses             []int
-	dependencies     []expressionDependency
-	input            sqltype.InputEnvironment
-	op               *Operation
-	expected         *StatementDescription
-	temporals        []temporalConstant
-	anyParameters    []parameterExpression
-	deleteTarget     bool
-	targetName       string
-	targetAlias      string
-	defaultConsumer  bool
+	engine            *Engine
+	ctx               context.Context
+	relation          *relationDescriptor
+	ref               ObjectRef
+	parameters        map[int]sqltype.Usage
+	updateParameters  bool
+	uses              []int
+	dependencies      []expressionDependency
+	input             sqltype.InputEnvironment
+	op                *Operation
+	expected          *StatementDescription
+	temporals         []temporalConstant
+	anyParameters     []parameterExpression
+	deleteTarget      bool
+	targetName        string
+	targetAlias       string
+	defaultConsumer   bool
 	sequenceConstants []sequenceConstant
 }
 

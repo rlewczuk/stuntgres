@@ -321,3 +321,135 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		return "", fmt.Errorf("stuntgres: unsupported stored default node")
 	}
 }
+
+// Replacement can retain TEMP sequence builtin generations. Rebind only the
+// closed stored-default repertoire to those types, without evaluating it or
+// changing its captured values, SQL, positions, or expression properties.
+func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor) (BoundExpr, bool, error) {
+	if node == nil {
+		return nil, false, nil
+	}
+	info := expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties()}
+	typ := retainedType(info.usage.Type)
+	changed := typ != info.usage.Type
+	info.usage.Type = typ
+	var err error
+	child := func(old BoundExpr) BoundExpr {
+		if err != nil {
+			return old
+		}
+		var next BoundExpr
+		var replaced bool
+		next, replaced, err = retagDefaultTypes(old, retainedType)
+		changed = changed || replaced
+		return next
+	}
+	var rebound BoundExpr
+	switch n := node.(type) {
+	case literalExpression:
+		if !changed {
+			return node, false, nil
+		}
+		if n.value.IsNull() {
+			n.value = sqltype.Null(typ)
+		} else if typ.ID() == sqltype.Int8 {
+			var number int64
+			number, err = n.value.Integer()
+			if err == nil {
+				n.value, err = sqltype.Integer(typ, number)
+			}
+		} else {
+			var flag bool
+			flag, err = n.value.Boolean()
+			if err == nil {
+				n.value = sqltype.Boolean(typ, flag)
+			}
+		}
+		n.expressionInfo = info
+		rebound = n
+	case coercionExpression:
+		n.child = child(n.child)
+		if !changed {
+			return node, false, err
+		}
+		if changed && err == nil {
+			n.plan, err = sqltype.PlanCoercion(n.child.ResultUsage(), info.usage, n.mode)
+		}
+		n.expressionInfo = info
+		rebound = n
+	case arithmeticExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if !changed {
+			return node, false, err
+		}
+		if changed && err == nil {
+			n.provider, err = sqltype.BindArithmetic(n.operator, typ, n.right == nil)
+		}
+		n.expressionInfo = info
+		rebound = n
+	case comparisonExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if !changed {
+			return node, false, err
+		}
+		if changed && err == nil {
+			var operator sqltype.ComparisonOperator
+			switch n.operator {
+			case "=":
+				operator = sqltype.CompareEqual
+			case "<>":
+				operator = sqltype.CompareNotEqual
+			case "<":
+				operator = sqltype.CompareLess
+			case "<=":
+				operator = sqltype.CompareLessEqual
+			case ">":
+				operator = sqltype.CompareGreater
+			case ">=":
+				operator = sqltype.CompareGreaterEqual
+			default:
+				return nil, false, fmt.Errorf("stuntgres: invalid default comparison")
+			}
+			n.predicate, err = sqltype.BindComparisonPredicate(operator, n.left.ResultUsage().Type, n.right.ResultUsage().Type, typ)
+		}
+		n.expressionInfo = info
+		rebound = n
+	case nullTestExpression:
+		n.child = child(n.child)
+		if !changed {
+			return node, false, err
+		}
+		n.expressionInfo = info
+		rebound = n
+	case truthTestExpression:
+		n.child = child(n.child)
+		if !changed {
+			return node, false, err
+		}
+		n.expressionInfo = info
+		rebound = n
+	case distinctExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if !changed {
+			return node, false, err
+		}
+		if changed && err == nil {
+			n.equality, err = sqltype.BindComparisonPredicate(sqltype.CompareEqual, n.left.ResultUsage().Type, n.right.ResultUsage().Type, typ)
+		}
+		n.expressionInfo = info
+		rebound = n
+	case logicalExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if !changed {
+			return node, false, err
+		}
+		n.expressionInfo = info
+		rebound = n
+	default:
+		return nil, false, fmt.Errorf("stuntgres: unsupported stored default node")
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return rebound, true, nil
+}

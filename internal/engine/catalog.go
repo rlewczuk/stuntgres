@@ -908,7 +908,6 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		return ChangeSet{}, ErrCatalogReplaced
 	}
 	err := copyRows(replacement.owner.storage, replacement.owner.commitSeq)
-	sourceFrontier := replacement.owner.commitSeq
 	if err == nil {
 		sequences, err = copySequenceState(replacement.owner, replacement)
 	}

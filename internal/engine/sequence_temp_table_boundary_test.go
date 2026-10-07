@@ -99,6 +99,15 @@ func TestSequenceTemporaryTableBoundarySharedCreator(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
+	raw := statement(t, "CREATE TABLE IF NOT EXISTS seed(v INT)").(*parser.CreateTable)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { scope.Finish(err) }()
+	if err = scope.gate(raw); err != nil {
+		t.Fatal(err)
+	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -107,7 +116,7 @@ func TestSequenceTemporaryTableBoundarySharedCreator(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	before := e.state
-	err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE IF NOT EXISTS seed(v INT)").(*parser.CreateTable), s.temporaryNamespace, auth.state.CurrentUser)
+	err = e.schemaTableLocked(op, auth, stage, raw, s.temporaryNamespace, auth.state.CurrentUser, scope.input)
 	e.mu.Unlock()
 	sequenceOwnerDiagnostic(t, err, "0A000", "temporary schema creation is unsupported", "")
 	if e.state != before || len(stage.descriptors) != 0 || len(stage.names) != 0 {

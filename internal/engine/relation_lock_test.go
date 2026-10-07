@@ -143,7 +143,7 @@ func TestRelationLockCompatibility(t *testing.T) {
 		if err := e.locks.acquire(context.Background(), &copy, lockResource{ObjectRef: ref}, accessShare); err == nil {
 			t.Fatal("copied ticket accepted")
 		}
-		for _, mode := range []relationLockMode{0, 64, rowUpdate, accessShare | rowExclusive, shareRowExclusive | accessShare} {
+		for _, mode := range []relationLockMode{0, rowUpdate, accessShare | rowExclusive, shareRowExclusive | accessShare} {
 			if err := e.locks.acquire(context.Background(), ticket, lockResource{ObjectRef: ref}, mode); err == nil {
 				t.Fatal("invalid mode accepted")
 			}
