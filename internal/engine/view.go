@@ -12,15 +12,52 @@ import (
 type viewDefinition struct {
 	query            *BoundQuery
 	syntax           *parser.Select
-	source           ObjectRef
-	attributes       []int32
-	labels           map[string]int32
-	reads            []int32
+	sources          []viewLeaf
 	dependencies     []expressionDependency
 	sequenceRefs     map[int]ObjectRef
 	literals         map[viewLiteralPath]literalExpression
+	columns          map[viewLiteralPath]int
+	stars            map[int][]int
+	namespaces       []viewNamespace
 	barrier, invoker bool
 	rule             OID
+}
+
+// Persistent leaves contain identities and frozen layout, never live storage or
+// descriptors. Ordinals are SQL occurrences, including repeated self-joins.
+type viewLeaf struct {
+	ref        ObjectRef
+	attributes []int32
+	reads      []int32
+}
+
+// Namespace labels and frame slots are immutable analysis metadata, not an
+// execution node. Leaf/attribute identities survive current positional changes;
+// computed USING slots have no leaf identity.
+type viewNamespaceColumn struct {
+	name string
+	slot, leaf int
+	attribute int32
+}
+type viewNamespaceQualifier struct {
+	name string
+	columns []viewNamespaceColumn
+}
+type viewNamespace struct {
+	columns []viewNamespaceColumn
+	qualifiers []viewNamespaceQualifier
+	keys []string
+}
+
+func (b *expressionBinder) freezeViewColumns(columns []queryColumn) []viewNamespaceColumn {
+	out := make([]viewNamespaceColumn, len(columns))
+	for i, c := range columns {
+		out[i] = viewNamespaceColumn{name: c.descriptor.Name, slot: c.slot, leaf: c.leaf}
+		if c.leaf >= 0 {
+			out[i].attribute = b.querySources[c.leaf].relation.attributes[c.physical]
+		}
+	}
+	return out
 }
 
 func bindViewOutput(query *BoundQuery, view *parser.CreateView) error {
@@ -159,8 +196,10 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition := &viewDefinition{query: b.query, syntax: view.Query, source: b.ref, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
+	definition := &viewDefinition{query: b.query, syntax: view.Query, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals = b.viewLiterals
+	definition.columns, definition.stars = b.viewColumns, b.viewStars
+	definition.namespaces = b.viewNamespaces
 	definition.sequenceRefs = make(map[int]ObjectRef, len(b.sequenceConstants))
 	for _, constant := range b.sequenceConstants {
 		if constant.temporary != (SessionToken{}) {
@@ -172,16 +211,15 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 			definition.dependencies = append(definition.dependencies, expressionDependency{ref: constant.ref, revision: constant.stamp})
 		}
 	}
-	if b.relation != nil {
-		definition.attributes = append([]int32(nil), b.relation.attributes...)
-		definition.labels = make(map[string]int32, len(b.relation.columns))
-		for i, column := range b.relation.columns {
-			definition.labels[column.Name] = b.relation.attributes[i]
+	definition.sources = make([]viewLeaf, len(b.querySources))
+	for occurrence, source := range b.querySources {
+		leaf := &definition.sources[occurrence]
+		leaf.ref = source.ref
+		leaf.attributes = append([]int32(nil), source.relation.attributes...)
+		for _, slot := range source.uses {
+			leaf.reads = append(leaf.reads, source.relation.attributes[slot])
 		}
-		for _, slot := range b.usedColumns {
-			definition.reads = append(definition.reads, b.relation.attributes[slot])
-		}
-		if namespace := e.state.descriptors[b.relation.namespace].(*namespaceDescriptor); namespace.temporary != (SessionToken{}) {
+		if namespace := e.state.descriptors[source.relation.namespace].(*namespaceDescriptor); namespace.temporary != (SessionToken{}) {
 			e.mu.Unlock()
 			return Result{}, sqlError("0A000", "temporary views are unsupported")
 		}
@@ -219,4 +257,57 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		scope.completed = true
 	}
 	return Result{}, err
+}
+
+func (v *viewDefinition) validateNamespaces() error {
+	ordinal, occurrence, join := 0, 0, 0
+	var visit func(parser.FromItem) (LogicalNode, error)
+	visit = func(item parser.FromItem) (LogicalNode, error) {
+		if item == nil { return nil, nil }
+		if ordinal >= len(v.namespaces) { return nil, fmt.Errorf("stuntgres: missing view namespace") }
+		ns := v.namespaces[ordinal]
+		ordinal++
+		var root LogicalNode
+		switch n := item.(type) {
+		case *parser.TableReference:
+			root = viewSourceAt(viewFromRoot(v.query.Root), occurrence)
+			occurrence++
+		case *parser.AliasReference:
+			child, err := visit(n.Input)
+			if err != nil { return nil, err }
+			root = child
+		case *parser.JoinReference:
+			root = viewJoinAt(viewFromRoot(v.query.Root), join)
+			join++
+			if _, err := visit(n.Left); err != nil { return nil, err }
+			if _, err := visit(n.Right); err != nil { return nil, err }
+			if len(ns.keys) > len(ns.columns) { return nil, fmt.Errorf("stuntgres: invalid view USING namespace") }
+			for i, key := range ns.keys {
+				if ns.columns[i].name != key { return nil, fmt.Errorf("stuntgres: invalid view USING key label") }
+			}
+		default:
+			return nil, fmt.Errorf("stuntgres: invalid view namespace syntax")
+		}
+		if root == nil { return nil, fmt.Errorf("stuntgres: missing view namespace frame") }
+		check := func(columns []viewNamespaceColumn) error {
+			for _, c := range columns {
+				if c.slot < 0 || c.slot >= len(root.Schema()) { return fmt.Errorf("stuntgres: invalid view namespace slot") }
+				if c.leaf >= 0 {
+					if c.leaf >= len(v.sources) { return fmt.Errorf("stuntgres: invalid view namespace occurrence") }
+					found := false
+					for _, attribute := range v.sources[c.leaf].attributes { found = found || attribute == c.attribute }
+					if !found { return fmt.Errorf("stuntgres: invalid view namespace attribute") }
+				} else if c.attribute != 0 { return fmt.Errorf("stuntgres: invalid computed view namespace identity") }
+			}
+			return nil
+		}
+		if err := check(ns.columns); err != nil { return nil, err }
+		for _, q := range ns.qualifiers {
+			if err := check(q.columns); err != nil { return nil, err }
+		}
+		return root, nil
+	}
+	if _, err := visit(v.syntax.From); err != nil { return err }
+	if ordinal != len(v.namespaces) || occurrence != len(v.sources) { return fmt.Errorf("stuntgres: extra view namespace") }
+	return nil
 }

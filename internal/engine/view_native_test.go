@@ -41,8 +41,13 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 	for _, name := range []string{"s.v", "s.w"} {
 		ref := roleTableRef(t, e, name)
 		descriptor := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
-		if descriptor.owner != owner.Ref || descriptor.view.source.owner != e.owner || descriptor.view.source.Epoch != e.state.epoch {
-			t.Fatal("view identity remap", name, descriptor.owner, descriptor.view.source)
+		if descriptor.owner != owner.Ref {
+			t.Fatal("view owner remap", name, descriptor.owner)
+		}
+		for _, leaf := range descriptor.view.sources {
+			if leaf.ref.owner != e.owner || leaf.ref.Epoch != e.state.epoch {
+				t.Fatal("view identity remap", name, leaf.ref)
+			}
 		}
 	}
 	_, err := testExecute(e, context.Background(), statement(t, "SELECT id FROM s.denied"), nil)
@@ -98,8 +103,9 @@ func TestViewProviderRejectsCyclicSources(t *testing.T) {
 	definition := *old.view
 	replacement.view = &definition
 	replacement.revision++
-	previous := definition.source
-	definition.source = wref
+	definition.sources = append([]viewLeaf(nil), definition.sources...)
+	previous := definition.sources[0].ref
+	definition.sources[0].ref = wref
 	root, err := remapViewQuery(definition.query.Root, func(ref ObjectRef) ObjectRef {
 		if ref.Address.ClassID == RelationClassID && ref.Address.ObjectID == previous.Address.ObjectID {
 			ref.Address.ObjectID = wref.Address.ObjectID

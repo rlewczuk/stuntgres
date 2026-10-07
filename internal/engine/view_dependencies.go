@@ -12,8 +12,10 @@ func viewDepends(d *relationDescriptor, target ObjectAddress) bool {
 	if d.view == nil {
 		return false
 	}
-	if target.SubID == 0 && d.view.source.Address == target {
-		return true
+	for _, leaf := range d.view.sources {
+		if target.SubID == 0 && leaf.ref.Address == target {
+			return true
+		}
 	}
 	for _, dependency := range d.view.dependencies {
 		a := dependency.ref.Address
@@ -125,35 +127,59 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 	if err := definition.validateLiterals(v); err != nil {
 		return err
 	}
-	if definition.source != (ObjectRef{}) {
-		source, ok := v.state.descriptors[definition.source.Address].(*relationDescriptor)
-		if !ok || definition.source.owner != v.owner.owner || definition.source.Epoch != v.Epoch() || source.address == d.address {
+	if err := validateViewLeaves(v, definition); err != nil {
+		return err
+	}
+	if err := definition.validateNamespaces(); err != nil {
+		return err
+	}
+	for _, leaf := range definition.sources {
+		source, ok := v.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+		if !ok || leaf.ref.owner != v.owner.owner || leaf.ref.Epoch != v.Epoch() || leaf.ref.Address.SubID != 0 || source.address == d.address {
 			return fmt.Errorf("stuntgres: invalid view source identity")
 		}
-		for _, attribute := range definition.reads {
+		namespace, ok := v.state.descriptors[source.namespace].(*namespaceDescriptor)
+		if !ok || namespace.temporary != (SessionToken{}) {
+			return fmt.Errorf("stuntgres: invalid view source lifetime")
+		}
+		for _, attribute := range leaf.reads {
+			frozen := false
+			for _, id := range leaf.attributes {
+				frozen = frozen || id == attribute
+			}
+			if !frozen {
+				return fmt.Errorf("stuntgres: invalid view read attribute")
+			}
 			if !source.hasAttribute(attribute) {
 				return fmt.Errorf("stuntgres: missing view dependency attribute")
 			}
 		}
-		cursor := source
-		terminated := false
-		for range len(v.state.descriptors) {
-			if cursor.address == d.address {
-				return fmt.Errorf("stuntgres: cyclic view source")
-			}
-			if cursor.view == nil || cursor.view.source == (ObjectRef{}) {
-				terminated = true
-				break
-			}
-			next, ok := v.state.descriptors[cursor.view.source.Address].(*relationDescriptor)
+	}
+	active, visited := make(map[ObjectAddress]bool), make(map[ObjectAddress]bool)
+	var visit func(*relationDescriptor) error
+	visit = func(source *relationDescriptor) error {
+		if active[source.address] {
+			return fmt.Errorf("stuntgres: cyclic view source")
+		}
+		if visited[source.address] || source.view == nil {
+			return nil
+		}
+		active[source.address] = true
+		for _, leaf := range source.view.sources {
+			next, ok := v.state.descriptors[leaf.ref.Address].(*relationDescriptor)
 			if !ok {
 				return fmt.Errorf("stuntgres: missing view source identity")
 			}
-			cursor = next
+			if err := visit(next); err != nil {
+				return err
+			}
 		}
-		if !terminated {
-			return fmt.Errorf("stuntgres: cyclic view source")
-		}
+		delete(active, source.address)
+		visited[source.address] = true
+		return nil
+	}
+	if err := visit(d); err != nil {
+		return err
 	}
 	for _, dependency := range definition.dependencies {
 		ref := dependency.ref
@@ -172,6 +198,73 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 				return fmt.Errorf("stuntgres: missing view dependency attribute")
 			}
 		}
+	}
+	return nil
+}
+
+func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
+	occurrence := 0
+	var visit func(LogicalNode) error
+	visit = func(node LogicalNode) error {
+		for _, column := range node.Schema() {
+			if !column.Usage.Valid() {
+				return fmt.Errorf("stuntgres: invalid view query usage")
+			}
+			typ, ok := catalog.LookupType(column.Usage.Type.ID())
+			if !ok || typ != column.Usage.Type {
+				return fmt.Errorf("stuntgres: foreign view query type")
+			}
+		}
+		switch n := node.(type) {
+		case *sourceNode:
+			if occurrence >= len(definition.sources) || n.occurrence != occurrence {
+				return fmt.Errorf("stuntgres: invalid view source occurrence")
+			}
+			leaf := definition.sources[occurrence]
+			occurrence++
+			source, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
+			if !ok || n.ref != leaf.ref || len(n.Schema()) != len(leaf.attributes) {
+				return fmt.Errorf("stuntgres: invalid view source layout")
+			}
+			for slot, attribute := range leaf.attributes {
+				for current, live := range source.attributes {
+					if live == attribute && n.Schema()[slot].Usage != source.columns[current].Usage {
+						return fmt.Errorf("stuntgres: invalid view source usage")
+					}
+				}
+			}
+		case *joinNode:
+			if n.leftWidth != len(n.left.Schema()) || n.rightWidth != len(n.right.Schema()) || len(n.Schema()) != n.leftWidth+n.rightWidth+len(n.merges) {
+				return fmt.Errorf("stuntgres: invalid view join frame")
+			}
+			for i, merge := range n.merges {
+				if merge == nil || merge.ResultUsage() != n.Schema()[n.leftWidth+n.rightWidth+i].Usage {
+					return fmt.Errorf("stuntgres: invalid view merged column usage")
+				}
+			}
+			if err := visit(n.left); err != nil {
+				return err
+			}
+			return visit(n.right)
+		case *filterNode:
+			return visit(n.child)
+		case *sortNode:
+			return visit(n.child)
+		case *projectNode:
+			return visit(n.child)
+		case *aggregateNode:
+			return visit(n.child)
+		case *singletonNode:
+		default:
+			return fmt.Errorf("stuntgres: invalid view query node %T", node)
+		}
+		return nil
+	}
+	if err := visit(definition.query.Root); err != nil {
+		return err
+	}
+	if occurrence != len(definition.sources) {
+		return fmt.Errorf("stuntgres: invalid view source manifest")
 	}
 	return nil
 }

@@ -516,11 +516,7 @@ Comparison operands admit bounded scalar arithmetic and baseline and
 character-family casts, but not comparison chaining or nested logical/comparison
 expressions. Predicates also accept these scalar expressions and use their
 resolved type and expression start. General functions/casts outside the bounded
-<<<<<<< HEAD
-baseline and character-family sets, projection aliases, rows/composites and no-FROM scalar
-=======
-baseline and character-family sets, bare/table aliases, rows/composites and no-FROM scalar
->>>>>>> 7001c76 (Implement PG18-DDL-VIEW: Create and read views)
+baseline and character-family sets, rows/composites and no-FROM scalar
 queries remain excluded except for the selected call roots described above.
 Null-count calls remain standalone projection roots, not predicate operands;
 predicate expressions remain excluded from their arguments.

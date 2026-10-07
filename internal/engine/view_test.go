@@ -134,6 +134,9 @@ func TestViewCreateDoesNotExecuteDefinition(t *testing.T) {
 	run(t, e, "CREATE TABLE t(id INT)")
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT nextval('s') FROM t")
+	run(t, e, "CREATE TABLE u(id INT)")
+	run(t, e, "INSERT INTO u VALUES(1)")
+	run(t, e, "CREATE VIEW joined AS SELECT nextval('s') FROM t JOIN u ON t.id=u.id")
 	result := run(t, e, "SELECT last_value,is_called FROM s")
 	rows := tuples(result)
 	if len(rows) != 1 || rows[0][0] != int64(1) || rows[0][1] != false {

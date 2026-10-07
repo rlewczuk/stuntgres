@@ -21,7 +21,7 @@ func TestCreateViewGrammar(t *testing.T) {
 
 func TestCreateViewConsumesEntireInput(t *testing.T) {
 	for _, query := range []string{
-		"CREATE VIEW v AS SELECT id FROM t garbage",
+		"CREATE VIEW v AS SELECT id FROM t garbage extra_token",
 		"CREATE VIEW v AS SELECT id FROM t; SELECT FROM",
 	} {
 		statements, err := Parse(query)

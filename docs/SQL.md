@@ -136,8 +136,9 @@ CREATE has affected count zero and no result columns or runtime parameters.
 
 Explicit SELECT target `AS label` preserves canonical view definition labels,
 including after base-column renames; CREATE VIEW's explicit column list then
-overrides that output prefix. Bare/table aliases and alias-based WHERE/GROUP/ORDER
-lookup remain unsupported: those clauses keep existing source-column/ordinal rules.
+overrides that output prefix. FROM aliases, alias column lists, qualified columns
+and mixed qualified/unqualified stars use the ordinary joined SELECT namespace.
+Output-alias lookup remains excluded; clauses keep existing source-column/ordinal rules.
 
 Reads and INSERT SELECT share normal relation admission, dynamic ACL checks,
 locking and eager query finalization. The caller needs SELECT on the named view.
@@ -171,13 +172,24 @@ printing byte equality is not promised. Unsupported columns, including
 `reloptions`, `ev_action` and `ev_qual`, give ordinary42703; no fake pg_node_tree.
 Built-in source output is derived, never persisted as table data.
 
+Joined definitions expand every star at creation. Reconstruction uses current
+relation identities with full positional alias lists mapping surviving attribute
+IDs to frozen namespace labels; unrelated compaction cannot retarget a prefix
+alias, and added attributes get noncolliding labels. Table/self-join and whole-join
+aliases retain their visibility boundaries. Explicit USING remains USING, and
+NATURAL becomes its creation-time explicit USING key list (or CROSS JOIN when
+empty), so current names cannot broaden the join. Merged values and implicit
+common-type conversions are recreated by the ordinary USING binder, not explicit
+casts. Stored ORDER retains its frozen unqualified input label and direction;
+definition replay adds no qualified ORDER, ordinal or output-alias lookup.
+
 Views reuse the supported OID scalar and BETWEEN lowering, including nested
 predicate-valued endpoints. Canonical replay uses the same scalar CASE bridge
 as stored defaults for grouped predicate operands; it does not broaden ordinary
 comparison syntax or evaluate definitions during serialization.
 
 Stored literal occurrences retain their analyzed value and type usage, including
-temporal precision and independently typed occurrences introduced by BETWEEN.
+temporal precision, independently typed BETWEEN occurrences and each JOIN ON clause.
 Definition reconstruction and native replay use type-owned canonical literals,
 not creation-time spellings such as `today`, and do not introduce unsupported
 DATE/TIME/TIMESTAMP casts. Native input supports its current ISO environment;

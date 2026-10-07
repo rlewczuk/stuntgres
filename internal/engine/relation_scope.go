@@ -16,13 +16,13 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 	}()
 	if view, ok := stmt.(*parser.CreateView); ok {
-		return s.acquireQueryRelations(view.Query, execute)
+		return s.acquireQueryRelations(view.Query, stmt, execute)
 	}
 	if sel, ok := stmt.(*parser.Select); ok {
-		return s.acquireQueryRelations(sel, execute)
+		return s.acquireQueryRelations(sel, stmt, execute)
 	}
 	if insert, ok := stmt.(*parser.Insert); ok && insert.Source != nil && insert.Source.Select != nil && insert.Source.Select.From != nil {
-		if err := s.acquireRelationTarget(stmt, execute, false); err != nil {
+		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
 		}
 		// PostgreSQL validates explicit target identifiers before opening the
@@ -30,12 +30,12 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		if err := bindInsertTargets(s.lockedDescriptor.(*relationDescriptor), insert.Targets, nil); err != nil {
 			return err
 		}
-		return s.acquireQueryRelations(insert.Source.Select, execute)
+		return s.acquireQueryRelations(insert.Source.Select, insert.Source.Select, execute)
 	}
-	return s.acquireRelationTarget(stmt, execute, false)
+	return s.acquireRelationTarget(stmt, stmt, execute, false)
 }
 
-func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, source bool) error {
+func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statement, execute, source bool) error {
 	var name parser.ObjectName
 	var mode relationLockMode
 	ownerOnly := false
@@ -117,7 +117,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 		e.mu.Unlock()
 		return ErrCatalogReplaced
 	}
-	auth, err := e.statementAuthorizationLocked(s.op, stmt)
+	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
 	var ref ObjectRef
 	if err == nil {
 		if mode == accessShare || mode == rowExclusive {
@@ -226,7 +226,7 @@ func (s *StatementScope) acquireRelationTarget(stmt parser.Statement, execute, s
 	}
 	// Definition evolution while waiting is valid for this exact relation.
 	// Pin the grant-time descriptor and revalidate current role authority.
-	auth, err = e.statementAuthorizationLocked(s.op, stmt)
+	auth, err = e.statementAuthorizationLocked(s.op, authorityStmt)
 	if err != nil {
 		return err
 	}

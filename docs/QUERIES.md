@@ -112,6 +112,19 @@ column lists override the labeled output prefix. Bare projection labels and
 output-alias lookup in WHERE/GROUP/ORDER remain excluded; source columns and
 existing GROUP ordinals keep their existing rules.
 
+Persistent joined views freeze their source occurrences, expanded star projections
+and USING/NATURAL keys when created, unlike an ordinary prepared SELECT rebind.
+The shared definition/Dump renderer emits canonical per-occurrence aliases and
+explicit ON predicates from those identities; original alias column lists and
+merged namespaces are preserved logically, not as stale source text. Source
+renames and unrelated attribute compaction preserve both self-join sides and
+fixed output names/types. ON literals retain their original analyzed type/value.
+
+Reconstruction/native feature consumer:
+`make test PACKAGES=. RUN='^TestViewJoinedDefinitionAndNativeReplay$' VERBOSE=0`.
+Independent PostgreSQL reconstruction, with ADD COLUMN explicitly PG-only:
+`make reference RUN='^TestReferenceViewJoinedDefinition$' VERBOSE=0`.
+
 ## Grouping and count — change note
 
 Table SELECT and shared INSERT SELECT now accept scalar, comma-separated

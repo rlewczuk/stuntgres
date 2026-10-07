@@ -9,60 +9,45 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (v *viewDefinition) columnName(catalog CatalogRead, name string) (string, error) {
-	attribute, ok := v.labels[name]
-	if !ok {
-		return "", fmt.Errorf("stuntgres: unannotated view column")
-	}
-	d, ok := catalog.state.descriptors[v.source.Address].(*relationDescriptor)
-	if !ok {
-		return "", ErrCatalogReplaced
-	}
-	for i, live := range d.attributes {
-		if live == attribute {
-			return quoteIdentifier(d.columns[i].Name), nil
-		}
-	}
-	return "", fmt.Errorf("stuntgres: missing view column identity")
-}
 
 func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (string, error) {
 	s := v.syntax
+	renderer := newViewRenderer(v)
+	var from string
+	if s.From != nil {
+		source, err := renderer.fromSQL(ctx, catalog, s.From)
+		if err != nil {
+			return "", err
+		}
+		from = source.text
+	}
 	var targets []string
-	if s.Star {
-		d := catalog.state.descriptors[v.source.Address].(*relationDescriptor)
-		for _, attribute := range v.attributes {
-			found := false
-			for i, live := range d.attributes {
-				if attribute == live {
-					targets = append(targets, quoteIdentifier(d.columns[i].Name))
-					found = true
-					break
+	for i, expr := range s.Targets {
+		if _, star := expr.(parser.StarExpr); star {
+			for _, slot := range v.stars[i] {
+				text, err := renderer.slotSQL(ctx, catalog, viewFromRoot(v.query.Root), slot)
+				if err != nil {
+					return "", err
 				}
+				targets = append(targets, text)
 			}
-			if !found {
-				return "", fmt.Errorf("stuntgres: missing view star attribute")
-			}
+			continue
 		}
-	} else {
-		for i, expr := range s.Targets {
-			text, err := v.expressionSQL(ctx, catalog, expr, viewLiteralPath{clause: viewTargetLiteral, target: i})
-			if err != nil {
-				return "", err
-			}
-			targets = append(targets, text)
+		text, err := renderer.expressionSQL(ctx, catalog, expr, viewLiteralPath{clause: viewTargetLiteral, target: i})
+		if err != nil {
+			return "", err
 		}
+		targets = append(targets, text)
 	}
 	for i := range targets {
 		targets[i] += " AS " + quoteIdentifier(v.query.Root.Schema()[i].Name)
 	}
 	text := "SELECT " + strings.Join(targets, ", ")
-	if v.source != (ObjectRef{}) {
-		d := catalog.state.descriptors[v.source.Address].(*relationDescriptor)
-		text += " FROM " + quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
+	if s.From != nil {
+		text += " FROM " + from
 	}
 	if s.Where != nil {
-		part, err := v.expressionSQL(ctx, catalog, s.Where, viewLiteralPath{clause: viewWhereLiteral})
+		part, err := renderer.expressionSQL(ctx, catalog, s.Where, viewLiteralPath{clause: viewWhereLiteral})
 		if err != nil {
 			return "", err
 		}
@@ -71,7 +56,7 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 	if len(s.GroupBy) > 0 {
 		var keys []string
 		for i, expr := range s.GroupBy {
-			part, err := v.expressionSQL(ctx, catalog, expr, viewLiteralPath{clause: viewGroupLiteral, target: i})
+			part, err := renderer.expressionSQL(ctx, catalog, expr, viewLiteralPath{clause: viewGroupLiteral, target: i})
 			if err != nil {
 				return "", err
 			}
@@ -80,14 +65,18 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 		text += " GROUP BY " + strings.Join(keys, ", ")
 	}
 	if s.Having != nil {
-		part, err := v.expressionSQL(ctx, catalog, s.Having, viewLiteralPath{clause: viewHavingLiteral})
+		part, err := renderer.expressionSQL(ctx, catalog, s.Having, viewLiteralPath{clause: viewHavingLiteral})
 		if err != nil {
 			return "", err
 		}
 		text += " HAVING " + part
 	}
 	if s.Order != nil {
-		name, err := v.columnName(catalog, s.Order.Column)
+		slot, ok := v.columns[viewLiteralPath{clause: viewOrderLiteral}]
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing view sort identity")
+		}
+		name, err := renderer.orderColumnSQL(slot)
 		if err != nil {
 			return "", err
 		}
@@ -99,12 +88,12 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 	return text, nil
 }
 
-func (v *viewDefinition) expressionSQL(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath) (string, error) {
+func (v *viewRenderer) expressionSQL(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath) (string, error) {
 	ordinal := 0
 	return v.expressionSQLAt(ctx, catalog, raw, path, &ordinal)
 }
 
-func (v *viewDefinition) expressionSQLAt(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal *int) (string, error) {
+func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal *int) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -143,7 +132,15 @@ func (v *viewDefinition) expressionSQLAt(ctx context.Context, catalog CatalogRea
 		}
 		return "", fmt.Errorf("stuntgres: missing analyzed view literal")
 	case parser.ColumnExpr:
-		return v.columnName(catalog, e.Name.Parts[len(e.Name.Parts)-1].Text)
+		slot, ok := v.columns[path]
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing view column occurrence")
+		}
+		root := viewFromRoot(v.query.Root)
+		if path.clause == viewJoinLiteral {
+			root = viewJoinAt(root, path.target)
+		}
+		return v.slotSQL(ctx, catalog, root, slot)
 	case parser.TypedLiteralExpr:
 		return "", fmt.Errorf("stuntgres: missing analyzed typed view literal")
 	case parser.CastExpr:
@@ -279,3 +276,4 @@ func syntaxTypeSQL(t parser.TypeName) string {
 	}
 	return name
 }
+

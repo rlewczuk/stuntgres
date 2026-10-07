@@ -19,10 +19,13 @@ Reset/Restore. See [join semantics and limits](docs/QUERIES.md#inner-and-cross-j
 Public feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
 
 Persistent `CREATE VIEW` definitions use the ordinary typed SELECT pipeline,
-including nested views, explicit output names and `security_invoker` /
-`security_barrier` options. Definitions retain source identities across table,
-column and schema renames; dependencies block restrictive drops. Bounded,
-queryable `pg_class`, `pg_rewrite` and `pg_views` sources expose actual catalog
+including admitted joins, repeated self-join occurrences, nested views, explicit
+output names and `security_invoker` / `security_barrier` options. Every source
+occurrence retains its frozen attribute layout and read-attribute identities across table,
+column and schema renames; dependencies block restrictive drops, including
+columns used only by a second source's join condition. Each execution checks
+current privileges for every source, even for empty results. Bounded, queryable
+`pg_class`, `pg_rewrite` and `pg_views` sources expose actual catalog
 state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
 persists definitions, not their result rows. See [views](docs/SQL.md#views).
 Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.

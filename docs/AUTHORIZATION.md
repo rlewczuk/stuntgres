@@ -21,6 +21,14 @@ The native prepared witness retains an allowed statement description across
 revocation and regrant: the same handle must deny42501 without rows after revoke
 and resume reads after regrant, including an owner view above an invoker view.
 
+Isolated native Restore uses its validated authenticated-bootstrap lookup
+authority for every CREATE VIEW source occurrence, including aliases and joins,
+both before a relation-lock wait and when revalidating the grant. This requires
+the private import marker and initialized import catalog; ordinary CREATE VIEW
+keeps its normal schema checks. The named directive's owner and session identity
+remain unchanged, and imported views check current owner/invoker read privileges
+rather than retaining bootstrap read authority.
+
 ```text
 CREATE {ROLE | USER | GROUP} name [WITH] [LOGIN | NOLOGIN]
 DROP {ROLE | USER | GROUP} name [, ...]

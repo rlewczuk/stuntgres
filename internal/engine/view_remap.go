@@ -136,7 +136,9 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 	var next LogicalNode
 	switch n := node.(type) {
 	case *sourceNode:
-		next = &sourceNode{querySchema: schema, ref: ref(n.ref)}
+		next = &sourceNode{querySchema: schema, ref: ref(n.ref), occurrence: n.occurrence}
+	case *joinNode:
+		next = &joinNode{querySchema: schema, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges)}
 	case *singletonNode:
 		next = &singletonNode{querySchema: schema}
 	case *projectNode:
@@ -208,7 +210,13 @@ func (e *Engine) remapCatalogViews(next *catalogState, mapping map[ObjectAddress
 			continue
 		}
 		definition := *d.view
-		definition.source = ref(definition.source)
+		// Namespace metadata has only labels, occurrence/frame slots and stable
+		// attribute SubIDs. It is immutable and has no catalog-generation refs
+		// or type pointers; the remapped leaves/tree supply its new identities.
+		definition.sources = append([]viewLeaf(nil), definition.sources...)
+		for i := range definition.sources {
+			definition.sources[i].ref = ref(definition.sources[i].ref)
+		}
 		if len(d.view.literals) != 0 {
 			definition.literals = make(map[viewLiteralPath]literalExpression, len(d.view.literals))
 			for path, literal := range d.view.literals {

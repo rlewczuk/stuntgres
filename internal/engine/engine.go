@@ -54,6 +54,9 @@ type binding struct {
 	query             *BoundQuery
 	querySources      []queryLeaf
 	viewLiterals      map[viewLiteralPath]literalExpression
+	viewColumns       map[viewLiteralPath]int
+	viewStars         map[int][]int
+	viewNamespaces    []viewNamespace
 	commandQuery      bool
 	update            *boundUpdate
 	dependencies      []expressionDependency
@@ -570,6 +573,8 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
 	b.sequenceConstants = binder.sequenceConstants
 	b.viewLiterals = binder.viewLiterals
+	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars
+	b.viewNamespaces = binder.viewNamespaces
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.temporals = binder.temporals
 	return b, nil

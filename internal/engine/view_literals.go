@@ -13,6 +13,8 @@ const (
 	viewWhereLiteral
 	viewGroupLiteral
 	viewHavingLiteral
+	viewJoinLiteral
+	viewOrderLiteral
 )
 
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
@@ -65,7 +67,15 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			b.viewLiterals[path] = literal
 			return nil
 		}
-	case parser.ColumnExpr, parser.AggregateExpr:
+	case parser.ColumnExpr:
+		if column, ok := bound.(columnExpression); ok {
+			if b.viewColumns == nil {
+				b.viewColumns = make(map[viewLiteralPath]int)
+			}
+			b.viewColumns[path] = column.slot
+			return nil
+		}
+	case parser.AggregateExpr:
 		return nil
 	case parser.CastExpr:
 		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
@@ -142,11 +152,21 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 
 func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 	count := 0
+	columnCount, starCount := 0, 0
 	validate := func(raw parser.Expr, clause viewLiteralClause, target int) error {
 		ordinal := 0
-		return v.validateLiteralTree(catalog, raw, viewLiteralPath{clause: clause, target: target}, &ordinal, &count)
+		return v.validateLiteralTree(catalog, raw, viewLiteralPath{clause: clause, target: target}, &ordinal, &count, &columnCount)
 	}
 	for i, raw := range v.syntax.Targets {
+		if _, star := raw.(parser.StarExpr); star {
+			starCount++
+			for _, slot := range v.stars[i] {
+				root := viewFromRoot(v.query.Root)
+				if slot < 0 || slot >= len(root.Schema()) {
+					return fmt.Errorf("stuntgres: invalid frozen view star slot")
+				}
+			}
+		}
 		if err := validate(raw, viewTargetLiteral, i); err != nil {
 			return err
 		}
@@ -162,19 +182,47 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 	if err := validate(v.syntax.Having, viewHavingLiteral, 0); err != nil {
 		return err
 	}
-	if count != len(v.literals) {
+	if v.syntax.Order != nil {
+		raw := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: v.syntax.Order.Column}}}}
+		if err := validate(raw, viewOrderLiteral, 0); err != nil {
+			return err
+		}
+	}
+	join := 0
+	var validateFrom func(parser.FromItem) error
+	validateFrom = func(item parser.FromItem) error {
+		switch n := item.(type) {
+		case *parser.AliasReference:
+			return validateFrom(n.Input)
+		case *parser.JoinReference:
+			ordinal := join
+			join++
+			if err := validate(n.On, viewJoinLiteral, ordinal); err != nil {
+				return err
+			}
+			if err := validateFrom(n.Left); err != nil {
+				return err
+			}
+			return validateFrom(n.Right)
+		}
+		return nil
+	}
+	if err := validateFrom(v.syntax.From); err != nil {
+		return err
+	}
+	if count != len(v.literals) || columnCount != len(v.columns) || starCount != len(v.stars) {
 		return fmt.Errorf("stuntgres: invalid view literal occurrence path")
 	}
 	return nil
 }
 
-func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal, count *int) error {
+func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal, count, columnCount *int) error {
 	if raw == nil {
 		return nil
 	}
 	path.node = *ordinal
 	(*ordinal)++
-	child := func(raw parser.Expr) error { return v.validateLiteralTree(catalog, raw, path, ordinal, count) }
+	child := func(raw parser.Expr) error { return v.validateLiteralTree(catalog, raw, path, ordinal, count, columnCount) }
 	args := func(raw []parser.Expr) error {
 		for _, arg := range raw {
 			if err := child(arg); err != nil {
@@ -202,7 +250,18 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			return err
 		}
 		return fmt.Errorf("stuntgres: missing view literal occurrence")
-	case parser.ColumnExpr, parser.AggregateExpr:
+	case parser.ColumnExpr:
+		slot, ok := v.columns[path]
+		root := viewFromRoot(v.query.Root)
+		if path.clause == viewJoinLiteral {
+			root = viewJoinAt(root, path.target)
+		}
+		if !ok || root == nil || slot < 0 || slot >= len(root.Schema()) {
+			return fmt.Errorf("stuntgres: invalid view column occurrence")
+		}
+		(*columnCount)++
+		return nil
+	case parser.StarExpr, parser.AggregateExpr:
 		return nil
 	case parser.CastExpr:
 		return child(r.Child)

@@ -19,7 +19,7 @@ ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
 Persistent view definitions are dumped after their relation dependencies, with
-fixed output names, current bound source/column spellings, security options and
+fixed output names, current bound relation identities, frozen column namespace labels, security options and
 owner directives. Views are not evaluated by Dump/Restore and their output is
 never serialized as table rows. Restore binds canonical CREATE VIEW in its
 isolated catalog, remaps every stored source/expression/dependency identity into
@@ -27,6 +27,21 @@ the destination generation, and atomically installs definitions with ordinary
 data. Derived catalog sources initialize normally and are not dumped. Restored
 views remain dynamic; later base writes and dependency checks still apply.
 Failed/canceled imports retain old catalogs, dependencies and held result rows.
+Dump orders views by their actual persistent source/dependency topology, using
+OID only to break ties between independent ready views. Retained TEMP collision
+remapping may move a source OID above its dependent without changing replay order.
+The two-retained-sequence, second-Dump/Restore regression is executable with
+`make test PACKAGES=. RUN='^TestViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0`.
+Joined imports remap every source occurrence, both join children, predicates,
+merged-value coercions and all frame schemas into the destination generation.
+Frozen per-leaf attribute layouts and analyzed ON literals remain attached to
+their logical occurrences; retained TEMP type generations do not change bags,
+merged output types or canonical definition reconstruction.
+Namespace labels/slots, explicit USING keys and attribute IDs are immutable
+metadata without generation-specific type pointers. Full positional aliases
+follow the current physical/visible order after compaction; NATURAL replays its
+frozen USING keys, and merged conversions use the ordinary implicit binder.
+Stored ORDER remains an unqualified frozen namespace label.
 
 Stored view literals are serialized from creation-time analyzed values and type
 usages, including temporal precision, typed NULLs and sentinel values. Relative

@@ -39,8 +39,10 @@ func (s *StatementScope) acquireViewSources() error {
 			refs = append(refs, ref)
 		}
 		if d.view != nil {
-			if err := visit(d.view.source); err != nil {
-				return err
+			for _, leaf := range d.view.sources {
+				if err := visit(leaf.ref); err != nil {
+					return err
+				}
 			}
 			for _, dependency := range d.view.dependencies {
 				if dependency.ref.Address.ClassID == RelationClassID {

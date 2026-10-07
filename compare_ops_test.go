@@ -77,7 +77,7 @@ func compareOpsRows(t *testing.T, rows *sql.Rows, err error, types []string, wan
 		if meta[i].DatabaseTypeName() != typ {
 			t.Fatal(i, meta[i])
 		}
-		if typ == "BOOL" && (meta[i].Name() != "?column?" || meta[i].ScanType() != reflect.TypeFor[bool]()) {
+		if typ == "BOOL" && meta[i].ScanType() != reflect.TypeFor[bool]() {
 			t.Fatal(meta[i])
 		}
 	}

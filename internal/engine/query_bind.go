@@ -43,6 +43,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	b.aggregateClause, b.aggregates = "SELECT", nil
 	var projection []BoundExpr
 	var targetNames []string
+	var literalTargets []int
 	for target, raw := range s.Targets {
 		if err := b.ctx.Err(); err != nil {
 			return nil, err
@@ -58,9 +59,19 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			} else if s.From == nil {
 				return nil, expressionError("42601", "SELECT * with no tables specified is not valid", star.Pos)
 			}
+			if b.noParameters {
+				if b.viewStars == nil {
+					b.viewStars = make(map[int][]int)
+				}
+				b.viewStars[target] = nil
+			}
 			for _, c := range columns {
 				projection = append(projection, b.queryColumnAt(c, star.Pos))
 				targetNames = append(targetNames, c.descriptor.Name)
+				if b.noParameters {
+					b.viewStars[target] = append(b.viewStars[target], c.slot)
+					literalTargets = append(literalTargets, -1)
+				}
 			}
 		} else {
 			expr, err := b.bindOutput(raw, contextual)
@@ -68,6 +79,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 				return nil, err
 			}
 			projection = append(projection, expr)
+			if b.noParameters {
+				literalTargets = append(literalTargets, target)
+			}
 			name, _ := expressionName(raw, expr.ResultUsage())
 			targetNames = append(targetNames, name)
 			if len(s.TargetLabels) != 0 && s.TargetLabels[target].Text != "" {
@@ -149,6 +163,12 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		if err != nil {
 			return nil, err
 		}
+		if b.noParameters {
+			raw := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: s.Order.Column, Pos: s.Order.Pos}}}, Pos: s.Order.Pos}
+			if err := b.captureViewLiterals(raw, order, viewOrderLiteral, 0); err != nil {
+				return nil, err
+			}
+		}
 	}
 	results := make([]ColumnDescriptor, width)
 	regclassOutput := false
@@ -161,8 +181,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			}
 			projection[i] = expr
 		}
-		if b.noParameters && !s.Star {
-			if err := b.captureViewLiterals(s.Targets[i], expr, viewTargetLiteral, i); err != nil {
+		if b.noParameters && literalTargets[i] >= 0 {
+			target := literalTargets[i]
+			if err := b.captureViewLiterals(s.Targets[target], expr, viewTargetLiteral, target); err != nil {
 				return nil, err
 			}
 		}

@@ -14,9 +14,11 @@ type queryLeaf struct {
 	uses     []int
 }
 
-func (s *StatementScope) acquireQueryRelations(sel *parser.Select, execute bool) error {
+func (s *StatementScope) acquireQueryRelations(sel *parser.Select, authorityStmt parser.Statement, execute bool) error {
 	for _, table := range parser.FromTables(sel.From) {
-		if err := s.acquireRelationTarget(&parser.Select{From: table}, execute, true); err != nil {
+		// Keep the enclosing CREATE VIEW authority for each leaf, including
+		// aliased and joined sources. The leaf SELECT only identifies the lock.
+		if err := s.acquireRelationTarget(&parser.Select{From: table}, authorityStmt, execute, true); err != nil {
 			return err
 		}
 	}
@@ -57,6 +59,21 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 
 // Called once with e.mu held: all table roots share this statement frontier.
 func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []queryLeaf, singleton bool) (*querySource, error) {
+	var invoker PrincipalRef
+	for _, leaf := range leaves {
+		if leaf.relation.view != nil {
+			auth, err := e.authorizationLocked(scope.op)
+			if err != nil {
+				return nil, err
+			}
+			invoker = auth.state.CurrentUser
+			break
+		}
+	}
+	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker)
+}
+
+func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef) (*querySource, error) {
 	if len(leaves) == 0 {
 		return &querySource{singleton: singleton, scope: scope}, nil
 	}
@@ -65,19 +82,41 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	if len(leaves) > 1 {
 		refs = make([]ObjectRef, 0, len(leaves))
 	}
-	for _, leaf := range leaves {
-		if leaf.relation.relationKind != tableRelation {
-			continue
+	catalog := e.sequenceCatalogLocked(scope.owner.sequences)
+	var visited map[ObjectRef]bool
+	var collect func(ObjectRef) error
+	collect = func(ref ObjectRef) error {
+		relation, ok := catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		if !ok || ref.owner != e.owner || ref.Epoch != catalog.Epoch() {
+			return ErrCatalogReplaced
 		}
-		found := false
-		for _, ref := range refs {
-			if ref == leaf.ref {
-				found = true
-				break
+		if relation.view != nil {
+			if visited[ref] {
+				return nil
+			}
+			if visited == nil {
+				visited = make(map[ObjectRef]bool)
+			}
+			visited[ref] = true
+			for _, child := range relation.view.sources {
+				if err := collect(child.ref); err != nil {
+					return err
+				}
 			}
 		}
-		if !found {
-			refs = append(refs, leaf.ref)
+		if relation.relationKind == tableRelation {
+			for _, prior := range refs {
+				if prior == ref {
+					return nil
+				}
+			}
+			refs = append(refs, ref)
+		}
+		return nil
+	}
+	for _, leaf := range leaves {
+		if err := collect(leaf.ref); err != nil {
+			return nil, err
 		}
 	}
 	var view *VisibilityView
@@ -101,14 +140,9 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 		case tableRelation:
 			source, err = captureQueryPrefix(view, leaf.ref)
 		default:
-			auth, authErr := e.authorizationLocked(scope.op)
-			if authErr != nil {
-				err = authErr
-			} else {
-				// Recursive view opening consumes the lock, including failures.
-				source, err = e.openRelationSourceLocked(scope, leaf.ref, auth.state.CurrentUser)
-				e.mu.Lock()
-			}
+			// Recursive view opening consumes the lock, including failures.
+			source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker)
+			e.mu.Lock()
 		}
 		if err != nil {
 			if first != nil {

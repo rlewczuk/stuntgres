@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
-	"strings"
 	"stuntgres"
 	"testing"
 	"time"
@@ -144,9 +143,11 @@ func TestViewSmoke(t *testing.T) {
 	}
 	check("SELECT rulename,ev_class,ev_type,ev_enabled,is_instead FROM pg_catalog.pg_rewrite WHERE ev_class=$1", []string{"rulename", "ev_class", "ev_type", "ev_enabled", "is_instead"}, []string{"NAME", "OID", "CHAR", "CHAR", "BOOL"}, [][]any{{"_RETURN", oid, "1", "O", true}}, oid)
 	var definition string
-	if err = db.QueryRowContext(ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='v'").Scan(&definition); err != nil || !strings.Contains(definition, "renamed") || !strings.Contains(definition, "new_id") {
-		t.Fatal(definition, err)
+	if err = db.QueryRowContext(ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='v'").Scan(&definition); err != nil {
+		t.Fatal(err)
 	}
+	exec("CREATE VIEW reconstructed AS " + definition)
+	check("SELECT k FROM reconstructed ORDER BY k", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(3)}, {int64(3)}})
 	exec("INSERT INTO renamed VALUES(4,'d',true)")
 	check("SELECT count(*) FROM v", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}})
 	var dump bytes.Buffer
@@ -159,7 +160,7 @@ func TestViewSmoke(t *testing.T) {
 	}
 	check("SELECT k FROM w ORDER BY k", []string{"k"}, []string{"INT4"}, [][]any{{int64(3)}, {int64(3)}, {int64(4)}})
 	check("SELECT d,clock,stamp FROM safe", []string{"d", "clock", "stamp"}, []string{"DATE", "TIME", "TIMESTAMP"}, [][]any{{"2000-01-02", "04:05:06.124", time.Date(2000, 1, 2, 4, 5, 6, 124000000, time.UTC)}})
-	check("SELECT count(*) FROM providers", []string{"count"}, []string{"INT8"}, [][]any{{int64(5)}})
+	check("SELECT viewname FROM providers ORDER BY viewname", []string{"viewname"}, []string{"NAME"}, [][]any{{"providers"}, {"reconstructed"}, {"safe"}, {"v"}, {"w"}, {"z"}})
 	if err = stuntgres.Restore(ctx, db, bytes.NewBufferString("CREATE TABLE lost(i INT); CREATE VIEW broken AS SELECT missing FROM lost;")); err == nil {
 		t.Fatal("invalid restore accepted")
 	}

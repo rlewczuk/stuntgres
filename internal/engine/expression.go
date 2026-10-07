@@ -465,6 +465,10 @@ type expressionBinder struct {
 	queryHidden       []queryQualifier
 	noParameters      bool
 	viewLiterals      map[viewLiteralPath]literalExpression
+	viewColumns       map[viewLiteralPath]int
+	viewStars         map[int][]int
+	viewJoinCount     int
+	viewNamespaces    []viewNamespace
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {

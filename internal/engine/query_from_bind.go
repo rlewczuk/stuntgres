@@ -168,7 +168,22 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 	return nil, err
 }
 
-func (b *expressionBinder) bindFrom(item parser.FromItem) (LogicalNode, queryNamespace, error) {
+func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, namespace queryNamespace, failure error) {
+	// FROM preorder is shared with the renderer. Capture the namespace after
+	// aliases and USING have been applied, before a parent rebases its slots.
+	ordinal := -1
+	if b.noParameters && item != nil {
+		ordinal = len(b.viewNamespaces)
+		b.viewNamespaces = append(b.viewNamespaces, viewNamespace{})
+		defer func() {
+			if failure == nil {
+				b.viewNamespaces[ordinal].columns = b.freezeViewColumns(namespace.columns)
+				for _, q := range namespace.qualifiers {
+					b.viewNamespaces[ordinal].qualifiers = append(b.viewNamespaces[ordinal].qualifiers, viewNamespaceQualifier{q.name, b.freezeViewColumns(q.columns)})
+				}
+			}
+		}()
+	}
 	if err := b.ctx.Err(); err != nil {
 		return nil, queryNamespace{}, err
 	}
@@ -216,6 +231,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (LogicalNode, queryNam
 		ns.qualifiers = []queryQualifier{q}
 		return root, ns, nil
 	case *parser.JoinReference:
+		joinOrdinal := b.viewJoinCount
+		b.viewJoinCount++
 		left, lns, err := b.bindFrom(n.Left)
 		if err != nil {
 			return nil, queryNamespace{}, err
@@ -239,6 +256,11 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (LogicalNode, queryNam
 			if err != nil {
 				return nil, queryNamespace{}, err
 			}
+			if b.noParameters {
+				if err := b.captureViewLiterals(n.On, join.predicate, viewJoinLiteral, joinOrdinal); err != nil {
+					return nil, queryNamespace{}, err
+				}
+			}
 		}
 		keys := n.Using
 		if n.Natural {
@@ -249,6 +271,11 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (LogicalNode, queryNam
 						break
 					}
 				}
+			}
+		}
+		if ordinal >= 0 {
+			for _, key := range keys {
+				b.viewNamespaces[ordinal].keys = append(b.viewNamespaces[ordinal].keys, key.Text)
 			}
 		}
 		if len(keys) > 0 {

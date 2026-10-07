@@ -81,10 +81,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var schemas []dumpSchema
 	var sequences []dumpSequence
 	type dumpView struct {
-		oid        OID
 		owner, sql string
 	}
 	var views []dumpView
+	viewDependencies := make(map[OID][]OID)
+	viewIndices := make(map[OID]int)
 	type dumpComment struct{ name, text string }
 	var schemaComments []dumpComment
 	// Reconstruct bootstrap identity changes before creating ordinary namespaces.
@@ -240,7 +241,46 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			sql := "CREATE VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + columns +
 				fmt.Sprintf(" WITH (security_barrier=%t, security_invoker=%t) AS ", r.view.barrier, r.view.invoker) + body + ";\n"
-			views = append(views, dumpView{r.address.ObjectID, principal.Name, sql})
+			// Capture every source occurrence and expression dependency from the
+			// same immutable catalog used to render the definition. Attribute
+			// references depend on their parent relation, not its column OID.
+			predecessors := make(map[OID]bool)
+			addPredecessor := func(address ObjectAddress) error {
+				address.SubID = 0
+				object, exists := e.state.descriptors[address]
+				if !exists {
+					return fmt.Errorf("stuntgres: missing view dump dependency")
+				}
+				source, relation := object.(*relationDescriptor)
+				if !relation || source.view == nil {
+					return nil // Tables/sequences precede views; providers already exist.
+				}
+				namespace, exists := e.state.descriptors[source.namespace].(*namespaceDescriptor)
+				if !exists || namespace.temporary != (SessionToken{}) {
+					return fmt.Errorf("stuntgres: invalid view dump dependency lifetime")
+				}
+				predecessors[source.address.ObjectID] = true
+				return nil
+			}
+			for _, leaf := range r.view.sources {
+				if err := addPredecessor(leaf.ref.Address); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+			}
+			for _, dependency := range r.view.dependencies {
+				if err := addPredecessor(dependency.ref.Address); err != nil {
+					e.mu.Unlock()
+					return err
+				}
+			}
+			oid := r.address.ObjectID
+			viewDependencies[oid] = make([]OID, 0, len(predecessors))
+			for predecessor := range predecessors {
+				viewDependencies[oid] = append(viewDependencies[oid], predecessor)
+			}
+			viewIndices[oid] = len(views)
+			views = append(views, dumpView{principal.Name, sql})
 			continue
 		}
 		if r.relationKind == sequenceRelation {
@@ -277,6 +317,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults})
 	}
 	e.mu.Unlock()
+	viewOrder, err := viewDumpOrder(ctx, viewDependencies)
+	if err != nil {
+		return err
+	}
 	sort.Slice(tables, func(i, j int) bool {
 		if tables[i].owner != tables[j].owner {
 			return tables[i].owner < tables[j].owner
@@ -403,8 +447,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
-	sort.Slice(views, func(i, j int) bool { return views[i].oid < views[j].oid })
-	for _, view := range views {
+	for _, oid := range viewOrder {
+		view := views[viewIndices[oid]]
 		if err := emit("SET SESSION AUTHORIZATION " + quoteIdentifier(view.owner) + ";\n" + view.sql); err != nil {
 			return err
 		}
