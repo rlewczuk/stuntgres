@@ -33,15 +33,17 @@ target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
 INSERT INTO [schema.]name [(column [, ...])] SELECT [projection_target [, ...]]
        [FROM from_list [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
-        [HAVING logical_predicate] [ORDER BY column [ASC | DESC]]]
+        [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]]
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
-       ORDER BY (positive_output_ordinal | columnN | +numeric_constant) [ASC | DESC]
+       ORDER BY ordering_key [, ...]
 INSERT INTO [schema.]name DEFAULT VALUES
 insert_value := value | DEFAULT
 DELETE FROM [schema.]name [[AS] alias] [WHERE delete_predicate]
 SELECT [projection_target [, ...]] FROM from_list
        [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
-       [HAVING logical_predicate] [ORDER BY column [ASC | DESC]]
+       [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]
+ordering_key := (scalar_expression | output_label | output_ordinal)
+                [ASC | DESC] [NULLS FIRST | NULLS LAST]
 from_list := from_item [, from_item ...]
 from_item := [schema.]name [[AS] alias [(column [, ...])]]
            | (from_list) [[AS] alias [(column [, ...])]]
@@ -110,8 +112,9 @@ SELECT/INSERT SELECT consumers; existing DELETE/UPDATE cast/qualification guards
 are not widened. Raw qualification guards also remain at DEFAULT, VALUES and
 settings-call scalar entry points. Previously admitted conditional arguments
 retain their consumer diagnostics, including metadata-only utility Prepare
-followed by DEFAULT validation at execution. ORDER retains its single
-unqualified named-key syntax.
+followed by DEFAULT validation at execution. ORDER keys use the shared
+expression/output-reference syntax above; qualified and compound expressions
+resolve through the input namespace, while bare output labels take priority.
 No-FROM SELECT/INSERT SELECT retain their prior projection qualification
 capability guard (`0A000` at a raw dot), rather than gaining a FROM namespace.
 Grouped scalar qualifiers retain their syntax boundary; existing selected

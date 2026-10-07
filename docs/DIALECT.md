@@ -308,9 +308,9 @@ An earlier bare `$1` still has TEXT output fallback and conflicts with later
 INT4 inference (42P08). Inputs' Go kinds never choose SQL types.
 Incompatible operands fail eagerly in Query/Prepare at the operator (42883);
 selected literal input errors retain the literal position (22P02/22003).
-No comparison implies row ordering. Comparison chaining, bare SELECT projection
-labels, casts outside the bounded baseline and character-family sets and
-comparison in INSERT/settings remain
+No comparison implies row ordering. SELECT projection labels and expression
+ORDER keys are supported; comparison chaining, casts outside the bounded
+baseline and character-family sets, and comparison in INSERT/settings remain
 excluded. Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`;
 independent pinned reference: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`.
 
@@ -423,9 +423,9 @@ unknown nullability even on empty output; NULL exports as nil. Prepared frames
 are fresh, while output metadata and captured logical rows survive EOF/Close
 and native controls. `SELECT $1 AND TRUE,$1 FROM t` infers BOOL for both;
 `SELECT $1,$1 AND TRUE FROM t` fails42P08/boolean versus text at the first target.
-Existing scalar comparisons form Boolean leaves in targets and WHERE. Logical
-INSERT, settings arguments, expression ORDER BY and all adjacent general
-expression syntax remain excluded. Feature smoke:
+Existing scalar comparisons form Boolean leaves in targets, WHERE and ORDER
+expressions. Logical INSERT, settings arguments and adjacent unsupported
+expression forms remain excluded. Feature smoke:
 `make smoke RUN='^TestLogicalSmoke$' VERBOSE=1`; pinned independent reference:
 `make reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
 PostgreSQL parses `SELECT TRUE AND FROM t` / `SELECT TRUE OR FROM t` as TRUE
