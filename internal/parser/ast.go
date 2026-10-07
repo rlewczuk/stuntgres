@@ -355,7 +355,12 @@ func singletonArgument(expr Expr) bool {
 		literal, ok := child.(LiteralExpr)
 		return ok && (literal.Value.Kind == IntegerValue || literal.Value.Kind == NumericValue)
 	case FunctionExpr:
-		if len(e.Name.Parts) != 1 || (e.Name.Parts[0].Text != "num_nulls" && e.Name.Parts[0].Text != "num_nonnulls" && e.Name.Parts[0].Text != "random" && e.Name.Parts[0].Text != "random_normal" && e.Name.Parts[0].Text != "setseed") {
+		if len(e.Name.Parts) != 1 {
+			return false
+		}
+		switch e.Name.Parts[0].Text {
+		case "num_nulls", "num_nonnulls", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
+		default:
 			return false
 		}
 		for _, arg := range e.Args {

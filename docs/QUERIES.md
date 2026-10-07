@@ -738,6 +738,14 @@ SMALLINT/NUMERIC/floating and other noninteger arithmetic remain explicitly
 unsupported, without changing their input/comparison/assignment capabilities.
 Previously supported signed NUMERIC literal input, such as `+1.5`, remains a
 literal identity operation, not a NUMERIC arithmetic provider.
+Selected mathematical `mod` functions separately support SMALLINT, INTEGER,
+BIGINT and exact NUMERIC remainders through the existing expression consumers;
+this does not admit SMALLINT/NUMERIC arithmetic operators. Selected round/scale/
+trunc/sign calls compose with existing projections, grouping by projection
+ordinal, UPDATE and INSERT SELECT. They may wrap existing CASE scalar arms and
+count-star aggregates, but do not add selected function CASE result leaves or
+general GROUP BY call syntax.
+See [the bounded signature note](DIALECT.md#scale-and-rounding-functions--change-note).
 Unknown-only arithmetic fails `0A000`, `integer arithmetic requires known integer
 or bigint operands`; unlike PostgreSQL it does not select FLOAT8 for unary unknown
 `+` or emulate ambiguous full-provider overloads. Settings signatures, casts,

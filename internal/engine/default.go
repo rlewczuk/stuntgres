@@ -353,6 +353,22 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 		}
 		n.expressionInfo = info
 		rebound = n
+	case mathExpression:
+		n.args = append([]BoundExpr(nil), n.args...)
+		var usages [2]sqltype.Usage
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+			usages[i] = n.args[i].ResultUsage()
+		}
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n.plan, err = sqltype.BindMath(n.plan.Name(), info.usage, usages[:len(n.args)]...)
+		n.expressionInfo = info
+		rebound = n
 	case nullCountExpression:
 		n.args = append([]BoundExpr(nil), n.args...)
 		for i := range n.args {

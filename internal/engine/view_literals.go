@@ -139,6 +139,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return child(r.Else, n.otherwise)
 		}
 	case parser.FunctionExpr:
+		if n, ok := bound.(mathExpression); ok {
+			return children(r.Args, n.args)
+		}
 		if n, ok := bound.(nullCountExpression); ok {
 			return children(r.Args, n.args)
 		}
@@ -222,7 +225,9 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 	}
 	path.node = *ordinal
 	(*ordinal)++
-	child := func(raw parser.Expr) error { return v.validateLiteralTree(catalog, raw, path, ordinal, count, columnCount) }
+	child := func(raw parser.Expr) error {
+		return v.validateLiteralTree(catalog, raw, path, ordinal, count, columnCount)
+	}
 	args := func(raw []parser.Expr) error {
 		for _, arg := range raw {
 			if err := child(arg); err != nil {

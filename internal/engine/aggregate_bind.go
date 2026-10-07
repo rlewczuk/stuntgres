@@ -84,6 +84,17 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 			}
 		}
 		return true
+	case mathExpression:
+		o, ok := other.(mathExpression)
+		if !ok || e.plan != o.plan || len(e.args) != len(o.args) {
+			return false
+		}
+		for i := range e.args {
+			if !same(e.args[i], o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case randomExpression:
 		o, ok := other.(randomExpression)
 		if !ok || e.name != o.name || len(e.args) != len(o.args) {
@@ -207,6 +218,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case mathExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case randomExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
@@ -264,6 +282,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case sequenceCallExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
+	case mathExpression:
 		for _, arg := range e.args {
 			walk(arg)
 		}

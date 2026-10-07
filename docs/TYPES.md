@@ -313,6 +313,19 @@ not normalized into parity.
 
 Unconstrained storage is bounded to 131072 integer digits and 16383 fractional
 places; excess format range is rejected, not silently truncated to zero.
+
+Selected `round`/`trunc` functions use the full format scale bounds rather than
+typmod's ±1000 limit: round clamps requests to [-131073,16383], trunc to
+[-131072,16383], and both display `max(scale,0)` places. NUMERIC ties round away
+from zero; truncation is toward zero. `scale` measures stored display places,
+`min_scale` the minimum finite fraction places and `trim_scale` removes only
+redundant display zeros. Numeric remainder is exact at the greater finite input
+display scale (finite modulo infinity retains its original scale).
+These function results are unconstrained NUMERIC/string with unknown native
+DecimalSize, not the source column's typmod. See
+[selected mathematical signatures](DIALECT.md#scale-and-rounding-functions--change-note);
+this does not add NUMERIC operators or general casts.
+
 Numeric SQL parsing does not broaden SET's plain-decimal-integer grammar:
 settings' quoted numeric codecs retain their separate units/prefix behavior.
 No serial, NUMERIC/SMALLINT arithmetic, general functions, numeric casts, general operator syntax or
@@ -328,7 +341,7 @@ Real pinned PostgreSQL witnesses:
 `make reference RUN='^TestReferenceNumeric.*$' VERBOSE=1`.
 Native logical negative-scale metadata is asserted independently of lib/pq's
 unsigned-scale decoding defect, not by accepting its incorrect DecimalSize.
-For unconstrained NUMERIC results (including bounded random), pinned lib/pq
+For unconstrained NUMERIC results (including bounded random and selected math), pinned lib/pq
 reports DecimalSize `(65535,65531,true)` in direct and prepared queries by
 unsigned decoding of server typmod-1. Native metadata remains `(0,0,false)`;
 this adapter defect does not constrain the result's actual display scale or

@@ -1,0 +1,159 @@
+package engine
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/sqltype"
+)
+
+type mathObservedArgument struct {
+	expressionInfo
+	value sqltype.Value
+	order *[]int
+	index int
+	err   error
+}
+
+func (e mathObservedArgument) Eval(*EvalContext) (sqltype.Value, error) {
+	*e.order = append(*e.order, e.index)
+	return e.value, e.err
+}
+
+func TestMathTraversal(t *testing.T) {
+	var numeric, int4 *sqltype.Descriptor
+	for _, d := range sqltype.Builtins() {
+		if d.ID() == sqltype.Numeric {
+			numeric = d
+		}
+		if d.ID() == sqltype.Int4 {
+			int4 = d
+		}
+	}
+	plan, err := sqltype.BindMath("round", numeric.Usage(), numeric.Usage(), int4.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var order []int
+	one, _ := sqltype.Integer(int4, 1)
+	expr := mathExpression{expressionInfo: expressionInfo{usage: numeric.Usage()}, plan: plan, args: []BoundExpr{
+		mathObservedArgument{expressionInfo: expressionInfo{usage: numeric.Usage()}, value: sqltype.Null(numeric), order: &order, index: 0},
+		mathObservedArgument{expressionInfo: expressionInfo{usage: int4.Usage()}, value: one, order: &order, index: 1},
+	}}
+	got, err := expr.Eval(&EvalContext{Context: context.Background()})
+	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
+		t.Fatal(got, order, err)
+	}
+	failure := errors.New("demanded sibling")
+	expr.args[1] = mathObservedArgument{expressionInfo: expressionInfo{usage: int4.Usage()}, order: &order, index: 1, err: failure}
+	order = nil
+	_, err = expr.Eval(&EvalContext{Context: context.Background()})
+	if !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
+		t.Fatal(order, err)
+	}
+	// Immutable child work is simplified before strict literal-NULL folding.
+	// This is not runtime nullable-column suppression or Prepare evaluation.
+	modPlan, err := sqltype.BindMath("mod", int4.Usage(), int4.Usage(), int4.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	zero, _ := sqltype.Integer(int4, 0)
+	mod := mathExpression{expressionInfo: expressionInfo{usage: int4.Usage()}, plan: modPlan, args: []BoundExpr{
+		literalExpression{expressionInfo{usage: int4.Usage()}, one},
+		literalExpression{expressionInfo{usage: int4.Usage()}, zero},
+	}}
+	expr.args = []BoundExpr{literalExpression{expressionInfo{usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}
+	_, _, err = simplifyConditional(&EvalContext{Context: context.Background()}, expr, false)
+	var diagnostic interface{ SQLState() string }
+	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {
+		t.Fatal("immutable sibling before strict NULL", err)
+	}
+	// Query/DML preflight must reach the same policy without a CASE wrapper,
+	// including the selected-call singleton source used by public diagnostics.
+	_, _, err = preflightCoercions(&EvalContext{Context: context.Background()}, expr)
+	diagnostic = nil
+	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {
+		t.Fatal("math execution preflight bypassed immutable simplification", err)
+	}
+}
+
+func TestMathConsumers(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE m(n NUMERIC)")
+	run(t, e, "INSERT INTO m VALUES(1.25),(1.24),(-1.25)")
+	got := mathTuples(t, run(t, e, "SELECT round(n,1),count(*) FROM m GROUP BY 1"))
+	counts := make(map[string]int64)
+	for _, row := range got {
+		counts[row[0].(string)] = row[1].(int64)
+	}
+	if !reflect.DeepEqual(counts, map[string]int64{"1.3": 1, "1.2": 1, "-1.3": 1}) || len(got) != 3 {
+		t.Fatal(got)
+	}
+	got = mathTuples(t, run(t, e, "SELECT sign(count(*)),round(count(*),1) FROM m"))
+	if !reflect.DeepEqual(got, [][]any{{float64(1), "3.0"}}) {
+		t.Fatal(got)
+	}
+	for _, temporary := range []bool{false, true} {
+		t.Run(map[bool]string{false: "new-types", true: "retained-types"}[temporary], func(t *testing.T) {
+			source := New()
+			run(t, source, "CREATE TABLE s(id INT,n NUMERIC)")
+			run(t, source, "INSERT INTO s VALUES(1,8.4100)")
+			run(t, source, "CREATE VIEW v AS SELECT round(n,1) AS r,trim_scale(n) AS t,mod(n,4.0) AS m,scale(n) AS s FROM s")
+			var dump bytes.Buffer
+			if err := source.Dump(context.Background(), &dump); err != nil {
+				t.Fatal(err)
+			}
+			target := New()
+			if temporary {
+				op, done := roleOperation(t, target, "postgres")
+				defer done()
+				roleExecute(t, target, op, "CREATE TEMPORARY SEQUENCE retained")
+			}
+			if err := target.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			if got := mathTuples(t, run(t, target, "SELECT r,t,m,s FROM v")); !reflect.DeepEqual(got, [][]any{{"8.4", "8.41", "0.4100", int64(4)}}) {
+				t.Fatal(got)
+			}
+		})
+	}
+}
+
+func mathTuples(t *testing.T, result Result) [][]any {
+	t.Helper()
+	cursor := independentFinalRows(result.Rows)
+	defer cursor.Close()
+	var rows [][]any
+	values := make([]sqltype.Value, len(cursor.Schema()))
+	for {
+		present, err := cursor.Next(context.Background(), values)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !present {
+			break
+		}
+		row := make([]any, len(values))
+		for i, v := range values {
+			if v.IsNull() {
+				continue
+			}
+			switch v.Type().ID() {
+			case sqltype.Numeric:
+				row[i], err = v.Type().Output(context.Background(), v)
+			case sqltype.Float8:
+				row[i], err = v.Float()
+			default:
+				row[i], err = v.Integer()
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}

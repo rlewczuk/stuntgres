@@ -637,7 +637,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		token.lexeme.text = text
 	}
 	switch token.lexeme.text {
-	case "num_nulls", "num_nonnulls", "random", "random_normal", "setseed":
+	case "num_nulls", "num_nonnulls", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}

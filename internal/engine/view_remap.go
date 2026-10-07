@@ -76,6 +76,9 @@ func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundEx
 	case conditionalExpression:
 		n.args = args(n.args)
 		next = n
+	case mathExpression:
+		n.args = args(n.args)
+		next = n
 	case nullCountExpression:
 		n.args = args(n.args)
 		next = n

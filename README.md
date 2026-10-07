@@ -69,6 +69,13 @@ pseudorandom, not cryptographic, and do not promise PostgreSQL's exact PRNG
 sequence. See [the capability/change note](docs/DIALECT.md#random-functions--change-note).
 Public feature smoke: `make smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
 
+Exact scale and rounding functions include `min_scale`, `round`, `scale`,
+`trim_scale`, `trunc`, `sign` and `mod`, with PostgreSQL's selected NUMERIC,
+FLOAT8 and integer overloads. NUMERIC ties round away from zero; negative
+scales and exact remainder never pass through floating point. See
+[the signature and behavior note](docs/DIALECT.md#scale-and-rounding-functions--change-note).
+Public feature smoke: `make smoke RUN='^TestMathSmoke$' VERBOSE=0`.
+
 
 ## Minimal example: one unit test
 

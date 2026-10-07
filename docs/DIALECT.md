@@ -533,6 +533,76 @@ or VOID casts/operators.
 Feature smoke: `make smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
 Independent pinned reference: `make reference RUN='^TestReferenceRandom' VERBOSE=0`.
 
+### Scale and rounding functions — change note
+
+The existing selected-call projection/nesting and call-rooted singleton path
+also admits these immutable, strict PostgreSQL18 mathematical overloads:
+
+| Function | Arguments → result |
+|---|---|
+| `scale`, `min_scale` | NUMERIC → INT4 |
+| `trim_scale` | NUMERIC → NUMERIC |
+| `round`, `trunc` | NUMERIC → NUMERIC; FLOAT8 → FLOAT8; NUMERIC, INT4 → NUMERIC |
+| `sign` | NUMERIC → NUMERIC; FLOAT8 → FLOAT8 |
+| `mod` | INT2,INT2 → INT2; INT4,INT4 → INT4; INT8,INT8 → INT8; NUMERIC,NUMERIC → NUMERIC |
+
+Exact NUMERIC selects its numeric overload. Unary integer/REAL
+`round`/`trunc`/`sign` select the preferred FLOAT8 overload. Unknown unary
+`round`/`sign` also select FLOAT8, but unknown unary `trunc` fails `42725`
+because PostgreSQL also has competing nonnumeric overload categories; those
+providers are not added here. Numeric-only functions implicitly accept
+integers, not known floating inputs. Scaled calls
+accept SMALLINT scale widening, but not BIGINT/NUMERIC/FLOAT scale narrowing.
+Mixed integer modulo selects the wider integer; integer/NUMERIC selects NUMERIC.
+Two unknown modulo arguments are ambiguous (`42725`), not Go-kind inferred.
+Missing signatures use `42883` and the standard explicit-casts Hint at the
+function token. Invalid unknown literals use the selected input codec at the
+literal position. Prepared signatures and result metadata remain fixed across
+bindings; NUMERIC results have unconstrained typmod, even from sized columns.
+
+NUMERIC rounding uses ties away from zero; truncation uses toward zero.
+The scale request clamps to [-131073,16383] for round and [-131072,16383] for
+trunc, independently of NUMERIC typmod's ±1000 scale limit. Output has
+`max(scale,0)` fractional places. Carry beyond the full format fails `22003`,
+`value overflows numeric format`, without a fabricated execution Position.
+`scale(8.4100)=4`, `min_scale(8.4100)=2`, `trim_scale(8.4100)=8.41`.
+Finite zero/integer minimum scale is zero. Scale/minimum-scale return typed
+NULL for NaN/infinities; trimming/rounding/truncation preserve those specials.
+NUMERIC sign returns unscaled -1/0/1 or NaN.
+
+FLOAT8 round uses nearest-even in the pinned reference environment; PostgreSQL's
+manual permits host-dependent floating tie behavior. FLOAT8 round/trunc preserve
+negative zero, NaN and infinities. FLOAT8 sign returns positive zero for NaN and
+either signed zero, unlike NUMERIC sign(NaN).
+Remainder has the dividend's sign, with exact NUMERIC output at the greater
+finite operand display scale. Finite modulo infinity preserves the dividend's
+original scale. NaN wins even modulo zero; infinity modulo a nonzero operand
+is NaN. Other zero divisors fail `22012`, `division by zero`, without Position.
+Integer minimum modulo -1 is zero without overflow.
+
+Every child is analyzed before strict NULL elimination. Runtime NULL evaluates
+demanded siblings first. Execution simplification visits immutable children
+before eliminating a strict literal-NULL call: `round(NULL,mod(1,0))` therefore
+fails division by zero, while a row-dependent sibling may be eliminated.
+Prepare/Describe never invokes math providers. Shared query/DML execution
+preflight applies math simplification even without a conditional wrapper,
+including selected-call singleton queries. Existing execution conditional
+pruning/folding, grouping by projection ordinal, UPDATE/INSERT SELECT atomicity,
+ACLs, view capture and
+native replacement remain the shared consumers. No general function registry,
+numeric arithmetic operators, qualification, new WHERE/DEFAULT/INSERT VALUES
+or setting admission, or general SELECT-without-FROM is introduced.
+Dump/Restore stores exact results and replays supported view syntax, not private
+function state.
+Selected calls remain projection/nested-call roots, not new CASE result leaves
+or general GROUP BY expressions. Math around an existing CASE with scalar arms
+and `round(count(*),1)` are admitted; unsupported `min` aggregates are not added.
+
+Feature smoke: `make smoke RUN='^TestMathSmoke$' VERBOSE=0`.
+Independent reference:
+`make reference RUN='^TestReferenceMath(Signatures|NumericRoundScale|SignModulo|Diagnostics|Consumers)$' VERBOSE=0`.
+
+
 Table SELECT projection/WHERE admit `IS [NOT] NULL`, `ISNULL`/`NOTNULL`,
 `IS [NOT] DISTINCT FROM`, and Boolean `IS [NOT] TRUE/FALSE/UNKNOWN`.
 These return nonnull BOOL with `?column?` names and scalar origin zero;
