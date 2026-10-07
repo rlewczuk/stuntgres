@@ -206,7 +206,7 @@ func TestIntervalWidenedComparisonGroupingAndExactDatum(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		n, e := cmp.Compare(ctx, a, b)
+		n, e := cmp.Compare(ctx, a, b, InputEnvironment{})
 		if e != nil || n != 0 || SameDatum(a, b) {
 			t.Fatal(tc, n, e)
 		}
@@ -222,10 +222,10 @@ func TestIntervalWidenedComparisonGroupingAndExactDatum(t *testing.T) {
 	low, _ := d.Input(ctx, "-infinity", -1)
 	high, _ := d.Input(ctx, "infinity", -1)
 	finite, _ := IntervalValue(d, math.MaxInt32, math.MaxInt32, math.MinInt64)
-	if n, _ := cmp.Compare(ctx, low, finite); n != -1 {
+	if n, _ := cmp.Compare(ctx, low, finite, InputEnvironment{}); n != -1 {
 		t.Fatal(n)
 	}
-	if n, _ := cmp.Compare(ctx, finite, high); n != -1 {
+	if n, _ := cmp.Compare(ctx, finite, high, InputEnvironment{}); n != -1 {
 		t.Fatal(n)
 	}
 }

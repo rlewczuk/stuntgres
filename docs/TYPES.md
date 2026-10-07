@@ -1109,6 +1109,9 @@ bounded by tabs/newlines fail22007, with the original whitespace retained in the
 diagnostic. Non-C whitespace such as NBSP is not accepted around ISO, verbose or
 infinity input. Ordinary ASCII whitespace around `1 second` or `infinity` remains
 valid. Only generic malformed syntax retries ISO; generic range errors do not.
+Generic year-month parsing validates the leading numeric field before checking
+the month component's range. A malformed prefix remains a syntax failure eligible
+for the original-byte ISO retry, not a spurious month-range failure.
 The SQL year-month form `1-2` means14months; a preceding bare quantity in
 `1 1-2` duplicates the month field and fails22007, including restricted columns.
 ISO exponent notation retains basic-format integral width:

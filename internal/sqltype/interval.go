@@ -686,16 +686,19 @@ func (parts *intervalParts) generic(s string, pmod int32, env InputEnvironment) 
 			if dash >= 0 {
 				dash += start
 				years, e := strconv.ParseInt(tok[:dash], 10, 64)
+				if e != nil {
+					return false, errors.Is(e, strconv.ErrRange)
+				}
 				monthText := tok[dash+1:]
 				months := int64(0)
 				var e2 error
 				if monthText != "" {
 					months, e2 = strconv.ParseInt(monthText, 10, 64)
 				}
-				if errors.Is(e, strconv.ErrRange) || errors.Is(e2, strconv.ErrRange) || months < 0 || months >= 12 {
+				if errors.Is(e2, strconv.ErrRange) || months < 0 || months >= 12 {
 					return false, true
 				}
-				if e != nil || e2 != nil {
+				if e2 != nil {
 					return false, false
 				}
 				n, ok = intervalMultiply(years, 12)

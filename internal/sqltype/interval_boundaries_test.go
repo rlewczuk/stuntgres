@@ -135,7 +135,7 @@ func TestIntervalPrecisionOverflowBranches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = plan.Apply(ctx, v)
+	_, err = plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 	intervalBoundaryError(t, err, "22008", "interval out of range")
 }
 
@@ -201,7 +201,7 @@ func TestIntervalPrecisionOffsetOverflow(t *testing.T) {
 			}
 			_, err = d.Input(ctx, tc.input, u.Typmod)
 			intervalBoundaryError(t, err, "22008", "interval out of range")
-			_, err = plan.Apply(ctx, v)
+			_, err = plan.Apply(ctx, v, InputEnvironment{}, OutputEnvironment{})
 			intervalBoundaryError(t, err, "22008", "interval out of range")
 		})
 	}
@@ -239,7 +239,7 @@ func TestIntervalPrecisionOffsetControls(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			assigned, err := plan.Apply(ctx, input)
+			assigned, err := plan.Apply(ctx, input, InputEnvironment{}, OutputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -124,7 +124,7 @@ func TestTimezoneBuiltinDescriptionsAndZonedDateStyle(t *testing.T) {
 	seen := map[string]bool{}
 	// Exact supported registry, independently enumerated rather than read from production.
 	expected := map[string]bool{
-		"DateStyle": true, "TimeZone": true, "application_name": true,
+		"DateStyle": true, "IntervalStyle": true, "TimeZone": true, "application_name": true,
 		"bytea_output": true, "client_min_messages": true,
 		"default_transaction_isolation": true, "default_transaction_read_only": true,
 		"lock_timeout": true, "log_statement_stats": true, "search_path": true,
@@ -166,7 +166,7 @@ func TestTimezoneBuiltinDescriptionsAndZonedDateStyle(t *testing.T) {
 	if !seen["TimeZone"] || !seen["DateStyle"] {
 		t.Fatal("missing builtins", seen)
 	}
-	if count != 15 || len(expected) != 0 {
+	if count != 16 || len(expected) != 0 {
 		t.Fatal("builtin cardinality/set", count, expected)
 	}
 	for _, tc := range []struct{ style, want string }{{"SQL,MDY", "12/17/1997 07:37:16 UTC"}, {"SQL,DMY", "17/12/1997 07:37:16 UTC"}, {"German", "17.12.1997 07:37:16 UTC"}, {"Postgres,MDY", "Wed Dec 17 07:37:16 1997 UTC"}, {"Postgres,DMY", "Wed 17 Dec 07:37:16 1997 UTC"}} {
