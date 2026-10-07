@@ -129,7 +129,6 @@ func TestKeywordLabels(t *testing.T) {
 	for _, s := range []struct{ q, code, msg, pos string }{
 		{"SELECT x check FROM t", "0A000", "projection aliases are unsupported", "10"}, {"SELECT x authorization FROM t", "0A000", "projection aliases are unsupported", "10"},
 		{"SELECT x default FROM t", "0A000", "projection aliases are unsupported", "10"},
-		{"SELECT x AS char FROM t", "0A000", "projection aliases are unsupported", "13"}, {"SELECT x AS grant FROM t", "0A000", "projection aliases are unsupported", "13"}, {"SELECT x AS \"Mixed\" FROM t", "0A000", "projection aliases are unsupported", "13"},
 		{"SELECT x char FROM t", "42601", "syntax error at or near \"char\"", "10"}, {"SELECT x day FROM t", "42601", "syntax error at or near \"day\"", "10"},
 	} {
 		keywordDiagnostic(t, s.q, s.code, s.msg, s.pos)
@@ -161,7 +160,9 @@ func TestMappedKeywordLabels(t *testing.T) {
 		if k.token == 0 {
 			continue
 		}
-		keywordDiagnostic(t, "SELECT x AS "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "13")
+		if _, err := Parse("SELECT x AS " + k.word + " FROM t"); err != nil {
+			t.Fatal(k.word, err)
+		}
 		// Predicate and logical tokens continue SELECT expressions, not aliases.
 		if k.bareLabel && k.token != IS && k.token != BETWEEN && k.token != NOT && k.word != "and" && k.word != "or" {
 			keywordDiagnostic(t, "SELECT x "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "10")

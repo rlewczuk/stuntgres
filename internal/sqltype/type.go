@@ -18,6 +18,7 @@ type ID uint32
 const (
 	Bool      ID = 16
 	Bytea     ID = 17
+	Char      ID = 18
 	Name      ID = 19
 	Int8      ID = 20
 	Int2      ID = 21
@@ -103,6 +104,7 @@ func Builtins() []*Descriptor {
 	return []*Descriptor{
 		{Bool, "bool", "BOOLEAN", "BOOL"},
 		{Bytea, "bytea", "BYTEA", "BYTEA"},
+		{Char, "char", "\"char\"", "CHAR"},
 		{Name, "name", "NAME", "NAME"},
 		{Int8, "int8", "BIGINT", "INT8"},
 		{Int2, "int2", "SMALLINT", "INT2"},
@@ -165,7 +167,7 @@ func Boolean(d *Descriptor, b bool) Value {
 	return Value{typ: d, boolean: b}
 }
 func String(d *Descriptor, s string) Value {
-	if d == nil || (!IsCharacter(d.id) && d.id != Name && d.id != Regclass) {
+	if d == nil || (!IsCharacter(d.id) && d.id != Name && d.id != Regclass && d.id != Char) {
 		panic("invalid string descriptor")
 	}
 	return Value{typ: d, text: s}
@@ -183,7 +185,7 @@ func (v Value) Boolean() (bool, error) {
 	return v.boolean, nil
 }
 func (v Value) Text() (string, error) {
-	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && v.typ.id != Name && v.typ.id != Regclass) {
+	if v.null || v.typ == nil || (!IsCharacter(v.typ.id) && v.typ.id != Name && v.typ.id != Regclass && v.typ.id != Char) {
 		return "", fmt.Errorf("not a text value")
 	}
 	return v.text, nil
@@ -226,6 +228,18 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	switch d.id {
 	case Oid:
 		return d.oidInput(text)
+	case Char:
+		if len(text) == 4 && text[0] == '\\' && text[1] >= '0' && text[1] <= '7' && text[2] >= '0' && text[2] <= '7' && text[3] >= '0' && text[3] <= '7' {
+			value := byte((text[1]-'0')<<6 | (text[2]-'0')<<3 | (text[3] - '0'))
+			if value == 0 {
+				return String(d, ""), nil
+			}
+			return String(d, string([]byte{value})), nil
+		}
+		if len(text) > 1 {
+			text = text[:1]
+		}
+		return String(d, text), nil
 	case Name:
 		return String(d, clipName(text)), nil
 	case Bytea:
@@ -404,6 +418,11 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return strconv.FormatInt(v.integer, 10), nil
 	case Float4, Float8:
 		return floatOutput(v.floating, d.id), nil
+	case Char:
+		if len(v.text) > 0 && v.text[0] >= 128 {
+			return fmt.Sprintf("\\%03o", v.text[0]), nil
+		}
+		return v.text, nil
 	case Text, BPChar, VarChar, Name, Regclass:
 		return v.text, nil
 	case Bool:
@@ -438,7 +457,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "TIMESTAMP(0) '294276-12-31 23:59:59.999999'", nil
 		}
 		return "'" + timestampOutput(v.integer) + "'", nil
-	case Text, BPChar, VarChar, Name, Regclass:
+	case Text, BPChar, VarChar, Name, Regclass, Char:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case Oid, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
@@ -802,7 +821,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 		if a.integer > b.integer {
 			return 1, nil
 		}
-	case Bytea, Name:
+	case Bytea, Name, Char:
 		return strings.Compare(a.text, b.text), nil
 	case Bool:
 		if !a.boolean && b.boolean {

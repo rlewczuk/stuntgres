@@ -7,6 +7,17 @@ superuser). `OpenConnector` uses it. Role identities are opaque, engine-owned
 and never reused after DROP, Reset or Restore. PUBLIC is an ACL grantee meaning
 all existing and future principals, not a role or membership endpoint.
 
+Persistent views retain normal owner/ACL descriptors. At CREATE, the creator
+needs destination CREATE and source-schema lookup USAGE, not source SELECT.
+At read, the caller needs named-view SELECT; each ordinary definition checks
+underlying relation columns as that view's current owner. Invoker definitions
+use the original statement invoker, not an outer view owner's substituted
+relation principal. Prepared executions recheck current grants and owners.
+Bound base reads do not repeat name lookup or source-schema USAGE checks; the
+initial named view lookup still requires its schema's USAGE. Relation-principal
+substitution never changes session identity or sequence/function authority.
+Native public SQL GRANT remains absent; tests use the central internal ACL seam.
+
 ```text
 CREATE {ROLE | USER | GROUP} name [WITH] [LOGIN | NOLOGIN]
 DROP {ROLE | USER | GROUP} name [, ...]

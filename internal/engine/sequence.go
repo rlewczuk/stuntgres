@@ -34,6 +34,15 @@ func tableKind(d *relationDescriptor, operation string) error {
 	if d.relationKind == tableRelation {
 		return nil
 	}
+	if d.relationKind == viewRelation {
+		if operation == "change" {
+			return sqlError("0A000", "view writes are unsupported")
+		}
+		return sqlError("0A000", "view mutation is unsupported")
+	}
+	if d.relationKind == catalogRelation {
+		return sqlError("0A000", "catalog source mutation is unsupported")
+	}
 	message := fmt.Sprintf(`cannot change sequence "%s"`, d.name)
 	detail := ""
 	switch operation {
@@ -450,6 +459,19 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		return Result{}, err
 	}
 	changes := cloneSequenceChanges(scope.owner.sequences)
+	targets := make([]ObjectAddress, len(refs))
+	for i, ref := range refs {
+		targets[i] = ref.Address
+	}
+	dependents := viewDependencyClosure(auth.catalog, targets)
+	if len(dependents) > 0 && s.Mode == parser.DropRestrict {
+		return Result{}, viewRestrictError(auth.catalog, dependents)
+	}
+	var cascade []string
+	for _, edge := range dependents {
+		e.sequenceChangeLocked(changes, edge.view.address, nil)
+		cascade = append(cascade, "drop cascades to view "+edge.view.name)
+	}
 	for _, ref := range refs {
 		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if !ok {
@@ -462,6 +484,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		delete(changes.generators, ref.Address)
 	}
 	scope.sequences = changes
+	emitViewCascade(scope.op, cascade)
 	return Result{}, nil
 }
 func sequenceDropOwner(auth AuthorizationView, ref ObjectRef, d *relationDescriptor) error {

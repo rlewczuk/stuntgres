@@ -9,7 +9,15 @@ import (
 )
 
 // Resolve original authority before waiting; never resolve a replacement by name.
-func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) error {
+func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
+	defer func() {
+		if err == nil {
+			err = s.acquireViewSources()
+		}
+	}()
+	if view, ok := stmt.(*parser.CreateView); ok {
+		return s.acquireQueryRelations(view.Query, execute)
+	}
 	if sel, ok := stmt.(*parser.Select); ok {
 		return s.acquireQueryRelations(sel, execute)
 	}

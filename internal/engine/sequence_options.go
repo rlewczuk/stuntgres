@@ -12,6 +12,8 @@ type relationKind uint8
 const (
 	tableRelation relationKind = iota
 	sequenceRelation
+	viewRelation
+	catalogRelation
 )
 
 type sequenceOptions struct {

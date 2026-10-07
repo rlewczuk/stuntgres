@@ -52,6 +52,8 @@ package parser
  fromItem FromItem
  identifiers []Identifier
  identifier *Identifier
+ viewOptions []ViewOption
+ viewOption ViewOption
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -62,7 +64,7 @@ package parser
 %token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> HAVING
-%token <tok> CROSS INNER JOIN NATURAL USING
+%token <tok> CROSS INNER JOIN NATURAL USING VIEW
 %token <tok> DELETE
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
@@ -114,6 +116,11 @@ package parser
 %type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single alter_rename_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> delete
 %type <tok> delete_alias from_alias
+%type <stmt> create_view
+%type <identifiers> view_columns view_names
+%type <viewOptions> view_options view_option_list
+%type <viewOption> view_option
+%type <tok> view_option_value
 %type <expr> delete_where delete_operand delete_base delete_lower delete_between delete_between_predicate delete_comparison delete_target delete_not delete_and delete_or
 %type <expr> update_where scalar_projection
 %type <stmt> update
@@ -149,7 +156,7 @@ package parser
 %type <tok> alter_action
 %type <names> names
 %type <rows> rows
-%type <row> row values call_args scalar_targets function_values insert_values sequence_args sequence_values
+%type <row> row values call_args function_values insert_values sequence_args sequence_values
 %type <row> group_keys group
 %type <expr> having
 %type <value> value
@@ -162,7 +169,7 @@ package parser
 %type <tok> comparison_operator
 %type <call> function_args
 %type <predicate> truth_kind
-%type <selectStmt> projection
+%type <selectStmt> projection scalar_targets
 %type <insertSource> insert_input
 %type <selectStmt> insert_select
 %type <order> values_order
@@ -254,7 +261,7 @@ comment_column_name: name { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$
  | name '.' col_label '.' col_label { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}} } ;
 comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
-comment_excluded_word: IDENT | KW_U | KW_T | KW_R ;
+comment_excluded_word: IDENT | KW_U | KW_T | KW_R | VIEW ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
  | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
@@ -358,7 +365,15 @@ local_setting_name: set_name { $$=$1 }
  | LOCAL { $$=settingName{first:$1} } ;
 create_table: CREATE TABLE relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos} }
  | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true} } ;
+create_view: CREATE VIEW relation_name view_columns view_options AS select { query,ok:=$7.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$3,Columns:$4,Options:$5,Query:query,Pos:$1.pos} } ;
+view_columns: /* empty */ { $$=nil } | '(' view_names ')' { $$=$2 } ;
+view_names: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} } | view_names ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+view_options: /* empty */ { $$=nil } | WITH '(' view_option_list ')' { $$=$3 } ;
+view_option_list: view_option { $$=[]ViewOption{$1} } | view_option_list ',' view_option { $$=append($1,$3) } ;
+view_option: name { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:"true"} } | name '=' view_option_value { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text} } ;
+view_option_value: name | STRING | NUMBER | TRUE | FALSE | ON ;
 create: create_table { $$=$1 }
+ | create_view { $$=$1 }
  | create_table INHERITS '(' relation_names ')' { sqllex.(*lexer).deferUnsupported($2,"table inheritance is unsupported"); $$=nil }
  | CREATE TEMP TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
@@ -613,6 +628,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
 /* Newly admitted FROM trees diagnose a misplaced ON as syntax. Preserve the
  * legacy single-table suffix capability boundary for otherwise excluded SQL. */
 select: SELECT projection FROM from_list where group having order { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
+ | SELECT FROM from_list where group having order { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Pos:$1.pos} }
  | SELECT projection { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | SELECT projection FROM from_list where group having order suffix { if $9.keyword!=nil && $9.keyword.token==ON {if _,table:=$4.(*TableReference);!table {sqllex.(*lexer).syntax($9);return 1}};sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
@@ -676,14 +692,29 @@ function_args: /* empty */ { $$=FunctionExpr{} }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
  | function_values ',' VARIADIC function_argument { $$=FunctionExpr{Args:append($1,$4),Variadic:true} } ;
 function_values: function_argument { $$=[]Expr{$1} } | function_values ',' function_argument { $$=append($1,$3) } ;
-scalar_targets: projection_target { $$=[]Expr{$1} } | scalar_targets ',' projection_target { $$=append($1,$3) } ;
+scalar_targets: projection_target { $$=&Select{Targets:[]Expr{$1}} }
+ | projection_target AS col_label {
+	if _,star:=$1.(StarExpr);star { sqllex.(*lexer).syntax($2);return 1 }
+	$$=&Select{Targets:[]Expr{$1},TargetLabels:[]Identifier{{Text:$3.text,Pos:$3.pos}}}
+}
+ | scalar_targets ',' projection_target {
+	$$=$1
+	$$.Targets=append($$.Targets,$3)
+	if $$.TargetLabels!=nil { $$.TargetLabels=append($$.TargetLabels,Identifier{}) }
+}
+ | scalar_targets ',' projection_target AS col_label {
+	if _,star:=$3.(StarExpr);star { sqllex.(*lexer).syntax($4);return 1 }
+	$$=$1
+	if $$.TargetLabels==nil { $$.TargetLabels=make([]Identifier,len($$.Targets)) }
+	$$.Targets=append($$.Targets,$3)
+	$$.TargetLabels=append($$.TargetLabels,Identifier{Text:$5.text,Pos:$5.pos})
+} ;
 truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
  | FALSE { $$=IsFalse } | NOT FALSE { $$=IsNotFalse }
  | UNKNOWN { $$=IsUnknown } | NOT UNKNOWN { $$=IsNotUnknown } ;
 /* Prefer positioned alias/suffix guards over completing a projection. */
-projection: scalar_targets %prec NAME_LIST { $$ = &Select{Targets:$1} }
- | scalar_targets bare_label { if _,star:=$1[len($1)-1].(StarExpr);star {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 }
- | scalar_targets AS col_label { if _,star:=$1[len($1)-1].(StarExpr);star {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$3.pos.Offset); return 1 } ;
+projection: scalar_targets %prec NAME_LIST { $$ = $1 }
+ | scalar_targets bare_label { if _,star:=$1.Targets[len($1.Targets)-1].(StarExpr);star {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 } ;
 from_list: joined_table { $$=$1 }
  | from_list ',' joined_table { $$=&JoinReference{Left:$1,Right:$3,Pos:$2.pos} } ;
 joined_table: from_atom { $$=$1 }
@@ -727,7 +758,7 @@ conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
 setting_word_without_between: IDENT | DELETE | NULL_COUNT_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | UNKNOWN | sequence_name_word | conditional_word ;
 setting_word: setting_word_without_between | BETWEEN ;
-non_between_name: setting_word_without_between | ROLE | LOCAL ;
+non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | NULL_COUNT_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN

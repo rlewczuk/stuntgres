@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"sync/atomic"
 	"testing"
 )
 
@@ -245,7 +246,11 @@ func TestAlterDropColumnProviderCancellationAndReset(t *testing.T) {
 		old := e.state.descriptors[ref.Address]
 		original := e.storage[ref.Address]
 		ctx, cancel := context.WithCancel(context.Background())
+		var triggered atomic.Bool
 		e.providers[RelationClassID] = alterDropProvider{e.providers[RelationClassID], func() {
+			if !triggered.CompareAndSwap(false, true) {
+				return
+			}
 			if reset {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)

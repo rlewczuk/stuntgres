@@ -53,9 +53,9 @@ the right input); converted merged keys have synthetic origin/typmod metadata.
 ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
 but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
 existing single unqualified named ORDER key resolve the complete joined namespace.
-Projection aliases, expanded ORDER syntax, outer/LATERAL joins, derived queries,
-CTEs and FROM functions remain excluded; UPDATE FROM and DELETE USING are not
-enabled by query joins.
+Bare projection labels, expanded ORDER syntax, outer/LATERAL joins, derived
+queries, CTEs and FROM functions remain excluded; UPDATE FROM and DELETE USING
+are not enabled by query joins.
 
 An ON clause cannot follow CROSS/NATURAL JOIN or a completed join condition:
 these malformed joined queries report positioned `42601` at ON. Other excluded
@@ -93,6 +93,24 @@ admitted-frame materialization; rejected pairs do not build a Cartesian buffer.
 Feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
 Independent pinned PostgreSQL behavior and full diagnostic coverage:
 `make reference RUN='^TestReferenceQueryJoins' VERBOSE=0`.
+
+## Persistent view sources — change note
+
+Views and bounded catalog providers enter SELECT and INSERT SELECT through the
+same relation source/binder/evaluator path as tables and sequences. Nested
+definitions retain immutable identity-bound trees and eager inner results;
+outer predicates are never pushed across the boundary. Bags, NULLs, grouping,
+zero-width occurrences and empty-result metadata retain their normal semantics.
+Direct projected backing is retained rather than materialized and copied again;
+execution-private borrowed row scratch handles projected/frozen slot mappings.
+Final public results expose only stable copied values or immutable owned backing,
+never a borrowed scratch slice. See [view authorization and catalogs](SQL.md#views).
+
+Explicit SELECT target `AS label` supplies frozen output metadata and allows
+reconstructed `pg_views.definition` queries to preserve view labels. CREATE
+column lists override the labeled output prefix. Bare projection labels and
+output-alias lookup in WHERE/GROUP/ORDER remain excluded; source columns and
+existing GROUP ordinals keep their existing rules.
 
 ## Grouping and count — change note
 
@@ -139,7 +157,7 @@ out-of-list positions give `42P10`; fractional, oversized, string, BOOL and NULL
 raw constants give `42601`, `non-integer constant in GROUP BY`. As with VALUES
 ORDER keys, unsigned tokens must fit int32 (minus does not admit2147483648).
 Unary-plus numeric expressions such as `+1` and `+1.5` are constant keys, not
-ordinals. Names prefer input columns; output aliases remain excluded.
+ordinals. Names prefer input columns; output-alias lookup remains excluded.
 
 Every group is finalized eagerly outside the engine lock before HAVING, sorting,
 projection, statement completion or public row publication. Context/key/provider
@@ -153,7 +171,7 @@ datum. Restore's generated-sequence SELECT whitelist is unchanged.
 
 This does not admit standalone SELECT without FROM, count(expr), count(),
 other aggregates, FILTER, DISTINCT/ALL grouping modifiers, within-call ORDER,
-OVER, grouping sets/ROLLUP/CUBE/empty sets, projection aliases, new scalar calls,
+OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls,
 general standalone ORDER expressions or optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded
 even with a selected sequence/REGCLASS sibling; those aggregate-free singleton
@@ -218,7 +236,7 @@ ORDER analysis follows target validation and VALUES width/common typing. Raw
 parsing always consumes the complete script first, so later syntax errors take
 precedence over ORDER analysis errors and prevent effects from a valid prefix.
 These VALUES/no-FROM forms do not add standalone VALUES or ordinary no-FROM SELECT.
-WITH/CTE, projection aliases, general casts/functions, LIMIT and locking decorations,
+WITH/CTE, bare projection labels, general casts/functions, LIMIT and locking decorations,
 RETURNING and ON CONFLICT remain outside this part's surface.
 
 The target RX lock is acquired before source AS; target INSERT and source SELECT

@@ -198,6 +198,8 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 }
 func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
+	case *parser.CreateView:
+		return "CREATE VIEW"
 	case *parser.CreateSequence:
 		return "CREATE SEQUENCE"
 	case *parser.AlterSequence:
@@ -261,6 +263,8 @@ func explicitUtility(stmt parser.Statement) bool {
 		return false
 	}
 	switch stmt.(type) {
+	case *parser.CreateView:
+		return true
 	case *parser.Comment, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true
 	}

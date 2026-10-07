@@ -145,7 +145,7 @@ func TestNullCountSmoke(t *testing.T) {
 		}
 	}
 	bad("SELECT num_nulls($1) FROM t WHERE v=$1", stuntgres.Error{Code: "42P08", Message: "could not determine data type of parameter $1", Position: "18"}, 1)
-	for _, q := range []string{"SELECT 1", "SELECT num_nulls(NULL),1", "SELECT num_nulls(VARIADIC ARRAY[1,NULL])", "SELECT num_nulls(NULL) AS n FROM t", "SELECT id FROM t WHERE num_nulls(v)", "INSERT INTO t VALUES(4,num_nulls(NULL),1,'x',TRUE)"} {
+	for _, q := range []string{"SELECT 1", "SELECT num_nulls(NULL),1", "SELECT num_nulls(VARIADIC ARRAY[1,NULL])", "SELECT id FROM t WHERE num_nulls(v)", "INSERT INTO t VALUES(4,num_nulls(NULL),1,'x',TRUE)"} {
 		rows, err := db.QueryContext(ctx, q)
 		if rows != nil {
 			rows.Close()

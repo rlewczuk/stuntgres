@@ -36,6 +36,7 @@ func schemaOwner(auth AuthorizationView, name string, identity bool) (PrincipalR
 	}
 	return role.Ref, nil
 }
+
 // Ordinary tables cannot consume the sequence-only temporary namespace surface.
 func checkTableCreationNamespace(catalog CatalogRead, namespace ObjectAddress) error {
 	if catalog.state.descriptors[namespace].(*namespaceDescriptor).temporary != (SessionToken{}) {
@@ -123,6 +124,16 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		return Result{}, err
 	}
 	defer e.DiscardCatalogStage(stage)
+	var removedRelations []ObjectAddress
+	for address, removal := range stage.removals {
+		if _, ok := removal.descriptor.(*relationDescriptor); ok {
+			removedRelations = append(removedRelations, address)
+		}
+	}
+	if err := stageViewDependents(stage, removedRelations, parser.DropCascade); err != nil {
+		return Result{}, err
+	}
+	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
 	for a := range stage.removals {
 		if r, ok := stage.base.state.descriptors[a].(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 			if err := scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, accessExclusive); err != nil {

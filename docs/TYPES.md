@@ -85,6 +85,19 @@ Native: `make test PACKAGES=. RUN='^TestOID.*$' VERBOSE=0`.
 Providers: `make test PACKAGES=./internal/sqltype RUN='^TestOID.*$' VERBOSE=0`.
 Pinned reference: `make reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
 
+### View catalog supporting types — change note
+
+Bounded catalog sources expose the same OID scalar described above and PostgreSQL
+internal `"char"` (type OID18, database metadata `CHAR`, one-byte payload, Go
+`string`). Internal CHAR is a concrete nullable type with typed comparison/grouping
+and parameter import/export, not TEXT/BPCHAR or SQL `CHAR(n)`. Its supporting
+catalog surface does not add general internal-CHAR cast/type-DDL capabilities.
+
+Internal CHAR accepts an empty zero byte, takes the first raw byte of other
+input, and decodes exact four-byte `\ooo` octal spellings. High bytes export
+as escaped octal strings (`é` becomes `\303`), never invalid UTF8 or replacement
+characters; ordering compares unsigned bytes. It is not Unicode CHAR(n).
+
 ## NAME
 
 NAME is the distinct PostgreSQL identifier-value type (OID19, typmod -1,

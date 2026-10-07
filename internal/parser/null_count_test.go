@@ -102,7 +102,7 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 		"SELECT num_nulls(NULL) ORDER BY 1", "SELECT num_nulls(VARIADIC ARRAY[1,NULL])",
 		"SELECT id FROM t WHERE num_nulls(v)", "INSERT INTO t VALUES(num_nulls(NULL))",
 		"SELECT current_setting(num_nulls(NULL))", "SELECT abs(1) FROM t",
-		"SELECT num_nulls(NULL) AS n FROM t", "SELECT pg_catalog.num_nulls(NULL) FROM t",
+		"SELECT num_nulls(NULL) n FROM t", "SELECT pg_catalog.num_nulls(NULL) FROM t",
 		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
 		"SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
 		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", "SELECT num_nulls(1) OVER () FROM t",
@@ -152,5 +152,7 @@ func TestNullCountVariadicKeywordContexts(t *testing.T) {
 	// keyword eligible as an unqualified table/column name.
 	keywordDiagnostic(t, "CREATE TABLE variadic (x INT)", "42601", `syntax error at or near "variadic"`, "14")
 	keywordDiagnostic(t, "SELECT x variadic FROM t", "0A000", "projection aliases are unsupported", "10")
-	keywordDiagnostic(t, "SELECT x AS variadic FROM t", "0A000", "projection aliases are unsupported", "13")
+	if _, err := Parse("SELECT x AS variadic FROM t"); err != nil {
+		t.Fatal(err)
+	}
 }

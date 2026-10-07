@@ -131,7 +131,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 				return 0, err
 			}
 		}
-	case Text, VarChar, BPChar, Name, Bytea, Regclass:
+	case Text, VarChar, BPChar, Name, Bytea, Regclass, Char:
 		s := v.text
 		if v.typ.id == BPChar {
 			s = strings.TrimRight(s, " ")

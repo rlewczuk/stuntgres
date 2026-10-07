@@ -18,6 +18,16 @@ are rejected before output. Recreated public is an ordinary namespace with absen
 ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
+Persistent view definitions are dumped after their relation dependencies, with
+fixed output names, current bound source/column spellings, security options and
+owner directives. Views are not evaluated by Dump/Restore and their output is
+never serialized as table rows. Restore binds canonical CREATE VIEW in its
+isolated catalog, remaps every stored source/expression/dependency identity into
+the destination generation, and atomically installs definitions with ordinary
+data. Derived catalog sources initialize normally and are not dumped. Restored
+views remain dynamic; later base writes and dependency checks still apply.
+Failed/canceled imports retain old catalogs, dependencies and held result rows.
+
 Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
 defaults, CREATE SEQUENCE, supported parameter-free scalar/default-request INSERT
 (including integer arithmetic), database-local COMMENT, generated sequence OWNED BY

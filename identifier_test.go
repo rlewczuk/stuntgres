@@ -179,7 +179,7 @@ func identifierContract() error {
 			}
 		}
 		for _, s := range []struct{ label, code, msg, pos string }{
-			{"check", "0A000", "projection aliases are unsupported", "11"}, {"authorization", "0A000", "projection aliases are unsupported", "11"}, {"AS char", "0A000", "projection aliases are unsupported", "14"}, {"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
+			{"check", "0A000", "projection aliases are unsupported", "11"}, {"authorization", "0A000", "projection aliases are unsupported", "11"}, {"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
 		} {
 			if err := identifierDiagnostic(operation("SELECT by "+s.label+" FROM insert"), s.code, s.msg, s.pos); err != nil {
 				return err
@@ -274,7 +274,6 @@ func TestIdentifierLabels(t *testing.T) {
 	execSQL(t, db, "INSERT INTO t VALUES (7)")
 	for _, s := range []struct{ label, code, msg, pos string }{
 		{"check", "0A000", "projection aliases are unsupported", "10"}, {"authorization", "0A000", "projection aliases are unsupported", "10"},
-		{"AS char", "0A000", "projection aliases are unsupported", "13"}, {"AS grant", "0A000", "projection aliases are unsupported", "13"}, {"AS \"Mixed\"", "0A000", "projection aliases are unsupported", "13"},
 		{"char", "42601", "syntax error at or near \"char\"", "10"}, {"day", "42601", "syntax error at or near \"day\"", "10"},
 	} {
 		_, err := db.Exec("SELECT x " + s.label + " FROM t")

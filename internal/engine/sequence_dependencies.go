@@ -1,7 +1,9 @@
 package engine
 
+import "stuntgres/internal/parser"
+
 // AUTO dependencies use stable attribute SubIDs, never compacted column slots.
-func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ObjectAddress) error {
+func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
 	for a, d := range stage.base.state.descriptors {
 		r, ok := d.(*relationDescriptor)
 		if !ok || r.relationKind != sequenceRelation || r.sequence.owned == (ObjectAddress{}) {
@@ -18,6 +20,9 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []Obje
 		if !remove {
 			continue
 		}
+		if err := stageViewDependents(stage, []ObjectAddress{a}, mode); err != nil {
+			return err
+		}
 		ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: a}
 		if err := s.acquireSequence(ref, accessExclusive); err != nil {
 			return err
@@ -29,6 +34,9 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []Obje
 	return nil
 }
 func relationDiagnosticKind(r *relationDescriptor) string {
+	if r.relationKind == viewRelation {
+		return "view"
+	}
 	if r.relationKind == sequenceRelation {
 		return "sequence"
 	}

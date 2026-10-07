@@ -195,6 +195,10 @@ type querySource struct {
 	flat                 []sqltype.Value
 	flatWidth, flatCount int
 	materialized         bool
+	final                *finalRows
+	input                *querySource
+	layout               []int
+	scratch              []sqltype.Value
 }
 
 func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
@@ -211,6 +215,12 @@ func (s *querySource) count() int {
 	if s.materialized {
 		return s.flatCount
 	}
+	if s.final != nil {
+		return s.final.count
+	}
+	if s.input != nil {
+		return s.input.count()
+	}
 	if s.anonymous != nil {
 		return len(s.anonymous)
 	}
@@ -225,6 +235,34 @@ func (s *querySource) count() int {
 func (s *querySource) row(i int) []sqltype.Value {
 	if s.materialized {
 		return s.flat[i*s.flatWidth : (i+1)*s.flatWidth]
+	}
+	if s.input != nil {
+		row := s.input.row(i)
+		for j, slot := range s.layout {
+			if slot >= 0 {
+				s.scratch[j] = row[slot]
+			}
+		}
+		return s.scratch
+	}
+	if s.final != nil {
+		r := s.final
+		if r.source != nil {
+			index := i
+			if r.selection != nil {
+				index = r.selection[i]
+			}
+			row := r.source.row(index)
+			for j, slot := range r.slots {
+				s.scratch[j] = row[slot]
+			}
+			return s.scratch
+		}
+		if r.anonymous != nil {
+			return r.anonymous[i]
+		}
+		width := len(r.schema)
+		return r.values[i*width : (i+1)*width]
 	}
 	if s.anonymous != nil {
 		return s.anonymous[i]
@@ -258,6 +296,15 @@ func (s *querySource) close() {
 	s.flatCount = 0
 	s.flatWidth = 0
 	s.materialized = false
+	if s.final != nil {
+		s.final.Close()
+		s.final = nil
+	}
+	if s.input != nil {
+		s.input.close()
+		s.input = nil
+	}
+	s.scratch, s.layout = nil, nil
 	if s.view != nil {
 		s.view.Release()
 	}
@@ -396,6 +443,9 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		if source == nil || source.ref != n.ref {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
+		if source.final != nil || source.input != nil {
+			return indexedStage{source: source, schema: n.Schema()}, nil
+		}
 		if source.anonymous == nil {
 			if source.view == nil {
 				return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
@@ -448,7 +498,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			if err := ctx.Err(); err != nil {
 				return 0, err
 			}
-			left, right := child.source.row(a)[n.slot], child.source.row(b)[n.slot]
+			left := child.source.row(a)[n.slot]
+			right := child.source.row(b)[n.slot]
 			comparison := 0
 			if left.IsNull() {
 				if !right.IsNull() {

@@ -256,6 +256,7 @@ func TestTransactionPublicFailuresAndAutocommit(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				defer tx.Rollback()
 				transactionAffected(t, ctx, tx, "INSERT INTO t VALUES(1)", prepared, 1)
 				err = transactionConstraintExec(t, ctx, tx, "INSERT INTO t VALUES(8),(NULL)", prepared)
 				transactionDiagnostic(t, err, notNull)
@@ -263,8 +264,8 @@ func TestTransactionPublicFailuresAndAutocommit(t *testing.T) {
 				transactionDiagnostic(t, err, aborted)
 				_, err = tx.PrepareContext(ctx, "SELECT v FROM t")
 				transactionDiagnostic(t, err, aborted)
-				_, err = tx.ExecContext(ctx, "SELECT FROM")
-				transactionDiagnostic(t, err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near "FROM"`, Position: "8"})
+				_, err = tx.ExecContext(ctx, "SELECT * FROM t WHERE v = )")
+				transactionDiagnostic(t, err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: `syntax error at or near ")"`, Position: "27"})
 				if commit {
 					transactionOrdinary(t, tx.Commit(), "pq: could not complete operation in a failed transaction")
 				} else if err = tx.Rollback(); err != nil {

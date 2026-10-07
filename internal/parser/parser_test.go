@@ -93,7 +93,7 @@ func TestEmptyScripts(t *testing.T) {
 func TestParserErrorBoundaries(t *testing.T) {
 	cases := []struct{ query, code string }{
 		{"CREATE TABLE t (x INT", "42601"},
-		{"SELECT FROM t", "42601"}, {"SELECT * t", "42601"},
+		{"SELECT FROM )", "42601"}, {"SELECT * t", "42601"},
 		{"SELECT * FROM t; nonsense", "42601"}, {"INSERT INTO t VALUES ('a' 'b')", "42601"},
 		{"INSERT INTO t VALUES ('a' /*\n*/ 'b')", "42601"},
 		{"INSERT INTO t VALUES ($0)", "42P02"}, {"INSERT INTO t VALUES ($000)", "42P02"},
@@ -804,7 +804,7 @@ func TestExpressionCoreNoFromFailurePrecedence(t *testing.T) {
 		{"SELECT * t", "42601"},
 		{"SELECT 1; )", "42601"},
 		{"CREATE TABLE staged(id INT); SELECT 1; )", "42601"},
-		{"SELECT 1; SELECT FROM t", "42601"},
+		{"SELECT 1; SELECT FROM )", "42601"},
 	} {
 		statements, err := Parse(tc.query)
 		var diagnostic *sqlstate.Error

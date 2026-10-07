@@ -195,6 +195,9 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			mapping[a] = dest
 		}
 	}
+	if err := e.remapCatalogViews(next, mapping); err != nil {
+		return err
+	}
 	if len(mapping) != 0 {
 		originals := next.descriptors
 		next.descriptors = make(map[ObjectAddress]Descriptor, len(originals)+len(temporary))
@@ -259,6 +262,17 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 		next.names[relationNameKey(d)] = a
 		if g := e.sequences[a]; g != nil {
 			sequences[a] = g
+		}
+	}
+	next.epoch = e.state.epoch + 1
+	if err := e.remapViewRuleOIDs(next); err != nil {
+		return err
+	}
+	for _, descriptor := range next.descriptors {
+		if relation, ok := descriptor.(*relationDescriptor); ok && relation.view != nil {
+			if err := validateViewDefinition(CatalogRead{owner: e, state: next}, relation); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

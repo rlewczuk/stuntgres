@@ -340,10 +340,14 @@ func defaultComparisonOperandSQL(ctx context.Context, view CatalogRead, child Bo
 	}
 	switch child.(type) {
 	case comparisonExpression, nullTestExpression, truthTestExpression, distinctExpression, logicalExpression:
-		return "(CASE WHEN TRUE THEN " + text + " END)", nil
+		return predicateOperandSQL(text), nil
 	default:
 		return text, nil
 	}
+}
+
+func predicateOperandSQL(text string) string {
+	return "(CASE WHEN TRUE THEN " + text + " END)"
 }
 
 // Replacement can retain TEMP sequence builtin generations. Rebind only the
@@ -370,6 +374,29 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case columnExpression:
+		n.expressionInfo = info
+		rebound = n
+	case groupExpression:
+		n.expressionInfo = info
+		rebound = n
+	case aggregateExpression:
+		n.expressionInfo = info
+		rebound = n
+	case sequenceCallExpression:
+		n.args = append([]BoundExpr(nil), n.args...)
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		n.expressionInfo = info
+		rebound = n
+	case nullCountExpression:
+		n.args = append([]BoundExpr(nil), n.args...)
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		n.expressionInfo = info
+		rebound = n
 	case caseExpression:
 		n.test, n.otherwise = child(n.test), child(n.otherwise)
 		var arms []caseBranch

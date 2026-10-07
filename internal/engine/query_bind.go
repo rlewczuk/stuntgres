@@ -43,7 +43,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	b.aggregateClause, b.aggregates = "SELECT", nil
 	var projection []BoundExpr
 	var targetNames []string
-	for _, raw := range s.Targets {
+	for target, raw := range s.Targets {
 		if err := b.ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -70,6 +70,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			projection = append(projection, expr)
 			name, _ := expressionName(raw, expr.ResultUsage())
 			targetNames = append(targetNames, name)
+			if len(s.TargetLabels) != 0 && s.TargetLabels[target].Text != "" {
+				targetNames[len(targetNames)-1] = s.TargetLabels[target].Text
+			}
 		}
 	}
 	width := len(projection)

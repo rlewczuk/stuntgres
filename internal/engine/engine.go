@@ -131,6 +131,9 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 		e.state.descriptors[d.Address()] = d
 		e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
 	}
+	if err := e.initializeCatalogSources(); err != nil {
+		return nil, err
+	}
 	view := CatalogRead{owner: e, state: e.state}
 	for _, d := range e.state.descriptors {
 		p := e.providers[d.Address().ClassID]
@@ -160,6 +163,16 @@ func (e *Engine) allocateOIDLocked() (OID, error) {
 			continue
 		}
 		if _, ok := e.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: n}]; ok {
+			continue
+		}
+		usedRule := false
+		for _, descriptor := range e.state.descriptors {
+			if relation, ok := descriptor.(*relationDescriptor); ok && relation.view != nil && relation.view.rule == n {
+				usedRule = true
+				break
+			}
+		}
+		if usedRule {
 			continue
 		}
 		return n, nil
@@ -236,7 +249,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := scope.refreshRelationGrantsLocked(e); err != nil {
 		return StatementDescription{}, err
 	}
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.statementAuthorizationLocked(op, stmt)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -259,6 +272,14 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if len(analysis.constants) != 0 {
 		cell = &analysis
 	}
+	if _, view := stmt.(*parser.CreateView); view {
+		e.mu.Unlock()
+		err = scope.acquireViewDefinitionReferences(b)
+		e.mu.Lock()
+		if err != nil {
+			return StatementDescription{}, err
+		}
+	}
 	return StatementDescription{Parameters: b.parameters, Results: results, temporals: b.temporals, sequences: cell}, nil
 }
 func objectNameText(n parser.ObjectName) string {
@@ -275,6 +296,13 @@ func objectNameText(n parser.ObjectName) string {
 func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) (binding, error) {
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
+	var view *parser.CreateView
+	if s, ok := stmt.(*parser.CreateView); ok {
+		view = s
+		stmt = s.Query
+		binder.noParameters = true
+		b.commandQuery = true
+	}
 	bind := func(v parser.Expr, c ColumnDescriptor, mode sqltype.CoercionContext) (BoundExpr, error) {
 		return binder.bind(v, expressionPolicy{context: assignmentContext, expected: c.Usage, mode: mode, column: c.Name})
 	}
@@ -504,6 +532,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == viewRelation || b.relation.relationKind == catalogRelation {
+			return b, tableKind(b.relation, "change")
+		}
 		b.storage = e.storage[b.ref.Address]
 		if b.storage == nil {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
@@ -522,6 +553,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, err
 		}
 		b.querySources = binder.querySources
+		if view != nil {
+			if err := bindViewOutput(b.query, view); err != nil {
+				return b, err
+			}
+		}
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}

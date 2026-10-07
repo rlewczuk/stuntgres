@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"stuntgres"
 	"testing"
 )
@@ -79,6 +80,12 @@ func TestReferenceIdentifierLabels(t *testing.T) {
 	for _, s := range []struct{ label, column, pos string }{{"check", "check", "10"}, {"default", "default", "10"}, {"authorization", "authorization", "10"}, {"AS char", "char", "13"}, {"AS grant", "grant", "13"}, {"AS \"Mixed\"", "Mixed", "13"}} {
 		q := "SELECT x " + s.label + " FROM t"
 		for _, prepared := range []bool{false, true} {
+			if strings.HasPrefix(s.label, "AS ") {
+				step := referenceSelect(q, []string{s.column}, []string{"INT4"}, [][]any{{int64(7)}})
+				step.prepared = prepared
+				p.step(t, step)
+				continue
+			}
 			native := referenceErrorDiagnostic(q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "projection aliases are unsupported", Position: s.pos})
 			native.prepared = prepared
 			native.selectRows = true

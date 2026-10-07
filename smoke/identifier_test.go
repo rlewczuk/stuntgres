@@ -179,7 +179,7 @@ func identifierRun() error {
 			}
 		}
 		for _, s := range []struct{ label, code, msg, pos string }{
-			{"check", "0A000", "projection aliases are unsupported", "11"}, {"authorization", "0A000", "projection aliases are unsupported", "11"}, {"AS char", "0A000", "projection aliases are unsupported", "14"}, {"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
+			{"check", "0A000", "projection aliases are unsupported", "11"}, {"authorization", "0A000", "projection aliases are unsupported", "11"}, {"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
 		} {
 			if err := identifierDiagnostic(operation("SELECT by "+s.label+" FROM insert"), s.code, s.msg, s.pos); err != nil {
 				return err

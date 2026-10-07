@@ -80,6 +80,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	type dumpSchema struct{ name, owner string }
 	var schemas []dumpSchema
 	var sequences []dumpSequence
+	type dumpView struct {
+		oid        OID
+		owner, sql string
+	}
+	var views []dumpView
 	type dumpComment struct{ name, text string }
 	var schemaComments []dumpComment
 	// Reconstruct bootstrap identity changes before creating ordinary namespaces.
@@ -199,6 +204,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: unsupported catalog descriptor kind")
 		}
+		if r.relationKind == catalogRelation {
+			continue
+		}
 		ns, ok := e.state.descriptors[r.namespace].(*namespaceDescriptor)
 		if !ok {
 			e.mu.Unlock()
@@ -215,6 +223,25 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if err != nil {
 			e.mu.Unlock()
 			return err
+		}
+		if r.view != nil {
+			body, err := r.view.selectSQL(CatalogRead{owner: e, state: e.state})
+			if err != nil {
+				e.mu.Unlock()
+				return err
+			}
+			var labels []string
+			for _, column := range r.columns {
+				labels = append(labels, quoteIdentifier(column.Name))
+			}
+			columns := ""
+			if len(labels) > 0 {
+				columns = " (" + strings.Join(labels, ", ") + ")"
+			}
+			sql := "CREATE VIEW " + quoteIdentifier(ns.name) + "." + quoteIdentifier(r.name) + columns +
+				fmt.Sprintf(" WITH (security_barrier=%t, security_invoker=%t) AS ", r.view.barrier, r.view.invoker) + body + ";\n"
+			views = append(views, dumpView{r.address.ObjectID, principal.Name, sql})
+			continue
 		}
 		if r.relationKind == sequenceRelation {
 			g := e.sequences[a]
@@ -376,6 +403,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	sort.Slice(views, func(i, j int) bool { return views[i].oid < views[j].oid })
+	for _, view := range views {
+		if err := emit("SET SESSION AUTHORIZATION " + quoteIdentifier(view.owner) + ";\n" + view.sql); err != nil {
+			return err
+		}
+	}
 	return ctx.Err()
 }
 
@@ -427,6 +460,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
 		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
+		case *parser.CreateView:
 		case *parser.CreateSequence:
 			if s.Persistence == "temporary" {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
@@ -459,13 +493,16 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE, INSERT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW, INSERT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateSequence); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateView); ok {
 			op.restoreTableDestination = true
 		}
 		op.restoreInsertAuthority = false

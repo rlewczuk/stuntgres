@@ -1,0 +1,131 @@
+package engine
+
+import (
+	"sort"
+)
+
+func (s *StatementScope) acquireViewSources() error {
+	e := s.op.session.Engine()
+	e.mu.Lock()
+	d, _ := e.state.descriptors[s.lockedRef.Address].(*relationDescriptor)
+	hasView := d != nil && d.view != nil
+	for _, leaf := range s.querySources {
+		if leaf.relation.view != nil {
+			hasView = true
+			break
+		}
+	}
+	if !hasView {
+		e.mu.Unlock()
+		return nil
+	}
+	seen := make(map[ObjectRef]bool)
+	var refs []ObjectRef
+	var visit func(ObjectRef) error
+	visit = func(ref ObjectRef) error {
+		if ref == (ObjectRef{}) || seen[ref] {
+			return nil
+		}
+		seen[ref] = true
+		d, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
+		if ref.owner != e.owner || ref.Epoch != e.state.epoch || !ok {
+			return ErrCatalogReplaced
+		}
+		admitted := ref == s.lockedRef
+		for _, leaf := range s.querySources {
+			admitted = admitted || ref == leaf.ref
+		}
+		if !admitted {
+			refs = append(refs, ref)
+		}
+		if d.view != nil {
+			if err := visit(d.view.source); err != nil {
+				return err
+			}
+			for _, dependency := range d.view.dependencies {
+				if dependency.ref.Address.ClassID == RelationClassID {
+					child := dependency.ref
+					child.Address.SubID = 0
+					if err := visit(child); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	}
+	err := visit(s.lockedRef)
+	for _, leaf := range s.querySources {
+		if err != nil {
+			break
+		}
+		err = visit(leaf.ref)
+	}
+	e.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return s.acquireBoundViewRelations(refs)
+}
+
+func (s *StatementScope) acquireBoundViewRelations(refs []ObjectRef) error {
+	e := s.op.session.Engine()
+	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
+	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
+	for _, ref := range refs {
+		request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, accessShare, policy)
+		if request != nil {
+			if s.replacementRead {
+				e.replacementMu.RUnlock()
+				s.replacementRead = false
+			}
+			err = request.wait()
+		}
+		if err != nil {
+			return err
+		}
+		s.owner.mu.Lock()
+		implicit := s.owner.state == TxImplicit
+		s.owner.mu.Unlock()
+		if implicit && !s.replacementRead {
+			e.replacementMu.RLock()
+			s.replacementRead = true
+		}
+		e.mu.Lock()
+		_, exists := e.state.descriptors[ref.Address]
+		valid := ref.owner == e.owner && ref.Epoch == e.state.epoch && exists
+		e.mu.Unlock()
+		if !valid {
+			return ErrCatalogReplaced
+		}
+	}
+	return nil
+}
+
+func (s *StatementScope) acquireViewDefinitionReferences(b binding) error {
+	var refs []ObjectRef
+	seen := make(map[ObjectRef]bool)
+	add := func(ref ObjectRef) {
+		if ref.Address.ClassID != RelationClassID {
+			return
+		}
+		ref.Address.SubID = 0
+		if ref == s.lockedRef || seen[ref] {
+			return
+		}
+		for _, leaf := range s.querySources {
+			if ref == leaf.ref {
+				return
+			}
+		}
+		seen[ref] = true
+		refs = append(refs, ref)
+	}
+	for _, dependency := range b.dependencies {
+		add(dependency.ref)
+	}
+	for _, constant := range b.sequenceConstants {
+		add(constant.ref)
+	}
+	return s.acquireBoundViewRelations(refs)
+}

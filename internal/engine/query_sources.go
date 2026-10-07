@@ -95,10 +95,20 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	}
 	for i, leaf := range leaves {
 		var source *querySource
-		if leaf.relation.relationKind == sequenceRelation {
+		switch leaf.relation.relationKind {
+		case sequenceRelation:
 			source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
-		} else {
+		case tableRelation:
 			source, err = captureQueryPrefix(view, leaf.ref)
+		default:
+			auth, authErr := e.authorizationLocked(scope.op)
+			if authErr != nil {
+				err = authErr
+			} else {
+				// Recursive view opening consumes the lock, including failures.
+				source, err = e.openRelationSourceLocked(scope, leaf.ref, auth.state.CurrentUser)
+				e.mu.Lock()
+			}
 		}
 		if err != nil {
 			if first != nil {

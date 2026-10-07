@@ -18,6 +18,15 @@ Prepared executions freshly bind every source, and eager results survive native
 Reset/Restore. See [join semantics and limits](docs/QUERIES.md#inner-and-cross-joins--change-note).
 Public feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
 
+Persistent `CREATE VIEW` definitions use the ordinary typed SELECT pipeline,
+including nested views, explicit output names and `security_invoker` /
+`security_barrier` options. Definitions retain source identities across table,
+column and schema renames; dependencies block restrictive drops. Bounded,
+queryable `pg_class`, `pg_rewrite` and `pg_views` sources expose actual catalog
+state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
+persists definitions, not their result rows. See [views](docs/SQL.md#views).
+Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.
+
 The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling
 is preserved, textual input clips at a63-byte UTF8 boundary, and comparisons use
 C byte order. NAME has distinct metadata from TEXT and round-trips through

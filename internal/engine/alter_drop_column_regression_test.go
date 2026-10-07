@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"stuntgres/internal/sqlstate"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -106,7 +107,14 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	var unblock sync.Once
 	t.Cleanup(func() { unblock.Do(func() { close(release) }) })
-	e.providers[RelationClassID] = alterDropProvider{e.providers[RelationClassID], func() { close(entered); <-release }}
+	var gated atomic.Bool
+	e.providers[RelationClassID] = alterDropProvider{e.providers[RelationClassID], func() {
+		if !gated.CompareAndSwap(false, true) {
+			return
+		}
+		close(entered)
+		<-release
+	}}
 	dropping := lockAsync(e, sessionStart(t, e, nil), context.Background(), "ALTER TABLE t DROP b", false)
 	select {
 	case <-entered:

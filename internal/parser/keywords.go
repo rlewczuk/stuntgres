@@ -529,7 +529,7 @@ var keywords = [...]keyword{
 	{"varying", Unreserved, false, 0},
 	{"verbose", TypeFunctionName, true, 0},
 	{"version", Unreserved, true, 0},
-	{"view", Unreserved, true, 0},
+	{"view", Unreserved, true, VIEW},
 	{"views", Unreserved, true, 0},
 	{"virtual", Unreserved, true, 0},
 	{"volatile", Unreserved, true, 0},

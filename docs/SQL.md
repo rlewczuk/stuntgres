@@ -15,6 +15,8 @@ The grammar summary below is an overview; the topic guides and [dialect limits](
 
 ```text
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
+CREATE VIEW [schema.]name [(column [, ...])]
+  [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
 element := column type [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression]...
          | [CONSTRAINT name] NOT NULL column | LIKE [schema.]source
 DROP TABLE [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
@@ -37,7 +39,7 @@ INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 INSERT INTO [schema.]name DEFAULT VALUES
 insert_value := value | DEFAULT
 DELETE FROM [schema.]name [[AS] alias] [WHERE delete_predicate]
-SELECT projection_target [, ...] FROM from_list
+SELECT [projection_target [, ...]] FROM from_list
        [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
        [HAVING logical_predicate] [ORDER BY column [ASC | DESC]]
 from_list := from_item [, from_item ...]
@@ -76,7 +78,8 @@ logical_target := between_expression | comparison | NOT logical_target
 logical_predicate := logical_target
 delete_predicate := logical_predicate with optional target/alias qualification on columns
 query_column := column | qualifier.column | schema.table.column
-projection_target := logical_target | null_count_call | * | qualifier.* | schema.table.*
+projection_target := (logical_target | null_count_call) [AS label]
+                   | * | qualifier.* | schema.table.*
 call_argument := scalar | null_count_call
 null_count_call := (num_nulls | num_nonnulls)(call_argument [, ...])
 default_expression := value | scalar comparison_operator scalar | (logical_target)
@@ -118,6 +121,67 @@ the existing scalar CASE syntax to encode predicate-valued comparison operands.
 Serialization does not evaluate defaults or widen ordinary grouped-comparison
 admission; restored defaults retain typed NULL and deferred errors.
 
+
+## Views
+
+`CREATE VIEW` stores an immutable, identity-bound definition analyzed by the
+ordinary SELECT binder. The body admits the current scalar/filter/group/HAVING/
+single-column sort repertoire and table, sequence, view and bounded catalog
+sources. It is not executed by CREATE or Prepare; subsequent reads evaluate it
+against current visible data. Explicit names rename an output prefix; fewer
+names than outputs are legal, more fail42601, and duplicate final names fail42701.
+Unknown-only outputs become TEXT. Creation-time `*` expansion and output types
+are fixed; zero-column views retain real source occurrences and count semantics.
+CREATE has affected count zero and no result columns or runtime parameters.
+
+Explicit SELECT target `AS label` preserves canonical view definition labels,
+including after base-column renames; CREATE VIEW's explicit column list then
+overrides that output prefix. Bare/table aliases and alias-based WHERE/GROUP/ORDER
+lookup remain unsupported: those clauses keep existing source-column/ordinal rules.
+
+Reads and INSERT SELECT share normal relation admission, dynamic ACL checks,
+locking and eager query finalization. The caller needs SELECT on the named view.
+Ordinary definitions check underlying relation reads as the current view owner;
+`security_invoker=true` uses the original statement invoker, including beneath
+an ordinary outer view. CREATE needs namespace CREATE/lookup USAGE, not base
+SELECT. These principals change relation authority only, not session identity
+or sequence/function execution authority. Each view boundary finishes its inner
+qualification before outer expressions: no predicate pushdown, even without
+`security_barrier`. Rejected rows never reach outer error-producing casts.
+
+Dependencies include hidden filter/order/group attributes. Base and column
+renames retain identity, and reuse of an old source name cannot retarget a view.
+DROP RESTRICT reports2BP01 with dependency Detail/Hint; existing CASCADE paths
+remove dependent definitions and their derived rule/catalog facts together.
+Dropping an unrelated column preserves the frozen definition layout.
+
+Queryable catalog sources have this deliberately bounded exact schema:
+
+| Source | Columns and PostgreSQL logical types |
+|---|---|
+| `pg_catalog.pg_class` | `oid OID`, `relname NAME`, `relnamespace OID`, `relowner OID`, `relkind CHAR`, `relnatts INT2`, `relhasrules BOOL` |
+| `pg_catalog.pg_rewrite` | `oid OID`, `rulename NAME`, `ev_class OID`, `ev_type CHAR`, `ev_enabled CHAR`, `is_instead BOOL` |
+| `pg_catalog.pg_views` | `schemaname NAME`, `viewname NAME`, `viewowner NAME`, `definition TEXT` |
+
+Each user view has one `_RETURN` rule (`ev_type='1'`, `ev_enabled='O'`,
+`is_instead=true`) tied to its real relation OID. OIDs are engine-local, not
+numeric replicas of an independent PostgreSQL cluster. `pg_views.definition`
+and Dump share identity-aware reconstruction after renames; PostgreSQL pretty
+printing byte equality is not promised. Unsupported columns, including
+`reloptions`, `ev_action` and `ev_qual`, give ordinary42703; no fake pg_node_tree.
+Built-in source output is derived, never persisted as table data.
+
+Views reuse the supported OID scalar and BETWEEN lowering, including nested
+predicate-valued endpoints. Canonical replay uses the same scalar CASE bridge
+as stored defaults for grouped predicate operands; it does not broaden ordinary
+comparison syntax or evaluate definitions during serialization.
+
+Replacement, recursive/TEMP views, view writes/check options, general ALTER/
+DROP VIEW, joins/subqueries/bare or table aliases, public GRANT, RLS, UDFs and optimizer
+introspection are separate unsupported capabilities. Native ACL unit controls
+and PostgreSQL-only GRANT witnesses do not imply a public native ACL API.
+Smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`;
+independent oracle: `make reference RUN='^TestReferenceView' VERBOSE=0`.
 
 ## Sequences
 
@@ -307,4 +371,14 @@ authority, coherent multi-literal groups and native temp-only replacement.
 
 ## Unsupported surface
 
-Database-qualified relation names, temporary tables (TEMP sequences are supported), SELECT projection aliases, outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions, casts outside the bounded baseline/character-family/selected regclass sets, constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort keys, two-phase commit, transactional table/schema DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation, or SQL catalog projections are not supported. Declared DEFAULT expressions remain bounded and reject sequence calls, including calls with constant NULL arguments; sequence support does not widen that consumer. SQL transaction controls and savepoints, RU/RC/RR modes, read-only access, CHAIN and current/default transactional settings described in [transactions](TRANSACTIONS.md) are supported. Recognized unsupported features fail with SQLSTATE `0A000`; malformed SQL fails with `42601`. Unsupported suffixes and multiple statements fail before any prefix executes.
+Database-qualified relation names, temporary tables (TEMP sequences are supported),
+bare SELECT projection labels, outer/LATERAL joins, derived/subquery/CTE/function
+FROM, generic expressions/functions, casts outside the bounded
+baseline/character-family/selected regclass sets, constraints beyond
+nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE
+FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort
+keys, two-phase commit, transactional table/schema/view DDL or non-sequence
+COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL
+mutation, or catalog columns beyond the bounded view providers are not supported.
+Declared DEFAULT expressions remain bounded and reject sequence calls, including
+calls with constant NULL arguments.

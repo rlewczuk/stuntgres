@@ -55,6 +55,20 @@ type CreateTable struct {
 
 func (*CreateTable) statement() {}
 
+type ViewOption struct {
+	Name  Identifier
+	Value string
+}
+type CreateView struct {
+	Name    ObjectName
+	Columns []Identifier
+	Options []ViewOption
+	Query   *Select
+	Pos     Position
+}
+
+func (*CreateView) statement() {}
+
 type SequenceOption struct {
 	Name  string
 	Value int64
@@ -264,13 +278,14 @@ type UpdateAssignment struct {
 func (*Update) statement() {}
 
 type Select struct {
-	From    FromItem
-	Targets []Expr
-	Where   Expr
-	GroupBy []Expr
-	Having  Expr
-	Order   *Order
-	Pos     Position
+	From         FromItem
+	Targets      []Expr
+	TargetLabels []Identifier
+	Where        Expr
+	GroupBy      []Expr
+	Having       Expr
+	Order        *Order
+	Pos          Position
 }
 
 func (*Select) statement() {}

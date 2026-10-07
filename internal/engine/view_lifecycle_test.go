@@ -1,0 +1,137 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+)
+
+func TestViewRecursiveLockCancellation(t *testing.T) {
+	for _, query := range []string{"SELECT id FROM w", "CREATE VIEW pending AS SELECT id FROM w"} {
+		for _, prepare := range []bool{false, true} {
+			t.Run(query+map[bool]string{false: "/execute", true: "/describe"}[prepare], func(t *testing.T) {
+				e := New()
+				holder := sessionStart(t, e, nil)
+				reader := sessionStart(t, e, nil)
+				for _, q := range []string{"CREATE TABLE t(id INT)", "CREATE VIEW v AS SELECT id FROM t", "CREATE VIEW w AS SELECT id FROM v"} {
+					sessionSQL(t, holder, q)
+				}
+				tx := transactionBegin(t, holder)
+				sessionSQL(t, holder, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+				ctx, cancel := context.WithCancel(context.Background())
+				done := lockAsync(e, reader, ctx, query, prepare)
+				lockPending(t, e, 1)
+				cancel()
+				lockAwait(t, done, context.Canceled)
+				lockPending(t, e, 0)
+				transactionEnd(t, holder, tx, false)
+				if _, exists := e.CatalogRead().state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "pending"}]; exists {
+					t.Fatal("canceled view published")
+				}
+				lockEmpty(t, e)
+			})
+		}
+	}
+}
+
+func TestViewValidationReplacementAdmission(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE t(id INT)")
+	original := e.providers[RelationClassID]
+	var once sync.Once
+	callbackRan, admissionReleased := false, false
+	e.providers[RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() {
+		once.Do(func() {
+			callbackRan = true
+			e.providers[RelationClassID] = original
+			admissionReleased = e.replacementMu.TryLock()
+			if !admissionReleased {
+				return
+			}
+			e.replacementMu.Unlock()
+			if err := e.Reset(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}}
+	_, err := testExecute(e, context.Background(), statement(t, "CREATE VIEW v AS SELECT id FROM t"), nil)
+	if !callbackRan || !admissionReleased {
+		t.Fatal("view validation retains replacement read admission", callbackRan, admissionReleased)
+	}
+	if !errors.Is(err, ErrCatalogReplaced) {
+		t.Fatal(err)
+	}
+	if _, exists := e.CatalogRead().state.names[NameKey{ClassID: RelationClassID, Namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, Name: "v"}]; exists {
+		t.Fatal("replacement-fenced view published")
+	}
+}
+
+func TestViewValidationCancellationAtomicity(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE sentinel(id INT)")
+	before := e.CatalogRead().state
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	original := e.providers[RelationClassID]
+	var once sync.Once
+	e.providers[RelationClassID] = alterDropProvider{CatalogProvider: original, callback: func() { once.Do(func() { e.providers[RelationClassID] = original; cancel() }) }}
+	_, err := testExecute(e, ctx, statement(t, "CREATE VIEW v AS SELECT id FROM sentinel"), nil)
+	if !errors.Is(err, context.Canceled) || e.CatalogRead().state != before {
+		t.Fatal(err, "partial catalog publication")
+	}
+	lockEmpty(t, e)
+}
+
+func TestViewCreateSequenceDependencyCancellation(t *testing.T) {
+	for _, prepare := range []bool{false, true} {
+		name := "execute"
+		if prepare {
+			name = "describe"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := New()
+			holder := sessionStart(t, e, nil)
+			reader := sessionStart(t, e, nil)
+			for _, query := range []string{"CREATE SEQUENCE s", "CREATE TABLE t(id INT)"} {
+				sessionSQL(t, holder, query)
+			}
+			tx := transactionBegin(t, holder)
+			sessionSQL(t, holder, "ALTER SEQUENCE s RENAME TO held")
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := lockAsync(e, reader, ctx, "CREATE VIEW pending AS SELECT nextval('s') FROM t", prepare)
+			lockPending(t, e, 1)
+			cancel()
+			lockAwait(t, done, context.Canceled)
+			lockPending(t, e, 0)
+			transactionEnd(t, holder, tx, false)
+			lockEmpty(t, e)
+		})
+	}
+}
+
+func TestViewSequenceCatalogPrivateVisibility(t *testing.T) {
+	e := New()
+	owner := sessionStart(t, e, nil)
+	peer := sessionStart(t, e, nil)
+	sessionSQL(t, owner, "CREATE SEQUENCE s")
+	sessionSQL(t, owner, "CREATE VIEW sequence_view AS SELECT last_value FROM s")
+	tx := transactionBegin(t, owner)
+	sessionSQL(t, owner, "DROP SEQUENCE s CASCADE")
+	queries := []string{"SELECT viewname FROM pg_catalog.pg_views WHERE viewname='sequence_view'", "SELECT relname FROM pg_catalog.pg_class WHERE relname='sequence_view'"}
+	for _, query := range queries {
+		if result := sessionSQL(t, owner, query); result.Count != 0 {
+			t.Fatal("own removed view still visible", query, result.Count)
+		}
+		if result := sessionSQL(t, peer, query); result.Count != 1 {
+			t.Fatal("uncommitted view removal leaked", query, result.Count)
+		}
+	}
+	transactionEnd(t, owner, tx, false)
+	for _, query := range queries {
+		if result := sessionSQL(t, owner, query); result.Count != 1 {
+			t.Fatal("rollback did not restore view facts", query, result.Count)
+		}
+	}
+}

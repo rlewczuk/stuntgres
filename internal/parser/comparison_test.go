@@ -55,12 +55,23 @@ func TestCompareOpsGrammarAndPositions(t *testing.T) {
 func TestCompareOpsExcludedSyntax(t *testing.T) {
 	for _, q := range []string{
 		"SELECT i < = j FROM t", "SELECT i ! = j FROM t", "SELECT i < /*x*/ = j FROM t",
-		"SELECT i<j<1 FROM t", "SELECT i<j AS x FROM t",
+		"SELECT i<j<1 FROM t",
 		"SELECT i<j x FROM t", "SELECT i<j", "SELECT i<j FROM t garbage extra", "SELECT i<j FROM t; garbage",
 		"INSERT INTO t VALUES(1<2)", "SET x TO 1<2",
 	} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
 			t.Fatal(q, statements, err)
 		}
+	}
+	statements, err := Parse("SELECT i<j AS x FROM t")
+	if err != nil || len(statements) != 1 {
+		t.Fatal("supported target label", statements, err)
+	}
+	selectStmt := statements[0].(*Select)
+	if selectStmt.TargetLabels[0].Text != "x" {
+		t.Fatal("lost target label", selectStmt)
+	}
+	if _, ok := selectStmt.Targets[0].(OperatorExpr); !ok {
+		t.Fatal("lost comparison", selectStmt)
 	}
 }

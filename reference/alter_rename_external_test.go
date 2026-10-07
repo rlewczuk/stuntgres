@@ -34,7 +34,17 @@ func TestReferenceAlterRenameExternal(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(referenceSelect("SELECT inherited_name FROM newtable", []string{"inherited_name"}, []string{"INT4"}, [][]any{{int64(7)}}))
-	for _, q := range []string{"CREATE VIEW v AS SELECT a FROM t", "CREATE TABLE pk(a INT PRIMARY KEY)", "CREATE TABLE fk(a INT REFERENCES t(a))"} {
+	for _, step := range []referenceStep{
+		referenceExec("CREATE TABLE t(a INT)", 0),
+		referenceExec("INSERT INTO t VALUES(7)", 1),
+		referenceExec("CREATE VIEW v AS SELECT a FROM t", 0),
+		referenceExec("ALTER TABLE t RENAME a TO renamed", 0),
+		referenceExec("ALTER TABLE t RENAME TO newtable", 0),
+		referenceSelect("SELECT * FROM v", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}),
+	} {
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
+	}
+	for _, q := range []string{"CREATE TABLE pk(a INT PRIMARY KEY)", "CREATE TABLE fk(a INT REFERENCES t(a))"} {
 		_, err := p.memory.ExecContext(p.ctx, q)
 		referenceState(t, err, "0A000")
 	}

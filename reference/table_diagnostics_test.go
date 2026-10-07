@@ -62,7 +62,8 @@ func TestReferenceTableCoreLikeOptionsExternalBoundary(t *testing.T) {
 
 func TestReferenceTableCoreExternalDependencyBoundary(t *testing.T) {
 	p := newReferencePair(t)
-	// These are genuine PostgreSQL graph objects, not native compatibility claims.
+	// Foreign keys and primary keys remain PostgreSQL-only; views have an
+	// independently asserted native dependency path as well.
 	for _, q := range []string{"CREATE TABLE products(id integer primary key)", "CREATE TABLE orders(product_no integer references products(id))", "CREATE VIEW product_view AS SELECT id FROM products"} {
 		if _, err := referenceAdmin.ExecContext(p.ctx, q); err != nil {
 			t.Fatal(err)
@@ -83,10 +84,14 @@ func TestReferenceTableCoreExternalDependencyBoundary(t *testing.T) {
 		rows.Close()
 	}
 	referenceState(t, err, "42P01")
-	for _, tc := range []struct{ q, message, position string }{{"CREATE TABLE native_pk(id INT PRIMARY KEY)", "column constraints are unsupported", "31"}, {"CREATE TABLE native_fk(id INT REFERENCES products)", "column constraints are unsupported", "31"}, {"CREATE VIEW native_view AS SELECT id FROM orders", "CREATE syntax is unsupported", "8"}} {
+	for _, tc := range []struct{ q, message, position string }{{"CREATE TABLE native_pk(id INT PRIMARY KEY)", "column constraints are unsupported", "31"}, {"CREATE TABLE native_fk(id INT REFERENCES products)", "column constraints are unsupported", "31"}} {
 		s := referenceImplicitError(tc.q, referenceDiagnostic{Code: "0A000", Message: tc.message, Position: tc.position})
 		referenceRunStep(t, p.ctx, p.memory, &referenceRecorder{}, s)
 	}
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("CREATE TABLE orders(product_no INT)", 0))
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("INSERT INTO orders VALUES(99)", 1))
+	p.step(t, referenceExec("CREATE VIEW native_view AS SELECT product_no FROM orders", 0))
+	p.step(t, referenceSelect("SELECT product_no FROM native_view", []string{"product_no"}, []string{"INT4"}, [][]any{{int64(99)}}))
 }
 
 func TestReferenceTableCoreQuotedTypeNamesAndBoundaries(t *testing.T) {

@@ -93,6 +93,7 @@ type relationDescriptor struct {
 	defaults           map[int32]columnDefault
 	relationKind       relationKind
 	sequence           *sequenceOptions
+	view               *viewDefinition
 }
 
 func (d *relationDescriptor) Address() ObjectAddress       { return d.address }
@@ -218,6 +219,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		}
 		return nil
 	}
+	if r.relationKind == viewRelation {
+		return validateViewDefinition(v, r)
+	}
 	names := make(map[string]bool, len(r.notNullConstraints))
 	attrs := make(map[int32]bool, len(r.notNullConstraints))
 	for _, c := range r.notNullConstraints {
@@ -305,6 +309,7 @@ type CatalogStage struct {
 	authRevision       uint64
 	roleRevision       uint64
 	schemaCascadeNames []string
+	viewCascadeNames   []string
 }
 type PreparedCatalogPublication struct {
 	stage *CatalogStage
@@ -658,6 +663,13 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		for k, a := range s.names {
 			next.names[k] = a
 		}
+		for _, descriptor := range next.descriptors {
+			if view, ok := descriptor.(*relationDescriptor); ok && view.view != nil {
+				if err := validateViewDefinition(CatalogRead{owner: e, state: next}, view); err != nil {
+					return ChangeSet{}, err
+				}
+			}
+		}
 		e.mu.Lock()
 		if op != nil {
 			op.session.mu.Lock()
@@ -848,7 +860,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		if replacement.Epoch() != e.state.epoch {
 			return ChangeSet{}, ErrCatalogReplaced
 		}
-		next = replacement.state
+		next = cloneCatalog(replacement.state)
 		if err := copyRows(e.storage, e.commitSeq); err != nil {
 			return ChangeSet{}, err
 		}

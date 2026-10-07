@@ -82,12 +82,16 @@ func TestTransactionControlsKeywordEligibility(t *testing.T) {
 				t.Fatal(q, err)
 			}
 		}
-		controlParseError(t, "SELECT v AS "+word+" FROM t", "0A000", "projection aliases are unsupported", "")
+		if _, err := Parse("SELECT v AS " + word + " FROM t"); err != nil {
+			t.Fatal(word, err)
+		}
 		controlParseError(t, "SELECT v "+word+" FROM t", "0A000", "projection aliases are unsupported", "")
 	}
 	for _, word := range []string{"end", "and", "only", "deferrable"} {
 		controlParseError(t, "CREATE TABLE "+word+"(v INT)", "42601", "", "")
-		controlParseError(t, "SELECT v AS "+word+" FROM t", "0A000", "projection aliases are unsupported", "")
+		if _, err := Parse("SELECT v AS " + word + " FROM t"); err != nil {
+			t.Fatal(word, err)
+		}
 		if _, err := Parse("CREATE TABLE \"" + word + "\"(v INT)"); err != nil {
 			t.Fatal(word, err)
 		}

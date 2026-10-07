@@ -17,10 +17,29 @@ duplicate multiplicities and NULL nonmatch follow PostgreSQL18.0. Merged common
 types may retain either physical origin or a synthetic conversion origin.
 Every source is authorized and captures one coherent selected statement view.
 Prepared execution rebinds all sources; eager results survive native Reset/Restore.
-Outer/LATERAL/derived/CTE/function FROM, projection aliases and expanded ORDER
-syntax remain excluded. See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
+Outer/LATERAL/derived/CTE/function FROM and expanded ORDER syntax remain
+excluded. See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
 Feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`;
 independent pinned reference: `make reference RUN='^TestReferenceQueryJoins' VERBOSE=0`.
+
+Persistent CREATE VIEW supports the current SELECT body, optional prefix output
+names, security_barrier/security_invoker Boolean options, nested ordinary reads
+and INSERT SELECT. Bound relation/attribute identities survive base renames and
+unrelated column compaction; dependency-aware RESTRICT/CASCADE integrates with
+existing mutation paths. Zero-column views preserve source occurrences.
+Empty SELECT target lists use the same source path (`SELECT FROM relation`),
+retaining row occurrences independently of output width.
+`pg_catalog.pg_class`, `pg_rewrite` and `pg_views` are real bounded normal query
+sources with OID/internal CHAR metadata; their exact supported columns and
+unsupported tree/array fields are listed in [the view contract](SQL.md#views).
+OR REPLACE, recursive/TEMP forms, check options and view writes, general ALTER/
+DROP VIEW, full PostgreSQL catalogs/RLS/UDFs/optimizer facilities remain excluded.
+Native fixture controls preserve definitions rather than materialized results.
+Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.
+
+Explicit SELECT target `AS label` is supported for canonical view definitions
+and normal output metadata. Bare projection labels, output-alias lookup in
+WHERE/GROUP/ORDER and multiple sort keys remain excluded.
 
 OID is also a supported column type: distinct unsigned32 type26, native int64
 results, unsigned comparison/order and directional integer casts. See
@@ -47,7 +66,7 @@ atomicity; public Next performs no aggregate work. See [grouping](QUERIES.md#gro
 
 Grouping does not admit standalone SELECT without FROM, count(expr), count(),
 other aggregates, FILTER/DISTINCT/in-call ORDER/OVER, DISTINCT/ALL grouping,
-grouping sets/ROLLUP/CUBE/empty grouping sets, projection aliases or expanded ORDER syntax.
+grouping sets/ROLLUP/CUBE/empty grouping sets or expanded ORDER syntax.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
@@ -64,7 +83,7 @@ a row-dependent CASE/COALESCE, while decisive constant branches prune their
 unneeded runtime expressions. This is not general Boolean short-circuiting.
 Common-type and equality-overload resolution execute across the already-supported
 scalar types, including implicit DATE→TIMESTAMP; this does not add general casts,
-ordinary routines, arrays/VARIADIC, projection aliases, ORDER expressions or ordinary
+ordinary routines, arrays/VARIADIC, ORDER expressions or ordinary
 relationless SELECT. See [conditional expressions](QUERIES.md#conditional-expressions).
 Feature witnesses: `make smoke RUN='^TestConditionalSmoke$' VERBOSE=0` and
 `make reference RUN='^TestReferenceConditional' VERBOSE=0`.
@@ -289,8 +308,8 @@ An earlier bare `$1` still has TEXT output fallback and conflicts with later
 INT4 inference (42P08). Inputs' Go kinds never choose SQL types.
 Incompatible operands fail eagerly in Query/Prepare at the operator (42883);
 selected literal input errors retain the literal position (22P02/22003).
-No comparison implies row ordering. Comparison chaining, SELECT projection
-aliases, casts outside the bounded baseline and character-family sets and
+No comparison implies row ordering. Comparison chaining, bare SELECT projection
+labels, casts outside the bounded baseline and character-family sets and
 comparison in INSERT/settings remain
 excluded. Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`;
 independent pinned reference: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`.
@@ -410,7 +429,7 @@ expression syntax remain excluded. Feature smoke:
 `make smoke RUN='^TestLogicalSmoke$' VERBOSE=1`; pinned independent reference:
 `make reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
 PostgreSQL parses `SELECT TRUE AND FROM t` / `SELECT TRUE OR FROM t` as TRUE
-targets with bare aliases and/or. Native projection aliases remain excluded and these
+targets with bare aliases and/or. Native bare projection labels remain excluded and these
 keywords continue logical expressions; native42601 points to FROM at17/16.
 Independent reference coverage asserts PostgreSQL's positive BOOL outputs and
 native failures separately, without normalizing this capability boundary.
@@ -442,7 +461,7 @@ Explicit VARIADIC scalar operands fail42804 at the operand, including unknown
 strings/NULL; multiple ordinary/VARIADIC operands fail42883 lookup first.
 Arrays are not admitted: PostgreSQL NULL-array/empty-array semantics are not
 native support, and ordinary NULL is a single null argument. Calls remain excluded
-from INSERT, WHERE and setting arguments. General calls, function qualification, projection aliases,
+from INSERT, WHERE and setting arguments. General calls and function qualification,
 casts outside the bounded baseline and character-family sets, arithmetic,
 DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
 remain exclusions rather than PostgreSQL diagnostic-parity claims.
@@ -497,7 +516,11 @@ Comparison operands admit bounded scalar arithmetic and baseline and
 character-family casts, but not comparison chaining or nested logical/comparison
 expressions. Predicates also accept these scalar expressions and use their
 resolved type and expression start. General functions/casts outside the bounded
+<<<<<<< HEAD
 baseline and character-family sets, projection aliases, rows/composites and no-FROM scalar
+=======
+baseline and character-family sets, bare/table aliases, rows/composites and no-FROM scalar
+>>>>>>> 7001c76 (Implement PG18-DDL-VIEW: Create and read views)
 queries remain excluded except for the selected call roots described above.
 Null-count calls remain standalone projection roots, not predicate operands;
 predicate expressions remain excluded from their arguments.

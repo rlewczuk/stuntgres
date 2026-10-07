@@ -99,7 +99,10 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
-	if err := scope.stageOwnedSequences(stage, targets); err != nil {
+	if err := stageViewDependents(stage, targets, s.Mode); err != nil {
+		return Result{}, err
+	}
+	if err := scope.stageOwnedSequences(stage, targets, s.Mode); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
@@ -111,6 +114,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		return Result{}, err
 	}
 	scope.completed = true
+	emitViewCascade(op, stage.viewCascadeNames)
 	for _, notice := range notices {
 		op.emitNotice(levelNotice, notice)
 	}
@@ -200,6 +204,11 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
+	attribute := ref.Address
+	attribute.SubID = old.attributes[slot]
+	if err := stageViewDependents(stage, []ObjectAddress{attribute}, s.Mode); err != nil {
+		return Result{}, err
+	}
 	next := *old
 	next.revision++
 	next.columns = make([]ColumnDescriptor, 0, len(old.columns)-1)
@@ -282,7 +291,7 @@ func (e *Engine) alterDropColumnLocked(scope *StatementScope, op *Operation, aut
 	}
 	target := ref.Address
 	target.SubID = old.attributes[slot]
-	if err := scope.stageOwnedSequences(stage, []ObjectAddress{target}); err != nil {
+	if err := scope.stageOwnedSequences(stage, []ObjectAddress{target}, s.Mode); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

@@ -288,6 +288,13 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 	if err != nil {
 		return AuthorizationView{}, err
 	}
+	if _, view := stmt.(*parser.CreateView); view && op.restoreTableDestination {
+		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore view authority")
+		}
+		auth.state.CurrentUser = bootstrap.Ref
+	}
 	if _, insert := stmt.(*parser.Insert); insert && op.restoreInsertAuthority {
 		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
