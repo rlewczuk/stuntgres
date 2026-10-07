@@ -17,13 +17,13 @@ func TestIntervalImmutableConstantCapture(t *testing.T) {
 			raw = parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "interval"}, Text: "-1 2:03:04", Pos: parser.Position{Offset: 7, Character: 8}}
 		}
 		policy := expressionPolicy{context: assignmentContext, expected: d.Usage(), mode: sqltype.Assignment}
-		b := newExpressionBinder(ctx, e, sqltype.InputEnvironment{IntervalStyle: sqltype.IntervalPostgres}, nil, nil)
+		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{IntervalStyle: sqltype.IntervalPostgres}, nil)
 		first, err := b.bind(raw, policy)
 		if err != nil {
 			t.Fatal(err)
 		}
 		description := StatementDescription{temporals: b.temporals}
-		b = newExpressionBinder(ctx, e, sqltype.InputEnvironment{IntervalStyle: sqltype.IntervalSQLStandard}, nil, &description)
+		b = newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{IntervalStyle: sqltype.IntervalSQLStandard}, &description)
 		rebound, err := b.bind(raw, policy)
 		if err != nil {
 			t.Fatal(err)

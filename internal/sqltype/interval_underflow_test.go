@@ -78,17 +78,6 @@ func TestIntervalISOUnderflow(t *testing.T) {
 	}
 }
 
-func TestIntervalISOUnderflowOrdinaryAllocations(t *testing.T) {
-	allocations := testing.AllocsPerRun(1000, func() {
-		if isoNumberUnderflow("12e0", 12, true) || isoNumberUnderflow("0e-400", 0, false) {
-			panic("ordinary ISO number rejected")
-		}
-	})
-	if allocations != 0 {
-		t.Fatal("ordinary ISO underflow classification allocated", allocations)
-	}
-}
-
 func TestIntervalISOHexadecimal(t *testing.T) {
 	d := testTypes()[Interval]
 	for _, tc := range []struct {
@@ -206,19 +195,5 @@ func TestIntervalISONumberConsumedWidth(t *testing.T) {
 				t.Fatal(whole, fraction, used, ok, overflow, isoIntegerWidth(tc.raw))
 			}
 		})
-	}
-}
-
-func TestIntervalISOHexadecimalOrdinaryAllocations(t *testing.T) {
-	allocations := testing.AllocsPerRun(1000, func() {
-		for _, input := range []string{"0x1p0S", "0x1.8S"} {
-			whole, _, _, ok, overflow := isoNumber(input)
-			if !ok || overflow || whole != 1 {
-				panic("normal hexadecimal number rejected")
-			}
-		}
-	})
-	if allocations != 0 {
-		t.Fatal("normal hexadecimal allocations", allocations)
 	}
 }

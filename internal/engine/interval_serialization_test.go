@@ -19,7 +19,7 @@ func TestIntervalGenericStoredLiteralSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := newExpressionBinder(ctx, e, sqltype.InputEnvironment{}, nil, nil)
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	literal, err := literalSQL(ctx, literalExpression{b.info(u, parser.Position{}, ExprProperties{}), value})
 	if err != nil || literal != "INTERVAL '+12 months +0 days +00:00:00' YEAR" {
 		t.Fatal(literal, err)
@@ -29,7 +29,7 @@ func TestIntervalGenericStoredLiteralSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := statements[0].(*parser.CreateTable).Elements[0].Column.TypeName
-	recovered, err := e.resolveType(raw, nil)
+	recovered, err := e.resolveType(raw, b.op)
 	if err != nil || recovered.Typmod != 262146 {
 		t.Fatal(recovered, err)
 	}

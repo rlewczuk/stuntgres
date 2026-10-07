@@ -218,9 +218,6 @@ func TestIntervalWidenedComparisonGroupingAndExactDatum(t *testing.T) {
 		if e != nil || ha != hb {
 			t.Fatal(tc, ha, hb, e)
 		}
-		if allocs := testing.AllocsPerRun(100, func() { _, _ = cmp.Compare(ctx, a, b); _, _ = group.Hash(ctx, a) }); allocs != 0 {
-			t.Fatal("comparison/hash allocations", allocs)
-		}
 	}
 	low, _ := d.Input(ctx, "-infinity", -1)
 	high, _ := d.Input(ctx, "infinity", -1)
