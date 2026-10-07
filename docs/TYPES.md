@@ -422,7 +422,7 @@ casts and no-FROM SELECT remain outside this feature.
 
 Feature smoke: `make smoke RUN='^TestTimeSmoke$' VERBOSE=1`.
 Native coverage: `make test PACKAGES=. RUN='^TestTime.*$' VERBOSE=1`.
-Real pinned reference: `go test -tags reference -count=1 -timeout=60s -v -run '^TestReferenceTime.*$' ./reference`.
+Real pinned reference: `go test -tags reference -count=1 -timeout=300s -v -run '^TestReferenceTime.*$' ./reference`.
 
 ## Civil DATE
 

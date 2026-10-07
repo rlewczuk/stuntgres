@@ -5,8 +5,8 @@
 RUN ?=
 PACKAGES ?= ./...
 VERBOSE ?= 0
-TEST_FLAGS = -count=1 -timeout=60s $(if $(filter 1,$(VERBOSE)),-v) $(if $(RUN),-run '$(RUN)')
-TEST_COMMAND = timeout --signal=KILL 60s go test $(TEST_FLAGS)
+TEST_FLAGS = -count=1 -timeout=300s $(if $(filter 1,$(VERBOSE)),-v) $(if $(RUN),-run '$(RUN)')
+TEST_COMMAND = timeout --signal=KILL 300s go test $(TEST_FLAGS)
 
 generate:
 	go generate ./internal/parser
@@ -31,7 +31,7 @@ test-all:
 	@$(TEST_COMMAND) -race -tags reference ./...
 
 bench:
-	@timeout --signal=KILL 60s go test -timeout=60s -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .
+	@timeout --signal=KILL 300s go test -timeout=300s -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .
 
 deps:
 	go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./...

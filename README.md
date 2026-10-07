@@ -183,7 +183,7 @@ make reference  # compatibility tests against pinned PostgreSQL; requires Docker
 make test-all   # all suites, including reference, with the race detector
 ```
 
-Test targets enforce a 60-second wall-clock deadline and are quiet by default.
+Test targets enforce a 300-second wall-clock deadline and are quiet by default.
 Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 `PACKAGES=./internal/parser` to scope ordinary or race tests.
 

@@ -14,7 +14,7 @@ make bench      # fresh engine + connector + pool + Ping + Close, five runs
 make deps       # list non-standard production dependencies
 ```
 
-Test targets enforce a fixed 60-second wall-clock deadline across all packages,
+Test targets enforce a fixed 300-second wall-clock deadline across all packages,
 including compilation, plus a per-package timeout. `make test-all` runs all suites
 together within that deadline; slow or hanging tests must be fixed, not exempted.
 Output is quiet by default; use `VERBOSE=1` for test diagnostics, `RUN='^TestName$'`

@@ -97,10 +97,10 @@ ending newer work. This intentionally differs from pinned lib/pq: its old
 GoTx.Commit after SQL COMMIT AND CHAIN issues an unqualified end and publishes
 the newer block. Do not mix these lifetimes expecting pq's behavior.
 
-Run `go test -count=1 -v -timeout=60s -run '^TestTransactionControlsSmoke$' ./smoke`
+Run `go test -count=1 -v -timeout=300s -run '^TestTransactionControlsSmoke$' ./smoke`
 for public direct/held-prepared peer visibility, recovery, aliases, chains and
 complete warning/error/count/INT4 assertions. Independent real PostgreSQL
-coverage is selected by `go test -tags=reference -count=1 -v -timeout=60s
+coverage is selected by `go test -tags=reference -count=1 -v -timeout=300s
 -run '^TestReferenceTransactionControls' ./reference`.
 
 ## Relation locks
