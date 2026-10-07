@@ -1111,6 +1111,11 @@ A parsed ISO magnitude outside ±1e15 is decoder overflow22015, not malformed
 input. Unrestricted `2562047788:00:54.775807` is the largest finite microsecond
 component, but rounding it for SECOND(2) fails22008; a later overflowing parameter
 cannot publish an earlier valid row from the same statement.
+ISO floating underflow follows the pinned reference number parser, not an exponent
+blacklist: `PT1e-400S` and inexact `PT5e-324S` fail22007, while `PT0e-400S`,
+`PT-0e-400S`, exact subnormal values and bounded `PT1e-300S` remain valid zero
+intervals. Minimum-normal boundary cases retain the observed rounding/tininess
+distinction. First and later ISO fields share this validation before publication.
 
 Unknown literals read the destination typmod: `'1'` assigned INTERVAL YEAR means
 `1 year`. Parameters parse unrestricted first, then apply assignment restrictions:

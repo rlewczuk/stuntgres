@@ -190,6 +190,9 @@ func TestIntervalSmoke(t *testing.T) {
 	for _, tc := range []struct{ table, input, code, message string }{
 		{"ivbounds", "PT1000000000000001S", "22015", "interval field value out of range: \"PT1000000000000001S\""},
 		{"ivbounds", "1 1-2", "22007", "invalid input syntax for type interval: \"1 1-2\""},
+		{"ivbounds", "PT1e-400S", "22007", "invalid input syntax for type interval: \"PT1e-400S\""},
+		{"ivbounds", "P1DT1e-400S", "22007", "invalid input syntax for type interval: \"P1DT1e-400S\""},
+		{"ivbounds", "PT5e-324S", "22007", "invalid input syntax for type interval: \"PT5e-324S\""},
 		{"ivprecision", "2562047788:00:54.775807", "22008", "interval out of range"},
 	} {
 		boundary, err := db.PrepareContext(ctx, "INSERT INTO "+tc.table+" VALUES($1),($2)")
@@ -209,6 +212,9 @@ func TestIntervalSmoke(t *testing.T) {
 	exec("INSERT INTO ivbounds VALUES($1)", 1, "PT001020e0")
 	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL '2 years 10 months 15 days'", [][]any{{"2 years 10 mons 15 days"}})
 	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL '10 minutes 20 seconds'", [][]any{{"00:10:20"}})
+	exec("INSERT INTO ivbounds VALUES('PT0e-400S')", 1)
+	exec("INSERT INTO ivbounds VALUES($1)", 1, "PT1e-300S")
+	check(db, "SELECT v FROM ivbounds WHERE v=INTERVAL '0'", [][]any{{"00:00:00"}, {"00:00:00"}})
 	raw, err := drv.Open(t.Name())
 	if err != nil {
 		t.Fatal(err)
