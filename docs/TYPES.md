@@ -1,0 +1,729 @@
+# SQL types and Go values
+
+[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
+
+Types are int2/int4/int8/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp without time zone, uuid and bytea. Values returned to Go are `int64`, `string` (including character types, DATE, TIME, exact NUMERIC and canonical UUID), `bool`, `float64`, finite timestamp `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+
+The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
+BYTEA 17, INT8 20, INT2 21, INT4 23, TEXT 25, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+and bound assignment/comparison providers. The parser retains raw type syntax;
+the engine resolves it and publishes parameter/result descriptions with column
+origins. Prepared types come from destination columns, never the Go argument
+kind. Same-type repeated parameters share one inferred slot; gaps fail `42P18`
+and mixed-destination reuse remains the bounded native `0A000` limitation,
+including mixed INT2/INT4/INT8 reuse. Each execution imports an owned private typed frame
+against the current coherent binding. Driver adapters detach bytes and export
+INT2/INT4/INT8 as `int64`, TEXT/UUID and exact NUMERIC as `string`, BOOL as `bool`, FLOAT4/FLOAT8 as `float64`,
+DATE/TIME as canonical `string`, finite TIMESTAMP as `time.Time`, timestamp infinity as fresh
+`[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
+NULL still retains its concrete metadata identity.
+
+## BYTEA
+
+BYTEA stores arbitrary octets as immutable raw bytes (OID17, typmod -1, no
+collation). SQL quoted input accepts lowercase `\x` hex prefix with either-case
+digits and space/tab/LF/CR only between complete byte pairs. Escape input accepts
+double backslash and exactly three octal digits from `\000` through `\377`;
+ordinary UTF8 contributes its encoded bytes. SQL's normal string-decoding layer
+still applies; invalid UTF8/NUL SQL is not permitted. Malformed hex reports
+22023 (`invalid hexadecimal digit: "X"` or
+`invalid hexadecimal data: odd number of digits`); malformed escapes report
+22P02 (`invalid input syntax for type bytea`). Eager literal errors retain
+character-based quote positions, including Prepare on empty tables.
+
+Inferred BYTEA string and `[]byte` binds are **raw octets**, matching lib/pq:
+bound `\x41` stores four bytes, whereas SQL literal `'\x41'` stores byte 41.
+Nil interface and typed nil `[]byte` are NULL; nonnil empty bytes and empty
+string are nonnull empty BYTEA. Other SQL destinations retain textual byte
+binds. Valuer executes once outside engine locks. Input buffers and each
+exported result are detached; mutating returned bytes cannot alter storage or
+retained cursors. BYTEA DatabaseTypeName/ScanType are BYTEA/[]byte even for
+empty/NULL-only results and after EOF/Close. Native Length/DecimalSize are
+unavailable; pinned pq reports Length MaxInt64 and unknown nullability.
+Bytewise unsigned lexicographic comparison places shorter prefixes first.
+
+`bytea_output` defaults to `hex`; `escape` doubles backslashes and octal-escapes
+bytes below 32 or above 126. SHOW/SET/RESET/DEFAULT and transaction-local unwind
+use the existing settings lifecycle. NOT NULL failing-row Detail genuinely uses
+the statement-captured mode; raw SELECT bytes remain invariant under the setting.
+Dump always writes quoted lowercase hex, including `'\x'` for empty and NULL
+for null, independent of output/string settings. Restore privately parses
+default-on strings, preserves live settings and retained snapshots, and
+publishes no replacement on input/read/cancellation failure. BYTEA typed
+literals, modifiers, casts/functions, arrays and wire serving are not added.
+
+Feature smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`.
+Native witnesses: `make test PACKAGES=. RUN='^TestBytea.*$' VERBOSE=1`;
+codec witnesses: `make test PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=1`.
+Pinned reference: `make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
+
+## UUID
+
+UUID stores all 128 bits inline, independently of UUID generation functions.
+Contextual quoted inputs and string/textual `[]byte` binds accept uppercase or
+lowercase hex, matching braces, omitted hyphens, and a single optional hyphen
+after any internal group of four hex digits. Whitespace, URN prefixes, malformed
+braces, nonhex digits and trailing text are rejected. Version and variant bits
+are not restricted. Output and native Dump literals are always lowercase
+`8-4-4-4-12`, for example `a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11`.
+Comparison uses unsigned lexicographic order over all sixteen bytes, not GUID
+mixed-endian order; ordinary strict NULL equality and ASC/DESC NULL policies apply.
+
+Native UUID results export immutable canonical `string`, DatabaseTypeName UUID
+and ScanType string, including empty/all-NULL results; nullability follows the
+column declaration. Length and DecimalSize are unavailable (not Length16).
+The pinned lib/pq adapter instead exports canonical owned `[]byte` and ScanType
+`interface{}`; reference tests assert these adapter differences independently.
+`database/sql` can scan native results into string, []byte, any or sql.NullString.
+Bindings reuse the standard converter/Valuer path; byte binds are text, never
+binary sixteen-byte UUIDs. General Go UUID structs/arrays are not added.
+
+Malformed UUID input returns `22P02` and
+`invalid input syntax for type uuid: "<original>"`. Literal errors occur eagerly,
+including Prepare on empty tables, and point to the quote in character offsets.
+Native parameter errors have no Position/Context; PostgreSQL's wire adapter adds
+`unnamed portal parameter $1 = '...'`. Later tuple/input/constraint failures publish
+no rows. UUID declarations and canonical quoted literals round-trip through the
+existing atomic native Dump/Reset/Restore controls, with retained UUID snapshots
+and metadata unchanged. Feature smoke: `make smoke RUN='^TestUUIDSmoke$'`;
+real reference coverage: `make reference RUN='^TestReferenceUUID.*$'`.
+
+UUID typed literals, casts, arrays, generators, version/timestamp extraction
+functions and binary wire UUID APIs remain excluded. PostgreSQL disk storage,
+network protocol serving, and the external pg_dump process/custom archives are
+non-engine boundaries, not successful no-op implementations.
+
+## Exact NUMERIC
+
+NUMERIC, DECIMAL and DEC support unconstrained exact decimals or `(p[,s])`.
+Precision is 1–1000; scale independently ranges from -1000 to 1000, including
+scale greater than precision. Omitted scale is zero; unconstrained values
+preserve input display scale instead of imposing zero. `"numeric"` is a catalog
+name, but quoted `"decimal"` and `"dec"` are not aliases.
+
+```sql
+CREATE TABLE exact_values (id INTEGER, v NUMERIC, rounded NUMERIC(3,1),
+                          thousands NUMERIC(2,-3), tiny NUMERIC(3,5));
+INSERT INTO exact_values VALUES
+  (1, 12345678901234567890.1234567890123456789000, -1.25, 1500, .009994);
+SELECT v, rounded, thousands, tiny FROM exact_values ORDER BY id;
+-- exact strings: 12345678901234567890.1234567890123456789000,
+--                -1.3, 2000, 0.00999
+```
+
+Decimal fraction/exponent tokens always infer NUMERIC, even `1.` or `1e0`.
+Signed integer/radix tokens infer INT4, then INT8, then exact NUMERIC beyond
+int8; leading decimal zero is not octal. Digit separators and `0x`/`0o`/`0b`
+integer forms use the shared literal/input path. Malformed syntax is distinct
+from destination overflow. Integer/numeric equality stays exact beyond 2^53;
+finite numeric equality ignores display scale. Numeric-to-integer assignment
+rounds ties away from zero with checked range. Numeric-to-float conversion is
+checked and uses the selected binary type; numeric-to-TEXT emits canonical text.
+
+Numeric output is fixed decimal, never float64 or exponent notation. Examples:
+`001.2300` → `1.2300`, `-0.000` → `0.000`, `1.230e-2` → `0.01230`.
+Typmods round ties away from zero before checking the precision bound, preserve
+`max(s,0)` fractional places and apply separately at each destination. NaN is
+allowed with any typmod; Infinity/-Infinity require an unconstrained column.
+Specials normalize case and Inf spellings; signed NaN is invalid. Ordering is
+-Infinity < finite < Infinity < NaN, with NaN equal to NaN; NULL retains the
+existing ASC-last/DESC-first and strict-equality behavior.
+
+Result DatabaseTypeName is NUMERIC and ScanType is string, including empty and
+NULL results. Scan into string or []byte preserves exact output. DecimalSize
+reports declared precision/scale, including negative scale; unconstrained
+numeric has unknown sizing. Bind arguments remain target-driven textual input,
+not Go-kind inference. Prepared numeric constants validate input syntax during
+Prepare, but typmod sizing happens at Execute: malformed `'oops'` is located at
+the literal, while numeric-field overflow has Detail and no Position. Parameter
+errors have no native Position/Context. Statement and Restore failures publish
+no partial rows. Dump quotes canonical exact numeric output and declarations;
+Reset/Restore preserve old cursor values/metadata and deterministic redumps.
+
+`SELECT $1 FROM n WHERE v=$1` with a NUMERIC `v` fails during Prepare with
+`42P08`, `inconsistent types deduced for parameter $1`, Detail `numeric versus
+text`, Position `8`. Direct Query with a supplied argument reports the same
+record at the execution boundary. With no arguments, native Query still reports
+`42P08`, but lib/pq's PostgreSQL simple query reports `42P02`, `there is no
+parameter $1`, Position `8`. These protocol records are asserted separately,
+not normalized into parity.
+
+Unconstrained storage is bounded to 131072 integer digits and 16383 fractional
+places; excess format range is rejected, not silently truncated to zero.
+Numeric SQL parsing does not broaden SET's plain-decimal-integer grammar:
+settings' quoted numeric codecs retain their separate units/prefix behavior.
+No serial, NUMERIC/SMALLINT arithmetic, general functions, numeric casts, general operator syntax or
+SELECT-without-FROM expansion is introduced; existing SMALLINT participates in
+exact numeric comparison and checked integer assignment.
+
+Feature smoke: `make smoke RUN='^TestNumericSmoke$' VERBOSE=1`.
+The same smoke includes signed integer carry failures beside successful extrema,
+plus direct/prepared REAL/FLOAT8 assignments of 1.5, -1.5 and zero with a tiny
+exponent. Populated float comparisons against 1.0 and 1e100 assert exact result
+types even when no rows match, in both direct and prepared modes.
+Real pinned PostgreSQL witnesses:
+`make reference RUN='^TestReferenceNumeric.*$' VERBOSE=1`.
+Native logical negative-scale metadata is asserted independently of lib/pq's
+unsigned-scale decoding defect, not by accepting its incorrect DecimalSize.
+
+## Binary floating point
+
+REAL/FLOAT4 store IEEE binary32; DOUBLE PRECISION/FLOAT8 and bare FLOAT store
+binary64. FLOAT(p) selects REAL for binary precision 1–24 and DOUBLE PRECISION
+for 25–53, without a per-value typmod. Out-of-range precision fails `22023`
+at the precision token, even for CREATE TABLE IF NOT EXISTS. Quoted `"float4"`
+and `"float8"` are catalog names; quoted keyword aliases such as `"real"` are
+not aliases. Result DatabaseTypeName is FLOAT4/FLOAT8, ScanType is float64,
+including NULL/empty results; no fictitious DecimalSize or Length is reported.
+
+Decimal inputs may be quoted, inferred numeric tokens or positional binds:
+`INSERT INTO f VALUES(0.1)`. Floating arithmetic and floating-point casts remain unsupported.
+Text REAL input rounds directly to binary32 (not through binary64):
+`'7.038531e-26'` stores bits 0x15ae43fd. Bound float32 is already widened by
+database/sql; bound float64 is serialized as pq-compatible decimal parameter
+text and parsed according to its SQL destination, not its Go kind. Finite
+overflow or nonzero input rounded to zero fails `22003`; nonzero subnormals
+are accepted. Bad syntax fails `22P02`, preserving the original input; range
+errors quote the recognized numeric prefix. Quoted textual input errors point
+to the quote, while native parameter input errors have no Position/Context.
+Conversion of an inferred NUMERIC literal to a float destination is instead
+execution-owned: Prepare succeeds, and range failure has no Position/Context.
+
+Portable input accepts decimal numbers, C-ASCII whitespace at the ends,
+case-insensitive NaN, Inf/Infinity and signed infinities. Host strtof/strtod
+extensions such as hex floats, signed NaN or NaN payloads are not admitted
+natively and are not claimed portable PostgreSQL parity. NaNs compare equal
+and sort above all non-NaNs, including Infinity; signed zeros compare equal
+but retain their sign. Known integer and NUMERIC operands of float equality
+convert to binary64, whereas unknown strings/parameters contextualize to the
+column. Thus REAL `'16777216'` does not equal integer `16777217` or known
+NUMERIC `16777217.0`, but does equal quoted `'16777217'` after binary32 input
+rounding. Known NUMERIC against REAL uses checked FLOAT8 conversion, not REAL
+narrowing; overflowing/underflowing FLOAT8 conversion is an execution error.
+
+Output is PostgreSQL's default shortest-precise decimal with **open** rounding
+boundaries (not plain Go shortest ties-to-even output), canonical
+NaN/Infinity/-Infinity/-0, at most 9/17 significant digits. REAL uses fixed
+notation at display exponents [-4,6), double at [-4,15); otherwise signed
+lowercase `e` with at least two exponent digits. Selection of legacy
+extra_float_digits output modes is not implemented. Dump quotes every float
+output and emits canonical REAL/DOUBLE PRECISION declarations, so Restore
+roundtrips payloads and specials through the existing supported grammar.
+Native REAL export is the exact widened stored binary32; pq instead parses
+the decimal output as binary64. Thus REAL `'0.1'` returns
+0.10000000149011612 natively and 0.1 through pq; reference assertions preserve
+this adapter distinction before comparing binary32 semantics. That comparison
+must decode independently specified output text directly at 32 bits: narrowing
+pq's binary64 export can double-round. For REAL `'7.038531e-26'`, native storage
+has bits 0x15ae43fd, but narrowing pq's returned binary64 to binary32 produces
+0x15ae43fe. Both adapter outputs are asserted separately, not normalized away.
+
+Executable float acceptance (commands must run to establish verification):
+
+```sh
+go test -count=1 -v -run '^TestFloat.*$' ./internal/sqltype .
+go test -count=1 -v ./internal/parser
+go test -tags reference -count=1 -v -run '^TestReferenceFloat.*$' ./reference
+go test -count=1 -v -run '^TestFloatSmoke$' ./smoke
+```
+
+These assert exact release output/bit witnesses, precision/metadata, independently
+expected native/pq values, direct/prepared binds and diagnostics, NaN bags and
+ordering, later-tuple atomicity, cancellation and retained control snapshots.
+
+Table SELECT targets and scalar comparison filters use one immutable typed
+expression binder/evaluator, also shared by INSERT and bounded setting arguments.
+Untyped literal and parameter targets are named `?column?`; explicitly typed temporal
+targets are named `date`, `time` or `timestamp`; physical columns retain their
+names and origin metadata. Integer literals use INT4 in range and INT8 otherwise;
+unknown output strings, NULL and otherwise unconstrained parameters resolve to
+TEXT **after** filter analysis. Parameter occurrences retain their type at initial
+analysis: a target `$1` starts unresolved before WHERE. Thus
+`SELECT $1 FROM t WHERE id=$1` fails `42P08` with Detail `integer versus text`
+at the target, rather than projecting INT4; a later BOOL constraint similarly
+conflicts with TEXT fallback. `SELECT $1 FROM t` infers TEXT independent of the
+Go value, and `SELECT $1 FROM t WHERE s=$1` works when `s` is TEXT.
+Bare WHERE accepts BOOL columns/literals/parameters and contextual unknown
+NULL/strings (`'yes'`/`'no'`); concrete non-BOOL input fails `42804`. Only TRUE
+matches: FALSE and typed BOOL NULL/UNKNOWN do not. SELECT targets and WHERE admit
+one binary comparison of existing scalar operands: `=`, `<>`, `!=`, `<`, `<=`,
+`>` or `>=`. `!=` aliases `<>`. Either operand may be a literal, parameter or
+unqualified column, including an admitted baseline or character-family cast of
+those scalar operands; results have `?column?`/BOOL metadata with native bool
+ScanType and no physical-column origin, even on empty input. Either NULL yields
+BOOL NULL/UNKNOWN, including NULL compared with NULL; WHERE discards it.
+INT2/INT4/INT8 compare exactly across widths without assignment narrowing or
+float conversion. Existing TEXT/NAME, BOOL, FLOAT4/8, exact NUMERIC, UUID and
+same-type DATE/TIME/TIMESTAMP comparison providers remain; no cross-temporal casts
+are added. C text ordering and FALSE before TRUE apply.
+
+Both operands are analyzed before unknown coercion. A quoted string or NULL
+uses the known peer's type; two unknown operands choose TEXT (`'10'<'2'` is true).
+Known TEXT does not become integer/BOOL implicitly. Each parameter occurrence
+copies the shared type known when visited: `SELECT i=$1,j=$1 FROM t` fixes INT4
+from `i`, then compares the known INT4 with BIGINT `j` without narrowing.
+`SELECT i=$1,b=$1 FROM t` instead fails42883 for BOOL versus INTEGER.
+An earlier bare `$1` still falls back to TEXT and can fail42P08; later inference
+never rewrites it. Selected quoted-input failure is final, at the literal;
+incompatible known operands fail eagerly in Query/Prepare at the operator,
+even on empty tables, with the canonical operator spelling in diagnostics.
+FROM is still required outside identity/settings special forms and the selected
+null-count-only form. These scalar comparisons also form Boolean leaves above
+NOT, AND and OR in SELECT targets and WHERE. Bounded integer arithmetic and
+baseline and character-family explicit casts are scalar operands. Comparison
+chaining, SELECT aliases/qualified column references, general functions, casts
+outside the bounded baseline and character-family sets and comparison
+in INSERT/settings remain excluded. Comparisons do not sort rows.
+Selected null-count calls remain excluded from Boolean/comparison operands,
+and Boolean/comparison/arithmetic expressions remain excluded from their arguments.
+Former signed literal inputs remain admitted, including signs around baseline
+casts of numeric literals. Casts keep their precedence, conversions and errors;
+they are not removed or reassociated through the sign.
+
+Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
+pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`;
+native coverage: `make test PACKAGES=. RUN='^TestCompareOps' VERBOSE=1`.
+
+## Character types
+
+`CHAR(n)`/`CHARACTER(n)`/`BPCHAR(n)` use BPCHAR (OID1042), while
+`VARCHAR(n)`/`CHARACTER VARYING(n)` use VARCHAR (OID1043); TEXT remains OID25.
+Length counts UTF8 code points, not bytes or grapheme clusters, and ranges from
+1 through10485760. CHAR/CHARACTER without length default to1; BPCHAR and
+VARCHAR without length are unlimited. Quoted `"bpchar"` and `"varchar"` resolve
+catalog names; `"char"` is a separate unsupported internal one-byte type, and
+`name` is not a character alias.
+
+Fixed-width values pad with ASCII spaces. TEXT, VARCHAR and unlimited BPCHAR
+preserve physical trailing spaces. Assignment shortens excess only when every
+discarded character is an ASCII space, otherwise reporting22001 (`value too
+long for type character(n)` or `character varying(n)`). Explicit `CAST` and
+`::` between these string types truncate arbitrary excess at code-point
+boundaries; NULL retains destination type/length. Explicitness does not leak
+into surrounding assignment. BPCHAR conversion to TEXT/VARCHAR trims trailing
+ASCII spaces before destination sizing; BPCHAR-to-BPCHAR preserves and resizes.
+Nonstring assignment output conversions do not add explicit edges to BPCHAR or
+VARCHAR; the separate [baseline cast matrix](QUERIES.md#explicit-baseline-casts) retains conversions to TEXT.
+A cast infers an unresolved parameter from its destination, but converts an
+already-known character parameter from its fixed source identity. Earlier
+unknown output/ANY occurrences and mixed INSERT inference boundaries remain
+unchanged. Diagnostic type names are `character` and `character varying`.
+Catalog names and cast labels remain `bpchar`/`varchar`; metadata and unlimited
+Dump declarations remain BPCHAR/VARCHAR.
+BPCHAR and VARCHAR also participate in the existing string-category resolver for
+ordered INSERT source VALUES. Common-type selection follows row order and the
+existing implicit edges, rather than forcing TEXT for every string combination.
+Subsequent BPCHAR-to-TEXT conversion trims ASCII tails; VARCHAR-to-TEXT preserves
+them. Target assignment sizing and all-or-nothing publication remain unchanged.
+Source VALUES retains a common length only when every row has the same type
+identity and modifier. Equal numeric modifiers on CHAR(2) and VARCHAR(2) do not
+impose a common width. With an unlimited BPCHAR destination, CHAR(2) `'b'`
+followed by VARCHAR(2) `'a'` stores `"b "` and `"a"` without adding a pad to
+`"a"`; reversing the source rows chooses VARCHAR and removes the CHAR pad.
+
+Character comparisons accept string columns, literals, NULL, parameters and
+these casts on either side within the existing comparison/logical surface.
+BPCHAR/BPCHAR and BPCHAR/VARCHAR comparisons ignore ASCII tails; BPCHAR/TEXT
+trims only BPCHAR, while TEXT/VARCHAR tails remain significant. An unknown string
+literal next to BPCHAR follows BPCHAR semantics. Ordering uses the same nonnull
+providers, with UTF8/C byte ordering only: no locale-general, ICU, collation or
+general string-function claims.
+
+Native ColumnTypes reports BPCHAR/VARCHAR/TEXT, string ScanType, constrained
+Length n and unlimited Length MaxInt64, including empty/NULL results and after
+EOF/Close/Reset/Restore. DecimalSize is unavailable. Independently, lib/pq
+reports BPCHAR ScanType interface{} and unlimited BPCHAR/VARCHAR Length -5;
+these adapter quirks are not copied into native metadata.
+Column-derived labels survive nested casts; casts of unknown strings, NULL and
+parameters use the outermost resolved type's catalog name as their output label.
+Identical-Usage column casts retain native physical origin and known nullability,
+including NOT NULL. Resizing or retyping is a genuine expression with unknown
+nullability and no origin; a later identity cast of that expression does not
+restore the physical proof.
+
+Invalid string encoding uses22021 with PostgreSQL English byte diagnostics.
+Native binds have no wire portal Context. Both native and PostgreSQL CREATE
+utility Prepare accept invalid min/max/generic modifiers and TEXT modifiers;
+direct/prepared Execute reports their positioned semantic error.
+Keyword modifier syntax errors are Prepare errors on both backends.
+Generic BPCHAR and quoted catalog character spellings accept simple identifier
+modifiers as well as constants: `bpchar("2")` has length2, while `bpchar(foo)`
+reports integer-input22P02 at the type name. Keyword CHAR/VARCHAR precision
+remains a single unsigned integer. TEXT rejects modifiers before interpreting
+their contents, including nonnumeric, overflow and unary-plus forms.
+Native Dump/Reset/Restore preserves declarations, padding, Unicode, escapes,
+NULL and old reader snapshots; failed staged restores publish nothing.
+PostgreSQL wire serving, COPY, pg_dump/pg_restore processes and physical
+TOAST/disk storage remain external-only mechanisms.
+
+Focused checks: `make test PACKAGES=. RUN='^TestCharacter'`,
+`make reference RUN='^TestReferenceCharacter'` (real pinned PostgreSQL18.0),
+and `make smoke RUN='^TestCharacterSmoke$'`.
+
+## Time without time zone
+
+`TIME`, `TIME(p)` and optional `WITHOUT TIME ZONE` declarations and typed literals
+work through the same binder, parameter inference, metadata and native controls
+as other supported types. TIME has OID 1083; omitted precision is -1, explicit
+0–6 is retained by declarations, LIKE, prepared descriptions and Dump. Higher
+precision warns with `22023` (`TIME(7) precision reduced to maximum allowed, 6`)
+and clamps to 6. Keyword negative/signed precision is a positioned syntax error;
+quoted `"time"(-1)` reaches the provider's `22023` negative-precision diagnostic.
+Quoted numeric/Unicode modifiers use the same INTEGER and scanner contracts as
+timestamp precision below. Utility Prepare remains effect/notice-free; typed
+literal warnings occur once when analyzed, not every held execution.
+
+The stored clock ranges from `00:00:00` through distinct `24:00:00`, inclusive.
+Output and native ScanType are **string**, with `HH:MM:SS` and a trimmed optional
+microsecond fraction, never a date/zone suffix. The pq reference adapter instead
+returns `time.Time` anchored at year 0 January 1, or January 2 for `24:00:00`;
+this is an adapter boundary, not a PostgreSQL text-output difference.
+
+Accepted inputs include colon and compact clocks, AM/PM (including 0AM/0PM),
+minute/second fractions (`04:05.5` means `00:04:05.5`), seconds 60 carry, and
+limited optional Gregorian dates, ISO T/Julian labels and recognized noise
+(`on`/`at`). Standalone weekday tokens are rejected: `04:05 on Monday` is
+invalid TIME input, even though weekday words are recognized for timestamps.
+Input fractions round to microseconds ties-to-even; destination precision then
+rounds half-up. `23:59:59.5` at precision 0 becomes `24:00:00` without wrapping;
+invalid `24:00:00.1` fails before sizing. Same-type comparison/ORDER BY preserve
+the endpoint and ordinary NULL placement; no TIME/TIMESTAMP comparison or casts
+are admitted. String, owned byte, nil and `time.Time` parameters use the TIME
+destination, retaining written wall-clock fields rather than converting to UTC.
+Colon-clock component syntax/ranges are checked while reading the token; the
+whole-clock domain is checked only after later tokens, optional-date validation
+and AM/PM conversion. Thus duplicate zones in `25:00 UTC UTC` yield `22007`
+before the deferred hour overflow, and `2003-13-07 25:00` retains the DateStyle
+Hint. TIMESTAMP keeps its distinct early whole-clock check. Incompatible typed
+assignments identify the actual source (`time without time zone` for TIME).
+PostgreSQL's TIMESTAMP-to-TIME assignment cast is an explicit unsupported native
+boundary, not a claimed parity behavior.
+
+Numeric zones, release abbreviations and full names are **validated then ignored**;
+`04:05:06-08` stays `04:05:06`. Unknown zones and invalid displacements fail;
+unknown full-zone diagnostics use the lowercased token, e.g.
+`time zone "america/bogus" not recognized` for `America/Bogus`.
+Historically varying full names (including currently no-DST Asia/Kolkata) need
+a valid supplied date; historically fixed names/aliases such as Etc/GMT+5 need
+none. The immutable inventory covers every REL_18_0 IANA 2025b Zone/Link,
+classified from historical fat TZif ttinfos and release-loaded footer offsets,
+with no runtime zone I/O or host-zone dependence. Dynamic abbreviations need no
+date; DST-modifier and duplicate-field restrictions still apply.
+Single-token POSIX `X0` and equal-offset `X0Y0` are fixed, unlike `X0Y`.
+
+`allballs` is midnight. `now` uses the transaction-owned UTC start; held typed
+and contextual constants freeze at analysis, while parameters read each execution
+start (shared within one explicit transaction). TIME `now` does not reserve a
+zone field, unlike TIMESTAMP `now`; `allballs` does. Malformed fields, modifiers,
+later tuples and staged Restore failures never publish partial state. Dump quotes
+canonical clocks and Restore preserves precisions, NULLs, endpoints and old cursors.
+TIME WITH TIME ZONE/timetz, session TimeZone/DateStyle, temporal functions,
+casts and no-FROM SELECT remain outside this feature.
+
+Feature smoke: `make smoke RUN='^TestTimeSmoke$' VERBOSE=1`.
+Native coverage: `make test PACKAGES=. RUN='^TestTime.*$' VERBOSE=1`.
+Real pinned reference: `go test -tags reference -count=1 -timeout=60s -v -run '^TestReferenceTime.*$' ./reference`.
+
+## Civil DATE
+
+`DATE` and quoted `"date"` work in declarations and typed literals; `date`
+remains an ordinary table/column identifier. DATE has OID1082, no precision,
+and DatabaseTypeName DATE / ScanType string even for empty and NULL results.
+All nonnull exports are canonical strings: `YYYY-MM-DD`, expanded years,
+` BC`, `infinity` or `-infinity`. lib/pq instead exports finite `time.Time`
+and default infinity `[]byte`; these adapter differences are intentional.
+
+DATE modifier literals share the scalar call opener with baseline casts, but
+retain raw numeric modifiers until DATE's no-typmod diagnostic is resolved.
+This does not admit `date(...)` function casts or change int4/int8/text/bool
+calls; standard/postfix casts involving DATE remain unsupported.
+
+Input accepts ISO and unambiguous month names, compact dates, Julian days,
+ordinal dates, fixed MDY ambiguous numeric input, BC, epoch and infinities.
+Examples `January 8, 1999`, `19990108`, `1999.008` and `J2451187` all produce
+`1999-01-08`; `2001--01-01` is also valid and produces `2001-01-01`.
+The proleptic Gregorian finite domain is **4714-11-24 BC through 5874897-12-31**,
+including dates beyond TIMESTAMP's range. There is no textual year zero;
+1 BC is astronomical year zero for leap calculations. Comparisons and ordering
+use civil days, with infinities outside all finite values and ordinary NULL rules.
+
+Validated trailing clocks/zones never shift the written date or carry into it:
+`1999-01-08 24:00` remains `1999-01-08`. Bound `time.Time` similarly uses its
+own location's civil Y/M/D and ignores time/nanoseconds; Go year zero means 1 BC.
+Strings, owned textual bytes and nil use the existing type-owned input path.
+The pinned pq adapter shifts BC `time.Time` years with Go `AddDate` before
+encoding: its year-zero February 29 bind becomes `0001-03-01 BC`. Native DATE
+preserves `0001-02-29 BC`; textual BC input avoids that pq encoding limitation.
+`now`, `today`, `yesterday` and `tomorrow` use transaction-start UTC; prepared
+typed/contextual constants freeze at analysis, while parameters read execution
+start. No DateStyle/TimeZone settings, CURRENT_DATE function, cross-temporal casts,
+arithmetic, arrays or no-FROM SELECT are added.
+
+Malformed input is `22007`; invalid calendar fields and finite-range failures
+are `22008`, preserving original input and English diagnostics.
+
+Failed `time.Time` range imports format the original temporal input only on
+failure, including clock, fractional seconds, numeric offset (`Z` for UTC,
+offset seconds when present) and a trailing ` BC` for BC years. For example,
+year 5874898 at UTC midnight reports
+`date out of range: "5874898-01-01 00:00:00Z"`.
+Years whose serialized AD/BC number exceeds INT32 fail earlier numeric decoding
+with `date/time field value out of range`, rather than `date out of range`.
+Successful imports remain civil-day-only, with no clock/zone validation or conversion.
+
+Elementary month/day overflow includes the DateStyle Hint. Literal errors fail Prepare
+even on empty tables and point to the quote in character positions; native
+bind errors have no Position/Context. Incompatible typed DATE assignments name
+the source type `date` (`TIME`/`TIMESTAMP` retain `without time zone`) and fail
+`42804` during analysis/Prepare without changing stored rows.
+DATE modifiers fail `42601` at the type name (CREATE execution, typed-literal
+analysis). This no-modifier rejection precedes integer conversion or unary-plus
+validation of parsed modifiers: `date(3.0)`, `date(2147483648)` and `date(+3)`
+all report `type modifier is not allowed for type "date"`. Ordinary parser
+syntax errors still take precedence; TIME/TIMESTAMP/NUMERIC modifier rules are
+unchanged. Later-row failures and canceled staged Restore leave committed data
+unchanged. Dump quotes canonical DATE values;
+Reset/Restore preserve retained snapshots and metadata. Unordered queries have
+no portable row-order guarantee.
+
+Feature smoke: `make smoke RUN='^TestDateSmoke$' VERBOSE=1`.
+Independent pinned oracle: `make reference RUN='^TestReferenceDate' VERBOSE=1`.
+Native coverage: `make test PACKAGES=. RUN='^TestDate' VERBOSE=1`.
+
+## Timestamp without time zone
+
+`TIMESTAMP`, `TIMESTAMP(p)` and their explicit `WITHOUT TIME ZONE` forms
+work in table declarations and typed literals in the existing scalar positions.
+Omitted precision is typmod -1; explicit 0–6 is retained in column/result metadata
+and native Dump. Plain LIKE copies that precision. The quoted catalog type
+`"timestamp"` also admits integer modifiers, including unary-minus constants.
+Ordinary signed, empty, multiple and noninteger modifiers are syntax errors;
+quoted negative precision reaches the type provider and fails `22023`.
+Complete quoted numeric spellings pass through the existing INTEGER input
+function at CREATE execution: decimal/exponent input fails `22P02`, and integer
+overflow fails `22003`. Quoted unary-plus modifiers are nonsimple syntax: Prepare
+accepts them, but CREATE execution fails `42601`,
+`type modifiers must be simple constants or identifiers`, at the type opener.
+An existing authorized `IF NOT EXISTS` destination skips semantic modifier input,
+not malformed numeric syntax. Greater precision succeeds with
+WARNING `22023`, for example `TIMESTAMP(7) precision reduced to maximum allowed, 6`,
+and effective precision 6. Typed-literal warnings occur at initial analysis/Prepare,
+not every held execution; CREATE warnings/errors occur at utility execution.
+Column declarations resolve the raw modifier again while building the relation
+descriptor, so excess precision emits two execution warnings: the first with
+the declaration position, then one without a position.
+An authorized existing IF NOT EXISTS table skips semantic precision validation,
+not malformed syntax. `client_min_messages=error` filters these warnings.
+Unicode-escaped quoted identifiers resolving to `"timestamp"` use the same
+modifier rule. Timestamp-related keywords retain their release identifier and
+bare-label categories. A cast applied to a typed timestamp literal remains a
+positioned `0A000` unsupported cast, not an executable expression.
+
+Input combines dates and times using fixed **MDY** ambiguous ordering, and output
+is fixed **ISO** civil date/time with a space, seconds, trimmed fractional zeros
+and no offset. Supported families include ISO dates/space or T separators,
+full/abbreviated text months and mixed delimiters, MDY slash/dash/dot dates,
+compact dates/times, short-year pivot 00–69→2000–2069 / 70–99→1970–1999,
+ordinal year/day and Julian day (including fractions), colon times, AM/PM,
+recognized weekday/noise tokens, AD/BC, `epoch`, and infinities. Four-digit `0000`
+is invalid; 1 BC is exported as astronomical Go year 0. Invalid Gregorian dates
+are rejected, not normalized; valid `24:00:00` and `23:59:60` carry to the next day.
+Accepted numeric labels are Julian `j` / `jd` / `julian` and the ISO `T`
+separator. Interval-like `y`, `m`, `d`, `h`, `mm`, `s`, `dow`, `doy`,
+`isodow` and `isoyear` labels are not timestamp input fields and fail rather
+than silently constructing a date/time.
+Recognized but unsupported unit labels still preserve numeric-error precedence:
+`y 2147483648` fails field-range `22008`, whereas `y 1` is malformed `22007`.
+An intervening `at`/`on` does not consume a pending label. Julian labels likewise
+survive noise, weekday/era/meridian and ordinary zone fields (`J on UTC 2451187`
+is January 8, 1999). ISO `T` preserves numeric prefix overflow before duplicate
+time rejection; a punctuated zone immediately after pending `T` is not a named
+zone input (`1999-01-08 T America/Bogus` is malformed, not unknown-zone `22023`).
+Numeric zone suffixes, all release Default abbreviations, case-insensitive IANA
+names/aliases and admitted POSIX indications are validated then **ignored**:
+`TIMESTAMP WITHOUT TIME ZONE '2004-10-19 10:23:54+02'` remains 10:23:54.
+DST gap/fold fields likewise remain civil fields. Arbitrary trailing suffixes are
+not discarded. POSIX rule strings are subject to timestamp token boundaries:
+comma-separated rules/angle-bracket names are not interchangeable with SET TIMEZONE.
+Unbracketed POSIX standard/daylight names may be one or two characters; they
+have no artificial three-character minimum. POSIX offset seconds admit 60,
+unlike numeric ISO zone seconds. Thus `1999-01-08 04:05:06.1e2` is valid:
+the tokenizer separates fraction `.1` from POSIX zone `e2`, retaining civil
+04:05:06.1 rather than interpreting an exponent. The fractional-field helper
+itself accepts digits only after the dot; whole-input tokenization is distinct.
+Recognition uses the immutable PostgreSQL REL_18_0/IANA 2025b name index without
+host-zone-file I/O or offset/transition conversion.
+The `dst` modifier is admitted with a fixed standard abbreviation or numeric
+zone, in either order, without changing civil fields (`PST dst`, `dst +02`).
+It conflicts with fixed daylight abbreviations such as `EDT`; dynamic names
+such as `MSK`, full IANA/POSIX zones, duplicate modifiers and a modifier without
+a zone are invalid. A full punctuated zone is looked up before duplicate-zone
+rejection: unknown `America/Bogus` after `UTC` still fails `22023`, while a
+known second zone fails `22007`. DST/daylight fields also participate in the
+delimited-date completion mask: leading `PST` is exempt as TZ, leading `EDT`
+or `PST dst` is not; separately decoded textual-month dates remain distinct.
+Combined fields are interpreted sequentially: `January 8 040506-8 1999`
+fails `22007` because the date is incomplete when that compact numeric field
+is encountered. Compact time with a completed date and textual colon-time
+forms remain supported.
+Numeric dispatch also depends on previously decoded date and time bits, not
+width alone: `January 8 04:05:06 120000 PST` retains year 120000 and civil clock
+04:05:06. An overflowing year in that ordering is field-range `22008`.
+Small ordinary numeric date fields can supply a fraction before their date
+role is assigned: `1999 1 8.5` means January 8 at midnight plus .5 seconds.
+This does not admit every dotted field ordering: `1999 1.5 8` and
+`1999 1.1 8` are malformed (`22007`), not fractional-month equivalents.
+A later clock replaces that fraction; a fraction after an already decoded
+clock replaces its fractional seconds. Full numeric-field length controls
+short-year interpretation (`January 8 99.1` is year 0099, not 1999).
+Compact clocks follow release summation semantics: `250000` carries into the
+next day at 01:00, `049900` becomes 05:39, and `040599` becomes 04:06:39.
+Colon clocks still reject hour 25, minute 99 and second 99. AM/PM validation
+precedes compact carry, and the final summed value must remain in finite range.
+Ordinal day 366 is accepted in either year/day spelling: `1999.366` and
+`1999 366` roll into 2000-01-01, while `2000.366` is 2000-12-31.
+The converted civil date is then checked against the finite timestamp range.
+Only ordinal values 1–366 claim the day-of-year field. In `1999 367`, the
+second numeric token falls back to a month, whose range is validated before
+rejecting the incomplete date: `22008` with a DateStyle hint. In contrast,
+`1999.367` fails the delimited-date completion rule first (`22007`, no hint).
+Only present year/month/day fields are validated; missing fields do not
+invent zero-valued calendar errors.
+Weekday vocabulary includes `weds`; a stated weekday does not validate calendar
+agreement with the numeric date.
+Julian integer and decimal fields are decoded separately: `J2451187.1`
+is exactly 1999-01-08 02:24:00. A present fractional suffix supplies the time
+even when zero, so `J2451187.0 04:05:06` is a duplicate-time error.
+A pending Julian label also admits an empty integer before a fraction:
+`J .1` is Julian day zero plus .1 day (4714-11-24 BC at 02:24), while
+`J .` is that date at midnight. Both claim the time field and reject an
+additional clock; ordinary numeric-date parsing still requires an integer.
+A colon time may end with a decimal point (`04:05:06.` means zero fraction);
+bare compact or Julian trailing dots follow different lexical branches and
+are invalid. Malformed fields fail `22007`, overflowing date/time integers
+fail `22008`, and overflowing numeric zone components fail `22009`.
+
+Fractional seconds first convert to binary64 seconds, then scale to microseconds
+and round ties-to-even. Go `time.Time` parameters use the same two-stage
+conversion without formatting: 125500 nanoseconds becomes 125 microseconds,
+while 126500 becomes 127, matching their decimal timestamp input rather than
+rounding the nanosecond count directly. Civil fields and validated-but-ignored
+offsets are preserved; typed and destination precision still size afterwards.
+Julian fractions instead multiply the separately decoded fraction by a day's
+microseconds and truncate to integer microseconds, matching the release codec.
+Own typed-literal precision and destination precision are separate later sizing
+stages, rounding signed microseconds away from the 2000-01-01 epoch on ties:
+p0 rounds 2000-01-01 00:00:00.5 up, but 1999-12-31 23:59:59.5 down.
+Comparisons never resize the right input to a column's precision. Finite input spans
+4714-11-24 BC through 294276-12-31; rounding its last microsecond can produce finite
+294277-01-01, although direct external input of that date fails. Dump represents this
+rounded endpoint with `TIMESTAMP(0) '294276-12-31 23:59:59.999999'`, so staged Restore
+reconstructs it through the ordinary parser/input/sizing path even into a p6 column.
+
+Native `now`, `today`, `tomorrow` and `yesterday` strings use the transaction-owned
+UTC civil start, captured once for an explicit/implicit transaction. All rows and
+statements in one explicit transaction share it. Prepared timestamp constants,
+including contextual quoted inputs, freeze when analyzed; string/byte parameters
+are read afresh at execution using that execution transaction's start.
+SQL BEGIN and native BeginTx use the same clock owner. COMMIT/ROLLBACK AND CHAIN,
+including recovery by COMMIT AND CHAIN from an aborted block, capture a fresh
+UTC start for the new incarnation; redundant BEGIN and control Prepare do not
+reset it. Plain COMMIT/ROLLBACK clear it before the next implicit transaction.
+Independent public, codec/engine and pinned reference assertions retain both
+the floating-point and timestamp contracts after integration.
+Run `go test -count=1 -v -run '^TestTimestampSQLTransactionChainSmoke$' ./smoke`
+for literal/parameter clock stability, relative civil dates and fresh chain/end
+boundaries; `go test -tags reference -count=1 -v -run '^TestReferenceTimestampSQLTransactionChainClock$' ./reference`
+asserts these relationships separately on each backend, not absolute clock parity.
+Freezing belongs to each physical driver preparation, not to SQL text in a
+pool-wide cache. Reuse the same Conn-prepared handle to retain a constant;
+`Tx.StmtContext` of that handle performs a new physical preparation and captures
+the new transaction's start. Native table DDL remains unsupported (`0A000`)
+inside explicit transactions; timestamp INSERT errors retain normal abort
+semantics.
+`now` already supplies date, time and a zone field; `allballs` supplies time
+and a zone field. An additional zone therefore conflicts in either token order
+(`now UTC`, `UTC now`, or `1999-01-08 allballs UTC` are invalid).
+Date-first `1999-01-08 allballs` is valid midnight; `allballs` alone lacks a date.
+`epoch` and signed/unsigned infinity are decoded within the same whole-input
+field loop: `on epoch`, `epoch at`, `on +InFiNiTy` and `- InFiNiTy at` are valid.
+They reserve date, time and zone fields; conflicting fields in either order
+are rejected rather than discarded after the first special token.
+Core date/time words (including all special values) stay core tokens before
+adjacent digits or plus signs; they are not reinterpreted as POSIX zone names.
+For example, a completed date/time followed by `now1` or `now+2` is invalid,
+while genuine short POSIX names such as `e2` retain their ignored-zone behavior.
+This is context-sensitive: standalone `today+2` is a valid date and numeric
+zone, with the same UTC civil midnight as `today`, not an adjacency blacklist.
+Delimited and dotted-ordinal dates must complete the global date-field mask:
+prior clock/`allballs`, weekday, AD/BC or AM/PM fields make that branch invalid;
+only ordinal and timezone fields are excluded from its completion test.
+For example, `Friday 1999-01-08` is invalid, but separately decoded text-month
+fields in `Friday January 8 1999` remain valid. Partial numeric date context
+can complete normally (`1999 01-08`). This is token-branch-specific, not a
+blanket ban on every date/time field permutation.
+The global date mask is shared, but textual-month interpretation is local to
+each delimited field: `January 08-1999` and `1999-Jan-08` are valid, whereas
+`January 1999-08` and `Jan 1999/08` overflow the day field with a DateStyle hint.
+Outer numeric MONTH can become DAY when a textual month follows, provided no
+DAY or prior textual month is present and the numeric field is 1–31. Any YEAR
+is retained: `1999 8 January` is valid, but `99 January 1999` is a duplicate-month
+syntax error without a DateStyle hint. This does not change delimited-field
+local textual-month interpretation.
+Delimited dates admit a single trailing separator and interior repetitions
+(`1999-01-08-`, `1999//01//08`), but reject separator-only trailing runs
+(`1999-01-08--`, `1999/01/08//`).
+Numeric and alphabetic date components use the release's single-character
+advancement (`1999-Jan08` decodes as January 8). Additional components are
+decoded before completion is rejected, so an overflowing fourth integer is
+a field-range error, not an early component-count syntax error.
+The textual pass rejects unknown words before numeric overflow:
+`2147483648-xxx-08` yields 22007 without a hint. Throwaway `at`/`on` skip only
+that first pass and remain for numeric decoding: `2147483648-at-08` and
+`2147483648-on-08` yield field-range 22008 without a hint, while ordinary
+`1999-at-08` and `1999-on-08` are malformed. Tokens retain borrowed input
+spelling; ASCII case-insensitive comparisons (including sorted zone lookup)
+avoid allocating lowercase copies on successful mixed-case input, including
+months, weekdays, era/meridian and Julian labels, noise words and special values.
+Whitespace following a sign stays in the borrowed input span; numeric-zone and
+signed-infinity consumers trim it locally without concatenating a token copy.
+Token budgets count the sign, non-whitespace tail and terminator, not the gap.
+All ASCII whitespace forms retain numeric-zone bounds (`- 16` fails `22009`).
+The 25-field limit is checked before discarding subsequent punctuation; trailing
+whitespace is harmless, but punctuation after field 25 is malformed. ASCII DEL
+is not a punctuation delimiter and is rejected with the entire original input.
+Day-relative inputs still allow an ordinary clock and one zone.
+Finite output/ScanType is `time.Time` at zero offset, including BC/wide years;
+infinity is owned bytes and NULL is nil without losing TIMESTAMP metadata.
+`time.Time` parameters import their original Date/Clock/Nanosecond civil fields,
+validating the numeric offset within ±15:59:59 before ignoring its effect;
+there is no conversion of the instant to UTC. Offsets of ±16 hours fail with
+22009, including when the civil year also exceeds the finite timestamp range.
+A serialized date-year integer overflow precedes zone decoding instead (22008,
+without a DateStyle hint). On failure, diagnostics include the original parameter
+text, including unrounded nanoseconds, offset seconds and BC spelling. Formatting
+is failure-only; successful civil imports do not allocate a timestamp string.
+
+Literal diagnostics include the quoted input's rune position. Semantic precision
+diagnostics use the type opener; malformed numeric modifiers use the offending
+token's rune position. Numeric junk and incomplete exponents report `42601`
+`trailing junk after numeric literal` with the complete token; `1..2` instead
+reports syntax error at `".."`, positioned at its first dot. FLOAT and TIMESTAMP
+modifiers reuse this scanner behavior; scalar decimal expressions are supported
+through the shared exact NUMERIC literal path described above.
+Parameter input diagnostics omit native Position/Context.
+Malformed/date/time/range/zone errors publish no partial INSERT or Restore
+replacement. Retained cursors keep original values, precision and origin metadata
+across append/Reset/Restore; exported infinity buffers cannot mutate stored values.
+
+No timestamp-with-time-zone type, DateStyle/TimeZone settings, temporal functions,
+casts, no-FROM SELECT or broader expression syntax is enabled by this feature.
+DMY/YMD setting-dependent interpretations are not native defaults.
+Run `go test -count=1 -v -run '^TestTimestampSmoke$' ./smoke` for the feature smoke,
+`go test -count=1 -v -run '^TestTimestamp.*$' .` for public acceptance, and
+`go test -tags reference -count=1 -v -run '^TestReferenceTimestamp.*$' ./reference`
+for independently expected real PostgreSQL 18.0 scenarios.
+Codec corner cases and allocation assertions can be selected with
+`go test -count=1 -v -run '^TestTimestamp.*$' ./internal/sqltype`;
+`go test -count=1 -v -run '^TestTimestamp.*Allocations$' ./internal/sqltype`
+includes signed-whitespace and revised numeric/prefix/DST branches.

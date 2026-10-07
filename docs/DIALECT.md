@@ -1,8 +1,8 @@
 # SQL dialect
 
 Supported SQL surface, native limits and intentional PostgreSQL differences. See
-[README](../README.md) for the consumer contract and [AGENTS.md](../AGENTS.md) for
-development instructions.
+[README](../README.md) for getting started, the [SQL reference](SQL.md) for detailed
+feature contracts, and the [development guide](DEVELOPMENT.md) for contributor instructions.
 
 ## Supported surface and limits
 

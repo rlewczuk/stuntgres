@@ -1,0 +1,183 @@
+# Session settings
+
+[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
+
+Each physical connection has independent typed session-setting state. Hold
+`*sql.Conn` to target that session; a `*sql.DB` may dispatch to any physical
+connection. Borrower Close returns it to the pool: healthy pool reuse preserves
+its settings and identity, without implicit RESET, DISCARD or rollback.
+Physical replacement starts with captured defaults and does not erase data.
+Canceled statements, canceled pool-reuse checks and normal SQL errors leave
+healthy sessions reusable, preserving physical identity and settings.
+Explicit physical close drains operations and releases only that session's
+owners; runtime abandonment cleanup is nondeterministic best effort.
+
+`SET [SESSION | LOCAL] name {TO | =} value`, `RESET name`, `RESET ALL`, `SHOW name`,
+and `SHOW ALL` use the ordinary direct/prepared execution route. Names are
+ASCII-case-insensitive, including dotted custom names. SET values use the
+existing ordinary/`E'...'`/`U&'...'`/dollar-quoted literal lexer, identifiers, booleans, signed
+decimal-digit integer tokens or bare DEFAULT. DEFAULT and RESET restore
+the captured physical-session default; quoted 'DEFAULT' is literal text.
+SHOW returns one string row with the canonical setting-name TEXT column.
+SHOW ALL returns sorted `name,setting,description` TEXT columns for the exact
+supported registry, **not** PostgreSQL's entire parameter catalog. Built-in
+descriptions match PostgreSQL 18.0's English `pg_settings.short_desc`; custom
+settings return their registered description.
+SET/RESET and Exec of SHOW affect zero rows. The selected FROM-less calls
+`SELECT current_setting(text)` and `SELECT set_config(text,text,boolean)`
+return one nullable TEXT row, with affected count one for Exec.
+SHOW, SHOW ALL and setting-function rows own immutable anonymous snapshots:
+statement completion releases the implicit transaction, not the returned rows.
+Later setting changes or physical-session teardown do not change captured values.
+Setting-function arguments accept strings, NULL, booleans in the third position,
+and positional parameters through the existing binder. NULL current_setting
+returns SQL NULL; NULL set_config name fails 22004; NULL value resets;
+NULL is_local means false. Same-type repeated parameters work, gaps fail
+42P18 and mixed-type repeated parameters remain unsupported 0A000.
+Unsigned decimal tokens fitting PostgreSQL's int32 scanner range
+are formatted canonically; larger tokens retain their original digits (including
+leading zeros), with unary minus prepended and unary plus omitted.
+Unquoted radix-prefixed and underscore-separated numeric setting values,
+including signed forms, are unsupported (`0A000`) and cannot mutate settings.
+Quoted `'0x2a'`, fractions and exponents reach the full typed setting input
+rules; quoted `'1_000'` is valid text but invalid numeric configuration input.
+Unquoted floating/exponent SET syntax remains unsupported. These deliberate
+setting-grammar boundaries do not change INSERT/SELECT numeric support.
+The application_name value clips original UTF8 to 63 bytes before escaping nonprintable/non-ASCII
+bytes as lowercase literal `\xNN`. Clipping succeeds and emits a structured
+NOTICE when a connector handler is configured and the session filter permits it.
+SET reuses the [literal decoding rules](LEXICAL.md): for example,
+`SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
+literal `a\x0ab`. No second setting-specific string decoder is used.
+
+Supported builtins are deliberately bounded:
+
+| Name | Default / access | Actual behavior |
+| --- | --- | --- |
+| application_name | empty / session | Normalized descriptive session value |
+| client_min_messages | notice / session | Filters structured connector notices; debug aliases debug2 |
+| search_path | `"$user", public` / session | Stored explicit path; effective lookup skips absent/inaccessible schemas and expands current user |
+| standard_conforming_strings | on / session | Per-call ordinary-string decoding; E strings always escape |
+| statement_timeout | 0 / session | Millisecond command-admission timer covering parse, Prepare and Execute |
+| lock_timeout | 0 / session | Millisecond limit for each queued lock acquisition; 0 disables |
+| server_encoding | UTF8 / read-only | Actual UTF8 invariant; writes and individual RESET fail 55P02 |
+| log_statement_stats | off / privileged | Deny-only: all writes and individual RESET fail 42501; no logging activation |
+
+Prepared literals retain Prepare-time string mode; prepared SHOW/functions read
+Execute-time values. To retain a literal prepared before LOCAL within a transaction,
+prepare it on that `sql.Tx` and execute the same handle: `Tx.Stmt` may reprepare
+a handle created on `sql.Conn` using the transaction's current string mode.
+Timeout changes apply to the *next* command. Only the
+engine's own timer returns 57014 `canceling statement due to statement timeout`;
+caller cancellation/deadlines remain ordinary context errors. Zero disables
+the timer. RESET ALL resets session-settable definitions and placeholders,
+skipping read-only and privileged definitions.
+
+Settings participate in whole transactions. SESSION (also plain SET) persists
+on commit and restores its pretransaction value on rollback or immediate abort.
+LOCAL expires on either end. SESSION followed by LOCAL commits the masked
+SESSION value; a subsequent SESSION or RESET supersedes that candidate.
+Go `sql.Tx.Commit` on an aborted transaction restores originals and returns
+the existing ordinary `pq: could not complete operation in a failed transaction`
+error, not a SQLSTATE diagnostic. SQL COMMIT/END succeeds by rollback while
+restoring the same original settings.
+RESET ALL operates on current explicit, resettable overrides: LOCAL DEFAULT
+is absent and skipped, whereas explicit text equal to the default is reset.
+`SET [SESSION | LOCAL] SCHEMA 'schema'` sets search_path to one quoted schema
+element; it does not check existence. Prepare is metadata-only.
+SQL LOCAL outside an explicit transaction warns with 25P01 before semantic
+validation and its effective value expires at implicit completion. Validated
+dotted placeholder names remain recognized in that physical session.
+Function set_config with true outside a transaction returns its transient,
+normalized value without that warning; the next command sees the original.
+Savepoints, TIME ZONE, NAMES, timezone and client_encoding remain unsupported.
+
+With `standard_conforming_strings=off`, a `U&'...'` string opener immediately
+fails with 0A000 `unsafe use of string constant with Unicode escapes`, before
+reading its body or UESCAPE clause. The Detail explains the off-mode restriction;
+Position identifies the initial U in characters, not UTF8 bytes. Unicode escaped
+identifiers (`U&"..."`) remain allowed. E and dollar strings are independent of
+this mode. Preparing a Unicode string while on captures its decoded value:
+switching off before Execute does not reparse or reject that prepared literal.
+
+Before the first `OpenConnector`, register custom typed session configuration:
+
+```go
+d := stuntgres.NewDriver()
+err := d.RegisterSetting(stuntgres.SettingDefinition{
+    Name: "demo.memory", Description: "Session memory budget",
+    Type: stuntgres.SettingInteger, Unit: stuntgres.SettingKilobytes,
+    Default: "1024", IntegerMin: 0, IntegerMax: 2147483647,
+})
+// Handle err, then use d.OpenConnector and sql.OpenDB.
+```
+
+`SettingBoolean`, `SettingString`, `SettingInteger`, `SettingFloating`, and
+`SettingEnum` use shared input/default/display rules. Access is
+`SettingSession`, `SettingReadOnly`, or deny-only `SettingPrivileged`.
+Numeric bounds are inclusive and explicit: zero/zero means exactly zero.
+Enums copy `EnumValues` and display registered canonical spellings.
+Numeric units are `SettingUnitNone`, `SettingBytes`, `SettingKilobytes`,
+`SettingMegabytes`, `SettingMilliseconds`, `SettingSeconds`, `SettingMinutes`.
+Memory inputs accept case-sensitive B/kB/MB/GB/TB, time inputs us/ms/s/min/h/d.
+Integer fractions use ties-to-even rounding with PostgreSQL unit conversion;
+floating display uses six significant digits. Registry publication is immutable
+and frozen at first Engine construction, even without Ping, and stays frozen
+after pools close. Different Drivers isolate registrations.
+Registration rejects irrelevant numeric bounds, units on nonnumeric kinds,
+invalid UTF8/NUL metadata, nonfinite floating bounds and duplicate enum values.
+Definitions and enum slices are owned copies. The globally sql-registered Driver
+cannot be configured retroactively; use NewDriver, RegisterSetting, OpenConnector
+and sql.OpenDB in that order for custom definitions.
+
+Numeric text follows PostgreSQL's prefix rules: integer `010` is octal8, while
+`010.5` falls back to decimal input and rounds to10; `08.5` and `0x1p0` do not
+trigger integer fallback. Exact hexadecimal subnormals such as `0x1p-1074` and
+exact decimal subnormals are accepted for floating settings: decimal digits of
+`5^1023` followed by `e-1023` represent exactly `2^-1023` and display as
+`1.11254e-308`. Inexact subnormal rounding, nonzero values rounded to zero,
+NaN and overflow reject; defaults follow the same exactness rule.
+Infinity reaches the registered finite bounds and reports a range diagnostic
+using PostgreSQL's canonical `Infinity` / `-Infinity` spelling, regardless of
+the accepted input alias (`inf`, `Infinity`, or case variants).
+Invalid numeric input never publishes an override. The native BOOL argument
+importer reports 22P02 with empty Position/Context; real PostgreSQL Bind adds its
+portal-parameter Context. Literal BOOL errors instead identify the SQL literal.
+
+Unknown valid dotted SET/set_config names create session-local text placeholders
+with empty reset defaults, hidden from SHOW ALL. RESET can create a placeholder;
+SHOW/current_setting never create one. Physical replacement drops placeholder
+knowledge. Registered custom definitions are typed from the outset and visible
+in SHOW ALL; they express session configuration storage, not invented planner
+or process effects.
+
+Settings restore on whole-transaction end and immediately when an explicit
+transaction aborts. They add no role/grant authority, file defaults, ALTER SYSTEM,
+reload, server-start or shell-option effects. Existing role/ACL capabilities
+remain separate.
+Unsupported builtin names (including work_mem/random_page_cost) remain 42704.
+The two selected setting calls do not introduce general functions, casts, aliases
+or expressions. NULL/parameters remain invalid **SET scalar syntax**; use
+set_config for bound values. Comma lists are supported for search_path; other settings reject multiple values with 22023.
+The nonreserved name local remains a parameter name in `SET local TO value`
+and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
+Native Reset/Restore preserve live settings and use default-on parsing;
+Dump excludes settings. Retained SHOW/SELECT snapshots outlive session end.
+
+Run `go test -count=1 -run '^TestSettingsSmoke$' ./smoke` and
+`go test -tags=reference -run '^TestReferenceSettings' -count=1 -v ./reference`.
+The reference suite separately executes real PostgreSQL numeric/enum settings,
+non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
+placeholders are never claimed to validate native typed registrations.
+The native smoke also asserts SESSION/LOCAL ordering, commit and rollback
+restoration, transactional RESET ALL, and aborted-transaction recovery on the
+same physical connection, plus fixed read-only/deny-only access for both
+bootstrap postgres and an ordinary authenticated role. These assertions do not
+add privilege-grant mechanisms.
+
+Settings smoke also asserts exact decimal subnormal handling and underflow
+rejection, typed boolean/string/integer/floating/enum settings, normalized units
+and bounds, SET/RESET/SHOW/SHOW ALL/current_setting/set_config behavior,
+prepare-time parser mode, healthy sessions after 57014 timeouts, 55P02/42501
+access failures, transactional local scope, retained settings on reuse,
+and replacement defaults with surviving data. Go test reports the result.

@@ -4,7 +4,7 @@
 
 Read [README.md](README.md) for the consumer contract and [docs/DIALECT.md](docs/DIALECT.md)
 for SQL support, limits and intentional compatibility differences before changing behavior.
-Design notes live in `docs/design/`; catalog-part workflow lives in `.cswd/` and README.
+Design notes live in `docs/design/`; catalog-part workflow lives in `.cswd/`.
 
 - Root `stuntgres`: public `database/sql` adapters, driver/connector, session settings, notices and native Reset/Dump/Restore APIs.
 - `internal/parser`: AST and parser entry points in `ast.go`/`parser.go`, lexer in `lexer.go`, keyword categories in `keywords.go`. Edit `grammar.y` for grammar changes, then `make generate`; never hand-edit `grammar_gen.go`.
@@ -41,7 +41,7 @@ in reference tests, including independently asserted native capability boundarie
 Never loosen, disable or skip reference tests to make a change pass: only genuine test bugfixes
 and additions are allowed. Record every discovered compatibility bug in reference coverage.
 
-- Use the README-pinned PostgreSQL 18.0 image digest and UTF8/C locale. Local newer PostgreSQL sources are research aids, not the release oracle.
+- Use the PostgreSQL 18.0 image digest pinned in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and UTF8/C locale. Local newer PostgreSQL sources are research aids, not the release oracle.
 - Keep reference tests independent of internal packages and root-private test helpers. Use one bounded-lifecycle container and serialized fixtures; reset public schema before/after cases and close handles/rows first.
 - Preserve sqlmw coverage of direct/prepared execution and owned row buffers; retain native pools for controls. Assert expected results independently, not parity or implementation call counts alone.
 - Docker/image failures in an explicitly enabled reference run must fail visibly, never be skipped or mocked.

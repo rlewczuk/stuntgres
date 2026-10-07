@@ -1,0 +1,782 @@
+# Queries and data manipulation
+
+[README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
+
+## INSERT from query — change note
+
+INSERT now accepts SELECT sources through the common query pipeline, including
+parenthesized sources and INSERT-only no-FROM projections such as `SELECT '1'`,
+`SELECT NULL` and `SELECT $1`. The target is not part of the source namespace.
+Star expansion and output width/type checks happen during analysis, even if the
+source is empty. An explicit target list requires the same number of expressions;
+without a list, the source maps the first N declared live columns. Omitted
+columns use declared defaults or typed NULL; existing NOT NULL constraints still
+apply. Explicit source NULL bypasses a default. ORDER-decorated VALUES shares
+this omission behavior but rejects a source DEFAULT marker with 42601;
+ordinary and parenthesized undecorated VALUES retain per-cell DEFAULT requests.
+Sequences and serial remain unsupported native subsystems, not successful no-ops.
+
+```sql
+CREATE TABLE source_rows(i INT, label TEXT);
+INSERT INTO source_rows VALUES (1,'one'),(1,'one'),(2,NULL);
+CREATE TABLE destination(label TEXT, i BIGINT, flag BOOL);
+INSERT INTO destination(i,label)
+  SELECT i,label FROM source_rows ORDER BY i;
+```
+
+This inserts three occurrences (including both duplicates), converts INT4 to
+INT8 and fills `flag` with NULL. Zero, one and many selected rows have exact
+RowsAffected counts. No RETURNING is implied: direct/prepared Query of INSERT
+has no columns or data rows; Exec exposes only the successful command count.
+Prepare is effect-free, and reused statements freshly bind and read the current
+source rather than caching source data.
+Already-supported casts, null/truth/distinct predicates, DATE and BYTEA remain
+available in query sources. SELECT result names retain the existing cast naming
+rules. Source and assignment conversions use the same recursive, execution-private
+preflight as ordinary SELECT, outside the engine lock and before source capture.
+
+Plain `VALUES ('1')` and `(VALUES ('1'))` retain destination-context typing.
+Adding the supported one-key ORDER BY makes VALUES a query source: each column
+gets a common type first, with all-unknown columns becoming TEXT. Consequently
+`INSERT INTO integer_target VALUES ('1') ORDER BY 1` fails 42804 with the rewrite/
+cast Hint and no Position; it does not silently reparse known TEXT as integer.
+ORDER BY uses an output ordinal, an implicit `columnN` name or a unary-plus
+numeric constant, not a destination column name. Unsigned integer tokens within
+int32 are ordinals, including after minus; `2147483648` and `-2147483648` instead
+give 42601 / `non-integer constant in ORDER BY`. Unary-plus keys such as `+2`
+and `+1.5` are validated numeric expressions with all rows tied, never ordinals.
+Duplicate occurrences and NULL sort placement for column/ordinal keys are retained.
+ORDER analysis follows target validation and VALUES width/common typing. Raw
+parsing always consumes the complete script first, so later syntax errors take
+precedence over ORDER analysis errors and prevent effects from a valid prefix.
+These VALUES/no-FROM forms do not add standalone VALUES or ordinary no-FROM SELECT.
+WITH/CTE, aliases, joins, general casts/functions, LIMIT and locking decorations,
+RETURNING and ON CONFLICT remain outside this part's surface.
+
+The target RX lock is acquired before source AS; target INSERT and source SELECT
+authority (projection, WHERE and hidden ORDER columns) are independently checked.
+Self-insert reads a frozen prefix including earlier own transaction writes, never
+this command's newly assembled batch. Source scanning, sorting and conversion run
+outside the engine mutex; a failed cast, constraint, source evaluation, cancellation
+or publication fence cannot publish a partial batch. Existing explicit-transaction
+failure/rollback and other-session visibility rules are unchanged.
+
+Dump records persisted destination values as canonical literal VALUES, not query
+provenance. Restore roundtrips that output but deliberately rejects SELECT and
+decorated VALUES INSERT source scripts with native 0A000 before trusted execution.
+Held native result cursors keep their original schema/data across failed Restore,
+successful replacement and Reset. These host controls are not PostgreSQL physical
+pg_dump, disk durability or wire-server APIs.
+
+Feature checks (run from the repository root):
+
+```sh
+make test PACKAGES=./internal/parser RUN='^TestInsertSelect' VERBOSE=1
+make test PACKAGES=./internal/engine RUN='^TestInsertSelect' VERBOSE=1
+make test PACKAGES=. RUN='^TestInsertSelect' VERBOSE=1
+make reference RUN='^TestReferenceInsertSelect' VERBOSE=1
+make smoke RUN='^TestInsertSelectSmoke$' VERBOSE=1
+```
+
+## DELETE rows
+
+`DELETE FROM target` removes every live occurrence while keeping the table and
+its schema. Optional WHERE uses the same typed comparison and three-valued
+Boolean evaluator as SELECT: only TRUE selects, never FALSE or NULL. AS and bare
+target aliases are supported; an alias hides the original target name. Predicate
+columns may be unqualified or qualified by the visible target/alias. This does not
+enable SELECT aliases/qualified columns, USING, CURRENT OF, RETURNING, UPDATE,
+foreign keys, triggers or additional constraints.
+DELETE also reuses SELECT's nullness, Boolean truth and DISTINCT predicates,
+including alias-qualified operands. Existing baseline explicit scalar casts work
+on unqualified operands; qualified columns inside casts remain excluded, and
+the complete statement is rejected before effects. Frame-only cast conversions
+run before executor ACL checks or candidate capture, even on empty tables and
+inside decisive Boolean branches. Row-dependent conversions remain per-row, but
+the shared logical evaluator does not guarantee short-circuiting: on stored
+`s='oops'`, both `FALSE AND int4(s)=42` and `TRUE OR int4(s)=42` fail with
+22P02 and leave every original row intact. Empty tables demand no row conversion
+and succeed with count zero. Pinned PostgreSQL optimizes these specific decisive
+branches: FALSE AND deletes zero, TRUE OR deletes all rows, including when the
+unused cast takes an invalid TEXT parameter. Native frame-only casts still fail
+before scanning even on empty input. This bounded optimization difference is not
+a general PostgreSQL evaluation-order or short-circuit promise.
+
+Direct and held prepared execution infer parameter types from SQL, not Go values,
+and return the exact number actually deleted through RowsAffected; zero is success.
+There is no result relation without RETURNING and no LastInsertId. Preparation
+captures descriptions and relation locks, and fixes an explicit REPEATABLE READ
+snapshot without taking row locks or executing writes.
+Execution checks table DELETE and SELECT on actually read predicate columns;
+omitted or constant predicates do not invent a SELECT requirement. SQL GRANT
+remains excluded; the existing internal catalog ACL authority supplies rights.
+
+Immutable row identities/end roots preserve READ COMMITTED views, duplicates,
+zero-column occurrence counts and already-returned cursors. Successful earlier
+own INSERT/DELETE commands are visible in the next command; peers see only the
+combined committed batch. Rollback or an admitted error/cancellation discards
+private inserts/deletes and releases transaction holds. All predicates and
+preflight complete before atomic publication, and publication precedes lock release.
+Go context errors remain ordinary errors. Ordinary SELECT and writes on different
+rows are not blocked by a DELETE row hold; same-row DELETE waits and revalidates
+the original candidate, never retries SQL or widens its candidate snapshot.
+Compatible TABLE/COLUMN COMMENT and ACL metadata revisions do not invalidate
+staged or waiting DELETE: authority follows the exact storage-shape generation,
+object/epoch and row/version/ordinal, not descriptor revision. ACL changes do not
+retroactively reauthorize staged work at COMMIT; each fresh prepared Execute
+still checks current privileges. Replacement, removal/recreation and incompatible
+row-shape changes remain fenced.
+
+REPEATABLE READ atomically retains the immutable version headers/end roots of
+all relations, including empty and never-read tables, on the first data analysis
+or SELECT (including identity/settings functions), not at BEGIN. No row values
+are copied. Later statements see that committed frontier plus successful own
+changes. Current names, descriptors and ACLs still bind at grant time: a new or
+recreated identity has an empty committed root at the retained frontier.
+Compatible COMMENT/ACL revisions remain valid; incompatible saved storage/row
+shape is the ordinary native `ErrCatalogReplaced` boundary, not transactional-DDL
+compatibility. Native Reset/Restore remains an epoch fence; returned rows retain
+their own immutable pins across end, CHAIN and teardown.
+
+`default_transaction_isolation` and `default_transaction_read_only` are typed
+session defaults. SET/LOCAL, RESET, session characteristics and set_config share
+the settings journal: commit preserves SESSION, rollback restores, LOCAL expires.
+SHOW/SHOW ALL/current_setting of `transaction_isolation`/`transaction_read_only`
+resolve the active owner. Current values cannot be RESET, SET TO DEFAULT or reset
+by set_config(NULL): `0A000`, `parameter "<name>" cannot be reset`. RESET ALL
+excludes current modes but transactionally resets defaults.
+
+A changed requested isolation after the first data snapshot fails `25001`,
+`SET TRANSACTION ISOLATION LEVEL must be called before any query`; identical
+assignment is allowed (RU and RC are different requested modes). RW to RO is
+allowed after a query/write; late RO to RW fails `25001`, `transaction read-write
+mode must be set before any query`. Outside a block SET TRANSACTION warns `25P01`,
+`SET TRANSACTION can only be used in transaction blocks`, at execution only.
+Read-only execution rejects INSERT/UPDATE/DELETE and supported CREATE/ALTER/DROP
+table/schema/role and COMMENT tags with `25006`, `cannot execute <tag> in a
+read-only transaction`. Utility rejection precedes object resolution,
+authorization and lock acquisition, as well as the native explicit-utility
+boundary. DML retains semantic analysis before its read-only execution check.
+Valid data-write Prepare analyzes/describes without execution rejection;
+utility Prepare inside an explicit transaction remains native `0A000`.
+Held statements recheck at Execute. SELECT, settings, controls and supported
+ACCESS EXCLUSIVE LOCK remain allowed. Failures abort/discard prior private work.
+Feature smoke: `make smoke RUN='^TestTransactionIsolationSmoke$$' VERBOSE=1`.
+
+INSERT query sources use that same live view, including earlier own deletions:
+self-insert copies only captured survivors, never deleted history or its new batch.
+
+Dump captures only committed survivors (including duplicate/zero-width rows), not
+private deletion or tombstone history; canonical CREATE/INSERT restores those
+survivors and supported metadata. DELETE scripts remain outside Restore's whitelist.
+Deleted NULL history does not prevent SET NOT NULL, while live NULL and subsequent
+NULL insertion retain genuine 23502 enforcement. DELETE cannot violate the only
+currently supported constraint, NOT NULL. The real PostgreSQL foreign-key rejection
+witness is explicitly oracle-only, not native FK support or a synthetic constraint hook.
+
+Feature commands: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`,
+`make test PACKAGES=./internal/engine RUN='^TestDeleteCore' VERBOSE=1`,
+and `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
+Integrated-expression smoke:
+`make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
+
+### DELETE change log
+
+- Added positioned DELETE grammar, target-only alias qualification, shared typed
+  predicate binding and execution-time DELETE/read-column ACL requirements.
+- Added immutable committed/private deletions, combined insertion/deletion
+  publication, exact counts and transaction-owned row arbitration.
+- Migrated retained SELECT, Dump, catalog replacement/shape and NOT NULL consumers
+  to live membership; retained snapshots and failed publications remain unchanged.
+- DELETE column predicates evaluate in the shared binder's row frame, including
+  qualified aliases and held prepared parameters. Qualified missing-column
+  diagnostics render decoded components (`column D.Zzzzz does not exist`).
+- Foreign replacement retains one final cancellation boundary after live-row
+  filtering and authority preparation; cancellation cannot retract installation
+  after that successful observation.
+- Corrected DELETE lifetime/publication fences to use existing storage-shape
+  identity rather than descriptor identity, preserving compatible COMMENT/ACL
+  publication without relaxing replacement or predecessor authority.
+- Integrated the existing null/truth/DISTINCT predicate nodes and frame-only
+  scalar-cast preflight into DELETE, preserving current qualification boundaries,
+  fresh authorization and storage-shape fencing after preflight.
+- Corrected decisive-branch reference expectations to assert PostgreSQL's exact
+  optimized counts/survivors separately from native conversion diagnostics and
+  atomic preservation, without changing the shared evaluator or cast preflight.
+
+
+## Null argument counts
+
+`num_nulls` and `num_nonnulls` accept 1–100 heterogeneous scalar arguments
+without common-type coercion. They are immutable and nonstrict: explicit NULL
+positions count as null, while zero, false, empty strings and nested count results
+are nonnull. Results are nonnull INT4 with native int64 values and the selected
+function name as the column label; physical origin is absent and scalar
+nullability metadata stays conservative.
+
+Calls work in table SELECT projections and nested selected arguments. SELECT
+without FROM is supported only when every target is rooted in a selected call,
+with literal/parameter/nested-call arguments and no columns or extra clauses.
+Former signed numeric literals remain valid arguments. Computed arithmetic does
+not: table-backed calls fail native0A000 at the operator, while no-FROM calls
+fail the existing `SELECT without FROM is unsupported` admission check at
+SELECT (character1), before function binding.
+Both forms use the same binder, typed execution and finalized query pipeline:
+
+```sql
+SELECT num_nulls(1,NULL,'x'),num_nonnulls(1,NULL,'x');
+SELECT num_nulls(v,s),num_nonnulls(v,s) FROM t WHERE id=$1;
+```
+
+Direct and prepared invocations share analysis and metadata. The second example
+can hold a prepared statement and reuse its INT4 predicate parameter. Variadic
+ANY arguments themselves do not infer parameter types: `SELECT num_nulls($1)`
+fails analysis with42P18 even if the Go value is nil, integer or string. An
+initially unknown ANY occurrence is not retroactively typed by a later target
+TEXT fallback or WHERE constraint; that mismatch has42P08 at the occurrence.
+Existing bare-target42P08 behavior remains unchanged.
+
+Zero arguments fail42883 with PostgreSQL's function-resolution Hint; over100
+fail54023 after child analysis: a missing column or failing nested call takes
+precedence, while unresolved ANY parameters still reach the arity error before
+whole-statement type finalization. Explicit VARIADIC scalar operands fail42804 at the operand, and
+multiple ordinary/VARIADIC operands fail42883 signature lookup. Arrays, including
+PostgreSQL's NULL-array/empty-array cases, are unsupported; ordinary NULL is a
+single null argument, not a NULL array. No calls are added to INSERT, settings
+arguments or WHERE. General functions, qualification, aliases, casts outside the
+bounded baseline and character-family sets, arithmetic, DISTINCT, ORDER BY within
+calls, FILTER, OVER, star and named arguments remain outside the native surface.
+
+Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`.
+Independent pinned PostgreSQL witnesses:
+`make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
+
+## Logical query results
+
+SELECT now uses one bound source/filter/sort/projection pipeline and the same
+typed result contract as identity SELECT, SHOW and setting calls. Finite results
+are finalized eagerly before statement completion: a later projection or sort
+failure exposes no cursor or successful statement fragment. Public iteration
+never evaluates targets or publishes writes. Direct-column output retains
+immutable captured source/index views rather than copying whole tables;
+computed output retains only finalized projected values.
+
+Rows own their schema independently of the statement. Empty results preserve
+column names/types; zero-column SELECT preserves one occurrence per input row.
+Physical projections preserve origin and known nullability, while scalar
+nullability remains unknown. WHERE retains only TRUE (not FALSE or NULL).
+Duplicates remain duplicates. Without ORDER BY, output is a bag with no promised
+sequence; sort peers have no portable tie order. ASC places NULL last and DESC
+places NULL first; filter and sort-only columns do not leak into output metadata.
+
+EOF, cancellation and iteration errors automatically release result resources
+without erasing metadata or saved exported values. At the raw driver cursor,
+the originating error remains sticky until idempotent Close; closed Next returns
+EOF. Ordinary context errors remain ordinary Go errors. Mutable exported bytes
+(including timestamp infinity) detach from both internal values and other
+exports. Captured rows/types remain stable across append, UPDATE, Reset, Restore
+and transaction completion; result retention does not grant publication authority.
+
+Missing ORDER BY identifiers and analyzed relation names now retain their token's
+one-based **character** Position during Query and Prepare, including multibyte
+SQL and empty input. COMMENT/ALTER/LOCK utility records keep their own semantics.
+This migration adds no SQL syntax, binder, catalog, storage or routine-frame path.
+Run `make smoke RUN='^TestQueryCoreSmoke$' VERBOSE=1` for direct/prepared
+projection/metadata, bags, NULL/empty/zero-width output, ordering, sticky raw
+cursor cancellation, byte ownership and retained native-control results.
+Independent PostgreSQL witnesses are
+`make reference RUN='^TestReferenceQueryCore' VERBOSE=1`; feature-local unordered
+fixtures independently check cardinality and every occurrence in both consumed
+and recorder-captured rows before canonicalizing only for backend comparison.
+Duplicate, NULL and zero-width row counts remain significant; ordered rows and
+column metadata still require exact sequence equality.
+
+## Scalar UPDATE
+
+`UPDATE table SET column = expression [, ...] [WHERE predicate]` supports the
+existing scalar literals, parameters, old unqualified columns, comparisons,
+Boolean operators/grouping, null/truth/distinct predicates, baseline explicit
+INTEGER/BIGINT/TEXT/BOOLEAN casts and standalone selected null-count calls.
+Existing INTEGER/BIGINT arithmetic also participates in SET and WHERE through
+the same binder and provider, preserving its operand/type boundaries, NULL
+propagation and division/overflow errors; UPDATE adds no arithmetic provider.
+DATE and BYTEA participate through existing destination/contextual input rules,
+including typed NULL; this does not add explicit DATE/BYTEA casts or arithmetic,
+UPDATE FROM, aliases, row/subquery assignment, CURRENT OF, DEFAULT, RETURNING
+or general casts/functions.
+
+All RHS expressions read the same old row: `SET a=b,b=a` swaps values.
+Assignment conversions use the destination type and typmod; the completed row
+must satisfy existing NOT NULL constraints. Every qualifying logical row counts
+once, including unchanged values and duplicate-valued occurrences; no match
+returns zero. Direct and prepared commands expose this count through
+RowsAffected, with no returned row schema or LastInsertId. Analysis rejects bad
+targets/types/duplicate assignments even on an empty table; late conversion,
+constraint or cancellation failures publish none of the statement's rows.
+Assignment type mismatch (`42804`) retains the rewrite/cast Hint and points to
+the RHS expression start, not an arithmetic operator. Grouping is transparent,
+postfix casts retain their operand's start, and Position counts UTF8 characters
+rather than bytes. This applies to direct execution and semantic Prepare;
+operator-resolution errors retain their own operator-token positions.
+REAL/DOUBLE PRECISION column assignments to SMALLINT/INTEGER/BIGINT round ties
+to even before checking the destination's signed bounds. NaN, infinities and
+out-of-range rounded values fail with 22003 and no partial effects. This is a
+direct assignment-only provider edge, not an implicit comparison cast or a
+text detour; existing NUMERIC-to-integer ties still round away from zero.
+
+The shared recursive conversion preflight visits every RHS and WHERE tree.
+Immutable conversions depending only on the current imported parameter frame
+fail at Execute even on empty or rejected input, before executor table/column
+ACLs, data capture or row holds. Semantic Prepare still succeeds for those
+execution-owned conversions. Folding copies only changed execution branches;
+analyzed expressions, conservative dependence metadata and later parameter
+frames remain independent. Analysis/namespace checks precede preflight; exact
+locked relation identity and current authority are revalidated after it.
+Row-dependent RHS conversions run only for qualifying rows. Existing native
+Boolean evaluation does not promise short-circuiting: PostgreSQL can simplify
+`WHERE FALSE AND CAST(n AS INTEGER)=0` to zero rows while native can evaluate
+the row-dependent cast and report 22003. This is distinct from the shared
+rejected-row RHS witness `SET a=CAST(n AS INTEGER) WHERE FALSE`, which counts
+zero without evaluating the cast on either backend.
+
+DATE exports remain native canonical strings versus pq civil `time.Time`
+values. BYTEA parameters are raw bytes, including strings such as `\q`;
+malformed textual BYTEA diagnostics apply to SQL unknown literals, not those
+raw binds. Whole-row NOT NULL Detail uses the command's captured output
+environment, including current hex/escape `bytea_output` for updated payloads.
+Parameter and result bytes remain detached, and Dump/Reset/Restore preserve
+current updated DATE/BYTEA heads without encoding presentation settings.
+
+Updates preserve logical row identity and install fresh immutable versions.
+Self reads see the latest successful private head once; peers see committed
+heads until commit, and rollback discards private replacements. Retained results
+keep their captured values. READ COMMITTED freezes qualifying candidates, takes
+transaction-owned NO KEY UPDATE locks, and after a competing updater commits
+rechecks WHERE and RHS against that same row's latest version. It never discovers
+initially rejected or concurrently inserted rows. Different-row updates and
+ordinary SELECT can proceed while a row is held. Row waits honor the existing
+lock/statement deadlines and release replacement admission while queued;
+cancellation aborts explicit work and releases its holds.
+Explicit row holds survive statement, result and pooled-connection borrower
+close; commit, rollback, admitted failure or physical session end releases them.
+Cancellation during payload construction or multi-relation commit publishes no
+replacement roots. Failed/canceled Restore preserves eligible live holders and
+waiters; successful Restore fences old row requests before same-name reuse.
+
+Candidate storage grows only with actual matches. A no-match UPDATE does not
+copy the committed root; a sparse replacement copies that immutable root once,
+using a linear single-row slot lookup rather than a table-sized auxiliary index.
+
+Dump emits only current committed heads as canonical CREATE/INSERT, preserving
+duplicate occurrences, not UPDATE history or private state; Reset/Restore and
+ALTER consumers use the same current-head storage. UPDATE requires UPDATE on
+assigned columns/table plus SELECT on actual RHS/WHERE reads, not on protected
+columns merely retained. SQL GRANT remains excluded.
+
+UPDATE and DELETE share one physical head vector, immutable deletion roots and
+generation guards. DELETE does not compact that vector: candidate ordinals are
+hints, while row arbitration and latest-predecessor liveness use stable RowIDs.
+UPDATE's NO KEY UPDATE and DELETE's row UPDATE are distinct conflicting modes
+on the same resource. A peer committed deletion makes a waiting UPDATE affect
+zero rows; DELETE rechecks a peer-updated predicate and ends the actual latest
+version, never resurrecting a head or admitting newly matching rows.
+Earlier own UPDATE and INSERT heads appear exactly once in SELECT/INSERT SELECT,
+and later own DELETE hides them immediately. Mixed head/end commits publish at
+one frontier; cancellation discards both kinds of private work. Compatible
+COMMENT/ACL revisions preserve a captured valid layout/storage token, with fresh
+execution still checking current authority. Reset/Restore and generic self/foreign
+catalog replacement detach/remint only live heads; retained old results remain
+immutable. These are existing surfaces composed, not additional DELETE syntax.
+
+Mixed-DML witnesses: `make test PACKAGES='./internal/engine .' RUN='^TestUpdateCoreDelete' VERBOSE=1`
+and `make reference RUN='^TestReferenceUpdateCoreDelete' VERBOSE=1`.
+They cover direct/prepared duplicate-preserving composition and commit/rollback,
+cross-mode latest-row counts and frozen candidates, mixed cancellation/resource
+reacquisition, immutable candidate slots, all-relation publication, live-only
+control/import behavior and identity exhaustion. Native internal waits observe
+the actual manager; PostgreSQL waits observe transaction-ID locks and the exact
+blocker. Public native effect/deadline tests do not claim queue-observation proof.
+
+Feature smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=1`.
+Independent pinned PostgreSQL witnesses:
+`make reference RUN='^TestReferenceUpdateCore' VERBOSE=1`.
+The diagnostic oracle distinguishes direct/Prepare/bind/runtime phases and
+asserts full portable fields, UTF8 character positions and atomic failures.
+The destination matrix covers TIME/TIMESTAMP precision, UUID input and NULL,
+TEXT assignment conversion and NUMERIC ordinary/negative/wide-scale sizing,
+including late multirow overflow. Bad parameter input intentionally has no
+native portal Context; pq identifies its unnamed execution portal. SQL row
+deadline diagnostics likewise keep native Context empty while PostgreSQL
+reports its physical tuple context, asserted structurally rather than by an
+invented tuple identity.
+Mixed contextual UPDATE parameter types report 42P08 with the conflicting
+occurrence's character Position and old-versus-requested type Detail. This
+UPDATE policy does not change INSERT/settings mixed-destination 0A000 boundaries.
+Native TIME results remain canonical clock strings; PostgreSQL/pq TIME results
+remain civil time.Time values, with independent expected representations.
+
+
+## Three-valued logical operators
+
+Table SELECT targets and WHERE now support Boolean `AND`, `OR` and `NOT`
+through the shared typed expression binder. Results are BOOL, named `?column?`
+without a physical origin; computed nullability remains unknown, including
+empty results. SQL NULL projects as native `nil`, and only TRUE passes WHERE.
+
+| a | b | a AND b | a OR b |
+|---|---|---|---|
+| TRUE | TRUE | TRUE | TRUE |
+| TRUE | FALSE | FALSE | TRUE |
+| TRUE | NULL | NULL | TRUE |
+| FALSE | TRUE | FALSE | TRUE |
+| FALSE | FALSE | FALSE | FALSE |
+| FALSE | NULL | FALSE | NULL |
+| NULL | TRUE | NULL | TRUE |
+| NULL | FALSE | FALSE | NULL |
+| NULL | NULL | NULL | NULL |
+
+NOT maps TRUE to FALSE, FALSE to TRUE, and NULL to BOOL NULL. Scalar comparisons
+bind above NOT, then AND, then OR; parentheses override precedence. NOT
+associates right, AND/OR left. Thus `TRUE OR FALSE AND FALSE` is TRUE, while
+`(TRUE OR FALSE) AND FALSE` is FALSE. There is **no guarantee that the left
+operand evaluates before the right**, or that a decisive value suppresses
+evaluation of another operand. All operands are analyzed even in
+`FALSE AND bad_operand` and `TRUE OR bad_operand`.
+
+Unknown strings, NULL and unconstrained parameters receive contextual BOOL:
+`'yes' AND 'no'` is FALSE and `NULL AND NULL` is BOOL NULL. Concrete non-BOOL
+columns and already-known parameter types are not implicitly converted; wrong
+types report construct-specific `42804`, malformed Boolean input `22P02`, and
+invalid syntax `42601`, with source character positions for SQL input.
+Logical binding carries each analyzed child's earliest source location into its
+parent in constant work per node, preserving positioned diagnostics for long
+operator chains and nested NOT without repeatedly walking their raw subtrees.
+`SELECT $1 AND TRUE,$1 FROM t` fixes both occurrences as BOOL;
+`SELECT $1,$1 AND TRUE FROM t` retains the first unresolved occurrence and
+fails `42P08` (`boolean versus text`) on its output fallback.
+
+FROM remains required outside identity/settings special forms and the selected
+null-count-only form. Existing binary
+scalar comparisons form Boolean leaves in targets and WHERE, such as
+`NOT id=1 AND (a OR b)` or `id>=2 AND a=b`. Comparisons keep scalar operands
+only: no chaining or logical/comparison expressions as comparison operands.
+This adds no logical INSERT VALUES, setting arguments, expression ORDER BY,
+casts outside the bounded baseline and character-family sets, aliases,
+general functions or qualified-column expressions.
+PostgreSQL also accepts `SELECT TRUE AND FROM t` and `SELECT TRUE OR FROM t`
+as TRUE targets with bare aliases `and` and `or`. Native aliases remain excluded:
+these keywords continue logical expressions, so these two incomplete expressions
+report `42601` at FROM. Reference tests assert both native failures and PostgreSQL
+positive results independently, not false syntax-error parity.
+
+Public feature witness: `make smoke RUN='^TestLogicalSmoke$' VERBOSE=1`.
+Independent pinned PostgreSQL witnesses:
+`make reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
+Native/parser/engine units:
+`make test RUN='^TestLogical.*$' PACKAGES='. ./internal/parser ./internal/engine' VERBOSE=1`.
+
+
+
+Relation names accept one or two identifier components. Qualified `schema.name` resolves only in that schema; unqualified references follow the session's effective search_path, with implicit `pg_catalog` first unless explicitly positioned. Unqualified creation chooses the first usable explicit destination and requires CREATE there, without falling through on denial. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
+
+## Integer arithmetic
+
+Table SELECT projections, comparison operands/WHERE, unqualified DELETE
+predicates and column-free INSERT VALUES accept
+INT4/INT8 `+`, `-`, `*`, `/`, `%`, unary `+`/`-` and arithmetic parentheses.
+
+DELETE uses its existing affected-row, authorization and staged-publication
+contracts: arithmetic reads require SELECT on the actual predicate columns,
+and late overflow/division failure publishes no deletion. DELETE aliases do
+not enable qualified arithmetic; qualified column atoms retain their existing
+comparison support. Arithmetic can coexist with existing DATE typed literals
+in projection without adding DATE arithmetic or new casts.
+Composition smoke: `make smoke RUN='^TestArithmeticDeleteCompositionSmoke$' VERBOSE=1`.
+
+Multiplication/division/remainder precede addition/subtraction; binary operators
+associate left, unary signs right. Division truncates toward zero and remainder
+has the dividend's sign (`7/2=3`, `-7%2=-1`). Unary signs preserve width;
+INT4 pairs produce INT4, either INT8 operand produces INT8. Width is fixed before
+assignment: a BIGINT destination cannot prevent INT4 expression overflow.
+Checked overflow reports `22003` (`integer out of range`/`bigint out of range`);
+division/remainder by zero reports `22012` (`division by zero`), without invented
+runtime positions. Minimum divided by -1 overflows; minimum remainder -1 is zero.
+Strict NULL returns a result-typed NULL. Numeric literal minus is folded,
+including grouped literals, so signed minimum constants retain integer width.
+Use whitespace or parentheses before a negative remainder divisor (`i% -1`,
+`i%(-1)`). Adjacent `%-` is one symbolic operator, not remainder followed by
+negation; unsupported combined arithmetic spellings fail with a typed `42883`
+at the operator rather than executing or publishing data. Contextual WHERE
+and incompatible-assignment errors use the expression start and resolved type;
+missing-operator errors retain the operator token location.
+Existing INSERT query-source assignment, common-VALUES typing and excess-source
+diagnostics also retain the recursive expression start, including widening
+postfix casts and Unicode input. Supported decorated VALUES uses its existing
+ORDER BY form; LIMIT remains an unsupported INSERT suffix, not a new arithmetic
+capability. The source smoke also executes `INSERT INTO good SELECT 1,7/2,-7%2`,
+asserting affected count 1 and persisted `(1,3,-1)` with INT4/INT4/INT8 destination
+metadata. Smoke: `make smoke RUN='^TestArithmeticInsertSourceContextualSmoke$' VERBOSE=1`.
+
+Parameters obtain width from a known integer peer, in SQL occurrence order,
+not from the Go argument kind or assignment destination. Computed metadata is
+`?column?`, INT4/INT8, native int64, with no physical column origin. Existing eager
+SELECT and atomic INSERT/Restore publication remain unchanged; Dump stores
+canonical values rather than expression source. Parameter-free arithmetic
+Restore is supported and nested parameters are rejected.
+
+Existing baseline INT4/INT8/TEXT/BOOL casts compose with these scalar expressions,
+using `CAST`, postfix `::`, or the supported function-style cast names. Postfix
+casts bind before unary signs: `-i::bigint` widens before negation, whereas
+`(-i)::bigint` cannot rescue INT4 negation overflow. Similarly, casting an operand
+can widen arithmetic; casting its result cannot undo overflow. Cast preflight
+visits arithmetic children even on empty or filtered input, preserving conversion
+errors without evaluating the arithmetic root early. Cast wrappers do not admit
+computed arithmetic arguments into the bounded null-count functions. Cast
+families and BYTEA capabilities remain unchanged.
+Composition smoke: `make smoke RUN='^TestArithmeticCastCompositionSmoke$' VERBOSE=1`.
+
+SMALLINT/NUMERIC/floating and other noninteger arithmetic remain explicitly
+unsupported, without changing their input/comparison/assignment capabilities.
+Previously supported signed NUMERIC literal input, such as `+1.5`, remains a
+literal identity operation, not a NUMERIC arithmetic provider.
+Unknown-only arithmetic fails `0A000`, `integer arithmetic requires known integer
+or bigint operands`; unlike PostgreSQL it does not select FLOAT8 for unary unknown
+`+` or emulate ambiguous full-provider overloads. Settings signatures, casts,
+functions, aliases and general SELECT-without-FROM remain bounded as before.
+Feature smoke: `make smoke RUN='^TestArithmeticSmoke$' VERBOSE=1`;
+real pinned reference: `make reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
+
+
+Missing column and invalid SQL `$0` references fail during analysis with `42703`
+and `42P02`, respectively, at the occurrence's one-based character position.
+The first parameter gap fails `42P18` without a position in native direct/Prepare
+and PostgreSQL Prepare. PostgreSQL's zero-argument direct simple query instead
+rejects `SELECT $2 FROM t` with `42P02` at `$2`; this protocol boundary is asserted
+independently, not normalized into parity. Missing actual Go arguments remain
+ordinary adapter/count errors, not PostgreSQL protocol errors.
+Prepared executions retain fixed inferred usage and use fresh private
+values. Cursors retain captured multiplicity, imported parameters and metadata
+across appends, Reset and Restore; no row order is promised without ORDER BY.
+
+Run `go test -count=1 -v -run '^TestExpressionCoreSmoke$' ./smoke` for the public
+direct/prepared scalar, BOOL/NULL, diagnostic, retained-cursor/control and atomicity
+witness. Independent native/unit checks are
+`go test -count=1 -v -run '^TestExpressionCore.*$' .` and
+`go test -count=1 -v -run '^TestExpression.*$' ./internal/engine`;
+the real pinned reference is
+`go test -tags reference -count=1 -v -run '^TestReferenceExpressionCore.*$' ./reference`.
+Go test reports assertion failures or PASS; these commands require execution to
+establish verification.
+
+## Null and Boolean comparison predicates
+
+Table SELECT projection and WHERE support scalar `IS [NOT] NULL`, its
+`ISNULL`/`NOTNULL` aliases, `IS [NOT] DISTINCT FROM`, and all six Boolean tests:
+`IS [NOT] TRUE`, `IS [NOT] FALSE`, `IS [NOT] UNKNOWN`. Each returns a nonnull
+BOOL (`?column?`, OID16, typmod−1, native bool ScanType, scalar origin zero).
+Expression nullability metadata remains unknown even though these values are
+never NULL. Null tests accept every supported scalar type; Boolean tests require
+BOOL, contextualizing unknown strings/NULL/parameters but rejecting concrete
+nonboolean inputs with `42804` at the operand.
+
+DISTINCT treats two NULLs as not distinct, one NULL as distinct, and nonnull
+values through the existing equality provider (including exact numeric,
+cross-width integer, NaN, UUID and temporal semantics). NOT DISTINCT is the
+complement. Both operands can be admitted scalar atoms, comparisons or grouped
+predicates/logical expressions. Unknown operands contextualize to the known
+opposite type; two unknown operands use TEXT. Incompatible concrete inputs fail
+`42883` at IS
+with the ordinary equality signature, even on empty tables or typed NULLs.
+An undecorated NULL literal on either side instead becomes a nullness test:
+`$1 IS DISTINCT FROM NULL` therefore does **not** infer a parameter type.
+Bound nil is not a raw NULL literal: `v IS NOT DISTINCT FROM $1` infers the
+column's type and selects its NULL rows when bound nil.
+
+Null tests do not infer parameter types. An entirely unresolved slot fails
+`42P18` without Position; an earlier unknown nested occurrence left behind by
+a later constraint fails `42P08` at that occurrence. For example,
+`SELECT $1 IS NULL,$1 IS TRUE FROM t` fails at character8, while reversing
+the targets succeeds with a BOOL slot. Root target TEXT fallback and sparse
+parameter/protocol distinctions described above remain unchanged.
+Selected occurrence consistency is checked before unresolved shared slots or
+gaps. Thus `SELECT $1 IS NULL,$1 IS TRUE,$2 IS NULL FROM t` reports positioned
+`42P08` for the earlier `$1`, not `42P18` for `$2`; likewise an inconsistent
+`$2` occurrence takes precedence over the missing `$1` slot. With no occurrence
+mismatch, `$1 IS TRUE,$2 IS NULL` still reports unpositioned `42P18` for `$2`.
+
+Parentheses group admitted atoms, comparisons, predicates and logical expressions.
+Unary postfix tests nest left: `TRUE IS NULL IS TRUE` and `v IS NULL ISNULL`
+both return false.
+IS/ISNULL/NOTNULL share nonassociative precedence where a binary DISTINCT
+right operand competes with another ungrouped predicate:
+`1 IS DISTINCT FROM 1 IS TRUE` fails `42601`; group either intended nesting.
+`(v IS NULL) IS TRUE` and `TRUE IS DISTINCT FROM (v IS NULL)` work.
+Postfix casts complete their target type before a predicate continuation:
+`v::int4 IS NULL`, `v::bool IS TRUE` and `v::int8 IS DISTINCT FROM 0`
+apply the predicate to the cast result, not to a multiword type name.
+Scalar comparisons bind more tightly than these predicates, which bind above
+NOT, AND and OR: `v=1 IS TRUE` and `(v=NULL) IS UNKNOWN` work in projection
+and WHERE. Ordinary `v=NULL` remains UNKNOWN and selects no rows; no
+transform_null_equals behavior is added. Comparison and predicate operands
+admit bounded INT4/INT8 arithmetic and existing baseline and character-family
+casts; comparison chaining remains excluded. General functions, casts outside
+the bounded baseline and character-family sets, aliases,
+row/composite tests and no-FROM scalar SELECT remain excluded except for the
+selected null-count call roots described above. Those calls remain standalone
+projection roots, not predicate operands; predicates remain excluded from their
+arguments. ANY and null-test unknown occurrences share binding-order validation:
+`num_nulls($2),$1 IS NULL,$1 IS TRUE,$2 IS TRUE` fails42P08 for$2 at18,
+while reversing the first two targets fails for$1 at8. Still-unresolved
+occurrences do not mask a later mismatch, and mismatches precede slot gaps.
+Ordinary INSERT VALUES and settings retain scalar-only arguments. INSERT SELECT
+executes the same admitted predicate and selected null-count projection roots;
+`INSERT INTO counts SELECT num_nulls(v) FROM t` inserts one count per source row.
+Appending `VALUES (1)` instead reports `42601` at VALUES, character47, so an
+implemented projection call cannot mask a malformed trailing suffix.
+
+Executable acceptance (run these commands to establish verification):
+
+```sh
+make smoke RUN='^TestCompareNullSmoke$' VERBOSE=1
+make test PACKAGES=. RUN='^TestCompareNull.*$' VERBOSE=1
+make test PACKAGES=./internal/engine RUN='^TestExpressionCompareNull.*$' VERBOSE=1
+make test PACKAGES=./internal/parser VERBOSE=1
+make reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1
+```
+
+These exercise independent direct/prepared truth/null/distinct matrices,
+held typed parameters, complete eager diagnostics/phases, precedence and
+admission, provider families, dependency/ACL manifests, cancellation and
+captured computed BOOL results across native controls. Reference checks use
+the unchanged pinned real PostgreSQL18.0 fixture, asserting expectations
+before backend parity. Source/manual semantics:
+[PostgreSQL18 comparison predicates](https://www.postgresql.org/docs/18/functions-comparison.html)
+and [operator precedence](https://www.postgresql.org/docs/18/sql-syntax-lexical.html).
+
+## Explicit baseline casts
+
+Baseline casts also serve as the existing comparison and null/Boolean predicate
+operands, Boolean leaves, and selected null-count arguments. They do not admit logical/comparison input to
+INSERT/settings or selected calls as Boolean/comparison leaves. The selected
+null-count-only no-FROM form may use literal/parameter cast arguments; a standalone
+cast still requires FROM.
+Grouping applies to existing scalar operands, including columns: `(id)=1` and
+`(i)<(j)` are admitted, with or without a cast. It does not turn a comparison or
+logical expression into a scalar comparison operand: `(id=1)=TRUE` and comparison
+chaining remain excluded.
+
+`CAST(expression AS type)`, `expression::type` and `int4(expression)`,
+`int8(expression)`, `text(expression)`, `bool(expression)` execute through the
+shared typed expression path in table SELECT, WHERE and INSERT VALUES.
+Nested/grouped casts and postfix chains are supported. Standard/postfix targets
+accept INTEGER/INT/INT4, BIGINT/INT8, BOOLEAN/BOOL and TEXT aliases; function-style
+names are only int4/int8/text/bool, including their quoted lowercase spellings.
+Unquoted `integer(...)`, `bigint(...)`, `boolean(...)` and `int(...)` remain syntax
+errors; this feature does not introduce general function resolution.
+
+| Source | INT4 | INT8 | TEXT | BOOL |
+| --- | --- | --- | --- | --- |
+| INT4 | identity | widen | decimal output | zero false, nonzero true |
+| INT8 | checked narrow | identity | decimal output | unsupported |
+| TEXT | integer input | bigint input | identity | boolean input |
+| BOOL | false 0, true 1 | unsupported | `false` / `true` | identity |
+
+NULL retains the target type; unsupported pairs fail even for typed NULL or empty
+relations. No transitive conversion is inferred. Explicit casts involving INT2,
+NUMERIC, floats, temporal types or UUID remain native `0A000` boundaries, including
+same-type casts. Existing assignment/implicit policies are unchanged: for example,
+BOOL cannot assign to INT4 without a cast, and concrete TEXT cannot assign to INT4.
+Unknown quoted input may still acquire a destination type directly.
+
+The first standard/postfix cast of an unresolved parameter fixes its source type:
+`SELECT $1::int4,$1::text FROM t` imports INT4 and returns INT4/TEXT. Later casts
+convert that source rather than re-inferring it. Earlier unresolved targets retain
+the occurrence-sensitive rule: `$1,$1::int4` fails `42P08` (integer versus text).
+`int4($1)`, `int8($1)` and `bool($1)` are ambiguous (`42725`); `text($1)` infers TEXT,
+and `int4($1::text)` imports TEXT then converts. Prepared executions retain fixed
+metadata and private parameter frames.
+
+Standard/postfix output names preserve column/function names, otherwise use the
+normalized target name; function casts use their callee name. Same-type column
+casts reduce to the column and retain physical origin; conversions have no column
+origin. Unknown literal input errors carry the quote's character Position.
+Typed conversion/overflow errors have no Position and finalize before Query exposes
+a cursor. Unsupported standard/postfix pairs use `42846`; function pairs use `42883`
+with PostgreSQL's function hint. Multirow INSERT and staged Restore remain atomic.
+Dump emits canonical typed literals, and Restore recursively admits literal casts
+while rejecting nested parameters at their token.
+Immutable row/stage-independent conversions, including imported parameter casts,
+are preflighted in a fresh execution-private frame even when the relation is empty
+or WHERE selects no rows; Prepare still succeeds for typed conversion failures.
+SELECT preflight runs outside engine locks before executor table privileges are
+checked; namespace lookup/USAGE remains earlier. Valid casts still require SELECT.
+Row-dependent conversions are evaluated only for admitted input rows. This bounded
+materialization does not implement PostgreSQL's custom/generic plan-cache switching.
+Preflight also traverses null tests, Boolean tests and both DISTINCT operands,
+including raw-NULL rewrites, without folding the predicate or pruning its dependencies.
+Errors from a cast inside equality keep their original diagnostic and Position;
+operator-resolution errors report the actual bound operand types.
+
+Public feature smoke: `make smoke RUN='^TestCastExplicitSmoke$' VERBOSE=1`.
+Review-regression smoke: `make smoke RUN='^TestCastExplicitReviewSmoke$' VERBOSE=1`.
+Parameter/ACL smoke: `make smoke RUN='^TestCastExplicitPreflightSmoke$' VERBOSE=1`.
+Pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCastExplicit.*$'`.
+
+Normalized integer parameters targeting INT2/INT4/INT8 and Boolean parameters targeting
+BOOL use checked scalar imports without successful-value formatting or reparsing.
+They retain the inferred descriptor and cancellation checks; INT2/INT4 overflow keeps
+the textual-input diagnostic rather than the assignment-narrowing diagnostic.
+
+Integer textual input (quoted constants and string/byte parameters) accepts
+optional signs, leading/trailing C whitespace, decimal leading zeros, radix
+prefixes and single digit separators, including `0x_FF`, `0o17`, `0b10_10` and
+`1_000`. Malformed input is `22P02`; width overflow is `22003`. Parsing order
+matters: `2147483648x` is malformed integer input, but a sufficiently long
+overflowing digit prefix can fail range before trailing junk. Non-ASCII
+whitespace is not C whitespace. Boolean input supports case-insensitive unique
+prefixes of true/yes/on and false/no/off, plus 1/0. Boolean codec text output is
+t/f; Boolean assignment to TEXT is true/false, independently of driver output.
+Integer WHERE literals compare across widths without assignment narrowing:
+`int4_column = 2147483648` is valid and matches nothing, while a parameter in
+that predicate retains INT4 input and rejects the same overflowing bound text.
+
+SMALLINT/INT2 stores the signed range -32768 through 32767 and returns native
+`int64` with INT2 metadata; INTEGER and BIGINT retain their signed-32/signed-64
+ranges and existing inline storage. Integer input diagnostics use English names:
+`invalid input syntax for type smallint: "oops"` (`22P02`) and
+`value "32768" is out of range for type smallint` (`22003`), with `integer` or
+`bigint` for those widths. Original input spelling is retained. SMALLINT parsing
+order likewise distinguishes `32768x` (`22P02`) from `327680x` (`22003`).
+Typed INT4/INT8 assignments to SMALLINT prepare successfully and fail execution
+with `smallint out of range` on overflow; INT2 widens implicitly to INT4/INT8
+and the supported floats. Bare SQL integer literal inference remains INT4/INT8.
+All conversions precede statement publication; a bad later tuple publishes no
+rows. Dump emits canonical SMALLINT/INTEGER/BIGINT declarations and decimal
+values, and staged Restore preserves widths and retained cursor snapshots.
+
+`make smoke RUN='^TestSmallintSmoke$' VERBOSE=1` exercises the public direct and
+genuinely prepared smallint path, bounds/English diagnostics, INT2 metadata,
+NULL, atomicity/cancellation, mixed-width controls and authorization. Independent
+focused witnesses are `make test RUN='^TestSmallint' PACKAGES='./internal/sqltype ./internal/parser ./internal/engine .' VERBOSE=1`
+and `make reference RUN='^TestReferenceSmallint' VERBOSE=1` against the pinned
+PostgreSQL 18.0 oracle. These commands require execution to establish results.
+
+`go test -count=1 -run '^TestTypeCoreSmoke$' ./smoke` exercises public
+direct/prepared inference, codecs, exact diagnostics and phases, metadata, byte
+ownership, multirow atomicity, cancellation and four-kind native round trips with
+retained raw cursors. Go test reports the result.
+
+Focused independent witnesses are `go test -run '^TestTypeCore.*$' -count=1 -v .`,
+`go test ./internal/sqltype ./internal/engine`, and the pinned real-reference
+`go test -tags reference -run '^TestReferenceTypeCore.*$' -count=1 -v ./reference`.
+Dump uses descriptor-owned canonical SQL literals, and staged Restore uses the
+same binder/codecs before replacing the catalog once; existing snapshots retain
+their old values, types and column metadata.
+
+## Omitted INSERT columns and defaults
+
+For an INSERT without a target list, uniform VALUES rows may supply any positive number of leading declaration-order columns up to the table width; omitted columns use their declared default or typed NULL. Every VALUES row must have the same width. Explicit target lists retain their stated order and must match row width. Targetless DEFAULT VALUES requests one all-default row. Conversion, arity, default evaluation and NOT NULL failures publish no rows from the statement. The public feature smoke is `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
+
+Preparation checks assignment compatibility; typed integer literals assigned to INT4 are range-checked during execution, before NOT NULL checks. Thus preparing a short INSERT containing `2147483648` succeeds, but executing it fails with `22003` (`integer out of range`) without publishing rows. Unknown quoted numeric strings still run the destination input function during preparation and retain their input-specific diagnostic and cursor position.
+
+That feature smoke exercises both direct execution and an actual prepared short INSERT, checks declaration-order metadata and statement atomicity, and retains a cursor across Reset/Restore. It also checks deterministic full-row Dump/Restore, successful hand-authored short-row Restore, and catalog preservation when a staged short INSERT omits a NOT NULL tail. Go test reports whether those public API assertions pass.
