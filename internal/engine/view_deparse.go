@@ -72,18 +72,34 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 		text += " HAVING " + part
 	}
 	if s.Order != nil {
-		slot, ok := v.columns[viewLiteralPath{clause: viewOrderLiteral}]
-		if !ok {
-			return "", fmt.Errorf("stuntgres: missing view sort identity")
+		keys := make([]string, len(s.Order.Keys))
+		for i, key := range s.Order.Keys {
+			path := viewLiteralPath{clause: viewOrderLiteral, target: i}
+			var name string
+			var err error
+			if raw, ok := key.Expr.(parser.ColumnExpr); ok && len(raw.Name.Parts) == 1 {
+				if slot, captured := v.columns[path]; captured {
+					name, err = renderer.orderColumnSQL(slot, raw.Name.Parts[0].Text)
+				}
+			}
+			if name == "" {
+				name, err = renderer.expressionSQL(ctx, catalog, key.Expr, path)
+			}
+			if err != nil {
+				return "", err
+			}
+			if key.Desc {
+				name += " DESC"
+			}
+			switch key.Nulls {
+			case parser.NullsFirst:
+				name += " NULLS FIRST"
+			case parser.NullsLast:
+				name += " NULLS LAST"
+			}
+			keys[i] = name
 		}
-		name, err := renderer.orderColumnSQL(slot)
-		if err != nil {
-			return "", err
-		}
-		text += " ORDER BY " + name
-		if s.Order.Desc {
-			text += " DESC"
-		}
+		text += " ORDER BY " + strings.Join(keys, ", ")
 	}
 	return text, nil
 }
@@ -127,7 +143,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			name := quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
 			return "'" + strings.ReplaceAll(name, "'", "''") + "'", nil
 		}
-		if path.clause == viewGroupLiteral && path.node == 0 && e.Value.Kind == parser.IntegerValue {
+		if (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral) && path.node == 0 && e.Value.Kind == parser.IntegerValue {
 			return strconv.FormatInt(e.Value.Integer, 10), nil
 		}
 		return "", fmt.Errorf("stuntgres: missing analyzed view literal")

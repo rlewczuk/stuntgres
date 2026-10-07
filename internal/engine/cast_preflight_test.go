@@ -128,7 +128,7 @@ func TestCastCoercionQueryPreflightSharing(t *testing.T) {
 	}
 	constant := preflightCast(t, "SELECT int4('42'::text) FROM t")
 	filter := &filterNode{child: source, predicate: comparisonExpression{left: unchanged, right: constant}}
-	sort := &sortNode{child: filter, slot: 3, desc: true}
+	sort := &sortNode{child: filter, keys: []sortKey{{expression: unchanged, slot: 3, cache: -1, desc: true}}}
 	project.child = sort
 	for range 2 {
 		root, err = preflightQuery(&evaluation, project)
@@ -138,7 +138,7 @@ func TestCastCoercionQueryPreflightSharing(t *testing.T) {
 		private := root.(*projectNode)
 		privateSort := private.child.(*sortNode)
 		privateFilter := privateSort.child.(*filterNode)
-		if privateSort == sort || privateFilter == filter || privateFilter.child != source || privateSort.slot != sort.slot || privateSort.desc != sort.desc || &private.expressions[0] != &project.expressions[0] {
+		if privateSort == sort || privateFilter == filter || privateFilter.child != source || privateSort.keys[0].slot != sort.keys[0].slot || privateSort.keys[0].desc != sort.keys[0].desc || &private.expressions[0] != &project.expressions[0] {
 			t.Fatal("changed path not private or unchanged path not shared")
 		}
 		if _, ok := privateFilter.predicate.(comparisonExpression).right.(literalExpression); !ok {

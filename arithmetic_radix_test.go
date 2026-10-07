@@ -57,5 +57,11 @@ func TestArithmeticPromotedRadixLiteralCompatibility(t *testing.T) {
 	arithmeticError(t, err, want)
 	arithmeticRows(t, db, "SELECT v FROM n", []string{"NUMERIC"}, [][]any{{"9223372036854775808"}})
 	_, err = db.Prepare("SELECT +1e131072 FROM n")
-	arithmeticError(t, err, stuntgres.Error{Code: "22003", Message: "value overflows numeric format", Position: "8"})
+	arithmeticError(t, err, stuntgres.Error{Code: "22003", Message: "value overflows numeric format", Position: "9"})
+	rows, err := db.Query("SELECT +1e131072 FROM n")
+	if rows != nil {
+		rows.Close()
+		t.Fatal("numeric input failure exposed rows")
+	}
+	arithmeticError(t, err, stuntgres.Error{Code: "22003", Message: "value overflows numeric format", Position: "9"})
 }

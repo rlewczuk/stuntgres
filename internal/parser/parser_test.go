@@ -49,7 +49,7 @@ func TestScriptAndLiterals(t *testing.T) {
 		}
 	}
 	selectStmt := statements[2].(*Select)
-	if selectStmt.Targets[0].(ColumnExpr).Name.Parts[0].Text != "integer" || selectStmt.Targets[1].(ColumnExpr).Name.Parts[0].Text != "a\"b" || selectStmt.Where.(OperatorExpr).Args[1].(ParameterExpr).Number != 2 || selectStmt.Order.Column != "active" || !selectStmt.Order.Desc {
+	if selectStmt.Targets[0].(ColumnExpr).Name.Parts[0].Text != "integer" || selectStmt.Targets[1].(ColumnExpr).Name.Parts[0].Text != "a\"b" || selectStmt.Where.(OperatorExpr).Args[1].(ParameterExpr).Number != 2 || selectStmt.Order.Keys[0].Expr.(ColumnExpr).Name.Parts[0].Text != "active" || !selectStmt.Order.Keys[0].Desc {
 		t.Fatalf("select = %#v", selectStmt)
 	}
 }
@@ -105,8 +105,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (B'1010')", "0A000"},
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
 		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
-		{"SELECT x alias FROM t", "0A000"},
-		{"SELECT x FROM t ORDER BY x, y", "0A000"}, {"SELECT f(x) FROM t", "0A000"},
+		{"SELECT f(x) FROM t", "0A000"},
 		{"SELECT 1", "0A000"},
 		{"CREATE TABLE t (x INT[])", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
@@ -747,8 +746,6 @@ func TestUnicodeEscapesComposedRawCache(t *testing.T) {
 func TestUnicodeEscapesCompositionDiagnostics(t *testing.T) {
 	for _, tc := range []struct{ query, code, message, position, hint string }{
 		{`SELECT x FROM t ORDER BY x NULLS U&"FIRST"`, "42601", `syntax error at or near "NULLS"`, "28", ""},
-		{`SELECT x FROM t ORDER BY U&"\0078" NULLS FIRST`, "0A000", "NULLS ordering is unsupported", "36", ""},
-		{`SELECT x FROM t ORDER BY U&"\0078" DESC NULLS LAST`, "0A000", "NULLS ordering is unsupported", "41", ""},
 		{`INSERT INTO t SELECT x FROM source_rows; INSERT INTO t VALUES (U&'\061')`, "42601", "invalid Unicode escape", "67", `Unicode escapes must be \XXXX or \+XXXXXX.`},
 	} {
 		statements, err := Parse(tc.query)
@@ -886,7 +883,7 @@ func TestQueryCoreOrderOccurrencePosition(t *testing.T) {
 			t.Fatal(err)
 		}
 		order := statements[0].(*Select).Order
-		if order == nil || order.Column != "missing" || order.Pos.Offset != tc.offset || order.Pos.Character != tc.character {
+		if order == nil || order.Keys[0].Expr.(ColumnExpr).Name.Parts[0].Text != "missing" || order.Keys[0].Pos.Offset != tc.offset || order.Keys[0].Pos.Character != tc.character {
 			t.Fatal(order, tc)
 		}
 	}

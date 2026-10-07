@@ -179,7 +179,7 @@ func identifierRun() error {
 			}
 		}
 		for _, s := range []struct{ label, code, msg, pos string }{
-			{"check", "0A000", "projection aliases are unsupported", "11"}, {"authorization", "0A000", "projection aliases are unsupported", "11"}, {"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
+			{"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
 		} {
 			if err := identifierDiagnostic(operation("SELECT by "+s.label+" FROM insert"), s.code, s.msg, s.pos); err != nil {
 				return err
@@ -340,7 +340,6 @@ func identifierContextualCapabilities() error {
 		}
 	}
 	for _, s := range []struct{ q, code, msg, pos string }{
-		{"SELECT x default FROM t", "0A000", "projection aliases are unsupported", "10"},
 		{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
 		{"SELECT f(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT authorization(x) FROM t", "0A000", "functions are unsupported", "8"},
@@ -349,7 +348,6 @@ func identifierContextualCapabilities() error {
 		{"SELECT x, \"between\"(x) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "18"},
 		{"SELECT x, x, abs(x) FROM t", "0A000", "functions are unsupported", "14"},
-		{"SELECT x FROM t ORDER BY x NULLS FIRST", "0A000", "NULLS ordering is unsupported", "28"},
 		{"SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "28"},
 	} {
 		for _, op := range []func(string) error{

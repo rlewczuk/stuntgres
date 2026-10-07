@@ -127,11 +127,15 @@ func TestKeywordDiagnostics(t *testing.T) {
 }
 func TestKeywordLabels(t *testing.T) {
 	for _, s := range []struct{ q, code, msg, pos string }{
-		{"SELECT x check FROM t", "0A000", "projection aliases are unsupported", "10"}, {"SELECT x authorization FROM t", "0A000", "projection aliases are unsupported", "10"},
-		{"SELECT x default FROM t", "0A000", "projection aliases are unsupported", "10"},
 		{"SELECT x char FROM t", "42601", "syntax error at or near \"char\"", "10"}, {"SELECT x day FROM t", "42601", "syntax error at or near \"day\"", "10"},
 	} {
 		keywordDiagnostic(t, s.q, s.code, s.msg, s.pos)
+	}
+	for _, label := range []string{"check", "authorization", "default"} {
+		orderLabel(t, "SELECT x "+label+" FROM t", label)
+	}
+	for _, label := range []string{"char", "grant", "Mixed"} {
+		orderLabel(t, `SELECT x AS "`+label+`" FROM t`, label)
 	}
 }
 
@@ -160,12 +164,10 @@ func TestMappedKeywordLabels(t *testing.T) {
 		if k.token == 0 {
 			continue
 		}
-		if _, err := Parse("SELECT x AS " + k.word + " FROM t"); err != nil {
-			t.Fatal(k.word, err)
-		}
+		orderLabel(t, "SELECT x AS "+k.word+" FROM t", k.word)
 		// Predicate and logical tokens continue SELECT expressions, not aliases.
 		if k.bareLabel && k.token != IS && k.token != BETWEEN && k.token != NOT && k.word != "and" && k.word != "or" {
-			keywordDiagnostic(t, "SELECT x "+k.word+" FROM t", "0A000", "projection aliases are unsupported", "10")
+			orderLabel(t, "SELECT x "+k.word+" FROM t", k.word)
 		}
 	}
 }
@@ -179,20 +181,17 @@ func TestKeywordContextualCapabilities(t *testing.T) {
 		{"SELECT abort(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30"},
 		{"SELECT x FROM t WHERE x=between(7)", "42601", "syntax error at or near \"(\"", "32"},
-		{"SELECT x \"isnull\" FROM t", "0A000", "projection aliases are unsupported", "10"},
-		{"SELECT x FROM t ORDER BY x NULLS FIRST", "0A000", "NULLS ordering is unsupported", "28"},
-		{"SELECT x FROM t ORDER BY x DESC NULLS LAST", "0A000", "NULLS ordering is unsupported", "33"},
 		{"SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "28"},
 		{"SELECT x FROM t ORDER BY x NULLS \"FIRST\"", "42601", "syntax error at or near \"NULLS\"", "28"},
 		{"SELECT x FROM t ORDER BY x NULLS", "42601", "syntax error at or near \"NULLS\"", "28"},
 		{"SELECT x FROM t ORDER BY x nulls bogus", "42601", "syntax error at or near \"nulls\"", "28"},
-		{"SELECT x FROM t ORDER BY x NULLS /*é*/ FIRST", "0A000", "NULLS ordering is unsupported", "28"},
 		{"SELECT x FROM t ORDER BY x NULLS 1", "42601", "syntax error at or near \"NULLS\"", "28"},
 		{"/*é*/ SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "34"},
 		{"SELECT x FROM t ORDER BY x NULLS /* never closed", "42601", "unterminated /* comment at or near \"/* never closed\"", "34"},
 	} {
 		keywordDiagnostic(t, s.q, s.code, s.msg, s.pos)
 	}
+	orderLabel(t, `SELECT x "isnull" FROM t`, "isnull")
 }
 
 func TestNullsTokenLookahead(t *testing.T) {

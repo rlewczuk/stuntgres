@@ -1,0 +1,36 @@
+package sqltype
+
+import (
+	"context"
+	"testing"
+)
+
+func TestOrderingUsage(t *testing.T) {
+	for _, d := range Builtins() {
+		t.Run(d.Name(), func(t *testing.T) {
+			provider, err := BindOrdering(d.Usage())
+			if d.ID() == Unknown {
+				if err == nil {
+					t.Fatal("UNKNOWN admitted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			// SQL null placement is the sort stage's policy, never this strict
+			// nonnull provider, even when the builtin capability binds successfully.
+			if _, err := provider.Compare(context.Background(), Null(d), Null(d)); err == nil {
+				t.Fatal("nonnull provider admitted NULL")
+			}
+			invalid := d.Usage()
+			invalid.Collation.ID++
+			if _, err := BindOrdering(invalid); err == nil {
+				t.Fatal("unbounded collation admitted")
+			}
+		})
+	}
+	if _, err := BindOrdering(Usage{}); err == nil {
+		t.Fatal("nil ordering usage admitted")
+	}
+}

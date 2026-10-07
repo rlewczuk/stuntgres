@@ -102,7 +102,7 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 	}
 	keywordDiagnostic(t, "SELECT 1 IS DISTINCT FROM 1 IS TRUE FROM t", "42601", `syntax error at or near "IS"`, "29")
 	for _, q := range []string{
-		"SELECT v IS NULL", "SELECT v IS NULL result FROM t",
+		"SELECT v IS NULL",
 		"SELECT abs(v) IS NULL FROM t",
 		"SELECT v IS DISTINCT FROM 1 IS NULL FROM t",
 		"INSERT INTO t VALUES(1 IS NULL)", "SELECT set_config('x',TRUE IS NULL,FALSE)",

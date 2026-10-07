@@ -21,6 +21,7 @@ type queryNamespace struct {
 	columns    []queryColumn
 	qualifiers []queryQualifier
 	frame      []ColumnDescriptor
+	values     bool // Synthetic VALUES names retain PostgreSQL spelling hints.
 }
 
 func rebaseQueryColumns(columns []queryColumn, offset int) []queryColumn {
@@ -142,6 +143,9 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 	}
 	if match != nil {
 		return b.queryColumnAt(*match, raw.Pos), nil
+	}
+	if b.queryNamespace.values && len(parts) == 1 {
+		return nil, valuesOrderColumnError(b.queryNamespace.frame, name, raw.Pos)
 	}
 	message := fmt.Sprintf(`column "%s" does not exist`, name)
 	if len(parts) > 1 {

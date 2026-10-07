@@ -110,7 +110,5 @@ func unicodeEscapeNames() []struct{ source, name string } {
 func unicodeEscapeCompositionCases() []struct{ query, code, message, position, hint string } {
 	return []struct{ query, code, message, position, hint string }{
 		{`SELECT x FROM t ORDER BY x NULLS U&"FIRST"`, "42601", `syntax error at or near "NULLS"`, "28", ""},
-		{`SELECT x FROM t ORDER BY U&"\0078" NULLS FIRST`, "0A000", "NULLS ordering is unsupported", "36", ""},
-		{`SELECT x FROM t ORDER BY U&"\0078" DESC NULLS LAST`, "0A000", "NULLS ordering is unsupported", "41", ""},
 	}
 }

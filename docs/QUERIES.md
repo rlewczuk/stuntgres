@@ -2,6 +2,53 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Expression ordering — change note (changelog)
+
+SELECT and shared INSERT SELECT/ORDER-decorated VALUES now support comma-separated
+ORDER BY expressions, output labels and one-based visible-output ordinals. Each
+key independently accepts ASC/DESC and NULLS FIRST/LAST. ASC defaults to NULLS
+LAST; DESC defaults to NULLS FIRST. Later keys break earlier ties; complete peers
+and queries without ORDER BY have no portable relative-order promise.
+
+Scalar outputs accept AS labels or eligible bare labels. Labels change only the
+public name, retaining type/typmod/collation and physical origin/nullability.
+Star expansion and repeated targets count toward ordinals; hidden keys do not.
+A bare ORDER label prefers output over input. Equivalent duplicate labels are
+legal; distinct matches give42702 `ORDER BY "label" is ambiguous`. Qualified
+names and compound expressions use the input namespace, not output labels.
+GROUP BY retains input-name priority; labels are not installed in WHERE/HAVING.
+Invalid positions give42P10; raw noninteger constants give42601. Unary plus is
+an expression, not an ordinal; signed lexical int32 boundaries remain unchanged.
+
+ORDER keys bind before grouping determination, including hidden count(*).
+Ungrouped leaves retain42803, hidden physical columns retain SELECT ACL checks,
+and VALUES orders its common-typed source before destination assignment.
+Computed keys are evaluated once per admitted occurrence before sorting;
+referenced equivalent visible outputs reuse that datum. Unaffected visible
+outputs are evaluated after sorting. Thus selected nextval ORDER labels/ordinals
+return the same evaluated values, not fresh sequence calls. Prepared plans contain
+no mutable datum cache: every execution owns its keys/permutation/parameters.
+
+Ordering capability and the bounded UTF8/C collation are checked during analysis
+even for empty/single/all-NULL inputs. Existing type providers supply numeric,
+NaN, temporal, bytea, UUID and character semantics; REGCLASS compares canonical
+unsigned OIDs, not lexical text or silent equality. All supported concrete types
+are PostgreSQL-sortable; there is no reachable native unsortable SQL type to
+exercise a missing-ordering-operator42883. Internal invalid usages are invariant
+errors, not invented PostgreSQL diagnostics.
+
+Eager finalization preserves immutable result buffers/metadata, cancellation,
+captured-source ownership and atomic INSERT publication. Dump/Restore owns only
+existing data/sequence state; sort caches are never serialized. Native public
+SQL/API ACL mutation remains absent: exact column grants use engine units and
+independent PostgreSQL GRANT scenarios. LIMIT/OFFSET, ORDER USING, general
+COLLATE/ICU, sets/windows/aggregate-internal ordering and ordinary no-FROM SELECT
+remain excluded. The existing AND/OR bare-label ambiguity remains a bounded
+logical-grammar difference; AS and quoted forms can label those outputs.
+
+Feature smoke: `make smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
+Independent pinned18.0 reference: `make reference RUN='^TestReferenceQueryOrder' VERBOSE=0`.
+
 ## Inner and cross joins — change note
 
 SELECT and its shared INSERT SELECT producer accept comma-separated FROM items,
@@ -52,10 +99,10 @@ the right input); converted merged keys have synthetic origin/typmod metadata.
 
 ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
 but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
-existing single unqualified named ORDER key resolve the complete joined namespace.
-Bare projection labels, expanded ORDER syntax, outer/LATERAL joins, derived
-queries, CTEs and FROM functions remain excluded; UPDATE FROM and DELETE USING
-are not enabled by query joins.
+ORDER expressions resolve the complete joined namespace.
+Outer/LATERAL joins, derived queries, CTEs and FROM functions remain excluded;
+UPDATE FROM and DELETE USING are not
+enabled by query joins.
 
 An ON clause cannot follow CROSS/NATURAL JOIN or a completed join condition:
 these malformed joined queries report positioned `42601` at ON. Other excluded
@@ -128,7 +175,7 @@ Independent PostgreSQL reconstruction, with ADD COLUMN explicitly PG-only:
 ## Grouping and count — change note
 
 Table SELECT and shared INSERT SELECT now accept scalar, comma-separated
-`GROUP BY` keys and optional `HAVING` before the existing one-column ORDER BY.
+`GROUP BY` keys and optional `HAVING` before ORDER BY.
 The initial aggregate is `count(*)`, counting every source occurrence, including
 NULL and zero-column rows. Its label is `count`, SQL type `INT8`, and Go value
 `int64`. Without keys, aggregate calls or HAVING create one global group: an empty
@@ -170,7 +217,7 @@ out-of-list positions give `42P10`; fractional, oversized, string, BOOL and NULL
 raw constants give `42601`, `non-integer constant in GROUP BY`. As with VALUES
 ORDER keys, unsigned tokens must fit int32 (minus does not admit2147483648).
 Unary-plus numeric expressions such as `+1` and `+1.5` are constant keys, not
-ordinals. Names prefer input columns; output-alias lookup remains excluded.
+ordinals. GROUP BY names prefer input columns; ORDER BY names prefer output labels.
 
 Every group is finalized eagerly outside the engine lock before HAVING, sorting,
 projection, statement completion or public row publication. Context/key/provider
@@ -184,8 +231,8 @@ datum. Restore's generated-sequence SELECT whitelist is unchanged.
 
 This does not admit standalone SELECT without FROM, count(expr), count(),
 other aggregates, FILTER, DISTINCT/ALL grouping modifiers, within-call ORDER,
-OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls,
-general standalone ORDER expressions or optimizer/spill/parallel machinery.
+OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
+optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded
 even with a selected sequence/REGCLASS sibling; those aggregate-free singleton
 exceptions and INSERT-only producer rules remain separate and unchanged.
@@ -249,7 +296,7 @@ ORDER analysis follows target validation and VALUES width/common typing. Raw
 parsing always consumes the complete script first, so later syntax errors take
 precedence over ORDER analysis errors and prevent effects from a valid prefix.
 These VALUES/no-FROM forms do not add standalone VALUES or ordinary no-FROM SELECT.
-WITH/CTE, bare projection labels, general casts/functions, LIMIT and locking decorations,
+WITH/CTE, general casts/functions, LIMIT and locking decorations,
 RETURNING and ON CONFLICT remain outside this part's surface.
 
 The target RX lock is acquired before source AS; target INSERT and source SELECT
@@ -442,7 +489,7 @@ whole-statement type finalization. Explicit VARIADIC scalar operands fail42804 a
 multiple ordinary/VARIADIC operands fail42883 signature lookup. Arrays, including
 PostgreSQL's NULL-array/empty-array cases, are unsupported; ordinary NULL is a
 single null argument, not a NULL array. No calls are added to INSERT, settings
-arguments or WHERE. General functions, function qualification, projection aliases, casts outside the
+arguments or WHERE. General functions, function qualification, casts outside the
 bounded baseline and character-family sets, arithmetic, DISTINCT, ORDER BY within
 calls, FILTER, OVER, star and named arguments remain outside the native surface.
 
@@ -659,11 +706,10 @@ null-count-only form. Existing binary
 scalar comparisons form Boolean leaves in targets and WHERE, such as
 `NOT id=1 AND (a OR b)` or `id>=2 AND a=b`. Comparisons keep scalar operands
 only: no chaining or logical/comparison expressions as comparison operands.
-This adds no logical INSERT VALUES, setting arguments, expression ORDER BY,
-casts outside the bounded baseline and character-family sets, projection aliases
-or general functions.
+This adds no logical INSERT VALUES or setting arguments,
+casts outside the bounded baseline and character-family sets or general functions.
 PostgreSQL also accepts `SELECT TRUE AND FROM t` and `SELECT TRUE OR FROM t`
-as TRUE targets with bare aliases `and` and `or`. Native projection aliases remain excluded:
+as TRUE targets with bare aliases `and` and `or`. In native bare-label syntax
 these keywords continue logical expressions, so these two incomplete expressions
 report `42601` at FROM. Reference tests assert both native failures and PostgreSQL
 positive results independently, not false syntax-error parity.
@@ -702,6 +748,8 @@ division/remainder by zero reports `22012` (`division by zero`), without invente
 runtime positions. Minimum divided by -1 overflows; minimum remainder -1 is zero.
 Strict NULL returns a result-typed NULL. Numeric literal minus is folded,
 including grouped literals, so signed minimum constants retain integer width.
+Numeric unary plus is identity: numeric input overflow points at the operand
+token, not the plus sign, in direct execution and Prepare (including ORDER BY).
 Use whitespace or parentheses before a negative remainder divisor (`i% -1`,
 `i%(-1)`). Adjacent `%-` is one symbolic operator, not remainder followed by
 negation; unsupported combined arithmetic spellings fail with a typed `42883`

@@ -83,10 +83,10 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 				literalTargets = append(literalTargets, target)
 			}
 			name, _ := expressionName(raw, expr.ResultUsage())
-			targetNames = append(targetNames, name)
-			if len(s.TargetLabels) != 0 && s.TargetLabels[target].Text != "" {
-				targetNames[len(targetNames)-1] = s.TargetLabels[target].Text
+			if target < len(s.Labels) && s.Labels[target].Text != "" {
+				name = s.Labels[target].Text
 			}
+			targetNames = append(targetNames, name)
 		}
 	}
 	width := len(projection)
@@ -156,19 +156,40 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			}
 		}
 	}
-	var order BoundExpr
-	if s.Order != nil {
-		var err error
-		order, err = b.column(parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: s.Order.Column, Pos: s.Order.Pos}}}, Pos: s.Order.Pos})
-		if err != nil {
-			return nil, err
-		}
-		if b.noParameters {
-			raw := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: s.Order.Column, Pos: s.Order.Pos}}}, Pos: s.Order.Pos}
-			if err := b.captureViewLiterals(raw, order, viewOrderLiteral, 0); err != nil {
+	b.aggregateClause = "ORDER BY"
+	order, err := b.bindOrder(s.Order, projection, targetNames)
+	if err != nil {
+		return nil, err
+	}
+	if b.noParameters && s.Order != nil {
+		frozen := *s.Order
+		frozen.Keys = append([]parser.OrderKey(nil), s.Order.Keys...)
+		for i, key := range frozen.Keys {
+			ordinal, output, err := orderOrdinal(key.Expr, width)
+			if err != nil {
+				return nil, err
+			}
+			if name, ok := key.Expr.(parser.ColumnExpr); ok && len(name.Name.Parts) == 1 {
+				if _, direct := order[i].expression.(columnExpression); !direct {
+					for j, targetName := range targetNames {
+						if targetName == name.Name.Parts[0].Text {
+							ordinal, output = j, true
+							break
+						}
+					}
+				}
+			}
+			if output {
+				// Freeze an output reference by position, independently of input
+				// renames or a CREATE VIEW column-name override.
+				frozen.Keys[i].Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal + 1), Pos: key.Pos}}
+				continue
+			}
+			if err := b.captureViewLiterals(key.Expr, order[i].expression, viewOrderLiteral, i); err != nil {
 				return nil, err
 			}
 		}
+		s.Order = &frozen
 	}
 	results := make([]ColumnDescriptor, width)
 	regclassOutput := false
@@ -224,29 +245,16 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			}
 			root = &filterNode{querySchema: root.Schema(), child: root, predicate: having}
 		}
-		if order != nil {
-			var err error
-			order, err = b.rewriteGroup(order, keys)
+		for i := range order {
+			order[i].expression, err = b.rewriteGroup(order[i].expression, keys)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	if order != nil {
-		slot := 0
-		switch e := order.(type) {
-		case columnExpression:
-			slot = e.slot
-		case groupExpression:
-			slot = e.slot
-		default:
-			return nil, fmt.Errorf("stuntgres: invalid bound sort slot")
-		}
-		cmp, err := sqltype.BindComparison(order.ResultUsage().Type, order.ResultUsage().Type)
-		if err != nil {
-			return nil, err
-		}
-		root = &sortNode{querySchema: root.Schema(), child: root, slot: slot, comparison: cmp, desc: s.Order.Desc}
+	root, err = b.finishOrder(root, order, projection)
+	if err != nil {
+		return nil, err
 	}
 	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}, regclassOutput: regclassOutput}, nil
 }

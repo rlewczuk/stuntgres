@@ -278,14 +278,14 @@ type UpdateAssignment struct {
 func (*Update) statement() {}
 
 type Select struct {
-	From         FromItem
-	Targets      []Expr
-	TargetLabels []Identifier
-	Where        Expr
-	GroupBy      []Expr
-	Having       Expr
-	Order        *Order
-	Pos          Position
+	From    FromItem
+	Targets []Expr
+	Labels  []Identifier
+	Where   Expr
+	GroupBy []Expr
+	Having  Expr
+	Order   *Order
+	Pos     Position
 }
 
 func (*Select) statement() {}
@@ -461,14 +461,26 @@ type SavepointControl struct {
 func (*SavepointControl) statement() {}
 
 type Order struct {
-	Column   string
-	Constant *OrderConstant
-	Pos      Position
-	Desc     bool
+	Keys []OrderKey
 }
 
-// OrderConstant retains VALUES ORDER syntax until analysis. Numeric tokens keep
-// their unsigned spelling and lexical real/integer class separately from sign.
+type NullPlacement uint8
+
+const (
+	NullsDefault NullPlacement = iota
+	NullsFirst
+	NullsLast
+)
+
+type OrderKey struct {
+	Expr  Expr
+	Pos   Position
+	Desc  bool
+	Nulls NullPlacement
+}
+
+// OrderConstant classifies SQL92 ORDER/GROUP ordinals without admitting an
+// oversized unsigned token merely because its signed result fits int32.
 type OrderConstant struct {
 	Value Value
 	Sign  string
@@ -487,16 +499,6 @@ func (c OrderConstant) Ordinal() (int64, bool) {
 		return -v.Integer, true
 	}
 	return v.Integer, true
-}
-
-// NumericLiteral uses ordinary numeric input classification only during analysis.
-// Numeric unary plus is identity; it must still bind and validate the operand.
-func (c OrderConstant) NumericLiteral() LiteralExpr {
-	sign := c.Sign
-	if sign == "+" {
-		sign = ""
-	}
-	return LiteralExpr{Value: numberValue(lexeme{text: c.Value.Text, numeric: c.Real, pos: c.Value.Pos}, sign)}
 }
 
 type ValueKind uint8

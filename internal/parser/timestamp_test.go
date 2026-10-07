@@ -143,12 +143,7 @@ func TestTimestampKeywordCategoriesAndExcludedSyntaxLocations(t *testing.T) {
 		"SELECT timestamp time FROM t", "SELECT timestamp zone FROM t",
 	} {
 		_, err := Parse(q)
-		if strings.Contains(q, " FROM t") && !strings.Contains(q, "FROM timestamp") {
-			var d *sqlstate.Error
-			if !errors.As(err, &d) || d.Code != "0A000" {
-				t.Fatal(q, err)
-			}
-		} else if err != nil {
+		if err != nil {
 			t.Fatal(q, err)
 		}
 	}

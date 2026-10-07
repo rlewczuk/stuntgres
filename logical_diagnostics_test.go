@@ -43,7 +43,7 @@ func TestLogicalOperandDiagnosticsAndBoundaries(t *testing.T) {
 		"SELECT (id=1)=TRUE FROM t",
 		"INSERT INTO t(id) VALUES(TRUE AND FALSE)", "INSERT INTO t(id) VALUES(NOT TRUE)",
 		"SELECT current_setting(TRUE AND FALSE)",
-		"SELECT f(a) AND a FROM t", "SELECT a FROM t ORDER BY a AND a",
+		"SELECT f(a) AND a FROM t",
 	} {
 		rows, err := db.Query(q)
 		if rows != nil {

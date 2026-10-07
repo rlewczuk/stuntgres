@@ -472,7 +472,6 @@ func TestCastExplicitBoundariesAndCursorCancellation(t *testing.T) {
 	d, db := castExplicitSetup(t)
 	for _, q := range []string{
 		"SELECT 1::int4",
-		"SELECT CAST(i AS int4) trailing FROM t",
 		"SELECT i:: FROM t",
 		"SELECT CAST(i AS) FROM t",
 		"INSERT INTO t(i) VALUES(CAST(i AS int4))",

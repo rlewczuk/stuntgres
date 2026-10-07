@@ -349,6 +349,11 @@ func restoreSequenceState(s *parser.Select) bool {
 	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) != 1 {
 		return false
 	}
+	for _, label := range s.Labels {
+		if label.Text != "" {
+			return false
+		}
+	}
 	call, ok := s.Targets[0].(parser.CallExpr)
 	if !ok || call.Name.Text != "setval" || len(call.Args) != 3 {
 		return false

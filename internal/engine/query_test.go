@@ -187,7 +187,7 @@ func TestQueryCoreSortErrors(t *testing.T) {
 	}
 	t.Run("type comparison failure prevents publication", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
-		query.Root.(*projectNode).child.(*sortNode).comparison = sqltype.Comparison{}
+		query.Root.(*projectNode).child.(*sortNode).keys[0].comparison = sqltype.Comparison{}
 		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if rows != nil || count != 0 || err == nil || err.Error() != "invalid comparison values" || source.view != nil {
 			t.Fatal(rows, count, err, source.view)

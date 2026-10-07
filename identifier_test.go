@@ -179,7 +179,7 @@ func identifierContract() error {
 			}
 		}
 		for _, s := range []struct{ label, code, msg, pos string }{
-			{"check", "0A000", "projection aliases are unsupported", "11"}, {"authorization", "0A000", "projection aliases are unsupported", "11"}, {"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
+			{"char", "42601", "syntax error at or near \"char\"", "11"}, {"day", "42601", "syntax error at or near \"day\"", "11"},
 		} {
 			if err := identifierDiagnostic(operation("SELECT by "+s.label+" FROM insert"), s.code, s.msg, s.pos); err != nil {
 				return err
@@ -273,13 +273,24 @@ func TestIdentifierLabels(t *testing.T) {
 	execSQL(t, db, "CREATE TABLE t (x INT)")
 	execSQL(t, db, "INSERT INTO t VALUES (7)")
 	for _, s := range []struct{ label, code, msg, pos string }{
-		{"check", "0A000", "projection aliases are unsupported", "10"}, {"authorization", "0A000", "projection aliases are unsupported", "10"},
 		{"char", "42601", "syntax error at or near \"char\"", "10"}, {"day", "42601", "syntax error at or near \"day\"", "10"},
 	} {
 		_, err := db.Exec("SELECT x " + s.label + " FROM t")
 		if err := identifierDiagnostic(err, s.code, s.msg, s.pos); err != nil {
 			t.Fatal(err)
 		}
+	}
+	for _, tc := range []struct{ label, name string }{{"check", "check"}, {"authorization", "authorization"}, {"default", "default"}, {"AS char", "char"}, {"AS grant", "grant"}, {`AS "Mixed"`, "Mixed"}, {`"isnull"`, "isnull"}, {`"notnull"`, "notnull"}} {
+		q := "SELECT x " + tc.label + " FROM t"
+		rows, err := db.Query(q)
+		queryCoreRows(t, rows, err, []string{tc.name}, []string{"INT4"}, [][]any{{int64(7)}}, false)
+		stmt, err := db.Prepare(q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows, err = stmt.Query()
+		queryCoreRows(t, rows, err, []string{tc.name}, []string{"INT4"}, [][]any{{int64(7)}}, false)
+		stmt.Close()
 	}
 }
 func TestIdentifierControls(t *testing.T) {
@@ -427,13 +438,12 @@ func TestIdentifierInsertQueries(t *testing.T) {
 	}
 }
 
-// PostgreSQL outcomes are independently specified; native capability errors
-// deliberately differ for legal calls, expressions, ordering and aliases.
+// PostgreSQL outcomes are independently specified; unsupported calls retain
+// their intentional native capability boundary.
 var identifierContextCases = []struct {
 	q, code, message, position, column, typ string
 	row                                     any
 }{
-	{"SELECT x default FROM t", "0A000", "projection aliases are unsupported", "10", "default", "INT4", int64(7)},
 	{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15", "", "", nil},
 	{"SELECT integer(x) FROM t", "42601", "syntax error at or near \"(\"", "15", "", "", nil},
 	{"SELECT abs(x) FROM t", "0A000", "functions are unsupported", "8", "abs", "INT4", int64(7)},
@@ -443,15 +453,10 @@ var identifierContextCases = []struct {
 	{"SELECT \"between\"(x) FROM t", "0A000", "functions are unsupported", "8", "between", "INT4", int64(7)},
 	{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30", "", "", nil},
 	{"SELECT x FROM t WHERE x=between(7)", "42601", "syntax error at or near \"(\"", "32", "", "", nil},
-	{"SELECT x \"isnull\" FROM t", "0A000", "projection aliases are unsupported", "10", "isnull", "INT4", int64(7)},
-	{"SELECT x \"notnull\" FROM t", "0A000", "projection aliases are unsupported", "10", "notnull", "INT4", int64(7)},
-	{"SELECT x FROM t ORDER BY x NULLS FIRST", "0A000", "NULLS ordering is unsupported", "28", "x", "INT4", int64(7)},
-	{"SELECT x FROM t ORDER BY x DESC NULLS LAST", "0A000", "NULLS ordering is unsupported", "33", "x", "INT4", int64(7)},
 	{"SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "28", "", "", nil},
 	{"SELECT x FROM t ORDER BY x NULLS \"FIRST\"", "42601", "syntax error at or near \"NULLS\"", "28", "", "", nil},
 	{"SELECT x FROM t ORDER BY x NULLS", "42601", "syntax error at or near \"NULLS\"", "28", "", "", nil},
 	{"SELECT x FROM t ORDER BY x nulls bogus", "42601", "syntax error at or near \"nulls\"", "28", "", "", nil},
-	{"SELECT x FROM t ORDER BY x NULLS /*é*/ FIRST", "0A000", "NULLS ordering is unsupported", "28", "x", "INT4", int64(7)},
 	{"SELECT x FROM t ORDER BY x NULLS 1", "42601", "syntax error at or near \"NULLS\"", "28", "", "", nil},
 	{"/*é*/ SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "34", "", "", nil},
 	{"SELECT x FROM t ORDER BY x NULLS /* never closed", "42601", "unterminated /* comment at or near \"/* never closed\"", "34", "", "", nil},

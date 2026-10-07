@@ -65,13 +65,9 @@ func TestReferenceArithmeticPromotedRadixInput(t *testing.T) {
 	p.step(t, referenceExec("INSERT INTO n VALUES(+0x8000000000000000)", 1))
 	p.step(t, referencePrepared(referenceExec("INSERT INTO n VALUES(+0x8000000000000000)", 1)))
 	p.step(t, referenceSelect("SELECT v FROM n ORDER BY v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"9223372036854775808"}, {"9223372036854775808"}}))
-	// Unary plus preserves the native former signed-input position. PostgreSQL
-	// converts the unsigned numeric constant at its own token before the operator.
-	step := referenceImplicitError("SELECT +1e131072 FROM n", referenceDiagnostic{Code: "22003", Message: "value overflows numeric format", Position: "8"})
+	// Numeric unary plus is identity: overflow belongs to the operand token.
+	step := referenceImplicitError("SELECT +1e131072 FROM n", referenceDiagnostic{Code: "22003", Message: "value overflows numeric format", Position: "9"})
 	step.selectRows = true
-	pg := *step.diagnostic
-	pg.Position = "9"
-	step.postgresDiagnostic = &pg
 	p.step(t, step)
 	step.errorStage = "prepare"
 	p.step(t, referencePrepared(step))

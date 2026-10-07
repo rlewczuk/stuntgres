@@ -96,13 +96,13 @@ func (v *viewRenderer) sourceAlias(occurrence int) string {
 	v.reserved[name] = true
 	return name
 }
-func (v *viewRenderer) orderColumnSQL(slot int) (string, error) {
+func (v *viewRenderer) orderColumnSQL(slot int, name string) (string, error) {
 	if len(v.namespaces) > 0 {
 		for _, c := range v.namespaces[0].columns {
-			if c.slot == slot && c.name == v.syntax.Order.Column { return quoteIdentifier(c.name), nil }
+			if c.slot == slot && c.name == name { return quoteIdentifier(c.name), nil }
 		}
 	}
-	return "", fmt.Errorf("stuntgres: missing view sort namespace identity")
+	return "", nil // The ordinary expression renderer supplies qualified identity.
 }
 
 // Apply every alias in actual emitted order, mapping frozen labels by slot.

@@ -41,7 +41,6 @@ func TestInsertSelectBoundaries(t *testing.T) {
 		"INSERT INTO t SELECT 1 RETURNING i", "INSERT INTO t VALUES(1) ORDER BY 1 LIMIT 1",
 		"INSERT INTO t WITH x AS (SELECT 1) SELECT 1",
 		"INSERT INTO t VALUES()", "VALUES(1)", "SELECT 1",
-		"INSERT INTO t VALUES(1) ORDER BY 1,2", "INSERT INTO t VALUES(1) ORDER BY 1 NULLS FIRST",
 		"INSERT INTO t VALUES(1); INSERT INTO t (SELECT 1) VALUES(2)",
 	} {
 		stmts, err := Parse(q)
@@ -51,51 +50,17 @@ func TestInsertSelectBoundaries(t *testing.T) {
 	}
 }
 
-func TestInsertSelectOrderSyntax(t *testing.T) {
-	for _, tc := range []struct {
-		key, number, sign string
-		kind              ValueKind
-		real              bool
-		ordinal           int64
-		isOrdinal         bool
-	}{
-		{key: "1", number: "1", kind: NumericValue, ordinal: 1, isOrdinal: true},
-		{key: "2147483647", number: "2147483647", kind: NumericValue, ordinal: 2147483647, isOrdinal: true},
-		{key: "2147483648", number: "2147483648", kind: NumericValue},
-		{key: "-2147483647", number: "2147483647", sign: "-", kind: NumericValue, ordinal: -2147483647, isOrdinal: true},
-		{key: "-2147483648", number: "2147483648", sign: "-", kind: NumericValue},
-		{key: "+2", number: "2", sign: "+", kind: NumericValue},
-		{key: "+1.5 DESC", number: "1.5", sign: "+", kind: NumericValue, real: true},
-		{key: "+1e0 ASC", number: "1e0", sign: "+", kind: NumericValue, real: true},
-		{key: "+1e131072", number: "1e131072", sign: "+", kind: NumericValue, real: true},
-		{key: "1.5", number: "1.5", kind: NumericValue, real: true},
-		{key: "1e0", number: "1e0", kind: NumericValue, real: true},
-		{key: "'x'", number: "x", kind: StringValue},
-		{key: "TRUE", kind: BooleanValue},
-		{key: "NULL", kind: NullValue},
-	} {
-		t.Run(tc.key, func(t *testing.T) {
-			// Even invalid ORDER semantics must not terminate raw parsing.
-			q := "INSERT INTO t VALUES(1) ORDER BY " + tc.key + "; INSERT INTO t VALUES(9)"
-			stmts, err := Parse(q)
-			if err != nil || len(stmts) != 2 {
-				t.Fatal(stmts, err)
-			}
-			order := stmts[0].(*Insert).Source.Order
-			c := order.Constant
-			if c == nil || order.Column != "" || c.Value.Kind != tc.kind || c.Value.Text != tc.number || c.Sign != tc.sign || c.Real != tc.real {
-				t.Fatalf("ORDER syntax %#v, constant %#v", order, c)
-			}
-			if ordinal, ok := c.Ordinal(); ordinal != tc.ordinal || ok != tc.isOrdinal {
-				t.Fatalf("ordinal %d/%v, want %d/%v", ordinal, ok, tc.ordinal, tc.isOrdinal)
-			}
-			if order.Pos.Offset != len("INSERT INTO t VALUES(1) ORDER BY ") || order.Desc != (tc.key == "+1.5 DESC") {
-				t.Fatal("key position/direction", order)
-			}
-			if tc.sign != "" && c.Value.Pos.Offset != order.Pos.Offset+1 {
-				t.Fatal("unsigned operand lost its own position", c)
-			}
-		})
+func TestOrderInsertSyntax(t *testing.T) {
+	for _, key := range []string{"1", "2147483647", "2147483648", "-2147483647", "-2147483648", "+2", "+1.5 DESC", "+1e0 ASC", "+1e131072", "1.5", "1e0", "'x'", "TRUE", "NULL", "(0)", "column1+0 DESC NULLS LAST,column1"} {
+		q := "INSERT INTO t VALUES(1) ORDER BY " + key + "; INSERT INTO t VALUES(9)"
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 2 {
+			t.Fatal(q, statements, err)
+		}
+		order := statements[0].(*Insert).Source.Order
+		if order == nil || len(order.Keys) == 0 || order.Keys[0].Expr == nil {
+			t.Fatal(order)
+		}
 	}
 	keywordDiagnostic(t, "INSERT INTO t VALUES(1) ORDER BY 'x'; CREATE TABLE select(x INT)", "42601", `syntax error at or near "select"`, "52")
 }

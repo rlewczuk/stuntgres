@@ -37,6 +37,7 @@ type EvalContext struct {
 	Scope, Frame  uint32
 	Row           []sqltype.Value
 	Parameters    []sqltype.Value
+	orderValues   []sqltype.Value
 	sequenceScope *StatementScope
 }
 type expressionInfo struct {
@@ -656,7 +657,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	var node BoundExpr
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
-		if b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" {
+		if b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" && b.aggregateClause != "ORDER BY" {
 			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" {
 				return nil, expressionError("42803", "aggregate functions are not allowed in "+b.aggregateClause, r.Pos)
 			}
@@ -1273,10 +1274,10 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		return nil, fmt.Errorf("stuntgres: invalid arithmetic expression")
 	}
 	name := raw.Name.Parts[0].Text
-	// Preserve signed NUMERIC literal input without admitting a NUMERIC provider.
+	// Numeric unary plus is identity. Input errors belong to its operand token,
+	// not to the operator; ORDER expressions share this same binding path.
 	if name == "+" && len(raw.Args) == 1 {
 		if literal, ok := raw.Args[0].(parser.LiteralExpr); ok && literal.Value.Kind == parser.NumericValue {
-			literal.Value.Pos = raw.Pos
 			return b.bind(literal, expressionPolicy{context: projectionContext})
 		}
 	}

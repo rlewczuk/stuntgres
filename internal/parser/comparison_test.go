@@ -56,7 +56,7 @@ func TestCompareOpsExcludedSyntax(t *testing.T) {
 	for _, q := range []string{
 		"SELECT i < = j FROM t", "SELECT i ! = j FROM t", "SELECT i < /*x*/ = j FROM t",
 		"SELECT i<j<1 FROM t",
-		"SELECT i<j x FROM t", "SELECT i<j", "SELECT i<j FROM t garbage extra", "SELECT i<j FROM t; garbage",
+		"SELECT i<j", "SELECT i<j FROM t garbage extra", "SELECT i<j FROM t; garbage",
 		"INSERT INTO t VALUES(1<2)", "SET x TO 1<2",
 	} {
 		if statements, err := Parse(q); err == nil || len(statements) != 0 {
@@ -68,7 +68,7 @@ func TestCompareOpsExcludedSyntax(t *testing.T) {
 		t.Fatal("supported target label", statements, err)
 	}
 	selectStmt := statements[0].(*Select)
-	if selectStmt.TargetLabels[0].Text != "x" {
+	if selectStmt.Labels[0].Text != "x" {
 		t.Fatal("lost target label", selectStmt)
 	}
 	if _, ok := selectStmt.Targets[0].(OperatorExpr); !ok {

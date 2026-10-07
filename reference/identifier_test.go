@@ -80,23 +80,9 @@ func TestReferenceIdentifierLabels(t *testing.T) {
 	for _, s := range []struct{ label, column, pos string }{{"check", "check", "10"}, {"default", "default", "10"}, {"authorization", "authorization", "10"}, {"AS char", "char", "13"}, {"AS grant", "grant", "13"}, {"AS \"Mixed\"", "Mixed", "13"}} {
 		q := "SELECT x " + s.label + " FROM t"
 		for _, prepared := range []bool{false, true} {
-			if strings.HasPrefix(s.label, "AS ") {
-				step := referenceSelect(q, []string{s.column}, []string{"INT4"}, [][]any{{int64(7)}})
-				step.prepared = prepared
-				p.step(t, step)
-				continue
-			}
-			native := referenceErrorDiagnostic(q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "projection aliases are unsupported", Position: s.pos})
-			native.prepared = prepared
-			native.selectRows = true
-			native.errorStage = "execute"
-			if prepared {
-				native.errorStage = "prepare"
-			}
-			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-			pg := referenceSelect(q, []string{s.column}, []string{"INT4"}, [][]any{{int64(7)}})
-			pg.prepared = prepared
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
+			step := referenceSelect(q, []string{s.column}, []string{"INT4"}, [][]any{{int64(7)}})
+			step.prepared = prepared
+			p.step(t, step)
 		}
 	}
 	for _, word := range []string{"char", "day"} {
@@ -273,24 +259,16 @@ func TestReferenceIdentifierNullExpressions(t *testing.T) {
 		p.step(t, referencePrepared(step))
 	}
 	for _, s := range []struct {
-		q, msg, pos, column, typ string
-		rows                     [][]any
+		q, column, typ string
+		rows           [][]any
 	}{
-		{"SELECT x FROM t ORDER BY x NULLS FIRST", "NULLS ordering is unsupported", "28", "x", "INT4", [][]any{{nil}, {int64(7)}}},
-		{"SELECT x FROM t ORDER BY x DESC NULLS LAST", "NULLS ordering is unsupported", "33", "x", "INT4", [][]any{{int64(7)}, {nil}}},
+		{"SELECT x FROM t ORDER BY x NULLS FIRST", "x", "INT4", [][]any{{nil}, {int64(7)}}},
+		{"SELECT x FROM t ORDER BY x DESC NULLS LAST", "x", "INT4", [][]any{{int64(7)}, {nil}}},
 	} {
 		for _, prepared := range []bool{false, true} {
-			native := referenceErrorDiagnostic(s.q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: s.msg, Position: s.pos})
-			native.prepared = prepared
-			native.selectRows = true
-			native.errorStage = "execute"
-			if prepared {
-				native.errorStage = "prepare"
-			}
-			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-			pg := referenceSelect(s.q, []string{s.column}, []string{s.typ}, s.rows)
-			pg.prepared = prepared
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
+			step := referenceSelect(s.q, []string{s.column}, []string{s.typ}, s.rows)
+			step.prepared = prepared
+			p.step(t, step)
 		}
 	}
 	bad := referenceErrorDiagnostic("SELECT x FROM t ORDER BY x NULLS bogus", referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: "syntax error at or near \"NULLS\"", Position: "28"})

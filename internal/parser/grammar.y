@@ -30,6 +30,9 @@ package parser
  selectStmt *Select
  insertSource *InsertSource
  order *Order
+ orderKey OrderKey
+ orderKeys []OrderKey
+ nulls NullPlacement
  desc bool
  objectName ObjectName
  settingValues settingList
@@ -169,11 +172,13 @@ package parser
 %type <tok> comparison_operator
 %type <call> function_args
 %type <predicate> truth_kind
-%type <selectStmt> projection scalar_targets
+%type <selectStmt> projection projection_item
 %type <insertSource> insert_input
 %type <selectStmt> insert_select
-%type <order> values_order
 %type <order> order
+%type <orderKeys> order_keys
+%type <orderKey> order_key
+%type <nulls> nulls
 %type <desc> direction
 %type <settingValues> setting_values
 %type <settingValue> setting_value
@@ -541,7 +546,7 @@ delete_not: delete_target { $$=$1 } | NOT delete_not { $$=LogicalExpr{Op:Logical
 delete_and: delete_not { $$=$1 } | delete_and AND delete_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
 delete_or: delete_and { $$=$1 } | delete_or OR delete_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
 insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
-insert_input: VALUES rows values_order { $$=&InsertSource{Rows:$2,Order:$3} }
+insert_input: VALUES rows order { $$=&InsertSource{Rows:$2,Order:$3} }
  | insert_select { $$=&InsertSource{Select:$1} }
  | '(' insert_input ')' { $$=$2 } ;
 insert_select: SELECT projection FROM from_list where group having order { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Pos=$1.pos; $$=$2 }
@@ -549,15 +554,6 @@ insert_select: SELECT projection FROM from_list where group having order { $2.Fr
  | SELECT FROM from_list where group having order { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Pos:$1.pos} }
  /* Prefer a projection operand/suffix over completing the zero-width source. */
  | SELECT %prec NAME_LIST { $$=&Select{Pos:$1.pos} } ;
-values_order: /* empty */ { $$=nil }
- | ORDER BY name direction { $$=&Order{Column:$3.text,Pos:$3.pos,Desc:$4} }
- | ORDER BY NUMBER direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NumericValue,Text:$3.text,Pos:$3.pos},Real:$3.numeric},Pos:$3.pos,Desc:$4} }
- | ORDER BY '+' NUMBER direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NumericValue,Text:$4.text,Pos:$4.pos},Sign:"+",Real:$4.numeric},Pos:$3.pos,Desc:$5} }
- | ORDER BY '-' NUMBER direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NumericValue,Text:$4.text,Pos:$4.pos},Sign:"-",Real:$4.numeric},Pos:$3.pos,Desc:$5} }
- | ORDER BY STRING direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:StringValue,Text:$3.text,Pos:$3.pos}},Pos:$3.pos,Desc:$4} }
- | ORDER BY TRUE direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:BooleanValue,Boolean:true,Pos:$3.pos}},Pos:$3.pos,Desc:$4} }
- | ORDER BY FALSE direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:BooleanValue,Pos:$3.pos}},Pos:$3.pos,Desc:$4} }
- | ORDER BY NULL direction { $$=&Order{Constant:&OrderConstant{Value:Value{Kind:NullValue,Pos:$3.pos}},Pos:$3.pos,Desc:$4} } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' insert_values ')' { $$ = $2 } ;
@@ -692,29 +688,14 @@ function_args: /* empty */ { $$=FunctionExpr{} }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
  | function_values ',' VARIADIC function_argument { $$=FunctionExpr{Args:append($1,$4),Variadic:true} } ;
 function_values: function_argument { $$=[]Expr{$1} } | function_values ',' function_argument { $$=append($1,$3) } ;
-scalar_targets: projection_target { $$=&Select{Targets:[]Expr{$1}} }
- | projection_target AS col_label {
-	if _,star:=$1.(StarExpr);star { sqllex.(*lexer).syntax($2);return 1 }
-	$$=&Select{Targets:[]Expr{$1},TargetLabels:[]Identifier{{Text:$3.text,Pos:$3.pos}}}
-}
- | scalar_targets ',' projection_target {
-	$$=$1
-	$$.Targets=append($$.Targets,$3)
-	if $$.TargetLabels!=nil { $$.TargetLabels=append($$.TargetLabels,Identifier{}) }
-}
- | scalar_targets ',' projection_target AS col_label {
-	if _,star:=$3.(StarExpr);star { sqllex.(*lexer).syntax($4);return 1 }
-	$$=$1
-	if $$.TargetLabels==nil { $$.TargetLabels=make([]Identifier,len($$.Targets)) }
-	$$.Targets=append($$.Targets,$3)
-	$$.TargetLabels=append($$.TargetLabels,Identifier{Text:$5.text,Pos:$5.pos})
-} ;
 truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
  | FALSE { $$=IsFalse } | NOT FALSE { $$=IsNotFalse }
  | UNKNOWN { $$=IsUnknown } | NOT UNKNOWN { $$=IsNotUnknown } ;
-/* Prefer positioned alias/suffix guards over completing a projection. */
-projection: scalar_targets %prec NAME_LIST { $$ = $1 }
- | scalar_targets bare_label { if _,star:=$1.Targets[len($1.Targets)-1].(StarExpr);star {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).failAt("0A000","projection aliases are unsupported",$2.pos.Offset); return 1 } ;
+projection_item: projection_target %prec NAME_LIST { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{}}} }
+ | scalar_projection bare_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
+ | scalar_projection AS col_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$3.text,Pos:$3.pos}}} } ;
+projection: projection_item { $$=$1 }
+ | projection ',' projection_item { $1.Targets=append($1.Targets,$3.Targets...);$1.Labels=append($1.Labels,$3.Labels...);$$=$1 } ;
 from_list: joined_table { $$=$1 }
  | from_list ',' joined_table { $$=&JoinReference{Left:$1,Right:$3,Pos:$2.pos} } ;
 joined_table: from_atom { $$=$1 }
@@ -746,9 +727,10 @@ group: /* empty */ %prec NAME_LIST { $$=nil } | GROUP BY group_keys { $$=$3 }
  | GROUP BY KW_C name '(' group_keys ')' { if $3.text!="grouping" || $4.text!="sets" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).failAt("0A000","grouping sets are unsupported",$3.pos.Offset);return 1 } ;
 group_keys: target_or { $$=[]Expr{$1} } | group_keys ',' target_or { $$=append($1,$3) } ;
 having: /* empty */ %prec NAME_LIST { $$=nil } | HAVING target_or { $$=$2 } ;
-order: /* empty */ { $$ = nil } | ORDER BY name direction { $$ = &Order{Column:$3.text, Pos:$3.pos, Desc:$4} }
- | ORDER BY name direction ',' { sqllex.(*lexer).fail("0A000","multiple sort keys are unsupported"); return 1 }
- | ORDER BY name direction nulls_keyword nulls_position { sqllex.(*lexer).failAt("0A000","NULLS ordering is unsupported",$5.pos.Offset); return 1 } ;
+order: /* empty */ { $$=nil } | ORDER BY order_keys { $$=&Order{Keys:$3} } ;
+order_keys: order_key { $$=[]OrderKey{$1} } | order_keys ',' order_key { $$=append($1,$3) } ;
+order_key: scalar_projection direction nulls { $$=OrderKey{Expr:$1,Pos:$1.SourcePosition(),Desc:$2,Nulls:$3} } ;
+nulls: /* empty */ { $$=NullsDefault } | nulls_keyword nulls_position { if $2.text=="first" {$$=NullsFirst} else {$$=NullsLast} } ;
 nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;

@@ -30,6 +30,14 @@ state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
 persists definitions, not their result rows. See [views](docs/SQL.md#views).
 Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.
 
+SELECT, shared INSERT SELECT and decorated VALUES support expression ORDER BY,
+output labels/ordinals, multiple keys and per-key ASC/DESC/NULLS FIRST/LAST.
+Referenced output values are evaluated once before sort and reused; unrelated
+outputs retain after-sort evaluation. Unordered queries and complete sort peers
+have no portable relative order. LIMIT/OFFSET and general COLLATE remain excluded.
+See [ordering semantics](docs/QUERIES.md#expression-ordering--change-note-changelog).
+Public feature smoke: `make smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
+
 The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling
 is preserved, textual input clips at a63-byte UTF8 boundary, and comparisons use
 C byte order. NAME has distinct metadata from TEXT and round-trips through

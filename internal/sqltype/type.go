@@ -190,7 +190,25 @@ func String(d *Descriptor, s string) Value {
 	if d == nil || (!IsCharacter(d.id) && d.id != Name && d.id != Regclass && d.id != Char) {
 		panic("invalid string descriptor")
 	}
-	return Value{typ: d, text: s}
+	v := Value{typ: d, text: s}
+	if d.id == Regclass && len(s) != 0 && (len(s) == 1 || s[0] != '0') {
+		// Keep unresolved regclass input text intact. Canonical identities also
+		// carry an inline unsigned payload, validated once rather than per
+		// sort comparison; integer marks that payload as valid (OID zero too).
+		canonical := true
+		for i := range len(s) {
+			if s[i] < '0' || s[i] > '9' {
+				canonical = false
+				break
+			}
+		}
+		if canonical {
+			if oid, err := strconv.ParseUint(s, 10, 32); err == nil {
+				v.oid, v.integer = uint32(oid), 1
+			}
+		}
+	}
+	return v
 }
 func (v Value) Integer() (int64, error) {
 	if v.null || v.typ == nil || (v.typ.id != Int2 && v.typ.id != Int4 && v.typ.id != Int8) {
@@ -754,6 +772,23 @@ func (p CoercionPlan) Apply(ctx context.Context, v Value) (Value, error) {
 
 type Comparison struct{ left, right *Descriptor }
 
+// BindOrdering validates the actual builtin provider and bounded C collation
+// before any rows are read, including empty and all-NULL inputs.
+func BindOrdering(u Usage) (Comparison, error) {
+	if !u.Type.Concrete() {
+		return Comparison{}, fmt.Errorf("invalid ordering usage")
+	}
+	switch u.Type.id {
+	case Bool, Bytea, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Numeric, UUID, Regclass:
+	default:
+		return Comparison{}, fmt.Errorf("invalid ordering type")
+	}
+	if u.Collation != u.Type.Usage().Collation {
+		return Comparison{}, fmt.Errorf("invalid ordering collation")
+	}
+	return BindComparison(u.Type, u.Type)
+}
+
 func BindComparison(left, right *Descriptor) (Comparison, error) {
 	p := Comparison{left, right}
 	if !left.Concrete() || !right.Concrete() {
@@ -826,6 +861,16 @@ func (p Comparison) Compare(ctx context.Context, a, b Value) (int, error) {
 		return compareNumeric(a, b), nil
 	}
 	switch p.left.id {
+	case Regclass:
+		if a.integer != 1 || b.integer != 1 {
+			return 0, fmt.Errorf("invalid regclass comparison value")
+		}
+		if a.oid < b.oid {
+			return -1, nil
+		}
+		if a.oid > b.oid {
+			return 1, nil
+		}
 	case Oid:
 		if a.oid < b.oid {
 			return -1, nil

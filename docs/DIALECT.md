@@ -6,7 +6,7 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
-CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and one unqualified named ORDER BY key ASC/DESC. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. ASC NULLS LAST/DESC NULLS FIRST remain.
+CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITHOUT TIME ZONE], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Timestamp input uses fixed MDY/ISO civil semantics, validated ignored zones, BC/infinity, two-stage precision rounding and transaction-owned UTC now-like inputs; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import original civil fields, not UTC-converted instants. Timestamp-with-zone/DateStyle/TimeZone settings remain excluded. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
 
 FROM supports comma products, CROSS JOIN, JOIN/INNER JOIN ON or USING, and
 NATURAL [INNER] JOIN, chains and parentheses. Table/whole-join aliases with or
@@ -17,8 +17,8 @@ duplicate multiplicities and NULL nonmatch follow PostgreSQL18.0. Merged common
 types may retain either physical origin or a synthetic conversion origin.
 Every source is authorized and captures one coherent selected statement view.
 Prepared execution rebinds all sources; eager results survive native Reset/Restore.
-Outer/LATERAL/derived/CTE/function FROM and expanded ORDER syntax remain
-excluded. See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
+Outer/LATERAL/derived/CTE/function FROM remain excluded.
+See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
 Feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`;
 independent pinned reference: `make reference RUN='^TestReferenceQueryJoins' VERBOSE=0`.
 
@@ -66,7 +66,7 @@ atomicity; public Next performs no aggregate work. See [grouping](QUERIES.md#gro
 
 Grouping does not admit standalone SELECT without FROM, count(expr), count(),
 other aggregates, FILTER/DISTINCT/in-call ORDER/OVER, DISTINCT/ALL grouping,
-grouping sets/ROLLUP/CUBE/empty grouping sets or expanded ORDER syntax.
+grouping sets/ROLLUP/CUBE/empty grouping sets.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
@@ -83,13 +83,13 @@ a row-dependent CASE/COALESCE, while decisive constant branches prune their
 unneeded runtime expressions. This is not general Boolean short-circuiting.
 Common-type and equality-overload resolution execute across the already-supported
 scalar types, including implicit DATE→TIMESTAMP; this does not add general casts,
-ordinary routines, arrays/VARIADIC, ORDER expressions or ordinary
-relationless SELECT. See [conditional expressions](QUERIES.md#conditional-expressions).
+ordinary routines, arrays/VARIADIC or ordinary relationless SELECT.
+See [conditional expressions](QUERIES.md#conditional-expressions).
 Feature witnesses: `make smoke RUN='^TestConditionalSmoke$' VERBOSE=0` and
 `make reference RUN='^TestReferenceConditional' VERBOSE=0`.
 
 INSERT additionally accepts SELECT sources with the existing projection/filter/
-one-column sort surface, parenthesized sources and INSERT-only no-FROM literal/
+expression-ordering surface, parenthesized sources and INSERT-only no-FROM literal/
 parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;
 `SELECT FROM source` retains table occurrence/filter semantics. These do not
 expand standalone SELECT or standalone VALUES. Explicit targets match source
@@ -107,15 +107,15 @@ three-value row as ordinary SELECT. Cast preflight visits sequence arguments
 without evaluating the sequence call. Prepare consumes no sequence values.
 
 Plain or parenthesized undecorated VALUES remains destination-context input.
-VALUES with one ORDER BY output ordinal, implicit `columnN` name or unary-plus
-numeric constant uses the common query source, column-wise common typing and
+VALUES with ORDER BY expressions, generated `columnN` names, ordinals and
+per-key direction/NULL placement uses column-wise common typing and
 implicit coercion before destination assignment. Only unsigned integer tokens
 within int32 are output positions (also after unary minus); larger tokens,
 fractions/exponents, strings, BOOL and NULL are non-integer raw constants.
 Thus `-2147483648` is not an ordinal despite its signed value fitting int32.
 Unary-plus numbers such as `+2`, `+1.5` and `+2147483648` are validated constant
 expressions, never ordinals; every source occurrence has the same key and no
-peer order is promised. General ORDER expressions remain excluded.
+peer order is promised.
 Raw parsing retains these constants and consumes the entire script. Target
 relation/column analysis and VALUES width/common typing precede ORDER diagnostics;
 a later raw syntax error wins before any analysis or prefix effects.
@@ -429,7 +429,7 @@ expression syntax remain excluded. Feature smoke:
 `make smoke RUN='^TestLogicalSmoke$' VERBOSE=1`; pinned independent reference:
 `make reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
 PostgreSQL parses `SELECT TRUE AND FROM t` / `SELECT TRUE OR FROM t` as TRUE
-targets with bare aliases and/or. Native bare projection labels remain excluded and these
+targets with bare aliases and/or. Native bare-label parsing of these
 keywords continue logical expressions; native42601 points to FROM at17/16.
 Independent reference coverage asserts PostgreSQL's positive BOOL outputs and
 native failures separately, without normalizing this capability boundary.
@@ -461,7 +461,7 @@ Explicit VARIADIC scalar operands fail42804 at the operand, including unknown
 strings/NULL; multiple ordinary/VARIADIC operands fail42883 lookup first.
 Arrays are not admitted: PostgreSQL NULL-array/empty-array semantics are not
 native support, and ordinary NULL is a single null argument. Calls remain excluded
-from INSERT, WHERE and setting arguments. General calls and function qualification,
+from INSERT, WHERE and setting arguments. General calls, function qualification,
 casts outside the bounded baseline and character-family sets, arithmetic,
 DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
 remain exclusions rather than PostgreSQL diagnostic-parity claims.

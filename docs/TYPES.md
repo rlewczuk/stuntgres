@@ -511,6 +511,12 @@ literal next to BPCHAR follows BPCHAR semantics. Ordering uses the same nonnull
 providers, with UTF8/C byte ordering only: no locale-general, ICU, collation or
 general string-function claims.
 
+Expression ORDER BY validates the bounded provider/collation before reading rows.
+REGCLASS's internal canonical OID text compares as unsigned32 numeric identity,
+not lexical spelling or all-equal fallback. Every currently supported concrete
+SQL type has a PostgreSQL ordering provider; no public unsortable-type diagnostic
+is claimed. UNKNOWN/nil/internal invalid usages are invariant failures.
+
 Native ColumnTypes reports BPCHAR/VARCHAR/TEXT, string ScanType, constrained
 Length n and unlimited Length MaxInt64, including empty/NULL results and after
 EOF/Close/Reset/Restore. DecimalSize is unavailable. Independently, lib/pq

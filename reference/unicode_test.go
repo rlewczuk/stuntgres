@@ -209,8 +209,7 @@ func TestReferenceUnicodeEscapesComposition(t *testing.T) {
 			})
 		}
 	}
-	// PostgreSQL's valid NULL ordering and the native capability boundary
-	// are independent outcomes, not normalized into fictitious parity.
+	// Unicode-decoded keys use the same explicit NULL ordering on both backends.
 	for _, tc := range []struct {
 		query, position string
 		rows            [][]any
@@ -219,18 +218,9 @@ func TestReferenceUnicodeEscapesComposition(t *testing.T) {
 		{`SELECT x FROM t ORDER BY U&"\0078" DESC NULLS LAST`, "41", [][]any{{"z"}, {"a"}, {nil}}},
 	} {
 		for _, prepared := range []bool{false, true} {
-			native := referenceErrorDiagnostic(tc.query, referenceDiagnostic{
-				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000",
-				Message: "NULLS ordering is unsupported", Position: tc.position,
-			})
-			native.prepared, native.selectRows, native.errorStage = prepared, true, "execute"
-			if prepared {
-				native.errorStage = "prepare"
-			}
-			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-			pg := referenceSelect(tc.query, []string{"x"}, []string{"TEXT"}, tc.rows)
-			pg.prepared = prepared
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
+			step := referenceSelect(tc.query, []string{"x"}, []string{"TEXT"}, tc.rows)
+			step.prepared = prepared
+			p.step(t, step)
 			p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"TEXT"}, [][]any{{"a"}, {"z"}, {nil}}))
 		}
 	}

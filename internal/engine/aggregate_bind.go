@@ -17,6 +17,12 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	}
 	same := b.sameGroupExpression
 	switch e := a.(type) {
+	case aggregateExpression:
+		o, ok := other.(aggregateExpression)
+		return ok && e.slot == o.slot
+	case groupExpression:
+		o, ok := other.(groupExpression)
+		return ok && e.slot == o.slot
 	case literalExpression:
 		o, ok := other.(literalExpression)
 		if !ok {

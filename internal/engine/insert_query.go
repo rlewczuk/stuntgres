@@ -165,44 +165,22 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery,
 		projection[j] = columnExpression{expressionInfo: b.info(common, parser.Position{Offset: -1}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: j}
 	}
 	var root LogicalNode = &valuesNode{querySchema: schema, rows: nodes}
-	if order := source.Order; order != nil {
-		slot := -1
-		if constant := order.Constant; constant != nil {
-			if constant.Sign == "+" {
-				// Numeric unary plus is identity, but its operand must undergo
-				// ordinary type input. A validated constant key makes all rows
-				// peers, so no sort or hidden row-dependent key is needed.
-				if _, err := b.bind(constant.NumericLiteral(), expressionPolicy{context: projectionContext}); err != nil {
-					return nil, err
-				}
-			} else {
-				ordinal, ok := constant.Ordinal()
-				if !ok {
-					return nil, expressionError("42601", "non-integer constant in ORDER BY", order.Pos)
-				}
-				if ordinal < 1 || ordinal > int64(width) {
-					return nil, expressionError("42P10", fmt.Sprintf("ORDER BY position %d is not in select list", ordinal), order.Pos)
-				}
-				slot = int(ordinal) - 1
-			}
-		} else {
-			for i, c := range schema {
-				if c.Name == order.Column {
-					slot = i
-					break
-				}
-			}
-			if slot < 0 {
-				return nil, valuesOrderColumnError(schema, order)
-			}
-		}
-		if slot >= 0 {
-			cmp, err := sqltype.BindComparison(schema[slot].Usage.Type, schema[slot].Usage.Type)
-			if err != nil {
-				return nil, err
-			}
-			root = &sortNode{querySchema: schema, child: root, slot: slot, comparison: cmp, desc: order.Desc}
-		}
+	namespace := queryNamespace{frame: schema, values: true}
+	names := make([]string, width)
+	for i, column := range schema {
+		names[i] = column.Name
+		namespace.columns = append(namespace.columns, queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1})
+	}
+	oldNamespace := b.queryNamespace
+	b.queryNamespace = &namespace
+	defer func() { b.queryNamespace = oldNamespace }()
+	order, err := b.bindOrder(source.Order, projection, names)
+	if err != nil {
+		return nil, err
+	}
+	root, err = b.finishOrder(root, order, projection)
+	if err != nil {
+		return nil, err
 	}
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
@@ -213,13 +191,13 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery,
 // VALUES exposes generated ASCII column names in one synthetic namespace.
 // Match PostgreSQL's bounded, case-sensitive character-distance suggestions
 // without changing ordinary relation/projection name resolution.
-func valuesOrderColumnError(schema []ColumnDescriptor, order *parser.Order) error {
-	d := expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, order.Column), order.Pos).(*sqlstate.Error)
+func valuesOrderColumnError(schema []ColumnDescriptor, name string, pos parser.Position) error {
+	d := expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, name), pos).(*sqlstate.Error)
 	if len(schema) == 0 {
 		return d
 	}
-	best := min(3, len(order.Column)/2)
-	characters := utf8.RuneCountInString(order.Column)
+	best := min(3, len(name)/2)
+	characters := utf8.RuneCountInString(name)
 	longest, shortest := 0, len(schema[0].Name)
 	for _, column := range schema {
 		longest = max(longest, len(column.Name))
@@ -232,7 +210,7 @@ func valuesOrderColumnError(schema []ColumnDescriptor, order *parser.Order) erro
 	scratch := make([]int, characters+2*(longest+1))
 	key := scratch[:characters]
 	i := 0
-	for _, r := range order.Column {
+	for _, r := range name {
 		key[i] = int(r)
 		i++
 	}

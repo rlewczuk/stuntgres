@@ -186,9 +186,10 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		return err
 	}
 	if v.syntax.Order != nil {
-		raw := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: v.syntax.Order.Column}}}}
-		if err := validate(raw, viewOrderLiteral, 0); err != nil {
-			return err
+		for i, key := range v.syntax.Order.Keys {
+			if err := validate(key.Expr, viewOrderLiteral, i); err != nil {
+				return err
+			}
 		}
 	}
 	join := 0
@@ -250,7 +251,11 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			(*count)++
 			return nil
 		}
-		if integer, ok := raw.(parser.LiteralExpr); ok && path.clause == viewGroupLiteral && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
+		if integer, ok := raw.(parser.LiteralExpr); ok && (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral) && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
+			if path.clause == viewOrderLiteral {
+				_, _, err := orderOrdinal(raw, len(v.query.Root.Schema()))
+				return err
+			}
 			_, _, err := groupOrdinal(raw, len(v.query.Root.Schema()))
 			return err
 		}

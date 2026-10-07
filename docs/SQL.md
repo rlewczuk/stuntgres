@@ -407,13 +407,12 @@ authority, coherent multi-literal groups and native temp-only replacement.
 ## Unsupported surface
 
 Database-qualified relation names, temporary tables (TEMP sequences are supported),
-bare SELECT projection labels, outer/LATERAL joins, derived/subquery/CTE/function
-FROM, generic expressions/functions, casts outside the bounded
-baseline/character-family/selected regclass sets, constraints beyond
-nullability/defaults, serial/identity, ALTER DEFAULT, primary keys, UPDATE
-FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING, multiple sort
-keys, two-phase commit, transactional table/schema/view DDL or non-sequence
-COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL
-mutation, or catalog columns beyond the bounded view providers are not supported.
-Declared DEFAULT expressions remain bounded and reject sequence calls, including
-calls with constant NULL arguments.
+outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
+casts outside the bounded baseline/character-family/selected regclass sets,
+constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary
+keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING,
+LIMIT/OFFSET, general COLLATE, two-phase commit, transactional table/schema/view
+DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe
+snapshots, SQL ACL mutation, or catalog columns beyond the bounded view providers
+are not supported. Declared DEFAULT expressions remain bounded and reject sequence
+calls, including calls with constant NULL arguments.

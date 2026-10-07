@@ -46,12 +46,17 @@ type filterNode struct {
 	child     LogicalNode
 	predicate BoundExpr
 }
+type sortKey struct {
+	expression       BoundExpr
+	comparison       sqltype.Comparison
+	slot, cache      int
+	desc, nullsFirst bool
+}
 type sortNode struct {
 	querySchema
 	child      LogicalNode
-	slot       int
-	comparison sqltype.Comparison
-	desc       bool
+	keys       []sortKey
+	cacheWidth int
 }
 type projectNode struct {
 	querySchema
@@ -139,13 +144,29 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			return &copy, nil
 		}
 	case *sortNode:
+		var keys []sortKey
+		for i, key := range n.keys {
+			folded, changed, err := preflightCoercions(c, key.expression)
+			if err != nil {
+				return nil, err
+			}
+			if changed {
+				if keys == nil {
+					keys = append([]sortKey(nil), n.keys...)
+				}
+				keys[i].expression = folded
+			}
+		}
 		child, err := preflightQuery(c, n.child)
 		if err != nil {
 			return nil, err
 		}
-		if child != n.child {
+		if child != n.child || keys != nil {
 			copy := *n
 			copy.child = child
+			if keys != nil {
+				copy.keys = keys
+			}
 			return &copy, nil
 		}
 	case *projectNode:
@@ -323,6 +344,9 @@ type queryState struct {
 type indexedStage struct {
 	source      *querySource
 	selection   []int
+	permutation []int
+	orderValues []sqltype.Value
+	cacheWidth  int
 	schema      []ColumnDescriptor
 	expressions []BoundExpr
 	evaluation  EvalContext
@@ -338,6 +362,9 @@ func (s indexedStage) count() int {
 	return s.source.count()
 }
 func (s indexedStage) index(i int) int {
+	if s.permutation != nil {
+		i = s.permutation[i]
+	}
 	if s.selection != nil {
 		return s.selection[i]
 	}
@@ -367,6 +394,10 @@ func (s *indexedStage) Next(ctx context.Context, dst []sqltype.Value) (bool, err
 		copy(dst, row)
 	} else {
 		s.evaluation.Context, s.evaluation.Row = ctx, row
+		if s.cacheWidth != 0 {
+			occurrence := s.permutation[s.position]
+			s.evaluation.orderValues = s.orderValues[occurrence*s.cacheWidth : (occurrence+1)*s.cacheWidth]
+		}
 		for i, expr := range s.expressions {
 			value, err := expr.Eval(&s.evaluation)
 			if err != nil {
@@ -386,6 +417,8 @@ func (s *indexedStage) release() {
 	s.source = nil
 	s.selection = nil
 	s.expressions = nil
+	s.permutation = nil
+	s.orderValues = nil
 	s.evaluation = EvalContext{}
 }
 func (s *indexedStage) Close() error {
@@ -494,30 +527,75 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 				child.selection[i] = i
 			}
 		}
-		err = mergeQueryIndices(ctx, child.selection, func(a, b int) (int, error) {
+		if n.cacheWidth != 0 {
+			child.cacheWidth = n.cacheWidth
+			child.orderValues = make([]sqltype.Value, child.count()*n.cacheWidth)
+			child.permutation = make([]int, child.count())
+			evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, sequenceScope: state.source.scope}
+			for i := range child.count() {
+				child.permutation[i] = i
+				evaluation.Row = child.source.row(child.selection[i])
+				for _, key := range n.keys {
+					if err := ctx.Err(); err != nil {
+						return indexedStage{}, err
+					}
+					if key.cache < 0 || child.orderValues[i*n.cacheWidth+key.cache].Type() != nil {
+						continue
+					}
+					value, err := key.expression.Eval(&evaluation)
+					if err != nil {
+						return indexedStage{}, err
+					}
+					if value.Type() != key.expression.ResultUsage().Type {
+						return indexedStage{}, fmt.Errorf("stuntgres: invalid ordering value")
+					}
+					child.orderValues[i*n.cacheWidth+key.cache] = value
+					if err := ctx.Err(); err != nil {
+						return indexedStage{}, err
+					}
+				}
+			}
+		}
+		indices := child.selection
+		if child.permutation != nil {
+			indices = child.permutation
+		}
+		err = mergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
 			if err := ctx.Err(); err != nil {
 				return 0, err
 			}
-			left := child.source.row(a)[n.slot]
-			right := child.source.row(b)[n.slot]
-			comparison := 0
-			if left.IsNull() {
-				if !right.IsNull() {
-					comparison = 1
+			leftIndex, rightIndex := a, b
+			if child.permutation != nil {
+				leftIndex, rightIndex = child.selection[a], child.selection[b]
+			}
+			for _, key := range n.keys {
+				var left, right sqltype.Value
+				if key.cache >= 0 {
+					left, right = child.orderValues[a*n.cacheWidth+key.cache], child.orderValues[b*n.cacheWidth+key.cache]
+				} else {
+					left, right = child.source.row(leftIndex)[key.slot], child.source.row(rightIndex)[key.slot]
 				}
-			} else if right.IsNull() {
-				comparison = -1
-			} else {
-				var err error
-				comparison, err = n.comparison.Compare(ctx, left, right)
+				if left.IsNull() && right.IsNull() {
+					continue
+				}
+				if left.IsNull() || right.IsNull() {
+					if left.IsNull() == key.nullsFirst {
+						return -1, nil
+					}
+					return 1, nil
+				}
+				sign, err := key.comparison.Compare(ctx, left, right)
 				if err != nil {
 					return 0, err
 				}
+				if sign != 0 {
+					if key.desc {
+						sign = -sign
+					}
+					return sign, nil
+				}
 			}
-			if n.desc {
-				comparison = -comparison
-			}
-			return comparison, ctx.Err()
+			return 0, ctx.Err()
 		})
 		return child, err
 	case *projectNode:
@@ -750,6 +828,12 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		}
 	}
 	selection := stage.selection
+	if direct && stage.permutation != nil {
+		selection = make([]int, r.count)
+		for i := range selection {
+			selection[i] = stage.index(i)
+		}
+	}
 	stageSource := stage.source
 	if err := stage.Close(); err != nil {
 		return nil, 0, err
