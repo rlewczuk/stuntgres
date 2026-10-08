@@ -396,10 +396,14 @@ actions remain excluded engine capabilities, not external-only mechanisms.
 Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
 DROP COLUMN compose atomic comma-separated lists in implicit and explicit
 transactions. PostgreSQL pass order is DROP, TYPE, original SET, transformed
-ADD; validation follows all actions in final physical column order. TYPE binds
-USING against the statement-original descriptor and evaluates original tuples,
-including dropped source columns. Defaults are independently coerced; dependent
-views block even same-type changes. Fresh grant-time live scans include own
+ADD. All TYPE expressions run in action order against each statement-original
+tuple, including dropped source columns. Dependent CHECK definitions are
+reparsed against the completed TYPE descriptor before row conversion. Each
+completed row passes final NOT NULL checks in physical-column order, then
+affected CHECKs in TYPE discovery/declaration order, before the next row is
+converted. Multicolumn CHECKs enter that queue once, not once per changed
+column. Defaults are independently coerced; dependent views block even same-type
+changes. Fresh grant-time live scans include own
 writes/deletions even in RR, and ignore invalid dead predecessors. Ordinary RR
 queries retain their snapshot; the TYPE owner's private queries instead see its
 captured live rewrite. Savepoints restore descriptors, storage and own DML
@@ -572,8 +576,8 @@ TRUE or NULL passes; FALSE rejects with `23514`, the table/constraint identity
 and PostgreSQL English failing-row Detail. CHECK does not declare NOT NULL:
 `CHECK (a IS NOT NULL)` still leaves Nullable metadata true.
 
-NOT NULL runs first, then CHECKs in alphabetical constraint-name order.
-All INSERT routes and UPDATE enforce after defaults/coercions and completed
+For INSERT/UPDATE, NOT NULL runs first, then CHECKs in alphabetical constraint-name
+order. All INSERT routes and UPDATE enforce after defaults/coercions and completed
 simultaneous assignments, before publishing any row write. Failed multirow
 statements retain original rows and consume the existing transaction abort/
 savepoint policy. Supported volatile scalar effects are evaluated once when
@@ -598,6 +602,22 @@ explicit transaction, successful removal and column compaction affect only the
 private descriptor/row roots until Commit; Rollback and savepoints restore
 CHECK enforcement together with the original layout and DML. Peer operations
 retain the existing ACCESS EXCLUSIVE wait rules.
+
+ALTER COLUMN TYPE reparses each surviving affected original CHECK definition
+against the final destination usages and dense layout. Incompatible operators
+fail even on empty/all-NULL tables; an incompatible stored default fails first.
+Identity TYPE and same-type USING still revalidate their affected constraints.
+TYPE's queue follows TYPE action order and retained CHECK declaration order,
+deduplicating multicolumn dependencies, without changing ordinary DML's
+alphabetical order. Each final transformed row passes NOT NULL then this CHECK
+queue before conversion begins on the next row. FALSE returns `23514`,
+`check constraint "NAME" of relation "TABLE" is violated by some row`, with
+Schema/Table/Constraint but no failing-row Detail; evaluator errors retain
+their own diagnostic. Reparse errors have no synthetic SELECT source Position.
+Original CHECK expressions, data and metadata survive failed TYPE; successful
+TYPE publishes rebound expressions/manifests with converted values atomically.
+Transactions/savepoints and native Dump/Restore retain that final checked
+definition, NO INHERIT and future DML enforcement, never TYPE history.
 
 Persistent CHECK creation holds each referenced relation with ACCESS SHARE
 through its single catalog publication; sequence DROP takes ACCESS EXCLUSIVE

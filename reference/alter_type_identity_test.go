@@ -14,7 +14,7 @@ func TestReferenceAlterTypeACLAndOwnedSequenceIdentity(t *testing.T) {
 	defer c.Close()
 	defer c.ExecContext(p.ctx, "RESET ROLE")
 	run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, p.postgresRecord, s) }
-	for _, q := range []string{"CREATE USER alter_acl_reader", "CREATE USER alter_acl_outsider", "CREATE TABLE t(c INT)", "CREATE SEQUENCE q START 10 CACHE 7 OWNED BY t.c", "GRANT SELECT ON t TO alter_acl_reader", "GRANT UPDATE(c) ON t TO alter_acl_reader"} {
+	for _, q := range []string{"CREATE USER alter_acl_reader", "CREATE USER alter_acl_outsider", "GRANT USAGE ON SCHEMA public TO alter_acl_reader", "GRANT USAGE ON SCHEMA public TO alter_acl_outsider", "CREATE TABLE t(c INT)", "CREATE SEQUENCE q START 10 CACHE 7 OWNED BY t.c", "GRANT SELECT ON t TO alter_acl_reader", "GRANT UPDATE(c) ON t TO alter_acl_reader"} {
 		run(referenceExec(q, 0))
 	}
 	run(referenceExec("INSERT INTO t VALUES(7)", 1))

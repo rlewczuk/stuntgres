@@ -45,6 +45,10 @@ func TestReferenceAlterTypeViewIdentityCollationAndCascade(t *testing.T) {
 	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
 		t.Run(b.name, func(t *testing.T) {
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+			run(referenceExec("DROP SCHEMA IF EXISTS s CASCADE", 0))
+			t.Cleanup(func() {
+				referenceRunStep(t, p.ctx, b.db, b.record, referenceExec("DROP SCHEMA IF EXISTS s CASCADE", 0))
+			})
 			run(referenceExec("CREATE SCHEMA s", 0))
 			run(referenceExec("CREATE TABLE t(c VARCHAR(5),discard INT,keep INT)", 0))
 			run(referenceExec("INSERT INTO t VALUES('seven',1,9)", 1))

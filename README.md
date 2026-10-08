@@ -187,8 +187,11 @@ Change note: `ALTER TABLE target ALTER [COLUMN] c [SET DATA] TYPE type
 [COLLATE name] [USING expression]` joins those atomic action lists. Assignment
 conversion and USING evaluate current live rows atomically; every USING reads
 the original tuple, including columns dropped in the same command. Defaults
-are independently coerced, existing NOT NULL is rechecked, and dependent views
-block the change. Column COLLATE supports only real pg_catalog default/C/POSIX
+are independently coerced; dependent CHECKs are reparsed from their original
+definitions against the final types. Each completed transformed row passes
+NOT NULL and affected CHECK validation before the next row is converted, with
+no partial publication on failure. Dependent views block the change.
+Column COLLATE supports only real pg_catalog default/C/POSIX
 identities under UTF8/C byte ordering; native Dump/Restore retains them.
 Fresh results expose the new type/typmod; held prepared results reject changed
 type/typmod/collation while eager rows retain their original metadata and values.

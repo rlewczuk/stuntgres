@@ -9,7 +9,6 @@ func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
 		name, create, seed, dependency, alter string
 		want                                  referenceDiagnostic
 	}{
-		{"check", "CREATE TABLE t(c INT CONSTRAINT ck CHECK(c>0))", "INSERT INTO t VALUES(1)", "", "ALTER TABLE t ALTER c TYPE INT USING -c", referenceDiagnostic{Code: "23514", Message: `check constraint "ck" of relation "t" is violated by some row`, Schema: "public", Table: "t", Constraint: "ck"}},
 		{"unique", "CREATE TABLE t(c INT UNIQUE)", "INSERT INTO t VALUES(1),(2)", "", "ALTER TABLE t ALTER c TYPE INT USING 0", referenceDiagnostic{Code: "23505", Message: `could not create unique index "t_c_key"`, Detail: "Key (c)=(0) is duplicated.", Schema: "public", Table: "t", Constraint: "t_c_key"}},
 		{"expression-index", "CREATE TABLE t(c INT)", "INSERT INTO t VALUES(1)", "CREATE INDEX ix ON t((c+1))", "ALTER TABLE t ALTER c TYPE TEXT USING c::text", referenceDiagnostic{Code: "42883", Message: "operator does not exist: text + integer", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: "46"}},
 	} {
@@ -28,10 +27,8 @@ func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
 				}
 				var dependencyID int64
 				identityQuery := "SELECT oid::bigint FROM pg_constraint WHERE conrelid='t'::regclass AND conname=$1"
-				name := "ck"
-				if tc.name == "unique" {
-					name = "t_c_key"
-				} else if tc.name == "expression-index" {
+				name := "t_c_key"
+				if tc.name == "expression-index" {
 					name = "ix"
 					identityQuery = "SELECT oid::bigint FROM pg_class WHERE oid=$1::regclass"
 				}
@@ -68,13 +65,6 @@ func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
 					rows = append(rows, []any{int64(2)})
 				}
 				run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"INT4"}, rows))
-				if tc.name == "check" {
-					run(referenceSelect("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='t'::regclass AND conname='ck'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"CHECK ((c > 0))"}}))
-					run(referenceExec("INSERT INTO t VALUES(2)", 1))
-					failure := referenceImplicitError("INSERT INTO t VALUES(-1)", referenceDiagnostic{Code: "23514", Message: `new row for relation "t" violates check constraint "ck"`, Detail: "Failing row contains (-1).", Schema: "public", Table: "t", Constraint: "ck"})
-					failure.errorStage = "execute"
-					run(failure)
-				}
 				if tc.name == "unique" {
 					run(referenceSelect("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='t'::regclass AND conname='t_c_key'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"UNIQUE (c)"}}))
 					run(referenceSelect("SELECT pg_get_indexdef('t_c_key'::regclass)", []string{"pg_get_indexdef"}, []string{"TEXT"}, [][]any{{"CREATE UNIQUE INDEX t_c_key ON public.t USING btree (c)"}}))
@@ -95,10 +85,7 @@ func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
 					failure.errorStage = "execute"
 					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
 				} else {
-					position := "36"
-					if tc.name == "unique" {
-						position = "22"
-					}
+					position := "22"
 					failure := referenceImplicitError(tc.create, referenceDiagnostic{Code: "0A000", Message: "column constraints are unsupported", Position: position})
 					failure.errorStage = "execute"
 					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)

@@ -152,7 +152,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDescriptor, store *relationStorage, frontier CommitSeq, transforms []columnTransformation) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
+func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDescriptor, store *relationStorage, frontier CommitSeq, transforms []columnTransformation, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
 	if store.generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
@@ -176,9 +176,12 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 		}
 	}
 	writes, deletes := scope.ownWrites[old.address], scope.ownDeletes[old.address]
-	replaced := make(map[RowID]bool)
+	var replaced map[RowID]bool
 	for _, row := range writes {
 		if row.base != 0 {
+			if replaced == nil {
+				replaced = make(map[RowID]bool)
+			}
 			replaced[row.row] = true
 		}
 	}
@@ -205,6 +208,9 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 					return nil, err
 				}
 				values[destinations[i]] = v
+			}
+			if err := validator.validate(values, &evaluation); err != nil {
+				return nil, err
 			}
 			row.values = values
 			if !committed {

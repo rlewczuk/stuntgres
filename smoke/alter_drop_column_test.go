@@ -49,10 +49,12 @@ func alterDropSmokeRows(t *testing.T, rows *sql.Rows, names, types []string, wan
 	for i, c := range metadata {
 		scan := reflect.TypeFor[int64]()
 		switch types[i] {
-		case "TEXT":
+		case "TEXT", "VARCHAR", "NUMERIC":
 			scan = reflect.TypeFor[string]()
 		case "BOOL":
 			scan = reflect.TypeFor[bool]()
+		case "FLOAT8":
+			scan = reflect.TypeFor[float64]()
 		}
 		if c.DatabaseTypeName() != types[i] || c.ScanType() != scan {
 			t.Fatal(c)

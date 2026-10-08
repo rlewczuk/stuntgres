@@ -128,25 +128,74 @@ func TestAlterTypeSmoke(t *testing.T) {
 			alterDropSmokeRows(t, rows, tc.names, tc.types, tc.values)
 		}
 	}
+	alterDropSmokeExec(t, db, "CREATE TABLE checked(c INT CONSTRAINT ck CHECK(c>0))")
+	alterDropSmokeExec(t, db, "INSERT INTO checked VALUES(1),(2),(NULL)")
+	alterDropSmokeExec(t, db, "ALTER TABLE checked ALTER c TYPE BIGINT")
+	for _, prepared := range []bool{false, true} {
+		for _, tc := range []struct {
+			action string
+			want   stuntgres.Error
+		}{
+			{"TYPE BIGINT USING -c", stuntgres.Error{Code: "23514", Message: `check constraint "ck" of relation "checked" is violated by some row`, Schema: "public", Table: "checked", Constraint: "ck"}},
+			{"TYPE TEXT USING c::text", stuntgres.Error{Code: "42883", Message: "operator does not exist: text > integer", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}},
+		} {
+			q := "ALTER TABLE checked ALTER c " + tc.action
+			if prepared {
+				stmt, e := db.Prepare(q)
+				if e != nil {
+					t.Fatal(e)
+				}
+				_, err = stmt.Exec()
+				stmt.Close()
+			} else {
+				_, err = db.Exec(q)
+			}
+			tc.want.Severity, tc.want.SeverityUnlocalized = "ERROR", "ERROR"
+			var diagnostic *stuntgres.Error
+			if !errors.As(err, &diagnostic) || *diagnostic != tc.want {
+				t.Fatal(diagnostic, err, tc.want)
+			}
+			rows, err = db.Query("SELECT c FROM checked ORDER BY c")
+			if err != nil {
+				t.Fatal(err)
+			}
+			alterDropSmokeRows(t, rows, []string{"c"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(2)}, {nil}})
+		}
+	}
+	alterDropSmokeExec(t, db, "INSERT INTO checked VALUES(3)")
+	_, err = db.Exec("INSERT INTO checked VALUES(-1)")
+	var checkDiagnostic *stuntgres.Error
+	checkWant := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: `new row for relation "checked" violates check constraint "ck"`, Detail: "Failing row contains (-1).", Schema: "public", Table: "checked", Constraint: "ck"}
+	if !errors.As(err, &checkDiagnostic) || *checkDiagnostic != checkWant {
+		t.Fatal(checkDiagnostic, err, checkWant)
+	}
+	alterDropSmokeExec(t, db, "CREATE TABLE checked_tuple(a INT,b INT,CONSTRAINT ck CHECK(a<b))")
+	alterDropSmokeExec(t, db, "INSERT INTO checked_tuple VALUES(2,7)")
+	alterDropSmokeExec(t, db, "ALTER TABLE checked_tuple ALTER a TYPE BIGINT USING b,ALTER b TYPE BIGINT USING a*10")
+	rows, err = db.Query("SELECT * FROM checked_tuple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alterDropSmokeRows(t, rows, []string{"a", "b"}, []string{"INT8", "INT8"}, [][]any{{int64(7), int64(20)}})
 }
 
 func TestAlterTypeControlsSmoke(t *testing.T) {
 	var notices []stuntgres.Error
 	db := alterDropSmokePool(t, &notices)
 	ctx := context.Background()
-	alterDropSmokeExec(t, db, "CREATE TABLE t(id INT,c VARCHAR(5),n INT DEFAULT 7 CONSTRAINT n_nn NOT NULL)")
+	alterDropSmokeExec(t, db, "CREATE TABLE t(id INT,c VARCHAR(5),n INT DEFAULT 7 CONSTRAINT n_nn NOT NULL CONSTRAINT n_positive CHECK(n>0))")
 	alterDropSmokeExec(t, db, "INSERT INTO t VALUES(1,'a',7),(2,'Z',8)")
 	alterDropSmokeExec(t, db, "COMMENT ON COLUMN t.n IS 'retained'")
 	alterDropSmokeExec(t, db, `ALTER TABLE t ALTER c TYPE VARCHAR(2) COLLATE pg_catalog."POSIX", ALTER n TYPE BIGINT USING n+1`)
 	alterDropSmokeExec(t, db, "INSERT INTO t(id,c) VALUES(3,'b')")
-	alterDropSmokeExec(t, db, "CREATE TABLE numeric_control(c NUMERIC(8,3))")
+	alterDropSmokeExec(t, db, "CREATE TABLE numeric_control(c NUMERIC(8,3) CONSTRAINT ck CHECK(c>0) NO INHERIT)")
 	alterDropSmokeExec(t, db, "INSERT INTO numeric_control VALUES(1.235)")
 	alterDropSmokeExec(t, db, "ALTER TABLE numeric_control ALTER c TYPE NUMERIC(5,2)")
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
 		t.Fatal(err)
 	}
-	for _, literal := range []string{"BIGINT", `COLLATE "pg_catalog"."POSIX"`, "n_nn", "retained"} {
+	for _, literal := range []string{"BIGINT", `COLLATE "pg_catalog"."POSIX"`, "n_nn", "n_positive", "ck", "NO INHERIT", "retained"} {
 		if !strings.Contains(dump.String(), literal) {
 			t.Fatal(literal, dump.String())
 		}
@@ -215,6 +264,12 @@ func TestAlterTypeControlsSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	alterDropSmokeRows(t, numeric, []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}, {"1.24"}})
+	_, err = db.Exec("INSERT INTO numeric_control VALUES(-1)")
+	var numericDiagnostic *stuntgres.Error
+	numericWant := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: `new row for relation "numeric_control" violates check constraint "ck"`, Detail: "Failing row contains (-1.00).", Schema: "public", Table: "numeric_control", Constraint: "ck"}
+	if !errors.As(err, &numericDiagnostic) || *numericDiagnostic != numericWant {
+		t.Fatal(numericDiagnostic, err, numericWant)
+	}
 	rows, err := db.Query("SELECT c,n FROM t ORDER BY id")
 	if err != nil {
 		t.Fatal(err)
@@ -249,5 +304,65 @@ func TestAlterTypeControlsSmoke(t *testing.T) {
 	var final bytes.Buffer
 	if err = stuntgres.Dump(ctx, db, &final); err != nil || !strings.Contains(final.String(), "DEFAULT 9") || strings.Contains(final.String(), "ALTER TABLE") {
 		t.Fatal(err, final.String())
+	}
+}
+
+func TestAlterTypeCheckFloatingSmoke(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		name := "direct"
+		if prepared {
+			name = "prepared"
+		}
+		t.Run(name, func(t *testing.T) {
+			var notices []stuntgres.Error
+			db := alterDropSmokePool(t, &notices)
+			alterDropSmokeExec(t, db, "CREATE TABLE t(c REAL CONSTRAINT ck CHECK(c>'1.0000001' AND c<>NULL))")
+			alterDropSmokeExec(t, db, "INSERT INTO t VALUES(2),(NULL)")
+			action := "ALTER TABLE t ALTER c TYPE DOUBLE PRECISION USING c"
+			if prepared {
+				stmt, err := db.Prepare(action)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := stmt.Exec(); err != nil {
+					stmt.Close()
+					t.Fatal(err)
+				}
+				stmt.Close()
+			} else {
+				alterDropSmokeExec(t, db, action)
+			}
+			reject := func() {
+				_, err := db.Exec("INSERT INTO t VALUES(1.00000011)")
+				want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: `new row for relation "t" violates check constraint "ck"`, Detail: "Failing row contains (1.00000011).", Schema: "public", Table: "t", Constraint: "ck"}
+				var diagnostic *stuntgres.Error
+				if !errors.As(err, &diagnostic) || *diagnostic != want {
+					t.Fatal(diagnostic, err, want)
+				}
+			}
+			reject()
+			var dump bytes.Buffer
+			if err := stuntgres.Dump(t.Context(), db, &dump); err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(dump.String(), "$1") || strings.Contains(dump.String(), "ALTER TABLE") {
+				t.Fatal("private TYPE history leaked", dump.String())
+			}
+			if err := stuntgres.Reset(t.Context(), db); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Restore(t.Context(), db, bytes.NewReader(dump.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			reject()
+			rows, err := db.Query("SELECT c FROM t ORDER BY c")
+			if err != nil {
+				t.Fatal(err)
+			}
+			alterDropSmokeRows(t, rows, []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(2)}, {nil}})
+			if len(notices) != 0 {
+				t.Fatal(notices)
+			}
+		})
 	}
 }

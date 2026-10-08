@@ -7,7 +7,9 @@ Detailed contracts are grouped by topic:
 - [Queries and data manipulation](QUERIES.md): INSERT, DELETE, UPDATE, SELECT, expressions and casts.
 - [Table definitions and comments](TABLES.md): defaults, constraints, renames and column removal.
   CHECK supports complete-row TRUE/NULL acceptance, false-only INSERT/UPDATE
-  rejection, named identity, local NO INHERIT and real native-control persistence.
+  rejection, TYPE dependency reparse/final-row validation, named identity, local
+  NO INHERIT and real native-control persistence. ALTER CHECK violations have
+  a contains-row diagnostic without DML's failing-row Detail.
 - [SQL types and Go values](TYPES.md): codecs, metadata and adapter differences.
 - [Identifiers and literals](LEXICAL.md): names, strings and numeric syntax.
 - [Roles, authorization and schemas](AUTHORIZATION.md): ownership, schema lookup and search path.

@@ -74,6 +74,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	defer func() { e.DiscardCatalogStage(stage) }()
 	next := old
 	var transformations []columnTransformation
+	var pendingChecks []alterTypeCheck
+	var typeChecks []checkConstraint
 	// PostgreSQL runs DROP, TYPE, original SET, ADD NN, then identity ADD/SET.
 	for pass := range 6 {
 		for _, action := range s.Actions {
@@ -107,6 +109,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				return Result{}, err
 			}
 		}
+		if pass == 0 {
+			pendingChecks, err = captureAlterTypeChecks(op, auth.catalog, old, next, s.Actions)
+		} else if pass == 1 {
+			next, typeChecks, err = e.rebindAlterTypeChecks(scope, op, auth, ref, next, pendingChecks)
+		}
+		if err != nil {
+			return Result{}, err
+		}
 	}
 	if len(transformations) == 0 && next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
 		return Result{}, nil
@@ -124,8 +134,17 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	replacement := store
 	projectedWrites := scope.ownWrites[ref.Address]
 	projectedDeletes := scope.ownDeletes[ref.Address]
+	validator := alterRowValidator{relation: next, schema: schema}
+	if len(typeChecks) != 0 {
+		traversal := *next
+		traversal.checkConstraints = typeChecks
+		validator.checks = &traversal
+		e.mu.Lock()
+		e.captureCheckCommentSnapshotLocked(scope, &traversal)
+		e.mu.Unlock()
+	}
 	if rewrite {
-		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, old, next, store, frontier, transformations)
+		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, old, next, store, frontier, transformations, validator)
 		if err != nil {
 			return Result{}, err
 		}
@@ -154,11 +173,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			shape.hasSnapshot = true
 		}
 	}
-	needsScan := rewrite
-	for _, column := range next.columns {
-		if !column.Nullable && old.columns[old.index[column.Name]].Nullable {
-			needsScan = true
-			break
+	needsScan := !rewrite && len(typeChecks) != 0
+	if !rewrite {
+		for _, column := range next.columns {
+			if !column.Nullable && old.columns[old.index[column.Name]].Nullable {
+				needsScan = true
+				break
+			}
 		}
 	}
 	// Ignore committed predecessors replaced by own writes, and all ended rows.
@@ -173,6 +194,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 		}
 	}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, statementScope: scope, Input: scope.input, Output: scope.output}
 	scan := func(rows []rowVersion, committed bool) error {
 		for _, row := range rows {
 			if err := op.Context().Err(); err != nil {
@@ -181,12 +203,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			if committed && replaced[row.row] || !liveVersion(row, frontier, ends, projectedDeletes) {
 				continue
 			}
-			for slot, column := range next.columns {
-				if !column.Nullable && row.values[slot].IsNull() {
-					d := sqlError("23502", fmt.Sprintf(`column "%s" of relation "%s" contains null values`, column.Name, next.name)).(*sqlstate.Error)
-					d.Schema, d.Table, d.Column = schema, next.name, column.Name
-					return d
-				}
+			if err := validator.validate(row.values, &evaluation); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -205,6 +223,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	if err := stage.Replace(next); err != nil {
 		return Result{}, err
+	}
+	if len(typeChecks) != 0 {
+		if err := scope.acquireCheckProviders(stage); err != nil {
+			return Result{}, err
+		}
 	}
 	var dependencyTargets []ObjectAddress
 	for i, attribute := range old.attributes {

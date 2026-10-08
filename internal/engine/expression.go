@@ -589,6 +589,9 @@ type expressionBinder struct {
 	queryNamespace        *queryNamespace
 	queryHidden           []queryQualifier
 	noParameters          bool
+	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
+	// Generated markers are not prepared parameters and never enter inference.
+	checkLiterals         []literalExpression
 	viewLiterals          map[viewLiteralPath]literalExpression
 	viewColumns           map[viewLiteralPath]int
 	viewStars             map[int][]int
@@ -862,6 +865,13 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, err
 		}
 	case parser.ParameterExpr:
+		if b.checkLiterals != nil {
+			if r.Number <= 0 || r.Number > len(b.checkLiterals) {
+				return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
+			}
+			node = b.checkLiterals[r.Number-1]
+			break
+		}
 		if b.noParameters || b.defaultConsumer || r.Number <= 0 {
 			return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 		}
@@ -1083,6 +1093,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 			policy.expected = target
 		}
 	case parser.ParameterExpr:
+		if b.checkLiterals != nil {
+			break // bind resolves the captured literal without parameter inference.
+		}
 		if b.noParameters || b.defaultConsumer {
 			return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", child.Number), child.Pos)
 		}

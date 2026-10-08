@@ -1,0 +1,151 @@
+package engine
+
+import (
+	"fmt"
+	"slices"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// Original definitions are captured once after DROP, before any TYPE changes
+// their usages. Queue order is TYPE discovery, then retained declaration order.
+type alterTypeCheck struct {
+	index    int
+	sql      string
+	literals []literalExpression
+}
+
+func captureAlterTypeChecks(op *Operation, catalog CatalogRead, original, survivor *relationDescriptor, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
+	if len(survivor.checkConstraints) == 0 || !slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterColumnType }) {
+		return nil, nil
+	}
+	ordered := orderedChecks(survivor)
+	var queue []alterTypeCheck
+	for _, action := range actions {
+		if action.Action != parser.AlterColumnType {
+			continue
+		}
+		slot, exists := original.index[action.Column.Text]
+		if !exists {
+			continue // The TYPE owner supplies the missing-column diagnostic.
+		}
+		attribute := original.attributes[slot]
+		for _, check := range ordered {
+			affected := false
+			for _, dependency := range check.dependencies {
+				if dependency.ref.Address.ClassID == survivor.address.ClassID && dependency.ref.Address.ObjectID == survivor.address.ObjectID && dependency.ref.Address.SubID == attribute {
+					affected = true
+					break
+				}
+			}
+			if !affected {
+				continue
+			}
+			index := slices.IndexFunc(survivor.checkConstraints, func(c checkConstraint) bool { return c.ordinal == check.ordinal })
+			if slices.ContainsFunc(queue, func(c alterTypeCheck) bool { return c.index == index }) {
+				continue
+			}
+			var literals []literalExpression
+			canonical, err := (scalarRenderer{owner: survivor, checkLiterals: &literals}).sql(op.Context(), catalog, check.expression)
+			if err != nil {
+				return nil, err
+			}
+			queue = append(queue, alterTypeCheck{index: index, sql: canonical, literals: literals})
+		}
+	}
+	return queue, nil
+}
+
+// Reparse original syntax against the completed TYPE descriptor, rather than
+// retagging old operators or retaining inferred coercions from the old usage.
+func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, auth AuthorizationView, ref ObjectRef, next *relationDescriptor, queue []alterTypeCheck) (*relationDescriptor, []checkConstraint, error) {
+	if len(queue) == 0 {
+		return next, nil, nil
+	}
+	replacement := *next
+	replacement.checkConstraints = slices.Clone(next.checkConstraints)
+	columns := make([]queryColumn, len(next.columns))
+	for i, column := range next.columns {
+		columns[i] = queryColumn{column, i, 0, i}
+	}
+	qualifier := queryQualifier{name: next.name, original: next.name, schema: auth.catalog.state.descriptors[next.namespace].Name(), ref: ref, columns: columns}
+	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: next.columns}
+	ordered := make([]checkConstraint, 0, len(queue))
+	for _, pending := range queue {
+		syntax, err := parser.ParseWithOptions("SELECT "+pending.sql+" FROM "+quoteIdentifier(next.name), parser.Options{Context: op.Context(), StandardConformingStrings: true})
+		if err != nil {
+			return nil, nil, alterTypeCheckReparseError(err)
+		}
+		e.mu.Lock()
+		if ref.Epoch != e.state.epoch {
+			e.mu.Unlock()
+			return nil, nil, ErrCatalogReplaced
+		}
+		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
+		binder.checkConsumer, binder.noParameters, binder.queryAuth = true, true, &auth
+		binder.checkLiterals = pending.literals
+		binder.queryNamespace = &namespace
+		binder.querySources = []queryLeaf{{ref: ref, relation: &replacement}}
+		node, err := binder.bindBoolean(syntax[0].(*parser.Select).Targets[0], projectionContext, "CHECK")
+		e.mu.Unlock()
+		if err != nil {
+			return nil, nil, alterTypeCheckReparseError(err)
+		}
+		definition := replacement.checkConstraints[pending.index]
+		definition.expression, definition.dependencies, definition.commentSnapshot = node, nil, false
+		var dependencies []ObjectRef
+		if _, err := (scalarRenderer{owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+			return nil, nil, err
+		}
+		for _, dependency := range dependencies {
+			address := dependency.Address
+			address.SubID = 0
+			revision := replacement.revision
+			if descriptor, exists := auth.catalog.Descriptor(address); exists {
+				revision = descriptor.Revision()
+			}
+			definition.dependencies = append(definition.dependencies, expressionDependency{ref: dependency, revision: revision})
+		}
+		replacement.checkConstraints[pending.index] = definition
+		ordered = append(ordered, definition)
+	}
+	return &replacement, ordered, nil
+}
+
+func alterTypeCheckReparseError(err error) error {
+	if diagnostic, ok := err.(*sqlstate.Error); ok {
+		copy := *diagnostic
+		copy.Position, copy.InternalPosition, copy.InternalQuery = "", "", ""
+		return &copy
+	}
+	return err
+}
+
+// One completed-row validator is shared by TYPE rewriting and metadata-only NN
+// scans. The CHECK traversal descriptor is ephemeral; storage stays alphabetic.
+type alterRowValidator struct {
+	relation *relationDescriptor
+	checks   *relationDescriptor
+	schema   string
+}
+
+func (v alterRowValidator) validate(row []sqltype.Value, evaluation *EvalContext) error {
+	for slot, column := range v.relation.columns {
+		if !column.Nullable && row[slot].IsNull() {
+			diagnostic := sqlError("23502", fmt.Sprintf(`column "%s" of relation "%s" contains null values`, column.Name, v.relation.name)).(*sqlstate.Error)
+			diagnostic.Schema, diagnostic.Table, diagnostic.Column = v.schema, v.relation.name, column.Name
+			return diagnostic
+		}
+	}
+	if v.checks == nil {
+		return nil
+	}
+	failed, err := validateCheckRow(v.checks, row, evaluation)
+	if err != nil || failed == nil {
+		return err
+	}
+	diagnostic := sqlError("23514", fmt.Sprintf(`check constraint "%s" of relation "%s" is violated by some row`, failed.Name, v.relation.name)).(*sqlstate.Error)
+	diagnostic.Schema, diagnostic.Table, diagnostic.Constraint = v.schema, v.relation.name, failed.Name
+	return diagnostic
+}

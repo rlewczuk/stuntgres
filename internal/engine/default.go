@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"stuntgres/internal/parser"
@@ -73,6 +75,12 @@ type scalarRenderer struct {
 	owner           *relationDescriptor
 	dependencies    *[]ObjectRef
 	commentSnapshot *bool
+	// TYPE reparsing transports concrete literals privately, without reinferring
+	// unknown input or changing ordinary DEFAULT/CHECK serialization.
+	checkLiterals *[]literalExpression
+	// Final CHECK replay may compare a retained REAL literal with a widened
+	// column. Preserve its exact promoted value, not shortest float32 input.
+	checkReplayPrecision bool
 }
 
 func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
@@ -269,6 +277,19 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	case caseExpression, conditionalExpression:
 		return r.conditionalSQL(ctx, view, node)
 	case literalExpression:
+		if r.checkLiterals != nil {
+			*r.checkLiterals = append(*r.checkLiterals, n)
+			return fmt.Sprintf("$%d", len(*r.checkLiterals)), nil
+		}
+		if r.checkReplayPrecision && u.Type.ID() == sqltype.Float4 && !n.value.IsNull() {
+			value, err := n.value.Float()
+			if err != nil {
+				return "", err
+			}
+			if !math.IsNaN(value) && !math.IsInf(value, 0) {
+				return "'" + strconv.FormatFloat(value, 'g', -1, 64) + "'", nil
+			}
+		}
 		return literalSQL(ctx, n)
 	case timeZoneExpression:
 		value, err := r.sql(ctx, view, n.value)

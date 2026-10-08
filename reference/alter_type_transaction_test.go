@@ -242,11 +242,16 @@ func TestReferenceAlterTypeOuterTransactionAXPublication(t *testing.T) {
 		if commit {
 			want, typ = 8, "INT8"
 		}
+		columns, err := out.rows.Columns()
+		if err != nil || len(columns) != 1 || columns[0] != "c" {
+			t.Fatal(columns, err)
+		}
 		metadata, err := out.rows.ColumnTypes()
-		if err != nil || metadata[0].DatabaseTypeName() != typ {
+		if err != nil || len(metadata) != 1 || metadata[0].DatabaseTypeName() != typ {
 			t.Fatal(metadata, err)
 		}
-		referenceTransactionValues(t, out.rows, want)
+		transactionRowValues(t, out.rows, want)
+		out.rows.Close()
 		referenceRunStep(t, p.ctx, b, p.postgresRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{typ}, [][]any{{want}}))
 		referenceLockExec(t, p.ctx, b, "DROP TABLE t", 0)
 		a.Close()

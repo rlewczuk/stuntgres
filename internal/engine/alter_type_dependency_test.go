@@ -19,7 +19,22 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			view := roleTableRef(t, e, "template")
 			old, store := e.state.descriptors[table.Address], e.storage[table.Address]
 			originalView := e.state.descriptors[view.Address].(*relationDescriptor)
-			run(t, e, "DROP VIEW template")
+			removeView := func(ref ObjectRef) {
+				t.Helper()
+				stage := e.BeginCatalogStage(e.CatalogRead())
+				defer e.DiscardCatalogStage(stage)
+				if err := stage.Remove(ref); err != nil {
+					t.Fatal(err)
+				}
+				prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			removeView(view)
 			provider := e.providers[RelationClassID]
 			var added ObjectAddress
 			e.providers[RelationClassID] = alterDropProvider{provider, func() {
@@ -74,7 +89,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			if got := tuples(run(t, e, "SELECT * FROM late_view")); !reflect.DeepEqual(got, [][]driver.Value{{"seven"}}) {
 				t.Fatal(got)
 			}
-			run(t, e, "DROP VIEW late_view")
+			removeView(roleTableRef(t, e, "late_view"))
 			run(t, e, "ALTER TABLE t "+action)
 			if got := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{"seven"}}) {
 				t.Fatal(got)

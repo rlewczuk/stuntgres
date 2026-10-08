@@ -10,7 +10,7 @@ import (
 
 func TestAlterTypeNumericControlsAndCanceledReplacement(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), t.Name())
-	execSQL(t, db, "CREATE TABLE t(c NUMERIC(8,3))")
+	execSQL(t, db, "CREATE TABLE t(c NUMERIC(8,3) CONSTRAINT ck CHECK(c>0) NO INHERIT)")
 	execSQL(t, db, "INSERT INTO t VALUES(1.235)")
 	execSQL(t, db, "ALTER TABLE t ALTER c TYPE NUMERIC(5,2)")
 	var dump bytes.Buffer
@@ -58,4 +58,6 @@ func TestAlterTypeNumericControlsAndCanceledReplacement(t *testing.T) {
 	}
 	execSQL(t, db, "INSERT INTO t VALUES(1.235)")
 	alterTypePublicRows(t, db, "SELECT c FROM t", []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}, {"1.24"}})
+	_, err = db.Exec("INSERT INTO t VALUES(-1)")
+	notNullDiagnostic(t, err, stuntgres.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "ck"`, Detail: "Failing row contains (-1.00).", Schema: "public", Table: "t", Constraint: "ck"})
 }

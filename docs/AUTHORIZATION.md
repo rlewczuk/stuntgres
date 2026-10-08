@@ -141,6 +141,14 @@ but before executor permission checks: out-of-range INT4 constants yield
 before permission denial. Valid nonowner input is denied `42501` without
 mutation; executor checks precede protected row reads and runtime constraints.
 
+ALTER COLUMN TYPE retains owner-only table authority and unchanged table/column
+ACLs. Supported CHECKs are rebound to current destination types and provider/
+attribute identities; subsequent INSERT/UPDATE checks the current definition.
+TYPE validation uses the statement's coherent provider/comment snapshot, not
+fresh per-row metadata. An ALTER CHECK violation identifies Schema/Table/Constraint
+without failing-row Detail; it must not acquire DML's privilege-filtered row
+detail. Explicit-ACL native Dump remains rejected rather than losing grants.
+
 DROP dependency DETAIL preserves object and column identities, PostgreSQL
 relation-name quoting, raw decoded column names and object-identity order
 (not alphabetical description order). Failed batches preserve all roles and

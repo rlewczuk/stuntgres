@@ -20,7 +20,7 @@ func TestReferenceAlterTypeNativeRoundTrip(t *testing.T) {
 	} {
 		p.step(t, s)
 	}
-	p.step(t, referenceExec("CREATE TABLE numeric_control(c NUMERIC(8,3))", 0))
+	p.step(t, referenceExec("CREATE TABLE numeric_control(c NUMERIC(8,3) CONSTRAINT ck CHECK(c>0) NO INHERIT)", 0))
 	p.step(t, referenceExec("INSERT INTO numeric_control VALUES(1.235)", 1))
 	p.step(t, referenceExec("ALTER TABLE numeric_control ALTER c TYPE NUMERIC(5,2)", 0))
 	p.step(t, referenceSelect("SELECT c FROM numeric_control", []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}}))
@@ -60,6 +60,7 @@ func TestReferenceAlterTypeNativeRoundTrip(t *testing.T) {
 		referenceSelect("SELECT c FROM numeric_control", []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}}),
 		referenceExec("INSERT INTO numeric_control VALUES(1.235)", 1),
 		referenceSelect("SELECT c FROM numeric_control", []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}, {"1.24"}}),
+		referenceImplicitError("INSERT INTO numeric_control VALUES(-1)", referenceDiagnostic{Code: "23514", Message: `new row for relation "numeric_control" violates check constraint "ck"`, Detail: "Failing row contains (-1.00).", Schema: "public", Table: "numeric_control", Constraint: "ck"}),
 		referenceExec("INSERT INTO t(id,c) VALUES(3,'new'::varchar(2))", 1),
 		referenceSelect("SELECT n FROM t ORDER BY id", []string{"n"}, []string{"INT8"}, [][]any{{int64(8)}, {int64(9)}, {int64(7)}}),
 		referenceImplicitError("INSERT INTO t VALUES(4,'x',NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "n" of relation "t" violates not-null constraint`, Detail: "Failing row contains (4, x, null).", Schema: "public", Table: "t", Column: "n"}),

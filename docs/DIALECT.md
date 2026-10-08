@@ -1364,8 +1364,12 @@ catalog, binder and SQL type coercion providers. Without USING, conversion is
 assignment coercion, not an arbitrary explicit cast. TEXT to INTEGER therefore
 requires `USING c::integer`, even on empty/all-NULL tables. Every USING reads
 the old row and may reference other old columns, including a source dropped in
-the same list. All target conversions and final NOT NULL checks complete before
-any descriptor or row becomes visible. Late invalid input, overflow, typmod,
+the same list. For each live row, every TYPE expression runs in action order
+against that original tuple, then final NOT NULL checks run in physical-column
+order and affected CHECKs run on the completed transformed values, before the
+next row is converted. An early constraint failure therefore precedes a later
+row's conversion failure. No descriptor or row becomes visible until all
+binding, conversion and validation succeeds. Invalid input, overflow, typmod,
 dependency or cancellation failures preserve the complete previous definition
 and data; explicit failures abort the transaction until rollback/savepoint recovery.
 
@@ -1381,12 +1385,39 @@ reading only unrelated attributes survive. Key/index revalidation remains
 an explicit absent SQL engine capability, independently witnessed on PostgreSQL,
 not an external-only mechanism or a successful native no-op.
 
+Surviving affected CHECKs are captured from their original canonical definitions,
+reparsed after the entire TYPE/default pass against final destination usages and
+DROP-adjusted slots, and atomically published with refreshed provider/attribute
+manifests. Identity/same-type USING/collation-only TYPE discovers dependencies too.
+Original concrete literals and typed NULLs retain their resolved usages and
+values during TYPE capture; comparison constants are not reintroduced as unknown
+input that could be inferred as the new column type. Private generated markers
+transport immutable literal nodes through the existing CHECK binder, without
+public parameters, new explicit-cast providers, or input-environment replay.
+Final native CHECK serialization preserves the exact promoted value of retained
+finite REAL literals, so Dump/Reset/Restore of a widened DOUBLE PRECISION CHECK
+keeps the original comparison threshold. This does not change public casts,
+ordinary floating output, or DEFAULT/view serialization.
+TYPE traversal follows TYPE action then retained CHECK declaration order,
+deduplicating a CHECK touched by multiple columns; stored CHECK order and ordinary
+DML enforcement stay alphabetical. FALSE produces `23514`, `check constraint
+"NAME" of relation "TABLE" is violated by some row`, with Schema/Table/Constraint
+and no failing-row Detail. CHECK reparse operator errors have empty Position,
+not the source position of an internally generated SELECT. Runtime CHECK errors
+retain their own SQLSTATE/message. Incompatible defaults precede CHECK reparse;
+CHECK reparse precedes any row conversion, including on empty/all-NULL targets.
+Native controls retain the final rebound CHECK and NO INHERIT, not TYPE history.
+Internal scalar reparsing uses the existing SELECT-with-FROM grammar and a quoted
+owner name, then binds only the extracted CHECK expression to that captured
+descriptor. It does not execute a query or broaden ordinary SELECT-without-FROM
+admission.
+
 Column COLLATE (also in final CREATE declarations for Restore) resolves only
 `pg_catalog."default"`100, `"C"`950 and `"POSIX"`951, with namespace authority,
 UTF8/C byte comparison and distinct stored collation identities. Omission resets
 to the target type's intrinsic default. Missing names/noncollatable types fail;
 other locale/ICU implementations and general COLLATE expressions remain excluded.
-Dump emits final type/typmod/nondefault collation/default/NOT NULL declarations,
+Dump emits final type/typmod/nondefault collation/default/NOT NULL/CHECK declarations,
 not ALTER history; Restore retains its CREATE/INSERT whitelist and atomic replay.
 
 Fresh direct/new prepared results expose updated metadata. Held prepared results
