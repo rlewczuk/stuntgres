@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 func viewDepends(d *relationDescriptor, target ObjectAddress) bool {
@@ -236,9 +237,13 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 		}
 		switch n := node.(type) {
 		case *limitNode:
-			if definition.syntax.Bounds == nil { return fmt.Errorf("stuntgres: unexpected stored view bounds") }
-			for _,expr := range []BoundExpr{n.offset,n.count} {
-				if expr != nil && (expr.ResultUsage().Type.ID()!=sqltype.Int8 || expr.Properties().RowDependent || expr.Properties().StageDependent) { return fmt.Errorf("stuntgres: invalid stored view bound") }
+			if definition.syntax.Bounds == nil {
+				return fmt.Errorf("stuntgres: unexpected stored view bounds")
+			}
+			for _, expr := range []BoundExpr{n.offset, n.count} {
+				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expr.Properties().RowDependent || expr.Properties().StageDependent) {
+					return fmt.Errorf("stuntgres: invalid stored view bound")
+				}
 			}
 			return visit(n.child)
 		case *evaluationNode:

@@ -343,7 +343,7 @@ type QueryBounds struct {
 }
 
 type queryTail struct {
-	Bounds *QueryBounds
+	Bounds  *QueryBounds
 	Locking *RowLockClause
 }
 

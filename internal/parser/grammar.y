@@ -198,7 +198,7 @@ package parser
 %type <insertSource> insert_input
 %type <selectStmt> insert_select
 %type <order> order
-%type <bounds> bounds limit_clause offset_clause
+%type <bounds> bounds nonempty_bounds limit_clause offset_clause
 %type <tail> query_tail
 %type <expr> limit_value fetch_count
 %type <tok> fetch_direction count_rows
@@ -626,8 +626,10 @@ insert_input: VALUES rows order bounds { $$=&InsertSource{Rows:$2,Order:$3,Bound
 insert_select: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
  | SELECT projection bounds { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; $$=$2 }
  | SELECT FROM from_list where group having order query_tail { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8.Locking,Bounds:$8.Bounds,Pos:$1.pos} }
- /* Prefer a projection operand/suffix over completing the zero-width source. */
- | SELECT bounds %prec NAME_LIST { $$=&Select{Bounds:$2,Pos:$1.pos} } ;
+ /* Keep the undecorated zero-width source explicit. An empty bounds reduction
+  * must not compete with the existing projection/suffix continuations. */
+ | SELECT %prec NAME_LIST { $$=&Select{Pos:$1.pos} }
+ | SELECT nonempty_bounds %prec NAME_LIST { $$=&Select{Bounds:$2,Pos:$1.pos} } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' insert_values ')' { $$ = $2 } ;
@@ -834,13 +836,13 @@ locking_clause: FOR UPDATE { $$=&RowLockClause{Mode:"FOR UPDATE",Pos:$1.pos} }
  | FOR lock_share { $$=&RowLockClause{Mode:"FOR SHARE",Pos:$1.pos} }
  | FOR KW_U lock_share { if $2.text!="key" {sqllex.(*lexer).syntax($2);return 1}; $$=&RowLockClause{Mode:"FOR KEY SHARE",Pos:$1.pos} }
  | FOR NO KW_U UPDATE { if $3.text!="key" {sqllex.(*lexer).syntax($3);return 1}; $$=&RowLockClause{Mode:"FOR NO KEY UPDATE",Pos:$1.pos} } ;
-query_tail: bounds locking { $$=queryTail{Bounds:$1,Locking:$2} }
- | locking_clause limit_clause { $$=queryTail{Bounds:$2,Locking:$1} }
- | locking_clause offset_clause { $$=queryTail{Bounds:$2,Locking:$1} }
- | locking_clause limit_clause offset_clause { $2.Offset=$3.Offset;$$=queryTail{Bounds:$2,Locking:$1} }
- | locking_clause offset_clause limit_clause { $2.Count=$3.Count;$$=queryTail{Bounds:$2,Locking:$1} } ;
-bounds: /* empty */ { $$=nil }
- | limit_clause { $$=$1 }
+/* Factor the empty tail separately: FOR must not shift into a path that
+ * requires bounds after an otherwise complete standalone locking clause. */
+query_tail: /* empty */ { $$=queryTail{} }
+ | nonempty_bounds locking { $$=queryTail{Bounds:$1,Locking:$2} }
+ | locking_clause bounds { $$=queryTail{Bounds:$2,Locking:$1} } ;
+bounds: /* empty */ { $$=nil } | nonempty_bounds { $$=$1 } ;
+nonempty_bounds: limit_clause { $$=$1 }
  | offset_clause { $$=$1 }
  | limit_clause offset_clause { $1.Offset=$2.Offset;$$=$1 }
  | offset_clause limit_clause { $1.Count=$2.Count;$$=$1 } ;

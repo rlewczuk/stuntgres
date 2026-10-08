@@ -29,9 +29,9 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		return source, err
 	case viewRelation:
 		definition := d.view
-		if mode == 0 && !viewHasStoredRowMarks(d, e.privateCatalogLocked(scope.owner.catalog)) {
-			locks = nil
-		}
+		// An unmarked sibling still needs the enclosing occurrence/lineage
+		// manifest for replacement recheck. Retain that identity while mode
+		// stays zero; participation never grants an otherwise absent mark.
 		if err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mode); err != nil {
 			e.mu.Unlock()
 			return nil, err
@@ -104,12 +104,12 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			source.sources = sources
 		}
 		source.scope = scope
-		bridge := &querySource{ref:ref,scope:scope,locks:locks,nestedRoot:root,nestedInputs:source,materialized:true,flatWidth:len(root.Schema())}
+		bridge := &querySource{ref: ref, scope: scope, locks: locks, nestedRoot: root, nestedInputs: source, materialized: true, flatWidth: len(root.Schema())}
 		if locks != nil {
-			occurrences := queryTreeOccurrences(root,source,nil)
-			bridge.lineage = &queryLockLineage{root:root,inputs:source,stage:&querySource{materialized:true,occurrences:occurrences}}
+			occurrences := queryTreeOccurrences(root, source, nil)
+			bridge.lineage = &queryLockLineage{root: root, inputs: source, stage: &querySource{materialized: true, occurrences: occurrences}}
 		}
-		return bridge,nil
+		return bridge, nil
 	case tableRelation:
 		view, err := scope.acquireDataViewLocked(e, ref)
 		e.mu.Unlock()

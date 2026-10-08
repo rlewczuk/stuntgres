@@ -442,7 +442,7 @@ func TestCancellationTransactionsAndClosedObjects(t *testing.T) {
 	if err = tx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
-	for _, q := range []string{"SELECT v FROM c LIMIT 1"} {
+	for _, q := range []string{"SELECT v FROM c WINDOW w AS ()"} {
 		_, err = db.Exec(q)
 		sqlState(t, err, "0A000")
 	}

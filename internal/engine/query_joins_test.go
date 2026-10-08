@@ -306,8 +306,19 @@ func TestQueryJoinsAdmittedFrameLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer stage.Close()
-	if stage.count() != 16 || stage.source.flatWidth != 6 || len(stage.source.flat) != 96 || len(stage.source.flat) > cap(stage.source.flat) || cap(stage.source.flat) > 2*len(stage.source.flat) {
-		t.Fatal(stage.count(), stage.source)
+	if err := stage.drain(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if stage.count() != 16 {
+		t.Fatal("joined occurrence count", stage.count())
+	}
+	for i := range stage.count() {
+		frame := stage.source.row(i)
+		wantLeft := source.sources[0].row(i / 4)
+		wantRight := source.sources[1].row(i % 4)
+		if len(frame) != len(wantLeft)+len(wantRight) || !reflect.DeepEqual(frame[:len(wantLeft)], wantLeft) || !reflect.DeepEqual(frame[len(wantLeft):], wantRight) {
+			t.Fatal("joined frame lost child values", i, frame, wantLeft, wantRight)
+		}
 	}
 	if !reflect.DeepEqual(left, source.sources[0].row(0)) || !reflect.DeepEqual(right, source.sources[1].row(0)) {
 		t.Fatal("joined scratch mutated a retained child row")

@@ -180,14 +180,16 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery,
 	if err != nil {
 		return nil, err
 	}
-	bounds,err := b.bindQueryBounds(source.Bounds)
-	if err != nil { return nil,err }
+	bounds, err := b.bindQueryBounds(source.Bounds)
+	if err != nil {
+		return nil, err
+	}
 	root, err = b.finishOrder(root, order, projection)
 	if err != nil {
 		return nil, err
 	}
 	if bounds != nil {
-		bounds.querySchema,bounds.child = root.Schema(),root
+		bounds.querySchema, bounds.child = root.Schema(), root
 		root = bounds
 	}
 	// The output schema is owned separately: destination assignment modifies it,
@@ -306,8 +308,12 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			}
 		}
 	}()
-	if count >= 0 { rows = make([][]sqltype.Value,0,count) } else { rows = make([][]sqltype.Value,0) }
-	scratch := make([]sqltype.Value,len(b.targets))
+	if count >= 0 {
+		rows = make([][]sqltype.Value, 0, count)
+	} else {
+		rows = make([][]sqltype.Value, 0)
+	}
+	scratch := make([]sqltype.Value, len(b.targets))
 	evaluation := EvalContext{Context: ctx, Input: input, Output: output}
 	for count < 0 || len(rows) < count {
 		if err := ctx.Err(); err != nil {
@@ -318,7 +324,9 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			return nil, err
 		}
 		if !present {
-			if count >= 0 { return nil,fmt.Errorf("stuntgres: early INSERT source EOF") }
+			if count >= 0 {
+				return nil, fmt.Errorf("stuntgres: early INSERT source EOF")
+			}
 			break
 		}
 		row := make([]sqltype.Value, len(b.relation.columns))
@@ -344,7 +352,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return nil, notNullError(schema, b.relation.name, c.Name, row, output)
 			}
 		}
-		rows = append(rows,row)
+		rows = append(rows, row)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

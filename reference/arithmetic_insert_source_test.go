@@ -82,15 +82,15 @@ func TestReferenceArithmeticInsertSourceLimitBoundary(t *testing.T) {
 	p.step(t, referenceExec("CREATE TABLE d(f BOOL)", 0))
 	p.step(t, referenceExec("INSERT INTO d VALUES(TRUE)", 1))
 	for _, tc := range []struct{ query, nativePosition, pgPosition string }{
-		{"INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "34", "29"},
-		{"/*é*/ INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "40", "35"},
+		{"INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "29", "29"},
+		{"/*é*/ INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "35", "35"},
 	} {
 		for _, backend := range []struct {
 			db     referenceExecutor
 			record *referenceRecorder
 			want   referenceDiagnostic
 		}{
-			{p.memory, p.memoryRecord, referenceDiagnostic{Code: "0A000", Message: "INSERT suffix is unsupported", Position: tc.nativePosition}},
+			{p.memory, p.memoryRecord, referenceDiagnostic{Code: "42804", Message: "VALUES types boolean and integer cannot be matched", Position: tc.nativePosition}},
 			{p.postgres, p.postgresRecord, referenceDiagnostic{Code: "42804", Message: "VALUES types boolean and integer cannot be matched", Position: tc.pgPosition}},
 		} {
 			failure := referenceImplicitError(tc.query, backend.want)

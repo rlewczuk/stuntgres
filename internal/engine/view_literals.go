@@ -244,8 +244,12 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		}
 	}
 	if v.syntax.Bounds != nil {
-		if err := validate(v.syntax.Bounds.Offset,viewOffsetLiteral,0); err != nil { return err }
-		if err := validate(v.syntax.Bounds.Count,viewLimitLiteral,0); err != nil { return err }
+		if err := validate(v.syntax.Bounds.Offset, viewOffsetLiteral, 0); err != nil {
+			return err
+		}
+		if err := validate(v.syntax.Bounds.Count, viewLimitLiteral, 0); err != nil {
+			return err
+		}
 	}
 	join := 0
 	var validateFrom func(parser.FromItem) error

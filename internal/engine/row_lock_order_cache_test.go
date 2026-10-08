@@ -36,7 +36,9 @@ func TestRowLockOrderedCacheFrontier(t *testing.T) {
 							want = want[1:]
 						} else {
 							want[0] += 20
-							if source == "stored" { want[0],want[1] = want[1],want[0] }
+							if source == "stored" {
+								want[0], want[1] = want[1], want[0]
+							}
 						}
 					}
 					rowLockAwait(t, done, want...)

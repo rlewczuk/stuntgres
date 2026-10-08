@@ -24,6 +24,11 @@ namespace but cannot depend on rows or aggregates. Unknown parameters infer
 INT8; already typed integer/OID/numeric/float values use the existing BIGINT
 assignment conversion, including NUMERIC half-away and floating half-even
 rounding. Known TEXT (even NULL) and BOOL do not become unknown strings.
+This does not admit additional explicit casts or default functions. Typed
+NUMERIC/FLOAT4/FLOAT8 providers can come from parameters whose usage was inferred
+by an earlier clause. A fractional value supplied to a parameter inferred as
+BIGINT instead uses bigint input and is rejected, rather than receiving a
+floating assignment cast.
 Raw unknown strings use bigint input. Numeric special values retain the
 provider's0A000 conversion diagnostics; floating specials/overflow give22003.
 Variable bounds give42P10, aggregate bounds42803, incompatible types42804.
@@ -35,6 +40,8 @@ Negative OFFSET wins over a negative LIMIT or LIMIT0. Count0 opens no producing
 child, but does not prune schema, ACL, static analysis/capture, imported
 conversion preflight or its own bounds. Empty/past-end results remain nonnil
 cursors with complete normal metadata, including zero-column occurrences.
+Join coercion preflight visits both operands independently of an empty sibling;
+it validates row-independent input without demanding either row producer.
 
 The private shared occurrence producer stops nonblocking VALUES, predicates,
 joins and nested scalar/security-barrier view projection at demanded survivors.
@@ -57,10 +64,16 @@ follow their own Sort and stop after enough survivors; stored marks below an
 outer Sort can hold all consumed input, even under an outer LIMIT1. Deleted or
 requalified-away candidates refill without spending count. See
 [row-lock frontiers](TRANSACTIONS.md#row-locks--change-note).
+Unmarked view siblings retain execution-local occurrence and lineage identity
+for replacement recheck without inheriting an otherwise absent lock mode.
+Grouped sibling outputs are frozen values, not aliases of physical input rows.
 
 INSERT retains common source typing, all-source ACL and destination validation
-even at0. Only selected destination rows undergo assignment/default/constraint
-work; one complete batch reaches WriteStage. Stored bounds persist typed
+even at0, including existing destination constant/default simplification. A
+constant default `1/0` therefore fails during execution preflight even with
+LIMIT0; zero does not suppress an admission failure. Only selected destination
+rows undergo runtime assignment/default/constraint work, and one complete batch
+reaches WriteStage. Stored bounds persist typed
 definitions/dependencies, survive renames and native Dump/Restore, and may
 canonicalize FETCH to LIMIT and ALL to NULL. Held public exports remain stable
 through later execution, Close and Reset/Restore.
@@ -881,9 +894,11 @@ and incompatible-assignment errors use the expression start and resolved type;
 missing-operator errors retain the operator token location.
 Existing INSERT query-source assignment, common-VALUES typing and excess-source
 diagnostics also retain the recursive expression start, including widening
-postfix casts and Unicode input. Supported decorated VALUES uses its existing
-ORDER BY form; LIMIT remains an unsupported INSERT suffix, not a new arithmetic
-capability. The source smoke also executes `INSERT INTO good SELECT 1,7/2,-7%2`,
+postfix casts and Unicode input. Decorated VALUES now supports ORDER BY and
+LIMIT/OFFSET/FETCH through the shared query producer; count decoration still
+requires common source typing before destination assignment. Thus boolean and
+integer VALUES remain incompatible even when LIMIT would retain only the boolean
+row. The source smoke also executes `INSERT INTO good SELECT 1,7/2,-7%2`,
 asserting affected count 1 and persisted `(1,3,-1)` with INT4/INT4/INT8 destination
 metadata. Smoke: `make smoke RUN='^TestArithmeticInsertSourceContextualSmoke$' VERBOSE=1`.
 

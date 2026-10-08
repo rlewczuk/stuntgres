@@ -43,8 +43,8 @@ func TestArithmeticInsertSourceContextualSmoke(t *testing.T) {
 		{"/*é*/ INSERT INTO d SELECT (1+2)::bigint", stuntgres.Error{Code: "42804", Message: `column "f" is of type boolean but expression is of type bigint`, Hint: "You will need to rewrite or cast the expression.", Position: "29"}},
 		{"INSERT INTO d VALUES(TRUE),((1+2)::bigint) ORDER BY 1", stuntgres.Error{Code: "42804", Message: "VALUES types boolean and bigint cannot be matched", Position: "30"}},
 		{"INSERT INTO d SELECT TRUE,(1+2)::bigint", stuntgres.Error{Code: "42601", Message: "INSERT has more expressions than target columns", Position: "28"}},
-		{"INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", stuntgres.Error{Code: "0A000", Message: "INSERT suffix is unsupported", Position: "34"}},
-		{"/*é*/ INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", stuntgres.Error{Code: "0A000", Message: "INSERT suffix is unsupported", Position: "40"}},
+		{"INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", stuntgres.Error{Code: "42804", Message: "VALUES types boolean and integer cannot be matched", Position: "29"}},
+		{"/*é*/ INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", stuntgres.Error{Code: "42804", Message: "VALUES types boolean and integer cannot be matched", Position: "35"}},
 	} {
 		result, err := db.ExecContext(ctx, tc.query)
 		if result != nil {

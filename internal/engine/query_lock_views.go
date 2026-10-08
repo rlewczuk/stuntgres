@@ -283,9 +283,12 @@ func querySourceAt(bundle *querySource, occurrence int) *querySource {
 }
 func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	switch n := node.(type) {
-	case *limitNode: return queryLockRecheckWidth(n.child,inputs)
-	case *aggregateNode: return 0 // Its input marks/provenance have already been consumed.
-	case *evaluationNode: return queryLockRecheckWidth(n.child,inputs)
+	case *limitNode:
+		return queryLockRecheckWidth(n.child, inputs)
+	case *aggregateNode:
+		return 0 // Its input marks/provenance have already been consumed.
+	case *evaluationNode:
+		return queryLockRecheckWidth(n.child, inputs)
 	case *sourceNode:
 		return queryLockSourceWidth(querySourceAt(inputs, n.occurrence))
 	case *singletonNode:
@@ -341,17 +344,22 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 }
 func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int) ([]sqltype.Value, bool, error) {
 	switch n := node.(type) {
-	case *limitNode: return recheckLockedQuery(n.child,inputs,rows,evaluation,scratch,offset)
+	case *limitNode:
+		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset)
 	case *evaluationNode:
-		row,ok,err := recheckLockedQuery(n.child,inputs,rows,evaluation,scratch,offset)
-		if err != nil || !ok { return nil,ok,err }
+		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset)
+		if err != nil || !ok {
+			return nil, ok, err
+		}
 		evaluation.Row = row
-		for i,expr := range n.expressions {
-			value,err := expr.Eval(evaluation)
-			if err != nil { return nil,false,err }
+		for i, expr := range n.expressions {
+			value, err := expr.Eval(evaluation)
+			if err != nil {
+				return nil, false, err
+			}
 			evaluation.orderValues[n.base+i] = value
 		}
-		return row,true,nil
+		return row, true, nil
 	case *sourceNode:
 		return recheckLockedSource(querySourceAt(inputs, n.occurrence), rows, evaluation, scratch, offset)
 	case *singletonNode:
@@ -424,35 +432,41 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 // Arbitrate the qualified physical input before projection or aggregation
 // consumes its provenance. Scalar view layers defer to their enclosing frontier.
 func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode, child indexedStage) (indexedStage, error) {
-	locks,scope := state.source.locks,state.source.scope
-	due := make([]relationLockMode,len(locks.leaves))
-	for _,mark := range child.pending {
-		for _,occurrence := range mark.occurrences { due[occurrence] = strongerQueryRowMode(due[occurrence],mark.mode) }
+	locks, scope := state.source.locks, state.source.scope
+	due := make([]relationLockMode, len(locks.leaves))
+	for _, mark := range child.pending {
+		for _, occurrence := range mark.occurrences {
+			due[occurrence] = strongerQueryRowMode(due[occurrence], mark.mode)
+		}
 	}
-	occurrences := appendQueryOccurrences(nil,child.source)
-	provenance := make([]int,0,len(occurrences))
-	versions := make([]rowVersion,0,len(occurrences))
-	currentRows := make([][]sqltype.Value,len(locks.leaves))
-	scratch := make([]sqltype.Value,queryLockRecheckWidth(node,state.source))
-	evaluation := EvalContext{Scope:1,Frame:1,Parameters:state.parameters,statementScope:scope,Input:state.input,Output:state.output}
+	occurrences := appendQueryOccurrences(nil, child.source)
+	provenance := make([]int, 0, len(occurrences))
+	versions := make([]rowVersion, 0, len(occurrences))
+	currentRows := make([][]sqltype.Value, len(locks.leaves))
+	scratch := make([]sqltype.Value, queryLockRecheckWidth(node, state.source))
+	evaluation := EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: scope, Input: state.input, Output: state.output}
 	joined := child.source.materialized
 	source := child.source
-	if !joined { source = &querySource{anonymous:[][]sqltype.Value{},materialized:true,occurrences:occurrences} }
+	if !joined {
+		source = &querySource{anonymous: [][]sqltype.Value{}, materialized: true, occurrences: occurrences}
+	}
 	source.occurrences = occurrences
-	out := producingStage(&child,child.schema)
-	out.source,out.expressions,out.evaluation = source,child.expressions,child.evaluation
+	out := producingStage(&child, child.schema)
+	out.source, out.expressions, out.evaluation = source, child.expressions, child.evaluation
 	out.pending = nil
-	out.produce = func(ctx context.Context,out *indexedStage) (bool,error) {
+	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		for {
-			i,present,err := child.nextOccurrence(ctx)
-			if err != nil || !present { return present,err }
+			i, present, err := child.nextOccurrence(ctx)
+			if err != nil || !present {
+				return present, err
+			}
 			evaluation.Context = ctx
 			index := child.index(i)
-			setQueryLineage(child.source,index)
-			provenance = appendQueryProvenance(provenance[:0],child.source,index)
-			versions = appendQueryVersions(versions[:0],child.source,index,locks)
-			live,changed := true,false
-			for j,occurrence := range occurrences {
+			setQueryLineage(child.source, index)
+			provenance = appendQueryProvenance(provenance[:0], child.source, index)
+			versions = appendQueryVersions(versions[:0], child.source, index, locks)
+			live, changed := true, false
+			for j, occurrence := range occurrences {
 				entry := locks.leaves[occurrence]
 				visible := provenance[j]
 				mode := due[occurrence]
@@ -464,44 +478,64 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 				raw := entry.source.rawIndex(visible)
 				candidate := versions[j]
 				hint := raw
-				if raw >= len(entry.source.committed) { hint -= len(entry.source.committed) }
-				if err := scope.acquireQueryRow(entry.leaf,candidate.row,mode); err != nil { return false,err }
-				current,present,err := scope.latestQueryRow(entry.leaf,candidate,hint,mode)
-				if err != nil { return false,err }
+				if raw >= len(entry.source.committed) {
+					hint -= len(entry.source.committed)
+				}
+				if err := scope.acquireQueryRow(entry.leaf, candidate.row, mode); err != nil {
+					return false, err
+				}
+				current, present, err := scope.latestQueryRow(entry.leaf, candidate, hint, mode)
+				if err != nil {
+					return false, err
+				}
 				live = live && present
 				changed = changed || current.version != candidate.version
 				currentRows[occurrence] = current.values
 				versions[j] = current
 				locks.leaves[occurrence].changed = current.version != candidate.version
 			}
-			if !live { continue }
+			if !live {
+				continue
+			}
 			row := child.source.row(index)
 			if changed {
 				evaluation.orderValues = child.orderRow(i)
 				offset := 0
-				replacement,ok,err := recheckLockedQuery(node,state.source,currentRows,&evaluation,scratch,&offset)
-				if err != nil { return false,err }
-				if !ok { continue }
+				replacement, ok, err := recheckLockedQuery(node, state.source, currentRows, &evaluation, scratch, &offset)
+				if err != nil {
+					return false, err
+				}
+				if !ok {
+					continue
+				}
 				row = replacement
 			}
 			if joined {
-				if changed { copy(child.source.row(index),row) }
+				if changed {
+					copy(child.source.row(index), row)
+				}
 				width := len(occurrences)
-				if missing := (index+1)*width-len(source.versions); missing>0 { source.versions = append(source.versions,make([]rowVersion,missing)...) }
-				copy(source.versions[index*width:(index+1)*width],versions)
-				out.selection = append(out.selection,index)
+				if missing := (index+1)*width - len(source.versions); missing > 0 {
+					source.versions = append(source.versions, make([]rowVersion, missing)...)
+				}
+				copy(source.versions[index*width:(index+1)*width], versions)
+				out.selection = append(out.selection, index)
 			} else {
-				if changed || child.source.input != nil || child.source.final != nil && child.source.final.source != nil { row = append([]sqltype.Value(nil),row...) }
-				out.selection = append(out.selection,len(source.anonymous))
-				source.anonymous = append(source.anonymous,row)
-				source.provenance = append(source.provenance,provenance...)
-				source.versions = append(source.versions,versions...)
+				if changed || child.source.input != nil || child.source.final != nil && child.source.final.source != nil {
+					row = append([]sqltype.Value(nil), row...)
+				}
+				out.selection = append(out.selection, len(source.anonymous))
+				source.anonymous = append(source.anonymous, row)
+				source.provenance = append(source.provenance, provenance...)
+				source.versions = append(source.versions, versions...)
 				source.flatCount++
 			}
-			out.cacheWidth,out.orderValues = child.cacheWidth,child.orderValues
-			if child.cacheWidth != 0 { out.cacheOccurrences = append(out.cacheOccurrences,child.orderOccurrence(i)) }
-			return true,ctx.Err()
+			out.cacheWidth, out.orderValues = child.cacheWidth, child.orderValues
+			if child.cacheWidth != 0 {
+				out.cacheOccurrences = append(out.cacheOccurrences, child.orderOccurrence(i))
+			}
+			return true, ctx.Err()
 		}
 	}
-	return out,nil
+	return out, nil
 }

@@ -100,19 +100,19 @@ func TestArithmeticInsertSourceLimitBoundary(t *testing.T) {
 	arithmeticExec(t, db, "CREATE TABLE d(f BOOL)", 0)
 	arithmeticExec(t, db, "INSERT INTO d VALUES(TRUE)", 1)
 	for _, tc := range []struct{ query, position string }{
-		{"INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "34"},
-		{"/*é*/ INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "40"},
+		{"INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "29"},
+		{"/*é*/ INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "35"},
 	} {
-		want := stuntgres.Error{Code: "0A000", Message: "INSERT suffix is unsupported", Position: tc.position}
+		want := stuntgres.Error{Code: "42804", Message: "VALUES types boolean and integer cannot be matched", Position: tc.position}
 		result, err := db.Exec(tc.query)
 		if result != nil {
-			t.Fatal("excluded LIMIT exposed result")
+			t.Fatal("VALUES analysis failure exposed result")
 		}
 		arithmeticError(t, err, want)
 		stmt, err := db.Prepare(tc.query)
 		if stmt != nil {
 			stmt.Close()
-			t.Fatal("excluded LIMIT exposed handle")
+			t.Fatal("VALUES analysis failure exposed handle")
 		}
 		arithmeticError(t, err, want)
 		arithmeticRows(t, db, "SELECT f FROM d", []string{"BOOL"}, [][]any{{true}})
