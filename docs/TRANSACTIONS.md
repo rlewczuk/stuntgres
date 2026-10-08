@@ -36,8 +36,8 @@ Identity ALTER ADD/DROP/SET generation/options/RESTART shares the existing priva
 catalog/generator and savepoint journal. Own future inserts see successful private
 definitions; peers and Dump see committed state. Rollback restores definitions and
 private restarts, not live allocations already consumed by ordinary identity INSERT.
-DROP retains existing rows and NOT NULL. Native savepoint rollback conservatively
-retains locks until outer transaction end, not PostgreSQL subtransaction lock parity.
+DROP retains existing rows and NOT NULL. Savepoint rollback removes postmark
+relation/row lock contributions while retaining earlier holdings.
 Ordinary identity VALUES constrains each complete projected row (NOT NULL, then
 CHECK) before demanding the next runtime row. An earlier violation retains that
 row's already-demanded sequence/session effects but does not consume later
@@ -170,10 +170,10 @@ remain transaction-monotonic even when the first query followed the mark.
 Changed isolation is forbidden inside a savepoint level; identical assignment
 is allowed. Read-only to read-write is forbidden inside a read-only child.
 
-**Native exclusion:** locks remain on the existing outer transaction ticket.
-Post-mark relation/row locks survive rollback-to and recoverable errors until
-outer end. This is not PostgreSQL subtransaction lock parity; per-mark lock
-rollback, cursor state and PL/pgSQL subtransactions are not implemented.
+Locks remain on the same outer transaction ticket, but ROLLBACK TO and
+recoverable error unwind restore its held resource/mode snapshot. New resources
+and later upgrades disappear; earlier and incomparable modes survive. RELEASE
+retains contributions for the parent. Cursor rollback and PL/pgSQL remain excluded.
 Successful Reset/Restore fences and discards stale private marks; rollback-to
 cannot resurrect an old catalog epoch. Full rollback remains recovery-eligible.
 Dump omits private writes; Restore does not accept transaction controls.
@@ -188,12 +188,38 @@ ROW SHARE; INSERT, UPDATE and DELETE acquire ROW EXCLUSIVE. These automatic
 relation modes coexist, including concurrent readers and writers. COMMENT
 TABLE/COLUMN acquires internal SHARE UPDATE EXCLUSIVE at Execute (not Prepare):
 it coexists with AS/RX, but conflicts with another owner's SUE and AX.
-`LOCK TABLE <name> IN ACCESS EXCLUSIVE MODE` is the only explicit table-lock syntax:
-one existing optionally qualified/quoted table, no ONLY/list/star/default mode
-or other modes; optional `NOWAIT` is supported. Execution requires an explicit SQL or driver block and the
-current role's existing superuser authority. Ordinary SELECT/INSERT privileges
-or ownership alone do not authorize this bounded native path. PostgreSQL also
-supports additional AX privilege alternatives not modeled here.
+`LOCK [TABLE] target [, target ...] [IN lockmode MODE] [NOWAIT]` supports all
+eight PostgreSQL table modes, defaulting to ACCESS EXCLUSIVE. Each target accepts
+an optionally qualified/quoted name, `name *`, `ONLY name` or `ONLY(name)`.
+Native tables are standalone: inheritance/partition hierarchies remain unsupported.
+Targets resolve and acquire in requested order; a blocked first target prevents
+lookup of later targets. Views recursively lock bound table/view sources in
+definition order with the same mode, even with ONLY. Ordinary view sources use
+the view owner; security_invoker uses the original statement invoker at every
+nested boundary, without repeating schema lookup on already-bound sources.
+
+Execution requires an explicit SQL or driver block (read-only is permitted).
+Any table-level MAINTAIN, UPDATE, DELETE or TRUNCATE right permits every mode;
+INSERT permits ACCESS SHARE/ROW SHARE/ROW EXCLUSIVE, SELECT only ACCESS SHARE.
+Column-only rights do not qualify. Default owner rights and PUBLIC grants apply;
+an explicit empty owner ACL removes use rights, while superusers remain allowed.
+Native ACL mutation remains internal; SQL GRANT and public ACL APIs are not added.
+
+The symmetric conflict matrix below lists every conflicting held mode. Modes
+accumulate as bits, not a strongest-mode ranking; a transaction never conflicts
+with itself. AS=ACCESS SHARE, RS=ROW SHARE, RX=ROW EXCLUSIVE, SUE=SHARE UPDATE
+EXCLUSIVE, S=SHARE, SRX=SHARE ROW EXCLUSIVE, X=EXCLUSIVE, AX=ACCESS EXCLUSIVE.
+
+|Requested|Conflicting held modes|
+|---|---|
+|AS|AX|
+|RS|X, AX|
+|RX|S, SRX, X, AX|
+|SUE|SUE, S, SRX, X, AX|
+|S|RX, SUE, SRX, X, AX|
+|SRX|RX, SUE, S, SRX, X, AX|
+|X|RS, RX, SUE, S, SRX, X, AX|
+|AX|AS, RS, RX, SUE, S, SRX, X, AX|
 
 `NOWAIT` grants compatible or self-held locks immediately and otherwise returns
 55P03, `could not obtain lock on relation "t"` (qualified input preserves the
@@ -215,7 +241,7 @@ cancellation/deadlines retain their original Go error identity, not SQLSTATE.
 Failed waits remove provisional state and wake eligible successors without
 disturbing holders; mandatory statement cleanup aborts explicit transactions.
 Without marks it discards private writes/releases prior locks; with marks it
-preserves recoverable prefixes and conservatively retains outer holds.
+preserves premark effects/holdings and removes failed-level lock contributions.
 Implicit work returns to Idle.
 
 ACCESS EXCLUSIVE conflicts with all automatic modes and another transaction's
@@ -236,10 +262,15 @@ in REPEATABLE READ, the transaction snapshot before semantic relation waits.
 READ COMMITTED/UNCOMMITTED execution still captures fresh data after grant.
 Cached statements retain descriptions, not an owner or future execution snapshot.
 LOCK Prepare is metadata-only (zero parameters/results); Execute
-performs block/name/current-role checks and acquires AX, affecting zero rows.
-Outside a block it returns `25P01`, `LOCK TABLE can only be used in transaction
-blocks`, before lookup. Missing targets use `42P01`; ordinary-role AX denial is
-`42501`, `permission denied for table t`. Advisory locking and lock introspection
+performs block/name/kind/current-role checks and acquires the requested modes,
+affecting zero rows. Outside a block it returns `25P01`, `LOCK TABLE can only be
+used in transaction blocks`, before lookup. Missing targets use `42P01`; explicit
+missing schemas use `3F000`. Denials use `42501`, `permission denied for table t`
+or `permission denied for view v`. Direct sequences fail `42809`, `cannot lock
+relation "s"`, Detail `This operation is not supported for sequences.`, before ACL.
+Utility diagnostics have no Position or synthetic Schema/Table fields.
+Feature smokes: `make smoke VERBOSE=0 RUN='^TestLockModesSmoke(Matrix|OrderViews|Savepoints)$$'`.
+Advisory locking and lock introspection
 remain unsupported. DELETE's row UPDATE and UPDATE's
 NO KEY UPDATE holds are distinct mutually conflicting modes on the same logical
 row resource; distinct rows arbitrate independently and ordinary SELECT does not
@@ -262,8 +293,8 @@ an avoidable soft cycle without an error or revoking any held lock. An unavoidab
 cycle terminalizes one actual cycle member with `40P01`, `deadlock detected`.
 Victim choice is unspecified. Without savepoints, mandatory Finish discards
 all private effects and releases locks, allowing a survivor to complete before
-explicit ROLLBACK. With marks, the failed level's effects roll back but native
-locks remain until outer end. An explicit victim is Aborted; known ROLLBACK TO
+explicit ROLLBACK. With marks, the failed level's effects and lock contributions
+roll back while premark holdings survive. An explicit victim is Aborted; known ROLLBACK TO
 or full ROLLBACK recovers according to the boundaries above.
 
 Detection normalizes live waits using the same cancellation and absolute-deadline
@@ -471,8 +502,8 @@ Execution eagerly freezes qualifying row identities and initial sort order,
 then acquires row grants before returning a cursor. Prepare takes ROW SHARE
 relation authority but no row grants. Explicit holds survive Rows.Close and
 Stmt.Close until transaction end; implicit Finish releases holds before exposing
-the eager result. The existing conservative native savepoint boundary remains:
-ROLLBACK TO/RELEASE does not release or downgrade outer-ticket row grants.
+the eager result. ROLLBACK TO or active-level error unwind restores premark row
+holdings and removes later upgrades; RELEASE retains them in the parent.
 Reset/Restore fences exact old identities; already finalized results remain valid.
 
 At READ COMMITTED, a committed peer update supplies the latest same-row values

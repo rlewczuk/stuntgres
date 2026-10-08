@@ -484,10 +484,29 @@ func singletonArgument(expr Expr) bool {
 	}
 }
 
+type TableLockMode uint8
+
+const (
+	LockAccessShare TableLockMode = iota
+	LockRowShare
+	LockRowExclusive
+	LockShareUpdateExclusive
+	LockShare
+	LockShareRowExclusive
+	LockExclusive
+	LockAccessExclusive
+)
+
+type LockTarget struct {
+	Name ObjectName
+	Only bool
+}
+
 type LockTable struct {
-	Name   ObjectName
-	Pos    Position
-	Nowait bool
+	Targets []LockTarget
+	Mode    TableLockMode
+	Pos     Position
+	Nowait  bool
 }
 
 func (*LockTable) statement() {}

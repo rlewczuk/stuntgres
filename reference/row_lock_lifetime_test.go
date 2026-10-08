@@ -141,8 +141,8 @@ func TestReferenceRowLockSavepointControl(t *testing.T) {
 	referenceLockExec(t, p.ctx, tx, "SAVEPOINT s", 0)
 	referenceRowValues(t, referenceRowQuery(p.ctx, tx, "SELECT v FROM t WHERE id=2 FOR SHARE", true), 20)
 	referenceLockExec(t, p.ctx, tx, "ROLLBACK TO s", 0)
-	// This PostgreSQL-only post-mark release differs from native conservative
-	// outer-ticket retention, independently asserted in engine/public tests.
+	// Postmark row grants release; the native contribution checkpoint has
+	// matching public and internal witnesses.
 	referenceLockExec(t, p.ctx, b, "UPDATE t SET v=21 WHERE id=2", 1)
 }
 

@@ -10,6 +10,12 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
+	if lock, ok := stmt.(*parser.LockTable); ok {
+		if !execute {
+			return nil
+		}
+		return s.acquireExplicitLocks(lock)
+	}
 	defer func() {
 		if err == nil {
 			err = s.acquireViewSources()
@@ -102,19 +108,6 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		name, mode, ownerOnly = v.Name, accessExclusive, true
 		rename, ifExists, tableRename = true, v.IfExists, true
-	case *parser.LockTable:
-		if !execute {
-			return nil
-		}
-		s.owner.mu.Lock()
-		active := s.owner.state == TxActive
-		s.owner.mu.Unlock()
-		if !active {
-			return sqlError("25P01", "LOCK TABLE can only be used in transaction blocks")
-		}
-		name = v.Name
-		mode = accessExclusive
-		policy.nowait = v.Nowait
 	default:
 		return nil
 	}
@@ -137,24 +130,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		err = nil
 	}
 	if err == nil {
-		if _, ok := stmt.(*parser.LockTable); ok {
-			err = tableKind(auth.catalog.state.descriptors[ref.Address].(*relationDescriptor), "lock")
-		}
-	}
-	if err == nil {
 		if ownerOnly {
 			if ref.owner != nil {
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 			}
 			if tableRename && ref.owner != nil && err == nil {
 				err = auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: auth.catalog.state.descriptors[ref.Address].Namespace()})
-			}
-		} else if mode == accessExclusive {
-			actor, roleErr := auth.roles.Descriptor(auth.state.CurrentUser)
-			if roleErr != nil {
-				err = roleErr
-			} else if !actor.Superuser {
-				err = sqlError("42501", fmt.Sprintf("permission denied for table %s", name.Parts[len(name.Parts)-1].Text))
 			}
 		}
 	}
@@ -245,14 +226,6 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return auth.CheckCreate(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: descriptor.namespace})
 		}
 		return nil
-	} else if mode == accessExclusive {
-		actor, err := auth.roles.Descriptor(auth.state.CurrentUser)
-		if err != nil {
-			return err
-		}
-		if !actor.Superuser {
-			return sqlError("42501", fmt.Sprintf("permission denied for table %s", name.Parts[len(name.Parts)-1].Text))
-		}
 	}
 	return nil
 }

@@ -120,6 +120,16 @@ SELECT/INSERT/UPDATE preparation does not cache permission, and execution reeval
 the current principal, returning `42501` / `permission denied for table secret`
 without synthetic diagnostic object fields. Explicit internal empty ACLs remove
 ordinary owner use rights, not owner authority or implicit grant options.
+
+Explicit LOCK uses table/view-level ANY alternatives: MAINTAIN, UPDATE, DELETE
+or TRUNCATE permits all eight modes; INSERT permits ACCESS SHARE/ROW SHARE/ROW
+EXCLUSIVE; SELECT permits ACCESS SHARE only. Native internal ACL values represent
+MAINTAIN/TRUNCATE on tables/views, never columns/sequences. PUBLIC/default owner
+rights apply, but explicit empty owner ACLs deny use; superusers remain allowed.
+Named view denials say `permission denied for view v`. Bound view sources use
+ordinary-view owner or original security_invoker identity without extra schema
+lookup. Direct sequence LOCK rejects kind before ACL. SQL GRANT and public ACL
+mutation APIs remain unsupported.
 Shared ACL validation rejects grant options for PUBLIC at mutation, staging and
 import boundaries. SQL ACL mutation is not exposed.
 After successful namespace lookup, parse/binding literal type input and typed

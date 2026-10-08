@@ -129,9 +129,9 @@ func TestRowLockLifetime(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := deleteAsync(t, b, ctx, "UPDATE t SET v=21 WHERE id=2")
-	rowLockQueued(t, e, a.transactions.ticket, noKeyUpdate)
-	transactionEnd(t, a, ar, false)
 	deleteAwait(t, done, 1, nil)
+	transactionRows(t, b, "SELECT v FROM t WHERE id=1 FOR KEY SHARE", 10)
+	transactionEnd(t, a, ar, false)
 	lockEmpty(t, e)
 }
 func TestRowLockDiagnostics(t *testing.T) {

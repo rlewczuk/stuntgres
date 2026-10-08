@@ -197,6 +197,8 @@ const (
 	CreatePrivilege
 	DeletePrivilege
 	UpdatePrivilege
+	MaintainPrivilege
+	TruncatePrivilege
 )
 
 type ACLGrantee struct {
@@ -373,7 +375,7 @@ func classPrivileges(d Descriptor) Privileges {
 	if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 		return SelectPrivilege | UsagePrivilege | UpdatePrivilege
 	}
-	return SelectPrivilege | InsertPrivilege | DeletePrivilege | UpdatePrivilege
+	return SelectPrivilege | InsertPrivilege | DeletePrivilege | UpdatePrivilege | MaintainPrivilege | TruncatePrivilege
 }
 func (v AuthorizationView) object(ref ObjectRef) (Descriptor, error) {
 	if v.engine == nil || v.catalog.state == nil || ref.owner != v.engine.owner || ref.Epoch != v.catalog.Epoch() {

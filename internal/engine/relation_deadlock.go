@@ -341,6 +341,10 @@ func deadlockMode(mode relationLockMode) string {
 		return "Share"
 	case relationRowShare:
 		return "RowShareLock"
+	case relationShare:
+		return "ShareLock"
+	case relationExclusive:
+		return "ExclusiveLock"
 	}
 	panic("invalid deadlock request mode")
 }

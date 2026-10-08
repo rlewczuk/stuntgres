@@ -192,8 +192,9 @@ func TestRowLockLifetime(t *testing.T) {
 	transactionAffected(t, ctx, tx, "SAVEPOINT s", false, 0)
 	transactionSelect(t, ctx, tx, "SELECT v FROM t WHERE id=2 FOR SHARE", false, 20)
 	transactionAffected(t, ctx, tx, "ROLLBACK TO s", false, 0)
-	// Existing native boundary intentionally retains outer-ticket contributions.
-	for _, id := range []string{"1", "2"} {
+	// Postmark row 2 releases while premark row 1 survives statement closure.
+	transactionAffected(t, ctx, b, "UPDATE t SET v=30 WHERE id=2", false, 1)
+	for _, id := range []string{"1"} {
 		bounded, cancel := context.WithTimeout(ctx, 30*time.Millisecond)
 		_, err = b.ExecContext(bounded, "UPDATE t SET v=30 WHERE id="+id)
 		cancel()

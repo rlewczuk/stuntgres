@@ -15,6 +15,15 @@ Detailed contracts are grouped by topic:
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
 
+Explicit table locking: `LOCK [TABLE] target [, target ...]
+[IN lockmode MODE] [NOWAIT]`, with target `name`, `name *`, `ONLY name` or
+`ONLY(name)`. Modes are ACCESS SHARE, ROW SHARE, ROW EXCLUSIVE, SHARE UPDATE
+EXCLUSIVE, SHARE, SHARE ROW EXCLUSIVE, EXCLUSIVE and ACCESS EXCLUSIVE (default).
+Execution requires an explicit transaction, affects zero rows and processes
+targets in order. Views recursively lock bound sources in the same mode;
+standalone table markers do not add unsupported inheritance. Prepare is
+metadata-only. See [privileges, conflict matrix and savepoint lifetime](TRANSACTIONS.md#relation-locks).
+
 ```text
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
 CREATE VIEW [schema.]name [(column [, ...])]

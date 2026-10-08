@@ -34,14 +34,14 @@ func TestRelationLockAuthority(t *testing.T) {
 	if _, err = e.Rollback(op, tx); err != nil {
 		t.Fatal(err)
 	}
-	// Creating a relation is not an ownership fallback for the selected AX path.
+	// Default owner ACL supplies ordinary LOCK privileges.
 	roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
 	tx, err = e.Begin(op, TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = e.Execute(op, statement(t, "LOCK TABLE owned IN ACCESS EXCLUSIVE MODE"), 0, nil)
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" {
+	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = e.Rollback(op, tx); err != nil {

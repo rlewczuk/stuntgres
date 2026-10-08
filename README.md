@@ -208,9 +208,17 @@ detection: compatible queue reordering resolves avoidable soft cycles; an
 unavoidable cycle returns `40P01` / `deadlock detected` to an unspecified cycle
 member. Without a savepoint, statement completion rolls back that victim and
 releases its locks before explicit ROLLBACK. With recoverable savepoints,
-pre-mark effects survive but native locks conservatively persist until the
-outer transaction ends; PostgreSQL subtransaction lock rollback is excluded. See
+pre-mark effects and holdings survive while failed-level relation/row lock
+contributions are released before client recovery. See
 [transaction recovery and logical diagnostics](docs/TRANSACTIONS.md).
+
+Explicit `LOCK [TABLE]` supports ordered relation lists, per-target ONLY/star,
+all eight table modes (default ACCESS EXCLUSIVE), NOWAIT, documented ANY-rights
+privileges and recursive view locking. Native tables remain standalone; no
+inheritance or SQL GRANT is introduced. Prepare is metadata-only; Execute
+requires an explicit block and affects zero rows. Savepoint rollback restores
+earlier held modes, including incomparable modes, without replacing the ticket.
+Feature smokes: `make smoke VERBOSE=0 RUN='^TestLockModesSmoke(Matrix|OrderViews|Savepoints)$$'`.
 
 Selected mathematical functions include `random()`, inclusive INTEGER/BIGINT/
 NUMERIC bounded `random(lower,upper)`, `random_normal([mean[,stddev]])` and

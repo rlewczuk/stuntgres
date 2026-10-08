@@ -16,11 +16,11 @@ func TestRelationLockSyntax(t *testing.T) {
 			t.Fatal(q, statements)
 		}
 		lock, ok := statements[0].(*LockTable)
-		if !ok || len(lock.Name.Parts) == 0 || lock.Name.Parts[0].Pos.Character < 1 || lock.Pos.Character != 1 {
+		if !ok || len(lock.Targets) != 1 || len(lock.Targets[0].Name.Parts) == 0 || lock.Targets[0].Name.Parts[0].Pos.Character < 1 || lock.Pos.Character != 1 {
 			t.Fatalf("%s %#v", q, statements)
 		}
 	}
-	for _, q := range []string{"LOCK t", "LOCK TABLE t", "LOCK TABLE ONLY t IN ACCESS EXCLUSIVE MODE", "LOCK TABLE t * IN ACCESS EXCLUSIVE MODE", "LOCK TABLE t,u IN ACCESS EXCLUSIVE MODE", "LOCK TABLE t IN ACCESS SHARE MODE", "LOCK TABLE t IN ACCESS EXCLUSIVE MODE extra", "LOCK TABLE t IN ACCESS EXCLUSIVE MODE SELECT * FROM t"} {
+	for _, q := range []string{"LOCK TABLE t IN ACCESS EXCLUSIVE MODE extra", "LOCK TABLE t IN ACCESS EXCLUSIVE MODE SELECT * FROM t"} {
 		if statements, err := Parse(q); err == nil || statements != nil {
 			t.Fatalf("excluded form accepted: %s %v %v", q, statements, err)
 		}
@@ -34,9 +34,7 @@ func TestRelationLockSyntax(t *testing.T) {
 
 func TestRelationLockCapabilityBoundaries(t *testing.T) {
 	for _, q := range []string{"LOCK t", "LOCK ONLY t IN ACCESS EXCLUSIVE MODE", "LOCK TABLE t", "LOCK TABLE t NOWAIT", "LOCK TABLE ONLY t IN ACCESS EXCLUSIVE MODE", "LOCK TABLE t * IN ACCESS EXCLUSIVE MODE", "LOCK TABLE t,u IN ACCESS EXCLUSIVE MODE", "LOCK TABLE t IN ACCESS SHARE MODE", "LOCK TABLE t IN ROW SHARE MODE", "LOCK TABLE t IN ROW EXCLUSIVE MODE", "LOCK TABLE t IN SHARE UPDATE EXCLUSIVE MODE", "LOCK TABLE t IN SHARE MODE", "LOCK TABLE t IN SHARE ROW EXCLUSIVE MODE", "LOCK TABLE t IN EXCLUSIVE MODE"} {
-		_, err := Parse(q)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
+		if _, err := Parse(q); err != nil {
 			t.Fatal(q, err)
 		}
 	}

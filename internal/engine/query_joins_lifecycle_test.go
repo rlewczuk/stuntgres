@@ -302,9 +302,11 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			e.locks.mu.Lock()
 			entry := e.locks.entries[lockResource{ObjectRef: prior}]
 			priorHeld := entry != nil && entry.holders[readerTicket]&accessShare != 0
+			first := e.locks.entries[lockResource{ObjectRef: left}]
+			joinHeld := first != nil && first.holders[readerTicket]&accessShare != 0
 			e.locks.mu.Unlock()
-			if !priorHeld {
-				t.Fatal("join admission released earlier transaction authority")
+			if !priorHeld || !joinHeld {
+				t.Fatal("join admission lost earlier authority or failed to acquire its first leaf", priorHeld, joinHeld)
 			}
 			cancel()
 			lockAwait(t, done, context.Canceled)
@@ -313,14 +315,18 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			priorHeld = entry != nil && entry.holders[readerTicket]&accessShare != 0
 			other := e.locks.entries[lockResource{ObjectRef: right}]
 			holderHeld := other != nil && other.holders[holderTicket]&accessExclusive != 0 && other.holders[readerTicket] == 0 && len(other.pending) == 0
-			first := e.locks.entries[lockResource{ObjectRef: left}]
-			joinHeld := first != nil && first.holders[readerTicket]&accessShare != 0
+			first = e.locks.entries[lockResource{ObjectRef: left}]
+			joinHeld = first != nil && first.holders[readerTicket]&accessShare != 0
 			e.locks.mu.Unlock()
-			// Full abort ends the reader ticket; recoverable abort retains its
-			// grants, including the admitted first leaf. Marks do not journal
-			// lock contributions. Neither releases the competing owner's grant.
-			if priorHeld != recoverable || !holderHeld || joinHeld != recoverable || reader.TransactionState() != TxAborted {
+			// Full abort ends the reader ticket and all its grants. Savepoint
+			// abort retains the ticket and premark grant, but releases the
+			// admitted first leaf acquired after the mark. Neither releases
+			// the competing owner's grant or retains the canceled waiter.
+			if priorHeld != recoverable || !holderHeld || joinHeld || reader.TransactionState() != TxAborted {
 				t.Fatal("cancellation violated transaction authority", priorHeld, holderHeld, joinHeld, reader.TransactionState())
+			}
+			if recoverable && reader.transactions.ticket != readerTicket || !recoverable && reader.transactions.ticket != nil {
+				t.Fatal("cancellation changed transaction ticket authority")
 			}
 			if recoverable {
 				controlsRequire(t, reader, "ROLLBACK TO before_join")

@@ -8,8 +8,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Marks retain immutable logical roots, not generator counters, snapshots or
-// lock contributions. The existing ticket remains owned by the outer block.
+// Marks retain immutable logical roots and held lock contributions, not
+// generator counters or snapshots. The outer block keeps the same ticket.
 type savepointMark struct {
 	name      string
 	writes    map[ObjectAddress][]rowVersion
@@ -18,6 +18,7 @@ type savepointMark struct {
 	settings  settingsMark
 	isolation Isolation
 	readOnly  bool
+	locks     relationLockCheckpoint
 }
 
 type settingsMark struct {
@@ -51,7 +52,7 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 		// still retained by a result opened before rollback.
 		writes[a] = rows[:len(rows):len(rows)]
 	}
-	return savepointMark{name, writes, t.deletes, t.catalog, t.session.settings.savepoint(), t.isolation, t.readOnly}
+	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, locks: t.session.Engine().locks.checkpoint(t.ticket)}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
@@ -124,42 +125,51 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			}
 		}
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	t.session.settings.mu.Lock()
-	defer t.session.settings.mu.Unlock()
-	s.op.session.mu.Lock()
-	defer s.op.session.mu.Unlock()
-	if err := publicationOperationLocked(e, s.op); err != nil {
-		return Result{}, err
+	result, err := func() (Result, error) {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		t.session.settings.mu.Lock()
+		defer t.session.settings.mu.Unlock()
+		s.op.session.mu.Lock()
+		defer s.op.session.mu.Unlock()
+		if err := publicationOperationLocked(e, s.op); err != nil {
+			return Result{}, err
+		}
+		if err := t.validate(t.ref); err != nil {
+			return Result{}, err
+		}
+		if t.ref.epoch != e.state.epoch {
+			return Result{}, ErrCatalogReplaced
+		}
+		if control.Kind != parser.CreateSavepoint && index < 0 {
+			return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
+		}
+		switch control.Kind {
+		case parser.CreateSavepoint:
+			t.savepoints = append(stack, mark)
+		case parser.RollbackSavepoint:
+			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
+			t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
+			t.isolation, t.readOnly = mark.isolation, mark.readOnly
+			t.session.settings.currentIsolation = isolationText(t.isolation)
+			t.session.settings.currentReadOnly = t.readOnly
+			t.truncateSavepoints(index + 1)
+			t.state = TxActive
+		case parser.ReleaseSavepoint:
+			// PostgreSQL restores the parent's access mode on subcommit, unlike
+			// ordinary SESSION/LOCAL settings, whose effects are retained.
+			t.readOnly = mark.readOnly
+			t.session.settings.currentReadOnly = t.readOnly
+			t.truncateSavepoints(index)
+		}
+		s.controlOutcome = controlExecuted
+		return Result{}, nil
+	}()
+	if err != nil {
+		return result, err
 	}
-	if err := t.validate(t.ref); err != nil {
-		return Result{}, err
+	if control.Kind == parser.RollbackSavepoint {
+		e.locks.restore(t.ticket, mark.locks)
 	}
-	if t.ref.epoch != e.state.epoch {
-		return Result{}, ErrCatalogReplaced
-	}
-	if control.Kind != parser.CreateSavepoint && index < 0 {
-		return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
-	}
-	switch control.Kind {
-	case parser.CreateSavepoint:
-		t.savepoints = append(stack, mark)
-	case parser.RollbackSavepoint:
-		t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
-		t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
-		t.isolation, t.readOnly = mark.isolation, mark.readOnly
-		t.session.settings.currentIsolation = isolationText(t.isolation)
-		t.session.settings.currentReadOnly = t.readOnly
-		t.truncateSavepoints(index + 1)
-		t.state = TxActive
-	case parser.ReleaseSavepoint:
-		// PostgreSQL restores the parent's access mode on subcommit, unlike
-		// ordinary SESSION/LOCAL settings, whose effects are retained.
-		t.readOnly = mark.readOnly
-		t.session.settings.currentReadOnly = t.readOnly
-		t.truncateSavepoints(index)
-	}
-	s.controlOutcome = controlExecuted
 	return Result{}, nil
 }

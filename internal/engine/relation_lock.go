@@ -58,6 +58,8 @@ const (
 	keyShare
 	rowShare
 	relationRowShare
+	relationShare
+	relationExclusive
 )
 
 // Row zero is the relation resource; logical rows use their stable RowID.
@@ -125,13 +127,68 @@ func lockConflict(a, b relationLockMode) bool {
 			b&noKeyUpdate != 0 && a&(rowShare|noKeyUpdate) != 0
 	}
 	if a&accessExclusive != 0 || b&accessExclusive != 0 {
-		return true
+		return a != 0 && b != 0
 	}
-	srxConflicts := rowExclusive | shareUpdateExclusive | shareRowExclusive
-	return a&shareRowExclusive != 0 && b&srxConflicts != 0 || b&shareRowExclusive != 0 && a&srxConflicts != 0 || a&shareUpdateExclusive != 0 && b&shareUpdateExclusive != 0
+	exclusiveConflicts := relationRowShare | rowExclusive | shareUpdateExclusive | relationShare | shareRowExclusive | relationExclusive
+	shareConflicts := rowExclusive | shareUpdateExclusive | shareRowExclusive | relationExclusive
+	srxConflicts := rowExclusive | shareUpdateExclusive | relationShare | shareRowExclusive | relationExclusive
+	return a&relationExclusive != 0 && b&exclusiveConflicts != 0 ||
+		b&relationExclusive != 0 && a&exclusiveConflicts != 0 ||
+		a&relationShare != 0 && b&shareConflicts != 0 ||
+		b&relationShare != 0 && a&shareConflicts != 0 ||
+		a&shareRowExclusive != 0 && b&srxConflicts != 0 ||
+		b&shareRowExclusive != 0 && a&srxConflicts != 0 ||
+		a&shareUpdateExclusive != 0 && b&shareUpdateExclusive != 0
 }
 func (m *relationLockManager) valid(t *relationTicket) bool {
 	return t != nil && t.manager == m && m.owners[t.ref] == t
+}
+
+// A checkpoint contains only held contributions, never pending requests.
+type relationLockCheckpoint map[lockResource]relationLockMode
+
+func (m *relationLockManager) checkpoint(t *relationTicket) relationLockCheckpoint {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.valid(t) {
+		return nil
+	}
+	held := make(relationLockCheckpoint, len(t.resources))
+	for ref := range t.resources {
+		if entry := m.entries[ref]; entry != nil && entry.holders[t] != 0 {
+			held[ref] = entry.holders[t]
+		}
+	}
+	return held
+}
+
+// Caller serializes the owner but holds no catalog/session/publication locks.
+// Intersecting prevents a stale checkpoint from resurrecting ownership.
+func (m *relationLockManager) restore(t *relationTicket, held relationLockCheckpoint) {
+	var notify *relationRequest
+	m.mu.Lock()
+	if m.valid(t) {
+		for ref := range t.resources {
+			entry := m.entries[ref]
+			if entry == nil {
+				continue
+			}
+			mode := entry.holders[t] & held[ref]
+			if mode == entry.holders[t] {
+				continue
+			}
+			if mode == 0 {
+				delete(entry.holders, t)
+				delete(t.resources, ref)
+			} else {
+				entry.holders[t] = mode
+			}
+			m.settle(entry, &notify)
+			m.retire(ref, entry)
+		}
+	}
+	m.mu.Unlock()
+	notifyRequests(notify)
 }
 func terminalRequest(r *relationRequest, err error, notify **relationRequest) {
 	r.err = err
@@ -228,7 +285,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
-	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare) {
+	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}

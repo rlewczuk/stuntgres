@@ -662,9 +662,9 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 	return ref, err
 }
 
-// COMMENT utility lookup checks a qualified namespace before the relation and
-// reports namespace denial without the position attached by DML analysis.
-func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, comment bool) (ObjectRef, error) {
+// Utility lookup checks a qualified namespace before the relation and reports
+// namespace denial without the position attached by DML analysis.
+func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ObjectRef, error) {
 	view := auth.catalog
 	if err := e.validateCatalogViewLocked(view); err != nil {
 		return ObjectRef{}, err
@@ -675,7 +675,7 @@ func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.Ob
 	relname := name.Parts[len(name.Parts)-1].Text
 	var a ObjectAddress
 	var ok bool
-	if comment && len(name.Parts) == 2 {
+	if utility && len(name.Parts) == 2 {
 		ns := view.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
 		if name.Parts[0].Text == "pg_temp" {
 			ns = temporaryNamespace(auth)
@@ -686,7 +686,7 @@ func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.Ob
 	}
 	path, err := e.lookupNamespaces(auth, name, relationLookup)
 	if err != nil {
-		if d, yes := err.(*sqlstate.Error); yes && comment {
+		if d, yes := err.(*sqlstate.Error); yes && utility {
 			copy := *d
 			copy.Position = ""
 			err = &copy

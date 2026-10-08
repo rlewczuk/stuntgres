@@ -17,6 +17,8 @@ package parser
  notNull *NotNullConstraint
  check *CheckConstraint
  alterTarget alterTarget
+ lockTargets []LockTarget
+ lockMode TableLockMode
  alterActions []AlterTableAction
  alterAction AlterTableAction
  dropTarget dropTarget
@@ -191,6 +193,9 @@ package parser
 %type <identifier> using_alias
 %type <desc> inner_join
 %type <alterTarget> alter_target rename_target
+%type <lockTargets> lock_targets
+%type <lockMode> lock_mode optional_lock_mode
+%type <desc> optional_lock_nowait
 %type <desc> optional_column
 %type <dropTarget> drop_target
 %type <tok> alter_action
@@ -374,30 +379,23 @@ isolation_mode: READ COMMITTED { $$=IsolationReadCommitted }
  | REPEATABLE READ { $$=IsolationRepeatableRead }
  | SERIALIZABLE { $$=IsolationSerializable } ;
 mode_write: KW_U { if $1.text!="write" { sqllex.(*lexer).syntax($1); return 1 } } ;
-lock_table: LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE { $$=&LockTable{Name:$3,Pos:$1.pos} }
- | LOCK TABLE relation_name IN ACCESS EXCLUSIVE MODE lock_nowait { $$=&LockTable{Name:$3,Pos:$1.pos,Nowait:true} }
- | LOCK TABLE relation_name { sqllex.(*lexer).deferUnsupported($1,"LOCK requires explicit ACCESS EXCLUSIVE MODE"); $$=nil }
- | LOCK TABLE relation_name lock_nowait { sqllex.(*lexer).deferUnsupported($1,"LOCK options are unsupported"); $$=nil }
- | LOCK TABLE relation_name IN excluded_lock_mode MODE optional_lock_nowait { sqllex.(*lexer).deferUnsupported($1,"LOCK mode is unsupported"); $$=nil }
- | LOCK TABLE relation_name ',' excluded_lock_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK target lists are unsupported"); $$=nil }
- | LOCK TABLE relation_name '*' lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK descendants are unsupported"); $$=nil }
- | LOCK TABLE lock_only relation_name optional_lock_star lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK ONLY is unsupported"); $$=nil }
- | LOCK excluded_lock_target lock_more_targets lock_options { sqllex.(*lexer).deferUnsupported($1,"LOCK requires TABLE and explicit ACCESS EXCLUSIVE MODE"); $$=nil } ;
-/* Excluded release forms consume complete input so malformed suffixes
- * retain their syntax diagnostics. */
-excluded_lock_targets: excluded_lock_target | excluded_lock_targets ',' excluded_lock_target ;
-excluded_lock_target: relation_name optional_lock_star | lock_only relation_name optional_lock_star ;
-optional_lock_star: /* empty */ | '*' ;
-lock_more_targets: /* empty */ | ',' excluded_lock_targets ;
-lock_options: optional_lock_nowait | IN lock_any_mode MODE optional_lock_nowait ;
-optional_lock_nowait: /* empty */ | lock_nowait ;
-lock_any_mode: ACCESS EXCLUSIVE | excluded_lock_mode ;
-excluded_lock_mode: ACCESS lock_share | lock_row lock_share | lock_row EXCLUSIVE
- | lock_share | lock_share lock_update EXCLUSIVE | lock_share lock_row EXCLUSIVE | EXCLUSIVE ;
+lock_table: LOCK optional_table lock_targets optional_lock_mode optional_lock_nowait { $$=&LockTable{Targets:$3,Mode:$4,Pos:$1.pos,Nowait:$5} } ;
+optional_table: /* empty */ | TABLE ;
+lock_targets: alter_target { $$=[]LockTarget{{Name:$1.Name,Only:$1.Only}} }
+ | lock_targets ',' alter_target { $$=append($1,LockTarget{Name:$3.Name,Only:$3.Only}) } ;
+optional_lock_mode: /* empty */ { $$=LockAccessExclusive }
+ | IN lock_mode MODE { $$=$2 } ;
+lock_mode: ACCESS lock_share { $$=LockAccessShare }
+ | lock_row lock_share { $$=LockRowShare }
+ | lock_row EXCLUSIVE { $$=LockRowExclusive }
+ | lock_share UPDATE EXCLUSIVE { $$=LockShareUpdateExclusive }
+ | lock_share { $$=LockShare }
+ | lock_share lock_row EXCLUSIVE { $$=LockShareRowExclusive }
+ | EXCLUSIVE { $$=LockExclusive }
+ | ACCESS EXCLUSIVE { $$=LockAccessExclusive } ;
+optional_lock_nowait: /* empty */ { $$=false } | lock_nowait { $$=true } ;
 lock_share: KW_U { if $1.text!="share" { sqllex.(*lexer).syntax($1); return 1 } } ;
 lock_row: KW_C { if $1.text!="row" { sqllex.(*lexer).syntax($1); return 1 } } ;
-lock_update: UPDATE ;
-lock_only: ONLY ;
 lock_nowait: KW_U { if $1.text!="nowait" { sqllex.(*lexer).syntax($1); return 1 } } ;
 set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier(),$4,$1.pos) }
  | SET set_name setting_assignment DEFAULT { $$=&Set{Name:$2.identifier(),Default:true,Pos:$1.pos} }
