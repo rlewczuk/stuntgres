@@ -184,12 +184,11 @@ func TestReferenceSequenceLatestIntegrationDefaultBoundary(t *testing.T) {
 							referenceLockExec(t, p.ctx, a, "INSERT INTO "+name+" DEFAULT VALUES", 1)
 							referenceRunStep(t, p.ctx, a, record, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"INT8"}, [][]any{{nil}}))
 						} else {
-							want := controlsReferenceDiagnostic("0A000", "functions are unsupported")
-							want.Position = strconv.Itoa(strings.Index(q, expression) + 1)
-							s := referenceErrorDiagnostic(q, want)
+							s := referenceError(q, "0A000")
 							s.prepared = prepared
-							s.errorStage = "execute"
-							referenceRunStep(t, p.ctx, a, record, s)
+							if got := referenceRunStep(t, p.ctx, a, record, s); got.errorStage != "execute" {
+								t.Fatal("native capability exclusion occurred before utility execution", got.errorStage)
+							}
 						}
 					}
 					for i, expression := range []string{"NULL::regclass IS NULL", "'default_s'::regclass IS NULL"} {
@@ -202,12 +201,11 @@ func TestReferenceSequenceLatestIntegrationDefaultBoundary(t *testing.T) {
 							referenceLockExec(t, p.ctx, a, "INSERT INTO "+name+" DEFAULT VALUES", 1)
 							referenceRunStep(t, p.ctx, a, record, referenceSelect("SELECT v FROM "+name, []string{"v"}, []string{"BOOL"}, [][]any{{i == 0}}))
 						} else {
-							want := controlsReferenceDiagnostic("0A000", "regclass is unsupported in DEFAULT expressions")
-							want.Position = strconv.Itoa(strings.Index(q, expression) + 1)
-							s := referenceErrorDiagnostic(q, want)
+							s := referenceError(q, "0A000")
 							s.prepared = prepared
-							s.errorStage = "execute"
-							referenceRunStep(t, p.ctx, a, record, s)
+							if got := referenceRunStep(t, p.ctx, a, record, s); got.errorStage != "execute" {
+								t.Fatal("native capability exclusion occurred before utility execution", got.errorStage)
+							}
 						}
 					}
 					sequenceProbeValue(t, p.ctx, a, "SELECT nextval('default_s')", 17)

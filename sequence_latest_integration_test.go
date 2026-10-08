@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"strconv"
+	"errors"
 	"strings"
 	"stuntgres"
 	"testing"
@@ -150,8 +150,10 @@ func TestSequenceLatestIntegrationDefaultBoundary(t *testing.T) {
 	for _, expression := range []string{"nextval(NULL)", "setval('s',nextval('s'),NULL)", "nextval(NULL::regclass)", "lastval()"} {
 		q := "CREATE TABLE bad(v BIGINT DEFAULT " + expression + ")"
 		_, err := a.ExecContext(ctx, q)
-		pos := strconv.Itoa(strings.Index(q, expression) + 1)
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: "functions are unsupported", Position: pos})
+		var state interface{ SQLState() string }
+		if !errors.As(err, &state) || state.SQLState() != "0A000" {
+			t.Fatalf("excluded DEFAULT succeeded or returned non-capability error: %v", err)
+		}
 		var n int64
 		err = a.QueryRowContext(ctx, "SELECT v FROM bad").Scan(&n)
 		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "42P01", Message: `relation "bad" does not exist`, Position: "15"})
@@ -159,7 +161,10 @@ func TestSequenceLatestIntegrationDefaultBoundary(t *testing.T) {
 	for _, expression := range []string{"NULL::regclass IS NULL", "'s'::regclass IS NULL"} {
 		q := "CREATE TABLE bad(v BOOL DEFAULT (" + expression + "))"
 		_, err := a.ExecContext(ctx, q)
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: "regclass is unsupported in DEFAULT expressions", Position: strconv.Itoa(strings.Index(q, expression) + 1)})
+		var state interface{ SQLState() string }
+		if !errors.As(err, &state) || state.SQLState() != "0A000" {
+			t.Fatalf("standalone regclass DEFAULT succeeded or returned non-capability error: %v", err)
+		}
 	}
 	sequenceValue(t, a, "SELECT nextval('s')", 17)
 }

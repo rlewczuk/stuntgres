@@ -616,7 +616,7 @@ Private USING/CHECK demand and scalar state publish atomically with rewritten
 rows, but physical-session currval/lastval and the caller's discarded AS cache
 tail survive statement failure or rollback. A post-TYPE savepoint does not rewind
 demand within that same private generator.
-SERIAL, expression-generated columns and UPDATE DEFAULT remain unsupported.
+Expression-generated columns and UPDATE DEFAULT remain unsupported.
 
 
 UPDATE admits `RETURNING [WITH (OLD AS o, NEW AS n)] output [, ...]` using
@@ -638,15 +638,16 @@ Database-qualified relation names, temporary tables (TEMP sequences are supporte
 outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults/CHECK/identity, ALTER ADD CHECK/VALIDATE,
-serial, default-containing ALTER lists, primary keys,
+non-column serial type uses, default-containing ALTER lists, primary keys,
 UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
 INSERT RETURNING, whole-row RETURNING records/scalar subqueries,
 general COLLATE, two-phase commit, transactional table DDL outside selected
 TYPE/nullability/identity/DROP COLUMN/constraint lists, transactional schema/view DDL,
 non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots,
 SQL ACL mutation, or catalog columns beyond the bounded view providers
-are not supported. Declared DEFAULT expressions remain bounded and reject sequence
-calls, including calls with constant NULL arguments.
+are not supported. Declared DEFAULT expressions admit fixed early-bound nextval
+leaves with assignment/cast wrappers for SERIAL and native replay; other sequence
+calls/composition and NULL/dynamic targets remain unsupported.
 
 ## Temporal zone conversion
 

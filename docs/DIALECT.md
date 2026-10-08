@@ -220,9 +220,9 @@ parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;
 `SELECT FROM source` retains table occurrence/filter semantics. These do not
 expand standalone SELECT or standalone VALUES. Explicit targets match source
 schema width; implicit targets map first N live columns. Omitted columns use
-declared defaults or typed NULL and enforce NOT NULL; serial remains excluded
-with separate real-PG witnesses. Sequence calls are supported in the bounded
-scalar consumers below, not in declared DEFAULT expressions.
+declared defaults or typed NULL and enforce NOT NULL. SERIAL uses ordinary
+width-checked defaults, distinct from identity overrides. The minimum fixed
+early-bound nextval leaf is also admitted in declared DEFAULT expressions.
 Already-supported casts and null/truth/distinct predicates, DATE and BYTEA are
 preserved in INSERT sources. Shared SELECT analysis retains current cast result
 names. Recursive conversion preflight uses the imported execution frame, outside
@@ -457,10 +457,11 @@ Dump serializes expression structure/captured temporal input without Eval and
 existing rows explicitly. Restore uses the same binder and public DEFAULT
 requests, staging atomically. Temporal 'now' input captures CREATE's operation
 clock; no new volatile producer, general function, subquery, cast family or arithmetic
-operator/type is implied. Serial and UPDATE DEFAULT remain excluded. Identity
-columns use a separate internally owned sequence, not a declared DEFAULT.
-Sequence/volatile calls remain excluded specifically from declared DEFAULT expressions,
-even when constant NULL could otherwise eliminate the call; disk/WAL,
+operator/type is implied. UPDATE DEFAULT remains excluded. Identity columns use
+an internally owned sequence, not a declared DEFAULT. SERIAL expands to integer
+NOT NULL columns, width-matched AUTO-owned sequences and ordinary fixed nextval
+defaults. Only early-bound nextval leaves and assignment/cast wrappers are admitted;
+other sequence/volatile default composition remains excluded. Disk/WAL,
 network protocol, native ABI extensions and external pg_dump/custom archives
 are specifically non-engine mechanisms, never permission for successful stubs.
 Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
@@ -523,7 +524,7 @@ demanded. Identity mode, linked address, privileges and comments remain intact.
 Feature smokes: `make smoke RUN='^TestAlterTypeIdentity(Smoke|ControlsSmoke)$' VERBOSE=0`.
 
 Native controls preserve definitions, actual sequence names/configuration/state and
-literal rows without allocating values. SERIAL, generated expressions, UPDATE DEFAULT,
+literal rows without allocating values. Generated expressions, UPDATE DEFAULT,
 LIKE INCLUDING IDENTITY, arbitrary table DDL in transactions and full identity
 catalog views remain excluded. Logical controls do not imply physical/WAL/wire support.
 
@@ -1622,7 +1623,7 @@ Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion pe
 
 Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SELECT aliases/qualified columns,
-general casts/joins/functions/expressions, serial, primary
+general casts/joins/functions/expressions, primary
 keys, UPDATE FROM/row-subqueries/CURRENT OF and DELETE USING/CURRENT OF.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ and READ ONLY/READ WRITE modes.
@@ -1797,6 +1798,13 @@ live settings and shared role effects are not authorized by these witnesses.
 Trusted Restore INSERT and database-local COMMENT use local validated captured-bootstrap AuthorizationViews, never session identity mutation. COMMENT authority covers qualified lookup, lock resolution and metadata mutation, is restricted to local targets and is cleared after each statement. Named CREATE owner groups remain intact; per-statement private markers cannot affect public Prepare/INSERT/COMMENT or persist schema/table ACL grants.
 
 Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported defaults/identity, CREATE SEQUENCE, INSERT with supported parameter-free scalar/default-request forms (including integer arithmetic and SYSTEM identity override), database-local COMMENT, generated sequence OWNED BY associations, numeric/persistence configuration of internally owned identity sequences, SELECT setval(name,value,is_called), and named SET SESSION AUTHORIZATION only. Nested parameters remain rejected recursively. Dump reconstructs bootstrap identity/name/owner changes before user objects; retained canonical builtin ACLs transform owner grantor/grantee, recreated public has absent ACL, and unchanged bootstrap retains legacy bytes. Local schema comments follow schema creation, table/column comments follow CREATE before INSERT under owner groups. Arbitrary explicit ACL serialization stays unsupported. Held INSERT rebinding INT4→TEXT rejects native 0A000 before importer/write; pinned PostgreSQL retains INT4 parameters and assignment-coerces to TEXT, an explicitly asserted difference.
+
+SERIAL native controls use the same shared CREATE/default binder, including
+canonical `nextval(CAST('qualified_sequence' AS regclass))` replay. Dump retains
+actual integer widths, renamed sequence identities/options/state, AUTO ownership
+and independent default dependencies without allocating. Direct sequence
+RESTRICT blocks its dependent default; CASCADE removes the default only.
+Feature smoke: `make smoke RUN='^TestSerialSmoke$' VERBOSE=0`.
 
 
 ## Sequences

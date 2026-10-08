@@ -242,8 +242,20 @@ existing sequence/session authorities. Identity is NOT NULL, not inherently uniq
 Existing CHECK calls can use the same declaration's identity sequence without
 definition-time allocation. Dump orders identity-sequence view/CHECK dependents
 after their owning table, including retained TEMP collision remaps.
-SERIAL and expression-generated columns remain excluded.
+Expression-generated columns remain excluded.
 Feature smokes: `make smoke RUN='^TestIdentity(Smoke|LifecycleSmoke|ControlsSmoke|CheckControlsSmoke)$' VERBOSE=0`.
+
+SMALLSERIAL/SERIAL/BIGSERIAL (and serial2/4/8) expand CREATE columns to
+SMALLINT/INTEGER/BIGINT NOT NULL, ordinary nextval defaults and AUTO-owned
+sequences. Supplied values do not advance the sequence or imply uniqueness;
+explicit NULL fails NOT NULL. Omission/DEFAULT consumes once per demanded row,
+requires sequence privileges and can leave gaps after failed rows/rollback.
+Owning column/table drops remove sequences; direct sequence RESTRICT protects
+the default, while CASCADE removes only that default. Native Dump/Restore retains
+integer columns, actual sequence names/options/state and bound references.
+The shared DEFAULT surface admits only fixed early-bound nextval leaves and
+assignment/cast wrappers, not general volatile expressions.
+Feature smoke: `make smoke RUN='^TestSerialSmoke$' VERBOSE=0`.
 
 Change note: `ALTER TABLE target ALTER [COLUMN] c [SET DATA] TYPE type
 [COLLATE name] [USING expression]` joins those atomic action lists. Assignment

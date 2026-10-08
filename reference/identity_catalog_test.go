@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestReferenceIdentityCatalogAndSerialBoundary(t *testing.T) {
+func TestReferenceIdentityCatalogAndSerialOwnership(t *testing.T) {
 	p := newReferencePair(t)
 	identityRefExec(t, p.postgres, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`, 0)
 	identityRefExec(t, p.postgres, `CREATE TABLE serial_witness(id SERIAL)`, 0)
@@ -25,9 +25,9 @@ func TestReferenceIdentityCatalogAndSerialBoundary(t *testing.T) {
 	if err := p.postgres.QueryRow(`SELECT is_identity,identity_generation FROM information_schema.columns WHERE table_schema='public' AND table_name='i' AND column_name='id'`).Scan(&isIdentity, &generation); err != nil || isIdentity != "YES" || generation != "ALWAYS" {
 		t.Fatal(isIdentity, generation, err)
 	}
-	if _, err := p.memory.Exec(`CREATE TABLE serial_witness(id SERIAL)`); err == nil {
-		t.Fatal("native SERIAL boundary disappeared")
-	}
+	identityRefExec(t, p.memory, `CREATE TABLE serial_witness(id SERIAL)`, 0)
+	identityRefExec(t, p.memory, `INSERT INTO serial_witness DEFAULT VALUES`, 1)
+	identityRefRows(t, p.memory, `SELECT * FROM serial_witness`, [][]int64{{1}})
 	if _, err := p.memory.Exec(`CREATE TABLE expression_generated(id INT,p INT GENERATED ALWAYS AS (id+1) STORED)`); err == nil {
 		t.Fatal("native expression-generated boundary disappeared")
 	}

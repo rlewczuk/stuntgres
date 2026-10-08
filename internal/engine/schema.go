@@ -90,16 +90,16 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.stageCreateIdentities(auth, stage, d, s); err != nil {
 		return err
 	}
-	// Identity sequence construction precedes ordinary default cooking, but
-	// neither becomes visible until the complete stage is validated/published.
-	d.defaults, err = bindCreateDefaults(newExpressionBinder(op.Context(), e, input, op, nil), d.columns, b.createDeclarations)
-	if err != nil {
+	if err := e.stageCreateSerials(stage, d, b.createDeclarations); err != nil {
 		return err
 	}
-	if len(d.identities) != 0 {
-		// CHECK cooking sees the identity sequences in the same private
-		// candidate; their descriptors/generators are not yet published.
-		auth.catalog = e.stageRead(stage)
+	// All owned sequences and their defaults share the private CREATE candidate.
+	auth.catalog = e.stageRead(stage)
+	binder := newExpressionBinder(op.Context(), e, input, op, nil)
+	binder.queryAuth = &auth
+	d.defaults, err = bindCreateDefaults(binder, d.columns, b.createDeclarations)
+	if err != nil {
+		return err
 	}
 	if err := e.bindCreateChecks(op, auth, s, d, input); err != nil {
 		return err
@@ -169,7 +169,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		}
 	}
 	if _, ok := stmt.(*parser.CreateSchema); ok {
-		if err := scope.acquireCheckProviders(stage); err != nil {
+		if err := scope.acquireDefinitionProviders(stage); err != nil {
 			return Result{}, err
 		}
 	}

@@ -77,11 +77,14 @@ type createColumnDeclaration struct {
 	name          string
 	defaultExpr   parser.Expr
 	identity      *parser.IdentityDefinition
+	serial        bool
 }
 
 func bindCreateColumnDeclaration(column *parser.Column, table string) (createColumnDeclaration, error) {
 	var declaration createColumnDeclaration
-	seen := false
+	declaration.serial = serialTypeName(column.TypeName) != ""
+	seen := declaration.serial
+	declaration.columnNotNull = declaration.serial
 	for _, constraint := range column.Constraints {
 		if constraint.Check != nil {
 			continue
@@ -116,6 +119,14 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 		seen, declaration.columnNotNull = true, constraint.NotNull
 		if constraint.NotNull && name != "" {
 			declaration.columnName = name
+		}
+	}
+	if declaration.serial {
+		if declaration.defaultExpr != nil {
+			return declaration, sqlError("42601", fmt.Sprintf(`multiple default values specified for column "%s" of table "%s"`, column.Name, table))
+		}
+		if declaration.identity != nil {
+			return declaration, sqlError("42601", fmt.Sprintf(`both default and identity specified for column "%s" of table "%s"`, column.Name, table))
 		}
 	}
 	return declaration, nil

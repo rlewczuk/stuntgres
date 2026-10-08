@@ -50,9 +50,10 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	var definition columnDefault
 	if s.Action == parser.SetDefault {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
+		binder.queryAuth = &auth
 		definition.expression, err = binder.bindDefault(s.Expression, old.columns[slot])
 		if err == nil {
-			definition.sql, err = (scalarRenderer{commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, definition.expression)
+			_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, definition.expression)
 		}
 		if err != nil {
 			// PostgreSQL cooks ALTER defaults without source text. CREATE diagnostics
@@ -121,6 +122,9 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.alterRelation(op.Context(), ref, &next, original, original, length, generation, ends); err != nil {
+		return Result{}, err
+	}
+	if err := scope.acquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)

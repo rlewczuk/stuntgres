@@ -98,7 +98,7 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress) string {
 	return object
 }
 
-func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, views []viewDependencyEdge) error {
+func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge) error {
 	// CHECKs have owner-local declaration identities; views use their existing
 	// relation creation addresses. Neither family takes precedence over another.
 	type dependent struct {
@@ -107,7 +107,10 @@ func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, v
 		target  ObjectAddress
 		detail  string
 	}
-	dependents := make([]dependent, 0, len(checks)+len(views))
+	dependents := make([]dependent, 0, len(checks)+len(views)+len(defaults))
+	for _, edge := range defaults {
+		dependents = append(dependents, dependent{edge.relation.address.ObjectID, int(edge.attribute), edge.target, edge.label() + " depends on " + dependencyObject(catalog, edge.target)})
+	}
 	for _, edge := range checks {
 		dependents = append(dependents, dependent{edge.relation.address.ObjectID, edge.check.ordinal, edge.target, "constraint " + edge.check.Name + " on table " + edge.relation.name + " depends on " + dependencyObject(catalog, edge.target)})
 	}
@@ -128,23 +131,35 @@ func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, v
 }
 
 func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+	stage.owner.mu.Lock()
+	defer stage.owner.mu.Unlock()
+	return stageViewDependentsLocked(stage, targets, mode)
+}
+
+// stageViewDependentsLocked requires the owning engine mutex throughout the
+// coherent closure and removals; no provider callbacks or evaluation occur here.
+func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
 	checks, err := stageCheckDependents(stage, targets, mode)
 	if err != nil {
 		return err
 	}
+	defaults, err := stageDefaultDependents(stage, targets, mode)
+	if err != nil {
+		return err
+	}
 	edges := viewDependencyClosure(stage.base, targets, stage)
-	if len(edges) == 0 && len(checks) == 0 {
+	if len(edges) == 0 && len(checks) == 0 && len(defaults) == 0 {
 		return nil
 	}
 	if mode == parser.DropRestrict {
-		return supportedRestrictError(stage.base, checks, edges)
+		return supportedRestrictError(stage.base, checks, edges, defaults)
 	}
 	for _, edge := range edges {
 		d := edge.view
 		if _, exists := stage.removals[d.address]; exists {
 			continue
 		}
-		if err := stage.Remove(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: d.address}); err != nil {
+		if err := stage.removeObjectLocked(ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: d.address}, false); err != nil {
 			return err
 		}
 		stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to view "+d.name)

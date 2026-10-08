@@ -9,6 +9,15 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
+func TestSerialIntegralModifierDiagnostics(t *testing.T) {
+	for _, tc := range []struct{ id ID; name string }{
+		{Int2, "smallint"}, {Int4, "integer"}, {Int8, "bigint"},
+	} {
+		err := testTypes()[tc.id].CheckModifierSupport()
+		smallintError(t, err, "42601", `type modifier is not allowed for type "`+tc.name+`"`)
+	}
+}
+
 func TestSmallintIdentityAndInput(t *testing.T) {
 	ctx := context.Background()
 	d := testTypes()[Int2]

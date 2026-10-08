@@ -287,10 +287,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if err := stage.Replace(next); err != nil {
 		return Result{}, err
 	}
-	if len(typeChecks) != 0 {
-		if err := scope.acquireCheckProviders(stage); err != nil {
-			return Result{}, err
-		}
+	if err := scope.acquireDefinitionProviders(stage); err != nil {
+		return Result{}, err
 	}
 	var dependencyTargets []ObjectAddress
 	for i, attribute := range old.attributes {

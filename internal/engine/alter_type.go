@@ -228,7 +228,9 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(sqlError("42804", fmt.Sprintf(`default for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())))
 		}
 		expression = coercionExpression{expressionInfo{usage: usage, properties: coercionProperties(expression, defaultPlan)}, expression, defaultPlan, sqltype.Assignment}
-		canonical, err := defaultSQL(op.Context(), auth.catalog, expression)
+		definition.dependencies = nil
+		definition.catalogSnapshot = false
+		_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, expression)
 		if err != nil {
 			return fail(err)
 		}
@@ -237,7 +239,6 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			replacement.defaults[id] = d
 		}
 		definition.expression = expression
-		definition.sql = canonical
 		definition.OID = 0
 		replacement.defaults[attribute] = definition
 	}

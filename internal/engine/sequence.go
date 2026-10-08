@@ -473,26 +473,19 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
-	// CHECK candidates join the same transactional catalog changes as sequence
-	// and view removal; no descriptor is published before StatementScope.Finish.
+	// Ordinary defaults, CHECKs and views share one private dependency closure.
 	checkStage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(checkStage)
-	checkEdges, err := stageCheckDependents(checkStage, targets, s.Mode)
-	if err != nil {
+	if err := stageViewDependentsLocked(checkStage, targets, s.Mode); err != nil {
 		return Result{}, err
 	}
 	for address, descriptor := range checkStage.descriptors {
 		e.catalogChangeLocked(changes, address, descriptor)
 	}
-	dependents := viewDependencyClosure(auth.catalog, targets, nil)
-	if (len(dependents) > 0 || len(checkEdges) > 0) && s.Mode == parser.DropRestrict {
-		return Result{}, supportedRestrictError(auth.catalog, checkEdges, dependents)
+	for address := range checkStage.removals {
+		e.catalogChangeLocked(changes, address, nil)
 	}
 	cascade := checkStage.viewCascadeNames
-	for _, edge := range dependents {
-		e.catalogChangeLocked(changes, edge.view.address, nil)
-		cascade = append(cascade, "drop cascades to view "+edge.view.name)
-	}
 	for _, ref := range refs {
 		d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if !ok {

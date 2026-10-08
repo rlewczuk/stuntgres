@@ -149,8 +149,26 @@ func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
 // Persistent definition holds use the incumbent ticket and replacement fence.
 // Admission occurs outside Engine.mu; after a wait identities are opened anew,
 // never retargeted by name or evaluated to establish a dependency.
-func (s *StatementScope) acquireCheckProviders(stage *CatalogStage) error {
+func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 	var refs []ObjectRef
+	add := func(ref ObjectRef, d *relationDescriptor) error {
+		ref.Address.SubID = 0
+		if ref.Address.ClassID != RelationClassID || ref.Address == d.address {
+			return nil
+		}
+		if _, incumbent := stage.base.state.descriptors[ref.Address]; !incumbent {
+			// Newly created providers belong to the private atomic candidate.
+			provider, staged := stage.descriptors[ref.Address].(*relationDescriptor)
+			if !staged || provider.address != ref.Address || ref.owner != stage.owner.owner || ref.Epoch != stage.base.Epoch() {
+				return fmt.Errorf("stuntgres: invalid staged definition provider")
+			}
+			return nil
+		}
+		if !slices.Contains(refs, ref) {
+			refs = append(refs, ref)
+		}
+		return nil
+	}
 	for _, descriptor := range stage.descriptors {
 		d, ok := descriptor.(*relationDescriptor)
 		if !ok {
@@ -158,23 +176,15 @@ func (s *StatementScope) acquireCheckProviders(stage *CatalogStage) error {
 		}
 		for _, c := range d.checkConstraints {
 			for _, dep := range c.dependencies {
-				ref := dep.ref
-				ref.Address.SubID = 0
-				if ref.Address.ClassID != RelationClassID || ref.Address == d.address {
-					continue
+				if err := add(dep.ref, d); err != nil {
+					return err
 				}
-				if _, incumbent := stage.base.state.descriptors[ref.Address]; !incumbent {
-					// New providers belong to this atomic candidate, not to the
-					// incumbent lock catalog. ValidateCatalogStage validates their
-					// complete metadata, attributes and reciprocal identity links.
-					provider, staged := stage.descriptors[ref.Address].(*relationDescriptor)
-					if !staged || provider.address != ref.Address || ref.owner != stage.owner.owner || ref.Epoch != stage.base.Epoch() {
-						return fmt.Errorf("stuntgres: invalid staged CHECK provider")
-					}
-					continue
-				}
-				if !slices.Contains(refs, ref) {
-					refs = append(refs, ref)
+			}
+		}
+		for _, definition := range d.defaults {
+			for _, ref := range definition.dependencies {
+				if err := add(ref, d); err != nil {
+					return err
 				}
 			}
 		}
@@ -199,7 +209,7 @@ func (s *StatementScope) acquireCheckProviders(stage *CatalogStage) error {
 			provider, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 			original, existed := stage.base.state.descriptors[ref.Address].(*relationDescriptor)
 			if !ok || !existed || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind {
-				err = fmt.Errorf("stuntgres: CHECK provider disappeared before publication")
+				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}
 		}
 		e.mu.Unlock()

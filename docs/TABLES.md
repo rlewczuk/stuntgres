@@ -102,13 +102,14 @@ Existing literal/NULL, typed temporal/interval constants, same-type scalar Usage
 CAST/`::` annotations, existing directional numeric and baseline/character/OID/
 temporal casts, bounded function-style casts, INT4/INT8 unary/binary arithmetic,
 scalar comparisons and IS [NOT] DISTINCT FROM are admitted
-at the outer level. Volatile producers and execution-stage-dependent nodes remain
-unsupported defaults.
+at the outer level. Volatile producers remain unsupported except a fixed
+early-bound `nextval('sequence')` leaf with assignment/cast wrappers;
+execution-stage-dependent nodes remain unsupported defaults.
 CREATE DEFAULT Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
 `DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`. Column references and positional
 parameters are prohibited even inside casts or decisive logical branches.
 General SQL functions, subqueries, arithmetic beyond admitted scalar operators,
-new cast families and serial remain outside this DEFAULT-expression surface.
+new cast families remain outside this DEFAULT-expression surface.
 ALTER TYPE independently assignment-coerces stored defaults; USING transforms
 existing rows only, never the default expression or future DEFAULT inserts.
 Restrictions apply as ordinary recursive binding reaches each occurrence; earlier
@@ -117,6 +118,10 @@ The existing null, truth and distinct predicates retain their ordinary typed
 semantics and fully parenthesized unevaluated Dump representation in defaults.
 Named DEFAULT syntax is accepted but does not create a named constraint object.
 Plain LIKE copies shape and NOT NULL, **not defaults**.
+
+Runtime INSERT default demand stops at the first completed row failing NOT NULL
+or CHECK, before evaluating later rows. Rows publish only as one atomic batch;
+sequence allocations already demanded by the rejected row are not rolled back.
 
 `ALTER TABLE target ALTER [COLUMN] name SET DEFAULT expression` and `DROP DEFAULT`
 change only the selected immutable default descriptor. Existing rows and column
@@ -139,8 +144,11 @@ tests specify recursive SET/DROP and ONLY behavior without claiming native parit
 Action lists and ALTER TABLE IF EXISTS for these actions remain unsupported.
 Native explicit transactions exclude standalone SET/DROP DEFAULT, not selected
 TYPE/nullability/DROP COLUMN lists; read-only ALTER of default actions fails 25006.
-Dump writes the current defaults in CREATE and old rows explicitly; Restore does
-not accept arbitrary ALTER scripts. UPDATE DEFAULT remains outside this surface.
+Dump writes current defaults and explicit old rows. Defaults referencing inline
+identity providers order their owning tables first; legal default cycles instead
+emit ordinary sequence-reference SET DEFAULT statements after all definitions and
+before data. Restore admits these bounded deferred statements through the same
+default binder, not arbitrary ALTER scripts. UPDATE DEFAULT remains unsupported.
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
 
 Each INSERT row evaluates declared defaults for omitted columns or per-cell
@@ -216,8 +224,9 @@ same-type BYTEA annotations add no known-TEXT-to-BYTEA conversion provider.
 
 Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
 Independent pinned PostgreSQL witnesses: `make reference RUN='^TestReferenceDefault' VERBOSE=1`.
-Sequence/volatile SQL calls remain unsupported in ordinary declared DEFAULT
-expressions. Identity columns instead use a separately owned sequence. PostgreSQL disk/WAL
+General sequence/volatile composition remains unsupported in declared DEFAULT;
+fixed nextval leaves support SERIAL and native replay. Identity instead uses an
+internally owned sequence. PostgreSQL disk/WAL
 durability, wire networking, native ABI extensions and external pg_dump processes
 or custom archives are non-engine mechanisms, not successful no-op promises.
 
@@ -248,7 +257,7 @@ SET generation/options and RESTART affect future inserts. DROP IDENTITY removes
 only its internal sequence and preserves rows/NOT NULL. Direct sequence DROP and
 OWNED BY reassociation cannot bypass the link. Rename/schema/owner transitions
 preserve stable attribute ownership. Plain LIKE copies NOT NULL but not identity.
-SERIAL and expression-generated columns remain unsupported.
+Expression-generated columns remain unsupported.
 
 The immutable identity definition is keyed by stable column attribute identity and
 holds the exact sequence address; the sequence holds the reciprocal internal-owned
@@ -350,10 +359,33 @@ Type keyword aliases are not quoted catalog names: `"smallint"`, `"integer"`,
 `"text"` and `"bool"` select the supported concrete types. Quoted case is significant (`"INT2"` or `"INT4"` is
 missing), and diagnostic names retain decoded quotes and backslashes without
 SQL or Go re-escaping. NAME and quoted `"name"` are supported distinct from TEXT;
-quoted `"NAME"` is missing. Lowercase serial pseudo names, including quoted
-`"serial"`, remain a `0A000` CREATE-utility boundary rather than nonexistent
-types; uppercase quoted `"SERIAL"` is missing. No serial sequence or default
-is implemented.
+quoted `"NAME"` is missing. Six unqualified lowercase serial spellings, including
+quoted lowercase names, are CREATE-only shorthand: smallserial/serial2 → SMALLINT,
+serial/serial4 → INTEGER, bigserial/serial8 → BIGINT. Quoted `"SERIAL"` and
+schema-qualified serial names are missing types, not shorthand.
+SERIAL modifiers are rejected with the lowered integral type's `42601`
+diagnostic at the original type position; no integral typmod support is added.
+
+SERIAL adds NOT NULL, a width-matched sequence and an ordinary fixed nextval
+default, not uniqueness or identity override behavior. Supplied values (including
+duplicates, zero and negative values) bypass allocation; supplied NULL fails
+NOT NULL. Generated names use collision-safe UTF8 truncation in the table schema.
+Sequence privileges apply independently of table INSERT; failed rows/rollback
+can consume values. Width overflow uses checked assignment, not identity wrapping.
+AUTO ownership removes the sequence on owning column/table drop. The independent
+NORMAL default dependency blocks direct sequence RESTRICT; CASCADE removes only
+the default. DROP DEFAULT does not drop the sequence, and OWNED BY NONE does not
+remove the default. Rename/schema move retains the exact default target.
+Dump writes integral columns and separate sequences, preserving names/options/
+state/ownership; Restore uses the same shared fixed-nextval binder.
+An ordinary fixed-nextval default may target an identity-owned sequence without
+becoming an identity column or bypassing sequence ACLs. Native publication protects
+incumbent default providers with AccessShare holds and checks the merged catalog
+root; newly staged generated sequences stay private until atomic publication.
+This is a native catalog-integrity fence, not a claim of identical PostgreSQL
+transaction-lock behavior. Dump orders inline identity providers before consumers,
+and defers sequence-reference defaults when otherwise legal defaults form a cycle.
+Feature smoke: `make smoke RUN='^TestSerialSmoke$' VERBOSE=0`.
 
 DROP preflights the entire explicit target group before one atomic catalog
 publication. A later missing or unauthorized target leaves every table intact.

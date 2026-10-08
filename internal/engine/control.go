@@ -65,21 +65,6 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		e.mu.Unlock()
 		return err
 	}
-	type dumpRelation struct {
-		owner, schema, name string
-		columns             []ColumnDescriptor
-		attributes          []int32
-		versions            []rowVersion
-		ends                *deletionRoot
-		frontier            CommitSeq
-		comment             string
-		columnComments      map[int32]string
-		notNullConstraints  []notNullConstraint
-		defaults            map[int32]columnDefault
-		descriptor          *relationDescriptor
-		identities          map[int32]columnIdentity
-		identitySequences   map[ObjectAddress]dumpSequence
-	}
 	tables := make([]dumpRelation, 0)
 	catalog := CatalogRead{owner: e, state: e.state}
 	type dumpSchema struct{ name, owner string }
@@ -92,6 +77,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	viewDependencies := make(map[OID][]OID)
 	viewIndices := make(map[OID]int)
 	tableIndices := make(map[OID]int)
+	// Only newly added default edges are removed if their topology is cyclic.
+	var defaultPredecessors map[OID][]OID
 	type dumpComment struct{ name, text string }
 	var schemaComments []dumpComment
 	// Reconstruct bootstrap identity changes before creating ordinary namespaces.
@@ -330,6 +317,22 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
+		for _, definition := range r.defaults {
+			for _, dependency := range definition.dependencies {
+				predecessor, err := dumpPredecessor(catalog, dependency.Address, r.address)
+				if err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				if predecessor != 0 && !slices.Contains(predecessors, predecessor) {
+					if defaultPredecessors == nil {
+						defaultPredecessors = make(map[OID][]OID)
+					}
+					defaultPredecessors[oid] = append(defaultPredecessors[oid], predecessor)
+					predecessors = append(predecessors, predecessor)
+				}
+			}
+		}
 		viewDependencies[oid] = predecessors
 		tableIndices[oid] = len(tables)
 		linked := make(map[ObjectAddress]dumpSequence, len(r.identities))
@@ -341,6 +344,16 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	e.mu.Unlock()
 	viewOrder, err := viewDumpOrder(ctx, viewDependencies)
+	deferDefaults := false
+	if err != nil && ctx.Err() == nil && len(defaultPredecessors) != 0 {
+		for oid, defaults := range defaultPredecessors {
+			viewDependencies[oid] = slices.DeleteFunc(viewDependencies[oid], func(predecessor OID) bool {
+				return slices.Contains(defaults, predecessor)
+			})
+		}
+		viewOrder, err = viewDumpOrder(ctx, viewDependencies)
+		deferDefaults = err == nil
+	}
 	if err != nil {
 		return err
 	}
@@ -427,8 +440,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				line.WriteString(" COLLATE \"pg_catalog\"." + quoteIdentifier(name))
 			}
-			if definition, exists := t.defaults[t.attributes[i]]; exists {
-				line.WriteString(" DEFAULT " + definition.sql)
+			if definition, exists := t.defaults[t.attributes[i]]; exists && !(deferDefaults && closedSequenceDefault(definition.expression)) {
+				text, err := defaultSQL(ctx, catalog, definition.expression)
+				if err != nil {
+					return err
+				}
+				line.WriteString(" DEFAULT " + text)
 			}
 			if identity, exists := t.identities[t.attributes[i]]; exists {
 				mode := "ALWAYS"
@@ -480,40 +497,39 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
-		for _, version := range t.versions {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			if !liveVersion(version, t.frontier, t.ends, nil) {
+	}
+	if deferDefaults {
+		for _, oid := range viewOrder {
+			index, isTable := tableIndices[oid]
+			if !isTable {
 				continue
 			}
-			row := version.values
-			line.Reset()
-			if len(t.columns) == 0 {
-				if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil {
+			t := tables[index]
+			if t.owner != currentOwner {
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
 					return err
 				}
-				continue
+				currentOwner = t.owner
 			}
-			line.WriteString("INSERT INTO " + qualified)
-			if len(t.identities) != 0 {
-				line.WriteString(" OVERRIDING SYSTEM VALUE")
-			}
-			line.WriteString(" VALUES (")
-			for i, v := range row {
-				if i > 0 {
-					line.WriteString(", ")
-				}
-				literal, err := v.Type().SQLLiteral(ctx, v)
-				if err != nil {
-					return err
-				}
-				line.WriteString(literal)
-			}
-			line.WriteString(");\n")
-			if err := emit(line.String()); err != nil {
+			if err := t.emitSequenceDefaults(ctx, catalog, emit); err != nil {
 				return err
 			}
+		}
+	}
+	for _, oid := range viewOrder {
+		index, isTable := tableIndices[oid]
+		if !isTable {
+			continue
+		}
+		t := tables[index]
+		if t.owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
+				return err
+			}
+			currentOwner = t.owner
+		}
+		if err := t.emitRows(ctx, emit); err != nil {
+			return err
 		}
 	}
 	for _, line := range sequenceCompletion {
@@ -583,6 +599,10 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 					return err
 				}
 			}
+		case *parser.AlterTableDefault:
+			if s.Action != parser.SetDefault || s.Expression == nil {
+				return sqlError("0A000", "restore accepts only deferred SET DEFAULT alterations")
+			}
 		case *parser.Select:
 			if !restoreSequenceState(s) {
 				return sqlError("0A000", "restore accepts only generated sequence state")
@@ -607,7 +627,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW, INSERT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW, INSERT, deferred sequence DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
@@ -639,6 +659,11 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		op.DetachNotices()
 		if err != nil {
 			return err
+		}
+		if alteration, ok := stmt.(*parser.AlterTableDefault); ok {
+			if err := stage.validateRestoredDefault(op, alteration); err != nil {
+				return err
+			}
 		}
 	}
 	_, err = e.ReplaceCatalog(ctx, stage.CatalogRead())

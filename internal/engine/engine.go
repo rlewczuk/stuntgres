@@ -337,7 +337,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				continue
 			}
 			if c := element.Column; c != nil {
-				u, err := e.resolveType(c.TypeName, op)
+				typeName := c.TypeName
+				if lowered := serialTypeName(typeName); lowered != "" {
+					typeName.Name = lowered
+				}
+				u, err := e.resolveType(typeName, op)
 				if err != nil {
 					return b, err
 				}

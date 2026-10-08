@@ -56,10 +56,10 @@ func (b *expressionBinder) sequenceSignatureError(r parser.CallExpr) error {
 	return diagnostic
 }
 func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error) {
-	if b.defaultConsumer {
+	name := r.Name.Parts[len(r.Name.Parts)-1].Text
+	if b.defaultConsumer && (name != "nextval" || len(r.Args) != 1) {
 		return nil, expressionError("0A000", "functions are unsupported", r.SourcePosition())
 	}
-	name := r.Name.Parts[len(r.Name.Parts)-1].Text
 	visible, err := b.builtinVisible(r.Name, functionLookup)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,18 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 		var node BoundExpr
 		var err error
 		if i == 0 {
-			node, ref, err = b.bindRegclass(raw)
+			if b.defaultConsumer {
+				// REGCLASS is admitted only for this closed nextval argument.
+				b.defaultConsumer = false
+				node, ref, err = b.bindRegclass(raw)
+				b.defaultConsumer = true
+				literal, ok := node.(literalExpression)
+				if err == nil && (!ok || literal.value.IsNull() || ref == (ObjectRef{})) {
+					return nil, expressionError("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
+				}
+			} else {
+				node, ref, err = b.bindRegclass(raw)
+			}
 		} else {
 			id := sqltype.Int8
 			if i == 2 {
@@ -114,6 +125,13 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (BoundExpr, error
 		if constant.ref == ref {
 			temporary = constant.temporary
 		}
+	}
+	if b.defaultConsumer {
+		if temporary != (SessionToken{}) {
+			return nil, expressionError("0A000", "temporary sequence DEFAULT is unsupported", r.SourcePosition())
+		}
+		// Stored defaults do not enter call-site prepared literal reanalysis.
+		b.sequenceConstants = nil
 	}
 	for _, arg := range args {
 		if literal, ok := arg.(literalExpression); ok && literal.value.IsNull() {

@@ -43,7 +43,7 @@ func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 		if old, ok := descriptor.(*relationDescriptor); ok && old.name == "d" {
 			next := *old
 			probe.expressionInfo = expressionInfo{usage: old.columns[1].Usage}
-			next.defaults = map[int32]columnDefault{old.attributes[1]: {expression: probe, sql: "0"}}
+			next.defaults = map[int32]columnDefault{old.attributes[1]: {expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
 			state := cloneCatalog(e.state)

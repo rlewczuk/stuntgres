@@ -140,7 +140,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if er != nil {
 			return Result{}, er
 		}
-		if er = scope.acquireCheckProviders(stage); er != nil {
+		if er = scope.acquireDefinitionProviders(stage); er != nil {
 			return Result{}, er
 		}
 		prepared, er := e.ValidateCatalogStage(ctx, stage)
@@ -513,18 +513,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					return Result{}, insertValueError(auth.catalog, err, c, v, nil)
 				}
 			}
-			rows[i] = row
-		}
-		// Supplied frame-only conversions have already folded before ACL
-		// checks. Identity rows were constrained before advancing their runtime
-		// source; ordinary default scheduling retains its existing batch frontier.
-		if len(b.insertProjection) == 0 {
 			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
-			for _, row := range rows {
-				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
-					return Result{}, err
-				}
+			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
+				return Result{}, err
 			}
+			rows[i] = row
 		}
 		err = ctx.Err()
 		if err == nil {

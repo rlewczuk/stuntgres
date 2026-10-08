@@ -262,9 +262,8 @@ func TestTableCoreQuotedTypeNamesResolveRawCatalogNames(t *testing.T) {
 			t.Fatal(name, got, err, want)
 		}
 	}
-	for _, name := range []string{"serial", "smallserial", "bigserial"} {
-		_, err := testExecute(e, context.Background(), statement(t, `CREATE TABLE bad (id "`+name+`")`), nil)
-		state(t, err, "0A000")
+	for i, name := range []string{"serial", "smallserial", "bigserial"} {
+		run(t, e, fmt.Sprintf(`CREATE TABLE serial%d (id "%s")`, i, name))
 	}
 	run(t, e, `CREATE TABLE IF NOT EXISTS raw(id "integer")`)
 	_, err := testExecute(e, context.Background(), statement(t, "SELECT * FROM bad"), nil)

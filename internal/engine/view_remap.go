@@ -266,6 +266,28 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 		if !ok {
 			continue
 		}
+		if len(d.defaults) != 0 {
+			copy := *d
+			copy.defaults = make(map[int32]columnDefault, len(d.defaults))
+			for attribute, definition := range d.defaults {
+				node, _, err := retagBoundTypes(definition.expression, typ)
+				if err != nil {
+					return err
+				}
+				node, err = remapBoundExpression(node, ref, nil)
+				if err != nil {
+					return err
+				}
+				definition.expression = node
+				definition.dependencies = append([]ObjectRef(nil), definition.dependencies...)
+				for i := range definition.dependencies {
+					definition.dependencies[i] = ref(definition.dependencies[i])
+				}
+				copy.defaults[attribute] = definition
+			}
+			d = &copy
+			next.descriptors[address] = d
+		}
 		if len(d.checkConstraints) != 0 {
 			copy := *d
 			copy.checkConstraints = append([]checkConstraint(nil), d.checkConstraints...)

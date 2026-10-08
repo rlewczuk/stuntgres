@@ -1,0 +1,63 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"runtime"
+	"sync"
+	"testing"
+	"time"
+)
+
+func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
+	for _,alter := range []bool{false,true} {
+		for _,replacement := range []bool{false,true} {
+			t.Run(fmt.Sprintf("alter=%t/replacement=%t",alter,replacement),func(t *testing.T) {
+				e := New()
+				run(t,e,`CREATE SEQUENCE q`)
+				if alter { run(t,e,`CREATE TABLE consumer(id SERIAL)`); run(t,e,`INSERT INTO consumer VALUES(40)`) }
+				before := e.state
+				ctx,cancel := context.WithCancel(context.Background()); defer cancel()
+				reset := make(chan error,1)
+				var once sync.Once
+				provider := e.providers[RelationClassID]
+				e.providers[RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
+					e.providers[RelationClassID] = provider
+					if replacement {
+						go func(){ reset <- e.Reset(context.Background()) }()
+						deadline := time.Now().Add(5*time.Second)
+						for {
+							e.replacementMu.mu.Lock()
+							waiting := e.replacementMu.writers==1 && e.replacementMu.readers==1 && !e.replacementMu.writing
+							e.replacementMu.mu.Unlock()
+							if waiting { break }
+							if time.Now().After(deadline) {
+								cancel()
+								t.Fatal("replacement did not queue behind unpublished definition provider hold")
+							}
+							runtime.Gosched()
+						}
+						if e.state!=before { t.Fatal("queued replacement changed catalog before publication released its hold") }
+					}
+					cancel()
+				}) }}
+				_,err := testExecute(e,ctx,statement(t,serialPublicationQuery(alter)),nil)
+				if !errors.Is(err,context.Canceled) { t.Fatal(err,context.Canceled) }
+				if replacement {
+					select {
+					case err := <-reset:
+						if err!=nil { t.Fatal(err) }
+					case <-time.After(5*time.Second):
+						t.Fatal("canceled definition did not release replacement admission")
+					}
+					if e.state.epoch==before.epoch { t.Fatal("released replacement did not fence the old definition epoch") }
+				}
+				if !replacement && e.state != before { t.Fatal("canceled default publication changed catalog") }
+				lockEmpty(t,e)
+				checkReviewDependencyValid(t,e)
+				deleteReplacementAdmissionEmpty(t,e)
+			})
+		}
+	}
+}

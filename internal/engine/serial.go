@@ -1,0 +1,61 @@
+package engine
+
+import (
+	"strconv"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+// SERIAL is declaration syntax, never a catalog type or identity column.
+func serialTypeName(name parser.TypeName) string {
+	if name.Schema != nil { return "" }
+	switch name.Name {
+	case "smallserial", "serial2": return "int2"
+	case "serial", "serial4": return "int4"
+	case "bigserial", "serial8": return "int8"
+	}
+	return ""
+}
+
+func (e *Engine) stageCreateSerials(stage *CatalogStage, table *relationDescriptor, declarations []createColumnDeclaration) error {
+	for slot, declaration := range declarations {
+		if !declaration.serial { continue }
+		_, _, typeName := sequenceTypeLimits(table.columns[slot].Usage.Type.ID())
+		options, _, err := bindSequenceOptions(nil, sequenceGenerator{}, []parser.SequenceOption{{Name:"as", Type:parser.TypeName{Name:typeName}}})
+		if err != nil { return err }
+		read := e.stageRead(stage)
+		name := ownedSequenceName(table.name, table.columns[slot].Name, func(name string) bool {
+			return name == table.name || len(read.Lookup(NameKey{ClassID:RelationClassID, Namespace:table.namespace, Name:name})) != 0
+		})
+		oid, err := e.allocateOIDLocked()
+		if err != nil { return err }
+		revision, err := e.revisionLocked()
+		if err != nil { return err }
+		address := ObjectAddress{ClassID:RelationClassID, ObjectID:oid}
+		options.owned = table.address
+		options.owned.SubID = table.attributes[slot]
+		sequence := &relationDescriptor{address:address,namespace:table.namespace,name:name,revision:revision,sequencePlanStamp:revision,owner:table.owner,columns:e.sequenceColumnsLocked(),index:map[string]int{"last_value":0,"log_cnt":1,"is_called":2},attributes:[]int32{1,2,3},relationKind:sequenceRelation,sequence:&options}
+		if err := stage.Create(sequence); err != nil { return err }
+		if stage.generators == nil { stage.generators = make(map[ObjectAddress]*sequenceGenerator) }
+		stage.generators[address] = &sequenceGenerator{last:options.start,generation:revision}
+		// Route synthetic syntax through the same closed default binder as Restore.
+		namespace, _ := read.Descriptor(table.namespace)
+		declarations[slot].defaultExpr = parser.CallExpr{Name:parser.ObjectName{Parts:[]parser.Identifier{{Text:"pg_catalog"},{Text:"nextval"}}},Args:[]parser.Expr{parser.LiteralExpr{Value:parser.Value{Kind:parser.StringValue,Text:quoteIdentifier(namespace.Name())+"."+quoteIdentifier(name)}}}}
+	}
+	return nil
+}
+
+// Only a fixed nextval leaf and its assignment/cast wrappers may be volatile.
+func closedSequenceDefault(node BoundExpr) bool {
+	switch n := node.(type) {
+	case coercionExpression:
+		return closedSequenceDefault(n.child)
+	case sequenceCallExpression:
+		if n.name != "nextval" || n.identity || n.temporary != (SessionToken{}) || len(n.args) != 1 || n.ref == (ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (ExprProperties{Volatility:Volatile}) { return false }
+		literal, ok := n.args[0].(literalExpression)
+		if !ok || literal.value.IsNull() || literal.ResultUsage().Type.ID() != sqltype.Regclass || literal.Properties() != (ExprProperties{}) { return false }
+		text, err := literal.value.Text()
+		return err == nil && text == strconv.FormatUint(uint64(n.ref.Address.ObjectID), 10)
+	}
+	return false
+}

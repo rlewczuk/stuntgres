@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 	"stuntgres/internal/parser"
@@ -291,9 +292,10 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if definition.OID == 0 || slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.columns[slot].Usage {
 			return fmt.Errorf("stuntgres: invalid column default destination")
 		}
+		var dependencies []ObjectRef
 		catalogSnapshot := false
-		canonical, err := (scalarRenderer{commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
-		if err != nil || canonical != definition.sql || catalogSnapshot != definition.catalogSnapshot || structuralNull(definition.expression) {
+		_, err := (scalarRenderer{dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
+		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot || structuralNull(definition.expression) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
 	}
@@ -735,6 +737,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.checkConstraints) != 0 {
 				if err := validateCheckProviders(CatalogRead{owner: e, state: next}, relation); err != nil {
+					return ChangeSet{}, err
+				}
+			}
+			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.defaults) != 0 {
+				if err := validateDefaultProviders(CatalogRead{owner: e, state: next}, relation); err != nil {
 					return ChangeSet{}, err
 				}
 			}

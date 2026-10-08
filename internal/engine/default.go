@@ -17,7 +17,7 @@ import (
 type columnDefault struct {
 	OID             OID
 	expression      BoundExpr
-	sql             string
+	dependencies    []ObjectRef
 	catalogSnapshot bool
 }
 
@@ -34,6 +34,9 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext, expected: inputUsage})
 	if err != nil {
 		return nil, err
+	}
+	if node.Properties().Volatility > Stable && !closedSequenceDefault(node) {
+		return nil, expressionError("0A000", "unsupported volatile DEFAULT expression", parser.ExpressionStart(raw))
 	}
 	if node.ResultUsage() != column.Usage {
 		plan, err := sqltype.PlanCoercion(node.ResultUsage(), column.Usage, sqltype.Assignment)
@@ -52,7 +55,11 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 
 func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declarations []createColumnDeclaration) (map[int32]columnDefault, error) {
 	var defaults map[int32]columnDefault
-	view := CatalogRead{owner: b.engine, state: b.engine.state}
+	auth, err := b.bindingAuthorization()
+	if err != nil {
+		return nil, err
+	}
+	view := auth.catalog
 	for slot := range declarations {
 		raw := declarations[slot].defaultExpr
 		if raw == nil {
@@ -66,22 +73,21 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 			continue
 		}
 		definition := columnDefault{expression: node}
-		canonical, err := (scalarRenderer{commentSnapshot: &definition.catalogSnapshot}).sql(b.ctx, view, node)
+		_, err = (scalarRenderer{dependencies: &definition.dependencies, commentSnapshot: &definition.catalogSnapshot}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
 		if defaults == nil {
 			defaults = make(map[int32]columnDefault)
 		}
-		definition.sql = canonical
 		defaults[int32(slot+1)] = definition
 	}
 	return defaults, nil
 }
 
 // One recursive serializer validates persisted scalar trees without Eval.
-// DEFAULT admits closed Immutable/Stable trees; CHECK admits its actual owner
-// row and existing volatile providers. Assignment wrappers keep deferred input.
+// DEFAULT admits closed Immutable/Stable trees and fixed nextval leaves with
+// coercion wrappers. CHECK also admits its owner row and volatile providers.
 type scalarRenderer struct {
 	owner           *relationDescriptor
 	dependencies    *[]ObjectRef
@@ -98,6 +104,12 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 	return (scalarRenderer{}).sql(ctx, view, node)
 }
 
+func renderColumnDefault(ctx context.Context, view CatalogRead, node BoundExpr) (string, []ObjectRef, error) {
+	var dependencies []ObjectRef
+	text, err := (scalarRenderer{dependencies: &dependencies}).sql(ctx, view, node)
+	return text, dependencies, err
+}
+
 func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -106,7 +118,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (p.Volatility > Stable || p.RowDependent) || p.ParameterDependent || p.StageDependent {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (p.Volatility > Stable && !closedSequenceDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	typ, ok := view.LookupType(u.Type.ID())
@@ -263,8 +275,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return r.functionSQL(ctx, view, "pg_catalog.current_schemas", []BoundExpr{n.arg})
 	case sequenceCallExpression:
-		if r.owner == nil {
-			return "", fmt.Errorf("stuntgres: sequence calls are unsupported in stored defaults")
+		if r.owner == nil && !closedSequenceDefault(n) {
+			return "", fmt.Errorf("stuntgres: invalid stored sequence default")
 		}
 		args := n.args
 		want := 1

@@ -31,7 +31,7 @@ func identitySequenceDropError(read CatalogRead, sequence *relationDescriptor) e
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: fmt.Sprintf("cannot drop sequence %s because column %s of table %s requires it", sequence.name, column, table.name), Hint: fmt.Sprintf("You can drop column %s of table %s instead.", column, table.name)}
 }
 
-func identitySequenceName(table, column string, used func(string) bool) string {
+func ownedSequenceName(table, column string, used func(string) bool) string {
 	for suffix := 0; ; suffix++ {
 		label := "seq"
 		if suffix != 0 {
@@ -106,7 +106,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			used := func(name string) bool {
 				return len(read.Lookup(NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name})) != 0 || name == table.name
 			}
-			name := identitySequenceName(table.name, table.columns[slot].Name, used)
+			name := ownedSequenceName(table.name, table.columns[slot].Name, used)
 			if len(explicit.Parts) != 0 {
 				auth.catalog = read
 				ns, err := e.creationNamespace(auth, explicit)

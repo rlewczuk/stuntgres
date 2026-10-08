@@ -116,18 +116,12 @@ func TestReferenceTableCoreQuotedTypeNamesAndBoundaries(t *testing.T) {
 			}
 			run(referenceExec(`CREATE TABLE IF NOT EXISTS raw(id "integer")`, 0))
 			run(unchanged)
-			// Serial utility pseudo names remain external-only controls, not
-			// nonexistent-type parity or native family support.
+			// Quoted lowercase serial spellings are CREATE-only shorthand.
 			for _, name := range []string{"serial", "smallserial", "bigserial"} {
 				q := `CREATE TABLE bad (id "` + name + `")`
-				s := referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "unsupported column type", Position: "22"})
-				s.prepared = prepared
-				s.errorStage = "execute"
-				referenceRunStep(t, p.ctx, p.memory, &referenceRecorder{}, s)
-				s = referenceExec(q, 0)
-				s.prepared = prepared
-				referenceRunStep(t, p.ctx, p.postgres, &referenceRecorder{}, s)
-				referenceRunStep(t, p.ctx, p.postgres, &referenceRecorder{}, referenceExec("DROP TABLE bad CASCADE", 0))
+				run(referenceExec(q, 0))
+				run(referenceExec(`INSERT INTO bad DEFAULT VALUES`, 1))
+				run(referenceExec(`DROP TABLE bad RESTRICT`, 0))
 			}
 		})
 	}
