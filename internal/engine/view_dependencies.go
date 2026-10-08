@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"stuntgres/internal/parser"
@@ -96,28 +98,33 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress) string {
 	return object
 }
 
-func viewRestrictError(catalog CatalogRead, edges []viewDependencyEdge) error {
-	object := dependencyObject(catalog, edges[0].target)
-	details := make([]string, len(edges))
-	for i, edge := range edges {
-		details[i] = "view " + edge.view.name + " depends on " + dependencyObject(catalog, edge.target)
-	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + object + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
-}
-
 func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, views []viewDependencyEdge) error {
-	if len(checks) == 0 {
-		return viewRestrictError(catalog, views)
+	// CHECKs have owner-local declaration identities; views use their existing
+	// relation creation addresses. Neither family takes precedence over another.
+	type dependent struct {
+		oid     OID
+		ordinal int
+		target  ObjectAddress
+		detail  string
 	}
-	target := checks[0].target
-	details := make([]string, 0, len(checks)+len(views))
+	dependents := make([]dependent, 0, len(checks)+len(views))
 	for _, edge := range checks {
-		details = append(details, "constraint "+edge.check.Name+" on table "+edge.relation.name+" depends on "+dependencyObject(catalog, edge.target))
+		dependents = append(dependents, dependent{edge.relation.address.ObjectID, edge.check.ordinal, edge.target, "constraint " + edge.check.Name + " on table " + edge.relation.name + " depends on " + dependencyObject(catalog, edge.target)})
 	}
 	for _, edge := range views {
-		details = append(details, "view "+edge.view.name+" depends on "+dependencyObject(catalog, edge.target))
+		dependents = append(dependents, dependent{edge.view.address.ObjectID, 0, edge.target, "view " + edge.view.name + " depends on " + dependencyObject(catalog, edge.target)})
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, target) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+	slices.SortFunc(dependents, func(a, b dependent) int {
+		if order := cmp.Compare(a.oid, b.oid); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.ordinal, b.ordinal)
+	})
+	details := make([]string, len(dependents))
+	for i, dependent := range dependents {
+		details[i] = dependent.detail
+	}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, dependents[0].target) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
 
 func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {

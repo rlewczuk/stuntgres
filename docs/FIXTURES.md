@@ -8,7 +8,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error
 func Restore(ctx context.Context, db *sql.DB, src io.Reader) error
 ```
 
-Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. They are **host-authorized**, independently of a borrowed connection's effective principal. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog` and `public` namespace descriptors while retaining database identity, cluster roles, nonreuse counters, live identities/settings and existing pools. Dump captures before external I/O, groups deterministically by owner name then schema/relation, and writes quoted owner-switch directives plus PostgreSQL-compatible CREATE/INSERT SQL, declaration-ordered columns and canonical literals. Bootstrap-only dumps retain legacy CREATE/INSERT bytes without a redundant switch. Explicit relation/column ACLs cannot be serialized and cause a failure before output, rather than silent loss. Dump excludes role creation, passwords, membership and settings; it is not complete `pg_dump` output, COPY, or catalog export.
+Controls require a **native stuntgres** pool; foreign and middleware-wrapped pools are rejected, with no reflection unwrapping. They are **host-authorized**, independently of a borrowed connection's effective principal. Reset atomically replaces the catalog lifetime with initialized built-in `pg_catalog` and `public` namespace descriptors while retaining database identity, cluster roles, nonreuse counters, live identities/settings and existing pools. Dump captures before external I/O, emits persistent tables/views in creation-address order among objects whose sources are ready, and writes quoted owner-switch directives plus PostgreSQL-compatible CREATE/INSERT SQL, declaration-ordered columns and canonical literals. Explicit relation/column ACLs cannot be serialized and cause a failure before output, rather than silent loss. Dump excludes role creation, passwords, membership and settings; it is not complete `pg_dump` output, COPY, or catalog export.
 
 Dump reconstructs renamed, absent and recreated bootstrap namespaces using ordinary
 DROP/ALTER SCHEMA SQL before user schemas and tables. Retained builtin ACLs must
@@ -27,9 +27,11 @@ the destination generation, and atomically installs definitions with ordinary
 data. Derived catalog sources initialize normally and are not dumped. Restored
 views remain dynamic; later base writes and dependency checks still apply.
 Failed/canceled imports retain old catalogs, dependencies and held result rows.
-Dump orders views by their actual persistent source/dependency topology, using
-OID only to break ties between independent ready views. Retained TEMP collision
-remapping may move a source OID above its dependent without changing replay order.
+Dump orders tables and views through the incumbent persistent view-source topology:
+tables have no predecessors; views depend on both table and view sources.
+Creation addresses break ties between ready objects. Retained TEMP collision
+remapping may move a source OID above its dependent; topology then wins so replay
+remains executable, without promising allocator-relative diagnostic-order parity.
 The two-retained-sequence, second-Dump/Restore regression is executable with
 `make test PACKAGES=. RUN='^TestViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0`.
 Joined imports remap every source occurrence, both join children, predicates,

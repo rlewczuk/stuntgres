@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -105,7 +106,7 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 
 func orderedChecks(d *relationDescriptor) []checkConstraint {
 	checks := slices.Clone(d.checkConstraints)
-	slices.SortFunc(checks, func(a, b checkConstraint) int { return a.ordinal - b.ordinal })
+	slices.SortFunc(checks, func(a, b checkConstraint) int { return cmp.Compare(a.ordinal, b.ordinal) })
 	return checks
 }
 
@@ -197,7 +198,15 @@ func (s *StatementScope) acquireCheckProviders(stage *CatalogStage) error {
 
 func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bool) error {
 	previous := ""
-	for _, c := range d.checkConstraints {
+	for i, c := range d.checkConstraints {
+		if c.ordinal < 0 {
+			return fmt.Errorf("stuntgres: invalid check declaration ordinal")
+		}
+		for _, previous := range d.checkConstraints[:i] {
+			if previous.ordinal == c.ordinal {
+				return fmt.Errorf("stuntgres: duplicate check declaration ordinal")
+			}
+		}
 		if c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || previous != "" && previous >= c.Name || c.expression == nil || c.expression.ResultUsage().Type == nil || c.expression.ResultUsage().Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid check constraint identity")
 		}
@@ -364,7 +373,7 @@ func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode par
 		if a.relation.address.ObjectID > b.relation.address.ObjectID {
 			return 1
 		}
-		return a.check.ordinal - b.check.ordinal
+		return cmp.Compare(a.check.ordinal, b.check.ordinal)
 	})
 	if mode != parser.DropRestrict {
 		for _, edge := range edges {

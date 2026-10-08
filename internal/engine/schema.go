@@ -152,6 +152,11 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 			}
 		}
 	}
+	if _, ok := stmt.(*parser.CreateSchema); ok {
+		if err := scope.acquireCheckProviders(stage); err != nil {
+			return Result{}, err
+		}
+	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
 		return Result{}, err

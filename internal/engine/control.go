@@ -88,6 +88,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	var views []dumpView
 	viewDependencies := make(map[OID][]OID)
 	viewIndices := make(map[OID]int)
+	tableIndices := make(map[OID]int)
 	type dumpComment struct{ name, text string }
 	var schemaComments []dumpComment
 	// Reconstruct bootstrap identity changes before creating ordinary namespaces.
@@ -254,8 +255,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return fmt.Errorf("stuntgres: missing view dump dependency")
 				}
 				source, relation := object.(*relationDescriptor)
-				if !relation || source.view == nil {
-					return nil // Tables/sequences precede views; providers already exist.
+				if !relation || source.relationKind == sequenceRelation || source.relationKind == catalogRelation {
+					return nil // Sequences/builtin providers already exist at replay.
 				}
 				namespace, exists := e.state.descriptors[source.namespace].(*namespaceDescriptor)
 				if !exists || namespace.temporary != (SessionToken{}) {
@@ -316,6 +317,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
+		oid := r.address.ObjectID
+		viewDependencies[oid] = nil // Tables have no table/view predecessors.
+		tableIndices[oid] = len(tables)
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, descriptor: r})
 	}
 	e.mu.Unlock()
@@ -323,15 +327,6 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err != nil {
 		return err
 	}
-	sort.Slice(tables, func(i, j int) bool {
-		if tables[i].owner != tables[j].owner {
-			return tables[i].owner < tables[j].owner
-		}
-		if tables[i].schema != tables[j].schema {
-			return tables[i].schema < tables[j].schema
-		}
-		return tables[i].name < tables[j].name
-	})
 	emit := func(s string) error {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -375,7 +370,21 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// The interpreter need not be logged in as the native bootstrap owner.
 	// Establish even the first group's owner before creating dependent objects.
 	currentOwner := ""
-	for _, t := range tables {
+	for _, oid := range viewOrder {
+		if index, isView := viewIndices[oid]; isView {
+			view := views[index]
+			if view.owner != currentOwner {
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(view.owner, "'", "''") + "';\n"); err != nil {
+					return err
+				}
+				currentOwner = view.owner
+			}
+			if err := emit(view.sql); err != nil {
+				return err
+			}
+			continue
+		}
+		t := tables[tableIndices[oid]]
 		if t.owner != currentOwner {
 			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(t.owner, "'", "''") + "';\n"); err != nil {
 				return err
@@ -469,12 +478,6 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	for _, line := range sequenceCompletion {
 		if err := emit(line); err != nil {
-			return err
-		}
-	}
-	for _, oid := range viewOrder {
-		view := views[viewIndices[oid]]
-		if err := emit("SET SESSION AUTHORIZATION " + quoteIdentifier(view.owner) + ";\n" + view.sql); err != nil {
 			return err
 		}
 	}

@@ -6,14 +6,15 @@ import (
 	"fmt"
 )
 
-// OIDs break ties only among views whose persistent predecessors are ready.
-// Restore may remap a source above its dependent, so OID order alone is invalid.
+// OIDs break ties among tables/views whose persistent predecessors are ready.
+// Restore may remap a source above its dependent, so topology takes precedence
+// over creation-address order in that exceptional case.
 type viewDumpReady []OID
 
 func (h viewDumpReady) Len() int           { return len(h) }
 func (h viewDumpReady) Less(i, j int) bool { return h[i] < h[j] }
 func (h viewDumpReady) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-func (h *viewDumpReady) Push(value any)   { *h = append(*h, value.(OID)) }
+func (h *viewDumpReady) Push(value any)    { *h = append(*h, value.(OID)) }
 func (h *viewDumpReady) Pop() any {
 	last := len(*h) - 1
 	value := (*h)[last]

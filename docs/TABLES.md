@@ -550,9 +550,20 @@ sequence while another session's DROP remains private. Native CREATE instead
 waits; rollback permits the original provider identity, while commit rejects
 its disappearance without publishing a table fragment. Cancellation releases
 the contender's holds through the existing transaction ticket.
-Restrictive sequence diagnostics retain every supported CHECK and view edge.
-CHECK edges and canonical dumped definitions retain declaration order, separate
-from alphabetical row-enforcement order.
+Restrictive sequence diagnostics merge every supported CHECK and view edge by
+relation creation address, with CHECK declaration ordinals within each owner.
+They retain complete ordered Detail, including transitive view dependencies;
+alphabetical row enforcement remains independent. Declaration ordinals are
+nonnegative and unique per table; dropping constraints or columns may leave gaps.
+
+Canonical Dump replays tables and views in common creation-address order among
+objects whose sources are ready, preserving ordinary SQL-created multi-table and
+mixed CHECK/view diagnostics across Restore. Table data and table/column comments
+remain with their CREATE; owner directives switch as needed. The incumbent view
+topology takes precedence when native replacement remaps a source address above
+its dependent: replay remains executable, but that exceptional remapped catalog
+does not promise the original allocator-relative diagnostic ordering. No separate
+persistent ordering authority is maintained.
 
 Sequence CREATE/options precede table definitions in Dump so CHECK bindings can
 resolve real providers; ownership and captured setval follow table data.
