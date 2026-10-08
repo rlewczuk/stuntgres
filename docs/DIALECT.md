@@ -591,6 +591,10 @@ also admits these immutable, strict PostgreSQL18 mathematical overloads:
 | `round`, `trunc` | NUMERIC → NUMERIC; FLOAT8 → FLOAT8; NUMERIC, INT4 → NUMERIC |
 | `sign` | NUMERIC → NUMERIC; FLOAT8 → FLOAT8 |
 | `mod` | INT2,INT2 → INT2; INT4,INT4 → INT4; INT8,INT8 → INT8; NUMERIC,NUMERIC → NUMERIC |
+| `abs` | INT2 → INT2; INT4 → INT4; INT8 → INT8; FLOAT4 → FLOAT4; FLOAT8 → FLOAT8; NUMERIC → NUMERIC |
+| `ceil`, `ceiling`, `floor`, `exp` | NUMERIC → NUMERIC; FLOAT8 → FLOAT8 |
+| `div` | NUMERIC,NUMERIC → NUMERIC |
+| `factorial` | INT8 → NUMERIC |
 
 Exact NUMERIC selects its numeric overload. Unary integer/REAL
 `round`/`trunc`/`sign` select the preferred FLOAT8 overload. Unknown unary
@@ -605,6 +609,14 @@ Missing signatures use `42883` and the standard explicit-casts Hint at the
 function token. Invalid unknown literals use the selected input codec at the
 literal position. Prepared signatures and result metadata remain fixed across
 bindings; NUMERIC results have unconstrained typmod, even from sized columns.
+
+`abs` selects exact integer/REAL widths rather than widening them. Integer/REAL
+inputs to `ceil`/`ceiling`/`floor`/`exp` select FLOAT8; unknown unary inputs to
+these functions or `abs` also select FLOAT8. `div` contextualizes both unknown
+parameters as NUMERIC; `factorial` contextualizes its parameter as INT8 and
+implicitly widens SMALLINT/INTEGER, but rejects NUMERIC/REAL/FLOAT8 (including
+`factorial(5.0)`). No parameter's Go value changes the prepared signature.
+
 
 NUMERIC rounding uses ties away from zero; truncation uses toward zero.
 The scale request clamps to [-131073,16383] for round and [-131072,16383] for
@@ -636,7 +648,7 @@ including selected-call singleton queries. Existing execution conditional
 pruning/folding, grouping by projection ordinal, UPDATE/INSERT SELECT atomicity,
 ACLs, view capture and
 native replacement remain the shared consumers. No general function registry,
-numeric arithmetic operators, qualification, new WHERE/DEFAULT/INSERT VALUES
+numeric arithmetic operators, new WHERE/DEFAULT/INSERT VALUES
 or setting admission, or general SELECT-without-FROM is introduced.
 Dump/Restore stores exact results and replays supported view syntax, not private
 function state.
@@ -647,6 +659,55 @@ and `round(count(*),1)` are admitted; unsupported `min` aggregates are not added
 Feature smoke: `make smoke RUN='^TestMathSmoke$' VERBOSE=0`.
 Independent reference:
 `make reference RUN='^TestReferenceMath(Signatures|NumericRoundScale|SignModulo|Diagnostics|Consumers)$' VERBOSE=0`.
+
+### Numeric scalar functions — change note
+
+`abs` preserves finite numeric display scale, normalizes floating negative zero
+to positive zero, and maps negative infinity to positive infinity. Signed
+integer minima fail `22003` with `smallint out of range`, `integer out of range`
+or `bigint out of range`. Numeric/floating NaN remains NaN.
+
+Numeric `ceil`/`ceiling`/`floor` return scale-zero integers, using exact decimal
+fraction/carry rules; `ceil` and `ceiling` differ only in their SQL name.
+For example, `ceil(-42.8)=-42` and `floor(-42.8)=-43`. All preserve NaN and
+infinities. Floating operations preserve libm signed zero, including
+`ceil('-0.5')=-0`. Decimal carry beyond 131072 integer digits fails `22003`,
+`value overflows numeric format`.
+
+`div` is exact truncation toward zero with scale-zero output:
+`div(-9.00,4.000)=-2` and `div(9007199254740993,2)=4503599627370496`.
+NaN wins even over zero; infinity/infinity returns NaN; infinity divided by a
+finite nonzero value returns signed infinity; finite/infinity returns zero.
+All other zero divisors fail `22012`, `division by zero`; overflowing finite
+quotients fail `22003`, `value overflows numeric format`.
+
+`factorial(0)` and `factorial(1)` are unscaled 1; `factorial(20)` is exact
+2432902008176640000. Its maximum input is 32177; larger values fail `22003`,
+`value overflows numeric format`. Negative inputs fail `22003`,
+`factorial of a negative number is undefined`. Cancellation remains an ordinary
+context error and does not publish partial numeric results or DML changes.
+
+Numeric `exp` uses guarded decimal range reduction/series/squaring, not a
+binary64 result formatted as decimal. `exp(1.0)=2.7182818284590452`; higher
+input display scale retains greater precision. Finite result scale is
+`min(1000,max(0,input_scale,16-trunc(clamp(float8(input)*log10(e),-2000,2000))))`.
+The float estimate controls precision and PostgreSQL's finite ±6000 guard,
+not the decimal coefficients. Inputs whose estimate reaches +6000 fail
+`22003`, `value overflows numeric format`; estimates at or below -6000
+produce zero at the selected scale. The guard uses represented float estimates,
+so sufficiently close high-precision decimal neighbors can hit the same bound.
+Numeric NaN/+Infinity persist; -Infinity yields unscaled positive zero.
+
+Floating `exp` preserves NaN/+Infinity and maps -Infinity to positive zero.
+Finite inputs producing infinity fail `22003`, `value out of range: overflow`;
+those producing zero fail `22003`, `value out of range: underflow`. The pinned
+PostgreSQL18.0 environment accepts nonzero subnormals, including `exp('-745')`.
+Host floating results remain subject to the PostgreSQL manual's libm caveat.
+Provider errors above have no invented Position/Detail/Hint. Prepare fixes types
+without evaluating these immutable operations; domain errors belong to Execute.
+
+Scalar feature smoke: `make smoke RUN='^TestMathScalarSmoke$' VERBOSE=0`.
+Independent pinned coverage: `make reference RUN='^TestReferenceMathScalar' VERBOSE=0`.
 
 
 Table SELECT projection/WHERE admit `IS [NOT] NULL`, `ISNULL`/`NOTNULL`,
@@ -1225,9 +1286,10 @@ COMMENT diagnostics retain their existing unpositioned utility policy.
 Supported builtin type identifiers, null-count/sequence/settings functions,
 random/random_normal/setseed, current_schema(), type-input functions, count(*) and arithmetic/comparison
 operators accept catalog qualification in their existing expression contexts.
-The existing min_scale/round/scale/trim_scale/trunc/sign/mod owners also accept
-catalog qualification through this resolver, without changing numeric overloads
-or allowing familiar spellings in a wrong namespace to bypass lookup.
+The min_scale/round/scale/trim_scale/trunc/sign/mod and
+abs/ceil/ceiling/div/exp/factorial owners also accept catalog qualification
+through this resolver, without allowing familiar spellings in a wrong namespace
+to bypass lookup.
 Qualified type names use catalog identifiers, not SQL aliases:
 pg_catalog.int4 is valid, pg_catalog.integer is not an alias. Qualified operators
 use OPERATOR(schema.symbol) and generic operator precedence.

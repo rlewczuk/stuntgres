@@ -248,12 +248,13 @@ func TestNullCountCapabilityBoundaries(t *testing.T) {
 	execSQL(t, db, "CREATE TABLE t(num_nulls INT,num_nonnulls INT)")
 	execSQL(t, db, "INSERT INTO t VALUES(1,2)")
 	wantTuples(t, db, "SELECT num_nulls,num_nonnulls FROM t", [][]any{{int64(1), int64(2)}})
+	wantTuples(t, db, "SELECT abs(1) FROM t", [][]any{{int64(1)}})
 	// Valid PostgreSQL features excluded by the bounded native surface are not parity claims.
 	for _, q := range []string{
 		"SELECT 1", "SELECT num_nulls(NULL),1", "SELECT $1", "SELECT *",
 		"SELECT num_nulls(NULL) WHERE TRUE", "SELECT num_nulls(NULL) ORDER BY 1",
 		"INSERT INTO t VALUES(num_nulls(NULL),1)", "SELECT num_nulls FROM t WHERE num_nulls(NULL)",
-		"SELECT abs(1) FROM t", "SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(ARRAY[1,NULL])",
+		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(ARRAY[1,NULL])",
 		"SELECT num_nulls(VARIADIC ARRAY[1,NULL])",
 		"SELECT num_nulls(DISTINCT 1) FROM t",
 		"SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",

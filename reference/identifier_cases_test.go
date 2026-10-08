@@ -30,7 +30,6 @@ var identifierContextCases = []struct {
 }{
 	{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15", "", "", nil},
 	{"SELECT integer(x) FROM t", "42601", "syntax error at or near \"(\"", "15", "", "", nil},
-	{"SELECT abs(x) FROM t", "0A000", "functions are unsupported", "8", "abs", "INT4", int64(7)},
 	{"SELECT authorization(x) FROM t", "0A000", "functions are unsupported", "8", "authorization", "INT4", int64(7)},
 	{"SELECT f(x) FROM t", "0A000", "functions are unsupported", "8", "f", "INT4", int64(7)},
 	{"SELECT abort(x) FROM t", "0A000", "functions are unsupported", "8", "abort", "INT4", int64(7)},
@@ -51,12 +50,9 @@ var identifierLaterCallCases = []struct {
 	columns, types             []string
 	rows                       [][]any
 }{
-	{"SELECT x, abs(x) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "abs"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
-	{"/*é*/ SELECT x, abs(x) FROM t", "0A000", "functions are unsupported", "17", []string{"x", "abs"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
 	{"SELECT x, abort(x) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "abort"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
 	{"SELECT x, authorization(x) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "authorization"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
 	{"SELECT x, \"between\"(x) FROM t", "0A000", "functions are unsupported", "11", []string{"x", "between"}, []string{"INT4", "INT4"}, [][]any{{int64(7), int64(7)}}},
 	{"SELECT x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "18", nil, nil, nil},
-	{"SELECT x, x, abs(x) FROM t", "0A000", "functions are unsupported", "14", []string{"x", "x", "abs"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(7), int64(7), int64(7)}}},
 	{"SELECT x, x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "21", nil, nil, nil},
 }

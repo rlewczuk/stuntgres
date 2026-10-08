@@ -343,11 +343,9 @@ func identifierContextualCapabilities() error {
 		{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
 		{"SELECT f(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT authorization(x) FROM t", "0A000", "functions are unsupported", "8"},
-		{"SELECT x, abs(x) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, authorization(x) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, \"between\"(x) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "18"},
-		{"SELECT x, x, abs(x) FROM t", "0A000", "functions are unsupported", "14"},
 		{"SELECT x FROM t ORDER BY x NULLS bogus", "42601", "syntax error at or near \"NULLS\"", "28"},
 	} {
 		for _, op := range []func(string) error{

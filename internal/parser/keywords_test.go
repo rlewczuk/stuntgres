@@ -175,7 +175,6 @@ func TestKeywordContextualCapabilities(t *testing.T) {
 	for _, s := range []struct{ q, code, msg, pos string }{
 		{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
 		{"SELECT integer(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
-		{"SELECT abs(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT authorization(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT \"between\"(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT abort(x) FROM t", "0A000", "functions are unsupported", "8"},
@@ -237,14 +236,11 @@ func TestNullsTokenLookahead(t *testing.T) {
 
 func TestKeywordLaterProjectionCalls(t *testing.T) {
 	for _, s := range []struct{ q, code, msg, pos string }{
-		{"SELECT x, abs(x) FROM t", "0A000", "functions are unsupported", "11"},
-		{"/*é*/ SELECT x, abs(x) FROM t", "0A000", "functions are unsupported", "17"},
-		{"CREATE TABLE staged (x INT); SELECT x, abs(x) FROM t", "0A000", "functions are unsupported", "40"},
+		{"CREATE TABLE staged (x INT); SELECT x, f(x) FROM t", "0A000", "functions are unsupported", "40"},
 		{"SELECT x, abort(x) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, authorization(x) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, \"between\"(x) FROM t", "0A000", "functions are unsupported", "11"},
 		{"SELECT x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "18"},
-		{"SELECT x, x, abs(x) FROM t", "0A000", "functions are unsupported", "14"},
 		{"SELECT x, x, between(x) FROM t", "42601", "syntax error at or near \"(\"", "21"},
 	} {
 		keywordDiagnostic(t, s.q, s.code, s.msg, s.pos)

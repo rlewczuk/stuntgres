@@ -650,7 +650,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = OPERATOR
 			}
 		}
-	case "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
+	case "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}

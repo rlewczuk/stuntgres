@@ -44,7 +44,13 @@ func mathSignatures(name string) []mathSignature {
 		return []mathSignature{{[2]sqltype.ID{sqltype.Numeric}, 1, sqltype.Int4}}
 	case "trim_scale":
 		return []mathSignature{unary(sqltype.Numeric)}
-	case "sign":
+	case "abs":
+		return []mathSignature{unary(sqltype.Int2), unary(sqltype.Int4), unary(sqltype.Int8), unary(sqltype.Float4), unary(sqltype.Float8), unary(sqltype.Numeric)}
+	case "div":
+		return []mathSignature{{[2]sqltype.ID{sqltype.Numeric, sqltype.Numeric}, 2, sqltype.Numeric}}
+	case "factorial":
+		return []mathSignature{{[2]sqltype.ID{sqltype.Int8}, 1, sqltype.Numeric}}
+	case "sign", "ceil", "ceiling", "floor", "exp":
 		return []mathSignature{unary(sqltype.Numeric), unary(sqltype.Float8)}
 	case "round", "trunc":
 		return []mathSignature{unary(sqltype.Numeric), unary(sqltype.Float8), {[2]sqltype.ID{sqltype.Numeric, sqltype.Int4}, 2, sqltype.Numeric}}

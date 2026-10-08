@@ -33,7 +33,13 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 		valid = len(args) == 1 && id == Numeric
 	case "round", "trunc":
 		valid = (len(args) == 1 && (id == Numeric || id == Float8)) || (len(args) == 2 && id == Numeric && args[1].Type.id == Int4)
-	case "sign":
+	case "abs":
+		valid = len(args) == 1 && (id == Int2 || id == Int4 || id == Int8 || id == Float4 || id == Float8 || id == Numeric)
+	case "div":
+		valid = len(args) == 2 && id == Numeric && args[1] == args[0]
+	case "factorial":
+		valid = len(args) == 1 && id == Int8
+	case "sign", "ceil", "ceiling", "floor", "exp":
 		valid = len(args) == 1 && (id == Numeric || id == Float8)
 	case "mod":
 		valid = len(args) == 2 && (id == Int2 || id == Int4 || id == Int8 || id == Numeric) && args[1] == args[0]
@@ -44,6 +50,8 @@ func BindMath(name string, result Usage, args ...Usage) (MathPlan, error) {
 	resultID := id
 	if name == "scale" || name == "min_scale" {
 		resultID = Int4
+	} else if name == "factorial" {
+		resultID = Numeric
 	}
 	if !result.Valid() || result != result.Type.Usage() || result.Type.id != resultID {
 		return p, fmt.Errorf("invalid math result usage")
@@ -69,6 +77,45 @@ func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
 		return Null(p.result.Type), nil
 	}
 	id := a.typ.id
+	switch p.name {
+	case "abs":
+		if id == Numeric {
+			a.negative = false
+			if a.special == numericNegativeInfinity {
+				a.special = numericInfinity
+			}
+			return a, nil
+		}
+		if id == Float4 || id == Float8 {
+			return Float(p.result.Type, math.Abs(a.floating))
+		}
+		minimum, label := int64(math.MinInt64), "bigint"
+		if id == Int2 {
+			minimum, label = math.MinInt16, "smallint"
+		} else if id == Int4 {
+			minimum, label = math.MinInt32, "integer"
+		}
+		if a.integer == minimum {
+			return Value{}, failure("22003", label+" out of range")
+		}
+		n := a.integer
+		if n < 0 {
+			n = -n
+		}
+		return Integer(p.result.Type, n)
+	case "div":
+		return numericDivideTrunc(ctx, a, b)
+	case "factorial":
+		return numericFactorial(ctx, p.result.Type, a.integer)
+	case "ceil", "ceiling", "floor":
+		if id == Numeric {
+			return numericCeilFloor(ctx, a, p.name != "floor")
+		}
+	case "exp":
+		if id == Numeric {
+			return numericExp(ctx, a)
+		}
+	}
 	if p.name == "mod" {
 		if id == Numeric {
 			return numericModulo(ctx, a, b)
@@ -89,6 +136,22 @@ func (p MathPlan) Evaluate(ctx context.Context, a, b Value) (Value, error) {
 			n = math.RoundToEven(n)
 		case "trunc":
 			n = math.Trunc(n)
+		case "ceil", "ceiling":
+			n = math.Ceil(n)
+		case "floor":
+			n = math.Floor(n)
+		case "exp":
+			n = math.Exp(n)
+			// Pinned PostgreSQL accepts nonzero subnormals. Only finite
+			// inputs that produce infinity or zero are range errors.
+			if !math.IsInf(a.floating, 0) && !math.IsNaN(a.floating) {
+				if math.IsInf(n, 0) {
+					return Value{}, failure("22003", "value out of range: overflow")
+				}
+				if n == 0 {
+					return Value{}, failure("22003", "value out of range: underflow")
+				}
+			}
 		case "sign":
 			if n > 0 {
 				n = 1

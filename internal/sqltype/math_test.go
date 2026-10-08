@@ -60,7 +60,7 @@ func TestMathSignatures(t *testing.T) {
 		result ID
 	}{
 		{"round", []ID{Int4}, Int4}, {"round", []ID{Float8, Int4}, Float8}, {"round", []ID{Numeric, Int8}, Numeric},
-		{"scale", []ID{Float8}, Int4}, {"mod", []ID{Float8, Float8}, Float8}, {"abs", []ID{Numeric}, Numeric},
+		{"scale", []ID{Float8}, Int4}, {"mod", []ID{Float8, Float8}, Float8},
 		{"sign", []ID{Numeric}, Int4},
 	} {
 		var usages []Usage

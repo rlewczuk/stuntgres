@@ -60,7 +60,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	}
 	var kind nullCountKind
 	switch name {
-	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod":
+	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		return b.bindMath(raw, visible)
 	case "random", "random_normal", "setseed":
 		return b.bindRandom(raw, visible)
