@@ -120,6 +120,8 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
+		case binaryExpression:
+			return children(r.Args, n.args)
 		case literalExpression:
 			// Unary plus over a checked integer or numeric literal is identity.
 			// Keep the captured value at the operand occurrence, matching the
@@ -214,6 +216,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				}
 				return children(r.Args, structure.args)
 			}
+		}
+		if n, ok := bound.(binaryExpression); ok {
+			return children(r.Args, n.args)
 		}
 		if n, ok := bound.(mathExpression); ok {
 			return children(r.Args, n.args)

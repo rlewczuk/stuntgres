@@ -669,6 +669,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = OPERATOR
 			}
 		}
+	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim":
+		if token.code == IDENT {
+			token.code = SELECTED_FUNC
+		}
 	case "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
@@ -708,7 +712,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	if l.checkDepth > 0 && token.code == SELECTED_FUNC {
+	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || binaryScalarFunction(token.lexeme.text)) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {
@@ -997,6 +1001,16 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 		return true
 	} else {
 		l.failAt("42601", "syntax error at or near \""+l.input[start:end]+"\"", start)
+	}
+	return false
+}
+
+// Binary calls use the existing scalar-call production in every selected
+// consumer; unrelated selected projection functions retain their own boundary.
+func binaryScalarFunction(name string) bool {
+	switch name {
+	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim":
+		return true
 	}
 	return false
 }

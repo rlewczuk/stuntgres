@@ -118,6 +118,10 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case mathExpression:
 		out.WriteString("Math " + n.plan.Name())
 		err = args(n.args)
+	case binaryExpression:
+		out.WriteString("Binary ")
+		out.WriteString(n.plan.Name())
+		err = args(n.args)
 	case randomExpression:
 		out.WriteString("Random " + n.name)
 		err = args(n.args)

@@ -162,6 +162,33 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
+	case binaryExpression:
+		if len(n.args) < 1 || len(n.args) > 2 {
+			return "", fmt.Errorf("stuntgres: invalid stored binary arity")
+		}
+		var usages [2]sqltype.Usage
+		for i, arg := range n.args {
+			if arg == nil {
+				return "", fmt.Errorf("stuntgres: missing binary operand")
+			}
+			usages[i] = arg.ResultUsage()
+		}
+		plan, err := sqltype.BindBinary(n.plan.Name(), u, usages[:len(n.args)]...)
+		if err != nil || plan != n.plan {
+			return "", fmt.Errorf("stuntgres: invalid stored binary provider")
+		}
+		if n.plan.Name() != "||" {
+			return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args)
+		}
+		left, err := r.sql(ctx, view, n.args[0])
+		if err != nil {
+			return "", err
+		}
+		right, err := r.sql(ctx, view, n.args[1])
+		if err != nil {
+			return "", err
+		}
+		return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
 	case mathExpression:
 		if len(n.args) == 0 || len(n.args) > 2 {
 			return "", fmt.Errorf("stuntgres: invalid stored math arity")
@@ -681,6 +708,22 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		for i := range n.args {
 			n.args[i] = child(n.args[i])
 		}
+		n.expressionInfo = info
+		rebound = n
+	case binaryExpression:
+		n.args = append([]BoundExpr(nil), n.args...)
+		var usages [2]sqltype.Usage
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+			usages[i] = n.args[i].ResultUsage()
+		}
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n.plan, err = sqltype.BindBinary(n.plan.Name(), info.usage, usages[:len(n.args)]...)
 		n.expressionInfo = info
 		rebound = n
 	case mathExpression:

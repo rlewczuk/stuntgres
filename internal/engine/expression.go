@@ -427,6 +427,25 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
+	case binaryExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || args != nil, err
 	case mathExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {
@@ -1044,7 +1063,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 	case parser.OperatorExpr:
 		var err error
-		if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+		if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
+			node, err = b.bindBinaryConcat(r)
+		} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 			node, err = b.bindBitwise(r)
 		} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {
 			node, err = b.bindArithmetic(r)

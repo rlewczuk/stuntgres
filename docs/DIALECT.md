@@ -1044,7 +1044,31 @@ always exports nonnil []byte; pinned pq's text escape decoder exports typed
 nil []byte for empty bytea (hex exports nonnil empty). Both remain distinct
 from SQL NULL's nil interface. Canonical Dump literals always
 use quoted lowercase hex; Restore preserves settings, atomicity and old
-snapshots. No typed BYTEA literals, functions/casts, arrays or wire server.
+snapshots. Selected raw BYTEA operations are `||`, `bit_length`, `octet_length`,
+`length`, and two-argument `btrim`, `ltrim`, `rtrim`. Counts return INT4; bit_length
+checks overflow instead of wrapping. Trim uses a byte membership set, not a
+substring, whitespace default or Unicode character set. All are strict for NULL;
+empty identities and all-removed trims remain nonnull empty. Known BYTEA operands
+contextualize unknown concatenation/trim literals and parameters, while imported
+Go binds remain raw octets. Metadata is BYTEA/INT4 without collation or typmod.
+These operations share normal scalar query/write/view consumers and native replay;
+selected functions retain the existing DEFAULT exclusion. Real TEXT siblings and
+encoding-aware length remain truthful 0A000 exclusions, not nonexistent signatures.
+The excluded `length(bytea,name)` candidate also recognizes unknown source/encoding
+arguments and existing implicit TEXT/VARCHAR/BPCHAR-to-NAME encoding conversions.
+It is not executed; genuinely absent signatures such as `length(bytea,integer)`
+retain 42883 with the PostgreSQL missing-function diagnostic.
+Existing CHECK deparsing supports all seven operations through compact/pretty
+`pg_get_constraintdef` and `pg_get_expr`. Functions use ordinary function spelling;
+concat retains `||` operator grouping. Native `conbin` emits typed `Binary <name>`
+nodes and recursive children without evaluating the operation. Its PG_NODE_TREE
+representation is native structural output, not PostgreSQL nodeToString interchange;
+captured carriers and analyzed metadata remain valid across native replay.
+No new typed BYTEA literals, casts, SQL TRIM keyword forms, direct byteacat, other
+binary functions, arrays or wire server are added. Existing BYTEA cast admission
+is preserved unchanged. Binary feature smoke:
+`make smoke RUN='^TestBinaryBasicSmoke$' VERBOSE=0`; pinned independent reference:
+`make reference RUN='^TestReferenceBinaryBasic' VERBOSE=0`.
 Smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`; pinned independent reference:
 `make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
 

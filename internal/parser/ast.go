@@ -486,6 +486,7 @@ func singletonArgument(expr Expr) bool {
 			return false
 		}
 		switch e.Name.Parts[len(e.Name.Parts)-1].Text {
+		case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim":
 		case "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		default:
 			if !strings.HasPrefix(strings.ToLower(e.Name.Parts[len(e.Name.Parts)-1].Text), "pg_get_") {

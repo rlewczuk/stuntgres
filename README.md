@@ -117,6 +117,22 @@ factorial are exact, and decimal exponential preserves independently selected
 precision (up to 1000 fractional places). See the
 [mathematical signatures and limits](docs/DIALECT.md#scale-and-rounding-functions--change-note).
 Feature smoke: `make smoke RUN='^TestMathScalarSmoke$' VERBOSE=0`.
+
+BYTEA supports raw `||`, `bit_length`, `octet_length`, `length`, and two-argument
+`btrim`, `ltrim`, `rtrim`. Counts are INT4 octet counts (bits multiply by eight);
+trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
+All seven are strict for NULL and independent of bytea_output. A known BYTEA
+operand infers unknown concatenation/trim arguments as BYTEA; inferred Go binds
+remain raw octets, not byteain text. These providers share query/write/view
+consumers and native replay. TEXT siblings, encoding-aware length, SQL TRIM forms
+and direct byteacat remain outside this feature. No new casts are added; existing
+BYTEA cast admission is preserved.
+Already-admitted CHECK expressions support SQL deparsing and native structural
+catalog export, preserving operator grouping and immutable replayed carriers.
+See [BYTEA](docs/TYPES.md#bytea). Feature smoke:
+`make smoke RUN='^TestBinaryBasicSmoke$' VERBOSE=0`; independent pinned reference:
+`make reference RUN='^TestReferenceBinaryBasic' VERBOSE=0`.
+
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;
 bounded temporal explicit casts and same-type precision annotations are supported.

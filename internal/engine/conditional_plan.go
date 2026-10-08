@@ -212,6 +212,30 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.args = args
 		}
 		expression = e
+	case binaryExpression:
+		var args []BoundExpr
+		for i, old := range e.args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = node
+				changed = true
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		for _, arg := range e.args {
+			if randomLiteralNull(arg) {
+				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+			}
+		}
+		expression = e
 	case mathExpression:
 		var args []BoundExpr
 		for i, old := range e.args {
@@ -372,6 +396,13 @@ func conditionalConstantInputs(node BoundExpr) bool {
 	case distinctExpression:
 		return literal(e.left) && literal(e.right)
 	case conditionalExpression:
+		for _, arg := range e.args {
+			if !literal(arg) {
+				return false
+			}
+		}
+		return true
+	case binaryExpression:
 		for _, arg := range e.args {
 			if !literal(arg) {
 				return false

@@ -319,6 +319,13 @@ func (l *lexer) scalarInput(expr Expr) bool {
 
 func (l *lexer) scalarInputTree(expr Expr) bool {
 	switch r := expr.(type) {
+	case FunctionExpr:
+		for _, arg := range r.Args {
+			if !l.scalarInputTree(arg) {
+				return false
+			}
+		}
+		return true
 	case AggregateExpr:
 		for _, arg := range r.Args {
 			if !l.scalarInputTree(arg) {

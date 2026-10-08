@@ -213,12 +213,40 @@ Dump always writes quoted lowercase hex, including `'\x'` for empty and NULL
 for null, independent of output/string settings. Restore privately parses
 default-on strings, preserves live settings and retained snapshots, and
 publishes no replacement on input/read/cancellation failure. BYTEA typed
-literals, modifiers, casts/functions, arrays and wire serving are not added.
+literals, modifiers, casts, arrays and wire serving are not added.
 
 Feature smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=1`.
 Native witnesses: `make test PACKAGES=. RUN='^TestBytea.*$' VERBOSE=1`;
 codec witnesses: `make test PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=1`.
 Pinned reference: `make reference RUN='^TestReferenceBytea.*$' VERBOSE=1`.
+
+Raw binary scalar operations are `||(bytea,bytea)`, `length(bytea)`,
+`octet_length(bytea)`, `bit_length(bytea)`, and `btrim/ltrim/rtrim(bytea,bytea)`.
+Lengths count octets, not UTF8 characters, returning INT4; bit_length checks INT4
+overflow. Trim treats its second argument as an unordered byte membership set,
+strips maximal matching endpoints and preserves matching interior bytes.
+Empty sets preserve input, all-removed input is nonnull empty, and all operations
+are strict for either NULL operand. Results retain BYTEA or INT4 metadata even
+without nonnull samples. No output setting changes raw results.
+A known BYTEA peer resolves unknown concatenation/trim arguments in either
+direction; unary all-unknown calls select unsupported TEXT overloads, never BYTEA
+from a destination. Literal inputs use byteain, whereas inferred binds remain raw.
+Real TEXT overloads, encoding-aware length, SQL TRIM and direct byteacat are not
+implemented. Functions retain the existing DEFAULT exclusion; views and ordinary
+scalar consumers use the shared provider and serialize/rebind through native replay.
+These operations preserve already-supported BYTEA cast annotations; they add no
+cast admission or conversion edges.
+Already-admitted CHECK expressions also support compact/pretty SQL deparsing and
+native structural PG_NODE_TREE export. Structural output records `Binary <name>`
+with typed recursive children, never provider evaluation or PostgreSQL physical-node
+serialization; immutable captured carriers survive catalog replacement.
+Encoding-aware length exclusion recognizes its real BYTEA/NAME signature with
+unknown operands or implicit TEXT/VARCHAR/BPCHAR encoding-name inputs; it returns
+positioned 0A000 without adding encoding-aware evaluation. An integer encoding
+argument still has no such signature and returns the independent 42883 diagnostic.
+Binary smoke: `make smoke RUN='^TestBinaryBasicSmoke$' VERBOSE=0`;
+independent reference: `make reference RUN='^TestReferenceBinaryBasic' VERBOSE=0`.
+
 
 ## UUID
 
