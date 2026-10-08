@@ -252,7 +252,7 @@ func openRowLockNode(ctx context.Context, state *queryState, n *rowLockNode) (in
 	if state.source.locks != nil {
 		pending := make([]queryPendingMark, len(child.pending)+1)
 		copy(pending, child.pending)
-		pending[len(child.pending)] = queryPendingMark{owner: n, inputs: state.source, occurrences: appendQueryOccurrences(nil, child.source), mode: n.mode}
+		pending[len(child.pending)] = queryPendingMark{occurrences: appendQueryOccurrences(nil, child.source), mode: n.mode}
 		child.pending = pending
 		return child, nil
 	}

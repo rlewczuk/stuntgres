@@ -190,6 +190,12 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON FALSE")
 	defer source.close()
 	join := query.Root.(*projectNode).child.(*joinNode)
+	calls := 0
+	usage := join.predicate.ResultUsage()
+	join.predicate = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+		calls++
+		return sqltype.Boolean(usage.Type, false), nil
+	})
 	// Repeat immutable input occurrences without changing width or output count.
 	right := source.sources[1]
 	original := append([]rowVersion(nil), right.committed...)
@@ -202,11 +208,20 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 		runtime.GC()
 		runtime.ReadMemStats(&before)
 		for range 5 {
+			calls = 0
 			stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)
-			if err != nil || stage.count() != 0 {
-				t.Fatal(stage, err)
+			if err != nil {
+				t.Fatal(err)
 			}
-			stage.Close()
+			drainErr := stage.drain(context.Background())
+			count := stage.count()
+			closeErr := stage.Close()
+			if drainErr != nil || closeErr != nil || count != 0 || calls != source.sources[0].count()*n {
+				t.Fatal("rejected product was not fully consumed", n, calls, count, drainErr, closeErr)
+			}
+			if stage.source != nil || stage.produce != nil || stage.finish != nil {
+				t.Fatal("rejected-product stage retained resources", stage)
+			}
 		}
 		runtime.ReadMemStats(&after)
 		return after.TotalAlloc - before.TotalAlloc

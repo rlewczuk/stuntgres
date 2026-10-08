@@ -316,8 +316,9 @@ and runtime logical evaluator behavior are unchanged; no general Boolean
 short-circuit/optimizer promise is made.
 ORDER-decorated DEFAULT is42601 `DEFAULT is not allowed in this context` at its
 marker; direct Execute/prepared Prepare. Ordinary and parenthesized undecorated
-VALUES retain requests. LIMIT and FROM-less WHERE remain outside the source
-grammar, not new default features. Public targetless DEFAULT VALUES requests one
+VALUES retain requests. Count-decorated SELECT/VALUES use the shared source
+grammar; FROM-less WHERE remains excluded, without additional default features.
+Public targetless DEFAULT VALUES requests one
 all-default row, including on zero-column tables; a target list before DEFAULT
 VALUES fails42601 at DEFAULT. Supplied INSERT/settings scalars are not widened.
 Recursive analysis reports earlier child Boolean/input/operator errors before

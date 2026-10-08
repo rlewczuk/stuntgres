@@ -2,12 +2,10 @@ package engine
 
 import "context"
 
-// Each manifest entry identifies one captured query owner and its expanded
-// physical occurrences. Entries are immutable; frontier arbitration combines
-// them in execution-private scratch, never in the shared capture leaf modes.
+// Each manifest entry carries a requested mode for expanded physical occurrence
+// identities. Entries are immutable; frontier arbitration combines them in
+// execution-private scratch, never in the shared capture leaf modes.
 type queryPendingMark struct {
-	owner       *rowLockNode
-	inputs      *querySource
 	occurrences []int
 	mode        relationLockMode
 }
@@ -22,7 +20,7 @@ func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPending
 		return pendingQueryMarks(n.child, inputs, dst)
 	case *rowLockNode:
 		dst = pendingQueryMarks(n.child, inputs, dst)
-		return append(dst, queryPendingMark{owner: n, inputs: inputs, occurrences: queryTreeOccurrences(n.child, inputs, nil), mode: n.mode})
+		return append(dst, queryPendingMark{occurrences: queryTreeOccurrences(n.child, inputs, nil), mode: n.mode})
 	case *sourceNode:
 		return pendingSourceMarks(querySourceAt(inputs, n.occurrence), dst)
 	case *joinNode:

@@ -31,10 +31,12 @@ func TestReferenceQueryLimitInsertAssignment(t *testing.T) {
 			execute(referenceSelect("SELECT id FROM defaults", []string{"id"}, []string{"INT4"}, referenceLimitIDs(2)))
 			execute(referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, referenceLimitIDs(3)))
 			p.step(t, referenceExec("CREATE TABLE failing_default(id INT,n INT DEFAULT 1/0)", 0))
-			step = referenceImplicitError("INSERT INTO failing_default(id) SELECT id FROM t LIMIT 1", referenceDiagnostic{Code: "22012", Message: "division by zero"})
-			step.errorStage = "execute"
-			execute(step)
-			execute(referenceSelect("SELECT id FROM failing_default", []string{"id"}, []string{"INT4"}, referenceLimitIDs()))
+			for _, suffix := range []string{"LIMIT 0", "LIMIT 1"} {
+				step = referenceImplicitError("INSERT INTO failing_default(id) SELECT id FROM t "+suffix, referenceDiagnostic{Code: "22012", Message: "division by zero"})
+				step.errorStage = "execute"
+				execute(step)
+				execute(referenceSelect("SELECT id FROM failing_default", []string{"id"}, []string{"INT4"}, referenceLimitIDs()))
+			}
 			execute(referenceExec("INSERT INTO t SELECT id,v FROM t ORDER BY id LIMIT 1", 1))
 			execute(referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, referenceLimitIDs(1, 1, 2, 3, 4)))
 		})

@@ -21,9 +21,6 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 			calls := 0
 			probe := queryProbe(relation.columns[1].Usage, func(*EvalContext) (sqltype.Value, error) {
 				calls++
-				if calls > 1 {
-					return sqltype.Value{}, errors.New("unselected default invocation")
-				}
 				return value, nil
 			})
 			bound := binding{relation: relation, query: query, targets: []int{0}, defaults: []BoundExpr{nil, probe}}
@@ -39,5 +36,31 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestQueryLimitInsertDefaultFailure(t *testing.T) {
+	e, query, source := queryCoreFixture(t, "SELECT id FROM t")
+	run(t, e, "CREATE TABLE d(id INT,n INT DEFAULT 7)")
+	ref := roleTableRef(t, e, "d")
+	relation := e.CatalogRead().state.descriptors[ref.Address].(*relationDescriptor)
+	project := query.Root.(*projectNode)
+	project.child = &limitNode{querySchema: project.child.Schema(), child: project.child, count: queryLimitBound(t, e, 2)}
+	value, _ := sqltype.Integer(relation.columns[1].Usage.Type, 7)
+	failure := errors.New("retained runtime default failure")
+	calls := 0
+	probe := queryProbe(relation.columns[1].Usage, func(*EvalContext) (sqltype.Value, error) {
+		calls++
+		if calls == 2 {
+			return sqltype.Value{}, failure
+		}
+		return value, nil
+	})
+	bound := binding{relation: relation, query: query, targets: []int{0}, defaults: []BoundExpr{nil, probe}}
+	rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	// One destination row was assembled before the next retained default
+	// failed. Neither that successful prefix nor the source pin may escape.
+	if rows != nil || err != failure || calls != 2 || source.view != nil || source.committed != nil || source.own != nil {
+		t.Fatal(rows, err, calls, source.view, source.committed, source.own)
 	}
 }

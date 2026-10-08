@@ -213,6 +213,31 @@ func TestQueryLimitSmoke(t *testing.T) {
 	}
 	rows, err = db.Query("SELECT id FROM small")
 	orderSmokeRows(t, rows, err, []string{"id"}, []string{"INT2"}, [][]any{{int64(1)}})
+	exec("CREATE TABLE failing_default(id INT,n INT DEFAULT 1/0)", 0)
+	for _, prepared := range []bool{false, true} {
+		for _, suffix := range []string{"LIMIT 0", "LIMIT 1"} {
+			query := "INSERT INTO failing_default(id) SELECT id FROM small " + suffix
+			var result sql.Result
+			if prepared {
+				statement, prepareErr := db.PrepareContext(ctx, query)
+				if prepareErr != nil {
+					t.Fatal(prepareErr)
+				}
+				result, err = statement.ExecContext(ctx)
+				statement.Close()
+			} else {
+				result, err = db.ExecContext(ctx, query)
+			}
+			if result != nil {
+				t.Fatal("default preflight exposed result", result)
+			}
+			if diagnosticErr := typeCoreDiagnostic(err, stuntgres.Error{Code: "22012", Message: "division by zero"}); diagnosticErr != nil {
+				t.Fatal(query, diagnosticErr)
+			}
+			rows, err = db.QueryContext(ctx, "SELECT id FROM failing_default")
+			orderSmokeRows(t, rows, err, []string{"id"}, []string{"INT4"}, [][]any{})
+		}
+	}
 	own, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
