@@ -202,6 +202,11 @@ func TestReferenceAlterTypeCheckFloatingControls(t *testing.T) {
 			failure := referenceImplicitError("INSERT INTO t VALUES(1.00000011)", referenceDiagnostic{Code: "23514", Message: `new row for relation "t" violates check constraint "ck"`, Detail: "Failing row contains (1.00000011).", Schema: "public", Table: "t", Constraint: "ck"})
 			failure.errorStage = "execute"
 			p.step(t, failure)
+			p.step(t, referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(2)}, {nil}}))
+			positive := referenceExec("INSERT INTO t VALUES(1.00000013)", 1)
+			positive.prepared = prepared
+			p.step(t, positive)
+			p.step(t, referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(2)}, {nil}}))
 			var dump bytes.Buffer
 			if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 				t.Fatal(err)
@@ -216,8 +221,11 @@ func TestReferenceAlterTypeCheckFloatingControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			p.step(t, failure)
+			p.step(t, referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(2)}, {nil}}))
+			p.step(t, positive)
+			p.step(t, referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(1.00000013)}, {float64(2)}, {nil}}))
 			p.step(t, referenceExec("INSERT INTO t VALUES(2.5),(NULL)", 2))
-			p.step(t, referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(2)}, {float64(2.5)}, {nil}, {nil}}))
+			p.step(t, referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(1.00000013)}, {float64(2)}, {float64(2.5)}, {nil}, {nil}}))
 		})
 	}
 }

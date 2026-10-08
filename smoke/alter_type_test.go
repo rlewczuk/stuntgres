@@ -3,6 +3,7 @@ package smoke_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"strings"
@@ -340,7 +341,38 @@ func TestAlterTypeCheckFloatingSmoke(t *testing.T) {
 					t.Fatal(diagnostic, err, want)
 				}
 			}
+			accept := func() {
+				var result sql.Result
+				var err error
+				if prepared {
+					stmt, prepareErr := db.Prepare("INSERT INTO t VALUES(1.00000013)")
+					if prepareErr != nil {
+						t.Fatal(prepareErr)
+					}
+					defer stmt.Close()
+					result, err = stmt.Exec()
+				} else {
+					result, err = db.Exec("INSERT INTO t VALUES(1.00000013)")
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if count, err := result.RowsAffected(); err != nil || count != 1 {
+					t.Fatal(count, err)
+				}
+			}
 			reject()
+			rows, err := db.Query("SELECT c FROM t ORDER BY c")
+			if err != nil {
+				t.Fatal(err)
+			}
+			alterDropSmokeRows(t, rows, []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(2)}, {nil}})
+			accept()
+			rows, err = db.Query("SELECT c FROM t ORDER BY c")
+			if err != nil {
+				t.Fatal(err)
+			}
+			alterDropSmokeRows(t, rows, []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(2)}, {nil}})
 			var dump bytes.Buffer
 			if err := stuntgres.Dump(t.Context(), db, &dump); err != nil {
 				t.Fatal(err)
@@ -355,11 +387,17 @@ func TestAlterTypeCheckFloatingSmoke(t *testing.T) {
 				t.Fatal(err)
 			}
 			reject()
-			rows, err := db.Query("SELECT c FROM t ORDER BY c")
+			rows, err = db.Query("SELECT c FROM t ORDER BY c")
 			if err != nil {
 				t.Fatal(err)
 			}
-			alterDropSmokeRows(t, rows, []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(2)}, {nil}})
+			alterDropSmokeRows(t, rows, []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(2)}, {nil}})
+			accept()
+			rows, err = db.Query("SELECT c FROM t ORDER BY c")
+			if err != nil {
+				t.Fatal(err)
+			}
+			alterDropSmokeRows(t, rows, []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(1.00000013)}, {float64(2)}, {nil}})
 			if len(notices) != 0 {
 				t.Fatal(notices)
 			}

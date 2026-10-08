@@ -196,6 +196,9 @@ func TestAlterTypeCheckFloatingControls(t *testing.T) {
 				notNullDiagnostic(t, err, stuntgres.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "ck"`, Detail: "Failing row contains (1.00000011).", Schema: "public", Table: "t", Constraint: "ck"})
 			}
 			reject()
+			alterTypePublicRows(t, db, "SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(2)}, {nil}})
+			tableCoreExec(t, db, prepared, "INSERT INTO t VALUES(1.00000013)", 1)
+			alterTypePublicRows(t, db, "SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(2)}, {nil}})
 			var dump bytes.Buffer
 			if err := stuntgres.Dump(t.Context(), db, &dump); err != nil {
 				t.Fatal(err)
@@ -210,8 +213,11 @@ func TestAlterTypeCheckFloatingControls(t *testing.T) {
 				t.Fatal(err)
 			}
 			reject()
+			alterTypePublicRows(t, db, "SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(2)}, {nil}})
+			tableCoreExec(t, db, prepared, "INSERT INTO t VALUES(1.00000013)", 1)
+			alterTypePublicRows(t, db, "SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(1.00000013)}, {float64(2)}, {nil}})
 			execSQL(t, db, "INSERT INTO t VALUES(2.5),(NULL)")
-			alterTypePublicRows(t, db, "SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(2)}, {float64(2.5)}, {nil}, {nil}})
+			alterTypePublicRows(t, db, "SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(1.00000013)}, {float64(2)}, {float64(2.5)}, {nil}, {nil}})
 		})
 	}
 }
