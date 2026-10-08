@@ -387,7 +387,7 @@ ALTER semantic default diagnostics have empty Position; syntax and CREATE positi
 are unchanged. Qualified/quoted targets, ONLY/ONLY(...) and trailing `*` are accepted
 for standalone tables. Inheritance remains rejected: descendant recursion is a
 PostgreSQL-only reference contract. Action lists, IF EXISTS for these actions,
-UPDATE DEFAULT, new expression providers and explicit transaction table DDL remain
+UPDATE DEFAULT, new expression providers and these default actions in explicit transactions remain
 excluded. Dump serializes current CREATE definitions and explicit rows; Restore's
 existing whitelist does not admit ALTER TABLE history.
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.

@@ -82,7 +82,7 @@ names at Execute; unlike PostgreSQL's held unchanged-search_path plan, an unqual
 native SELECT sees a newly created source-schema shadow after a move (see
 [the dialect boundary](docs/DIALECT.md)). Native Dump/Restore records current
 qualified definitions, not move history.
-Explicit-transaction table DDL, generic non-table moves, TEMP/system destinations,
+SET SCHEMA in explicit transactions, generic non-table moves, TEMP/system destinations,
 indexes and automatic row types remain bounded native exclusions.
 Feature smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
@@ -94,8 +94,8 @@ general supported Boolean expressions without CREATE DEFAULT's extra parentheses
 Dump/Restore preserves the current definition, not ALTER history.
 Standalone `ONLY`, `ONLY(...)`, qualified/quoted targets and trailing `*` are
 supported; inheritance remains unsupported (release recursion is reference-only).
-Action lists, ALTER TABLE IF EXISTS for these actions, UPDATE DEFAULT and explicit
-transaction table DDL remain excluded. See [column defaults](docs/TABLES.md#column-defaults).
+Action lists, ALTER TABLE IF EXISTS for these actions, UPDATE DEFAULT and these
+default actions in explicit transactions remain excluded. See [column defaults](docs/TABLES.md#column-defaults).
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
 
 

@@ -17,7 +17,7 @@ func TestCheckACLCompletedProtectedRow(t *testing.T) {
 				e := New()
 				admin, done := roleOperation(t, e, "postgres")
 				defer done()
-				roleExecute(t, e, admin, "CREATE ROLE check_actor")
+				roleExecute(t, e, admin, "CREATE ROLE check_actor LOGIN")
 				roleExecute(t, e, admin, "CREATE TABLE t(n INT,secret TEXT,readable TEXT,CONSTRAINT c CHECK(n=1 AND secret='private'))")
 				roleExecute(t, e, admin, "INSERT INTO t VALUES(1,'private','visible')")
 				ref := roleTableRef(t, e, "t")
@@ -56,7 +56,7 @@ func TestCheckACLCompletedProtectedRow(t *testing.T) {
 					t.Fatal(err)
 				}
 				if prepared {
-					d, err := e.Describe(op, ast)
+					d, err := scope.Describe(ast)
 					if err != nil {
 						scope.Finish(err)
 						t.Fatal(err)

@@ -96,7 +96,8 @@ ONLY(...) and trailing `*` work for standalone tables. Native INHERITS is still
 unsupported, so there are no supported descendants; PostgreSQL-only reference
 tests specify recursive SET/DROP and ONLY behavior without claiming native parity.
 Action lists and ALTER TABLE IF EXISTS for these actions remain unsupported.
-Native explicit transactions exclude table DDL; read-only ALTER fails25006.
+Native explicit transactions exclude ALTER COLUMN SET/DROP DEFAULT;
+read-only ALTER of these actions fails 25006.
 Dump writes the current defaults in CREATE and old rows explicitly; Restore does
 not accept arbitrary ALTER scripts. UPDATE DEFAULT remains outside this surface.
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.

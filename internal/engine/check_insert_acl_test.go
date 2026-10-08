@@ -14,7 +14,7 @@ func TestCheckInsertPrivilegeDisclosure(t *testing.T) {
 				e := New()
 				admin, done := roleOperation(t, e, "postgres")
 				defer done()
-				roleExecute(t, e, admin, "CREATE ROLE check_actor")
+				roleExecute(t, e, admin, "CREATE ROLE check_actor LOGIN")
 				roleExecute(t, e, admin, "CREATE TABLE t(n INT,secret TEXT DEFAULT 'private',readable TEXT DEFAULT 'visible',CONSTRAINT c CHECK(n=1 AND secret='private'))")
 				ref := roleTableRef(t, e, "t")
 				actor, _ := e.Roles().Lookup("check_actor")
@@ -54,7 +54,7 @@ func TestCheckInsertPrivilegeDisclosure(t *testing.T) {
 					t.Fatal(err)
 				}
 				if prepared {
-					description, err := e.Describe(op, ast)
+					description, err := scope.Describe(ast)
 					if err != nil {
 						scope.Finish(err)
 						t.Fatal(err)

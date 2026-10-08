@@ -121,7 +121,7 @@ and physical-session caches survive. Held SQL rebinds original names; old qualif
 names fail after a move, while compatible unqualified plans can find the new schema
 through search_path. Stored views retain dependencies and deparse current names.
 Dump/Restore preserves current persistent definitions/data rather than ALTER history.
-Explicit transactions still exclude ordinary-table DDL. Non-table generic moves,
+SET SCHEMA in explicit transactions remains excluded. Non-table generic moves,
 temporary/system destinations, indexes and automatic row types are not added.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
 controls. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
@@ -568,12 +568,13 @@ Database-qualified relation names, temporary tables (TEMP sequences are supporte
 outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults/CHECK, ALTER ADD CHECK/VALIDATE,
-serial/identity, ALTER DEFAULT, primary keys,
+serial/identity, primary keys,
 UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
 INSERT/UPDATE RETURNING, whole-row RETURNING records/scalar subqueries,
-general COLLATE, two-phase commit, transactional table/schema/view
-DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe
-snapshots, SQL ACL mutation, or catalog columns beyond the bounded view providers
+general COLLATE, two-phase commit, table/schema/view DDL in explicit
+transactions outside the admitted atomic ALTER actions, non-sequence COMMENT/role
+mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation,
+or catalog columns beyond the bounded view providers
 are not supported. Declared DEFAULT expressions remain bounded and reject sequence
 calls, including calls with constant NULL arguments.
 
