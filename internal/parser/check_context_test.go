@@ -69,3 +69,43 @@ func TestCheckASTIdentityAndModifiers(t *testing.T) {
 		t.Fatal(table.Elements[1])
 	}
 }
+
+func TestCheckQualifiedColumnAST(t *testing.T) {
+	statements, err := Parse("CREATE TABLE t(CONSTRAINT c CHECK(public.t.a<t.b),a INT DEFAULT 1,b INT)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := statements[0].(*CreateTable).Elements[0].Check
+	comparison, ok := check.Expression.(OperatorExpr)
+	if !ok || len(comparison.Args) != 2 {
+		t.Fatal(check.Expression)
+	}
+	for i, want := range [][]string{{"public", "t", "a"}, {"t", "b"}} {
+		column, ok := comparison.Args[i].(ColumnExpr)
+		if !ok || len(column.Name.Parts) != len(want) {
+			t.Fatal(comparison.Args[i])
+		}
+		for j, part := range want {
+			if column.Name.Parts[j].Text != part || column.Name.Parts[j].Pos.Character == 0 {
+				t.Fatal(column)
+			}
+		}
+		if column.QualificationPos.Character == 0 || len(want) == 3 && column.ExtraQualificationPos.Character == 0 {
+			t.Fatal(column)
+		}
+	}
+}
+
+func TestCheckQualificationConsumerBoundaries(t *testing.T) {
+	for _, query := range []string{
+		"CREATE TABLE t(a INT DEFAULT public.t.a)",
+		"SELECT public.t.a",
+		"UPDATE t SET a=public.t.a",
+		"DELETE FROM t WHERE public.t.a=1",
+	} {
+		statements, err := Parse(query)
+		if err == nil || statements != nil {
+			t.Fatal("CHECK widened ordinary qualification boundary", query, statements, err)
+		}
+	}
+}

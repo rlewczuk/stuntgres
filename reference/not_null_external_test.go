@@ -63,7 +63,6 @@ func TestReferenceNotNullExternalInheritance(t *testing.T) {
 	for _, tc := range []struct{ q, token, message string }{
 		{"CREATE TABLE nn_child(a INT NULL) INHERITS(nn_parent)", "INHERITS", "table inheritance is unsupported"},
 		{"CREATE TABLE noinherit_parent(a INT CONSTRAINT nn NOT NULL NO INHERIT)", "NO INHERIT", "NOT NULL modifiers are unsupported"},
-		{"CREATE TABLE check_unknown(a INT CHECK(a>0))", "CHECK", "column constraints are unsupported"},
 		{"CREATE TABLE excluded(LIKE nn_parent EXCLUDING CONSTRAINTS)", "EXCLUDING", "LIKE options are unsupported"},
 	} {
 		for _, prepared := range []bool{false, true} {
@@ -78,9 +77,21 @@ func TestReferenceNotNullExternalInheritance(t *testing.T) {
 			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
 		}
 	}
-	for _, name := range []string{"nn_child", "noinherit_parent", "check_unknown", "excluded"} {
+	for _, name := range []string{"nn_child", "noinherit_parent", "excluded"} {
 		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceImplicitError("SELECT * FROM "+name, referenceDiagnostic{Code: "42P01", Message: `relation "` + name + `" does not exist`, Position: "15"}))
 	}
+	// CHECK's UNKNOWN result is supported independently of hierarchy support.
+	// Exercise both direct and prepared inputs on the native backend.
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("CREATE TABLE check_unknown(a INT CHECK(a>0))", 0))
+	for _, prepared := range []bool{false, true} {
+		step := referenceExec("INSERT INTO check_unknown VALUES($1)", 1, nil)
+		step.prepared = prepared
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
+		step = referenceImplicitError("INSERT INTO check_unknown VALUES($1)", referenceDiagnostic{Code: "23514", Message: `new row for relation "check_unknown" violates check constraint "check_unknown_a_check"`, Detail: "Failing row contains (0).", Schema: "public", Table: "check_unknown", Constraint: "check_unknown_a_check"}, 0)
+		step.prepared = prepared
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
+	}
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT * FROM check_unknown", []string{"a"}, []string{"INT4"}, [][]any{{nil}, {nil}}))
 }
 
 func TestReferenceNotNullExternalDeferredValidation(t *testing.T) {

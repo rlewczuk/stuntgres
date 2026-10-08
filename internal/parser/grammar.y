@@ -451,8 +451,10 @@ table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.
  | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} }
  | table_not_null NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
  | table_not_null NO nn_inherit { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 } ;
-check_constraint: CHECK '(' scalar_projection ')' { $$=&CheckConstraint{Expression:$3,Pos:$1.pos} }
- | CONSTRAINT name CHECK '(' scalar_projection ')' { $$=&CheckConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Expression:$5,Pos:$3.pos} }
+/* NO belongs to the CHECK before the generic column-modifier path can reduce.
+ * The closing ')' otherwise has higher precedence than NO. */
+check_constraint: CHECK '(' scalar_projection ')' %prec NAME_LIST { $$=&CheckConstraint{Expression:$3,Pos:$1.pos} }
+ | CONSTRAINT name CHECK '(' scalar_projection ')' %prec NAME_LIST { $$=&CheckConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Expression:$5,Pos:$3.pos} }
  | CHECK '(' scalar_projection ')' NO nn_inherit { $$=&CheckConstraint{Expression:$3,NoInherit:true,Pos:$1.pos} }
  | CONSTRAINT name CHECK '(' scalar_projection ')' NO nn_inherit { $$=&CheckConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Expression:$5,NoInherit:true,Pos:$3.pos} } ;
 like_options: /* empty */ { $$=nil } | like_options like_option { $$=append($1,$2) } ;
@@ -705,7 +707,9 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
   * belong exclusively to temporal_type, not the ordinary name reduction. */
  | IDENT STRING { if $1.text!="date" && $1.text!="timestamptz" && $1.text!="timetz" {sqllex.(*lexer).failAt("0A000","typed literals are unsupported",$1.pos.Offset);return 1};$$=TypedLiteralExpr{TypeName:columnType($1),Text:$2.text,Pos:$2.pos} }
  | name %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
- | name '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
+ /* A second dot continues the existing three-part column path; it must not
+  * inherit the nonassociative precedence of the first dot. */
+ | name '.' col_label %prec NAME_LIST { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos,QualificationPos:$2.pos} }
  | name '.' col_label STRING {raw,ok:=qualifiedTimezoneLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} }
  | conditional { $$=$1 }

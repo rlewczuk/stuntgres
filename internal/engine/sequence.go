@@ -463,11 +463,21 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
+	// CHECK candidates join the same transactional catalog changes as sequence
+	// and view removal; no descriptor is published before StatementScope.Finish.
+	checkStage := e.BeginCatalogStage(auth.catalog)
+	defer e.DiscardCatalogStage(checkStage)
+	if err := stageCheckDependents(checkStage, targets, s.Mode); err != nil {
+		return Result{}, err
+	}
+	for address, descriptor := range checkStage.descriptors {
+		e.catalogChangeLocked(changes, address, descriptor)
+	}
 	dependents := viewDependencyClosure(auth.catalog, targets, nil)
 	if len(dependents) > 0 && s.Mode == parser.DropRestrict {
 		return Result{}, viewRestrictError(auth.catalog, dependents)
 	}
-	var cascade []string
+	cascade := checkStage.viewCascadeNames
 	for _, edge := range dependents {
 		e.catalogChangeLocked(changes, edge.view.address, nil)
 		cascade = append(cascade, "drop cascades to view "+edge.view.name)

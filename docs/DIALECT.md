@@ -1270,7 +1270,10 @@ Renames preserve names and render current attribute spellings. DROP CONSTRAINT
 removes enforcement; DROP COLUMN automatically removes owner-local dependent
 CHECKs and remaps surviving dense slots. Plain LIKE does not copy CHECK.
 Supported sequence dependencies participate in existing RESTRICT/CASCADE
-metadata staging. CHECK alone never changes known Nullable metadata.
+metadata staging: RESTRICT reports dependent CHECK identities; CASCADE removes
+those constraints together with the sequence through the statement's catalog
+publication authority. A failed drop leaves definitions and enforcement intact.
+CHECK alone never changes known Nullable metadata.
 
 Public smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
 
