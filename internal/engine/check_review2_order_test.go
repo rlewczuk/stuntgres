@@ -108,7 +108,7 @@ func TestCheckReview2OrderRemappedSourceTopology(t *testing.T) {
 	source := New()
 	a := sessionStart(t, source, nil)
 	for _, sql := range []string{
-		"CREATE SEQUENCE s MINVALUE -10",
+		"CREATE SEQUENCE s MINVALUE -10 START 1",
 		"CREATE TABLE t(a INT CONSTRAINT c CHECK(nextval('s')>0))",
 		"INSERT INTO t VALUES(7)",
 		"CREATE VIEW v AS SELECT a FROM t",

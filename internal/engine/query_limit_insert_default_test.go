@@ -24,7 +24,7 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 				return value, nil
 			})
 			bound := binding{relation: relation, query: query, targets: []int{0}, defaults: []BoundExpr{nil, probe}}
-			rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+			rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 			if err != nil || len(rows) != int(count) || calls != int(count) || source.view != nil {
 				t.Fatal(rows, err, calls, source.view)
 			}
@@ -57,7 +57,7 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 		return value, nil
 	})
 	bound := binding{relation: relation, query: query, targets: []int{0}, defaults: []BoundExpr{nil, probe}}
-	rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	// One destination row was assembled before the next retained default
 	// failed. Neither that successful prefix nor the source pin may escape.
 	if rows != nil || err != failure || calls != 2 || source.view != nil || source.committed != nil || source.own != nil {
