@@ -276,6 +276,9 @@ Absent addresses or descriptions also give NULL, not missing-object errors.
 Matching fixed signatures accept VARIADIC decoration on the last argument without
 array expansion. Arity and ordinary argument type/NULL analysis still apply;
 wrong-arity calls fail with the normal function-not-found SQLSTATE42883.
+Calls above PostgreSQL's 100-argument limit fail with SQLSTATE54023 after child
+analysis; child errors retain precedence. Direct analysis and Prepare expose the
+same positioned diagnostic.
 Column numbers are stable attribute identities, not dense output slots: dropping
 column2 does not renumber surviving column3. Column0 reads the whole-relation
 comment; negative, dropped and absent attributes normally have no description.

@@ -43,6 +43,16 @@ func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, 
 	if b.defaultConsumer {
 		return commentInquiryExpression{}, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
+	if len(raw.Args) > 100 {
+		// Argument transformation precedes PostgreSQL's global limit check.
+		// Discard analyzed children; this call cannot produce an executable node.
+		for _, child := range raw.Args {
+			if _, err := b.bind(child, expressionPolicy{context: projectionContext}); err != nil {
+				return commentInquiryExpression{}, err
+			}
+		}
+		return commentInquiryExpression{}, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind, second := objectDescription, sqltype.Name
 	if name == "col_description" {
