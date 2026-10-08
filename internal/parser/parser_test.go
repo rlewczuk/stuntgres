@@ -104,7 +104,7 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (N'a')", "0A000"},
 		{"INSERT INTO t VALUES (B'1010')", "0A000"},
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
-		{"SELECT * FROM t LIMIT 1", "0A000"}, {"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
+		{"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT f(x) FROM t", "0A000"},
 		{"SELECT 1", "0A000"},
 		{"CREATE TABLE t (x INT[])", "0A000"},

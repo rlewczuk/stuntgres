@@ -36,6 +36,7 @@ func TestRowLockOrderedCacheFrontier(t *testing.T) {
 							want = want[1:]
 						} else {
 							want[0] += 20
+							if source == "stored" { want[0],want[1] = want[1],want[0] }
 						}
 					}
 					rowLockAwait(t, done, want...)
@@ -59,7 +60,7 @@ func TestRowLockOrderedCacheFrontier(t *testing.T) {
 					}
 					if source == "stored_rows" {
 						query = "SELECT nextval('s') AS n FROM stored_rows ORDER BY n,n"
-					} // Native delayed scalar frontier; separately qualified PostgreSQL placement control.
+					} // Stored-local marks settle before the consuming outer Sort.
 					want := int64(1)
 					if replacement {
 						ar := transactionBegin(t, a)
@@ -68,7 +69,7 @@ func TestRowLockOrderedCacheFrontier(t *testing.T) {
 						done := rowLockViewAsync(t, b, context.Background(), query)
 						rowLockQueued(t, e, a.transactions.ticket, rowUpdate)
 						transactionEnd(t, a, ar, commit)
-						if commit {
+						if commit && source != "stored_rows" {
 							want = 2
 						}
 						rowLockAwait(t, done, want)

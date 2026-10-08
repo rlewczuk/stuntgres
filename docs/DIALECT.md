@@ -88,6 +88,21 @@ signed-bit reinterpretation versus checked INT8 conversion and adapter metadata.
 It adds no metadata catalog population, object lookup/allocation or OID arithmetic.
 Smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
 
+### LIMIT, OFFSET and FETCH — change note
+
+Table SELECT, shared INSERT SELECT/decorated VALUES, stored scalar views and
+already-admitted singleton calls accept LIMIT/ALL, OFFSET [ROW/ROWS] and FETCH
+FIRST/NEXT [count] ROW/ROWS ONLY. OFFSET and LIMIT/FETCH accept either order;
+FETCH defaults to1. Bounds use BIGINT assignment conversion and evaluate once,
+OFFSET first. NULL OFFSET is0, NULL LIMIT/ALL unlimited; negative bounds give
+2201X/2201W. LIMIT0 skips producing children but retains full analysis, source/
+destination authorization, metadata and bound diagnostics. Nonblocking predicates/
+views/joins are demand-driven; Sort/aggregate and local count are effect/lock
+frontiers. WITH TIES, comma LIMIT and ordinary no-FROM SELECT remain excluded.
+See [demand and persistence](QUERIES.md#limit-offset-and-fetch--change-note-changelog).
+Smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
+
+
 Table SELECT and shared INSERT SELECT also support scalar/multiple GROUP BY
 keys, one-based output ordinals, contextual BOOL HAVING, and count(*) as the
 initial aggregate (count/INT8/int64). Global empty input returns one count0;
@@ -147,8 +162,8 @@ three-value row as ordinary SELECT. Cast preflight visits sequence arguments
 without evaluating the sequence call. Prepare consumes no sequence values.
 
 Plain or parenthesized undecorated VALUES remains destination-context input.
-VALUES with ORDER BY expressions, generated `columnN` names, ordinals and
-per-key direction/NULL placement uses column-wise common typing and
+VALUES with ORDER BY or LIMIT/OFFSET/FETCH uses column-wise common typing,
+generated `columnN` names, eligible ordinals/directions/NULL placement, and
 implicit coercion before destination assignment. Only unsigned integer tokens
 within int32 are output positions (also after unary minus); larger tokens,
 fractions/exponents, strings, BOOL and NULL are non-integer raw constants.

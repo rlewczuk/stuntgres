@@ -23,15 +23,10 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	if err != nil {
 		return indexedStage{}, err
 	}
-	if state.source.locks != nil {
-		original := child
-		child, err = arbitrateViewQuery(ctx, state, n.child, original)
-		original.Close()
-		if err != nil {
-			return indexedStage{}, err
-		}
-	}
+	child,err = settlePendingQueryMarks(ctx,state,n.child,child)
+	if err != nil { return indexedStage{},err }
 	defer child.Close()
+	if err := child.drain(ctx); err != nil { return indexedStage{},err }
 	groups := make([]queryGroup, 0)
 	var buckets map[uint64][]int
 	if len(n.keys) > 0 {
@@ -131,8 +126,10 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	// Transfer this execution owner's layout only after every group finalizes.
 	// The original immutable relation pin is no longer needed by downstream work.
 	source := child.source
+	if err := child.Close(); err != nil { return indexedStage{},err }
 	source.close()
 	source.anonymous = rows
+	source.materialized,source.flatCount = true,len(rows)
 	return indexedStage{source: source, schema: n.Schema()}, nil
 }
 

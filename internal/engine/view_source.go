@@ -104,22 +104,12 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			source.sources = sources
 		}
 		source.scope = scope
-		var lineage *queryLockLineage
-		var rows RowResult
+		bridge := &querySource{ref:ref,scope:scope,locks:locks,nestedRoot:root,nestedInputs:source,materialized:true,flatWidth:len(root.Schema())}
 		if locks != nil {
-			rows, _, err = finalizeQueryWithLineage(ctx, root, source, nil, &lineage)
-		} else {
-			rows, _, err = finalizeQuery(ctx, root, source, nil)
+			occurrences := queryTreeOccurrences(root,source,nil)
+			bridge.lineage = &queryLockLineage{root:root,inputs:source,stage:&querySource{materialized:true,occurrences:occurrences}}
 		}
-		if err != nil {
-			return nil, err
-		}
-		final := rows.(*finalRows)
-		bridge := &querySource{ref: ref, final: final, scope: scope, locks: locks, lineage: lineage}
-		if final.source != nil {
-			bridge.scratch = make([]sqltype.Value, len(final.schema))
-		}
-		return bridge, nil
+		return bridge,nil
 	case tableRelation:
 		view, err := scope.acquireDataViewLocked(e, ref)
 		e.mu.Unlock()

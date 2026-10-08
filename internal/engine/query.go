@@ -60,6 +60,7 @@ type sortNode struct {
 	child      LogicalNode
 	keys       []sortKey
 	cacheWidth int
+	outputs    []BoundExpr // Cheap immutable targets required by the sort input.
 }
 type projectNode struct {
 	querySchema
@@ -74,6 +75,36 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return nil, err
 	}
 	switch n := node.(type) {
+	case *limitNode:
+		child,err := preflightQuery(c,n.child)
+		if err != nil { return nil,err }
+		// Bounds retain their ordered runtime coercion and value-check frontier.
+		// Folding COUNT here could overtake a failing OFFSET.
+		if child != n.child {
+			copy := *n
+			copy.child = child
+			return &copy,nil
+		}
+		return n,nil
+	case *evaluationNode:
+		child,err := preflightQuery(c,n.child)
+		if err != nil { return nil,err }
+		var expressions []BoundExpr
+		for i,expr := range n.expressions {
+			folded,changed,err := preflightCoercions(c,expr)
+			if err != nil { return nil,err }
+			if changed {
+				if expressions == nil { expressions = append([]BoundExpr(nil),n.expressions...) }
+				expressions[i] = folded
+			}
+		}
+		if child != n.child || expressions != nil {
+			copy := *n
+			copy.child = child
+			if expressions != nil { copy.expressions = expressions }
+			return &copy,nil
+		}
+		return n,nil
 	case *rowLockNode:
 		child, err := preflightQuery(c, n.child)
 		if err != nil {
@@ -171,16 +202,26 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				keys[i].expression = folded
 			}
 		}
+		var outputs []BoundExpr
+		for i,expr := range n.outputs {
+			folded,changed,err := preflightCoercions(c,expr)
+			if err != nil { return nil,err }
+			if changed {
+				if outputs == nil { outputs = append([]BoundExpr(nil),n.outputs...) }
+				outputs[i] = folded
+			}
+		}
 		child, err := preflightQuery(c, n.child)
 		if err != nil {
 			return nil, err
 		}
-		if child != n.child || keys != nil {
+		if child != n.child || keys != nil || outputs != nil {
 			copy := *n
 			copy.child = child
 			if keys != nil {
 				copy.keys = keys
 			}
+			if outputs != nil { copy.outputs = outputs }
 			return &copy, nil
 		}
 	case *projectNode:
@@ -236,10 +277,16 @@ type querySource struct {
 	scratch              []sqltype.Value
 	locks                *queryLockContext
 	lineage              *queryLockLineage
+	nestedRoot           LogicalNode
+	nestedInputs         *querySource
+	nestedStage          *indexedStage
 	// Only locking joins populate provenance; ordinary query work is unchanged.
 	occurrence  int
 	occurrences []int
 	provenance  []int
+	versions    []rowVersion
+	joinLeft,joinRight *querySource
+	joinPairs []queryPair
 }
 
 func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ObjectRef, relation *relationDescriptor) (*querySource, error) {
@@ -275,6 +322,7 @@ func (s *querySource) count() int {
 }
 func (s *querySource) row(i int) []sqltype.Value {
 	if s.materialized {
+		if s.anonymous != nil { return s.anonymous[i] }
 		return s.flat[i*s.flatWidth : (i+1)*s.flatWidth]
 	}
 	if s.input != nil {
@@ -328,6 +376,9 @@ func (s *querySource) versionAt(i int) rowVersion {
 func (s *querySource) close() {
 	sources := s.sources
 	s.sources = nil
+	if s.nestedStage != nil { s.nestedStage.Close();s.nestedStage = nil }
+	s.nestedRoot = nil
+	if s.nestedInputs != nil { s.nestedInputs.close();s.nestedInputs = nil }
 	for _, child := range sources {
 		if child != nil && child != s {
 			child.close()
@@ -336,6 +387,8 @@ func (s *querySource) close() {
 	s.flat = nil
 	s.occurrences = nil
 	s.provenance = nil
+	s.versions = nil
+	s.joinLeft,s.joinRight,s.joinPairs = nil,nil,nil
 	s.flatCount = 0
 	s.flatWidth = 0
 	s.materialized = false
@@ -377,7 +430,6 @@ type queryState struct {
 	input      sqltype.InputEnvironment
 	output     sqltype.OutputEnvironment
 	locking    bool
-	deferLocks bool
 }
 type indexedStage struct {
 	source           *querySource
@@ -386,12 +438,16 @@ type indexedStage struct {
 	orderValues      []sqltype.Value
 	cacheOccurrences []int
 	cacheWidth       int
+	pending          []queryPendingMark
 	schema           []ColumnDescriptor
 	expressions      []BoundExpr
 	evaluation       EvalContext
 	position         int
 	terminal         error
 	closed           bool
+	produce          func(context.Context,*indexedStage) (bool,error)
+	finish           func() error
+	done             bool
 }
 
 func (s indexedStage) count() int {
@@ -424,8 +480,10 @@ func (s *indexedStage) Next(ctx context.Context, dst []sqltype.Value) (bool, err
 	if len(dst) != len(s.schema) {
 		return fail(fmt.Errorf("stuntgres: invalid stage destination width"))
 	}
-	if s.position == s.count() {
-		s.Close()
+	present,err := s.ensure(ctx,s.position)
+	if err != nil { return fail(err) }
+	if !present {
+		if err := s.Close(); err != nil { return false,err }
 		return false, nil
 	}
 	row := s.source.row(s.index(s.position))
@@ -458,19 +516,32 @@ func (s *indexedStage) release() {
 	s.permutation = nil
 	s.orderValues = nil
 	s.cacheOccurrences = nil
+	s.pending = nil
 	s.evaluation = EvalContext{}
 }
 func (s *indexedStage) Close() error {
+	if s.closed { return nil }
+	var err error
+	if s.finish != nil {
+		finish := s.finish
+		s.finish = nil
+		err = finish()
+	}
+	s.produce = nil
 	s.release()
 	s.closed = true
 	s.terminal = nil
-	return nil
+	return err
 }
 func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (indexedStage, error) {
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
+	case *limitNode:
+		return openLimitNode(ctx,state,n)
+	case *evaluationNode:
+		return openEvaluationNode(ctx,state,n)
 	case *rowLockNode:
 		return openRowLockNode(ctx, state, n)
 	case *joinNode:
@@ -478,29 +549,25 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 	case *aggregateNode:
 		return openAggregateNode(ctx, state, n)
 	case *valuesNode:
-		if state.source == nil || state.source.view != nil {
-			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
-		}
-		rows := make([][]sqltype.Value, len(n.rows))
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
-		for i, expressions := range n.rows {
-			if err := ctx.Err(); err != nil {
-				return indexedStage{}, err
+		if state.source == nil || state.source.view != nil { return indexedStage{},fmt.Errorf("stuntgres: invalid VALUES query source") }
+		source := &querySource{flatWidth:len(n.Schema()),materialized:true}
+		out := indexedStage{source:source,schema:n.Schema(),selection:[]int{}}
+		evaluation := EvalContext{Scope:1,Frame:1,Parameters:state.parameters,statementScope:state.source.scope,Input:state.input,Output:state.output}
+		out.produce = func(ctx context.Context,out *indexedStage) (bool,error) {
+			i := source.flatCount
+			if i == len(n.rows) { return false,nil }
+			evaluation.Context = ctx
+			for j,expr := range n.rows[i] {
+				value,err := expr.Eval(&evaluation)
+				if err != nil { return false,err }
+				if err := validateProducedValue(value,n.Schema()[j].Usage); err != nil { return false,err }
+				source.flat = append(source.flat,value)
 			}
-			rows[i] = make([]sqltype.Value, len(n.Schema()))
-			for j, expr := range expressions {
-				value, err := expr.Eval(&evaluation)
-				if err != nil {
-					return indexedStage{}, err
-				}
-				if value.Type() != n.Schema()[j].Usage.Type {
-					return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query value")
-				}
-				rows[i][j] = value
-			}
+			out.selection = append(out.selection,i)
+			source.flatCount++
+			return true,ctx.Err()
 		}
-		state.source.anonymous = rows
-		return indexedStage{source: state.source, schema: n.Schema()}, nil
+		return out,nil
 	case *singletonNode:
 		if state.source == nil || !state.source.singleton || state.source.view != nil || state.source.ref != (ObjectRef{}) || len(state.source.committed) != 0 || len(state.source.own) != 0 || state.source.visible != nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid singleton query source")
@@ -517,8 +584,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		if source == nil || source.ref != n.ref {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
-		if source.final != nil || source.input != nil {
-			return indexedStage{source: source, schema: n.Schema()}, nil
+		if source.final != nil || source.input != nil || source.nestedRoot != nil {
+			return openSourceStage(ctx,state,source,n.Schema())
 		}
 		if source.anonymous == nil {
 			if source.view == nil {
@@ -531,37 +598,31 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		return indexedStage{source: source, schema: n.Schema()}, nil
 	case *filterNode:
-		child, err := openQueryNode(ctx, state, n.child)
-		if err != nil {
-			return indexedStage{}, err
-		}
-		selection := make([]int, 0, child.count())
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
-		for i := range child.count() {
-			if err := ctx.Err(); err != nil {
-				return indexedStage{}, err
-			}
-			index := child.index(i)
-			evaluation.Row = child.source.row(index)
-			value, err := n.predicate.Eval(&evaluation)
-			if err != nil {
-				return indexedStage{}, err
-			}
-			truth, err := TruthOf(value)
-			if err != nil {
-				return indexedStage{}, err
-			}
-			if truth == True {
-				selection = append(selection, index)
+		child,err := openQueryNode(ctx,state,n.child)
+		if err != nil { return indexedStage{},err }
+		out := producingStage(&child,n.Schema())
+		evaluation := EvalContext{Scope:1,Frame:1,Parameters:state.parameters,statementScope:state.source.scope,Input:state.input,Output:state.output}
+		out.produce = func(ctx context.Context,out *indexedStage) (bool,error) {
+			for {
+				i,present,err := child.nextOccurrence(ctx)
+				if err != nil || !present { return present,err }
+				evaluation.Context,evaluation.Row = ctx,child.source.row(child.index(i))
+				value,err := n.predicate.Eval(&evaluation)
+				if err != nil { return false,err }
+				truth,err := TruthOf(value)
+				if err != nil { return false,err }
+				if truth == True { retainOccurrence(out,&child,i);return true,ctx.Err() }
 			}
 		}
-		child.selection = selection
-		return child, nil
+		return out,nil
 	case *sortNode:
 		child, err := openQueryNode(ctx, state, n.child)
 		if err != nil {
 			return indexedStage{}, err
 		}
+		child,err = settlePendingQueryMarks(ctx,state,n.child,child)
+		if err != nil { return indexedStage{},err }
+		if err := child.drain(ctx); err != nil { child.Close();return indexedStage{},err }
 		if child.selection == nil {
 			child.selection = make([]int, child.count())
 			for i := range child.selection {
@@ -570,6 +631,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		if n.cacheWidth != 0 {
 			child.cacheWidth = n.cacheWidth
+			child.cacheOccurrences = nil
 			child.orderValues = make([]sqltype.Value, child.count()*n.cacheWidth)
 			child.permutation = make([]int, child.count())
 			evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
@@ -594,6 +656,14 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 					if err := ctx.Err(); err != nil {
 						return indexedStage{}, err
 					}
+				}
+			}
+			for i := range child.count() {
+				evaluation.Row = child.source.row(child.selection[i])
+				for j,expr := range n.outputs {
+					value,err := expr.Eval(&evaluation)
+					if err != nil { return indexedStage{},err }
+					child.orderValues[i*n.cacheWidth+n.cacheWidth-len(n.outputs)+j] = value
 				}
 			}
 		}
@@ -804,31 +874,15 @@ func (r *finalRows) Close() error {
 	return nil
 }
 
-// finalizeQuery consumes an already-preflighted execution-private root.
+// SELECT and INSERT settle residual qualified marks at the eager publication
+// frontier. A nested scalar bridge is not a publication frontier.
+func openQueryProjectStage(ctx context.Context, state *queryState, project *projectNode) (indexedStage, error) {
+	child,err := openQueryNode(ctx,state,project)
+	if err != nil { return indexedStage{},err }
+	return settlePendingQueryMarks(ctx,state,project.child,child)
+}
+
 func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
-	return finalizeQueryWithLineage(ctx, root, source, parameters, nil)
-}
-
-// SELECT finalization and INSERT's direct destination assembly open the same
-// projection frontier. Marked scalar views defer arbitration until the complete
-// outer qualification/order; aggregate nodes consume their own marked inputs.
-func openQueryProjectStage(ctx context.Context, state *queryState, project *projectNode, arbitrate bool) (indexedStage, error) {
-	stage, err := openQueryNode(ctx, state, project)
-	if err != nil {
-		return indexedStage{}, err
-	}
-	if state.source.locks != nil && arbitrate {
-		original := stage
-		stage, err = arbitrateViewQuery(ctx, state, project.child, original)
-		original.Close()
-		if err != nil {
-			return indexedStage{}, err
-		}
-	}
-	return stage, nil
-}
-
-func finalizeQueryWithLineage(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value, lineage **queryLockLineage) (RowResult, int, error) {
 	keep := false
 	defer func() {
 		if !keep {
@@ -839,19 +893,16 @@ func finalizeQueryWithLineage(ctx context.Context, root LogicalNode, source *que
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
-	aggregating := queryOwnAggregate(project.child)
-	if aggregating {
-		lineage = nil
-	}
-	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil, deferLocks: source.locks != nil}
+	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil}
 	if source.scope != nil {
 		state.input, state.output = source.scope.input, source.scope.output
 	}
-	stage, err := openQueryProjectStage(ctx, state, project, lineage == nil && !aggregating)
+	stage, err := openQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer stage.Close()
+	if err := stage.drain(ctx); err != nil { return nil,0,err }
 	r := newFinalRows(project.Schema(), stage.count())
 	r.output = state.output
 	var slots []int
@@ -906,19 +957,12 @@ func finalizeQueryWithLineage(ctx context.Context, root LogicalNode, source *que
 		}
 	}
 	selection := stage.selection
-	orderValues, cacheWidth := stage.orderValues, stage.cacheWidth
-	cacheOccurrences := stage.cacheOccurrences
-	if stage.permutation != nil && (direct || lineage != nil) {
-		if lineage != nil && cacheWidth != 0 && cacheOccurrences == nil {
-			cacheOccurrences = append([]int(nil), stage.permutation...)
-		}
-		// Physical output order and cache occurrence identity are independent.
+	if stage.permutation != nil && direct {
+		// Final physical output identity is distinct from sort-cache identity.
 		selection = stage.permutation
-		for i, occurrence := range selection {
-			selection[i] = stage.selection[occurrence]
+		if stage.selection != nil {
+			for i,occurrence := range selection { selection[i] = stage.selection[occurrence] }
 		}
-	} else if lineage != nil && cacheWidth != 0 && cacheOccurrences == nil {
-		cacheOccurrences = stage.permutation
 	}
 	stageSource := stage.source
 	if err := stage.Close(); err != nil {
@@ -927,17 +971,14 @@ func finalizeQueryWithLineage(ctx context.Context, root LogicalNode, source *que
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
 	}
-	if lineage != nil {
-		*lineage = &queryLockLineage{root: root, inputs: source, stage: stageSource, selection: selection, orderValues: orderValues, cacheWidth: cacheWidth, cacheOccurrences: cacheOccurrences}
-		keep = true
-	}
 	if direct && r.count > 0 {
 		r.source, r.selection, r.slots = stageSource, selection, slots
 		keep = true
-		if stageSource != source && lineage == nil {
+		if stageSource != source {
 			source.close()
 		}
 	}
+	detachQuerySource(stageSource)
 	return r, r.count, nil
 }
 

@@ -15,6 +15,8 @@ const (
 	viewHavingLiteral
 	viewJoinLiteral
 	viewOrderLiteral
+	viewOffsetLiteral
+	viewLimitLiteral
 )
 
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
@@ -240,6 +242,10 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 				return err
 			}
 		}
+	}
+	if v.syntax.Bounds != nil {
+		if err := validate(v.syntax.Bounds.Offset,viewOffsetLiteral,0); err != nil { return err }
+		if err := validate(v.syntax.Bounds.Count,viewLimitLiteral,0); err != nil { return err }
 	}
 	join := 0
 	var validateFrom func(parser.FromItem) error

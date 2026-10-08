@@ -2,6 +2,72 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## LIMIT, OFFSET and FETCH — change note (changelog)
+
+Table-backed SELECT, stored scalar view definitions, the shared INSERT SELECT
+producer, decorated VALUES and already-admitted selected-call singleton SELECT
+accept `LIMIT expression`, `LIMIT ALL`, `OFFSET expression [ROW | ROWS]`, and
+`FETCH FIRST | NEXT [count] ROW | ROWS ONLY`. Omitted FETCH count is1.
+OFFSET and LIMIT/FETCH may appear in either order, after ORDER BY. One admitted
+locking clause may precede or follow the count decoration. Ordinary `SELECT 1`,
+standalone VALUES, WITH TIES and comma-style `LIMIT n,m` remain excluded.
+
+```sql
+SELECT id FROM t ORDER BY id OFFSET 1 FETCH NEXT 2 ROWS ONLY;
+INSERT INTO dst SELECT id FROM t ORDER BY id LIMIT 2 OFFSET 1;
+INSERT INTO dst VALUES(7),(8),(9) OFFSET 1 LIMIT 1;
+```
+
+These return/insert occurrences2,3 and insert8, respectively. Unordered winners
+and complete sort peers have no portable order. Bounds bind in the real input
+namespace but cannot depend on rows or aggregates. Unknown parameters infer
+INT8; already typed integer/OID/numeric/float values use the existing BIGINT
+assignment conversion, including NUMERIC half-away and floating half-even
+rounding. Known TEXT (even NULL) and BOOL do not become unknown strings.
+Raw unknown strings use bigint input. Numeric special values retain the
+provider's0A000 conversion diagnostics; floating specials/overflow give22003.
+Variable bounds give42P10, aggregate bounds42803, incompatible types42804.
+Negative OFFSET gives2201X; negative LIMIT/FETCH gives2201W, without Position.
+
+Each execution evaluates OFFSET, then LIMIT, once, even on empty input and
+regardless of textual order. NULL OFFSET is0; NULL LIMIT/ALL is unlimited.
+Negative OFFSET wins over a negative LIMIT or LIMIT0. Count0 opens no producing
+child, but does not prune schema, ACL, static analysis/capture, imported
+conversion preflight or its own bounds. Empty/past-end results remain nonnil
+cursors with complete normal metadata, including zero-column occurrences.
+
+The private shared occurrence producer stops nonblocking VALUES, predicates,
+joins and nested scalar/security-barrier view projection at demanded survivors.
+It does not push an outer predicate into a view or replay effects across its
+boundary. Sort and grouping drain qualified input when demanded. Cheap immutable
+computed targets below Sort can therefore fail on a discarded tail:
+`SELECT 10/v FROM t ORDER BY id LIMIT 1` still fails if any input v is0.
+An unsorted LIMIT1 avoids that tail; LIMIT0 avoids all producing target/key/
+predicate work. Unrelated volatile targets run after Sort but below the count
+frontier, so OFFSET consumes their effects; an ORDER-referenced target shares
+its existing cache instead of drawing again. Public execution remains eager and
+atomic: `Rows.Next` never resumes SQL work or exposes a successful prefix.
+
+Pending stored rowmarks pass through scalar qualification, including a mark
+owner's own ORDER, but settle before a consuming outer Sort or aggregate.
+A local count is an irreversible frontier: marks settle before skipped and
+returned survivors consume OFFSET/count. Outer rejection cannot replace an
+inner LIMIT winner or erase its holds. Direct/inherited top-level rowmarks
+follow their own Sort and stop after enough survivors; stored marks below an
+outer Sort can hold all consumed input, even under an outer LIMIT1. Deleted or
+requalified-away candidates refill without spending count. See
+[row-lock frontiers](TRANSACTIONS.md#row-locks--change-note).
+
+INSERT retains common source typing, all-source ACL and destination validation
+even at0. Only selected destination rows undergo assignment/default/constraint
+work; one complete batch reaches WriteStage. Stored bounds persist typed
+definitions/dependencies, survive renames and native Dump/Restore, and may
+canonicalize FETCH to LIMIT and ALL to NULL. Held public exports remain stable
+through later execution, Close and Reset/Restore.
+
+Feature smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
+Independent oracle: `make reference RUN='^TestReferenceQueryLimit' VERBOSE=0`.
+
 ## Expression ordering — change note (changelog)
 
 SELECT and shared INSERT SELECT/ORDER-decorated VALUES now support comma-separated
@@ -39,9 +105,11 @@ Qualifying READ COMMITTED replacements refresh output-referenced keys once,
 without re-sorting the admitted rank; hidden ordering keys are not re-evaluated
 merely to reorder replacement rows. See the query-level volatile placement
 qualification in [transactions](TRANSACTIONS.md).
-That placement qualification also covers immutable nested-view keys: native
-keeps its admitted outer rank, while PostgreSQL can sort upper expressions after
-lower view lock acquisition. Native's eager marked aggregate input frontier can
+Stored-local marks now settle before a consuming outer Sort, with or without a
+count decoration; latest survivors supply that outer rank/key evaluation. This
+supersedes the former local-stored delayed-Sort divergence. Inherited-only marks
+over ordinary nested ordered views retain their separately qualified frozen
+outer-rank behavior. Native's eager marked aggregate input frontier can
 retain grants under constant-false output gates that PostgreSQL skips; runtime
 aggregate-dependent empty-output retention has separate executed-input witnesses.
 
@@ -61,8 +129,8 @@ Eager finalization preserves immutable result buffers/metadata, cancellation,
 captured-source ownership and atomic INSERT publication. Dump/Restore persists
 existing data/sequence state and analyzed view definitions, never sort datum caches.
 Native public SQL/API ACL mutation remains absent: exact column grants use engine units and
-independent PostgreSQL GRANT scenarios. LIMIT/OFFSET, ORDER USING, general
-COLLATE/ICU, sets/windows/aggregate-internal ordering and ordinary no-FROM SELECT
+independent PostgreSQL GRANT scenarios. ORDER USING, general COLLATE/ICU,
+sets/windows/aggregate-internal ordering and ordinary no-FROM SELECT
 remain excluded. The existing AND/OR bare-label ambiguity remains a bounded
 logical-grammar difference; AS and quoted forms can label those outputs.
 
@@ -182,8 +250,8 @@ Independent pinned PostgreSQL behavior and full diagnostic coverage:
 
 Views and bounded catalog providers enter SELECT and INSERT SELECT through the
 same relation source/binder/evaluator path as tables and sequences. Nested
-definitions retain immutable identity-bound trees and eager inner results;
-outer predicates are never pushed across the boundary. Bags, NULLs, grouping,
+definitions retain immutable identity-bound trees and demand-driven inner
+occurrences; outer predicates are never pushed across the boundary. Bags, NULLs, grouping,
 zero-width occurrences and empty-result metadata retain their normal semantics.
 Direct projected backing is retained rather than materialized and copied again;
 execution-private borrowed row scratch handles projected/frozen slot mappings.

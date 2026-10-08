@@ -39,7 +39,7 @@ func TestQueryAggregateExclusions(t *testing.T) {
 		"SELECT k FROM t GROUP BY ROLLUP(k)", "SELECT k FROM t GROUP BY CUBE(k)",
 		"SELECT k FROM t GROUP BY GROUPING SETS ((k))", "SELECT k FROM t GROUP BY ()",
 		"SELECT k FROM t GROUP BY DISTINCT k", "SELECT k FROM t GROUP BY ALL k",
-		"SELECT k FROM t GROUP BY k LIMIT 1",
+		"SELECT k FROM t GROUP BY k FETCH FIRST 1 ROW WITH TIES",
 	} {
 		t.Run(q, func(t *testing.T) {
 			statements, err := Parse("INSERT INTO t VALUES(1);" + q)

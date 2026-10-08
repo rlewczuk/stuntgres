@@ -155,6 +155,10 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 	}
 	var next LogicalNode
 	switch n := node.(type) {
+	case *limitNode:
+		next = &limitNode{querySchema:schema,child:child(n.child),offset:expression(n.offset),count:expression(n.count)}
+	case *evaluationNode:
+		next = &evaluationNode{querySchema:schema,child:child(n.child),expressions:expressions(n.expressions),base:n.base}
 	case *rowLockNode:
 		next = &rowLockNode{querySchema: schema, child: child(n.child), mode: n.mode}
 	case *sourceNode:
@@ -172,6 +176,7 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 		copy.querySchema = schema
 		copy.child = child(n.child)
 		copy.keys = append([]sortKey(nil), n.keys...)
+		copy.outputs = expressions(n.outputs)
 		for i, key := range copy.keys {
 			copy.keys[i].expression = expression(key.expression)
 			if err == nil {

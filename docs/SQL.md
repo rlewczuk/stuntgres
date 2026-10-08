@@ -34,15 +34,20 @@ target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
 INSERT INTO [schema.]name [(column [, ...])] SELECT [projection_target [, ...]]
        [FROM from_list [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
-        [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]]
+        [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]] [query_bounds]
 INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
-       ORDER BY ordering_key [, ...]
+       [ORDER BY ordering_key [, ...]] [query_bounds]
 INSERT INTO [schema.]name DEFAULT VALUES
 insert_value := value | DEFAULT
 DELETE FROM [schema.]name [[AS] alias] [WHERE delete_predicate]
 SELECT [projection_target [, ...]] FROM from_list
        [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
        [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]
+       [query_bounds] [FOR KEY SHARE | FOR SHARE | FOR NO KEY UPDATE | FOR UPDATE]
+query_bounds := [OFFSET scalar_expression [ROW | ROWS]]
+                [LIMIT scalar_expression | LIMIT ALL
+                 | FETCH (FIRST | NEXT) [count] (ROW | ROWS) ONLY]
+                -- OFFSET and LIMIT/FETCH may reverse; one locking clause may precede bounds.
 ordering_key := (scalar_expression | output_label | output_ordinal)
                 [ASC | DESC] [NULLS FIRST | NULLS LAST]
 from_list := from_item [, from_item ...]
@@ -198,6 +203,17 @@ columns and mixed stars use the ordinary joined SELECT namespace. ORDER resolves
 output labels and ordinals; WHERE/HAVING do not expose output labels, and GROUP
 BY retains its input-name priority and existing ordinal rules.
 
+LIMIT/OFFSET/FETCH bounds use the typed shared producer, not a view-specific
+executor. A view-local count fixes its input population and effects before an
+outer predicate runs. A positive count settles pending marks before consumed
+skipped/returned rows; an outer LIMIT0 does not produce an inner stage. Source
+ACL and bound type errors remain mandatory for0/past-end results. Scalar
+qualification does not become predicate pushdown across security barriers.
+Canonical definitions retain bounds and their routine/sequence dependencies
+through rename, deparse and native Dump/Restore. See
+[count and demand](QUERIES.md#limit-offset-and-fetch--change-note-changelog).
+
+
 Reads and INSERT SELECT share normal relation admission, dynamic ACL checks,
 locking and eager query finalization. The caller needs SELECT on the named view.
 Both consumers use the same marked projection/arbitration frontier, including
@@ -212,14 +228,16 @@ column under these same principals, checked at Execute, not Describe/Prepare.
 These principals change relation authority only, not session identity or
 sequence/function execution authority. Each view boundary finishes its inner
 qualification before outer expressions: no predicate pushdown, even without
-security_barrier. Rejected rows never reach outer error-producing casts. Native
-scalar locking is delayed until outer qualification; PostgreSQL security-barrier
-planner lock placement is an independent control, not a fabricated native match.
-ORDER placement is likewise qualified: native freezes the complete admitted
-outer rank before scalar row arbitration, while PostgreSQL can sort upper
-expressions after acquiring lower view marks. Nested immutable replacement and
-outer volatile-key controls assert each backend's literal results independently;
-direct same-query ORDER followed by FOR retains its pre-wait rank on both.
+security_barrier. Rejected rows never reach outer error-producing casts.
+Scalar pending marks flow through enclosing qualification, but settle at a
+consuming Sort, aggregate, local count or outer publication frontier. Security-
+barrier expression order is retained without predicate pushdown. A stored-local
+mark settles before an outer Sort on both engines: changed immutable values
+supply its new outer rank, and outer volatile keys evaluate after lower recheck.
+This supersedes the previous native local-stored delayed-Sort qualification.
+Inherited-only marks over ordinary nested ordered views retain their separate
+native/PostgreSQL rank qualification. Direct same-query ORDER followed by FOR
+still retains its pre-wait rank and refreshes referenced volatile cache on replacement.
 
 Dependencies include hidden filter/order/group attributes. Base and column
 renames retain identity, and reuse of an old source name cannot retarget a view.
@@ -545,7 +563,7 @@ outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/fun
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary
 keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING,
-LIMIT/OFFSET, general COLLATE, two-phase commit, transactional table/schema/view
+general COLLATE, two-phase commit, transactional table/schema/view
 DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe
 snapshots, SQL ACL mutation, or catalog columns beyond the bounded view providers
 are not supported. Declared DEFAULT expressions remain bounded and reject sequence

@@ -56,78 +56,79 @@ func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
 }
 
 func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedStage, error) {
-	left, err := openQueryNode(ctx, state, n.left)
-	if err != nil {
-		return indexedStage{}, err
-	}
-	defer left.Close()
-	right, err := openQueryNode(ctx, state, n.right)
-	if err != nil {
-		return indexedStage{}, err
-	}
-	defer right.Close()
+	left,err := openQueryNode(ctx,state,n.left)
+	if err != nil { return indexedStage{},err }
+	right,err := openQueryNode(ctx,state,n.right)
+	if err != nil { left.Close();return indexedStage{},err }
 	width := len(n.Schema())
 	if n.leftWidth < 0 || n.rightWidth < 0 || n.leftWidth > width || n.rightWidth > width-n.leftWidth || len(n.merges) != width-n.leftWidth-n.rightWidth {
-		return indexedStage{}, fmt.Errorf("stuntgres: invalid join frame width")
+		left.Close();right.Close()
+		return indexedStage{},fmt.Errorf("stuntgres: invalid join frame width")
 	}
-	frame := make([]sqltype.Value, width)
-	out := &querySource{flatWidth: width, materialized: true}
-	if state.locking {
-		out.occurrences = appendQueryOccurrences(out.occurrences, left.source)
-		out.occurrences = appendQueryOccurrences(out.occurrences, right.source)
+	frame := make([]sqltype.Value,width)
+	source := &querySource{flatWidth:width,materialized:true}
+	locking := state.locking || state.source.locks != nil
+	if locking {
+		source.occurrences = appendQueryOccurrences(source.occurrences,left.source)
+		source.occurrences = appendQueryOccurrences(source.occurrences,right.source)
 	}
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, Row: frame, statementScope: state.source.scope, Input: state.input, Output: state.output}
-	maxInt := int(^uint(0) >> 1)
-	for i := range left.count() {
-		lrow := left.source.row(left.index(i))
-		if len(lrow) != n.leftWidth {
-			return indexedStage{}, fmt.Errorf("stuntgres: invalid left join frame")
-		}
-		copy(frame, lrow)
-		for j := range right.count() {
-			// A nonproductive pair loop must remain cancellable.
-			if err := ctx.Err(); err != nil {
-				return indexedStage{}, err
+	if state.source.locks != nil { source.joinLeft,source.joinRight = left.source,right.source }
+	out := indexedStage{source:source,schema:n.Schema(),selection:[]int{}}
+	if len(left.pending)+len(right.pending)>0 {
+		out.pending = make([]queryPendingMark,len(left.pending)+len(right.pending))
+		copy(out.pending,left.pending)
+		copy(out.pending[len(left.pending):],right.pending)
+	}
+	out.finish = func() error { err := left.Close();other := right.Close();if err != nil { return err };return other }
+	evaluation := EvalContext{Scope:1,Frame:1,Parameters:state.parameters,Row:frame,statementScope:state.source.scope,Input:state.input,Output:state.output}
+	leftOccurrence,rightOccurrence := -1,0
+	out.produce = func(ctx context.Context,out *indexedStage) (bool,error) {
+		for {
+			if err := ctx.Err(); err != nil { return false,err }
+			if leftOccurrence < 0 {
+				i,present,err := left.nextOccurrence(ctx)
+				if err != nil || !present { return present,err }
+				leftOccurrence,rightOccurrence = i,0
+				row := left.source.row(left.index(i))
+				if len(row) != n.leftWidth { return false,fmt.Errorf("stuntgres: invalid left join frame") }
+				copy(frame,row)
 			}
-			rrow := right.source.row(right.index(j))
-			if len(rrow) != n.rightWidth {
-				return indexedStage{}, fmt.Errorf("stuntgres: invalid right join frame")
-			}
-			copy(frame[n.leftWidth:], rrow)
+			present,err := right.ensure(ctx,rightOccurrence)
+			if err != nil { return false,err }
+			if !present { leftOccurrence = -1;continue }
+			j := rightOccurrence
+			rightOccurrence++
+			row := right.source.row(right.index(j))
+			if len(row) != n.rightWidth { return false,fmt.Errorf("stuntgres: invalid right join frame") }
+			copy(frame[n.leftWidth:],row)
+			evaluation.Context = ctx
 			if n.predicate != nil {
-				value, err := n.predicate.Eval(&evaluation)
-				if err != nil {
-					return indexedStage{}, err
-				}
-				truth, err := TruthOf(value)
-				if err != nil {
-					return indexedStage{}, err
-				}
-				if truth != True {
-					continue
+				matches,err := updateMatches(&evaluation,n.predicate)
+				if err != nil { return false,err }
+				if !matches { continue }
+			}
+			for k,expr := range n.merges {
+				value,err := expr.Eval(&evaluation)
+				if err != nil { return false,err }
+				if err := validateProducedValue(value,n.Schema()[n.leftWidth+n.rightWidth+k].Usage); err != nil { return false,err }
+				frame[n.leftWidth+n.rightWidth+k] = value
+			}
+			maxInt := int(^uint(0)>>1)
+			if source.flatCount == maxInt || len(source.flat) > maxInt-width { return false,fmt.Errorf("stuntgres: join result is too large") }
+			source.flat = append(source.flat,frame...)
+			if locking {
+				source.provenance = appendQueryProvenance(source.provenance,left.source,left.index(leftOccurrence))
+				source.provenance = appendQueryProvenance(source.provenance,right.source,right.index(j))
+				if state.source.locks != nil {
+					source.versions = appendQueryVersions(source.versions,left.source,left.index(leftOccurrence),state.source.locks)
+					source.versions = appendQueryVersions(source.versions,right.source,right.index(j),state.source.locks)
+					source.joinPairs = append(source.joinPairs,queryPair{left:left.index(leftOccurrence),right:right.index(j)})
 				}
 			}
-			for k, expression := range n.merges {
-				value, err := expression.Eval(&evaluation)
-				if err != nil {
-					return indexedStage{}, err
-				}
-				slot := n.leftWidth + n.rightWidth + k
-				if value.Type() != n.Schema()[slot].Usage.Type {
-					return indexedStage{}, fmt.Errorf("stuntgres: invalid merged join value")
-				}
-				frame[slot] = value
-			}
-			if out.flatCount == maxInt || len(out.flat) > maxInt-width {
-				return indexedStage{}, fmt.Errorf("stuntgres: join result is too large")
-			}
-			out.flat = append(out.flat, frame...)
-			if state.locking {
-				out.provenance = appendQueryProvenance(out.provenance, left.source, left.index(i))
-				out.provenance = appendQueryProvenance(out.provenance, right.source, right.index(j))
-			}
-			out.flatCount++
+			out.selection = append(out.selection,source.flatCount)
+			source.flatCount++
+			return true,ctx.Err()
 		}
 	}
-	return indexedStage{source: out, schema: n.Schema()}, nil
+	return out,nil
 }

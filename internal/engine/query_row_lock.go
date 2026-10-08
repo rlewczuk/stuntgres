@@ -142,6 +142,8 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 
 func recheckScratchWidth(node LogicalNode) int {
 	switch n := node.(type) {
+	case *limitNode: return recheckScratchWidth(n.child)
+	case *evaluationNode: return recheckScratchWidth(n.child)
 	case *sourceNode:
 		return 0
 	case *joinNode:
@@ -158,6 +160,17 @@ func recheckScratchWidth(node LogicalNode) int {
 // Sort is deliberately ignored: PostgreSQL orders before row arbitration.
 func recheckQueryRow(node LogicalNode, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int) ([]sqltype.Value, bool, error) {
 	switch n := node.(type) {
+	case *limitNode: return recheckQueryRow(n.child,rows,evaluation,scratch,offset)
+	case *evaluationNode:
+		row,ok,err := recheckQueryRow(n.child,rows,evaluation,scratch,offset)
+		if err != nil || !ok { return nil,ok,err }
+		evaluation.Row = row
+		for i,expr := range n.expressions {
+			value,err := expr.Eval(evaluation)
+			if err != nil { return nil,false,err }
+			evaluation.orderValues[n.base+i] = value
+		}
+		return row,true,nil
 	case *sourceNode:
 		return rows[n.occurrence], true, nil
 	case *sortNode:
@@ -208,118 +221,84 @@ func recheckQueryRow(node LogicalNode, rows [][]sqltype.Value, evaluation *EvalC
 }
 
 func openRowLockNode(ctx context.Context, state *queryState, n *rowLockNode) (indexedStage, error) {
-	if state.deferLocks {
-		return openQueryNode(ctx, state, n.child)
-	}
 	scope := state.source.scope
-	if scope == nil {
-		return indexedStage{}, fmt.Errorf("stuntgres: missing row locking scope")
+	if scope == nil { return indexedStage{},fmt.Errorf("stuntgres: missing row locking scope") }
+	if state.source.locks == nil {
+	for _,leaf := range scope.querySources {
+		if leaf.relation.relationKind == sequenceRelation { return indexedStage{},sqlError("42809",fmt.Sprintf("cannot lock rows in sequence %q",leaf.relation.name)) }
+		if leaf.relation.relationKind == catalogRelation { return indexedStage{},sqlError("0A000","row locking is not supported for virtual catalog relations") }
 	}
-	// Relation-kind eligibility is execution-only, even for an empty result.
-	for _, leaf := range scope.querySources {
-		if leaf.relation.relationKind == sequenceRelation {
-			return indexedStage{}, sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", leaf.relation.name))
-		}
-		if leaf.relation.relationKind == catalogRelation {
-			return indexedStage{}, sqlError("0A000", "row locking is not supported for virtual catalog relations")
-		}
 	}
+	previous := state.locking
 	state.locking = true
-	child, err := openQueryNode(ctx, state, n.child)
-	state.locking = false
-	if err != nil {
-		return indexedStage{}, err
+	child,err := openQueryNode(ctx,state,n.child)
+	state.locking = previous
+	if err != nil { return indexedStage{},err }
+	if state.source.locks != nil {
+		pending := make([]queryPendingMark,len(child.pending)+1)
+		copy(pending,child.pending)
+		pending[len(child.pending)] = queryPendingMark{owner:n,inputs:state.source,occurrences:appendQueryOccurrences(nil,child.source),mode:n.mode}
+		child.pending = pending
+		return child,nil
 	}
-	defer child.Close()
 	joined := child.source.materialized
-	out := child.source
-	var selection []int
-	var cacheOccurrences []int
-	if child.cacheWidth != 0 {
-		cacheOccurrences = make([]int, 0, child.count())
-	}
-	if joined {
-		selection = make([]int, 0, child.count())
-	} else {
-		out = &querySource{anonymous: make([][]sqltype.Value, 0, child.count())}
-	}
+	source := child.source
+	if !joined { source = &querySource{anonymous:[][]sqltype.Value{}} }
+	out := producingStage(&child,n.Schema())
+	out.source = source
 	var singleLeaf [1]*querySource
 	leaves := state.source.sources
-	if leaves == nil {
-		singleLeaf[0] = state.source
-		leaves = singleLeaf[:]
-	}
-	var singleRow [1][]sqltype.Value
-	currentRows := singleRow[:]
-	if len(leaves) > 1 {
-		currentRows = make([][]sqltype.Value, len(leaves))
-	}
-	scratch := make([]sqltype.Value, recheckScratchWidth(n.child))
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: scope, Input: state.input, Output: state.output}
-	// child.count/index are frozen before the first wait; no resumed source scan.
-	for i := range child.count() {
-		if err := ctx.Err(); err != nil {
-			return indexedStage{}, err
-		}
-		index := child.index(i)
-		live := true
-		changed := false
-		count := 1
-		if child.source.materialized {
-			count = len(child.source.occurrences)
-		}
-		for j := range count {
-			occurrence, visible := child.source.occurrence, index
-			if child.source.materialized {
-				occurrence = child.source.occurrences[j]
-				visible = child.source.provenance[index*count+j]
+	if leaves == nil { singleLeaf[0] = state.source;leaves = singleLeaf[:] }
+	currentRows := make([][]sqltype.Value,len(leaves))
+	scratch := make([]sqltype.Value,recheckScratchWidth(n.child))
+	evaluation := EvalContext{Scope:1,Frame:1,Parameters:state.parameters,statementScope:scope,Input:state.input,Output:state.output}
+	out.produce = func(ctx context.Context,out *indexedStage) (bool,error) {
+		for {
+			i,present,err := child.nextOccurrence(ctx)
+			if err != nil || !present { return present,err }
+			evaluation.Context = ctx
+			index := child.index(i)
+			live,changed := true,false
+			count := 1
+			if joined { count = len(child.source.occurrences) }
+			for j := range count {
+				occurrence,visible := child.source.occurrence,index
+				if joined { occurrence = child.source.occurrences[j];visible = child.source.provenance[index*count+j] }
+				leafSource := leaves[occurrence]
+				raw := leafSource.rawIndex(visible)
+				candidate := leafSource.versionAt(raw)
+				hint := raw
+				if raw >= len(leafSource.committed) { hint -= len(leafSource.committed) }
+				leaf := scope.querySources[occurrence]
+				if err := scope.acquireQueryRow(leaf,candidate.row,n.mode); err != nil { return false,err }
+				current,present,err := scope.latestQueryRow(leaf,candidate,hint,n.mode)
+				if err != nil { return false,err }
+				live = live && present
+				changed = changed || current.version != candidate.version
+				currentRows[occurrence] = current.values
 			}
-			source := leaves[occurrence]
-			raw := source.rawIndex(visible)
-			candidate := source.versionAt(raw)
-			hint := raw
-			if raw >= len(source.committed) {
-				hint -= len(source.committed)
-			}
-			leaf := scope.querySources[occurrence]
-			if err := scope.acquireQueryRow(leaf, candidate.row, n.mode); err != nil {
-				return indexedStage{}, err
-			}
-			current, present, err := scope.latestQueryRow(leaf, candidate, hint, n.mode)
-			if err != nil {
-				return indexedStage{}, err
-			}
-			live = live && present
-			changed = changed || current.version != candidate.version
-			currentRows[occurrence] = current.values
-		}
-		if !live {
-			continue
-		}
-		row := child.source.row(index)
-		if changed {
-			offset := 0
-			evaluation.orderValues = child.orderRow(i)
-			var ok bool
-			row, ok, err = recheckQueryRow(n.child, currentRows, &evaluation, scratch, &offset)
-			if err != nil {
-				return indexedStage{}, err
-			}
-			if !ok {
-				continue
-			}
-		}
-		if child.cacheWidth != 0 {
-			cacheOccurrences = append(cacheOccurrences, child.orderOccurrence(i))
-		}
-		if joined {
+			if !live { continue }
+			row := child.source.row(index)
 			if changed {
-				copy(child.source.row(index), row)
+				offset := 0
+				evaluation.orderValues = child.orderRow(i)
+				var ok bool
+				row,ok,err = recheckQueryRow(n.child,currentRows,&evaluation,scratch,&offset)
+				if err != nil { return false,err }
+				if !ok { continue }
 			}
-			selection = append(selection, index)
-		} else {
-			out.anonymous = append(out.anonymous, row)
+			if joined {
+				if changed { copy(child.source.row(index),row) }
+				out.selection = append(out.selection,index)
+			} else {
+				if changed { row = append([]sqltype.Value(nil),row...) }
+				out.selection = append(out.selection,len(source.anonymous))
+				source.anonymous = append(source.anonymous,row)
+			}
+			out.cacheWidth,out.orderValues = child.cacheWidth,child.orderValues
+			if child.cacheWidth != 0 { out.cacheOccurrences = append(out.cacheOccurrences,child.orderOccurrence(i)) }
+			return true,ctx.Err()
 		}
 	}
-	return indexedStage{source: out, selection: selection, schema: n.Schema(), orderValues: child.orderValues, cacheWidth: child.cacheWidth, cacheOccurrences: cacheOccurrences}, nil
+	return out,nil
 }

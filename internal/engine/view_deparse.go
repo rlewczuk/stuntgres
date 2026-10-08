@@ -91,6 +91,17 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 		}
 		text += " ORDER BY " + strings.Join(keys, ", ")
 	}
+	if s.Bounds != nil {
+		for _,bound := range []struct{expr parser.Expr;clause viewLiteralClause;name string}{
+			{s.Bounds.Offset,viewOffsetLiteral,"OFFSET"},
+			{s.Bounds.Count,viewLimitLiteral,"LIMIT"},
+		} {
+			if bound.expr == nil { continue }
+			part,err := renderer.expressionSQL(ctx,catalog,bound.expr,viewLiteralPath{clause:bound.clause})
+			if err != nil { return "",err }
+			text += " "+bound.name+" "+part
+		}
+	}
 	if s.Locking != nil {
 		text += " " + s.Locking.Mode
 	}

@@ -180,9 +180,15 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery,
 	if err != nil {
 		return nil, err
 	}
+	bounds,err := b.bindQueryBounds(source.Bounds)
+	if err != nil { return nil,err }
 	root, err = b.finishOrder(root, order, projection)
 	if err != nil {
 		return nil, err
+	}
+	if bounds != nil {
+		bounds.querySchema,bounds.child = root.Schema(),root
+		root = bounds
 	}
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
@@ -277,12 +283,12 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: INSERT query lacks final projection")
 	}
-	state := &queryState{source: source, parameters: parameters, input: input, output: output, locking: source.locks != nil, deferLocks: source.locks != nil}
-	stage, err := openQueryProjectStage(ctx, state, project, !queryOwnAggregate(project.child))
+	state := &queryState{source: source, parameters: parameters, input: input, output: output, locking: source.locks != nil}
+	stage, err := openQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return nil, err
 	}
-	return assembleInsertRows(ctx, b, &stage, stage.count(), schema, input, output)
+	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output)
 }
 
 func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (rows [][]sqltype.Value, err error) {
@@ -300,13 +306,10 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			}
 		}
 	}()
-	rows = make([][]sqltype.Value, count)
-	var scratch []sqltype.Value
-	if count != 0 {
-		scratch = make([]sqltype.Value, len(b.targets))
-	}
+	if count >= 0 { rows = make([][]sqltype.Value,0,count) } else { rows = make([][]sqltype.Value,0) }
+	scratch := make([]sqltype.Value,len(b.targets))
 	evaluation := EvalContext{Context: ctx, Input: input, Output: output}
-	for i := range rows {
+	for count < 0 || len(rows) < count {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -315,7 +318,8 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			return nil, err
 		}
 		if !present {
-			return nil, fmt.Errorf("stuntgres: early INSERT source EOF")
+			if count >= 0 { return nil,fmt.Errorf("stuntgres: early INSERT source EOF") }
+			break
 		}
 		row := make([]sqltype.Value, len(b.relation.columns))
 		for j, c := range b.relation.columns {
@@ -340,7 +344,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return nil, notNullError(schema, b.relation.name, c.Name, row, output)
 			}
 		}
-		rows[i] = row
+		rows = append(rows,row)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

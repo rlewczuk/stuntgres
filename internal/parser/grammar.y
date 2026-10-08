@@ -36,6 +36,8 @@ package parser
  orderKeys []OrderKey
  nulls NullPlacement
  locking *RowLockClause
+ bounds *QueryBounds
+ tail queryTail
  desc bool
  objectName ObjectName
  settingValues settingList
@@ -73,6 +75,7 @@ package parser
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> HAVING
 %token <tok> FOR
+%token <tok> LIMIT OFFSET FETCH
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW
 %token <tok> DELETE
 %token <tok> BETWEEN SYMMETRIC
@@ -195,6 +198,12 @@ package parser
 %type <insertSource> insert_input
 %type <selectStmt> insert_select
 %type <order> order
+%type <bounds> bounds limit_clause offset_clause
+%type <tail> query_tail
+%type <expr> limit_value fetch_count
+%type <tok> fetch_direction count_rows
+%type <desc> optional_count_rows
+%type <locking> locking_clause
 %type <orderKeys> order_keys
 %type <orderKey> order_key
 %type <nulls> nulls
@@ -611,14 +620,14 @@ delete_not: delete_target { $$=$1 } | NOT delete_not { $$=LogicalExpr{Op:Logical
 delete_and: delete_not { $$=$1 } | delete_and AND delete_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
 delete_or: delete_and { $$=$1 } | delete_or OR delete_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
 insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
-insert_input: VALUES rows order { $$=&InsertSource{Rows:$2,Order:$3} }
+insert_input: VALUES rows order bounds { $$=&InsertSource{Rows:$2,Order:$3,Bounds:$4} }
  | insert_select { $$=&InsertSource{Select:$1} }
  | '(' insert_input ')' { $$=$2 } ;
-insert_select: SELECT projection FROM from_list where group having order locking { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9; $2.Pos=$1.pos; $$=$2 }
- | SELECT projection { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Pos=$1.pos; $$=$2 }
- | SELECT FROM from_list where group having order locking { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8,Pos:$1.pos} }
+insert_select: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
+ | SELECT projection bounds { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; $$=$2 }
+ | SELECT FROM from_list where group having order query_tail { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8.Locking,Bounds:$8.Bounds,Pos:$1.pos} }
  /* Prefer a projection operand/suffix over completing the zero-width source. */
- | SELECT %prec NAME_LIST { $$=&Select{Pos:$1.pos} } ;
+ | SELECT bounds %prec NAME_LIST { $$=&Select{Bounds:$2,Pos:$1.pos} } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' insert_values ')' { $$ = $2 } ;
@@ -705,9 +714,9 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
 /* Newly admitted FROM trees diagnose a misplaced ON as syntax. Preserve the
  * legacy single-table suffix capability boundary for otherwise excluded SQL. */
-select: SELECT projection FROM from_list where group having order locking { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9; $2.Pos=$1.pos; $$=$2 }
- | SELECT FROM from_list where group having order locking { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8,Pos:$1.pos} }
- | SELECT projection { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
+select: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
+ | SELECT FROM from_list where group having order query_tail { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8.Locking,Bounds:$8.Bounds,Pos:$1.pos} }
+ | SELECT projection bounds { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | SELECT projection FROM from_list where group having order suffix { if $9.keyword!=nil && $9.keyword.token==ON {if _,table:=$4.(*TableReference);!table {sqllex.(*lexer).syntax($9);return 1}};sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }
@@ -820,11 +829,41 @@ nulls: /* empty */ { $$=NullsDefault } | nulls_keyword nulls_position { if $2.te
 nulls_keyword: NULLS_LA ;
 nulls_position: KW_U { if $1.keyword==nil || ($1.text!="first" && $1.text!="last") { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 direction: /* empty */ { $$ = false } | ASC { $$ = false } | DESC { $$ = true } ;
-locking: /* empty */ { $$=nil }
- | FOR UPDATE { $$=&RowLockClause{Mode:"FOR UPDATE",Pos:$1.pos} }
+locking: /* empty */ { $$=nil } | locking_clause { $$=$1 } ;
+locking_clause: FOR UPDATE { $$=&RowLockClause{Mode:"FOR UPDATE",Pos:$1.pos} }
  | FOR lock_share { $$=&RowLockClause{Mode:"FOR SHARE",Pos:$1.pos} }
  | FOR KW_U lock_share { if $2.text!="key" {sqllex.(*lexer).syntax($2);return 1}; $$=&RowLockClause{Mode:"FOR KEY SHARE",Pos:$1.pos} }
  | FOR NO KW_U UPDATE { if $3.text!="key" {sqllex.(*lexer).syntax($3);return 1}; $$=&RowLockClause{Mode:"FOR NO KEY UPDATE",Pos:$1.pos} } ;
+query_tail: bounds locking { $$=queryTail{Bounds:$1,Locking:$2} }
+ | locking_clause limit_clause { $$=queryTail{Bounds:$2,Locking:$1} }
+ | locking_clause offset_clause { $$=queryTail{Bounds:$2,Locking:$1} }
+ | locking_clause limit_clause offset_clause { $2.Offset=$3.Offset;$$=queryTail{Bounds:$2,Locking:$1} }
+ | locking_clause offset_clause limit_clause { $2.Count=$3.Count;$$=queryTail{Bounds:$2,Locking:$1} } ;
+bounds: /* empty */ { $$=nil }
+ | limit_clause { $$=$1 }
+ | offset_clause { $$=$1 }
+ | limit_clause offset_clause { $1.Offset=$2.Offset;$$=$1 }
+ | offset_clause limit_clause { $1.Count=$2.Count;$$=$1 } ;
+limit_clause: LIMIT limit_value { $$=&QueryBounds{Count:$2} }
+ | LIMIT limit_value ',' target_or { sqllex.(*lexer).failDiagnostic("42601","LIMIT #,# syntax is not supported","Use separate LIMIT and OFFSET clauses.",$1.pos.Offset);return 1 }
+ | FETCH fetch_direction fetch_count count_rows ONLY { $$=&QueryBounds{Count:$3} }
+ | FETCH fetch_direction count_rows ONLY { $$=&QueryBounds{Count:LiteralExpr{Value:Value{Kind:IntegerValue,Integer:1,Pos:$1.pos}}} } ;
+limit_value: scalar_projection { $$=$1 } | ALL { $$=LiteralExpr{Value:Value{Kind:NullValue,Pos:$1.pos}} } ;
+offset_clause: OFFSET scalar_projection optional_count_rows { $$=&QueryBounds{Offset:$2} } ;
+fetch_direction: KW_U { if $1.text!="first" && $1.text!="next" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+count_rows: KW_C { if $1.text!="row" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
+ | KW_U { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+optional_count_rows: /* empty */ { $$=false } | count_rows { $$=true } ;
+fetch_count: scalar_atom { $$=$1 }
+ | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
+ | cast_function scalar ')' { if $1.text=="count" {sqllex.(*lexer).failAt("0A000","count arguments are unsupported",$1.pos.Offset);return 1};$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
+ | qualified_call_head scalar ')' { $$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos} }
+ | cast_function '*' ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
+ | qualified_call_head '*' ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Pos:$1.Pos} }
+ | function { $$=$1 }
+ | '(' scalar_projection ')' { $$=$2 }
+ | '+' NUMBER { $$=LiteralExpr{Value:numberValue($2,"")} }
+ | '-' NUMBER { $$=LiteralExpr{Value:numberValue($2,"-")} } ;
 sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST ;
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
@@ -853,7 +892,7 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | USING ;
-col_label: name | VARIADIC | LIKE | KW_T | KW_R | FOR | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
+col_label: name | VARIADIC | LIKE | KW_T | KW_R | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

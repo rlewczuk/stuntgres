@@ -741,7 +741,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
 		if b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" && b.aggregateClause != "ORDER BY" {
-			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" {
+			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" || b.aggregateClause == "LIMIT" || b.aggregateClause == "OFFSET" {
 				return nil, expressionError("42803", "aggregate functions are not allowed in "+b.aggregateClause, r.Pos)
 			}
 			return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", r.Pos)

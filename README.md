@@ -107,11 +107,20 @@ Feature smoke: `make smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
 
 SELECT, shared INSERT SELECT and decorated VALUES support expression ORDER BY,
 output labels/ordinals, multiple keys and per-key ASC/DESC/NULLS FIRST/LAST.
-Referenced output values are evaluated once before sort and reused; unrelated
-outputs retain after-sort evaluation. Unordered queries and complete sort peers
-have no portable relative order. LIMIT/OFFSET and general COLLATE remain excluded.
+Referenced output values are evaluated once before sort and reused. With a
+count decoration, cheap immutable outputs run below Sort; unrelated volatile
+outputs run after Sort but before OFFSET/LIMIT. Unordered queries and complete
+sort peers have no portable relative order. General COLLATE remains excluded.
 See [ordering semantics](docs/QUERIES.md#expression-ordering--change-note-changelog).
 Public feature smoke: `make smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
+
+SELECT, shared INSERT SELECT and decorated VALUES support LIMIT/OFFSET and
+FETCH FIRST/NEXT ROW/ROWS ONLY. Counts use BIGINT assignment conversion; zero
+suppresses producing children without bypassing typing, authorization or bound
+errors. Nonblocking views/filters/joins produce only demanded occurrences;
+sorting/grouping remain blockers. Local rowmarks settle at effect frontiers,
+not across a local count boundary. See [count and demand](docs/QUERIES.md#limit-offset-and-fetch--change-note-changelog).
+Feature smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
 
 SELECT (including existing inner/cross joins, persistent scalar views and INSERT
 SELECT sources) supports one trailing `FOR KEY SHARE`, `FOR SHARE`,

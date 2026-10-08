@@ -428,9 +428,9 @@ and [transactions](https://www.postgresql.org/docs/18/tutorial-transactions.html
 
 ## Row locks — change note
 
-SELECT supports one trailing `FOR KEY SHARE`, `FOR SHARE`, `FOR NO KEY UPDATE`
-or `FOR UPDATE`, after the existing ORDER BY clause. Existing inner/cross joins
-and INSERT SELECT sources use the same locking executor. `OF`, `NOWAIT`,
+SELECT supports one `FOR KEY SHARE`, `FOR SHARE`, `FOR NO KEY UPDATE`
+or `FOR UPDATE`, after ORDER BY and before or after LIMIT/OFFSET/FETCH.
+Existing inner/cross joins and INSERT SELECT sources use the same locking executor. `OF`, `NOWAIT`,
 `SKIP LOCKED` and multiple locking clauses remain excluded; LOCK TABLE's
 independent NOWAIT support does not admit SELECT options.
 
@@ -479,23 +479,22 @@ sorting again. Thus initially ordered values 11,21 can become 31,21 after a wait
 
 Volatile timing depends on query-level lock placement. When nextval, ORDER and
 FOR occur together (including within a stored view definition), a replacement
-refreshes the cached value once. A stored row-only FOR below an ordinary outer
-volatile ORDER is a qualified native/PostgreSQL difference: native delayed scalar
-arbitration can evaluate before waiting and refresh afterward, whereas PostgreSQL
-can acquire the lower LockRows before evaluating the outer volatile key. The
-independent reference controls distinguish these placements rather than claim
-identical sequence advancement for every marked-view shape.
-
-Immutable ordering has the same placement qualification: a direct same-level
-ORDER followed by FOR retains pre-wait rank on both engines. PostgreSQL can
-sort upper expressions after acquiring lower view locks, so the independent
-nested-view control returns 23,33 (stored row-only marks: 21,31), while native's
-documented delayed scalar frontier retains 33,23 (31,21 respectively).
+refreshes the cached value once. A stored-local row-only FOR settles before a
+consuming outer Sort, with or without count decorations: an outer volatile key
+evaluates after lower wait/recheck and draws1, not the former native draw2.
+This narrow compatibility correction supersedes that documented divergence.
+Own-query ORDER followed by FOR still refreshes its volatile cache to draw2
+on replacement and retains pre-wait rank. Stored-local immutable upper sorting
+now yields 21,31 rather than the former native 31,21 in the pinned replacement
+fixture. Inherited-only marks over ordinary nested ordered views retain their
+separately qualified native33,23 versus PostgreSQL23,33 result; this is not a
+general optimizer or ordering redesign.
 
 Scalar views retain a private execution lineage back to physical base RowIDs,
 including hidden/self-join contributors, duplicates and zero-width outputs.
-Locks are arbitrated after outer scalar WHERE/joins/order, not on every inner
-view row. A clause stored in a view applies to ordinary reads of that subtree;
+Pending local marks pass through scalar WHERE/joins and a mark owner's own
+ORDER, then settle before a consuming outer Sort, aggregate, count or final
+publication frontier—not on every inner view row. A stored clause applies to ordinary reads of that subtree;
 unrelated outer sources stay unmarked. Overlapping marks normalize to the
 strongest SQL mode, KEY SHARE < SHARE < NO KEY UPDATE < UPDATE.
 Unmarked upper aggregation over a marked view consumes locks at its pre-group
@@ -507,6 +506,26 @@ can gate constant HAVING FALSE or an upper WHERE FALSE before consuming a marked
 child, acquiring no input row grants; native retains qualifying input grants.
 Aggregate-dependent HAVING count(*)=0 and upper count-output predicates exercise
 genuine executed-input, empty-output lock retention independently.
+
+LIMIT/OFFSET/FETCH is a population/effect frontier. Evaluate OFFSET, then LIMIT,
+once before opening a producing child;0 takes no physical row grants. For a
+positive/unlimited count, pending marks settle before OFFSET/count consumes
+survivors. Skipped rows and returned rows are held; deleted or requalified-away
+candidates refill without spending the requested offset/count. Direct/inherited
+top-level marks follow their own Sort and stop after enough survivors, leaving
+unvisited tails writable. A stored mark below an outer blocking Sort can hold
+all qualified input before an outer LIMIT1. The mark owner's own ORDER freezes
+its rank but does not move its mark across an enclosing scalar predicate.
+A view-local LIMIT1 followed by outer rejection is empty but retains its inner
+winner's hold; it does not choose a different row using the outer predicate.
+Likewise local OFFSET1 LIMIT1 retains both skipped and returned holds even if
+outer qualification rejects the result. Outer LIMIT0 initializes neither.
+Unmarked sibling aggregation never consumes another sibling's pending marks.
+Public results are still complete before exposure; public Next performs no lock
+wait, recheck, predicate or view production.
+
+Feature smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
+
 
 REPEATABLE READ KEY SHARE can lock a live chain after a committed keyless UPDATE:
 it retains the original snapshot values and predicates, rather than promoting to

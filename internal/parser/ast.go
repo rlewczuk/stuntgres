@@ -281,11 +281,12 @@ type InsertSource struct {
 	Select *Select
 	Rows   [][]Expr
 	Order  *Order
+	Bounds *QueryBounds
 }
 
 func insertStatement(name ObjectName, targets []InsertTarget, source *InsertSource, pos Position) *Insert {
 	stmt := &Insert{Name: name, Targets: targets, Pos: pos}
-	if source.Select == nil && source.Order == nil {
+	if source.Select == nil && source.Order == nil && source.Bounds == nil {
 		stmt.Rows = source.Rows
 	} else {
 		stmt.Source = source
@@ -325,6 +326,7 @@ type Select struct {
 	Order   *Order
 	Pos     Position
 	Locking *RowLockClause
+	Bounds  *QueryBounds
 }
 
 func (*Select) statement() {}
@@ -333,6 +335,16 @@ func (*Select) statement() {}
 type RowLockClause struct {
 	Mode string
 	Pos  Position
+}
+
+// QueryBounds retains decoration presence even for LIMIT ALL/NULL.
+type QueryBounds struct {
+	Offset, Count Expr
+}
+
+type queryTail struct {
+	Bounds *QueryBounds
+	Locking *RowLockClause
 }
 
 // IsSingleton admits only selected-call projections without a relation.

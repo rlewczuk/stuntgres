@@ -191,6 +191,8 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		}
 		s.Order = &frozen
 	}
+	bounds,err := b.bindQueryBounds(s.Bounds)
+	if err != nil { return nil,err }
 	results := make([]ColumnDescriptor, width)
 	regclassOutput := false
 	for i, expr := range projection {
@@ -273,8 +275,13 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	if err != nil {
 		return nil, err
 	}
+	if bounds != nil { root = b.scheduleCountProjection(root,projection) }
 	if s.Locking != nil {
 		root = &rowLockNode{querySchema: root.Schema(), child: root, mode: queryRowMode(s.Locking.Mode)}
+	}
+	if bounds != nil {
+		bounds.querySchema,bounds.child = root.Schema(),root
+		root = bounds
 	}
 	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}, regclassOutput: regclassOutput}, nil
 }
