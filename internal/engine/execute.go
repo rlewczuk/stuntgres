@@ -223,6 +223,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if b.query != nil && !b.commandQuery {
 			results = b.query.Root.Schema()
 		}
+		if b.returning != nil {
+			results = b.returning.schema
+		}
 		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results}); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -280,7 +283,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot LogicalNode
 	_, deleting := stmt.(*parser.Delete)
-	if inserting || b.update != nil || b.query != nil || (deleting && b.predicate != nil) || len(b.defaults) != 0 {
+	if inserting || b.update != nil || b.query != nil || (deleting && (b.predicate != nil || b.returning != nil)) || len(b.defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
@@ -317,7 +320,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		} else if b.query != nil {
 			queryRoot, err = preflightQuery(&evaluation, b.query.Root)
 		} else if deleting {
-			b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)
+			if b.predicate != nil {
+				b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)
+			}
+			if err == nil && b.returning != nil {
+				b.returning, err = preflightDeleteReturning(&evaluation, b.returning)
+			}
 		}
 		if err != nil {
 			return Result{}, err

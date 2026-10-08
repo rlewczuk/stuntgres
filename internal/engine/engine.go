@@ -59,6 +59,7 @@ type binding struct {
 	viewNamespaces    []viewNamespace
 	commandQuery      bool
 	update            *boundUpdate
+	returning         *boundDeleteReturning
 	dependencies      []expressionDependency
 	parameters        ParameterInfo
 	expressions       [][]BoundExpr
@@ -271,6 +272,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	var results []ColumnDescriptor
 	if b.query != nil && !b.commandQuery {
 		results = b.query.Root.Schema()
+	}
+	if b.returning != nil {
+		results = b.returning.schema
 	}
 	analysis, err := e.sequenceAnalysisLocked(auth, b.sequenceConstants)
 	if err != nil {
@@ -526,6 +530,12 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.name, s.Alias.Text
 		if s.Where != nil {
 			b.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
+			if err != nil {
+				return b, err
+			}
+		}
+		if s.Returning != nil {
+			b.returning, err = binder.bindDeleteReturning(s.Returning)
 			if err != nil {
 				return b, err
 			}

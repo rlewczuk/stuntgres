@@ -125,7 +125,6 @@ func TestReferenceDeleteCoreExcludedForms(t *testing.T) {
 			if i == 0 {
 				for _, tc := range []struct{ query, message, position string }{
 					{"DELETE FROM t USING t AS other WHERE t.id=other.id", "DELETE suffix is unsupported", "15"},
-					{"DELETE FROM t RETURNING id", "DELETE suffix is unsupported", "15"},
 					{"DELETE FROM t WHERE CURRENT OF c", "DELETE CURRENT OF is unsupported", "21"},
 				} {
 					for _, prepared := range []bool{false, true} {

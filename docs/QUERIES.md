@@ -465,8 +465,8 @@ its schema. Optional WHERE uses the same typed comparison and three-valued
 Boolean evaluator as SELECT: only TRUE selects, never FALSE or NULL. AS and bare
 target aliases are supported; an alias hides the original target name. Predicate
 columns may be unqualified or qualified by the visible target/alias. This does not
-enable DELETE USING, CURRENT OF, RETURNING, UPDATE,
-foreign keys, triggers or additional constraints.
+enable DELETE USING, CURRENT OF, foreign keys, triggers or additional constraints.
+DELETE RETURNING is described below; UPDATE has its own bounded contract.
 DELETE also reuses SELECT's nullness, Boolean truth and DISTINCT predicates,
 including alias-qualified operands. Existing baseline explicit scalar casts work
 on unqualified operands; qualified columns inside casts remain excluded, and
@@ -490,6 +490,65 @@ snapshot without taking row locks or executing writes.
 Execution checks table DELETE and SELECT on actually read predicate columns;
 omitted or constant predicates do not invent a SELECT requirement. SQL GRANT
 remains excluded; the existing internal catalog ACL authority supplies rights.
+
+### DELETE RETURNING — change note
+
+`DELETE FROM t WHERE id=$1 RETURNING *,old.*,new.*,id+10 AS bumped`
+returns one output occurrence per actual deletion, preserving duplicates rather
+than applying DISTINCT. No implicit ordering is promised. The output list uses
+the already-admitted general scalar projection surface, labels and mixed stars,
+including supported casts/conditional/functions and sequences. Unqualified and
+visible target/alias-qualified columns read the actual deletion predecessor;
+OLD reads that same row. Ordinary NEW reads typed NULL, not a blanket NULL
+expression result: `new.id IS NULL` is true and `COALESCE(new.id,old.id)` is OLD.
+Plain outputs retain source type/typmod/collation/origin; NEW is nullable even
+when its target column is NOT NULL. Empty results retain the complete schema.
+A zero-column `RETURNING *` fails42601; `RETURNING *,1` remains nonempty.
+
+`RETURNING WITH (OLD AS o, NEW AS n) o.*,n.*` replaces default names, with
+either option order and quoted aliases. Options require AS, cannot repeat a
+kind, and cannot duplicate the visible target or another explicit alias.
+Explicit aliases and the visible target mask default OLD/NEW names:
+`DELETE FROM t AS new RETURNING new.*` reads OLD;
+`WITH (NEW AS n)` additionally makes n.* NULL;
+`WITH (OLD AS new)` makes new.* OLD and hides old;
+`WITH (NEW AS old)` makes old.* NULL and hides new.
+These table-only namespaces exist only in RETURNING, not WHERE. Unqualified
+columns named old/new remain ordinary target columns; unqualified * expands
+the target once. An actual target alias still hides the original relation name.
+
+RETURNING joins WHERE's actual-column ACL manifest: table DELETE plus SELECT on
+every referenced column, including NEW NULL/star and skipped conditional children.
+Constant outputs alone require no SELECT. Prepare describes output/parameters
+without scanning, deleting, drawing sequences or evaluating row-owned output.
+Held execution freshly binds and authorizes; changed result signatures fail0A000
+before deletion. Immutable/frame conversions preflight even without WHERE.
+
+Projection is eager after each successful row stage, using the actual current
+predecessor after contention and predicate recheck, never stale captured values.
+Concurrent-deleted/recheck-false rows have no output or sequence draw; later
+insertions do not enter the fixed candidate set. All output/type/REGCLASS checks
+and final cancellation checks precede atomic Finish/public exposure. Query
+returns materialized owned rows; Next never reevaluates expressions. Exec
+evaluates outputs even when ignored, closes their rows and retains RowsAffected.
+Output failure/cancellation before publication discards all transactional deletes
+and follows existing explicit abort/savepoint rules. Sequence effects are not
+rolled back. Cancellation after a successful Query cannot retract publication.
+
+Native retained result values/schema survive rollback, Reset/Restore and later
+generations. Dump serializes committed survivors, descriptors/defaults/NOT NULL,
+comments, views and current sequence state, excluding private deletions and
+output cursors/history. Restore continues to reject DELETE RETURNING scripts.
+Whole-row OLD/NEW records, scalar subqueries, absent window/SRF providers,
+triggers/FKs/view writes and rewrite-to-UPDATE (where PostgreSQL NEW can be
+nonnull) remain real PostgreSQL-only controls, not native engine mechanisms.
+Physical ctids/tuple error Context and PostgreSQL wire/C source fields are not
+fabricated by native diagnostics.
+
+Feature commands: `make smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`,
+`make test PACKAGES=./internal/engine RUN='^TestDeleteReturning' VERBOSE=0`,
+and `make reference RUN='^TestReferenceDeleteReturning' VERBOSE=0`.
+
 
 Immutable row identities/end roots preserve READ COMMITTED views, duplicates,
 zero-column occurrence counts and already-returned cursors. Successful earlier
@@ -563,6 +622,14 @@ Integrated-expression smoke:
 `make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
 
 ### DELETE change log
+
+- Added located DELETE RETURNING output lists/OLD-NEW aliases, source-typed NEW
+  NULL, shared scalar binding/preflight and output-column ACL requirements.
+- Added eager actual-predecessor finalization, prepared output signatures and
+  atomic output-error/cancellation handling without a second source snapshot.
+- Added public/reference direct/prepared, output metadata, real contention,
+  sequence demand, diagnostic and native-control regressions/feature smokes.
+
 
 - Added positioned DELETE grammar, target-only alias qualification, shared typed
   predicate binding and execution-time DELETE/read-column ACL requirements.

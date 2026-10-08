@@ -29,6 +29,17 @@ Prepared executions freshly bind every source, and eager results survive native
 Reset/Restore. See [join semantics and limits](docs/QUERIES.md#inner-and-cross-joins--change-note).
 Public feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
 
+DELETE supports `RETURNING *`, scalar expressions and PostgreSQL18 OLD/NEW
+output aliases. Deleted occurrences return their actual pre-deletion values
+(including committed updates encountered after a row wait); ordinary NEW columns
+are typed NULL. Direct and held prepared Query return eagerly finalized rows,
+including full metadata for no matches; Exec still evaluates output and reports
+the actual count. Output failure or prepublication cancellation discards all
+transactional deletions, while sequence draws retain their usual nonrollback
+semantics. Native Dump/Restore records surviving objects/data, not result history.
+See [DELETE RETURNING](docs/QUERIES.md#delete-returning--change-note).
+Feature smokes: `make smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
 Schema search paths are physical-session settings: missing/inaccessible entries
 are ignored, `$user` follows the current role, qualification ignores the path,
 and creation selects the first usable explicit schema without CREATE-denial

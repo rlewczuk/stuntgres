@@ -203,6 +203,17 @@ func (s *StatementScope) deleteSource(b binding, source *querySource, parameters
 	ctx := s.op.Context()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}
 	var count int64
+	var rows *finalRows
+	keep := false
+	if b.returning != nil {
+		rows = newFinalRows(b.returning.schema, 0)
+		rows.output = s.output
+		defer func() {
+			if !keep {
+				rows.Close()
+			}
+		}()
+	}
 	for i := range source.count() {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
@@ -258,7 +269,33 @@ func (s *StatementScope) deleteSource(b binding, source *querySource, parameters
 		}
 		if deleted {
 			count++
+			if rows != nil {
+				evaluation.Row = current.values
+				for output, expr := range b.returning.expressions {
+					value, err := expr.Eval(&evaluation)
+					if err != nil {
+						return Result{}, err
+					}
+					if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.schema[output].Usage.Type {
+						return Result{}, errors.New("stuntgres: invalid finalized DELETE value")
+					}
+					rows.values = append(rows.values, value)
+				}
+				rows.count++
+			}
 		}
+	}
+	if rows != nil && b.returning.regclassOutput && count != 0 {
+		if err := s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
+			return Result{}, err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
+	}
+	keep = true
+	if rows != nil {
+		return Result{Count: count, Rows: rows}, nil
 	}
 	return Result{Count: count}, nil
 }

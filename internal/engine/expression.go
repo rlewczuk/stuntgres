@@ -576,6 +576,7 @@ type expressionBinder struct {
 	deleteTarget      bool
 	targetName        string
 	targetAlias       string
+	returningAliases  *deleteReturningAliases
 	defaultConsumer   bool
 	sequenceConstants []sequenceConstant
 	aggregateClause   string
@@ -672,6 +673,9 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
 	if b.queryNamespace != nil {
 		return b.queryColumn(raw)
 	}
+	if b.returningAliases != nil {
+		return b.deleteReturningColumn(raw)
+	}
 	if len(raw.Name.Parts) == 2 && !b.deleteTarget {
 		return nil, expressionError("0A000", "qualified column references are unsupported", raw.Pos)
 	}
@@ -741,7 +745,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
 		if b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" && b.aggregateClause != "ORDER BY" {
-			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" || b.aggregateClause == "LIMIT" || b.aggregateClause == "OFFSET" {
+			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" || b.aggregateClause == "LIMIT" || b.aggregateClause == "OFFSET" || b.aggregateClause == "RETURNING" {
 				return nil, expressionError("42803", "aggregate functions are not allowed in "+b.aggregateClause, r.Pos)
 			}
 			return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", r.Pos)

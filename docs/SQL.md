@@ -40,6 +40,8 @@ INSERT INTO [schema.]name [(column [, ...])] VALUES (value [, ...]) [, ...]
 INSERT INTO [schema.]name DEFAULT VALUES
 insert_value := value | DEFAULT
 DELETE FROM [schema.]name [[AS] alias] [WHERE delete_predicate]
+       [RETURNING [WITH (returning_alias [, ...])] projection_target [, ...]]
+returning_alias := (OLD | NEW) AS name
 SELECT [projection_target [, ...]] FROM from_list
        [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
        [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]
@@ -138,8 +140,9 @@ than comma lists and associate left; parentheses preserve boundaries. ON sees
 only its operands. Aliases hide original qualifiers; a whole-join alias hides
 operand qualifiers. A special USING AS alias exposes only merged keys without
 hiding operands and admits no column-alias list. Query qualification applies to
-SELECT/INSERT SELECT consumers; existing DELETE/UPDATE cast/qualification guards
-are not widened. Raw qualification guards also remain at DEFAULT, VALUES and
+SELECT/INSERT SELECT consumers. DELETE RETURNING uses its target/OLD/NEW
+namespace, including qualified supported cast children; DELETE WHERE and UPDATE
+cast/qualification guards are not widened. Raw guards remain at DEFAULT, VALUES and
 settings-call scalar entry points. Previously admitted conditional arguments
 retain their consumer diagnostics, including metadata-only utility Prepare
 followed by DEFAULT validation at execution. ORDER keys use the shared
@@ -155,7 +158,7 @@ preserve all matching occurrences and promise no unordered traversal sequence.
 See [the join examples and ownership contract](QUERIES.md#inner-and-cross-joins--change-note).
 
 Conditional expressions compose with the existing scalar consumers, including
-INSERT sources, mutation predicates/RHS and stored DEFAULTs. Their common types,
+INSERT sources, mutation predicates/RHS, DELETE RETURNING and stored DEFAULTs. Their common types,
 NULLIF equality signatures, result metadata and analysis-versus-execution demand
 are described in [Conditional expressions](QUERIES.md#conditional-expressions).
 BETWEEN includes endpoints; SYMMETRIC handles either bound order. Lower
@@ -426,8 +429,8 @@ changing currval. setval does not select a different sequence for lastval.
 `nextval(regclass)`, `currval(regclass)`, `lastval()`,
 `setval(regclass,bigint)` and `setval(regclass,bigint,boolean)` return INT8,
 including for smallint/integer sequences. They work in existing scalar
-SELECT/INSERT positions, UPDATE RHS, DELETE predicates and selected relationless
-SELECT targets. Arithmetic and nonidentity casts retain child volatility;
+SELECT/INSERT positions, UPDATE RHS, DELETE predicates/RETURNING and selected
+relationless SELECT targets. Arithmetic and nonidentity casts retain child volatility;
 filtered or empty projections do not allocate or read session sequence memory,
 while imported argument errors still precede demanded effects.
 The selected explicit `::regclass` / `CAST(... AS regclass)` syntax does
@@ -562,7 +565,8 @@ Database-qualified relation names, temporary tables (TEMP sequences are supporte
 outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary
-keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF, RETURNING,
+keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
+INSERT/UPDATE RETURNING, whole-row RETURNING records/scalar subqueries,
 general COLLATE, two-phase commit, transactional table/schema/view
 DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe
 snapshots, SQL ACL mutation, or catalog columns beyond the bounded view providers

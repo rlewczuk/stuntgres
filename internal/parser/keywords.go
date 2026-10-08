@@ -420,7 +420,7 @@ var keywords = [...]keyword{
 	{"restart", Unreserved, true, RESTART},
 	{"restrict", Unreserved, true, RESTRICT},
 	{"return", Unreserved, true, 0},
-	{"returning", Reserved, false, 0},
+	{"returning", Reserved, false, RETURNING},
 	{"returns", Unreserved, true, 0},
 	{"revoke", Unreserved, true, 0},
 	{"right", TypeFunctionName, true, 0},

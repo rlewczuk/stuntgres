@@ -63,6 +63,9 @@ package parser
  viewOptions []ViewOption
  viewOption ViewOption
  zoneSet *Set
+ returning *DeleteReturning
+ returningAliases []ReturningAlias
+ returningAlias ReturningAlias
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -78,6 +81,7 @@ package parser
 %token <tok> LIMIT OFFSET FETCH
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW
 %token <tok> DELETE
+%token <tok> RETURNING
 %token <tok> BETWEEN SYMMETRIC
 %token <tok> INTEGER BIGINT TEXT BOOLEAN KW_U KW_C KW_T KW_R AS CAST NULLS_LA
 %token <tok> TIMESTAMP WITHOUT TIME ZONE
@@ -134,6 +138,9 @@ package parser
 %type <alterAction> alter_selected_action
 %type <stmt> delete
 %type <tok> delete_alias from_alias
+%type <returning> delete_returning
+%type <returningAliases> returning_aliases returning_options
+%type <returningAlias> returning_option
 %type <stmt> create_view
 %type <identifiers> view_columns view_names
 %type <viewOptions> view_options view_option_list
@@ -559,9 +566,10 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
-column_suffix: LIKE | KW_T | KW_R | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
+column_suffix: LIKE | KW_T | KW_R | RETURNING | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
 update: UPDATE relation_name SET update_assignments update_where { $$=&Update{Name:$2,Assignments:$4,Where:$5,Pos:$1.pos} }
  | UPDATE relation_name SET update_assignments update_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
+ | UPDATE relation_name SET update_assignments update_where RETURNING { sqllex.(*lexer).failAt("0A000","UPDATE suffix is unsupported",$6.pos.Offset);return 1 }
  | UPDATE relation_name SET update_assignments update_where FROM { sqllex.(*lexer).failAt("0A000","UPDATE FROM is unsupported",$6.pos.Offset);return 1 }
  | UPDATE relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$3.pos.Offset);return 1 }
  | UPDATE relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$4.pos.Offset);return 1 }
@@ -578,11 +586,23 @@ insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1
  | INSERT INTO relation_name '(' insert_targets ')' insert_input { $$=insertStatement($3,$5,$7,$1.pos) }
  | INSERT INTO relation_name insert_input suffix { sqllex.(*lexer).capability($5,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
  | INSERT INTO relation_name '(' insert_targets ')' insert_input suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
+ | INSERT INTO relation_name insert_input RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$5.pos.Offset);return 1 }
+ | INSERT INTO relation_name '(' insert_targets ')' insert_input RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$8.pos.Offset);return 1 }
  | INSERT INTO relation_name DEFAULT VALUES { $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
-delete: DELETE FROM relation_name delete_alias delete_where { if token:=deleteQualification($5,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Pos:$1.pos} }
+delete: DELETE FROM relation_name delete_alias delete_where delete_returning { if token:=deleteQualification($5,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Returning:$6,Pos:$1.pos} }
  | DELETE FROM relation_name delete_alias delete_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 }
  | DELETE FROM relation_name delete_alias delete_where USING { sqllex.(*lexer).failAt("0A000","DELETE suffix is unsupported",$6.pos.Offset);return 1 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
+delete_returning: /* empty */ { $$=nil }
+ | RETURNING returning_aliases projection { $$=&DeleteReturning{Targets:$3.Targets,Labels:$3.Labels,Aliases:$2,Pos:$1.pos} } ;
+returning_aliases: /* empty */ { $$=nil }
+ | WITH '(' returning_options ')' { $$=$3 } ;
+returning_options: returning_option { $$=[]ReturningAlias{$1} }
+ | returning_options ',' returning_option { $$=append($1,$3) } ;
+returning_option: name AS name {
+   if $1.keyword==nil || ($1.text!="old" && $1.text!="new") { sqllex.(*lexer).syntax($1);return 1 }
+   $$=ReturningAlias{New:$1.text=="new",Alias:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}
+ } ;
 delete_where: /* empty */ { $$=nil } | WHERE delete_or { $$=$2 }
  | WHERE KW_U KW_U name {
    if $2.keyword==nil || $2.text!="current" { sqllex.(*lexer).syntax($3); return 1 }
@@ -721,6 +741,7 @@ select: SELECT projection FROM from_list where group having order query_tail { $
  | SELECT projection bounds { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | SELECT projection FROM from_list where group having order suffix { if $9.keyword!=nil && $9.keyword.token==ON {if _,table:=$4.(*TableReference);!table {sqllex.(*lexer).syntax($9);return 1}};sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
+ | SELECT projection FROM from_list where group having order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$9.pos.Offset); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }
  | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
@@ -894,7 +915,7 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | USING ;
-col_label: name | VARIADIC | LIKE | KW_T | KW_R | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
+col_label: name | RETURNING | VARIADIC | LIKE | KW_T | KW_R | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

@@ -1,0 +1,208 @@
+package engine
+
+import (
+	"fmt"
+
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// RETURNING adds projection namespaces, not additional physical sources.
+type deleteReturningAliases struct {
+	old, new string
+}
+
+type boundDeleteReturning struct {
+	expressions    []BoundExpr
+	schema         []ColumnDescriptor
+	regclassOutput bool
+}
+
+// NEW retains its column identity and row dependence without allocating an
+// all-NULL row frame or allowing constant simplification to erase its ACL use.
+type deleteNewExpression struct{ columnExpression }
+
+func (e deleteNewExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	if _, err := e.columnExpression.Eval(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	return sqltype.Null(e.usage.Type), nil
+}
+
+func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*boundDeleteReturning, error) {
+	aliases := deleteReturningAliases{old: "old", new: "new"}
+	visible := b.targetName
+	if b.targetAlias != "" {
+		visible = b.targetAlias
+	}
+	var seenOld, seenNew bool
+	for _, option := range raw.Aliases {
+		seen, label := &seenOld, "OLD"
+		if option.New {
+			seen, label = &seenNew, "NEW"
+		}
+		if *seen {
+			return nil, expressionError("42601", label+" cannot be specified multiple times", option.Pos)
+		}
+		*seen = true
+		if option.Alias.Text == visible {
+			return nil, expressionError("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
+		}
+		if option.New {
+			aliases.new = option.Alias.Text
+		} else {
+			aliases.old = option.Alias.Text
+		}
+		if seenOld && seenNew && aliases.old == aliases.new {
+			return nil, expressionError("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
+		}
+	}
+	// Explicit aliases take precedence over the other implicit namespace.
+	if aliases.old == aliases.new {
+		if seenOld {
+			aliases.new = ""
+		} else {
+			aliases.old = ""
+		}
+	}
+	previous, clause := b.returningAliases, b.aggregateClause
+	b.returningAliases, b.aggregateClause = &aliases, "RETURNING"
+	defer func() { b.returningAliases, b.aggregateClause = previous, clause }()
+	output := &boundDeleteReturning{}
+	appendOutput := func(expr BoundExpr, name string) error {
+		var err error
+		expr, err = b.finalizeProjection(expr)
+		if err != nil {
+			return err
+		}
+		descriptor := ColumnDescriptor{Name: name, Usage: expr.ResultUsage()}
+		switch column := expr.(type) {
+		case columnExpression:
+			descriptor = b.relation.columns[column.slot]
+		case deleteNewExpression:
+			descriptor = b.relation.columns[column.slot]
+			descriptor.Nullable, descriptor.NullabilityKnown = true, true
+		}
+		descriptor.Name = name
+		output.expressions = append(output.expressions, expr)
+		output.schema = append(output.schema, descriptor)
+		output.regclassOutput = output.regclassOutput || descriptor.Usage.Type.ID() == sqltype.Regclass
+		return nil
+	}
+	for target, expression := range raw.Targets {
+		if err := b.ctx.Err(); err != nil {
+			return nil, err
+		}
+		if star, ok := expression.(parser.StarExpr); ok {
+			newValues, err := b.deleteReturningQualifier(star.Qualifier, star.Pos)
+			if err != nil {
+				return nil, err
+			}
+			for slot, column := range b.relation.columns {
+				if err := appendOutput(b.deleteReturningColumnAt(slot, star.Pos, newValues), column.Name); err != nil {
+					return nil, err
+				}
+			}
+		} else {
+			expr, err := b.bindOutput(expression, false)
+			if err != nil {
+				return nil, err
+			}
+			name, _ := expressionName(expression, expr.ResultUsage())
+			if target < len(raw.Labels) && raw.Labels[target].Text != "" {
+				name = raw.Labels[target].Text
+			}
+			if err := appendOutput(expr, name); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if len(output.schema) == 0 {
+		return nil, expressionError("42601", "RETURNING must have at least one column", raw.Targets[0].SourcePosition())
+	}
+	return output, nil
+}
+
+func (b *expressionBinder) deleteReturningQualifier(name parser.ObjectName, pos parser.Position) (bool, error) {
+	if len(name.Parts) == 0 {
+		return false, nil
+	}
+	visible := b.targetName
+	if b.targetAlias != "" {
+		visible = b.targetAlias
+	}
+	label := name.Parts[len(name.Parts)-1].Text
+	if len(name.Parts) == 1 {
+		if label == visible {
+			return false, nil
+		}
+		if label == b.returningAliases.old {
+			return false, nil
+		}
+		if label == b.returningAliases.new {
+			return true, nil
+		}
+	} else if len(name.Parts) == 2 && b.targetAlias == "" && label == b.targetName {
+		namespace := b.engine.state.descriptors[b.relation.namespace]
+		if namespace != nil && name.Parts[0].Text == namespace.Name() {
+			return false, nil
+		}
+	}
+	if label == b.targetName && b.targetAlias != "" {
+		err := expressionError("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
+		err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.targetAlias)
+		return false, err
+	}
+	return false, expressionError("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, label), pos)
+}
+
+func (b *expressionBinder) deleteReturningColumnAt(slot int, pos parser.Position, newValues bool) BoundExpr {
+	column := b.columnAt(slot, pos).(columnExpression)
+	if newValues {
+		return deleteNewExpression{column}
+	}
+	return column
+}
+
+func (b *expressionBinder) deleteReturningColumn(raw parser.ColumnExpr) (BoundExpr, error) {
+	parts := raw.Name.Parts
+	if len(parts) == 0 || len(parts) > 3 {
+		return nil, fmt.Errorf("stuntgres: column outside expression scope")
+	}
+	newValues, err := b.deleteReturningQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
+	if err != nil {
+		return nil, err
+	}
+	name := parts[len(parts)-1].Text
+	slot, ok := b.relation.index[name]
+	if !ok {
+		if len(parts) > 1 {
+			return nil, expressionError("42703", fmt.Sprintf("column %s.%s does not exist", parts[len(parts)-2].Text, name), raw.Pos)
+		}
+		return nil, expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
+	}
+	return b.deleteReturningColumnAt(slot, raw.Pos, newValues), nil
+}
+
+func preflightDeleteReturning(c *EvalContext, output *boundDeleteReturning) (*boundDeleteReturning, error) {
+	var expressions []BoundExpr
+	for i, expr := range output.expressions {
+		folded, changed, err := preflightCoercions(c, expr)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			if expressions == nil {
+				expressions = append([]BoundExpr(nil), output.expressions...)
+			}
+			expressions[i] = folded
+		}
+	}
+	if expressions == nil {
+		return output, nil
+	}
+	private := *output
+	private.expressions = expressions
+	return &private, nil
+}

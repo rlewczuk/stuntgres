@@ -437,6 +437,28 @@ type referenceExecutor interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
+// referenceHeldStatement routes fixture execution through an already prepared
+// statement while retaining the shared metadata, values and middleware checks.
+type referenceHeldStatement struct {
+	referenceExecutor
+	statement *sql.Stmt
+	query     string
+}
+
+func (s referenceHeldStatement) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	if query != s.query {
+		return s.referenceExecutor.ExecContext(ctx, query, args...)
+	}
+	return s.statement.ExecContext(ctx, args...)
+}
+
+func (s referenceHeldStatement) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	if query != s.query {
+		return s.referenceExecutor.QueryContext(ctx, query, args...)
+	}
+	return s.statement.QueryContext(ctx, args...)
+}
+
 func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, recorder *referenceRecorder, s referenceStep) referenceObserved {
 	t.Helper()
 	ctx = context.WithValue(ctx, referenceRecorderKey{}, recorder)

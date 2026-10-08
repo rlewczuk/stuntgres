@@ -222,7 +222,7 @@ Boolean AND/OR/NOT and True-only selection, including contextual BOOL parameters
 DELETE predicate columns accept visible target/alias qualification; alias hides
 the original target name. Query FROM aliases/qualification are separate supported features. Direct
 and held prepared executions report exact affected counts, zero for no matches,
-no result relation and unsupported LastInsertId.
+and unsupported LastInsertId. Omitted RETURNING has no result relation.
 Qualified missing-column diagnostics use decoded identifier components without
 SQL quoting, including `column D.Zzzzz does not exist` for `"D"."Zzzzz"`.
 DELETE admits the same nullness, truth and DISTINCT predicate forms as SELECT,
@@ -269,11 +269,32 @@ replacement and DROP-column shape changes preserve live membership; foreign
 imports assign fresh destination identities and omit source history. NOT NULL
 scans ignore deleted NULLs but reject live NULLs and enforce later INSERT. Removing
 a row cannot violate supported NOT NULL; genuine FK rejection is an explicitly
-PostgreSQL-only witness. Native FKs, triggers, DELETE USING/CURRENT OF/
-RETURNING, CTE/inheritance targets and additional row modes remain excluded.
+PostgreSQL-only witness. Native FKs, triggers, DELETE USING/CURRENT OF,
+CTE/inheritance targets and adjacent unsupported row mechanisms remain excluded.
 Smoke: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`;
 reference: `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
 Integrated expressions: `make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
+
+DELETE RETURNING supports mixed target/OLD/NEW stars and all already-admitted
+general scalar projections, labels, parameters and sequences, with
+`WITH (OLD AS o, NEW AS n)` output aliases. Actual successful deletion
+predecessors provide OLD/default values; ordinary NEW is source-typed NULL
+with nullable metadata and the same source-column SELECT requirement.
+Explicit aliases/visible target names mask implicit OLD/NEW; output namespaces
+do not leak into WHERE. Prepare is effect-free; held execution rebinds, checks
+current ACLs and validates its output signature. Finalized rows are owned,
+eager and never reevaluated by Next, including when Exec ignores output.
+No-match output retains full metadata. Output errors or prepublication
+cancellation discard transactional deletes atomically, not sequence draws.
+Postpublication consumer cancellation does not undo deletion.
+Dump/Restore persists committed survivors/objects and sequence state, not
+RETURNING cursors/history; its mutation-script whitelist is not widened.
+Whole-row records, scalar subqueries, absent windows/SRFs, triggers/FKs,
+view writes/rewrite-to-UPDATE and physical tuple/C/wire metadata remain
+PostgreSQL-only boundaries. See [output details](QUERIES.md#delete-returning--change-note).
+Feature smoke: `make smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`;
+reference: `make reference RUN='^TestReferenceDeleteReturning' VERBOSE=0`.
+
 
 Column DEFAULT declarations admit outer scalar/typed temporal/existing cast/
 INT4/INT8 unary and binary arithmetic, integral bitwise operations, comparison
@@ -1297,7 +1318,7 @@ Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion pe
 Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SELECT aliases/qualified columns,
 general casts/joins/functions/expressions, serial/identity, primary
-keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF or RETURNING.
+keys, UPDATE FROM/row-subqueries/CURRENT OF/RETURNING and DELETE USING/CURRENT OF.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ and READ ONLY/READ WRITE modes.
 SET TRANSACTION changes current owner modes; SET SESSION CHARACTERISTICS AS

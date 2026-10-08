@@ -295,13 +295,27 @@ func insertStatement(name ObjectName, targets []InsertTarget, source *InsertSour
 }
 
 type Delete struct {
-	Name  ObjectName
-	Alias Identifier
-	Where Expr
-	Pos   Position
+	Name      ObjectName
+	Alias     Identifier
+	Where     Expr
+	Returning *DeleteReturning
+	Pos       Position
 }
 
 func (*Delete) statement() {}
+
+type DeleteReturning struct {
+	Targets []Expr
+	Labels  []Identifier
+	Aliases []ReturningAlias
+	Pos     Position
+}
+
+type ReturningAlias struct {
+	New   bool
+	Alias Identifier
+	Pos   Position
+}
 
 type Update struct {
 	Name        ObjectName
