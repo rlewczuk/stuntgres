@@ -24,22 +24,28 @@ func TestReferenceUpdateReturningDiagnostics(t *testing.T) {
 	}
 
 	for _, populated := range []bool{false, true} {
-		p := newReferencePair(t)
-		p.step(t, referenceExec("CREATE TABLE t(id INT,v TEXT)", 0))
+		name := "empty"
 		if populated {
-			p.step(t, referenceExec("INSERT INTO t VALUES(2,'unchanged')", 1))
+			name = "populated"
 		}
-		for _, tc := range cases {
-			for _, prefix := range []string{"", "/*é*/ "} {
-				d := tc.d
-				d.Severity, d.SeverityUnlocalized = "ERROR", "ERROR"
-				if prefix != "" {
-					n, _ := strconv.Atoi(d.Position)
-					d.Position = strconv.Itoa(n + 6)
-				}
-				p.step(t, referenceImplicitError(prefix+tc.q, d, 2))
-				p.step(t, referencePrepared(referenceImplicitError(prefix+tc.q, d, 2)))
+		t.Run(name, func(t *testing.T) {
+			p := newReferencePair(t)
+			p.step(t, referenceExec("CREATE TABLE t(id INT,v TEXT)", 0))
+			if populated {
+				p.step(t, referenceExec("INSERT INTO t VALUES(2,'unchanged')", 1))
 			}
-		}
+			for _, tc := range cases {
+				for _, prefix := range []string{"", "/*é*/ "} {
+					d := tc.d
+					d.Severity, d.SeverityUnlocalized = "ERROR", "ERROR"
+					if prefix != "" {
+						n, _ := strconv.Atoi(d.Position)
+						d.Position = strconv.Itoa(n + 6)
+					}
+					p.step(t, referenceImplicitError(prefix+tc.q, d, 2))
+					p.step(t, referencePrepared(referenceImplicitError(prefix+tc.q, d, 2)))
+				}
+			}
+		})
 	}
 }
