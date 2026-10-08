@@ -79,6 +79,8 @@ func firstQueryBoundVariable(expr BoundExpr) parser.Position {
 		return expr.SourcePosition()
 	case deparseExpression:
 		return firstQueryBoundArgs(e.args)
+	case visibilityInquiryExpression:
+		return firstQueryBoundVariable(e.arg)
 	case currentSchemasExpression:
 		return firstQueryBoundVariable(e.arg)
 	case coercionExpression:

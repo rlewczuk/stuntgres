@@ -453,6 +453,21 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			name = "num_nonnulls"
 		}
 		return function(name, n.args, true)
+	case visibilityInquiryExpression:
+		u := n.ResultUsage()
+		if n.kind.class() == 0 || u != u.Type.Usage() || u.Type.ID() != sqltype.Bool || n.arg == nil {
+			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
+		}
+		argument := n.arg.ResultUsage()
+		if argument.Type == nil || argument != argument.Type.Usage() || argument.Type.ID() != sqltype.Oid {
+			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry argument")
+		}
+		properties := n.arg.Properties()
+		properties.Volatility = max(Stable, properties.Volatility)
+		if n.Properties() != properties {
+			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry properties")
+		}
+		return function(n.kind.name(), []BoundExpr{n.arg}, true)
 	case commentInquiryExpression:
 		name := "obj_description"
 		if n.kind == columnDescription {

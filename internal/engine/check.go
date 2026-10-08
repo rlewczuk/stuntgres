@@ -19,10 +19,11 @@ type checkConstraint struct {
 	Name      string
 	NoInherit bool
 	// Declaration order is independent of alphabetical enforcement order.
-	ordinal         int
-	expression      BoundExpr
-	dependencies    []expressionDependency
-	commentSnapshot bool
+	ordinal            int
+	expression         BoundExpr
+	dependencies       []expressionDependency
+	commentSnapshot    bool
+	visibilitySnapshot bool
 }
 
 func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *relationDescriptor, input sqltype.InputEnvironment) error {
@@ -87,7 +88,7 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 		current[name], used[name] = true, true
 		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, ordinal: ordinal, expression: node}
 		var dependencies []ObjectRef
-		if _, err := (scalarRenderer{owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {
@@ -236,12 +237,15 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 		}
 		names[c.Name], previous = true, c.Name
 		var actual []ObjectRef
-		var commentSnapshot bool
-		if _, err := (scalarRenderer{owner: d, dependencies: &actual, commentSnapshot: &commentSnapshot}).sql(context.Background(), view, c.expression); err != nil {
+		var commentSnapshot, visibilitySnapshot bool
+		if _, err := (scalarRenderer{owner: d, dependencies: &actual, commentSnapshot: &commentSnapshot, visibilitySnapshot: &visibilitySnapshot}).sql(context.Background(), view, c.expression); err != nil {
 			return err
 		}
 		if commentSnapshot != c.commentSnapshot {
 			return fmt.Errorf("stuntgres: inconsistent check comment snapshot manifest")
+		}
+		if visibilitySnapshot != c.visibilitySnapshot {
+			return fmt.Errorf("stuntgres: inconsistent check visibility snapshot manifest")
 		}
 		if len(actual) != len(c.dependencies) {
 			return fmt.Errorf("stuntgres: inconsistent check dependency manifest")

@@ -279,6 +279,16 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.args = args
 		}
 		expression = e
+	case visibilityInquiryExpression:
+		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+		if failure != nil {
+			return nil, false, failure
+		}
+		if did {
+			e.arg = node
+			changed = true
+		}
+		expression = e
 	case currentSchemasExpression:
 		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
 		if failure != nil {

@@ -57,6 +57,10 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	if name == "current_schemas" {
 		return b.bindCurrentSchemas(raw)
 	}
+	switch name {
+	case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible":
+		return b.bindVisibilityInquiry(raw)
+	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
 		return nil, err

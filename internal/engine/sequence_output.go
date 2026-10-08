@@ -52,13 +52,8 @@ func regclassSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
 	address := ObjectAddress{ClassID: RelationClassID, ObjectID: id}
 	if d, ok := view.state.descriptors[address].(*relationDescriptor); ok {
 		text := regclassIdentifier(d.name)
-		for _, namespace := range path {
-			if found, exists := view.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: d.name}]; exists {
-				if found == address {
-					return text
-				}
-				break
-			}
+		if namedObjectVisible(view, path, d) {
+			return text
 		}
 		return regclassIdentifier(view.state.descriptors[d.namespace].Name()) + "." + text
 	}

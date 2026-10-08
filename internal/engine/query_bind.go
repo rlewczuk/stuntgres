@@ -294,7 +294,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		bounds.querySchema, bounds.child = root.Schema(), root
 		root = bounds
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}, regclassOutput: regclassOutput}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor) (BoundExpr, error) {

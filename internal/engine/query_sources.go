@@ -110,9 +110,23 @@ func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relati
 	return nil
 }
 
+func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
+	for _, check := range relation.checkConstraints {
+		if check.visibilitySnapshot {
+			return e.captureVisibilitySnapshotLocked(scope)
+		}
+	}
+	return nil
+}
+
 func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
 	if err := e.captureCommentSnapshotLocked(scope); err != nil {
 		return nil, err
+	}
+	if scope.visibilityDemand {
+		if err := e.captureVisibilitySnapshotLocked(scope); err != nil {
+			return nil, err
+		}
 	}
 	if len(leaves) == 0 {
 		return &querySource{singleton: singleton, scope: scope, locks: locks}, nil

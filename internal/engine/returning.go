@@ -15,9 +15,10 @@ type returningAliases struct {
 }
 
 type boundReturning struct {
-	expressions    []BoundExpr
-	schema         []ColumnDescriptor
-	regclassOutput bool
+	expressions        []BoundExpr
+	schema             []ColumnDescriptor
+	regclassOutput     bool
+	visibilitySnapshot bool
 }
 
 // NEW retains its column identity and row dependence without allocating an
@@ -142,6 +143,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 		output.schema[i].Usage = expr.ResultUsage()
 		output.regclassOutput = output.regclassOutput || expr.ResultUsage().Type.ID() == sqltype.Regclass
 	}
+	output.visibilitySnapshot = b.visibilitySnapshot
 	return output, nil
 }
 

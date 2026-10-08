@@ -13,8 +13,9 @@ type LogicalNode interface {
 	Schema() []ColumnDescriptor
 }
 type BoundQuery struct {
-	Root           LogicalNode
-	regclassOutput bool
+	Root               LogicalNode
+	regclassOutput     bool
+	visibilitySnapshot bool
 }
 type RowCursor interface {
 	Schema() []ColumnDescriptor

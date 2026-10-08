@@ -89,9 +89,10 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 // DEFAULT admits closed Immutable/Stable trees and fixed nextval leaves with
 // coercion wrappers. CHECK also admits its owner row and volatile providers.
 type scalarRenderer struct {
-	owner           *relationDescriptor
-	dependencies    *[]ObjectRef
-	commentSnapshot *bool
+	owner              *relationDescriptor
+	dependencies       *[]ObjectRef
+	commentSnapshot    *bool
+	visibilitySnapshot *bool
 	// TYPE reparsing transports concrete literals privately, without reinferring
 	// unknown input or changing ordinary DEFAULT/CHECK serialization.
 	checkLiterals *[]literalExpression
@@ -228,6 +229,26 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", fmt.Errorf("stuntgres: invalid stored null count")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
+	case visibilityInquiryExpression:
+		if r.owner == nil {
+			return "", fmt.Errorf("stuntgres: visibility inquiries are unsupported in stored defaults")
+		}
+		if n.kind.class() == 0 || u != u.Type.Usage() || u.Type.ID() != sqltype.Bool || n.arg == nil {
+			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
+		}
+		argument := n.arg.ResultUsage()
+		if argument.Type == nil || argument != argument.Type.Usage() || argument.Type.ID() != sqltype.Oid {
+			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry argument")
+		}
+		properties := n.arg.Properties()
+		properties.Volatility = max(Stable, properties.Volatility)
+		if p != properties {
+			return "", fmt.Errorf("stuntgres: invalid stored visibility inquiry properties")
+		}
+		if r.visibilitySnapshot != nil {
+			*r.visibilitySnapshot = true
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), []BoundExpr{n.arg})
 	case commentInquiryExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: comment inquiries are unsupported in stored defaults")
@@ -752,6 +773,10 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 			return node, false, nil
 		}
 		n.plan, err = sqltype.BindMath(n.plan.Name(), info.usage, usages[:len(n.args)]...)
+		n.expressionInfo = info
+		rebound = n
+	case visibilityInquiryExpression:
+		n.arg = child(n.arg)
 		n.expressionInfo = info
 		rebound = n
 	case commentInquiryExpression:

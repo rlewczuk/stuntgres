@@ -73,7 +73,10 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: next.columns}
 	ordered := make([]checkConstraint, 0, len(queue))
 	for _, pending := range queue {
-		syntax, err := parser.ParseWithOptions("SELECT "+pending.sql+" FROM "+quoteIdentifier(next.name), parser.Options{Context: op.Context(), StandardConformingStrings: true})
+		// Parse in CHECK context so selected calls remain functions, rather than
+		// the general scalar grammar's function-style casts. Only the extracted
+		// expression is bound; this wrapper never creates catalog metadata.
+		syntax, err := parser.ParseWithOptions("CREATE TABLE "+quoteIdentifier(next.name)+" (CHECK ("+pending.sql+"))", parser.Options{Context: op.Context(), StandardConformingStrings: true})
 		if err != nil {
 			return nil, nil, alterTypeCheckReparseError(err)
 		}
@@ -87,15 +90,15 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		binder.checkLiterals = pending.literals
 		binder.queryNamespace = &namespace
 		binder.querySources = []queryLeaf{{ref: ref, relation: &replacement}}
-		node, err := binder.bindBoolean(syntax[0].(*parser.Select).Targets[0], projectionContext, "CHECK")
+		node, err := binder.bindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, projectionContext, "CHECK")
 		e.mu.Unlock()
 		if err != nil {
 			return nil, nil, alterTypeCheckReparseError(err)
 		}
 		definition := replacement.checkConstraints[pending.index]
-		definition.expression, definition.dependencies, definition.commentSnapshot = node, nil, false
+		definition.expression, definition.dependencies, definition.commentSnapshot, definition.visibilitySnapshot = node, nil, false, false
 		var dependencies []ObjectRef
-		if _, err := (scalarRenderer{owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{owner: &replacement, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot, visibilitySnapshot: &definition.visibilitySnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return nil, nil, err
 		}
 		for _, dependency := range dependencies {

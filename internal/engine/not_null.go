@@ -204,8 +204,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		traversal.checkConstraints = typeChecks
 		validator.checks = &traversal
 		e.mu.Lock()
-		e.captureCheckCommentSnapshotLocked(scope, &traversal)
+		err = e.captureCheckCommentSnapshotLocked(scope, &traversal)
+		if err == nil {
+			err = e.captureCheckVisibilitySnapshotLocked(scope, &traversal)
+		}
 		e.mu.Unlock()
+		if err != nil {
+			return Result{}, err
+		}
 	}
 	if rewrite {
 		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, old, next, store, frontier, transformations, validator)

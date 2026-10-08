@@ -196,6 +196,42 @@ state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
 persists definitions, not their result rows. See [views](docs/SQL.md#views).
 Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.
 
+Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
+`pg_type_is_visible(oid)`, `pg_collation_is_visible(oid)` and
+`pg_conversion_is_visible(oid)` return strict nullable BOOL. Missing identities
+return NULL; existing off-path or shadowed identities return false. Relation
+visibility includes supported tables, views, sequences, ordinary B-tree indexes
+and catalog relations. Index identities share the relation namespace, so an
+earlier same-named table, view or sequence can shadow an index and vice versa.
+The subject's SELECT privilege is irrelevant; searchable schema USAGE still
+filters the path. Held prepared executions see fresh catalog/path state, while
+already returned results remain immutable.
+Argument analysis precedes the 100-argument guard, then namespace/signature
+lookup and OID inference/coercion. Missing child columns therefore take precedence
+over missing explicit schemas, including in over-limit direct/prepared calls.
+Native inquiries cover all25 seeded types, seven fixed PostgreSQL18 collations
+and all128 fixed conversions. Extra collation identities are inquiry-only:
+comparison still supports default/C/POSIX, and no encoding conversion executes.
+Dump/Restore rebuilds these immutable identities without inventing owners or
+ACLs, including empty restores and imports into an independent Driver.
+Inquiry catalog/path capture is demand-driven, including nested views,
+RETURNING and transformed ALTER CHECK validation; unrelated statements do not
+retain a visibility snapshot. Stored inquiry CHECKs support compact/pretty
+pg_get_constraintdef/pg_get_expr output and behavioral replay.
+For bounded predicate syntax, project an inquiry in a view and filter its BOOL
+column; INSERT results are checked by a subsequent SELECT, while UPDATE/DELETE
+support RETURNING. Discover backend-local numeric relation identities by projecting
+`oid,pg_table_is_visible(oid)` from pg_class under each target search_path and
+requiring exactly two distinct positive candidate OIDs, one visible candidate,
+and the same identity bag after reversal. No pg_namespace query source or
+explicit regclass-to-oid cast is needed.
+Type/domain/collation/conversion DDL, automatic row types and materialized/foreign
+table creation remain excluded. See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
+Feature smoke: `make smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
+Index identity/path/control witnesses:
+`make test PACKAGES=. RUN='^TestVisibilityInquiryIndexRelations$' VERBOSE=0`;
+`make reference RUN='^TestReferenceVisibilityInquiryIndexRelations$' VERBOSE=0`.
+
 Object comment inquiries support `col_description(oid,integer)`,
 `obj_description(oid,name)`, legacy `obj_description(oid)` and
 `shobj_description(oid,name)`, all returning strict nullable TEXT. Local

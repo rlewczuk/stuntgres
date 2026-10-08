@@ -414,6 +414,23 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 	}
+	scope.visibilityDemand = b.visibilitySnapshot
+	if b.query != nil {
+		scope.visibilityDemand = scope.visibilityDemand || b.query.visibilitySnapshot
+	}
+	if b.returning != nil {
+		scope.visibilityDemand = scope.visibilityDemand || b.returning.visibilitySnapshot
+	}
+	if scope.visibilityDemand {
+		err = e.captureVisibilitySnapshotLocked(scope)
+	}
+	if err == nil && b.relation != nil {
+		err = e.captureCheckVisibilitySnapshotLocked(scope, b.relation)
+	}
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	switch s := stmt.(type) {
 	case *parser.Update:
 		if b.returning != nil {

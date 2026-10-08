@@ -1205,6 +1205,81 @@ Native/parser/engine units:
 
 Relation names accept one or two identifier components. Qualified `schema.name` resolves only in that schema; unqualified references follow the session's effective search_path, with implicit `pg_catalog` first unless explicitly positioned. Unqualified creation chooses the first usable explicit destination and requires CREATE there, without falling through on denial. Namespace and relation descriptors carry engine-local epoch-scoped identities, while rows remain stored by relation identity. Internal object references also retain a stable engine-owner token: coincident numeric identities in separate instances are never interchangeable. Reset/Restore preserve that owner while atomically replacing the catalog lifetime, and retained result snapshots remain usable. Built-in namespace identities are internal infrastructure, not SQL catalog tables.
 
+## Search-path visibility inquiries
+
+```sql
+CREATE SCHEMA a;
+CREATE SCHEMA b;
+CREATE TABLE a.t(id integer);
+CREATE TABLE b.t(id integer);
+SET search_path = a,b;
+SELECT pg_table_is_visible('a.t'::regclass), pg_table_is_visible('b.t'::regclass);
+-- true, false; SET search_path=b,a reverses these decisions.
+SELECT oid,pg_table_is_visible(oid) FROM pg_catalog.pg_class WHERE relname='t';
+-- Scan all rows: exactly two distinct positive OIDs, one true and one false.
+-- Retain the complete identity bag; the true candidate identifies a.t.
+SET search_path = b,a;
+SELECT oid,pg_table_is_visible(oid) FROM pg_catalog.pg_class WHERE relname='t';
+-- Require the same two-OID bag; the unique true candidate now identifies b.t.
+SELECT pg_type_is_visible(23), pg_collation_is_visible(811),
+       pg_conversion_is_visible(4402);
+-- true, true, true for fixed catalog identities.
+SELECT pg_table_is_visible(0), pg_type_is_visible(NULL);
+-- NULL, NULL; missing identity differs from existing off-path false.
+```
+
+All four names accept one implicitly coercible OID argument and return BOOL
+(native Go bool, nil for NULL), with no physical column origin. TEXT/BOOL typed
+arguments and wrong arity/namespace produce the existing PostgreSQL-style
+signature diagnostics; bad unknown OID strings retain positioned input errors.
+Prepared `$1` is inferred as OID and imported on each Execute. Project inquiries
+in a stored view to compose its BOOL column in predicates, CASE/COALESCE and
+aggregates. Selected projections, UPDATE/DELETE RETURNING and CHECKs reuse the
+typed expression consumers; INSERT uses Exec then SELECT, and DEFAULT stays
+excluded. A selected inquiry beside an ordinary expression such as `$1::oid`
+uses a supported FROM source rather than widening relationless SELECT syntax.
+Child analysis precedes the 100-argument guard and namespace/signature lookup.
+For example, `missing_schema.pg_type_is_visible(missing_column)` from a supported
+table reports the missing column (42703), not the absent schema. A 101-integer
+call reports 54023 even with that absent schema, but a malformed last child still
+reports 42703. These diagnostics and character positions agree for direct SQL
+and Prepare; STRICT NULL never bypasses child analysis.
+
+Visibility compares object identity against same-name path lookup, not permission
+to read the subject. Schema USAGE filters the effective path. Prepared executions
+refresh path/role/catalog state; eager returned values and metadata do not change
+after settings changes, rename/drop or native Reset/Restore. Inquiries do not open
+subject relations, allocate absent TEMP or mutate data.
+Ordinary B-tree index identities use the same namespace as tables, views and
+sequences. Thus an earlier same-named relation of any supported kind shadows
+an index, and an earlier index shadows those relation kinds. Native Dump/Restore
+preserves index definitions; visibility probes rediscover their generated OIDs.
+Capture is demanded by bound inquiries, including nested views, RETURNING and
+CHECKs; unrelated queries do not retain a visibility snapshot. One explicit
+search path produces distinct immutable relation/type and no-TEMP paths.
+
+Stored row-dependent inquiry CHECKs support compact/pretty
+`pg_get_constraintdef` and `pg_get_expr` rendering and CREATE TABLE replay.
+`SELECT conbin FROM pg_catalog.pg_constraint` exposes native structural data,
+not PostgreSQL nodeToString bytes. ALTER COLUMN TYPE rebinds these CHECKs and
+captures visibility before validating transformed rows; a rejected transform
+leaves the old rows, column type and definition intact.
+
+Numeric relation OIDs are backend-local: discover them from the bounded pg_class
+projection above and assert visibility/reversal relationships, not allocator
+equality with PostgreSQL or before Restore. Rediscover after Restore and reapply
+the session search_path. This does not require a pg_namespace query source,
+OID/regclass comparison or explicit regclass-to-oid cast.
+
+The native fixed identity surface is bounded: all25 seeded type descriptors,
+seven fixed collations and128 fixed conversions. Collation eligibility uses UTF8
+encoding6/exact-before-fallback inside each namespace; conversion shadowing uses
+name, not encoding pair. Inquiry-only identities do not expand comparison or
+encoding conversion execution, DDL or system catalog query sources.
+See [dialect details and boundaries](DIALECT.md#search-path-visibility-inquiries--change-note).
+Public smoke: `make smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
+Real PostgreSQL18.0 evidence: `make reference RUN='^TestReferenceVisibilityInquiry.*$' VERBOSE=0`.
+
 ## Integer arithmetic
 
 Table SELECT projections, comparison operands/WHERE, unqualified DELETE

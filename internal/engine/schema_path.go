@@ -151,6 +151,7 @@ const (
 	functionLookup
 	operatorLookup
 	collationLookup
+	conversionLookup
 )
 
 func (e *Engine) referencePath(auth AuthorizationView) ([]ObjectAddress, error) {
@@ -164,7 +165,7 @@ func (e *Engine) lookupPath(auth AuthorizationView, kind lookupKind) ([]ObjectAd
 	return e.effectivePath(auth, path, kind), nil
 }
 func (e *Engine) effectivePath(auth AuthorizationView, path []ObjectAddress, kind lookupKind) []ObjectAddress {
-	if kind == functionLookup || kind == operatorLookup || kind == collationLookup {
+	if kind == functionLookup || kind == operatorLookup || kind == collationLookup || kind == conversionLookup {
 		filtered := path[:0]
 		for _, a := range path {
 			ns := auth.catalog.state.descriptors[a].(*namespaceDescriptor)

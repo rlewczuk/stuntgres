@@ -1,0 +1,204 @@
+package engine
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+type visibilityInquiryKind uint8
+
+const (
+	tableVisibility visibilityInquiryKind = iota
+	typeVisibility
+	collationVisibility
+	conversionVisibility
+)
+
+func (k visibilityInquiryKind) name() string {
+	switch k {
+	case tableVisibility:
+		return "pg_table_is_visible"
+	case typeVisibility:
+		return "pg_type_is_visible"
+	case collationVisibility:
+		return "pg_collation_is_visible"
+	case conversionVisibility:
+		return "pg_conversion_is_visible"
+	}
+	return ""
+}
+func (k visibilityInquiryKind) class() OID {
+	switch k {
+	case tableVisibility:
+		return RelationClassID
+	case typeVisibility:
+		return TypeClassID
+	case collationVisibility:
+		return CollationClassID
+	case conversionVisibility:
+		return ConversionClassID
+	}
+	return 0
+}
+
+type visibilityInquiryExpression struct {
+	expressionInfo
+	kind visibilityInquiryKind
+	arg  BoundExpr
+}
+
+func (b *expressionBinder) bindVisibilityInquiry(raw parser.FunctionExpr) (BoundExpr, error) {
+	n, err := b.bindVisibilityInquiryStructure(raw)
+	if err != nil {
+		return nil, err
+	}
+	if literal, ok := n.arg.(literalExpression); ok && literal.value.IsNull() {
+		typ := b.typ(sqltype.Bool)
+		return literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{}), sqltype.Null(typ)}, nil
+	}
+	b.visibilitySnapshot = true
+	return n, nil
+}
+func (b *expressionBinder) bindVisibilityInquiryStructure(raw parser.FunctionExpr) (visibilityInquiryExpression, error) {
+	if b.defaultConsumer {
+		return visibilityInquiryExpression{}, expressionError("0A000", "functions are unsupported", raw.Pos)
+	}
+	// Transform children before either the argument guard or namespace lookup.
+	// Unknown literals/parameters retain the existing operand inference seam;
+	// only the resolved signature supplies their OID input contract.
+	var operand comparisonOperand
+	var singleName [1]string
+	names := singleName[:]
+	if len(raw.Args) != 1 && len(raw.Args) <= 100 {
+		names = make([]string, len(raw.Args))
+	}
+	for i, child := range raw.Args {
+		arg, err := b.comparisonOperand(child)
+		if err != nil {
+			return visibilityInquiryExpression{}, err
+		}
+		if len(raw.Args) == 1 {
+			operand = arg
+		}
+		if len(raw.Args) <= 100 {
+			names[i] = "unknown"
+			if typ := arg.descriptor(); typ != nil {
+				names[i] = typ.DiagnosticName()
+			}
+		}
+	}
+	if len(raw.Args) > 100 {
+		return visibilityInquiryExpression{}, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	visible, err := b.builtinVisible(raw.Name, functionLookup)
+	if err != nil {
+		return visibilityInquiryExpression{}, err
+	}
+	if !visible || len(raw.Args) != 1 {
+		return visibilityInquiryExpression{}, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	}
+	var kind visibilityInquiryKind
+	switch raw.Name.Parts[len(raw.Name.Parts)-1].Text {
+	case "pg_table_is_visible":
+		kind = tableVisibility
+	case "pg_type_is_visible":
+		kind = typeVisibility
+	case "pg_collation_is_visible":
+		kind = collationVisibility
+	case "pg_conversion_is_visible":
+		kind = conversionVisibility
+	default:
+		return visibilityInquiryExpression{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
+	}
+	target := b.typ(sqltype.Oid).Usage()
+	arg, err := b.finalizeOperand(operand, target.Type)
+	if err != nil {
+		return visibilityInquiryExpression{}, err
+	}
+	if arg.ResultUsage() != target {
+		plan, err := sqltype.PlanCoercion(arg.ResultUsage(), target, sqltype.Implicit)
+		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42804" || diagnostic.Code == "42846") {
+				return visibilityInquiryExpression{}, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+			}
+			return visibilityInquiryExpression{}, err
+		}
+		arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit}
+	}
+	properties := arg.Properties()
+	properties.Volatility = max(Stable, properties.Volatility)
+	return visibilityInquiryExpression{b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), kind, arg}, nil
+}
+func namedObjectVisible(view CatalogRead, path []ObjectAddress, d Descriptor) bool {
+	for _, namespace := range path {
+		if found, exists := view.state.names[NameKey{ClassID: d.Address().ClassID, Namespace: namespace, Name: d.Name()}]; exists {
+			return found == d.Address()
+		}
+	}
+	return false
+}
+func (e visibilityInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	if err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	if e.kind.class() == 0 || e.arg == nil || e.usage.Type == nil || e.usage.Type.ID() != sqltype.Bool {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid visibility inquiry")
+	}
+	value, err := e.arg.Eval(c)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	if value.IsNull() {
+		return sqltype.Null(e.usage.Type), nil
+	}
+	if c.statementScope == nil || c.statementScope.visibilityCatalog.state == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
+	}
+	oid, err := value.OID()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	scope := c.statementScope
+	d, exists := scope.visibilityCatalog.Descriptor(ObjectAddress{ClassID: e.kind.class(), ObjectID: OID(oid)})
+	if !exists {
+		return sqltype.Null(e.usage.Type), nil
+	}
+	path := scope.visibilityRelationPath
+	if e.kind == collationVisibility || e.kind == conversionVisibility {
+		path = scope.visibilityOtherPath
+	}
+	visible := false
+	if e.kind == collationVisibility {
+		visible = visibleCollation(scope.visibilityCatalog, path, d)
+	} else {
+		visible = namedObjectVisible(scope.visibilityCatalog, path, d)
+	}
+	return sqltype.Boolean(e.usage.Type, visible), nil
+}
+
+// Engine.mu is held. The execution frontier owns catalog and path, never mutable
+// session settings or an authorization view subsequently consulted by Eval.
+func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
+	if scope.visibilityCatalog.state != nil {
+		return nil
+	}
+	auth, err := e.authorizationLocked(scope.op)
+	if err != nil {
+		return err
+	}
+	explicit, _, err := e.explicitPath(auth)
+	if err != nil {
+		return err
+	}
+	// effectivePath filters TEMP in place for conversion lookup. Give that
+	// derived path its own backing store; the relation path remains immutable.
+	relations := e.effectivePath(auth, explicit, relationLookup)
+	otherExplicit := make([]ObjectAddress, len(explicit))
+	copy(otherExplicit, explicit)
+	others := e.effectivePath(auth, otherExplicit, conversionLookup)
+	scope.visibilityCatalog = auth.catalog
+	scope.visibilityRelationPath, scope.visibilityOtherPath = relations, others
+	return nil
+}

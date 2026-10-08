@@ -201,6 +201,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if relation.relationKind == indexRelation {
 			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
 		}
+		if relation.view != nil {
+			b.visibilitySnapshot = b.visibilitySnapshot || relation.view.query.visibilitySnapshot
+		}
 		leaf := len(b.querySources)
 		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address)})
 		columns := make([]queryColumn, len(relation.columns))

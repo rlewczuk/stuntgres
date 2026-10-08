@@ -146,6 +146,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 			}
 		}
 		return true
+	case visibilityInquiryExpression:
+		o, ok := other.(visibilityInquiryExpression)
+		return ok && e.kind == o.kind && same(e.arg, o.arg)
 	case commentInquiryExpression:
 		o, ok := other.(commentInquiryExpression)
 		if !ok || e.kind != o.kind || len(e.args) != len(o.args) {
@@ -313,6 +316,10 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case visibilityInquiryExpression:
+		e.arg = rewrite(e.arg)
+		stage(&e.expressionInfo)
+		expr = e
 	case commentInquiryExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
@@ -399,6 +406,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		for _, arg := range e.args {
 			walk(arg)
 		}
+	case visibilityInquiryExpression:
+		walk(e.arg)
 	case commentInquiryExpression:
 		for _, arg := range e.args {
 			walk(arg)

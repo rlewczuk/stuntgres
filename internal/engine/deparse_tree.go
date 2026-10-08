@@ -128,6 +128,21 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case nullCountExpression:
 		fmt.Fprintf(out, "NullCount %d", n.kind)
 		err = args(n.args)
+	case visibilityInquiryExpression:
+		if n.kind.class() == 0 || u != u.Type.Usage() || u.Type.ID() != sqltype.Bool || n.arg == nil {
+			return fmt.Errorf("stuntgres: invalid stored visibility inquiry signature")
+		}
+		argument := n.arg.ResultUsage()
+		if argument.Type == nil || argument != argument.Type.Usage() || argument.Type.ID() != sqltype.Oid {
+			return fmt.Errorf("stuntgres: invalid stored visibility inquiry argument")
+		}
+		properties := n.arg.Properties()
+		properties.Volatility = max(Stable, properties.Volatility)
+		if n.Properties() != properties {
+			return fmt.Errorf("stuntgres: invalid stored visibility inquiry properties")
+		}
+		fmt.Fprintf(out, "VisibilityInquiry %d", n.kind)
+		err = child(n.arg)
 	case commentInquiryExpression:
 		fmt.Fprintf(out, "CommentInquiry %d", n.kind)
 		err = args(n.args)

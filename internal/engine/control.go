@@ -166,7 +166,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for a, d := range e.state.descriptors {
 		r, ok := d.(*relationDescriptor)
 		if !ok {
-			if _, builtinType := d.(*typeDescriptor); builtinType {
+			switch d.(type) {
+			case *typeDescriptor, *collationDescriptor, *conversionDescriptor:
+				// Immutable builtin identities rebuild through bootstrap.
 				continue
 			}
 			if d.Kind() == NamespaceObject {

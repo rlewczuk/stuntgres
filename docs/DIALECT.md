@@ -1504,14 +1504,16 @@ deduplicating a CHECK touched by multiple columns; stored CHECK order and ordina
 DML enforcement stay alphabetical. FALSE produces `23514`, `check constraint
 "NAME" of relation "TABLE" is violated by some row`, with Schema/Table/Constraint
 and no failing-row Detail. CHECK reparse operator errors have empty Position,
-not the source position of an internally generated SELECT. Runtime CHECK errors
+not the source position of an internally generated CHECK wrapper. Runtime CHECK errors
 retain their own SQLSTATE/message. Incompatible defaults precede CHECK reparse;
 CHECK reparse precedes any row conversion, including on empty/all-NULL targets.
 Native controls retain the final rebound CHECK and NO INHERIT, not TYPE history.
-Internal scalar reparsing uses the existing SELECT-with-FROM grammar and a quoted
-owner name, then binds only the extracted CHECK expression to that captured
-descriptor. It does not execute a query or broaden ordinary SELECT-without-FROM
-admission.
+Internal scalar reparsing uses an existing CREATE TABLE/CHECK grammar wrapper
+with a quoted owner name, then binds only the extracted CHECK expression to the
+completed descriptor. CHECK context preserves selected function calls instead of
+misreading them as function-style casts; visibility inquiries use the existing
+implicit BIGINT-to-OID provider after a column is widened. The wrapper is parsed,
+never executed: it creates no metadata and does not broaden ordinary SQL admission.
 
 Column COLLATE (also in final CREATE declarations for Restore) resolves only
 `pg_catalog."default"`100, `"C"`950 and `"POSIX"`951, with namespace authority,
@@ -1721,6 +1723,9 @@ CREATE/ALTER/DROP SCHEMA and search_path/current_schema reuse existing catalog/s
 Search-path namespace selection has one kind-aware authority. Explicit entries
 retain decoded order and deduplicate by namespace identity; missing, empty,
 no-USAGE and foreign TEMP entries are ignored. `$user` expands CURRENT_USER.
+This native foreign-TEMP exclusion differs from PostgreSQL18: an explicitly
+named peer temporary namespace is searchable there when schema USAGE permits
+it, so its relation can be `pg_table_is_visible` even from a different session.
 An absent explicit pg_catalog is inserted before the explicit path; initialized
 own TEMP is inserted before catalog for relation/type lookup only. Explicit
 catalog/TEMP keep their stated placement. Unqualified function/operator lookup
@@ -1767,6 +1772,61 @@ Native Dump/Restore preserves qualified persistent expression spelling and
 objects/data, not session search_path; it is not external pg_dump, wire protocol,
 server configuration or filesystem durability.
 Feature smoke: `make smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
+
+### Search-path visibility inquiries — change note
+
+The four PostgreSQL18 inquiry names each have one STABLE/STRICT `(oid) → boolean`
+signature: `pg_table_is_visible`, `pg_type_is_visible`,
+`pg_collation_is_visible`, `pg_conversion_is_visible`. There is no function
+overload visibility inquiry or SQL routine DDL in this change. They use the
+existing typed expression path, including OID parameter inference, BOOL result
+metadata and positioned signature/input diagnostics.
+Children are transformed once before the more-than-100-argument guard (54023),
+then explicit namespace/signature lookup and OID inference/coercion. A missing
+child column gives positioned 42703 even when the explicit schema is absent or
+the call has 101 arguments. With 101 valid children, 54023 precedes absent-schema
+3F000; with one valid child, the absent schema still gives positioned 3F000.
+STRICT NULL folding occurs only after this analysis and resolution.
+
+NULL input or an OID missing from the queried object class returns BOOL NULL.
+An existing object is visible exactly when its catalog identity is the first
+eligible same-name identity in the effective path; shadowed/off-path objects
+are false, not NULL. Relation kinds share a namespace. Types use catalog names,
+including result-only/pseudo descriptors, not SQL aliases or storage admission.
+No subject table SELECT/type USAGE/conversion-procedure EXECUTE check is made.
+Schema USAGE still controls effective-path membership.
+
+Relations/types include own TEMP; collations/conversions exclude it even if
+explicitly listed. Missing TEMP is never allocated. An Execute whose bound
+query, nested view, RETURNING or CHECK requires visibility captures one
+immutable private-aware catalog at its existing statement frontier. The explicit
+path is resolved once, with separate relation and no-TEMP paths. Unrelated
+statements retain no visibility capture. Held prepared SQL refreshes authority,
+not Prepare-time decisions. Stored views remain execution-path sensitive;
+CHECKs, including transformed ALTER COLUMN TYPE validation, share statement
+authority. Stored inquiry CHECKs support compact/pretty pg_get_constraintdef
+and pg_get_expr rendering and replay; native conbin is structural data, not
+PostgreSQL nodeToString. DEFAULT admission still rejects these inquiries.
+
+All25 native type descriptors, seven fixed collations (100,950,951,962,963,811,6411)
+and all128 fixed conversions (4402–4449,4452–4531) have real inquiry metadata.
+Collation lookup is namespace-first, then UTF8 encoding6 before encoding-1
+fallback inside each namespace. A wrong-encoding existing collation is false.
+An earlier namespace fallback beats a later exact encoding. Conversion lookup
+uses name/namespace, not encoding pair/default/procedure privilege:4402 is visible
+despite having no UTF8 side. Metadata does not enable conversion execution,
+general locale comparison, imported OS collations or broader catalogs/DDL.
+Comparison retains only default/C/POSIX. Ordinary B-tree indexes participate in
+relation visibility, including same-name cross-kind shadowing, and their
+definitions roundtrip through native Dump/Restore. CREATE TYPE/DOMAIN/COLLATION/
+CONVERSION, automatic row types, materialized/foreign tables and TEMP table
+creation retain their native exclusion boundaries; real PostgreSQL-only
+reference tests exercise those identities rather than fake native support.
+
+Fixed identities rebuild on New/Reset/Restore without separate serialization.
+Supported user objects/views/CHECK definitions roundtrip through existing SQL;
+restored generated OIDs must be rediscovered. Session search_path is not dumped.
+Feature smoke: `make smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
 
 
 COMMENT supports TABLE/COLUMN/SCHEMA/ROLE only, with decoded literals and NULL/empty removal (whitespace persists). Store text in immutable descriptors, column maps keyed by stable SubID, or shared RoleDescriptor values; never name-keyed side storage or adjacent SQL description functions. Lookup and live ownership precede mutation; COLUMN nonowner says relation, TABLE says table. Ordinary roles cannot self-comment; CREATEROLE/ADMIN expansion is excluded. Explicit-TX COMMENT remains native 0A000. Rename/owner transfer retains text; drop/recreate clears it; LIKE does not copy it. Database Dump excludes shared role comments, Reset/Restore retain them.

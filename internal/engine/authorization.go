@@ -503,8 +503,9 @@ func (v AuthorizationView) CheckCreate(ref ObjectRef) error {
 	return v.Check(AccessRequirement{Object: ref, Privileges: CreatePrivilege})
 }
 func validateACL(r RoleRead, d Descriptor) error {
-	// Builtin type identities have no role-owned ACL in this foundation.
-	if _, ok := d.(*typeDescriptor); ok {
+	// Immutable builtin identities have no principal or role-owned ACL.
+	switch d.(type) {
+	case *typeDescriptor, *collationDescriptor, *conversionDescriptor:
 		return nil
 	}
 	owner, acl, cols := descriptorACL(d)
@@ -550,6 +551,10 @@ func validateACL(r RoleRead, d Descriptor) error {
 	return nil
 }
 func descriptorReferences(d Descriptor) []PrincipalRef {
+	switch d.(type) {
+	case *typeDescriptor, *collationDescriptor, *conversionDescriptor:
+		return nil
+	}
 	owner, acl, cols := descriptorACL(d)
 	refs := []PrincipalRef{owner}
 	add := func(a ACLValue) {

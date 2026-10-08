@@ -108,6 +108,9 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case deparseExpression:
 		n.args = args(n.args)
 		next = n
+	case visibilityInquiryExpression:
+		n.arg = child(n.arg)
+		next = n
 	case commentInquiryExpression:
 		n.args = args(n.args)
 		next = n

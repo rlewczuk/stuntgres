@@ -198,6 +198,19 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(deparseExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(visibilityInquiryExpression); ok && len(r.Args) == 1 {
+			return child(r.Args[0], n.arg)
+		}
+		if n, ok := bound.(literalExpression); ok && n.value.IsNull() && n.value.Type().ID() == sqltype.Bool {
+			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
+			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible":
+				structure, err := b.bindVisibilityInquiryStructure(r)
+				if err != nil {
+					return err
+				}
+				return child(r.Args[0], structure.arg)
+			}
+		}
 		if n, ok := bound.(commentInquiryExpression); ok {
 			return children(r.Args, n.args)
 		}

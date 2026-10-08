@@ -54,6 +54,7 @@ type binding struct {
 	usedColumns        []int
 	query              *BoundQuery
 	querySources       []queryLeaf
+	visibilitySnapshot bool
 	viewLiterals       map[viewLiteralPath]literalExpression
 	viewColumns        map[viewLiteralPath]int
 	viewStars          map[int][]int
@@ -119,6 +120,12 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 	if err := e.RegisterCatalogProvider(typeProvider{}); err != nil {
 		return nil, err
 	}
+	if err := e.RegisterCatalogProvider(collationProvider{}); err != nil {
+		return nil, err
+	}
+	if err := e.RegisterCatalogProvider(conversionProvider{}); err != nil {
+		return nil, err
+	}
 	e.state = &catalogState{epoch: 1, descriptors: map[ObjectAddress]Descriptor{}, names: map[NameKey]ObjectAddress{}}
 	for _, ns := range []struct {
 		oid  OID
@@ -139,6 +146,16 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID())}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
+	}
+	for i := range builtinCollations {
+		d := &builtinCollations[i]
+		e.state.descriptors[d.Address()] = d
+		e.state.names[NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
+	}
+	for i := range builtinConversions {
+		d := &builtinConversions[i]
+		e.state.descriptors[d.Address()] = d
+		e.state.names[NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
 	}
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
@@ -638,6 +655,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
+	b.visibilitySnapshot = binder.visibilitySnapshot
 	b.sequenceConstants = binder.sequenceConstants
 	b.viewLiterals = binder.viewLiterals
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars

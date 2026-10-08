@@ -38,7 +38,7 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 	}
 	name := raw.Parts[len(raw.Parts)-1].Text
 	for i := range path.count() {
-		if auth.catalog.state.descriptors[path.at(i)].Name() != "pg_catalog" {
+		if path.at(i) != (ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}) {
 			continue
 		}
 		var id uint32

@@ -49,8 +49,8 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	}
 	for addr, d := range state.descriptors {
 		switch d := d.(type) {
-		case *typeDescriptor:
-			// Immutable builtin types have no principal references to remap.
+		case *typeDescriptor, *collationDescriptor, *conversionDescriptor:
+			// Immutable builtin identities have no principal references to remap.
 		case *namespaceDescriptor:
 			n := *d
 			var err error

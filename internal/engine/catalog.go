@@ -43,6 +43,8 @@ const (
 	NamespaceClassID      OID = 2615
 	RelationClassID       OID = 1259
 	TypeClassID           OID = 1247
+	CollationClassID      OID = 3456
+	ConversionClassID     OID = 2607
 	PGCatalogNamespaceOID OID = 11
 	PublicNamespaceOID    OID = 2200
 )
@@ -53,6 +55,8 @@ const (
 	NamespaceObject ObjectKind = iota + 1
 	RelationObject
 	TypeObject
+	CollationObject
+	ConversionObject
 )
 
 type Descriptor interface {
