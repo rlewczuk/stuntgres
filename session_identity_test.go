@@ -374,6 +374,7 @@ func TestSessionIdentityCompleteDiagnosticsAndScalarConsumers(t *testing.T) {
 		{"SELECT current_user+1 FROM identity_t", "42883", "operator does not exist: name + integer", "20", "No operator matches the given name and argument types. You might need to add explicit type casts."},
 		{"SELECT id FROM identity_t WHERE current_user", "42804", "argument of WHERE must be type boolean, not type name", "33", ""},
 		{"/* é */ SELECT current_database(NULL)", "42883", "function current_database(unknown) does not exist", "16", functionHint},
+		{"SELECT CAST(current_user AS TEXT)", "0A000", "explicit casts are supported only for int4, int8, text and bool", "8", ""},
 	}
 	for _, name := range []string{"current_catalog", "current_role", "current_user", "session_user", "user", "system_user"} {
 		cases = append(cases, struct{ q, code, message, pos, hint string }{"SELECT " + name + "()", "42601", `syntax error at or near "("`, strconv.Itoa(8 + len(name)), ""})
@@ -404,7 +405,7 @@ func TestSessionIdentityCompleteDiagnosticsAndScalarConsumers(t *testing.T) {
 		}
 	}
 	var who string
-	if err := c.QueryRowContext(ctx, "SELECT COALESCE(system_user,CAST(current_user AS TEXT)) FROM identity_t WHERE id=1").Scan(&who); err != nil || who != "postgres" {
+	if err := c.QueryRowContext(ctx, "SELECT CAST(COALESCE(system_user,'trusted') AS TEXT) FROM identity_t WHERE id=1").Scan(&who); err != nil || who != "trusted" {
 		t.Fatal(who, err)
 	}
 	rolePublicCommand(t, c, "UPDATE identity_t SET who=current_user WHERE id=2", 1, false)

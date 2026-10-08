@@ -10,6 +10,8 @@ import (
 	"io"
 	"net/url"
 	"testing"
+
+	"stuntgres"
 )
 
 func TestReferenceSessionIdentityFormsAndFreshness(t *testing.T) {
@@ -30,7 +32,11 @@ func TestReferenceSessionIdentityFormsAndFreshness(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer conn.Close()
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, b.record, s) }
+			run := func(s referenceStep) {
+				t.Helper()
+				t.Logf("SQL (prepared=%t): %s", s.prepared, s.query)
+				referenceRunStep(t, p.ctx, conn, b.record, s)
+			}
 			for _, prepared := range []bool{false, true} {
 				s := referenceSelect("SELECT current_catalog=current_database(),current_role=current_user,session_user=user", []string{"?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}})
 				s.prepared = prepared
@@ -44,6 +50,15 @@ func TestReferenceSessionIdentityFormsAndFreshness(t *testing.T) {
 				system = "scram-sha-256:stuntgres"
 			}
 			run(referenceSelect("SELECT system_user", []string{"system_user"}, []string{"TEXT"}, [][]any{{system}}))
+			conditional := system
+			if conditional == nil {
+				conditional = "trusted"
+			}
+			for _, prepared := range []bool{false, true} {
+				s := referenceSelect("SELECT CAST(COALESCE(system_user,'trusted') AS TEXT) AS identity_text", []string{"identity_text"}, []string{"TEXT"}, [][]any{{conditional}})
+				s.prepared = prepared
+				run(s)
+			}
 			for _, prepared := range []bool{false, true} {
 				for _, prefix := range []string{"pg_catalog.", `""`} {
 					spell := func(name string) string {
@@ -155,8 +170,16 @@ func TestReferenceSessionIdentityFormsAndFreshness(t *testing.T) {
 			run(referenceExec("RESET ROLE", 0))
 			viewIdentity(b.bootstrap)
 			view.Close()
-			run(referenceExec("DROP VIEW identity_reference_v", 0))
-			run(referenceExec("DROP TABLE identity_reference_t", 0))
+			if b.native {
+				// DROP VIEW is not a native capability. Reset is the existing
+				// public control for removing this view and its source table.
+				if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				run(referenceExec("DROP VIEW identity_reference_v", 0))
+				run(referenceExec("DROP TABLE identity_reference_t", 0))
+			}
 			if !b.native {
 				run(referenceExec("REVOKE USAGE,CREATE ON SCHEMA public FROM identity_reference_role", 0))
 			}

@@ -1904,6 +1904,10 @@ ordinary current_catalog/current_role/user function aliases.
 NAME has no arithmetic overloads: identity or NAME-column arithmetic reports
 `42883` with the missing operator signature, operand types, operator position
 and PostgreSQL cast hint, rather than a native unsupported-provider diagnostic.
+Identity expressions follow the existing cast boundary: TEXT `system_user` can
+participate in supported conditionals and explicit TEXT casts, but explicit
+NAME-to-TEXT casts are not admitted (`0A000`). NAME identity assignment to TEXT
+columns and TEXT defaults remains supported; this feature adds no cast families.
 
 Identity-derived singleton comparisons/casts/conditionals are admitted without
 FROM; unrelated general singleton expressions remain outside the bounded dialect.
