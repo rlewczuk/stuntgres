@@ -18,10 +18,11 @@ type queryQualifier struct {
 	columns                       []queryColumn
 }
 type queryNamespace struct {
-	columns    []queryColumn
-	qualifiers []queryQualifier
-	frame      []ColumnDescriptor
-	values     bool // Synthetic VALUES names retain PostgreSQL spelling hints.
+	columns                   []queryColumn
+	qualifiers                []queryQualifier
+	frame                     []ColumnDescriptor
+	values                    bool // Synthetic VALUES names retain PostgreSQL spelling hints.
+	identityValuesOrderDemand []bool
 }
 
 func rebaseQueryColumns(columns []queryColumn, offset int) []queryColumn {
@@ -142,6 +143,9 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 		match = &columns[i]
 	}
 	if match != nil {
+		if demand := b.queryNamespace.identityValuesOrderDemand; len(demand) != 0 {
+			demand[match.slot] = true
+		}
 		return b.queryColumnAt(*match, raw.Pos), nil
 	}
 	if b.queryNamespace.values && len(parts) == 1 {

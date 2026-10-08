@@ -44,9 +44,9 @@ const (
 )
 
 type IdentityDefinition struct {
-	Mode IdentityMode
+	Mode    IdentityMode
 	Options []SequenceOption
-	Pos Position
+	Pos     Position
 }
 
 type InsertOverride uint8
@@ -58,12 +58,12 @@ const (
 )
 
 type ColumnConstraint struct {
-	NotNull bool
-	Default Expr
-	Check   *CheckConstraint
+	NotNull  bool
+	Default  Expr
+	Check    *CheckConstraint
 	Identity *IdentityDefinition
-	Name    Identifier
-	Pos     Position
+	Name     Identifier
+	Pos      Position
 }
 
 type NotNullConstraint struct {
@@ -254,7 +254,7 @@ type AlterTableAction struct {
 	IfExists   bool
 	Mode       DropMode
 	Pos        Position
-	Identity *IdentityDefinition
+	Identity   *IdentityDefinition
 }
 
 type AlterTable struct {
@@ -302,7 +302,7 @@ type Insert struct {
 	Source        *InsertSource
 	Pos           Position
 	DefaultValues bool
-	Override InsertOverride
+	Override      InsertOverride
 }
 
 type InsertTarget struct {

@@ -37,7 +37,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		query, err = binder.bindSelect(sel, true)
 		out.querySources = binder.querySources
 	} else {
-		query, err = binder.bindValues(s.Source)
+		query, err = binder.bindValues(s.Source, s.Override == parser.OverrideUser && len(out.relation.identities) != 0)
 	}
 	if err != nil {
 		return err
@@ -72,12 +72,29 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		project.expressions[i] = assigned
 		project.querySchema[i].Usage = assigned.ResultUsage()
 	}
+	// Analysis and parameter inference above remain complete. Only unused pure
+	// USER identity projections lose runtime demand, before coercion preflight.
+	if len(out.identityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Rows) == 1) {
+		for i, target := range out.targets {
+			expression := project.expressions[i]
+			if !out.identityDiscard[target] || expression.Properties().Volatility == Volatile {
+				continue
+			}
+			var discard bool
+			project.child, discard = pruneIdentityQueryProducer(project.child, expression)
+			if discard {
+				project.expressions[i] = identityUnusedOutput(expression)
+			}
+		}
+	}
 	// This binding owns the schedule; supplied query outputs, including NULL,
 	// never consume defaults. Filter once rather than masking every row.
 	if len(out.defaults) != 0 {
-		remaining := len(out.relation.defaults)+len(out.relation.identities)
+		remaining := len(out.relation.defaults) + len(out.relation.identities)
 		for _, target := range out.targets {
-			if len(out.identityDiscard)!=0 && out.identityDiscard[target] { continue }
+			if len(out.identityDiscard) != 0 && out.identityDiscard[target] {
+				continue
+			}
 			if out.defaults[target] != nil {
 				out.defaults[target] = nil
 				remaining--
@@ -117,7 +134,7 @@ func commonValuesUsage(nodes [][]BoundExpr, column int, text sqltype.Usage) (sql
 		return comparisonOperand{node: node}
 	}, text, "VALUES")
 }
-func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery, error) {
+func (b *expressionBinder) bindValues(source *parser.InsertSource, identityDiscard bool) (*BoundQuery, error) {
 	width := len(source.Rows[0])
 	nodes := make([][]BoundExpr, len(source.Rows))
 	for i, row := range source.Rows {
@@ -170,8 +187,12 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource) (*BoundQuery,
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
 		projection[j] = columnExpression{expressionInfo: b.info(common, parser.Position{Offset: -1}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: j}
 	}
-	var root LogicalNode = &valuesNode{querySchema: schema, rows: nodes}
-	namespace := queryNamespace{frame: schema, values: true}
+	values := &valuesNode{querySchema: schema, rows: nodes}
+	if identityDiscard && len(nodes) == 1 {
+		values.identityOrderDemand = make([]bool, width)
+	}
+	var root LogicalNode = values
+	namespace := queryNamespace{frame: schema, values: true, identityValuesOrderDemand: values.identityOrderDemand}
 	names := make([]string, width)
 	for i, column := range schema {
 		names[i] = column.Name
@@ -290,7 +311,6 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 		return nil, fmt.Errorf("stuntgres: INSERT query lacks final projection")
 	}
 	state := &queryState{source: source, parameters: parameters, input: input, output: output, locking: source.locks != nil}
-	b.statementScope = source.scope
 	stage, err := openQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return nil, err
@@ -375,4 +395,92 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		return nil, err
 	}
 	return rows, nil
+}
+
+func identityUnusedOutput(expression BoundExpr) BoundExpr {
+	return literalExpression{
+		expressionInfo: expressionInfo{usage: expression.ResultUsage(), pos: expression.SourcePosition()},
+		value:          sqltype.Null(expression.ResultUsage().Type),
+	}
+}
+
+// The final output can refer to a VALUES cell or an expression moved into the
+// existing count/ORDER cache. Remove only that output's pure producer; ORDER
+// keys and multirow VALUES remain independent source consumers. Nodes are owned
+// by this fresh binding, never a published descriptor or held execution plan.
+func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (LogicalNode, bool) {
+	for {
+		coercion, ok := expression.(coercionExpression)
+		if !ok {
+			break
+		}
+		expression = coercion.child
+	}
+	switch n := node.(type) {
+	case *limitNode:
+		var discard bool
+		n.child, discard = pruneIdentityQueryProducer(n.child, expression)
+		return n, discard
+	case *rowLockNode:
+		var discard bool
+		n.child, discard = pruneIdentityQueryProducer(n.child, expression)
+		return n, discard
+	case *evaluationNode:
+		if cached, ok := expression.(cachedOrderExpression); ok && cached.slot >= n.base && cached.slot < n.base+len(n.expressions) {
+			slot := cached.slot - n.base
+			if n.expressions[slot].Properties().Volatility == Volatile {
+				return n, false
+			}
+			n.expressions[slot] = identityUnusedOutput(n.expressions[slot])
+			// A solely discarded projection no longer needs a per-row cache.
+			unused := true
+			for _, producer := range n.expressions {
+				literal, ok := producer.(literalExpression)
+				if !ok || !literal.value.IsNull() {
+					unused = false
+					break
+				}
+			}
+			if unused {
+				return n.child, true
+			}
+			return n, true
+		}
+		var discard bool
+		n.child, discard = pruneIdentityQueryProducer(n.child, expression)
+		return n, discard
+	case *sortNode:
+		if cached, ok := expression.(cachedOrderExpression); ok {
+			for _, key := range n.keys {
+				if key.cache == cached.slot {
+					return n, true
+				}
+			}
+			slot := cached.slot - (n.cacheWidth - len(n.outputs))
+			if slot >= 0 && slot < len(n.outputs) {
+				if n.outputs[slot].Properties().Volatility == Volatile {
+					return n, false
+				}
+				n.outputs[slot] = identityUnusedOutput(n.outputs[slot])
+				return n, true
+			}
+		}
+		var discard bool
+		n.child, discard = pruneIdentityQueryProducer(n.child, expression)
+		return n, discard
+	case *valuesNode:
+		column, ok := expression.(columnExpression)
+		if !ok || len(n.rows) != 1 || len(n.identityOrderDemand) == 0 {
+			return n, false
+		}
+		cell := n.rows[0][column.slot]
+		if cell.Properties().Volatility == Volatile {
+			return n, false
+		}
+		if !n.identityOrderDemand[column.slot] {
+			n.rows[0][column.slot] = identityUnusedOutput(cell)
+		}
+		return n, true
+	}
+	return node, true
 }

@@ -79,7 +79,7 @@ func TestCharacterSourceValuesSchemaAndTypmods(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "INSERT INTO dst VALUES("+tc.first+"),("+tc.second+") ORDER BY 1").(*parser.Insert)
-		query, err := b.bindValues(raw.Source)
+		query, err := b.bindValues(raw.Source, false)
 		if err != nil {
 			t.Fatal(tc, err)
 		}

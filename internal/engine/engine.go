@@ -46,33 +46,32 @@ type Result struct {
 	Rows  RowResult
 }
 type binding struct {
-	relation          *relationDescriptor
-	storage           *relationStorage
-	ref               ObjectRef
-	targets           []int
-	usedColumns       []int
-	query             *BoundQuery
-	querySources      []queryLeaf
-	viewLiterals      map[viewLiteralPath]literalExpression
-	viewColumns       map[viewLiteralPath]int
-	viewStars         map[int][]int
-	viewNamespaces    []viewNamespace
-	commandQuery      bool
-	update            *boundUpdate
-	returning         *boundDeleteReturning
-	dependencies      []expressionDependency
-	parameters        ParameterInfo
-	expressions       [][]BoundExpr
-	createColumns     []ColumnDescriptor
-	createNotNull     []notNullConstraint
+	relation           *relationDescriptor
+	storage            *relationStorage
+	ref                ObjectRef
+	targets            []int
+	usedColumns        []int
+	query              *BoundQuery
+	querySources       []queryLeaf
+	viewLiterals       map[viewLiteralPath]literalExpression
+	viewColumns        map[viewLiteralPath]int
+	viewStars          map[int][]int
+	viewNamespaces     []viewNamespace
+	commandQuery       bool
+	update             *boundUpdate
+	returning          *boundDeleteReturning
+	dependencies       []expressionDependency
+	parameters         ParameterInfo
+	expressions        [][]BoundExpr
+	createColumns      []ColumnDescriptor
+	createNotNull      []notNullConstraint
 	createDeclarations []createColumnDeclaration
-	defaults          []BoundExpr
-	identityDiscard   []bool
-	insertProjection  []int
-	statementScope    *StatementScope
-	temporals         []temporalConstant
-	predicate         BoundExpr
-	sequenceConstants []sequenceConstant
+	defaults           []BoundExpr
+	identityDiscard    []bool
+	insertProjection   []int
+	temporals          []temporalConstant
+	predicate          BoundExpr
+	sequenceConstants  []sequenceConstant
 }
 
 func New() *Engine {
@@ -359,8 +358,8 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				if err != nil {
 					return b, err
 				}
-				if declaration.identity != nil && u.Type.ID()!=sqltype.Int2 && u.Type.ID()!=sqltype.Int4 && u.Type.ID()!=sqltype.Int8 {
-					return b,sequenceOptionError("sequence type must be smallint, integer, or bigint")
+				if declaration.identity != nil && u.Type.ID() != sqltype.Int2 && u.Type.ID() != sqltype.Int4 && u.Type.ID() != sqltype.Int8 {
+					return b, sequenceOptionError("sequence type must be smallint, integer, or bigint")
 				}
 				declarations = append(declarations, declaration)
 				columns = append(columns, ColumnDescriptor{Name: c.Name, Usage: u, Nullable: true, NullabilityKnown: true})
@@ -464,12 +463,16 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 			for i, attribute := range b.relation.attributes {
 				identity, ok := b.relation.identities[attribute]
-				if !ok { continue }
-				b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage:b.relation.columns[i].Usage,properties:ExprProperties{Volatility:Volatile}},name:"nextval",ref:ObjectRef{owner:e.owner,Epoch:auth.catalog.Epoch(),Address:identity.sequence},identity:true}
+				if !ok {
+					continue
+				}
+				b.defaults[i] = sequenceCallExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, properties: ExprProperties{Volatility: Volatile}}, name: "nextval", ref: ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: identity.sequence}, identity: true}
 			}
 			if s.Override == parser.OverrideUser {
-				b.identityDiscard = make([]bool,len(b.relation.columns))
-				for i, attribute := range b.relation.attributes { _, b.identityDiscard[i] = b.relation.identities[attribute] }
+				b.identityDiscard = make([]bool, len(b.relation.columns))
+				for i, attribute := range b.relation.attributes {
+					_, b.identityDiscard[i] = b.relation.identities[attribute]
+				}
 			}
 		}
 		if s.Source != nil {
@@ -512,9 +515,11 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		// Retain a targeted default only if at least one row requests it.
 		// Explicit NULL is a bound expression, not a DEFAULT marker.
 		if len(b.defaults) != 0 {
-			remaining := len(b.relation.defaults)+len(b.relation.identities)
+			remaining := len(b.relation.defaults) + len(b.relation.identities)
 			for j, target := range b.targets {
-				if len(b.identityDiscard)!=0 && b.identityDiscard[target] { continue }
+				if len(b.identityDiscard) != 0 && b.identityDiscard[target] {
+					continue
+				}
 				if b.defaults[target] == nil {
 					continue
 				}

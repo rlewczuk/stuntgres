@@ -236,7 +236,7 @@ func TestFloatDiagnosticsAndAtomicity(t *testing.T) {
 	defer stmt.Close()
 	for _, tc := range []struct{ arg, code, message string }{{"oops", "22P02", `invalid input syntax for type real: "oops"`}, {"1e999", "22003", `"1e999" is out of range for type real`}, {"1e-46", "22003", `"1e-46" is out of range for type real`}} {
 		_, err = stmt.Exec(tc.arg)
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: tc.message, Context: "unnamed portal parameter $1 = '...'"})
 	}
 	execSQL(t, db, "INSERT INTO f VALUES('99','99')")
 	for _, q := range []string{"INSERT INTO f VALUES('1','1'),('oops','2')", "INSERT INTO f VALUES('1','1'),('2','1e999')"} {

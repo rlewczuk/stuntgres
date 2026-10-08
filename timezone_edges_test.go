@@ -60,7 +60,7 @@ func TestTimezoneBoundsInfinitiesAndProviderOffsets(t *testing.T) {
 	timezoneRows(t, c, "SELECT z::TEXT FROM tz_witness WHERE id=2", []string{"TEXT"}, [][]any{{"infinity"}})
 	for _, input := range []string{"2004-01-01 12:00+00:00:60", "2004-01-01 12:00-16"} {
 		_, err = c.ExecContext(ctx, "INSERT INTO tz_witness(z) VALUES($1)", input)
-		timeDiagnostic(t, err, stuntgres.Error{Code: "22009", Message: "time zone displacement out of range: \"" + input + "\"",Context:"unnamed portal parameter $1 = '...'"})
+		timeDiagnostic(t, err, stuntgres.Error{Code: "22009", Message: "time zone displacement out of range: \"" + input + "\"", Context: "unnamed portal parameter $1 = '...'"})
 	}
 	for _, sql := range []string{"INSERT INTO tz_witness(z) VALUES('2005-01-01+00'); INSERT INTO tz_witness(z) VALUES('2006-01-01+00')", "UPDATE tz_witness SET z='2005-01-01+00'; nonsense"} {
 		if _, err = c.ExecContext(ctx, sql); err == nil {
@@ -101,7 +101,7 @@ func TestTimezoneFiniteEndpointsAndWideDateComparison(t *testing.T) {
 	timezoneRows(t, c, "SELECT DATE '5874897-12-31'>v,v<DATE '5874897-12-31' FROM tz_witness", []string{"BOOL", "BOOL"}, [][]any{{true, true}, {true, true}})
 	for _, input := range []string{"4714-11-24 00:00+01 BC", "294276-12-31 23:59:59.999999-01"} {
 		_, err := c.ExecContext(context.Background(), "INSERT INTO tz_witness VALUES($1)", input)
-		timeDiagnostic(t, err, stuntgres.Error{Code: "22008", Message: "timestamp out of range: \"" + input + "\"",Context:"unnamed portal parameter $1 = '...'"})
+		timeDiagnostic(t, err, stuntgres.Error{Code: "22008", Message: "timestamp out of range: \"" + input + "\"", Context: "unnamed portal parameter $1 = '...'"})
 	}
 	timezoneRows(t, c, "SELECT count(*) FROM tz_witness", []string{"INT8"}, [][]any{{int64(2)}})
 }

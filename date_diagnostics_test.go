@@ -56,7 +56,7 @@ func TestDateDiagnosticsPhasesAndAtomicity(t *testing.T) {
 			}
 			timeDiagnostic(t, err, want)
 			want.Position = ""
-			want.Context="unnamed portal parameter $1 = '...'"
+			want.Context = "unnamed portal parameter $1 = '...'"
 			_, err = param.Exec(tc.input)
 			timeDiagnostic(t, err, want)
 			_, err = db.Exec("INSERT INTO d VALUES($1)", tc.input)
@@ -76,7 +76,7 @@ func TestDateDiagnosticsPhasesAndAtomicity(t *testing.T) {
 	_, err = db.Exec("INSERT INTO d VALUES('2000-02-29'),('bad')")
 	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: `invalid input syntax for type date: "bad"`, Position: "37"})
 	_, err = db.Exec("INSERT INTO d VALUES($1),($2)", "2000-02-29", "bad")
-	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: `invalid input syntax for type date: "bad"`,Context:"unnamed portal parameter $2 = '...'"})
+	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: `invalid input syntax for type date: "bad"`, Context: "unnamed portal parameter $2 = '...'"})
 	rows, err := db.Query("SELECT v FROM d")
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +142,7 @@ func TestDateTimeParameterRangeDiagnostics(t *testing.T) {
 							} else {
 								_, err = db.Exec(statement.query, tc.input)
 							}
-							timeDiagnostic(t, err, stuntgres.Error{Code: "22008", Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
+							timeDiagnostic(t, err, stuntgres.Error{Code: "22008", Message: tc.message, Context: "unnamed portal parameter $1 = '...'"})
 							rows, err := db.Query("SELECT v FROM d ORDER BY v")
 							if err != nil {
 								t.Fatal(err)

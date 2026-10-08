@@ -137,9 +137,9 @@ func TestSmallintSmoke(t *testing.T) {
 		{int64(-32769), "22003", `value "-32769" is out of range for type smallint`},
 	} {
 		_, err := bound.ExecContext(ctx, tc.raw)
-		diagnostic(err, stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
+		diagnostic(err, stuntgres.Error{Code: tc.code, Message: tc.message, Context: "unnamed portal parameter $1 = '...'"})
 		_, err = db.ExecContext(ctx, "INSERT INTO failures VALUES(1),($1)", tc.raw)
-		diagnostic(err, stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
+		diagnostic(err, stuntgres.Error{Code: tc.code, Message: tc.message, Context: "unnamed portal parameter $1 = '...'"})
 		check("SELECT * FROM failures", []string{"INT2"}, [][]any{{int64(99)}})
 	}
 	for _, q := range []string{"INSERT INTO failures VALUES(1),(32768)", "INSERT INTO failures VALUES(1),(-32769)"} {

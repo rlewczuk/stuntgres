@@ -116,7 +116,7 @@ func TestUUIDSmoke(t *testing.T) {
 		}
 	}
 	_, err = insert.Exec("bad")
-	if err := typeCoreDiagnostic(err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`,Context:"unnamed portal parameter $1 = '...'"}); err != nil {
+	if err := typeCoreDiagnostic(err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Context: "unnamed portal parameter $1 = '...'"}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = db.Exec("INSERT INTO u VALUES('00000000000000000000000000000000'),(NULL),('bad')")

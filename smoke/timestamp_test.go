@@ -395,14 +395,14 @@ func TestTimestampSmoke(t *testing.T) {
 		diagnostic(err, want)
 		atomic := "INSERT INTO decoder_forms VALUES(9,'epoch'),(10,$1)"
 		_, e = db.ExecContext(ctx, atomic, tc.input)
-		diagnostic(e, stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
+		diagnostic(e, stuntgres.Error{Code: tc.code, Message: tc.message, Context: "unnamed portal parameter $1 = '...'"})
 		prepared, err := db.PrepareContext(ctx, atomic)
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, e = prepared.ExecContext(ctx, tc.input)
 		prepared.Close()
-		diagnostic(e, stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
+		diagnostic(e, stuntgres.Error{Code: tc.code, Message: tc.message, Context: "unnamed portal parameter $1 = '...'"})
 		abortAtomic(tc.input, stuntgres.Error{Code: tc.code, Message: tc.message})
 		check("SELECT * FROM decoder_forms ORDER BY id", []string{"id", "v"}, []string{"INT4", "TIMESTAMP"}, forms)
 	}
@@ -454,7 +454,7 @@ func TestTimestampSmoke(t *testing.T) {
 		{time.Date(294277, 1, 1, 0, 0, 0, 0, time.FixedZone("west", -57599)), "22008", `timestamp out of range: "294277-01-01 00:00:00-15:59:59"`},
 	} {
 		for _, q := range []string{"INSERT INTO decoder_forms VALUES(13,$1)", "INSERT INTO decoder_forms VALUES(13,'epoch'),(14,$1)"} {
-			want := stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"}
+			want := stuntgres.Error{Code: tc.code, Message: tc.message, Context: "unnamed portal parameter $1 = '...'"}
 			_, e = db.ExecContext(ctx, q, tc.input)
 			diagnostic(e, want)
 			prepared, err := db.PrepareContext(ctx, q)

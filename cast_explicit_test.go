@@ -374,9 +374,11 @@ func TestCastExplicitPreparedFrames(t *testing.T) {
 			rows.Close()
 			t.Fatal("bad input exposed cursor")
 		}
-		want:=stuntgres.Error{Code:"22P02",Message:`invalid input syntax for type integer: "oops"`}
-		if q=="SELECT $1::int4 FROM t" {want.Context="unnamed portal parameter $1 = '...'"}
-		typeCoreDiagnostic(t,err,want)
+		want := stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}
+		if q == "SELECT $1::int4 FROM t" {
+			want.Context = "unnamed portal parameter $1 = '...'"
+		}
+		typeCoreDiagnostic(t, err, want)
 		s.Close()
 	}
 }

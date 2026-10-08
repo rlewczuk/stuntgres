@@ -192,7 +192,7 @@ func typeCoreRun() error {
 		}
 		_, e = bound.ExecContext(ctx, tc.text)
 		bound.Close()
-		if err = typeCoreDiagnostic(e, stuntgres.Error{Code: tc.code, Message: message,Context:"unnamed portal parameter $1 = '...'"}); err != nil {
+		if err = typeCoreDiagnostic(e, stuntgres.Error{Code: tc.code, Message: message, Context: "unnamed portal parameter $1 = '...'"}); err != nil {
 			return err
 		}
 	}

@@ -276,7 +276,7 @@ func TestUUIDDiagnosticsAndAtomicity(t *testing.T) {
 			if arg == true {
 				text = "true"
 			}
-			want := stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "` + text + `"`,Context:"unnamed portal parameter $1 = '...'"}
+			want := stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "` + text + `"`, Context: "unnamed portal parameter $1 = '...'"}
 			_, err = db.Exec(q, arg)
 			typeCoreDiagnostic(t, err, want)
 			_, err = stmt.Exec(arg)
@@ -501,7 +501,7 @@ func TestUUIDAuthorization(t *testing.T) {
 		}{
 			{"SELECT v FROM u", nil, stuntgres.Error{Code: "42501", Message: "permission denied for table u"}},
 			{"INSERT INTO u VALUES($1)", []any{uuidA}, stuntgres.Error{Code: "42501", Message: "permission denied for table u"}},
-			{"INSERT INTO u VALUES($1)", []any{"bad"}, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`,Context:"unnamed portal parameter $1 = '...'"}},
+			{"INSERT INTO u VALUES($1)", []any{"bad"}, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Context: "unnamed portal parameter $1 = '...'"}},
 			{"INSERT INTO u VALUES('a0eebc999c0b4ef8bb6d6bb9bd380a11')", nil, stuntgres.Error{Code: "42501", Message: "permission denied for table u"}},
 		} {
 			var err error
@@ -564,6 +564,6 @@ func TestUUIDQueryDiagnosticHasNoCursor(t *testing.T) {
 			rows.Close()
 			t.Fatal("failed bound query exposed cursor")
 		}
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`,Context:"unnamed portal parameter $1 = '...'"})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Context: "unnamed portal parameter $1 = '...'"})
 	}
 }

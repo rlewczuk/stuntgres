@@ -478,24 +478,24 @@ func TestTimestampDiagnosticsPhasesAndAtomicity(t *testing.T) {
 				typeCoreDiagnostic(t, e, want)
 			}
 			_, e := db.Exec("INSERT INTO t VALUES($1)", tc.input)
-			typeCoreDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint,Context:"unnamed portal parameter $1 = '...'"})
+			typeCoreDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Context: "unnamed portal parameter $1 = '...'"})
 			stmt, e := db.Prepare("INSERT INTO t VALUES($1)")
 			if e != nil {
 				t.Fatal(e)
 			}
 			_, e = stmt.Exec(tc.input)
 			stmt.Close()
-			typeCoreDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint,Context:"unnamed portal parameter $1 = '...'"})
+			typeCoreDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Context: "unnamed portal parameter $1 = '...'"})
 			atomic := "INSERT INTO t VALUES('2000-01-01'),($1)"
 			_, e = db.Exec(atomic, tc.input)
-			typeCoreDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint,Context:"unnamed portal parameter $1 = '...'"})
+			typeCoreDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Context: "unnamed portal parameter $1 = '...'"})
 			stmt, e = db.Prepare(atomic)
 			if e != nil {
 				t.Fatal(e)
 			}
 			_, e = stmt.Exec(tc.input)
 			stmt.Close()
-			typeCoreDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint,Context:"unnamed portal parameter $1 = '...'"})
+			typeCoreDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Context: "unnamed portal parameter $1 = '...'"})
 			timestampQuery(t, db, "SELECT v FROM t", []string{"v"}, []string{"TIMESTAMP"}, [][]any{{time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC)}})
 		})
 	}
@@ -545,7 +545,7 @@ func TestTimestampTimeParameterRangeDiagnostics(t *testing.T) {
 		{time.Date(294277, 1, 1, 0, 0, 0, 0, time.FixedZone("west", -57599)), "22008", `timestamp out of range: "294277-01-01 00:00:00-15:59:59"`},
 	} {
 		for _, q := range []string{"INSERT INTO t VALUES($1)", "INSERT INTO t VALUES('2000-01-01'),($1)"} {
-			want := stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"}
+			want := stuntgres.Error{Code: tc.code, Message: tc.message, Context: "unnamed portal parameter $1 = '...'"}
 			_, err := db.Exec(q, tc.input)
 			typeCoreDiagnostic(t, err, want)
 			stmt, err := db.Prepare(q)
@@ -646,7 +646,7 @@ func TestTimestampNewInputErrorsAbortTransaction(t *testing.T) {
 		}
 		defer tx.Rollback()
 		_, err = tx.Exec("INSERT INTO t VALUES('2000-01-01'),($1)", tc.input)
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint,Context:"unnamed portal parameter $1 = '...'"})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Context: "unnamed portal parameter $1 = '...'"})
 		_, err = tx.Exec("SELECT v FROM t")
 		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
 		_, err = tx.Exec("INSERT INTO t VALUES('epoch')")

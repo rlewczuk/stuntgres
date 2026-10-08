@@ -725,12 +725,12 @@ func TestInsertImplicitShortPreparedIntegerRange(t *testing.T) {
 			got.Schema != "" || got.Table != "" || got.Column != "" {
 			t.Fatalf("%s: execution diagnostic: %+v (%v)", query, got, err)
 		}
-		assertImplicitErrorBoundary(t, got,"")
+		assertImplicitErrorBoundary(t, got, "")
 		wantTuples(t, db, "SELECT * FROM t ORDER BY id", [][]any{{int64(99), nil}})
 	}
 }
 
-func assertImplicitErrorBoundary(t *testing.T, got *stuntgres.Error,context string) {
+func assertImplicitErrorBoundary(t *testing.T, got *stuntgres.Error, context string) {
 	t.Helper()
 	if got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" ||
 		got.InternalPosition != "" || got.InternalQuery != "" || got.Context != context ||
@@ -773,7 +773,7 @@ func TestInsertImplicitShortDiagnostics(t *testing.T) {
 			if position > 0 {
 				wantPosition = fmt.Sprint(position)
 			}
-			assertImplicitErrorBoundary(t, got,"")
+			assertImplicitErrorBoundary(t, got, "")
 			if got.Code != code || got.Message != message || got.Position != wantPosition || got.Detail != detail || got.Hint != hint || got.Schema != schema || got.Table != table || got.Column != column {
 				t.Fatalf("%s (prepared=%v): diagnostic=%+v", query, prepared, got)
 			}
@@ -831,7 +831,7 @@ func TestInsertImplicitShortDiagnostics(t *testing.T) {
 		if !errors.As(err, &got) || got.Code != "22P02" || got.Message != `invalid input syntax for type integer: "oops"` || got.Position != "" || got.Detail != "" || got.Hint != "" || got.Schema != "" || got.Table != "" || got.Column != "" {
 			t.Fatalf("parameter diagnostic (prepared=%v): %+v (%v)", prepared, got, err)
 		}
-		assertImplicitErrorBoundary(t, got,"unnamed portal parameter $2 = '...'")
+		assertImplicitErrorBoundary(t, got, "unnamed portal parameter $2 = '...'")
 		wantTuples(t, db, "SELECT * FROM t ORDER BY id", [][]any{{int64(99), nil, nil, nil}})
 	}
 	execSQL(t, db, "CREATE TABLE clip(label TEXT,flag BOOL,required INT NOT NULL)")
@@ -841,7 +841,7 @@ func TestInsertImplicitShortDiagnostics(t *testing.T) {
 	if !errors.As(err, &got) || got.Code != "23502" || got.Message != `null value in column "required" of relation "clip" violates not-null constraint` || got.Detail != "Failing row contains ("+strings.Repeat("é", 32)+"..., t, null)." || got.Hint != "" || got.Position != "" || got.Schema != "public" || got.Table != "clip" || got.Column != "required" {
 		t.Fatalf("UTF-8 clipped row detail: %#v (%v)", got, err)
 	}
-	assertImplicitErrorBoundary(t, got,"")
+	assertImplicitErrorBoundary(t, got, "")
 }
 
 func TestInsertImplicitShortQuotedDiagnostics(t *testing.T) {
@@ -874,7 +874,7 @@ func TestInsertImplicitShortQuotedDiagnostics(t *testing.T) {
 				got.Schema != "" || got.Table != "" || got.Column != "" {
 				t.Fatalf("%s (prepared=%v): diagnostic=%+v (%v)", tc.query, prepared, got, err)
 			}
-			assertImplicitErrorBoundary(t, got,"")
+			assertImplicitErrorBoundary(t, got, "")
 			wantTuples(t, db, `SELECT * FROM "t""é" ORDER BY "a""b"`, [][]any{{int64(99), "sentinel", true}})
 		}
 	}
@@ -963,7 +963,9 @@ func TestErrorFieldsConversion(t *testing.T) {
 					Severity: "ERROR", SeverityUnlocalized: "ERROR",
 					Code: tc.code, Message: tc.message,
 				}
-				if len(tc.args)>0 {want.Context="unnamed portal parameter $1 = '...'"}
+				if len(tc.args) > 0 {
+					want.Context = "unnamed portal parameter $1 = '...'"
+				}
 				if !errors.As(err, &got) || *got != want {
 					t.Fatalf("conversion diagnostic = %#v (%v), want %#v", got, err, want)
 				}
@@ -1878,10 +1880,10 @@ var booleanInvalidInputs = []struct{ source, value, message string }{
 	{"'a\nb'", "a\nb", "invalid input syntax for type boolean: \"a\nb\""},
 }
 
-func wantBooleanDiagnostic(t *testing.T, err error, message, position,context string) {
+func wantBooleanDiagnostic(t *testing.T, err error, message, position, context string) {
 	t.Helper()
 	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02",
-		Message: message, Position: position,Context:context}
+		Message: message, Position: position, Context: context}
 	var origin *stuntgres.Error
 	for depth := range 3 {
 		var got *stuntgres.Error
@@ -1950,7 +1952,7 @@ func TestBooleanDiagnosticsLiterals(t *testing.T) {
 	execSQL(t, db, "CREATE TABLE b(id INT,flag BOOL)")
 	// Binding must fail even before there are any rows to evaluate.
 	wantBooleanDiagnostic(t, booleanFailure(t, db, "SELECT id FROM b WHERE flag='o'", "query"),
-		`invalid input syntax for type boolean: "o"`, "29","")
+		`invalid input syntax for type boolean: "o"`, "29", "")
 	execSQL(t, db, "INSERT INTO b VALUES (99,TRUE)")
 	for _, input := range booleanInvalidInputs {
 		for _, operation := range []string{"exec", "query", "prepare"} {
@@ -1958,7 +1960,7 @@ func TestBooleanDiagnosticsLiterals(t *testing.T) {
 				{"INSERT INTO b VALUES (1," + input.source + ")", "25"},
 				{"SELECT id FROM b WHERE flag=" + input.source, "29"},
 			} {
-				wantBooleanDiagnostic(t, booleanFailure(t, db, query.sql, operation), input.message, query.position,"")
+				wantBooleanDiagnostic(t, booleanFailure(t, db, query.sql, operation), input.message, query.position, "")
 				wantTuples(t, db, "SELECT id,flag FROM b", [][]any{{int64(99), true}})
 			}
 		}
@@ -1971,7 +1973,7 @@ func TestBooleanDiagnosticsLiterals(t *testing.T) {
 		{"SELECT id FROM b WHERE flag='tr'\n'uth'", `invalid input syntax for type boolean: "truth"`, "29"},
 	} {
 		for _, operation := range []string{"exec", "query", "prepare"} {
-			wantBooleanDiagnostic(t, booleanFailure(t, db, tc.query, operation), tc.message, tc.position,"")
+			wantBooleanDiagnostic(t, booleanFailure(t, db, tc.query, operation), tc.message, tc.position, "")
 		}
 	}
 }
@@ -1981,7 +1983,10 @@ func TestBooleanDiagnosticsParameters(t *testing.T) {
 	execSQL(t, db, "CREATE TABLE b(id INT,flag BOOL)")
 	execSQL(t, db, "INSERT INTO b VALUES (99,TRUE)")
 	for _, input := range booleanInvalidInputs {
-		quoted:="'...'";if input.value==""{quoted="''"}
+		quoted := "'...'"
+		if input.value == "" {
+			quoted = "''"
+		}
 		for _, value := range []any{input.value, []byte(input.value)} {
 			for _, operation := range []string{"exec", "query", "prepared"} {
 				wantBooleanDiagnostic(t, booleanFailure(t, db, "INSERT INTO b VALUES ($1,$2)", operation, 1, value), input.message, "", "unnamed portal parameter $2 = "+quoted)
@@ -2067,7 +2072,7 @@ func TestBooleanDiagnosticsAtomicity(t *testing.T) {
 	execSQL(t, db, "INSERT INTO b VALUES (99,TRUE)")
 	for _, operation := range []string{"exec", "query", "prepare"} {
 		wantBooleanDiagnostic(t, booleanFailure(t, db, "INSERT INTO b VALUES (1,TRUE),(2,'o')", operation),
-			`invalid input syntax for type boolean: "o"`, "34","")
+			`invalid input syntax for type boolean: "o"`, "34", "")
 		wantTuples(t, db, "SELECT id,flag FROM b", [][]any{{int64(99), true}})
 		wantBooleanMetadata(t, db, "SELECT flag FROM b")
 	}

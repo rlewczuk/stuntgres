@@ -236,11 +236,13 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 					}
 					n.sequence = &o
 				}
-				if len(r.identities)!=0 {
-					n.identities=make(map[int32]columnIdentity,len(r.identities))
+				if len(r.identities) != 0 {
+					n.identities = make(map[int32]columnIdentity, len(r.identities))
 					for attribute, identity := range r.identities {
-						if destination, ok := mapping[identity.sequence]; ok { identity.sequence=destination }
-						n.identities[attribute]=identity
+						if destination, ok := mapping[identity.sequence]; ok {
+							identity.sequence = destination
+						}
+						n.identities[attribute] = identity
 					}
 				}
 				d = &n

@@ -325,7 +325,7 @@ func settingsRun() error {
 			return err
 		}
 		e := settingsCommand(ctx, a, "SELECT set_config($1,$2,$3)", prepared, 1, "application_name", "changed", "maybe")
-		if err = settingsFullDiagnostic(e, stuntgres.Error{Severity:"ERROR",SeverityUnlocalized:"ERROR",Code:"22P02",Message:`invalid input syntax for type boolean: "maybe"`,Context:"unnamed portal parameter $3 = '...'"}); err != nil {
+		if err = settingsFullDiagnostic(e, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `invalid input syntax for type boolean: "maybe"`, Context: "unnamed portal parameter $3 = '...'"}); err != nil {
 			return err
 		}
 	}

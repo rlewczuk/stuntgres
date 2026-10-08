@@ -78,7 +78,7 @@ func TestNumericDiagnosticsAndExecutionSizing(t *testing.T) {
 			code, message = "22003", "value overflows numeric format"
 		}
 		_, err := db.Exec("INSERT INTO n VALUES($1)", arg)
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: code, Message: message,Context:"unnamed portal parameter $1 = '...'"})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: code, Message: message, Context: "unnamed portal parameter $1 = '...'"})
 	}
 	q := "/*😀é*/ SELECT 1.2__3 FROM n"
 	_, err := db.Query(q)

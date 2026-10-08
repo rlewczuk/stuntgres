@@ -56,7 +56,12 @@ func TestIntervalISOUnderflowPublic(t *testing.T) {
 					} else {
 						_, err = db.Exec(parameter.q, parameter.args...)
 					}
-					want:=base;want.Context="unnamed portal parameter $1 = '...'";if len(parameter.args)==2{want.Context="unnamed portal parameter $2 = '...'"};intervalPublicBoundaryError(t, err, want)
+					want := base
+					want.Context = "unnamed portal parameter $1 = '...'"
+					if len(parameter.args) == 2 {
+						want.Context = "unnamed portal parameter $2 = '...'"
+					}
+					intervalPublicBoundaryError(t, err, want)
 					sentinel()
 				}
 			}
@@ -155,7 +160,7 @@ func TestIntervalISOUnderflowSessionIsolation(t *testing.T) {
 			} else {
 				_, err = a.ExecContext(ctx, q, "PT0x1p0S", tc.input)
 			}
-			intervalPublicBoundaryError(t, err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.primary + ": \"" + tc.input + "\"",Context:"unnamed portal parameter $2 = '...'"})
+			intervalPublicBoundaryError(t, err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.primary + ": \"" + tc.input + "\"", Context: "unnamed portal parameter $2 = '...'"})
 			var own, peer string
 			if err = a.QueryRowContext(ctx, "SHOW IntervalStyle").Scan(&own); err != nil || own != "sql_standard" {
 				t.Fatal(own, err)
@@ -345,7 +350,12 @@ func TestIntervalISONumberDiagnosticsPublic(t *testing.T) {
 						} else {
 							_, err = db.Exec(parameter.q, parameter.args...)
 						}
-						want:=base;want.Context="unnamed portal parameter $1 = '...'";if len(parameter.args)==2{want.Context="unnamed portal parameter $2 = '...'"};intervalPublicBoundaryError(t, err, want)
+						want := base
+						want.Context = "unnamed portal parameter $1 = '...'"
+						if len(parameter.args) == 2 {
+							want.Context = "unnamed portal parameter $2 = '...'"
+						}
+						intervalPublicBoundaryError(t, err, want)
 						sentinel()
 					}
 				}

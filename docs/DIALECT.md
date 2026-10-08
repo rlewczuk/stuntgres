@@ -396,11 +396,21 @@ override is present. `OVERRIDING SYSTEM VALUE` preserves supplied values;
 Single ordinary VALUES binds discarded inputs and imports inferred parameters,
 but does not execute their runtime conversion or volatile producer. Its remaining
 supplied/default/identity expressions execute in destination attribute order, even
-with reordered INSERT targets. Multirow VALUES and query sources evaluate each
-demanded source row before that row's identity projection; they execute discarded
-identity expressions. DEFAULT VALUES does not admit an override clause.
+with reordered INSERT targets. Multirow ordinary VALUES demands every reached
+source row, including discarded identity expressions, before that row's identity
+projection. SELECT and singleton decorated VALUES prune unused nonvolatile
+identity outputs after full analysis/inference/import; volatile outputs and
+independent ORDER consumers remain demanded. Decorated multirow VALUES retains
+all source-cell demand, including with LIMIT or ordering another column.
+Complete destination rows are checked for NOT NULL and CHECK before the next
+runtime identity row is demanded. Supplied statement-wide conversion preflight
+still precedes executor constraints; only one fully constrained batch publishes.
+DEFAULT VALUES does not admit an override clause.
 Identity generation updates physical-session currval/lastval using sequence cache
 and allocation authority; explicit bypass and empty sources consume no values.
+An early constraint failure retains already-demanded sequence effects, never
+demands later runtime rows, and cannot be masked by their sequence exhaustion.
+Failure-demand smoke: `make smoke RUN='^TestIdentityFailureDemandSmoke$' VERBOSE=0`.
 
 ALTER COLUMN ADD/DROP IDENTITY, SET GENERATED, SET sequence options and RESTART
 compose with admitted nullability/drop-column actions and support transactions/

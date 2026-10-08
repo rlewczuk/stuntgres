@@ -38,6 +38,14 @@ definitions; peers and Dump see committed state. Rollback restores definitions a
 private restarts, not live allocations already consumed by ordinary identity INSERT.
 DROP retains existing rows and NOT NULL. Native savepoint rollback conservatively
 retains locks until outer transaction end, not PostgreSQL subtransaction lock parity.
+Ordinary identity VALUES constrains each complete projected row (NOT NULL, then
+CHECK) before demanding the next runtime row. An earlier violation retains that
+row's already-demanded sequence/session effects but does not consume later
+identity or side-sequence producers. Whole-statement analysis, inferred-parameter
+import and supplied conversion preflight remain earlier; successful rows still
+publish as one atomic batch, never incrementally. USER override prunes only unused
+nonvolatile singleton/query projections, preserving independently ordered and
+volatile source demand; decorated multirow VALUES remains fully source-demanded.
 
 UPDATE evaluates its RHS once after actual row-lock wait/recheck, using the
 initiating statement's sequence scope; it never replays sequence effects.

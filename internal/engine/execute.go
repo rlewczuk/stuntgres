@@ -299,7 +299,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			for i, row := range b.expressions {
 				var privateRow []BoundExpr
 				for j, expression := range row {
-					if len(b.expressions) == 1 && len(b.identityDiscard) != 0 && b.identityDiscard[b.targets[j]] { continue }
+					if len(b.expressions) == 1 && len(b.identityDiscard) != 0 && b.identityDiscard[b.targets[j]] {
+						continue
+					}
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
 						return Result{}, insertValueError(auth.catalog, foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j], nil)
@@ -462,6 +464,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if err = evaluateIdentityValuesRow(auth.catalog, &b, expressions[i], source, row, len(s.Rows) > 1, &evaluation); err != nil {
 					return Result{}, err
 				}
+				schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
+					return Result{}, err
+				}
 				rows[i] = row
 				continue
 			}
@@ -495,26 +501,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			rows[i] = row
 		}
 		// Supplied frame-only conversions have already folded before ACL
-		// checks; executor constraints must not mask their failures. Defaults
-		// execute per row after authorization, before staged write publication.
-		for _, row := range rows {
-			if err = ctx.Err(); err != nil {
-				return Result{}, err
-			}
-			for j, c := range b.relation.columns {
-				if row[j].IsNull() && !c.Nullable {
-					schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
-					return Result{}, notNullError(schema, b.relation.name, c.Name, row, scope.output)
-				}
-			}
-			if len(b.relation.checkConstraints) != 0 {
-				constraint, checkErr := validateCheckRow(b.relation, row, &evaluation)
-				if checkErr != nil {
-					return Result{}, checkErr
-				}
-				if constraint != nil {
-					schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
-					return Result{}, e.rowConstraintError(scope, b, schema, "", constraint.Name, row)
+		// checks. Identity rows were constrained before advancing their runtime
+		// source; ordinary default scheduling retains its existing batch frontier.
+		if len(b.insertProjection) == 0 {
+			schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+			for _, row := range rows {
+				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
+					return Result{}, err
 				}
 			}
 		}
@@ -559,4 +552,27 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	e.mu.Unlock()
 	return Result{}, sqlError("0A000", "unsupported statement")
+}
+
+// A complete projected row is constrained before another identity source row
+// is demanded. This does not publish rows: the caller still stages one batch.
+func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema string, row []sqltype.Value, evaluation *EvalContext) error {
+	if err := evaluation.Context.Err(); err != nil {
+		return err
+	}
+	for j, column := range b.relation.columns {
+		if row[j].IsNull() && !column.Nullable {
+			return notNullError(schema, b.relation.name, column.Name, row, scope.output)
+		}
+	}
+	if len(b.relation.checkConstraints) != 0 {
+		constraint, err := validateCheckRow(b.relation, row, evaluation)
+		if err != nil {
+			return err
+		}
+		if constraint != nil {
+			return e.rowConstraintError(scope, b, schema, "", constraint.Name, row)
+		}
+	}
+	return nil
 }

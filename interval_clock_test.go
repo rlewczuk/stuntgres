@@ -126,7 +126,7 @@ func TestIntervalClockEndpointSessionAtomicity(t *testing.T) {
 			} else {
 				_, err = a.ExecContext(ctx, q, "1 second", "-2562047788:00:54.775808")
 			}
-			intervalPublicBoundaryError(t, err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22007", Message: "invalid input syntax for type interval: \"-2562047788:00:54.775808\"",Context:"unnamed portal parameter $2 = '...'"})
+			intervalPublicBoundaryError(t, err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22007", Message: "invalid input syntax for type interval: \"-2562047788:00:54.775808\"", Context: "unnamed portal parameter $2 = '...'"})
 			var style, out string
 			if err := a.QueryRowContext(ctx, "SHOW IntervalStyle").Scan(&style); err != nil || style != own.name {
 				t.Fatal(style, err)

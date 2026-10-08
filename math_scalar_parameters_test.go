@@ -26,7 +26,7 @@ func TestMathScalarHeldParameterContracts(t *testing.T) {
 			args = append(args, "2")
 		}
 		_, err = s.Exec(args...)
-		typeCoreDiagnostic(t,err,stuntgres.Error{Code:"22P02",Message:tc.message,Context:"unnamed portal parameter $1 = '...'"})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: tc.message, Context: "unnamed portal parameter $1 = '...'"})
 		for _, input := range []any{tc.good, nil, tc.good} {
 			args[0] = input
 			rows, err := s.Query(args...)

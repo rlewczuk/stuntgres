@@ -40,7 +40,8 @@ type sourceNode struct {
 type singletonNode struct{ querySchema }
 type valuesNode struct {
 	querySchema
-	rows [][]BoundExpr
+	rows                [][]BoundExpr
+	identityOrderDemand []bool // Only singleton USER identity VALUES need pruning.
 }
 type filterNode struct {
 	querySchema

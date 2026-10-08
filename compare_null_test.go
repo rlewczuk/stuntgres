@@ -203,7 +203,7 @@ func TestCompareNullHeldParameters(t *testing.T) {
 			rows.Close()
 			t.Fatal("failed bind exposed cursor")
 		}
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`,Context:"unnamed portal parameter $1 = '...'"})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`, Context: "unnamed portal parameter $1 = '...'"})
 		stmt.Close()
 	}
 	for _, q := range []string{"SELECT $1 IS DISTINCT FROM $2 FROM t", "SELECT $1 IS DISTINCT FROM $1 FROM t"} {

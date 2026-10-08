@@ -266,7 +266,7 @@ func TestCompareOpsDiagnostics(t *testing.T) {
 					rows.Close()
 					t.Fatal("bad parameter exposed cursor")
 				}
-				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`,Context:"unnamed portal parameter $1 = '...'"})
+				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`, Context: "unnamed portal parameter $1 = '...'"})
 			}
 		})
 	}

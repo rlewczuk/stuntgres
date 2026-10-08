@@ -61,7 +61,7 @@ func TestBitwiseComputedMetadataAndParameterFrames(t *testing.T) {
 		if rows != nil {
 			rows.Close()
 		}
-		arithmeticError(t, err, stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
+		arithmeticError(t, err, stuntgres.Error{Code: tc.code, Message: tc.message, Context: "unnamed portal parameter $1 = '...'"})
 	}
 	for _, arg := range []any{3, nil, 1} {
 		var a, b any

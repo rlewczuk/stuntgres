@@ -41,8 +41,10 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	}
 	attr := old.attributes[slot]
 	if _, ok := old.identities[attr]; ok {
-		diagnostic := sqlError("42601",fmt.Sprintf(`column "%s" of relation "%s" is an identity column`,s.Column.Text,old.name)).(*sqlstate.Error)
-		if s.Action == parser.DropDefault { diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP IDENTITY instead." }
+		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.name)).(*sqlstate.Error)
+		if s.Action == parser.DropDefault {
+			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP IDENTITY instead."
+		}
 		return fail(diagnostic)
 	}
 	var definition columnDefault

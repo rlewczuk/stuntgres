@@ -92,7 +92,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		seen[slot] = true
 		if identity, ok := b.relation.identities[b.relation.attributes[slot]]; ok && identity.mode == parser.IdentityAlways {
 			diagnostic := identityInsertError(a.Target.Text).(*sqlstate.Error)
-			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`,a.Target.Text)
+			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, a.Target.Text)
 			diagnostic.Hint = ""
 			return diagnostic
 		}

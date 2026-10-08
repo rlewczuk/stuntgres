@@ -93,6 +93,11 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 		if output >= 0 {
 			projection[output] = expression
 		}
+		if demand := b.queryNamespace.identityValuesOrderDemand; len(demand) != 0 {
+			if column, ok := expression.(columnExpression); ok {
+				demand[column.slot] = true
+			}
+		}
 		keys[i] = sortKey{
 			expression: expression,
 			position:   raw.Pos.Character,

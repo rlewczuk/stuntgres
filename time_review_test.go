@@ -43,7 +43,7 @@ func TestTimeReviewClockPrecedence(t *testing.T) {
 				}
 				timeDiagnostic(t, err, want)
 				want.Position = ""
-				want.Context="unnamed portal parameter $1 = '...'"
+				want.Context = "unnamed portal parameter $1 = '...'"
 				_, err = db.Exec(parameter, tc.input)
 				timeDiagnostic(t, err, want)
 				stmt, err = db.Prepare(parameter)

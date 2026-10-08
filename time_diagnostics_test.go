@@ -56,7 +56,7 @@ func TestTimeDiagnosticsPhasesAndAtomicity(t *testing.T) {
 			}
 			timeDiagnostic(t, err, want)
 			want.Position = ""
-			want.Context="unnamed portal parameter $1 = '...'"
+			want.Context = "unnamed portal parameter $1 = '...'"
 			_, err = param.Exec(tc.input)
 			timeDiagnostic(t, err, want)
 			_, err = db.Exec("INSERT INTO t VALUES($1)", tc.input)
@@ -72,7 +72,7 @@ func TestTimeDiagnosticsPhasesAndAtomicity(t *testing.T) {
 		_, err = db.Prepare(q)
 		timeDiagnostic(t, err, want)
 		want.Position = ""
-		want.Context="unnamed portal parameter $1 = '...'"
+		want.Context = "unnamed portal parameter $1 = '...'"
 		_, err = param.Exec(input)
 		timeDiagnostic(t, err, want)
 		_, err = db.Exec("INSERT INTO t VALUES($1)", input)

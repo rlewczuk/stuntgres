@@ -308,9 +308,10 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		for _, option := range s.Options {
 			if option.Name == "owned" {
 				if old.sequence.identity {
-					a := old.sequence.owned; a.SubID = 0
+					a := old.sequence.owned
+					a.SubID = 0
 					table := auth.catalog.state.descriptors[a].(*relationDescriptor)
-					return Result{}, &sqlstate.Error{Severity:"ERROR",SeverityUnlocalized:"ERROR",Code:"0A000",Message:"cannot change ownership of identity sequence",Detail:fmt.Sprintf(`Sequence "%s" is linked to table "%s".`,old.name,table.name)}
+					return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot change ownership of identity sequence", Detail: fmt.Sprintf(`Sequence "%s" is linked to table "%s".`, old.name, table.name)}
 				}
 				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, &d, option.Owned)
 				if err != nil {
@@ -451,7 +452,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		}
 		if d.sequence.identity {
 			e.mu.Unlock()
-			return Result{}, identitySequenceDropError(auth.catalog,d)
+			return Result{}, identitySequenceDropError(auth.catalog, d)
 		}
 		refs = append(refs, ref)
 	}
@@ -500,7 +501,9 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if err = sequenceDropOwner(auth, ref, d); err != nil {
 			return Result{}, err
 		}
-		if d.sequence.identity { return Result{}, identitySequenceDropError(auth.catalog,d) }
+		if d.sequence.identity {
+			return Result{}, identitySequenceDropError(auth.catalog, d)
+		}
 		e.catalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.generators, ref.Address)
 	}

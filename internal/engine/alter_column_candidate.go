@@ -89,9 +89,11 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 		}
 	}
 	if _, exists := old.identities[old.attributes[slot]]; exists {
-		next.identities = make(map[int32]columnIdentity,len(old.identities)-1)
+		next.identities = make(map[int32]columnIdentity, len(old.identities)-1)
 		for attribute, identity := range old.identities {
-			if attribute != old.attributes[slot] { next.identities[attribute] = identity }
+			if attribute != old.attributes[slot] {
+				next.identities[attribute] = identity
+			}
 		}
 	}
 	if _, exists := old.columnACL[old.attributes[slot]]; exists {

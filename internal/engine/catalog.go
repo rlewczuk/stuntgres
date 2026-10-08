@@ -7,8 +7,8 @@ import (
 	"math"
 	"sort"
 	"strings"
-	"stuntgres/internal/sqltype"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 	"unicode/utf8"
 )
 
@@ -255,7 +255,12 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	}
 	for attribute, identity := range r.identities {
 		slot := -1
-		for i, live := range r.attributes { if live == attribute { slot=i;break } }
+		for i, live := range r.attributes {
+			if live == attribute {
+				slot = i
+				break
+			}
+		}
 		if slot < 0 || identity.mode != parser.IdentityAlways && identity.mode != parser.IdentityByDefault {
 			return fmt.Errorf("stuntgres: invalid column identity")
 		}
@@ -264,9 +269,12 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if column.Nullable || !column.NullabilityKnown || id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
 			return fmt.Errorf("stuntgres: invalid identity column type or nullability")
 		}
-		if _, exists := r.defaults[attribute]; exists { return fmt.Errorf("stuntgres: identity column has default") }
+		if _, exists := r.defaults[attribute]; exists {
+			return fmt.Errorf("stuntgres: identity column has default")
+		}
 		sequence, exists := v.state.descriptors[identity.sequence].(*relationDescriptor)
-		owned:=r.address;owned.SubID=attribute
+		owned := r.address
+		owned.SubID = attribute
 		if !exists || sequence.sequence == nil || !sequence.sequence.identity || sequence.sequence.owned != owned || sequence.owner != r.owner || sequence.namespace != r.namespace {
 			return fmt.Errorf("stuntgres: invalid column identity sequence")
 		}
@@ -331,24 +339,24 @@ type catalogRowShape struct {
 }
 
 type CatalogStage struct {
-	owner              *Engine
-	base               CatalogRead
-	descriptors        map[ObjectAddress]Descriptor
-	names              map[NameKey]ObjectAddress
-	touched            map[NameKey]ObjectAddress
-	removals           map[ObjectAddress]catalogRemoval
-	rowShapes          map[ObjectAddress]catalogRowShape
-	oldNames           map[NameKey]bool
-	generators         map[ObjectAddress]*sequenceGenerator
-	identityOriginals  map[ObjectAddress]Descriptor
+	owner                *Engine
+	base                 CatalogRead
+	descriptors          map[ObjectAddress]Descriptor
+	names                map[NameKey]ObjectAddress
+	touched              map[NameKey]ObjectAddress
+	removals             map[ObjectAddress]catalogRemoval
+	rowShapes            map[ObjectAddress]catalogRowShape
+	oldNames             map[NameKey]bool
+	generators           map[ObjectAddress]*sequenceGenerator
+	identityOriginals    map[ObjectAddress]Descriptor
 	identityDependencies []catalogDependencyObservation
-	lifecycle          catalogLifecycle
-	invalid            error
-	authSession        *Session
-	authRevision       uint64
-	roleRevision       uint64
-	schemaCascadeNames []string
-	viewCascadeNames   []string
+	lifecycle            catalogLifecycle
+	invalid              error
+	authSession          *Session
+	authRevision         uint64
+	roleRevision         uint64
+	schemaCascadeNames   []string
+	viewCascadeNames     []string
 }
 type PreparedCatalogPublication struct {
 	stage *CatalogStage

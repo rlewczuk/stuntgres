@@ -166,7 +166,7 @@ func TestIntervalSmoke(t *testing.T) {
 	}
 	_, err = stmt.ExecContext(ctx, 9, "invalid", nil, nil)
 	var diagnostic *stuntgres.Error
-	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22007", Message: "invalid input syntax for type interval: \"invalid\"",Context:"unnamed portal parameter $2 = '...'"}
+	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22007", Message: "invalid input syntax for type interval: \"invalid\"", Context: "unnamed portal parameter $2 = '...'"}
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatal(err, want)
 	}

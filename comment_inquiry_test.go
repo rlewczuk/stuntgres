@@ -257,7 +257,10 @@ func TestCommentInquiryDiagnostics(t *testing.T) {
 			typ = "integer"
 		}
 		want := &stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `invalid input syntax for type ` + typ + `: "bad"`}
-		want.Context="unnamed portal parameter $1 = '...'";if args[0]==nil{want.Context="unnamed portal parameter $2 = '...'"}
+		want.Context = "unnamed portal parameter $1 = '...'"
+		if args[0] == nil {
+			want.Context = "unnamed portal parameter $2 = '...'"
+		}
 		if !errors.As(err, &d) || !reflect.DeepEqual(d, want) {
 			t.Fatal(d, want, err)
 		}

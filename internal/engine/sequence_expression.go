@@ -21,7 +21,7 @@ type sequenceCallExpression struct {
 	args      []BoundExpr
 	ref       ObjectRef
 	temporary SessionToken
-	identity bool
+	identity  bool
 }
 
 func (b *expressionBinder) sequenceSignatureError(r parser.CallExpr) error {

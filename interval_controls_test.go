@@ -120,7 +120,7 @@ func TestIntervalDiagnosticsAndAtomicity(t *testing.T) {
 			message += ": \"" + tc.input + "\""
 		}
 		_, err := db.Exec("INSERT INTO iv VALUES($1),($2)", "1 mon", tc.input)
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message,Context:"unnamed portal parameter $2 = '...'"})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message, Context: "unnamed portal parameter $2 = '...'"})
 		rows, err := db.Query("SELECT v FROM iv")
 		if err != nil {
 			t.Fatal(err)

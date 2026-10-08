@@ -134,7 +134,10 @@ func TestSmallintDiagnosticsAndAtomicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				want:=stuntgres.Error{Code:tc.code,Message:message,Context:"unnamed portal parameter $1 = '...'"};if tc.text==""{want.Context="unnamed portal parameter $1 = ''"}
+				want := stuntgres.Error{Code: tc.code, Message: message, Context: "unnamed portal parameter $1 = '...'"}
+				if tc.text == "" {
+					want.Context = "unnamed portal parameter $1 = ''"
+				}
 				if strings.HasPrefix(q, "/*") {
 					rows, err := stmt.Query(raw)
 					if rows != nil {
@@ -344,7 +347,11 @@ func TestSmallintAuthorizationPrecedence(t *testing.T) {
 			} else {
 				_, err = conn.ExecContext(ctx, tc.q, tc.args...)
 			}
-			want:=stuntgres.Error{Code:tc.code,Message:tc.message};if tc.code=="22P02"{want.Context="unnamed portal parameter $1 = '...'"};typeCoreDiagnostic(t,err,want)
+			want := stuntgres.Error{Code: tc.code, Message: tc.message}
+			if tc.code == "22P02" {
+				want.Context = "unnamed portal parameter $1 = '...'"
+			}
+			typeCoreDiagnostic(t, err, want)
 		}
 	}
 	if _, err = conn.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
@@ -375,9 +382,9 @@ func TestSmallintRemainingIntegerDiagnostics(t *testing.T) {
 		}
 		for _, raw := range []any{tc.text, []byte(tc.text)} {
 			_, err = stmt.Exec(raw)
-			typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message,Context:"unnamed portal parameter $1 = '...'"})
+			typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message, Context: "unnamed portal parameter $1 = '...'"})
 			_, err = db.Exec(q, raw)
-			typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message,Context:"unnamed portal parameter $1 = '...'"})
+			typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message, Context: "unnamed portal parameter $1 = '...'"})
 		}
 		stmt.Close()
 	}
