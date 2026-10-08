@@ -767,6 +767,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			if b.aggregateClause != "RETURNING" {
 				return nil, expressionError("0A000", "functions are unsupported", r.Pos)
 			}
+			if r.Star || len(r.Args) != 1 {
+				return nil, expressionError("0A000", "aggregate call is unsupported", r.Pos)
+			}
 			arg, err := b.bind(r.Args[0], expressionPolicy{context: projectionContext})
 			if err != nil {
 				return nil, err
@@ -798,8 +801,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if b.checkConsumer {
 			return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 		}
-		if b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" && b.aggregateClause != "ORDER BY" {
-			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" || b.aggregateClause == "LIMIT" || b.aggregateClause == "OFFSET" || b.aggregateClause == "RETURNING" {
+		if b.aggregateClause != "RETURNING" && b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" && b.aggregateClause != "ORDER BY" {
+			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" || b.aggregateClause == "LIMIT" || b.aggregateClause == "OFFSET" {
 				return nil, expressionError("42803", "aggregate functions are not allowed in "+b.aggregateClause, r.Pos)
 			}
 			return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", r.Pos)
@@ -812,6 +815,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		node, err = b.bindCount(r, name)
 		if err != nil {
 			return nil, err
+		}
+		if b.aggregateClause == "RETURNING" {
+			return nil, expressionError("42803", "aggregate functions are not allowed in RETURNING", r.Pos)
 		}
 	case parser.CaseExpr:
 		var err error

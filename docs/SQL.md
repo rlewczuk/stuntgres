@@ -152,10 +152,11 @@ than comma lists and associate left; parentheses preserve boundaries. ON sees
 only its operands. Aliases hide original qualifiers; a whole-join alias hides
 operand qualifiers. A special USING AS alias exposes only merged keys without
 hiding operands and admits no column-alias list. Query qualification applies to
-SELECT/INSERT SELECT consumers. DELETE RETURNING uses its target/OLD/NEW
-namespace, including qualified supported cast children; DELETE WHERE and UPDATE
-cast/qualification guards are not widened. Raw guards remain at DEFAULT, VALUES and
-settings-call scalar entry points. Previously admitted conditional arguments
+SELECT/INSERT SELECT consumers. DELETE and UPDATE RETURNING use their
+target/OLD/NEW namespaces, including qualified supported cast children; DELETE
+WHERE and UPDATE SET/WHERE cast/qualification guards are not widened. Raw guards
+remain at DEFAULT, VALUES and settings-call scalar entry points. Previously
+admitted conditional arguments
 retain their consumer diagnostics, including metadata-only utility Prepare
 followed by DEFAULT validation at execution. ORDER keys use the shared
 expression/output-reference syntax above; qualified and compound expressions
@@ -170,7 +171,8 @@ preserve all matching occurrences and promise no unordered traversal sequence.
 See [the join examples and ownership contract](QUERIES.md#inner-and-cross-joins--change-note).
 
 Conditional expressions compose with the existing scalar consumers, including
-INSERT sources, mutation predicates/RHS, DELETE RETURNING and stored DEFAULTs. Their common types,
+INSERT sources, mutation predicates/RHS, DELETE and UPDATE RETURNING and stored
+DEFAULTs. Their common types,
 NULLIF equality signatures, result metadata and analysis-versus-execution demand
 are described in [Conditional expressions](QUERIES.md#conditional-expressions).
 BETWEEN includes endpoints; SYMMETRIC handles either bound order. Lower
@@ -603,6 +605,11 @@ read NEW; OLD reads the actual predecessor. Explicit aliases hide corresponding
 defaults and do not enter SET/WHERE. Both versions retain declared column metadata.
 Query returns eagerly owned values even after rollback/native replacement;
 Exec evaluates/discards outputs and returns the actual update count.
+RETURNING aggregate calls remain errors, not output aggregate providers. COUNT
+argument/name/signature diagnostics precede placement: `count()` reports `42809`,
+`count(id,id)` reports the missing signature (`42883`), and a valid `count(id)`
+reports aggregates not allowed in RETURNING (`42803`). This shared rule also
+applies to DELETE RETURNING; non-RETURNING consumer guards are unchanged.
 See [UPDATE RETURNING](QUERIES.md#update-returning--change-note).
 
 ## Unsupported surface
