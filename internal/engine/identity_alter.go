@@ -5,6 +5,7 @@ import (
 	"maps"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old *relationDescriptor, action parser.AlterTableAction) (*relationDescriptor, error) {
@@ -63,6 +64,10 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		if err := stage.Remove(ref); err != nil {
 			return old, err
 		}
+		// A TYPE before-statement may already have staged AS for this link.
+		// DROP's tombstone must win over that private descriptor/scalar.
+		delete(stage.descriptors, identity.sequence)
+		delete(stage.generators, identity.sequence)
 		next := *old
 		next.identities = maps.Clone(old.identities)
 		delete(next.identities, attribute)
@@ -91,28 +96,43 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.refreshIdentitySequenceLocked(scope, stage, old, attribute, identity.sequence); err != nil {
+	if err := e.stageIdentitySequenceOptionsLocked(scope, stage, old, attribute, identity.sequence, definition.Options); err != nil {
 		return old, err
 	}
-	read := e.stageRead(stage)
-	sequence, ok := read.state.descriptors[identity.sequence].(*relationDescriptor)
+	return &next, nil
+}
+
+// Both identity SET and TYPE AS use the sequence owner's migration/state rules.
+// Caller holds Engine.mu after the exact linked sequence's operation lock grant.
+func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ObjectAddress, raw []parser.SequenceOption) error {
+	if err := e.refreshIdentitySequenceLocked(scope, stage, table, attribute, address); err != nil {
+		return err
+	}
+	if _, removed := stage.removals[address]; removed {
+		return ErrCatalogReplaced
+	}
+	descriptor := stage.descriptors[address]
+	if descriptor == nil {
+		descriptor = stage.base.state.descriptors[address]
+	}
+	sequence, ok := descriptor.(*relationDescriptor)
 	if !ok {
-		return old, ErrCatalogReplaced
+		return ErrCatalogReplaced
 	}
-	generator := stage.generators[identity.sequence]
+	generator := stage.generators[address]
 	if generator == nil {
-		generator = e.sequenceGeneratorLocked(scope, identity.sequence)
+		generator = e.sequenceGeneratorLocked(scope, address)
 	}
 	if generator == nil {
-		return old, fmt.Errorf("stuntgres: sequence state missing")
+		return fmt.Errorf("stuntgres: sequence state missing")
 	}
-	options, restart, err := bindSequenceOptions(sequence.sequence, *generator, definition.Options)
+	options, restart, err := bindSequenceOptions(sequence.sequence, *generator, raw)
 	if err != nil {
-		return old, err
+		return err
 	}
 	revision, err := e.revisionLocked()
 	if err != nil {
-		return old, err
+		return err
 	}
 	changed := *sequence
 	changed.sequence = &options
@@ -121,7 +141,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	if stage.base.state.descriptors[changed.address] == nil {
 		stage.descriptors[changed.address] = &changed
 	} else if err := stage.Replace(&changed); err != nil {
-		return old, err
+		return err
 	}
 	replacement := *generator
 	replacement.generation = revision
@@ -132,8 +152,31 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	if stage.generators == nil {
 		stage.generators = make(map[ObjectAddress]*sequenceGenerator)
 	}
-	stage.generators[identity.sequence] = &replacement
-	return &next, nil
+	stage.generators[address] = &replacement
+	return nil
+}
+
+func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *relationDescriptor, attribute int32, address ObjectAddress, usage sqltype.Usage) error {
+	ref := ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: address}
+	if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {
+		return err
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	id := usage.Type.ID()
+	if id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
+		return sequenceOptionError("identity column type must be smallint, integer, or bigint")
+	}
+	_, _, name := sequenceTypeLimits(id)
+	if err := e.stageIdentitySequenceOptionsLocked(scope, stage, table, attribute, address, []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: name}}}); err != nil {
+		return err
+	}
+	// AS discards this backend's tail even if a later table pass rolls back.
+	// currval/lastval and unseen peer caches are physical-session authorities.
+	if memory := scope.op.session.sequences[address]; memory != nil {
+		memory.remaining = 0
+	}
+	return nil
 }
 
 // Caller holds Engine.mu after the exact linked sequence's operation lock grant.

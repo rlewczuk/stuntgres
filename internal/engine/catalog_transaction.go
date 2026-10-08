@@ -97,11 +97,17 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ObjectAddress, d Descr
 }
 func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ObjectAddress) *sequenceGenerator {
 	if s.catalog != nil {
+		if descriptor, exists := s.catalog.descriptors[a]; exists && descriptor == nil {
+			return nil
+		}
 		if g := s.catalog.generators[a]; g != nil {
 			return g
 		}
 	}
 	if c := s.owner.catalog; c != nil {
+		if descriptor, exists := c.descriptors[a]; exists && descriptor == nil {
+			return nil
+		}
 		if g := c.generators[a]; g != nil {
 			return g
 		}

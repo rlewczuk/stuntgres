@@ -72,12 +72,18 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	scope.catalogAuthority = &catalogAuthority{session: op.session, authorization: auth.revision, roles: auth.roles.state.revision, ref: ref, descriptor: e.state.descriptors[ref.Address]}
 	e.mu.Unlock()
 	defer func() { e.DiscardCatalogStage(stage) }()
+	prepared, preparedStage, err := e.prepareAlterIdentityTypes(scope, op, auth, old, ref, s.Actions)
+	stage = preparedStage
+	if err != nil {
+		return Result{}, err
+	}
 	next := old
 	var transformations []columnTransformation
 	var pendingChecks []alterTypeCheck
 	var typeChecks []checkConstraint
 	// PostgreSQL runs DROP, TYPE, original SET, ADD NN, then identity ADD/SET.
 	for pass := range 6 {
+		typeIndex := 0
 		for _, action := range s.Actions {
 			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.SetNotNull || pass == 3 && action.Action == parser.AddNotNull || pass == 4 && action.Action == parser.AddIdentity || pass == 5 && action.Action == parser.SetIdentity
 			if !selected {
@@ -98,7 +104,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 				next, err = scope.dropColumnCandidate(stage, next, ref, action)
 			} else if action.Action == parser.AlterColumnType {
 				var transformation columnTransformation
-				next, transformation, err = e.alterTypeCandidate(scope, op, auth, stage, old, next, ref, action)
+				var captured *alterTypePreparation
+				if prepared != nil {
+					captured = &prepared[typeIndex]
+					typeIndex++
+				}
+				next, transformation, err = e.alterTypeCandidate(scope, op, auth, stage, old, next, ref, action, captured)
 				if err == nil {
 					transformations = append(transformations, transformation)
 				}
@@ -127,6 +138,51 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		next.revision = old.revision + 1
 	}
+	// USING/CHECK demand must allocate from the AS replacement, not the live
+	// generator. This statement overlay is discarded on failure, never installed
+	// in the owner before Finish. Keep the exact generator pointers through merge.
+	changes = cloneCatalogChanges(changes)
+	e.mu.Lock()
+	if ref.Epoch != e.state.epoch {
+		e.mu.Unlock()
+		return Result{}, ErrCatalogReplaced
+	}
+	if stage != nil {
+		for address, descriptor := range stage.descriptors {
+			sequence, ok := descriptor.(*relationDescriptor)
+			if !ok || sequence.relationKind != sequenceRelation {
+				continue
+			}
+			original := grantCatalog.descriptors[address]
+			if captured, identity := stage.identityOriginals[address]; identity {
+				original = captured
+			}
+			if e.state.descriptors[address] != original {
+				e.mu.Unlock()
+				return Result{}, CatalogConflict{}
+			}
+			e.catalogChangeLocked(changes, address, descriptor)
+			changes.generators[address] = stage.generators[address]
+		}
+		for address, removal := range stage.removals {
+			sequence, ok := removal.descriptor.(*relationDescriptor)
+			if !ok || sequence.relationKind != sequenceRelation {
+				continue
+			}
+			original := grantCatalog.descriptors[address]
+			if captured, identity := stage.identityOriginals[address]; identity {
+				original = captured
+			}
+			if e.state.descriptors[address] != original {
+				e.mu.Unlock()
+				return Result{}, CatalogConflict{}
+			}
+			e.catalogChangeLocked(changes, address, nil)
+			delete(changes.generators, address)
+		}
+	}
+	scope.catalog = changes
+	e.mu.Unlock()
 	rewrite := false
 	for _, transformation := range transformations {
 		rewrite = rewrite || transformation.rewrite
@@ -217,7 +273,6 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
-	changes = cloneCatalogChanges(changes)
 	if stage == nil {
 		stage = e.BeginCatalogStage(auth.catalog)
 	}
@@ -282,7 +337,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		delete(changes.generators, a)
 	}
 	for a, generator := range stage.generators {
-		changes.generators[a] = generator
+		if _, removed := stage.removals[a]; !removed {
+			changes.generators[a] = generator
+		}
 	}
 	shape.replacement, shape.relation = replacement, next
 	changes.storage[ref.Address] = shape
@@ -309,8 +366,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	if len(stage.generators) != 0 {
 		e.mu.Lock()
-		for address := range stage.generators {
-			if memory := op.session.sequences[address]; memory != nil {
+		for address, generator := range stage.generators {
+			if memory := op.session.sequences[address]; memory != nil && memory.generation != generator.generation {
 				memory.remaining = 0
 			}
 		}

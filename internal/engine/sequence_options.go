@@ -117,11 +117,11 @@ func bindSequenceOptions(old *sequenceOptions, state sequenceGenerator, raw []pa
 		}
 	}
 	lo, hi, typ := sequenceTypeLimits(o.typ)
-	if o.min < lo || o.min > hi {
-		return o, nil, sequenceOptionError("MINVALUE (%d) is out of range for sequence data type %s", o.min, typ)
-	}
 	if o.max < lo || o.max > hi {
 		return o, nil, sequenceOptionError("MAXVALUE (%d) is out of range for sequence data type %s", o.max, typ)
+	}
+	if o.min < lo || o.min > hi {
+		return o, nil, sequenceOptionError("MINVALUE (%d) is out of range for sequence data type %s", o.min, typ)
 	}
 	if o.min >= o.max {
 		return o, nil, sequenceOptionError("MINVALUE (%d) must be less than MAXVALUE (%d)", o.min, o.max)

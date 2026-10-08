@@ -226,6 +226,29 @@ the waiting operation; subsequent healthy INSERT remains usable. Regression witn
 `TestReferenceIdentitySequenceGrantFreshness` and
 `TestIdentityControlsTemporaryCollision`.
 
+Integral identity TYPE preserves the exact reciprocal sequence link and mode,
+owner, ACL and comments while using the sequence owner's AS rules for type,
+matching old type-extreme bounds and retained custom options. It also runs AS for
+same-type TYPE. All raw USING expressions bind against the original row before
+these before-statements; nonintegral identity targets fail22023 before row demand,
+even if the same action list drops identity. A separately completed DROP IDENTITY
+removes that restriction. A plain AUTO OWNED BY sequence is not an identity and
+does not change type/options/cache when its column changes.
+
+AS uses a private scalar generator alongside the candidate descriptor. Existing
+USING/CHECK nextval calls see that generator, and successful publication retains
+their advance. Failed TYPE and rollback restore catalog/data/scalar roots, not
+physical-session currval/lastval or the caller's discarded AS cache tail.
+Rollback to a pre-TYPE mark restores the old scalar; a post-TYPE mark retains
+demand in that same private generation. Peer unseen cache tails are not flushed
+by private or failed AS. Grant-time option/state refresh and cancellation use the
+existing identity sequence lock owner.
+Witnesses: `TestAlterTypeIdentitySequenceGrantFreshness`,
+`TestAlterTypeIdentityCanceledSequencePublication`,
+`TestAlterTypeIdentityStagedSequenceDemand`,
+`TestAlterTypeIdentityPrivateSavepoints` and `TestAlterTypeIdentityControls`.
+Feature smoke: `make smoke RUN='^TestAlterTypeIdentity(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
 
 ## Ordinary table definitions and removal
 

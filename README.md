@@ -195,8 +195,12 @@ Column COLLATE supports only real pg_catalog default/C/POSIX
 identities under UTF8/C byte ordering; native Dump/Restore retains them.
 Fresh results expose the new type/typmod; held prepared results reject changed
 type/typmod/collation while eager rows retain their original metadata and values.
+Identity TYPE also migrates the existing internal sequence to the integral target,
+including same-type AS/cache replacement; plain OWNED BY sequences are unchanged.
+Private sequence state and row changes publish together, while caller currval and
+already-discarded cache tails remain physical-session effects on rollback.
 See [ALTER TYPE semantics and boundaries](docs/DIALECT.md#alter-column-type--change-note).
-Feature smoke: `make smoke RUN='^TestAlterType(Smoke|ControlsSmoke)$' VERBOSE=0`.
+Feature smokes: `make smoke RUN='^TestAlterType(Smoke|ControlsSmoke|IdentitySmoke|IdentityControlsSmoke)$' VERBOSE=0`.
 
 
 The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling

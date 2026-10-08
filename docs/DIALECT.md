@@ -447,6 +447,19 @@ Direct internal-sequence DROP fails2BP01 even CASCADE; OWNED BY reassociation fa
 0A000. Removing identity NOT NULL or assigning a regular DEFAULT fails42601;
 ALWAYS explicit UPDATE fails428C9, even for an empty target.
 
+TYPE on an original identity column accepts only SMALLINT/INTEGER/BIGINT.
+After binding every raw USING against the original tuple, it migrates the exact
+linked sequence through AS before the table action passes, even for same-type
+TYPE. Nonintegral targets fail22023 before row evaluation; DROP IDENTITY in the
+same command cannot bypass that guard. Default type-extreme bounds migrate,
+custom options remain subject to the existing sequence bounds checks, and plain
+OWNED BY sequences do not migrate. USING and CHECK sequence calls demand the
+private AS replacement. On failure/rollback its scalar state is discarded with
+the candidate; physical currval/lastval and the caller's AS cache-tail discard
+are not undone. Unseen peer cache tails remain untouched until committed AS is
+demanded. Identity mode, linked address, privileges and comments remain intact.
+Feature smokes: `make smoke RUN='^TestAlterTypeIdentity(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
 Native controls preserve definitions, actual sequence names/configuration/state and
 literal rows without allocating values. SERIAL, generated expressions, UPDATE DEFAULT,
 LIKE INCLUDING IDENTITY, arbitrary table DDL in transactions and full identity

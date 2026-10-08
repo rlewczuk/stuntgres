@@ -268,6 +268,9 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	}
 	e.mu.Lock()
 	before, beforeErr := e.authorizationLocked(scope.op)
+	if beforeErr == nil && scope.catalog != nil {
+		before.catalog = e.privateCatalogLocked(scope.catalog)
+	}
 	if beforeErr == nil && ref.owner == e.owner && ref.Epoch != before.catalog.Epoch() && x.temporary == scope.op.session.token {
 		if d, ok := before.catalog.state.descriptors[ref.Address].(*relationDescriptor); ok && d.relationKind == sequenceRelation {
 			if ns, ok := before.catalog.state.descriptors[d.namespace].(*namespaceDescriptor); ok && ns.temporary == x.temporary {
@@ -302,6 +305,9 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
 		return sqltype.Value{}, err
+	}
+	if scope.catalog != nil {
+		auth.catalog = e.privateCatalogLocked(scope.catalog)
 	}
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok {

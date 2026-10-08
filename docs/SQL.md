@@ -607,6 +607,15 @@ old values. Actual sequence names/options/state survive renames and native contr
 held INSERTs freshly bind current generation/options. SMALLINT/INTEGER identity
 datums narrow to column width even if direct ALTER SEQUENCE widened the generator.
 Ordinary supplied integer assignment remains checked.
+`ALTER TABLE events ALTER id TYPE BIGINT` runs AS on the existing internal
+sequence, preserving its identity/options except migrated type-extreme bounds.
+The same-type form also replaces sequence/cache generation; a plain OWNED BY
+sequence is unaffected. Original identity TYPE must remain integral (22023);
+dropping identity in that same action list does not permit a TEXT target.
+Private USING/CHECK demand and scalar state publish atomically with rewritten
+rows, but physical-session currval/lastval and the caller's discarded AS cache
+tail survive statement failure or rollback. A post-TYPE savepoint does not rewind
+demand within that same private generator.
 SERIAL, expression-generated columns and UPDATE DEFAULT remain unsupported.
 
 
