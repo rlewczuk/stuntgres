@@ -361,6 +361,9 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				continue
 			}
 			if r, ok := d.(*relationDescriptor); ok {
+				if r.sqlIndex != nil {
+					continue
+				}
 				dependent = append(dependent, r)
 			} else {
 				return nil, sqlError("0A000", "dropping schemas with unsupported object dependencies is unsupported")

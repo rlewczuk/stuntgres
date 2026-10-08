@@ -23,6 +23,7 @@ type Engine struct {
 	providers           map[OID]CatalogProvider
 	storage             map[ObjectAddress]*relationStorage
 	sequences           map[ObjectAddress]*sequenceGenerator
+	indexRoots          map[ObjectAddress]*logicalIndexRoot
 	nextOID             OID
 	nextRevision        DefinitionRevision
 	sessionMu           sync.Mutex
@@ -216,6 +217,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
+	case *parser.CreateIndex:
+		return StatementDescription{}, nil
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.AlterTable, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.RoleSelection:
@@ -432,6 +435,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == indexRelation {
+			return b, tableKind(b.relation, "insert into")
+		}
 		if op != nil && op.restoreInsertAuthority && len(b.relation.identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
@@ -558,6 +564,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == indexRelation {
+			return b, tableKind(b.relation, "delete from")
+		}
 		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 		if b.storage == nil && b.relation.relationKind == tableRelation {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
@@ -586,6 +595,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
+		if b.relation.relationKind == indexRelation {
+			return b, tableKind(b.relation, "change")
+		}
 		if b.relation.relationKind == viewRelation || b.relation.relationKind == catalogRelation {
 			return b, tableKind(b.relation, "change")
 		}

@@ -176,6 +176,7 @@ func TestKeywordContextualCapabilities(t *testing.T) {
 		{"SELECT between(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
 		{"SELECT integer(x) FROM t", "42601", "syntax error at or near \"(\"", "15"},
 		{"SELECT authorization(x) FROM t", "0A000", "functions are unsupported", "8"},
+		{"SELECT concurrently(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT \"between\"(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"SELECT abort(x) FROM t", "0A000", "functions are unsupported", "8"},
 		{"INSERT INTO t VALUES (between(7))", "42601", "syntax error at or near \"(\"", "30"},

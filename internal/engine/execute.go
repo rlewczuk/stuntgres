@@ -18,6 +18,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
+	case *parser.CreateIndex:
+		return e.executeCreateIndex(scope, stmt.(*parser.CreateIndex), count)
 	case *parser.CreateView:
 		return e.executeCreateView(scope, stmt.(*parser.CreateView), count)
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:

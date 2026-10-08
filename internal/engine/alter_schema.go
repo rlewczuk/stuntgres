@@ -70,6 +70,10 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	owned := make([]*relationDescriptor, 0)
 	for _, d := range auth.catalog.state.descriptors {
 		r, ok := d.(*relationDescriptor)
+		if ok && r.sqlIndex != nil && r.sqlIndex.parent == old.address {
+			owned = append(owned, r)
+			continue
+		}
 		if !ok || r.relationKind != sequenceRelation {
 			continue
 		}
@@ -81,6 +85,9 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	sort.Slice(owned, func(i, j int) bool { return owned[i].address.ObjectID < owned[j].address.ObjectID })
 	e.mu.Unlock()
 	for _, r := range owned {
+		if r.sqlIndex != nil {
+			continue
+		}
 		if err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: r.address}, accessExclusive, false); err != nil {
 			return Result{}, err
 		}
@@ -120,6 +127,13 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	group = append(group, old)
 	for _, r := range owned {
 		live, ok := auth.catalog.state.descriptors[r.address].(*relationDescriptor)
+		if ok && r.sqlIndex != nil {
+			if live.sqlIndex != r.sqlIndex || live.namespace != old.namespace || live.owner != old.owner {
+				return fail(ErrCatalogReplaced)
+			}
+			group = append(group, live)
+			continue
+		}
 		if !ok || live.relationKind != sequenceRelation || live.sequence.owned != r.sequence.owned || live.namespace != old.namespace || live.owner != old.owner {
 			return fail(ErrCatalogReplaced)
 		}

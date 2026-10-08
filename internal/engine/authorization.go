@@ -297,6 +297,13 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		}
 		auth.state.CurrentUser = bootstrap.Ref
 	}
+	if _, index := stmt.(*parser.CreateIndex); index && op.restoreTableDestination {
+		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
+		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
+			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore index authority")
+		}
+		auth.state.CurrentUser = bootstrap.Ref
+	}
 	if _, insert := stmt.(*parser.Insert); insert && op.restoreInsertAuthority {
 		bootstrap, err := auth.roles.Descriptor(auth.state.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {

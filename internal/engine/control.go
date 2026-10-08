@@ -74,6 +74,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		owner, sql string
 	}
 	var views []dumpView
+	var indexes []dumpView
 	viewDependencies := make(map[OID][]OID)
 	viewIndices := make(map[OID]int)
 	tableIndices := make(map[OID]int)
@@ -217,6 +218,15 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if err != nil {
 			e.mu.Unlock()
 			return err
+		}
+		if r.sqlIndex != nil {
+			sql, err := indexDefinitionSQL(catalog, r)
+			if err != nil {
+				e.mu.Unlock()
+				return err
+			}
+			indexes = append(indexes, dumpView{principal.Name, sql})
+			continue
 		}
 		if r.view != nil {
 			body, err := r.view.selectSQL(ctx, CatalogRead{owner: e, state: e.state})
@@ -532,6 +542,18 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	sort.Slice(indexes, func(i, j int) bool { return indexes[i].sql < indexes[j].sql })
+	for _, index := range indexes {
+		if index.owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(index.owner, "'", "''") + "';\n"); err != nil {
+				return err
+			}
+			currentOwner = index.owner
+		}
+		if err := emit(index.sql); err != nil {
+			return err
+		}
+	}
 	for _, line := range sequenceCompletion {
 		if err := emit(line); err != nil {
 			return err
@@ -589,6 +611,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		switch s := stmt.(type) {
 		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
 		case *parser.CreateView:
+		case *parser.CreateIndex:
 		case *parser.CreateSequence:
 			if s.Persistence == "temporary" {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
@@ -627,7 +650,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				}
 			}
 		default:
-			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW, INSERT, deferred sequence DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
+			return sqlError("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, INSERT, deferred sequence DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 		}
 		op.restoreTableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
@@ -637,6 +660,9 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			op.restoreTableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateView); ok {
+			op.restoreTableDestination = true
+		}
+		if _, ok := stmt.(*parser.CreateIndex); ok {
 			op.restoreTableDestination = true
 		}
 		op.restoreInsertAuthority = false

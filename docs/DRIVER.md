@@ -105,3 +105,22 @@ Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Un
 The focused public proof is `go test -count=1 -run '^TestStringLiteralsSmoke$' ./smoke`; it asserts direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary. Go test reports the result.
 
 Pinned real-reference feature fixtures are `go test -tags reference -run '^TestReferenceStringLiterals$' -count=1 -v ./reference` and `go test -tags reference -run '^TestReferenceStringLiteralDumpRoundTrip$' -count=1 -v ./reference`.
+
+## B-tree utility preparation and controls
+
+Direct Exec and database/sql prepared Execute support ordinary CREATE INDEX;
+Prepare retains syntax and empty utility description, not target/row/owner
+visibility. Each Execute binds current target, role, search_path and keys.
+Utilities return zero affected rows. Missing objects/keys and duplicate names
+fail at Execute with full PostgreSQL18.0 diagnostic records (missing key has no
+Position); lexical/syntax failures still occur at Prepare.
+
+Native Dump records actual canonical CREATE INDEX definitions with direction
+and NULL options/current parent/key names. Restore uses isolated replay and one
+atomic replacement, rebuilding keys with destination identities. A bad late
+index definition leaves destination rows/definitions unchanged. These controls
+require the unwrapped native DB, not a foreign or sqlmw-wrapped pool.
+The same emitted SQL can be replayed against PostgreSQL.
+Writable explicit CREATE INDEX transactions remain a native 0A000 boundary,
+independently of read-only 25006 utility rejection.
+

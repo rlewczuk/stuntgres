@@ -476,7 +476,8 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if err := s.snapshotPhase(stmt); err != nil {
 		return StatementDescription{}, err
 	}
-	if s.owner.state == TxActive && explicitUtility(stmt) {
+	_, indexBuild := stmt.(*parser.CreateIndex)
+	if s.owner.state == TxActive && explicitUtility(stmt) && !indexBuild {
 		return StatementDescription{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	if err := s.acquireRelation(stmt, false); err != nil {
@@ -510,14 +511,22 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	if err := s.readOnlyUtilityEligibility(stmt); err != nil {
 		return Result{}, err
 	}
+	_, indexBuild := stmt.(*parser.CreateIndex)
+	if indexBuild {
+		if err := s.executionEligibility(stmt); err != nil {
+			return Result{}, err
+		}
+	}
 	if err := s.acquireRelation(stmt, true); err != nil {
 		return Result{}, err
 	}
 	if _, ok := stmt.(*parser.LockTable); ok {
 		return Result{}, nil
 	}
-	if err := s.executionEligibility(stmt); err != nil {
-		return Result{}, err
+	if !indexBuild {
+		if err := s.executionEligibility(stmt); err != nil {
+			return Result{}, err
+		}
 	}
 	return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
 }

@@ -73,6 +73,9 @@ package parser
  returning *Returning
  returningAliases []ReturningAlias
  returningAlias ReturningAlias
+ indexKeys []IndexKey
+ indexKey IndexKey
+ createIndex *CreateIndex
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -113,6 +116,8 @@ package parser
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
+%token <tok> INDEX
+%token <tok> CONCURRENTLY
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R COLLATE CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -158,6 +163,11 @@ package parser
 %type <returningAliases> returning_aliases returning_options
 %type <returningAlias> returning_option
 %type <stmt> create_view
+%type <stmt> create_index
+%type <createIndex> index_head
+%type <tok> index_method
+%type <indexKeys> index_keys
+%type <indexKey> index_key
 %type <identifiers> view_columns view_names
 %type <viewOptions> view_options view_option_list
 %type <viewOption> view_option
@@ -346,7 +356,7 @@ comment_column_name: name { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$
  | name '.' col_label '.' col_label { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}} } ;
 comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
-comment_excluded_word: IDENT | KW_U | KW_T | KW_R | VIEW ;
+comment_excluded_word: IDENT | KW_U | KW_T | KW_R | VIEW | INDEX ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
  | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
@@ -470,10 +480,29 @@ view_option: name { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value
 view_option_value: name | STRING | NUMBER | TRUE | FALSE | ON ;
 create: create_table { $$=$1 }
  | create_view { $$=$1 }
+ | create_index { $$=$1 }
  | create_table INHERITS '(' relation_names ')' { sqllex.(*lexer).deferUnsupported($2,"table inheritance is unsupported"); $$=nil }
  | CREATE TEMP TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
- | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
+ | CREATE generic_word { if $2.keyword!=nil && $2.text=="unique" {sqllex.(*lexer).capability($2,unsupportedCreateObjects,"unique indexes are unsupported")} else {sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported")}; return 1 } ;
+index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos} }
+ | CREATE INDEX name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Pos:$1.pos} }
+ | CREATE INDEX IF NOT EXISTS name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$6.text,Pos:$6.pos},Table:$8,IfNotExists:true,Pos:$1.pos} }
+ | CREATE INDEX CONCURRENTLY ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$5,Pos:$1.pos} }
+ | CREATE INDEX CONCURRENTLY name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$6,Pos:$1.pos} }
+ | CREATE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$9,Pos:$1.pos} } ;
+index_method: /* empty */ { $$=lexeme{text:"btree"} } | USING name { $$=$2 } ;
+create_index: index_head index_method '(' index_keys ')' { $1.Method=$2.text;$1.Keys=$4;$$=$1 }
+ | create_index WHERE target_or { sqllex.(*lexer).deferUnsupported($2,"partial indexes are unsupported");$$=$1 }
+ | create_index WITH '(' view_option_list ')' { sqllex.(*lexer).deferUnsupported($2,"index storage parameters are unsupported");$$=$1 }
+ | create_index name '(' view_names ')' { if $2.text!="include" {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"included index columns are unsupported");$$=$1 }
+ | create_index name name { if $2.text!="tablespace" {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"index tablespaces are unsupported");$$=$1 } ;
+index_keys: index_key { $$=[]IndexKey{$1} } | index_keys ',' index_key { $$=append($1,$3) } ;
+index_key: name direction nulls { $$=IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Desc:$2,Nulls:$3} }
+ | '(' scalar_projection ')' direction nulls { sqllex.(*lexer).deferUnsupported($1,"expression indexes are unsupported");$$=IndexKey{} }
+ | name COLLATE relation_name direction nulls { sqllex.(*lexer).deferUnsupported($2,"index collations are unsupported");$$=IndexKey{} }
+ | name name direction nulls { sqllex.(*lexer).deferUnsupported($2,"index operator classes are unsupported");$$=IndexKey{} }
+ | name '(' values ')' direction nulls { sqllex.(*lexer).deferUnsupported($1,"expression indexes are unsupported");$$=IndexKey{} } ;
 optional_elements: /* empty */ { $$=nil } | elements { $$=$1 } ;
 elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($1,$3) } ;
 element: column { c:=$1; $$=TableElement{Column:&c,Pos:c.Pos} }
@@ -804,6 +833,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | STRING { $$ = Value{Kind:StringValue, Text:$1.text, Pos:$1.pos} }
  | NUMBER { var ok bool; $$, ok = integerValue(sqllex,$1,""); if !ok { return 1 } }
  | KW_T '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | CONCURRENTLY '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | CROSS '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | INNER '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | JOIN '(' { sqllex.(*lexer).call($1,$2); return 1 }
@@ -980,11 +1010,11 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
-non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW ;
+non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
- | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR | IDENTITY_FUNC ;
+ | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
@@ -1002,8 +1032,8 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
- | CROSS | INNER | JOIN | NATURAL | USING | CURRENT_CATALOG | SYSTEM_USER ;
-col_label: name | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
+ | CROSS | INNER | JOIN | NATURAL | USING | CURRENT_CATALOG | SYSTEM_USER | CONCURRENTLY ;
+col_label: name | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: LIKE | KW_T | KW_R | COLLATE | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

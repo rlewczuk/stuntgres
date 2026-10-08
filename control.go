@@ -50,7 +50,8 @@ func Reset(ctx context.Context, db *sql.DB) error {
 }
 
 // Dump writes a consistent PostgreSQL-compatible persistent SQL snapshot,
-// including sequence options, ownership, comments and called generator state.
+// including actual simple B-tree index definitions and sequence options,
+// ownership, comments and called generator state.
 // Named owners must already exist in the destination. Each relation owner group
 // explicitly selects its session authorization, including the bootstrap owner;
 // all tables precede sequence OWNED BY associations that depend on them.
@@ -63,7 +64,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 }
 
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
-// SCHEMA, CREATE TABLE/SEQUENCE/VIEW, parameter-free scalar INSERT (including integer
+// SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX, parameter-free scalar INSERT (including integer
 // arithmetic), database-local COMMENT, sequence OWNED BY associations, generated
 // SELECT setval(name,value,is_called), and named owner directives succeed.
 // Parameters are recursively rejected; other statements remain excluded.

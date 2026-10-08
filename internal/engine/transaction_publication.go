@@ -61,6 +61,11 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			return ErrCatalogReplaced
 		}
 		current, frontier := e.state, e.commitSeq
+		var indexStores map[ObjectAddress]*relationStorage
+		if len(e.indexRoots) != 0 {
+			indexStores = captureIndexStores(e.storage, current)
+		}
+		indexPredecessors := e.indexRoots
 		var nextSequences map[ObjectAddress]*sequenceGenerator
 		var nextStorage map[ObjectAddress]*relationStorage
 		if c != nil {
@@ -235,6 +240,45 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 				}
 			}
 		}
+		indexCatalog := nextCatalog
+		if indexCatalog == nil {
+			indexCatalog = current
+		}
+		var indexRoots map[ObjectAddress]*logicalIndexRoot
+		if len(indexPredecessors) != 0 {
+			buildStores := indexStores
+			var rebuildIndexes map[ObjectAddress]bool
+			if len(indexStores) > 0 && c != nil && len(c.storage) > 0 {
+				buildStores = make(map[ObjectAddress]*relationStorage, len(indexStores))
+				for a, store := range indexStores {
+					buildStores[a] = store
+				}
+				rebuildIndexes = make(map[ObjectAddress]bool, len(c.storage))
+				for a, shape := range c.storage {
+					buildStores[a] = shape.replacement
+					rebuildIndexes[a] = true
+				}
+			}
+			var indexErr error
+			indexRoots, indexErr = prepareIndexCatalog(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes)
+			if indexErr != nil {
+				return indexErr
+			}
+			for i := range prepared {
+				p := &prepared[i]
+				for a, d := range indexCatalog.descriptors {
+					index, ok := d.(*relationDescriptor)
+					if !ok || index.sqlIndex == nil || index.sqlIndex.parent != p.address {
+						continue
+					}
+					root, err := mergeIndexRoot(op.Context(), p.relation, index.sqlIndex, indexRoots[a], p)
+					if err != nil {
+						return err
+					}
+					indexRoots[a] = root
+				}
+			}
+		}
 		session := op.session
 		e.mu.Lock()
 		session.mu.Lock()
@@ -245,7 +289,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		if err == nil && e.commitSeq == CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := c != nil && (e.state != current || e.commitSeq != frontier)
+		changed := e.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage[p.address] != p.original || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
@@ -325,6 +369,8 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 				}
 			}
 		}
+		preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.indexRoots)
+		e.indexRoots = indexRoots
 		e.commitSeq++
 		session.mu.Unlock()
 		e.mu.Unlock()

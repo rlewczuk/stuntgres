@@ -32,8 +32,12 @@ func identitySequenceDropError(read CatalogRead, sequence *relationDescriptor) e
 }
 
 func ownedSequenceName(table, column string, used func(string) bool) string {
+	return generatedRelationName(table, column, "seq", used)
+}
+
+func generatedRelationName(table, column, baseLabel string, used func(string) bool) string {
 	for suffix := 0; ; suffix++ {
-		label := "seq"
+		label := baseLabel
 		if suffix != 0 {
 			label += strconv.Itoa(suffix)
 		}

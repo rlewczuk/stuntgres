@@ -117,6 +117,9 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			return nil, err
 		}
 		return captureQuerySource(ctx, view, ref)
+	case indexRelation:
+		e.mu.Unlock()
+		return nil, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, d.name))
 	default:
 		e.mu.Unlock()
 		return nil, fmt.Errorf("stuntgres: unsupported relation source")

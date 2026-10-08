@@ -81,9 +81,17 @@ func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
 			t.Run("native", func(t *testing.T) {
 				if tc.dependency != "" {
 					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(tc.create, 0))
-					failure := referenceImplicitError(tc.dependency, referenceDiagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"})
+					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(tc.seed, 1))
+					failure := referenceImplicitError(tc.dependency, referenceDiagnostic{Code: "0A000", Message: "expression indexes are unsupported", Position: "22"})
 					failure.errorStage = "execute"
 					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
+					preparedFailure := referencePrepared(failure)
+					preparedFailure.errorStage = "prepare"
+					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, preparedFailure)
+					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{"INT4"}, [][]any{{int64(1)}}))
+					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT relname FROM pg_class WHERE relname='ix'", []string{"relname"}, []string{"NAME"}, nil))
+					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("ALTER TABLE t ALTER c TYPE TEXT USING c::text", 0))
+					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{"TEXT"}, [][]any{{"1"}}))
 				} else {
 					position := "22"
 					failure := referenceImplicitError(tc.create, referenceDiagnostic{Code: "0A000", Message: "column constraints are unsupported", Position: position})
@@ -170,8 +178,10 @@ func TestReferenceAlterTypeCompatiblePlainIndexBoundary(t *testing.T) {
 	})
 	t.Run("native", func(t *testing.T) {
 		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("CREATE TABLE t(c INT)", 0))
-		failure := referenceImplicitError("CREATE INDEX ix ON t(c)", referenceDiagnostic{Code: "0A000", Message: "CREATE syntax is unsupported", Position: "8"})
-		failure.errorStage = "execute"
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("INSERT INTO t VALUES(3),(1),(2),(NULL)", 4))
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("CREATE INDEX ix ON t(c)", 0))
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("ALTER TABLE t ALTER c TYPE BIGINT", 0))
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}, {nil}}))
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT relkind FROM pg_class WHERE relname='ix'", []string{"relkind"}, []string{"CHAR"}, [][]any{{"i"}}))
 	})
 }

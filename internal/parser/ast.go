@@ -88,6 +88,22 @@ type CreateTable struct {
 
 func (*CreateTable) statement() {}
 
+type IndexKey struct {
+	Column Identifier
+	Desc   bool
+	Nulls  NullPlacement
+}
+type CreateIndex struct {
+	Name        Identifier
+	Table       ObjectName
+	Method      string
+	Keys        []IndexKey
+	IfNotExists bool
+	Pos         Position
+}
+
+func (*CreateIndex) statement() {}
+
 type ViewOption struct {
 	Name  Identifier
 	Value string

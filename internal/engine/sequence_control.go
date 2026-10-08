@@ -226,6 +226,13 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 				if dest, ok := mapping[n.namespace]; ok {
 					n.namespace = dest
 				}
+				if r.sqlIndex != nil {
+					if parent, remapped := mapping[r.sqlIndex.parent]; remapped {
+						definition := *r.sqlIndex
+						definition.parent = parent
+						n.sqlIndex = &definition
+					}
+				}
 				if r.sequence != nil {
 					o := *r.sequence
 					whole := o.owned

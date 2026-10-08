@@ -395,16 +395,18 @@ skipping`, or `schema "name" does not exist, skipping`). DROP requires table
 owner, schema owner or superuser authority, not ordinary table privileges, and
 preserves current schema lookup/USAGE authorization.
 
-The supported inbound table-definition dependency set is explicitly **empty**.
-Default/explicit RESTRICT and CASCADE therefore remove the same explicit tables
-and their contained columns, storage and relation/column ACL records. Namespace,
+The supported dependency set includes stored views, owned sequences and simple B-tree indexes.
+Both modes remove the selected tables and their contained columns, storage and
+relation/column ACL records; dependent views retain the RESTRICT/CASCADE policy
+described below. Namespace,
 builtin types, owner roles and unrelated tables survive. Real DROP ROLE ownership
 and ACL blockers disappear with the removed definitions. LIKE clones, prepared
 statements and held cursors are not persistent dependents; held cursors retain old
 rows/metadata, while prepared executions rebind (absent table `42P01`,
-incompatible recreation `42703`). Foreign keys, views, indexes and sequences are
-external-only dependency controls, not native graph compatibility or a fabricated
-native `2BP01` table blocker. Explicit-transaction DDL remains unsupported.
+incompatible recreation `42703`). Simple B-tree indexes and column-owned
+sequences disappear automatically with their parent; views retain their existing
+RESTRICT/CASCADE dependency policy. Foreign keys remain excluded.
+Explicit-transaction CREATE/DROP TABLE remains unsupported.
 
 Dump emits expanded canonical declarations, including `()`, independently of a
 dropped LIKE source. Restore uses the same binder in isolated staging; failed
@@ -489,7 +491,7 @@ either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
 unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
-Primary/unique/foreign keys, SQL indexes, domains and unrelated ALTER
+Primary/unique/foreign keys, non-btree/expression/partial/concurrent indexes, domains and unrelated ALTER
 actions remain excluded engine capabilities, not external-only mechanisms.
 Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
 DROP COLUMN compose atomic comma-separated lists in implicit and explicit
@@ -558,9 +560,9 @@ remains rejected rather than silently losing grants. These are process-local
 controls, not pg_dump, physical storage durability or network protocol support.
 Stored CHECK constraints and supported views have real descriptors/dependencies;
 views continue to reference stable relation/attribute identities through supported
-renames. Foreign keys, indexes, automatic row types and inheritance remain absent
-native SQL capabilities. PostgreSQL-only witnesses cover those definitions and
-broader transactional DDL.
+renames. Simple B-tree keys also retain stable attribute identities, and Dump
+renders current parent/key names without renaming the index itself. Foreign keys,
+automatic row types, inheritance and broader transactional DDL remain excluded.
 Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
 
 ```sh
@@ -610,7 +612,9 @@ dense evaluation slots. Independent columns/tables and plain LIKE clones survive
 Supported inbound view dependencies retain the existing RESTRICT/CASCADE policy.
 Canonical Dump renders current names and survivor metadata; Reset/Restore
 preserves definitions/data even though replay allocates fresh attribute IDs.
-Indexes, FK, inheritance and partition dependencies remain unsupported.
+Simple B-tree indexes mentioning a dropped attribute are removed automatically,
+even with RESTRICT; unaffected indexes survive dense-slot compaction. FK,
+inheritance and partition dependencies remain unsupported.
 
 Missing columns fail `42703`, `column "missing" of relation "t" does not exist`;
 IF EXISTS emits a `00000` NOTICE ending `, skipping` with no descriptor or row
@@ -756,4 +760,22 @@ and VALIDATE are not supported. The shared row validator is available to later
 existing-data validation work; this change does not implement that traversal.
 
 Public feature smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
+
+
+## Ordinary B-tree index maintenance
+
+CREATE INDEX builds actual immutable sorted logical entries from committed live
+rows under Share admission. INSERT VALUES/SELECT/default/identity/CHECK writes,
+UPDATE and DELETE maintain entries at the same Finish/commit boundary as rows.
+Duplicate keys keep distinct RowID/VersionID membership; NULL keys are included.
+Failed multirow statements, rollback and savepoint recovery publish no partial
+index effects. Current-only roots are not substitutes for historical/own-write
+query visibility.
+
+Renames preserve stable key attributes. TYPE rebuilds entries with the final
+typed shape, DROP COLUMN automatically removes involved indexes, and SET SCHEMA
+moves indices with table/owned sequences as one collision-checked publication.
+DROP TABLE and schema CASCADE leave no index/root/name orphans. Dump captures
+actual options/current names; Restore and catalog replacement rebuild roots with
+destination identities. See [index design](design/PG18-INDEX-BTREE.md).
 

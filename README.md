@@ -145,7 +145,7 @@ sources; PostgreSQL's array comparator is outside this result-only surface.
 Feature smoke: `make smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
 
 Change note: standalone `ALTER TABLE [IF EXISTS] target SET SCHEMA destination`
-moves ordinary tables and every column-owned sequence atomically, preserving
+moves ordinary tables, their simple B-tree indexes and every column-owned sequence atomically, preserving
 rows, named NOT NULL constraints, defaults, comments, ACLs and stored-view
 dependencies. It requires table ownership, source USAGE and destination CREATE
 (not source CREATE or destination USAGE). Native prepared SQL rebinds its original
@@ -154,8 +154,21 @@ native SELECT sees a newly created source-schema shadow after a move (see
 [the dialect boundary](docs/DIALECT.md)). Native Dump/Restore records current
 qualified definitions, not move history.
 Explicit-transaction SET SCHEMA, generic non-table moves, TEMP/system destinations,
-indexes and automatic row types remain bounded native exclusions.
+automatic row types remain bounded native exclusions.
 Feature smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
+
+Change note: ordinary `CREATE INDEX [name] ON [schema.]table [USING btree]
+(column [ASC|DESC] [NULLS FIRST|LAST], ...)` supports 1–32 simple keys,
+including duplicates and NULLs on already populated tables. Definitions share the
+relation namespace; immutable sorted logical entries stay current through all
+committed INSERT/UPDATE/DELETE batches and supported table lifecycle changes.
+Query correctness still uses the ordinary snapshot scan/filter/sort path, not
+an optimizer promise; unordered SELECT has no new ordering guarantee. Dump/Restore
+serializes actual current index definitions and rebuilds entries. Native CREATE
+INDEX is excluded in explicit transactions, unlike PostgreSQL; UNIQUE,
+expression, partial and concurrent indexes remain excluded.
+Smokes: `make smoke RUN='^TestBtreeIndex(Smoke|ControlsSmoke|LifecycleSmoke)$' VERBOSE=0`.
+
 
 Change note: `ALTER TABLE target ALTER [COLUMN] name SET DEFAULT expression`
 and `DROP DEFAULT` atomically change future omitted/DEFAULT inserts without

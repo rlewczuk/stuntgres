@@ -125,7 +125,7 @@ fails25006 at Execute. At RR, KEY SHARE preserves snapshot values after a
 compatible keyless UPDATE; stronger modes and all concurrent deletions fail40001
 with concurrent-update wording. Every table needs used-column SELECT plus
 UPDATE on any live column. `OF`, `NOWAIT`, `SKIP LOCKED` and repeated SELECT
-locking clauses remain excluded, as do new keys/indexes and adjacent query syntax.
+locking clauses remain excluded, as do unique keys/indexes and adjacent query syntax.
 Native UPDATE is keyless NO KEY UPDATE; DELETE is UPDATE. Matrix, lifetime,
 savepoint contribution restoration and exact diagnostics:
 [row locks](TRANSACTIONS.md#row-locks--change-note).
@@ -1359,8 +1359,8 @@ DROP NOT NULL on ctid/xmin/cmin/xmax/cmax/tableoid fails0A000 with
 DROP's default RESTRICT, explicit RESTRICT and CASCADE remove the selected
 NOT NULL identity equivalently: supported NOT NULL constraints have no inbound
 constraint dependents and own no SQL index. These modes do not implement a
-general constraint dependency closure. PK/UNIQUE/FK constraints and SQL indexes
-are unsupported engine capabilities, not external-only mechanisms; constraint-owned
+general constraint dependency closure. PK/UNIQUE/FK constraints and their backing
+indexes are unsupported engine capabilities, not external-only mechanisms; constraint-owned
 index deletion and referenced-key RESTRICT/CASCADE behavior require those
 capabilities first. Unrelated NOT NULL identities and sequences owned by the
 still-live table attribute survive even CASCADE.
@@ -1482,9 +1482,9 @@ changes a default. Existing standalone SET/DROP DEFAULT remains a separate
 utility, not an action in TYPE lists. Existing named NOT
 NULL, stable attribute/relation identities, comments, ownership and ACLs survive.
 Dependent views/rules reject TYPE with0A000, even same-type commands; views
-reading only unrelated attributes survive. Key/index revalidation remains
-an explicit absent SQL engine capability, independently witnessed on PostgreSQL,
-not an external-only mechanism or a successful native no-op.
+reading only unrelated attributes survive. Simple B-tree indexes rebind key usages
+and rebuild sorted logical entries from the final candidate row shape atomically;
+failed TYPE conversions, rollback and savepoint recovery preserve prior membership.
 
 Surviving affected CHECKs are captured from their original canonical definitions,
 reparsed after the entire TYPE/default pass against final destination usages and
@@ -1564,8 +1564,9 @@ original relation-name occurrence. Cached-plan logical Context is empty on both
 backends; C Routine is not a logical diagnostic field.
 Canonical Dump emits current names/labels/comments/constraints, not ALTER history.
 Stored views preserve stable sources and render current renamed identifiers.
-RENAME CONSTRAINT belongs to constraint/index metadata work; FK/index, row-type,
-hierarchy and transactional-DDL effects remain PostgreSQL-only witnesses.
+RENAME CONSTRAINT belongs to constraint metadata work; FK/backing-index, row-type,
+hierarchy and transactional-DDL effects remain PostgreSQL-only witnesses. Simple
+B-tree index names remain unchanged while their stable parent/key identities survive renames.
 Physical pg_dump/server disk/network mechanisms are outside native Reset/Dump/Restore. Smoke:
 `make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1`.
 
@@ -1610,9 +1611,10 @@ PostgreSQL temp moves fail 0A000 `cannot move objects into or out of temporary s
 a privileged pg_catalog move is independently exercised with rollback. Native
 read-write explicit transactions retain 0A000 `statement is unsupported in an
 explicit transaction`; read-only execution rejects canonical ALTER TABLE first
-with25006. Index/backing-index and row-type/array moves/collisions remain genuine
-PostgreSQL-only controls, not fabricated native descriptors; native named NOT NULL
-and owned sequences are supported. Equal constraint names on unrelated tables
+with25006. Simple B-tree indexes move atomically with their parent, including
+destination name collisions. Constraint backing-index and row-type/array moves
+remain PostgreSQL-only controls; native named NOT NULL and owned sequences
+are supported. Equal constraint names on unrelated tables
 do not collide. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. Both modes remove selected tables and AUTO-dependent owned sequences, plus contained metadata/storage/ACLs; neither removes schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
@@ -2044,4 +2046,39 @@ Identity cancellation regression entrypoints include
 `TestSessionIdentityFailedAndCanceledControlsPreserveState`; these cover the
 role publication fence, staged default writes, and failed/canceled controls
 without publishing replacement data or changing retained results.
+
+
+## Ordinary B-tree indexes — change note
+
+Native CREATE INDEX supports default/USING btree over 1–32 simple keys, including
+multikey and repeated columns, ASC/DESC and NULLS FIRST/LAST. It builds actual
+sorted live-row identity/key vectors and maintains them through common row and
+catalog publication. It is not metadata-only success. Scan/filter/sort remains
+the query semantic authority; no optimizer, index-only scan, disk algorithm or
+unordered-result ordering promise is added.
+
+Ordinary build uses Share, checks owner before waiting, accepts compatible
+same-incarnation grant-time revisions and revalidates namespace/role authority.
+Existing replacement/epoch and utility lock/cancellation boundaries apply.
+The native exact-incarnation utility contract retains its documented
+search_path-shadow distinction; no replacement is reacquired by name.
+CREATE INDEX is excluded inside native writable explicit transactions (0A000),
+whereas PostgreSQL ordinary transactional CREATE succeeds and rolls back.
+Read-only execution is independently 25006 before target lookup.
+
+Duplicate names are 42P07 in the shared relation namespace; missing target/key
+are 42P01/42703. PostgreSQL18.0 missing simple-key diagnostics have no Position,
+unlike newer development-source behavior. Binding precedes duplicate-name
+checking, including IF NOT EXISTS. Semantic prepared errors occur at Execute;
+syntax diagnostics retain one-based character positions. Non-btree/expression/
+partial/concurrent/unique definitions and custom index decorations are bounded
+capability exclusions, not ignored clauses. No DROP/ALTER INDEX or broad index
+inquiry catalog family is added.
+
+Dump writes canonical real definitions/current names/options after parent data;
+Reset removes persistent indexes and Restore privately rebuilds destination
+membership. Supported table lifecycle commands preserve or remove indices
+atomically. Smokes:
+`make smoke RUN='^TestBtreeIndex(Smoke|ControlsSmoke|LifecycleSmoke)$' VERBOSE=0`.
+The independent reference family is `TestReferenceBtreeIndex...`.
 

@@ -30,6 +30,10 @@ metadata-only. See [privileges, conflict matrix and savepoint lifetime](TRANSACT
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
 CREATE VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
+CREATE INDEX [name] ON [schema.]table [USING btree]
+  (column [ASC|DESC] [NULLS FIRST|LAST] [, ...])
+CREATE INDEX IF NOT EXISTS name ON [schema.]table [USING btree]
+  (column [ASC|DESC] [NULLS FIRST|LAST] [, ...])
 element := column type [COLLATE [schema.]name] [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression | check_constraint]...
          | [CONSTRAINT name] NOT NULL column | check_constraint | LIKE [schema.]source
 check_constraint := [CONSTRAINT name] CHECK (scalar_expression) [NO INHERIT]
@@ -142,7 +146,7 @@ through search_path. Stored views retain dependencies and deparse current names.
 Dump/Restore preserves current persistent definitions/data rather than ALTER history.
 Explicit transactions exclude this standalone SET SCHEMA utility, not the supported
 TYPE/nullability/DROP COLUMN lists. Non-table generic moves, temporary/system
-destinations, indexes and automatic row types are not added.
+destinations and automatic row types are not added. Simple B-tree indexes move with their table.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
 controls. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
@@ -662,4 +666,30 @@ and SHOW/RESET TIME ZONE use the existing settings utility. Optional interval
 precision and HOUR/HOUR TO MINUTE/MINUTE qualifiers apply only to this
 timezone-setting atom, not general INTERVAL expressions.
 No timezone(...) alias, CURRENT_* expansion or timezone catalog views are added.
+
+
+## Ordinary simple-key B-tree indexes
+
+CREATE INDEX builds on populated ordinary tables, with 1–32 unqualified simple
+column keys (repeated keys are legal), default/explicit btree, per-key direction
+and NULL placement. Names are unqualified and belong to the target table's
+schema, not the first creation schema in search_path. Omitted names use
+PostgreSQL-compatible generated names; IF NOT EXISTS emits a duplicate-relation
+NOTICE without changing an existing object, but does not bypass bad-key binding.
+Prepare is syntax/description-only; semantic diagnostics occur at Execute.
+The command returns zero affected rows and no result columns.
+
+Equality/range/IS NULL and explicit ORDER BY use the ordinary query pipeline,
+independently of index choice. Unordered results remain bags. Actual sorted
+logical keys, including duplicates/NULLs, are maintained by common committed
+row publication. See [the design](design/PG18-INDEX-BTREE.md) for representation,
+publication and lifecycle invariants. Native Dump/Restore includes current
+canonical CREATE INDEX definitions.
+
+Writable explicit CREATE INDEX transactions are excluded natively (0A000),
+while PostgreSQL supports transactional creation/rollback. Read-only execution
+returns 25006 first. UNIQUE, expression/partial/concurrent indexes, non-btree
+methods, opclasses/collations, INCLUDE, storage parameters/tablespaces and
+DROP/ALTER INDEX remain excluded; no planner, index-only scan or physical tree
+claim is made.
 

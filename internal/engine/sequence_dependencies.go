@@ -47,6 +47,9 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []Obje
 	return nil
 }
 func relationDiagnosticKind(r *relationDescriptor) string {
+	if r.relationKind == indexRelation {
+		return "index"
+	}
 	if r.relationKind == viewRelation {
 		return "view"
 	}

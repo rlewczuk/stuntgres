@@ -57,6 +57,10 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		}
 		relation := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if relation.relationKind != tableRelation {
+			if relation.relationKind == indexRelation {
+				e.mu.Unlock()
+				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: "Use DROP INDEX to remove an index."}
+			}
 			e.mu.Unlock()
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: "Use DROP SEQUENCE to remove a sequence."}
 		}

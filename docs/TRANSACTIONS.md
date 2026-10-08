@@ -494,7 +494,8 @@ requested modes as rows and held modes as columns; **yes** means conflict:
 One owner accumulates modes without blocking itself. Native tables have no
 eligible unique-key metadata: supported UPDATE automatically takes NO KEY UPDATE,
 and DELETE takes UPDATE. PostgreSQL unique-key-update controls in the reference
-suite do not imply native indexes/constraints. Other rows and ordinary MVCC
+suite do not imply native unique indexes/constraints. Ordinary nonunique B-tree
+indexes do not strengthen UPDATE's row-lock mode. Other rows and ordinary MVCC
 SELECT are not blocked by row locks, including reads of a peer's privately
 updated/deleted row (which return the committed visible version).
 
@@ -611,3 +612,23 @@ actual Lock wait state and pg_blocking_pids, not relation-only pg_locks probes.
 Sources: [PostgreSQL 18 row locks](https://www.postgresql.org/docs/18/explicit-locking.html#LOCKING-ROWS),
 [READ COMMITTED](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED),
 and [SELECT locking](https://www.postgresql.org/docs/18/sql-select.html#SQL-FOR-UPDATE-SHARE).
+
+## Ordinary B-tree build and publication
+
+CREATE INDEX takes the existing Share relation mode: reads/ROW SHARE and other
+Share builds are compatible; writers and stronger conflicting utilities wait.
+The grant-time committed live rows seed the build, so a prior writer's committed
+rows are included and rolled-back writes are absent. Existing timeout,
+cancellation, deadlock and epoch-fence authorities apply without a second mutex
+lock manager.
+
+Native CREATE INDEX Execute remains an explicit-transaction utility exclusion
+(0A000) before target lookup/ACL checks/Share requests, unlike PostgreSQL's
+transactional ordinary creation/rollback. Its Prepare remains syntax-only even
+in active writable/read-only transactions. Read-only Execute rejects CREATE INDEX
+with25006 before that exclusion and target lookup. All existing transactional
+DML and supported private TYPE/DROP COLUMN changes maintain index entries at
+commit, with rollback/savepoint atomicity. Published roots are immutable;
+historical and own-write queries still consume the existing selected MVCC view,
+not current-only index membership.
+

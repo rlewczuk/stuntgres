@@ -281,9 +281,9 @@ func TestAlterDropColumnNativeDependencyCapabilityBoundary(t *testing.T) {
 	if err := stuntgres.Dump(context.Background(), db, &before); err != nil {
 		t.Fatal(err)
 	}
-	for _, q := range []string{"CREATE INDEX idx ON t(b)"} {
+	for _, q := range []string{"CREATE UNIQUE INDEX idx ON t(b)"} {
 		_, err := db.Exec(q)
-		alterDropDiagnostic(t, err, "0A000", "CREATE syntax is unsupported", "8")
+		alterDropDiagnostic(t, err, "0A000", "unique indexes are unsupported", "8")
 		var after bytes.Buffer
 		if err = stuntgres.Dump(context.Background(), db, &after); err != nil || before.String() != after.String() {
 			t.Fatal(err)

@@ -157,6 +157,8 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if sourceTable != address {
 		t.Fatal("fixture did not exercise actual persistent/TEMP OID collision", sourceTable, address)
 	}
+	sessionSQL(t, a, "CREATE INDEX owner_idx ON portable.owner_table(v)")
+	sourceIndex, sourceIndexRoot := btreeRoot(t, source, "portable.owner_idx")
 	sequenceScalar(t, a, "SELECT nextval('source_temp')", 90)
 	sequenceScalar(t, b, "SELECT nextval('dest_temp')", 1)
 	namespace, token := b.temporaryNamespace, b.token
@@ -278,6 +280,18 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if got := tuples(sessionSQL(t, b, "SELECT v FROM portable.owner_table")); len(got) != 1 || got[0][0] != int64(7) {
 		t.Fatal("remapped persistent rows missing", got)
 	}
+	index, indexRoot := btreeRoot(t, dest, "portable.owner_idx")
+	if index.sqlIndex.parent != importedTable || sourceIndex.sqlIndex.parent != sourceTable || index.sqlIndex == sourceIndex.sqlIndex {
+		t.Fatal("index parent collision remapping lost source/destination authority")
+	}
+	if got := btreeKeys(t, indexRoot); !reflect.DeepEqual(got, []string{"7"}) {
+		t.Fatal("reminted index membership", got)
+	}
+	sessionSQL(t, b, "INSERT INTO portable.owner_table VALUES(8)")
+	btreeWantKeys(t, dest, "portable.owner_idx", "7", "8")
+	if got := btreeKeys(t, sourceIndexRoot); !reflect.DeepEqual(got, []string{"7"}) {
+		t.Fatal("destination DML mutated source root", got)
+	}
 	if got := tuples(oldRows); len(got) != 1 || got[0][0] != int64(77) {
 		t.Fatal("retained destination rows changed", got)
 	}
@@ -295,6 +309,9 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	sessionSQL(t, b, "DROP TABLE portable.owner_table")
 	if dest.state.descriptors[importedTable] != nil || dest.state.descriptors[importedSequence] != nil || dest.sequences[importedSequence] != nil {
 		t.Fatal("remapped ownership drop closure failed")
+	}
+	if dest.state.descriptors[index.address] != nil || dest.indexRoots[index.address] != nil {
+		t.Fatal("remapped parent drop left index definition/root")
 	}
 	if source.state.descriptors[sourceTable] == nil {
 		t.Fatal("destination drop changed source persistent catalog")

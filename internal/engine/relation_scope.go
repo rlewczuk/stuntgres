@@ -48,6 +48,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	rename, ifExists, tableRename := false, false, false
 	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	switch v := stmt.(type) {
+	case *parser.CreateIndex:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly = v.Table, relationShare, true
 	case *parser.Select:
 		if v.IsSingleton() {
 			return nil
@@ -123,7 +128,8 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if mode == accessShare || mode == rowExclusive {
 			ref, err = e.resolveReference(auth, name)
 		} else {
-			ref, err = e.resolveRelationReference(auth, name, mode == shareUpdateExclusive || rename)
+			_, indexBuild := stmt.(*parser.CreateIndex)
+			ref, err = e.resolveRelationReference(auth, name, mode == shareUpdateExclusive || rename || indexBuild)
 		}
 	}
 	if rename && ifExists && renameMissing(err) {
@@ -210,7 +216,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				return errors.New("stuntgres: relation storage is missing")
 			}
 		}
-		s.lockedIdentityOnly = mode == shareUpdateExclusive
+		s.lockedIdentityOnly = mode == shareUpdateExclusive || mode == relationShare
 	}
 	// Definition evolution while waiting is valid for this exact relation.
 	// Pin the grant-time descriptor and revalidate current role authority.

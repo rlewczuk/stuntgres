@@ -300,3 +300,24 @@ Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
 
 
 
+
+## Ordinary CREATE INDEX authority
+
+CREATE INDEX resolves the target under existing namespace USAGE/search_path
+rules and requires table ownership, even if the caller owns its schema or has
+SELECT/INSERT/MAINTAIN privileges. Ownership is checked before the ordinary
+Share wait and revalidated at grant. Namespace CREATE is separately required
+for the initiating effective role. The index inherits parent schema/owner; its
+name is not created in a different first search_path namespace.
+Prepared handles retain no successful authorization or target snapshot.
+These target checks apply after native read-only and explicit-transaction
+eligibility; excluded explicit CREATE INDEX does not resolve a target or request
+Share. Independent PostgreSQL controls use real GRANT/REVOKE and role changes
+to prescribe owner success, data-grantee/schema-owner denial, namespace CREATE
+denial, fresh held-Prepare authority and ownership rejection before writer waits.
+
+Native Restore's private, authenticated-superuser/import-marker-validated
+destination authority also replays index definitions for independent schema and
+table owners, preserving named owner directives. This does not synthesize grants
+or bypass ordinary CREATE INDEX authority.
+

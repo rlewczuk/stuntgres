@@ -198,6 +198,9 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			return nil, queryNamespace{}, err
 		}
 		relation := b.queryAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+		if relation.relationKind == indexRelation {
+			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
+		}
 		leaf := len(b.querySources)
 		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address)})
 		columns := make([]queryColumn, len(relation.columns))

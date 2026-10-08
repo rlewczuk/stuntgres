@@ -26,6 +26,9 @@ func sequenceKind(d *relationDescriptor) error {
 		return fmt.Errorf("stuntgres: missing sequence descriptor")
 	}
 	if d.relationKind != sequenceRelation {
+		if d.relationKind == indexRelation {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, d.name), Detail: "This operation is not supported for indexes."}
+		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, d.name), Detail: "This operation is not supported for tables."}
 	}
 	return nil
@@ -33,6 +36,9 @@ func sequenceKind(d *relationDescriptor) error {
 func tableKind(d *relationDescriptor, operation string) error {
 	if d.relationKind == tableRelation {
 		return nil
+	}
+	if d.relationKind == indexRelation {
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for indexes."}
 	}
 	if d.relationKind == viewRelation {
 		if operation == "change" {
@@ -443,6 +449,10 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		}
 		d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		if d.relationKind != sequenceRelation {
+			if d.relationKind == indexRelation {
+				e.mu.Unlock()
+				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a sequence`, d.name), Hint: "Use DROP INDEX to remove an index."}
+			}
 			e.mu.Unlock()
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a sequence`, d.name), Hint: "Use DROP TABLE to remove a table."}
 		}

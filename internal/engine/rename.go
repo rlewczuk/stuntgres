@@ -44,6 +44,9 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
+	if old.relationKind == indexRelation {
+		return fail(tableKind(old, "rename"))
+	}
 	slot := -1
 	if columnRename {
 		if old.relationKind == sequenceRelation {

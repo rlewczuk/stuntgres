@@ -319,6 +319,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
 	}
+	if err := e.evolveStageIndexesLocked(stage); err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
 	for a, d := range stage.descriptors {
 		original := grantCatalog.descriptors[a]
 		if captured, identity := stage.identityOriginals[a]; identity {
