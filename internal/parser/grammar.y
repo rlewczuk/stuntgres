@@ -69,7 +69,7 @@ package parser
  viewOptions []ViewOption
  viewOption ViewOption
  zoneSet *Set
- returning *DeleteReturning
+ returning *Returning
  returningAliases []ReturningAlias
  returningAlias ReturningAlias
 }
@@ -147,7 +147,7 @@ package parser
 %type <alterAction> alter_selected_action
 %type <stmt> delete
 %type <tok> delete_alias from_alias
-%type <returning> delete_returning
+%type <returning> returning
 %type <returningAliases> returning_aliases returning_options
 %type <returningAlias> returning_option
 %type <stmt> create_view
@@ -612,9 +612,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 column_suffix: LIKE | KW_T | KW_R | RETURNING | HAVING | INTO | ALL | ON | GROUP | WITH | USER | IN | IS | AND ;
-update: UPDATE relation_name SET update_assignments update_where { $$=&Update{Name:$2,Assignments:$4,Where:$5,Pos:$1.pos} }
+update: UPDATE relation_name SET update_assignments update_where returning { $$=&Update{Name:$2,Assignments:$4,Where:$5,Returning:$6,Pos:$1.pos} }
  | UPDATE relation_name SET update_assignments update_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"UPDATE suffix is unsupported"); return 1 }
- | UPDATE relation_name SET update_assignments update_where RETURNING { sqllex.(*lexer).failAt("0A000","UPDATE suffix is unsupported",$6.pos.Offset);return 1 }
  | UPDATE relation_name SET update_assignments update_where FROM { sqllex.(*lexer).failAt("0A000","UPDATE FROM is unsupported",$6.pos.Offset);return 1 }
  | UPDATE relation_name name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$3.pos.Offset);return 1 }
  | UPDATE relation_name AS name { sqllex.(*lexer).failAt("0A000","table aliases are unsupported",$4.pos.Offset);return 1 }
@@ -637,12 +636,12 @@ insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1
  | INSERT INTO relation_name '(' insert_targets ')' insert_override insert_input { s:=insertStatement($3,$5,$8,$1.pos);s.Override=$7;$$=s }
  | INSERT INTO relation_name DEFAULT VALUES { $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
 insert_override: OVERRIDING SYSTEM VALUE { $$=OverrideSystem } | OVERRIDING USER VALUE { $$=OverrideUser } ;
-delete: DELETE FROM relation_name delete_alias delete_where delete_returning { if token:=deleteQualification($5,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Returning:$6,Pos:$1.pos} }
+delete: DELETE FROM relation_name delete_alias delete_where returning { if token:=deleteQualification($5,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Returning:$6,Pos:$1.pos} }
  | DELETE FROM relation_name delete_alias delete_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 }
  | DELETE FROM relation_name delete_alias delete_where USING { sqllex.(*lexer).failAt("0A000","DELETE suffix is unsupported",$6.pos.Offset);return 1 } ;
 delete_alias: /* empty */ { $$=lexeme{} } | name { $$=$1 } | AS name { $$=$2 } ;
-delete_returning: /* empty */ { $$=nil }
- | RETURNING returning_aliases projection { $$=&DeleteReturning{Targets:$3.Targets,Labels:$3.Labels,Aliases:$2,Pos:$1.pos} } ;
+returning: /* empty */ { $$=nil }
+ | RETURNING returning_aliases projection { $$=&Returning{Targets:$3.Targets,Labels:$3.Labels,Aliases:$2,Pos:$1.pos} } ;
 returning_aliases: /* empty */ { $$=nil }
  | WITH '(' returning_options ')' { $$=$3 } ;
 returning_options: returning_option { $$=[]ReturningAlias{$1} }

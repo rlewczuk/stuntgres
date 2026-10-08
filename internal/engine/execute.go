@@ -330,9 +330,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if b.predicate != nil {
 				b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)
 			}
-			if err == nil && b.returning != nil {
-				b.returning, err = preflightDeleteReturning(&evaluation, b.returning)
-			}
+		}
+		if err == nil && b.returning != nil {
+			b.returning, err = preflightReturning(&evaluation, b.returning)
 		}
 		if err != nil {
 			return Result{}, err
@@ -410,7 +410,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	switch s := stmt.(type) {
 	case *parser.Update:
-		e.captureCheckCommentSnapshotLocked(scope, b.relation)
+		if b.returning != nil {
+			e.captureCommentSnapshotLocked(scope)
+		} else {
+			e.captureCheckCommentSnapshotLocked(scope, b.relation)
+		}
 		view, err := scope.acquireDataViewLocked(e, b.ref)
 		if err != nil {
 			e.mu.Unlock()

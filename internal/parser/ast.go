@@ -335,13 +335,13 @@ type Delete struct {
 	Name      ObjectName
 	Alias     Identifier
 	Where     Expr
-	Returning *DeleteReturning
+	Returning *Returning
 	Pos       Position
 }
 
 func (*Delete) statement() {}
 
-type DeleteReturning struct {
+type Returning struct {
 	Targets []Expr
 	Labels  []Identifier
 	Aliases []ReturningAlias
@@ -358,6 +358,7 @@ type Update struct {
 	Name        ObjectName
 	Assignments []UpdateAssignment
 	Where       Expr
+	Returning   *Returning
 	Pos         Position
 }
 type UpdateAssignment struct {

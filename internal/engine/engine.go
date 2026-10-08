@@ -59,7 +59,7 @@ type binding struct {
 	viewNamespaces     []viewNamespace
 	commandQuery       bool
 	update             *boundUpdate
-	returning          *boundDeleteReturning
+	returning          *boundReturning
 	dependencies       []expressionDependency
 	parameters         ParameterInfo
 	expressions        [][]BoundExpr
@@ -573,7 +573,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 		}
 		if s.Returning != nil {
-			b.returning, err = binder.bindDeleteReturning(s.Returning)
+			b.returning, err = binder.bindReturning(s.Returning, false)
 			if err != nil {
 				return b, err
 			}

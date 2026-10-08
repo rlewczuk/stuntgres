@@ -48,11 +48,11 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			b.returning = &boundDeleteReturning{expressions: []BoundExpr{probe}, schema: []ColumnDescriptor{{Name: "v", Usage: integer.Usage()}}}
+			b.returning = &boundReturning{expressions: []BoundExpr{probe}, schema: []ColumnDescriptor{{Name: "v", Usage: integer.Usage()}}}
 			if phase == "sequence_error" {
 				e.mu.Lock()
 				binder := newExpressionBinder(ctx, e, scope.input, scope.op, nil)
-				output, err := binder.bindDeleteReturning(statement(t, "DELETE FROM t RETURNING nextval('seq')").(*parser.Delete).Returning)
+				output, err := binder.bindReturning(statement(t, "DELETE FROM t RETURNING nextval('seq')").(*parser.Delete).Returning, false)
 				e.mu.Unlock()
 				if err != nil {
 					t.Fatal(err)

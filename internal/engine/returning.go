@@ -9,11 +9,12 @@ import (
 )
 
 // RETURNING adds projection namespaces, not additional physical sources.
-type deleteReturningAliases struct {
+type returningAliases struct {
 	old, new string
+	update   bool
 }
 
-type boundDeleteReturning struct {
+type boundReturning struct {
 	expressions    []BoundExpr
 	schema         []ColumnDescriptor
 	regclassOutput bool
@@ -30,8 +31,20 @@ func (e deleteNewExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return sqltype.Null(e.usage.Type), nil
 }
 
-func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*boundDeleteReturning, error) {
-	aliases := deleteReturningAliases{old: "old", new: "new"}
+// UPDATE's OLD is the actual predecessor; the ordinary projection frame is NEW.
+type updateOldExpression struct{ columnExpression }
+
+func (e updateOldExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	if c == nil {
+		return e.columnExpression.Eval(c)
+	}
+	old := *c
+	old.Row = c.OldRow
+	return e.columnExpression.Eval(&old)
+}
+
+func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*boundReturning, error) {
+	aliases := returningAliases{old: "old", new: "new", update: update}
 	visible := b.targetName
 	if b.targetAlias != "" {
 		visible = b.targetAlias
@@ -69,11 +82,13 @@ func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*bo
 	previous, clause := b.returningAliases, b.aggregateClause
 	b.returningAliases, b.aggregateClause = &aliases, "RETURNING"
 	defer func() { b.returningAliases, b.aggregateClause = previous, clause }()
-	output := &boundDeleteReturning{}
+	output := &boundReturning{}
 	appendOutput := func(expr BoundExpr, name string) {
 		descriptor := ColumnDescriptor{Name: name, Usage: expr.ResultUsage()}
 		switch column := expr.(type) {
 		case columnExpression:
+			descriptor = b.relation.columns[column.slot]
+		case updateOldExpression:
 			descriptor = b.relation.columns[column.slot]
 		case deleteNewExpression:
 			descriptor = b.relation.columns[column.slot]
@@ -90,12 +105,12 @@ func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*bo
 			return nil, err
 		}
 		if star, ok := expression.(parser.StarExpr); ok {
-			newValues, err := b.deleteReturningQualifier(star.Qualifier, star.Pos)
+			newValues, err := b.returningQualifier(star.Qualifier, star.Pos)
 			if err != nil {
 				return nil, err
 			}
 			for slot, column := range b.relation.columns {
-				appendOutput(b.deleteReturningColumnAt(slot, star.Pos, newValues), column.Name)
+				appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 			}
 		} else {
 			expr, err := b.bindOutput(expression, false)
@@ -126,9 +141,9 @@ func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*bo
 	return output, nil
 }
 
-func (b *expressionBinder) deleteReturningQualifier(name parser.ObjectName, pos parser.Position) (bool, error) {
+func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser.Position) (bool, error) {
 	if len(name.Parts) == 0 {
-		return false, nil
+		return b.returningAliases.update, nil
 	}
 	visible := b.targetName
 	if b.targetAlias != "" {
@@ -137,7 +152,7 @@ func (b *expressionBinder) deleteReturningQualifier(name parser.ObjectName, pos 
 	label := name.Parts[len(name.Parts)-1].Text
 	if len(name.Parts) == 1 {
 		if label == visible {
-			return false, nil
+			return b.returningAliases.update, nil
 		}
 		if label == b.returningAliases.old {
 			return false, nil
@@ -148,7 +163,7 @@ func (b *expressionBinder) deleteReturningQualifier(name parser.ObjectName, pos 
 	} else if len(name.Parts) == 2 && b.targetAlias == "" && label == b.targetName {
 		namespace := b.engine.state.descriptors[b.relation.namespace]
 		if namespace != nil && name.Parts[0].Text == namespace.Name() {
-			return false, nil
+			return b.returningAliases.update, nil
 		}
 	}
 	if label == b.targetName && b.targetAlias != "" {
@@ -159,20 +174,24 @@ func (b *expressionBinder) deleteReturningQualifier(name parser.ObjectName, pos 
 	return false, expressionError("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, label), pos)
 }
 
-func (b *expressionBinder) deleteReturningColumnAt(slot int, pos parser.Position, newValues bool) BoundExpr {
+func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) BoundExpr {
 	column := b.columnAt(slot, pos).(columnExpression)
-	if newValues {
+	if b.returningAliases.update {
+		if !newValues {
+			return updateOldExpression{column}
+		}
+	} else if newValues {
 		return deleteNewExpression{column}
 	}
 	return column
 }
 
-func (b *expressionBinder) deleteReturningColumn(raw parser.ColumnExpr) (BoundExpr, error) {
+func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (BoundExpr, error) {
 	parts := raw.Name.Parts
 	if len(parts) == 0 || len(parts) > 3 {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
-	newValues, err := b.deleteReturningQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
+	newValues, err := b.returningQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
 	if err != nil {
 		return nil, err
 	}
@@ -184,10 +203,10 @@ func (b *expressionBinder) deleteReturningColumn(raw parser.ColumnExpr) (BoundEx
 		}
 		return nil, expressionError("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
 	}
-	return b.deleteReturningColumnAt(slot, raw.Pos, newValues), nil
+	return b.returningColumnAt(slot, raw.Pos, newValues), nil
 }
 
-func preflightDeleteReturning(c *EvalContext, output *boundDeleteReturning) (*boundDeleteReturning, error) {
+func preflightReturning(c *EvalContext, output *boundReturning) (*boundReturning, error) {
 	var expressions []BoundExpr
 	for i, expr := range output.expressions {
 		folded, changed, err := preflightCoercions(c, expr)

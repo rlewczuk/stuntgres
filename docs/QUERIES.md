@@ -786,6 +786,62 @@ and recorder-captured rows before canonicalizing only for backend comparison.
 Duplicate, NULL and zero-width row counts remain significant; ordered rows and
 column metadata still require exact sequence equality.
 
+## UPDATE RETURNING — change note
+
+`UPDATE t SET a=b,b=a WHERE id=2 RETURNING id,a,b,old.a,new.a,
+new.a-old.a AS delta` returns each successfully updated occurrence, including
+duplicate and unchanged matches. Unqualified columns, `*`, `t.*` and `public.t.*`
+read the complete constrained NEW row. `old.*` and `old.column` read the actual
+immediate predecessor used by SET, not a stale pre-wait snapshot. Rechecked-false,
+concurrently deleted and UNKNOWN/nonmatching candidates return none; no global
+rescan discovers newly matching rows.
+
+`RETURNING WITH (OLD AS o, NEW AS n) o.a,n.a` supplies output-only aliases.
+Options may be reversed/quoted. Each alias hides its corresponding default name;
+cross-kind explicit aliases mask conflicting implicit names. Visible target names
+take precedence: a table named old makes old.a mean NEW, so use OLD AS o for its
+predecessor. Labels name outputs, not sibling inputs. This does not enable UPDATE
+target aliases or qualifications in SET/WHERE.
+
+Outputs use incumbent scalar providers, casts, conditional expressions, parameters
+and sequences. Names follow SELECT conventions; explicit labels override them.
+OLD and NEW direct columns retain declared types/typmods/nullability and attribute
+origins, unlike DELETE's absent NEW. No-match Query retains full metadata.
+Prepare describes only, mutates/draws nothing, and retained execution imports fresh
+arguments, rebinds current dependencies/ACLs and checks its cached result signature.
+WHERE binds first, RETURNING including unknown-output TEXT fallback next, SET last.
+Thus `SET id=$1 RETURNING $1` reports 42804 at the assignment, while typed WHERE
+can establish INT4 and make it valid. `$1,$1::int4` outputs report 42P08 at the
+first output occurrence; reverse order succeeds. Positions count UTF8 characters.
+
+Each successful constrained row is projected exactly once before atomic Finish.
+Late output conversion/division/overflow and prepublication cancellation expose
+no partial output/count or replacement and use existing transaction abort/savepoint
+rules. Constants need no SELECT; both real versions/stars/conditional children
+record actual read-column privileges independently of UPDATE assignment rights.
+Next/Close never evaluate expressions; Exec evaluates outputs even when discarded.
+Volatile draws occur per output occurrence, not for no-match/skipped rows/Prepare/
+Next; actual sequence draws survive failure and rollback.
+
+Eager values/schema/settings are owned after successful Finish and remain stable
+after rollback, later DML and native Reset/Restore. Dump serializes committed live
+rows/catalog/sequence state, never private replacement/history/cursors; Restore's
+mutation whitelist is unchanged and rejects UPDATE RETURNING scripts atomically.
+Native exact ACL controls remain internal, not a new SQL GRANT API.
+
+Triggers, scalar subqueries, whole-row records/parenthesized expansion, FROM joins,
+view writes/rewrite rules, partition movement and physical/C/wire tuple metadata
+remain external PostgreSQL mechanisms. The reference suite exercises real trigger
+transformation/suppression and whole-row controls, not native successful no-ops.
+INSERT RETURNING, target aliases, DEFAULT/row assignments/CURRENT OF/CTE/inheritance
+remain excluded; no new evaluator, durability or retry path is introduced.
+
+Feature commands:
+`make smoke RUN='^TestUpdateReturning(Smoke|ControlsSmoke)$' VERBOSE=0`,
+`make test PACKAGES=. RUN='^TestUpdateReturning' VERBOSE=0`,
+`make test PACKAGES=./internal/engine RUN='^TestUpdateReturning' VERBOSE=0`,
+`make reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`.
+
 ## Scalar UPDATE
 
 `UPDATE table SET column = expression [, ...] [WHERE predicate]` supports the
@@ -797,15 +853,15 @@ the same binder and provider, preserving its operand/type boundaries, NULL
 propagation and division/overflow errors; UPDATE adds no arithmetic provider.
 DATE and BYTEA participate through existing destination/contextual input rules,
 including typed NULL; this does not add explicit DATE/BYTEA casts or arithmetic,
-UPDATE FROM, aliases, row/subquery assignment, CURRENT OF, DEFAULT, RETURNING
-or general casts/functions.
+UPDATE FROM, target aliases, row/subquery assignment, CURRENT OF, DEFAULT
+or new casts/functions. RETURNING has the shared output surface described above.
 
 All RHS expressions read the same old row: `SET a=b,b=a` swaps values.
 Assignment conversions use the destination type and typmod; the completed row
 must satisfy existing NOT NULL constraints. Every qualifying logical row counts
 once, including unchanged values and duplicate-valued occurrences; no match
 returns zero. Direct and prepared commands expose this count through
-RowsAffected, with no returned row schema or LastInsertId. Analysis rejects bad
+RowsAffected, with no LastInsertId; omitted RETURNING has no returned row schema. Analysis rejects bad
 targets/types/duplicate assignments even on an empty table; late conversion,
 constraint or cancellation failures publish none of the statement's rows.
 Assignment type mismatch (`42804`) retains the rewrite/cast Hint and points to

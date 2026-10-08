@@ -49,6 +49,15 @@ semantics. Native Dump/Restore records surviving objects/data, not result histor
 See [DELETE RETURNING](docs/QUERIES.md#delete-returning--change-note).
 Feature smokes: `make smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`.
 
+UPDATE supports PostgreSQL18 `RETURNING` expressions, mixed stars and output-only
+OLD/NEW aliases. Ordinary outputs read the completed new row; OLD reads the actual
+predecessor, including after a row wait. Same-value matches and duplicates each
+return one occurrence; no matches retain full metadata. Query owns eager values,
+and Exec still evaluates outputs before reporting its count. Output errors roll
+back staged mutations, not sequence draws, under existing transaction/savepoint
+rules. See [UPDATE RETURNING](docs/QUERIES.md#update-returning--change-note).
+Feature smokes: `make smoke RUN='^TestUpdateReturning(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
 Schema search paths are physical-session settings: missing/inaccessible entries
 are ignored, `$user` follows the current role, qualification ignores the path,
 and creation selects the first usable explicit schema without CREATE-denial

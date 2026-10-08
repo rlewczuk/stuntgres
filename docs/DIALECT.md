@@ -305,6 +305,24 @@ PostgreSQL-only boundaries. See [output details](QUERIES.md#delete-returning--ch
 Feature smoke: `make smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`;
 reference: `make reference RUN='^TestReferenceDeleteReturning' VERBOSE=0`.
 
+UPDATE RETURNING shares scalar projection/alias binding and eager result ownership
+with DELETE RETURNING. OLD is the actual predecessor used by simultaneous SET;
+NEW, unqualified and target-qualified outputs read the constrained replacement.
+Both real versions preserve declared source metadata and SELECT dependencies.
+Output aliases are visible only in RETURNING; target aliases and SET/WHERE
+qualifications remain excluded. Same-value matches return/count once, duplicates
+survive and no matches retain metadata. WHERE analysis precedes RETURNING output
+fallback, which precedes SET; prepared execution freshly checks ACLs and result
+signature. Output/constraint/cancellation failure publishes no partial replacement
+or output, following existing abort/savepoint rules; sequence draws are not undone.
+Dump/Restore persists committed live data/catalog/sequence state, not output/history;
+its script whitelist is unchanged. Triggers, whole-row records/record expansion,
+scalar subqueries, FROM/view rewrites/rules/partition movement and physical/C/wire
+tuple metadata are genuine PostgreSQL-only mechanisms, not native no-ops.
+See [UPDATE output details](QUERIES.md#update-returning--change-note).
+Feature smoke: `make smoke RUN='^TestUpdateReturning(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
+
 
 Column DEFAULT declarations admit outer scalar/typed temporal/existing cast/
 INT4/INT8 unary and binary arithmetic, integral bitwise operations, comparison
@@ -1421,7 +1439,7 @@ Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion pe
 Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SELECT aliases/qualified columns,
 general casts/joins/functions/expressions, serial, primary
-keys, UPDATE FROM/row-subqueries/CURRENT OF/RETURNING and DELETE USING/CURRENT OF.
+keys, UPDATE FROM/row-subqueries/CURRENT OF and DELETE USING/CURRENT OF.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ and READ ONLY/READ WRITE modes.
 SET TRANSACTION changes current owner modes; SET SESSION CHARACTERISTICS AS

@@ -47,7 +47,7 @@ func TestUpdateCoreDiagnosticPhases(t *testing.T) {
 			typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22003", Message: "smallint out of range"})
 		}
 	}
-	for _, q := range []string{"UPDATE t SET a=9 FROM t", "UPDATE t SET a=9 RETURNING a", "UPDATE t SET a=9 trailing", "UPDATE t SET a=9; SELECT a FROM t"} {
+	for _, q := range []string{"UPDATE t SET a=9 FROM t", "UPDATE t SET a=9 trailing", "UPDATE t SET a=9; SELECT a FROM t"} {
 		if _, err := db.Exec(q); err == nil {
 			t.Fatal("excluded suffix executed", q)
 		}

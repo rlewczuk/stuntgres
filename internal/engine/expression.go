@@ -36,6 +36,7 @@ type EvalContext struct {
 	Context        context.Context
 	Scope, Frame   uint32
 	Row            []sqltype.Value
+	OldRow         []sqltype.Value
 	Parameters     []sqltype.Value
 	orderValues    []sqltype.Value
 	statementScope *StatementScope
@@ -560,38 +561,39 @@ type expressionDependency struct {
 	revision DefinitionRevision
 }
 type expressionBinder struct {
-	engine            *Engine
-	ctx               context.Context
-	relation          *relationDescriptor
-	ref               ObjectRef
-	parameters        map[int]sqltype.Usage
-	updateParameters  bool
-	uses              []int
-	dependencies      []expressionDependency
-	input             sqltype.InputEnvironment
-	op                *Operation
-	expected          *StatementDescription
-	temporals         []temporalConstant
-	anyParameters     []parameterExpression
-	deleteTarget      bool
-	targetName        string
-	targetAlias       string
-	returningAliases  *deleteReturningAliases
-	defaultConsumer   bool
-	checkConsumer     bool
-	sequenceConstants []sequenceConstant
-	aggregateClause   string
-	aggregates        []aggregateCall
-	queryAuth         *AuthorizationView
-	querySources      []queryLeaf
-	queryNamespace    *queryNamespace
-	queryHidden       []queryQualifier
-	noParameters      bool
-	viewLiterals      map[viewLiteralPath]literalExpression
-	viewColumns       map[viewLiteralPath]int
-	viewStars         map[int][]int
-	viewJoinCount     int
-	viewNamespaces    []viewNamespace
+	engine                *Engine
+	ctx                   context.Context
+	relation              *relationDescriptor
+	ref                   ObjectRef
+	parameters            map[int]sqltype.Usage
+	updateParameters      bool
+	updateInputParameters map[int]sqltype.Usage
+	uses                  []int
+	dependencies          []expressionDependency
+	input                 sqltype.InputEnvironment
+	op                    *Operation
+	expected              *StatementDescription
+	temporals             []temporalConstant
+	anyParameters         []parameterExpression
+	deleteTarget          bool
+	targetName            string
+	targetAlias           string
+	returningAliases      *returningAliases
+	defaultConsumer       bool
+	checkConsumer         bool
+	sequenceConstants     []sequenceConstant
+	aggregateClause       string
+	aggregates            []aggregateCall
+	queryAuth             *AuthorizationView
+	querySources          []queryLeaf
+	queryNamespace        *queryNamespace
+	queryHidden           []queryQualifier
+	noParameters          bool
+	viewLiterals          map[viewLiteralPath]literalExpression
+	viewColumns           map[viewLiteralPath]int
+	viewStars             map[int][]int
+	viewJoinCount         int
+	viewNamespaces        []viewNamespace
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -691,7 +693,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
 		return b.queryColumn(raw)
 	}
 	if b.returningAliases != nil {
-		return b.deleteReturningColumn(raw)
+		return b.returningColumn(raw)
 	}
 	if len(raw.Name.Parts) == 2 && !b.deleteTarget {
 		return nil, expressionError("0A000", "qualified column references are unsupported", raw.Pos)
@@ -826,6 +828,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, expressionError("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 		}
 		u := policy.expected
+		if established := b.updateInputParameters[r.Number]; established.Type != nil {
+			u = established
+		}
 		if u.Type == nil {
 			u = b.parameters[r.Number]
 		}

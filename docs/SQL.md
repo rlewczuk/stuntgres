@@ -441,7 +441,7 @@ changing currval. setval does not select a different sequence for lastval.
 `nextval(regclass)`, `currval(regclass)`, `lastval()`,
 `setval(regclass,bigint)` and `setval(regclass,bigint,boolean)` return INT8,
 including for smallint/integer sequences. They work in existing scalar
-SELECT/INSERT positions, UPDATE RHS, DELETE predicates/RETURNING and selected
+SELECT/INSERT positions, UPDATE RHS/RETURNING, DELETE predicates/RETURNING and selected
 relationless SELECT targets. Arithmetic and nonidentity casts retain child volatility;
 filtered or empty projections do not allocate or read session sequence memory,
 while imported argument errors still precede demanded effects.
@@ -597,6 +597,14 @@ Ordinary supplied integer assignment remains checked.
 SERIAL, expression-generated columns and UPDATE DEFAULT remain unsupported.
 
 
+UPDATE admits `RETURNING [WITH (OLD AS o, NEW AS n)] output [, ...]` using
+incumbent scalar expressions and mixed stars. Ordinary/target-qualified outputs
+read NEW; OLD reads the actual predecessor. Explicit aliases hide corresponding
+defaults and do not enter SET/WHERE. Both versions retain declared column metadata.
+Query returns eagerly owned values even after rollback/native replacement;
+Exec evaluates/discards outputs and returns the actual update count.
+See [UPDATE RETURNING](QUERIES.md#update-returning--change-note).
+
 ## Unsupported surface
 
 Database-qualified relation names, temporary tables (TEMP sequences are supported),
@@ -605,7 +613,7 @@ casts outside the bounded baseline/character-family/selected regclass/datetime s
 constraints beyond nullability/defaults/CHECK/identity, ALTER ADD CHECK/VALIDATE,
 serial, primary keys,
 UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
-INSERT/UPDATE RETURNING, whole-row RETURNING records/scalar subqueries,
+INSERT RETURNING, whole-row RETURNING records/scalar subqueries,
 general COLLATE, two-phase commit, table/schema/view DDL in explicit
 transactions outside the admitted atomic ALTER actions, non-sequence COMMENT/role
 mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation,

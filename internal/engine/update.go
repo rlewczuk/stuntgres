@@ -53,17 +53,39 @@ func preflightUpdate(c *EvalContext, original *boundUpdate) (*boundUpdate, error
 	return result, nil
 }
 
-// Transform WHERE and all RHS nodes before destination assignment checks.
+// Transform WHERE, RETURNING (including output fallback), then RHS/destinations.
 func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	binder.relation, binder.ref = b.relation, b.ref
+	binder.targetName = b.relation.name
 	binder.updateParameters = true
-	defer func() { binder.updateParameters = false }()
+	defer func() {
+		binder.updateParameters = false
+		binder.updateInputParameters = nil
+	}()
 	u := &boundUpdate{assignments: make([]BoundExpr, len(s.Assignments))}
 	var err error
 	if s.Where != nil {
 		u.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
 		if err != nil {
 			return err
+		}
+	}
+	if s.Returning != nil {
+		b.returning, err = binder.bindReturning(s.Returning, true)
+		if err != nil {
+			return err
+		}
+	}
+	if s.Returning != nil {
+		// Only WHERE and finalized RETURNING types precede SET inference.
+		// SET's own unresolved occurrences retain their contextual diagnostics.
+		for number, usage := range binder.parameters {
+			if usage.Type != nil {
+				if binder.updateInputParameters == nil {
+					binder.updateInputParameters = make(map[int]sqltype.Usage, len(binder.parameters))
+				}
+				binder.updateInputParameters[number] = usage
+			}
 		}
 	}
 	for i, a := range s.Assignments {
@@ -187,6 +209,17 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate upd
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.close()
 	eval := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}
+	var output *finalRows
+	keep := false
+	if b.returning != nil {
+		output = newFinalRows(b.returning.schema, 0)
+		output.output = s.output
+		defer func() {
+			if !keep {
+				output.Close()
+			}
+		}()
+	}
 	// The candidate set is frozen before the first row wait. Rechecks can remove
 	// candidates but never discover rows that did not qualify in this snapshot.
 	var candidates []updateCandidate
@@ -218,6 +251,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			continue
 		}
 		eval.Row = old.values
+		eval.OldRow = nil
 		if old.version != candidate.version {
 			matches, err := updateMatches(&eval, b.update.predicate)
 			if err != nil {
@@ -250,14 +284,37 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				return Result{}, e.rowConstraintError(s, b, schema, "", constraint.Name, row)
 			}
 		}
+		if output != nil {
+			eval.Row, eval.OldRow = row, old.values
+			for i, expr := range b.returning.expressions {
+				value, err := expr.Eval(&eval)
+				if err != nil {
+					return Result{}, err
+				}
+				if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.schema[i].Usage.Type {
+					return Result{}, errors.New("stuntgres: invalid finalized UPDATE value")
+				}
+				output.values = append(output.values, value)
+			}
+			output.count++
+		}
 		oldRows = append(oldRows, old)
 		rows = append(rows, row)
+	}
+	if output != nil && b.returning.regclassOutput && output.count != 0 {
+		if err := e.captureRegclassOutput(s.op, output); err != nil {
+			return Result{}, err
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
 	if err := s.Writes().replace(b.ref, oldRows, rows); err != nil {
 		return Result{}, err
+	}
+	keep = true
+	if output != nil {
+		return Result{Count: int64(len(rows)), Rows: output}, nil
 	}
 	return Result{Count: int64(len(rows))}, nil
 }
