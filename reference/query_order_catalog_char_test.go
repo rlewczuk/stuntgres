@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceQueryOrderCatalogChar(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE ordering_char_table(id INT)", 0))
 	p.step(t, referenceExec("CREATE SEQUENCE ordering_char_sequence", 0))
 	p.step(t, referenceExec("CREATE VIEW ordering_char_view AS SELECT id FROM ordering_char_table", 0))

@@ -1,13 +1,10 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 // Native public ACL mutation is not admitted. Stage2 engine regressions own
 // native exact manifests; these use real PostgreSQL grants, not parity values.
-func referenceLimitACL(t *testing.T) {
-	p := newReferencePair(t)
+func referenceLimitACL(t *testing.T, p *referencePair) {
 	run := func(step referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step) }
 	run(referenceExec("CREATE ROLE limit_reader", 0))
 	t.Cleanup(func() {

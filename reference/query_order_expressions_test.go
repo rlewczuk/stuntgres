@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceQueryOrderScalarConsumers(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT,i INT,j INT,a BOOL,b BOOL)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,1,2,TRUE,FALSE),(2,3,1,FALSE,TRUE),(3,NULL,2,NULL,NULL)", 3))
 	for _, tc := range []struct {

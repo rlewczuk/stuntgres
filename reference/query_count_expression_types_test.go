@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,7 +6,7 @@ import (
 )
 
 func TestReferenceCountExpressionTypes(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for i, tc := range []struct{ typ, value string }{
 		{"BOOL", "false"}, {"SMALLINT", "-32768"}, {"SMALLINT", "32767"}, {"INT", "-2147483648"}, {"INT", "2147483647"}, {"BIGINT", "-9223372036854775808"}, {"BIGINT", "9223372036854775807"},
 		{"TEXT", ""}, {"VARCHAR(4)", ""}, {"CHAR(4)", " "}, {"BYTEA", `\x00ff`},

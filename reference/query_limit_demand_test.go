@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -59,10 +57,7 @@ func TestReferenceQueryLimitDemand(t *testing.T) {
 	t.Run("held bound evaluates once offset first", func(t *testing.T) {
 		p := referenceLimitFixture(t)
 		p.step(t, referenceExec("CREATE SEQUENCE s START WITH 1", 0))
-		for _, backend := range []struct {
-			name string
-			db   referenceExecutor
-		}{{"postgres", p.postgres}, {"memory", p.memory}} {
+		for _, backend := range p.backends() {
 			t.Run(backend.name, func(t *testing.T) {
 				stmt, err := backend.db.PrepareContext(p.ctx, "SELECT id FROM t ORDER BY id LIMIT nextval('s') OFFSET nextval('s')")
 				if err != nil {
@@ -158,6 +153,7 @@ func TestReferenceQueryLimitViews(t *testing.T) {
 		p.step(t, referencePrepared(step))
 		p.step(t, referenceExec("ALTER TABLE t RENAME COLUMN id TO renamed", 0))
 		p.step(t, step)
+		p.step(t, referencePrepared(step))
 	})
 }
 
@@ -173,5 +169,7 @@ func TestReferenceQueryLimitInsert(t *testing.T) {
 	} {
 		p.step(t, step)
 	}
-	p.step(t, referenceSelect("SELECT id FROM dst ORDER BY id", []string{"id"}, []string{"INT4"}, referenceLimitIDs(2, 2, 3, 8)))
+	step := referenceSelect("SELECT id FROM dst ORDER BY id", []string{"id"}, []string{"INT4"}, referenceLimitIDs(2, 2, 3, 8))
+	p.step(t, step)
+	p.step(t, referencePrepared(step))
 }

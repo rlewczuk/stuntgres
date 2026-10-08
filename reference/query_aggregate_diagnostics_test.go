@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceQueryAggregateDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(k TEXT,v INT)", 0))
 	for _, tc := range []struct{ q, code, message, position string }{
 		{"SELECT k,v,count(*) FROM t GROUP BY k", "42803", `column "t.v" must appear in the GROUP BY clause or be used in an aggregate function`, "10"},

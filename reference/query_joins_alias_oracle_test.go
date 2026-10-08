@@ -1,29 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 // Alias admission changes the parse of the formerly rejected VALUES suffix.
 // Full records and valid aliases were independently observed on pinned PG18.0.
-func TestReferenceQueryJoinsAliasKeywordOracle(t *testing.T) { queryJoinsAliasKeywords(t, true) }
-func TestReferenceQueryJoinsAliasKeywords(t *testing.T)      { queryJoinsAliasKeywords(t, false) }
-
-func queryJoinsAliasKeywords(t *testing.T, oracle bool) {
+func TestReferenceQueryJoinsAliasKeywords(t *testing.T) {
 	p := queryJoinsReferenceSetup(t)
-	for _, backend := range []struct {
-		name     string
-		db       *sql.DB
-		recorder *referenceRecorder
-	}{
-		{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord},
-	} {
-		if oracle && backend.name != "postgres" {
-			continue
-		}
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE t(v INT)", 0))
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("INSERT INTO t VALUES(1)", 1))
@@ -49,9 +34,6 @@ func queryJoinsAliasKeywords(t *testing.T, oracle bool) {
 						if result != nil {
 							t.Fatal("invalid alias list exposed result")
 						}
-					}
-					if oracle {
-						t.Logf("JOIN ALIAS KEYWORD ORACLE %s %q: %#v", name, invalid, referenceExtractDiagnostic(t, err))
 					}
 					referenceAssertDiagnostic(t, err, &want)
 				})

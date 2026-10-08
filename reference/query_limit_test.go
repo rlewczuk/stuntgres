@@ -1,12 +1,10 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func referenceLimitFixture(t *testing.T) *referencePair {
 	t.Helper()
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL,v INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,2),(2,0),(3,3),(4,4)", 4))
 	return p
@@ -43,7 +41,9 @@ func TestReferenceQueryLimitBasics(t *testing.T) {
 			p.step(t, referencePrepared(step))
 		})
 	}
-	p.step(t, referenceSelect("SELECT 7 AS n FROM t LIMIT 2", []string{"n"}, []string{"INT4"}, referenceLimitIDs(7, 7)))
+	constant := referenceSelect("SELECT 7 AS n FROM t LIMIT 2", []string{"n"}, []string{"INT4"}, referenceLimitIDs(7, 7))
+	p.step(t, constant)
+	p.step(t, referencePrepared(constant))
 }
 
 func TestReferenceQueryLimitTyping(t *testing.T) {
@@ -70,18 +70,17 @@ func TestReferenceQueryLimitTyping(t *testing.T) {
 	step.selectRows = true
 	step.errorStage = "prepare"
 	p.step(t, referencePrepared(step))
+	step.errorStage = "execute"
+	p.step(t, step)
+	step.args = []any{nil}
+	p.step(t, step)
 }
 
 func TestReferenceQueryLimitPrepared(t *testing.T) {
 	p := referenceLimitFixture(t)
 	// Hold a statement across executions on each backend rather than preparing
 	// an equivalent fresh statement for each input.
-	for _, backend := range []struct {
-		name string
-		db   referenceExecutor
-	}{
-		{"postgres", p.postgres}, {"memory", p.memory},
-	} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			stmt, err := backend.db.PrepareContext(p.ctx, "SELECT id FROM t ORDER BY id LIMIT $1 OFFSET $2")
 			if err != nil {
@@ -142,11 +141,10 @@ func TestReferenceQueryLimitDiagnostics(t *testing.T) {
 			p.step(t, referencePrepared(step))
 		})
 	}
-	t.Run("unauthorized even zero", referenceLimitACL)
+	if p.postgres != nil {
+		t.Run("unauthorized even zero", func(t *testing.T) { referenceLimitACL(t, p) })
+	}
 	t.Run("occurrence conflict", func(t *testing.T) {
-		// The ACL fixture resets PostgreSQL's public schema. This witness owns
-		// fresh source setup instead of relying on the earlier pair's table.
-		p := referenceLimitFixture(t)
 		step := referenceImplicitError("SELECT $1 FROM t LIMIT $1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "bigint versus text", Position: "8"}, int64(1))
 		step.selectRows = true
 		step.errorStage = "execute"

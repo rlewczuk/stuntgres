@@ -556,7 +556,7 @@ exceptions and INSERT-only producer rules remain separate and unchanged.
 Feature checks (repository root, quiet output):
 
 ```sh
-make test PACKAGES=. RUN='^TestQueryAggregate' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
 make test PACKAGES=./internal/engine RUN='^TestQueryAggregate' VERBOSE=0
 make test PACKAGES=./internal/parser RUN='^TestQueryAggregate' VERBOSE=0
 make test PACKAGES=. RUN='^TestBooleanAggregate' VERBOSE=0
@@ -567,10 +567,24 @@ make smoke RUN='^TestBooleanAggregateSmoke$' VERBOSE=0
 make test PACKAGES=./internal/sqltype RUN='^TestGrouping' VERBOSE=0
 make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
 make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0
-make test PACKAGES=. RUN='^TestCountExpression' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceCountExpression' VERBOSE=0
 make reference RUN='^TestReferenceCountExpression' VERBOSE=0
 make smoke RUN='^TestCountExpressionSmoke$' VERBOSE=0
 ```
+
+Query-read test migration carries the complete 67-test root assertion union into
+80 untagged external `reference_test` definitions for projection, NULL counts,
+aggregates, joins, limits and ordering. Default/explicit-false mode runs the real
+native adapter without Docker; explicit `-reference=true` adds the unchanged
+pinned PostgreSQL 18.0 oracle to those same definitions. Backend-specific
+diagnostics and metadata are independently specified, not hidden by parity.
+Native controls preserve held rows and pristine restored sequence state;
+PostgreSQL lock witnesses use actual bounded waiters. Joined BYTEA scan ownership
+is checked on both backends, while detached `Rows.Columns` name slices are a
+native-only contract because lib/pq may return borrowed names. Unrelated legacy
+families remain tagged. See [dual-mode verification](DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
+for runtime mode and legacy-selection boundaries. This migration changes no
+production SQL behavior or public API.
 
 ## INSERT from query — change note
 

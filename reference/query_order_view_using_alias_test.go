@@ -1,9 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
+	"bytes"
+
+	"stuntgres"
 	"testing"
 )
 
@@ -17,7 +17,7 @@ func TestReferenceQueryOrderViewUsingAliasNamespaces(t *testing.T) {
 		{"mixed_slots", "SELECT nextval('s') AS n,a.id FROM a JOIN b USING(k,j) ORDER BY k,j,a.id"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			jWidth := "3"
 			if tc.name == "mixed_slots" {
 				jWidth = "2"
@@ -29,7 +29,8 @@ func TestReferenceQueryOrderViewUsingAliasNamespaces(t *testing.T) {
 			} {
 				p.step(t, step)
 			}
-			for _, db := range []*sql.DB{p.memory, p.postgres} {
+			for _, backend := range p.backends() {
+				db := backend.db
 				var definition string
 				definitionSource := db
 				if tc.name == "nested" {
@@ -49,6 +50,10 @@ func TestReferenceQueryOrderViewUsingAliasNamespaces(t *testing.T) {
 					t.Fatal(definition, err)
 				}
 			}
+			var dump bytes.Buffer
+			if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+				t.Fatal(err)
+			}
 			for _, name := range []string{"collision", "replay"} {
 				for _, prepared := range []bool{false, true} {
 					p.step(t, referenceExec("ALTER SEQUENCE s RESTART WITH 1", 0))
@@ -56,6 +61,21 @@ func TestReferenceQueryOrderViewUsingAliasNamespaces(t *testing.T) {
 					step.prepared = prepared
 					p.step(t, step)
 					p.step(t, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(3)}}))
+				}
+			}
+			for _, prepared := range []bool{false, true} {
+				restored := newReferenceFixture(t, false, true)
+				if err := stuntgres.Restore(restored.ctx, restored.native, bytes.NewReader(dump.Bytes())); err != nil {
+					t.Fatal(err)
+				}
+				for _, name := range []string{"collision", "replay"} {
+					if name == "replay" {
+						restored.step(t, referenceExec("ALTER SEQUENCE s RESTART WITH 1", 0))
+					}
+					step := referenceSelect("SELECT k,id FROM "+name+" ORDER BY id", []string{"k", "id"}, []string{"INT8", "INT4"}, [][]any{{int64(2), int64(1)}, {int64(1), int64(2)}})
+					step.prepared = prepared
+					restored.step(t, step)
+					restored.step(t, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(3)}}))
 				}
 			}
 		})

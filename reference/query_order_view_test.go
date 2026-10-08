@@ -1,14 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
+	"bytes"
+
+	"stuntgres"
 	"testing"
 )
 
 func TestReferenceQueryOrderViewRegression(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, step := range []referenceStep{
 		referenceExec("CREATE TABLE t(id INT,a INT)", 0),
 		referenceExec("INSERT INTO t VALUES(1,2),(2,1),(3,NULL)", 3),
@@ -19,7 +19,8 @@ func TestReferenceQueryOrderViewRegression(t *testing.T) {
 	} {
 		p.step(t, step)
 	}
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		for _, name := range []string{"alias_order", "hidden_order", "ordinal_order"} {
 			var definition string
 			if err := db.QueryRowContext(p.ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='"+name+"'").Scan(&definition); err != nil {
@@ -30,15 +31,9 @@ func TestReferenceQueryOrderViewRegression(t *testing.T) {
 			}
 		}
 	}
-	for _, prefix := range []string{"", "replay_"} {
-		for _, step := range []referenceStep{
-			referenceSelect("SELECT k,id FROM "+prefix+"alias_order ORDER BY id", []string{"k", "id"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(1)}, {int64(1), int64(2)}, {nil, int64(3)}}),
-			referenceSelect("SELECT id FROM "+prefix+"hidden_order ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}}),
-			referenceSelect("SELECT id,a FROM "+prefix+"ordinal_order ORDER BY id", []string{"id", "a"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(2)}, {int64(2), int64(1)}, {int64(3), nil}}),
-		} {
-			p.step(t, step)
-			p.step(t, referencePrepared(step))
-		}
+	for _, step := range queryOrderViewReadSteps() {
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
 	}
 	for _, step := range []referenceStep{
 		referenceExec("CREATE SEQUENCE alias_sequence START WITH 1", 0),
@@ -52,4 +47,28 @@ func TestReferenceQueryOrderViewRegression(t *testing.T) {
 	} {
 		p.step(t, step)
 	}
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+		t.Fatal(err)
+	}
+	restored := newReferenceFixture(t, false, true)
+	if err := stuntgres.Restore(restored.ctx, restored.native, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range queryOrderViewReadSteps() {
+		restored.step(t, step)
+		restored.step(t, referencePrepared(step))
+	}
+}
+
+func queryOrderViewReadSteps() []referenceStep {
+	var steps []referenceStep
+	for _, prefix := range []string{"", "replay_"} {
+		steps = append(steps,
+			referenceSelect("SELECT k,id FROM "+prefix+"alias_order ORDER BY id", []string{"k", "id"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(1)}, {int64(1), int64(2)}, {nil, int64(3)}}),
+			referenceSelect("SELECT id FROM "+prefix+"hidden_order ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}}),
+			referenceSelect("SELECT id,a FROM "+prefix+"ordinal_order ORDER BY id", []string{"id", "a"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(2)}, {int64(2), int64(1)}, {int64(3), nil}}),
+		)
+	}
+	return steps
 }

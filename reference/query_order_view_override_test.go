@@ -1,14 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
+	"bytes"
+
+	"stuntgres"
 	"testing"
 )
 
 func TestReferenceQueryOrderViewOverrideRegression(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, step := range []referenceStep{
 		referenceExec("CREATE TABLE t(id INT,b INT)", 0),
 		referenceExec("INSERT INTO t VALUES(1,2),(2,1)", 2),
@@ -17,7 +17,8 @@ func TestReferenceQueryOrderViewOverrideRegression(t *testing.T) {
 	} {
 		p.step(t, step)
 	}
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		var definition string
 		if err := db.QueryRowContext(p.ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='collision'").Scan(&definition); err != nil {
 			t.Fatal(err)
@@ -25,6 +26,10 @@ func TestReferenceQueryOrderViewOverrideRegression(t *testing.T) {
 		if _, err := db.ExecContext(p.ctx, "CREATE VIEW replay AS "+definition); err != nil {
 			t.Fatal(definition, err)
 		}
+	}
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+		t.Fatal(err)
 	}
 	for _, name := range []string{"collision", "replay"} {
 		for _, prepared := range []bool{false, true} {
@@ -35,6 +40,23 @@ func TestReferenceQueryOrderViewOverrideRegression(t *testing.T) {
 			step.prepared = prepared
 			p.step(t, step)
 			p.step(t, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(3)}}))
+		}
+	}
+	restored := newReferenceFixture(t, false, true)
+	if err := stuntgres.Restore(restored.ctx, restored.native, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"collision", "replay"} {
+		for _, prepared := range []bool{false, true} {
+			// The first restored read must witness pristine is_called=false;
+			// a corrective restart would conceal a serializer regression.
+			if name != "collision" || prepared {
+				restored.step(t, referenceExec("ALTER SEQUENCE s RESTART WITH 1", 0))
+			}
+			step := referenceSelect("SELECT b,id FROM "+name+" ORDER BY id", []string{"b", "id"}, []string{"INT8", "INT4"}, [][]any{{int64(2), int64(1)}, {int64(1), int64(2)}})
+			step.prepared = prepared
+			restored.step(t, step)
+			restored.step(t, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(3)}}))
 		}
 	}
 }

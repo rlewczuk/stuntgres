@@ -8,7 +8,8 @@ func TestReferenceQueryJoinsScopeDiagnosticsOracle(t *testing.T) { queryJoinsSco
 func TestReferenceQueryJoinsScopeDiagnostics(t *testing.T)       { queryJoinsScopeDiagnostics(t, false) }
 
 func queryJoinsScopeDiagnostics(t *testing.T, oracle bool) {
-	p := queryJoinsReferenceSetup(t)
+	p := newReferencePair(t)
+	queryJoinsReferenceSeed(t, p)
 	// Independently observed pinned PostgreSQL records confirm that an alias
 	// Hint requires a differing alias still visible in this namespace.
 	for _, tc := range []struct{ query, label, entry, pos string }{

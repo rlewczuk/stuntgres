@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 )
@@ -15,15 +12,18 @@ func TestReferenceQueryLimitLocks(t *testing.T) {
 			for _, source := range []string{"t", "marked", "t JOIN u USING(id)"} {
 				for _, zero := range []bool{false, true} {
 					t.Run(source+map[bool]string{false: "/one", true: "/zero"}[zero]+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
-						p := newReferencePair(t)
-						for backend, db := range []*sql.DB{p.postgres, p.memory} {
-							t.Run([]string{"postgres", "memory"}[backend], func(t *testing.T) {
+						p := newReferenceScenario(t)
+						for _, backend := range p.backends() {
+							t.Run(backend.name, func(t *testing.T) {
+								db := backend.db
 								ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
 								defer cancel()
 								a, b := referenceLockConnections(t, ctx, db)
 								for _, step := range []referenceStep{referenceExec("CREATE TABLE t(id INT,v INT)", 0), referenceExec("INSERT INTO t VALUES(1,10),(2,20),(3,30),(4,40)", 4), referenceExec("CREATE TABLE u(id INT)", 0), referenceExec("INSERT INTO u VALUES(1),(2),(3),(4)", 4), referenceExec("CREATE VIEW marked AS SELECT id,v FROM t FOR UPDATE", 0)} {
 									referenceLockExec(t, ctx, a, step.query, step.affected)
 								}
+								referenceLockExec(t, ctx, a, "CREATE VIEW v AS SELECT id,v FROM t WHERE id<3", 0)
+								referenceLockExec(t, ctx, a, "CREATE VIEW w AS SELECT id,v+1 AS val FROM v", 0)
 								holder, err := a.BeginTx(ctx, nil)
 								if err != nil {
 									t.Fatal(err)
@@ -35,9 +35,9 @@ func TestReferenceQueryLimitLocks(t *testing.T) {
 									query = "SELECT v FROM " + source + " ORDER BY id LIMIT 0 FOR UPDATE"
 									want = nil
 								}
-								referenceRowValues(t, referenceRowQuery(ctx, holder, query, prepared), want...)
+								referenceLimitLockValues(t, referenceRowQuery(ctx, holder, query, prepared), backend.pg, want...)
 								if source == "marked" && !zero {
-									if backend == 0 {
+									if backend.pg {
 										ap, bp := referenceRowPIDs(t, ctx, a, b)
 										done := referenceRowAsync(t, ctx, b, "UPDATE t SET v=v+1 WHERE id=4", prepared, false)
 										referenceRowWait(t, ctx, bp, ap)
@@ -66,8 +66,21 @@ func TestReferenceQueryLimitLocks(t *testing.T) {
 										referenceRowAffected(t, ctx, b, "UPDATE t SET v=v+1 WHERE id=2", prepared, 1)
 									}
 								}
+								first := 3
+								if zero {
+									first = 1
+								}
+								for id := first; id <= 4; id++ {
+									result, err := b.ExecContext(ctx, "UPDATE t SET v=v+1 WHERE id=$1", id)
+									if err != nil {
+										t.Fatal("unconsumed row was locked", id, err)
+									}
+									referenceLockAffected(t, result, 1)
+								}
 								if source == "t JOIN u USING(id)" {
-									referenceRowAffected(t, ctx, b, "DELETE FROM u WHERE id=4", prepared, 1)
+									referenceRowAffected(t, ctx, b, "DELETE FROM u WHERE id=4", false, 1)
+									referenceRowAffected(t, ctx, b, "INSERT INTO u VALUES(4)", false, 1)
+									referenceRowAffected(t, ctx, b, "DELETE FROM u WHERE id=4", true, 1)
 								}
 							})
 						}
@@ -76,10 +89,16 @@ func TestReferenceQueryLimitLocks(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestReferenceQueryLimitSkippedAndReturnedLocks(t *testing.T) {
+	if !*referenceMode {
+		return // Explicit PG-only lock-observation complement.
+	}
 	t.Run("postgres observed skipped and returned holds", func(t *testing.T) {
 		for _, id := range []string{"1", "2"} {
 			t.Run(id, func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				a, b := referenceLockConnections(t, p.ctx, p.postgres)
 				referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT,v INT)", 0)
 				referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,10),(2,20),(3,30),(4,40)", 4)
@@ -105,12 +124,18 @@ func TestReferenceQueryLimitLocks(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestReferenceQueryLimitSurvivingRefill(t *testing.T) {
+	if !*referenceMode {
+		return // Explicit PG-only recheck/refill complement.
+	}
 	t.Run("postgres surviving refill", func(t *testing.T) {
 		for _, change := range []string{"DELETE FROM t WHERE id=2", "UPDATE t SET v=0 WHERE id=2"} {
 			for _, source := range []string{"t", "marked", "t JOIN u USING(id)"} {
 				for _, prepared := range []bool{false, true} {
 					t.Run(change+source+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
-						p := newReferencePair(t)
+						p := newReferenceScenario(t)
 						a, b := referenceLockConnections(t, p.ctx, p.postgres)
 						for _, step := range []referenceStep{referenceExec("CREATE TABLE t(id INT,v INT)", 0), referenceExec("INSERT INTO t VALUES(1,10),(2,20),(3,30),(4,40)", 4), referenceExec("CREATE TABLE u(id INT)", 0), referenceExec("INSERT INTO u VALUES(1),(2),(3),(4)", 4), referenceExec("CREATE VIEW marked AS SELECT id,v FROM t FOR UPDATE", 0)} {
 							referenceLockExec(t, p.ctx, a, step.query, step.affected)

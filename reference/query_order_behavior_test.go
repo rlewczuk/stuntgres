@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceQueryOrderBehavior(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL,a INT,b INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,2,1),(2,1,5),(3,NULL,2),(4,2,0)", 4))
 	for _, step := range []referenceStep{
@@ -27,28 +25,33 @@ func TestReferenceQueryOrderBehavior(t *testing.T) {
 		t.Run(step.query, func(t *testing.T) { p.step(t, step); p.step(t, referencePrepared(step)) })
 	}
 	step := referenceSelect("SELECT id FROM t ORDER BY a*$1 NULLS LAST,id", []string{"id"}, []string{"INT4"}, nil)
-	for _, prepared := range []bool{false, true} {
-		for i, arg := range []any{1, -1, nil, 1} {
-			ids := []int64{2, 1, 4, 3}
-			if i == 1 {
-				ids = []int64{1, 4, 2, 3}
-			}
-			if i == 2 {
-				ids = []int64{1, 2, 3, 4}
-			}
-			step.rows = make([][]any, len(ids))
-			for j, id := range ids {
-				step.rows[j] = []any{id}
-			}
-			step.args = []any{arg}
-			step.prepared = prepared
-			p.step(t, step)
+	for _, backend := range p.backends() {
+		stmt, err := backend.db.PrepareContext(p.ctx, step.query)
+		if err != nil {
+			t.Fatal(err)
 		}
+		func() {
+			defer stmt.Close()
+			held := referenceHeldStatement{backend.db, stmt, step.query}
+			for i, arg := range []any{1, -1, nil, 1} {
+				ids := []int64{2, 1, 4, 3}
+				if i == 1 {
+					ids = []int64{1, 4, 2, 3}
+				}
+				if i == 2 {
+					ids = []int64{1, 2, 3, 4}
+				}
+				step.rows = referenceLimitIDs(ids...)
+				step.args = []any{arg}
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, step)
+				referenceRunStep(t, p.ctx, held, backend.recorder, step)
+			}
+		}()
 	}
 }
 
 func TestReferenceQueryOrderDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT,a INT,b INT)", 0))
 	for _, populated := range []bool{false, true} {
 		if populated {

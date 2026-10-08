@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceQueryOrderSecondKeyNulls(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT,a INT,b INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,1,NULL),(2,1,2),(3,1,1),(4,NULL,NULL),(5,NULL,3)", 5))
 	for _, tc := range []struct {

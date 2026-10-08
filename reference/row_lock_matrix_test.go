@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"runtime"
 	"testing"
 	"time"
 )
@@ -14,89 +13,6 @@ import (
 var referenceRowClauses = []string{"FOR KEY SHARE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR UPDATE"}
 var referenceRowConflicts = [4][4]bool{{false, false, false, true}, {false, false, true, true}, {false, true, true, true}, {true, true, true, true}}
 
-// Tuple arbitration commonly waits on transactionid, not a relation lock.
-func referenceRowWait(t *testing.T, ctx context.Context, pid, holder int) {
-	t.Helper()
-	for {
-		var waiting bool
-		err := referenceAdmin.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid=$1 AND wait_event_type='Lock') AND $2=ANY(pg_blocking_pids($1))`, pid, holder).Scan(&waiting)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			return
-		}
-		if ctx.Err() != nil {
-			t.Fatal(ctx.Err())
-		}
-		runtime.Gosched()
-	}
-}
-func referenceRowQuery(ctx context.Context, x referenceExecutor, query string, prepared bool) relationOutcome {
-	var outcome relationOutcome
-	if prepared {
-		outcome.stmt, outcome.err = x.PrepareContext(ctx, query)
-		if outcome.err == nil {
-			outcome.rows, outcome.err = outcome.stmt.QueryContext(ctx)
-		}
-	} else {
-		outcome.rows, outcome.err = x.QueryContext(ctx, query)
-	}
-	return outcome
-}
-func referenceRowValues(t *testing.T, outcome relationOutcome, want ...int64) {
-	t.Helper()
-	if outcome.stmt != nil {
-		defer outcome.stmt.Close()
-	}
-	if outcome.rows != nil {
-		defer outcome.rows.Close()
-	}
-	if outcome.err != nil {
-		t.Fatal(outcome.err)
-	}
-	if outcome.rows == nil {
-		t.Fatal("missing cursor")
-	}
-	columns, err := outcome.rows.Columns()
-	if err != nil || len(columns) != 1 || columns[0] != "v" {
-		t.Fatal(columns, err)
-	}
-	types, err := outcome.rows.ColumnTypes()
-	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "INT4" {
-		t.Fatal(types, err)
-	}
-	var got []int64
-	for outcome.rows.Next() {
-		var v int64
-		if err := outcome.rows.Scan(&v); err != nil {
-			t.Fatal(err)
-		}
-		got = append(got, v)
-	}
-	if err := outcome.rows.Err(); err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != len(want) {
-		t.Fatal(got, want)
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			t.Fatal(got, want)
-		}
-	}
-}
-func referenceRowPIDs(t *testing.T, ctx context.Context, a, b *sql.Conn) (int, int) {
-	t.Helper()
-	var ap, bp int
-	if err := a.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&ap); err != nil {
-		t.Fatal(err)
-	}
-	if err := b.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&bp); err != nil {
-		t.Fatal(err)
-	}
-	return ap, bp
-}
 func TestReferenceRowLockMatrix(t *testing.T) {
 	p := newReferencePair(t)
 	for backend, db := range []*sql.DB{p.postgres, p.memory} {

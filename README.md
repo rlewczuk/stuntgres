@@ -581,7 +581,7 @@ Use Go 1.26 or later and GNU `timeout`. From the repository root:
 ```sh
 
 make build      # compile production packages
-make test       # uncached Docker-free unit, public smoke and dual-mode pilot tests
+make test       # uncached Docker-free unit, public smoke and dual-mode reference tests
 make smoke      # public API scenarios only
 make race       # Docker-free tests with the race detector
 make reference  # compatibility tests against pinned PostgreSQL; requires Docker
@@ -592,30 +592,35 @@ Test targets enforce a 300-second wall-clock deadline and are quiet by default.
 Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 `PACKAGES=./internal/parser` to scope ordinary or race tests.
 
-The four migrated `reference/` scenarios also run without Docker through the
-ordinary test binary:
+The migrated query-read scenarios and the BYTEA/short-INSERT pilots in
+`reference/` also run without Docker through the ordinary test binary:
 
 ```sh
 go test ./reference                         # quick: real stuntgres + expected data
 go test ./reference -args -reference=false  # explicitly select the same quick path
 go test ./reference -args -reference=true   # also test real pinned PostgreSQL 18.0
-go test -tags reference ./reference -args -reference=true # full legacy + pilot
+go test -tags reference ./reference -args -reference=true # full legacy + migrated
 ```
 
-The pilot covers query projection/bags/metadata, ORDER BY diagnostic positions,
-BYTEA binds/raw metadata/ownership, and short INSERT diagnostics/atomicity. Both
-backends must independently satisfy the same hardcoded scenario expectations;
-reference mode never substitutes parity for expected results or falls back on
-startup failure. See the development guide for the exact migrated test names.
+Query-read migration moves 67 original SQL-interaction tests into 80 untagged
+definitions covering projection, NULL counts, aggregates, joins, ordering and
+LIMIT, including raw metadata, held statements, cancellation and native controls.
+The BYTEA and short-INSERT pilots remain available alongside them. Each selected
+backend must satisfy independently hardcoded expectations, with explicit phases
+for backend-specific metadata, diagnostics, controls and lock witnesses; parity
+alone is not proof. Startup failure never falls back to native execution.
+See the [development guide](docs/DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
+for the migrated families and selection commands.
 
-The `reference` build tag still includes all untouched legacy PostgreSQL tests;
-it does not select the pilot's runtime mode. A tagged pilot-only selection with
-`-reference=false` remains Docker-free, but selecting a legacy test lazily starts
-the same pinned container even when the flag is absent or false. This is a small
-pilot, not a whole-suite quick migration. `make reference` enables the flag only
-for `./reference`. `make test-all` runs ordinary native/smoke/quick tests with
-race detection, then the full tagged reference package with race detection,
-chained under one aggregate 300-second wall-clock deadline.
+The `reference` build tag still includes untouched legacy PostgreSQL tests; it
+does not select runtime mode. A tagged selection restricted to migrated tests
+with `-reference=false` remains Docker-free, but selecting a legacy test lazily
+starts the same pinned container even when the flag is absent or false. The
+query-read migration is not a whole-suite quick migration: unrelated functional
+families and the standalone PostgreSQL column-ACL complement remain tagged.
+`make reference` enables the flag only for `./reference`. `make test-all` runs
+ordinary native/smoke/quick tests with race detection, then the full tagged
+reference package with race detection, under one aggregate 300-second deadline.
 
 
 Start with the [dialect contract](docs/DIALECT.md) and

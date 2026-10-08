@@ -19,7 +19,8 @@ func TestReferenceQueryJoinsDiagnostics(t *testing.T) {
 // Complete records were observed on the pinned PostgreSQL 18.0 UTF8/C oracle.
 // Unspecified logical fields are asserted absent, including synthesized positions.
 func queryJoinsDiagnostics(t *testing.T, oracle bool) {
-	p := queryJoinsReferenceSetup(t)
+	p := newReferencePair(t)
+	queryJoinsReferenceSeed(t, p)
 	cleanupOther := func(db *sql.DB) {
 		// Child subtests and their rows/statements finish before this cleanup;
 		// the pair's connection/context cleanup was registered earlier.
@@ -151,6 +152,11 @@ func queryJoinsDiagnostics(t *testing.T, oracle bool) {
 			}
 		})
 	}
+	queryJoinsDiagnosticControls(t, p, oracle)
+}
+
+func queryJoinsDiagnosticControls(t *testing.T, p *referencePair, oracle bool) {
+	t.Helper()
 	t.Run("prepared_schema", func(t *testing.T) {
 		t.Run("postgres", func(t *testing.T) { queryJoinsPreparedSchema(t, p, p.postgres) })
 		if !oracle {

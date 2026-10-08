@@ -12,13 +12,6 @@ import (
 	"time"
 )
 
-type relationOutcome struct {
-	rows   *sql.Rows
-	stmt   *sql.Stmt
-	result sql.Result
-	err    error
-}
-
 func referenceLockWait(t *testing.T, ctx context.Context, pid int) {
 	t.Helper()
 	for {
@@ -35,48 +28,6 @@ func referenceLockWait(t *testing.T, ctx context.Context, pid int) {
 		}
 		runtime.Gosched()
 	}
-}
-func referenceLockResult(t *testing.T, done <-chan relationOutcome) relationOutcome {
-	t.Helper()
-	select {
-	case r := <-done:
-		return r
-	case <-time.After(5 * time.Second):
-		t.Fatal("lock command did not finish")
-		return relationOutcome{}
-	}
-}
-func referenceLockAffected(t *testing.T, r sql.Result, want int64) {
-	t.Helper()
-	if r == nil {
-		t.Fatal("missing result")
-	}
-	n, err := r.RowsAffected()
-	if err != nil || n != want {
-		t.Fatal(n, err, "want", want)
-	}
-}
-func referenceLockConnections(t *testing.T, ctx context.Context, db *sql.DB) (*sql.Conn, *sql.Conn) {
-	t.Helper()
-	a, err := db.Conn(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { a.Close() })
-	b, err := db.Conn(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { b.Close() })
-	return a, b
-}
-func referenceLockExec(t *testing.T, ctx context.Context, x referenceExecutor, q string, n int64) {
-	t.Helper()
-	r, err := x.ExecContext(ctx, q)
-	if err != nil {
-		t.Fatal(q, err)
-	}
-	referenceLockAffected(t, r, n)
 }
 func TestReferenceRelationLockBlocking(t *testing.T) {
 	for _, phase := range []string{"direct-select", "direct-insert", "prepare-select", "prepare-insert", "cached-select", "cached-insert"} {

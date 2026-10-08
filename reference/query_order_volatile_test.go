@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceQueryOrderVolatileOccurrences(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE v(id INT)", 0))
 	p.step(t, referenceExec("INSERT INTO v VALUES(1),(2),(3)", 3))
 	for _, prepared := range []bool{false, true} {

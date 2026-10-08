@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -81,7 +79,7 @@ func countExpressionRegressionSteps() []referenceStep {
 }
 
 func TestReferenceCountExpressionRegression(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, step := range []referenceStep{
 		referenceExec("CREATE TABLE t(k TEXT,v INT)", 0),
 		referenceExec("INSERT INTO t VALUES('a',1),('a',NULL),(NULL,3)", 3),
@@ -91,24 +89,26 @@ func TestReferenceCountExpressionRegression(t *testing.T) {
 	} {
 		p.step(t, step)
 	}
-	t.Run("postgres_first", func(t *testing.T) {
-		for _, step := range countExpressionRegressionSteps() {
-			t.Run(step.query, func(t *testing.T) {
-				t.Run("direct", func(t *testing.T) {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
-				})
-				t.Run("prepared", func(t *testing.T) {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(step))
-				})
-			})
-		}
-	})
-	t.Run("paired", func(t *testing.T) {
-		for _, step := range countExpressionRegressionSteps() {
-			t.Run(step.query, func(t *testing.T) {
-				t.Run("direct", func(t *testing.T) { p.step(t, step) })
-				t.Run("prepared", func(t *testing.T) { p.step(t, referencePrepared(step)) })
-			})
-		}
-	})
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			for _, step := range countExpressionRegressionSteps() {
+				for _, prepared := range []bool{false, true} {
+					s := step
+					s.prepared = prepared
+					if s.state != "" {
+						s.errorStage = "execute"
+						if prepared && s.state != "22012" {
+							s.errorStage = "prepare"
+						}
+						// The original native contract permits either analysis
+						// or execution for this constant division. PG executes it.
+						if s.state == "22012" && prepared && !backend.pg {
+							s.errorStage = ""
+						}
+					}
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+				}
+			}
+		})
+	}
 }

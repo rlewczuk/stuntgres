@@ -59,6 +59,38 @@ func TestReferenceQueryCoreProjectionBagsAndMetadata(t *testing.T) {
 		p.step(t, step)
 		p.step(t, referencePrepared(step))
 	}
+	for _, backend := range p.backends() {
+		rows, err := backend.db.QueryContext(p.ctx, "SELECT id,7,NULL,f FROM t")
+		if err != nil {
+			t.Fatal(err)
+		}
+		types, err := rows.ColumnTypes()
+		if err != nil || len(types) != 4 {
+			rows.Close()
+			t.Fatal(types, err)
+		}
+		if err := rows.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for i, typ := range types {
+			nullable, known := typ.Nullable()
+			if backend.pg {
+				if known {
+					t.Fatal("pq nullable is unknown", i, nullable, known)
+				}
+			} else if i == 0 {
+				if !known || nullable {
+					t.Fatal("physical NOT NULL metadata", nullable, known)
+				}
+			} else if i == 3 {
+				if !known || !nullable {
+					t.Fatal("physical nullable metadata", nullable, known)
+				}
+			} else if known {
+				t.Fatal("computed metadata claimed nullable", i)
+			}
+		}
+	}
 }
 
 func queryCoreSeed(t *testing.T, p *referencePair) {

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -11,6 +9,11 @@ func TestReferenceQueryLimitInsertAssignment(t *testing.T) {
 			p.step(t, referenceExec("CREATE TABLE dst(id SMALLINT)", 0))
 			execute := func(step referenceStep) {
 				t.Helper()
+				if step.selectRows {
+					p.step(t, step)
+					p.step(t, referencePrepared(step))
+					return
+				}
 				if prepared {
 					step = referencePrepared(step)
 				}
@@ -29,7 +32,12 @@ func TestReferenceQueryLimitInsertAssignment(t *testing.T) {
 			execute(referenceExec("INSERT INTO defaults(id) SELECT nextval('s') FROM t LIMIT 0", 0))
 			execute(referenceSelect("SELECT n FROM defaults", []string{"n"}, []string{"INT8"}, referenceLimitIDs(7)))
 			execute(referenceSelect("SELECT id FROM defaults", []string{"id"}, []string{"INT4"}, referenceLimitIDs(2)))
-			execute(referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, referenceLimitIDs(3)))
+			sequence := referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, referenceLimitIDs(3))
+			// The original sentinel is direct after either write route.
+			p.step(t, sequence)
+			// Re-establish independent state for the reference prepared witness.
+			p.step(t, referenceExec("ALTER SEQUENCE s RESTART WITH 3", 0))
+			p.step(t, referencePrepared(sequence))
 			p.step(t, referenceExec("CREATE TABLE failing_default(id INT,n INT DEFAULT 1/0)", 0))
 			for _, suffix := range []string{"LIMIT 0", "LIMIT 1"} {
 				step = referenceImplicitError("INSERT INTO failing_default(id) SELECT id FROM t "+suffix, referenceDiagnostic{Code: "22012", Message: "division by zero"})

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -25,13 +23,14 @@ func queryAggregateRegressionSteps() []referenceStep {
 	} {
 		step := referenceImplicitError(tc.query, referenceDiagnostic{Code: "42803", Message: `column "` + tc.relation + `.v" must appear in the GROUP BY clause or be used in an aggregate function`, Position: tc.position})
 		step.selectRows = true
+		step.errorStage = "execute"
 		steps = append(steps, step)
 	}
 	return steps
 }
 
 func TestReferenceQueryAggregateRegression(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, step := range []referenceStep{
 		referenceExec("CREATE TABLE t(k TEXT,v INT)", 0),
 		referenceExec("INSERT INTO t VALUES('a',1),('a',NULL),(NULL,2)", 3),
@@ -39,26 +38,13 @@ func TestReferenceQueryAggregateRegression(t *testing.T) {
 	} {
 		p.step(t, step)
 	}
-	// Assert the pinned oracle before exercising the not-yet-implemented backend.
-	// This uses the same recording/metadata/diagnostic checks as paired scenarios.
-	t.Run("postgres_first", func(t *testing.T) {
-		for _, step := range queryAggregateRegressionSteps() {
-			t.Run(step.query, func(t *testing.T) {
-				t.Run("direct", func(t *testing.T) {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
-				})
-				t.Run("prepared", func(t *testing.T) {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(step))
-				})
-			})
-		}
-	})
-	t.Run("paired", func(t *testing.T) {
-		for _, step := range queryAggregateRegressionSteps() {
-			t.Run(step.query, func(t *testing.T) {
-				t.Run("direct", func(t *testing.T) { p.step(t, step) })
-				t.Run("prepared", func(t *testing.T) { p.step(t, referencePrepared(step)) })
-			})
-		}
-	})
+	for _, step := range queryAggregateRegressionSteps() {
+		t.Run(step.query, func(t *testing.T) {
+			p.step(t, step)
+			if step.diagnostic != nil {
+				step.errorStage = "prepare"
+			}
+			p.step(t, referencePrepared(step))
+		})
+	}
 }

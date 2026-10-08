@@ -1,14 +1,12 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
+	"context"
 	"testing"
 )
 
 func TestReferenceQueryAggregateBehaviorAndCallers(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, step := range []referenceStep{referenceExec("CREATE TABLE t(k TEXT,v INT)", 0), referenceExec("INSERT INTO t VALUES('a',1),('a',NULL),(NULL,2)", 3), referenceExec("CREATE TABLE empty(k TEXT,v INT)", 0), referenceExec("CREATE TABLE out(k TEXT,n BIGINT)", 0)} {
 		p.step(t, step)
 	}
@@ -66,93 +64,40 @@ func TestReferenceQueryAggregateBehaviorAndCallers(t *testing.T) {
 	p.step(t, referencePrepared(zero))
 }
 
-// Public GRANT remains an explicit PostgreSQL-only boundary. Native column ACL
-// manifests are covered through the existing engine authority in package units.
-func TestReferenceCountExpressionPostgresColumnACL(t *testing.T) {
-	p := newReferencePair(t)
-	run := func(step referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step) }
-	run(referenceExec("CREATE ROLE aggregate_reader", 0))
-	run(referenceExec("CREATE TABLE t(k TEXT,v INT)", 0))
-	t.Cleanup(func() {
-		referenceAdmin.ExecContext(p.ctx, "DROP OWNED BY aggregate_reader CASCADE; DROP ROLE aggregate_reader")
-	})
-	if _, err := p.postgres.ExecContext(p.ctx, "GRANT USAGE ON SCHEMA public TO aggregate_reader"); err != nil {
-		t.Fatal(err)
-	}
-	conn, err := p.postgres.Conn(p.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	defer conn.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
-	referenceRunStep(t, p.ctx, conn, p.postgresRecord, referenceExec("SET SESSION AUTHORIZATION aggregate_reader", 0))
-	denied := referenceImplicitError("SELECT count(*) FROM t", referenceDiagnostic{Code: "42501", Message: "permission denied for table t"})
-	denied.selectRows = true
-	referenceRunStep(t, p.ctx, conn, p.postgresRecord, denied)
-	if _, err := referenceAdmin.ExecContext(p.ctx, "GRANT SELECT(v) ON t TO aggregate_reader"); err != nil {
-		t.Fatal(err)
-	}
-	success := referenceSelect("SELECT count(*) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
-	referenceRunStep(t, p.ctx, conn, p.postgresRecord, success)
-	referenceRunStep(t, p.ctx, conn, p.postgresRecord, referencePrepared(success))
-	expression := referenceSelect("SELECT count(v) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
-	referenceRunStep(t, p.ctx, conn, p.postgresRecord, expression)
-	referenceRunStep(t, p.ctx, conn, p.postgresRecord, referencePrepared(expression))
-	for _, q := range []string{"SELECT count(k) FROM t", "SELECT count(k) FROM t WHERE FALSE", "SELECT count(v) FROM t HAVING count(k)>0", "SELECT count(v) FROM t ORDER BY count(k)", "SELECT count(*) FROM t GROUP BY k", "SELECT count(*) FROM t GROUP BY k HAVING k IS NULL", "SELECT count(*) FROM t GROUP BY k ORDER BY k"} {
-		step := referenceImplicitError(q, referenceDiagnostic{Code: "42501", Message: "permission denied for table t"})
-		step.selectRows = true
-		referenceRunStep(t, p.ctx, conn, p.postgresRecord, step)
-		referenceRunStep(t, p.ctx, conn, p.postgresRecord, referencePrepared(step))
-	}
-}
-
 func TestReferenceQueryAggregatePreparedFreshnessAndHeldRows(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(k TEXT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES('a'),('a'),(NULL)", 3))
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		stmt, err := db.PrepareContext(p.ctx, "SELECT count(*) FROM t")
 		if err != nil {
 			t.Fatal(err)
 		}
 		func() {
 			defer stmt.Close()
-			held, err := stmt.QueryContext(p.ctx)
+			held, err := stmt.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer held.Close()
-			if _, err := db.ExecContext(p.ctx, "INSERT INTO t VALUES('b')"); err != nil {
-				t.Fatal(err)
+			backend.recorder.mu.Lock()
+			heldRecord := backend.recorder.operations[len(backend.recorder.operations)-1]
+			backend.recorder.mu.Unlock()
+			referenceRunStep(t, p.ctx, db, backend.recorder, referenceExec("INSERT INTO t VALUES('b')", 1))
+			queryCountHeldRows(t, held, 3)
+			backend.recorder.mu.Lock()
+			recorded := heldRecord.Closed && heldRecord.CloseErr == nil && len(heldRecord.Columns) == 1 && heldRecord.Columns[0] == "count" && len(heldRecord.Rows) == 1 && len(heldRecord.Rows[0]) == 1 && heldRecord.Rows[0][0] == int64(3)
+			backend.recorder.mu.Unlock()
+			if !recorded {
+				t.Fatal("held aggregate consumed output/closure not recorded")
 			}
-			check := func(rows *sql.Rows, want int64) {
-				t.Helper()
-				defer rows.Close()
-				names, err := rows.Columns()
-				if err != nil || len(names) != 1 || names[0] != "count" {
-					t.Fatal(names, err)
-				}
-				types, err := rows.ColumnTypes()
-				if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "INT8" {
-					t.Fatal(types, err)
-				}
-				if !rows.Next() {
-					t.Fatal("missing global group", rows.Err())
-				}
-				var count int64
-				if err := rows.Scan(&count); err != nil || count != want {
-					t.Fatal(count, want, err)
-				}
-				if rows.Next() || rows.Err() != nil {
-					t.Fatal("extra global group", rows.Err())
-				}
-			}
-			check(held, 3)
 			fresh, err := stmt.QueryContext(p.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
-			check(fresh, 4)
+			queryCountHeldRows(t, fresh, 4)
+			referenceRunStep(t, p.ctx, referenceHeldStatement{db, stmt, "SELECT count(*) FROM t"}, backend.recorder, referenceSelect("SELECT count(*) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}))
 		}()
 	}
 }

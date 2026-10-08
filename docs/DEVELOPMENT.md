@@ -5,7 +5,7 @@
 ```sh
 make generate   # pinned goyacc; checked-in parser generation
 make build      # compile production packages
-make test       # uncached Docker-free tests, including smoke and dual-mode pilot
+make test       # uncached Docker-free tests, including smoke and dual-mode reference
 make reference  # real pinned PostgreSQL differential fixtures
 make smoke      # uncached public database/sql and controls smoke tests
 make race       # Docker-free tests with the race detector
@@ -34,14 +34,18 @@ Go test reports each test's pass or failure instead of standalone output labels.
 
 The explicitly enabled reference suite requires working Docker and image/module access. It uses one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
 
-### Dual-mode pilot and legacy transition
+### Dual-mode query reads and legacy transition
 
-The ordinary external `reference/` binary discovers four migrated scenarios:
-
-* `TestReferenceQueryCoreProjectionBagsAndMetadata`
-* `TestReferenceQueryCoreOrderPositionRegression`
-* `TestReferenceByteaInputBindsMetadata`
-* `TestReferenceInsertImplicitShortDiagnostics`
+The ordinary external `reference/` binary discovers 80 untagged query-read
+definitions migrated/merged from 67 original SQL-interaction tests. The families
+are `TestReferenceNullCount*`, `TestReferenceQueryAggregate*`,
+`TestReferenceCountExpression*`, `TestReferenceQueryCore*`,
+`TestReferenceQueryJoins*`, `TestReferenceQueryLimit*` and
+`TestReferenceQueryOrder*`. These include cohesive boundary, consumer, metadata
+and lifecycle splits, plus the existing reference-only complements that belong
+to the migrated definitions. The original BYTEA and short-INSERT pilots,
+`TestReferenceByteaInputBindsMetadata` and
+`TestReferenceInsertImplicitShortDiagnostics`, remain available.
 
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean
@@ -58,36 +62,66 @@ Absent/false quick mode does not contact Docker, fetch an image, open PostgreSQL
 or read server state. Explicit true starts the pinned oracle before test execution,
 even if selection matches no tests; startup/configuration errors fail visibly,
 never skip or fall back. Only `./reference` accepts this custom flag: do not pass
-it to unrelated package binaries. `make test` and `make race` discover the quick
-pilot normally. `make reference` selects true and includes every legacy tagged
-case. `make test-all` first runs `go test -race ./...`, then
+it to unrelated package binaries. `make test` and `make race` discover migrated
+quick scenarios normally. `make reference` selects true and includes every
+legacy tagged case. `make test-all` first runs `go test -race ./...`, then
 `go test -race -tags reference ./reference -args -reference=true`, with uncached
 test flags and one shared 300-second wall-clock bound.
 
-The tag retains untouched legacy PostgreSQL-only definitions. Selecting only
-the pilot with `-tags reference -reference=false` (flag after `-args`) is still
-Docker-free; selecting actual legacy cases lazily starts the same singleton,
-even when the pilot flag is absent/false. The tag alone therefore does not make
-the whole legacy suite quick. Remaining functional bodies/helper interfaces and
-root-only assertions are preserved; this is not a bulk migration.
+The tag retains untouched legacy PostgreSQL-only definitions. A tagged selection
+restricted to migrated scenarios with `-reference=false` (flag after `-args`)
+is still Docker-free; selecting actual legacy cases lazily starts the same
+singleton even when the runtime flag is absent/false. The tag alone therefore
+does not make the whole legacy suite quick. Unrelated functional families,
+including richer tagged ordering/lock complements and the standalone PostgreSQL
+count column-ACL test, remain unchanged. Root `queryCoreRows`, `nullCountError`
+and `queryJoinsPublicFixture` remain for unmigrated callers, not as SQL test bodies.
+
+For example, these tagged legacy join diagnostics explicitly own a real pair
+even with the migrated runtime mode disabled. This command requires Docker:
+
+```sh
+go test -tags reference -count=1 -run '^TestReferenceQueryJoins(Diagnostics|DiagnosticsOracle|ScopeDiagnostics|ScopeDiagnosticsOracle)$' ./reference -args -reference=false
+```
+
+Their shared SQL seed is reused without making migrated quick fixtures start
+PostgreSQL. Keep this legacy selection separate from Docker-unavailable quick
+mode checks.
 
 Each selected backend independently asserts exact rows, column labels/type names
 including zero-row results, NULLs, duplicate-preserving bags versus ordered rows,
 direct/prepared parameters and affected counts. Diagnostics retain full English
-logical fields, UTF8 character positions and Prepare-versus-Execute stages;
-failed multi-row INSERT preserves sentinel data. Both backends independently
-assert the exact unnamed-portal parameter Context. BYTEA checks raw ScanType, known/unknown
-Length/Nullable metadata, NULL versus nonnil empty values and owned recorded
-arguments/consumed buffers before normalization. The focused byte-copy regression
-and existing row comparator exercise these helper boundaries. Unique root BYTEA
-ownership and richer LIMIT metadata/native-control/cancellation assertions remain
-unchanged.
+logical fields, UTF8 character positions and Prepare-versus-Execute stages.
+Backend differences are asserted before parity: native parameter analysis and
+PostgreSQL simple-protocol zero-argument errors are distinct, and the original
+native `count(1/0)` Prepare-or-Execute tolerance does not impose PG stage parity.
+Raw null-count payloads/ScanType/sums, LIMIT precision/length/nullability,
+zero-column occurrence counts and merged-view typmods are checked before
+normalization. Held statements are actually reused; sqlmw checks consumed
+outputs and closure. Joined BYTEA scans retain independent owned bytes on both
+backends; detached `Rows.Columns` slices are a native guarantee, not a lib/pq
+copy promise. Native unwrapped Dump/Reset/Restore phases retain snapshots and
+pristine restored sequence state; actual PostgreSQL identities/waiters prove
+the PG-only lock/refill complements. No unsupported native success is invented.
 
-Pilot pools use a fresh native driver per fixture; wrapped and native control
+The BYTEA/short-INSERT pilots retain their independent unnamed-portal parameter
+Context and failed-INSERT sentinel checks. BYTEA also checks raw ScanType,
+known/unknown Length/Nullable metadata, NULL versus nonnil empty values and owned
+recorded arguments/consumed buffers before normalization; the focused byte-copy
+regression and existing row comparator continue to exercise those helper seams.
+
+For a single migrated lifecycle definition, use the same exact name in both modes:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReferenceQueryJoinsExportAndSchemaOwnership$' VERBOSE=0
+make reference RUN='^TestReferenceQueryJoinsExportAndSchemaOwnership$' VERBOSE=0
+```
+
+Migrated pools use a fresh native driver per fixture; wrapped and native control
 pools share that driver/DSN without exposing controls through middleware. Cleanup
 closes rows before statements and all pools before schema reset. PostgreSQL
 lifecycle, owner provisioning and administrative-session safeguards below remain
-shared by eager pilot and lazy legacy startup.
+shared by eager migrated and lazy legacy startup.
 Failed eager or lazy startup releases any acquired administrative pool/container
 before returning the cached error, with bounded termination and visible cleanup
 errors. Legacy administrative probes require successful startup; registered

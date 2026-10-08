@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceQueryOrderVoidRegression(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE order_void_t(id INT)", 0))
 	p.step(t, referenceExec("CREATE SEQUENCE s START WITH 1", 0))
 	for _, population := range []string{"empty", "one", "many"} {

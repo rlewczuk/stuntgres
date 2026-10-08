@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -49,7 +47,7 @@ func countExpressionReviewRegressionSteps() []referenceStep {
 }
 
 func TestReferenceCountExpressionReviewRegression(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, step := range []referenceStep{
 		referenceExec("CREATE TABLE t(v INT)", 0),
 		referenceExec("INSERT INTO t VALUES(1),(NULL),(3)", 3),
@@ -58,18 +56,6 @@ func TestReferenceCountExpressionReviewRegression(t *testing.T) {
 		p.step(t, step)
 	}
 	steps := countExpressionReviewRegressionSteps()
-	t.Run("postgres_first", func(t *testing.T) {
-		for _, step := range steps {
-			t.Run(step.query, func(t *testing.T) {
-				t.Run("direct", func(t *testing.T) {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
-				})
-				t.Run("prepared", func(t *testing.T) {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(step))
-				})
-			})
-		}
-	})
 	t.Run("paired", func(t *testing.T) {
 		for _, step := range steps {
 			t.Run(step.query, func(t *testing.T) {

@@ -1,16 +1,12 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
-	"reflect"
 	"strings"
 	"testing"
 )
 
 func nullCountReferenceSetup(t *testing.T) *referencePair {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT,v INT,b BIGINT,s TEXT,f BOOL)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,1,2147483648,'x',TRUE),(2,NULL,2,'',NULL),(3,NULL,NULL,NULL,NULL),(4,1,2147483648,'x',TRUE)", 4))
 	return p
@@ -22,6 +18,9 @@ func nullCountReferenceSelect(q string, want [][]any, args ...any) referenceStep
 
 func TestReferenceNullCountLiterals(t *testing.T) {
 	p := nullCountReferenceSetup(t)
+	p.step(t, referenceExec("CREATE TABLE first(id INT)", 0))
+	p.step(t, referenceExec("INSERT INTO first VALUES(1)", 1))
+	nullCountReferenceStep(t, p, nullCountReferenceSelect("SELECT num_nulls(1,NULL,2),num_nonnulls(1,NULL,2) FROM first", [][]any{{int64(1), int64(2)}}), 3)
 	for _, tc := range []struct {
 		args        string
 		a, b, arity int64
@@ -36,19 +35,23 @@ func TestReferenceNullCountLiterals(t *testing.T) {
 		}
 		q := "SELECT num_nulls(" + tc.args + "),num_nonnulls(" + tc.args + ")"
 		step := nullCountReferenceSelect(q, [][]any{{tc.a, tc.b}})
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		nullCountReferenceStep(t, p, step, tc.arity)
+		nullCountReferenceStep(t, p, referencePrepared(step), tc.arity)
 		step = nullCountReferenceSelect(q+" FROM t ORDER BY id", [][]any{{tc.a, tc.b}, {tc.a, tc.b}, {tc.a, tc.b}, {tc.a, tc.b}})
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		nullCountReferenceStep(t, p, step, tc.arity)
+		nullCountReferenceStep(t, p, referencePrepared(step), tc.arity)
 	}
 	for _, step := range []referenceStep{
 		nullCountReferenceSelect("SELECT num_nulls(NULL),num_nonnulls(1,NULL,'x')", [][]any{{int64(1), int64(2)}}),
 		nullCountReferenceSelect("SELECT num_nulls(num_nulls(NULL),NULL),num_nonnulls(num_nonnulls(NULL),NULL)", [][]any{{int64(1), int64(1)}}),
 		referenceExec("SELECT num_nulls(NULL),num_nonnulls(1,NULL,'x')", 1),
 	} {
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		arity := int64(2)
+		if step.query == "SELECT num_nulls(NULL),num_nonnulls(1,NULL,'x')" {
+			arity = 3
+		}
+		nullCountReferenceStep(t, p, step, arity)
+		nullCountReferenceStep(t, p, referencePrepared(step), arity)
 	}
 }
 
@@ -57,87 +60,54 @@ func TestReferenceNullCountColumns(t *testing.T) {
 	want := [][]any{{int64(0), int64(4)}, {int64(2), int64(2)}, {int64(4), int64(0)}, {int64(0), int64(4)}}
 	q := "SELECT num_nulls(v,b,s,f),num_nonnulls(v,b,s,f) FROM t"
 	step := nullCountReferenceSelect(q+" ORDER BY id", want)
-	p.step(t, step)
-	p.step(t, referencePrepared(step))
+	nullCountReferenceStep(t, p, step, 4)
+	nullCountReferenceStep(t, p, referencePrepared(step), 4)
 	step = nullCountReferenceSelect(q, want)
 	step.bag = true
-	p.step(t, step)
-	p.step(t, referencePrepared(step))
+	nullCountReferenceStep(t, p, step, 4)
+	nullCountReferenceStep(t, p, referencePrepared(step), 4)
+	step = nullCountReferenceSelect("SELECT num_nulls(NULL),num_nonnulls(NULL) FROM t ORDER BY id", [][]any{{int64(1), int64(0)}, {int64(1), int64(0)}, {int64(1), int64(0)}, {int64(1), int64(0)}})
+	nullCountReferenceStep(t, p, step, 1)
+	nullCountReferenceStep(t, p, referencePrepared(step), 1)
 	p.step(t, referenceExec("CREATE TABLE empty(v INT)", 0))
 	step = nullCountReferenceSelect("SELECT num_nulls(v),num_nonnulls(v) FROM empty", nil)
-	p.step(t, step)
-	p.step(t, referencePrepared(step))
+	nullCountReferenceStep(t, p, step, 1)
+	nullCountReferenceStep(t, p, referencePrepared(step), 1)
 	p.step(t, referenceExec("CREATE TABLE baseline(id INT,n NUMERIC,r REAL,d DOUBLE PRECISION,tm TIME,ts TIMESTAMP,u UUID)", 0))
 	p.step(t, referenceExec("INSERT INTO baseline VALUES(1,1.5,1.5,2.5,'12:34:56','2000-01-02 03:04:05','00000000-0000-0000-0000-000000000001'),(2,NULL,NULL,NULL,NULL,NULL,NULL)", 2))
 	step = nullCountReferenceSelect("SELECT num_nulls(n,r,d,tm,ts,u),num_nonnulls(n,r,d,tm,ts,u) FROM baseline ORDER BY id", [][]any{{int64(0), int64(6)}, {int64(6), int64(0)}})
-	p.step(t, step)
-	p.step(t, referencePrepared(step))
+	nullCountReferenceStep(t, p, step, 6)
+	nullCountReferenceStep(t, p, referencePrepared(step), 6)
 }
 
 func TestReferenceNullCountHeldPrepared(t *testing.T) {
 	p := nullCountReferenceSetup(t)
-	var observed [][][][]any
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
-		stmt, err := db.PrepareContext(p.ctx, "SELECT num_nulls(v,b,s,f),num_nonnulls(v,b,s,f) FROM t WHERE id=$1")
+	for _, backend := range p.backends() {
+		const q = "SELECT num_nulls(v,b,s,f),num_nonnulls(v,b,s,f) FROM t WHERE id=$1"
+		stmt, err := backend.db.PrepareContext(p.ctx, q)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer stmt.Close()
-		executions := make([][][]any, 0)
-		for _, id := range []int{1, 2, 3, 1, 99} {
-			rows, err := stmt.QueryContext(p.ctx, id)
-			if err != nil {
-				t.Fatal(err)
-			}
-			names, err := rows.Columns()
-			if err != nil || !reflect.DeepEqual(names, []string{"num_nulls", "num_nonnulls"}) {
-				t.Fatal(names, err)
-			}
-			types, err := rows.ColumnTypes()
-			if err != nil || len(types) != 2 {
-				t.Fatal(types, err)
-			}
-			for _, typ := range types {
-				if typ.DatabaseTypeName() != "INT4" {
-					t.Fatal(typ)
+		func() {
+			defer stmt.Close()
+			held := referenceHeldStatement{backend.db, stmt, q}
+			for _, id := range []int{1, 2, 3, 1, 99} {
+				want := [][]any{{int64(0), int64(4)}}
+				if id == 2 {
+					want = [][]any{{int64(2), int64(2)}}
 				}
-			}
-			got := make([][]any, 0)
-			for rows.Next() {
-				var a, b any
-				if err := rows.Scan(&a, &b); err != nil {
-					t.Fatal(err)
+				if id == 3 {
+					want = [][]any{{int64(4), int64(0)}}
 				}
-				x, xok := a.(int64)
-				y, yok := b.(int64)
-				if !xok || !yok || x+y != 4 {
-					t.Fatal("nonnull int4/sum", a, b)
+				if id == 99 {
+					want = nil
 				}
-				got = append(got, []any{a, b})
+				step := nullCountReferenceSelect(q, want, id)
+				rows, err := stmt.QueryContext(p.ctx, id)
+				nullCountReferenceRows(t, rows, err, backend.pg, step, 4)
+				referenceRunStep(t, p.ctx, held, backend.recorder, step)
 			}
-			if err := rows.Err(); err != nil {
-				t.Fatal(err)
-			}
-			rows.Close()
-			want := [][]any{{int64(0), int64(4)}}
-			if id == 2 {
-				want = [][]any{{int64(2), int64(2)}}
-			}
-			if id == 3 {
-				want = [][]any{{int64(4), int64(0)}}
-			}
-			if id == 99 {
-				want = [][]any{}
-			}
-			if !reflect.DeepEqual(got, want) {
-				t.Fatal("independent held execution", id, got, want)
-			}
-			executions = append(executions, got)
-		}
-		observed = append(observed, executions)
-	}
-	if !reflect.DeepEqual(observed[0], observed[1]) {
-		t.Fatal("held backend parity", observed)
+		}()
 	}
 }
 
@@ -152,7 +122,7 @@ func nullCountReferenceError(t *testing.T, p *referencePair, q string, want refe
 }
 
 func TestReferenceNullCountDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
 	const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	// Complete logical records are source-derived PG18 expectations; C locations
@@ -181,7 +151,7 @@ func TestReferenceNullCountDiagnostics(t *testing.T) {
 }
 
 func TestReferenceNullCountArgumentErrorPrecedence(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
 	const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	tail := strings.TrimSuffix(strings.Repeat("NULL,", 100), ",")
@@ -209,7 +179,7 @@ func TestReferenceNullCountArgumentErrorPrecedence(t *testing.T) {
 }
 
 func TestReferenceNullCountParameters(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(v INT,s TEXT)", 0))
 	for _, name := range []string{"num_nulls", "num_nonnulls"} {
 		q := "SELECT " + name + "($1)"
@@ -230,7 +200,9 @@ func TestReferenceNullCountParameters(t *testing.T) {
 		simple := referenceImplicitError(q, referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: pos})
 		simple.selectRows = true
 		simple.errorStage = "execute"
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+		if p.postgres != nil {
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+		}
 		native.errorStage = "prepare"
 		p.step(t, referencePrepared(native))
 	}
@@ -241,4 +213,5 @@ func TestReferenceNullCountParameters(t *testing.T) {
 	} {
 		nullCountReferenceError(t, p, tc.q, referenceDiagnostic{Code: "42P08", Message: "could not determine data type of parameter $1", Position: tc.pos}, 1)
 	}
+	nullCountReferenceError(t, p, "SELECT $1 FROM t WHERE v=$1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "integer versus text", Position: "8"}, 1)
 }

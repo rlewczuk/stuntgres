@@ -1,15 +1,12 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"slices"
 	"testing"
 )
 
 func TestReferenceQueryOrderRepeatedHiddenVolatileRegression(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE v(id INT)", 0))
 	p.step(t, referenceExec("INSERT INTO v VALUES(1),(2),(3)", 3))
 	for _, prepared := range []bool{false, true} {
@@ -25,12 +22,27 @@ func TestReferenceQueryOrderRepeatedHiddenVolatileRegression(t *testing.T) {
 			step := referenceSelect("SELECT id FROM v "+tc.where+" ORDER BY nextval('s'),nextval('s') DESC", []string{"id"}, []string{"INT4"}, tc.rows)
 			// Input traversal is not an oracle. The admitted bag and subsequent
 			// sequence value independently distinguish shared SQL99 keys.
-			step.bag, step.prepared = true, prepared
-			p.step(t, step)
-			p.step(t, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{tc.next}}))
-			if prepared {
-				p.step(t, step)
-				p.step(t, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{2 * tc.next}}))
+			step.bag = true
+			for _, backend := range p.backends() {
+				func() {
+					var executor referenceExecutor = backend.db
+					if prepared {
+						stmt, err := backend.db.PrepareContext(p.ctx, step.query)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer stmt.Close()
+						executor = referenceHeldStatement{backend.db, stmt, step.query}
+					}
+					referenceRunStep(t, p.ctx, executor, backend.recorder, step)
+					next := referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{tc.next}})
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, next)
+					if prepared {
+						referenceRunStep(t, p.ctx, executor, backend.recorder, step)
+						next.rows = [][]any{{2 * tc.next}}
+						referenceRunStep(t, p.ctx, backend.db, backend.recorder, next)
+					}
+				}()
 			}
 			p.step(t, referenceExec("DROP SEQUENCE s", 0))
 		}
@@ -38,14 +50,11 @@ func TestReferenceQueryOrderRepeatedHiddenVolatileRegression(t *testing.T) {
 }
 
 func TestReferenceQueryOrderRepeatedHiddenPreparedFreshness(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE v(id INT)", 0))
 	p.step(t, referenceExec("INSERT INTO v VALUES(1),(2),(3),(4),(5)", 5))
 	p.step(t, referenceExec("CREATE SEQUENCE s START WITH 1", 0))
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"memory", p.memory}, {"postgres", p.postgres}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			stmt, err := backend.db.PrepareContext(p.ctx, "SELECT id FROM v WHERE id>2 ORDER BY nextval('s'),nextval('s') DESC")
 			if err != nil {

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,7 +7,13 @@ import (
 )
 
 func queryJoinsReferenceSetup(t *testing.T) *referencePair {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
+	queryJoinsReferenceSeed(t, p)
+	return p
+}
+
+func queryJoinsReferenceSeed(t *testing.T, p *referencePair) {
+	t.Helper()
 	for _, s := range []referenceStep{
 		referenceExec("CREATE TABLE a(l TEXT,k INT,q INT)", 0),
 		referenceExec("CREATE TABLE b(r TEXT,q INT,k INT)", 0),
@@ -21,36 +25,14 @@ func queryJoinsReferenceSetup(t *testing.T) *referencePair {
 		referenceExec("INSERT INTO c VALUES(1,'c'),(1,'c')", 2),
 		referenceExec("INSERT INTO wide VALUES(1)", 1),
 	} {
-		// Setup must run regardless of a backend-only -run subtest filter.
-		postgres := referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		memory := referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, s)
-		if !reflect.DeepEqual(memory, postgres) {
-			t.Fatalf("setup parity got %#v want %#v", memory, postgres)
+		for _, backend := range p.backends() {
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 		}
 	}
-	return p
 }
 
 func TestReferenceQueryJoinsRegression(t *testing.T) {
 	p := queryJoinsReferenceSetup(t)
-	product := [][]any{
-		{"a", int64(1), int64(9), "x", int64(9), int64(1)},
-		{"a", int64(1), int64(9), "x", int64(9), int64(1)},
-		{"a", int64(1), int64(9), "y", int64(8), int64(3)},
-		{"a", int64(1), int64(9), "n", int64(9), nil},
-		{"a", int64(1), int64(9), "x", int64(9), int64(1)},
-		{"a", int64(1), int64(9), "x", int64(9), int64(1)},
-		{"a", int64(1), int64(9), "y", int64(8), int64(3)},
-		{"a", int64(1), int64(9), "n", int64(9), nil},
-		{"n", nil, int64(9), "x", int64(9), int64(1)},
-		{"n", nil, int64(9), "x", int64(9), int64(1)},
-		{"n", nil, int64(9), "y", int64(8), int64(3)},
-		{"n", nil, int64(9), "n", int64(9), nil},
-		{"z", int64(2), int64(8), "x", int64(9), int64(1)},
-		{"z", int64(2), int64(8), "x", int64(9), int64(1)},
-		{"z", int64(2), int64(8), "y", int64(8), int64(3)},
-		{"z", int64(2), int64(8), "n", int64(9), nil},
-	}
 	merged := [][]any{{int64(1), "a", int64(9), "x", int64(9)}, {int64(1), "a", int64(9), "x", int64(9)}, {int64(1), "a", int64(9), "x", int64(9)}, {int64(1), "a", int64(9), "x", int64(9)}}
 	nested := [][]any{
 		{int64(1), "a", int64(9), "x", int64(9), "c"}, {int64(1), "a", int64(9), "x", int64(9), "c"},
@@ -63,6 +45,7 @@ func TestReferenceQueryJoinsRegression(t *testing.T) {
 		referenceSelect("SELECT * FROM a JOIN b USING(k)", []string{"k", "l", "q", "r", "q"}, []string{"INT4", "TEXT", "INT4", "TEXT", "INT4"}, merged),
 		referenceSelect("SELECT * FROM a JOIN b USING(q,k)", []string{"q", "k", "l", "r"}, []string{"INT4", "INT4", "TEXT", "TEXT"}, [][]any{{int64(9), int64(1), "a", "x"}, {int64(9), int64(1), "a", "x"}, {int64(9), int64(1), "a", "x"}, {int64(9), int64(1), "a", "x"}}),
 		referenceSelect("SELECT * FROM a NATURAL JOIN b", []string{"k", "q", "l", "r"}, []string{"INT4", "INT4", "TEXT", "TEXT"}, [][]any{{int64(1), int64(9), "a", "x"}, {int64(1), int64(9), "a", "x"}, {int64(1), int64(9), "a", "x"}, {int64(1), int64(9), "a", "x"}}),
+		referenceSelect("SELECT * FROM a NATURAL INNER JOIN b", []string{"k", "q", "l", "r"}, []string{"INT4", "INT4", "TEXT", "TEXT"}, [][]any{{int64(1), int64(9), "a", "x"}, {int64(1), int64(9), "a", "x"}, {int64(1), int64(9), "a", "x"}, {int64(1), int64(9), "a", "x"}}),
 		referenceSelect("SELECT u.*,a.k,b.k FROM a JOIN b USING(q,k) AS u", []string{"q", "k", "k", "k"}, []string{"INT4", "INT4", "INT4", "INT4"}, [][]any{{int64(9), int64(1), int64(1), int64(1)}, {int64(9), int64(1), int64(1), int64(1)}, {int64(9), int64(1), int64(1), int64(1)}, {int64(9), int64(1), int64(1), int64(1)}}),
 		referenceSelect("SELECT a.*,b.k FROM a JOIN b USING(k)", []string{"l", "k", "q", "k"}, []string{"TEXT", "INT4", "INT4", "INT4"}, [][]any{{"a", int64(1), int64(9), int64(1)}, {"a", int64(1), int64(9), int64(1)}, {"a", int64(1), int64(9), int64(1)}, {"a", int64(1), int64(9), int64(1)}}),
 		referenceSelect("SELECT * FROM (a JOIN b USING(k)) j(kk,ll)", []string{"kk", "ll", "q", "r", "q"}, []string{"INT4", "TEXT", "INT4", "TEXT", "INT4"}, merged),
@@ -80,13 +63,8 @@ func TestReferenceQueryJoinsRegression(t *testing.T) {
 		referenceSelect("SELECT count(*) FROM a JOIN b USING(k)", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}),
 		referenceSelect("SELECT k,count(*) FROM a JOIN b USING(k) GROUP BY k HAVING count(*)=4", []string{"k", "count"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(4)}}),
 		referenceSelect("SELECT a.l,b.r FROM a JOIN b ON CAST(a.k AS BIGINT)=b.k AND COALESCE(a.q,0)=b.q AND CASE WHEN b.r='x' THEN TRUE ELSE FALSE END", []string{"l", "r"}, []string{"TEXT", "TEXT"}, [][]any{{"a", "x"}, {"a", "x"}, {"a", "x"}, {"a", "x"}}),
+		referenceSelect("SELECT CASE WHEN a.k=b.k THEN a.l ELSE 'bad' END,CAST(b.k AS BIGINT) FROM a JOIN b USING(k) WHERE COALESCE(a.q,0)=b.q", []string{"case", "k"}, []string{"TEXT", "INT8"}, [][]any{{"a", int64(1)}, {"a", int64(1)}, {"a", int64(1)}, {"a", int64(1)}}),
 		referenceSelect(`SELECT /*é*/ "X"."K",b.k FROM a AS "X"("L","K") JOIN b ON "X"."K"=b.k`, []string{"K", "k"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}, {int64(1), int64(1)}, {int64(1), int64(1)}, {int64(1), int64(1)}}),
-		referenceSelect("SELECT x.l,y.l FROM a x CROSS JOIN a y", []string{"l", "l"}, []string{"TEXT", "TEXT"}, [][]any{{"a", "a"}, {"a", "a"}, {"a", "n"}, {"a", "z"}, {"a", "a"}, {"a", "a"}, {"a", "n"}, {"a", "z"}, {"n", "a"}, {"n", "a"}, {"n", "n"}, {"n", "z"}, {"z", "a"}, {"z", "a"}, {"z", "n"}, {"z", "z"}}),
-		referenceSelect("SELECT a.l FROM a CROSS JOIN b JOIN c ON a.k=c.k AND b.k=c.k", []string{"l"}, []string{"TEXT"}, [][]any{{"a"}, {"a"}, {"a"}, {"a"}, {"a"}, {"a"}, {"a"}, {"a"}}),
-		referenceSelect("SELECT * FROM a NATURAL JOIN b AS renamed(rr,qq,kk)", []string{"l", "k", "q", "rr", "qq", "kk"}, []string{"TEXT", "INT4", "INT4", "TEXT", "INT4", "INT4"}, product),
-	}
-	for _, q := range []string{"SELECT * FROM a,b", "SELECT * FROM a CROSS JOIN b", "SELECT * FROM a INNER JOIN b ON TRUE"} {
-		steps = append(steps, referenceSelect(q, []string{"l", "k", "q", "r", "q", "k"}, []string{"TEXT", "INT4", "INT4", "TEXT", "INT4", "INT4"}, product))
 	}
 	for _, q := range []string{"SELECT * FROM a JOIN b ON FALSE", "SELECT * FROM a JOIN b ON NULL", "SELECT * FROM a CROSS JOIN empty", "SELECT * FROM empty CROSS JOIN a"} {
 		names := []string{"l", "k", "q", "r", "q", "k"}
@@ -99,34 +77,13 @@ func TestReferenceQueryJoinsRegression(t *testing.T) {
 }
 
 func queryJoinsReferenceCases(t *testing.T, p *referencePair, steps []referenceStep) {
-	// PostgreSQL is independently runnable even when the native subtest is red.
-	observed := make([]referenceObserved, 2*len(steps))
-	for _, backend := range []struct {
-		name     string
-		db       *sql.DB
-		recorder *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	t.Helper()
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			for i, s := range steps {
+			for _, s := range steps {
 				s.bag = true
-				t.Run(s.query, func(t *testing.T) {
-					t.Run("direct", func(t *testing.T) {
-						got := referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
-						if backend.name == "postgres" {
-							observed[2*i] = got
-						} else if !reflect.DeepEqual(got, observed[2*i]) {
-							t.Fatalf("backend parity got %#v want %#v", got, observed[2*i])
-						}
-					})
-					t.Run("prepared", func(t *testing.T) {
-						got := referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
-						if backend.name == "postgres" {
-							observed[2*i+1] = got
-						} else if !reflect.DeepEqual(got, observed[2*i+1]) {
-							t.Fatalf("backend parity got %#v want %#v", got, observed[2*i+1])
-						}
-					})
-				})
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(s))
 			}
 		})
 	}
@@ -232,18 +189,18 @@ func queryJoinsPreparedSchema(t *testing.T, p *referencePair, db *sql.DB) {
 	referenceAssertDiagnostic(t, err, &want)
 }
 
-func TestReferenceQueryJoinsPreparedRenameOracle(t *testing.T) { queryJoinsPreparedRename(t, true) }
-func TestReferenceQueryJoinsPreparedRename(t *testing.T)       { queryJoinsPreparedRename(t, false) }
+func TestReferenceQueryJoinsPreparedSchema(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			queryJoinsPreparedSchema(t, p, backend.db)
+		})
+	}
+}
 
-func queryJoinsPreparedRename(t *testing.T, oracle bool) {
+func TestReferenceQueryJoinsPreparedRename(t *testing.T) {
 	p := queryJoinsReferenceSetup(t)
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"postgres", p.postgres}, {"native", p.memory}} {
-		if oracle && backend.name != "postgres" {
-			continue
-		}
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			conn, err := backend.db.Conn(p.ctx)
 			if err != nil {
@@ -270,9 +227,6 @@ func queryJoinsPreparedRename(t *testing.T, oracle bool) {
 				t.Fatal("rename exposed stale rows")
 			}
 			want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: "column shape_b.k does not exist", Hint: `Perhaps you meant to reference the column "shape_a.k".`, Position: "57"}
-			if oracle {
-				t.Logf("JOIN PREPARED RENAME ORACLE %q: %#v", query, referenceExtractDiagnostic(t, err))
-			}
 			referenceAssertDiagnostic(t, err, &want)
 			const dropQuery = "SELECT shape_a.k FROM shape_a JOIN shape_b ON shape_a.k=shape_b.gone"
 			dropped, err := conn.PrepareContext(p.ctx, dropQuery)
@@ -289,9 +243,6 @@ func queryJoinsPreparedRename(t *testing.T, oracle bool) {
 				t.Fatal("drop exposed stale rows")
 			}
 			want = referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: "column shape_b.gone does not exist", Position: "57"}
-			if oracle {
-				t.Logf("JOIN PREPARED DROP ORACLE %q: %#v", dropQuery, referenceExtractDiagnostic(t, err))
-			}
 			referenceAssertDiagnostic(t, err, &want)
 		})
 	}
@@ -299,10 +250,7 @@ func queryJoinsPreparedRename(t *testing.T, oracle bool) {
 
 func TestReferenceQueryJoinsConsumers(t *testing.T) {
 	p := queryJoinsReferenceSetup(t)
-	for _, backend := range []struct {
-		db       *sql.DB
-		recorder *referenceRecorder
-	}{{p.postgres, p.postgresRecord}, {p.memory, p.memoryRecord}} {
+	for _, backend := range p.backends() {
 		for _, s := range []referenceStep{referenceExec("INSERT INTO b VALUES('d',7,1)", 1), referenceExec("CREATE TABLE dst(k INT NOT NULL,stamp INT DEFAULT 7)", 0), referenceExec("CREATE TABLE ordered(k INT,l TEXT)", 0), referenceExec("INSERT INTO ordered VALUES(2,'two'),(1,'one')", 2)} {
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 		}

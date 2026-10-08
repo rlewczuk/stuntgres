@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceCountExpressionCallers(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, step := range []referenceStep{
 		referenceExec("CREATE TABLE t(k TEXT,v INT)", 0),
 		referenceExec("INSERT INTO t VALUES('a',1),('a',NULL),(NULL,3)", 3),
@@ -13,7 +11,7 @@ func TestReferenceCountExpressionCallers(t *testing.T) {
 		referenceExec("CREATE TABLE out(k TEXT,n BIGINT)", 0),
 		referenceExec("CREATE TABLE narrow(n SMALLINT)", 0),
 		referenceExec("CREATE SEQUENCE s", 0),
-		referenceExec("CREATE VIEW counted(n,z) AS SELECT count(v),count(NULLIF(v,1)) FROM t", 0),
+		referenceExec("CREATE VIEW counted(n,z,r) AS SELECT count(v),count(NULLIF(v,1)),count(CAST('s' AS regclass)) FROM t", 0),
 	} {
 		p.step(t, step)
 	}
@@ -41,6 +39,7 @@ func TestReferenceCountExpressionCallers(t *testing.T) {
 	p.step(t, referenceSelect("SELECT currval('s')", []string{"currval"}, []string{"INT8"}, [][]any{{int64(6)}}))
 	check := func() {
 		p.step(t, referenceSelect("SELECT n,z FROM counted", []string{"n", "z"}, []string{"INT8", "INT8"}, [][]any{{int64(2), int64(1)}}))
+		p.step(t, referenceSelect("SELECT n,z,r FROM counted", []string{"n", "z", "r"}, []string{"INT8", "INT8", "INT8"}, [][]any{{int64(2), int64(1), int64(3)}}))
 	}
 	check()
 	p.step(t, referenceExec("ALTER TABLE t RENAME COLUMN v TO renamed", 0))
