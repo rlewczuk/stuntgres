@@ -79,9 +79,15 @@ database-local COMMENT bootstrap authority preserve independent schema/table own
 without grants or session identity changes. COMMENT's private marker covers lookup,
 lock resolution and mutation, is cleared after each statement, and never permits
 ROLE replay. Ordinary post-Restore SQL still enforces USAGE/CREATE and ownership.
-The shared object allocator skips live namespace and relation identities imported
-by Restore, so subsequent schema and table creation continues without collisions.
-Replacement does not rewind the destination's nonreuse counter.
+The shared object allocator skips live namespace, relation, view-rule, CHECK,
+NOT NULL and default identities imported by Restore. Replacement does not rewind
+the destination's nonreuse counter. Definition collisions with retained native
+objects are reminted in the private candidate before installation.
+Dump/Restore preserves CHECK casts/names/NO INHERIT, NOT NULL and explicit
+defaults through canonical SQL replay, not raw definition OID directives.
+Restored IDs may differ; current owner/attribute relationships and behavior persist.
+Derived pg_constraint/pg_attrdef rows and stateless deparse functions are not dumped.
+Failed/canceled Restore leaves data/catalogs and held eager tree/result snapshots intact.
 
 Identity Dump emits current generation and actual sequence names inline, skips
 duplicate sequence creation/AUTO ownership, and restores literal rows with SYSTEM

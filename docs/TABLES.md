@@ -2,6 +2,27 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Decompiled definitions — change note
+
+CHECK/default/NOT NULL definitions have generated catalog identities distinct from
+their owning table and stable attributes. CREATE allocates only at execution;
+renames and surviving DROP-column remaps preserve IDs. SET DEFAULT replaces its
+definition with a fresh identity, DROP removes it, and re-add creates another.
+Existing SET NOT NULL remains a no-op retaining identity.
+
+`pg_get_constraintdef` returns `CHECK (<expression>)` plus ` NO INHERIT` when
+present, or `NOT NULL <current-column>`. Returned CHECK suffixes can be consumed
+by CREATE for the same supported scalar syntax and enforcement semantics; original
+source formatting is not preserved. Rename updates quoted names without rebinding
+the stored types/providers. `pg_get_expr` renders catalog tree expressions.
+
+CREATE DEFAULT NULL and transparent casts of literal NULL create no pg_attrdef
+definition; ALTER SET DEFAULT NULL removes one. This narrow producer normalization
+never evaluates CASE, COALESCE, functions or arbitrary expressions to infer NULL.
+Nontrivial NULL-producing definitions remain stored. Explicit INSERT NULL and
+NOT NULL/CHECK enforcement continue to use the ordinary typed executor.
+
+
 ## Object comments
 
 COMMENT stores one immutable UTF8 text per TABLE, COLUMN, SCHEMA or ROLE.

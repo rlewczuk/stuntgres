@@ -102,6 +102,9 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case currentSchemasExpression:
 		n.arg = child(n.arg)
 		next = n
+	case deparseExpression:
+		n.args = args(n.args)
+		next = n
 	case commentInquiryExpression:
 		n.args = args(n.args)
 		next = n
@@ -364,5 +367,5 @@ func (e *Engine) remapViewRuleOIDs(next *catalogState) error {
 		}
 		reserved[rule] |= ruleOID | claimedOID
 	}
-	return nil
+	return e.remapDefinitionOIDsLocked(next)
 }

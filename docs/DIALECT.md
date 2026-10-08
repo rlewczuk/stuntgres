@@ -6,6 +6,27 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### Constraint/expression introspection — change note
+
+The native catalog sources add exactly `pg_catalog.pg_constraint`
+(`oid OID, conname NAME, contype CHAR, conrelid OID, conbin PG_NODE_TREE`) and
+`pg_catalog.pg_attrdef` (`oid OID, adrelid OID, adnum INT2, adbin PG_NODE_TREE`).
+They project existing CHECK (`c`), NOT NULL (`n`, NULL conbin) and explicit
+nontrivial defaults from real immutable descriptors. Attribute numbers are stable,
+not dense evaluation slots. These are not general constraint/catalog rollout:
+foreign keys, domains, indexes, generated columns and bonus metadata remain absent.
+
+`pg_node_tree` is distinct type194 with PG_NODE_TREE metadata and native string
+ScanType. Non-NULL values are internal immutable structural carriers. Output uses
+native deterministic node tags, concrete type/typmod, attribute/provider identities,
+constant payloads and recursive children. It is neither original/replay SQL nor
+an opaque lookup token, and is **not** PostgreSQL nodeToString physical interchange.
+External non-NULL input always fails0A000, including empty/invalid text; typed NULL
+is ordinary. The four `pg_get_constraintdef`/`pg_get_expr` signatures return TEXT,
+with structural rendering, strict NULL, current names and supplied-relation lookup.
+See [query contracts](QUERIES.md#constraint-and-expression-deparsing).
+
+
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
 
 ### Interval values — change note

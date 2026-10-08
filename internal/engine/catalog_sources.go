@@ -16,6 +16,14 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{2606, "pg_constraint", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"conname", sqltype.Name}, {"contype", sqltype.Char}, {"conrelid", sqltype.Oid}, {"conbin", sqltype.PgNodeTree}}},
+		{2604, "pg_attrdef", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"oid", sqltype.Oid}, {"adrelid", sqltype.Oid}, {"adnum", sqltype.Int2}, {"adbin", sqltype.PgNodeTree}}},
 		{1259, "pg_class", []struct {
 			name string
 			typ  sqltype.ID
@@ -77,6 +85,25 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 			return nil, err
 		}
 		switch source.address.ObjectID {
+		case 2606:
+			for _, definition := range relation.notNullConstraints {
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "n"), oid(3, uint32(relation.address.ObjectID)), sqltype.Null(source.columns[4].Usage.Type)})
+			}
+			for _, definition := range relation.checkConstraints {
+				tree, err := catalogTree(source.columns[4].Usage.Type, definition.expression)
+				if err != nil {
+					return nil, err
+				}
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), text(1, definition.Name), text(2, "c"), oid(3, uint32(relation.address.ObjectID)), tree})
+			}
+		case 2604:
+			for attribute, definition := range relation.defaults {
+				tree, err := catalogTree(source.columns[3].Usage.Type, definition.expression)
+				if err != nil {
+					return nil, err
+				}
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.address.ObjectID)), integer(2, int64(attribute)), tree})
+			}
 		case 1259:
 			kind := "r"
 			if relation.relationKind == sequenceRelation {

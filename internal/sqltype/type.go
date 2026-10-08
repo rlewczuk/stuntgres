@@ -25,6 +25,7 @@ const (
 	Int4        ID = 23
 	Text        ID = 25
 	Oid         ID = 26
+	PgNodeTree  ID = 194
 	Float4      ID = 700
 	Float8      ID = 701
 	Unknown     ID = 705
@@ -123,6 +124,7 @@ func Builtins() []*Descriptor {
 		{Int4, "int4", "INTEGER", "INT4"},
 		{Text, "text", "TEXT", "TEXT"},
 		{Oid, "oid", "OID", "OID"},
+		{PgNodeTree, "pg_node_tree", "PG_NODE_TREE", "PG_NODE_TREE"},
 		{BPChar, "bpchar", "BPCHAR", "BPCHAR"},
 		{VarChar, "varchar", "VARCHAR", "VARCHAR"},
 		{Float4, "float4", "REAL", "FLOAT4"},
@@ -141,7 +143,8 @@ func Builtins() []*Descriptor {
 	}
 }
 
-// Zero Value is invalid, not NULL. All payloads are inline or immutable strings.
+// Zero Value is invalid, not NULL. Scalars stay inline; only structural tree
+// values own a pointer to an immutable payload. Value remains comparable.
 type Value struct {
 	typ             *Descriptor
 	null            bool
@@ -156,6 +159,7 @@ type Value struct {
 	special         uint8
 	uuid            [16]byte
 	months, days    int32
+	tree            *treePayload
 }
 
 func (v Value) Type() *Descriptor { return v.typ }
@@ -313,6 +317,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
+	}
+	if d.id == PgNodeTree {
+		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
 	if IsCharacter(d.id) || d.id == Name {
 		if err := validateCharacterInput(text); err != nil {
@@ -498,6 +505,11 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		return "", fmt.Errorf("invalid output value")
 	}
 	switch d.id {
+	case PgNodeTree:
+		if v.tree == nil {
+			return "", fmt.Errorf("missing structural tree payload")
+		}
+		return v.tree.value.StructuralOutput(ctx)
 	case Void:
 		return "", nil
 	case Oid:
@@ -722,6 +734,16 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	p := CoercionPlan{source: source, target: target, context: context}
 	if !source.Valid() || !target.Valid() {
 		return p, fmt.Errorf("invalid coercion usage")
+	}
+	if source.Type.id == PgNodeTree || target.Type.id == PgNodeTree {
+		if source.Type.id == target.Type.id {
+			return p, nil
+		}
+		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
 	}
 	if context == Explicit {
 		if !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !OIDCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {

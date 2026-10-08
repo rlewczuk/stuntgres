@@ -63,6 +63,8 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	}
 	var kind nullCountKind
 	switch name {
+	case "pg_get_constraintdef", "pg_get_expr":
+		return b.bindDeparse(raw, visible)
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
 	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
@@ -74,7 +76,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	case "num_nonnulls":
 		kind = countNonnulls
 	default:
-		return nil, fmt.Errorf("stuntgres: function is unsupported")
+		return nil, b.functionSignatureError(raw)
 	}
 	// Over-limit calls still transform every child before resolution, but never
 	// need retained executable argument storage.

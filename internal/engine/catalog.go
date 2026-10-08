@@ -115,6 +115,7 @@ func (d *relationDescriptor) hasAttribute(sub int32) bool {
 }
 
 type notNullConstraint struct {
+	OID       OID
 	Name      string
 	Attribute int32
 }
@@ -240,7 +241,7 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	names := make(map[string]bool, len(r.notNullConstraints))
 	attrs := make(map[int32]bool, len(r.notNullConstraints))
 	for _, c := range r.notNullConstraints {
-		if c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || attrs[c.Attribute] || !r.hasAttribute(c.Attribute) {
+		if c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || attrs[c.Attribute] || !r.hasAttribute(c.Attribute) {
 			return fmt.Errorf("stuntgres: invalid not-null constraint identity")
 		}
 		names[c.Name], attrs[c.Attribute] = true, true
@@ -287,11 +288,12 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 				break
 			}
 		}
-		if slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.columns[slot].Usage {
+		if definition.OID == 0 || slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.columns[slot].Usage {
 			return fmt.Errorf("stuntgres: invalid column default destination")
 		}
-		canonical, err := defaultSQL(context.Background(), v, definition.expression)
-		if err != nil || canonical != definition.sql {
+		catalogSnapshot := false
+		canonical, err := (scalarRenderer{commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
+		if err != nil || canonical != definition.sql || catalogSnapshot != definition.catalogSnapshot || structuralNull(definition.expression) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
 	}
@@ -570,6 +572,11 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 	var view CatalogRead
 	if len(s.descriptors) != 0 {
 		view = e.stageRead(s)
+	}
+	if view.state != nil {
+		if err := validateDefinitionOIDs(view); err != nil {
+			return nil, err
+		}
 	}
 	for _, d := range s.descriptors {
 		p := e.providers[d.Address().ClassID]
@@ -878,6 +885,9 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	}
 	replacement = persistentReplacementCatalog(replacement)
 	targetRoles := e.Roles()
+	if err := validateDefinitionOIDs(replacement); err != nil {
+		return ChangeSet{}, err
+	}
 	for _, d := range replacement.state.descriptors {
 		p := e.providers[d.Address().ClassID]
 		if p == nil {

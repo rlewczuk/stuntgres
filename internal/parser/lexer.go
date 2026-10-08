@@ -657,6 +657,9 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
+	if token.code == IDENT && strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_") {
+		token.code = SELECTED_FUNC
+	}
 	switch token.lexeme.text {
 	case "operator":
 		if token.lexeme.keyword != nil {

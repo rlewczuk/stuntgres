@@ -76,7 +76,7 @@ func TestAlterRenameDependencies(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE t RENAME c TO renamed")
 	roleExecute(t, e, op, "ALTER TABLE t RENAME TO newtable")
 	next := e.state.descriptors[ref.Address].(*relationDescriptor)
-	if !reflect.DeepEqual(next.columnACL, old.columnACL) || !reflect.DeepEqual(next.notNullConstraints, []notNullConstraint{{Name: "nn", Attribute: 3}}) || next.columnComments[3] != "keep" {
+	if !reflect.DeepEqual(next.columnACL, old.columnACL) || !reflect.DeepEqual(next.notNullConstraints, old.notNullConstraints) || len(next.notNullConstraints) != 1 || next.notNullConstraints[0].Name != "nn" || next.notNullConstraints[0].Attribute != 3 || next.notNullConstraints[0].OID == 0 || next.columnComments[3] != "keep" {
 		t.Fatal(next)
 	}
 	roleExecute(t, e, op, "COMMENT ON COLUMN newtable.renamed IS 'updated'")

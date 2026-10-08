@@ -14,6 +14,8 @@ func SameDatum(a, b Value) bool {
 		return a.null == b.null
 	}
 	switch a.typ.id {
+	case PgNodeTree:
+		return a.tree == b.tree
 	case Interval:
 		return a.months == b.months && a.days == b.days && a.integer == b.integer
 	case Oid:

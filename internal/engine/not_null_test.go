@@ -25,7 +25,7 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL")
 	next := e.state.descriptors[ref.Address].(*relationDescriptor)
-	if next == old || next.revision != old.revision+1 || next.address != old.address || next.owner != old.owner || !reflect.DeepEqual(next.attributes, old.attributes) || !reflect.DeepEqual(next.columnComments, old.columnComments) || e.storage[ref.Address] != storage || &storage.versions[0].values[0] != values || next.columns[0].Nullable || !old.columns[0].Nullable || !reflect.DeepEqual(next.notNullConstraints, []notNullConstraint{{Name: "t_a_not_null", Attribute: 1}}) {
+	if next == old || next.revision != old.revision+1 || next.address != old.address || next.owner != old.owner || !reflect.DeepEqual(next.attributes, old.attributes) || !reflect.DeepEqual(next.columnComments, old.columnComments) || e.storage[ref.Address] != storage || &storage.versions[0].values[0] != values || next.columns[0].Nullable || !old.columns[0].Nullable || len(next.notNullConstraints) != 1 || next.notNullConstraints[0].OID == 0 || next.notNullConstraints[0].Name != "t_a_not_null" || next.notNullConstraints[0].Attribute != 1 {
 		t.Fatal(old, next)
 	}
 	if !held.Rows.Schema()[0].Nullable || !reflect.DeepEqual(tuples(held), [][]driver.Value{{int64(7), "keep", int64(9)}}) {
@@ -40,7 +40,7 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	run(t, e, "ALTER TABLE t ALTER c SET NOT NULL")
 	run(t, e, "ALTER TABLE t DROP a")
 	after := e.state.descriptors[ref.Address].(*relationDescriptor)
-	if !reflect.DeepEqual(after.notNullConstraints, []notNullConstraint{{Name: "t_c_not_null", Attribute: 3}}) || after.columns[1].OriginAttribute != 3 || after.columnComments[3] != "survivor" {
+	if len(after.notNullConstraints) != 1 || after.notNullConstraints[0].OID == 0 || after.notNullConstraints[0].Name != "t_c_not_null" || after.notNullConstraints[0].Attribute != 3 || after.columns[1].OriginAttribute != 3 || after.columnComments[3] != "survivor" {
 		t.Fatal(after)
 	}
 	run(t, e, "ALTER TABLE t DROP CONSTRAINT t_c_not_null")
@@ -80,7 +80,7 @@ func TestNotNullSequentialCollisionUsesAllocatedIdentity(t *testing.T) {
 	}
 	run(t, e, "CREATE TABLE t(b INT CONSTRAINT t_a_not_null NOT NULL,a INT NOT NULL)")
 	d := e.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
-	if !reflect.DeepEqual(d.notNullConstraints, []notNullConstraint{{Name: "t_a_not_null", Attribute: 1}, {Name: "t_a_not_null1", Attribute: 2}}) {
+	if len(d.notNullConstraints) != 2 || d.notNullConstraints[0].OID == 0 || d.notNullConstraints[1].OID == 0 || d.notNullConstraints[0].OID == d.notNullConstraints[1].OID || d.notNullConstraints[0].Name != "t_a_not_null" || d.notNullConstraints[0].Attribute != 1 || d.notNullConstraints[1].Name != "t_a_not_null1" || d.notNullConstraints[1].Attribute != 2 {
 		t.Fatal(d.notNullConstraints)
 	}
 }
@@ -189,6 +189,12 @@ func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ObjectRef, *r
 	next.columns = append([]ColumnDescriptor(nil), old.columns...)
 	next.columns[0].Nullable = false
 	next.notNullConstraints = []notNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
+	e.mu.Lock()
+	err := e.assignDefinitionOIDsLocked(&next)
+	e.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
 	original := e.storage[ref.Address]
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.alterRelation(context.Background(), ref, &next, original, original, len(original.versions), original.generation, original.ends); err != nil {

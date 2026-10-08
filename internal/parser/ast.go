@@ -429,6 +429,9 @@ func (s *Select) IsSingleton() bool {
 		return true
 	}
 	for _, target := range s.Targets {
+		if cast, ok := target.(CastExpr); ok && cast.TypeName.Name == "pg_node_tree" && singletonArgument(cast.Child) {
+			continue
+		}
 		call, ok := target.(FunctionExpr)
 		if !ok || !singletonArgument(call) {
 			return false
@@ -485,7 +488,9 @@ func singletonArgument(expr Expr) bool {
 		switch e.Name.Parts[len(e.Name.Parts)-1].Text {
 		case "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		default:
-			return false
+			if !strings.HasPrefix(strings.ToLower(e.Name.Parts[len(e.Name.Parts)-1].Text), "pg_get_") {
+				return false
+			}
 		}
 		for _, arg := range e.Args {
 			if !singletonArgument(arg) {

@@ -26,12 +26,12 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
 			node := parameterExpression{expressionInfo: expressionInfo{usage: u, properties: ExprProperties{ParameterDependent: true}}, number: 1}
-			d.defaults = map[int32]columnDefault{1: {node, "0"}}
+			d.defaults = map[int32]columnDefault{1: {expression: node, sql: "0"}}
 		},
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
 			node := literalExpression{expressionInfo: expressionInfo{usage: u}, value: sqltype.Null(old.columns[1].Usage.Type)}
-			d.defaults = map[int32]columnDefault{1: {node, "NULL"}}
+			d.defaults = map[int32]columnDefault{1: {expression: node, sql: "NULL"}}
 		},
 	} {
 		next := *old

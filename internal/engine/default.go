@@ -15,8 +15,10 @@ import (
 // Published definitions contain immutable typed nodes, never evaluated values
 // or caller-owned syntax. Attribute keys survive descriptor replacements.
 type columnDefault struct {
-	expression BoundExpr
-	sql        string
+	OID             OID
+	expression      BoundExpr
+	sql             string
+	catalogSnapshot bool
 }
 
 func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor) (BoundExpr, error) {
@@ -56,14 +58,19 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 		if err != nil {
 			return nil, err
 		}
-		canonical, err := defaultSQL(b.ctx, view, node)
+		if structuralNull(node) {
+			continue
+		}
+		definition := columnDefault{expression: node}
+		canonical, err := (scalarRenderer{commentSnapshot: &definition.catalogSnapshot}).sql(b.ctx, view, node)
 		if err != nil {
 			return nil, err
 		}
 		if defaults == nil {
 			defaults = make(map[int32]columnDefault)
 		}
-		defaults[int32(slot+1)] = columnDefault{node, canonical}
+		definition.sql = canonical
+		defaults[int32(slot+1)] = definition
 	}
 	return defaults, nil
 }
@@ -104,6 +111,18 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	}
 	r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
+	case deparseExpression:
+		if err := validateDeparseExpression(n); err != nil {
+			return "", err
+		}
+		if r.commentSnapshot != nil {
+			*r.commentSnapshot = true
+		}
+		name := "pg_get_expr"
+		if n.constraint {
+			name = "pg_get_constraintdef"
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
 	case columnExpression:
 		if r.owner == nil || n.origin.owner != view.owner.owner || n.origin.Epoch != view.Epoch() || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.columns) || r.owner.attributes[n.slot] != n.origin.Address.SubID || u != r.owner.columns[n.slot].Usage {
 			return "", fmt.Errorf("stuntgres: invalid stored row origin")
@@ -635,6 +654,13 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case deparseExpression:
+		n.args = append([]BoundExpr(nil), n.args...)
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		n.expressionInfo = info
+		rebound = n
 	case randomExpression:
 		var args []BoundExpr
 		for i, old := range n.args {

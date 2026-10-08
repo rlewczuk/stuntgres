@@ -461,6 +461,24 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
+	case deparseExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.args = args
+			return e, true, nil
+		}
 	case commentInquiryExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {
@@ -1089,7 +1107,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 		return node, err
 	}
 	bitwiseCast := raw.Syntax != parser.FunctionCast && (bitwiseOperand || bitwiseCastSource(raw.Child))
-	if !sqltype.BaselineCastType(target.Type.ID()) && target.Type.ID() != sqltype.Oid && target.Type.ID() != sqltype.Int2 && !sqltype.IsCharacter(target.Type.ID()) && !sqltype.TemporalCastType(target.Type.ID()) {
+	if !sqltype.BaselineCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.Oid && target.Type.ID() != sqltype.Int2 && !sqltype.IsCharacter(target.Type.ID()) && !sqltype.TemporalCastType(target.Type.ID()) {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	policy := expressionPolicy{context: projectionContext, bitwiseOperand: bitwiseOperand}
@@ -1128,7 +1146,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 		plan, err = sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	}
 	if err != nil {
-		if !scopedIntegral && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !scopedIntegral && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {

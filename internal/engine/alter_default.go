@@ -52,7 +52,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		definition.expression, err = binder.bindDefault(s.Expression, old.columns[slot])
 		if err == nil {
-			definition.sql, err = defaultSQL(op.Context(), auth.catalog, definition.expression)
+			definition.sql, err = (scalarRenderer{commentSnapshot: &definition.catalogSnapshot}).sql(op.Context(), auth.catalog, definition.expression)
 		}
 		if err != nil {
 			// PostgreSQL cooks ALTER defaults without source text. CREATE diagnostics
@@ -64,6 +64,14 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 				err = &copy
 			}
 			return fail(err)
+		}
+		if structuralNull(definition.expression) {
+			definition = columnDefault{}
+		} else {
+			definition.OID, err = e.allocateOIDLocked()
+			if err != nil {
+				return fail(err)
+			}
 		}
 	} else if _, present := old.defaults[attr]; !present {
 		op.session.mu.Lock()
@@ -89,8 +97,10 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	next := *old
 	next.revision++
 	capacity := len(old.defaults)
-	if s.Action == parser.DropDefault {
-		capacity--
+	if definition.expression == nil {
+		if _, present := old.defaults[attr]; present {
+			capacity--
+		}
 	} else if _, present := old.defaults[attr]; !present {
 		capacity++
 	}
@@ -103,7 +113,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 			next.defaults[key] = value
 		}
 	}
-	if s.Action == parser.SetDefault {
+	if definition.expression != nil {
 		next.defaults[attr] = definition
 	}
 	stage := e.BeginCatalogStage(auth.catalog)

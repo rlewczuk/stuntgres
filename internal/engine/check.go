@@ -15,6 +15,7 @@ import (
 // A CHECK is a typed immutable current-row expression. Its dependencies retain
 // stable attribute and provider identities, never a name-keyed SQL cache.
 type checkConstraint struct {
+	OID       OID
 	Name      string
 	NoInherit bool
 	// Declaration order is independent of alphabetical enforcement order.
@@ -220,7 +221,7 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 				return fmt.Errorf("stuntgres: duplicate check declaration ordinal")
 			}
 		}
-		if c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || previous != "" && previous >= c.Name || c.expression == nil || c.expression.ResultUsage().Type == nil || c.expression.ResultUsage().Type.ID() != sqltype.Bool {
+		if c.OID == 0 || c.Name == "" || len(c.Name) > 63 || !utf8.ValidString(c.Name) || strings.IndexByte(c.Name, 0) >= 0 || names[c.Name] || previous != "" && previous >= c.Name || c.expression == nil || c.expression.ResultUsage().Type == nil || c.expression.ResultUsage().Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid check constraint identity")
 		}
 		names[c.Name], previous = true, c.Name

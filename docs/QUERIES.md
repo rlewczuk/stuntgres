@@ -2,6 +2,43 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
+## Constraint and expression deparsing
+
+`pg_get_constraintdef(oid)` and `pg_get_constraintdef(oid, boolean)` return the
+creating-command suffix for supported CHECK and NOT NULL constraints.
+`pg_get_expr(pg_node_tree, oid)` and `pg_get_expr(pg_node_tree, oid, boolean)`
+return the stored expression as TEXT. All four functions are Stable and strict:
+NULL in any argument produces typed TEXT NULL; omitted pretty means false.
+Pretty changes presentation, not the authoritative expression or its evaluation.
+Stored expressions are never evaluated by introspection, including dormant errors
+and volatile sequence/random providers. Canonical native replay remains separate.
+
+```sql
+SELECT pg_get_constraintdef(oid, true)
+FROM pg_catalog.pg_constraint WHERE conname = 'positive';
+SELECT pg_get_expr(adbin, adrelid)
+FROM pg_catalog.pg_attrdef;
+```
+
+The supplied relation resolves stored stable attribute numbers against its current
+columns, even when names/types differ from the original owner. OID zero permits
+Var-free trees; a tree containing Vars reports22023 `expression contains variables`.
+A missing nonzero relation returns NULL even for a constant tree. Missing
+attributes reportXX000 `invalid attnum N for relation "name"`. Missing constraint
+IDs return NULL. Rename preserves identities and updates decompiled spelling.
+Saved tree values retain immutable structure after their owner is removed.
+
+Non-NULL external `pg_node_tree` input reports0A000
+`cannot accept a value of type pg_node_tree`; NULL needs no input decoding.
+Incorrect names, arities and known argument types use ordinary42883 resolution
+with the PostgreSQL function Hint and source character Position. Bounded
+`pg_get_*` parser admission allows these diagnostics, not additional providers
+or arbitrary relationless scalar SELECT. Prepared calls use current statement
+catalog authority and import typed arguments on execution.
+
+Feature smoke: `make smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
+
+
 ## LIMIT, OFFSET and FETCH — change note (changelog)
 
 Table-backed SELECT, stored scalar view definitions, the shared INSERT SELECT

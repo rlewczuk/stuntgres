@@ -32,6 +32,17 @@ Dump/Restore and column/table rename; CHECK does not change declared nullability
 See [CHECK constraints](docs/TABLES.md#check-constraints--change-note).
 Feature smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
 
+Constraint and stored-expression introspection supports all four PostgreSQL
+signatures: `pg_get_constraintdef(oid [, boolean])` and
+`pg_get_expr(pg_node_tree, oid [, boolean])`, returning TEXT or NULL.
+Minimal `pg_catalog.pg_constraint` and `pg_catalog.pg_attrdef` projections expose
+real definition identities and immutable structural trees. Compact/pretty
+decompilation traverses bound definitions without evaluating them, uses current
+column names, and resolves Vars against the supplied relation's stable attributes.
+Native tree output is not PostgreSQL's physical node serialization; non-NULL
+external tree input is rejected. See [deparsing](docs/QUERIES.md#constraint-and-expression-deparsing).
+Feature smoke: `make smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
+
 Time-zone-aware `TIMESTAMPTZ` and `TIMETZ` values support per-physical-session
 TimeZone/DateStyle, named IANA zones, abbreviations, fixed offsets and
 `AT TIME ZONE` / `AT LOCAL`. Timestamptz stores an instant; timetz retains

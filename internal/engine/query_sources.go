@@ -87,6 +87,12 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) {
 }
 
 func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) {
+	for _, definition := range relation.defaults {
+		if definition.catalogSnapshot {
+			e.captureCommentSnapshotLocked(scope)
+			return
+		}
+	}
 	for _, check := range relation.checkConstraints {
 		if check.commentSnapshot {
 			e.captureCommentSnapshotLocked(scope)

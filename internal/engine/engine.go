@@ -175,7 +175,7 @@ func (e *Engine) allocateOIDLocked() (OID, error) {
 		}
 		usedRule := false
 		for _, descriptor := range e.state.descriptors {
-			if relation, ok := descriptor.(*relationDescriptor); ok && relation.view != nil && relation.view.rule == n {
+			if relation, ok := descriptor.(*relationDescriptor); ok && definitionOIDUsed(relation, n) {
 				usedRule = true
 				break
 			}

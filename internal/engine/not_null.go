@@ -187,6 +187,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	for _, transformation := range transformations {
 		rewrite = rewrite || transformation.rewrite
 	}
+	if next != old {
+		e.mu.Lock()
+		err = e.assignDefinitionOIDsLocked(next)
+		e.mu.Unlock()
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	replacement := store
 	projectedWrites := scope.ownWrites[ref.Address]
 	projectedDeletes := scope.ownDeletes[ref.Address]

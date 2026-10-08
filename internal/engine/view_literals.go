@@ -182,6 +182,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if _, ok := bound.(identityExpression); ok && len(r.Args) == 0 {
 			return nil
 		}
+		if n, ok := bound.(deparseExpression); ok {
+			return children(r.Args, n.args)
+		}
 		if n, ok := bound.(commentInquiryExpression); ok {
 			return children(r.Args, n.args)
 		}
