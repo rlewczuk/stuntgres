@@ -814,6 +814,15 @@ Thus `SET id=$1 RETURNING $1` reports 42804 at the assignment, while typed WHERE
 can establish INT4 and make it valid. `$1,$1::int4` outputs report 42P08 at the
 first output occurrence; reverse order succeeds. Positions count UTF8 characters.
 
+Aggregate outputs are rejected, not evaluated. Diagnostic recognition of
+one-argument SUM preserves argument-resolution errors first, then resolves the
+builtin namespace and known numeric/INTERVAL signature before reporting 42803
+`aggregate functions are not allowed in RETURNING`. A missing argument column
+remains 42703; TEXT or an unavailable qualified SUM remains 42883 with the ordinary
+function-signature Hint. This is not a SUM runtime provider: native SELECT/SET/
+INSERT SUM remains unsupported, as do untyped SUM arguments requiring overload
+inference, count(expr), SUM(*), aggregate DISTINCT/ordering and windows/SRFs.
+
 Each successful constrained row is projected exactly once before atomic Finish.
 Late output conversion/division/overflow and prepublication cancellation expose
 no partial output/count or replacement and use existing transaction abort/savepoint

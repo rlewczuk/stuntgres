@@ -763,6 +763,38 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	var node BoundExpr
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
+		if r.Name == "sum" {
+			if b.aggregateClause != "RETURNING" {
+				return nil, expressionError("0A000", "functions are unsupported", r.Pos)
+			}
+			arg, err := b.bind(r.Args[0], expressionPolicy{context: projectionContext})
+			if err != nil {
+				return nil, err
+			}
+			if arg.ResultUsage().Type == nil {
+				return nil, expressionError("0A000", "untyped aggregate arguments are unsupported", r.Pos)
+			}
+			if literal, ok := r.Args[0].(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+				return nil, expressionError("0A000", "untyped aggregate arguments are unsupported", r.Pos)
+			}
+			name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
+			if r.Schema != nil {
+				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
+			}
+			visible, err := b.builtinVisible(name, functionLookup)
+			if err != nil {
+				return nil, err
+			}
+			eligible := false
+			switch arg.ResultUsage().Type.ID() {
+			case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Float4, sqltype.Float8, sqltype.Numeric, sqltype.Interval:
+				eligible = true
+			}
+			if !visible || !eligible {
+				return nil, functionSignatureErrorForTypes(name, r.Pos, []string{arg.ResultUsage().Type.DiagnosticName()})
+			}
+			return nil, expressionError("42803", "aggregate functions are not allowed in RETURNING", r.Pos)
+		}
 		if b.checkConsumer {
 			return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 		}

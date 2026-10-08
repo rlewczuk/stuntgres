@@ -227,7 +227,12 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 			names[i] = "unknown"
 		}
 	}
-	d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(raw.Name), strings.Join(names, ", ")), raw.Pos).(*sqlstate.Error)
+	return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+}
+
+// Reuse transformed argument names when a diagnostic producer already bound them.
+func functionSignatureErrorForTypes(name parser.ObjectName, pos parser.Position, names []string) error {
+	d := expressionError("42883", fmt.Sprintf("function %s(%s) does not exist", objectNameText(name), strings.Join(names, ", ")), pos).(*sqlstate.Error)
 	d.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	return d
 }

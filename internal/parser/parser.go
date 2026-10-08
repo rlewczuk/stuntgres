@@ -292,7 +292,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 		l.genericModifier = true
 		l.dateLiteralModifier = true
 		return true
-	case "oid", "int4", "int8", "text", "bool", "count":
+	case "oid", "int4", "int8", "text", "bool", "count", "sum":
 		return true
 	case "integer", "bigint", "boolean", "int":
 		if callee.keyword == nil {
@@ -315,6 +315,13 @@ func (l *lexer) scalarInput(expr Expr) bool {
 
 func (l *lexer) scalarInputTree(expr Expr) bool {
 	switch r := expr.(type) {
+	case AggregateExpr:
+		for _, arg := range r.Args {
+			if !l.scalarInputTree(arg) {
+				return false
+			}
+		}
+		return true
 	case CaseExpr:
 		if r.Test != nil && !l.scalarInputTree(r.Test) {
 			return false

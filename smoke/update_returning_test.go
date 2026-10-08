@@ -67,6 +67,9 @@ func TestUpdateReturningSmoke(t *testing.T) {
 	}{
 		{"UPDATE t SET id=$1 RETURNING $1", stuntgres.Error{Code: "42804", Message: `column "id" is of type integer but expression is of type text`, Hint: "You will need to rewrite or cast the expression.", Position: "17"}},
 		{"UPDATE t SET id=1 RETURNING $1,$1::int4", stuntgres.Error{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "integer versus text", Position: "29"}},
+		{"UPDATE t SET id=1 RETURNING sum(id)", stuntgres.Error{Code: "42803", Message: "aggregate functions are not allowed in RETURNING", Position: "29"}},
+		{"UPDATE t SET id=1 RETURNING sum(zzzzz)", stuntgres.Error{Code: "42703", Message: `column "zzzzz" does not exist`, Position: "33"}},
+		{"UPDATE t SET id=1 RETURNING sum(v)", stuntgres.Error{Code: "42883", Message: "function sum(text) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "29"}},
 	} {
 		stmt, e := db.Prepare(tc.q)
 		if stmt != nil {

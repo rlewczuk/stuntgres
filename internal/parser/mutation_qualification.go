@@ -35,6 +35,9 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 	var children []Expr
 	hideQualification := false
 	switch e := expr.(type) {
+	case AggregateExpr:
+		inCast = true
+		children = e.Args
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
 			result.qualifier, result.qualified = e.QualificationPos, true
@@ -119,6 +122,8 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	var children []Expr
 	switch e := expr.(type) {
+	case AggregateExpr:
+		children = e.Args
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
 			return &lexeme{raw: ".", pos: e.QualificationPos}, assignment && !e.QualificationGrouped
@@ -210,6 +215,10 @@ func groupedQualification(expr Expr) Expr {
 
 func markGroupedQualification(expr Expr) (Expr, bool) {
 	switch e := expr.(type) {
+	case AggregateExpr:
+		for i, child := range e.Args {
+			e.Args[i], _ = markGroupedQualification(child)
+		}
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 && !e.QualificationGrouped {
 			e.QualificationGrouped = true

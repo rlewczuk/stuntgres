@@ -14,10 +14,12 @@ func TestReferenceUpdateReturningAliases(t *testing.T) {
 		{"WITH (NEW AS old)", "old.a,a", []any{int64(11), int64(11)}},
 		{"WITH (OLD AS new,NEW AS old)", "new.a,old.a", []any{int64(10), int64(11)}},
 	} {
-		p := newReferencePair(t)
-		p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL,a INT)", 0))
-		p.step(t, referenceExec("INSERT INTO t VALUES(1,10)", 1))
-		p.step(t, referencePrepared(referenceSelect("UPDATE t SET a=a+1 RETURNING "+tc.options+" "+tc.output, []string{"a", "a"}, []string{"INT4", "INT4"}, [][]any{tc.want})))
+		t.Run(tc.options, func(t *testing.T) {
+			p := newReferencePair(t)
+			p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL,a INT)", 0))
+			p.step(t, referenceExec("INSERT INTO t VALUES(1,10)", 1))
+			p.step(t, referencePrepared(referenceSelect("UPDATE t SET a=a+1 RETURNING "+tc.options+" "+tc.output, []string{"a", "a"}, []string{"INT4", "INT4"}, [][]any{tc.want})))
+		})
 	}
 }
 

@@ -742,7 +742,7 @@ type FunctionExpr struct {
 	Variadic bool
 }
 
-// AggregateExpr distinguishes count-star from scalar calls and argument lists.
+// AggregateExpr retains COUNT argument syntax and diagnostic-only single-argument SUM.
 type AggregateExpr struct {
 	Name   string
 	Star   bool
