@@ -77,6 +77,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.alterNotNullLocked(scope, op, auth, s, count)
 	}
 	switch s := stmt.(type) {
+	case *parser.AlterTableSetSchema:
+		return e.alterSchemaLocked(scope, op, auth, s, count)
 	case *parser.AlterTableRenameColumn:
 		return e.renameRelationLocked(scope, op, auth, s.Name, s.Column.Text, s.NewName.Text, s.IfExists, true, count)
 	case *parser.AlterTableRenameTable:

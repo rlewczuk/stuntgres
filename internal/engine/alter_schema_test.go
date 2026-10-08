@@ -1,0 +1,157 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"reflect"
+	"sync"
+	"testing"
+)
+
+func alterSchemaEngineFixture(t *testing.T, e *Engine) {
+	t.Helper()
+	for _, q := range []string{"CREATE SCHEMA s1", "CREATE SCHEMA s2", "CREATE TABLE s1.t(id INT CONSTRAINT nn_id NOT NULL,note TEXT DEFAULT 'fallback')", "INSERT INTO s1.t VALUES(7,'keep'),(9,NULL)", "COMMENT ON TABLE s1.t IS 'table comment'", "COMMENT ON COLUMN s1.t.id IS 'id comment'", "CREATE SEQUENCE s1.q1 START 10 CACHE 7 OWNED BY s1.t.id", "CREATE SEQUENCE s1.q2 START 100 CACHE 7 OWNED BY s1.t.id", "CREATE SEQUENCE s1.free", "CREATE VIEW v AS SELECT id,note FROM s1.t"} {
+		run(t, e, q)
+	}
+}
+
+func TestAlterSchemaIdentityAndCache(t *testing.T) {
+	e := New()
+	alterSchemaEngineFixture(t, e)
+	s := sessionStart(t, e, nil)
+	peer := sessionStart(t, e, nil)
+	source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+	dest := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s2"}]
+	tableAddress := NameAddressForTempMove(t, e, source, "t")
+	table := e.state.descriptors[tableAddress].(*relationDescriptor)
+	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: table.owner, Grantee: ACLGrantee{Public: true}, Privileges: SelectPrivilege}}}
+	for _, subID := range []int32{0, table.attributes[0]} {
+		address := tableAddress
+		address.SubID = subID
+		if err := e.SetObjectACL(context.Background(), ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: address}, acl); err != nil {
+			t.Fatal(err)
+		}
+	}
+	addresses := make([]ObjectAddress, 0, 3)
+	before := make([]*relationDescriptor, 0, 3)
+	for _, name := range []string{"t", "q1", "q2"} {
+		a := NameAddressForTempMove(t, e, source, name)
+		addresses = append(addresses, a)
+		before = append(before, e.state.descriptors[a].(*relationDescriptor))
+	}
+	storage := e.storage[addresses[0]]
+	sequenceScalar(t, s, "SELECT nextval('s1.q1')", 10)
+	generator := e.sequences[addresses[1]]
+	generatorValue := *generator
+	memory := s.sequences[addresses[1]]
+	memoryValue := *memory
+	sequenceScalar(t, peer, "SELECT nextval('s1.q1')", 17)
+	peerMemory := peer.sequences[addresses[1]]
+	peerValue := *peerMemory
+	generatorValue = *generator
+	free := NameAddressForTempMove(t, e, source, "free")
+	freeDescriptor := e.state.descriptors[free]
+	if err := sequenceTempMoveCommand(t, e, s, "ALTER TABLE s1.t SET SCHEMA s2", true); err != nil {
+		t.Fatal(err)
+	}
+	for i, a := range addresses {
+		after := e.state.descriptors[a].(*relationDescriptor)
+		if after.namespace != dest || after.revision <= before[i].revision {
+			t.Fatal("namespace/revision", before[i], after)
+		}
+		copy := *after
+		copy.namespace, copy.revision = before[i].namespace, before[i].revision
+		if i != 0 {
+			if after.sequencePlanStamp <= before[i].sequencePlanStamp {
+				t.Fatal("missing sequence invalidation")
+			}
+			copy.sequencePlanStamp = before[i].sequencePlanStamp
+		}
+		if !reflect.DeepEqual(&copy, before[i]) {
+			t.Fatal("move changed nonnamespace definition", before[i], after)
+		}
+	}
+	if e.storage[addresses[0]] != storage || e.sequences[addresses[1]] != generator || *generator != generatorValue || s.sequences[addresses[1]] != memory || *memory != memoryValue || e.state.descriptors[free] != freeDescriptor {
+		t.Fatal("move replaced data/generator/cache/independent sequence")
+	}
+	if peer.sequences[addresses[1]] != peerMemory || *peerMemory != peerValue {
+		t.Fatal("move replaced peer cache")
+	}
+	sequenceScalar(t, peer, "SELECT nextval('s2.q1')", 18)
+	sequenceScalar(t, s, "SELECT nextval('s2.q1')", 11)
+	frontier := e.nextRevision
+	if err := sequenceTempMoveCommand(t, e, s, "ALTER TABLE s2.t SET SCHEMA s2", false); err != nil {
+		t.Fatal(err)
+	}
+	if e.nextRevision != frontier {
+		t.Fatal("same-schema no-op consumed revision")
+	}
+}
+
+func TestAlterSchemaPublicationFences(t *testing.T) {
+	for _, kind := range []string{"table_collision", "later_sequence_collision", "cancel", "reset", "authority"} {
+		t.Run(kind, func(t *testing.T) {
+			e := New()
+			alterSchemaEngineFixture(t, e)
+			source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+			original := make(map[ObjectAddress]Descriptor)
+			for _, name := range []string{"t", "q1", "q2", "free"} {
+				a := NameAddressForTempMove(t, e, source, name)
+				original[a] = e.state.descriptors[a]
+			}
+			frontier := e.nextRevision
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var once sync.Once
+			provider := e.providers[RelationClassID]
+			e.providers[RelationClassID] = alterDropProvider{CatalogProvider: provider, callback: func() {
+				once.Do(func() {
+					e.providers[RelationClassID] = provider
+					switch kind {
+					case "table_collision":
+						run(t, e, "CREATE TABLE s2.t(id INT)")
+					case "later_sequence_collision":
+						run(t, e, "CREATE SEQUENCE s2.q2")
+					case "cancel":
+						cancel()
+					case "reset":
+						if err := e.Reset(context.Background()); err != nil {
+							t.Fatal(err)
+						}
+					case "authority":
+						run(t, e, "CREATE USER schema_changed_role")
+					}
+				})
+			}}
+			_, err := testExecute(e, ctx, statement(t, "ALTER TABLE s1.t SET SCHEMA s2"), nil)
+			switch kind {
+			case "table_collision":
+				renameWantError(t, err, "42P07", `relation "t" already exists in schema "s2"`)
+			case "later_sequence_collision":
+				renameWantError(t, err, "42P07", `relation "q2" already exists in schema "s2"`)
+			case "cancel":
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
+				}
+			case "reset":
+				if !errors.Is(err, ErrCatalogReplaced) {
+					t.Fatal(err)
+				}
+			case "authority":
+				if err == nil {
+					t.Fatal("authority fence absent")
+				}
+			}
+			if kind != "reset" {
+				for a, d := range original {
+					if e.state.descriptors[a] != d {
+						t.Fatal("partial publication", a)
+					}
+				}
+			}
+			if kind == "cancel" && e.nextRevision != frontier {
+				t.Fatal("canceled move consumed frontier")
+			}
+		})
+	}
+}

@@ -92,6 +92,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		name, mode, ownerOnly = v.Name, accessExclusive, true
 		rename, ifExists = true, v.IfExists
+	case *parser.AlterTableSetSchema:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, accessExclusive, true
+		rename, ifExists = true, v.IfExists
 	case *parser.AlterTableRenameTable:
 		if !execute {
 			return nil

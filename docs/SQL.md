@@ -29,6 +29,7 @@ ALTER TABLE target ALTER [COLUMN] column SET NOT NULL
 ALTER TABLE target ALTER [COLUMN] column DROP NOT NULL
 ALTER TABLE target ADD [CONSTRAINT name] NOT NULL column
 ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
+ALTER TABLE [IF EXISTS] target SET SCHEMA schema
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
 INSERT INTO [schema.]name [(column [, ...])] SELECT [projection_target [, ...]]
@@ -92,6 +93,28 @@ random_call := random() | random(call_argument,call_argument)
 default_expression := value | scalar comparison_operator scalar | (logical_target)
                     | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
+
+### Table namespace moves
+
+`ALTER TABLE [IF EXISTS] target SET SCHEMA schema` is a standalone ordinary-table
+utility: the destination is one identifier and comma action lists are syntax
+errors before any effects. Target markers do not add hierarchy support. Execution
+requires source schema USAGE, table ownership and destination CREATE, even for a
+same-schema no-op; destination USAGE and source CREATE are not required.
+Missing conditional targets skip before resolving the destination, with one notice.
+Prepare is effect-free and does not resolve, authorize or lock.
+
+The table and all column-owned sequences move in one catalog publication under
+ACCESS EXCLUSIVE locks. Unowned sequences and referencing views stay in place.
+Rows, identities, NOT NULL names, defaults, comments, ACLs and sequence generators
+and physical-session caches survive. Held SQL rebinds original names; old qualified
+names fail after a move, while compatible unqualified plans can find the new schema
+through search_path. Stored views retain dependencies and deparse current names.
+Dump/Restore preserves current persistent definitions/data rather than ALTER history.
+Explicit transactions still exclude ordinary-table DDL. Non-table generic moves,
+temporary/system destinations, indexes and automatic row types are not added.
+See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
+controls. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 The selected-call-only no-FROM form produces one singleton row; its arguments
 are literals, parameters, nested selected calls and previously admitted casts/

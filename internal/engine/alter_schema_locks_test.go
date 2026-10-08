@@ -1,0 +1,62 @@
+package engine
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+func TestAlterSchemaLockCancellationAndTimeout(t *testing.T) {
+	for _, target := range []string{"t", "q2"} {
+		for _, timeout := range []bool{false, true} {
+			t.Run(target+map[bool]string{false: "/cancel", true: "/timeout"}[timeout], func(t *testing.T) {
+				e := New()
+				alterSchemaEngineFixture(t, e)
+				a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+				source := e.state.names[NameKey{ClassID: NamespaceClassID, Name: "s1"}]
+				original := make(map[ObjectAddress]Descriptor)
+				for _, name := range []string{"t", "q1", "q2"} {
+					address := NameAddressForTempMove(t, e, source, name)
+					original[address] = e.state.descriptors[address]
+				}
+				address := NameAddressForTempMove(t, e, source, target)
+				ref := ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: address}
+				tx := transactionBegin(t, a)
+				if err := e.locks.acquire(context.Background(), a.transactions.ticket, lockResource{ObjectRef: ref}, accessExclusive); err != nil {
+					t.Fatal(err)
+				}
+				q := "ALTER TABLE s1.t SET SCHEMA s2"
+				lockAwait(t, waitsCommandAsync(e, b, context.Background(), q, true), nil)
+				lockPending(t, e, 0)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				if timeout {
+					sessionSQL(t, b, "SET lock_timeout='80ms'")
+				}
+				done := waitsCommandAsync(e, b, ctx, q, false)
+				lockPending(t, e, 1)
+				if timeout {
+					select {
+					case err := <-done:
+						renameWantError(t, err, "55P03", "canceling statement due to lock timeout")
+					case <-time.After(5 * time.Second):
+						t.Fatal("SET SCHEMA timeout stuck")
+					}
+				} else {
+					cancel()
+					lockAwait(t, done, context.Canceled)
+				}
+				for address, old := range original {
+					if e.state.descriptors[address] != old {
+						t.Fatal("partial closure move", address)
+					}
+				}
+				lockPending(t, e, 0)
+				transactionEnd(t, a, tx, false)
+				sessionSQL(t, b, "RESET lock_timeout")
+				lockAwait(t, waitsCommandAsync(e, b, context.Background(), q, false), nil)
+				lockEmpty(t, e)
+			})
+		}
+	}
+}

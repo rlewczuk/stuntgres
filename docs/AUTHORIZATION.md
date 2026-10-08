@@ -205,6 +205,15 @@ Pinned PostgreSQL 18.0 permits superuser transfer to ordinary NOLOGIN roles
 without database CREATE and same-owner no-ops; this observed behavior takes
 precedence over the ALTER SCHEMA manual's destination-CREATE wording.
 
+Standalone ordinary-table `ALTER TABLE [IF EXISTS] target SET SCHEMA destination`
+requires source USAGE, table ownership (not a schema-owner substitute) and
+destination CREATE. Unlike table rename, it does not require source CREATE;
+destination USAGE is not required. Same-schema no-ops still check CREATE.
+Prepare performs no lookup/authorization/locking and emits no notices. Missing
+conditional sources skip before destination checks. Table and all owned sequences
+publish atomically with unchanged owner/ACL/column ACL identities; dependent
+sequences do not introduce synthetic extra owner checks.
+
 Schema owner transfer also substitutes explicit ACL grantor/grantee ownership
 references and merges colliding grants atomically, without changing retained
 snapshots, unrelated grants or absent versus explicit-empty ACL semantics.

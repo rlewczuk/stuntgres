@@ -1167,15 +1167,61 @@ has Position15 on both native and pinned PostgreSQL: reanalysis preserves the
 original relation-name occurrence. Cached-plan logical Context is empty on both
 backends; C Routine is not a logical diagnostic field.
 Canonical Dump emits current names/labels/comments/constraints, not ALTER history.
-RENAME CONSTRAINT belongs to constraint/index metadata work; stored view/FK/index,
-row-type, hierarchy and transactional-DDL effects are PostgreSQL-only witnesses,
-not native successful no-ops. Physical pg_dump/server disk/network mechanisms
-are outside native Reset/Dump/Restore. Smoke:
+Stored views preserve stable sources and render current renamed identifiers.
+RENAME CONSTRAINT belongs to constraint/index metadata work; FK/index, row-type,
+hierarchy and transactional-DDL effects remain PostgreSQL-only witnesses.
+Physical pg_dump/server disk/network mechanisms are outside native Reset/Dump/Restore. Smoke:
 `make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1`.
+
+Standalone `ALTER TABLE [IF EXISTS] target SET SCHEMA schema` moves ordinary
+tables and all existing column-owned sequences in one indivisible CatalogStage.
+Source USAGE and table OwnerOnly authority precede destination resolution/CREATE;
+source CREATE and destination USAGE are not required. Same-schema requests still
+check CREATE, then leave revisions and sequence plan stamps unchanged. Missing
+IF EXISTS sources skip with NOTICE00000 before checking the destination.
+In autocommit, Prepare returns no columns/parameters without lookup, locks,
+authorization or notices. Prepare inside a native explicit transaction fails
+0A000 `statement is unsupported in an explicit transaction`, even in READ ONLY,
+and aborts the transaction under the existing utility admission contract.
+Direct execution or a utility handle prepared before BEGIN instead applies
+read-only execution precedence: READ ONLY fails25006 `cannot execute ALTER TABLE
+in a read-only transaction`; READ WRITE retains the explicit utility 0A000 boundary.
+Comma action lists are 42601 at the comma and never execute a valid prefix.
+
+Owner-authorized table AX and deterministic owned-sequence AX protect the complete
+closure. Collision preflight and final publication fences preserve the entire group
+on failure/cancellation, including a later sequence collision (42P07 with destination
+schema in the primary). Namespace/revision changes preserve storage, stable column
+and NOT NULL identities, owners/ACLs, defaults/comments, sequence options/generators
+and every physical-session cache/currval/lastval. Referencing views stay in place,
+retain dependencies and render current source namespaces. Held qualified table and
+sequence SQL reanalyzes original names. Native unqualified table statements bind
+their original names against the current search_path at every Execute. PostgreSQL
+can instead reuse a revalidated held plan while its effective search_path is unchanged:
+after s1.t moves to s2 and a held statement rebinds there, recreating a same-shaped
+s1.t does not alone redirect that PostgreSQL held SELECT. Native held SELECT sees
+the new s1 shadow; PostgreSQL held SELECT continues reading s2. Fresh direct and
+newly prepared SELECTs see the s1 shadow on both backends. This bounded cache
+difference is independently tested, not full PostgreSQL cached-plan parity.
+Canonical Dump/Restore uses current qualified persistent definitions/data and does
+not replay ALTER history.
+
+Native generic sequence/view SET SCHEMA fails 0A000 `ALTER TABLE SET SCHEMA supports
+ordinary tables only`; PostgreSQL independently supports those generic moves.
+Native pg_temp/actual temporary destinations retain 0A000 `temporary schema creation
+is unsupported`, and pg_catalog retains 0A000 `system schema creation is unsupported`.
+PostgreSQL temp moves fail 0A000 `cannot move objects into or out of temporary schemas`;
+a privileged pg_catalog move is independently exercised with rollback. Native
+read-write explicit transactions retain 0A000 `statement is unsupported in an
+explicit transaction`; read-only execution rejects canonical ALTER TABLE first
+with25006. Index/backing-index and row-type/array moves/collisions remain genuine
+PostgreSQL-only controls, not fabricated native descriptors; native named NOT NULL
+and owned sequences are supported. Equal constraint names on unrelated tables
+do not collide. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. Both modes remove selected tables and AUTO-dependent owned sequences, plus contained metadata/storage/ACLs; neither removes schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
 
-ALTER TABLE also supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] action, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact; descriptor+storage publish through one guarded CatalogStage, checking original storage root/observed length/deletion-root identity against concurrent row publication. Native dependencies are named NOT NULL/ACL/comments and AUTO-dependent sequences keyed by stable attribute SubID. Indexes/views/FKs/hierarchy and transactional table DDL remain external-only witnesses. Explicit native transactions exclude ALTER TABLE. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
+ALTER TABLE also supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] action, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact; descriptor+storage publish through one guarded CatalogStage, checking original storage root/observed length/deletion-root identity against concurrent row publication. Native dependencies include named NOT NULL/ACL/comments, stored views and AUTO-dependent sequences keyed by stable attribute SubID. Indexes/FKs/hierarchy and transactional table DDL remain external-only witnesses. Explicit native transactions exclude ALTER TABLE. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
 The optional ALTER DROP COLUMN keyword consumes the shared dedicated COLUMN token used by COMMENT, not legacy KW_R text matching. Quoted keyword targets remain decoded IDENT names; preserve keyword categories and positioned parser errors when integrating grammar changes.
 Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion per row through common Insert. DEFAULT VALUES also applies declared defaults/typed NULL for nonzero-column tables; VALUES() remains invalid syntax. Restore does not accept ALTER TABLE history. Feature smoke: `make smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'`.
 

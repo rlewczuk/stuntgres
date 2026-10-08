@@ -53,6 +53,19 @@ Native ORDER on NAME[] is explicitly unsupported at analysis, including empty
 sources; PostgreSQL's array comparator is outside this result-only surface.
 Feature smoke: `make smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
 
+Change note: standalone `ALTER TABLE [IF EXISTS] target SET SCHEMA destination`
+moves ordinary tables and every column-owned sequence atomically, preserving
+rows, named NOT NULL constraints, defaults, comments, ACLs and stored-view
+dependencies. It requires table ownership, source USAGE and destination CREATE
+(not source CREATE or destination USAGE). Native prepared SQL rebinds its original
+names at Execute; unlike PostgreSQL's held unchanged-search_path plan, an unqualified
+native SELECT sees a newly created source-schema shadow after a move (see
+[the dialect boundary](docs/DIALECT.md)). Native Dump/Restore records current
+qualified definitions, not move history.
+Explicit-transaction table DDL, generic non-table moves, TEMP/system destinations,
+indexes and automatic row types remain bounded native exclusions.
+Feature smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
+
 
 Persistent `CREATE VIEW` definitions use the ordinary typed SELECT pipeline,
 including admitted joins, repeated self-join occurrences, nested views, explicit

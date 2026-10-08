@@ -124,7 +124,7 @@ package parser
 /* A parenthesized scalar stays on the scalar path; Boolean grouping uses
  * target_or only when a logical/comparison continuation requires it. */
 %nonassoc ')'
-%type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single alter_rename_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> statement create create_table drop_table alter_drop_column alter_drop_single alter_nn_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> delete
 %type <tok> delete_alias from_alias
 %type <stmt> create_view
@@ -437,10 +437,11 @@ drop_mode: /* empty */ { $$=DropRestrict } | RESTRICT { $$=DropRestrict } | CASC
 alter_drop_column: alter_drop_single { $$=$1 }
  | alter_nn_single { $$=$1 }
  | alter_rename_single { $$=$1 }
+ | alter_schema_single { $$=$1 }
  | alter_rename_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_nn_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | alter_drop_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
- | ALTER TABLE alter_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
+ | ALTER TABLE rename_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
 alter_drop_single: ALTER TABLE alter_target DROP optional_column drop_target drop_mode { $$=&AlterTableDropColumn{Name:$3.Name,Column:$6.Name,IfExists:$6.IfExists,Mode:$7,Only:$3.Only,Pos:$1.pos} } ;
 alter_nn_single: ALTER TABLE alter_target ALTER optional_column name SET NOT NULL { $$=&AlterTableNotNull{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Action:SetNotNull,Only:$3.Only,Pos:$1.pos} }
  | ALTER TABLE alter_target ALTER optional_column name DROP NOT NULL { $$=&AlterTableNotNull{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Action:DropNotNull,Only:$3.Only,Pos:$1.pos} }
@@ -453,6 +454,7 @@ alter_nn_single: ALTER TABLE alter_target ALTER optional_column name SET NOT NUL
 alter_rename_single: ALTER TABLE rename_target RENAME TO name { $$=&AlterTableRenameTable{Name:$3.Name,NewName:Identifier{Text:$6.text,Pos:$6.pos},IfExists:$3.IfExists,Pos:$1.pos} }
  | ALTER TABLE rename_target RENAME optional_column name TO name { $$=&AlterTableRenameColumn{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},NewName:Identifier{Text:$8.text,Pos:$8.pos},Only:$3.Only,IfExists:$3.IfExists,Pos:$1.pos} }
  | ALTER TABLE rename_target RENAME CONSTRAINT name TO name { sqllex.(*lexer).deferUnsupported($5,"RENAME CONSTRAINT is unsupported"); $$=nil } ;
+alter_schema_single: ALTER TABLE rename_target SET SCHEMA name { $$=&AlterTableSetSchema{Name:$3.Name,Schema:Identifier{Text:$6.text,Pos:$6.pos},IfExists:$3.IfExists,Only:$3.Only,Pos:$1.pos} } ;
 rename_target: alter_target {$$=$1}
  | IF EXISTS alter_target {$$=$3;$$.IfExists=true} ;
 alter_target: relation_name { $$=alterTarget{Name:$1} }

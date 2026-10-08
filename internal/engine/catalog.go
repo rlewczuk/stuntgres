@@ -593,6 +593,16 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 				e.mu.Unlock()
 				return ChangeSet{}, CatalogConflict{}
 			}
+			// A namespace move still relies on source lookup authority. Fence
+			// that original namespace as well as the destination, without
+			// republishing it or observing unrelated namespace changes.
+			if old := s.base.state.descriptors[d.Address()]; old != nil {
+				source := old.Namespace()
+				if source != ns && source != (ObjectAddress{}) && s.descriptors[source] == nil && current.descriptors[source] != s.base.state.descriptors[source] {
+					e.mu.Unlock()
+					return ChangeSet{}, CatalogConflict{}
+				}
+			}
 		}
 		for a := range s.removals {
 			if a.ClassID == NamespaceClassID {

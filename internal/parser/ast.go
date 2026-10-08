@@ -203,6 +203,16 @@ type AlterTableRenameTable struct {
 
 func (*AlterTableRenameTable) statement() {}
 
+type AlterTableSetSchema struct {
+	Name     ObjectName
+	Schema   Identifier
+	IfExists bool
+	Only     bool
+	Pos      Position
+}
+
+func (*AlterTableSetSchema) statement() {}
+
 type NotNullAction uint8
 
 const (
