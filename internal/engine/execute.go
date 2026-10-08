@@ -504,6 +504,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{Count: int64(len(rows))}, nil
 	case *parser.Delete:
 		view, viewErr := scope.acquireDataViewLocked(e, b.ref)
+		if viewErr == nil && b.returning != nil {
+			e.captureCommentSnapshotLocked(scope)
+		}
 		e.mu.Unlock()
 		if viewErr != nil {
 			return Result{}, viewErr

@@ -139,7 +139,7 @@ func TestDeleteCoreExpressionDiagnosticBoundaries(t *testing.T) {
 	} else {
 		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "42P18", Message: "could not determine data type of parameter $1"})
 	}
-	for _, query := range []string{"DELETE FROM t AS d WHERE d.v IS NULL; nonsense", "DELETE FROM t AS d WHERE d.v IS NULL RETURNING id"} {
+	for _, query := range []string{"DELETE FROM t AS d WHERE d.v IS NULL; nonsense"} {
 		if result, err := db.Exec(query); err == nil || result != nil {
 			t.Fatal("excluded input executed", query, result, err)
 		}

@@ -19,6 +19,10 @@ func TestDeleteReturningAliases(t *testing.T) {
 		{"DELETE FROM t RETURNING WITH (OLD AS new) new.id", []string{"id"}, []string{"INT4"}, []any{int64(2)}},
 		{"DELETE FROM t RETURNING WITH (NEW AS old) old.id", []string{"id"}, []string{"INT4"}, []any{nil}},
 		{"DELETE FROM public.t RETURNING public.t.id,CAST(old.id AS BIGINT),new.id::BIGINT", []string{"id", "id", "id"}, []string{"INT4", "INT8", "INT8"}, []any{int64(2), int64(2), nil}},
+		{"DELETE FROM t AS d WHERE d.v IS NULL RETURNING id", []string{"id"}, []string{"INT4"}, []any{int64(2)}},
+		{"DELETE FROM t RETURNING CAST(COALESCE(new.id,old.id) AS BIGINT) AS kept,int8(old.id) AS wide,new.id::BIGINT AS gone", []string{"kept", "wide", "gone"}, []string{"INT8", "INT8", "INT8"}, []any{int64(2), int64(2), nil}},
+		{"DELETE FROM t RETURNING WITH (OLD AS o,NEW AS n) CAST(o.id AS BIGINT) AS predecessor,CAST(n.id AS BIGINT) AS replacement", []string{"predecessor", "replacement"}, []string{"INT8", "INT8"}, []any{int64(2), nil}},
+		{"DELETE FROM t RETURNING NULL::regclass AS predecessor,NULL::regclass AS replacement", []string{"predecessor", "replacement"}, []string{"REGCLASS", "REGCLASS"}, []any{nil, nil}},
 		{"DELETE FROM t RETURNING CASE WHEN new.id IS NULL THEN 'ok' ELSE v END AS label,abs(old.id),old.id IS DISTINCT FROM new.id", []string{"label", "abs", "?column?"}, []string{"TEXT", "INT4", "BOOL"}, []any{"ok", int64(2), true}},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
@@ -28,6 +32,16 @@ func TestDeleteReturningAliases(t *testing.T) {
 			rows, err := db.Query(tc.query)
 			queryCoreRows(t, rows, err, tc.names, tc.types, [][]any{tc.want, tc.want}, true)
 			rows, err = db.Query(tc.query)
+			queryCoreRows(t, rows, err, tc.names, tc.types, [][]any{}, true)
+			stmt, err := db.Prepare(tc.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+			execSQL(t, db, "INSERT INTO t VALUES(2,NULL),(2,NULL)")
+			rows, err = stmt.Query()
+			queryCoreRows(t, rows, err, tc.names, tc.types, [][]any{tc.want, tc.want}, true)
+			rows, err = stmt.Query()
 			queryCoreRows(t, rows, err, tc.names, tc.types, [][]any{}, true)
 		})
 	}
@@ -79,4 +93,38 @@ func TestDeleteReturningPreparedMetadata(t *testing.T) {
 	execSQL(t, db, "INSERT INTO t VALUES(3,'b',NULL,NULL)")
 	rows, err = stmt.Query(3, "next")
 	queryCoreRows(t, rows, err, []string{"id", "id", "kept", "label", "n", "b"}, []string{"INT4", "INT4", "INT4", "TEXT", "NUMERIC", "BYTEA"}, [][]any{{int64(3), nil, int64(3), "next", nil, nil}}, false)
+}
+
+func TestDeleteReturningCommentSnapshot(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		db := openLocal(t, stuntgres.NewDriver(), t.Name())
+		execSQL(t, db, "CREATE TABLE t(id INT)")
+		execSQL(t, db, "INSERT INTO t VALUES(1)")
+		execSQL(t, db, "COMMENT ON TABLE t IS 'committed table'")
+		execSQL(t, db, "COMMENT ON COLUMN t.id IS 'committed column'")
+		tx, err := db.Begin()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		query := "DELETE FROM t RETURNING id,col_description('t'::regclass,1) AS column_comment,obj_description('t'::regclass,'pg_class') AS table_comment"
+		if prepared {
+			stmt, err := tx.Prepare(query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows, err := stmt.Query()
+			queryCoreRows(t, rows, err, []string{"id", "column_comment", "table_comment"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(1), "committed column", "committed table"}}, false)
+			stmt.Close()
+		} else {
+			rows, err := tx.Query(query)
+			queryCoreRows(t, rows, err, []string{"id", "column_comment", "table_comment"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(1), "committed column", "committed table"}}, false)
+		}
+		if err = tx.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.Query("SELECT id,col_description('t'::regclass,1) AS column_comment,obj_description('t'::regclass,'pg_class') AS table_comment FROM t")
+		queryCoreRows(t, rows, err, []string{"id", "column_comment", "table_comment"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(1), "committed column", "committed table"}}, false)
+		db.Close()
+	}
 }

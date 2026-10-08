@@ -970,7 +970,7 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 }
 
 func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (BoundExpr, error) {
-	if !b.defaultConsumer && b.queryNamespace == nil {
+	if !b.defaultConsumer && b.queryNamespace == nil && b.returningAliases == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
 		}

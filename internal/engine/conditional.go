@@ -368,8 +368,8 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 }
 func conditionalName(raw parser.ConditionalExpr) string { return strings.ToLower(raw.Kind.String()) }
 
-// Cast grammar historically excludes qualification even in DELETE. Conditional
-// nesting must not smuggle those references through the scalar atom seam.
+// Legacy nonquery cast contexts (including DELETE WHERE) exclude qualification.
+// Conditional nesting must not smuggle references through that scalar atom seam.
 func qualifiedCastChild(raw parser.Expr) error {
 	if raw == nil {
 		return nil

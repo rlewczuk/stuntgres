@@ -12,6 +12,8 @@ func TestDeleteReturningDiagnostics(t *testing.T) {
 	run(t, e, "CREATE TABLE t(id INT)")
 	run(t, e, "INSERT INTO t VALUES(1),(2)")
 	run(t, e, "CREATE TABLE z()")
+	run(t, e, "CREATE TABLE rt(v TEXT)")
+	run(t, e, "INSERT INTO rt VALUES(NULL)")
 	for _, tc := range []struct{ q, code, message, position, hint string }{
 		{"DELETE FROM t RETURNING zzzzz", "42703", `column "zzzzz" does not exist`, "25", ""},
 		{"/*é*/ DELETE FROM t RETURNING zzzzz", "42703", `column "zzzzz" does not exist`, "31", ""},
@@ -27,6 +29,9 @@ func TestDeleteReturningDiagnostics(t *testing.T) {
 		{"DELETE FROM t WHERE old.id=1 RETURNING id", "42P01", `missing FROM-clause entry for table "old"`, "21", ""},
 		{"DELETE FROM z RETURNING *", "42601", "RETURNING must have at least one column", "25", ""},
 		{"DELETE FROM t RETURNING count(*)", "42803", "aggregate functions are not allowed in RETURNING", "25", ""},
+		{"DELETE FROM rt RETURNING old.v::regclass,new.v::regclass", "0A000", "qualified column references are unsupported", "26", ""},
+		{"DELETE FROM rt RETURNING new.v::regclass", "0A000", "qualified column references are unsupported", "26", ""},
+		{"DELETE FROM rt RETURNING v::regclass", "42804", "incompatible source and destination types", "", ""},
 	} {
 		for _, prepare := range []bool{false, true} {
 			op, cleanup, err := testOperation(e, context.Background())
@@ -50,6 +55,11 @@ func TestDeleteReturningDiagnostics(t *testing.T) {
 	result := run(t, e, "SELECT id FROM t ORDER BY id")
 	if result.Count != 2 {
 		t.Fatal("diagnostics mutated rows")
+	}
+	result.Rows.Close()
+	result = run(t, e, "SELECT v FROM rt")
+	if result.Count != 1 {
+		t.Fatal("REGCLASS diagnostics mutated rows")
 	}
 	result.Rows.Close()
 }

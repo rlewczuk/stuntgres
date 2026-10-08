@@ -542,6 +542,12 @@ output cursors/history. Restore continues to reject DELETE RETURNING scripts.
 Whole-row OLD/NEW records, scalar subqueries, absent window/SRF providers,
 triggers/FKs/view writes and rewrite-to-UPDATE (where PostgreSQL NEW can be
 nonnull) remain real PostgreSQL-only controls, not native engine mechanisms.
+PostgreSQL18.0's excluded parenthesized whole-row expansion
+`RETURNING (old).*,(new).*` can expand both through the target's ordinary OLD
+namespace: the independent one-column id1 witness returns `(1,1)`, not
+`(1,NULL)`. This record-expansion path is distinct from supported scalar
+`new.id` and direct `new.*` (typed NULL), and from a rule rewriting DELETE to
+UPDATE (where NEW is the actual update replacement).
 Physical ctids/tuple error Context and PostgreSQL wire/C source fields are not
 fabricated by native diagnostics.
 
@@ -629,6 +635,15 @@ Integrated-expression smoke:
   atomic output-error/cancellation handling without a second source snapshot.
 - Added public/reference direct/prepared, output metadata, real contention,
   sequence demand, diagnostic and native-control regressions/feature smokes.
+- Qualified supported scalar cast children use the RETURNING-only namespace,
+  including nested conditional children and custom output aliases; legacy
+  DELETE WHERE and unrelated cast-admission guards remain unchanged. REGCLASS
+  keeps its existing independent qualification and source-type restrictions:
+  NULL/literal/parameter inputs are admitted, not TEXT-column casts even when
+  that column is NULL.
+- Comment inquiry outputs reuse the statement capture-frontier catalog/role
+  snapshot rather than live lookups. COMMENT setup retains its existing
+  committed utility boundary; DELETE rollback restores rows independently.
 
 
 - Added positioned DELETE grammar, target-only alias qualification, shared typed

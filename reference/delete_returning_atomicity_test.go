@@ -113,7 +113,9 @@ func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 		referenceLockExec(t, p.ctx, db, "INSERT INTO t VALUES(1)", 1)
 		referenceRunStep(t, p.ctx, db, r, referenceSelect("DELETE FROM t RETURNING (SELECT 7) AS scalar,old::text AS predecessor,new::text AS replacement", []string{"scalar", "predecessor", "replacement"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(7), "(1)", nil}}))
 		referenceLockExec(t, p.ctx, db, "INSERT INTO t VALUES(1)", 1)
-		referenceRunStep(t, p.ctx, db, r, referenceSelect("DELETE FROM t RETURNING (old).*,(new).*", []string{"id", "id"}, []string{"INT4", "INT4"}, [][]any{{int64(1), nil}}))
+		// PG18.0's parenthesized whole-row expansion preserves target OLD
+		// fields here; this excluded record path is not ordinary new.id/new.*.
+		referenceRunStep(t, p.ctx, db, r, referenceSelect("DELETE FROM t RETURNING (old).*,(new).*", []string{"id", "id"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}}))
 		for _, tc := range []struct{ q, code, message string }{
 			{"DELETE FROM t RETURNING row_number() OVER ()", "42P20", "window functions are not allowed in RETURNING"},
 			{"DELETE FROM t RETURNING generate_series(1,2)", "0A000", "set-returning functions are not allowed in RETURNING"},

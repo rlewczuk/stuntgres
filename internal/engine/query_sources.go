@@ -77,11 +77,15 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, mode, scope.queryLocks)
 }
 
-func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
+func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) {
 	if scope.commentCatalog.state == nil {
 		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
 		scope.commentRoles = RoleRead{e, e.roles}
 	}
+}
+
+func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
+	e.captureCommentSnapshotLocked(scope)
 	if len(leaves) == 0 {
 		return &querySource{singleton: singleton, scope: scope, locks: locks}, nil
 	}
