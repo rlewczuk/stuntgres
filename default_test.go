@@ -1,6 +1,7 @@
 package stuntgres_test
 
 import (
+	"database/sql"
 	"fmt"
 	"stuntgres"
 	"testing"
@@ -56,6 +57,47 @@ func TestDefaultRegressionBeforeFix(t *testing.T) {
 			wantTuples(t, db, `SELECT * FROM all_defaults`, [][]any{{int64(7), "O'Brien", true, nil}})
 			_, err = db.Exec(`INSERT INTO d(id,i) VALUES(6)`)
 			typeCoreDiagnostic(t, err, stuntgres.Error{Code: "42601", Message: "INSERT has more target columns than expressions", Position: "18"})
+		})
+	}
+}
+
+func TestInsertDefaultMixedParameters(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), t.Name())
+			tableCoreExec(t, db, prepared, `CREATE TABLE d(id INT,v INT DEFAULT 7,s TEXT DEFAULT 'fallback',n INT)`, 0)
+			names := []string{"id", "v", "s", "n"}
+			types := []string{"INT4", "INT4", "TEXT", "INT4"}
+			tableCoreMetadata(t, db, prepared, `SELECT * FROM d`, names, types, []bool{true, true, true, true})
+			const insert = `INSERT INTO d(s,id,v) VALUES($1,$2,DEFAULT),(DEFAULT,$3,$4)`
+			var stmt *sql.Stmt
+			if prepared {
+				var err error
+				stmt, err = db.Prepare(insert)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer stmt.Close()
+			}
+			for _, args := range [][]any{{"given", 1, 2, 9}, {"again", 3, 4, nil}} {
+				if stmt == nil {
+					tableCoreExec(t, db, false, insert, 2, args...)
+					continue
+				}
+				result, err := stmt.Exec(args...)
+				if err != nil {
+					t.Fatal(insert, err)
+				}
+				if count, err := result.RowsAffected(); err != nil || count != 2 {
+					t.Fatal("RowsAffected", count, err)
+				}
+			}
+			defaultConsumerRows(t, db, prepared, names, types, [][]any{
+				{int64(1), int64(7), "given", nil},
+				{int64(2), int64(9), "fallback", nil},
+				{int64(3), int64(7), "again", nil},
+				{int64(4), nil, "fallback", nil},
+			})
 		})
 	}
 }

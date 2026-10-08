@@ -276,8 +276,13 @@ earlier type/nullability errors retain precedence. Complete declaration structur
 and NOT NULL merging precede cooking any default expression. Restore shares this
 binder, with no replacement publication on failure.
 Omitted INSERT columns and per-cell DEFAULT use declared expressions or typed
-NULL; explicit NULL bypasses defaults. SELECT and ORDER-decorated VALUES sources
-use omitted destination defaults. One execution-only default-demand phase
+NULL; explicit NULL bypasses defaults.
+Reordered explicit targets map supplied parameters and DEFAULT to their named
+destinations, not declaration-order input slots. DEFAULT markers consume no
+parameter index; a supplied parameter NULL bypasses the declared default.
+See [TABLES](TABLES.md) for declared metadata and native-control boundaries.
+SELECT and ORDER-decorated VALUES sources use omitted destination defaults.
+One execution-only default-demand phase
 handles both ordinary and query INSERT after supplied-value/source preflight.
 Only defaults consumed by some ordinary row or omitted by the query are planned;
 a column explicitly supplied in every row, including NULL, bypasses this phase.
@@ -331,6 +336,8 @@ even when constant NULL could otherwise eliminate the call; disk/WAL,
 network protocol, native ABI extensions and external pg_dump/custom archives
 are specifically non-engine mechanisms, never permission for successful stubs.
 Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
+Mixed-parameter/reordered-target INSERT coverage:
+`make smoke RUN='^TestInsertDefaultSmoke$' VERBOSE=0`.
 
 Scalar comparisons admit `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=`; `!=` is the
 `<>` alias. Both operands may be existing scalar literals, parameters, columns

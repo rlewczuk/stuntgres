@@ -397,3 +397,103 @@ func TestDefaultSmoke(t *testing.T) {
 		})
 	}
 }
+
+func TestInsertDefaultSmoke(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
+			connector, err := stuntgres.NewDriver().OpenConnector(t.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			db := sql.OpenDB(connector)
+			defer db.Close()
+			exec := func(q string, count int64) {
+				t.Helper()
+				var result sql.Result
+				var err error
+				if prepared {
+					stmt, e := db.Prepare(q)
+					if e != nil {
+						t.Fatal(e)
+					}
+					defer stmt.Close()
+					result, err = stmt.Exec()
+				} else {
+					result, err = db.Exec(q)
+				}
+				if err != nil {
+					t.Fatal(q, err)
+				}
+				if got, err := result.RowsAffected(); err != nil || got != count {
+					t.Fatal(q, got, err)
+				}
+			}
+			check := func(want [][]any) {
+				t.Helper()
+				const query = `SELECT * FROM d ORDER BY id`
+				var rows *sql.Rows
+				var err error
+				if prepared {
+					stmt, e := db.Prepare(query)
+					if e != nil {
+						t.Fatal(e)
+					}
+					defer stmt.Close()
+					rows, err = stmt.Query()
+				} else {
+					rows, err = db.Query(query)
+				}
+				if err != nil {
+					t.Fatal(query, err)
+				}
+				defer rows.Close()
+				metadata, err := rows.ColumnTypes()
+				if err != nil || len(metadata) != 4 {
+					t.Fatal(metadata, err)
+				}
+				for i, column := range metadata {
+					scan := reflect.TypeFor[int64]()
+					if i == 2 {
+						scan = reflect.TypeFor[string]()
+					}
+					nullable, known := column.Nullable()
+					if column.ScanType() != scan || !known || !nullable {
+						t.Fatal("default changed declared metadata", i, column, nullable, known)
+					}
+				}
+				alterDropSmokeRows(t, rows, []string{"id", "v", "s", "n"}, []string{"INT4", "INT4", "TEXT", "INT4"}, want)
+			}
+			exec(`CREATE TABLE d(id INT,v INT DEFAULT 7,s TEXT DEFAULT 'fallback',n INT)`, 0)
+			check([][]any{})
+			const insert = `INSERT INTO d(s,id,v) VALUES($1,$2,DEFAULT),(DEFAULT,$3,$4)`
+			var stmt *sql.Stmt
+			if prepared {
+				stmt, err = db.Prepare(insert)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer stmt.Close()
+			}
+			for _, args := range [][]any{{"given", 1, 2, 9}, {"again", 3, 4, nil}} {
+				var result sql.Result
+				if stmt != nil {
+					result, err = stmt.Exec(args...)
+				} else {
+					result, err = db.Exec(insert, args...)
+				}
+				if err != nil {
+					t.Fatal(insert, err)
+				}
+				if count, err := result.RowsAffected(); err != nil || count != 2 {
+					t.Fatal("RowsAffected", count, err)
+				}
+			}
+			check([][]any{
+				{int64(1), int64(7), "given", nil},
+				{int64(2), int64(9), "fallback", nil},
+				{int64(3), int64(7), "again", nil},
+				{int64(4), nil, "fallback", nil},
+			})
+		})
+	}
+}

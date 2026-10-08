@@ -43,22 +43,30 @@ func TestReferenceDefaultDiagnosticsAndConversionTiming(t *testing.T) {
 				run(s)
 			}
 			run(referenceExec(`CREATE TABLE narrowed(i integer DEFAULT 2147483648)`, 0))
-			run(referenceImplicitError(`INSERT INTO narrowed DEFAULT VALUES`, referenceDiagnostic{Code: "22003", Message: "integer out of range"}))
+			narrowing := referenceImplicitError(`INSERT INTO narrowed DEFAULT VALUES`, referenceDiagnostic{Code: "22003", Message: "integer out of range"})
+			narrowing.errorStage = "execute"
+			run(narrowing)
 			run(referenceSelect(`SELECT * FROM narrowed`, []string{"i"}, []string{"INT4"}, nil))
 			run(referenceExec(`CREATE TABLE sized(id INT,v NUMERIC(3,1) DEFAULT 12.34)`, 0))
 			run(referenceExec(`INSERT INTO sized(id) VALUES(1)`, 1))
 			run(referenceSelect(`SELECT * FROM sized`, []string{"id", "v"}, []string{"INT4", "NUMERIC"}, [][]any{{int64(1), "12.3"}}))
 			run(referenceExec(`CREATE TABLE overflow(id INT,v NUMERIC(3,1) DEFAULT 99.95)`, 0))
 			run(referenceExec(`INSERT INTO overflow VALUES(1,1)`, 1))
-			run(referenceImplicitError(`INSERT INTO overflow(id) VALUES(2),(3)`, referenceDiagnostic{Code: "22003", Message: "numeric field overflow", Detail: "A field with precision 3, scale 1 must round to an absolute value less than 10^2."}))
+			overflow := referenceImplicitError(`INSERT INTO overflow(id) VALUES(2),(3)`, referenceDiagnostic{Code: "22003", Message: "numeric field overflow", Detail: "A field with precision 3, scale 1 must round to an absolute value less than 10^2."})
+			overflow.errorStage = "execute"
+			run(overflow)
 			run(referenceSelect(`SELECT * FROM overflow`, []string{"id", "v"}, []string{"INT4", "NUMERIC"}, [][]any{{int64(1), "1.0"}}))
 			run(referenceExec(`CREATE TABLE nn(id INT,v INT DEFAULT NULL NOT NULL)`, 0))
 			run(referenceExec(`INSERT INTO nn VALUES(1,9)`, 1))
-			run(referenceImplicitError(`INSERT INTO nn VALUES(2,9),(3,DEFAULT)`, referenceDiagnostic{Code: "23502", Message: `null value in column "v" of relation "nn" violates not-null constraint`, Schema: "public", Table: "nn", Column: "v", Detail: "Failing row contains (3, null)."}))
+			notNull := referenceImplicitError(`INSERT INTO nn VALUES(2,9),(3,DEFAULT)`, referenceDiagnostic{Code: "23502", Message: `null value in column "v" of relation "nn" violates not-null constraint`, Schema: "public", Table: "nn", Column: "v", Detail: "Failing row contains (3, null)."})
+			notNull.errorStage = "execute"
+			run(notNull)
 			run(referenceSelect(`SELECT * FROM nn`, []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(9)}}))
 			run(referenceExec(`CREATE TABLE plain_nn(id INT,v INT NOT NULL)`, 0))
 			run(referenceExec(`INSERT INTO plain_nn VALUES(1,9)`, 1))
-			run(referenceImplicitError(`INSERT INTO plain_nn VALUES(2,9),(3,DEFAULT)`, referenceDiagnostic{Code: "23502", Message: `null value in column "v" of relation "plain_nn" violates not-null constraint`, Schema: "public", Table: "plain_nn", Column: "v", Detail: "Failing row contains (3, null)."}))
+			plainNotNull := referenceImplicitError(`INSERT INTO plain_nn VALUES(2,9),(3,DEFAULT)`, referenceDiagnostic{Code: "23502", Message: `null value in column "v" of relation "plain_nn" violates not-null constraint`, Schema: "public", Table: "plain_nn", Column: "v", Detail: "Failing row contains (3, null)."})
+			plainNotNull.errorStage = "execute"
+			run(plainNotNull)
 			run(referenceSelect(`SELECT * FROM plain_nn`, []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(9)}}))
 		})
 	}
