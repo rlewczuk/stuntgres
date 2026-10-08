@@ -8,10 +8,10 @@ import (
 
 type aggregateNode struct {
 	querySchema
-	child     LogicalNode
-	keys      []BoundExpr
-	grouping  []sqltype.Grouping
-	providers []aggregateProvider
+	child    LogicalNode
+	keys     []BoundExpr
+	grouping []sqltype.Grouping
+	calls    []aggregateCall
 }
 type queryGroup struct {
 	keys   []sqltype.Value
@@ -41,11 +41,11 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
-		group := queryGroup{keys: make([]sqltype.Value, len(n.Schema())), states: make([]any, len(n.providers))}
+		group := queryGroup{keys: make([]sqltype.Value, len(n.Schema())), states: make([]any, len(n.calls))}
 		copy(group.keys, scratch)
-		for i, provider := range n.providers {
+		for i, call := range n.calls {
 			var err error
-			group.states[i], err = provider.Init(ctx)
+			group.states[i], err = call.provider.Init(ctx)
 			if err != nil {
 				return 0, err
 			}
@@ -97,8 +97,23 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 				buckets[hash] = append(buckets[hash], index)
 			}
 		}
-		for p, provider := range n.providers {
-			if err := provider.Advance(ctx, groups[index].states[p]); err != nil {
+		for p, call := range n.calls {
+			if err := ctx.Err(); err != nil {
+				return indexedStage{}, err
+			}
+			if call.argument != nil {
+				value, err := call.argument.Eval(&evaluation)
+				if err != nil {
+					return indexedStage{}, err
+				}
+				if err := ctx.Err(); err != nil {
+					return indexedStage{}, err
+				}
+				if value.IsNull() {
+					continue
+				}
+			}
+			if err := call.provider.Advance(ctx, groups[index].states[p]); err != nil {
 				return indexedStage{}, err
 			}
 			if err := ctx.Err(); err != nil {
@@ -112,15 +127,15 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 			return indexedStage{}, err
 		}
 		row := group.keys
-		for p, provider := range n.providers {
-			value, err := provider.Finalize(ctx, group.states[p])
+		for p, call := range n.calls {
+			value, err := call.provider.Finalize(ctx, group.states[p])
 			if err != nil {
 				return indexedStage{}, err
 			}
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
 			}
-			if value.Type() != provider.ResultUsage().Type {
+			if value.Type() != call.provider.ResultUsage().Type {
 				return indexedStage{}, fmt.Errorf("stuntgres: invalid finalized aggregate value")
 			}
 			row[len(n.keys)+p] = value

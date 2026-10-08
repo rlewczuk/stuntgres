@@ -4,7 +4,7 @@ package reference_test
 
 import "testing"
 
-func TestReferenceQueryAggregateCapabilityBoundaries(t *testing.T) {
+func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
 	p := newReferencePair(t)
 	p.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1),(1),(2)", 3))
@@ -13,10 +13,10 @@ func TestReferenceQueryAggregateCapabilityBoundaries(t *testing.T) {
 		rows    [][]any
 	}{
 		{"SELECT count(*)", "count", [][]any{{int64(1)}}},
-		{"SELECT count(v) FROM t", "count", [][]any{{int64(3)}}},
 		{"SELECT sum(v) FROM t", "sum", [][]any{{int64(4)}}},
 		{"SELECT count(*) FILTER (WHERE v>1) FROM t", "count", [][]any{{int64(1)}}},
 		{"SELECT count(DISTINCT v) FROM t", "count", [][]any{{int64(2)}}},
+		{"SELECT count(ALL v) FROM t", "count", [][]any{{int64(3)}}},
 		{"SELECT count(v ORDER BY v) FROM t", "count", [][]any{{int64(3)}}},
 		{"SELECT count(*) OVER () FROM t", "count", [][]any{{int64(3)}, {int64(3)}, {int64(3)}}},
 		{"SELECT count(*) FROM t GROUP BY ROLLUP(v)", "count", [][]any{{int64(2)}, {int64(1)}, {int64(3)}}},

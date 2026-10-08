@@ -209,7 +209,7 @@ package parser
 %type <expr> conditional case_test case_else conditional_value
 %type <caseArms> case_arms
 %type <caseArm> case_arm
-%type <row> conditional_args
+%type <row> conditional_args count_values
 %type <tok> conditional_word
 %type <tok> comparison_operator
 %type <call> function_args
@@ -708,12 +708,20 @@ scalar: scalar_atom { $$=$1 }
  | '(' scalar ')' { $$=groupedQualification($2) }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
- | cast_function scalar ')' { if $1.text=="count" {sqllex.(*lexer).failAt("0A000","count arguments are unsupported",$1.pos.Offset);return 1}; $$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
- | qualified_call_head scalar ')' { $$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos} }
+ | cast_function delete_or ')' { if $1.text=="count" {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}} }
+ | qualified_call_head delete_or ')' { if $1.Name=="count" {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}} }
+ | cast_function delete_or ',' count_values ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
+ | qualified_call_head delete_or ',' count_values ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
+ | cast_function function ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos} }
+ | qualified_call_head function ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos} }
+ | cast_function function ',' count_values ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
+ | qualified_call_head function ',' count_values ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
  | qualified_call_head '*' ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Pos:$1.Pos} }
  | cast_function '*' ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1}; $$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
- | cast_function ')' { sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1 }
+ | cast_function ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Pos:$1.pos} }
+ | qualified_call_head ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Pos:$1.Pos} }
  | cast_function DISTINCT scalar ')' { sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.pos.Offset);return 1 }
+ | cast_function ALL scalar ')' { sqllex.(*lexer).failAt("0A000","aggregate ALL is unsupported",$1.pos.Offset);return 1 }
  | cast_function '*' ORDER BY name direction ')' { sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1 }
  | cast_function scalar ORDER BY name direction ')' { sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1 }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
@@ -929,10 +937,19 @@ fetch_direction: KW_U { if $1.text!="first" && $1.text!="next" {sqllex.(*lexer).
 count_rows: KW_C { if $1.text!="row" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | KW_U { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 optional_count_rows: /* empty */ { $$=false } | count_rows { $$=true } ;
+count_values: conditional_value { $$=[]Expr{$1} } | count_values ',' conditional_value { $$=append($1,$3) } ;
 fetch_count: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
- | cast_function scalar ')' { if $1.text=="count" {sqllex.(*lexer).failAt("0A000","count arguments are unsupported",$1.pos.Offset);return 1};$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos} }
- | qualified_call_head scalar ')' { $$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos} }
+ | cast_function delete_or ')' { if $1.text=="count" {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}} }
+ | qualified_call_head delete_or ')' { if $1.Name=="count" {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}} }
+ | cast_function ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Pos:$1.pos} }
+ | qualified_call_head ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Pos:$1.Pos} }
+ | cast_function delete_or ',' count_values ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
+ | qualified_call_head delete_or ',' count_values ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
+ | cast_function function ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos} }
+ | qualified_call_head function ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos} }
+ | cast_function function ',' count_values ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
+ | qualified_call_head function ',' count_values ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
  | cast_function '*' ')' { if $1.text!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
  | qualified_call_head '*' ')' { if $1.Name!="count" {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Pos:$1.Pos} }
  | function { $$=$1 }

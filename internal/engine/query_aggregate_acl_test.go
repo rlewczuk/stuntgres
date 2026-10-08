@@ -7,9 +7,9 @@ import (
 	"testing"
 )
 
-func TestQueryAggregateColumnACL(t *testing.T) {
+func TestCountExpressionColumnACL(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
-		for _, q := range []string{"SELECT count(*) FROM t", "SELECT count(*) FROM t GROUP BY k", "SELECT count(*) FROM t GROUP BY k HAVING k IS NULL", "SELECT count(*) FROM t GROUP BY k ORDER BY k"} {
+		for _, q := range []string{"SELECT count(*) FROM t", "SELECT count(v) FROM t", "SELECT count(k) FROM t", "SELECT count(k) FROM t WHERE FALSE", "SELECT count(*) FROM t GROUP BY k", "SELECT count(*) FROM t GROUP BY k HAVING k IS NULL", "SELECT count(*) FROM t GROUP BY k ORDER BY k", "SELECT count(v) FROM t HAVING count(k)>0", "SELECT count(v) FROM t ORDER BY count(k)"} {
 			t.Run(q+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 				e := New()
 				op, done := roleOperation(t, e, "postgres")
@@ -61,8 +61,9 @@ func TestQueryAggregateColumnACL(t *testing.T) {
 					}
 					result.Rows.Close()
 				}
-				execute(q != "SELECT count(*) FROM t")
-				if q == "SELECT count(*) FROM t" {
+				allowed := q == "SELECT count(*) FROM t" || q == "SELECT count(v) FROM t"
+				execute(!allowed)
+				if allowed {
 					grant(column, 0)
 					execute(true)
 				}

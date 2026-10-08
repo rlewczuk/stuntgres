@@ -10,8 +10,9 @@ func TestQueryAggregateExclusionsHaveNoPrefixEffects(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), t.Name())
 	execSQL(t, db, "CREATE TABLE t(v INT)")
 	for _, q := range []string{
-		"SELECT count(*)", "SELECT count(v) FROM t", "SELECT count() FROM t", "SELECT sum(v) FROM t",
+		"SELECT count(*)", "SELECT sum(v) FROM t",
 		"SELECT count(*) FILTER (WHERE TRUE) FROM t", "SELECT count(DISTINCT v) FROM t", "SELECT count(* ORDER BY v) FROM t", "SELECT count(*) OVER () FROM t",
+		"SELECT count(ALL v) FROM t",
 		"SELECT v FROM t GROUP BY ROLLUP(v)", "SELECT v FROM t GROUP BY CUBE(v)", "SELECT v FROM t GROUP BY GROUPING SETS ((v))", "SELECT v FROM t GROUP BY ()", "SELECT v FROM t GROUP BY DISTINCT v", "SELECT v FROM t GROUP BY ALL v",
 	} {
 		t.Run(q, func(t *testing.T) {

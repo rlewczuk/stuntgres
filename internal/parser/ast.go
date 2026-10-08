@@ -745,6 +745,7 @@ type FunctionExpr struct {
 type AggregateExpr struct {
 	Name   string
 	Star   bool
+	Args   []Expr
 	Schema *Identifier
 	Pos    Position
 }

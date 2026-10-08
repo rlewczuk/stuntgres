@@ -307,9 +307,11 @@ Independent PostgreSQL reconstruction, with ADD COLUMN explicitly PG-only:
 
 Table SELECT and shared INSERT SELECT now accept scalar, comma-separated
 `GROUP BY` keys and optional `HAVING` before ORDER BY.
-The initial aggregate is `count(*)`, counting every source occurrence, including
-NULL and zero-column rows. Its label is `count`, SQL type `INT8`, and Go value
-`int64`. Without keys, aggregate calls or HAVING create one global group: an empty
+`count(*)` counts every source occurrence, including NULL and zero-column rows.
+`count(expression)` evaluates its ordinary scalar argument once per input row
+and counts only non-NULL results: zero, false and empty strings count normally.
+Both have label `count`, SQL type `INT8`, and Go value `int64`.
+Without keys, aggregate calls or HAVING create one global group: an empty
 source has count zero. Empty keyed grouping instead has no rows, but retains the
 complete result schema. HAVING alone also creates a global group.
 
@@ -319,6 +321,7 @@ INSERT INTO grouped_rows VALUES ('a',1),('a',NULL),(NULL,2);
 SELECT k,count(*) FROM grouped_rows GROUP BY k;
 SELECT k FROM grouped_rows GROUP BY k HAVING count(*)>1;
 SELECT (v+1)*2,count(*) FROM grouped_rows GROUP BY v+1;
+SELECT count(v),count(NULLIF(v,1)),count(*) FROM grouped_rows;
 ```
 
 The first query returns the unordered bag `('a',2),(NULL,1)`. NULL grouping keys
@@ -342,6 +345,15 @@ WHERE remains a source-row predicate. Aggregate calls in WHERE/GROUP BY give
 HAVING uses contextual BOOL typing and keeps only TRUE, never FALSE or NULL.
 Its count calls may be hidden from the projection schema.
 
+Expression arguments use the original source row and require their column
+rights even on empty/FALSE input. Nested aggregates give42803 at the inner call.
+`count()` gives42809, `count(*) must be used to call a parameterless aggregate
+function`. Bad arity gives42883 with actual argument types and the PostgreSQL
+explicit-casts hint; argument analysis errors take precedence. The ANY signature
+does not infer a bare `$1`: use `count(CAST($1 AS INT))` (NULL gives0).
+An earlier unresolved ANY occurrence followed by a typed occurrence gives42P08;
+otherwise an unresolved parameter gives42P18.
+
 Bare integer keys, including parenthesized integers, are one-based output
 ordinals: `GROUP BY 1` groups the first expanded target. Zero, negative and
 out-of-list positions give `42P10`; fractional, oversized, string, BOOL and NULL
@@ -360,8 +372,8 @@ column rights even on empty input. No all-column read is invented by count-star.
 INSERT assignment and RowsAffected use selected output occurrences, not the count
 datum. Restore's generated-sequence SELECT whitelist is unchanged.
 
-This does not admit standalone SELECT without FROM, count(expr), count(),
-other aggregates, FILTER, DISTINCT/ALL grouping modifiers, within-call ORDER,
+This does not admit standalone SELECT without FROM,
+other aggregates, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
 OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
 optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded
@@ -377,6 +389,9 @@ make test PACKAGES=./internal/parser RUN='^TestQueryAggregate' VERBOSE=0
 make test PACKAGES=./internal/sqltype RUN='^TestGrouping' VERBOSE=0
 make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
 make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0
+make test PACKAGES=. RUN='^TestCountExpression' VERBOSE=0
+make reference RUN='^TestReferenceCountExpression' VERBOSE=0
+make smoke RUN='^TestCountExpressionSmoke$' VERBOSE=0
 ```
 
 ## INSERT from query — change note

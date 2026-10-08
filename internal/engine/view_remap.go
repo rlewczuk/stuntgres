@@ -205,14 +205,17 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 				copy.grouping[i], err = sqltype.BindGrouping(key.ResultUsage())
 			}
 		}
-		copy.providers = make([]aggregateProvider, len(n.providers))
-		for i, provider := range n.providers {
-			p, ok := provider.(countStarProvider)
+		copy.calls = make([]aggregateCall, len(n.calls))
+		for i, call := range n.calls {
+			p, ok := call.provider.(countProvider)
 			if !ok {
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
 			}
 			p.usage.Type = typ(p.usage.Type)
-			copy.providers[i] = p
+			copy.calls[i] = aggregateCall{provider: p}
+			if call.argument != nil {
+				copy.calls[i].argument = expression(call.argument)
+			}
 		}
 		next = &copy
 	default:

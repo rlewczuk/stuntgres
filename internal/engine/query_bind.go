@@ -247,10 +247,10 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		for i, key := range keys {
 			schema[i] = ColumnDescriptor{Usage: key.ResultUsage()}
 		}
-		for i, provider := range b.aggregates {
-			schema[len(keys)+i] = ColumnDescriptor{Usage: provider.ResultUsage()}
+		for i, call := range b.aggregates {
+			schema[len(keys)+i] = ColumnDescriptor{Usage: call.provider.ResultUsage()}
 		}
-		root = &aggregateNode{querySchema: schema, child: root, keys: keys, grouping: comparisons, providers: append([]aggregateProvider(nil), b.aggregates...)}
+		root = &aggregateNode{querySchema: schema, child: root, keys: keys, grouping: comparisons, calls: append([]aggregateCall(nil), b.aggregates...)}
 		for i, expr := range projection {
 			var err error
 			projection[i], err = b.rewriteGroup(expr, keys)

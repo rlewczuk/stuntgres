@@ -68,7 +68,7 @@ func TestReferenceQueryAggregateBehaviorAndCallers(t *testing.T) {
 
 // Public GRANT remains an explicit PostgreSQL-only boundary. Native column ACL
 // manifests are covered through the existing engine authority in package units.
-func TestReferenceQueryAggregatePostgresColumnACL(t *testing.T) {
+func TestReferenceCountExpressionPostgresColumnACL(t *testing.T) {
 	p := newReferencePair(t)
 	run := func(step referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step) }
 	run(referenceExec("CREATE ROLE aggregate_reader", 0))
@@ -95,10 +95,14 @@ func TestReferenceQueryAggregatePostgresColumnACL(t *testing.T) {
 	success := referenceSelect("SELECT count(*) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
 	referenceRunStep(t, p.ctx, conn, p.postgresRecord, success)
 	referenceRunStep(t, p.ctx, conn, p.postgresRecord, referencePrepared(success))
-	for _, q := range []string{"SELECT count(*) FROM t GROUP BY k", "SELECT count(*) FROM t GROUP BY k HAVING k IS NULL", "SELECT count(*) FROM t GROUP BY k ORDER BY k"} {
+	expression := referenceSelect("SELECT count(v) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}})
+	referenceRunStep(t, p.ctx, conn, p.postgresRecord, expression)
+	referenceRunStep(t, p.ctx, conn, p.postgresRecord, referencePrepared(expression))
+	for _, q := range []string{"SELECT count(k) FROM t", "SELECT count(k) FROM t WHERE FALSE", "SELECT count(v) FROM t HAVING count(k)>0", "SELECT count(v) FROM t ORDER BY count(k)", "SELECT count(*) FROM t GROUP BY k", "SELECT count(*) FROM t GROUP BY k HAVING k IS NULL", "SELECT count(*) FROM t GROUP BY k ORDER BY k"} {
 		step := referenceImplicitError(q, referenceDiagnostic{Code: "42501", Message: "permission denied for table t"})
 		step.selectRows = true
 		referenceRunStep(t, p.ctx, conn, p.postgresRecord, step)
+		referenceRunStep(t, p.ctx, conn, p.postgresRecord, referencePrepared(step))
 	}
 }
 

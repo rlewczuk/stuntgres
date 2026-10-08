@@ -35,7 +35,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 	_ = e
 	defer source.close()
 	node := query.Root.(*projectNode).child.(*aggregateNode)
-	p := node.providers[0]
+	p := node.calls[0].provider
 	a, err := p.Init(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -64,7 +64,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 	if err != nil || n != 0 {
 		t.Fatal("state leaked", n, err)
 	}
-	a.(*countStarState).count = math.MaxInt64
+	a.(*countState).count = math.MaxInt64
 	var diagnostic *sqlstate.Error
 	if err := p.Advance(context.Background(), a); !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "bigint out of range" {
 		t.Fatal(err)
@@ -123,11 +123,11 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 					return value, err
 				})
 			case "advance":
-				original := node.providers[0]
-				node.providers[0] = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any) error { err := original.Advance(ctx, s); cancel(); return err }}
+				original := node.calls[0].provider
+				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any) error { err := original.Advance(ctx, s); cancel(); return err }}
 			case "finalize":
-				original := node.providers[0]
-				node.providers[0] = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				original := node.calls[0].provider
+				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					v, err := original.Finalize(ctx, s)
 					cancel()
 					return v, err
@@ -161,9 +161,9 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 					return value, err
 				})
 			case "late_finalize":
-				original := node.providers[0]
+				original := node.calls[0].provider
 				calls := 0
-				node.providers[0] = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						return sqltype.Value{}, sentinel
@@ -205,10 +205,10 @@ func TestQueryAggregateHashCollisionEquality(t *testing.T) {
 func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT count(*) FROM t GROUP BY v")
 	node := b.query.Root.(*projectNode).child.(*aggregateNode)
-	original := node.providers[0]
+	original := node.calls[0].provider
 	sentinel := errors.New("late INSERT aggregate provider")
 	calls := 0
-	node.providers[0] = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
+	node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, sentinel

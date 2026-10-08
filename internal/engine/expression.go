@@ -581,7 +581,7 @@ type expressionBinder struct {
 	checkConsumer     bool
 	sequenceConstants []sequenceConstant
 	aggregateClause   string
-	aggregates        []aggregateProvider
+	aggregates        []aggregateCall
 	queryAuth         *AuthorizationView
 	querySources      []queryLeaf
 	queryNamespace    *queryNamespace
@@ -778,17 +778,10 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
-		if !visible {
-			return nil, b.sequenceSignatureError(parser.CallExpr{Name: name})
+		node, err = b.bindCount(r, name, visible)
+		if err != nil {
+			return nil, err
 		}
-		provider, ok := b.aggregateProvider(r.Name, r.Star)
-		if !ok {
-			return nil, expressionError("0A000", "aggregate call is unsupported", r.Pos)
-		}
-		if len(b.aggregates) == 0 {
-			b.aggregates = append(b.aggregates, provider)
-		}
-		node = aggregateExpression{b.info(provider.ResultUsage(), r.Pos, ExprProperties{StageDependent: true}), 0}
 	case parser.CaseExpr:
 		var err error
 		node, err = b.bindCase(r)

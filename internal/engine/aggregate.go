@@ -15,21 +15,25 @@ type aggregateProvider interface {
 	Advance(context.Context, any) error
 	Finalize(context.Context, any) (sqltype.Value, error)
 }
-type countStarProvider struct{ usage sqltype.Usage }
-type countStarState struct{ count int64 }
+type aggregateCall struct {
+	provider aggregateProvider
+	argument BoundExpr
+}
+type countProvider struct{ usage sqltype.Usage }
+type countState struct{ count int64 }
 
-func (p countStarProvider) ResultUsage() sqltype.Usage { return p.usage }
-func (p countStarProvider) Init(ctx context.Context) (any, error) {
+func (p countProvider) ResultUsage() sqltype.Usage { return p.usage }
+func (p countProvider) Init(ctx context.Context) (any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &countStarState{}, nil
+	return &countState{}, nil
 }
-func (p countStarProvider) Advance(ctx context.Context, state any) error {
+func (p countProvider) Advance(ctx context.Context, state any) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	s, ok := state.(*countStarState)
+	s, ok := state.(*countState)
 	if !ok {
 		return fmt.Errorf("stuntgres: invalid count state")
 	}
@@ -39,21 +43,15 @@ func (p countStarProvider) Advance(ctx context.Context, state any) error {
 	s.count++
 	return ctx.Err()
 }
-func (p countStarProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
+func (p countProvider) Finalize(ctx context.Context, state any) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	s, ok := state.(*countStarState)
+	s, ok := state.(*countState)
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid count state")
 	}
 	return sqltype.Integer(p.usage.Type, s.count)
-}
-func (b *expressionBinder) aggregateProvider(name string, star bool) (aggregateProvider, bool) {
-	if name == "count" && star {
-		return countStarProvider{b.typ(sqltype.Int8).Usage()}, true
-	}
-	return nil, false
 }
 
 type aggregateExpression struct {

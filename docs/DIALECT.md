@@ -104,8 +104,9 @@ Smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
 
 
 Table SELECT and shared INSERT SELECT also support scalar/multiple GROUP BY
-keys, one-based output ordinals, contextual BOOL HAVING, and count(*) as the
-initial aggregate (count/INT8/int64). Global empty input returns one count0;
+keys, one-based output ordinals, contextual BOOL HAVING, count(*) and
+count(expression) (count/INT8/int64). Expression count ignores NULL, not zero,
+false or empty strings. Global empty/all-NULL input returns one count0;
 empty keyed grouping returns no rows with full schema. HAVING alone creates a
 global group, and hidden count calls can filter groups without changing output
 metadata. Typed NULL keys compare equal; numeric scale, NaNs/signed zero and
@@ -119,8 +120,8 @@ live-column SELECT grant; actual key/HAVING/hidden ORDER reads retain column ACL
 Eager group finalization preserves cancellation, result ownership and INSERT
 atomicity; public Next performs no aggregate work. See [grouping](QUERIES.md#grouping-and-count--change-note).
 
-Grouping does not admit standalone SELECT without FROM, count(expr), count(),
-other aggregates, FILTER/DISTINCT/in-call ORDER/OVER, DISTINCT/ALL grouping,
+Grouping does not admit standalone SELECT without FROM,
+other aggregates, FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression
@@ -128,6 +129,10 @@ constant identity preserves representation (including NUMERIC scale), separately
 from runtime typed grouping equality.
 Feature smoke: `make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0`;
 real independent oracle: `make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0`.
+Expression-count smoke: `make smoke RUN='^TestCountExpressionSmoke$' VERBOSE=0`;
+independent oracle: `make reference RUN='^TestReferenceCountExpression' VERBOSE=0`.
+Parameterless count() gives42809; bad arity gives42883 with actual argument types.
+ANY does not infer bare parameter types: cast unresolved parameters explicitly.
 
 Simple/searched CASE, COALESCE, NULLIF, GREATEST and LEAST are scalar constructs
 in every existing general-scalar consumer, including DEFAULT/native roundtrip.

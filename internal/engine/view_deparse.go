@@ -256,7 +256,11 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if e.Schema != nil {
 			name = quoteIdentifier(e.Schema.Text) + "." + quoteIdentifier(e.Name)
 		}
-		return name + "(*)", nil
+		if e.Star {
+			return name + "(*)", nil
+		}
+		text, err := args(e.Args)
+		return name + "(" + text + ")", err
 	case parser.ConditionalExpr:
 		text, err := args(e.Args)
 		return e.Kind.String() + "(" + text + ")", err

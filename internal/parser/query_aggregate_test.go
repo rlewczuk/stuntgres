@@ -8,6 +8,7 @@ import (
 
 func TestQueryAggregateGrammar(t *testing.T) {
 	for _, q := range []string{
+		"SELECT count(v),count(),count(1,2),pg_catalog.count(v) FROM t",
 		"SELECT k,count(*) FROM t WHERE v>0 GROUP BY k,v+1 HAVING count(*)>1 ORDER BY k",
 		"SELECT k FROM t GROUP BY 1", "SELECT k FROM t GROUP BY +1", "SELECT k FROM t GROUP BY (1)",
 		`SELECT "count", "count"(*) FROM t GROUP BY "count"`,
@@ -33,8 +34,9 @@ func TestQueryAggregateGrammar(t *testing.T) {
 }
 func TestQueryAggregateExclusions(t *testing.T) {
 	for _, q := range []string{
-		"SELECT count(*)", "SELECT count(v) FROM t", "SELECT count() FROM t", "SELECT sum(v) FROM t",
+		"SELECT count(*)", "SELECT sum(v) FROM t",
 		"SELECT count(*) FILTER (WHERE TRUE) FROM t", "SELECT count(DISTINCT v) FROM t",
+		"SELECT count(ALL v) FROM t",
 		"SELECT count(* ORDER BY v) FROM t", "SELECT count(*) OVER () FROM t",
 		"SELECT k FROM t GROUP BY ROLLUP(k)", "SELECT k FROM t GROUP BY CUBE(k)",
 		"SELECT k FROM t GROUP BY GROUPING SETS ((k))", "SELECT k FROM t GROUP BY ()",
