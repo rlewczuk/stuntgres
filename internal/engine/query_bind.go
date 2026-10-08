@@ -219,8 +219,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			result = namespace.frame[c.slot]
 			result.Name = targetNames[i]
 		}
-		if _, ok := expr.(aggregateExpression); ok {
+		if aggregate, ok := expr.(aggregateExpression); ok {
 			result.NullabilityKnown = true
+			result.Nullable = b.aggregates[aggregate.slot].operation != aggregateCount
 		}
 		if _, ok := expr.(currentSchemasExpression); ok {
 			result.Nullable, result.NullabilityKnown = true, true

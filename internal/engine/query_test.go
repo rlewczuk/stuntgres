@@ -12,6 +12,9 @@ import (
 
 func queryCoreFixture(t *testing.T, sql string) (*Engine, *BoundQuery, *querySource) {
 	t.Helper()
+	// Parsing may terminate the test; never do it while holding e.mu, since
+	// deferred session teardown needs that mutex before WaitEnd can return.
+	ast := statement(t, sql)
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT NOT NULL,v INT,f BOOL)")
 	run(t, e, "INSERT INTO t VALUES(1,1,TRUE),(2,NULL,NULL),(3,2,FALSE),(4,1,TRUE)")
@@ -21,6 +24,7 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *BoundQuery, *querySou
 		t.Fatal(captureErr)
 	}
 	captured.Close()
+	t.Cleanup(source.close)
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +36,6 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *BoundQuery, *querySou
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	ast := statement(t, sql)
 	from := ast.(*parser.Select).From
 	if alias, ok := from.(*parser.AliasReference); ok {
 		from = alias.Input
@@ -47,7 +50,6 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *BoundQuery, *querySou
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(source.close)
 	return e, b.query, source
 }
 

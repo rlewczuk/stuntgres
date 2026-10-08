@@ -42,7 +42,7 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 	if !raw.Star && len(args) == 0 {
 		return nil, expressionError("42809", objectNameText(name)+"(*) must be used to call a parameterless aggregate function", raw.Pos)
 	}
-	call := aggregateCall{provider: countProvider{b.typ(sqltype.Int8).Usage()}}
+	call := aggregateCall{provider: countProvider{b.typ(sqltype.Int8).Usage()}, operation: aggregateCount}
 	properties := ExprProperties{StageDependent: true}
 	if len(args) == 1 {
 		if inner := aggregateOccurrence(args[0]); inner != nil {
@@ -59,7 +59,7 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 	// Bind every occurrence before sharing; only immutable arguments may share.
 	if call.argument == nil || call.argument.Properties().Volatility == Immutable {
 		for i, existing := range b.aggregates {
-			if b.sameGroupExpression(call.argument, existing.argument) {
+			if call.operation == existing.operation && b.sameGroupExpression(call.argument, existing.argument) {
 				slot = i
 				break
 			}

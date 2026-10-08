@@ -456,6 +456,26 @@ Without keys, aggregate calls or HAVING create one global group: an empty
 source has count zero. Empty keyed grouping instead has no rows, but retains the
 complete result schema. HAVING alone also creates a global group.
 
+Boolean aggregates `bool_and(b)`, `bool_or(b)` and `every(b)` accept BOOL
+and return nullable BOOL (Go bool for non-NULL values; scan NULL with sql.NullBool
+or nullable any). AND/every require every non-NULL input true; OR requires any
+non-NULL input true. All ignore NULL and return NULL on empty/all-NULL input,
+including NOT NULL source columns with no eligible rows. Empty keyed input
+still returns no rows. Raw output labels remain bool_and/bool_or/every.
+Unknown literals such as `'true'`, NULL and unresolved `$1` infer BOOL from the
+signature; typed TEXT or INTEGER do not implicitly coerce and give42883,
+`function bool_and(integer) does not exist` (or the actual raw name/type),
+with `No function matches the given name and argument types. You might need to
+add explicit type casts.` and a one-based character call position. Portable
+auxiliary diagnostic fields are empty. Zero/star Boolean calls have no signature
+and give42883, unlike count(). Every preserves its own diagnostic spelling.
+For mixed TRUE/FALSE/NULL input the three results are false/true/false.
+Hidden Boolean HAVING and ORDER calls reuse ordinary grouping and rights.
+Repeated immutable AND/every arguments may share a state, but OR/count never
+share it; volatile occurrences remain independent. A decisive false AND or true
+OR never skips later argument evaluation: errors still veto the whole query or
+INSERT batch. No aggregate work occurs during public Next.
+
 ```sql
 CREATE TABLE grouped_rows(k TEXT, v INT);
 INSERT INTO grouped_rows VALUES ('a',1),('a',NULL),(NULL,2);
@@ -463,6 +483,7 @@ SELECT k,count(*) FROM grouped_rows GROUP BY k;
 SELECT k FROM grouped_rows GROUP BY k HAVING count(*)>1;
 SELECT (v+1)*2,count(*) FROM grouped_rows GROUP BY v+1;
 SELECT count(v),count(NULLIF(v,1)),count(*) FROM grouped_rows;
+SELECT bool_and(v>0),bool_or(v IS NULL),every(v>0) FROM grouped_rows;
 ```
 
 The first query returns the unordered bag `('a',2),(NULL,1)`. NULL grouping keys
@@ -525,7 +546,7 @@ INSERT assignment and RowsAffected use selected output occurrences, not the coun
 datum. Restore's generated-sequence SELECT whitelist is unchanged.
 
 This does not admit standalone SELECT without FROM,
-other aggregates, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
+aggregates other than count/bool_and/bool_or/every, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
 OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
 optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded
@@ -538,6 +559,11 @@ Feature checks (repository root, quiet output):
 make test PACKAGES=. RUN='^TestQueryAggregate' VERBOSE=0
 make test PACKAGES=./internal/engine RUN='^TestQueryAggregate' VERBOSE=0
 make test PACKAGES=./internal/parser RUN='^TestQueryAggregate' VERBOSE=0
+make test PACKAGES=. RUN='^TestBooleanAggregate' VERBOSE=0
+make test PACKAGES=./internal/engine RUN='^TestBooleanAggregate' VERBOSE=0
+make test PACKAGES=./internal/parser RUN='^TestBooleanAggregate' VERBOSE=0
+make reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0
+make smoke RUN='^TestBooleanAggregateSmoke$' VERBOSE=0
 make test PACKAGES=./internal/sqltype RUN='^TestGrouping' VERBOSE=0
 make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
 make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0

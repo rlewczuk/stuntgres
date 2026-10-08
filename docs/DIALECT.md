@@ -171,8 +171,16 @@ live-column SELECT grant; actual key/HAVING/hidden ORDER reads retain column ACL
 Eager group finalization preserves cancellation, result ownership and INSERT
 atomicity; public Next performs no aggregate work. See [grouping](QUERIES.md#grouping-and-count--change-note).
 
+`bool_and(BOOL)`, `bool_or(BOOL)` and `every(BOOL)` return BOOL/Go bool with
+known nullable metadata, including NOT NULL inputs. NULL inputs are ignored;
+empty/all-NULL global input returns one NULL, empty keyed input no rows.
+Every aliases AND behavior, not its raw label or diagnostic name. Unknown
+string/NULL literals and bare parameters infer BOOL; typed TEXT/INTEGER arguments
+give42883 with actual signature, explicit-casts hint and character call position.
+All eligible argument occurrences evaluate even after a decisive Boolean state.
+
 Grouping does not admit standalone SELECT without FROM,
-other aggregates, FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
+aggregates other than count/bool_and/bool_or/every, FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression
@@ -182,6 +190,8 @@ Feature smoke: `make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0`;
 real independent oracle: `make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0`.
 Expression-count smoke: `make smoke RUN='^TestCountExpressionSmoke$' VERBOSE=0`;
 independent oracle: `make reference RUN='^TestReferenceCountExpression' VERBOSE=0`.
+Boolean smoke: `make smoke RUN='^TestBooleanAggregateSmoke$' VERBOSE=0`;
+independent oracle: `make reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0`.
 Parameterless count() gives42809 and preserves a qualified call name in its message.
 Children are analyzed before the more-than-100-argument guard54023, then
 namespace/visibility and signature resolution. An absent explicit schema gives

@@ -12,12 +12,22 @@ import (
 type aggregateProvider interface {
 	ResultUsage() sqltype.Usage
 	Init(context.Context) (any, error)
-	Advance(context.Context, any) error
+	Advance(context.Context, any, sqltype.Value) error
 	Finalize(context.Context, any) (sqltype.Value, error)
 }
+
+type aggregateOperation uint8
+
+const (
+	aggregateCount aggregateOperation = iota
+	aggregateAnd
+	aggregateOr
+)
+
 type aggregateCall struct {
-	provider aggregateProvider
-	argument BoundExpr
+	provider  aggregateProvider
+	argument  BoundExpr
+	operation aggregateOperation
 }
 type countProvider struct{ usage sqltype.Usage }
 type countState struct{ count int64 }
@@ -29,7 +39,7 @@ func (p countProvider) Init(ctx context.Context) (any, error) {
 	}
 	return &countState{}, nil
 }
-func (p countProvider) Advance(ctx context.Context, state any) error {
+func (p countProvider) Advance(ctx context.Context, state any, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

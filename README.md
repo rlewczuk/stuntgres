@@ -472,6 +472,10 @@ or replace database contents. Those controls require a native stuntgres pool.
 Table queries also support scalar/multiple `GROUP BY` keys, output ordinals,
 `HAVING`, `count(*)` and `count(expression)` (both `INT8` results). Ordinary
 count evaluates its argument per source row and counts only non-NULL values.
+`bool_and`, `bool_or` and `every` accept BOOL arguments and return nullable BOOL;
+`every` is the AND operation with its own output label. They ignore NULL inputs
+and return NULL for empty/all-NULL input. Arguments still evaluate after a
+decisive false AND or true OR, so late errors veto the entire result.
 Equal typed keys, including NULL keys, form one group; empty global count returns one row
 containing zero, while empty grouped input returns no rows. Group order is not
 promised. The same eager pipeline serves direct/prepared queries and

@@ -13,15 +13,15 @@ import (
 
 type aggregateProbeProvider struct {
 	aggregateProvider
-	advance  func(context.Context, any) error
+	advance  func(context.Context, any, sqltype.Value) error
 	finalize func(context.Context, any) (sqltype.Value, error)
 }
 
-func (p aggregateProbeProvider) Advance(ctx context.Context, s any) error {
+func (p aggregateProbeProvider) Advance(ctx context.Context, s any, value sqltype.Value) error {
 	if p.advance != nil {
-		return p.advance(ctx, s)
+		return p.advance(ctx, s, value)
 	}
-	return p.aggregateProvider.Advance(ctx, s)
+	return p.aggregateProvider.Advance(ctx, s, value)
 }
 func (p aggregateProbeProvider) Finalize(ctx context.Context, s any) (sqltype.Value, error) {
 	if p.finalize != nil {
@@ -50,7 +50,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 		t.Fatal(n, err)
 	}
 	for range 2 {
-		if err := p.Advance(context.Background(), a); err != nil {
+		if err := p.Advance(context.Background(), a, sqltype.Value{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -66,7 +66,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 	}
 	a.(*countState).count = math.MaxInt64
 	var diagnostic *sqlstate.Error
-	if err := p.Advance(context.Background(), a); !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "bigint out of range" {
+	if err := p.Advance(context.Background(), a, sqltype.Value{}); !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "bigint out of range" {
 		t.Fatal(err)
 	}
 }
@@ -124,7 +124,11 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 				})
 			case "advance":
 				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any) error { err := original.Advance(ctx, s); cancel(); return err }}
+				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any, value sqltype.Value) error {
+					err := original.Advance(ctx, s, value)
+					cancel()
+					return err
+				}}
 			case "finalize":
 				original := node.calls[0].provider
 				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, finalize: func(ctx context.Context, s any) (sqltype.Value, error) {

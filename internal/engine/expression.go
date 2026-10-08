@@ -610,12 +610,12 @@ type expressionBinder struct {
 	noParameters          bool
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
-	checkLiterals         []literalExpression
-	viewLiterals          map[viewLiteralPath]literalExpression
-	viewColumns           map[viewLiteralPath]int
-	viewStars             map[int][]int
-	viewJoinCount         int
-	viewNamespaces        []viewNamespace
+	checkLiterals  []literalExpression
+	viewLiterals   map[viewLiteralPath]literalExpression
+	viewColumns    map[viewLiteralPath]int
+	viewStars      map[int][]int
+	viewJoinCount  int
+	viewNamespaces []viewNamespace
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -840,7 +840,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 		}
 		var err error
-		node, err = b.bindCount(r, name)
+		if r.Name == "bool_and" || r.Name == "bool_or" || r.Name == "every" {
+			node, err = b.bindBooleanAggregate(r, name)
+		} else {
+			node, err = b.bindCount(r, name)
+		}
 		if err != nil {
 			return nil, err
 		}

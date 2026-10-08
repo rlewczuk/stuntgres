@@ -6326,7 +6326,7 @@ sqldefault:
 	case 527:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text == "count" {
+			if ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqlVAL.expr = AggregateExpr{Name: sqlDollar[1].tok.text, Args: []Expr{sqlDollar[2].expr}, Pos: sqlDollar[1].tok.pos}
 			} else {
 				if !scalarCastArgument(sqlDollar[2].expr) {
@@ -6343,7 +6343,7 @@ sqldefault:
 	case 528:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name == "count" {
+			if ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqlVAL.expr = AggregateExpr{Name: sqlDollar[1].typ.Name, Schema: sqlDollar[1].typ.Schema, Args: []Expr{sqlDollar[2].expr}, Pos: sqlDollar[1].typ.Pos}
 			} else {
 				if !scalarCastArgument(sqlDollar[2].expr) {
@@ -6360,7 +6360,7 @@ sqldefault:
 	case 529:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -6369,7 +6369,7 @@ sqldefault:
 	case 530:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -6378,7 +6378,7 @@ sqldefault:
 	case 531:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -6387,7 +6387,7 @@ sqldefault:
 	case 532:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -6396,7 +6396,7 @@ sqldefault:
 	case 533:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -6405,7 +6405,7 @@ sqldefault:
 	case 534:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -6414,7 +6414,7 @@ sqldefault:
 	case 535:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "aggregate call is unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -6423,7 +6423,7 @@ sqldefault:
 	case 536:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "aggregate call is unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -6432,7 +6432,7 @@ sqldefault:
 	case 537:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "zero-argument call is unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -6441,7 +6441,7 @@ sqldefault:
 	case 538:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "zero-argument call is unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -7749,7 +7749,7 @@ sqldefault:
 	case 783:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text == "count" {
+			if ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqlVAL.expr = AggregateExpr{Name: sqlDollar[1].tok.text, Args: []Expr{sqlDollar[2].expr}, Pos: sqlDollar[1].tok.pos}
 			} else {
 				if !scalarCastArgument(sqlDollar[2].expr) {
@@ -7766,7 +7766,7 @@ sqldefault:
 	case 784:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name == "count" {
+			if ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqlVAL.expr = AggregateExpr{Name: sqlDollar[1].typ.Name, Schema: sqlDollar[1].typ.Schema, Args: []Expr{sqlDollar[2].expr}, Pos: sqlDollar[1].typ.Pos}
 			} else {
 				if !scalarCastArgument(sqlDollar[2].expr) {
@@ -7783,7 +7783,7 @@ sqldefault:
 	case 785:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "zero-argument call is unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -7792,7 +7792,7 @@ sqldefault:
 	case 786:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "zero-argument call is unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -7801,7 +7801,7 @@ sqldefault:
 	case 787:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -7810,7 +7810,7 @@ sqldefault:
 	case 788:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -7819,7 +7819,7 @@ sqldefault:
 	case 789:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -7828,7 +7828,7 @@ sqldefault:
 	case 790:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -7837,7 +7837,7 @@ sqldefault:
 	case 791:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -7846,7 +7846,7 @@ sqldefault:
 	case 792:
 		sqlDollar = sqlS[sqlpt-5 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "function arguments are unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}
@@ -7855,7 +7855,7 @@ sqldefault:
 	case 793:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].tok.text != "count" {
+			if !ordinaryAggregate(sqlDollar[1].tok.text) {
 				sqllex.(*lexer).failAt("0A000", "aggregate call is unsupported", sqlDollar[1].tok.pos.Offset)
 				return 1
 			}
@@ -7864,7 +7864,7 @@ sqldefault:
 	case 794:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			if sqlDollar[1].typ.Name != "count" {
+			if !ordinaryAggregate(sqlDollar[1].typ.Name) {
 				sqllex.(*lexer).failAt("0A000", "aggregate call is unsupported", sqlDollar[1].typ.Pos.Offset)
 				return 1
 			}

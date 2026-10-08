@@ -101,8 +101,10 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
 			}
+			var value sqltype.Value
 			if call.argument != nil {
-				value, err := call.argument.Eval(&evaluation)
+				var err error
+				value, err = call.argument.Eval(&evaluation)
 				if err != nil {
 					return indexedStage{}, err
 				}
@@ -113,7 +115,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 					continue
 				}
 			}
-			if err := call.provider.Advance(ctx, groups[index].states[p]); err != nil {
+			if err := call.provider.Advance(ctx, groups[index].states[p], value); err != nil {
 				return indexedStage{}, err
 			}
 			if err := ctx.Err(); err != nil {
