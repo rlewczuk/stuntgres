@@ -104,6 +104,7 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return true
 	case binaryExpression:
 		o, ok := other.(binaryExpression)
+		// SQL-special spelling is display provenance, not semantic identity.
 		if !ok || e.plan != o.plan || len(e.args) != len(o.args) {
 			return false
 		}

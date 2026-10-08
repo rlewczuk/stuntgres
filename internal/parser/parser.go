@@ -274,7 +274,7 @@ func (l *lexer) capability(tok lexeme, words map[string]bool, message string) {
 
 // These C-keywords have dedicated release expression productions, not generic
 // function-name legality. Recognizing the capability never executes a call.
-var specialCalls = wordSet("coalesce extract greatest grouping least normalize nullif overlay position row substring treat trim xmlconcat xmlelement xmlexists xmlforest xmlparse xmlpi xmlroot xmlserialize json json_array json_arrayagg json_exists json_object json_objectagg json_query json_scalar json_serialize json_value merge_action exists")
+var specialCalls = wordSet("coalesce extract greatest grouping least normalize nullif row treat xmlconcat xmlelement xmlexists xmlforest xmlparse xmlpi xmlroot xmlserialize json json_array json_arrayagg json_exists json_object json_objectagg json_query json_scalar json_serialize json_value merge_action exists")
 
 func (l *lexer) call(callee, opener lexeme) {
 	if callee.keyword.typeFunctionName() {

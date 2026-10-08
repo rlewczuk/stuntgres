@@ -444,7 +444,10 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if n.plan.Name() == "||" {
 			return binary(n.args[0], n.args[1], "||", 5, parent)
 		}
-		return function(n.plan.Name(), n.args, true)
+		if n.syntax == parser.SQLFunctionSyntax {
+			return renderBinaryCall(n.plan.Name(), n.syntax, n.args, n.plan.Name(), child)
+		}
+		return function(pgIdentifier(n.plan.Name()), n.args, true)
 	case randomExpression:
 		return function(n.name, n.args, true)
 	case nullCountExpression:

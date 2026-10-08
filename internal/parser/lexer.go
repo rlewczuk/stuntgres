@@ -669,7 +669,39 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = OPERATOR
 			}
 		}
-	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim":
+	case "overlay", "position", "substring", "trim":
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == '(' {
+			if token.lexeme.keyword == nil || l.previousToken == int('.') {
+				token.code = CHECK_FUNC
+			} else {
+				switch token.lexeme.text {
+				case "overlay":
+					token.code = OVERLAY
+				case "position":
+					token.code = POSITION
+				case "substring":
+					token.code = SUBSTRING
+				case "trim":
+					token.code = TRIM
+				}
+			}
+		}
+	case "placing", "both", "leading", "trailing":
+		if token.lexeme.keyword != nil {
+			switch token.lexeme.text {
+			case "placing":
+				token.code = PLACING
+			case "both":
+				token.code = BOTH
+			case "leading":
+				token.code = LEADING
+			case "trailing":
+				token.code = TRAILING
+			}
+		}
+	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim", "substr":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}
@@ -1009,7 +1041,7 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 // consumer; unrelated selected projection functions retain their own boundary.
 func binaryScalarFunction(name string) bool {
 	switch name {
-	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim":
+	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr":
 		return true
 	}
 	return false

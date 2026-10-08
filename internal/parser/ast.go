@@ -502,7 +502,7 @@ func singletonArgument(expr Expr) bool {
 			return false
 		}
 		switch e.Name.Parts[len(e.Name.Parts)-1].Text {
-		case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim":
+		case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr":
 		case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		default:
 			if !strings.HasPrefix(strings.ToLower(e.Name.Parts[len(e.Name.Parts)-1].Text), "pg_get_") {
@@ -779,11 +779,20 @@ type IdentityExpr struct {
 func (IdentityExpr) expression()                {}
 func (e IdentityExpr) SourcePosition() Position { return e.Pos }
 
+// FunctionSyntax retains SQL special-form provenance for stored expressions.
+type FunctionSyntax uint8
+
+const (
+	OrdinaryFunctionSyntax FunctionSyntax = iota
+	SQLFunctionSyntax
+)
+
 type FunctionExpr struct {
 	Name     ObjectName
 	Args     []Expr
 	Pos      Position
 	Variadic bool
+	Syntax   FunctionSyntax
 }
 
 // AggregateExpr retains count/Boolean argument syntax and diagnostic-only single-argument SUM.

@@ -45,7 +45,8 @@ func TestBinaryBasicProvider(t *testing.T) {
 			}
 			a, _ := Binary(d, tc.a)
 			b, _ := Binary(d, tc.b)
-			got, err := p.Evaluate(context.Background(), a, b)
+			values := [2]Value{a, b}
+			got, err := p.Evaluate(context.Background(), values[:len(args)]...)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -63,7 +64,8 @@ func TestBinaryBasicProvider(t *testing.T) {
 					t.Fatal(n, tc.count, err)
 				}
 			}
-			null, err := p.Evaluate(context.Background(), Null(d), b)
+			values[0] = Null(d)
+			null, err := p.Evaluate(context.Background(), values[:len(args)]...)
 			if err != nil || !null.IsNull() || null.Type() != u.Type {
 				t.Fatal(null, err)
 			}
@@ -150,18 +152,21 @@ func TestBinaryBasicInvariantsOverflowAndAllocations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := p.Evaluate(ctx, a, set); !errors.Is(err, context.Canceled) {
+		values := [2]Value{a, set}
+		if _, err := p.Evaluate(ctx, values[:len(args)]...); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		if _, err := p.Evaluate(context.Background(), Null(other), set); err == nil {
+		values[0] = Null(other)
+		if _, err := p.Evaluate(context.Background(), values[:len(args)]...); err == nil {
 			t.Fatal("accepted foreign value")
 		}
 		b := set
 		if name == "||" {
 			b = empty
 		}
+		values = [2]Value{a, b}
 		if n := testing.AllocsPerRun(100, func() {
-			if _, err := p.Evaluate(context.Background(), a, b); err != nil {
+			if _, err := p.Evaluate(context.Background(), values[:len(args)]...); err != nil {
 				panic(err)
 			}
 		}); n != 0 {

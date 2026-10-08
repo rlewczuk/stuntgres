@@ -118,20 +118,23 @@ precision (up to 1000 fractional places). See the
 [mathematical signatures and limits](docs/DIALECT.md#scale-and-rounding-functions--change-note).
 Feature smoke: `make smoke RUN='^TestMathScalarSmoke$' VERBOSE=0`.
 
-BYTEA supports raw `||`, `bit_length`, `octet_length`, `length`, and two-argument
-`btrim`, `ltrim`, `rtrim`. Counts are INT4 octet counts (bits multiply by eight);
-trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
-All seven are strict for NULL and independent of bytea_output. A known BYTEA
-operand infers unknown concatenation/trim arguments as BYTEA; inferred Go binds
-remain raw octets, not byteain text. These providers share query/write/view
-consumers and native replay. TEXT siblings, encoding-aware length, SQL TRIM forms
-and direct byteacat remain outside this feature. No new casts are added; existing
-BYTEA cast admission is preserved.
-Already-admitted CHECK expressions support SQL deparsing and native structural
-catalog export, preserving operator grouping and immutable replayed carriers.
+BYTEA supports raw `||`, `bit_length`, `octet_length`, `length`, two-argument
+`btrim`/`ltrim`/`rtrim`, and byte-indexed `overlay`, `position`, `substring`/`substr`.
+SQL `OVERLAY(... PLACING ... FROM ... [FOR ...])`, `POSITION(needle IN source)`,
+`SUBSTRING(... FROM ... [FOR ...])` (also reversed keywords and FOR-only), and
+all BOTH/LEADING/TRAILING TRIM forms use the same strict raw-octet providers.
+Offsets and counts are INT4 bytes, not characters; POSITION returns one-based
+INT4 or zero when absent (an empty needle returns one). Negative substring
+counts fail; negative overlay counts are valid and can duplicate source bytes.
+Trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
+Known BYTEA operands infer unknown byte arguments; inferred Go binds remain raw
+octets. Selected functions share query/write/CHECK/view consumers and native
+replay, preserving SQL-syntax provenance in compact/pretty CHECK deparsing.
+TEXT/regex siblings, encoding-aware length, DEFAULT functions and direct byteacat
+remain excluded; no new cast edges or byteapos alias are added.
 See [BYTEA](docs/TYPES.md#bytea). Feature smoke:
-`make smoke RUN='^TestBinaryBasicSmoke$' VERBOSE=0`; independent pinned reference:
-`make reference RUN='^TestReferenceBinaryBasic' VERBOSE=0`.
+`make smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`; independent pinned reference:
+`make reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
 
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;

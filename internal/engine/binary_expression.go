@@ -9,8 +9,9 @@ import (
 
 type binaryExpression struct {
 	expressionInfo
-	plan sqltype.BinaryPlan
-	args []BoundExpr
+	plan   sqltype.BinaryPlan
+	args   []BoundExpr
+	syntax parser.FunctionSyntax
 }
 
 func (e binaryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -22,7 +23,7 @@ func (e binaryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(e.usage.Type), nil
 		}
 	}
-	var values [2]sqltype.Value
+	var values [4]sqltype.Value
 	for i, arg := range e.args {
 		v, err := arg.Eval(c)
 		if err != nil {
@@ -30,7 +31,7 @@ func (e binaryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		values[i] = v
 	}
-	return e.plan.Evaluate(c.Context, values[0], values[1])
+	return e.plan.Evaluate(c.Context, values[:len(e.args)]...)
 }
 
 func binaryTextType(d *sqltype.Descriptor) bool {
@@ -72,12 +73,25 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	missing := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
-	if !visible || raw.Variadic {
+	// PostgreSQL accepts VARIADIC spelling for these fixed scalar signatures;
+	// it does not introduce an array argument or a variadic execution plan.
+	selectedSlice := name == "overlay" || name == "position" || name == "substring" || name == "substr"
+	if !visible || (raw.Variadic && !selectedSlice) {
 		return missing()
 	}
 	arity := 2
-	if name == "length" || name == "octet_length" || name == "bit_length" {
+	switch name {
+	case "length", "octet_length", "bit_length":
 		arity = 1
+	case "overlay":
+		arity = 3
+		if len(operands) == 4 {
+			arity = 4
+		}
+	case "substring", "substr":
+		if len(operands) == 3 {
+			arity = 3
+		}
 	}
 	if name == "length" && len(operands) == 2 {
 		source, encoding := operands[0].descriptor(), operands[1].descriptor()
@@ -93,9 +107,22 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 			}
 		}
 	}
-	text := len(operands) == arity || (arity == 2 && len(operands) == 1)
-	for _, o := range operands {
-		text = text && binaryTextType(o.descriptor())
+	unaryTextTrim := name == "btrim" || name == "ltrim" || name == "rtrim"
+	text := len(operands) == arity || (unaryTextTrim && len(operands) == 1)
+	for i, o := range operands {
+		if binaryArgumentID(name, i) == sqltype.Int4 {
+			d := o.descriptor()
+			text = text && (d == nil || d.ID() == sqltype.Int2 || d.ID() == sqltype.Int4)
+		} else {
+			text = text && binaryTextType(o.descriptor())
+		}
+	}
+	if (name == "substring" || name == "substr") && len(operands) >= 2 && len(operands) <= 3 && binaryTextType(operands[0].descriptor()) {
+		regex := name == "substring"
+		for _, o := range operands[1:] {
+			regex = regex && binaryTextType(o.descriptor())
+		}
+		text = text || regex
 	}
 	if text {
 		return nil, expressionError("0A000", "text overloads of "+name+" are unsupported", raw.Pos)
@@ -104,9 +131,10 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return missing()
 	}
 	known := false
-	for _, o := range operands {
+	for i, o := range operands {
 		if d := o.descriptor(); d != nil {
-			if d.ID() != sqltype.Bytea {
+			target := binaryArgumentID(name, i)
+			if _, err := sqltype.PlanCoercion(o.node.ResultUsage(), b.typ(target).Usage(), sqltype.Implicit); err != nil {
 				return missing()
 			}
 			known = true
@@ -115,7 +143,13 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	if !known {
 		return missing()
 	}
-	return b.finishBinary(name, raw.Pos, operands)
+	expr, err := b.finishBinary(name, raw.Pos, operands)
+	if err != nil {
+		return nil, err
+	}
+	e := expr.(binaryExpression)
+	e.syntax = raw.Syntax
+	return e, nil
 }
 
 func (b *expressionBinder) bindBinaryConcat(raw parser.OperatorExpr) (BoundExpr, error) {
@@ -154,12 +188,20 @@ func (b *expressionBinder) bindBinaryConcat(raw parser.OperatorExpr) (BoundExpr,
 
 func (b *expressionBinder) finishBinary(name string, pos parser.Position, operands []comparisonOperand) (BoundExpr, error) {
 	args := make([]BoundExpr, len(operands))
-	var usages [2]sqltype.Usage
+	var usages [4]sqltype.Usage
 	properties := ExprProperties{Volatility: Immutable}
 	for i, o := range operands {
-		arg, err := b.finalizeOperand(o, b.typ(sqltype.Bytea))
+		target := b.typ(binaryArgumentID(name, i))
+		arg, err := b.finalizeOperand(o, target)
 		if err != nil {
 			return nil, err
+		}
+		if arg.ResultUsage() != target.Usage() {
+			plan, err := sqltype.PlanCoercion(arg.ResultUsage(), target.Usage(), sqltype.Implicit)
+			if err != nil {
+				return nil, err
+			}
+			arg = coercionExpression{b.info(target.Usage(), arg.SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit}
 		}
 		args[i] = arg
 		usages[i] = arg.ResultUsage()
@@ -170,7 +212,7 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 		properties.StageDependent = properties.StageDependent || p.StageDependent
 	}
 	id := sqltype.Bytea
-	if len(operands) == 1 {
+	if name == "length" || name == "octet_length" || name == "bit_length" || name == "position" {
 		id = sqltype.Int4
 	}
 	usage := b.typ(id).Usage()
@@ -178,5 +220,12 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 	if err != nil {
 		return nil, err
 	}
-	return binaryExpression{b.info(usage, pos, properties), plan, args}, nil
+	return binaryExpression{expressionInfo: b.info(usage, pos, properties), plan: plan, args: args}, nil
+}
+
+func binaryArgumentID(name string, index int) sqltype.ID {
+	if ((name == "substring" || name == "substr") && index >= 1) || (name == "overlay" && index >= 2) {
+		return sqltype.Int4
+	}
+	return sqltype.Bytea
 }

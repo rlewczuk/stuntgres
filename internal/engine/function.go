@@ -71,7 +71,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindDeparse(raw, visible)
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)
-	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim":
+	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr":
 		return b.bindBinaryFunction(raw, visible)
 	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		return b.bindMath(raw, visible)

@@ -176,10 +176,10 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
 	case binaryExpression:
-		if len(n.args) < 1 || len(n.args) > 2 {
+		if len(n.args) < 1 || len(n.args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored binary arity")
 		}
-		var usages [2]sqltype.Usage
+		var usages [4]sqltype.Usage
 		for i, arg := range n.args {
 			if arg == nil {
 				return "", fmt.Errorf("stuntgres: missing binary operand")
@@ -191,7 +191,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", fmt.Errorf("stuntgres: invalid stored binary provider")
 		}
 		if n.plan.Name() != "||" {
-			return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args)
+			return renderBinaryCall(n.plan.Name(), n.syntax, n.args, "pg_catalog."+n.plan.Name(), func(arg BoundExpr) (string, error) { return r.sql(ctx, view, arg) })
 		}
 		left, err := r.sql(ctx, view, n.args[0])
 		if err != nil {
@@ -745,7 +745,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		rebound = n
 	case binaryExpression:
 		n.args = append([]BoundExpr(nil), n.args...)
-		var usages [2]sqltype.Usage
+		var usages [4]sqltype.Usage
 		for i := range n.args {
 			n.args[i] = child(n.args[i])
 			usages[i] = n.args[i].ResultUsage()

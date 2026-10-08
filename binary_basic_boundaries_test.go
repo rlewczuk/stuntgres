@@ -172,8 +172,9 @@ func TestBinaryBasicExcludedSyntaxAndOccurrenceTyping(t *testing.T) {
 	execSQL(t, db, `INSERT INTO t VALUES('\x00ff80')`)
 	// Preserve the rebased master's existing same-type cast admission.
 	wantTuples(t, db, "SELECT v::bytea,length(v::bytea) AS n FROM t", [][]any{{[]byte{0, 255, 128}, int64(3)}})
+	_, trimErr := db.Exec("SELECT TRIM(v) FROM t")
+	typeCoreDiagnostic(t, trimErr, stuntgres.Error{Code: "42883", Message: "function pg_catalog.btrim(bytea) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
 	for _, q := range []string{
-		"SELECT TRIM(v) FROM t",
 		"SELECT byteacat(v,v) FROM t",
 		"INSERT INTO dst SELECT 'a'||'b' FROM t",
 	} {

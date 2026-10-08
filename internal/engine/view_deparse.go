@@ -299,6 +299,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			// decoded quoted keyword names cannot be replayed unqualified.
 			return "pg_catalog." + name + "()", nil
 		}
+		if e.Syntax == parser.SQLFunctionSyntax {
+			return renderBinaryCall(name, e.Syntax, e.Args, "pg_catalog."+name, child)
+		}
+		if name == "position" {
+			text, err := args(e.Args)
+			return "pg_catalog.position(" + text + ")", err
+		}
 		text, err := args(e.Args)
 		return objectNameText(e.Name) + "(" + text + ")", err
 	case parser.CallExpr:
