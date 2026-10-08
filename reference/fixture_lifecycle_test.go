@@ -3,6 +3,7 @@ package reference_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -18,8 +19,12 @@ func referenceEnsureStarted() error {
 			if p := recover(); p != nil {
 				referenceStartupErr = fmt.Errorf("startup panic: %v", p)
 			}
+			if referenceStartupErr != nil {
+				referenceStartupErr = errors.Join(referenceStartupErr, referenceReleaseResources())
+			}
 		}()
 		referenceStartupErr = referenceStart()
+		referenceStarted = referenceStartupErr == nil
 	})
 	return referenceStartupErr
 }
@@ -45,6 +50,20 @@ func referenceStart() error {
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
 	}
+	return referenceInitialize(ctx)
+}
+
+// Initialization owns acquired resources until all server preconditions pass.
+// Its failure path also applies when a real initialization step panics.
+func referenceInitialize(ctx context.Context) (err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("initialization panic: %v", p)
+		}
+		if err != nil {
+			err = errors.Join(err, referenceReleaseResources())
+		}
+	}()
 	if err = referenceAdmin.PingContext(ctx); err != nil {
 		return fmt.Errorf("ping: %w", err)
 	}
@@ -60,6 +79,29 @@ func referenceStart() error {
 		return fmt.Errorf("native bootstrap owner: %w", err)
 	}
 	return nil
+}
+
+// Release ownership before cleanup so a failed startup cannot leave resources
+// for test callbacks or cause final teardown to close/terminate them twice.
+func referenceReleaseResources() error {
+	admin, container := referenceAdmin, referenceContainer
+	referenceAdmin, referenceContainer = nil, nil
+	referenceDSN, referenceContainerID = "", ""
+	referenceStarted = false
+	var cleanupErr error
+	if admin != nil {
+		if err := admin.Close(); err != nil {
+			cleanupErr = fmt.Errorf("reference close: %w", err)
+		}
+	}
+	if container != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		if err := container.Terminate(ctx); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("reference terminate: %w", err))
+		}
+	}
+	return cleanupErr
 }
 
 type referenceBackend struct {

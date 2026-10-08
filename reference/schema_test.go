@@ -14,6 +14,9 @@ import (
 func schemaReferenceCleanup(t *testing.T, names ...string) {
 	t.Helper()
 	t.Cleanup(func() {
+		if !referenceStarted {
+			return
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		for _, name := range names {

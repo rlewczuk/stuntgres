@@ -88,6 +88,10 @@ pools share that driver/DSN without exposing controls through middleware. Cleanu
 closes rows before statements and all pools before schema reset. PostgreSQL
 lifecycle, owner provisioning and administrative-session safeguards below remain
 shared by eager pilot and lazy legacy startup.
+Failed eager or lazy startup releases any acquired administrative pool/container
+before returning the cached error, with bounded termination and visible cleanup
+errors. Legacy administrative probes require successful startup; registered
+role/schema cleanup runs only after initialization succeeds.
 
 Some researched cases cannot be forced into identical static row snapshots:
 

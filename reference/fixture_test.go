@@ -30,6 +30,7 @@ var referenceMemoryDriver = stuntgres.NewDriver()
 var referenceMode = flag.Bool("reference", false, "run migrated scenarios against real pinned PostgreSQL as well as native")
 var referenceStartup sync.Once
 var referenceStartupErr error
+var referenceStarted bool
 
 // Tests run serially; one test can create multiple pairs before its cleanup.
 
@@ -45,19 +46,9 @@ func runReferenceMain(m *testing.M) (code int) {
 			fmt.Fprintf(os.Stderr, "reference startup/runtime panic: %v\n", p)
 			code = 1
 		}
-		if referenceAdmin != nil {
-			if err := referenceAdmin.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "reference close: %v\n", err)
-				code = 1
-			}
-		}
-		if referenceContainer != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-			defer cancel()
-			if err := referenceContainer.Terminate(ctx); err != nil {
-				fmt.Fprintf(os.Stderr, "reference terminate: %v\n", err)
-				code = 1
-			}
+		if err := referenceReleaseResources(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			code = 1
 		}
 	}()
 	flag.Parse()
@@ -617,6 +608,10 @@ func roleReferenceCleanup(t *testing.T, names []string) {
 	t.Helper()
 	// Registered before pair cleanup: physical handles and schema are gone first.
 	t.Cleanup(func() {
+		// Some legacy callers register this before constructing their pair.
+		if !referenceStarted {
+			return
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		for _, name := range names {

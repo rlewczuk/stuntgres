@@ -9,6 +9,9 @@ import (
 )
 
 func TestReferenceFixtureSessionAuthorizationReset(t *testing.T) {
+	if err := referenceEnsureStarted(); err != nil {
+		t.Fatalf("reference startup: %v", err)
+	}
 	t.Run("replay", func(t *testing.T) {
 		p := newReferencePair(t)
 		conn, err := referenceAdmin.Conn(p.ctx)
