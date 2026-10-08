@@ -81,10 +81,20 @@ retaining row occurrences independently of output width.
 `pg_catalog.pg_class`, `pg_rewrite` and `pg_views` are real bounded normal query
 sources with OID/internal CHAR metadata; their exact supported columns and
 unsupported tree/array fields are listed in [the view contract](SQL.md#views).
-OR REPLACE, recursive/TEMP forms, check options and view writes, general ALTER/
-DROP VIEW, full PostgreSQL catalogs/RLS/UDFs/optimizer facilities remain excluded.
-Native fixture controls preserve definitions rather than materialized results.
-Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.
+CREATE OR REPLACE VIEW preserves view/rule/attribute identity, owner, ACLs,
+comments and dependents while replacing the definition and outgoing dependencies.
+Existing names/types/typmods/collations form a required prefix; trailing columns
+may be added. ALTER VIEW supports relation/column rename, owner/schema changes
+and security SET/RESET; grouped DROP VIEW supports RESTRICT/CASCADE and IF EXISTS.
+Scalar COLLATE annotations use only existing default/C/POSIX identities.
+Cyclic replacement is admitted, but recursive reads fail42P17 and native cyclic
+Dump explicitly fails. CREATE RECURSIVE/TEMP syntax, check options, view writes,
+column defaults/type-changing ALTER, full catalogs/RLS/UDFs/optimizer facilities
+and explicit-transaction view DDL remain excluded.
+Native fixture controls serialize current definitions, not materialized results
+or alteration history.
+Feature smokes: `make smoke RUN='^TestViewSmoke$' VERBOSE=0` and
+`make smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`.
 
 SELECT targets support `AS label` and eligible bare labels for view definitions
 and normal output metadata. ORDER resolves output labels and ordinals alongside
@@ -1702,8 +1712,12 @@ difference is independently tested, not full PostgreSQL cached-plan parity.
 Canonical Dump/Restore uses current qualified persistent definitions/data and does
 not replay ALTER history.
 
-Native generic sequence/view SET SCHEMA fails 0A000 `ALTER TABLE SET SCHEMA supports
-ordinary tables only`; PostgreSQL independently supports those generic moves.
+`ALTER TABLE view SET SCHEMA` is supported on both backends as an alias of the
+view-only namespace move; it does not move the view's sources or dependents.
+Native generic sequence SET SCHEMA still fails 0A000 `ALTER TABLE SET SCHEMA
+supports ordinary tables only`; PostgreSQL independently supports that move.
+Standalone generic index moves remain excluded; table-owned index movement is
+part of the supported parent-table move.
 Native pg_temp/actual temporary destinations retain 0A000 `temporary schema creation
 is unsupported`, and pg_catalog retains 0A000 `system schema creation is unsupported`.
 PostgreSQL temp moves fail 0A000 `cannot move objects into or out of temporary schemas`;
@@ -1898,8 +1912,11 @@ explicitly listed. Missing TEMP is never allocated. An Execute whose bound
 query, nested view, RETURNING or CHECK requires visibility captures one
 immutable private-aware catalog at its existing statement frontier. The explicit
 path is resolved once, with separate relation and no-TEMP paths. Unrelated
-statements retain no visibility capture. Held prepared SQL refreshes authority,
-not Prepare-time decisions. Stored views remain execution-path sensitive;
+statements retain no visibility capture. Nested demand is derived from current
+identity-bound view definitions, not cached on dependent views: replacement can
+add or remove an inquiry without rebinding dependents or forcing capture after
+removal. Held prepared SQL refreshes authority, not Prepare-time decisions.
+Stored views remain execution-path sensitive;
 CHECKs, including transformed ALTER COLUMN TYPE validation, share statement
 authority. Stored inquiry CHECKs support compact/pretty pg_get_constraintdef
 and pg_get_expr rendering and replay; native conbin is structural data, not

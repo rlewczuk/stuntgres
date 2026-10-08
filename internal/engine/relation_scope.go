@@ -22,6 +22,11 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 	}()
 	if view, ok := stmt.(*parser.CreateView); ok {
+		if execute && view.Replace {
+			if err := s.acquireRelationTarget(view, stmt, execute, false); err != nil {
+				return err
+			}
+		}
 		return s.acquireQueryRelations(view.Query, stmt, execute)
 	}
 	if sel, ok := stmt.(*parser.Select); ok {
@@ -46,6 +51,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	var mode relationLockMode
 	ownerOnly := false
 	rename, ifExists, tableRename := false, false, false
+	viewReplacement := false
 	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	switch v := stmt.(type) {
 	case *parser.CreateIndex:
@@ -53,6 +59,19 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return nil
 		}
 		name, mode, ownerOnly = v.Table, relationShare, true
+	case *parser.CreateView:
+		if !execute || !v.Replace {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, accessExclusive, true
+		viewReplacement = true
+		rename = true
+	case *parser.AlterView:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, accessExclusive, true
+		rename, ifExists, tableRename = true, v.IfExists, v.Action == "rename"
 	case *parser.Select:
 		if v.IsSingleton() {
 			return nil
@@ -125,7 +144,28 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	auth, err := e.statementAuthorizationLocked(s.op, authorityStmt)
 	var ref ObjectRef
 	if err == nil {
-		if mode == accessShare || mode == rowExclusive {
+		if viewReplacement {
+			// CREATE targets only its creation namespace, not a same-named
+			// relation later in the lookup path. Qualified creation needs
+			// CREATE, not USAGE; body lookup retains its independent authority.
+			var ns ObjectRef
+			ns, err = e.creationNamespace(auth, name)
+			if err == nil {
+				err = checkTableCreationNamespace(auth.catalog, ns.Address)
+			}
+			if err == nil {
+				err = auth.CheckCreate(ns)
+			}
+			if err != nil {
+				err = creationError(err, name)
+			} else {
+				s.viewCreationNamespace = ns
+				address := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}]
+				if address != (ObjectAddress{}) {
+					ref = ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: address}
+				}
+			}
+		} else if mode == accessShare || mode == rowExclusive {
 			ref, err = e.resolveReference(auth, name)
 		} else {
 			_, indexBuild := stmt.(*parser.CreateIndex)
@@ -136,7 +176,26 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		err = nil
 	}
 	if err == nil {
-		if ownerOnly {
+		switch stmt.(type) {
+		case *parser.CreateView:
+			if ref.owner != nil {
+				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+				if err == nil {
+					d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+					if d.relationKind != viewRelation {
+						err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.name))
+					}
+				}
+			}
+		case *parser.AlterView:
+			if ref.owner != nil {
+				d := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+				if d.relationKind != viewRelation {
+					err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.name))
+				}
+			}
+		}
+		if ownerOnly && !viewReplacement && err == nil {
 			if ref.owner != nil {
 				err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
 			}
@@ -223,6 +282,25 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	auth, err = e.statementAuthorizationLocked(s.op, authorityStmt)
 	if err != nil {
 		return err
+	}
+	if viewReplacement {
+		ns, err := e.creationNamespace(auth, name)
+		if err != nil {
+			return creationError(err, name)
+		}
+		if ns != s.viewCreationNamespace || auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}] != ref.Address {
+			return ErrCatalogReplaced
+		}
+		if err := auth.CheckCreate(ns); err != nil {
+			return creationError(err, name)
+		}
+		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
+			return err
+		}
+		if descriptor.relationKind != viewRelation {
+			return sqlError("42809", fmt.Sprintf(`"%s" is not a view`, descriptor.name))
+		}
+		return nil
 	}
 	if ownerOnly {
 		if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {

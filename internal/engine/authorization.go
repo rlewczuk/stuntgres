@@ -62,6 +62,44 @@ func (r RoleRead) Memberships() []Membership {
 	}
 	return append([]Membership(nil), r.state.edges...)
 }
+
+// View ownership follows INHERIT edges, independently of SET ROLE authority.
+// Validate endpoints before shortcuts and bound cycles by principal identity.
+func (r RoleRead) inheritsRole(actor, target PrincipalRef) (bool, error) {
+	role, err := r.Descriptor(actor)
+	if err != nil {
+		return false, err
+	}
+	if _, err := r.Descriptor(target); err != nil {
+		return false, err
+	}
+	if actor == target || role.Superuser {
+		return true, nil
+	}
+	if len(r.state.edges) == 0 {
+		return false, nil
+	}
+	seen := map[PrincipalRef]bool{actor: true}
+	queue := []PrincipalRef{actor}
+	for len(queue) != 0 {
+		member := queue[0]
+		queue = queue[1:]
+		for _, edge := range r.state.edges {
+			if !edge.Inherit || edge.Member != member || seen[edge.Role] {
+				continue
+			}
+			if _, err := r.Descriptor(edge.Role); err != nil {
+				return false, err
+			}
+			if edge.Role == target {
+				return true, nil
+			}
+			seen[edge.Role] = true
+			queue = append(queue, edge.Role)
+		}
+	}
+	return false, nil
+}
 func (e *Engine) Roles() RoleRead {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -463,11 +501,23 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		if actor.Superuser || actor.Ref == owner {
 			return nil
 		}
+		if relation, ok := d.(*relationDescriptor); ok && relation.relationKind == viewRelation {
+			allowed, err := v.roles.inheritsRole(actor.Ref, owner)
+			if err != nil {
+				return err
+			}
+			if allowed {
+				return nil
+			}
+		}
 		kind := "table"
 		if d.Kind() == NamespaceObject {
 			kind = "schema"
 		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
 			kind = "sequence"
+		}
+		if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
+			kind = "view"
 		}
 		if req.Object.Address.SubID > 0 && d.Kind() == RelationObject {
 			kind = "relation"

@@ -28,6 +28,14 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		e.mu.Unlock()
 		return source, err
 	case viewRelation:
+		for _, active := range scope.activeViews {
+			if active == d.address {
+				e.mu.Unlock()
+				return nil, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.name))
+			}
+		}
+		scope.activeViews = append(scope.activeViews, d.address)
+		defer func() { scope.activeViews = scope.activeViews[:len(scope.activeViews)-1] }()
 		definition := d.view
 		// An unmarked sibling still needs the enclosing occurrence/lineage
 		// manifest for replacement recheck. Retain that identity while mode

@@ -27,6 +27,15 @@ the destination generation, and atomically installs definitions with ordinary
 data. Derived catalog sources initialize normally and are not dumped. Restored
 views remain dynamic; later base writes and dependency checks still apply.
 Failed/canceled imports retain old catalogs, dependencies and held result rows.
+Repeated replacement, trailing outputs, view/column rename, owner/schema changes
+and security options serialize their final canonical CREATE VIEW state, not
+ALTER history. Supported COLLATE identities survive reconstruction and replay.
+Whole Restore may allocate new OIDs, but preserves linked identity relationships
+and dynamic reads. Dump refuses explicit relation/column ACLs rather than
+discarding privileges. Cyclic view definitions are legal catalog state, but
+Dump returns `stuntgres: cyclic view dump dependencies`; repair the definition
+before dumping. These refusals do not narrow ordinary replacement retention.
+Feature roundtrip smoke: `make smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`.
 Dump orders tables and views through their persistent provider topology.
 Views depend on table/view sources and expression providers; tables depend on
 their CHECK providers. An identity-sequence dependency waits for the owning table

@@ -31,6 +31,8 @@ func sequenceProjection(s *Select) bool {
 			return true
 		case RegclassExpr:
 			return true
+		case CollateExpr:
+			return contains(n.Child)
 		case CastExpr:
 			return contains(n.Child)
 		case TimeZoneExpr:

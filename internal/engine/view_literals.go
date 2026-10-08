@@ -111,6 +111,10 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			}
 			return nil
 		}
+	case parser.CollateExpr:
+		if n, ok := bound.(collationExpression); ok {
+			return child(r.Child, n.child)
+		}
 	case parser.CastExpr:
 		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
 			bound = coercion.child
@@ -400,6 +404,8 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			return child(r.Zone)
 		}
 		return nil
+	case parser.CollateExpr:
+		return child(r.Child)
 	case parser.CastExpr:
 		return child(r.Child)
 	case parser.RegclassExpr:

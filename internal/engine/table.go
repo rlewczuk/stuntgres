@@ -62,7 +62,11 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 				return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: "Use DROP INDEX to remove an index."}
 			}
 			e.mu.Unlock()
-			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: "Use DROP SEQUENCE to remove a sequence."}
+			hint := "Use DROP SEQUENCE to remove a sequence."
+			if relation.relationKind == viewRelation {
+				hint = "Use DROP VIEW to remove a view."
+			}
+			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a table`, relation.name), Hint: hint}
 		}
 		if seen[ref.Address] {
 			continue
@@ -91,6 +95,13 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	stage.authSession = op.session
 	stage.authRevision = auth.revision
 	stage.roleRevision = auth.roles.state.revision
+	path, err := e.referencePath(auth)
+	if err != nil {
+		e.mu.Unlock()
+		e.DiscardCatalogStage(stage)
+		return Result{}, err
+	}
+	stage.dependencyPath = path
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, ref := range refs {

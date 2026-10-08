@@ -105,8 +105,9 @@ type CreateIndex struct {
 func (*CreateIndex) statement() {}
 
 type ViewOption struct {
-	Name  Identifier
-	Value string
+	Name     Identifier
+	Value    string
+	HasValue bool
 }
 type CreateView struct {
 	Name    ObjectName
@@ -114,9 +115,30 @@ type CreateView struct {
 	Options []ViewOption
 	Query   *Select
 	Pos     Position
+	Replace bool
 }
 
 func (*CreateView) statement() {}
+
+type AlterView struct {
+	Name                    ObjectName
+	Action                  string
+	Column, Target          Identifier
+	Options                 []ViewOption
+	OwnerIdentity, IfExists bool
+	Pos                     Position
+}
+
+func (*AlterView) statement() {}
+
+type DropView struct {
+	Names    []ObjectName
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropView) statement() {}
 
 type SequenceOption struct {
 	Name  string
@@ -185,6 +207,15 @@ type TimeZoneExpr struct {
 
 func (TimeZoneExpr) expression()                {}
 func (e TimeZoneExpr) SourcePosition() Position { return e.Pos }
+
+type CollateExpr struct {
+	Child Expr
+	Name  ObjectName
+	Pos   Position
+}
+
+func (CollateExpr) expression()                {}
+func (e CollateExpr) SourcePosition() Position { return e.Pos }
 
 type TableElement struct {
 	Column  *Column
@@ -486,6 +517,8 @@ func singletonArgument(expr Expr) bool {
 	case LiteralExpr, TypedLiteralExpr, ParameterExpr:
 		return true
 	case CastExpr:
+		return singletonArgument(e.Child)
+	case CollateExpr:
 		return singletonArgument(e.Child)
 	case TimeZoneExpr:
 		return singletonArgument(e.Value) && (e.Local || singletonArgument(e.Zone))
@@ -848,6 +881,8 @@ func containsAggregate(expr Expr) bool {
 		}
 	case CastExpr:
 		return containsAggregate(e.Child)
+	case CollateExpr:
+		return containsAggregate(e.Child)
 	case TimeZoneExpr:
 		return containsAggregate(e.Value) || !e.Local && containsAggregate(e.Zone)
 	case RegclassExpr:
@@ -921,6 +956,9 @@ func ExpressionStart(expr Expr) Position {
 	pos := expr.SourcePosition()
 	if cast, ok := expr.(CastExpr); ok && cast.Syntax == PostfixCast {
 		return ExpressionStart(cast.Child)
+	}
+	if collate, ok := expr.(CollateExpr); ok {
+		return ExpressionStart(collate.Child)
 	}
 	if operator, ok := expr.(OperatorExpr); ok {
 		for _, arg := range operator.Args {

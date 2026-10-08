@@ -258,6 +258,8 @@ func randomLiteralNull(arg BoundExpr) bool {
 	switch e := arg.(type) {
 	case literalExpression:
 		return e.value.IsNull()
+	case collationExpression:
+		return randomLiteralNull(e.child)
 	case coercionExpression:
 		return randomLiteralNull(e.child)
 	}

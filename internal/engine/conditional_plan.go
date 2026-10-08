@@ -146,6 +146,9 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.zone, err = child(e.zone)
 		}
 		expression = e
+	case collationExpression:
+		e.child, err = child(e.child)
+		expression = e
 	case coercionExpression:
 		e.child, err = child(e.child)
 		expression = e
@@ -413,6 +416,8 @@ func plannedConditionalResult(info expressionInfo, node BoundExpr) BoundExpr {
 func conditionalConstantInputs(node BoundExpr) bool {
 	literal := func(child BoundExpr) bool { _, ok := child.(literalExpression); return ok }
 	switch e := node.(type) {
+	case collationExpression:
+		return literal(e.child)
 	case coercionExpression:
 		return literal(e.child)
 	case bitwiseExpression:

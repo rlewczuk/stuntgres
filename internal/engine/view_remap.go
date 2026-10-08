@@ -63,6 +63,9 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 		next = n
 	case cachedOrderExpression:
 		next = n // The cache slot belongs to this immutable query plan.
+	case collationExpression:
+		n.child = child(n.child)
+		next = n
 	case coercionExpression:
 		n.child = child(n.child)
 		next = n

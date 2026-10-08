@@ -112,7 +112,6 @@ func TestAlterSchemaNonTableAndDestinationBoundaries(t *testing.T) {
 	}
 	for _, tc := range []struct{ q, message string }{
 		{"ALTER TABLE s1.q SET SCHEMA s2", "ALTER TABLE SET SCHEMA supports ordinary tables only"},
-		{"ALTER TABLE s1.v SET SCHEMA s2", "ALTER TABLE SET SCHEMA supports ordinary tables only"},
 		{"ALTER TABLE s1.t SET SCHEMA pg_temp", "temporary schema creation is unsupported"},
 		{"ALTER TABLE s1.t SET SCHEMA pg_catalog", "system schema creation is unsupported"},
 	} {
@@ -127,5 +126,29 @@ func TestAlterSchemaNonTableAndDestinationBoundaries(t *testing.T) {
 		if got := alterSchemaDump(t, db); got != before {
 			t.Fatal(tc.q, "changed catalog")
 		}
+	}
+	execSQL(t, db, "INSERT INTO s1.t VALUES(7)")
+	var viewOID, oldNamespace int64
+	if err := db.QueryRow("SELECT oid,relnamespace FROM pg_class WHERE relname='v'").Scan(&viewOID, &oldNamespace); err != nil {
+		t.Fatal(err)
+	}
+	stmt, err := db.Prepare("ALTER TABLE s1.v SET SCHEMA s2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	if _, err := stmt.Exec(); err != nil {
+		t.Fatal(err)
+	}
+	wantTuples(t, db, "SELECT id FROM s2.v", [][]any{{int64(7)}})
+	var movedOID, newNamespace, sourceNamespace int64
+	if err := db.QueryRow("SELECT oid,relnamespace FROM pg_class WHERE relname='v'").Scan(&movedOID, &newNamespace); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow("SELECT relnamespace FROM pg_class WHERE relname='t'").Scan(&sourceNamespace); err != nil {
+		t.Fatal(err)
+	}
+	if movedOID != viewOID || newNamespace == oldNamespace || sourceNamespace != oldNamespace {
+		t.Fatal("view move changed identity or source namespace", viewOID, movedOID, oldNamespace, newNamespace, sourceNamespace)
 	}
 }

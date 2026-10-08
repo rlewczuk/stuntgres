@@ -41,6 +41,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case parameterExpression:
 		o, ok := other.(parameterExpression)
 		return ok && e.number == o.number
+	case collationExpression:
+		o, ok := other.(collationExpression)
+		return ok && same(e.child, o.child)
 	case coercionExpression:
 		o, ok := other.(coercionExpression)
 		return ok && e.plan == o.plan && e.mode == o.mode && same(e.child, o.child)
@@ -232,6 +235,10 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			}
 		}
 		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.pos)
+	case collationExpression:
+		e.child = rewrite(e.child)
+		stage(&e.expressionInfo)
+		expr = e
 	case coercionExpression:
 		e.child = rewrite(e.child)
 		stage(&e.expressionInfo)
@@ -368,6 +375,8 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		walk(e.arg)
 	case aggregateExpression:
 		return &e
+	case collationExpression:
+		walk(e.child)
 	case coercionExpression:
 		walk(e.child)
 	case bitwiseExpression:

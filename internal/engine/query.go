@@ -13,8 +13,9 @@ type LogicalNode interface {
 	Schema() []ColumnDescriptor
 }
 type BoundQuery struct {
-	Root               LogicalNode
-	regclassOutput     bool
+	Root           LogicalNode
+	regclassOutput bool
+	// Local expression demand only; inherited view demand uses the current catalog.
 	visibilitySnapshot bool
 }
 type RowCursor interface {

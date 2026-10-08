@@ -73,6 +73,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		fmt.Fprintf(out, "Identity kind %d ordinaryCall %t", n.kind, n.ordinaryCall)
 	case columnExpression:
 		fmt.Fprintf(out, "Var attnum %d", n.origin.Address.SubID)
+	case collationExpression:
+		fmt.Fprintf(out, "Collate oid %d", n.usage.Collation.ID)
+		err = child(n.child)
 	case coercionExpression:
 		fmt.Fprintf(out, "Coerce mode %d", n.mode)
 		err = child(n.child)

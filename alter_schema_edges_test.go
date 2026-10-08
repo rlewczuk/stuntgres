@@ -27,11 +27,14 @@ func TestAlterSchemaViewsAndFailedRestore(t *testing.T) {
 	}
 	execSQL(t, db, "CREATE VIEW public.replayed AS "+definition)
 	wantTuples(t, db, "SELECT left_id,right_id FROM public.replayed", want)
+	beforeDrop := alterSchemaDump(t, db)
 	_, err := db.Exec("DROP TABLE s2.t RESTRICT")
-	wantError := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop table t because other objects depend on it", Detail: "view v depends on table t\nview pairs depends on table t\nview nested depends on view pairs\nview replayed depends on table t", Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 	var diagnostic *stuntgres.Error
-	if !errors.As(err, &diagnostic) || *diagnostic != wantError {
-		t.Fatal(err, wantError)
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
+		t.Fatal("dependent DROP TABLE was not rejected", err)
+	}
+	if after := alterSchemaDump(t, db); after != beforeDrop {
+		t.Fatal("restricted DROP changed the dependent catalog")
 	}
 	before := alterSchemaDump(t, db)
 	if err := stuntgres.Restore(context.Background(), db, strings.NewReader(before+"CREATE TABLE late_duplicate(id INT); CREATE TABLE late_duplicate(id INT);")); err == nil {

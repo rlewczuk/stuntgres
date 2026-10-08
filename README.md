@@ -173,8 +173,10 @@ names at Execute; unlike PostgreSQL's held unchanged-search_path plan, an unqual
 native SELECT sees a newly created source-schema shadow after a move (see
 [the dialect boundary](docs/DIALECT.md)). Native Dump/Restore records current
 qualified definitions, not move history.
-Explicit-transaction SET SCHEMA, generic non-table moves, TEMP/system destinations,
-automatic row types remain bounded native exclusions.
+For a view, `ALTER TABLE view SET SCHEMA` aliases `ALTER VIEW SET SCHEMA` and
+moves only the view's namespace, leaving its sources and dependents in place.
+Explicit-transaction SET SCHEMA, generic standalone sequence/index moves,
+TEMP/system destinations and automatic row types remain bounded native exclusions.
 Feature smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 Change note: ordinary `CREATE INDEX [name] ON [schema.]table [USING btree]
@@ -214,7 +216,13 @@ current privileges for every source, even for empty results. Bounded, queryable
 `pg_class`, `pg_rewrite` and `pg_views` sources expose actual catalog
 state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
 persists definitions, not their result rows. See [views](docs/SQL.md#views).
+CREATE OR REPLACE preserves view/rule identity, ownership, ACLs and dependents,
+allows trailing outputs and rejects changed existing names/types/typmods/collations.
+ALTER VIEW supports relation/column rename, owner/schema changes and security
+SET/RESET; grouped DROP VIEW supports RESTRICT/CASCADE. Cyclic replacement is
+allowed, while recursive reads and native cyclic Dump explicitly fail.
 Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.
+Replacement smoke: `make smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`.
 
 Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
 `pg_type_is_visible(oid)`, `pg_collation_is_visible(oid)` and

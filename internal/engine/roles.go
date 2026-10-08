@@ -202,19 +202,21 @@ func dependencyIdentifier(name string) string {
 }
 
 func relationDiagnosticName(auth AuthorizationView, relation *relationDescriptor) string {
+	path, _ := auth.engine.referencePath(auth)
+	return relationDiagnosticNameAt(auth.catalog, relation, path)
+}
+
+func relationDiagnosticNameAt(catalog CatalogRead, relation *relationDescriptor, path []ObjectAddress) string {
 	name := dependencyIdentifier(relation.name)
-	path, err := auth.engine.referencePath(auth)
-	if err == nil {
-		for _, ns := range path {
-			if a, ok := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relation.name}]; ok {
-				if a == relation.address {
-					return name
-				}
-				break
+	for _, ns := range path {
+		if a, ok := catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: relation.name}]; ok {
+			if a == relation.address {
+				return name
 			}
+			break
 		}
 	}
-	return dependencyIdentifier(auth.catalog.state.descriptors[relation.namespace].Name()) + "." + name
+	return dependencyIdentifier(catalog.state.descriptors[relation.namespace].Name()) + "." + name
 }
 
 func dependencyDescription(auth AuthorizationView, dep roleDependency) string {

@@ -83,6 +83,8 @@ func firstQueryBoundVariable(expr BoundExpr) parser.Position {
 		return firstQueryBoundVariable(e.arg)
 	case currentSchemasExpression:
 		return firstQueryBoundVariable(e.arg)
+	case collationExpression:
+		return firstQueryBoundVariable(e.child)
 	case coercionExpression:
 		return firstQueryBoundVariable(e.child)
 	case nullTestExpression:

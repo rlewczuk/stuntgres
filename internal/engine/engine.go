@@ -235,7 +235,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateIndex:
+	case *parser.CreateIndex, *parser.AlterView, *parser.DropView:
 		return StatementDescription{}, nil
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.AlterTable, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
@@ -675,7 +675,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 		b.querySources = binder.querySources
 		if view != nil {
-			if err := bindViewOutput(b.query, view); err != nil {
+			if err := e.bindViewOutput(b.query, view, auth); err != nil {
 				return b, err
 			}
 		}
@@ -687,7 +687,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	if err != nil {
 		return b, err
 	}
-	if b.query != nil {
+	if b.query != nil && view == nil {
 		if err := validateQueryViewRowMarks(b.querySources, queryRootRowMode(b.query.Root), auth.catalog); err != nil {
 			return b, err
 		}

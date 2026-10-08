@@ -52,6 +52,8 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 		if !e.Local {
 			absorb(e.Zone)
 		}
+	case CollateExpr:
+		absorb(e.Child)
 	case CastExpr:
 		if column, ok := e.Child.(ColumnExpr); ok && len(column.Name.Parts) > 1 && e.Syntax == PostfixCast {
 			result = scanDeleteQualification(e.Child, false)
@@ -135,6 +137,8 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 		if !e.Local {
 			return nonqueryQualification(e.Zone, assignment)
 		}
+	case CollateExpr:
+		return nonqueryQualification(e.Child, assignment)
 	case CastExpr:
 		if column, ok := e.Child.(ColumnExpr); ok && len(column.Name.Parts) > 1 && e.Syntax == PostfixCast {
 			if assignment && !column.QualificationGrouped {
@@ -238,6 +242,12 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 			changed = changed || did
 		}
 		if changed {
+			return e, true
+		}
+	case CollateExpr:
+		child, changed := markGroupedQualification(e.Child)
+		if changed {
+			e.Child = child
 			return e, true
 		}
 	case CastExpr:

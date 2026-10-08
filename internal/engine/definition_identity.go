@@ -12,6 +12,8 @@ func structuralNull(node BoundExpr) bool {
 		switch n := node.(type) {
 		case literalExpression:
 			return n.value.IsNull()
+		case collationExpression:
+			node = n.child
 		case coercionExpression:
 			node = n.child
 		default:

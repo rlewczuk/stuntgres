@@ -486,6 +486,10 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	// Ordinary defaults, CHECKs and views share one private dependency closure.
 	checkStage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(checkStage)
+	checkStage.dependencyPath, err = e.referencePath(auth)
+	if err != nil {
+		return Result{}, err
+	}
 	if err := stageViewDependentsLocked(checkStage, targets, s.Mode); err != nil {
 		return Result{}, err
 	}

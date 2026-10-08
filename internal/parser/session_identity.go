@@ -48,6 +48,8 @@ func identitySingleton(raw Expr) (valid, found bool) {
 		return true, true
 	case LiteralExpr, TypedLiteralExpr, ParameterExpr:
 		return true, false
+	case CollateExpr:
+		return identitySingleton(e.Child)
 	case CastExpr:
 		return identitySingleton(e.Child)
 	case OperatorExpr:

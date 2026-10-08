@@ -67,6 +67,9 @@ func queryRootRowMode(node LogicalNode) relationLockMode {
 }
 func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) (relationLockMode, error) {
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
+	if _, err := validateViewReadGraph(catalog, leaves); err != nil {
+		return 0, err
+	}
 	mode := queryRootRowMode(root)
 	var visit func(*relationDescriptor, relationLockMode) (relationLockMode, error)
 	visit = func(d *relationDescriptor, mode relationLockMode) (relationLockMode, error) {
@@ -95,6 +98,9 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	return 0, nil
 }
 func validateQueryViewRowMarks(leaves []queryLeaf, mode relationLockMode, catalog CatalogRead) error {
+	if _, err := validateViewReadGraph(catalog, leaves); err != nil {
+		return err
+	}
 	var visit func(*relationDescriptor, relationLockMode) error
 	visit = func(d *relationDescriptor, inherited relationLockMode) error {
 		if d.view == nil {
@@ -126,18 +132,24 @@ func viewRowMode(d *viewDefinition, inherited relationLockMode) relationLockMode
 	return strongerQueryRowMode(inherited, queryRootRowMode(d.query.Root))
 }
 func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
-	if d.view == nil {
-		return false
-	}
-	if queryRootRowMode(d.view.query.Root) != 0 {
-		return true
-	}
-	for _, leaf := range d.view.sources {
-		if child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor); ok && viewHasStoredRowMarks(child, catalog) {
+	seen := make(map[ObjectAddress]bool)
+	var visit func(*relationDescriptor) bool
+	visit = func(d *relationDescriptor) bool {
+		if d.view == nil || seen[d.address] {
+			return false
+		}
+		seen[d.address] = true
+		if queryRootRowMode(d.view.query.Root) != 0 {
 			return true
 		}
+		for _, leaf := range d.view.sources {
+			if child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor); ok && visit(child) {
+				return true
+			}
+		}
+		return false
 	}
-	return false
+	return visit(d)
 }
 func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
 	if mode == 0 {
@@ -185,6 +197,11 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	inherited := queryRootRowMode(root)
 	marked, views := false, false
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
+	visibilityDemand, err := validateViewReadGraph(catalog, leaves)
+	if err != nil {
+		return err
+	}
+	scope.visibilityDemand = visibilityDemand
 	var visit func(*relationDescriptor, relationLockMode) error
 	visit = func(d *relationDescriptor, mode relationLockMode) error {
 		if d.view != nil {
@@ -229,6 +246,13 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 }
 
 func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited relationLockMode, invoker PrincipalRef) error {
+	if _, err := validateViewReadGraph(v.catalog, []queryLeaf{{relation: d}}); err != nil {
+		return err
+	}
+	return v.checkViewRowMarksExpanded(d, inherited, invoker)
+}
+
+func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inherited relationLockMode, invoker PrincipalRef) error {
 	if d.view == nil {
 		return nil
 	}
@@ -268,7 +292,7 @@ func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited re
 				return err
 			}
 		}
-		if err := v.checkViewRowMarks(child, mode, invoker); err != nil {
+		if err := v.checkViewRowMarksExpanded(child, mode, invoker); err != nil {
 			return err
 		}
 	}

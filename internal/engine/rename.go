@@ -106,6 +106,10 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
 	e.mu.Unlock()
+	if scope.replacementRead {
+		e.replacementMu.RUnlock()
+		scope.replacementRead = false
+	}
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err == nil {
 		var prepared *PreparedCatalogPublication

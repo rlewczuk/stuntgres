@@ -9,6 +9,9 @@ all existing and future principals, not a role or membership endpoint.
 
 Persistent views retain normal owner/ACL descriptors. At CREATE, the creator
 needs destination CREATE and source-schema lookup USAGE, not source SELECT.
+CREATE OR REPLACE chooses only the creation namespace's target, not a later
+search_path match. Qualified target creation/replacement requires no target
+namespace USAGE; body source schemas still undergo ordinary lookup checks.
 At read, the caller needs named-view SELECT; each ordinary definition checks
 underlying relation columns as that view's current owner. Invoker definitions
 use the original statement invoker, not an outer view owner's substituted
@@ -20,6 +23,21 @@ Native public SQL GRANT remains absent; tests use the central internal ACL seam.
 The native prepared witness retains an allowed statement description across
 revocation and regrant: the same handle must deny42501 without rows after revoke
 and resume reads after regrant, including an owner view above an invoker view.
+
+Replacement and ALTER require view ownership; bounded native view-owner checks
+follow the existing membership graph's INHERIT edges transitively, with visited
+identities and stale-role validation. SET-only/disabled edges do not grant
+ownership. This is not general inherited ACL support or new SQL membership
+syntax. DROP VIEW also accepts the schema owner through the same bounded
+ownership traversal, without granting that actor ALTER or replacement rights.
+Replacement needs destination CREATE; relation rename needs containing-schema
+CREATE, while column rename does not. Schema moves need destination CREATE.
+Owner transfer separately follows SET-authorized edges to the target role and
+requires that role's CREATE on the current schema; superusers bypass those
+transfer restrictions. Relation and column ACL owner references are rewritten
+without discarding reader grants or conflating NULL and explicitly empty ACLs.
+Subsequent reads immediately use the new owner or original security invoker.
+
 
 Isolated native Restore uses its validated authenticated-bootstrap lookup
 authority for every CREATE VIEW source occurrence, including aliases and joins,

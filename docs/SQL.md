@@ -137,24 +137,28 @@ NULL, ADD NOT NULL. DEFAULT is not an action in those passes.
 
 ### Table namespace moves
 
-`ALTER TABLE [IF EXISTS] target SET SCHEMA schema` is a standalone ordinary-table
-utility: the destination is one identifier and comma action lists are syntax
-errors before any effects. Target markers do not add hierarchy support. Execution
-requires source schema USAGE, table ownership and destination CREATE, even for a
-same-schema no-op; destination USAGE and source CREATE are not required.
+`ALTER TABLE [IF EXISTS] target SET SCHEMA schema` is a standalone relation
+utility for ordinary tables and views: the destination is one identifier and
+comma action lists are syntax errors before any effects. Target markers do not
+add hierarchy support. Execution requires source schema USAGE, relation ownership
+and destination CREATE, even for a same-schema no-op; destination USAGE and source
+CREATE are not required.
 Missing conditional targets skip before resolving the destination, with one notice.
 Prepare is effect-free and does not resolve, authorize or lock.
 
 The table and all column-owned sequences move in one catalog publication under
 ACCESS EXCLUSIVE locks. Unowned sequences and referencing views stay in place.
+For a view, the same spelling aliases ALTER VIEW SET SCHEMA and moves only that
+view's namespace; its sources and dependents retain their namespaces.
 Rows, identities, NOT NULL names, defaults, comments, ACLs and sequence generators
 and physical-session caches survive. Held SQL rebinds original names; old qualified
 names fail after a move, while compatible unqualified plans can find the new schema
 through search_path. Stored views retain dependencies and deparse current names.
 Dump/Restore preserves current persistent definitions/data rather than ALTER history.
 Explicit transactions exclude this standalone SET SCHEMA utility, not the supported
-TYPE/nullability/DROP COLUMN lists. Non-table generic moves, temporary/system
-destinations and automatic row types are not added. Simple B-tree indexes move with their table.
+TYPE/nullability/DROP COLUMN lists. Generic moves of sequences or indexes,
+temporary/system destinations and automatic row types are not added. Simple
+B-tree indexes move with their table.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
 controls. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
@@ -219,7 +223,7 @@ admission; restored defaults retain typed NULL and deferred errors.
 
 ## Views
 
-`CREATE VIEW` stores an immutable, identity-bound definition analyzed by the
+`CREATE [OR REPLACE] VIEW` stores an immutable, identity-bound definition analyzed by the
 ordinary SELECT binder. The body admits the current scalar/filter/group/HAVING/
 expression and multi-key ordering repertoire and table, sequence, view and
 bounded catalog sources. It is not executed by CREATE or Prepare; subsequent reads evaluate it
@@ -228,6 +232,70 @@ names than outputs are legal, more fail42601, and duplicate final names fail4270
 Unknown-only outputs become TEXT. Creation-time `*` expansion and output types
 are fixed; zero-column views retain real source occurrences and count semantics.
 CREATE has affected count zero and no result columns or runtime parameters.
+
+### Replacement and alteration — change note
+
+`CREATE OR REPLACE VIEW` creates an absent target or replaces an existing view
+atomically. The view and `_RETURN` rule keep their OIDs, owner, ACLs, comments,
+existing attribute identities and inbound dependents. The new definition replaces
+all outgoing dependencies; a former source is no longer retained merely because
+an older definition used it. Existing outputs must be a positional prefix with
+the same names, type identities, typmods and collation identities. Trailing
+columns may be appended; dropping, renaming, reordering or changing the type or
+collation of existing columns fails42P16 without publication. Scalar COLLATE
+annotations support only the existing `pg_catalog.default`, `"C"` and `"POSIX"`
+identities in projections, predicates and ordering; they do not convert values or
+introduce new comparison behavior. Existing dependent views retain their frozen
+attribute layout while reading the current replacement definition, even when its
+row has appended columns.
+Visibility inquiry demand follows the current definitions throughout the view
+source graph. Adding, removing or restoring an inquiry in an inner replacement
+does not require rebinding its dependent views; all nested inquiries share the
+statement's original-invoker catalog and search-path snapshot.
+
+Replacement selects its target only in the creation namespace, never a
+same-named object later in search_path. An absent target there is created even
+when a later schema contains another kind or owner. Qualified replacement
+requires destination CREATE and existing-view ownership, not target-schema
+USAGE; body sources retain their normal independent lookup requirements.
+
+`ALTER VIEW [IF EXISTS] name` supports `RENAME TO new_name`,
+`RENAME [COLUMN] old_column TO new_column`, `SET SCHEMA schema`,
+`OWNER TO {role | CURRENT_ROLE | CURRENT_USER | SESSION_USER}`,
+`SET (security_barrier=boolean, security_invoker=boolean)` and
+`RESET (option [, ...])`. Names, attributes, rules and dependents retain identity.
+Existing ALTER TABLE column/relation rename and SET SCHEMA spellings also work
+for views. A view schema move changes only the view namespace, not its sources
+or dependents. ALTER SET merges supplied flags; RESET removes named flags and
+ignores unknown/duplicate names, but rejects values. OR REPLACE replaces the
+entire option set, so omitting WITH clears both flags.
+
+`DROP VIEW [IF EXISTS] name [, ...] [RESTRICT | CASCADE]` preflights the whole
+group and publishes all removals together. RESTRICT is the default; dependencies
+between explicitly listed targets do not block their grouped removal. CASCADE
+removes dependent views and their rules, never their underlying sources.
+IF EXISTS emits NOTICE for absent targets, but wrong object kinds still fail42809.
+The removal hint names the actual kind, including `Use DROP INDEX to remove an
+index.` for an index; a grouped wrong-kind failure removes no targets.
+Owner and namespace authority, cancellation and lock waits use ordinary catalog
+publication fences. View DDL affects zero rows and returns no result columns.
+
+Cyclic replacement definitions may be published. Reads, including prepared and
+row-marked reads, fail42P17 `infinite recursion detected in rules for relation "v"`
+when expansion revisits the active view. Shared acyclic occurrences remain legal;
+repairing the definition restores reads. Explicit view locking and cyclic
+CASCADE/grouped drops terminate without recursively expanding rows.
+Native Dump rejects self-referential and mutually recursive view graphs with
+`stuntgres: cyclic view dump dependencies` before emitting any dump bytes.
+
+Protocol-prepared DDL uses current authority and state at Execute; utility
+Prepare has no publication effects. Prepared reads rebind their original SQL.
+A same-shape replacement is visible on the next execution; appended outputs
+make a held SELECT * fail0A000 `cached plan must not change result type`.
+Already-returned eager rows retain their prior values and metadata.
+SQL PREPARE utility DDL is not added. CREATE/replace/ALTER/DROP VIEW retain the
+native explicit-transaction exclusion and read-only utility tags.
+
 
 A legal scalar definition may store one trailing FOR KEY SHARE/FOR SHARE/
 FOR NO KEY UPDATE/FOR UPDATE clause. CREATE remains row-lock-free; the immutable
@@ -291,6 +359,9 @@ renames retain identity, and reuse of an old source name cannot retarget a view.
 DROP RESTRICT reports2BP01 with dependency Detail/Hint; existing CASCADE paths
 remove dependent definitions and their derived rule/catalog facts together.
 Dropping an unrelated column preserves the frozen definition layout.
+Dependency diagnostics use current identity and search_path visibility, including
+shadowing and identifier quoting, for both targets and dependent views. A moved
+view outside the effective path is schema-qualified; a visible identity is not.
 
 Queryable catalog sources have this deliberately bounded exact schema:
 
@@ -341,11 +412,14 @@ DATE/TIME/TIMESTAMP/TIMETZ/TIMESTAMPTZ casts use the captured session environmen
 native DateStyle and TimeZone settings are supported. Canonical replay remains
 independent of presentation settings.
 
-Replacement, recursive/TEMP views, view writes/check options, general ALTER/
-DROP VIEW, subqueries, public GRANT, RLS, UDFs and optimizer
-introspection are separate unsupported capabilities. Native ACL unit controls
-and PostgreSQL-only GRANT witnesses do not imply a public native ACL API.
-Smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`;
+CREATE RECURSIVE/TEMP syntax, view writes/check options, ALTER VIEW column
+defaults, type-changing ALTER actions, subqueries, public GRANT, RLS, UDFs and
+optimizer introspection remain unsupported. Setting check_option fails0A000
+`view check options are unsupported`; RESET of an absent check_option is harmless.
+Native ACL unit controls and PostgreSQL-only GRANT witnesses do not imply a
+public native ACL API.
+Smokes: `make smoke RUN='^TestViewSmoke$' VERBOSE=0` and
+`make smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`;
 independent oracle: `make reference RUN='^TestReferenceView' VERBOSE=0`.
 
 ## Object comment inquiries — change note

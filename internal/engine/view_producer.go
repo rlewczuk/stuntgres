@@ -53,6 +53,9 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 	if source.nestedRoot == nil {
 		return indexedStage{source: source, schema: schema}, nil
 	}
+	// Materialize the current definition's complete row before an enclosing
+	// frozen-slot bridge selects the attributes retained by a dependent view.
+	producedSchema := source.nestedRoot.Schema()
 	out := indexedStage{source: source, schema: schema, selection: []int{}, pending: pendingSourceMarks(source, nil)}
 	out.finish = func() error {
 		if source.nestedStage != nil {
@@ -84,14 +87,14 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 		inner.evaluation.Context, inner.evaluation.Row = ctx, inner.source.row(inner.index(i))
 		inner.evaluation.orderValues = inner.orderRow(i)
 		start := len(source.flat)
-		source.flat = append(source.flat, make([]sqltype.Value, len(schema))...)
+		source.flat = append(source.flat, make([]sqltype.Value, len(producedSchema))...)
 		row := source.flat[start:]
 		for j, expr := range inner.expressions {
 			value, err := expr.Eval(&inner.evaluation)
 			if err != nil {
 				return false, err
 			}
-			if err := validateProducedValue(value, schema[j].Usage); err != nil {
+			if err := validateProducedValue(value, producedSchema[j].Usage); err != nil {
 				return false, err
 			}
 			row[j] = value

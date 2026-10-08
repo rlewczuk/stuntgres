@@ -186,6 +186,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "", err
 		}
 		return "((" + value + ") AT TIME ZONE (" + zone + "))", nil
+	case parser.CollateExpr:
+		text, err := child(e.Child)
+		if err != nil {
+			return "", err
+		}
+		return "(" + text + " COLLATE pg_catalog." + quoteIdentifier(e.Name.Parts[len(e.Name.Parts)-1].Text) + ")", nil
 	case parser.CastExpr:
 		literalPath := path
 		literalPath.node = *ordinal

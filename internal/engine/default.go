@@ -451,6 +451,15 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "(" + value + " AT TIME ZONE " + zone + ")", nil
+	case collationExpression:
+		text, err := r.sql(ctx, view, n.child)
+		if err != nil {
+			return "", err
+		}
+		if name := builtinCollationName(n.usage.Collation.ID); name != "" {
+			return "(" + text + " COLLATE pg_catalog." + quoteIdentifier(name) + ")", nil
+		}
+		return "", fmt.Errorf("stuntgres: invalid default collation")
 	case coercionExpression:
 		if n.child == nil {
 			return "", fmt.Errorf("stuntgres: missing default coercion child")
@@ -954,6 +963,13 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		if !n.local {
 			n.zone = child(n.zone)
 		}
+		if !changed {
+			return node, false, err
+		}
+		n.expressionInfo = info
+		rebound = n
+	case collationExpression:
+		n.child = child(n.child)
 		if !changed {
 			return node, false, err
 		}

@@ -404,6 +404,8 @@ func qualifiedCastChild(raw parser.Expr) error {
 				return err
 			}
 		}
+	case parser.CollateExpr:
+		return qualifiedCastChild(e.Child)
 	case parser.CastExpr:
 		return qualifiedCastChild(e.Child)
 	case parser.TimeZoneExpr:

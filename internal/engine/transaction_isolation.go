@@ -244,6 +244,10 @@ func modifyingTag(stmt parser.Statement) string {
 		return "CREATE INDEX"
 	case *parser.CreateView:
 		return "CREATE VIEW"
+	case *parser.AlterView:
+		return "ALTER VIEW"
+	case *parser.DropView:
+		return "DROP VIEW"
 	case *parser.Select:
 		if sel := stmt.(*parser.Select); sel.Locking != nil {
 			return "SELECT " + sel.Locking.Mode
@@ -311,9 +315,7 @@ func explicitUtility(stmt parser.Statement) bool {
 		return false
 	}
 	switch stmt.(type) {
-	case *parser.CreateIndex:
-		return true
-	case *parser.CreateView:
+	case *parser.CreateIndex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true

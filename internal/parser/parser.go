@@ -354,6 +354,8 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 		return l.scalarInputTree(r.Left) && (r.Right == nil || l.scalarInputTree(r.Right))
 	case PredicateExpr:
 		return l.scalarInputTree(r.Left) && (r.Right == nil || l.scalarInputTree(r.Right))
+	case CollateExpr:
+		return l.scalarInputTree(r.Child)
 	case CastExpr:
 		return l.scalarInputTree(r.Child)
 	case TimeZoneExpr:

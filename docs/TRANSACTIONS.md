@@ -364,7 +364,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid ordinary command/Prepare or SQL start after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). Selected nullability/named-NOT-NULL/DROP COLUMN/identity lists are supported. |
+| Explicit CREATE/replace/ALTER/DROP VIEW, CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). Selected nullability/named-NOT-NULL/DROP COLUMN/identity lists are supported. Read-only view utility tags are CREATE VIEW, ALTER VIEW and DROP VIEW. |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported Go isolation option | Ordinary `stuntgres: unsupported transaction isolation level`, before state change |

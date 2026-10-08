@@ -90,7 +90,7 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 	}
 }
 
-func TestViewProviderRejectsCyclicSources(t *testing.T) {
+func TestViewProviderAcceptsCyclicSources(t *testing.T) {
 	e := New()
 	for _, query := range []string{"CREATE TABLE t(id INT)", "CREATE VIEW v AS SELECT id FROM t", "CREATE VIEW w AS SELECT id FROM v"} {
 		run(t, e, query)
@@ -123,11 +123,11 @@ func TestViewProviderRejectsCyclicSources(t *testing.T) {
 	if err := stage.Replace(&replacement); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
-		t.Fatal("cyclic view source accepted")
+	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
+		t.Fatal("cyclic view source rejected", err)
 	}
 	if e.CatalogRead().state != base.state {
-		t.Fatal("failed validation published")
+		t.Fatal("validation published an uncommitted stage")
 	}
 }
 

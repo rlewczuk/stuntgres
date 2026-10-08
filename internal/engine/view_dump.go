@@ -36,7 +36,7 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	if !exists || namespace.temporary != (SessionToken{}) {
 		return 0, fmt.Errorf("stuntgres: invalid dump dependency lifetime")
 	}
-	if source.address == consumer {
+	if source.address == consumer && source.relationKind != viewRelation {
 		return 0, nil
 	}
 	return source.address.ObjectID, nil
@@ -58,8 +58,8 @@ func (h *viewDumpReady) Pop() any {
 	return value
 }
 
-// The catalog already validates acyclic view sources. This sorts only the
-// captured dump graph, without reading a possibly replaced catalog after unlock.
+// This sorts the captured dump graph, without reading a possibly replaced
+// catalog after unlock. Cyclic replacement graphs, including self edges, fail.
 func viewDumpOrder(ctx context.Context, predecessors map[OID][]OID) ([]OID, error) {
 	indegree := make(map[OID]int, len(predecessors))
 	dependents := make(map[OID][]OID, len(predecessors))

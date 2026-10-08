@@ -97,7 +97,7 @@ func TestReferenceAlterSchemaGenericAndTemporaryBoundaries(t *testing.T) {
 					source = "public.v"
 				}
 				q := "ALTER TABLE " + source + " SET SCHEMA s2"
-				if postgres {
+				if postgres || object == "v" {
 					referenceRunStep(t, p.ctx, c, r, referencePrepared(referenceExec(q, 0)))
 				} else {
 					s := referencePrepared(referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "ALTER TABLE SET SCHEMA supports ordinary tables only"}))
@@ -105,9 +105,9 @@ func TestReferenceAlterSchemaGenericAndTemporaryBoundaries(t *testing.T) {
 					referenceRunStep(t, p.ctx, c, r, s)
 				}
 			}
-			view, sequence := "public.v", "s1.free"
+			view, sequence := "s2.v", "s1.free"
 			if postgres {
-				view, sequence = "s2.v", "s2.free"
+				sequence = "s2.free"
 			}
 			referenceRunStep(t, p.ctx, c, r, referenceAlterSchemaRows("SELECT id,note FROM "+view+" ORDER BY id"))
 			sequenceProbeValue(t, p.ctx, c, "SELECT nextval('"+sequence+"')", 1000)

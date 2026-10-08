@@ -22,6 +22,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return e.executeCreateIndex(scope, stmt.(*parser.CreateIndex), count)
 	case *parser.CreateView:
 		return e.executeCreateView(scope, stmt.(*parser.CreateView), count)
+	case *parser.AlterView:
+		return e.executeAlterView(scope, stmt.(*parser.AlterView), count)
+	case *parser.DropView:
+		return e.executeDropView(scope, stmt.(*parser.DropView), count)
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
 		return e.executeSequenceDDL(scope, stmt, count)
 	case *parser.Comment:
@@ -414,7 +418,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 	}
-	scope.visibilityDemand = b.visibilitySnapshot
+	scope.visibilityDemand = scope.visibilityDemand || b.visibilitySnapshot
 	if b.query != nil {
 		scope.visibilityDemand = scope.visibilityDemand || b.query.visibilitySnapshot
 	}

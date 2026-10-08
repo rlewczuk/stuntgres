@@ -372,6 +372,7 @@ type CatalogStage struct {
 	roleRevision         uint64
 	schemaCascadeNames   []string
 	viewCascadeNames     []string
+	dependencyPath       []ObjectAddress
 }
 type PreparedCatalogPublication struct {
 	stage *CatalogStage

@@ -225,9 +225,11 @@ type StatementScope struct {
 	replacementRead        bool
 	ticket                 *relationTicket
 	lockedRef              ObjectRef
+	viewCreationNamespace  ObjectRef
 	lockedDescriptor       Descriptor
 	querySources           []queryLeaf
 	queryLocks             *queryLockContext
+	activeViews            []ObjectAddress
 	queryLockMode          relationLockMode
 	lockedStorage          *relationStorage
 	lockedIdentityOnly     bool
@@ -682,6 +684,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.ownWrites = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil
+	s.viewCreationNamespace = ObjectRef{}
 	s.lockedStorage = nil
 	s.querySources = nil
 	s.queryLocks = nil

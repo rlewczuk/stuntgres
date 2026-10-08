@@ -44,11 +44,7 @@ func TestReferenceQueryLimitViewBounds(t *testing.T) {
 			execute(referenceSelect("SELECT id FROM renamed_bounds.unlimited ORDER BY id", []string{"id"}, []string{"INT4"}, referenceLimitIDs(1, 2, 3, 4)))
 			execute(referenceSelect("SELECT id FROM renamed_bounds.empty", []string{"id"}, []string{"INT4"}, referenceLimitIDs()))
 			for _, backend := range p.backends() {
-				want := referenceDiagnostic{Code: "2BP01", Message: "cannot drop sequence renamed_s because other objects depend on it", Detail: "view dynamic depends on sequence renamed_s", Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
-				if backend.pg {
-					want.Message = "cannot drop sequence renamed_bounds.renamed_s because other objects depend on it"
-					want.Detail = "view renamed_bounds.dynamic depends on sequence renamed_bounds.renamed_s"
-				}
+				want := referenceDiagnostic{Code: "2BP01", Message: "cannot drop sequence renamed_bounds.renamed_s because other objects depend on it", Detail: "view renamed_bounds.dynamic depends on sequence renamed_bounds.renamed_s", Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 				referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceImplicitError("DROP SEQUENCE renamed_bounds.renamed_s RESTRICT", want))
 			}
 			held, err := p.memory.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, p.memoryRecord), "SELECT id FROM renamed_bounds.unlimited ORDER BY id LIMIT 2")

@@ -83,11 +83,11 @@ func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress, stage *
 	return edges
 }
 
-func dependencyObject(catalog CatalogRead, target ObjectAddress) string {
+func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAddress) string {
 	base := target
 	base.SubID = 0
 	d := catalog.state.descriptors[base].(*relationDescriptor)
-	object := relationDiagnosticKind(d) + " " + d.name
+	object := relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)
 	if target.SubID != 0 {
 		for i, attribute := range d.attributes {
 			if attribute == target.SubID {
@@ -98,7 +98,16 @@ func dependencyObject(catalog CatalogRead, target ObjectAddress) string {
 	return object
 }
 
-func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge) error {
+func dependencyRelationName(catalog CatalogRead, d *relationDescriptor, path []ObjectAddress) string {
+	// Internal provider stages have no SQL visibility context. SQL utilities
+	// supply their actual lookup path, including an empty effective path.
+	if path == nil {
+		return dependencyIdentifier(d.name)
+	}
+	return relationDiagnosticNameAt(catalog, d, path)
+}
+
+func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, views []viewDependencyEdge, defaults []defaultDependencyEdge, path []ObjectAddress) error {
 	// CHECKs have owner-local declaration identities; views use their existing
 	// relation creation addresses. Neither family takes precedence over another.
 	type dependent struct {
@@ -109,13 +118,13 @@ func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, v
 	}
 	dependents := make([]dependent, 0, len(checks)+len(views)+len(defaults))
 	for _, edge := range defaults {
-		dependents = append(dependents, dependent{edge.relation.address.ObjectID, int(edge.attribute), edge.target, edge.label() + " depends on " + dependencyObject(catalog, edge.target)})
+		dependents = append(dependents, dependent{edge.relation.address.ObjectID, int(edge.attribute), edge.target, edge.label() + " depends on " + dependencyObject(catalog, edge.target, path)})
 	}
 	for _, edge := range checks {
-		dependents = append(dependents, dependent{edge.relation.address.ObjectID, edge.check.ordinal, edge.target, "constraint " + edge.check.Name + " on table " + edge.relation.name + " depends on " + dependencyObject(catalog, edge.target)})
+		dependents = append(dependents, dependent{edge.relation.address.ObjectID, edge.check.ordinal, edge.target, "constraint " + edge.check.Name + " on table " + dependencyRelationName(catalog, edge.relation, path) + " depends on " + dependencyObject(catalog, edge.target, path)})
 	}
 	for _, edge := range views {
-		dependents = append(dependents, dependent{edge.view.address.ObjectID, 0, edge.target, "view " + edge.view.name + " depends on " + dependencyObject(catalog, edge.target)})
+		dependents = append(dependents, dependent{edge.view.address.ObjectID, 0, edge.target, "view " + dependencyRelationName(catalog, edge.view, path) + " depends on " + dependencyObject(catalog, edge.target, path)})
 	}
 	slices.SortFunc(dependents, func(a, b dependent) int {
 		if order := cmp.Compare(a.oid, b.oid); order != 0 {
@@ -127,7 +136,7 @@ func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, v
 	for i, dependent := range dependents {
 		details[i] = dependent.detail
 	}
-	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, dependents[0].target) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, dependents[0].target, path) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
 
 func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
@@ -152,7 +161,7 @@ func stageViewDependentsLocked(stage *CatalogStage, targets []ObjectAddress, mod
 		return nil
 	}
 	if mode == parser.DropRestrict {
-		return supportedRestrictError(stage.base, checks, edges, defaults)
+		return supportedRestrictError(stage.base, checks, edges, defaults, stage.dependencyPath)
 	}
 	for _, edge := range edges {
 		d := edge.view
@@ -195,7 +204,7 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 	}
 	for _, leaf := range definition.sources {
 		source, ok := v.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-		if !ok || leaf.ref.owner != v.owner.owner || leaf.ref.Epoch != v.Epoch() || leaf.ref.Address.SubID != 0 || source.address == d.address {
+		if !ok || leaf.ref.owner != v.owner.owner || leaf.ref.Epoch != v.Epoch() || leaf.ref.Address.SubID != 0 {
 			return fmt.Errorf("stuntgres: invalid view source identity")
 		}
 		namespace, ok := v.state.descriptors[source.namespace].(*namespaceDescriptor)
@@ -214,32 +223,6 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 				return fmt.Errorf("stuntgres: missing view dependency attribute")
 			}
 		}
-	}
-	active, visited := make(map[ObjectAddress]bool), make(map[ObjectAddress]bool)
-	var visit func(*relationDescriptor) error
-	visit = func(source *relationDescriptor) error {
-		if active[source.address] {
-			return fmt.Errorf("stuntgres: cyclic view source")
-		}
-		if visited[source.address] || source.view == nil {
-			return nil
-		}
-		active[source.address] = true
-		for _, leaf := range source.view.sources {
-			next, ok := v.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-			if !ok {
-				return fmt.Errorf("stuntgres: missing view source identity")
-			}
-			if err := visit(next); err != nil {
-				return err
-			}
-		}
-		delete(active, source.address)
-		visited[source.address] = true
-		return nil
-	}
-	if err := visit(d); err != nil {
-		return err
 	}
 	for _, dependency := range definition.dependencies {
 		ref := dependency.ref

@@ -40,7 +40,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
-	if old.relationKind != tableRelation {
+	if old.relationKind != tableRelation && old.relationKind != viewRelation {
 		return fail(sqlError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
 	}
 	destination, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.name}}})
@@ -78,7 +78,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 			continue
 		}
 		a := r.sequence.owned
-		if a.ClassID == old.address.ClassID && a.ObjectID == old.address.ObjectID && old.hasAttribute(a.SubID) {
+		if old.relationKind == tableRelation && a.ClassID == old.address.ClassID && a.ObjectID == old.address.ObjectID && old.hasAttribute(a.SubID) {
 			owned = append(owned, r)
 		}
 	}

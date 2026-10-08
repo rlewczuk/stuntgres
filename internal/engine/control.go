@@ -761,6 +761,8 @@ func restoreScalar(raw parser.Expr) error {
 			return restoreScalar(r.Right)
 		}
 		return nil
+	case parser.CollateExpr:
+		return restoreScalar(r.Child)
 	case parser.CastExpr:
 		return restoreScalar(r.Child)
 	case parser.TimeZoneExpr:

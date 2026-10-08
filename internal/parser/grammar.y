@@ -76,6 +76,7 @@ package parser
  indexKeys []IndexKey
  indexKey IndexKey
  createIndex *CreateIndex
+ alterView *AlterView
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -122,7 +123,7 @@ package parser
 %token <tok> CONCURRENTLY
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
-%nonassoc INTO KW_R COLLATE CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
+%nonassoc INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
 /* Predicate continuations reduce a completed cast type before consuming IS,
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
@@ -152,6 +153,7 @@ package parser
 %nonassoc '('
 %nonassoc KW_T CROSS INNER JOIN NATURAL LIKE WITH WITHOUT
 %nonassoc '='
+%left COLLATE
 %left ':'
 /* A parenthesized scalar stays on the scalar path; Boolean grouping uses
  * target_or only when a logical/comparison continuation requires it. */
@@ -167,7 +169,9 @@ package parser
 %type <returning> returning
 %type <returningAliases> returning_aliases returning_options
 %type <returningAlias> returning_option
-%type <stmt> create_view
+%type <stmt> create_view alter_view drop_view
+%type <alterView> view_alter_head
+%type <tok> replace_word
 %type <stmt> create_index
 %type <createIndex> index_head
 %type <tok> index_method
@@ -292,7 +296,7 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | create_sequence | alter_sequence | drop_sequence | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | create_sequence | alter_sequence | drop_sequence | alter_view | drop_view | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -479,12 +483,26 @@ local_setting_name: set_name { $$=$1 }
  | LOCAL { $$=settingName{first:$1} } ;
 create_table: CREATE TABLE relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$3, Elements:$5, Pos:$1.pos} }
  | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$ = &CreateTable{Name:$6, Elements:$8, Pos:$1.pos, IfNotExists:true} } ;
-create_view: CREATE VIEW relation_name view_columns view_options AS select { query,ok:=$7.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$3,Columns:$4,Options:$5,Query:query,Pos:$1.pos} } ;
+create_view: CREATE VIEW relation_name view_columns view_options AS select { query,ok:=$7.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$3,Columns:$4,Options:$5,Query:query,Pos:$1.pos} }
+ | CREATE OR replace_word VIEW relation_name view_columns view_options AS select { query,ok:=$9.(*Select); if !ok { sqllex.(*lexer).failAt("0A000","view body requires an ordinary SELECT",$1.pos.Offset); return 1 }; $$=&CreateView{Name:$5,Columns:$6,Options:$7,Query:query,Replace:true,Pos:$1.pos} } ;
+replace_word: name { if $1.text!="replace" || $1.keyword==nil {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
+view_alter_head: ALTER VIEW relation_name {$$=&AlterView{Name:$3,Pos:$1.pos}}
+ | ALTER VIEW IF EXISTS relation_name {$$=&AlterView{Name:$5,IfExists:true,Pos:$1.pos}} ;
+alter_view: view_alter_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | view_alter_head RENAME optional_column name TO name {$1.Action="column";$1.Column=Identifier{Text:$4.text,Pos:$4.pos};$1.Target=Identifier{Text:$6.text,Pos:$6.pos};$$=$1}
+ | view_alter_head OWNER TO schema_owner {$1.Action="owner";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.OwnerIdentity=$4.keyword!=nil&&$4.keyword.category==Reserved;$$=$1}
+ | view_alter_head SET SCHEMA name {$1.Action="schema";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$$=$1}
+ | view_alter_head SET '(' view_option_list ')' {$1.Action="set";$1.Options=$4;$$=$1}
+ | view_alter_head RESET '(' view_option_list ')' {$1.Action="reset";$1.Options=$4;$$=$1}
+ | view_alter_head ALTER optional_column name SET DEFAULT target_or {sqllex.(*lexer).failAt("0A000","ALTER VIEW column defaults are unsupported",$2.pos.Offset);return 1}
+ | view_alter_head ALTER optional_column name DROP DEFAULT {sqllex.(*lexer).failAt("0A000","ALTER VIEW column defaults are unsupported",$2.pos.Offset);return 1} ;
+drop_view: DROP VIEW relation_names drop_mode {$$=&DropView{Names:$3,Mode:$4,Pos:$1.pos}}
+ | DROP VIEW IF EXISTS relation_names drop_mode {$$=&DropView{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 view_columns: /* empty */ { $$=nil } | '(' view_names ')' { $$=$2 } ;
 view_names: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} } | view_names ',' name { $$=append($1,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 view_options: /* empty */ { $$=nil } | WITH '(' view_option_list ')' { $$=$3 } ;
 view_option_list: view_option { $$=[]ViewOption{$1} } | view_option_list ',' view_option { $$=append($1,$3) } ;
-view_option: name { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:"true"} } | name '=' view_option_value { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text} } ;
+view_option: name { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:"true"} } | name '=' view_option_value { $$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text,HasValue:true} } ;
 view_option_value: name | STRING | NUMBER | TRUE | FALSE | ON ;
 create: create_table { $$=$1 }
  | create_view { $$=$1 }
@@ -755,6 +773,7 @@ scalar: scalar_atom { $$=$1 }
  | '(' scalar ')' { $$=groupedQualification($2) }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
+ | scalar COLLATE relation_name %prec COLLATE { $$=CollateExpr{Child:$1,Name:$3,Pos:$2.pos} }
  | cast_function delete_or ')' { if ordinaryAggregate($1.text) {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.text=="sum" {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}}} }
  | qualified_call_head delete_or ')' { if ordinaryAggregate($1.Name) {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.Name=="sum" {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}}} }
  | cast_function delete_or ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
@@ -954,7 +973,10 @@ trim_arguments: trim_list { $$=$1 } | FROM trim_list { $$=$2 }
 truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
  | FALSE { $$=IsFalse } | NOT FALSE { $$=IsNotFalse }
  | UNKNOWN { $$=IsUnknown } | NOT UNKNOWN { $$=IsNotUnknown } ;
+/* Keep the scalar COLLATE prefix shared with its expression production. A
+ * following name continues the annotation; a clause boundary ends a bare label. */
 projection_item: projection_target %prec NAME_LIST { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{}}} }
+ | scalar COLLATE { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
  | scalar_projection bare_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
  | scalar_projection AS col_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$3.text,Pos:$3.pos}}} } ;
 projection: projection_item { $$=$1 }
@@ -1084,9 +1106,9 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | CROSS | INNER | JOIN | NATURAL | USING | CURRENT_CATALOG | SYSTEM_USER | CONCURRENTLY ;
 col_label: name | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 suffix: predicate_suffix | GROUP | HAVING ;
-predicate_suffix: LIKE | KW_T | KW_R | COLLATE | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
+predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
- | name '.' col_label { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
+ | name '.' col_label %prec NAME_LIST { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }
  | name '.' col_label '.' col_label { sqllex.(*lexer).fail("0A000","three-part relation names are unsupported"); return 1 } ;
 role_kind: ROLE { $$=false } | USER { $$=true } | GROUP { $$=false } ;

@@ -125,6 +125,16 @@ type coercionExpression struct {
 	mode  sqltype.CoercionContext
 }
 
+// COLLATE changes analyzed usage only; values retain the same type and datum.
+type collationExpression struct {
+	expressionInfo
+	child BoundExpr
+}
+
+func (e collationExpression) Eval(c *EvalContext) (sqltype.Value, error) {
+	return e.child.Eval(c)
+}
+
 func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	v, err := e.child.Eval(c)
 	if err != nil {
@@ -230,6 +240,13 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.zone = zone
 			changed = changed || zoneChanged
 		}
+		return e, changed, nil
+	case collationExpression:
+		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.child = child
 		return e, changed, nil
 	case coercionExpression:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.child, decisiveDefaults)
@@ -1066,6 +1083,19 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			}
 			node = coercionExpression{b.info(u, r.Pos, coercionProperties(node, plan)), node, plan, sqltype.Explicit}
 		}
+	case parser.CollateExpr:
+		child, err := b.bind(r.Child, policy)
+		if err != nil {
+			return nil, err
+		}
+		name := r.Name
+		name.Parts = append([]parser.Identifier(nil), name.Parts...)
+		name.Parts[0].Pos = r.Pos
+		usage, err := b.engine.resolveColumnCollation(child.ResultUsage(), &name, b.op)
+		if err != nil {
+			return nil, err
+		}
+		node = collationExpression{b.info(usage, r.Pos, child.Properties()), child}
 	case parser.CastExpr:
 		var err error
 		node, err = b.cast(r, policy)
@@ -1277,6 +1307,8 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 		return "regclass", false
 	case parser.TimeZoneExpr:
 		return "timezone", true
+	case parser.CollateExpr:
+		return expressionName(r.Child, usage)
 	case parser.CastExpr:
 		if r.Syntax == parser.FunctionCast {
 			return r.Callee, true
@@ -1466,7 +1498,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
-	case parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
+	case parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
