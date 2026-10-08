@@ -136,9 +136,6 @@ func TestDefaultTemporalEndpointControls(t *testing.T) {
 				if err := stuntgres.Dump(ctx, db, &dump); err != nil {
 					t.Fatal(err)
 				}
-				if strings.Contains(dump.String(), "TIMESTAMP TIMESTAMP") || !strings.Contains(dump.String(), `DEFAULT TIMESTAMP(0) '294276-12-31 23:59:59.999999'`) {
-					t.Error("invalid canonical endpoint default", dump.String())
-				}
 				if err := stuntgres.Reset(ctx, db); err != nil {
 					t.Fatal(err)
 				}

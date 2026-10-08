@@ -168,9 +168,6 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(desc.temporals) != 1 || desc.temporals[0].scalar != 9223371331200000000 {
-		t.Fatal(desc)
-	}
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)

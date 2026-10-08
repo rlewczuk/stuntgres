@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -160,12 +161,24 @@ func TestDeparseConstraintsReviewUnknownNullConsumerBoundary(t *testing.T) {
 			}
 		}
 	}
-	for _, expression := range []string{"'x'::unknown", "$1::unknown", "1::unknown", "CAST(NULL AS missing_schema.unknown)", "NULL::unknown(1)"} {
+	for _, tc := range []struct{ expression, code, message string }{
+		{"'x'::unknown", "0A000", "unsupported column type"},
+		{"$1::unknown", "0A000", "unsupported column type"},
+		{"1::unknown", "0A000", "unsupported column type"},
+		{"CAST(NULL AS missing_schema.unknown)", "3F000", `schema "missing_schema" does not exist`},
+	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		raw := statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
-		if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil {
-			t.Fatal("admitted concrete UNKNOWN", expression)
+		raw := statement(t, "SELECT "+tc.expression+" FROM t").(*parser.Select).Targets[0]
+		_, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		diagnostic, ok := err.(*sqlstate.Error)
+		if !ok || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
+			t.Fatal(tc.expression, err)
 		}
+	}
+	_, err := parser.Parse("SELECT NULL::unknown(1) FROM t")
+	diagnostic, ok := err.(*sqlstate.Error)
+	if !ok || diagnostic.Code != "0A000" || diagnostic.Message != "type modifiers are unsupported" || diagnostic.Position != "21" {
+		t.Fatal(err)
 	}
 }
 
@@ -224,5 +237,60 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	count, err := value.Integer()
 	if err != nil || count != 1 {
 		t.Fatal(count, err)
+	}
+}
+
+func TestDeparseConstraintsReviewTypedIntervalZoneProvider(t *testing.T) {
+	e := New()
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := statement(t, "SELECT TIMESTAMP '2026-10-08 00:00:00' AT TIME ZONE INTERVAL '02:00' HOUR TO MINUTE FROM t").(*parser.Select).Targets[0]
+	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversion := node.(timeZoneExpression)
+	if conversion.zone.ResultUsage().Type.ID() != sqltype.Interval || conversion.zone.ResultUsage().Typmod == -1 || conversion.ResultUsage().Type.ID() != sqltype.Timestamptz {
+		t.Fatal(conversion)
+	}
+	value, err := conversion.Eval(&EvalContext{Context: context.Background()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := conversion.usage.Type.Input(context.Background(), "2026-10-07 22:00:00+00", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualMicros, err := value.Timestamp()
+	expectedMicros, expectedErr := expected.Timestamp()
+	if err != nil || expectedErr != nil || actualMicros != expectedMicros {
+		t.Fatal(value, expected, err, expectedErr)
+	}
+}
+
+func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE t(id INT)")
+	run(t, e, "INSERT INTO t VALUES(1)")
+	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
+	view := e.CatalogRead().state.descriptors[roleTableRef(t, e, "v").Address].(*relationDescriptor).view
+	literal, ok := view.literals[viewLiteralPath{clause: viewTargetLiteral, target: 0, node: 0}]
+	if !ok || literal.usage.Type.ID() != sqltype.Time || literal.usage.Typmod != 3 {
+		t.Fatal(view.literals)
+	}
+	raw, err := literal.value.Time()
+	if err != nil || raw != 14706123500 {
+		t.Fatal(raw, err)
+	}
+	literal, ok = view.literals[viewLiteralPath{clause: viewTargetLiteral, target: 1, node: 1}]
+	if !ok || literal.usage.Type.ID() != sqltype.Int8 {
+		t.Fatal(view.literals)
+	}
+	number, err := literal.value.Integer()
+	if err != nil || number != 2147483648 {
+		t.Fatal(number, err)
+	}
+	rows := tuples(run(t, e, "SELECT clock=TIME '04:05:06.124' AS rounded,number FROM v"))
+	if len(rows) != 1 || len(rows[0]) != 2 || rows[0][0] != true || rows[0][1] != int64(2147483648) {
+		t.Fatal(rows)
 	}
 }

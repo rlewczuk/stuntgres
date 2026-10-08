@@ -96,6 +96,33 @@ func AtTimeZone(v Value, target *Descriptor, name string, local bool, env InputE
 			return Value{}, err
 		}
 	}
+	return atTimeZone(v, target, specification, env)
+}
+
+// AtTimeZoneInterval consumes an already analyzed interval as a fixed offset.
+// It shares the existing AT conversion body, not an interval-to-text cast.
+func AtTimeZoneInterval(v Value, target *Descriptor, zone Value, env InputEnvironment) (Value, error) {
+	if v.null || zone.null {
+		return Null(target), nil
+	}
+	if zone.typ == nil || zone.typ.id != Interval {
+		return Value{}, fmt.Errorf("invalid AT TIME ZONE interval operand")
+	}
+	if intervalInfinity(zone) != 0 || zone.months != 0 || zone.days != 0 {
+		text, err := intervalOutput(zone, env.IntervalStyle)
+		if err != nil {
+			return Value{}, err
+		}
+		reason := "must not include months or days"
+		if intervalInfinity(zone) != 0 {
+			reason = "must be finite"
+		}
+		return Value{}, failure("22023", fmt.Sprintf("interval time zone %q %s", text, reason))
+	}
+	return atTimeZone(v, target, zoneSpecification{east: int32(zone.integer / 1000000), fixed: true}, env)
+}
+
+func atTimeZone(v Value, target *Descriptor, specification zoneSpecification, env InputEnvironment) (Value, error) {
 	switch v.typ.id {
 	case Timestamp:
 		if v.integer == TimestampNegativeInfinity || v.integer == TimestampPositiveInfinity {

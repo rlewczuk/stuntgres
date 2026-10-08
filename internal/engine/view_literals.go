@@ -66,6 +66,17 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return nil
 		}
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
+		if _, typed := r.(parser.TypedLiteralExpr); typed {
+			if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
+				if literal, ok := coercion.child.(literalExpression); ok && literal.usage.Type == coercion.usage.Type {
+					// The stored query retains the executable typmod coercion.
+					// Literal replay writes its raw value with the typed occurrence's
+					// annotation, so ordinary binding reconstructs that same coercion.
+					literal.usage = coercion.usage
+					bound = literal
+				}
+			}
+		}
 		if literal, ok := bound.(literalExpression); ok {
 			if b.viewLiterals == nil {
 				b.viewLiterals = make(map[viewLiteralPath]literalExpression)
@@ -110,11 +121,11 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
 		case literalExpression:
-			// Numeric unary plus is identity in the shared binder. Retain the
-			// analyzed literal at the operand occurrence so rendering and
-			// validation traverse the same operator/child path as the syntax.
+			// Unary plus over a checked integer or numeric literal is identity.
+			// Keep the captured value at the operand occurrence, matching the
+			// syntax traversal used by validation and reconstruction.
 			if len(r.Name.Parts) == 1 && r.Name.Parts[0].Text == "+" && len(r.Args) == 1 {
-				if operand, ok := r.Args[0].(parser.LiteralExpr); ok && operand.Value.Kind == parser.NumericValue {
+				if operand, ok := r.Args[0].(parser.LiteralExpr); ok && (operand.Value.Kind == parser.NumericValue || operand.Value.Kind == parser.IntegerValue) {
 					return child(operand, n)
 				}
 			}

@@ -144,7 +144,7 @@ func deparseReviewSmoke(t *testing.T, db *sql.DB) {
 	notNullSmokeExec(t, db, false, "CREATE TABLE review_time(a TIME DEFAULT TIME(3) '12:34:56.1234')", 0)
 	for _, pretty := range []bool{false, true} {
 		var expression string
-		if err := db.QueryRow("SELECT pg_get_expr(adbin,0,$1) FROM pg_catalog.pg_attrdef WHERE adrelid='review_time'::regclass", pretty).Scan(&expression); err != nil {
+		if err := db.QueryRow("SELECT pg_get_expr(d.adbin,0,$1) FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='review_time'", pretty).Scan(&expression); err != nil {
 			t.Fatal(err)
 		}
 		if expression != "'12:34:56.1234'::time(3) without time zone" {

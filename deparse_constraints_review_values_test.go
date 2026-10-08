@@ -93,6 +93,10 @@ func deparseReviewTypedValue(t *testing.T, db *sql.DB, query, declaration, value
 			t.Fatal(err)
 		}
 		matches := reflect.DeepEqual(got, want)
+		if instant, ok := want.(time.Time); ok {
+			actual, ok := got.(time.Time)
+			matches = ok && actual.Equal(instant)
+		}
 		if number, ok := want.(float64); ok {
 			actual, ok := got.(float64)
 			matches = ok && (actual == number && math.Signbit(actual) == math.Signbit(number) || math.IsNaN(actual) && math.IsNaN(number))

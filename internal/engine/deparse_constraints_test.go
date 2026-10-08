@@ -78,7 +78,23 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 			e := New()
 			run(t, e, "CREATE SEQUENCE s")
 			run(t, e, "CREATE TABLE t(a INT,flag BOOL,n NUMERIC,CONSTRAINT c CHECK("+tc.expr+"))")
-			view := e.CatalogRead()
+			op, done, err := testOperation(e, context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer done()
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer scope.Finish(nil)
+			e.mu.Lock()
+			err = e.captureCommentSnapshotLocked(scope)
+			e.mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			view := scope.commentCatalog
 			d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
 			node := d.checkConstraints[0].expression
 			for _, pretty := range []bool{false, true} {
@@ -86,7 +102,7 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), node, 0)
+				got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: scope.deparsePath, output: scope.output, nonstandardStrings: op.nonstandardStrings}).sql(context.Background(), node, 0)
 				if err != nil || got != want {
 					t.Fatalf("pretty=%t got %q, %v; want %q", pretty, got, err, want)
 				}

@@ -149,3 +149,59 @@ func TestDeparseConstraintsReviewNumericSizingCopies(t *testing.T) {
 		rows.Close()
 	}
 }
+
+func TestDeparseConstraintsReviewIntervalZoneExecution(t *testing.T) {
+	for _, tc := range []struct{ input, message string }{
+		{"02:00", ""},
+		{"1 month", `interval time zone "1 mon" must not include months or days`},
+		{"1 day", `interval time zone "1 day" must not include months or days`},
+		{"infinity", `interval time zone "infinity" must be finite`},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			db := openLocal(t, stuntgres.NewDriver(), t.Name())
+			db.SetMaxOpenConns(1)
+			execSQL(t, db, "SET TIME ZONE 'UTC'")
+			execSQL(t, db, "SET IntervalStyle TO 'postgres'")
+			expression := "TIMESTAMP '2026-10-08 00:00:00' AT TIME ZONE INTERVAL '" + tc.input + "'"
+			execSQL(t, db, "CREATE TABLE original(a INT,CONSTRAINT c CHECK("+expression+" IS NOT NULL))")
+			for mode, pretty := range []bool{false, true} {
+				var suffix string
+				if err := db.QueryRow(fmt.Sprintf("SELECT pg_get_constraintdef(oid,%t) FROM pg_catalog.pg_constraint WHERE conname='c'", pretty)).Scan(&suffix); err != nil {
+					t.Fatal(err)
+				}
+				execSQL(t, db, fmt.Sprintf("CREATE TABLE copy%d(a INT,CONSTRAINT copied%d %s)", mode, mode, suffix))
+			}
+			for _, name := range []string{"original", "copy0", "copy1"} {
+				for _, prepared := range []bool{false, true} {
+					query := "INSERT INTO " + name + " VALUES(1)"
+					var err error
+					if prepared {
+						stmt, prepareErr := db.Prepare(query)
+						if prepareErr != nil {
+							t.Fatal(prepareErr)
+						}
+						_, err = stmt.Exec()
+						stmt.Close()
+					} else {
+						_, err = db.Exec(query)
+					}
+					if tc.message == "" {
+						if err != nil {
+							t.Fatal(err)
+						}
+					} else {
+						notNullDiagnostic(t, err, stuntgres.Error{Code: "22023", Message: tc.message})
+					}
+				}
+				count := int64(0)
+				if tc.message == "" {
+					count = 2
+				}
+				wantTuples(t, db, "SELECT COUNT(*) FROM "+name, [][]any{{count}})
+			}
+			if tc.message == "" {
+				deparseReviewTypedValue(t, db, "SELECT "+expression+" FROM original WHERE a=1 LIMIT 1", "TIMESTAMPTZ", "2026-10-07 22:00:00+00")
+			}
+		})
+	}
+}

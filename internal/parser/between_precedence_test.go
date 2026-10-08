@@ -84,3 +84,76 @@ func TestBetweenGroupedComparisonConsumption(t *testing.T) {
 		}
 	}
 }
+
+func TestGroupedPredicateFilterComparisonConsumers(t *testing.T) {
+	for _, tc := range []struct {
+		input     string
+		predicate PredicateKind
+		logical   LogicalOperator
+		isLogical bool
+	}{
+		{input: "v IS NULL", predicate: IsNull},
+		{input: "v IS NOT NULL", predicate: IsNotNull},
+		{input: "v IS TRUE", predicate: IsTrue},
+		{input: "v IS NOT TRUE", predicate: IsNotTrue},
+		{input: "v IS FALSE", predicate: IsFalse},
+		{input: "v IS NOT FALSE", predicate: IsNotFalse},
+		{input: "v IS UNKNOWN", predicate: IsUnknown},
+		{input: "v IS NOT UNKNOWN", predicate: IsNotUnknown},
+		{input: "v IS DISTINCT FROM 1", predicate: IsDistinct},
+		{input: "v IS NOT DISTINCT FROM 1", predicate: IsNotDistinct},
+		{input: "NOT (v IS NULL)", logical: LogicalNot, isLogical: true},
+		{input: "v IS NULL AND id=1", logical: LogicalAnd, isLogical: true},
+		{input: "v IS NULL OR id=1", logical: LogicalOr, isLogical: true},
+	} {
+		for _, prefix := range []string{"SELECT id FROM t WHERE ", "DELETE FROM t WHERE "} {
+			for _, right := range []bool{false, true} {
+				expression := "(" + tc.input + ")=TRUE"
+				operandIndex := 0
+				if right {
+					expression = "TRUE=(" + tc.input + ")"
+					operandIndex = 1
+				}
+				query := prefix + expression
+				statements, err := Parse(query)
+				if err != nil || len(statements) != 1 {
+					t.Fatal(query, statements, err)
+				}
+				var filter Expr
+				switch statement := statements[0].(type) {
+				case *Select:
+					filter = statement.Where
+				case *Delete:
+					filter = statement.Where
+				default:
+					t.Fatal(query, statements[0])
+				}
+				comparison, ok := filter.(OperatorExpr)
+				if !ok || len(comparison.Name.Parts) != 1 || comparison.Name.Parts[0].Text != "=" || len(comparison.Args) != 2 {
+					t.Fatal(query, filter)
+				}
+				operand := comparison.Args[operandIndex]
+				if tc.isLogical {
+					logical, ok := operand.(LogicalExpr)
+					if !ok || logical.Op != tc.logical {
+						t.Fatal(query, operand)
+					}
+				} else {
+					predicate, ok := operand.(PredicateExpr)
+					if !ok || predicate.Kind != tc.predicate {
+						t.Fatal(query, operand)
+					}
+				}
+			}
+		}
+	}
+	for _, query := range []string{
+		"DELETE FROM t WHERE id<2<3",
+		"DELETE FROM t WHERE (v IS NULL)+1=2",
+		"DELETE FROM t WHERE id BETWEEN 1<2<3 AND TRUE",
+	} {
+		if _, err := Parse(query); err == nil {
+			t.Fatal("excluded chain/arithmetic/lower bound admitted", query)
+		}
+	}
+}

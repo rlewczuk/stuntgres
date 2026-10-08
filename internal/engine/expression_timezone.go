@@ -28,6 +28,9 @@ func (e timeZoneExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		if zone.IsNull() {
 			return sqltype.Null(e.usage.Type), nil
 		}
+		if zone.Type().ID() == sqltype.Interval {
+			return sqltype.AtTimeZoneInterval(value, e.usage.Type, zone, c.Input)
+		}
 		name, err = zone.Text()
 		if err != nil {
 			return sqltype.Value{}, err

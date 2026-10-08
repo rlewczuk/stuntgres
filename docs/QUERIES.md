@@ -1646,6 +1646,11 @@ column conversions, AT LOCAL and output. Cursors retain captured presentation
 after SET/Reset/Restore. See [types](TYPES.md#time-zone-aware-values) and
 [settings](SETTINGS.md#temporal-settings) for bounded support and adapter differences.
 
+Typed INTERVAL zone operands reuse the same temporal conversion body with a
+fixed offset, without an interval-to-text conversion. Infinite intervals and
+intervals containing months or days fail at execution with22023; definition
+binding/deparsing does not evaluate these operands.
+
 Ordinary stored views admit both forms, including column-valued zone operands
 and nested conversions. The definition and analyzed temporal literals remain
 immutable; `AT LOCAL` uses each execution's captured TimeZone, not the zone used

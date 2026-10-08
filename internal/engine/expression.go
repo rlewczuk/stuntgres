@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"

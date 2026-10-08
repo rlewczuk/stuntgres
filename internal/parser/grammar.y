@@ -671,7 +671,7 @@ delete_operand: operand { $$=$1 } ;
 delete_base: delete_operand { $$=$1 }
  | '(' delete_or ')' { $$=$2 } ;
 delete_lower: delete_base { $$=$1 }
- | delete_operand comparison_operator delete_operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
+ | delete_base comparison_operator delete_base { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
  | delete_lower IS DISTINCT FROM delete_lower %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
  | delete_lower IS NOT DISTINCT FROM delete_lower %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
 delete_between: delete_base %prec IS { $$=$1 }
@@ -680,12 +680,10 @@ delete_between_predicate: delete_base BETWEEN delete_lower AND delete_base %prec
  | delete_base NOT BETWEEN delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,true,false) }
  | delete_base BETWEEN SYMMETRIC delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,false,true) }
  | delete_base NOT BETWEEN SYMMETRIC delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$5,$7,$2.pos,true,true) } ;
-/* General grouping belongs to BETWEEN values/endpoints, not to baseline
- * ordinary comparisons. Keep the real predicate as a separate category. */
+/* Match the ordinary bounded comparison consumer: grouped predicates can be
+ * operands, but comparison chains and arithmetic remain nonassociative/scalar. */
 delete_comparison: delete_between { $$=$1 }
- | delete_operand comparison_operator delete_operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
- | delete_between_predicate comparison_operator delete_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
- | delete_operand comparison_operator delete_between_predicate { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} } ;
+ | delete_between comparison_operator delete_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} } ;
 delete_target: delete_comparison { $$=$1 }
  | delete_target IS NULL %prec IS { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
  | delete_target IS NOT NULL %prec IS { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }

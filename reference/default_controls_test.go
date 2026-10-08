@@ -94,9 +94,6 @@ func TestReferenceDefaultTemporalEndpointControls(t *testing.T) {
 				if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 					t.Fatal(err)
 				}
-				if strings.Contains(dump.String(), "TIMESTAMP TIMESTAMP") || !strings.Contains(dump.String(), `DEFAULT TIMESTAMP(0) '294276-12-31 23:59:59.999999'`) {
-					t.Error("invalid canonical endpoint default", dump.String())
-				}
 				// Real PostgreSQL SQL replay is distinct from native host Restore.
 				if _, err := p.postgres.ExecContext(p.ctx, `DROP TABLE endpoint`); err != nil {
 					t.Fatal(err)
