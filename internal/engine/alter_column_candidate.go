@@ -24,10 +24,11 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	}
 	target := ref.Address
 	target.SubID = old.attributes[slot]
-	if err := stageViewDependents(stage, []ObjectAddress{target}, a.Mode); err != nil {
+	// Dependency passes must see preceding actions in this same ALTER list.
+	if err := stage.Replace(old); err != nil {
 		return nil, err
 	}
-	if err := scope.stageOwnedSequences(stage, []ObjectAddress{target}, a.Mode); err != nil {
+	if err := stageViewDependents(stage, []ObjectAddress{target}, a.Mode); err != nil {
 		return nil, err
 	}
 	next := *old
@@ -49,6 +50,31 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	for _, constraint := range old.notNullConstraints {
 		if constraint.Attribute != old.attributes[slot] {
 			next.notNullConstraints = append(next.notNullConstraints, constraint)
+		}
+	}
+	next.checkConstraints = nil
+	if len(old.checkConstraints) != 0 {
+		slots := make(map[int32]int, len(next.attributes))
+		for i, attr := range next.attributes {
+			slots[attr] = i
+		}
+		for _, c := range old.checkConstraints {
+			dependent := false
+			for _, dep := range c.dependencies {
+				if dep.ref.Address == target {
+					dependent = true
+					break
+				}
+			}
+			if dependent {
+				continue
+			}
+			expression, err := remapBoundExpression(c.expression, func(ref ObjectRef) ObjectRef { return ref }, slots)
+			if err != nil {
+				return nil, err
+			}
+			c.expression = expression
+			next.checkConstraints = append(next.checkConstraints, c)
 		}
 	}
 	if _, exists := old.defaults[old.attributes[slot]]; exists {
@@ -93,5 +119,13 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 		}
 	}
 
-	return &next, nil
+	// Publish the private shape to dependency passes before removing its AUTO
+	// sequences: CHECKs on the dropped column are already gone.
+	if err := stage.Replace(&next); err != nil {
+		return nil, err
+	}
+	if err := scope.stageOwnedSequences(stage, []ObjectAddress{target}, a.Mode); err != nil {
+		return nil, err
+	}
+	return stage.descriptors[ref.Address].(*relationDescriptor), nil
 }

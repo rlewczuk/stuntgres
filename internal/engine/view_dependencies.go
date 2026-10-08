@@ -106,6 +106,9 @@ func viewRestrictError(catalog CatalogRead, edges []viewDependencyEdge) error {
 }
 
 func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+	if err := stageCheckDependents(stage, targets, mode); err != nil {
+		return err
+	}
 	edges := viewDependencyClosure(stage.base, targets, stage)
 	if len(edges) == 0 {
 		return nil

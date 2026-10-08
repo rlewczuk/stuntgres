@@ -90,6 +90,7 @@ type relationDescriptor struct {
 	comment            string
 	columnComments     map[int32]string
 	notNullConstraints []notNullConstraint
+	checkConstraints   []checkConstraint
 	defaults           map[int32]columnDefault
 	relationKind       relationKind
 	sequence           *sequenceOptions
@@ -202,6 +203,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid relation column type")
 		}
 	}
+	if r.relationKind != tableRelation && len(r.checkConstraints) != 0 {
+		return fmt.Errorf("stuntgres: CHECK requires a table descriptor")
+	}
 	if r.relationKind == sequenceRelation {
 		if r.sequencePlanStamp == 0 || r.sequence == nil || len(r.columns) != 3 || r.columns[0].Name != "last_value" || r.columns[1].Name != "log_cnt" || r.columns[2].Name != "is_called" || r.columns[0].Usage.Type.ID() != sqltype.Int8 || r.columns[1].Usage.Type.ID() != sqltype.Int8 || r.columns[2].Usage.Type.ID() != sqltype.Bool {
 			return fmt.Errorf("stuntgres: invalid sequence descriptor")
@@ -234,6 +238,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if attrs[r.attributes[i]] != (c.NullabilityKnown && !c.Nullable) {
 			return fmt.Errorf("stuntgres: inconsistent not-null projection")
 		}
+	}
+	if err := validateChecks(v, r, names); err != nil {
+		return err
 	}
 	for attribute, definition := range r.defaults {
 		slot := -1

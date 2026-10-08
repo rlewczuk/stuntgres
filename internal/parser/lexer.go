@@ -37,6 +37,10 @@ type lexer struct {
 	genericModifier     bool
 	dateLiteralModifier bool // Distinguishes raw DATE precision from cast operands.
 	multipleModifiers   bool
+	// CHECK alone admits existing selected scalar calls as operand leaves.
+	// Depth changes only for tokens returned to yacc, never raw lookahead.
+	checkPending bool
+	checkDepth   int
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.
@@ -688,6 +692,29 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			l.syntax(token.lexeme)
 			return 0
 		}
+	}
+	if l.checkDepth > 0 && token.code == SELECTED_FUNC {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if l.err != nil {
+			return 0
+		}
+		if next.code == int('(') {
+			token.code = CHECK_FUNC
+		}
+	}
+	if l.checkDepth > 0 {
+		switch token.code {
+		case int('('):
+			l.checkDepth++
+		case int(')'):
+			l.checkDepth--
+		}
+	} else {
+		if l.checkPending && token.code == int('(') {
+			l.checkDepth = 1
+		}
+		l.checkPending = token.code == CHECK
 	}
 	l.current = token.lexeme
 	v.tok = token.lexeme

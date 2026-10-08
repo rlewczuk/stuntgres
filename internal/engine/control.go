@@ -75,8 +75,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		columnComments      map[int32]string
 		notNullConstraints  []notNullConstraint
 		defaults            map[int32]columnDefault
+		descriptor          *relationDescriptor
 	}
 	tables := make([]dumpRelation, 0)
+	catalog := CatalogRead{owner: e, state: e.state}
 	type dumpSchema struct{ name, owner string }
 	var schemas []dumpSchema
 	var sequences []dumpSequence
@@ -314,7 +316,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			e.mu.Unlock()
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
-		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults})
+		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, descriptor: r})
 	}
 	e.mu.Unlock()
 	viewOrder, err := viewDumpOrder(ctx, viewDependencies)
@@ -364,6 +366,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	sequenceCreation, sequenceCompletion := sequenceDumpStatements(sequences)
+	for _, line := range sequenceCreation {
+		if err := emit(line); err != nil {
+			return err
+		}
+	}
 	// The interpreter need not be logged in as the native bootstrap owner.
 	// Establish even the first group's owner before creating dependent objects.
 	currentOwner := ""
@@ -396,6 +404,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 						break
 					}
 				}
+			}
+		}
+		for _, c := range t.descriptor.checkConstraints {
+			text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, c.expression)
+			if err != nil {
+				return err
+			}
+			if len(t.columns) > 0 || line.Len() > len("CREATE TABLE "+qualified+" (") {
+				line.WriteString(", ")
+			}
+			line.WriteString("CONSTRAINT " + quoteIdentifier(c.Name) + " CHECK (" + text + ")")
+			if c.NoInherit {
+				line.WriteString(" NO INHERIT")
 			}
 		}
 		line.WriteString(");\n")
@@ -446,7 +467,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 		}
 	}
-	for _, line := range sequenceDumpStatements(sequences) {
+	for _, line := range sequenceCompletion {
 		if err := emit(line); err != nil {
 			return err
 		}

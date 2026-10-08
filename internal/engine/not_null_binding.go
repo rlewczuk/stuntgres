@@ -19,19 +19,26 @@ func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relat
 			for _, constraint := range relation.notNullConstraints {
 				names[constraint.Name] = true
 			}
+			for _, constraint := range relation.checkConstraints {
+				names[constraint.Name] = true
+			}
 		}
 	}
 	return names
 }
 
-func generatedNotNullName(table, column string, used map[string]bool) string {
+func generatedConstraintName(table, column, base string, used map[string]bool) string {
 	for suffix := 0; ; suffix++ {
-		label := "not_null"
+		label := base
 		if suffix != 0 {
 			label += strconv.Itoa(suffix)
 		}
 		left, right := len(table), len(column)
-		for left+right > 63-len(label)-2 {
+		separators := 1
+		if column != "" {
+			separators++
+		}
+		for left+right > 63-len(label)-separators {
 			if left > right {
 				left--
 			} else {
@@ -44,7 +51,11 @@ func generatedNotNullName(table, column string, used map[string]bool) string {
 		for right > 0 && right < len(column) && !utf8.RuneStart(column[right]) {
 			right--
 		}
-		name := table[:left] + "_" + column[:right] + "_" + label
+		name := table[:left] + "_"
+		if column != "" {
+			name += column[:right] + "_"
+		}
+		name += label
 		if !used[name] {
 			return name
 		}
@@ -71,6 +82,9 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 	var declaration createColumnDeclaration
 	seen := false
 	for _, constraint := range column.Constraints {
+		if constraint.Check != nil {
+			continue
+		}
 		if constraint.Default != nil {
 			if declaration.defaultExpr != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`multiple default values specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
@@ -170,7 +184,7 @@ func nameCreateNotNull(d *relationDescriptor, read CatalogRead) error {
 	for i := range d.notNullConstraints {
 		constraint := &d.notNullConstraints[i]
 		if constraint.Name == "" {
-			constraint.Name = generatedNotNullName(d.name, d.columns[constraint.Attribute-1].Name, used)
+			constraint.Name = generatedConstraintName(d.name, d.columns[constraint.Attribute-1].Name, "not_null", used)
 			local[constraint.Name] = false
 		} else {
 			if explicit, exists := local[constraint.Name]; exists {

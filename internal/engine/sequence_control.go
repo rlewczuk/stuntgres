@@ -112,7 +112,7 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			}
 			var defaults map[int32]columnDefault
 			for attribute, definition := range r.defaults {
-				expression, changed, err := retagDefaultTypes(definition.expression, retainedType)
+				expression, changed, err := retagBoundTypes(definition.expression, retainedType)
 				if err != nil {
 					return err
 				}
@@ -195,7 +195,7 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			mapping[a] = dest
 		}
 	}
-	if err := e.remapCatalogViews(next, mapping); err != nil {
+	if err := e.remapCatalogExpressions(next, mapping); err != nil {
 		return err
 	}
 	if len(mapping) != 0 {
@@ -215,6 +215,14 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			case *relationDescriptor:
 				n := *r
 				n.address = target
+				if target != a {
+					n.columns = append([]ColumnDescriptor(nil), r.columns...)
+					for i := range n.columns {
+						if n.columns[i].OriginTable == uint32(a.ObjectID) {
+							n.columns[i].OriginTable = uint32(target.ObjectID)
+						}
+					}
+				}
 				if dest, ok := mapping[n.namespace]; ok {
 					n.namespace = dest
 				}
@@ -306,7 +314,7 @@ type dumpSequence struct {
 	ownedTable, ownedColumn string
 }
 
-func sequenceDumpStatements(sequences []dumpSequence) []string {
+func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []string) {
 	sort.Slice(sequences, func(i, j int) bool {
 		a, b := sequences[i], sequences[j]
 		if a.owner != b.owner {
@@ -317,11 +325,13 @@ func sequenceDumpStatements(sequences []dumpSequence) []string {
 		}
 		return a.name < b.name
 	})
-	var lines []string
+	var prefix, suffix []string
 	owner := ""
 	for _, s := range sequences {
 		if owner != s.owner {
-			lines = append(lines, "SET SESSION AUTHORIZATION '"+strings.ReplaceAll(s.owner, "'", "''")+"';\n")
+			directive := "SET SESSION AUTHORIZATION '" + strings.ReplaceAll(s.owner, "'", "''") + "';\n"
+			prefix = append(prefix, directive)
+			suffix = append(suffix, directive)
 			owner = s.owner
 		}
 		name := quoteIdentifier(s.schema) + "." + quoteIdentifier(s.name)
@@ -334,16 +344,16 @@ func sequenceDumpStatements(sequences []dumpSequence) []string {
 		if s.options.cycle {
 			cycle = "CYCLE"
 		}
-		lines = append(lines, fmt.Sprintf("CREATE %sSEQUENCE %s AS %s INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s;\n", persistence, name, strings.ToUpper(typ), s.options.increment, s.options.min, s.options.max, s.options.start, s.options.cache, cycle))
+		prefix = append(prefix, fmt.Sprintf("CREATE %sSEQUENCE %s AS %s INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s;\n", persistence, name, strings.ToUpper(typ), s.options.increment, s.options.min, s.options.max, s.options.start, s.options.cache, cycle))
 		if s.ownedTable != "" {
-			lines = append(lines, "ALTER SEQUENCE "+name+" OWNED BY "+s.ownedTable+"."+quoteIdentifier(s.ownedColumn)+";\n")
+			suffix = append(suffix, "ALTER SEQUENCE "+name+" OWNED BY "+s.ownedTable+"."+quoteIdentifier(s.ownedColumn)+";\n")
 		}
 		if s.comment != "" {
-			lines = append(lines, "COMMENT ON SEQUENCE "+name+" IS "+commentLiteral(s.comment)+";\n")
+			prefix = append(prefix, "COMMENT ON SEQUENCE "+name+" IS "+commentLiteral(s.comment)+";\n")
 		}
-		lines = append(lines, fmt.Sprintf("SELECT setval('%s',%d,%t);\n", strings.ReplaceAll(name, "'", "''"), s.state.last, s.state.called))
+		suffix = append(suffix, fmt.Sprintf("SELECT setval('%s',%d,%t);\n", strings.ReplaceAll(name, "'", "''"), s.state.last, s.state.called))
 	}
-	return lines
+	return prefix, suffix
 }
 func restoreSequenceState(s *parser.Select) bool {
 	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || len(s.Targets) != 1 {

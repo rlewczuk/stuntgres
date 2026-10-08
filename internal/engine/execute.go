@@ -429,7 +429,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, err
 			}
 			b.query = &BoundQuery{Root: queryRoot}
-			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.input, scope.output)
+			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.input, scope.output, scope)
 			if queryErr != nil {
 				return Result{}, queryErr
 			}
@@ -491,6 +491,16 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if row[j].IsNull() && !c.Nullable {
 					schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 					return Result{}, notNullError(schema, b.relation.name, c.Name, row, scope.output)
+				}
+			}
+			if len(b.relation.checkConstraints) != 0 {
+				constraint, checkErr := validateCheckRow(b.relation, row, &evaluation)
+				if checkErr != nil {
+					return Result{}, checkErr
+				}
+				if constraint != nil {
+					schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
+					return Result{}, e.rowConstraintError(scope, b, schema, "", constraint.Name, row)
 				}
 			}
 		}

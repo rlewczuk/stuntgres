@@ -9,7 +9,7 @@ import (
 
 // Replacement copies the closed bound tree; source and expression identities
 // are reminted together. Syntax and frozen layouts are immutable and shared.
-func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundExpr, error) {
+func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int) (BoundExpr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -19,7 +19,7 @@ func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundEx
 			return old
 		}
 		var next BoundExpr
-		next, err = remapViewExpression(old, ref)
+		next, err = remapBoundExpression(old, ref, slots)
 		return next
 	}
 	args := func(old []BoundExpr) []BoundExpr {
@@ -47,6 +47,13 @@ func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundEx
 		next = n
 	case columnExpression:
 		n.origin = ref(n.origin)
+		if slots != nil {
+			slot, ok := slots[n.origin.Address.SubID]
+			if !ok {
+				return nil, fmt.Errorf("stuntgres: missing remapped row attribute")
+			}
+			n.slot = slot
+		}
 		next = n
 	case groupExpression:
 		next = n
@@ -99,6 +106,9 @@ func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundEx
 	case nullCountExpression:
 		n.args = args(n.args)
 		next = n
+	case randomExpression:
+		n.args = args(n.args)
+		next = n
 	case sequenceCallExpression:
 		n.ref = ref(n.ref)
 		n.args = args(n.args)
@@ -111,7 +121,7 @@ func remapViewExpression(node BoundExpr, ref func(ObjectRef) ObjectRef) (BoundEx
 		}
 		next = n
 	default:
-		return nil, fmt.Errorf("stuntgres: unpersistable view expression %T", node)
+		return nil, fmt.Errorf("stuntgres: unpersistable scalar expression %T", node)
 	}
 	return next, err
 }
@@ -138,12 +148,12 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 		if err != nil {
 			return old
 		}
-		next, _, failure := retagDefaultTypes(old, typ)
+		next, _, failure := retagBoundTypes(old, typ)
 		if failure != nil {
 			err = failure
 			return old
 		}
-		next, err = remapViewExpression(next, ref)
+		next, err = remapBoundExpression(next, ref, nil)
 		return next
 	}
 	expressions := func(old []BoundExpr) []BoundExpr {
@@ -211,7 +221,7 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 	return next, err
 }
 
-func (e *Engine) remapCatalogViews(next *catalogState, mapping map[ObjectAddress]ObjectAddress) error {
+func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectAddress]ObjectAddress) error {
 	ref := func(old ObjectRef) ObjectRef {
 		if old == (ObjectRef{}) {
 			return old
@@ -237,7 +247,32 @@ func (e *Engine) remapCatalogViews(next *catalogState, mapping map[ObjectAddress
 	}
 	for address, descriptor := range next.descriptors {
 		d, ok := descriptor.(*relationDescriptor)
-		if !ok || d.view == nil {
+		if !ok {
+			continue
+		}
+		if len(d.checkConstraints) != 0 {
+			copy := *d
+			copy.checkConstraints = append([]checkConstraint(nil), d.checkConstraints...)
+			for i := range copy.checkConstraints {
+				c := &copy.checkConstraints[i]
+				node, _, err := retagBoundTypes(c.expression, typ)
+				if err != nil {
+					return err
+				}
+				node, err = remapBoundExpression(node, ref, nil)
+				if err != nil {
+					return err
+				}
+				c.expression = node
+				c.dependencies = append([]expressionDependency(nil), c.dependencies...)
+				for j := range c.dependencies {
+					c.dependencies[j].ref = ref(c.dependencies[j].ref)
+				}
+			}
+			d = &copy
+			next.descriptors[address] = d
+		}
+		if d.view == nil {
 			continue
 		}
 		definition := *d.view
@@ -251,11 +286,11 @@ func (e *Engine) remapCatalogViews(next *catalogState, mapping map[ObjectAddress
 		if len(d.view.literals) != 0 {
 			definition.literals = make(map[viewLiteralPath]literalExpression, len(d.view.literals))
 			for path, literal := range d.view.literals {
-				node, _, err := retagDefaultTypes(literal, typ)
+				node, _, err := retagBoundTypes(literal, typ)
 				if err != nil {
 					return err
 				}
-				node, err = remapViewExpression(node, ref)
+				node, err = remapBoundExpression(node, ref, nil)
 				if err != nil {
 					return err
 				}

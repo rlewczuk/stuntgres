@@ -66,11 +66,19 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 	return defaults, nil
 }
 
-// Serialize only closed supported Immutable or Stable nodes, validating ownership
-// and dependence without Eval. Definitions are structurally immutable; their
-// evaluation may depend on the admitted INSERT environment. Assignment wrappers
-// intentionally retain deferred conversion.
+// One recursive serializer validates persisted scalar trees without Eval.
+// DEFAULT admits closed Immutable/Stable trees; CHECK admits its actual owner
+// row and existing volatile providers. Assignment wrappers keep deferred input.
+type scalarRenderer struct {
+	owner        *relationDescriptor
+	dependencies *[]ObjectRef
+}
+
 func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
+	return (scalarRenderer{}).sql(ctx, view, node)
+}
+
+func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -78,27 +86,157 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || p.Volatility > Stable || p.RowDependent || p.ParameterDependent || p.StageDependent {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (p.Volatility > Stable || p.RowDependent) || p.ParameterDependent || p.StageDependent {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	typ, ok := view.LookupType(u.Type.ID())
 	if !ok || typ != u.Type {
 		return "", fmt.Errorf("stuntgres: foreign default type")
 	}
+	r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
+	case columnExpression:
+		if r.owner == nil || n.origin.owner != view.owner.owner || n.origin.Epoch != view.Epoch() || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.columns) || r.owner.attributes[n.slot] != n.origin.Address.SubID || u != r.owner.columns[n.slot].Usage {
+			return "", fmt.Errorf("stuntgres: invalid stored row origin")
+		}
+		r.record(n.origin)
+		return quoteIdentifier(r.owner.columns[n.slot].Name), nil
+	case randomExpression:
+		if r.owner == nil {
+			return "", fmt.Errorf("stuntgres: volatile stored default")
+		}
+		argumentType := sqltype.Float8
+		valid := false
+		switch n.name {
+		case "random":
+			if len(n.args) == 0 {
+				valid = u.Type.ID() == sqltype.Float8
+			}
+			if len(n.args) == 2 {
+				argumentType = u.Type.ID()
+				valid = argumentType == sqltype.Int4 || argumentType == sqltype.Int8 || argumentType == sqltype.Numeric
+			}
+		case "random_normal":
+			valid = len(n.args) <= 2 && u.Type.ID() == sqltype.Float8
+		case "setseed":
+			valid = len(n.args) == 1 && u.Type.ID() == sqltype.Void
+		}
+		if !valid {
+			return "", fmt.Errorf("stuntgres: invalid stored random signature")
+		}
+		for _, arg := range n.args {
+			if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage().Type.ID() != argumentType {
+				return "", fmt.Errorf("stuntgres: invalid stored random argument")
+			}
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
+	case mathExpression:
+		if len(n.args) == 0 || len(n.args) > 2 {
+			return "", fmt.Errorf("stuntgres: invalid stored math arity")
+		}
+		var usages [2]sqltype.Usage
+		for i, arg := range n.args {
+			if arg == nil {
+				return "", fmt.Errorf("stuntgres: missing math operand")
+			}
+			usages[i] = arg.ResultUsage()
+		}
+		plan, err := sqltype.BindMath(n.plan.Name(), u, usages[:len(n.args)]...)
+		if err != nil || plan != n.plan {
+			return "", fmt.Errorf("stuntgres: invalid stored math provider")
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args)
+	case nullCountExpression:
+		if len(n.args) == 0 || len(n.args) > 100 || u.Type.ID() != sqltype.Int4 {
+			return "", fmt.Errorf("stuntgres: invalid stored null count signature")
+		}
+		name := "num_nulls"
+		if n.kind == countNonnulls {
+			name = "num_nonnulls"
+		} else if n.kind != countNulls {
+			return "", fmt.Errorf("stuntgres: invalid stored null count")
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
+	case currentSchemasExpression:
+		if n.arg == nil || n.arg.ResultUsage().Type == nil || n.arg.ResultUsage().Type.ID() != sqltype.Bool || u.Type.ID() != sqltype.NameArray {
+			return "", fmt.Errorf("stuntgres: invalid stored current_schemas signature")
+		}
+		return r.functionSQL(ctx, view, "pg_catalog.current_schemas", []BoundExpr{n.arg})
+	case sequenceCallExpression:
+		if r.owner == nil {
+			return "", fmt.Errorf("stuntgres: sequence calls are unsupported in stored defaults")
+		}
+		args := n.args
+		want := 1
+		switch n.name {
+		case "nextval", "currval":
+		case "lastval":
+			want = 0
+		case "setval":
+			want = 2
+		default:
+			return "", fmt.Errorf("stuntgres: invalid stored sequence function")
+		}
+		if len(args) != want && !(n.name == "setval" && len(args) == 3) || u.Type.ID() != sqltype.Int8 {
+			return "", fmt.Errorf("stuntgres: invalid stored sequence signature")
+		}
+		for i, arg := range args {
+			id := sqltype.Regclass
+			if i == 1 {
+				id = sqltype.Int8
+			}
+			if i == 2 {
+				id = sqltype.Bool
+			}
+			if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage().Type.ID() != id {
+				return "", fmt.Errorf("stuntgres: invalid stored sequence argument")
+			}
+		}
+		if n.ref != (ObjectRef{}) {
+			if len(args) == 0 {
+				return "", fmt.Errorf("stuntgres: stored sequence identity lacks argument")
+			}
+			if _, err := r.sql(ctx, view, args[0]); err != nil {
+				return "", err
+			}
+			target, ok := view.Descriptor(n.ref.Address)
+			if !ok || n.ref.owner != view.owner.owner || n.ref.Epoch != view.Epoch() {
+				return "", fmt.Errorf("stuntgres: invalid stored sequence reference")
+			}
+			sequence, ok := target.(*relationDescriptor)
+			if !ok || sequence.relationKind != sequenceRelation {
+				return "", fmt.Errorf("stuntgres: invalid stored sequence target")
+			}
+			r.record(n.ref)
+			namespace, ok := view.Descriptor(sequence.namespace)
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing stored sequence namespace")
+			}
+			name := quoteIdentifier(namespace.Name()) + "." + quoteIdentifier(sequence.name)
+			parts := []string{"CAST('" + strings.ReplaceAll(name, "'", "''") + "' AS regclass)"}
+			for _, arg := range args[1:] {
+				text, err := r.sql(ctx, view, arg)
+				if err != nil {
+					return "", err
+				}
+				parts = append(parts, text)
+			}
+			return "pg_catalog." + n.name + "(" + strings.Join(parts, ", ") + ")", nil
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.name, args)
 	case caseExpression, conditionalExpression:
-		return conditionalDefaultSQL(ctx, view, node)
+		return r.conditionalSQL(ctx, view, node)
 	case literalExpression:
 		return literalSQL(ctx, n)
 	case timeZoneExpression:
-		value, err := defaultSQL(ctx, view, n.value)
+		value, err := r.sql(ctx, view, n.value)
 		if err != nil {
 			return "", err
 		}
 		if n.local {
 			return "(" + value + " AT LOCAL)", nil
 		}
-		zone, err := defaultSQL(ctx, view, n.zone)
+		zone, err := r.sql(ctx, view, n.zone)
 		if err != nil {
 			return "", err
 		}
@@ -116,7 +254,7 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		if err != nil || plan != n.plan {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
-		child, err := defaultSQL(ctx, view, n.child)
+		child, err := r.sql(ctx, view, n.child)
 		if err != nil || n.mode != sqltype.Explicit {
 			return child, err
 		}
@@ -157,7 +295,7 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			operator = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + operator + ")"
 		}
 		operandSQL := func(child BoundExpr) (string, error) {
-			text, err := defaultSQL(ctx, view, child)
+			text, err := r.sql(ctx, view, child)
 			if err != nil {
 				return "", err
 			}
@@ -210,7 +348,7 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 			operator = "OPERATOR(" + quoteIdentifier(n.namespace) + "." + operator + ")"
 		}
 		operandSQL := func(child BoundExpr) (string, error) {
-			text, err := defaultSQL(ctx, view, child)
+			text, err := r.sql(ctx, view, child)
 			if err != nil {
 				return "", err
 			}
@@ -262,11 +400,11 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		if err != nil || predicate != n.predicate {
 			return "", fmt.Errorf("stuntgres: invalid default predicate binding")
 		}
-		left, err := defaultComparisonOperandSQL(ctx, view, n.left)
+		left, err := r.comparisonOperandSQL(ctx, view, n.left)
 		if err != nil {
 			return "", err
 		}
-		right, err := defaultComparisonOperandSQL(ctx, view, n.right)
+		right, err := r.comparisonOperandSQL(ctx, view, n.right)
 		if err != nil {
 			return "", err
 		}
@@ -279,7 +417,7 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		if u.Type.ID() != sqltype.Bool || n.child == nil {
 			return "", fmt.Errorf("stuntgres: invalid default null test")
 		}
-		child, err := defaultSQL(ctx, view, n.child)
+		child, err := r.sql(ctx, view, n.child)
 		if err != nil {
 			return "", err
 		}
@@ -303,7 +441,7 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default truth value")
 		}
-		child, err := defaultSQL(ctx, view, n.child)
+		child, err := r.sql(ctx, view, n.child)
 		if err != nil {
 			return "", err
 		}
@@ -320,11 +458,11 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		if err != nil || predicate != n.equality {
 			return "", fmt.Errorf("stuntgres: invalid default distinct binding")
 		}
-		left, err := defaultSQL(ctx, view, n.left)
+		left, err := r.sql(ctx, view, n.left)
 		if err != nil {
 			return "", err
 		}
-		right, err := defaultSQL(ctx, view, n.right)
+		right, err := r.sql(ctx, view, n.right)
 		if err != nil {
 			return "", err
 		}
@@ -337,14 +475,14 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.left.ResultUsage().Type.ID() != sqltype.Bool || n.op == parser.LogicalNot && n.right != nil || n.op != parser.LogicalNot && (n.right == nil || n.right.ResultUsage().Type.ID() != sqltype.Bool) {
 			return "", fmt.Errorf("stuntgres: invalid default logical binding")
 		}
-		left, err := defaultSQL(ctx, view, n.left)
+		left, err := r.sql(ctx, view, n.left)
 		if err != nil {
 			return "", err
 		}
 		if n.op == parser.LogicalNot {
 			return "(NOT " + left + ")", nil
 		}
-		right, err := defaultSQL(ctx, view, n.right)
+		right, err := r.sql(ctx, view, n.right)
 		if err != nil {
 			return "", err
 		}
@@ -360,12 +498,36 @@ func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, 
 	}
 }
 
+func (r scalarRenderer) functionSQL(ctx context.Context, view CatalogRead, name string, args []BoundExpr) (string, error) {
+	parts := make([]string, len(args))
+	for i, arg := range args {
+		text, err := r.sql(ctx, view, arg)
+		if err != nil {
+			return "", err
+		}
+		parts[i] = text
+	}
+	return name + "(" + strings.Join(parts, ", ") + ")", nil
+}
+
+func (r scalarRenderer) record(ref ObjectRef) {
+	if r.dependencies == nil {
+		return
+	}
+	for _, old := range *r.dependencies {
+		if old == ref {
+			return
+		}
+	}
+	*r.dependencies = append(*r.dependencies, ref)
+}
+
 // Grouped predicate operands arise from BETWEEN lowering, but ordinary
 // comparisons intentionally retain scalar-only operands in the replay grammar.
 // CASE is the existing scalar identity bridge; serialize/validate its child
 // first, without evaluating the stored default or widening the grammar.
-func defaultComparisonOperandSQL(ctx context.Context, view CatalogRead, child BoundExpr) (string, error) {
-	text, err := defaultSQL(ctx, view, child)
+func (r scalarRenderer) comparisonOperandSQL(ctx context.Context, view CatalogRead, child BoundExpr) (string, error) {
+	text, err := r.sql(ctx, view, child)
 	if err != nil {
 		return "", err
 	}
@@ -381,10 +543,10 @@ func predicateOperandSQL(text string) string {
 	return "(CASE WHEN TRUE THEN " + text + " END)"
 }
 
-// Replacement can retain TEMP sequence builtin generations. Rebind only the
-// closed stored-default repertoire to those types, without evaluating it or
-// changing its captured values, SQL, positions, or expression properties.
-func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor) (BoundExpr, bool, error) {
+// Replacement can retain TEMP sequence builtin generations. Rebind persisted
+// scalar trees to those types without evaluating them or changing captured
+// values, positions or expression properties.
+func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor) (BoundExpr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -399,12 +561,28 @@ func retagDefaultTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *s
 		}
 		var next BoundExpr
 		var replaced bool
-		next, replaced, err = retagDefaultTypes(old, retainedType)
+		next, replaced, err = retagBoundTypes(old, retainedType)
 		changed = changed || replaced
 		return next
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case randomExpression:
+		var args []BoundExpr
+		for i, old := range n.args {
+			next := child(old)
+			if changed && args == nil {
+				args = append([]BoundExpr(nil), n.args...)
+			}
+			if args != nil {
+				args[i] = next
+			}
+		}
+		if args != nil {
+			n.args = args
+		}
+		n.expressionInfo = info
+		rebound = n
 	case columnExpression:
 		n.expressionInfo = info
 		rebound = n

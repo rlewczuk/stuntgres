@@ -10,6 +10,15 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+CREATE TABLE supports named and unnamed column/table CHECK constraints, including
+`NO INHERIT`. Constraints see the completed new row after defaults/coercions:
+TRUE and NULL pass; FALSE rejects INSERT/UPDATE with PostgreSQL-style `23514`
+constraint identity and privilege-filtered failing-row details. A late failure
+rolls back all row writes in the statement. Definitions survive native
+Dump/Restore and column/table rename; CHECK does not change declared nullability.
+See [CHECK constraints](docs/TABLES.md#check-constraints--change-note).
+Feature smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
+
 Time-zone-aware `TIMESTAMPTZ` and `TIMETZ` values support per-physical-session
 TimeZone/DateStyle, named IANA zones, abbreviations, fixed offsets and
 `AT TIME ZONE` / `AT LOCAL`. Timestamptz stores an instant; timetz retains

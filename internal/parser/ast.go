@@ -38,6 +38,7 @@ type Column struct {
 type ColumnConstraint struct {
 	NotNull bool
 	Default Expr
+	Check   *CheckConstraint
 	Name    Identifier
 	Pos     Position
 }
@@ -46,6 +47,13 @@ type NotNullConstraint struct {
 	Column Identifier
 	Name   Identifier
 	Pos    Position
+}
+
+type CheckConstraint struct {
+	Name       Identifier
+	Expression Expr
+	NoInherit  bool
+	Pos        Position
 }
 type CreateTable struct {
 	Name        ObjectName
@@ -142,6 +150,7 @@ type TableElement struct {
 	Column  *Column
 	Like    *TableLike
 	NotNull *NotNullConstraint
+	Check   *CheckConstraint
 	Pos     Position
 }
 

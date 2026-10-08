@@ -279,7 +279,7 @@ func valuesColumnDistance(name string, key, left, right []int, limit int) int {
 
 // evaluateInsertQuery owns the source pin and all destination rows. Evaluation
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
-func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) ([][]sqltype.Value, error) {
+func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) ([][]sqltype.Value, error) {
 	defer source.close()
 	project, ok := b.query.Root.(*projectNode)
 	if !ok {
@@ -290,10 +290,10 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 	if err != nil {
 		return nil, err
 	}
-	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output)
+	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope)
 }
 
-func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (rows [][]sqltype.Value, err error) {
+func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (rows [][]sqltype.Value, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()
@@ -314,7 +314,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		rows = make([][]sqltype.Value, 0)
 	}
 	scratch := make([]sqltype.Value, len(b.targets))
-	evaluation := EvalContext{Context: ctx, Input: input, Output: output}
+	evaluation := EvalContext{Context: ctx, Input: input, Output: output, statementScope: scope}
 	for count < 0 || len(rows) < count {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -350,6 +350,18 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			}
 			if row[j].IsNull() && !c.Nullable {
 				return nil, notNullError(schema, b.relation.name, c.Name, row, output)
+			}
+		}
+		if len(b.relation.checkConstraints) != 0 {
+			constraint, checkErr := validateCheckRow(b.relation, row, &evaluation)
+			if checkErr != nil {
+				return nil, checkErr
+			}
+			if constraint != nil {
+				if scope == nil {
+					return nil, fmt.Errorf("stuntgres: CHECK disclosure requires statement authority")
+				}
+				return nil, scope.op.session.token.owner.rowConstraintError(scope, b, schema, "", constraint.Name, row)
 			}
 		}
 		rows = append(rows, row)

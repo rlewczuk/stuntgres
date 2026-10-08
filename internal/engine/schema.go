@@ -88,6 +88,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := nameCreateNotNull(d, auth.catalog); err != nil {
 		return err
 	}
+	if err := e.bindCreateChecks(op, auth, s, d, input); err != nil {
+		return err
+	}
 	// PostgreSQL resolves raw column modifiers again while building the
 	// relation descriptor, without a parser state/source position.
 	for _, element := range s.Elements {

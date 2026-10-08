@@ -335,15 +335,15 @@ INSERT binder, preserving names/data/nullability/ownership/comments; failed
 declarations or NULL insertion preserve the target. Explicit-ACL Dump rejection
 and ordinary context/I/O errors are unchanged.
 
-Inheritance has no native hierarchy/merge mechanism; NOT VALID/VALIDATE/NO
-INHERIT have no native deferred validation or hierarchy flags. They are explicit
-`0A000` boundaries, not successful no-ops. Scalar UPDATE enforces NOT NULL.
+Inheritance has no native hierarchy/merge mechanism; NOT NULL's NOT VALID,
+VALIDATE and NO INHERIT remain explicit boundaries, not successful no-ops.
+Scalar UPDATE enforces NOT NULL and CHECK after destination coercion.
 Native failure-only INHERITS recognition accepts one complete parent list after
 either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
 unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
-CHECK, primary keys, domains and unrelated ALTER actions remain excluded.
+Primary keys, domains and unrelated ALTER actions remain excluded.
 Selected ALTER COLUMN SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
 DROP COLUMN compose atomic comma-separated lists in implicit and explicit
 transactions. PostgreSQL pass order is DROP, original SET, transformed ADD;
@@ -352,7 +352,8 @@ NULL scans include own writes/deletions even in RR; ordinary RR queries retain
 their snapshot. Savepoints restore private descriptors, projected row shapes and
 own DML together. Pure nullability changes never rewrite stored values.
 PostgreSQL-only tests still witness inherited OR nullability, inherited-drop
-rejection, NO INHERIT, CHECK unknown acceptance and deferred validation.
+rejection, NOT NULL NO INHERIT and deferred validation. CHECK unknown acceptance
+and UPDATE enforcement are shared native/reference witnesses.
 
 Public feature smokes:
 
@@ -398,10 +399,10 @@ named NOT NULL constraints, never ALTER history. Reset/Restore round trips value
 metadata and comments through existing native controls; explicit ACL serialization
 remains rejected rather than silently losing grants. These are process-local
 controls, not pg_dump, physical storage durability or network protocol support.
-Views, foreign keys, indexes, CHECKs, row types and inheritance have no native
-stored-definition descriptors; PostgreSQL reference witnesses exercise view/FK
-dependency preservation, hierarchy and transactional DDL separately. Native
-explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
+Foreign keys, indexes, row types and inheritance have no native stored-definition
+descriptors. CHECK and supported views have real descriptors/dependencies;
+PostgreSQL-only witnesses cover unsupported FK/hierarchy/transactional DDL.
+Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
 
 ```sh
 make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1
@@ -439,18 +440,15 @@ Missing expression-column diagnostics interpolate decoded quoted identifiers
 literally, including embedded quotes/backslashes, with character-based positions
 when direct or retained/new prepared queries rebind after DROP.
 
-The actual supported dependent set is named NOT NULL constraints, column ACL
-payload and column comments. DROP removes exactly the selected attribute's
-constraint and comment, retaining
-table and survivor comments keyed by stable attribute IDs. Canonical Dump emits
-survivor comments by column name; Reset/Restore preserves those comments even
-though the restored declaration has fresh dense attribute IDs.
-There are no native index, CHECK, FK, view or hierarchy descriptors and no external
-inbound definition dependencies. Thus native RESTRICT/default and CASCADE remove
-the same selected column only, preserving independent tables and LIKE clones.
-Real PostgreSQL-only tests witness automatic local constraint/index removal,
-external RESTRICT failure/CASCADE closure, inheritance and partition behavior;
-these are not advertised as native capabilities.
+The supported dependent set includes named NOT NULL constraints, defaults,
+column ACL/comments, owner-local CHECKs and supported view dependencies.
+DROP removes local CHECKs referencing the selected stable attribute under both
+RESTRICT and CASCADE, while survivor expressions retain attributes and remap
+dense evaluation slots. Independent columns/tables and plain LIKE clones survive.
+Supported inbound view dependencies retain the existing RESTRICT/CASCADE policy.
+Canonical Dump renders current names and survivor metadata; Reset/Restore
+preserves definitions/data even though replay allocates fresh attribute IDs.
+Indexes, FK, inheritance and partition dependencies remain unsupported.
 
 Missing columns fail `42703`, `column "missing" of relation "t" does not exist`;
 IF EXISTS emits a `00000` NOTICE ending `, skipping` with no descriptor or row
@@ -496,3 +494,55 @@ go test -count=1 -v -run '^TestCatalogDrop' ./internal/engine
 go test -tags reference -count=1 -v -run '^TestReferenceTableCore' ./reference
 go test -count=1 -v -run '^TestTableCoreSmoke$' ./smoke
 ```
+
+## CHECK constraints — change note
+
+```sql
+CREATE TABLE checked (
+  a INT DEFAULT 1 CONSTRAINT only_one CHECK (a=1) NO INHERIT,
+  b INT,
+  CONSTRAINT ordered CHECK (a<b)
+);
+```
+
+Column/table CHECKs bind the complete new row, including later columns.
+`a`, `checked.a` and `public.checked.a` resolve the same stable attribute.
+Every supported scalar expression uses the existing binder and providers.
+TRUE or NULL passes; FALSE rejects with `23514`, the table/constraint identity
+and PostgreSQL English failing-row Detail. CHECK does not declare NOT NULL:
+`CHECK (a IS NOT NULL)` still leaves Nullable metadata true.
+
+NOT NULL runs first, then CHECKs in alphabetical constraint-name order.
+All INSERT routes and UPDATE enforce after defaults/coercions and completed
+simultaneous assignments, before publishing any row write. Failed multirow
+statements retain original rows and consume the existing transaction abort/
+savepoint policy. Supported volatile scalar effects are evaluated once when
+reached and are not rewound by row-write rollback.
+
+Names use distinct referenced columns rather than syntactic placement:
+one attribute yields `table_column_check`, otherwise `table_check`, with
+namespace-aware suffixing and UTF8-safe63-byte clipping. Names remain unchanged
+on rename. Named table clauses, actual scalar trees and NO INHERIT survive
+native Dump/Restore; NO INHERIT enforces locally without adding inheritance.
+DROP CONSTRAINT removes a CHECK. DROP COLUMN removes local dependent CHECKs
+and remaps survivors. Plain LIKE copies shape/NOT NULL, not CHECK.
+CHECK removal composes with the selected atomic ALTER action lists. Inside an
+explicit transaction, successful removal and column compaction affect only the
+private descriptor/row roots until Commit; Rollback and savepoints restore
+CHECK enforcement together with the original layout and DML. Peer operations
+retain the existing ACCESS EXCLUSIVE wait rules.
+Sequence CREATE/options precede table definitions in Dump so CHECK bindings can
+resolve real providers; ownership and captured setval follow table data.
+Restore genuinely reevaluates volatile CHECKs while inserting staged rows.
+History-dependent conditions may therefore reject Restore, preserving the
+destination; no CHECK bypass or fake sequence identity is used.
+
+Parameters/aggregate/outside-row references fail before table publication.
+ctid/xmin/cmin/xmax/cmax are forbidden CHECK system references; PostgreSQL permits
+tableoid but native system-column projection remains outside this surface.
+Subqueries/windows/SRFs, other CHECK modifiers, inheritance, ALTER ADD CHECK
+and VALIDATE are not supported. The shared row validator is available to later
+existing-data validation work; this change does not implement that traversal.
+
+Public feature smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
+

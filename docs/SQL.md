@@ -6,6 +6,8 @@ Detailed contracts are grouped by topic:
 
 - [Queries and data manipulation](QUERIES.md): INSERT, DELETE, UPDATE, SELECT, expressions and casts.
 - [Table definitions and comments](TABLES.md): defaults, constraints, renames and column removal.
+  CHECK supports complete-row TRUE/NULL acceptance, false-only INSERT/UPDATE
+  rejection, named identity, local NO INHERIT and real native-control persistence.
 - [SQL types and Go values](TYPES.md): codecs, metadata and adapter differences.
 - [Identifiers and literals](LEXICAL.md): names, strings and numeric syntax.
 - [Roles, authorization and schemas](AUTHORIZATION.md): ownership, schema lookup and search path.
@@ -17,8 +19,9 @@ The grammar summary below is an overview; the topic guides and [dialect limits](
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
 CREATE VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
-element := column type [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression]...
-         | [CONSTRAINT name] NOT NULL column | LIKE [schema.]source
+element := column type [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression | check_constraint]...
+         | [CONSTRAINT name] NOT NULL column | check_constraint | LIKE [schema.]source
+check_constraint := [CONSTRAINT name] CHECK (scalar_expression) [NO INHERIT]
 DROP TABLE [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 COMMENT ON TABLE [schema.]name IS string_literal | NULL
 COMMENT ON COLUMN [schema.]table.column IS string_literal | NULL
@@ -564,8 +567,9 @@ authority, coherent multi-literal groups and native temp-only replacement.
 Database-qualified relation names, temporary tables (TEMP sequences are supported),
 outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
-constraints beyond nullability/defaults, serial/identity, ALTER DEFAULT, primary
-keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
+constraints beyond nullability/defaults/CHECK, ALTER ADD CHECK/VALIDATE,
+serial/identity, ALTER DEFAULT, primary keys,
+UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
 INSERT/UPDATE RETURNING, whole-row RETURNING records/scalar subqueries,
 general COLLATE, two-phase commit, transactional table/schema/view
 DDL or non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe

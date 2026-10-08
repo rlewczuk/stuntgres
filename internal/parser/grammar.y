@@ -15,6 +15,7 @@ package parser
  constraints []ColumnConstraint
  constraint ColumnConstraint
  notNull *NotNullConstraint
+ check *CheckConstraint
  alterTarget alterTarget
  alterActions []AlterTableAction
  alterAction AlterTableAction
@@ -97,6 +98,8 @@ package parser
 %token <tok> COMMENT COLUMN IS
 %token <tok> ISNULL NOTNULL DISTINCT UNKNOWN
 %token <tok> CONSTRAINT ADD INHERITS
+%token <tok> CHECK
+%token <tok> CHECK_FUNC
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
@@ -154,6 +157,7 @@ package parser
 %type <col> column
 %type <elements> elements optional_elements
 %type <element> element
+%type <check> check_constraint
 %type <likeOptions> like_options
 %type <likeOption> like_option
 %type <tok> like_option_name
@@ -441,11 +445,16 @@ optional_elements: /* empty */ { $$=nil } | elements { $$=$1 } ;
 elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($1,$3) } ;
 element: column { c:=$1; $$=TableElement{Column:&c,Pos:c.Pos} }
  | LIKE relation_name like_options { $$=TableElement{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos} }
- | table_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} } ;
+ | table_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} }
+ | check_constraint { $$=TableElement{Check:$1,Pos:$1.Pos} } ;
 table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} }
  | table_not_null NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
  | table_not_null NO nn_inherit { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 } ;
+check_constraint: CHECK '(' scalar_projection ')' { $$=&CheckConstraint{Expression:$3,Pos:$1.pos} }
+ | CONSTRAINT name CHECK '(' scalar_projection ')' { $$=&CheckConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Expression:$5,Pos:$3.pos} }
+ | CHECK '(' scalar_projection ')' NO nn_inherit { $$=&CheckConstraint{Expression:$3,NoInherit:true,Pos:$1.pos} }
+ | CONSTRAINT name CHECK '(' scalar_projection ')' NO nn_inherit { $$=&CheckConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Expression:$5,NoInherit:true,Pos:$3.pos} } ;
 like_options: /* empty */ { $$=nil } | like_options like_option { $$=append($1,$2) } ;
 like_option: INCLUDING like_option_name { $$=LikeOption{Name:$2.text,Including:true,Pos:$1.pos} }
  | EXCLUDING like_option_name { $$=LikeOption{Name:$2.text,Pos:$1.pos} } ;
@@ -555,7 +564,7 @@ nullability: /* empty */ { $$ = nil }
 /* Modifiers require a preceding constraint, never an empty nullability list. */
 column_constraints: column_constraint { $$=[]ColumnConstraint{$1} }
  | column_constraints column_constraint { $$=append($1,$2) }
- | column_constraints NO nn_inherit { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
+ | column_constraints NO nn_inherit { if $1[len($1)-1].Check!=nil {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
  | column_constraints NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 } ;
 column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
@@ -563,6 +572,7 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | DEFAULT default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
  | CONSTRAINT name DEFAULT default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
+ | check_constraint { $$=ColumnConstraint{Check:$1,Pos:$1.Pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
@@ -700,7 +710,9 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} }
  | conditional { $$=$1 }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
- | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} } ;
+ | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} }
+ | CHECK_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' CHECK_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} } ;
 conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$3,Else:$4,Pos:$1.pos} }
  | COALESCE '(' conditional_args ')' { $$=ConditionalExpr{Kind:Coalesce,Args:$3,Pos:$1.pos} }
  | GREATEST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Greatest,Args:$3,Pos:$1.pos} }
@@ -901,7 +913,7 @@ type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE 
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | KW_U | KW_C | KW_T | KW_R | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR ;
+generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | KW_U | KW_C | KW_T | KW_R | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */
@@ -912,10 +924,10 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
- | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | DISTINCT
+ | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | USING ;
-col_label: name | RETURNING | VARIADIC | LIKE | KW_T | KW_R | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
+col_label: name | RETURNING | VARIADIC | LIKE | KW_T | KW_R | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

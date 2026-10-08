@@ -9,9 +9,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func conditionalDefaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
+func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
 	operand := func(child BoundExpr) (string, error) {
-		text, err := defaultSQL(ctx, view, child)
+		text, err := r.sql(ctx, view, child)
 		if err != nil {
 			return "", err
 		}

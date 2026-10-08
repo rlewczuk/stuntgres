@@ -60,12 +60,12 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	for _, expression := range project.expressions {
 		original := expression.(timeZoneExpression)
 		before := original
-		mapped, err := remapViewExpression(original, func(ref ObjectRef) ObjectRef {
+		mapped, err := remapBoundExpression(original, func(ref ObjectRef) ObjectRef {
 			if ref != (ObjectRef{}) {
 				ref.Address.ObjectID += 1000
 			}
 			return ref
-		})
+		}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

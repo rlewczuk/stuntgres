@@ -1195,8 +1195,9 @@ and int32 ScanType. Retained snapshots keep the original metadata/values.
 Dump captures and emits quoted named NOT NULL declarations, generated names
 included. Restore uses common isolated CREATE/INSERT binding and atomic target
 replacement. Scalar UPDATE uses existing expressions, destination coercions and
-NOT NULL enforcement (see below). Inheritance and NOT VALID/VALIDATE/NO INHERIT
-remain explicit native0A000 boundaries with real PostgreSQL-only witnesses.
+NOT NULL and CHECK enforcement (see below). Inheritance and NOT NULL's
+NOT VALID/VALIDATE/NO INHERIT remain explicit native0A000 boundaries with real
+PostgreSQL-only witnesses.
 Selected nullability/named-NOT-NULL actions and existing DROP COLUMN compose
 comma-separated atomic lists, including explicit transactions and savepoints.
 Same-session metadata and DML see successful private definitions; rollback
@@ -1219,8 +1220,9 @@ Successful statement authorization is retained through Commit despite later
 role-catalog revisions or internal actor changes, without reauthorizing table
 ownership. Native SET ROLE and transactional SESSION AUTHORIZATION remain
 excluded; PostgreSQL's SET ROLE lifetime witness is an independent control.
-CHECK/PK/domains and unrelated ALTER actions/transactional DDL remain excluded,
-never successful no-ops.
+PK/domains and unrelated ALTER actions/transactional DDL remain excluded,
+never successful no-ops. CHECK CREATE/enforcement and DROP CONSTRAINT are
+supported; ALTER ADD CHECK/VALIDATE remains excluded.
 Post-drop Dump/Restore captures nullable declarations, remaining NOT NULL
 identities, rows, defaults/comments and owned-sequence state/associations; it
 does not replay ALTER history or add ALTER to the Restore whitelist. Physical
@@ -1233,6 +1235,45 @@ CREATE TABLE form; qualified/quoted/multiple parents and IF NOT EXISTS remain
 input is42601; script prefixes do not execute on these full-input rejections.
 
 Public smoke: `make smoke RUN='^Test(NotNull(Smoke|ControlsSmoke)|DropNotNullSystemColumnSmoke|DropConstraintOwnedSequenceSmoke)$' VERBOSE=0`.
+
+### CHECK constraints — change note
+
+CREATE TABLE admits ordered column/table `[CONSTRAINT name] CHECK (expression)`
+with optional `NO INHERIT`. The complete destination row is bound before
+publication, so references to later columns and current table/schema qualifiers
+work. Existing scalar expressions, including supported volatile functions, use
+the ordinary typed binder/providers. Definition binding and Dump do not invoke
+providers. Parameters, aggregates and outside-row references are forbidden.
+ctid/xmin/cmin/xmax/cmax report CHECK-specific42P10; tableoid is PostgreSQL's
+exception but remains undefined in the native ordinary system-column surface.
+Subquery/window/SRF grammar, other CHECK modifiers, inheritance and ALTER
+ADD CHECK/VALIDATE are not added.
+
+After defaults/coercions and NOT NULL, the shared completed-row validator admits
+TRUE/NULL and rejects FALSE with23514, actual Schema/Table/Constraint and
+privilege-filtered physical-order failing-row Detail. All VALUES/default/query
+INSERT and simultaneous UPDATE routes stage a whole successful batch before
+publication. Sequence/random/session effects retain their existing
+nontransactional semantics; row rollback does not rewind them.
+
+Automatic names use distinct referenced attributes (`table_column_check` for
+one, `table_check` otherwise), UTF8-safe63-byte clipping and current-command
+suffixes. Explicit identities remain relation-local; generated identities avoid
+existing namespace constraints. CHECKs enforce in alphabetical name order.
+Current-command CHECK duplicates are42710; initial CHECK/NOT NULL name collisions
+are pinned18.0's23505 pg_constraint unique-key diagnostic, with the actual newly
+allocated relation OID, not a fixed allocator value. NO INHERIT persists and
+enforces locally; it does not enable native inheritance.
+
+Dump/Restore retains named typed CHECK definitions, data and NO INHERIT.
+Renames preserve names and render current attribute spellings. DROP CONSTRAINT
+removes enforcement; DROP COLUMN automatically removes owner-local dependent
+CHECKs and remaps surviving dense slots. Plain LIKE does not copy CHECK.
+Supported sequence dependencies participate in existing RESTRICT/CASCADE
+metadata staging. CHECK alone never changes known Nullable metadata.
+
+Public smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
+
 
 
 Standalone ALTER TABLE RENAME [COLUMN] old TO new and RENAME TO new support

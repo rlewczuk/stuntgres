@@ -93,7 +93,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 		}
 	}
-	if next == old || len(next.columns) == len(old.columns) && slices.Equal(next.notNullConstraints, old.notNullConstraints) {
+	if next == old || len(next.columns) == len(old.columns) && slices.Equal(next.notNullConstraints, old.notNullConstraints) && len(next.checkConstraints) == len(old.checkConstraints) {
 		return Result{}, nil
 	}
 	if old.revision == DefinitionRevision(^uint64(0)) {
@@ -261,6 +261,18 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 				break
 			}
 		}
+		for _, c := range old.checkConstraints {
+			if c.Name == a.Constraint.Text {
+				next := *old
+				next.checkConstraints = make([]checkConstraint, 0, len(old.checkConstraints)-1)
+				for _, constraint := range old.checkConstraints {
+					if constraint.Name != a.Constraint.Text {
+						next.checkConstraints = append(next.checkConstraints, constraint)
+					}
+				}
+				return &next, nil
+			}
+		}
 		if slot < 0 {
 			if !a.IfExists {
 				return nil, sqlError("42704", fmt.Sprintf(`constraint "%s" of relation "%s" does not exist`, a.Constraint.Text, old.name))
@@ -297,9 +309,14 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 	name := a.Constraint.Text
 	if adding {
 		if name == "" {
-			name = generatedNotNullName(old.name, old.columns[slot].Name, constraintNames(catalog, old.namespace, old))
+			name = generatedConstraintName(old.name, old.columns[slot].Name, "not_null", constraintNames(catalog, old.namespace, old))
 		}
 		for _, c := range old.notNullConstraints {
+			if c.Name == name {
+				return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name))
+			}
+		}
+		for _, c := range old.checkConstraints {
 			if c.Name == name {
 				return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name))
 			}

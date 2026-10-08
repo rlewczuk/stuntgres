@@ -232,7 +232,16 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		for i, column := range b.relation.columns {
 			if !column.Nullable && row[i].IsNull() {
-				return Result{}, e.updateNotNullError(s, b, schema, column.Name, row)
+				return Result{}, e.rowConstraintError(s, b, schema, column.Name, "", row)
+			}
+		}
+		if len(b.relation.checkConstraints) != 0 {
+			constraint, err := validateCheckRow(b.relation, row, &eval)
+			if err != nil {
+				return Result{}, err
+			}
+			if constraint != nil {
+				return Result{}, e.rowConstraintError(s, b, schema, "", constraint.Name, row)
 			}
 		}
 		oldRows = append(oldRows, old)
@@ -249,7 +258,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 
 // Only the immutable authority snapshot is captured under metadata locks.
 // Provider output runs after unlocking, with the completed simultaneous row.
-func (e *Engine) updateNotNullError(s *StatementScope, b binding, schema, column string, row []sqltype.Value) error {
+func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column, check string, row []sqltype.Value) error {
 	e.mu.Lock()
 	err := s.validateLockedRelation(e)
 	var auth AuthorizationView
@@ -265,7 +274,14 @@ func (e *Engine) updateNotNullError(s *StatementScope, b binding, schema, column
 		return err
 	}
 	if whole&SelectPrivilege != 0 {
-		return notNullError(schema, b.relation.name, column, row, s.output)
+		if check == "" {
+			return notNullError(schema, b.relation.name, column, row, s.output)
+		}
+		detail, err := failingRowDetail(row, s.output, nil, nil)
+		if err != nil {
+			return err
+		}
+		return checkDetailError(schema, b.relation.name, check, detail)
 	}
 	// Target order is assignment order; disclosure order is physical order.
 	// Match the existing small/wide stable-column manifest convention.
@@ -304,6 +320,9 @@ func (e *Engine) updateNotNullError(s *StatementScope, b binding, schema, column
 	detail, err := failingRowDetail(row, s.output, b.relation.columns, visible)
 	if err != nil {
 		return err
+	}
+	if check != "" {
+		return checkDetailError(schema, b.relation.name, check, detail)
 	}
 	return notNullDetailError(schema, b.relation.name, column, detail)
 }

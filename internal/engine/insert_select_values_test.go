@@ -42,7 +42,7 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		sorted := &sortNode{querySchema: schema, child: values, keys: []sortKey{{expression: projection, slot: 0, cache: -1, comparison: comparison}}}
 		query := &BoundQuery{Root: &projectNode{querySchema: schema, child: sorted, expressions: []BoundExpr{projection}}}
 		source := &querySource{}
-		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 		if err != nil || len(rows) != count || source.anonymous != nil {
 			t.Fatal(rows, err, source.anonymous)
 		}

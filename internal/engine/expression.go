@@ -578,6 +578,7 @@ type expressionBinder struct {
 	targetAlias       string
 	returningAliases  *deleteReturningAliases
 	defaultConsumer   bool
+	checkConsumer     bool
 	sequenceConstants []sequenceConstant
 	aggregateClause   string
 	aggregates        []aggregateProvider
@@ -670,6 +671,13 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error)
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
+	if b.checkConsumer && len(raw.Name.Parts) > 0 {
+		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+		switch name {
+		case "ctid", "xmin", "cmin", "xmax", "cmax":
+			return nil, expressionError("42P10", `system column "`+name+`" reference in check constraint is invalid`, raw.Pos)
+		}
+	}
 	if b.queryNamespace != nil {
 		return b.queryColumn(raw)
 	}
@@ -744,6 +752,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	var node BoundExpr
 	switch r := raw.(type) {
 	case parser.AggregateExpr:
+		if b.checkConsumer {
+			return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
+		}
 		if b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" && b.aggregateClause != "ORDER BY" {
 			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" || b.aggregateClause == "LIMIT" || b.aggregateClause == "OFFSET" || b.aggregateClause == "RETURNING" {
 				return nil, expressionError("42803", "aggregate functions are not allowed in "+b.aggregateClause, r.Pos)
