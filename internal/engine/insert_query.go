@@ -242,19 +242,19 @@ func valuesOrderColumnError(schema []ColumnDescriptor, name string, pos parser.P
 		return d
 	}
 	// One scratch allocation serves the decoded key and every candidate's DP.
-	scratch := make([]int, characters+2*(longest+1))
+	scratch := make([]int, characters+2*(characters+1))
 	key := scratch[:characters]
 	i := 0
 	for _, r := range name {
 		key[i] = int(r)
 		i++
 	}
-	left := scratch[characters : characters+longest+1]
-	right := scratch[characters+longest+1:]
+	left := scratch[characters : 2*characters+1]
+	right := scratch[2*characters+1:]
 	var candidates [2]string
 	ties := 0
 	for _, column := range schema {
-		distance := valuesColumnDistance(column.Name, key, left, right, best)
+		distance := boundedNameDistance(column.Name, key, left, right, best)
 		if distance > best {
 			continue
 		}
@@ -274,32 +274,6 @@ func valuesOrderColumnError(schema []ColumnDescriptor, name string, pos parser.P
 		d.Hint = fmt.Sprintf(`Perhaps you meant to reference the column "*VALUES*.%s" or the column "*VALUES*.%s".`, candidates[0], candidates[1])
 	}
 	return d
-}
-
-func valuesColumnDistance(name string, key, left, right []int, limit int) int {
-	if len(name) > len(key)+limit || len(key) > len(name)+limit {
-		return limit + 1
-	}
-	for j := 0; j <= len(name); j++ {
-		left[j] = j
-	}
-	for i, r := range key {
-		right[0] = i + 1
-		minimum := right[0]
-		for j := 1; j <= len(name); j++ {
-			cost := 0
-			if r != int(name[j-1]) {
-				cost = 1
-			}
-			right[j] = min(left[j]+1, right[j-1]+1, left[j-1]+cost)
-			minimum = min(minimum, right[j])
-		}
-		if minimum > limit {
-			return limit + 1
-		}
-		left, right = right, left
-	}
-	return left[len(name)]
 }
 
 // evaluateInsertQuery owns the source pin and all destination rows. Evaluation

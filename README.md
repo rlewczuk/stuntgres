@@ -73,6 +73,17 @@ Prepared executions freshly bind every source, and eager results survive native
 Reset/Restore. See [join semantics and limits](docs/QUERIES.md#inner-and-cross-joins--change-note).
 Public feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
 
+Alias diagnostic fidelity includes suggestions using exposed renamed columns,
+Unicode character positions, fuzzy-tie and distant-qualifier suppression.
+Exact inaccessible columns take precedence with PostgreSQL's singular/plural
+Detail rather than misleading spelling suggestions. Hidden within-entry exact
+duplicates retain positioned ambiguous-column errors, even for distant qualifiers.
+Output labels stay invisible to sibling targets and WHERE; bare ORDER labels
+prefer outputs while compound/qualified ORDER uses inputs. This corrects
+missing-name diagnostics without changing resolution or physical privileges.
+See [query labels and relation aliases](docs/QUERIES.md#query-labels-and-relation-aliases--diagnostic-fidelity-change-note).
+Public feature smoke: `make smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
+
 DELETE supports `RETURNING *`, scalar expressions and PostgreSQL18 OLD/NEW
 output aliases. Deleted occurrences return their actual pre-deletion values
 (including committed updates encountered after a row wait); ordinary NEW columns

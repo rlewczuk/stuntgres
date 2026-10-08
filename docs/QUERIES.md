@@ -168,6 +168,60 @@ through later execution, Close and Reset/Restore.
 Feature smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
 Independent oracle: `make reference RUN='^TestReferenceQueryLimit' VERBOSE=0`.
 
+## Query labels and relation aliases — diagnostic fidelity change note
+
+FROM column aliases and output labels have different roles:
+
+```sql
+SELECT x.iid AS shown, x.a
+FROM t AS x(iid)
+ORDER BY shown;
+```
+
+The positional FROM list renames only the first input column; the remaining
+columns keep their names. `shown` is an output name, not a new input column.
+Output labels are unavailable to sibling targets and WHERE. A bare ORDER BY
+label prefers the output: `SELECT a AS b FROM t ORDER BY b` sorts by a, whereas
+`ORDER BY t.b` or `ORDER BY b+0` uses the physical input b. A WHERE b predicate
+also uses input b. Table aliases hide the original qualified name, including
+schema-qualified references.
+
+Missing-column diagnostics now consider the exposed FROM column names:
+`SELECT x.id FROM t AS x(iid)` fails with42703 and can suggest `"x.iid"`.
+PostgreSQL18's case-sensitive character edit distance and qualifier penalty
+govern suggestions; one or two best occurrences may produce a Hint, while
+three tied occurrences or distant names suppress it. Suggestions never make
+hidden names visible. SQLSTATE, primary English, optional fields and one-based
+character Position are checked independently against pinned PostgreSQL18.0
+UTF8/C, including Unicode names/comments and empty input analysis.
+
+Exact inaccessible base columns take precedence over spelling suggestions.
+For `t(id)` and `u(k)`, `SELECT id FROM (t CROSS JOIN u) j(iid,k)`
+reports42703 with Detail `There is a column named "id" in table "t", but it
+cannot be referenced from this part of the query.` and no Hint. Two or more
+hidden exact matches use the plural inaccessible-columns Detail; an unqualified
+request also gets `Try using a table-qualified name.` This exact-match branch
+is distinct from fuzzy tie suppression and still does not expose hidden names.
+
+Within one hidden base entry, two exposed columns with the requested exact
+spelling instead raise42702 `column reference "id" is ambiguous` at the
+requested column's character Position. This ambiguity check is independent of
+qualifier penalty: it also applies when the requested visible join qualifier
+differs from the hidden base alias, even by more than the fuzzy distance bound.
+All base entries are checked before inaccessible-column Detail is selected;
+two earlier exact entries cannot conceal a later duplicate-column ambiguity.
+
+Aliases retain physical types, typmods, collation, origin and known nullability;
+output labels do not change column privileges. Held statements use fresh inputs
+and parameters, including NULL and empty results. Aliased view definitions use
+the existing native Dump/Restore path; finalized results survive replacement.
+This is a diagnostic correction and focused alias coverage, not new DISTINCT
+or grouping support.
+
+Public feature smoke: `make smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
+Independent reference: `make reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
+PG-only diagnostics: `make reference RUN='^TestReferenceQueryAliasesDiagnostics$$/postgres' VERBOSE=0`.
+
 ## Expression ordering — change note (changelog)
 
 SELECT and shared INSERT SELECT/ORDER-decorated VALUES now support comma-separated

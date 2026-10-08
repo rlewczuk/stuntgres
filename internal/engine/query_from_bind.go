@@ -151,29 +151,23 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 	if b.queryNamespace.values && len(parts) == 1 {
 		return nil, valuesOrderColumnError(b.queryNamespace.frame, name, raw.Pos)
 	}
-	message := fmt.Sprintf(`column "%s" does not exist`, name)
+	qualifier := ""
 	if len(parts) > 1 {
-		message = fmt.Sprintf("column %s.%s does not exist", parts[len(parts)-2].Text, name)
+		qualifier = parts[len(parts)-2].Text
 	}
-	err := expressionError("42703", message, raw.Pos).(*sqlstate.Error)
+	detail, hint, err := queryColumnDiagnostic(b.queryHidden, qualifier, name, raw.Pos)
+	if err != nil {
+		return nil, err
+	}
+	var message string
 	if len(parts) > 1 {
-		var suggestion string
-		for _, q := range b.queryNamespace.qualifiers {
-			for _, c := range q.columns {
-				if c.descriptor.Name == name {
-					candidate := q.name + "." + name
-					if suggestion != "" && suggestion != candidate {
-						return nil, err
-					}
-					suggestion = candidate
-				}
-			}
-		}
-		if suggestion != "" {
-			err.Hint = fmt.Sprintf(`Perhaps you meant to reference the column "%s".`, suggestion)
-		}
+		message = fmt.Sprintf("column %s.%s does not exist", qualifier, name)
+	} else {
+		message = fmt.Sprintf(`column "%s" does not exist`, name)
 	}
-	return nil, err
+	missing := expressionError("42703", message, raw.Pos).(*sqlstate.Error)
+	missing.Detail, missing.Hint = detail, hint
+	return nil, missing
 }
 
 func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, namespace queryNamespace, failure error) {

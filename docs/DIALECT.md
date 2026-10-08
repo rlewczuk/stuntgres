@@ -91,6 +91,22 @@ and normal output metadata. ORDER resolves output labels and ordinals alongside
 input expressions and accepts multiple keys. WHERE/HAVING do not expose output
 labels; GROUP BY retains its input-name priority and existing ordinal rules.
 
+FROM column aliases rename input names; SELECT labels rename output names only
+and are not visible to sibling targets or WHERE. Bare ORDER labels prefer
+output names; qualified/compound ORDER expressions use input names. Missing
+column Hints use exposed base relation/view aliases with PostgreSQL18 bounded
+character distance, qualifier penalties and one/two-candidate tie handling;
+three tied fuzzy occurrences and distant names suppress suggestions. Exact
+inaccessible base columns instead take precedence and produce singular/plural
+Detail, with PostgreSQL's table-qualified-name Hint for an unqualified request
+matching multiple hidden entries. Duplicate exact column spellings within one
+base entry instead raise positioned42702, regardless of qualifier penalty or
+earlier exact entries. Diagnostics never change visibility or physical-column
+authorization. Complete logical English
+diagnostics and character positions have independent pinned18.0 reference
+expectations. See [alias diagnostic fidelity](QUERIES.md#query-labels-and-relation-aliases--diagnostic-fidelity-change-note).
+Feature smoke: `make smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
+
 Four trailing SELECT locking clauses are supported: `FOR KEY SHARE`, `FOR SHARE`,
 `FOR NO KEY UPDATE` and `FOR UPDATE`, including current inner/cross joins,
 persistent scalar views and INSERT SELECT sources. They lock contributing base
