@@ -91,13 +91,19 @@ func (x randomExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		return sqltype.Integer(x.usage.Type, randomInteger(lower, upper, s.rand.Uint64))
 	case "random_normal":
-		mean, err := values[0].Float()
-		if err != nil {
-			return sqltype.Value{}, err
+		mean, deviation := float64(0), float64(1)
+		var err error
+		if len(x.args) > 0 {
+			mean, err = values[0].Float()
+			if err != nil {
+				return sqltype.Value{}, err
+			}
 		}
-		deviation, err := values[1].Float()
-		if err != nil {
-			return sqltype.Value{}, err
+		if len(x.args) > 1 {
+			deviation, err = values[1].Float()
+			if err != nil {
+				return sqltype.Value{}, err
+			}
 		}
 		return sqltype.Float(x.usage.Type, deviation*s.rand.NormFloat64()+mean)
 	}
@@ -230,19 +236,6 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 			}
 		} else if arg.ResultUsage() != u {
 			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, coercions[i], sqltype.Implicit}
-		}
-	}
-	if name == "random_normal" {
-		for len(args) < 2 {
-			value := float64(0)
-			if len(args) == 1 {
-				value = 1
-			}
-			v, err := sqltype.Float(b.typ(sqltype.Float8), value)
-			if err != nil {
-				return nil, err
-			}
-			args = append(args, literalExpression{b.info(v.Type().Usage(), raw.Pos, ExprProperties{}), v})
 		}
 	}
 	properties := ExprProperties{Volatility: Volatile}

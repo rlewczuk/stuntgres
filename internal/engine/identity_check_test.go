@@ -88,10 +88,16 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			}
 			definition, generator, memory := dest.state.descriptors[temp], dest.sequences[temp], b.sequences[temp]
 			generatorState, memoryState := *generator, *memory
-			// Both catalog frontiers exceed the dependent addresses when merged.
-			sessionSQL(t, b, `CREATE TABLE displaced(v INT)`)
-			sessionSQL(t, b, `CREATE TABLE displaced2(v INT)`)
-			sessionSQL(t, b, `CREATE TABLE displaced3(v INT)`)
+			// Force the required relationship using observed object identities,
+			// independently of how many embedded definitions consume OIDs.
+			for n := 0; ; n++ {
+				name := "displaced_" + strconv.Itoa(n)
+				sessionSQL(t, b, `CREATE TABLE `+name+`(v INT)`)
+				address := roleTableRef(t, dest, "public."+name).Address
+				if address.ObjectID > originalView.ObjectID && address.ObjectID > originalCheck.ObjectID {
+					break
+				}
+			}
 			var initial bytes.Buffer
 			if err := source.Dump(context.Background(), &initial); err != nil {
 				t.Fatal(err)

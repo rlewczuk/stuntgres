@@ -52,22 +52,19 @@ func TestReferenceDeparseConstraintsDiagnostics(t *testing.T) {
 func TestReferenceDeparseConstraintsPreparedInput(t *testing.T) {
 	referenceCheckBackends(t, func(t *testing.T, run func(referenceStep)) {
 		run(referencePrepared(referenceSelect("SELECT pg_get_expr($1,$2,$3) AS d", []string{"d"}, []string{"TEXT"}, [][]any{{nil}}, nil, 0, false)))
-		// pg_node_tree's empty parameter Context is root-observed through
-		// the public reference driver; OID/BOOL retain their codec records.
+		// Both engines preserve the integrated parameter diagnostic contract:
+		// nonempty input is redacted, while empty input remains empty.
 		for _, tc := range []struct {
 			args                   []any
 			code, message, context string
 		}{
-			{[]any{"x", 0, false}, "0A000", "cannot accept a value of type pg_node_tree", `unnamed portal parameter $1 = ''`},
+			{[]any{"x", 0, false}, "0A000", "cannot accept a value of type pg_node_tree", `unnamed portal parameter $1 = '...'`},
 			{[]any{"", 0, false}, "0A000", "cannot accept a value of type pg_node_tree", `unnamed portal parameter $1 = ''`},
 			{[]any{nil, "bad", false}, "22P02", `invalid input syntax for type oid: "bad"`, `unnamed portal parameter $2 = '...'`},
 			{[]any{nil, 0, "bad"}, "22P02", `invalid input syntax for type boolean: "bad"`, `unnamed portal parameter $3 = '...'`},
 		} {
 			for _, prepared := range []bool{false, true} {
-				s := referenceImplicitError("SELECT pg_get_expr($1,$2,$3)", referenceDiagnostic{Code: tc.code, Message: tc.message}, tc.args...)
-				pg := *s.diagnostic
-				pg.Context = tc.context
-				s.postgresDiagnostic = &pg
+				s := referenceImplicitError("SELECT pg_get_expr($1,$2,$3)", referenceDiagnostic{Code: tc.code, Message: tc.message, Context: tc.context}, tc.args...)
 				s.selectRows = true
 				s.prepared = prepared
 				s.errorStage = "execute"

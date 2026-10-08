@@ -12,6 +12,10 @@ NULL in any argument produces typed TEXT NULL; omitted pretty means false.
 Pretty changes presentation, not the authoritative expression or its evaluation.
 Stored expressions are never evaluated by introspection, including dormant errors
 and volatile sequence/random providers. Canonical native replay remains separate.
+Boolean constants render as SQL `true`/`false`, not their text-codec `t`/`f`.
+Numeric comparison constants retain contextual casts needed for reconstruction;
+assignment-only casts stay invisible. Omitted `random_normal` arguments remain
+omitted in the bound call and use their defaults only during evaluation.
 
 ```sql
 SELECT pg_get_constraintdef(oid, true)
@@ -30,6 +34,9 @@ Saved tree values retain immutable structure after their owner is removed.
 
 Non-NULL external `pg_node_tree` input reports0A000
 `cannot accept a value of type pg_node_tree`; NULL needs no input decoding.
+Literal input failures retain their source character Position. Parameter codec
+failures retain the shared adapter's unnamed-portal parameter Context: nonempty
+tree input is redacted as `'...'`, while empty input is shown as `''`.
 Incorrect names, arities and known argument types use ordinary42883 resolution
 with the PostgreSQL function Hint and source character Position. Bounded
 `pg_get_*` parser admission allows these diagnostics, not additional providers

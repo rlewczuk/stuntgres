@@ -65,6 +65,7 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 		{"a OPERATOR(pg_catalog.>) 0", "(a > 0)", "a > 0"},
 		{"(a OPERATOR(pg_catalog.+) 1)>0", "((a + 1) > 0)", "(a + 1) > 0"},
 		{"random() IS NOT NULL", "(random() IS NOT NULL)", "random() IS NOT NULL"},
+		{"random()>0", "(random() > (0)::double precision)", "random() > 0::double precision"},
 		{"random_normal() IS NOT NULL", "(random_normal() IS NOT NULL)", "random_normal() IS NOT NULL"},
 		{"setseed(0.5) IS NOT NULL", "(setseed((0.5)::double precision) IS NOT NULL)", "setseed(0.5::double precision) IS NOT NULL"},
 		{"nextval('s')>0", "(nextval('s'::regclass) > 0)", "nextval('s'::regclass) > 0"},

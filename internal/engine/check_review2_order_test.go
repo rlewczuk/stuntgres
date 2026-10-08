@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -123,6 +124,18 @@ func TestCheckReview2OrderRemappedSourceTopology(t *testing.T) {
 	destination := New()
 	b := sessionStart(t, destination, nil)
 	sessionSQL(t, b, "CREATE TEMPORARY SEQUENCE retained")
+	// Advance through real disposable relations beyond the source graph before
+	// replacing it. Retained temporary collisions then move the table above
+	// its views, independent of definition allocations between those relations.
+	lastSource := catalogRef(t, source, source.CatalogRead(), "w")
+	for i := 0; ; i++ {
+		name := fmt.Sprintf("advance_%d", i)
+		sessionSQL(t, b, "CREATE SEQUENCE "+name)
+		ref := catalogRef(t, destination, destination.CatalogRead(), name)
+		if ref.Address.ObjectID > lastSource.Address.ObjectID {
+			break
+		}
+	}
 	if err := destination.Restore(ctx, strings.NewReader(first.String())); err != nil {
 		t.Fatal(err)
 	}

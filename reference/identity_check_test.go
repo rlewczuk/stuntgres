@@ -136,9 +136,20 @@ func TestReferenceIdentityControlsOwnerCollision(t *testing.T) {
 	if err := kept.QueryRowContext(p.ctx, `SELECT oid FROM pg_catalog.pg_class WHERE relname='kept'`).Scan(&tempOID); err != nil || tempOID != sourceOwner {
 		t.Fatal("fixture lacks owner-table collision", tempOID, sourceOwner, err)
 	}
-	identityRefExec(t, p.memory, `CREATE TABLE displaced(v INT)`, 0)
-	identityRefExec(t, p.memory, `CREATE TABLE displaced2(v INT)`, 0)
-	identityRefExec(t, p.memory, `CREATE TABLE displaced3(v INT)`, 0)
+	// Advance with actual relations until replacement must place the collided
+	// owner after both preserved dependents; embedded definition OIDs need not
+	// consume a fixed number of allocator slots.
+	for n := 0; ; n++ {
+		name := "displaced_" + strconv.Itoa(n)
+		identityRefExec(t, p.memory, `CREATE TABLE `+name+`(v INT)`, 0)
+		var allocated int64
+		if err := p.memory.QueryRow(`SELECT oid FROM pg_catalog.pg_class WHERE relname=$1`, name).Scan(&allocated); err != nil {
+			t.Fatal(err)
+		}
+		if allocated > sourceView && allocated > sourceCheck {
+			break
+		}
+	}
 	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(initial.Bytes())); err != nil {
 		t.Fatal(err)
 	}

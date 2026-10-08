@@ -21,8 +21,8 @@ func TestReferenceDeparseConstraintsCore(t *testing.T) {
 					run(referenceSelect("SELECT pg_get_constraintdef(oid"+tc.suffix+") AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", []string{"d"}, []string{"TEXT"}, [][]any{{tc.constraint}}))
 					run(referenceSelect("SELECT pg_get_expr(conbin,conrelid"+tc.suffix+") AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", []string{"d"}, []string{"TEXT"}, [][]any{{tc.expr}}))
 				}
-				run(referenceSelect("SELECT pg_get_expr(adbin,0) AS d FROM pg_catalog.pg_attrdef WHERE adrelid='t'::regclass", []string{"d"}, []string{"TEXT"}, [][]any{{"7"}}))
-				for _, q := range []string{"SELECT pg_get_constraintdef(0) AS d", "SELECT pg_get_constraintdef(NULL,true) AS d", "SELECT pg_get_constraintdef(0,NULL) AS d", "SELECT pg_get_constraintdef(4294967295::oid) AS d", "SELECT pg_get_expr(NULL,0) AS d", "SELECT pg_get_expr(NULL,NULL) AS d", "SELECT pg_get_expr(NULL,0,NULL) AS d", "SELECT pg_get_expr(NULL,0,true) AS d", "SELECT pg_get_expr(conbin,conrelid,NULL) AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", "SELECT pg_get_expr(adbin,4294967295::oid) AS d FROM pg_catalog.pg_attrdef WHERE adrelid='t'::regclass"} {
+				run(referenceSelect("SELECT pg_get_expr(d.adbin,0) AS d FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='t'", []string{"d"}, []string{"TEXT"}, [][]any{{"7"}}))
+				for _, q := range []string{"SELECT pg_get_constraintdef(0) AS d", "SELECT pg_get_constraintdef(NULL,true) AS d", "SELECT pg_get_constraintdef(0,NULL) AS d", "SELECT pg_get_constraintdef(4294967295::oid) AS d", "SELECT pg_get_expr(NULL,0) AS d", "SELECT pg_get_expr(NULL,NULL) AS d", "SELECT pg_get_expr(NULL,0,NULL) AS d", "SELECT pg_get_expr(NULL,0,true) AS d", "SELECT pg_get_expr(conbin,conrelid,NULL) AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", "SELECT pg_get_expr(d.adbin,4294967295::oid) AS d FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='t'"} {
 					run(referenceSelect(q, []string{"d"}, []string{"TEXT"}, [][]any{{nil}}))
 				}
 				run(referenceImplicitError("SELECT pg_get_expr(conbin,0) FROM pg_catalog.pg_constraint WHERE conname='ck'", referenceDiagnostic{Code: "22023", Message: "expression contains variables"}))
@@ -62,6 +62,8 @@ func TestReferenceDeparseConstraintsRendererGoldens(t *testing.T) {
 		{"(a+1)*2>0", "(((a + 1) * 2) > 0)", "((a + 1) * 2) > 0"},
 		{"(a & 3)=1", "((a & 3) = 1)", "(a & 3) = 1"},
 		{"round(n,1)>0", "(round(n, 1) > (0)::numeric)", "round(n, 1) > 0::numeric"},
+		{"random()>0", "(random() > (0)::double precision)", "random() > 0::double precision"},
+		{"random_normal() IS NOT NULL", "(random_normal() IS NOT NULL)", "random_normal() IS NOT NULL"},
 		{"a::bigint=b", "((a)::bigint = b)", "a::bigint = b"},
 	} {
 		t.Run(tc.expr, func(t *testing.T) {
@@ -82,8 +84,21 @@ func TestReferenceDeparseConstraintsRendererGoldens(t *testing.T) {
 func TestReferenceDeparseConstraintsDefaultGoldens(t *testing.T) {
 	referenceCheckBackends(t, func(t *testing.T, run func(referenceStep)) {
 		run(referenceExec("CREATE TABLE defaults(i INT DEFAULT CAST(1 AS INTEGER),s TEXT DEFAULT 'hello',n NUMERIC DEFAULT 1.20,b BIGINT DEFAULT 1::bigint,f BOOL DEFAULT true,d DATE DEFAULT DATE '2026-10-08',z INT DEFAULT NULL,zz INT DEFAULT NULL::integer)", 0))
-		run(referenceSelect("SELECT adnum,pg_get_expr(adbin,0) AS d FROM pg_catalog.pg_attrdef WHERE adrelid='defaults'::regclass ORDER BY adnum", []string{"adnum", "d"}, []string{"INT2", "TEXT"}, [][]any{{int64(1), "1"}, {int64(2), "'hello'::text"}, {int64(3), "1.20"}, {int64(4), "(1)::bigint"}, {int64(5), "true"}, {int64(6), "'2026-10-08'::date"}}))
+		run(referenceSelect("SELECT d.adnum,pg_get_expr(d.adbin,0) AS d FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='defaults' ORDER BY d.adnum", []string{"adnum", "d"}, []string{"INT2", "TEXT"}, [][]any{{int64(1), "1"}, {int64(2), "'hello'::text"}, {int64(3), "1.20"}, {int64(4), "(1)::bigint"}, {int64(5), "true"}, {int64(6), "'2026-10-08'::date"}}))
 		run(referenceExec("ALTER TABLE defaults ALTER i SET DEFAULT NULL", 0))
-		run(referenceSelect("SELECT adnum FROM pg_catalog.pg_attrdef WHERE adrelid='defaults'::regclass ORDER BY adnum", []string{"adnum"}, []string{"INT2"}, [][]any{{int64(2)}, {int64(3)}, {int64(4)}, {int64(5)}, {int64(6)}}))
+		run(referenceSelect("SELECT d.adnum FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='defaults' ORDER BY d.adnum", []string{"adnum"}, []string{"INT2"}, [][]any{{int64(2)}, {int64(3)}, {int64(4)}, {int64(5)}, {int64(6)}}))
+	})
+}
+
+func TestReferenceDeparseConstraintsAssignmentGoldens(t *testing.T) {
+	referenceCheckBackends(t, func(t *testing.T, run func(referenceStep)) {
+		run(referenceExec("CREATE TABLE assigned(a DOUBLE PRECISION DEFAULT 0,b REAL DEFAULT 1,c DOUBLE PRECISION DEFAULT 0.5,n NUMERIC DEFAULT 0.0,f BOOL DEFAULT false)", 0))
+		for _, prepared := range []bool{false, true} {
+			for _, pretty := range []string{"false", "true"} {
+				s := referenceSelect("SELECT adnum,pg_get_expr(adbin,0,"+pretty+") AS d FROM pg_catalog.pg_attrdef ORDER BY adnum", []string{"adnum", "d"}, []string{"INT2", "TEXT"}, [][]any{{int64(1), "0"}, {int64(2), "1"}, {int64(3), "0.5"}, {int64(4), "0.0"}, {int64(5), "false"}})
+				s.prepared = prepared
+				run(s)
+			}
+		}
 	})
 }

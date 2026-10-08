@@ -62,20 +62,20 @@ func TestDeparseConstraintsPreparedInput(t *testing.T) {
 	}
 	defer s.Close()
 	for _, tc := range []struct {
-		args          []any
-		code, message string
+		args                   []any
+		code, message, context string
 	}{
-		{[]any{"x", 0, false}, "0A000", "cannot accept a value of type pg_node_tree"},
-		{[]any{"", 0, false}, "0A000", "cannot accept a value of type pg_node_tree"},
-		{[]any{nil, "bad", false}, "22P02", `invalid input syntax for type oid: "bad"`},
-		{[]any{nil, 0, "bad"}, "22P02", `invalid input syntax for type boolean: "bad"`},
+		{[]any{"x", 0, false}, "0A000", "cannot accept a value of type pg_node_tree", "unnamed portal parameter $1 = '...'"},
+		{[]any{"", 0, false}, "0A000", "cannot accept a value of type pg_node_tree", "unnamed portal parameter $1 = ''"},
+		{[]any{nil, "bad", false}, "22P02", `invalid input syntax for type oid: "bad"`, "unnamed portal parameter $2 = '...'"},
+		{[]any{nil, 0, "bad"}, "22P02", `invalid input syntax for type boolean: "bad"`, "unnamed portal parameter $3 = '...'"},
 	} {
 		r, e := s.Query(tc.args...)
 		if r != nil {
 			r.Close()
 			t.Fatal("input failure exposed cursor")
 		}
-		notNullDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message})
+		notNullDiagnostic(t, e, stuntgres.Error{Code: tc.code, Message: tc.message, Context: tc.context})
 	}
 	// A failed bind must not invalidate the prepared statement.
 	var got any

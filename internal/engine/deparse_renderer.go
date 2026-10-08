@@ -79,7 +79,11 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	}
 	switch u.Type.ID() {
 	case sqltype.Bool:
-		return text, nil
+		value, err := v.Boolean()
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatBool(value), nil
 	case sqltype.Int4:
 		if strings.HasPrefix(text, "-") {
 			return quote(text) + "::integer", nil
@@ -146,12 +150,39 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		}
 		return text, nil
 	}
-	binary := func(left, right BoundExpr, op string, precedence int, always bool) (string, error) {
-		a, err := r.sql(ctx, left, precedence)
+	// Numeric comparison providers accept mixed scalar types without storing
+	// coercion nodes. Reconstruct the contextual Const cast that PostgreSQL
+	// records for integer operands of numeric/floating comparisons.
+	comparisonChild := func(node, other BoundExpr) (string, error) {
+		text, err := r.sql(ctx, node, 4)
 		if err != nil {
 			return "", err
 		}
-		b, err := r.sql(ctx, right, precedence)
+		if _, constant := node.(literalExpression); constant {
+			id, target := node.ResultUsage().Type.ID(), other.ResultUsage()
+			if (id == sqltype.Int2 || id == sqltype.Int4 || id == sqltype.Int8) &&
+				(target.Type.ID() == sqltype.Numeric || target.Type.ID() == sqltype.Float8) {
+				return r.cast(text, target, true)
+			}
+		}
+		return text, nil
+	}
+	binary := func(left, right BoundExpr, op string, precedence int, always bool) (string, error) {
+		var a, b string
+		var err error
+		if precedence == 4 {
+			a, err = comparisonChild(left, right)
+		} else {
+			a, err = r.sql(ctx, left, precedence)
+		}
+		if err != nil {
+			return "", err
+		}
+		if precedence == 4 {
+			b, err = comparisonChild(right, left)
+		} else {
+			b, err = r.sql(ctx, right, precedence)
+		}
 		if err != nil {
 			return "", err
 		}
