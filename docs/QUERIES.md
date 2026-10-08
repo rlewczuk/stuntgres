@@ -644,6 +644,11 @@ Integrated-expression smoke:
 - Comment inquiry outputs reuse the statement capture-frontier catalog/role
   snapshot rather than live lookups. COMMENT setup retains its existing
   committed utility boundary; DELETE rollback restores rows independently.
+- Complete target binding precedes unresolved output-parameter finalization,
+  preserving ordinary occurrence-sensitive parameter diagnostics and inference.
+  Plain `current_schemas` output retains its established known-nullable metadata.
+- Cross-kind alias witnesses include both swapped option orders, hidden defaults,
+  non-NULL payloads and actual held-handle empty/fresh reuse.
 
 
 - Added positioned DELETE grammar, target-only alias qualification, shared typed

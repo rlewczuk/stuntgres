@@ -33,12 +33,21 @@ func TestReferenceDeleteReturningAliases(t *testing.T) {
 			} {
 				t.Run(tc.query, func(t *testing.T) {
 					for _, prepared := range []bool{false, true} {
+						var executor referenceExecutor = db
+						if prepared {
+							held, err := db.PrepareContext(p.ctx, tc.query)
+							if err != nil {
+								t.Fatal(err)
+							}
+							defer held.Close()
+							executor = referenceHeldStatement{referenceExecutor: db, statement: held, query: tc.query}
+						}
 						referenceLockExec(t, p.ctx, db, "INSERT INTO t VALUES(2,NULL),(2,NULL)", 2)
 						s := referenceSelect(tc.query, tc.names, tc.types, [][]any{tc.want, tc.want})
-						s.prepared, s.bag = prepared, true
-						referenceRunStep(t, p.ctx, db, r, s)
+						s.bag = true
+						referenceRunStep(t, p.ctx, executor, r, s)
 						s.rows = [][]any{}
-						referenceRunStep(t, p.ctx, db, r, s)
+						referenceRunStep(t, p.ctx, executor, r, s)
 					}
 				})
 			}
@@ -124,6 +133,83 @@ func TestReferenceDeleteReturningPreparedMetadata(t *testing.T) {
 				t.Fatal("changed signature exposed cursor")
 			}
 			referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cached plan must not change result type"})
+		})
+	}
+}
+
+func TestReferenceDeleteReturningCrossKindAliases(t *testing.T) {
+	p := newReferencePair(t)
+	for backend, db := range []*sql.DB{p.memory, p.postgres} {
+		t.Run([]string{"native", "postgres"}[backend], func(t *testing.T) {
+			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[backend]
+			a, _ := referenceLockConnections(t, p.ctx, db)
+			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT NOT NULL,v TEXT NOT NULL)", 0)
+			referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,'survivor')", 1)
+			for _, tc := range []struct {
+				options, output string
+				want            []any
+				nullable        []bool
+			}{
+				{"OLD AS new", "new.id AS alias_id,new.v AS alias_v", []any{int64(2), "payload", int64(2), "payload"}, []bool{false, false, false, false}},
+				{"NEW AS old", "old.id AS alias_id,old.v AS alias_v", []any{int64(2), "payload", nil, nil}, []bool{false, false, true, true}},
+				{"OLD AS new,NEW AS n", "new.id AS old_id,new.v AS old_v,n.id AS new_id,n.v AS new_v", []any{int64(2), "payload", int64(2), "payload", nil, nil}, []bool{false, false, false, false, true, true}},
+				{"NEW AS old,OLD AS o", "o.id AS old_id,o.v AS old_v,old.id AS new_id,old.v AS new_v", []any{int64(2), "payload", int64(2), "payload", nil, nil}, []bool{false, false, false, false, true, true}},
+				{"OLD AS new,NEW AS old", "new.id AS old_id,new.v AS old_v,old.id AS new_id,old.v AS new_v", []any{int64(2), "payload", int64(2), "payload", nil, nil}, []bool{false, false, false, false, true, true}},
+				{"NEW AS old,OLD AS new", "new.id AS old_id,new.v AS old_v,old.id AS new_id,old.v AS new_v", []any{int64(2), "payload", int64(2), "payload", nil, nil}, []bool{false, false, false, false, true, true}},
+			} {
+				for _, prepared := range []bool{false, true} {
+					query := "DELETE FROM t WHERE id=2 RETURNING WITH (" + tc.options + ") id AS target_id,v AS target_v," + tc.output
+					names, types := []string{"target_id", "target_v", "alias_id", "alias_v"}, []string{"INT4", "TEXT", "INT4", "TEXT"}
+					if len(tc.want) == 6 {
+						names, types = []string{"target_id", "target_v", "old_id", "old_v", "new_id", "new_v"}, []string{"INT4", "TEXT", "INT4", "TEXT", "INT4", "TEXT"}
+					}
+					var executor referenceExecutor = a
+					var held *sql.Stmt
+					if prepared {
+						var err error
+						held, err = a.PrepareContext(p.ctx, query)
+						if err != nil {
+							t.Fatal(tc.options, err)
+						}
+						executor = referenceHeldStatement{referenceExecutor: a, statement: held, query: query}
+					}
+					for step, want := range [][][]any{{tc.want, tc.want}, {}, {tc.want, tc.want}} {
+						if step != 1 {
+							referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(2,'payload'),(2,'payload')", 2)
+						}
+						s := referenceSelect(query, names, types, want)
+						s.bag = true
+						referenceRunStep(t, p.ctx, executor, r, s)
+						if step == 1 {
+							rows, err := executor.QueryContext(p.ctx, query)
+							if err != nil {
+								t.Fatal(err)
+							}
+							meta, err := rows.ColumnTypes()
+							if err != nil || len(meta) != len(tc.nullable) {
+								t.Fatal(meta, err)
+							}
+							for i, wantNullable := range tc.nullable {
+								n, k := meta[i].Nullable()
+								if backend == 0 && (!k || n != wantNullable) {
+									t.Fatal(tc.options, i, n, k, wantNullable)
+								}
+								if backend == 1 && k {
+									t.Fatal("pq unexpectedly claims nullability", i, n)
+								}
+							}
+							if rows.Next() || rows.Err() != nil {
+								t.Fatal(rows.Err())
+							}
+							rows.Close()
+						}
+					}
+					if held != nil {
+						held.Close()
+					}
+					referenceRunStep(t, p.ctx, a, r, referenceSelect("SELECT id,v FROM t", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "survivor"}}))
+				}
+			}
 		})
 	}
 }

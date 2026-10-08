@@ -70,12 +70,7 @@ func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*bo
 	b.returningAliases, b.aggregateClause = &aliases, "RETURNING"
 	defer func() { b.returningAliases, b.aggregateClause = previous, clause }()
 	output := &boundDeleteReturning{}
-	appendOutput := func(expr BoundExpr, name string) error {
-		var err error
-		expr, err = b.finalizeProjection(expr)
-		if err != nil {
-			return err
-		}
+	appendOutput := func(expr BoundExpr, name string) {
 		descriptor := ColumnDescriptor{Name: name, Usage: expr.ResultUsage()}
 		switch column := expr.(type) {
 		case columnExpression:
@@ -83,12 +78,12 @@ func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*bo
 		case deleteNewExpression:
 			descriptor = b.relation.columns[column.slot]
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
+		case currentSchemasExpression:
+			descriptor.Nullable, descriptor.NullabilityKnown = true, true
 		}
 		descriptor.Name = name
 		output.expressions = append(output.expressions, expr)
 		output.schema = append(output.schema, descriptor)
-		output.regclassOutput = output.regclassOutput || descriptor.Usage.Type.ID() == sqltype.Regclass
-		return nil
 	}
 	for target, expression := range raw.Targets {
 		if err := b.ctx.Err(); err != nil {
@@ -100,9 +95,7 @@ func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*bo
 				return nil, err
 			}
 			for slot, column := range b.relation.columns {
-				if err := appendOutput(b.deleteReturningColumnAt(slot, star.Pos, newValues), column.Name); err != nil {
-					return nil, err
-				}
+				appendOutput(b.deleteReturningColumnAt(slot, star.Pos, newValues), column.Name)
 			}
 		} else {
 			expr, err := b.bindOutput(expression, false)
@@ -113,13 +106,22 @@ func (b *expressionBinder) bindDeleteReturning(raw *parser.DeleteReturning) (*bo
 			if target < len(raw.Labels) && raw.Labels[target].Text != "" {
 				name = raw.Labels[target].Text
 			}
-			if err := appendOutput(expr, name); err != nil {
-				return nil, err
-			}
+			appendOutput(expr, name)
 		}
 	}
 	if len(output.schema) == 0 {
 		return nil, expressionError("42601", "RETURNING must have at least one column", raw.Targets[0].SourcePosition())
+	}
+	// Resolve output occurrences only after every target has constrained the
+	// shared parameter slots, matching ordinary scalar projection ordering.
+	for i, expr := range output.expressions {
+		expr, err := b.finalizeProjection(expr)
+		if err != nil {
+			return nil, err
+		}
+		output.expressions[i] = expr
+		output.schema[i].Usage = expr.ResultUsage()
+		output.regclassOutput = output.regclassOutput || expr.ResultUsage().Type.ID() == sqltype.Regclass
 	}
 	return output, nil
 }

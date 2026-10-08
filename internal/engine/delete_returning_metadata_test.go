@@ -86,3 +86,23 @@ func TestDeleteReturningPreflight(t *testing.T) {
 	transactionRows(t, s, "SELECT id FROM t ORDER BY id", 1, 2)
 	lockEmpty(t, e)
 }
+
+func TestDeleteReturningCurrentSchemasDescription(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	sessionSQL(t, s, "CREATE TABLE t(id INT)")
+	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
+	op := transactionOperation(t, s)
+	description, err := e.Describe(op, statement(t, "DELETE FROM t RETURNING current_schemas(NULL) AS schemas"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(description.Results) != 1 {
+		t.Fatal(description)
+	}
+	column := description.Results[0]
+	if column.Name != "schemas" || column.Usage.Type.ID() != sqltype.NameArray || !column.Nullable || !column.NullabilityKnown || column.OriginTable != 0 || column.OriginAttribute != 0 {
+		t.Fatal(column)
+	}
+	transactionRows(t, s, "SELECT id FROM t", 1)
+}
