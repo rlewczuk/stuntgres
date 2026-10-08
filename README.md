@@ -36,7 +36,7 @@ fallback. The common namespace resolver routes relations, types and supported
 builtin functions/operators; `pg_catalog` qualification and
 `OPERATOR(pg_catalog.+)` preserve their provider boundaries.
 The selected `min_scale`, `round`, `scale`, `trim_scale`, `trunc`, `sign`, `mod`,
-`abs`, `ceil`, `ceiling`, `div`, `exp` and `factorial` providers use the same
+`abs`, `ceil`, `ceiling`, `div`, `exp`, `factorial` and `floor` providers use the same
 namespace checks. `abs` preserves integer/REAL widths; decimal division and
 factorial are exact, and decimal exponential preserves independently selected
 precision (up to 1000 fractional places). See the
