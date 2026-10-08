@@ -162,7 +162,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 }
 func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	switch stmt.(type) {
-	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.IdentitySelect, *parser.SettingCall:
+	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.SettingCall:
 	default:
 		return nil
 	}
@@ -312,6 +312,8 @@ func explicitUtility(stmt parser.Statement) bool {
 	case *parser.CreateView:
 		return true
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
+		return true
+	case *parser.RoleSelection:
 		return true
 	}
 	return false

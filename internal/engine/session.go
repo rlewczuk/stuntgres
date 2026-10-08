@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 	"sync"
 	"time"
 )
@@ -56,6 +57,7 @@ type SessionStart struct {
 	ID            SessionID
 	Defaults      SessionDefaultProvider
 	Authenticated PrincipalRef
+	DatabaseName  string
 }
 type sessionState uint8
 
@@ -93,6 +95,7 @@ type Session struct {
 	temporaryNamespace ObjectAddress
 	sequencePath       sequencePathCache
 	random             randomState
+	databaseName       string
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -128,14 +131,20 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 		authenticated = e.roles.names["postgres"]
 	}
 	role, authErr := (RoleRead{e, e.roles}).Descriptor(authenticated)
+	nameType, _ := (CatalogRead{e, e.state}).LookupType(sqltype.Name)
+	database, nameErr := nameType.Input(ctx, start.DatabaseName, -1)
 	e.mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
+	}
+	if nameErr != nil {
+		return nil, nameErr
 	}
 	if !role.Login {
 		return nil, fmt.Errorf("stuntgres: role %q is not permitted to log in", role.Name)
 	}
 	s := &Session{token: SessionToken{e, start.ID}, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s.databaseName, _ = database.Text()
 	s.cond = sync.NewCond(&s.mu)
 	op := s.operation(ctx, true)
 	auth := &sessionAuthorization{session: s, state: RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, revision: 1}

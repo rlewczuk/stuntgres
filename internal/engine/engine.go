@@ -218,20 +218,10 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	switch s := stmt.(type) {
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.AlterTable, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
+	case *parser.RoleSelection:
+		return StatementDescription{}, nil
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
 		return StatementDescription{}, nil
-	case *parser.IdentitySelect:
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		if err := e.validateIdentityCall(op, s); err != nil {
-			return StatementDescription{}, err
-		}
-		typ, _ := (CatalogRead{owner: e, state: e.state}).LookupType(sqltype.Name)
-		columns := make([]ColumnDescriptor, len(s.Names))
-		for i, name := range s.Names {
-			columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage(), Nullable: name == "current_schema", NullabilityKnown: name == "current_schema"}
-		}
-		return StatementDescription{Results: columns}, nil
 	case *parser.Show:
 		e.mu.Lock()
 		defer e.mu.Unlock()

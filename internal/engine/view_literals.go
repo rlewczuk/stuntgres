@@ -61,6 +61,10 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.IdentityExpr:
+		if _, ok := bound.(identityExpression); ok {
+			return nil
+		}
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if literal, ok := bound.(literalExpression); ok {
 			if b.viewLiterals == nil {
@@ -175,6 +179,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return child(r.Else, n.otherwise)
 		}
 	case parser.FunctionExpr:
+		if _, ok := bound.(identityExpression); ok && len(r.Args) == 0 {
+			return nil
+		}
 		if n, ok := bound.(commentInquiryExpression); ok {
 			return children(r.Args, n.args)
 		}
@@ -304,6 +311,8 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.IdentityExpr:
+		return nil
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if literal, ok := v.literals[path]; ok {
 			usage := literal.ResultUsage()

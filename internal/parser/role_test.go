@@ -45,8 +45,11 @@ func TestRoleGrammarAndIdentityProjection(t *testing.T) {
 	if stmts[2].(*SessionAuthorization).Name != "A" || !stmts[3].(*SessionAuthorization).Default {
 		t.Fatal(stmts)
 	}
-	if !reflect.DeepEqual(stmts[4].(*IdentitySelect).Names, []string{"current_user", "session_user", "current_user"}) {
-		t.Fatal(stmts[4])
+	selectStmt := stmts[4].(*Select)
+	for i, want := range []string{"current_user", "session_user", "current_user"} {
+		if selectStmt.Targets[i].(IdentityExpr).Name != want {
+			t.Fatal(selectStmt)
+		}
 	}
 	if _, err := Parse("CREATE TABLE role(login INT,nologin TEXT,reset BOOL)"); err != nil {
 		t.Fatal("nonreserved identifier regression", err)
@@ -78,7 +81,7 @@ func TestRoleGrammarFailureBoundaries(t *testing.T) {
 			t.Fatalf("%s got %#v want %#v", tc.sql, got, want)
 		}
 	}
-	for _, sql := range []string{"SELECT session_user()", "SELECT current_user FROM t", "SELECT current_user+1", "SELECT current_user AS renamed", "SET SESSION AUTHORIZATION a garbage", "DROP ROLE a CASCADE", "CREATE ROLE a; garbage"} {
+	for _, sql := range []string{"SELECT session_user()", "SET SESSION AUTHORIZATION a garbage", "DROP ROLE a CASCADE", "CREATE ROLE a; garbage"} {
 		if _, err := Parse(sql); err == nil {
 			t.Fatal("accepted unsupported suffix", sql)
 		}
@@ -94,24 +97,10 @@ func TestRoleGrammarFailureBoundaries(t *testing.T) {
 // not PostgreSQL error-parity expectations.
 func TestRoleExcludedCommands(t *testing.T) {
 	for _, tc := range []struct{ sql, message, position string }{
-		{"SET ROLE reader", "SET ROLE is unsupported", "5"},
-		{`SET ROLE "Reader"`, "SET ROLE is unsupported", "5"},
-		{"SET ROLE 'reader'", "SET ROLE is unsupported", "5"},
-		{"SET SESSION ROLE reader", "SET ROLE is unsupported", "13"},
-		{"SET SESSION ROLE 'reader'", "SET ROLE is unsupported", "13"},
-		{"SET LOCAL ROLE reader", "SET ROLE is unsupported", "11"},
-		{"SET LOCAL ROLE 'reader'", "SET ROLE is unsupported", "11"},
-		{"SET ROLE DEFAULT", "SET ROLE is unsupported", "5"},
-		{"SET SESSION ROLE DEFAULT", "SET ROLE is unsupported", "13"},
-		{"SET LOCAL ROLE DEFAULT", "SET ROLE is unsupported", "11"},
-		{"SET ROLE NONE", "SET ROLE is unsupported", "5"},
-		{"SET ROLE TO reader", "SET ROLE is unsupported", "5"},
-		{"SET ROLE = 'reader'", "SET ROLE is unsupported", "5"},
-		{"SET SESSION ROLE TO DEFAULT", "SET ROLE is unsupported", "13"},
-		{"SET LOCAL ROLE = NONE", "SET ROLE is unsupported", "11"},
-		{"RESET ROLE", "RESET ROLE is unsupported", "7"},
-		{"/* é */ SET ROLE reader", "SET ROLE is unsupported", "13"},
-		{"INSERT INTO sentinel VALUES(9); SET ROLE reader", "SET ROLE is unsupported", "37"},
+		{"SET LOCAL ROLE reader", "SET LOCAL ROLE is unsupported", "11"},
+		{"SET LOCAL ROLE 'reader'", "SET LOCAL ROLE is unsupported", "11"},
+		{"SET LOCAL ROLE TO DEFAULT", "SET LOCAL ROLE is unsupported", "11"},
+		{"SET LOCAL ROLE = NONE", "SET LOCAL ROLE is unsupported", "11"},
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
 			stmts, err := Parse(tc.sql)

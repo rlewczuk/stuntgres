@@ -37,9 +37,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.IdentitySelect:
+	case *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection:
 		result, err := e.executeRole(op, stmt, count)
-		if _, identity := stmt.(*parser.IdentitySelect); err == nil && !identity {
+		if err == nil {
 			scope.completed = true
 		}
 		return result, err
@@ -67,6 +67,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	auth, err := e.statementAuthorizationLocked(op, stmt)
 	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
+	}
+	if err := scope.captureIdentityLocked(auth); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

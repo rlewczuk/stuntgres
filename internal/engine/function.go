@@ -51,6 +51,9 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if parser.IdentityFunctionName(name) {
+		return b.bindIdentityFunction(raw)
+	}
 	if name == "current_schemas" {
 		return b.bindCurrentSchemas(raw)
 	}

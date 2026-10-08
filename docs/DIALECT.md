@@ -1310,8 +1310,8 @@ outside engine locks against that immutable generation; replacement is checked
 again before installation and reports the ordinary catalog-replaced error.
 Successful statement authorization is retained through Commit despite later
 role-catalog revisions or internal actor changes, without reauthorizing table
-ownership. Native SET ROLE and transactional SESSION AUTHORIZATION remain
-excluded; PostgreSQL's SET ROLE lifetime witness is an independent control.
+ownership. Autocommit SET/RESET ROLE is supported; transactional ROLE and SESSION
+AUTHORIZATION remain excluded. PostgreSQL transactional lifetime is an independent control.
 PK/domains and unrelated ALTER actions/transactional DDL remain excluded,
 never successful no-ops. CHECK CREATE/enforcement and DROP CONSTRAINT are
 supported; ALTER ADD CHECK/VALIDATE remains excluded.
@@ -1889,4 +1889,45 @@ CURRENT_* producer-family expansion are excluded. The timezone-only INTERVAL
 operand of SET TIME ZONE remains bounded independently of the general
 [interval value type](#interval-values--change-note).
 Feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
+
+
+## Session and database identity — change note
+
+The scalar pipeline supports bare `current_catalog`, `current_role`,
+`current_user`, `session_user`, `user`, `system_user` and ordinary
+`current_database()`. The first six identities excluding system_user return NAME;
+system_user returns TEXT SQL NULL for trusted embedded sessions. Keyword labels
+retain their lowercase spellings. The real catalog functions are current_database,
+current_user, session_user and system_user: qualified/quoted calls use namespace
+lookup, while unqualified keyword parentheses are syntax errors. There are no
+ordinary current_catalog/current_role/user function aliases.
+
+Identity-derived singleton comparisons/casts/conditionals are admitted without
+FROM; unrelated general singleton expressions remain outside the bounded dialect.
+Table projections/predicates, assignments, defaults, RETURNING and views reuse
+the typed scalar path. Plans store syntax, not identity values: every execution
+captures effective/session/database identity, and retained results remain detached.
+Native Dump/Restore preserves expression syntax and stored data, not session
+identity, authentication or database naming.
+
+Database naming is the exact opaque connector DSN converted through NAME input:
+empty remains empty, whitespace and URL-looking bytes are literal, invalid UTF8
+fails, and valid names silently clip at a complete-codepoint 63-byte prefix.
+The exact untruncated DSN still keys engine isolation. No database registry or
+credential/URL parsing is added.
+
+Autocommit SET [SESSION] ROLE accepts identifiers/strings, NONE, TO/= assignment,
+and RESET ROLE. Only CurrentUser changes. Eligibility uses SessionUser self,
+superuser or cycle-safe all-SET membership reachability; ADMIN/INHERIT alone do
+not authorize. Quoted/string lowercase `none` is the sentinel; uppercase `NONE`
+is a real role name. Bare DEFAULT is a syntax error, TO/= DEFAULT resets, and
+quoted/string `default` is a real name. SET LOCAL ROLE and explicit-transaction
+selection/reset fail native `0A000` without mutation, unlike PostgreSQL.
+SET SESSION AUTHORIZATION still uses the original authenticator and resets both
+mutable identities. SQL membership administration/authentication remains excluded.
+
+Feature smoke: `go test -count=1 -run '^TestSessionIdentitySmoke$' ./smoke`.
+Pinned reference: `go test -tags reference -count=1 -run '^TestReferenceSessionIdentity.*$' ./reference`.
+The normal oracle authenticates with SCRAM and independently reports its method;
+a dedicated real trust connection demonstrates system_user NULL.
 

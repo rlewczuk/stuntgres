@@ -705,7 +705,7 @@ func restoreScalar(raw parser.Expr) error {
 		return nil
 	case parser.ParameterExpr:
 		return expressionError("42P02", "parameters are not allowed in restore", r.Pos)
-	case parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:
+	case parser.IdentityExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.DefaultExpr:
 		return nil
 	case parser.OperatorExpr:
 		if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {

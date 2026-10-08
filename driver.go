@@ -56,7 +56,7 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 		d.settingsFrozen = true
 		d.engines[name] = e
 	}
-	return &Connector{owner: d, engine: e, authenticatedRole: authenticatedRole}, nil
+	return &Connector{owner: d, engine: e, databaseName: name, authenticatedRole: authenticatedRole}, nil
 }
 
 // Connector configures new physical connections without changing existing ones.
@@ -65,6 +65,7 @@ type Connector struct {
 	engine            *engine.Engine
 	noticeHandler     func(Error)
 	authenticatedRole string
+	databaseName      string
 }
 
 // WithNoticeHandler returns an independent configuration. Nil disables delivery.
@@ -92,7 +93,7 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	session, err := c.engine.StartSession(ctx, engine.SessionStart{ID: id, Authenticated: principal})
+	session, err := c.engine.StartSession(ctx, engine.SessionStart{ID: id, Authenticated: principal, DatabaseName: c.databaseName})
 	if err != nil {
 		return nil, err
 	}

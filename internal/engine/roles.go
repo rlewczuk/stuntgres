@@ -7,26 +7,10 @@ import (
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func roleDiagnostic(code, message, detail string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
-}
-func (e *Engine) validateIdentityCall(op *Operation, s *parser.IdentitySelect) error {
-	if s.Schema == nil {
-		return nil
-	}
-	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	name := parser.ObjectName{Parts: []parser.Identifier{*s.Schema, {Text: "current_schema", Pos: s.Pos}}}
-	visible, err := b.builtinVisible(name, functionLookup)
-	if err != nil {
-		return err
-	}
-	if !visible {
-		return b.sequenceSignatureError(parser.CallExpr{Name: name})
-	}
-	return nil
 }
 func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
@@ -43,39 +27,37 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int) (R
 	}
 	actor, _ := v.roles.Descriptor(v.state.CurrentUser)
 	switch s := stmt.(type) {
-	case *parser.IdentitySelect:
-		if err := e.validateIdentityCall(op, s); err != nil {
+	case *parser.RoleSelection:
+		target := v.state.SessionUser
+		if s.Reset && v.state.ResetRole != (PrincipalRef{}) {
+			target = v.state.ResetRole
+		} else if !s.Reset && s.Name != "none" {
+			d, ok := v.roles.Lookup(s.Name)
+			if !ok {
+				return Result{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", s.Name))
+			}
+			target = d.Ref
+		}
+		allowed, err := v.roles.canSetRole(v.state.SessionUser, target)
+		if err != nil {
 			return Result{}, err
 		}
-		typ, _ := v.catalog.LookupType(sqltype.Name)
-		columns := make([]ColumnDescriptor, len(s.Names))
-		row := make([]sqltype.Value, len(s.Names))
-		for i, name := range s.Names {
-			var value sqltype.Value
-			if name == "current_schema" {
-				path, _, err := e.explicitPath(v)
-				if err != nil {
-					return Result{}, err
-				}
-				value = sqltype.Null(typ)
-				if len(path) > 0 {
-					value = sqltype.String(typ, v.catalog.state.descriptors[path[0]].Name())
-				}
-			} else {
-				ref := v.state.CurrentUser
-				if name == "session_user" {
-					ref = v.state.SessionUser
-				}
-				d, err := v.roles.Descriptor(ref)
-				if err != nil {
-					return Result{}, err
-				}
-				value = sqltype.String(typ, d.Name)
-			}
-			row[i] = value
-			columns[i] = ColumnDescriptor{Name: name, Usage: typ.Usage(), Nullable: name == "current_schema", NullabilityKnown: name == "current_schema"}
+		if !allowed {
+			return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
 		}
-		return anonymousResult(columns, [][]sqltype.Value{row}, 1)
+		session := op.session
+		session.mu.Lock()
+		defer session.mu.Unlock()
+		a := session.authorization
+		if a.revision == ^uint64(0) {
+			return Result{}, fmt.Errorf("stuntgres: session authorization revision exhausted")
+		}
+		if err := publicationOperationLocked(e, op); err != nil {
+			return Result{}, err
+		}
+		a.state.CurrentUser = target
+		a.revision++
+		return Result{}, nil
 	case *parser.SessionAuthorization:
 		target := v.state.Authenticated
 		if !s.Default {

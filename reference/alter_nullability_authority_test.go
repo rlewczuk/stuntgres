@@ -28,9 +28,8 @@ func TestReferenceAlterNullabilityAuthorizationLifetime(t *testing.T) {
 			}
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, b.record, s) }
 			run(referenceExec("CREATE ROLE nn_nonowner", 0))
-			if b.native {
-				run(referenceImplicitError("SET ROLE nn_nonowner", referenceDiagnostic{Code: "0A000", Message: "SET ROLE is unsupported", Position: "5"}))
-			}
+			run(referenceExec("SET ROLE nn_nonowner", 0))
+			run(referenceExec("RESET ROLE", 0))
 			run(referenceExec("CREATE TABLE t(a INT)", 0))
 			run(referenceExec("INSERT INTO t VALUES(7)", 1))
 			tx, err := conn.BeginTx(p.ctx, nil)

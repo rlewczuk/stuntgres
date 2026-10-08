@@ -95,6 +95,10 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
 		case currentSchemasExpression:
 			descriptor.Nullable, descriptor.NullabilityKnown = true, true
+		case identityExpression:
+			if column.kind == identityCurrentSchema {
+				descriptor.Nullable, descriptor.NullabilityKnown = true, true
+			}
 		}
 		descriptor.Name = name
 		output.expressions = append(output.expressions, expr)

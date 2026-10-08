@@ -99,7 +99,7 @@ func (e *Engine) initializeRoles() {
 }
 
 // AddMembership is the validated internal seam for membership command owners.
-// This foundation does not traverse edges or expose SQL membership commands.
+// SET ROLE traverses only SET-authorized edges; SQL membership commands remain excluded.
 func (e *Engine) AddMembership(ctx context.Context, m Membership) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()

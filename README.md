@@ -10,6 +10,19 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Session identity uses typed scalar expressions: `current_catalog`,
+`current_database()`, `current_role`, `current_user`, `session_user`, `user`
+return NAME; embedded trust-style `system_user` returns TEXT SQL NULL. Initially
+`SELECT current_catalog=current_database(), current_role=current_user, session_user=user`
+returns three true values. Autocommit SET/RESET ROLE changes effective identity
+without changing session_user; prepared executions observe fresh values and
+retained rows keep their snapshots. SET LOCAL ROLE and role commands in explicit
+transactions remain native exclusions. The exact opaque DSN is the database key;
+its NAME display silently clips to a complete UTF8 prefix of at most 63 bytes,
+without URL parsing, trimming or merging distinct keys. See
+[authorization](docs/AUTHORIZATION.md) for forms and authority boundaries.
+Feature smoke: `go test -count=1 -run '^TestSessionIdentitySmoke$' ./smoke`.
+
 CREATE TABLE supports named and unnamed column/table CHECK constraints, including
 `NO INHERIT`. Constraints see the completed new row after defaults/coercions:
 TRUE and NULL pass; FALSE rejects INSERT/UPDATE with PostgreSQL-style `23514`

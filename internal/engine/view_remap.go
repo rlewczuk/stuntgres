@@ -31,6 +31,8 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	}
 	var next BoundExpr
 	switch n := node.(type) {
+	case identityExpression:
+		next = n
 	case literalExpression:
 		if n.usage.Type.ID() == sqltype.Regclass && !n.value.IsNull() {
 			text, failure := n.value.Text()

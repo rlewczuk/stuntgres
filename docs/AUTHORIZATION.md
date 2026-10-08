@@ -34,14 +34,17 @@ CREATE {ROLE | USER | GROUP} name [WITH] [LOGIN | NOLOGIN]
 DROP {ROLE | USER | GROUP} name [, ...]
 SET [SESSION] AUTHORIZATION {name | 'exact role name' | DEFAULT}
 RESET SESSION AUTHORIZATION
-SELECT {session_user | current_user} [, ...]
+SET [SESSION] ROLE {name | 'exact role name' | NONE}
+SET [SESSION] ROLE {TO | =} DEFAULT
+RESET ROLE
+SELECT current_catalog,current_database(),current_role,current_user,session_user,user,system_user
 ```
 
 ROLE/GROUP default NOLOGIN; USER defaults LOGIN. Duplicate options fail `42601`
 at execution, duplicate names `42710`, missing DROP targets `42704`. DROP is
 statement-atomic across its list, rejects owner/ACL/persistent dependencies
 (`2BP01`), and removes membership endpoints through the internal authority.
-SQL role membership, SET ROLE, ALTER ROLE/GROUP, passwords, special role
+SQL role membership, ALTER ROLE/GROUP, passwords, special role
 attributes and GRANT/REVOKE are not implemented; recognized adjacent syntax
 fails `0A000`, never successful no-ops. Role administration requires the
 effective superuser in this bounded foundation.
@@ -54,7 +57,7 @@ Role names reuse PostgreSQL's ordinary column-name keyword categories;
 nonreserved `local`, `session` and `role` remain names. Reserved `WITH` is
 only an optional option introducer, not a role name or a repeated option.
 
-SET/RESET change session_user and current_user together. Only the **originally
+SET/RESET SESSION AUTHORIZATION change session_user and current_user together. Only the **originally
 authenticated** superuser may select another principal (including NOLOGIN);
 an ordinary authenticated role may select itself or reset/default only.
 Failed switches preserve both identities and application_name. Identity
@@ -62,6 +65,26 @@ projections have NAME metadata, exact lowercase labels and one string row;
 prepared projections read execution-time identity. Ordinary NAME columns follow
 the [NAME value contract](TYPES.md#name). Exec of identity SELECT reports one selected row;
 role and authorization commands affect zero rows.
+
+SET ROLE changes only effective current_user/current_role/user. Eligibility is
+checked against session_user: self, a session superuser, or an all-SET path through
+existing internal membership edges. ADMIN/INHERIT alone confer no SET authority.
+NONE selects session_user; RESET (and TO/= DEFAULT) selects the configured startup
+role, or session_user when none is configured. Bare SET ROLE DEFAULT is syntax
+error; quoted/string `default` is a role name. Role selection is autocommit-only:
+explicit transactions and SET LOCAL ROLE fail native `0A000` without mutation.
+PostgreSQL supports transactional/local role lifetime; native does not claim parity.
+
+Identity keyword expressions use the common typed scalar pipeline, including
+predicates, aliases, defaults and views. Six identities return NAME; system_user
+returns TEXT SQL NULL because the host assertion is not PostgreSQL authentication.
+Ordinary zero-argument catalog functions exist for current_database, current_user,
+session_user and system_user. Bare identity keywords reject parentheses; qualified
+and quoted catalog calls resolve normally. current_catalog/current_role/user are
+syntax aliases, not catalog functions. Prepared execution captures fresh identity;
+retained rows keep their execution snapshot. Defaults/views preserve syntax and
+observe execution identity, not definition identity. Reset/Restore preserve the
+physical session's naming and authorization; no identity state is dumped.
 
 ```go
 d := stuntgres.NewDriver()

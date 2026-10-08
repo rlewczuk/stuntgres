@@ -273,8 +273,7 @@ func TestRoleInputAndConstantPlanningPermissionPrecedence(t *testing.T) {
 	}
 }
 
-// SET ROLE is supported by PostgreSQL but deliberately excluded here. Assert
-// the native parser boundary at both public entry points, not oracle parity.
+// LOCAL remains a native capability boundary at both public entry points.
 func TestRoleExcludedCommands(t *testing.T) {
 	ctx := context.Background()
 	db := rolePool(t, NewDriver(), "role-excluded-commands", "postgres")
@@ -346,24 +345,11 @@ func TestRoleExcludedCommands(t *testing.T) {
 	}
 	assertUnchanged()
 	for _, tc := range []struct{ query, message, position string }{
-		{"SET ROLE reader", "SET ROLE is unsupported", "5"},
-		{`SET ROLE "Reader"`, "SET ROLE is unsupported", "5"},
-		{"SET ROLE 'reader'", "SET ROLE is unsupported", "5"},
-		{"SET SESSION ROLE reader", "SET ROLE is unsupported", "13"},
-		{"SET SESSION ROLE 'reader'", "SET ROLE is unsupported", "13"},
-		{"SET LOCAL ROLE reader", "SET ROLE is unsupported", "11"},
-		{"SET LOCAL ROLE 'reader'", "SET ROLE is unsupported", "11"},
-		{"SET ROLE DEFAULT", "SET ROLE is unsupported", "5"},
-		{"SET SESSION ROLE DEFAULT", "SET ROLE is unsupported", "13"},
-		{"SET LOCAL ROLE DEFAULT", "SET ROLE is unsupported", "11"},
-		{"SET ROLE NONE", "SET ROLE is unsupported", "5"},
-		{"SET ROLE TO reader", "SET ROLE is unsupported", "5"},
-		{"SET ROLE = 'reader'", "SET ROLE is unsupported", "5"},
-		{"SET SESSION ROLE TO DEFAULT", "SET ROLE is unsupported", "13"},
-		{"SET LOCAL ROLE = NONE", "SET ROLE is unsupported", "11"},
-		{"RESET ROLE", "RESET ROLE is unsupported", "7"},
-		{"/* é */ SET ROLE reader", "SET ROLE is unsupported", "13"},
-		{"INSERT INTO sentinel VALUES(9); SET ROLE reader", "SET ROLE is unsupported", "37"},
+		{"SET LOCAL ROLE reader", "SET LOCAL ROLE is unsupported", "11"},
+		{"SET LOCAL ROLE 'reader'", "SET LOCAL ROLE is unsupported", "11"},
+		{"SET LOCAL ROLE TO DEFAULT", "SET LOCAL ROLE is unsupported", "11"},
+		{"SET LOCAL ROLE = NONE", "SET LOCAL ROLE is unsupported", "11"},
+		{"INSERT INTO sentinel VALUES(9); SET LOCAL ROLE reader", "SET LOCAL ROLE is unsupported", "43"},
 	} {
 		for _, prepared := range []bool{false, true} {
 			mode := "direct"

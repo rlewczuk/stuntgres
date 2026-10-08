@@ -225,6 +225,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		if _, ok := expr.(currentSchemasExpression); ok {
 			result.Nullable, result.NullabilityKnown = true, true
 		}
+		if identity, ok := expr.(identityExpression); ok && identity.kind == identityCurrentSchema {
+			result.Nullable, result.NullabilityKnown = true, true
+		}
 		results[i] = result
 	}
 	grouped := len(keys) > 0 || len(b.aggregates) > 0 || having != nil

@@ -99,6 +99,7 @@ package parser
 %token <tok> CASE WHEN THEN ELSE COALESCE NULLIF GREATEST LEAST
 %token <tok> IF EXISTS
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
+%token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %token <tok> LOCK ACCESS EXCLUSIVE MODE IN
 %token <tok> LIKE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA
 %token <tok> COMMENT COLUMN IS
@@ -137,6 +138,7 @@ package parser
  * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
 %nonassoc IDENT SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
+%nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %nonassoc '('
 %nonassoc KW_T CROSS INNER JOIN NATURAL LIKE WITH WITHOUT
 %nonassoc '='
@@ -144,7 +146,7 @@ package parser
 /* A parenthesized scalar stays on the scalar path; Boolean grouping uses
  * target_or only when a logical/comparison continuation requires it. */
 %nonassoc ')'
-%type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <alterActions> alter_actions
 %type <alterAction> alter_selected_action
 %type <tok> alter_type_keyword
@@ -185,6 +187,7 @@ package parser
 %type <tok> column_suffix
 %type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
 %type <tok> predicate_suffix
+%type <tok> excluded_role_target excluded_role_assignment
 %type <tok> cast_function
 %type <settingName> setting_name set_name local_setting_name
 %type <zoneSet> zone_setting
@@ -238,8 +241,6 @@ package parser
 %type <settingValue> setting_value
 %type <desc> role_kind
 %type <roleOptions> role_options
-%type <names> identity_names
-%type <tok> identity_name
 %type <tables> schema_tables
 %type <table> schema_table
 %type <tok> schema_owner
@@ -273,7 +274,7 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | create_sequence | alter_sequence | drop_sequence | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | identity_select | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | create_sequence | alter_sequence | drop_sequence | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | ALTER generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -751,6 +752,17 @@ scalar: scalar_atom { $$=$1 }
  | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
+ | CURRENT_CATALOG { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
+ | CURRENT_ROLE { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
+ | CURRENT_USER { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
+ | SESSION_USER { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
+ | USER { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
+ | SYSTEM_USER { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
+ | CURRENT_SCHEMA { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
+ | IDENTITY_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' IDENTITY_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} }
+ | IDENTITY_KEYWORD_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' IDENTITY_KEYWORD_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} }
  | PARAM { $$=ParameterExpr{Number:sqllex.(*lexer).parameter($1.text),Pos:$1.pos} }
  | temporal_type STRING { $$=TypedLiteralExpr{TypeName:$1,Text:$2.text,Pos:$2.pos} }
  | INTERVAL STRING %prec TYPE_NAME {$$=TypedLiteralExpr{TypeName:TypeName{Name:"interval",Pos:$1.pos},Text:$2.text,Pos:$2.pos}}
@@ -970,17 +982,18 @@ sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE |
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
- | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word ;
+ | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
+ | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
 non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
- | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR ;
+ | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR | IDENTITY_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR ;
+generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */
@@ -994,8 +1007,8 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
- | CROSS | INNER | JOIN | NATURAL | USING ;
-col_label: name | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
+ | CROSS | INNER | JOIN | NATURAL | USING | CURRENT_CATALOG | SYSTEM_USER ;
+col_label: name | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: LIKE | KW_T | KW_R | COLLATE | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
@@ -1037,18 +1050,13 @@ session_authorization: SET SESSION AUTHORIZATION name { $$=&SessionAuthorization
  | SET AUTHORIZATION STRING { $$=&SessionAuthorization{Name:$3.text} }
  | SET AUTHORIZATION DEFAULT { $$=&SessionAuthorization{Default:true} }
  | RESET SESSION AUTHORIZATION { $$=&SessionAuthorization{Default:true} } ;
-/* Recognize adjacent role commands only to reject them before creating an AST.
- * ROLE remains nonreserved in ordinary identifier positions. */
-excluded_role: SET ROLE excluded_role_assignment excluded_role_target { sqllex.(*lexer).failAt("0A000","SET ROLE is unsupported",$2.pos.Offset); return 1 }
- | SET SESSION ROLE excluded_role_assignment excluded_role_target { sqllex.(*lexer).failAt("0A000","SET ROLE is unsupported",$3.pos.Offset); return 1 }
- | SET LOCAL ROLE excluded_role_assignment excluded_role_target { sqllex.(*lexer).failAt("0A000","SET ROLE is unsupported",$3.pos.Offset); return 1 }
- | RESET ROLE { sqllex.(*lexer).failAt("0A000","RESET ROLE is unsupported",$2.pos.Offset); return 1 } ;
-excluded_role_assignment: /* empty */ | setting_assignment ;
+/* LOCAL is an explicit native boundary; all input still parses before execution. */
+excluded_role: SET ROLE excluded_role_assignment excluded_role_target { if $4.keyword!=nil && $4.keyword.token==DEFAULT && $3.text=="" {sqllex.(*lexer).syntax($4);return 1};$$=&RoleSelection{Name:$4.text,Reset:$4.keyword!=nil && $4.keyword.token==DEFAULT,Pos:$2.pos} }
+ | SET SESSION ROLE excluded_role_assignment excluded_role_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};$$=&RoleSelection{Name:$5.text,Reset:$5.keyword!=nil && $5.keyword.token==DEFAULT,Pos:$3.pos} }
+ | SET LOCAL ROLE excluded_role_assignment excluded_role_target { if $5.keyword!=nil && $5.keyword.token==DEFAULT && $4.text=="" {sqllex.(*lexer).syntax($5);return 1};sqllex.(*lexer).deferUnsupported($3,"SET LOCAL ROLE is unsupported"); $$=nil }
+ | RESET ROLE { $$=&RoleSelection{Reset:true,Pos:$2.pos} } ;
+excluded_role_assignment: /* empty */ { $$=lexeme{} } | TO { $$=$1 } | '=' { $$=$1 } ;
 excluded_role_target: name | STRING | DEFAULT ;
-identity_name: SESSION_USER | CURRENT_USER | CURRENT_SCHEMA | CURRENT_SCHEMA '(' ')' { $$=$1 } ;
-identity_names: identity_name { $$=[]string{$1.text} } | identity_names ',' identity_name { $$=append($1,$3.text) } ;
-identity_select: SELECT identity_names { $$=&IdentitySelect{Names:$2} }
- | SELECT name '.' CURRENT_SCHEMA '(' ')' { $$=&IdentitySelect{Names:[]string{"current_schema"},Schema:&Identifier{Text:$2.text,Pos:$2.pos},Pos:$2.pos} } ;
 schema_owner: name | CURRENT_USER | CURRENT_ROLE | SESSION_USER ;
 schema_table: CREATE TABLE relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$3,Elements:$5,Pos:$1.pos} }
  | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$6,Elements:$8,Pos:$1.pos,IfNotExists:true} }

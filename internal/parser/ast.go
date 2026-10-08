@@ -404,7 +404,7 @@ type queryTail struct {
 	Locking *RowLockClause
 }
 
-// IsSingleton admits only selected-call projections without a relation.
+// IsSingleton admits selected-call and identity-derived projections without FROM.
 func (s *Select) IsSingleton() bool {
 	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
 		return false
@@ -418,6 +418,14 @@ func (s *Select) IsSingleton() bool {
 		}
 	}
 	if sequenceProjection(s) {
+		return true
+	}
+	identities := true
+	for _, target := range s.Targets {
+		valid, found := identitySingleton(target)
+		identities = identities && valid && found
+	}
+	if identities {
 		return true
 	}
 	for _, target := range s.Targets {
@@ -740,6 +748,15 @@ func (e LogicalExpr) SourcePosition() Position {
 func (PredicateExpr) expression()                {}
 func (e PredicateExpr) SourcePosition() Position { return e.Pos }
 
+// IdentityExpr is SQL keyword syntax, not an ordinary catalog function call.
+type IdentityExpr struct {
+	Name string
+	Pos  Position
+}
+
+func (IdentityExpr) expression()                {}
+func (e IdentityExpr) SourcePosition() Position { return e.Pos }
+
 type FunctionExpr struct {
 	Name     ObjectName
 	Args     []Expr
@@ -913,13 +930,13 @@ type SessionAuthorization struct {
 
 func (*SessionAuthorization) statement() {}
 
-type IdentitySelect struct {
-	Names  []string
-	Schema *Identifier
-	Pos    Position
+type RoleSelection struct {
+	Name  string
+	Reset bool
+	Pos   Position
 }
 
-func (*IdentitySelect) statement() {}
+func (*RoleSelection) statement() {}
 
 type roleOptionState struct {
 	count  int

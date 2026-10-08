@@ -645,6 +645,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 		token.lexeme.text = text
 	}
+	if IdentityFunctionName(token.lexeme.text) && (token.code == IDENT || l.current.raw == "." || token.code == CURRENT_SCHEMA) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == '(' {
+			token.code = IDENTITY_FUNC
+			if token.lexeme.keyword != nil {
+				token.code = IDENTITY_KEYWORD_FUNC
+			}
+		}
+	}
 	switch token.lexeme.text {
 	case "operator":
 		if token.lexeme.keyword != nil {

@@ -146,6 +146,8 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return strings.Join(parts, ", "), nil
 	}
 	switch e := raw.(type) {
+	case parser.IdentityExpr:
+		return e.Name, nil
 	case parser.LiteralExpr:
 		if ref, ok := v.sequenceRefs[e.Value.Pos.Offset]; ok {
 			d, exists := catalog.state.descriptors[ref.Address].(*relationDescriptor)

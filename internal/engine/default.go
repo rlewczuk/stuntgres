@@ -276,6 +276,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		return r.functionSQL(ctx, view, "pg_catalog."+n.name, args)
 	case caseExpression, conditionalExpression:
 		return r.conditionalSQL(ctx, view, node)
+	case identityExpression:
+		if n.ordinaryCall {
+			return "pg_catalog." + n.kind.spelling() + "()", nil
+		}
+		return n.kind.spelling(), nil
 	case literalExpression:
 		if r.checkLiterals != nil {
 			*r.checkLiterals = append(*r.checkLiterals, n)
@@ -751,6 +756,9 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 			}
 			n.comparison, err = sqltype.BindEqualityComparison(left, right)
 		}
+		n.expressionInfo = info
+		rebound = n
+	case identityExpression:
 		n.expressionInfo = info
 		rebound = n
 	case literalExpression:

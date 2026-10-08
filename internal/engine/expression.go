@@ -765,6 +765,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	}
 	var node BoundExpr
 	switch r := raw.(type) {
+	case parser.IdentityExpr:
+		var err error
+		node, err = b.bindIdentity(r.Name, r.Pos)
+		if err != nil {
+			return nil, err
+		}
 	case parser.AggregateExpr:
 		if r.Name == "sum" {
 			if b.aggregateClause != "RETURNING" {
@@ -1143,6 +1149,8 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 // Strong column/function names survive standard casts; weak literal names do not.
 func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 	switch r := raw.(type) {
+	case parser.IdentityExpr:
+		return r.Name, true
 	case parser.AggregateExpr:
 		return r.Name, true
 	case parser.ConditionalExpr:
@@ -1343,7 +1351,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		return comparisonOperand{raw: raw}, nil
 	}
 	switch raw.(type) {
-	case parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
+	case parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

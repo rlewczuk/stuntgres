@@ -212,39 +212,41 @@ func (e *Engine) Commit(op *Operation, ref TxRef) (EndResult, error) {
 // Binding uses current resolution metadata; data consumers explicitly acquire a
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
-	self               *StatementScope
-	owner              *transactionOwner
-	op                 *Operation
-	stage              WriteStage
-	view               *VisibilityView
-	finished           bool
-	result             error
-	worked             bool
-	completed          bool
-	controlOutcome     controlOutcome
-	replacementRead    bool
-	ticket             *relationTicket
-	lockedRef          ObjectRef
-	lockedDescriptor   Descriptor
-	querySources       []queryLeaf
-	queryLocks         *queryLockContext
-	queryLockMode      relationLockMode
-	lockedStorage      *relationStorage
-	lockedIdentityOnly bool
-	txRef              TxRef
-	command            CommandID
-	ownWrites          map[ObjectAddress][]rowVersion
-	ownDeletes         map[ObjectAddress]*privateDeletionRoot
-	Expected           *StatementDescription
-	implicit           bool
-	input              sqltype.InputEnvironment
-	output             sqltype.OutputEnvironment
-	catalog            *catalogChanges
-	catalogAuthority   *catalogAuthority
-	projectedRoots     bool
-	searchPathResults  [2]sqltype.Value
-	commentCatalog     CatalogRead
-	commentRoles       RoleRead
+	self                *StatementScope
+	owner               *transactionOwner
+	op                  *Operation
+	stage               WriteStage
+	view                *VisibilityView
+	finished            bool
+	result              error
+	worked              bool
+	completed           bool
+	controlOutcome      controlOutcome
+	replacementRead     bool
+	ticket              *relationTicket
+	lockedRef           ObjectRef
+	lockedDescriptor    Descriptor
+	querySources        []queryLeaf
+	queryLocks          *queryLockContext
+	queryLockMode       relationLockMode
+	lockedStorage       *relationStorage
+	lockedIdentityOnly  bool
+	txRef               TxRef
+	command             CommandID
+	ownWrites           map[ObjectAddress][]rowVersion
+	ownDeletes          map[ObjectAddress]*privateDeletionRoot
+	Expected            *StatementDescription
+	implicit            bool
+	input               sqltype.InputEnvironment
+	output              sqltype.OutputEnvironment
+	catalog             *catalogChanges
+	catalogAuthority    *catalogAuthority
+	projectedRoots      bool
+	searchPathResults   [2]sqltype.Value
+	commentCatalog      CatalogRead
+	commentRoles        RoleRead
+	identity            identitySnapshot
+	currentSchemaResult sqltype.Value
 }
 
 type WriteStage struct {
