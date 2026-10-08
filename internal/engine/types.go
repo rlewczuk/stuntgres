@@ -39,7 +39,10 @@ type temporalConstant struct {
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
 // seam. A sqltype ID is a projection, not an authorization token.
-type typeDescriptor struct{ typ *sqltype.Descriptor }
+type typeDescriptor struct {
+	typ     *sqltype.Descriptor
+	comment string
+}
 
 func (d *typeDescriptor) Address() ObjectAddress {
 	return ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.ID())}

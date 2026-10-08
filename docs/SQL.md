@@ -260,6 +260,63 @@ and PostgreSQL-only GRANT witnesses do not imply a public native ACL API.
 Smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`;
 independent oracle: `make reference RUN='^TestReferenceView' VERBOSE=0`.
 
+## Object comment inquiries — change note
+
+The ordinary typed SELECT pipeline now supports these PostgreSQL 18 signatures:
+
+| Function | Result |
+|---|---|
+| `col_description(oid, integer)` | TEXT |
+| `obj_description(oid, name)` | TEXT |
+| `obj_description(oid)` (legacy) | TEXT |
+| `shobj_description(oid, name)` | TEXT |
+
+All four are STRICT: NULL input gives typed TEXT NULL after argument analysis.
+Absent addresses or descriptions also give NULL, not missing-object errors.
+Column numbers are stable attribute identities, not dense output slots: dropping
+column2 does not renumber surviving column3. Column0 reads the whole-relation
+comment; negative, dropped and absent attributes normally have no description.
+Catalog arguments are exact NAME values, not identifiers or search_path lookups.
+`pg_class`, `pg_namespace` and `pg_type` address represented local metadata;
+`pg_authid` addresses shared role metadata only. Case changes, qualification,
+quotes or whitespace in those catalog strings do not match. NAME input retains
+case and clips at a63-byte UTF8 boundary.
+
+The one-argument legacy form returns one matching local whole-object description.
+If numeric OIDs collide across catalog classes, the winning candidate is
+unspecified; it is not an ambiguity error or a shared/column comment. Prefer the
+two-argument form. Numeric inquiry requires neither ownership nor schema USAGE;
+symbolic REGCLASS conversion and actual source-table reads retain their ordinary
+resolution and privilege checks.
+
+Each execution retains one coherent immutable local/shared comment snapshot,
+including supported transaction-private sequence metadata. Retained results keep
+their captured text; a held prepared statement captures fresh metadata on each
+execution. Views persist inquiry syntax and typed children, never cached comment
+results. OID inputs accept existing implicit integer conversions and the direct
+REGCLASS-to-OID conversion; NAME inputs accept TEXT/BPCHAR/VARCHAR. This does not
+create an implicit TEXT-to-OID or transitive TEXT-to-REGCLASS-to-OID path.
+
+Native builtin descriptions are the exact PostgreSQL18.0 release descriptions
+for existing namespace `pg_catalog`11 and `public`2200, and existing types:
+bool16, bytea17, char18, name19, int8 20, int2 21, int4 23, text25, oid26,
+float4 700, float8 701, unknown705, bpchar1042, varchar1043, date1082, time1083,
+timestamp1114, timestamptz1184, interval1186, timetz1266, numeric1700,
+regclass2205, void2278 and uuid2950. Represented `_name`1003 has no description.
+No pg_toast namespace, routine descriptor inventory, database/tablespace shared
+model, COMMENT ON TYPE support or additional catalog projections are added.
+The bounded queryable catalog schema above is unchanged.
+
+Fresh-baseline Reset restores builtin namespace descriptions; Dump omits
+unchanged seeds but records overrides and explicit NULL/empty removals.
+Restore replays those differences atomically while retaining target shared role
+comments. See [comment mutation and native controls](TABLES.md#object-comments)
+for the remaining DDL/transaction boundaries.
+
+Feature smoke: `make smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
+Pinned independent reference: `make reference RUN='^TestReferenceCommentInquiry' VERBOSE=0`.
+
+
 ## Sequences
 
 `CREATE [TEMPORARY | TEMP | UNLOGGED] SEQUENCE [IF NOT EXISTS] name` supports

@@ -42,8 +42,8 @@ type ParameterInfo struct {
 	Types []sqltype.Usage
 }
 type Result struct {
-	Count  int64
-	Rows   RowResult
+	Count int64
+	Rows  RowResult
 }
 type binding struct {
 	relation          *relationDescriptor
@@ -127,11 +127,12 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 		bootstrap := e.roles.names["postgres"]
 		d := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: ns.oid}, name: ns.name, revision: 1, owner: bootstrap,
 			acl: ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: bootstrap, Grantee: ACLGrantee{Public: true}, Privileges: rights}, {Grantor: bootstrap, Grantee: ACLGrantee{Role: bootstrap}, Privileges: UsagePrivilege | CreatePrivilege, GrantOptions: UsagePrivilege | CreatePrivilege}}}}
+		d.comment = namespaceCommentBaseline(ns.oid)
 		e.state.descriptors[d.address] = d
 		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
 	}
 	for _, typ := range sqltype.Builtins() {
-		d := &typeDescriptor{typ: typ}
+		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID())}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
 	}

@@ -66,6 +66,16 @@ state, with OID and PostgreSQL internal CHAR metadata. Native Dump/Restore
 persists definitions, not their result rows. See [views](docs/SQL.md#views).
 Feature smoke: `make smoke RUN='^TestViewSmoke$' VERBOSE=0`.
 
+Object comment inquiries support `col_description(oid,integer)`,
+`obj_description(oid,name)`, legacy `obj_description(oid)` and
+`shobj_description(oid,name)`, all returning strict nullable TEXT. Local
+relation/column/schema/type descriptions and shared role descriptions stay
+separate. Each execution captures immutable comment metadata; held prepared
+statements refresh on their next execution. Native builtin namespace/type
+descriptions and explicit namespace removals round-trip through native controls.
+See [semantics and boundaries](docs/SQL.md#object-comment-inquiries--change-note).
+Feature smoke: `make smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
+
 SELECT, shared INSERT SELECT and decorated VALUES support expression ORDER BY,
 output labels/ordinals, multiple keys and per-key ASC/DESC/NULLS FIRST/LAST.
 Referenced output values are evaluated once before sort and reused; unrelated

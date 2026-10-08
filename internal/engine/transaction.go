@@ -241,6 +241,8 @@ type StatementScope struct {
 	output             sqltype.OutputEnvironment
 	sequences          *sequenceChanges
 	searchPathResults  [2]sqltype.Value
+	commentCatalog     CatalogRead
+	commentRoles       RoleRead
 }
 
 type WriteStage struct {

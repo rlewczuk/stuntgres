@@ -29,19 +29,25 @@ Reset/Restore and drop/recreate still fence the old epoch/address, never retarge
 a waiting command to an object with the same name.
 
 CatalogRead.Comment exposes local metadata at stable class/object/SubID addresses;
-RoleRead exposes shared text through RoleDescriptor.Comment. Native SQL description
-functions and pg_description/pg_shdescription queries are not implemented here.
+RoleRead exposes shared text through RoleDescriptor.Comment. SQL inquiries use
+the same immutable metadata; see [object comment inquiries](SQL.md#object-comment-inquiries--change-note).
+They do not add queryable `pg_description` or `pg_shdescription` projections.
 Dropping/recreating an object clears text, while schema rename/owner transfer
-preserves it. Plain LIKE does not copy comments. TYPE, DATABASE and other object
-kinds remain explicit unsupported capabilities. COMMENT in an explicit driver
-transaction returns native 0A000; PostgreSQL itself permits transactional COMMENT.
+preserves it. Plain LIKE does not copy comments. COMMENT ON TYPE, DATABASE and
+other unsupported object kinds remain excluded. Table/schema COMMENT in an
+explicit driver transaction returns native 0A000; supported sequence COMMENT
+uses transaction-private metadata. PostgreSQL permits transactional COMMENT.
 
 Dump captures local comments with the same immutable snapshot as rows: schemas
-(including bootstrap overrides) in name order, then table/column text after CREATE
-in declaration order. Escape literals preserve apostrophes, backslashes, newlines
-and Unicode independently of destination string settings. No comments adds no
-bytes. Reset clears local text; Restore replaces it atomically. Both retain role
-comments, which are deliberately excluded from database Dump and Restore.
+in name order, then table/column text after CREATE in declaration order. Escape
+literals preserve apostrophes, backslashes, newlines and Unicode independently
+of destination string settings. Fresh native `pg_catalog` and `public` carry
+`system catalog schema` and `standard public schema`, respectively. Unchanged
+bootstrap descriptions add no dump bytes; overrides emit text and explicit
+removals emit `COMMENT ON SCHEMA ... IS NULL`. Reset restores this fresh baseline,
+not overrides or removals. Restore replaces local state atomically and replays
+those differences, including removals. Both retain role comments, which are
+deliberately excluded from database Dump and Restore.
 
 
 ## Column defaults

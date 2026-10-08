@@ -642,6 +642,7 @@ var baselineCasts = [...]castSpec{
 	{Int2, Oid, Implicit, oidConversion},
 	{Int4, Oid, Implicit, oidConversion},
 	{Int8, Oid, Implicit, oidConversion},
+	{Regclass, Oid, Implicit, oidConversion},
 	{Oid, Int4, Assignment, oidConversion},
 	{Oid, Int8, Assignment, oidConversion},
 	{Date, Timestamp, Implicit, dateTimestampConversion},

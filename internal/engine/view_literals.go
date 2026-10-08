@@ -166,6 +166,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return child(r.Else, n.otherwise)
 		}
 	case parser.FunctionExpr:
+		if n, ok := bound.(commentInquiryExpression); ok {
+			return children(r.Args, n.args)
+		}
 		if n, ok := bound.(mathExpression); ok {
 			return children(r.Args, n.args)
 		}

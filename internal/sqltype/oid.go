@@ -67,6 +67,12 @@ func (d *Descriptor) oidInput(text string) (Value, error) {
 
 func oidCoercion(v Value, target *Descriptor) (Value, error) {
 	if target.id == Oid {
+		if v.typ.id == Regclass {
+			if v.integer != 1 {
+				return Value{}, fmt.Errorf("unresolved regclass value")
+			}
+			return OIDValue(target, v.oid)
+		}
 		if v.typ.id == Int8 && (v.integer < 0 || v.integer > 4294967295) {
 			return Value{}, failure("22003", "OID out of range")
 		}

@@ -179,7 +179,7 @@ package parser
 %type <expr> having
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument insert_value
-%type <expr> conditional case_test case_else
+%type <expr> conditional case_test case_else conditional_value
 %type <caseArms> case_arms
 %type <caseArm> case_arm
 %type <row> conditional_args
@@ -668,8 +668,9 @@ conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$
  | NULLIF '(' delete_or ',' delete_or ')' { $$=ConditionalExpr{Kind:NullIf,Args:[]Expr{$3,$5},Pos:$1.pos} } ;
 case_test: /* empty */ { $$=nil } | delete_or { $$=$1 } ;
 case_arms: case_arm { $$=[]CaseArm{$1} } | case_arms case_arm { $$=append($1,$2) } ;
-case_arm: WHEN delete_or THEN delete_or { $$=CaseArm{Condition:$2,Result:$4,Pos:$1.pos} } ;
-case_else: /* empty */ { $$=nil } | ELSE delete_or { $$=$2 } ;
+case_arm: WHEN delete_or THEN conditional_value { $$=CaseArm{Condition:$2,Result:$4,Pos:$1.pos} } ;
+case_else: /* empty */ { $$=nil } | ELSE conditional_value { $$=$2 } ;
+conditional_value: delete_or { $$=$1 } | function { $$=$1 } ;
 conditional_args: delete_or { $$=[]Expr{$1} } | conditional_args ',' delete_or { $$=append($1,$3) } ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 /* Qualified calls and precision literals share their opener so a function-call
@@ -801,7 +802,7 @@ group: /* empty */ %prec NAME_LIST { $$=nil } | GROUP BY group_keys { $$=$3 }
  | GROUP BY DISTINCT group_keys { sqllex.(*lexer).failAt("0A000","GROUP BY DISTINCT is unsupported",$3.pos.Offset);return 1 }
  | GROUP BY ALL group_keys { sqllex.(*lexer).failAt("0A000","GROUP BY ALL is unsupported",$3.pos.Offset);return 1 }
  | GROUP BY KW_C name '(' group_keys ')' { if $3.text!="grouping" || $4.text!="sets" {sqllex.(*lexer).syntax($4);return 1};sqllex.(*lexer).failAt("0A000","grouping sets are unsupported",$3.pos.Offset);return 1 } ;
-group_keys: target_or { $$=[]Expr{$1} } | group_keys ',' target_or { $$=append($1,$3) } ;
+group_keys: scalar_projection { $$=[]Expr{$1} } | group_keys ',' scalar_projection { $$=append($1,$3) } ;
 having: /* empty */ %prec NAME_LIST { $$=nil } | HAVING target_or { $$=$2 } ;
 order: /* empty */ { $$=nil } | ORDER BY order_keys { $$=&Order{Keys:$3} } ;
 order_keys: order_key { $$=[]OrderKey{$1} } | order_keys ',' order_key { $$=append($1,$3) } ;

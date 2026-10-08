@@ -78,6 +78,10 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 }
 
 func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
+	if scope.commentCatalog.state == nil {
+		scope.commentCatalog = e.sequenceCatalogLocked(scope.owner.sequences)
+		scope.commentRoles = RoleRead{e, e.roles}
+	}
 	if len(leaves) == 0 {
 		return &querySource{singleton: singleton, scope: scope, locks: locks}, nil
 	}
@@ -86,7 +90,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	if len(leaves) > 1 {
 		refs = make([]ObjectRef, 0, len(leaves))
 	}
-	catalog := e.sequenceCatalogLocked(scope.owner.sequences)
+	catalog := scope.commentCatalog
 	var visited map[ObjectRef]bool
 	var collect func(ObjectRef) error
 	collect = func(ref ObjectRef) error {

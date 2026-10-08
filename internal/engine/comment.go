@@ -19,19 +19,12 @@ func (r CatalogRead) Comment(ref ObjectRef) (string, bool, error) {
 	a := ref.Address
 	sub := a.SubID
 	a.SubID = 0
-	var text string
-	switch d := r.state.descriptors[a].(type) {
-	case *namespaceDescriptor:
-		text = d.comment
-	case *relationDescriptor:
-		if sub == 0 {
-			text = d.comment
-		} else {
-			text = d.columnComments[sub]
-		}
+	switch r.state.descriptors[a].(type) {
+	case *namespaceDescriptor, *typeDescriptor, *relationDescriptor:
 	default:
 		return "", false, fmt.Errorf("stuntgres: object class has no comment metadata")
 	}
+	text := descriptorComment(r.state.descriptors[a], sub)
 	return text, text != "", nil
 }
 

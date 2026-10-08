@@ -180,7 +180,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				if valid && ns.temporary != (SessionToken{}) {
 					continue
 				}
-				if valid && ns.comment != "" {
+				if valid && ns.comment != namespaceCommentBaseline(a.ObjectID) {
 					schemaComments = append(schemaComments, dumpComment{ns.name, ns.comment})
 				}
 				if valid && (a.ObjectID == PublicNamespaceOID || a.ObjectID == PGCatalogNamespaceOID) &&
@@ -356,7 +356,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	sort.Slice(schemaComments, func(i, j int) bool { return schemaComments[i].name < schemaComments[j].name })
 	for _, c := range schemaComments {
-		if err := emit("COMMENT ON SCHEMA " + quoteIdentifier(c.name) + " IS " + commentLiteral(c.text) + ";\n"); err != nil {
+		literal := "NULL"
+		if c.text != "" {
+			literal = commentLiteral(c.text)
+		}
+		if err := emit("COMMENT ON SCHEMA " + quoteIdentifier(c.name) + " IS " + literal + ";\n"); err != nil {
 			return err
 		}
 	}

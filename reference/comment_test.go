@@ -3,11 +3,8 @@
 package reference_test
 
 import (
-	"bytes"
 	"database/sql"
 	"fmt"
-	"strings"
-	"stuntgres"
 	"testing"
 )
 
@@ -20,12 +17,28 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 			step := func(q string) { s := referenceExec(q, 0); s.prepared = prepared; p.step(t, s) }
 			step("CREATE ROLE " + role)
 			step(`CREATE TABLE "t.dot"(a INT,b TEXT)`)
-			targets := []struct{ target, observation, dump string }{
-				{`TABLE "t.dot"`, `SELECT obj_description('public."t.dot"'::regclass,'pg_class')`, `COMMENT ON TABLE "public"."t.dot"`},
-				{`COLUMN "t.dot".a`, `SELECT col_description('public."t.dot"'::regclass,1)`, `COMMENT ON COLUMN "public"."t.dot"."a"`},
-				{`COLUMN "t.dot".b`, `SELECT col_description('public."t.dot"'::regclass,2)`, `COMMENT ON COLUMN "public"."t.dot"."b"`},
-				{`SCHEMA public`, `SELECT obj_description('public'::regnamespace,'pg_namespace')`, `COMMENT ON SCHEMA "public"`},
-				{`ROLE ` + role, `SELECT shobj_description(oid,'pg_authid') FROM pg_roles WHERE rolname='` + role + `'`, ""},
+			var nativeSchemaOID, oracleSchemaOID, oracleRoleOID int64
+			for _, backend := range []struct {
+				db  *sql.DB
+				oid *int64
+			}{
+				{p.memory, &nativeSchemaOID}, {p.postgres, &oracleSchemaOID},
+			} {
+				if err := backend.db.QueryRowContext(p.ctx, "SELECT relnamespace FROM pg_class WHERE relname='t.dot'").Scan(backend.oid); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := p.postgres.QueryRowContext(p.ctx, "SELECT oid FROM pg_roles WHERE rolname=$1", role).Scan(&oracleRoleOID); err != nil {
+				t.Fatal(err)
+			}
+			// Native's fresh bootstrap role is10; this fixture's first created
+			// role is11. Use its numeric shared address, not a new pg_roles model.
+			targets := []struct{ target, native, oracle string }{
+				{`TABLE "t.dot"`, `SELECT obj_description('public."t.dot"'::regclass,'pg_class')`, `SELECT obj_description('public."t.dot"'::regclass,'pg_class')`},
+				{`COLUMN "t.dot".a`, `SELECT col_description('public."t.dot"'::regclass,1)`, `SELECT col_description('public."t.dot"'::regclass,1)`},
+				{`COLUMN "t.dot".b`, `SELECT col_description('public."t.dot"'::regclass,2)`, `SELECT col_description('public."t.dot"'::regclass,2)`},
+				{`SCHEMA public`, fmt.Sprintf("SELECT obj_description(%d,'pg_namespace')", nativeSchemaOID), fmt.Sprintf("SELECT obj_description(%d,'pg_namespace')", oracleSchemaOID)},
+				{`ROLE ` + role, `SELECT shobj_description(11,'pg_authid')`, fmt.Sprintf("SELECT shobj_description(%d,'pg_authid')", oracleRoleOID)},
 			}
 			// Values are release expectations, not derived from the other backend.
 			values := []struct {
@@ -35,24 +48,15 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 			for _, target := range targets {
 				for _, value := range values {
 					step("COMMENT ON " + target.target + " IS " + value.sql)
-					var observed sql.NullString
-					if err := p.postgres.QueryRowContext(p.ctx, target.observation).Scan(&observed); err != nil || observed != value.expected {
-						t.Fatalf("oracle metadata %s: %#v want %#v: %v", target.target, observed, value.expected, err)
-					}
-					if target.dump != "" {
-						var dump bytes.Buffer
-						if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
-							t.Fatal(err)
-						}
-						present := strings.Contains(dump.String(), target.dump+" IS ")
-						if present != value.expected.Valid {
-							t.Fatal("native metadata presence", dump.String(), value.expected)
-						}
-						if value.expected.Valid {
-							literal := "E'" + strings.ReplaceAll(strings.ReplaceAll(value.expected.String, "\\", "\\\\"), "'", "''") + "'"
-							if !strings.Contains(dump.String(), target.dump+" IS "+literal+";") {
-								t.Fatal("native decoded metadata", dump.String(), value.expected)
-							}
+					for _, backend := range []struct {
+						name, query string
+						db          *sql.DB
+					}{
+						{"native", target.native, p.memory}, {"oracle", target.oracle, p.postgres},
+					} {
+						var observed sql.NullString
+						if err := backend.db.QueryRowContext(p.ctx, backend.query).Scan(&observed); err != nil || observed != value.expected {
+							t.Fatalf("%s metadata %s: %#v want %#v: %v", backend.name, target.target, observed, value.expected, err)
 						}
 					}
 				}
@@ -61,13 +65,19 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 			step("DROP ROLE " + role)
 			step("CREATE ROLE " + role)
 			var absent sql.NullString
-			if err := p.postgres.QueryRowContext(p.ctx, targets[4].observation).Scan(&absent); err != nil || absent.Valid {
+			if err := p.postgres.QueryRowContext(p.ctx, `SELECT shobj_description(oid,'pg_authid') FROM pg_roles WHERE rolname='`+role+`'`).Scan(&absent); err != nil || absent.Valid {
 				t.Fatal("shared name reuse leaked metadata", absent, err)
+			}
+			if err := p.memory.QueryRowContext(p.ctx, "SELECT shobj_description(12,'pg_authid')").Scan(&absent); err != nil || absent.Valid {
+				t.Fatal("native shared name reuse leaked metadata", absent, err)
 			}
 			step(`DROP TABLE "t.dot"`)
 			step(`CREATE TABLE "t.dot"(a INT,b TEXT)`)
-			if err := p.postgres.QueryRowContext(p.ctx, targets[0].observation).Scan(&absent); err != nil || absent.Valid {
+			if err := p.postgres.QueryRowContext(p.ctx, targets[0].oracle).Scan(&absent); err != nil || absent.Valid {
 				t.Fatal("local name reuse leaked metadata", absent, err)
+			}
+			if err := p.memory.QueryRowContext(p.ctx, targets[0].native).Scan(&absent); err != nil || absent.Valid {
+				t.Fatal("native local name reuse leaked metadata", absent, err)
 			}
 			step("CREATE SCHEMA comment_scope CREATE TABLE t(v INT)")
 			step("COMMENT ON SCHEMA comment_scope IS 'schema lifecycle'")
