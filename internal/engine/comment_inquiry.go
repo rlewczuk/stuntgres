@@ -23,8 +23,25 @@ type commentInquiryExpression struct {
 }
 
 func (b *expressionBinder) bindCommentInquiry(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
+	inquiry, err := b.bindCommentInquiryStructure(raw, visible)
+	if err != nil {
+		return nil, err
+	}
+	// Analyze every child before STRICT eliminates execution demand.
+	for _, arg := range inquiry.args {
+		if literal, ok := arg.(literalExpression); ok && literal.value.IsNull() {
+			typ := b.typ(sqltype.Text)
+			return literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{}), sqltype.Null(typ)}, nil
+		}
+	}
+	return inquiry, nil
+}
+
+// bindCommentInquiryStructure retains typed children for capture without
+// evaluating them or changing the executable STRICT fold.
+func (b *expressionBinder) bindCommentInquiryStructure(raw parser.FunctionExpr, visible bool) (commentInquiryExpression, error) {
 	if b.defaultConsumer {
-		return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+		return commentInquiryExpression{}, expressionError("0A000", "functions are unsupported", raw.Pos)
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	kind, second := objectDescription, sqltype.Name
@@ -38,8 +55,9 @@ func (b *expressionBinder) bindCommentInquiry(raw parser.FunctionExpr, visible b
 	if name == "obj_description" && len(raw.Args) == 1 {
 		kind, arity = legacyDescription, 1
 	}
-	if !visible || len(raw.Args) != arity || raw.Variadic {
-		return nil, b.functionSignatureError(raw)
+	// PostgreSQL ignores VARIADIC decoration on a matching fixed signature.
+	if !visible || len(raw.Args) != arity {
+		return commentInquiryExpression{}, b.functionSignatureError(raw)
 	}
 	args := make([]BoundExpr, arity)
 	properties := ExprProperties{Volatility: Stable}
@@ -51,9 +69,9 @@ func (b *expressionBinder) bindCommentInquiry(raw parser.FunctionExpr, visible b
 		arg, err := b.bind(child, expressionPolicy{context: functionArgumentContext, expected: b.typ(id).Usage(), mode: sqltype.Implicit})
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok && (d.Code == "42804" || d.Code == "42846") {
-				return nil, b.functionSignatureError(raw)
+				return commentInquiryExpression{}, b.functionSignatureError(raw)
 			}
-			return nil, err
+			return commentInquiryExpression{}, err
 		}
 		args[i] = arg
 		p := arg.Properties()
@@ -61,13 +79,6 @@ func (b *expressionBinder) bindCommentInquiry(raw parser.FunctionExpr, visible b
 		properties.RowDependent = properties.RowDependent || p.RowDependent
 		properties.ParameterDependent = properties.ParameterDependent || p.ParameterDependent
 		properties.StageDependent = properties.StageDependent || p.StageDependent
-	}
-	// Analyze every child before STRICT eliminates execution demand.
-	for _, arg := range args {
-		if literal, ok := arg.(literalExpression); ok && literal.value.IsNull() {
-			typ := b.typ(sqltype.Text)
-			return literalExpression{b.info(typ.Usage(), raw.Pos, ExprProperties{}), sqltype.Null(typ)}, nil
-		}
 	}
 	return commentInquiryExpression{b.info(b.typ(sqltype.Text).Usage(), raw.Pos, properties), kind, args}, nil
 }
@@ -119,10 +130,13 @@ func (e commentInquiryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	var text string
 	switch e.kind {
 	case legacyDescription:
+		var class OID
 		for a, d := range scope.commentCatalog.state.descriptors {
-			if a.ObjectID == OID(oid) && a.SubID == 0 {
-				if text = descriptorComment(d, 0); text != "" {
-					break
+			if a.ObjectID == OID(oid) && a.SubID == 0 && (text == "" || a.ClassID < class) {
+				if candidate := descriptorComment(d, 0); candidate != "" {
+					// Immutable address ordering keeps equal calls STABLE; it
+					// does not establish portable catalog precedence.
+					text, class = candidate, a.ClassID
 				}
 			}
 		}

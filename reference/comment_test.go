@@ -17,7 +17,7 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 			step := func(q string) { s := referenceExec(q, 0); s.prepared = prepared; p.step(t, s) }
 			step("CREATE ROLE " + role)
 			step(`CREATE TABLE "t.dot"(a INT,b TEXT)`)
-			var nativeSchemaOID, oracleSchemaOID, oracleRoleOID int64
+			var nativeSchemaOID, oracleSchemaOID, oracleRoleOID, oracleBootstrapOID int64
 			for _, backend := range []struct {
 				db  *sql.DB
 				oid *int64
@@ -31,14 +31,17 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 			if err := p.postgres.QueryRowContext(p.ctx, "SELECT oid FROM pg_roles WHERE rolname=$1", role).Scan(&oracleRoleOID); err != nil {
 				t.Fatal(err)
 			}
-			// Native's fresh bootstrap role is10; this fixture's first created
-			// role is11. Use its numeric shared address, not a new pg_roles model.
+			if err := p.postgres.QueryRowContext(p.ctx, "SELECT oid FROM pg_roles WHERE rolname='postgres'").Scan(&oracleBootstrapOID); err != nil {
+				t.Fatal(err)
+			}
+			// Only bootstrap10 is a fixed native role address. Named role
+			// identity and reuse are witnessed through actual RoleRead internally.
 			targets := []struct{ target, native, oracle string }{
 				{`TABLE "t.dot"`, `SELECT obj_description('public."t.dot"'::regclass,'pg_class')`, `SELECT obj_description('public."t.dot"'::regclass,'pg_class')`},
 				{`COLUMN "t.dot".a`, `SELECT col_description('public."t.dot"'::regclass,1)`, `SELECT col_description('public."t.dot"'::regclass,1)`},
 				{`COLUMN "t.dot".b`, `SELECT col_description('public."t.dot"'::regclass,2)`, `SELECT col_description('public."t.dot"'::regclass,2)`},
 				{`SCHEMA public`, fmt.Sprintf("SELECT obj_description(%d,'pg_namespace')", nativeSchemaOID), fmt.Sprintf("SELECT obj_description(%d,'pg_namespace')", oracleSchemaOID)},
-				{`ROLE ` + role, `SELECT shobj_description(11,'pg_authid')`, fmt.Sprintf("SELECT shobj_description(%d,'pg_authid')", oracleRoleOID)},
+				{`ROLE postgres`, `SELECT shobj_description(10,'pg_authid')`, fmt.Sprintf("SELECT shobj_description(%d,'pg_authid')", oracleBootstrapOID)},
 			}
 			// Values are release expectations, not derived from the other backend.
 			values := []struct {
@@ -61,6 +64,13 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 					}
 				}
 			}
+			for _, value := range values {
+				step("COMMENT ON ROLE " + role + " IS " + value.sql)
+				var observed sql.NullString
+				if err := p.postgres.QueryRowContext(p.ctx, "SELECT shobj_description($1,'pg_authid')", oracleRoleOID).Scan(&observed); err != nil || observed != value.expected {
+					t.Fatal("named oracle role lifecycle", observed, value.expected, err)
+				}
+			}
 			step("COMMENT ON ROLE " + role + " IS 'drop dependency must not exist'")
 			step("DROP ROLE " + role)
 			step("CREATE ROLE " + role)
@@ -68,8 +78,16 @@ func TestReferenceCommentRoundtrip(t *testing.T) {
 			if err := p.postgres.QueryRowContext(p.ctx, `SELECT shobj_description(oid,'pg_authid') FROM pg_roles WHERE rolname='`+role+`'`).Scan(&absent); err != nil || absent.Valid {
 				t.Fatal("shared name reuse leaked metadata", absent, err)
 			}
-			if err := p.memory.QueryRowContext(p.ctx, "SELECT shobj_description(12,'pg_authid')").Scan(&absent); err != nil || absent.Valid {
-				t.Fatal("native shared name reuse leaked metadata", absent, err)
+			var recreatedRoleOID int64
+			if err := p.postgres.QueryRowContext(p.ctx, "SELECT oid FROM pg_roles WHERE rolname=$1", role).Scan(&recreatedRoleOID); err != nil || recreatedRoleOID == oracleRoleOID {
+				t.Fatal("oracle role identity reused", recreatedRoleOID, oracleRoleOID, err)
+			}
+			step("COMMENT ON ROLE " + role + " IS 'new identity'")
+			if err := p.postgres.QueryRowContext(p.ctx, "SELECT shobj_description($1,'pg_authid')", recreatedRoleOID).Scan(&absent); err != nil || !absent.Valid || absent.String != "new identity" {
+				t.Fatal("recreated oracle role positive witness", absent, err)
+			}
+			if err := p.postgres.QueryRowContext(p.ctx, "SELECT shobj_description($1,'pg_authid')", oracleRoleOID).Scan(&absent); err != nil || absent.Valid {
+				t.Fatal("dropped oracle role retained comment", absent, err)
 			}
 			step(`DROP TABLE "t.dot"`)
 			step(`CREATE TABLE "t.dot"(a INT,b TEXT)`)

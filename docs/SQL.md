@@ -273,6 +273,9 @@ The ordinary typed SELECT pipeline now supports these PostgreSQL 18 signatures:
 
 All four are STRICT: NULL input gives typed TEXT NULL after argument analysis.
 Absent addresses or descriptions also give NULL, not missing-object errors.
+Matching fixed signatures accept VARIADIC decoration on the last argument without
+array expansion. Arity and ordinary argument type/NULL analysis still apply;
+wrong-arity calls fail with the normal function-not-found SQLSTATE42883.
 Column numbers are stable attribute identities, not dense output slots: dropping
 column2 does not renumber surviving column3. Column0 reads the whole-relation
 comment; negative, dropped and absent attributes normally have no description.
@@ -284,18 +287,22 @@ case and clips at a63-byte UTF8 boundary.
 
 The one-argument legacy form returns one matching local whole-object description.
 If numeric OIDs collide across catalog classes, the winning candidate is
-unspecified; it is not an ambiguity error or a shared/column comment. Prefer the
-two-argument form. Numeric inquiry requires neither ownership nor schema USAGE;
+unspecified but equal inputs return the same candidate throughout a statement.
+There is no portable catalog ordering or guaranteed winner across executions;
+it is not an ambiguity error or a shared/column comment. Prefer the two-argument
+form. Numeric inquiry requires neither ownership nor schema USAGE;
 symbolic REGCLASS conversion and actual source-table reads retain their ordinary
 resolution and privilege checks.
 
 Each execution retains one coherent immutable local/shared comment snapshot,
 including supported transaction-private sequence metadata. Retained results keep
 their captured text; a held prepared statement captures fresh metadata on each
-execution. Views persist inquiry syntax and typed children, never cached comment
-results. OID inputs accept existing implicit integer conversions and the direct
-REGCLASS-to-OID conversion; NAME inputs accept TEXT/BPCHAR/VARCHAR. This does not
-create an implicit TEXT-to-OID or transitive TEXT-to-REGCLASS-to-OID path.
+execution. Views persist inquiry syntax and typed children, including strict
+constant-NULL calls and CASE result children, never cached comment results.
+Constant NULL eliminates runtime sibling demand, not argument analysis or
+structural persistence. OID inputs accept existing implicit integer conversions
+and the direct REGCLASS-to-OID conversion; NAME inputs accept TEXT/BPCHAR/VARCHAR.
+This does not create an implicit TEXT-to-OID or transitive TEXT-to-REGCLASS-to-OID path.
 
 Native builtin descriptions are the exact PostgreSQL18.0 release descriptions
 for existing namespace `pg_catalog`11 and `public`2200, and existing types:

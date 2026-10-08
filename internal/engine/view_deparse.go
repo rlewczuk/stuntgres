@@ -166,9 +166,19 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		return "((" + value + ") AT TIME ZONE (" + zone + "))", nil
 	case parser.CastExpr:
+		literalPath := path
+		literalPath.node = *ordinal
 		text, err := child(e.Child)
 		if err != nil {
 			return "", err
+		}
+		if rawLiteral, ok := e.Child.(parser.LiteralExpr); ok && (rawLiteral.Value.Kind == parser.NullValue || rawLiteral.Value.Kind == parser.StringValue) {
+			if literal, ok := v.literals[literalPath]; ok && literal.ResultUsage().Type.ID() == sqltype.Oid {
+				// The binder types these literal children directly as the cast
+				// target. OID literalSQL already supplies the canonical cast;
+				// wrapping it again would grow another cast on every replay.
+				return text, nil
+			}
 		}
 		return "CAST(" + text + " AS " + syntaxTypeSQL(e.TypeName) + ")", nil
 	case parser.OperatorExpr:

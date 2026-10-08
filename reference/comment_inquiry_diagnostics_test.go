@@ -24,6 +24,8 @@ func TestReferenceCommentInquiryDiagnostics(t *testing.T) {
 				{"SELECT col_description('1'::text,1)", referenceDiagnostic{Code: "42883", Message: "function col_description(text, integer) does not exist", Position: "8", Hint: hint}},
 				{"SELECT obj_description(1,TRUE)", referenceDiagnostic{Code: "42883", Message: "function obj_description(integer, boolean) does not exist", Position: "8", Hint: hint}},
 				{"SELECT shobj_description(1)", referenceDiagnostic{Code: "42883", Message: "function shobj_description(integer) does not exist", Position: "8", Hint: hint}},
+				{"SELECT col_description(VARIADIC NULL)", referenceDiagnostic{Code: "42883", Message: "function col_description(unknown) does not exist", Position: "8", Hint: hint}},
+				{"SELECT shobj_description(VARIADIC NULL)", referenceDiagnostic{Code: "42883", Message: "function shobj_description(unknown) does not exist", Position: "8", Hint: hint}},
 				{"SELECT col_description('bad',1)", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type oid: "bad"`, Position: "24"}},
 				{"SELECT col_description(1,'bad')", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`, Position: "26"}},
 				{"SELECT col_description(1,'2147483648')", referenceDiagnostic{Code: "22003", Message: `value "2147483648" is out of range for type integer`, Position: "26"}},
@@ -55,6 +57,64 @@ func TestReferenceCommentInquiryDiagnostics(t *testing.T) {
 				s.postgresDiagnostic = &pg
 				referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
 			}
+		})
+	}
+}
+
+func TestReferenceCommentInquiryVariadicMatching(t *testing.T) {
+	// REL_18_0 parse_func.c deliberately discards VARIADIC decoration when
+	// the matched routine has no variadic parameter. Arity mismatches above
+	// are not evidence that all VARIADIC calls to these routines fail.
+	for _, backend := range []string{"Oracle", "Native"} {
+		t.Run(backend, func(t *testing.T) {
+			p := newReferencePair(t)
+			db, rec := p.postgres, p.postgresRecord
+			if backend == "Native" {
+				db, rec = p.memory, p.memoryRecord
+			}
+			for _, tc := range []struct{ expression, label string }{
+				{"col_description(NULL,VARIADIC NULL)", "col_description"},
+				{"obj_description(VARIADIC NULL)", "obj_description"},
+				{"obj_description(NULL,VARIADIC NULL)", "obj_description"},
+				{"shobj_description(NULL,VARIADIC NULL)", "shobj_description"},
+			} {
+				s := referenceSelect("SELECT "+tc.expression, []string{tc.label}, []string{"TEXT"}, [][]any{{nil}})
+				referenceRunStep(t, p.ctx, db, rec, s)
+				referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
+			}
+		})
+	}
+}
+
+func TestReferenceCommentInquiryDeniedFunctionSchema(t *testing.T) {
+	for _, backend := range []string{"Oracle", "Native"} {
+		t.Run(backend, func(t *testing.T) {
+			roleReferenceCleanup(t, []string{"inquiry_denied"})
+			p := newReferencePair(t)
+			db, rec := p.postgres, p.postgresRecord
+			if backend == "Native" {
+				db, rec = p.memory, p.memoryRecord
+			}
+			conn, err := db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			run := func(s referenceStep) { t.Helper(); referenceRunStep(t, p.ctx, conn, rec, s) }
+			run(referenceExec("CREATE USER inquiry_denied", 0))
+			run(referenceExec("CREATE SCHEMA inquiry_private", 0))
+			run(referenceExec("SET SESSION AUTHORIZATION inquiry_denied", 0))
+			// namespace.c checks explicit function namespace USAGE during
+			// lookup; parser callback supplies the function token Position8.
+			s := referenceImplicitError("SELECT inquiry_private.col_description(1,1)", referenceDiagnostic{Code: "42501", Message: "permission denied for schema inquiry_private", Position: "8"})
+			s.selectRows = true
+			s.errorStage = "execute"
+			run(s)
+			s.errorStage = "prepare"
+			run(referencePrepared(s))
+			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+			run(referenceExec("DROP SCHEMA inquiry_private", 0))
+			run(referenceExec("DROP ROLE inquiry_denied", 0))
 		})
 	}
 }

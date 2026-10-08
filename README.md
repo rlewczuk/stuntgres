@@ -70,9 +70,13 @@ Object comment inquiries support `col_description(oid,integer)`,
 `obj_description(oid,name)`, legacy `obj_description(oid)` and
 `shobj_description(oid,name)`, all returning strict nullable TEXT. Local
 relation/column/schema/type descriptions and shared role descriptions stay
-separate. Each execution captures immutable comment metadata; held prepared
-statements refresh on their next execution. Native builtin namespace/type
-descriptions and explicit namespace removals round-trip through native controls.
+separate. Legacy collision lookup chooses an unspecified matching local comment
+consistently within a statement, with no portable catalog precedence. Matching
+fixed signatures accept VARIADIC decoration; ordinary type/NULL analysis remains.
+Each execution captures immutable comment metadata; held prepared statements
+refresh on their next execution. Views preserve strict constant-NULL inquiry
+syntax without runtime sibling demand. Native builtin namespace/type descriptions
+and explicit namespace removals round-trip through native controls.
 See [semantics and boundaries](docs/SQL.md#object-comment-inquiries--change-note).
 Feature smoke: `make smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
 

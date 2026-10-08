@@ -169,6 +169,22 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(commentInquiryExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(literalExpression); ok && n.value.IsNull() && n.value.Type().ID() == sqltype.Text {
+			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
+			case "col_description", "obj_description", "shobj_description":
+				visible, err := b.builtinVisible(r.Name, functionLookup)
+				if err != nil {
+					return err
+				}
+				// Reconstruct only for typed literal/column capture. Keep the
+				// executable NULL fold, with no child evaluation or preflight.
+				structure, err := b.bindCommentInquiryStructure(r, visible)
+				if err != nil {
+					return err
+				}
+				return children(r.Args, structure.args)
+			}
+		}
 		if n, ok := bound.(mathExpression); ok {
 			return children(r.Args, n.args)
 		}

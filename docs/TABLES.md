@@ -32,6 +32,9 @@ CatalogRead.Comment exposes local metadata at stable class/object/SubID addresse
 RoleRead exposes shared text through RoleDescriptor.Comment. SQL inquiries use
 the same immutable metadata; see [object comment inquiries](SQL.md#object-comment-inquiries--change-note).
 They do not add queryable `pg_description` or `pg_shdescription` projections.
+Legacy whole-object collision results remain consistent within each statement,
+without promising a portable catalog ordering. Persisted inquiry views retain
+typed syntax even when strict constant-NULL inputs eliminate execution demand.
 Dropping/recreating an object clears text, while schema rename/owner transfer
 preserves it. Plain LIKE does not copy comments. COMMENT ON TYPE, DATABASE and
 other unsupported object kinds remain excluded. Table/schema COMMENT in an

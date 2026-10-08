@@ -321,3 +321,95 @@ func TestCommentInquiryEmptyAndIterationCancellation(t *testing.T) {
 	rows, err = db.Query("SELECT obj_description('t'::regclass,'pg_class')")
 	commentInquiryRows(t, rows, err, "obj_description", []any{"whole"})
 }
+
+func TestCommentInquiryConstantNullViews(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), t.Name())
+	ctx := context.Background()
+	execSQL(t, db, "CREATE TABLE t(a INT)")
+	execSQL(t, db, "INSERT INTO t VALUES(1),(2)")
+	execSQL(t, db, "CREATE SEQUENCE null_sibling")
+	for _, tc := range []struct{ name, expression string }{
+		{"null_column", "col_description(NULL,1)"},
+		{"null_local", "obj_description(NULL,'pg_class')"},
+		{"null_legacy", "obj_description(NULL)"},
+		{"null_shared", "shobj_description(NULL,'pg_authid')"},
+		{"null_column_number", "col_description(a,NULL)"},
+		{"null_local_catalog", "obj_description(a,NULL)"},
+		{"null_shared_catalog", "shobj_description(a,NULL)"},
+		{"null_sequence", "obj_description(nextval('null_sibling'),NULL)"},
+		{"null_case", "CASE WHEN a=1 THEN obj_description(NULL,'pg_class') ELSE col_description(NULL,1) END"},
+	} {
+		execSQL(t, db, "CREATE VIEW "+tc.name+" AS SELECT "+tc.expression+" AS description FROM t")
+	}
+	check := func() {
+		t.Helper()
+		for _, name := range []string{"null_column", "null_local", "null_legacy", "null_shared", "null_column_number", "null_local_catalog", "null_shared_catalog", "null_sequence", "null_case"} {
+			rows, err := db.Query("SELECT description FROM " + name)
+			commentInquiryRows(t, rows, err, "description", []any{nil, nil})
+			stmt, err := db.Prepare("SELECT description FROM " + name)
+			if err != nil {
+				t.Fatal(name, err)
+			}
+			rows, err = stmt.Query()
+			commentInquiryRows(t, rows, err, "description", []any{nil, nil})
+			if err := stmt.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	dump := func() string {
+		t.Helper()
+		var b bytes.Buffer
+		if err := stuntgres.Dump(ctx, db, &b); err != nil {
+			t.Fatal(err)
+		}
+		return b.String()
+	}
+	check()
+	before := dump()
+	if err := stuntgres.Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(ctx, db, strings.NewReader(before)); err != nil {
+		t.Fatal(err)
+	}
+	check()
+	if after := dump(); after != before {
+		t.Fatalf("noncanonical strict-NULL view replay:\n%s\nwant:\n%s", after, before)
+	}
+	var next int64
+	if err := db.QueryRow("SELECT nextval('null_sibling')").Scan(&next); err != nil || next != 1 {
+		t.Fatalf("strict-NULL view demanded sequence sibling: next=%d err=%v", next, err)
+	}
+}
+
+func TestCommentInquiryVariadicAndDeniedFunctionSchema(t *testing.T) {
+	db := openLocal(t, stuntgres.NewDriver(), t.Name())
+	db.SetMaxOpenConns(1)
+	const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
+	for _, name := range []string{"col_description", "shobj_description"} {
+		nullCountError(t, db, "SELECT "+name+"(VARIADIC NULL)", stuntgres.Error{Code: "42883", Message: "function " + name + "(unknown) does not exist", Hint: hint, Position: "8"})
+	}
+	for _, tc := range []struct{ expression, label string }{
+		{"col_description(NULL,VARIADIC NULL)", "col_description"},
+		{"obj_description(VARIADIC NULL)", "obj_description"},
+		{"obj_description(NULL,VARIADIC NULL)", "obj_description"},
+		{"shobj_description(NULL,VARIADIC NULL)", "shobj_description"},
+	} {
+		rows, err := db.Query("SELECT " + tc.expression)
+		commentInquiryRows(t, rows, err, tc.label, []any{nil})
+		stmt, err := db.Prepare("SELECT " + tc.expression)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows, err = stmt.Query()
+		commentInquiryRows(t, rows, err, tc.label, []any{nil})
+		if err := stmt.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, q := range []string{"CREATE USER inquiry_denied", "CREATE SCHEMA inquiry_private", "SET SESSION AUTHORIZATION inquiry_denied"} {
+		execSQL(t, db, q)
+	}
+	nullCountError(t, db, "SELECT inquiry_private.col_description(1,1)", stuntgres.Error{Code: "42501", Message: "permission denied for schema inquiry_private", Position: "8"})
+}
