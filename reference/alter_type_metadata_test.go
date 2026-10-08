@@ -35,11 +35,60 @@ func TestReferenceAlterTypeCollation(t *testing.T) {
 			}
 			run(referenceExec(`ALTER TABLE t ALTER c TYPE TEXT COLLATE "C"`, 0))
 			run(referenceExec("ALTER TABLE t ALTER c TYPE TEXT", 0))
+			if b.name == "postgres" {
+				run(referenceSelect("SELECT attcollation::int FROM pg_attribute WHERE attrelid='t'::regclass AND attname='c'", []string{"attcollation"}, []string{"INT4"}, [][]any{{int64(100)}}))
+			}
+			run(referenceExec("CREATE TABLE nulls(c TEXT)", 0))
+			run(referenceExec("INSERT INTO nulls VALUES(NULL),(NULL)", 2))
+			run(referenceExec(`ALTER TABLE nulls ALTER c TYPE TEXT COLLATE "POSIX"`, 0))
+			run(referenceSelect("SELECT c FROM nulls", []string{"c"}, []string{"TEXT"}, [][]any{{nil}, {nil}}))
+			if b.name == "postgres" {
+				run(referenceSelect("SELECT attcollation::int FROM pg_attribute WHERE attrelid='nulls'::regclass AND attname='c'", []string{"attcollation"}, []string{"INT4"}, [][]any{{int64(951)}}))
+			}
+			run(referenceExec(`ALTER TABLE nulls ALTER c TYPE TEXT COLLATE "POSIX", ALTER c TYPE VARCHAR(5) COLLATE "C"`, 0))
+			run(referenceSelect("SELECT c FROM nulls", []string{"c"}, []string{"VARCHAR"}, [][]any{{nil}, {nil}}))
+			if b.name == "postgres" {
+				run(referenceSelect("SELECT attcollation::int FROM pg_attribute WHERE attrelid='nulls'::regclass AND attname='c'", []string{"attcollation"}, []string{"INT4"}, [][]any{{int64(950)}}))
+			}
 			for _, name := range []string{`public."C"`, `c`, `missing`} {
 				run(referenceImplicitError("ALTER TABLE t ALTER c TYPE TEXT COLLATE "+name, referenceDiagnostic{Code: "42704", Message: fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, map[string]string{`public."C"`: "public.C", "c": "c", "missing": "missing"}[name]), Position: "33"}))
 			}
+			for _, tc := range []struct{ query, code, message, position string }{
+				{`ALTER TABLE t ALTER c TYPE INT COLLATE "C"`, "42804", "collations are not supported by type integer", "32"},
+				{`ALTER TABLE t ALTER c TYPE TEXT COLLATE missing_schema."C"`, "3F000", `schema "missing_schema" does not exist`, "33"},
+			} {
+				failure := referenceImplicitError(tc.query, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.position})
+				failure.errorStage = "execute"
+				run(failure)
+				run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"TEXT"}, [][]any{{"A"}, {"Z"}, {"a"}, {"é"}, {nil}}))
+			}
 		})
 	}
+}
+
+func TestReferenceAlterTypeCollationSchemaAuthorization(t *testing.T) {
+	roleReferenceCleanup(t, []string{"alter_reader"})
+	p := newReferencePair(t)
+	schemaReferenceCleanup(t, "denied")
+	c, err := p.postgres.Conn(p.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	defer c.ExecContext(p.ctx, "RESET ROLE")
+	run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, p.postgresRecord, s) }
+	for _, q := range []string{"CREATE ROLE alter_reader", "CREATE SCHEMA denied", "GRANT USAGE,CREATE ON SCHEMA public TO alter_reader", "SET ROLE alter_reader", "CREATE TABLE t(c TEXT)", "INSERT INTO t VALUES('keep')"} {
+		count := int64(0)
+		if q == "INSERT INTO t VALUES('keep')" {
+			count = 1
+		}
+		run(referenceExec(q, count))
+	}
+	failure := referenceImplicitError(`ALTER TABLE t ALTER c TYPE TEXT COLLATE denied."C"`, referenceDiagnostic{Code: "42501", Message: "permission denied for schema denied", Position: "33"})
+	failure.errorStage = "execute"
+	run(failure)
+	run(referenceSelect("SELECT c FROM t", []string{"c"}, []string{"TEXT"}, [][]any{{"keep"}}))
+	run(referenceExec("RESET ROLE", 0))
 }
 
 func TestReferenceAlterTypePhysicalSnapshotBoundary(t *testing.T) {

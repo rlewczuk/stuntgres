@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"database/sql/driver"
 	"reflect"
@@ -56,6 +57,47 @@ func TestAlterTypeIdentityRetainsStorageAndRevision(t *testing.T) {
 		t.Fatal("same definition USING failed to rewrite only data")
 	}
 	if rows := tuples(run(t, e, "SELECT c FROM t")); !reflect.DeepEqual(rows, [][]driver.Value{{int64(8)}}) {
+		t.Fatal(rows)
+	}
+}
+
+func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	sessionSQL(t, s, "SET TIME ZONE 'UTC'")
+	sessionSQL(t, s, "CREATE TABLE d(id INT,c TIMESTAMPTZ(6) DEFAULT (TIMESTAMP '2004-07-01 12:00' AT LOCAL))")
+	sessionSQL(t, s, "INSERT INTO d(id) VALUES(1)")
+	ref := roleTableRef(t, e, "d")
+	before := e.state.descriptors[ref.Address].(*relationDescriptor)
+	if before.defaults[before.attributes[1]].expression.Properties().Volatility != Stable {
+		t.Fatal("fixture default is not Stable")
+	}
+	sessionSQL(t, s, "ALTER TABLE d ALTER c TYPE TIMESTAMPTZ(2)")
+	after := e.state.descriptors[ref.Address].(*relationDescriptor)
+	if after.columns[1].Usage.Typmod != 2 || after.defaults[after.attributes[1]].expression.Properties().Volatility != Stable {
+		t.Fatal("TYPE froze stable default", after)
+	}
+	sessionSQL(t, s, "SET TIME ZONE 'America/New_York'")
+	sessionSQL(t, s, "INSERT INTO d(id) VALUES(2)")
+	want := [][]driver.Value{{int64(1), "2004-07-01 12:00:00"}, {int64(2), "2004-07-01 16:00:00"}}
+	if rows := tuples(sessionSQL(t, s, "SELECT id,(c AT TIME ZONE 'UTC')::text AS utc FROM d ORDER BY id")); !reflect.DeepEqual(rows, want) {
+		t.Fatal(rows)
+	}
+	var dump bytes.Buffer
+	if err := e.Dump(context.Background(), &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	restored := e.state.descriptors[roleTableRef(t, e, "d").Address].(*relationDescriptor)
+	if restored.columns[1].Usage.Typmod != 2 || restored.defaults[restored.attributes[1]].expression.Properties().Volatility != Stable {
+		t.Fatal("Restore lost stable default or precision", restored)
+	}
+	sessionSQL(t, s, "SET TIME ZONE 'UTC'")
+	sessionSQL(t, s, "INSERT INTO d(id) VALUES(3)")
+	want = append(want, []driver.Value{int64(3), "2004-07-01 12:00:00"})
+	if rows := tuples(sessionSQL(t, s, "SELECT id,(c AT TIME ZONE 'UTC')::text AS utc FROM d ORDER BY id")); !reflect.DeepEqual(rows, want) {
 		t.Fatal(rows)
 	}
 }

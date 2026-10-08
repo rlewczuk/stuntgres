@@ -157,7 +157,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
 	slots := make([]int, len(next.attributes))
-	nodes := make([]BoundExpr, len(slots))
+	destinations := make([]int, len(transforms))
 	for i, attribute := range next.attributes {
 		for j, id := range old.attributes {
 			if id == attribute {
@@ -165,9 +165,13 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 				break
 			}
 		}
-		for _, transform := range transforms {
+	}
+	for i, transform := range transforms {
+		for slot, attribute := range next.attributes {
 			if transform.attribute == attribute {
-				nodes[i] = transform.expression
+				destinations[i] = slot
+				slots[slot] = -1
+				break
 			}
 		}
 	}
@@ -191,15 +195,16 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 			evaluation.Row = row.values
 			values := make([]sqltype.Value, len(slots))
 			for i, slot := range slots {
-				if nodes[i] == nil {
+				if slot >= 0 {
 					values[i] = row.values[slot]
-				} else {
-					v, err := nodes[i].Eval(&evaluation)
-					if err != nil {
-						return nil, err
-					}
-					values[i] = v
 				}
+			}
+			for i, transform := range transforms {
+				v, err := transform.expression.Eval(&evaluation)
+				if err != nil {
+					return nil, err
+				}
+				values[destinations[i]] = v
 			}
 			row.values = values
 			if !committed {

@@ -19,6 +19,8 @@ func TestReferenceAlterTypeConversions(t *testing.T) {
 			{name: "using", declaration: "TEXT", seed: "'41',NULL,'7'", action: "TYPE INT USING c::integer", typ: "INT4", rows: [][]any{{int64(41)}, {nil}, {int64(7)}}},
 			{name: "late-invalid", declaration: "TEXT", seed: "'41','oops'", action: "TYPE INT USING c::integer", typ: "TEXT", rows: [][]any{{"41"}, {"oops"}}, want: referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}},
 			{name: "narrowing", declaration: "BIGINT", seed: "7,2147483648", action: "TYPE INT", typ: "INT8", rows: [][]any{{int64(7)}, {int64(2147483648)}}, want: referenceDiagnostic{Code: "22003", Message: "integer out of range"}},
+			{name: "smallint-overflow", declaration: "BIGINT", seed: "7,32768", action: "TYPE SMALLINT", typ: "INT8", rows: [][]any{{int64(7)}, {int64(32768)}}, want: referenceDiagnostic{Code: "22003", Message: "smallint out of range"}},
+			{name: "numeric-overflow", declaration: "NUMERIC(8,3)", seed: "1.235,1000", action: "TYPE NUMERIC(5,2)", typ: "NUMERIC", rows: [][]any{{"1.235"}, {"1000.000"}}, want: referenceDiagnostic{Code: "22003", Message: "numeric field overflow", Detail: "A field with precision 5, scale 2 must round to an absolute value less than 10^3."}},
 			{name: "empty-incompatible", declaration: "TEXT", action: "TYPE INT", typ: "TEXT", want: referenceDiagnostic{Code: "42804", Message: `column "c" cannot be cast automatically to type integer`, Hint: `You might need to specify "USING c::integer".`}},
 			{name: "null-incompatible", declaration: "TEXT", seed: "NULL", action: "TYPE INT", typ: "TEXT", rows: [][]any{{nil}}, want: referenceDiagnostic{Code: "42804", Message: `column "c" cannot be cast automatically to type integer`, Hint: `You might need to specify "USING c::integer".`}},
 			{name: "using-incompatible", declaration: "TEXT", seed: "'7'", action: "TYPE INT USING c", typ: "TEXT", rows: [][]any{{"7"}}, want: referenceDiagnostic{Code: "42804", Message: `result of USING clause for column "c" cannot be cast automatically to type integer`, Hint: "You might need to add an explicit cast."}},
@@ -55,6 +57,20 @@ func TestReferenceAlterTypeConversions(t *testing.T) {
 						s.prepared = prepared
 						run(s)
 						run(referenceSelect("SELECT c FROM t ORDER BY id", []string{"c"}, []string{tc.typ}, tc.rows))
+						if tc.name == "numeric-overflow" {
+							rows, err := b.db.QueryContext(p.ctx, "SELECT c FROM t")
+							if err != nil {
+								t.Fatal(err)
+							}
+							metadata, err := rows.ColumnTypes()
+							rows.Close()
+							if err != nil {
+								t.Fatal(err)
+							}
+							if precision, scale, ok := metadata[0].DecimalSize(); !ok || precision != 8 || scale != 3 {
+								t.Fatal("failed TYPE changed numeric usage", precision, scale, ok)
+							}
+						}
 						if tc.name == "default" {
 							run(referenceExec("INSERT INTO t(id) VALUES(2)", 1))
 							run(referenceSelect("SELECT c FROM t ORDER BY id", []string{"c"}, []string{"INT8"}, [][]any{{int64(8)}, {int64(7)}}))
@@ -113,5 +129,55 @@ func TestReferenceAlterTypeActionListsAndViews(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func TestReferenceAlterTypeOrderedTransforms(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		for _, tc := range []struct {
+			name, declaration, seed, action string
+			names, types                    []string
+			rows                            [][]any
+			want                            referenceDiagnostic
+		}{
+			{
+				name: "identity-first-division", declaration: "c INT", seed: "(7)",
+				action: "ALTER c TYPE INT USING 10/(c-c), ALTER c TYPE BIGINT USING c",
+				names:  []string{"c"}, types: []string{"INT4"}, rows: [][]any{{int64(7)}},
+				want: referenceDiagnostic{Code: "22012", Message: "division by zero"},
+			},
+			{
+				name: "collation-first-division", declaration: "c TEXT", seed: "('7')",
+				action: `ALTER c TYPE TEXT COLLATE "C" USING (10/(c::int-c::int))::text, ALTER c TYPE VARCHAR(5) COLLATE "POSIX" USING c`,
+				names:  []string{"c"}, types: []string{"TEXT"}, rows: [][]any{{"7"}},
+				want: referenceDiagnostic{Code: "22012", Message: "division by zero"},
+			},
+			{
+				name: "action-order", declaration: "a TEXT,b TEXT", seed: "('badA','badB')",
+				action: "ALTER b TYPE INT USING b::int, ALTER a TYPE INT USING a::int",
+				names:  []string{"a", "b"}, types: []string{"TEXT", "TEXT"}, rows: [][]any{{"badA", "badB"}},
+				want: referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "badB"`},
+			},
+		} {
+			t.Run(tc.name+fmt.Sprint(prepared), func(t *testing.T) {
+				p := newReferencePair(t)
+				for _, b := range []struct {
+					name   string
+					db     *sql.DB
+					record *referenceRecorder
+				}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+					t.Run(b.name, func(t *testing.T) {
+						run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+						run(referenceExec("CREATE TABLE t("+tc.declaration+")", 0))
+						run(referenceExec("INSERT INTO t VALUES"+tc.seed, 1))
+						s := referenceImplicitError("ALTER TABLE t "+tc.action, tc.want)
+						s.errorStage = "execute"
+						s.prepared = prepared
+						run(s)
+						run(referenceSelect("SELECT * FROM t", tc.names, tc.types, tc.rows))
+					})
+				}
+			})
+		}
 	}
 }

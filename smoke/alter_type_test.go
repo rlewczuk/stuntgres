@@ -3,9 +3,12 @@ package smoke_test
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
 	"strings"
 	"stuntgres"
 	"testing"
+	"time"
 )
 
 func TestAlterTypeSmoke(t *testing.T) {
@@ -94,17 +97,51 @@ func TestAlterTypeSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	alterDropSmokeRows(t, rows, []string{"a", "b"}, []string{"TEXT", "INT8"}, [][]any{{"7", int64(20)}})
+	for _, tc := range []struct {
+		table, declaration, seed, action, state, message string
+		names, types                                     []string
+		values                                           [][]any
+	}{
+		{"ordered_dup", "c INT", "(7)", "ALTER c TYPE INT USING 10/(c-c), ALTER c TYPE BIGINT USING c", "22012", "division by zero", []string{"c"}, []string{"INT4"}, [][]any{{int64(7)}}},
+		{"ordered_collation", "c TEXT", "('7')", `ALTER c TYPE TEXT COLLATE "C" USING (10/(c::int-c::int))::text, ALTER c TYPE VARCHAR(5) COLLATE "POSIX" USING c`, "22012", "division by zero", []string{"c"}, []string{"TEXT"}, [][]any{{"7"}}},
+		{"ordered_columns", "a TEXT,b TEXT", "('badA','badB')", "ALTER b TYPE INT USING b::int, ALTER a TYPE INT USING a::int", "22P02", `invalid input syntax for type integer: "badB"`, []string{"a", "b"}, []string{"TEXT", "TEXT"}, [][]any{{"badA", "badB"}}},
+	} {
+		alterDropSmokeExec(t, db, "CREATE TABLE "+tc.table+"("+tc.declaration+")")
+		alterDropSmokeExec(t, db, "INSERT INTO "+tc.table+" VALUES"+tc.seed)
+		for _, prepared := range []bool{false, true} {
+			q := "ALTER TABLE " + tc.table + " " + tc.action
+			if prepared {
+				stmt, prepareErr := db.Prepare(q)
+				if prepareErr != nil {
+					t.Fatal("effect-free Prepare", prepareErr)
+				}
+				_, err = stmt.Exec()
+				stmt.Close()
+			} else {
+				_, err = db.Exec(q)
+			}
+			alterDropSmokeError(t, err, tc.state, tc.message, "")
+			rows, err = db.Query("SELECT * FROM " + tc.table)
+			if err != nil {
+				t.Fatal(err)
+			}
+			alterDropSmokeRows(t, rows, tc.names, tc.types, tc.values)
+		}
+	}
 }
 
 func TestAlterTypeControlsSmoke(t *testing.T) {
 	var notices []stuntgres.Error
 	db := alterDropSmokePool(t, &notices)
 	ctx := context.Background()
-	alterDropSmokeExec(t, db, "CREATE TABLE t(id INT,c TEXT,n INT DEFAULT 7 CONSTRAINT n_nn NOT NULL)")
+	alterDropSmokeExec(t, db, "CREATE TABLE t(id INT,c VARCHAR(5),n INT DEFAULT 7 CONSTRAINT n_nn NOT NULL)")
 	alterDropSmokeExec(t, db, "INSERT INTO t VALUES(1,'a',7),(2,'Z',8)")
 	alterDropSmokeExec(t, db, "COMMENT ON COLUMN t.n IS 'retained'")
-	alterDropSmokeExec(t, db, `ALTER TABLE t ALTER c TYPE TEXT COLLATE pg_catalog."POSIX", ALTER n TYPE BIGINT USING n+1`)
+	alterDropSmokeExec(t, db, `ALTER TABLE t ALTER c TYPE VARCHAR(2) COLLATE pg_catalog."POSIX", ALTER n TYPE BIGINT USING n+1`)
 	alterDropSmokeExec(t, db, "INSERT INTO t(id,c) VALUES(3,'b')")
+	alterDropSmokeExec(t, db, "CREATE TABLE numeric_control(c NUMERIC(8,3))")
+	alterDropSmokeExec(t, db, "INSERT INTO numeric_control VALUES(1.235)")
+	alterDropSmokeExec(t, db, "ALTER TABLE numeric_control ALTER c TYPE NUMERIC(5,2)")
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(ctx, db, &dump); err != nil {
 		t.Fatal(err)
@@ -128,23 +165,72 @@ func TestAlterTypeControlsSmoke(t *testing.T) {
 	if err = stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
+	numeric, err := db.Query("SELECT c FROM numeric_control")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := numeric.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if precision, scale, ok := metadata[0].DecimalSize(); !ok || precision != 5 || scale != 2 {
+		t.Fatal(precision, scale, ok)
+	}
+	alterDropSmokeRows(t, numeric, []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}})
+	cancelCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	canceled, stop := context.WithCancel(cancelCtx)
+	defer stop()
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	entered := make(chan struct{})
+	done := make(chan error, 1)
+	go func() { done <- stuntgres.Restore(canceled, db, &controlSmokeReader{Reader: reader, entered: entered}) }()
+	joined := false
+	defer func() {
+		writer.Close()
+		if !joined {
+			<-done
+		}
+	}()
+	select {
+	case <-entered:
+	case <-cancelCtx.Done():
+		t.Fatal(cancelCtx.Err())
+	}
+	stop()
+	writer.Close()
+	if err = <-done; !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	joined = true
 	var again bytes.Buffer
 	if err = stuntgres.Dump(ctx, db, &again); err != nil || again.String() != dump.String() {
 		t.Fatal(err, again.String(), dump.String())
 	}
+	alterDropSmokeExec(t, db, "INSERT INTO numeric_control VALUES(1.235)")
+	numeric, err = db.Query("SELECT c FROM numeric_control")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alterDropSmokeRows(t, numeric, []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}, {"1.24"}})
 	rows, err := db.Query("SELECT c,n FROM t ORDER BY id")
 	if err != nil {
 		t.Fatal(err)
 	}
-	alterDropSmokeRows(t, rows, []string{"c", "n"}, []string{"TEXT", "INT8"}, [][]any{{"a", int64(8)}, {"Z", int64(9)}, {"b", int64(7)}})
+	alterDropSmokeRows(t, rows, []string{"c", "n"}, []string{"VARCHAR", "INT8"}, [][]any{{"a", int64(8)}, {"Z", int64(9)}, {"b", int64(7)}})
 	alterDropSmokeRows(t, held, []string{"n"}, []string{"INT8"}, [][]any{{int64(8)}, {int64(9)}, {int64(7)}})
-	alterDropSmokeExec(t, db, "INSERT INTO t(id,c) VALUES(4,'default')")
+	alterDropSmokeExec(t, db, "INSERT INTO t(id,c) VALUES(4,'ok')")
 	var n int64
 	if err = db.QueryRow("SELECT n FROM t WHERE id=4").Scan(&n); err != nil || n != 7 {
 		t.Fatal(n, err)
 	}
-	if _, err = db.Exec("INSERT INTO t VALUES(5,'bad',NULL)"); err == nil {
-		t.Fatal("lost NOT NULL")
+	_, err = db.Exec("INSERT INTO t VALUES(5,'x',NULL)")
+	var diagnostic *stuntgres.Error
+	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "n" of relation "t" violates not-null constraint`, Detail: "Failing row contains (5, x, null).", Schema: "public", Table: "t", Column: "n"}
+	if !errors.As(err, &diagnostic) || *diagnostic != want {
+		t.Fatal(diagnostic, err, want)
 	}
 	if err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE broken(")); err == nil {
 		t.Fatal("accepted invalid Restore")
@@ -154,4 +240,14 @@ func TestAlterTypeControlsSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	alterDropSmokeRows(t, rows, []string{"n"}, []string{"INT8"}, [][]any{{int64(8)}, {int64(9)}, {int64(7)}, {int64(7)}})
+	alterDropSmokeExec(t, db, "ALTER TABLE t ALTER c TYPE VARCHAR(2)")
+	alterDropSmokeExec(t, db, "ALTER TABLE t ALTER n SET DEFAULT 9")
+	alterDropSmokeExec(t, db, "INSERT INTO t(id,c) VALUES(5,'ok')")
+	if err = db.QueryRow("SELECT n FROM t WHERE id=5").Scan(&n); err != nil || n != 9 {
+		t.Fatal(n, err)
+	}
+	var final bytes.Buffer
+	if err = stuntgres.Dump(ctx, db, &final); err != nil || !strings.Contains(final.String(), "DEFAULT 9") || strings.Contains(final.String(), "ALTER TABLE") {
+		t.Fatal(err, final.String())
+	}
 }

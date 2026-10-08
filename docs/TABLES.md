@@ -98,8 +98,8 @@ ONLY(...) and trailing `*` work for standalone tables. Native INHERITS is still
 unsupported, so there are no supported descendants; PostgreSQL-only reference
 tests specify recursive SET/DROP and ONLY behavior without claiming native parity.
 Action lists and ALTER TABLE IF EXISTS for these actions remain unsupported.
-Native explicit transactions exclude ALTER COLUMN SET/DROP DEFAULT;
-read-only ALTER of these actions fails 25006.
+Native explicit transactions exclude standalone SET/DROP DEFAULT, not selected
+TYPE/nullability/DROP COLUMN lists; read-only ALTER of default actions fails 25006.
 Dump writes the current defaults in CREATE and old rows explicitly; Restore does
 not accept arbitrary ALTER scripts. UPDATE DEFAULT remains outside this surface.
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
@@ -454,21 +454,26 @@ named NOT NULL constraints, never ALTER history. Reset/Restore round trips value
 metadata and comments through existing native controls; explicit ACL serialization
 remains rejected rather than silently losing grants. These are process-local
 controls, not pg_dump, physical storage durability or network protocol support.
-Foreign keys, indexes, row types and inheritance have no native stored-definition
-descriptors. CHECK and supported views have real descriptors/dependencies;
-PostgreSQL-only witnesses cover unsupported FK/hierarchy/transactional DDL.
+Stored CHECK constraints and supported views have real descriptors/dependencies;
+views continue to reference stable relation/attribute identities through supported
+renames. Foreign keys, indexes, automatic row types and inheritance remain absent
+native SQL capabilities. PostgreSQL-only witnesses cover those definitions and
+broader transactional DDL.
 Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
 
 ```sh
 make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1
 ```
 
-## Single-action column removal
+## Column removal and selected action lists
 
 `ALTER TABLE t DROP [COLUMN] [IF EXISTS] name [RESTRICT | CASCADE]`
 removes one live column and its stored cells atomically. Ordinary `t`, `t*`,
-`ONLY t` and `ONLY(t)` operate on supported standalone tables. No action lists,
-inheritance or partition definitions are supported.
+`ONLY t` and `ONLY(t)` operate on supported standalone tables. DROP COLUMN may
+participate in selected TYPE/nullability/DROP COLUMN/constraint lists in explicit
+transactions. Pass order is DROP, TYPE, SET NOT NULL, ADD NOT NULL. Mixing these
+with standalone DEFAULT, SET SCHEMA or rename is unsupported. Inheritance and
+partition definitions are not supported.
 The table's effective owner or superuser is required; unlike DROP TABLE, schema
 ownership alone does not authorize ALTER. Execution takes ACCESS EXCLUSIVE and
 waits for existing readers/writers; utility Prepare is metadata-only. Cancellation

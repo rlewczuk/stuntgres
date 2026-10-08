@@ -95,3 +95,53 @@ func TestAlterTypeCancellationDuringConversion(t *testing.T) {
 		t.Fatal(err, "published partial rewrite")
 	}
 }
+
+func TestAlterTypeOuterTransactionAXPublication(t *testing.T) {
+	for _, commit := range []bool{false, true} {
+		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
+			e := New()
+			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			sessionSQL(t, a, "CREATE TABLE t(c INT)")
+			sessionSQL(t, a, "INSERT INTO t VALUES(7)")
+			tx := transactionBegin(t, a)
+			sessionSQL(t, a, "ALTER TABLE t ALTER c TYPE BIGINT USING c+1")
+			type outcome struct {
+				result Result
+				err    error
+			}
+			done := make(chan outcome, 1)
+			query := statement(t, "SELECT c FROM t")
+			go func() {
+				op, err := b.Acquire(context.Background())
+				if err != nil {
+					done <- outcome{err: err}
+					return
+				}
+				defer op.Done()
+				result, err := e.Execute(op, query, 0, nil)
+				done <- outcome{result, err}
+			}()
+			lockPending(t, e, 1)
+			transactionEnd(t, a, tx, commit)
+			var result Result
+			select {
+			case out := <-done:
+				if out.err != nil {
+					t.Fatal(out.err)
+				}
+				result = out.result
+			case <-time.After(5 * time.Second):
+				t.Fatal("peer SELECT did not terminate after outer transaction")
+			}
+			defer result.Rows.Close()
+			want, id := int64(7), uint32(23)
+			if commit {
+				want, id = 8, 20
+			}
+			if uint32(result.Rows.Schema()[0].Usage.Type.ID()) != id || !reflect.DeepEqual(tuples(result), [][]driver.Value{{want}}) {
+				t.Fatal("schema/data not published together", result.Rows.Schema())
+			}
+			lockEmpty(t, e)
+		})
+	}
+}

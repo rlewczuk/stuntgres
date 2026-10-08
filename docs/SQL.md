@@ -42,6 +42,8 @@ ALTER TABLE target ALTER [COLUMN] column DROP NOT NULL
 ALTER TABLE target ADD [CONSTRAINT name] NOT NULL column
 ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
 ALTER TABLE target ALTER [COLUMN] column [SET DATA] TYPE type [COLLATE [schema.]name] [USING expression]
+ALTER TABLE target ALTER [COLUMN] column SET DEFAULT default_expression
+ALTER TABLE target ALTER [COLUMN] column DROP DEFAULT
 ALTER TABLE [IF EXISTS] target SET SCHEMA schema
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (insert_value [, ...]) [, ...]
@@ -114,6 +116,11 @@ default_expression := value | scalar comparison_operator scalar | (logical_targe
                     | default_expression IS [NOT] DISTINCT FROM default_expression
 ```
 
+SET/DROP DEFAULT are standalone utilities: no comma action lists, TYPE/DEFAULT
+mixtures or explicit transactions. Selected TYPE/nullability/DROP COLUMN lists
+are supported in explicit transactions; their pass order is DROP, TYPE, SET NOT
+NULL, ADD NOT NULL. DEFAULT is not an action in those passes.
+
 ### Table namespace moves
 
 `ALTER TABLE [IF EXISTS] target SET SCHEMA schema` is a standalone ordinary-table
@@ -131,8 +138,9 @@ and physical-session caches survive. Held SQL rebinds original names; old qualif
 names fail after a move, while compatible unqualified plans can find the new schema
 through search_path. Stored views retain dependencies and deparse current names.
 Dump/Restore preserves current persistent definitions/data rather than ALTER history.
-SET SCHEMA in explicit transactions remains excluded. Non-table generic moves,
-temporary/system destinations, indexes and automatic row types are not added.
+Explicit transactions exclude this standalone SET SCHEMA utility, not the supported
+TYPE/nullability/DROP COLUMN lists. Non-table generic moves, temporary/system
+destinations, indexes and automatic row types are not added.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
 controls. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
@@ -515,8 +523,8 @@ tails. Transactional ALTER/restart publishes a fresh generation at commit
 and blocks peer sequence functions (including cache hits); rollback keeps
 the old global generator. CREATE/DROP and sequence comments are likewise
 transactional through the shared catalog overlay, alongside selected ALTER TABLE
-nullability/named-NOT-NULL/DROP COLUMN action lists. Unrelated transactional DDL
-is not enabled.
+TYPE/nullability/named-NOT-NULL/DROP COLUMN action lists. Unrelated transactional
+DDL is not enabled.
 
 TEMP sequences shadow persistent names only for their creating physical
 session, accept its `pg_temp` alias, and disappear at physical end.
@@ -619,13 +627,13 @@ Database-qualified relation names, temporary tables (TEMP sequences are supporte
 outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults/CHECK/identity, ALTER ADD CHECK/VALIDATE,
-serial, primary keys,
+serial, default-containing ALTER lists, primary keys,
 UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
 INSERT RETURNING, whole-row RETURNING records/scalar subqueries,
-general COLLATE, two-phase commit, table/schema/view DDL in explicit
-transactions outside the admitted atomic ALTER actions, non-sequence COMMENT/role
-mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SQL ACL mutation,
-or catalog columns beyond the bounded view providers
+general COLLATE, two-phase commit, transactional table DDL outside selected
+TYPE/nullability/identity/DROP COLUMN/constraint lists, transactional schema/view DDL,
+non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots,
+SQL ACL mutation, or catalog columns beyond the bounded view providers
 are not supported. Declared DEFAULT expressions remain bounded and reject sequence
 calls, including calls with constant NULL arguments.
 

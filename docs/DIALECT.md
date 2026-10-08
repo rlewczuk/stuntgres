@@ -464,8 +464,9 @@ ALTER semantic default diagnostics have empty Position; syntax and CREATE positi
 are unchanged. Qualified/quoted targets, ONLY/ONLY(...) and trailing `*` are accepted
 for standalone tables. Inheritance remains rejected: descendant recursion is a
 PostgreSQL-only reference contract. Action lists, IF EXISTS for these actions,
-UPDATE DEFAULT, new expression providers and these default actions in explicit transactions remain
-excluded. Dump serializes current CREATE definitions and explicit rows; Restore's
+UPDATE DEFAULT, new expression providers and explicit-transaction SET/DROP DEFAULT
+remain excluded. Selected TYPE/nullability/DROP COLUMN lists support explicit
+transactions. Dump serializes current CREATE definitions and explicit rows; Restore's
 existing whitelist does not admit ALTER TABLE history.
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
 
@@ -1484,7 +1485,7 @@ do not collide. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. Both modes remove selected tables and AUTO-dependent owned sequences, plus contained metadata/storage/ACLs; neither removes schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
 
-ALTER TABLE supports DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] alone or in selected nullability lists, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact. Native dependencies include named NOT NULL/ACL/comments, stored views and AUTO-dependent sequences keyed by stable attribute SubID. The existing transaction descriptor overlay carries projected committed/own rows and dependent view/owned-sequence removals through successful Finish, savepoint recovery and combined Commit. Final installation checks original storage pointer/root/independent length/generation/deletion roots. Index/FK/hierarchy mechanisms remain excluded; unrelated table DDL stays unsupported in explicit transactions. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
+ALTER TABLE supports DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] alone or in selected TYPE/nullability lists, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact. Native dependencies include named NOT NULL/ACL/comments, stored views and AUTO-dependent sequences keyed by stable attribute SubID. The existing transaction descriptor overlay carries projected committed/own rows and dependent view/owned-sequence removals through successful Finish, savepoint recovery and combined Commit. Final installation checks original storage pointer/root/independent length/generation/deletion roots. Index/FK/hierarchy mechanisms remain excluded; unrelated table DDL stays unsupported in explicit transactions. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
 The optional ALTER DROP COLUMN keyword consumes the shared dedicated COLUMN token used by COMMENT, not legacy KW_R text matching. Quoted keyword targets remain decoded IDENT names; preserve keyword categories and positioned parser errors when integrating grammar changes.
 Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion per row through common Insert. DEFAULT VALUES also applies declared defaults/typed NULL for nonzero-column tables; VALUES() remains invalid syntax. Restore does not accept ALTER TABLE history. Feature smoke: `make smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'`.
 
@@ -1508,7 +1509,8 @@ marks, except it restores the target parent's read-only mode. A recoverable
 error restores the newest mark and leaves the block Aborted until ROLLBACK TO.
 Per-mark relation/row lock contributions are restored on rollback/error, retaining
 the same ticket and premark modes. Cursor rollback and PL/pgSQL remain excluded.
-Explicit modifying utilities remain a native 0A000 boundary in RW blocks.
+Modifying utilities outside selected ALTER TYPE/nullability/identity/DROP COLUMN
+lists and sequence utilities remain a native 0A000 boundary in RW blocks.
 Exec-only RO rejects supported INSERT/UPDATE/DELETE, CREATE/ALTER/DROP
 table/schema/role and COMMENT with 25006/canonical tag before effects and that
 native utility boundary; valid data-write Prepare still analyzes/describes.
@@ -1552,7 +1554,7 @@ concurrent delete.
 Read-only modifying utilities reject with 25006 before object resolution,
 authorization and relation locks, including missing or locked targets and
 statements prepared before BEGIN. DML retains semantic analysis before read-only
-execution rejection. Selected ALTER nullability/named-NOT-NULL/DROP COLUMN lists
+execution rejection. Selected ALTER TYPE/nullability/named-NOT-NULL/DROP COLUMN lists
 and sequence utilities permit effect-free Prepare and transactional execution;
 unrelated utility Prepare/execution retains its native unsupported0A000 boundary.
 Feature commands: `make test RUN='^TestTransactionIsolation'`,
