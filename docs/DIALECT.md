@@ -330,7 +330,7 @@ Dump serializes expression structure/captured temporal input without Eval and
 existing rows explicitly. Restore uses the same binder and public DEFAULT
 requests, staging atomically. Temporal 'now' input captures CREATE's operation
 clock; no new volatile producer, general function, subquery, cast family or arithmetic
-operator/type is implied. Serial, identity, ALTER DEFAULT and UPDATE DEFAULT remain excluded.
+operator/type is implied. Serial, identity and UPDATE DEFAULT remain excluded.
 Sequence/volatile calls remain excluded specifically from declared DEFAULT expressions,
 even when constant NULL could otherwise eliminate the call; disk/WAL,
 network protocol, native ABI extensions and external pg_dump/custom archives
@@ -338,6 +338,22 @@ are specifically non-engine mechanisms, never permission for successful stubs.
 Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
 Mixed-parameter/reordered-target INSERT coverage:
 `make smoke RUN='^TestInsertDefaultSmoke$' VERBOSE=0`.
+
+ALTER TABLE supports one `ALTER [COLUMN] name SET DEFAULT expression` or
+`ALTER [COLUMN] name DROP DEFAULT` action. It uses the existing general expression
+grammar (unparenthesized NOT/AND/OR and null/truth tests), unlike CREATE's restricted
+DEFAULT grammar. Owner-only AX execution changes an immutable definition without
+evaluating it or rewriting rows; invalid binding leaves the old default intact.
+Subsequent omitted/DEFAULT inserts, including held prepared statements, see the new
+definition; DROP twice succeeds and restores implicit NULL without altering NOT NULL.
+ALTER semantic default diagnostics have empty Position; syntax and CREATE positions
+are unchanged. Qualified/quoted targets, ONLY/ONLY(...) and trailing `*` are accepted
+for standalone tables. Inheritance remains rejected: descendant recursion is a
+PostgreSQL-only reference contract. Action lists, IF EXISTS for these actions,
+UPDATE DEFAULT, new expression providers and explicit transaction table DDL remain
+excluded. Dump serializes current CREATE definitions and explicit rows; Restore's
+existing whitelist does not admit ALTER TABLE history.
+Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
 
 Scalar comparisons admit `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=`; `!=` is the
 `<>` alias. Both operands may be existing scalar literals, parameters, columns
@@ -1264,7 +1280,7 @@ Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion pe
 
 Do not widen syntax beyond the selected surface: no nested transactions,
 2PC, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SELECT aliases/qualified columns,
-general casts/joins/functions/expressions, ALTER DEFAULT, serial/identity, primary
+general casts/joins/functions/expressions, serial/identity, primary
 keys, UPDATE FROM/row-subqueries/CURRENT OF, DELETE USING/CURRENT OF or RETURNING.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
 READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ and READ ONLY/READ WRITE modes.

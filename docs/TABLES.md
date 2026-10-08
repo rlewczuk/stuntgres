@@ -65,17 +65,41 @@ character-family CAST/`::` casts, baseline function-style casts, INT4/INT8
 unary/binary arithmetic, scalar comparisons and IS [NOT] DISTINCT FROM are admitted
 at the outer level. Volatile producers and execution-stage-dependent nodes remain
 unsupported defaults.
-Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
+CREATE DEFAULT Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
 `DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`. Column references and positional
 parameters are prohibited even inside casts or decisive logical branches.
 General SQL functions, subqueries, arithmetic beyond existing INT4/INT8 operators,
-new cast families, serial/identity and ALTER DEFAULT remain outside this surface.
+new cast families and serial/identity remain outside this surface.
 Restrictions apply as ordinary recursive binding reaches each occurrence; earlier
 child Boolean, input and operator diagnostics retain their PostgreSQL precedence.
 The existing null, truth and distinct predicates retain their ordinary typed
 semantics and fully parenthesized unevaluated Dump representation in defaults.
 Named DEFAULT syntax is accepted but does not create a named constraint object.
 Plain LIKE copies shape and NOT NULL, **not defaults**.
+
+`ALTER TABLE target ALTER [COLUMN] name SET DEFAULT expression` and `DROP DEFAULT`
+change only the selected immutable default descriptor. Existing rows and column
+nullability remain unchanged; future omitted/DEFAULT requests, including held
+prepared INSERTs, use the current definition. Dropping an absent default succeeds
+without a new descriptor revision. No explicit default means implicit typed NULL,
+which still fails a retained NOT NULL constraint when consumed.
+ALTER uses the general supported expression grammar: `TRUE OR FALSE`, `NOT FALSE`
+and `NULL IS NULL` do not require extra parentheses. Assignment binding reuses
+CREATE's type providers without evaluating a value: unknown invalid literal input
+fails immediately; typed conversion, integer narrowing and division by zero can
+fail only on subsequent demand. Failed SET preserves the old definition.
+Semantic ALTER default diagnostics have no source Position; syntax errors retain
+their character positions and CREATE diagnostics retain their existing positions.
+Owner-only execution takes the existing AX grant and publishes one fenced
+metadata-only catalog stage. Qualified/quoted targets, optional COLUMN, ONLY,
+ONLY(...) and trailing `*` work for standalone tables. Native INHERITS is still
+unsupported, so there are no supported descendants; PostgreSQL-only reference
+tests specify recursive SET/DROP and ONLY behavior without claiming native parity.
+Action lists and ALTER TABLE IF EXISTS for these actions remain unsupported.
+Native explicit transactions exclude table DDL; read-only ALTER fails25006.
+Dump writes the current defaults in CREATE and old rows explicitly; Restore does
+not accept arbitrary ALTER scripts. UPDATE DEFAULT remains outside this surface.
+Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
 
 Each INSERT row evaluates declared defaults for omitted columns or per-cell
 `DEFAULT`; absent declarations yield typed NULL. Explicit supplied values,
@@ -388,8 +412,7 @@ make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1
 `ALTER TABLE t DROP [COLUMN] [IF EXISTS] name [RESTRICT | CASCADE]`
 removes one live column and its stored cells atomically. Ordinary `t`, `t*`,
 `ONLY t` and `ONLY(t)` operate on supported standalone tables. No action lists,
-inheritance or partition definitions are supported; the other selected ALTER
-actions are the NOT NULL utilities and standalone renames above.
+inheritance or partition definitions are supported.
 The table's effective owner or superuser is required; unlike DROP TABLE, schema
 ownership alone does not authorize ALTER. Execution takes ACCESS EXCLUSIVE and
 waits for existing readers/writers; utility Prepare is metadata-only. Cancellation

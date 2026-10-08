@@ -79,6 +79,11 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		name = v.Name
 		mode = accessExclusive
 		ownerOnly = true
+	case *parser.AlterTableDefault:
+		if !execute {
+			return nil
+		}
+		name, mode, ownerOnly = v.Name, accessExclusive, true
 	case *parser.AlterTableRenameColumn:
 		if !execute {
 			return nil

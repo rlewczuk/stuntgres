@@ -230,6 +230,24 @@ type AlterTable struct {
 
 func (*AlterTable) statement() {}
 
+type DefaultAction uint8
+
+const (
+	SetDefault DefaultAction = iota + 1
+	DropDefault
+)
+
+type AlterTableDefault struct {
+	Name       ObjectName
+	Column     Identifier
+	Only       bool
+	Action     DefaultAction
+	Expression Expr
+	Pos        Position
+}
+
+func (*AlterTableDefault) statement() {}
+
 type alterTarget struct {
 	Name     ObjectName
 	Only     bool

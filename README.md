@@ -66,6 +66,18 @@ Explicit-transaction table DDL, generic non-table moves, TEMP/system destination
 indexes and automatic row types remain bounded native exclusions.
 Feature smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
+Change note: `ALTER TABLE target ALTER [COLUMN] name SET DEFAULT expression`
+and `DROP DEFAULT` atomically change future omitted/DEFAULT inserts without
+rewriting existing rows. Held prepared INSERTs use the current definition;
+DROP of an absent default succeeds and restores implicit NULL. ALTER accepts
+general supported Boolean expressions without CREATE DEFAULT's extra parentheses.
+Dump/Restore preserves the current definition, not ALTER history.
+Standalone `ONLY`, `ONLY(...)`, qualified/quoted targets and trailing `*` are
+supported; inheritance remains unsupported (release recursion is reference-only).
+Action lists, ALTER TABLE IF EXISTS for these actions, UPDATE DEFAULT and explicit
+transaction table DDL remain excluded. See [column defaults](docs/TABLES.md#column-defaults).
+Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
+
 
 Persistent `CREATE VIEW` definitions use the ordinary typed SELECT pipeline,
 including admitted joins, repeated self-join occurrences, nested views, explicit

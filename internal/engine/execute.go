@@ -73,6 +73,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if s, ok := stmt.(*parser.AlterTable); ok {
 		return e.alterTableLocked(scope, op, auth, s, count)
 	}
+	if s, ok := stmt.(*parser.AlterTableDefault); ok {
+		return e.alterDefaultLocked(scope, op, auth, s, count)
+	}
 	switch s := stmt.(type) {
 	case *parser.AlterTableSetSchema:
 		return e.alterSchemaLocked(scope, op, auth, s, count)
