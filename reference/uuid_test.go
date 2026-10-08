@@ -325,14 +325,9 @@ func TestReferenceUUIDAuthorization(t *testing.T) {
 				}
 				referenceRunStep(t, p.ctx, c, backend.record, s)
 			}
-			s := referenceImplicitError("INSERT INTO u VALUES($1)", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`}, "bad")
+			s := referenceImplicitError("INSERT INTO u VALUES($1)", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Context: "unnamed portal parameter $1 = '...'"}, "bad")
 			s.prepared = prepared
 			s.errorStage = "execute"
-			if backend.pg {
-				pg := *s.diagnostic
-				pg.Context = "unnamed portal parameter $1 = '...'"
-				s.diagnostic = &pg
-			}
 			referenceRunStep(t, p.ctx, c, backend.record, s)
 		}
 		referenceRunStep(t, p.ctx, c, backend.record, referenceExec("RESET SESSION AUTHORIZATION", 0))

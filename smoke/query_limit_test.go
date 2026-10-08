@@ -60,7 +60,7 @@ func TestQueryLimitSmoke(t *testing.T) {
 		badRows.Close()
 		t.Fatal("fractional BIGINT input exposed cursor")
 	}
-	if err := typeCoreDiagnostic(badErr, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type bigint: "1.5"`}); err != nil {
+	if err := typeCoreDiagnostic(badErr, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type bigint: "1.5"`, Context: "unnamed portal parameter $1 = '...'"}); err != nil {
 		t.Fatal(err)
 	}
 	exec("CREATE TABLE typed(f DOUBLE PRECISION)", 0)
