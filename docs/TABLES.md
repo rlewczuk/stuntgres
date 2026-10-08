@@ -243,6 +243,10 @@ Rollback to a pre-TYPE mark restores the old scalar; a post-TYPE mark retains
 demand in that same private generation. Peer unseen cache tails are not flushed
 by private or failed AS. Grant-time option/state refresh and cancellation use the
 existing identity sequence lock owner.
+Pre-wait dependency observations account for only the exact internal identity
+descriptor captured after that grant. New view/CHECK dependencies, plain AUTO
+ownership changes and later descriptor replacements still conflict; the original
+descriptor fence and final reciprocal-link validation remain mandatory.
 Witnesses: `TestAlterTypeIdentitySequenceGrantFreshness`,
 `TestAlterTypeIdentityCanceledSequencePublication`,
 `TestAlterTypeIdentityStagedSequenceDemand`,

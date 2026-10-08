@@ -149,7 +149,18 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 				continue
 			}
 			for _, target := range observation.targets {
-				if viewDepends(relation, target) || checkDepends(relation, target) || relation.sequence != nil && relation.sequence.owned == target {
+				if viewDepends(relation, target) || checkDepends(relation, target) {
+					return CatalogConflict{}
+				}
+				if relation.sequence != nil && relation.sequence.owned == target {
+					// Identity TYPE refreshed this exact internal link after its
+					// SRX grant. Options/state revisions are not a new dependency.
+					// The original fence below and reciprocal provider validation
+					// still reject any change after that authoritative capture.
+					original := c.originals[a]
+					if relation.sequence.identity && original != nil && original == descriptor {
+						continue
+					}
 					return CatalogConflict{}
 				}
 			}

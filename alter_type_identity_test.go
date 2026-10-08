@@ -616,11 +616,8 @@ func TestAlterTypeIdentityMixedIntegralDrop(t *testing.T) {
 				}
 				fixture := alterTypeIdentityConnection{c, t.Context()}
 				alterTypePublicRows(t, fixture, "SELECT c FROM t", []string{"c"}, []string{"INT8"}, [][]any{{int64(1)}})
-				var sequence any
-				if err = c.QueryRowContext(t.Context(), "SELECT to_regclass('t_c_seq')").Scan(&sequence); err != nil || sequence != nil {
-					t.Fatal(sequence, err)
-				}
 				var last int64
+				notNullDiagnostic(t, c.QueryRowContext(t.Context(), "SELECT last_value FROM t_c_seq").Scan(&last), stuntgres.Error{Code: "42P01", Message: `relation "t_c_seq" does not exist`, Position: "24"})
 				notNullDiagnostic(t, c.QueryRowContext(t.Context(), "SELECT lastval()").Scan(&last), stuntgres.Error{Code: "55000", Message: "lastval is not yet defined in this session"})
 				_, err = c.ExecContext(t.Context(), "INSERT INTO t DEFAULT VALUES")
 				notNullDiagnostic(t, err, stuntgres.Error{Code: "23502", Message: `null value in column "c" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "c"})

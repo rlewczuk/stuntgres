@@ -604,7 +604,12 @@ func TestReferenceAlterTypeIdentityMixedIntegralDrop(t *testing.T) {
 						action.prepared = prepared
 						run(action)
 						run(referenceSelect("SELECT c FROM t", []string{"c"}, []string{"INT8"}, [][]any{{int64(1)}}))
-						run(referenceSelect("SELECT to_regclass('t_c_seq')", []string{"to_regclass"}, []string{"REGCLASS"}, [][]any{{nil}}))
+						absent := referenceImplicitError("SELECT last_value FROM t_c_seq", referenceDiagnostic{Code: "42P01", Message: `relation "t_c_seq" does not exist`, Position: "24"})
+						absent.selectRows = true
+						run(absent)
+						if backend.name == "postgres" {
+							run(referenceSelect("SELECT to_regclass('t_c_seq')", []string{"to_regclass"}, []string{"REGCLASS"}, [][]any{{nil}}))
+						}
 						last := referenceImplicitError("SELECT lastval()", referenceDiagnostic{Code: "55000", Message: "lastval is not yet defined in this session"})
 						last.selectRows, last.errorStage = true, "execute"
 						run(last)
