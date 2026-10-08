@@ -227,14 +227,15 @@ sequences do not introduce synthetic extra owner checks.
 Schema owner transfer also substitutes explicit ACL grantor/grantee ownership
 references and merges colliding grants atomically, without changing retained
 snapshots, unrelated grants or absent versus explicit-empty ACL semantics.
-Held INSERT rebinding from INT4 to TEXT is an explicit bounded difference:
-native rejects `0A000 cached plan must not change parameter type` before
-parameter import/write; pinned PostgreSQL retains the INT4 parameter and
-assignment-coerces the value into TEXT (held Exec9 succeeds with text `9`).
+Held INSERT rebinding from INT4 to TEXT retains its original INT4 input
+parameter and assignment-coerces the value into TEXT on both backends
+(held Exec9 succeeds with text `9`). Native Reset/Restore remints provider
+descriptors without changing that immutable SQL input contract.
 
-Prepared handles retain ASTs and frozen result/parameter signatures. Compatible
-path changes re-resolve; incompatible rebinding fails 0A000 before importing
-parameters or publishing writes. This is not PostgreSQL's complete cached-plan
+Prepared handles retain ASTs and frozen result/parameter signatures. Path
+changes re-resolve; incompatible result rebinding fails0A000 before importing
+parameters or publishing writes, while inputs retain their original SQL types.
+This is not PostgreSQL's complete cached-plan
 invalidation model: unchanged-path shadow creation and cached namespace-USAGE
 caveats are not reproduced. Retained Rows keep original values and metadata
 through rename/drop/Reset/Restore. Explicit transactions reject schema utilities

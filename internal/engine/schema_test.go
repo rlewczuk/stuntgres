@@ -450,7 +450,9 @@ func TestSchemaPreparedSignatureBeforeImporter(t *testing.T) {
 	for _, q := range []string{"CREATE SCHEMA s1 CREATE TABLE t(id INT)", "CREATE SCHEMA s2 CREATE TABLE t(id TEXT)", "SET search_path TO s1"} {
 		roleExecute(t, e, op, q)
 	}
-	ast := statement(t, "INSERT INTO t VALUES($1)")
+	// Parameters retain their source types across rebinding. A changed result
+	// signature, however, must be rejected before the importer is called.
+	ast := statement(t, "SELECT $1::integer,id FROM t")
 	expected, err := e.Describe(op, ast)
 	if err != nil {
 		t.Fatal(err)
@@ -470,7 +472,7 @@ func TestSchemaPreparedSignatureBeforeImporter(t *testing.T) {
 		t.Fatal("signature imported or succeeded", finish, called)
 	}
 	var diagnostic *sqlstate.Error
-	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cached plan must not change parameter type"}
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cached plan must not change result type"}
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatalf("diagnostic %#v (%v) want %#v", diagnostic, err, want)
 	}

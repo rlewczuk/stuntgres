@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/sqltype"
 	"testing"
 )
 
@@ -21,8 +23,21 @@ func TestAlterTypeModifiers(t *testing.T) {
 	if !reflect.DeepEqual(old.attributes, next.attributes) || old.columns[0].Usage.Typmod != 9 {
 		t.Fatal("changed original descriptor", old, next)
 	}
-	if rows := tuples(run(t, e, "SELECT c,n FROM t")); !reflect.DeepEqual(rows, [][]driver.Value{{"é🙂", "1.24"}}) {
-		t.Fatal(rows)
+	cursor := independentFinalRows(run(t, e, "SELECT c,n FROM t").Rows)
+	defer cursor.Close()
+	values := make([]sqltype.Value, 2)
+	present, err := cursor.Next(context.Background(), values)
+	if err != nil || !present {
+		t.Fatal(present, err)
+	}
+	for i, want := range []string{"é🙂", "1.24"} {
+		got, err := values[i].Type().Output(context.Background(), values[i])
+		if err != nil || got != want {
+			t.Fatal(got, want, err)
+		}
+	}
+	if present, err := cursor.Next(context.Background(), values); err != nil || present {
+		t.Fatal(present, err)
 	}
 }
 

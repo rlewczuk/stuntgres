@@ -284,10 +284,17 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			if !ok || n.ref != leaf.ref || len(n.Schema()) != len(leaf.attributes) {
 				return fmt.Errorf("stuntgres: invalid view source layout")
 			}
-			for slot, attribute := range leaf.attributes {
-				for current, live := range source.attributes {
-					if live == attribute && n.Schema()[slot].Usage != source.columns[current].Usage {
-						return fmt.Errorf("stuntgres: invalid view source usage")
+			// Full frozen source layouts retain unused slots for expression frame
+			// stability. Only read attributes are dependencies on source usages.
+			for _, attribute := range leaf.reads {
+				for slot, frozen := range leaf.attributes {
+					if frozen != attribute {
+						continue
+					}
+					for current, live := range source.attributes {
+						if live == attribute && n.Schema()[slot].Usage != source.columns[current].Usage {
+							return fmt.Errorf("stuntgres: invalid view source usage")
+						}
 					}
 				}
 			}

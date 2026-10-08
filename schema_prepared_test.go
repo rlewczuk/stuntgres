@@ -98,16 +98,17 @@ func TestSchemaPreparedFrozenContracts(t *testing.T) {
 		failed(err, "cached plan must not change result type")
 	}
 	command("SET search_path TO text_shape")
-	_, err = insertStmt.ExecContext(ctx, 7)
-	failed(err, "cached plan must not change parameter type")
-	rows, err := c.QueryContext(ctx, "SELECT * FROM text_shape.t")
+	result, err = insertStmt.ExecContext(ctx, 7)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("retained INT4 input into TEXT", err)
 	}
-	if rows.Next() || rows.Err() != nil {
-		t.Fatal("incompatible INSERT wrote rows", rows.Err())
+	if count, err := result.RowsAffected(); err != nil || count != 1 {
+		t.Fatal(count, err)
 	}
-	rows.Close()
+	var text string
+	if err = c.QueryRowContext(ctx, "SELECT id FROM text_shape.t").Scan(&text); err != nil || text != "7" {
+		t.Fatal(text, err)
+	}
 	command("SET search_path TO s1")
 	if err = stuntgres.Reset(ctx, db); err != nil {
 		t.Fatal(err)

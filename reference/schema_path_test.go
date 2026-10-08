@@ -126,24 +126,18 @@ func TestReferenceSchemaPathsPrepared(t *testing.T) {
 				run(a, schemaReferenceError("SELECT set_config('search_path','sp1,',false)", "22023", `invalid value for parameter "search_path": "sp1,"`, "List syntax is invalid.", prepared, "execute", ""))
 			}
 			run(a, referenceSelect("SHOW search_path", []string{"search_path"}, []string{"TEXT"}, [][]any{{"sp2"}}))
-			// PostgreSQL retains the original INT4 parameter and assignment-coerces
-			// it after path reanalysis. Native's bounded signature guard rejects
-			// before importer/write; these are independently asserted outcomes.
+			// Both backends retain the original INT4 input contract and
+			// assignment-coerce to TEXT after path reanalysis.
 			run(a, referenceExec("SET search_path TO sp_shape", 0))
 			result, err = heldInsert.ExecContext(p.ctx, int64(9))
-			if backend.name == "postgres" {
-				if err != nil {
-					t.Fatal("held INT4 INSERT into TEXT", err)
-				}
-				count, err = result.RowsAffected()
-				if err != nil || count != 1 {
-					t.Fatal(count, err)
-				}
-				run(a, referenceSelect("SELECT id FROM sp_shape.t", []string{"id"}, []string{"TEXT"}, [][]any{{"9"}}))
-			} else {
-				referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cached plan must not change parameter type"})
-				run(a, referenceSelect("SELECT id FROM sp_shape.t", []string{"id"}, []string{"TEXT"}, nil))
+			if err != nil {
+				t.Fatal("held INT4 INSERT into TEXT", err)
 			}
+			count, err = result.RowsAffected()
+			if err != nil || count != 1 {
+				t.Fatal(count, err)
+			}
+			run(a, referenceSelect("SELECT id FROM sp_shape.t", []string{"id"}, []string{"TEXT"}, [][]any{{"9"}}))
 			run(a, referenceExec("SET search_path TO sp_shape", 0))
 			_, err = held.QueryContext(p.ctx)
 			referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cached plan must not change result type"})

@@ -874,6 +874,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		// that immutable source to the fresh destination.
 		if b.expected != nil && r.Number <= len(b.expected.Parameters.Types) {
 			u = b.expected.Parameters.Types[r.Number-1]
+			// Native replacement remints builtin descriptors. Keep the SQL input
+			// identity/modifiers, but bind values/providers to this catalog generation.
+			if u.Type != nil {
+				u.Type = b.typ(u.Type.ID())
+			}
 		}
 		if u.Type == nil {
 			u = b.parameters[r.Number]
