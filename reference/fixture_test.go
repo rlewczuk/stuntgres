@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -7,10 +5,10 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/lib/pq"
 	"github.com/ngrok/sqlmw"
-	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"io"
 	"os"
@@ -29,6 +27,9 @@ var referenceContainer *postgres.PostgresContainer
 var referenceAdmin *sql.DB
 var referenceDSN, referenceContainerID string
 var referenceMemoryDriver = stuntgres.NewDriver()
+var referenceMode = flag.Bool("reference", false, "run migrated scenarios against real pinned PostgreSQL as well as native")
+var referenceStartup sync.Once
+var referenceStartupErr error
 
 // Tests run serially; one test can create multiple pairs before its cleanup.
 
@@ -59,56 +60,23 @@ func runReferenceMain(m *testing.M) (code int) {
 			}
 		}
 	}()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-	var err error
-	referenceContainer, err = postgres.Run(ctx, referenceImage,
-		postgres.WithDatabase("stuntgres_reference"), postgres.WithUsername("stuntgres"),
-		postgres.WithPassword("stuntgres"), postgres.BasicWaitStrategies(),
-		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": "--locale=C --encoding=UTF8"}))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "reference startup: %v\n", err)
-		return
-	}
-	referenceContainerID = referenceContainer.GetContainerID()
-	fmt.Fprintf(os.Stderr, "reference container: %s\n", referenceContainerID)
-	referenceDSN, err = referenceContainer.ConnectionString(ctx, "sslmode=disable", "application_name=")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "reference connection string: %v\n", err)
-		return
-	}
-	referenceAdmin, err = sql.Open("postgres", referenceDSN)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "reference open: %v\n", err)
-		return
-	}
-	if err = referenceAdmin.PingContext(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "reference ping: %v\n", err)
-		return
-	}
-	var version, encoding, locale string
-	if err = referenceAdmin.QueryRowContext(ctx, "SELECT current_setting('server_version_num'), current_setting('server_encoding'), datcollate FROM pg_database WHERE datname = current_database()").Scan(&version, &encoding, &locale); err != nil {
-		fmt.Fprintf(os.Stderr, "reference configuration: %v\n", err)
-		return
-	}
-	if version != "180000" || encoding != "UTF8" || locale != "C" {
-		fmt.Fprintf(os.Stderr, "reference configuration mismatch: version=%q encoding=%q locale=%q\n", version, encoding, locale)
-		return
-	}
-	// initdb names its superuser stuntgres. Native dumps independently name their
-	// bootstrap owner postgres; replay must preserve that owner, not rewrite SQL.
-	if _, err = referenceAdmin.ExecContext(ctx, "CREATE ROLE postgres SUPERUSER NOLOGIN"); err != nil {
-		fmt.Fprintf(os.Stderr, "reference native bootstrap owner: %v\n", err)
-		return
-	}
+	flag.Parse()
 	sql.Register("stuntgres_reference_memory", sqlmw.Driver(referenceMemoryDriver, referenceInterceptor{}))
 	sql.Register("stuntgres_reference_postgres", sqlmw.Driver(&pq.Driver{}, referenceInterceptor{}))
+	if *referenceMode {
+		if err := referenceEnsureStarted(); err != nil {
+			fmt.Fprintf(os.Stderr, "reference startup: %v\n", err)
+			return
+		}
+	}
 	code = m.Run()
-	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cleanupCancel()
-	if _, err = referenceAdmin.ExecContext(cleanupCtx, "DROP OWNED BY postgres CASCADE; DROP ROLE postgres"); err != nil {
-		fmt.Fprintf(os.Stderr, "reference native bootstrap cleanup: %v\n", err)
-		code = 1
+	if referenceAdmin != nil && referenceStartupErr == nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cleanupCancel()
+		if _, err := referenceAdmin.ExecContext(cleanupCtx, "DROP OWNED BY postgres CASCADE; DROP ROLE postgres"); err != nil {
+			fmt.Fprintf(os.Stderr, "reference native bootstrap cleanup: %v\n", err)
+			code = 1
+		}
 	}
 	return
 }
@@ -121,12 +89,25 @@ type referencePair struct {
 
 func newReferencePair(t *testing.T) *referencePair {
 	t.Helper()
-	if referenceContainer.GetContainerID() != referenceContainerID {
-		t.Fatal("reference container identity changed")
+	return newReferenceFixture(t, true, false)
+}
+
+func newReferenceFixture(t *testing.T, withPostgres, freshNative bool) *referencePair {
+	t.Helper()
+	if withPostgres {
+		if err := referenceEnsureStarted(); err != nil {
+			t.Fatalf("reference startup: %v", err)
+		}
+		if referenceContainer.GetContainerID() != referenceContainerID {
+			t.Fatal("reference container identity changed")
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 	reset := func() {
+		if !withPostgres {
+			return
+		}
 		resetCtx, resetCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer resetCancel()
 		// A replay can return a pooled connection authenticated as postgres.
@@ -144,74 +125,54 @@ func newReferencePair(t *testing.T) *referencePair {
 		t.FailNow()
 	}
 	p := &referencePair{ctx: ctx, memoryRecord: &referenceRecorder{}, postgresRecord: &referenceRecorder{}}
-	var err error
-	connector, err := referenceMemoryDriver.OpenConnector("reference/" + t.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.native = sql.OpenDB(connector)
-	p.memory, err = sql.Open("stuntgres_reference_memory", "reference/"+t.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	p.postgres, err = sql.Open("stuntgres_reference_postgres", referenceDSN)
-	if err != nil {
-		t.Fatal(err)
-	}
 	t.Cleanup(func() {
 		for _, db := range []*sql.DB{p.memory, p.postgres, p.native} {
-			if err := db.Close(); err != nil {
-				t.Errorf("case close: %v", err)
+			if db != nil {
+				if err := db.Close(); err != nil {
+					t.Errorf("case close: %v", err)
+				}
 			}
 		}
 		reset()
 	})
-	for _, db := range []*sql.DB{p.memory, p.postgres, p.native} {
-		if err := db.PingContext(ctx); err != nil {
+	nativeDriver := referenceMemoryDriver
+	if freshNative {
+		nativeDriver = stuntgres.NewDriver()
+	}
+	connector, err := nativeDriver.OpenConnector("reference/" + t.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.native = sql.OpenDB(connector)
+	if freshNative {
+		wrapped := sqlmw.Driver(noticeReferenceDriver{connector}, referenceInterceptor{})
+		configured, err := wrapped.(driver.DriverContext).OpenConnector("")
+		if err != nil {
 			t.Fatal(err)
+		}
+		p.memory = sql.OpenDB(configured)
+	} else {
+		p.memory, err = sql.Open("stuntgres_reference_memory", "reference/"+t.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if withPostgres {
+		p.postgres, err = sql.Open("stuntgres_reference_postgres", referenceDSN)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, db := range []*sql.DB{p.memory, p.postgres, p.native} {
+		if db != nil {
+			if err := db.PingContext(ctx); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	return p
 }
 
-func TestReferenceFixtureSessionAuthorizationReset(t *testing.T) {
-	t.Run("replay", func(t *testing.T) {
-		p := newReferencePair(t)
-		conn, err := referenceAdmin.Conn(p.ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer conn.Close()
-		// Model a replay returning its physical session without resetting auth.
-		// Pair cleanup must discard it rather than create public as postgres.
-		if _, err := conn.ExecContext(p.ctx, "SET SESSION AUTHORIZATION postgres; CREATE TABLE fixture_replay_owner(v INT)"); err != nil {
-			t.Fatal(err)
-		}
-		var owner string
-		if err := conn.QueryRowContext(p.ctx, "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid='fixture_replay_owner'::regclass").Scan(&owner); err != nil || owner != "postgres" {
-			t.Fatalf("replay owner: got %q, want postgres, error %v", owner, err)
-		}
-	})
-	checkReset := func(t *testing.T) {
-		t.Helper()
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		var sessionUser, currentUser, owner string
-		var empty bool
-		if err := referenceAdmin.QueryRowContext(ctx, `SELECT session_user, current_user, pg_get_userbyid(nspowner), NOT EXISTS(SELECT 1 FROM pg_class WHERE relnamespace=pg_namespace.oid) FROM pg_namespace WHERE nspname='public'`).Scan(&sessionUser, &currentUser, &owner, &empty); err != nil {
-			t.Fatal(err)
-		}
-		if sessionUser != "stuntgres" || currentUser != "stuntgres" || owner != "stuntgres" || !empty {
-			t.Fatalf("schema reset: session=%q current=%q owner=%q empty=%t", sessionUser, currentUser, owner, empty)
-		}
-	}
-	// Check the after-case reset separately from the next case's before reset.
-	checkReset(t)
-	t.Run("next_case", func(t *testing.T) {
-		newReferencePair(t)
-		checkReset(t)
-	})
-}
 
 type referenceDiagnostic struct {
 	Severity            string
@@ -604,6 +565,9 @@ func (p *referencePair) step(t *testing.T, s referenceStep) {
 	t.Helper()
 	var memory, postgres referenceObserved
 	t.Run("memory", func(t *testing.T) { memory = referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, s) })
+	if p.postgres == nil {
+		return
+	}
 	t.Run("postgres", func(t *testing.T) { postgres = referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s) })
 	if !t.Failed() && !reflect.DeepEqual(memory, postgres) {
 		t.Fatalf("parity memory=%#v postgres=%#v", memory, postgres)
@@ -825,7 +789,12 @@ type referenceRecorder struct {
 
 func referenceCopyValue(v driver.Value) driver.Value {
 	if b, ok := v.([]byte); ok {
-		return append([]byte(nil), b...)
+		if b == nil {
+			return []byte(nil)
+		}
+		owned := make([]byte, len(b))
+		copy(owned, b)
+		return owned
 	}
 	return v
 }

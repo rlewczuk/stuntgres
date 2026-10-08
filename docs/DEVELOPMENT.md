@@ -5,18 +5,19 @@
 ```sh
 make generate   # pinned goyacc; checked-in parser generation
 make build      # compile production packages
-make test       # uncached Docker-free tests, including smoke
+make test       # uncached Docker-free tests, including smoke and dual-mode pilot
 make reference  # real pinned PostgreSQL differential fixtures
 make smoke      # uncached public database/sql and controls smoke tests
 make race       # Docker-free tests with the race detector
-make test-all   # native, smoke and reference tests with race detection in one run
+make test-all   # quick + full reference race suites under one aggregate deadline
 make bench      # fresh engine + connector + pool + Ping + Close, five runs
 make deps       # list non-standard production dependencies
 ```
 
 Test targets enforce a fixed 300-second wall-clock deadline across all packages,
-including compilation, plus a per-package timeout. `make test-all` runs all suites
-together within that deadline; slow or hanging tests must be fixed, not exempted.
+including compilation, plus a per-package timeout. `make test-all` chains ordinary
+native/smoke/quick race tests and the full tagged reference race package under one
+outer deadline; slow or hanging tests must be fixed, not exempted.
 Output is quiet by default; use `VERBOSE=1` for test diagnostics, `RUN='^TestName$'`
 for selection, and `PACKAGES=./internal/parser` to scope ordinary/race tests.
 Read `Makefile` for non-standard actions. Only specialized, explicitly enabled
@@ -32,6 +33,76 @@ Dump/Reset/Restore and a second already-open pool. Run the catalog witness with
 Go test reports each test's pass or failure instead of standalone output labels.
 
 The explicitly enabled reference suite requires working Docker and image/module access. It uses one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
+
+### Dual-mode pilot and legacy transition
+
+The ordinary external `reference/` binary discovers four migrated scenarios:
+
+* `TestReferenceQueryCoreProjectionBagsAndMetadata`
+* `TestReferenceQueryCoreOrderPositionRegression`
+* `TestReferenceByteaInputBindsMetadata`
+* `TestReferenceInsertImplicitShortDiagnostics`
+
+Their single definitions run the real public stuntgres `database/sql` adapter
+against independently hardcoded expectations by default. The explicit boolean
+test-binary flag adds real PostgreSQL; the build tag is not the mode selector:
+
+```sh
+go test ./reference
+go test ./reference -args -reference=false
+go test ./reference -args -reference=true
+go test -tags reference ./reference -args -reference=true
+```
+
+Absent/false quick mode does not contact Docker, fetch an image, open PostgreSQL
+or read server state. Explicit true starts the pinned oracle before test execution,
+even if selection matches no tests; startup/configuration errors fail visibly,
+never skip or fall back. Only `./reference` accepts this custom flag: do not pass
+it to unrelated package binaries. `make test` and `make race` discover the quick
+pilot normally. `make reference` selects true and includes every legacy tagged
+case. `make test-all` first runs `go test -race ./...`, then
+`go test -race -tags reference ./reference -args -reference=true`, with uncached
+test flags and one shared 300-second wall-clock bound.
+
+The tag retains untouched legacy PostgreSQL-only definitions. Selecting only
+the pilot with `-tags reference -reference=false` (flag after `-args`) is still
+Docker-free; selecting actual legacy cases lazily starts the same singleton,
+even when the pilot flag is absent/false. The tag alone therefore does not make
+the whole legacy suite quick. Remaining functional bodies/helper interfaces and
+root-only assertions are preserved; this is not a bulk migration.
+
+Each selected backend independently asserts exact rows, column labels/type names
+including zero-row results, NULLs, duplicate-preserving bags versus ordered rows,
+direct/prepared parameters and affected counts. Diagnostics retain full English
+logical fields, UTF8 character positions and Prepare-versus-Execute stages;
+failed multi-row INSERT preserves sentinel data. Both backends independently
+assert the exact unnamed-portal parameter Context. BYTEA checks raw ScanType, known/unknown
+Length/Nullable metadata, NULL versus nonnil empty values and owned recorded
+arguments/consumed buffers before normalization. The focused byte-copy regression
+and existing row comparator exercise these helper boundaries. Unique root BYTEA
+ownership and richer LIMIT metadata/native-control/cancellation assertions remain
+unchanged.
+
+Pilot pools use a fresh native driver per fixture; wrapped and native control
+pools share that driver/DSN without exposing controls through middleware. Cleanup
+closes rows before statements and all pools before schema reset. PostgreSQL
+lifecycle, owner provisioning and administrative-session safeguards below remain
+shared by eager pilot and lazy legacy startup.
+
+Some researched cases cannot be forced into identical static row snapshots:
+
+| Retained case | Concrete fit boundary |
+| --- | --- |
+| Physical sequence catalog/cache probes | Server `log_cnt=22` versus native logical `log_cnt=0` would assert nonexistent native WAL/cache durability. |
+| Lock/blocker probes | OID/PID/`pg_locks`/`pg_blocking_pids` relationships require locally captured server identities and bounded concurrency, not portable fixed rows. |
+| Random draws | Independent range/reseed witnesses fit selected backend scenarios; identical random streams are not a portable expectation. |
+| Native Dump followed by PG replay | Requires an unwrapped native control phase and a real PostgreSQL replay phase, not a query-only snapshot. |
+| PostgreSQL-only `INHERITS` | Outside the bounded native dialect; retain the real server assertion without inventing native success. |
+
+These are concrete boundaries of static snapshot comparison, not blanket
+exceptions to future shared scenarios. No extra migration or engine/oracle
+surface change is implied.
+
 
 The shared fixture provisions native bootstrap owner `postgres` as a separate
 NOLOGIN superuser for the container lifetime, with bounded startup and cleanup.

@@ -421,16 +421,42 @@ Use Go 1.26 or later and GNU `timeout`. From the repository root:
 ```sh
 
 make build      # compile production packages
-make test       # uncached Docker-free unit and public smoke tests
+make test       # uncached Docker-free unit, public smoke and dual-mode pilot tests
 make smoke      # public API scenarios only
 make race       # Docker-free tests with the race detector
 make reference  # compatibility tests against pinned PostgreSQL; requires Docker
-make test-all   # all suites, including reference, with the race detector
+make test-all   # quick and full reference suites with race; one 300s deadline
 ```
 
 Test targets enforce a 300-second wall-clock deadline and are quiet by default.
 Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 `PACKAGES=./internal/parser` to scope ordinary or race tests.
+
+The four migrated `reference/` scenarios also run without Docker through the
+ordinary test binary:
+
+```sh
+go test ./reference                         # quick: real stuntgres + expected data
+go test ./reference -args -reference=false  # explicitly select the same quick path
+go test ./reference -args -reference=true   # also test real pinned PostgreSQL 18.0
+go test -tags reference ./reference -args -reference=true # full legacy + pilot
+```
+
+The pilot covers query projection/bags/metadata, ORDER BY diagnostic positions,
+BYTEA binds/raw metadata/ownership, and short INSERT diagnostics/atomicity. Both
+backends must independently satisfy the same hardcoded scenario expectations;
+reference mode never substitutes parity for expected results or falls back on
+startup failure. See the development guide for the exact migrated test names.
+
+The `reference` build tag still includes all untouched legacy PostgreSQL tests;
+it does not select the pilot's runtime mode. A tagged pilot-only selection with
+`-reference=false` remains Docker-free, but selecting a legacy test lazily starts
+the same pinned container even when the flag is absent or false. This is a small
+pilot, not a whole-suite quick migration. `make reference` enables the flag only
+for `./reference`. `make test-all` runs ordinary native/smoke/quick tests with
+race detection, then the full tagged reference package with race detection,
+chained under one aggregate 300-second wall-clock deadline.
+
 
 Start with the [dialect contract](docs/DIALECT.md) and
 [development guide](docs/DEVELOPMENT.md). Root packages expose the driver and

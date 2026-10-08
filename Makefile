@@ -18,7 +18,7 @@ test:
 	@$(TEST_COMMAND) $(PACKAGES)
 
 reference:
-	@$(TEST_COMMAND) -tags reference $(if $(RUN),,-run TestReference) ./reference
+	@$(TEST_COMMAND) -tags reference $(if $(RUN),,-run TestReference) ./reference -args -reference=true
 
 smoke:
 	@$(TEST_COMMAND) ./smoke
@@ -26,9 +26,9 @@ smoke:
 race:
 	@$(TEST_COMMAND) -race $(PACKAGES)
 
-# One invocation includes smoke and PostgreSQL coverage, all under the detector.
+# Quick/native/smoke and full PostgreSQL coverage share one aggregate deadline.
 test-all:
-	@$(TEST_COMMAND) -race -tags reference ./...
+	@timeout --signal=KILL 300s sh -c 'go test "$$@" -race ./... && go test "$$@" -race -tags reference ./reference -args -reference=true' test-all $(TEST_FLAGS)
 
 bench:
 	@timeout --signal=KILL 300s go test -timeout=300s -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .
