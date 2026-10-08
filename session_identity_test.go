@@ -469,3 +469,190 @@ func TestSessionIdentityRoleSentinelsAndNoPrefixPublication(t *testing.T) {
 		t.Fatal(stmt, err)
 	}
 }
+
+func TestSessionIdentityQuotedViewRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db := rolePool(t, NewDriver(), "identity quoted view", "postgres")
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	for _, q := range []string{
+		"CREATE ROLE identity_quoted_owner",
+		"SET SESSION AUTHORIZATION identity_quoted_owner",
+		"CREATE TABLE identity_quoted_source(id INT)",
+		"INSERT INTO identity_quoted_source VALUES(1)",
+		`CREATE VIEW identity_quoted_view AS SELECT "current_user"() AS effective,"session_user"() AS session_name,"system_user"() AS authentication FROM identity_quoted_source`,
+		"RESET SESSION AUTHORIZATION",
+		"SET ROLE identity_quoted_owner",
+	} {
+		if _, err := conn.ExecContext(ctx, q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	held, err := conn.PrepareContext(ctx, "SELECT effective,session_name,authentication FROM identity_quoted_view")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	assert := func(want string) {
+		t.Helper()
+		rows, err := held.QueryContext(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		types, err := rows.ColumnTypes()
+		if err != nil || len(types) != 3 {
+			t.Fatal(types, err)
+		}
+		for i, typ := range types {
+			wantType := "NAME"
+			if i == 2 {
+				wantType = "TEXT"
+			}
+			if typ.DatabaseTypeName() != wantType || typ.ScanType() != reflect.TypeFor[string]() {
+				t.Fatal(i, typ)
+			}
+		}
+		var effective, session string
+		var authentication any
+		if !rows.Next() {
+			t.Fatal(rows.Err())
+		}
+		if err := rows.Scan(&effective, &session, &authentication); err != nil || effective != want || session != "postgres" || authentication != nil {
+			t.Fatal(effective, session, authentication, err)
+		}
+		if rows.Next() || rows.Err() != nil {
+			t.Fatal(rows.Err())
+		}
+	}
+	assert("identity_quoted_owner")
+	var dump bytes.Buffer
+	if err := Dump(ctx, db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := Reset(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	if err := Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	assert("identity_quoted_owner")
+	rolePublicCommand(t, conn, "RESET ROLE", 0, false)
+	assert("postgres")
+}
+
+func TestSessionIdentityArgumentDiagnosticPrecedence(t *testing.T) {
+	ctx := context.Background()
+	db := rolePool(t, NewDriver(), "identity argument precedence", "postgres")
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	for _, q := range []string{"CREATE ROLE identity_child_reader", "CREATE SCHEMA identity_hidden", "SET SESSION AUTHORIZATION identity_child_reader", "CREATE TABLE identity_child(id INT)"} {
+		rolePublicCommand(t, conn, q, 0, false)
+	}
+	for _, tc := range []struct{ query, position string }{
+		{"SELECT missing_identity_schema.current_database(missing_column) FROM identity_child", "49"},
+		{"SELECT identity_hidden.current_database(missing_column) FROM identity_child", "41"},
+	} {
+		for _, prepared := range []bool{false, true} {
+			var err error
+			if prepared {
+				stmt, e := conn.PrepareContext(ctx, tc.query)
+				err = e
+				if stmt != nil {
+					stmt.Close()
+					t.Fatal("unexpected handle", tc.query)
+				}
+			} else {
+				rows, e := conn.QueryContext(ctx, tc.query)
+				err = e
+				if rows != nil {
+					rows.Close()
+					t.Fatal("unexpected cursor", tc.query)
+				}
+			}
+			want := &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: `column "missing_column" does not exist`, Position: tc.position}
+			var got *Error
+			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
+				t.Fatalf("%s prepared=%t got %#v want %#v", tc.query, prepared, err, want)
+			}
+		}
+	}
+}
+
+type identityCancelReader struct {
+	reader   *strings.Reader
+	cancel   context.CancelFunc
+	observed bool
+}
+
+func (r *identityCancelReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.observed = true
+	r.cancel()
+	return n, err
+}
+
+func TestSessionIdentityFailedAndCanceledControlsPreserveState(t *testing.T) {
+	ctx := context.Background()
+	db := rolePool(t, NewDriver(), "identity control preservation", "postgres")
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	for _, q := range []string{"CREATE ROLE identity_control_owner", "SET SESSION AUTHORIZATION identity_control_owner", "CREATE TABLE identity_sentinel(id INT,who TEXT DEFAULT current_user)", "INSERT INTO identity_sentinel(id) VALUES(77)", "RESET SESSION AUTHORIZATION", "SET ROLE identity_control_owner"} {
+		if _, err := conn.ExecContext(ctx, q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	query := "SELECT current_user,current_catalog,session_user,system_user,id,who FROM identity_sentinel"
+	var retained driver.Rows
+	if err := conn.Raw(func(raw any) error {
+		var err error
+		retained, err = raw.(driver.QueryerContext).QueryContext(ctx, query, nil)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer retained.Close()
+	assert := func() {
+		t.Helper()
+		var current, database, session, who string
+		var system any
+		var id int
+		if err := conn.QueryRowContext(ctx, query).Scan(&current, &database, &session, &system, &id, &who); err != nil || current != "identity_control_owner" || database != "identity control preservation" || session != "postgres" || system != nil || id != 77 || who != "identity_control_owner" {
+			t.Fatal(current, database, session, system, id, who, err)
+		}
+	}
+	// The first INSERT really stages an identity default before a later row
+	// fails; the isolated stage must never replace the sentinel catalog.
+	script := "CREATE TABLE identity_replacement(id INT,who TEXT DEFAULT current_user); INSERT INTO identity_replacement(id) VALUES(1); INSERT INTO identity_replacement(id) VALUES(1/0);"
+	var diagnostic *Error
+	if err := Restore(ctx, db, strings.NewReader(script)); !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
+		t.Fatal(err)
+	}
+	assert()
+	canceled, cancel := context.WithCancel(ctx)
+	defer cancel()
+	reader := &identityCancelReader{reader: strings.NewReader("CREATE TABLE identity_replacement(id INT);"), cancel: cancel}
+	if err := Restore(canceled, db, reader); !reader.observed || !errors.Is(err, context.Canceled) {
+		t.Fatal(reader.observed, err)
+	}
+	assert()
+	metadata := retained.(driver.RowsColumnTypeDatabaseTypeName)
+	for i, want := range []string{"NAME", "NAME", "NAME", "TEXT", "INT4", "TEXT"} {
+		if got := metadata.ColumnTypeDatabaseTypeName(i); got != want {
+			t.Fatal(i, got, want)
+		}
+	}
+	values := make([]driver.Value, 6)
+	if err := retained.Next(values); err != nil || !reflect.DeepEqual(values, []driver.Value{"identity_control_owner", "identity control preservation", "postgres", nil, int64(77), "identity_control_owner"}) {
+		t.Fatal(values, err)
+	}
+}

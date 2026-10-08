@@ -295,6 +295,12 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		return text + " END", nil
 	case parser.FunctionExpr:
+		name := e.Name.Parts[len(e.Name.Parts)-1].Text
+		if parser.IdentityFunctionName(name) && len(e.Args) == 0 {
+			// A bound identity call is a pg_catalog builtin. In particular,
+			// decoded quoted keyword names cannot be replayed unqualified.
+			return "pg_catalog." + name + "()", nil
+		}
 		text, err := args(e.Args)
 		return objectNameText(e.Name) + "(" + text + ")", err
 	case parser.CallExpr:

@@ -118,6 +118,16 @@ func (b *expressionBinder) bindIdentity(name string, pos parser.Position) (Bound
 }
 
 func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundExpr, error) {
+	// PostgreSQL transforms children before looking up the callee namespace.
+	// Valid zero-argument calls need neither diagnostic storage nor child work.
+	var names []string
+	if len(raw.Args) != 0 {
+		var err error
+		names, err = b.functionArgumentTypeNames(raw)
+		if err != nil {
+			return nil, err
+		}
+	}
 	visible, err := b.builtinVisible(raw.Name, functionLookup)
 	if err != nil {
 		return nil, err
@@ -125,7 +135,7 @@ func (b *expressionBinder) bindIdentityFunction(raw parser.FunctionExpr) (BoundE
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	valid := name == "current_database" || name == "current_user" || name == "session_user" || name == "system_user" || name == "current_schema"
 	if !visible || !valid || len(raw.Args) != 0 || raw.Variadic {
-		return nil, b.functionSignatureError(raw)
+		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	node, err := b.bindIdentity(name, raw.Pos)
 	if err != nil {

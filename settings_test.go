@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"stuntgres/internal/parser"
 )
 
 func settingsDefinitionsForTest() []SettingDefinition {
@@ -671,7 +673,27 @@ func TestSettingsPublicTimeoutStages(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer b.Close()
-	before := nativeSession(t, a).Token()
+	session := nativeSession(t, a)
+	before := session.Token()
+	// Public RESET correctly inherits the old 1ms command deadline, so it is
+	// not deterministic fixture cleanup under race instrumentation. Execute
+	// actual RESET through the existing untimed initialization/control seam;
+	// all workload admission, timing and diagnostics below stay public.
+	resetTimeout := func() error {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		op, err := session.Acquire(cleanup)
+		if err != nil {
+			return err
+		}
+		defer op.Done()
+		stmt, err := parseOne("RESET statement_timeout", parser.Options{Context: cleanup, StandardConformingStrings: true})
+		if err != nil {
+			return err
+		}
+		_, err = session.Engine().Execute(op, stmt, 0, nil)
+		return err
+	}
 	if _, err = a.ExecContext(ctx, "CREATE TABLE sentinel(v INT NOT NULL)"); err != nil {
 		t.Fatal(err)
 	}
@@ -685,6 +707,19 @@ func TestSettingsPublicTimeoutStages(t *testing.T) {
 	defer retained.Close()
 	for _, stage := range []string{"direct", "prepare", "prepared-execute"} {
 		t.Run(stage, func(t *testing.T) {
+			armed := false
+			clearTimeout := func() error {
+				if !armed {
+					return nil
+				}
+				armed = false
+				return resetTimeout()
+			}
+			t.Cleanup(func() {
+				if err := clearTimeout(); err != nil {
+					t.Error("restoring timeout fixture:", err)
+				}
+			})
 			timedOut := false
 			for _, size := range []int{16384, 65536, 262144, 1048576} {
 				// NULL guarantees failed execution if this workload completes before the
@@ -697,6 +732,7 @@ func TestSettingsPublicTimeoutStages(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
+				armed = true
 				sessionSet(t, a, "SET statement_timeout TO '1ms'", false)
 				switch stage {
 				case "direct":
@@ -720,7 +756,9 @@ func TestSettingsPublicTimeoutStages(t *testing.T) {
 				} else if !errors.As(err, &d) || d.Code != "23502" {
 					t.Fatal(stage, err)
 				}
-				sessionSet(t, a, "RESET statement_timeout", false)
+				if err := clearTimeout(); err != nil {
+					t.Fatal("restoring timeout fixture:", err)
+				}
 				rows, err := a.QueryContext(ctx, "SELECT v FROM sentinel")
 				if err != nil {
 					t.Fatal(err)

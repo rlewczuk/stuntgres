@@ -1916,6 +1916,10 @@ the typed scalar path. Plans store syntax, not identity values: every execution
 captures effective/session/database identity, and retained results remain detached.
 Native Dump/Restore preserves expression syntax and stored data, not session
 identity, authentication or database naming.
+Supported quoted identity calls in views are dumped as canonical
+`pg_catalog` calls so replay never turns them into forbidden bare keyword calls.
+Ordinary identity-call arguments are analyzed before namespace lookup, preserving
+undefined-child diagnostics even when the callee schema is missing or denied.
 
 Database naming is the exact opaque connector DSN converted through NAME input:
 empty remains empty, whitespace and URL-looking bytes are literal, invalid UTF8
@@ -1937,4 +1941,12 @@ Feature smoke: `go test -count=1 -run '^TestSessionIdentitySmoke$' ./smoke`.
 Pinned reference: `go test -tags reference -count=1 -run '^TestReferenceSessionIdentity.*$' ./reference`.
 The normal oracle authenticates with SCRAM and independently reports its method;
 a dedicated real trust connection demonstrates system_user NULL.
+The trust witness also runs independently under lazy fixture startup:
+`go test -tags reference -count=1 -run '^TestReferenceSessionIdentityTrust$' ./reference`.
+Identity cancellation regression entrypoints include
+`TestSessionIdentityCanceledRolePublication`,
+`TestSessionIdentityCanceledDefaultWriteFinish`, and
+`TestSessionIdentityFailedAndCanceledControlsPreserveState`; these cover the
+role publication fence, staged default writes, and failed/canceled controls
+without publishing replacement data or changing retained results.
 

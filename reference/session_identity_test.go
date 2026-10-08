@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/url"
 	"testing"
+	"time"
 
 	"stuntgres"
 )
@@ -191,37 +192,74 @@ func TestReferenceSessionIdentityFormsAndFreshness(t *testing.T) {
 // The normal fixture deliberately uses SCRAM. A dedicated HBA rule and a
 // password-free real pq connection prove trust semantics, not a fabricated NULL.
 func TestReferenceSessionIdentityTrust(t *testing.T) {
-	ctx := context.Background()
+	if err := referenceEnsureStarted(); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
 	const role = "identity_trust_witness"
 	if _, err := referenceAdmin.ExecContext(ctx, "CREATE ROLE "+role+" LOGIN"); err != nil {
 		t.Fatal(err)
 	}
-	defer referenceAdmin.ExecContext(ctx, "DROP ROLE "+role)
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		if _, err := referenceAdmin.ExecContext(cleanup, "DROP ROLE "+role); err != nil {
+			t.Error("trust role cleanup:", err)
+		}
+	})
 	var hba string
 	if err := referenceAdmin.QueryRowContext(ctx, "SHOW hba_file").Scan(&hba); err != nil {
 		t.Fatal(err)
 	}
 	backup := hba + ".identity-backup"
-	exec := func(script string) {
-		t.Helper()
+	exec := func(ctx context.Context, script string) error {
 		code, out, err := referenceContainer.Exec(ctx, []string{"sh", "-c", script})
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		body, err := io.ReadAll(out)
-		if err != nil || code != 0 {
-			t.Fatal(code, string(body), err)
+		if err != nil {
+			return err
 		}
+		if code != 0 {
+			return fmt.Errorf("container shell exit %d: %s", code, body)
+		}
+		return nil
 	}
-	exec(fmt.Sprintf("cp %s %s && { printf 'host stuntgres_reference %s all trust\\n'; cat %s; } > %s.identity-new && cp %s.identity-new %s", pq.QuoteLiteral(hba), pq.QuoteLiteral(backup), role, pq.QuoteLiteral(backup), pq.QuoteLiteral(hba), pq.QuoteLiteral(hba), pq.QuoteLiteral(hba)))
+	// Acquire the backup before any live-file mutation and immediately own
+	// restoration. Even a partial rewrite failure then runs this cleanup.
+	if err := exec(ctx, fmt.Sprintf("cp %s %s", pq.QuoteLiteral(hba), pq.QuoteLiteral(backup))); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
-		exec(fmt.Sprintf("cp %s %s && rm %s %s.identity-new", pq.QuoteLiteral(backup), pq.QuoteLiteral(hba), pq.QuoteLiteral(backup), pq.QuoteLiteral(hba)))
-		if _, err := referenceAdmin.ExecContext(ctx, "SELECT pg_reload_conf()"); err != nil {
-			t.Error(err)
+		cleanup, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		defer cancel()
+		restoreErr := exec(cleanup, fmt.Sprintf("cp %s %s", pq.QuoteLiteral(backup), pq.QuoteLiteral(hba)))
+		if restoreErr != nil {
+			t.Error("trust HBA restoration:", restoreErr)
+		}
+		// Reload must be attempted even if file restoration failed.
+		var reloaded bool
+		reloadErr := referenceAdmin.QueryRowContext(cleanup, "SELECT pg_reload_conf()").Scan(&reloaded)
+		if reloadErr == nil && !reloaded {
+			reloadErr = fmt.Errorf("pg_reload_conf returned false")
+		}
+		if reloadErr != nil {
+			t.Error("trust HBA reload:", reloadErr)
+		}
+		if restoreErr == nil && reloadErr == nil {
+			if err := exec(cleanup, fmt.Sprintf("rm -f %s %s.identity-new", pq.QuoteLiteral(backup), pq.QuoteLiteral(hba))); err != nil {
+				t.Error("trust temporary-file cleanup:", err)
+			}
 		}
 	})
-	if _, err := referenceAdmin.ExecContext(ctx, "SELECT pg_reload_conf()"); err != nil {
+	if err := exec(ctx, fmt.Sprintf("{ printf 'host stuntgres_reference %s all trust\\n'; cat %s; } > %s.identity-new && cp %s.identity-new %s", role, pq.QuoteLiteral(backup), pq.QuoteLiteral(hba), pq.QuoteLiteral(hba), pq.QuoteLiteral(hba))); err != nil {
 		t.Fatal(err)
+	}
+	var reloaded bool
+	if err := referenceAdmin.QueryRowContext(ctx, "SELECT pg_reload_conf()").Scan(&reloaded); err != nil || !reloaded {
+		t.Fatal("trust HBA reload:", reloaded, err)
 	}
 	// An explicit wrong password would fail SCRAM, proving this connection used trust.
 	parsed, err := url.Parse(referenceDSN)
@@ -234,10 +272,25 @@ func TestReferenceSessionIdentityTrust(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	rows, err := db.QueryContext(ctx, "SELECT session_user,system_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	types, err := rows.ColumnTypes()
+	if err != nil || len(types) != 2 || types[0].DatabaseTypeName() != "NAME" || types[1].DatabaseTypeName() != "TEXT" {
+		t.Fatal(types, err)
+	}
 	var session string
 	var system any
-	if err := db.QueryRowContext(ctx, "SELECT session_user,system_user").Scan(&session, &system); err != nil || session != role || system != nil {
+	if !rows.Next() {
+		t.Fatal(rows.Err())
+	}
+	if err := rows.Scan(&session, &system); err != nil || session != role || system != nil {
 		t.Fatal(session, system, err)
+	}
+	if rows.Next() || rows.Err() != nil {
+		t.Fatal(rows.Err())
 	}
 }
 
@@ -256,15 +309,23 @@ func TestReferenceSessionIdentitySessionAuthorityAndMembership(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer conn.Close()
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, b.record, s) }
+			run := func(s referenceStep) {
+				t.Helper()
+				t.Logf("SQL (prepared=%t): %s", s.prepared, s.query)
+				referenceRunStep(t, p.ctx, conn, b.record, s)
+			}
 			for _, q := range []string{"CREATE USER identity_member_a", "CREATE ROLE identity_member_b", "CREATE ROLE identity_member_c", "CREATE SCHEMA identity_hidden"} {
 				run(referenceExec(q, 0))
+			}
+			if !b.native {
+				run(referenceExec("GRANT USAGE,CREATE ON SCHEMA public TO identity_member_a", 0))
 			}
 			run(referenceExec("SET ROLE identity_member_a", 0))
 			run(referenceExec("SET ROLE identity_member_b", 0))
 			run(referenceExec("RESET ROLE", 0))
 			run(referenceExec("SET SESSION AUTHORIZATION identity_member_a", 0))
 			run(referenceExec("SET ROLE identity_member_a", 0))
+			run(referenceExec("CREATE TABLE identity_child(id INT)", 0))
 			for _, prepared := range []bool{false, true} {
 				s := referenceImplicitError("SET ROLE identity_member_b", referenceDiagnostic{Code: "42501", Message: `permission denied to set role "identity_member_b"`})
 				s.prepared = prepared
@@ -277,6 +338,14 @@ func TestReferenceSessionIdentitySessionAuthorityAndMembership(t *testing.T) {
 				s = referenceImplicitError("SELECT identity_hidden.current_database()", referenceDiagnostic{Code: "42501", Message: "permission denied for schema identity_hidden", Position: "8"})
 				s.prepared = prepared
 				run(s)
+				for _, tc := range []struct{ query, position string }{
+					{"SELECT missing_identity_schema.current_database(missing_column) FROM identity_child", "49"},
+					{"SELECT identity_hidden.current_database(missing_column) FROM identity_child", "41"},
+				} {
+					s := referenceImplicitError(tc.query, referenceDiagnostic{Code: "42703", Message: `column "missing_column" does not exist`, Position: tc.position})
+					s.prepared = prepared
+					run(s)
+				}
 			}
 			run(referenceSelect("SELECT current_user,session_user", []string{"current_user", "session_user"}, []string{"NAME", "NAME"}, [][]any{{"identity_member_a", "identity_member_a"}}))
 			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
@@ -287,9 +356,72 @@ func TestReferenceSessionIdentitySessionAuthorityAndMembership(t *testing.T) {
 				run(referenceExec("SET ROLE identity_member_c", 0))
 				run(referenceSelect("SELECT current_user,session_user", []string{"current_user", "session_user"}, []string{"NAME", "NAME"}, [][]any{{"identity_member_c", "identity_member_a"}}))
 				run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+				// Break the second SET edge while enabling both other options.
+				// Neither inherited privileges nor ADMIN authorize SET ROLE.
+				run(referenceExec("GRANT identity_member_c TO identity_member_b WITH SET FALSE, INHERIT TRUE, ADMIN TRUE", 0))
+				run(referenceExec("SET SESSION AUTHORIZATION identity_member_a", 0))
+				for _, prepared := range []bool{false, true} {
+					s := referenceImplicitError("SET ROLE identity_member_c", referenceDiagnostic{Code: "42501", Message: `permission denied to set role "identity_member_c"`})
+					s.prepared, s.errorStage = prepared, "execute"
+					run(s)
+					run(referenceSelect("SELECT current_user,session_user", []string{"current_user", "session_user"}, []string{"NAME", "NAME"}, [][]any{{"identity_member_a", "identity_member_a"}}))
+				}
+				run(referenceExec("RESET SESSION AUTHORIZATION", 0))
+				run(referenceExec("REVOKE USAGE,CREATE ON SCHEMA public FROM identity_member_a", 0))
 			}
+			run(referenceExec("DROP TABLE identity_child", 0))
 			run(referenceExec("DROP SCHEMA identity_hidden", 0))
 			run(referenceExec("DROP ROLE identity_member_a,identity_member_b,identity_member_c", 0))
+		})
+	}
+}
+
+func TestReferenceSessionIdentityRoleSentinels(t *testing.T) {
+	roleReferenceCleanup(t, []string{"default", "NONE", "identity_sentinel_selected"})
+	p := newReferencePair(t)
+	for _, b := range []struct {
+		name, bootstrap string
+		db              *sql.DB
+		record          *referenceRecorder
+	}{
+		{"native", "postgres", p.memory, p.memoryRecord},
+		{"postgres", "stuntgres", p.postgres, p.postgresRecord},
+	} {
+		t.Run(b.name, func(t *testing.T) {
+			conn, err := b.db.Conn(p.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			run := func(s referenceStep) {
+				t.Helper()
+				t.Logf("SQL (prepared=%t): %s", s.prepared, s.query)
+				referenceRunStep(t, p.ctx, conn, b.record, s)
+			}
+			for _, q := range []string{`CREATE ROLE "default"`, `CREATE ROLE "NONE"`, "CREATE ROLE identity_sentinel_selected"} {
+				run(referenceExec(q, 0))
+			}
+			for _, prepared := range []bool{false, true} {
+				selectRole := func(query, want string) {
+					t.Helper()
+					s := referenceExec(query, 0)
+					s.prepared = prepared
+					run(s)
+					run(referenceSelect("SELECT current_user,session_user", []string{"current_user", "session_user"}, []string{"NAME", "NAME"}, [][]any{{want, b.bootstrap}}))
+				}
+				for _, reset := range []string{"SET ROLE TO DEFAULT", "SET ROLE = DEFAULT", `SET ROLE "none"`, "SET ROLE 'none'"} {
+					selectRole("SET ROLE identity_sentinel_selected", "identity_sentinel_selected")
+					selectRole(reset, b.bootstrap)
+				}
+				for _, query := range []string{`SET ROLE "default"`, "SET ROLE 'default'"} {
+					selectRole(query, "default")
+				}
+				for _, query := range []string{`SET ROLE "NONE"`, "SET ROLE 'NONE'"} {
+					selectRole(query, "NONE")
+				}
+				selectRole("RESET ROLE", b.bootstrap)
+			}
+			run(referenceExec(`DROP ROLE "default","NONE",identity_sentinel_selected`, 0))
 		})
 	}
 }

@@ -216,11 +216,20 @@ func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 
 // functionSignatureError binds diagnostic operands once, only on a failure path.
 func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error {
+	names, err := b.functionArgumentTypeNames(raw)
+	if err != nil {
+		return err
+	}
+	return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+}
+
+// Diagnostic operands are transformed before selected identity namespace lookup.
+func (b *expressionBinder) functionArgumentTypeNames(raw parser.FunctionExpr) ([]string, error) {
 	names := make([]string, len(raw.Args))
 	for i, rawArg := range raw.Args {
 		arg, err := b.bind(rawArg, expressionPolicy{context: projectionContext})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		names[i] = "unknown"
 		if arg.ResultUsage().Type != nil {
@@ -230,7 +239,7 @@ func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error
 			names[i] = "unknown"
 		}
 	}
-	return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
+	return names, nil
 }
 
 // Reuse transformed argument names when a diagnostic producer already bound them.

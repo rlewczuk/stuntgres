@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"reflect"
 	"stuntgres/internal/parser"
@@ -249,5 +250,90 @@ func TestSessionIdentityNameArithmeticSignatures(t *testing.T) {
 				t.Fatalf("%s: diagnostic %#v want %#v", tc.query, err, want)
 			}
 		}
+	}
+}
+
+// The direct role executor is entered with an admitted operation. Its only
+// Context.Err observation under Session.mu is the final publication fence.
+type identityRolePublicationContext struct {
+	context.Context
+	session  *Session
+	cancel   context.CancelFunc
+	observed bool
+}
+
+func (c *identityRolePublicationContext) Err() error {
+	if c.session.mu.TryLock() {
+		c.session.mu.Unlock()
+	} else {
+		c.observed = true
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+func TestSessionIdentityCanceledRolePublication(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE ROLE identity_cancel_target")
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	before := op.RoleState()
+	revision, roles, catalog := op.session.authorization.revision, e.roles, e.state
+	ctx, cancel := context.WithCancel(op.Context())
+	defer cancel()
+	boundary := &identityRolePublicationContext{Context: ctx, session: op.session, cancel: cancel}
+	op.ctx = boundary
+	_, err := e.executeRole(op, statement(t, "SET ROLE identity_cancel_target"), 0)
+	if !boundary.observed || ctx.Err() != context.Canceled || !errors.Is(err, context.Canceled) {
+		t.Fatal(boundary.observed, err)
+	}
+	if op.RoleState() != before || op.session.authorization.revision != revision || e.roles != roles || e.state != catalog {
+		t.Fatal("canceled role selection published state")
+	}
+}
+
+func TestSessionIdentityCanceledDefaultWriteFinish(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE identity_stage(id INT,who TEXT DEFAULT current_user,auth TEXT DEFAULT system_user)")
+	run(t, e, "INSERT INTO identity_stage VALUES(1,'sentinel','retained')")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	op, done, err := testOperation(e, ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := scope.Execute(statement(t, "INSERT INTO identity_stage(id) VALUES(2),(3)"), 0, nil)
+	if err != nil || result.Count != 2 {
+		_ = scope.Finish(err)
+		t.Fatal(result, err)
+	}
+	// Both rows have evaluated their live identity defaults and staged writes;
+	// cancellation at Finish must publish neither.
+	cancel()
+	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	current := run(t, e, "SELECT id,who,auth FROM identity_stage")
+	defer current.Rows.Close()
+	if !reflect.DeepEqual(tuples(current), [][]driver.Value{{int64(1), "sentinel", "retained"}}) {
+		t.Fatal("canceled identity defaults published rows")
+	}
+}
+
+func TestSessionIdentityLaterRowDefaultFailureIsAtomic(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE identity_stage(id INT,who TEXT DEFAULT current_user,auth TEXT DEFAULT system_user,n INT)")
+	run(t, e, "INSERT INTO identity_stage VALUES(1,'sentinel','retained',1)")
+	_, err := testExecute(e, context.Background(), statement(t, "INSERT INTO identity_stage(id,n) VALUES(2,1),(3,1/0)"), nil)
+	state(t, err, "22012")
+	current := run(t, e, "SELECT id,who,auth,n FROM identity_stage")
+	defer current.Rows.Close()
+	if !reflect.DeepEqual(tuples(current), [][]driver.Value{{int64(1), "sentinel", "retained", int64(1)}}) {
+		t.Fatal("later failing row published identity-bearing writes")
 	}
 }

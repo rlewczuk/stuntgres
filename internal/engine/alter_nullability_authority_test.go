@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// SQL SET ROLE and transactional SESSION AUTHORIZATION remain excluded. The
-// existing internal authorization capability independently exercises an actual
-// nonowner actor/revision change after ALTER has successfully finished.
+// Explicit-transaction SQL role/session-authorization changes remain excluded.
+// This lifetime test uses the internal executor to change the actor/revision
+// inside that transaction after ALTER has successfully finished.
 func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
