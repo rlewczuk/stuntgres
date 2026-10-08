@@ -81,12 +81,12 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 	sort.Slice(owned, func(i, j int) bool { return owned[i].address.ObjectID < owned[j].address.ObjectID })
 	e.mu.Unlock()
 	for _, r := range owned {
-		if err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: r.address}, accessExclusive); err != nil {
+		if err = scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: ref.Epoch, Address: r.address}, accessExclusive, false); err != nil {
 			return Result{}, err
 		}
 	}
-	// acquireSequence admits implicit readers; never carry that admission into
-	// validation, whose provider is allowed to replace the catalog.
+	// Dependency admission does not reserve replacement; release any existing
+	// admission before validation, whose provider may replace the catalog.
 	if scope.replacementRead {
 		e.replacementMu.RUnlock()
 		scope.replacementRead = false
