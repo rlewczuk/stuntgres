@@ -2,7 +2,10 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"reflect"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -211,5 +214,40 @@ func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	}
 	if _, err := e.Execute(op, statement(t, "RESET ROLE"), 0, nil); err == nil {
 		t.Fatal("terminated role mutation admitted")
+	}
+}
+
+func TestSessionIdentityNameArithmeticSignatures(t *testing.T) {
+	e := New()
+	run(t, e, "CREATE TABLE identity_name_operand(n NAME)")
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	for _, tc := range []struct{ query, signature, position string }{
+		{"SELECT n+1 FROM identity_name_operand", "name + integer", "9"},
+		{"SELECT 1+n FROM identity_name_operand", "integer + name", "9"},
+		{"SELECT n+n FROM identity_name_operand", "name + name", "9"},
+		{"SELECT -n FROM identity_name_operand", "- name", "8"},
+	} {
+		for _, describe := range []bool{false, true} {
+			stmt := statement(t, tc.query)
+			var err error
+			if describe {
+				_, err = e.Describe(op, stmt)
+			} else {
+				_, err = e.Execute(op, stmt, 0, nil)
+			}
+			want := &sqlstate.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883",
+				Message: "operator does not exist: " + tc.signature, Position: tc.position,
+				Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.",
+			}
+			if tc.signature == "- name" {
+				want.Hint = "No operator matches the given name and argument type. You might need to add an explicit type cast."
+			}
+			var got *sqlstate.Error
+			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
+				t.Fatalf("%s: diagnostic %#v want %#v", tc.query, err, want)
+			}
+		}
 	}
 }

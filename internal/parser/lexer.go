@@ -14,9 +14,11 @@ type lexer struct {
 	positionOffset     int
 	positionCharacters int
 	current            lexeme
-	err                error
-	statements         []Statement
-	options            Options
+	// Scanner/lookahead reuse current; this records only tokens returned to yacc.
+	previousToken int
+	err           error
+	statements    []Statement
+	options       Options
 	// The raw scanner defaults to standard strings; only explicit parse options
 	// enable legacy backslash escapes and prohibit Unicode string openers.
 	backslashEscapes bool
@@ -645,7 +647,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 		token.lexeme.text = text
 	}
-	if IdentityFunctionName(token.lexeme.text) && (token.code == IDENT || l.current.raw == "." || token.code == CURRENT_SCHEMA) {
+	if IdentityFunctionName(token.lexeme.text) && (token.code == IDENT || l.previousToken == int('.') || token.code == CURRENT_SCHEMA) {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == '(' {
@@ -740,6 +742,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 	}
 	l.temporalLead = token.code == TIMESTAMP || token.code == TIME || token.code == IDENT && columnType(token.lexeme).Quoted && (token.lexeme.text == "timestamp" || token.lexeme.text == "time")
+	l.previousToken = token.code
 	return token.code
 }
 

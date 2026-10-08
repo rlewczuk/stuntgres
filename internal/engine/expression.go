@@ -1577,11 +1577,13 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 	if symbolicArithmeticName(name) {
 		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
 	}
-	// BOOL/TEXT with an integer (or unary BOOL/TEXT) has a genuine missing signature.
+	// NAME has no arithmetic overloads. BOOL/TEXT with an integer (or unary
+	// BOOL/TEXT) likewise has a genuinely missing signature, not a native
+	// capability gap for an existing PostgreSQL arithmetic provider.
 	badSignature := func(t *sqltype.Descriptor) bool {
 		return t != nil && (t.ID() == sqltype.Bool || t.ID() == sqltype.Text)
 	}
-	if (len(raw.Args) == 1 && badSignature(lt)) || (integerArithmeticType(lt) && badSignature(rt)) || (badSignature(lt) && integerArithmeticType(rt)) {
+	if (lt != nil && lt.ID() == sqltype.Name) || (rt != nil && rt.ID() == sqltype.Name) || (len(raw.Args) == 1 && badSignature(lt)) || (integerArithmeticType(lt) && badSignature(rt)) || (badSignature(lt) && integerArithmeticType(rt)) {
 		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "operator does not exist"}, lt, rt, raw)
 	}
 	for _, t := range []*sqltype.Descriptor{lt, rt} {

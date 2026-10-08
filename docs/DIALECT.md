@@ -1901,6 +1901,9 @@ retain their lowercase spellings. The real catalog functions are current_databas
 current_user, session_user and system_user: qualified/quoted calls use namespace
 lookup, while unqualified keyword parentheses are syntax errors. There are no
 ordinary current_catalog/current_role/user function aliases.
+NAME has no arithmetic overloads: identity or NAME-column arithmetic reports
+`42883` with the missing operator signature, operand types, operator position
+and PostgreSQL cast hint, rather than a native unsupported-provider diagnostic.
 
 Identity-derived singleton comparisons/casts/conditionals are admitted without
 FROM; unrelated general singleton expressions remain outside the bounded dialect.
