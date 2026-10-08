@@ -16,7 +16,7 @@ func TestDeparseConstraintsReviewCommentConsumers(t *testing.T) {
 		{"legacy", "obj_description(id)", "obj_description((id)::oid)", "obj_description(id::oid)", "TABLE anchor", "SELECT oid FROM pg_catalog.pg_class WHERE relname='anchor'"},
 		{"column", "col_description(id,1)", "col_description((id)::oid, 1)", "col_description(id::oid, 1)", "COLUMN anchor.a", "SELECT oid FROM pg_catalog.pg_class WHERE relname='anchor'"},
 		{"namespace", "obj_description(id,'pg_namespace')", "obj_description((id)::oid, 'pg_namespace'::name)", "obj_description(id::oid, 'pg_namespace'::name)", "SCHEMA dc_comment_ns", "SELECT relnamespace FROM pg_catalog.pg_class WHERE relname='dc_comment_anchor'"},
-		{"shared", "shobj_description(id,'pg_authid')", "shobj_description((id)::oid, 'pg_authid'::name)", "shobj_description(id::oid, 'pg_authid'::name)", "ROLE postgres", "SELECT relowner FROM pg_catalog.pg_class WHERE relname='anchor'"},
+		{"shared", "shobj_description(id,'pg_authid')", "shobj_description((id)::oid, 'pg_authid'::name)", "shobj_description(id::oid, 'pg_authid'::name)", "", "SELECT relowner FROM pg_catalog.pg_class WHERE relname='anchor'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db, conn := randomConnection(t)
@@ -43,6 +43,14 @@ func TestDeparseConstraintsReviewCommentConsumers(t *testing.T) {
 			if err := conn.QueryRowContext(context.Background(), tc.identity).Scan(&identity); err != nil {
 				t.Fatal(err)
 			}
+			target := tc.target
+			if tc.name == "shared" {
+				var owner string
+				if err := conn.QueryRowContext(context.Background(), "SELECT CURRENT_USER").Scan(&owner); err != nil {
+					t.Fatal(err)
+				}
+				target = `ROLE "` + strings.ReplaceAll(owner, `"`, `""`) + `"`
+			}
 			var old sql.NullString
 			readProvider := strings.Replace(tc.provider, "id", strconv.FormatInt(identity, 10), 1)
 			if err := conn.QueryRowContext(context.Background(), "SELECT "+readProvider).Scan(&old); err != nil {
@@ -53,7 +61,7 @@ func TestDeparseConstraintsReviewCommentConsumers(t *testing.T) {
 				if value != nil {
 					literal = "'" + strings.ReplaceAll(value.(string), "'", "''") + "'"
 				}
-				if _, err := conn.ExecContext(context.Background(), "COMMENT ON "+tc.target+" IS "+literal); err != nil {
+				if _, err := conn.ExecContext(context.Background(), "COMMENT ON "+target+" IS "+literal); err != nil {
 					t.Fatal(err)
 				}
 			}

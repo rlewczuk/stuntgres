@@ -9,6 +9,10 @@ their owning table and stable attributes. CREATE allocates only at execution;
 renames and surviving DROP-column remaps preserve IDs. SET DEFAULT replaces its
 definition with a fresh identity, DROP removes it, and re-add creates another.
 Existing SET NOT NULL remains a no-op retaining identity.
+An actual column-type change that rebuilds a DEFAULT replaces its definition OID
+through the same atomic publication allocator while retaining captured metadata.
+Failed conversion preserves the old identity, default, type and rows; this does not
+change the existing same-Usage no-op boundary.
 
 `pg_get_constraintdef` returns `CHECK (<expression>)` plus ` NO INHERIT` when
 present, or `NOT NULL <current-column>`. Returned CHECK suffixes can be consumed

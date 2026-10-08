@@ -34,6 +34,10 @@ column assignments; actual explicit NUMERIC precision/scale remains enforced.
 Reconstruction does not add NAME[] equality/order or plain TIME AT inputs.
 current_schemas behavior uses strict BOOL NULL and public changing-path output;
 AT/LOCAL consumer fixtures use typed TIMESTAMP/TIMESTAMPTZ/TIMETZ columns.
+Persisted identity leaves preserve keyword versus ordinary-call syntax and stable
+NAME/TEXT typing; neither SQL nor structural output evaluates the identity.
+Native SYSTEM_USER remains typed NULL, but its nontrivial DEFAULT stays stored.
+These consumers do not change identity providers, authority or namespace resolution.
 See [query contracts](QUERIES.md#constraint-and-expression-deparsing).
 
 

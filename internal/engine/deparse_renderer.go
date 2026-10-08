@@ -26,6 +26,30 @@ func pgIdentifier(name string) string {
 	return name
 }
 
+func validateDeparseIdentity(n identityExpression) error {
+	if n.kind > identityCurrentSchema {
+		return fmt.Errorf("stuntgres: invalid deparse identity kind")
+	}
+	if n.ordinaryCall {
+		switch n.kind {
+		case identityDatabase, identityCurrentUser, identitySessionUser, identitySystemUser, identityCurrentSchema:
+		default:
+			return fmt.Errorf("stuntgres: invalid deparse identity call")
+		}
+	} else if n.kind == identityDatabase {
+		return fmt.Errorf("stuntgres: invalid deparse identity keyword")
+	}
+	typ := sqltype.Name
+	if n.kind == identitySystemUser {
+		typ = sqltype.Text
+	}
+	if n.usage.Type == nil || n.usage.Type.ID() != typ || n.usage != n.usage.Type.Usage() ||
+		n.properties != (ExprProperties{Volatility: Stable}) || n.unknownNull {
+		return fmt.Errorf("stuntgres: invalid deparse identity metadata")
+	}
+	return nil
+}
+
 func pgType(u sqltype.Usage) (string, error) {
 	declaration, err := u.Declaration()
 	if err != nil {
@@ -255,6 +279,31 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 	switch n := node.(type) {
 	case literalExpression:
 		return r.literal(ctx, n)
+	case identityExpression:
+		if err := validateDeparseIdentity(n); err != nil {
+			return "", err
+		}
+		if n.ordinaryCall {
+			return pgIdentifier(n.kind.spelling()) + "()", nil
+		}
+		switch n.kind {
+		case identityCatalog:
+			return "CURRENT_CATALOG", nil
+		case identityRole:
+			return "CURRENT_ROLE", nil
+		case identityCurrentUser:
+			return "CURRENT_USER", nil
+		case identitySessionUser:
+			return "SESSION_USER", nil
+		case identityUser:
+			return "USER", nil
+		case identitySystemUser:
+			return "SYSTEM_USER", nil
+		case identityCurrentSchema:
+			return "CURRENT_SCHEMA", nil
+		default:
+			return "", fmt.Errorf("stuntgres: invalid deparse identity keyword")
+		}
 	case columnExpression:
 		return deparseAttribute(r.relation, n.origin.Address.SubID)
 	case coercionExpression:

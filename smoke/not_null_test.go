@@ -10,6 +10,7 @@ import (
 	"strings"
 	"stuntgres"
 	"testing"
+	"time"
 )
 
 func notNullSmokeExec(t *testing.T, db *sql.DB, prepared bool, q string, count int64, args ...any) {
@@ -64,7 +65,7 @@ func notNullSmokeRows(t *testing.T, rows *sql.Rows, names, types []string, nulla
 	}
 	for i, c := range metadata {
 		null, known := c.Nullable()
-		scan := map[string]reflect.Type{"INT4": reflect.TypeFor[int64](), "INT8": reflect.TypeFor[int64](), "TEXT": reflect.TypeFor[string](), "BOOL": reflect.TypeFor[bool]()}[types[i]]
+		scan := map[string]reflect.Type{"INT4": reflect.TypeFor[int64](), "INT8": reflect.TypeFor[int64](), "TEXT": reflect.TypeFor[string](), "NUMERIC": reflect.TypeFor[string](), "TIMESTAMP": reflect.TypeFor[time.Time](), "BOOL": reflect.TypeFor[bool]()}[types[i]]
 		if c.DatabaseTypeName() != types[i] || !known || null != nullable[i] || c.ScanType() != scan {
 			t.Fatal(c, null, known)
 		}

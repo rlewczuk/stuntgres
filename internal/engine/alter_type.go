@@ -236,7 +236,10 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		for id, d := range next.defaults {
 			replacement.defaults[id] = d
 		}
-		replacement.defaults[attribute] = columnDefault{expression, canonical}
+		definition.expression = expression
+		definition.sql = canonical
+		definition.OID = 0
+		replacement.defaults[attribute] = definition
 	}
 	return &replacement, transformation, nil
 }

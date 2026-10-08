@@ -65,6 +65,11 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			out.WriteString(" value ")
 			out.WriteString(strconv.Quote(text))
 		}
+	case identityExpression:
+		if err := validateDeparseIdentity(n); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "Identity kind %d ordinaryCall %t", n.kind, n.ordinaryCall)
 	case columnExpression:
 		fmt.Fprintf(out, "Var attnum %d", n.origin.Address.SubID)
 	case coercionExpression:

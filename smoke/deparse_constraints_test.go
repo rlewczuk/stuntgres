@@ -297,7 +297,21 @@ func deparseReviewConsumerSmoke(t *testing.T, db *sql.DB) {
 					notNullSmokeDiagnostic(t, err, wantError)
 				}
 				if i == 0 {
-					notNullSmokeQuery(t, db, "SELECT n FROM "+name+" ORDER BY n NULLS FIRST", []string{"n"}, []string{"NUMERIC"}, []bool{true}, [][]any{{nil}, {"1.00"}})
+					rows, err := db.Query("SELECT n FROM " + name + " ORDER BY n NULLS FIRST")
+					if err != nil {
+						t.Fatal(err)
+					}
+					metadata, err := rows.ColumnTypes()
+					if err != nil || len(metadata) != 1 {
+						rows.Close()
+						t.Fatal(metadata, err)
+					}
+					precision, scale, known := metadata[0].DecimalSize()
+					if !known || precision != 4 || scale != 2 {
+						rows.Close()
+						t.Fatal(precision, scale, known)
+					}
+					notNullSmokeRows(t, rows, []string{"n"}, []string{"NUMERIC"}, []bool{true}, [][]any{{nil}, {"1.00"}})
 				}
 				if i == 2 {
 					notNullSmokeQuery(t, db, "SELECT a,flag FROM "+name+" ORDER BY a NULLS FIRST", []string{"a", "flag"}, []string{"INT4", "BOOL"}, []bool{true, true}, [][]any{{nil, true}, {int64(0), false}, {int64(1), true}})

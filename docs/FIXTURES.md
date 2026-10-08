@@ -115,6 +115,18 @@ the TIMESTAMP/TIMETZ predicates can therefore reject the same held input.
 Etc/UTC retains the intended fixed-zone conversion. These are distinct runtime
 witnesses, not adapter exceptions or substitutions of one zone for the other.
 Plain TIME AT and NAME[] equality/order remain outside the admitted surface.
+Identity consumers cover all admitted keyword/quoted/qualified call forms and
+actual returned DEFAULT/CHECK copies through authority and ordered/missing paths.
+Native NULL SYSTEM_USER and PostgreSQL SCRAM identity are independent expectations.
+Native replay fixtures keep context-sensitive CHECK objects empty, retain literal
+rows in separate default-only objects, then exercise symbolic definitions through
+caller-held post-Restore DML. Replay uses its existing isolated context, not the
+caller's identity/path. Actor-owned schema setup and CREATE under SET ROLE use
+existing ownership routes rather than adding GRANT or ALTER TABLE OWNER support.
+Changed-type default fixtures require a fresh own definition OID, unchanged
+relation/attribute identity and absent old live lookup; eager original metadata
+remains usable. Actual copied default text produces the expected BIGINT value,
+while failed conversion preserves the old definition, type and complete rows.
 Additional metadata witnesses retain signed INT4 minimum constants, typed NULL
 arguments, raw explicit TIME(3) precision, and quote/backslash spelling under both
 standard_conforming_strings settings. Actual copied NUMERIC(2,-1) defaults retain

@@ -45,6 +45,8 @@ Returned SQL consumes bounded same-type and existing directional numeric casts;
 literal NULL::unknown retains provenance without adding a concrete UNKNOWN type.
 Change note: synthetic numeric comparison annotations use the base type, never the opposite
 column's precision/scale; genuinely explicit sizing casts remain executable.
+Identity keywords and ordinary calls remain symbolic under role/path changes;
+reserved ordinary names retain quotes, without capturing authority values.
 Consumer fixtures distinguish conditional NULL/branch behavior, controlled comment
 state, session paths/zones and per-backend seeded random effects. Exact renderer
 strings or one successful insertion alone are not behavioral compatibility proof.
