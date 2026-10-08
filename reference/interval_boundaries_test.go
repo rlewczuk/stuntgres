@@ -140,7 +140,7 @@ func TestReferenceIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 							if tc.code != "22008" {
 								pg := *s.diagnostic
 								pg.Context = parameter.context
-								s.postgresDiagnostic = &pg
+								s.diagnostic = &pg
 							}
 							run(s)
 							sentinel()

@@ -187,10 +187,10 @@ func TestDateCivilInputOracleRegressions(t *testing.T) {
 			}
 			_, err = stmt.Exec("1999-01-08 04:05 America/Bogus")
 			stmt.Close()
-			timeDiagnostic(t, err, stuntgres.Error{Code: "22023", Message: `time zone "america/bogus" not recognized`})
+			timeDiagnostic(t, err, stuntgres.Error{Code: "22023", Message: `time zone "america/bogus" not recognized`,Context:"unnamed portal parameter $1 = '...'"})
 		} else {
 			_, err := db.Exec("INSERT INTO d VALUES($1)", "1999-01-08 04:05 America/Bogus")
-			timeDiagnostic(t, err, stuntgres.Error{Code: "22023", Message: `time zone "america/bogus" not recognized`})
+			timeDiagnostic(t, err, stuntgres.Error{Code: "22023", Message: `time zone "america/bogus" not recognized`,Context:"unnamed portal parameter $1 = '...'"})
 		}
 	}
 }

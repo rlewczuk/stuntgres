@@ -99,7 +99,7 @@ func TestReferenceIntervalISOUnderflow(t *testing.T) {
 									s.errorStage = "execute"
 									pg := *s.diagnostic
 									pg.Context = parameter.context
-									s.postgresDiagnostic = &pg
+									s.diagnostic = &pg
 									run(s)
 									run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"00:00:01"}}))
 								}
@@ -165,7 +165,7 @@ func TestReferenceIntervalISOUnderflowSessionIsolation(t *testing.T) {
 				s.errorStage = "execute"
 				pg := *s.diagnostic
 				pg.Context = "unnamed portal parameter $2 = '...'"
-				s.postgresDiagnostic = &pg
+				s.diagnostic = &pg
 				referenceRunStep(t, p.ctx, a, backend.record, s)
 				referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
 				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
@@ -312,7 +312,7 @@ func TestReferenceIntervalISONonfinite(t *testing.T) {
 							s.errorStage = "execute"
 							pg := *s.diagnostic
 							pg.Context = parameter.context
-							s.postgresDiagnostic = &pg
+							s.diagnostic = &pg
 							run(s)
 							run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"00:00:01"}}))
 						}

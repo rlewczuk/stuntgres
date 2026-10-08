@@ -67,7 +67,7 @@ func TestTimezoneDiagnosticsPhasesAndAtomicity(t *testing.T) {
 	}
 	defer s.Close()
 	_, err = s.ExecContext(ctx, "nonsense")
-	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: "invalid input syntax for type timestamp with time zone: \"nonsense\""})
+	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: "invalid input syntax for type timestamp with time zone: \"nonsense\"",Context:"unnamed portal parameter $1 = '...'"})
 	q := "/*é*/ SELECT TIMESTAMPTZ 'nonsense' FROM tz_witness"
 	_, err = c.QueryContext(ctx, q)
 	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: "invalid input syntax for type timestamp with time zone: \"nonsense\"", Position: strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "'nonsense'")]) + 1)})
@@ -77,7 +77,7 @@ func TestTimezoneDiagnosticsPhasesAndAtomicity(t *testing.T) {
 		} else {
 			_, err = c.ExecContext(ctx, q, "nonsense", "12:00+00")
 		}
-		timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: "invalid input syntax for type timestamp with time zone: \"nonsense\""})
+		want:=stuntgres.Error{Code:"22007",Message:"invalid input syntax for type timestamp with time zone: \"nonsense\"",Context:"unnamed portal parameter $1 = '...'"};if strings.HasPrefix(q,"INSERT"){want.Context="unnamed portal parameter $2 = '...'"};timeDiagnostic(t,err,want)
 	}
 	timezoneRows(t, c, "SELECT z::TEXT,q FROM tz_witness", []string{"TEXT", "TIMETZ"}, [][]any{{"2004-01-01 00:00:00+00", "12:00:00+00"}})
 }

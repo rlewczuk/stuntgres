@@ -60,7 +60,7 @@ func TestReferenceBitwiseWriteAtomicityAndParameterErrors(t *testing.T) {
 			if tc.arg == "" {
 				pg.Context = "unnamed portal parameter $1 = ''"
 			}
-			s.postgresDiagnostic = &pg
+			s.diagnostic = &pg
 			p.step(t, s)
 		}
 	}

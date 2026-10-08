@@ -33,7 +33,7 @@ func TestReferenceTimestampBranchErrorsAbortTransaction(t *testing.T) {
 				step.args = []any{tc.input}
 				pg := want
 				pg.Context = "unnamed portal parameter $1 = '...'"
-				step.postgresDiagnostic = &pg
+				step.diagnostic = &pg
 				step.errorStage = "execute"
 				referenceRunStep(t, p.ctx, tx, recorder, step)
 				for _, q := range []string{"SELECT v FROM t", "INSERT INTO t VALUES('epoch')"} {

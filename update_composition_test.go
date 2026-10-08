@@ -112,7 +112,7 @@ func TestUpdateCoreComposition(t *testing.T) {
 		} else {
 			_, err = db.Exec(q, "bad", []byte{42}, 1)
 		}
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: `invalid input syntax for type date: "bad"`})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: `invalid input syntax for type date: "bad"`,Context:"unnamed portal parameter $1 = '...'"})
 		check("2031-02-03", []byte{9, 92, 128}, false, true)
 	}
 	execSQL(t, db, "CREATE TABLE nn(id INT,d DATE,b BYTEA,n INT NOT NULL)")

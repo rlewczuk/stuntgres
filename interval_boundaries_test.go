@@ -147,7 +147,8 @@ func TestIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 					} else {
 						_, err = db.Exec(q, parameter.args...)
 					}
-					intervalPublicBoundaryError(t, err, base)
+					want:=base;if tc.code!="22008" {want.Context="unnamed portal parameter $1 = '...'";if len(parameter.args)==2{want.Context="unnamed portal parameter $2 = '...'"}}
+					intervalPublicBoundaryError(t, err, want)
 					sentinel()
 				}
 			}

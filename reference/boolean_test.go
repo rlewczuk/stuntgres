@@ -53,11 +53,9 @@ func TestReferenceBooleanDiagnostics(t *testing.T) {
 		t.Helper()
 		for _, prepared := range []bool{false, true} {
 			for _, selectRows := range []bool{false, true} {
-				native := diagnostic(message, "")
-				postgres := native
-				postgres.Context = context
-				s := referenceErrorDiagnostic(query, native, args...)
-				s.postgresDiagnostic = &postgres
+				want := diagnostic(message, "")
+				want.Context = context
+				s := referenceErrorDiagnostic(query, want, args...)
 				s.prepared, s.selectRows, s.errorStage = prepared, selectRows, "execute"
 				p.step(t, s)
 			}
@@ -118,9 +116,7 @@ func TestReferenceBooleanDiagnostics(t *testing.T) {
 		}
 		_, err = stmt.ExecContext(p.ctx, 1, "o")
 		want := diagnostic(`invalid input syntax for type boolean: "o"`, "")
-		if backend.postgres {
-			want.Context = "unnamed portal parameter $2 = '...'"
-		}
+		want.Context = "unnamed portal parameter $2 = '...'"
 		referenceAssertDiagnostic(t, err, &want)
 		for i, value := range []any{true, false, nil} {
 			if _, err := stmt.ExecContext(p.ctx, i+1, value); err != nil {

@@ -93,7 +93,7 @@ func TestReferenceInsertImplicitShortDiagnostics(t *testing.T) {
 	}, 20, "oops")
 	postgresParameterError := *parameterError.diagnostic
 	postgresParameterError.Context = "unnamed portal parameter $2 = '...'"
-	parameterError.postgresDiagnostic = &postgresParameterError
+	parameterError.diagnostic = &postgresParameterError
 	parameterError.errorStage = "execute"
 	p.step(t, parameterError)
 	p.step(t, referenceSelect("SELECT * FROM t ORDER BY id", []string{"id", "big", "label", "flag"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(99), nil, nil, nil}}))

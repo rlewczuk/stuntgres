@@ -37,9 +37,7 @@ func TestReferenceDeleteCorePrepared(t *testing.T) {
 				t.Fatal("invalid inferred INT4 parameter exposed a result")
 			}
 			want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}
-			if i == 1 {
-				want.Context = "unnamed portal parameter $1 = '...'"
-			}
+			want.Context = "unnamed portal parameter $1 = '...'"
 			referenceAssertDiagnostic(t, err, &want)
 			deleteReferenceRows(t, p, a, r, 1, 2, 3, 4, 4)
 			for _, tc := range []struct {
@@ -92,9 +90,7 @@ func TestReferenceDeleteCorePrepared(t *testing.T) {
 				t.Fatal("invalid contextual BOOL parameter exposed a result")
 			}
 			want = referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`}
-			if i == 1 {
-				want.Context = "unnamed portal parameter $1 = '...'"
-			}
+			want.Context = "unnamed portal parameter $1 = '...'"
 			referenceAssertDiagnostic(t, err, &want)
 			deleteReferenceRows(t, p, a, r, 2)
 			for _, tc := range []struct {

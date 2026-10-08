@@ -57,7 +57,7 @@ func TestReferenceTimezoneDiagnosticsAndAtomicity(t *testing.T) {
 			s = referenceImplicitError(q, referenceDiagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint}, tc.input)
 			pg := *s.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			s.postgresDiagnostic = &pg
+			s.diagnostic = &pg
 			s.errorStage = "execute"
 			timezoneBoth(t, p, s)
 			timezoneBoth(t, p, sentinel)

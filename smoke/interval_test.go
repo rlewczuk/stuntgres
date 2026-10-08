@@ -166,7 +166,7 @@ func TestIntervalSmoke(t *testing.T) {
 	}
 	_, err = stmt.ExecContext(ctx, 9, "invalid", nil, nil)
 	var diagnostic *stuntgres.Error
-	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22007", Message: "invalid input syntax for type interval: \"invalid\""}
+	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22007", Message: "invalid input syntax for type interval: \"invalid\"",Context:"unnamed portal parameter $2 = '...'"}
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatal(err, want)
 	}
@@ -234,9 +234,14 @@ func TestIntervalSmoke(t *testing.T) {
 		_, err = boundary.ExecContext(ctx, "PT0x1p0S", tc.input)
 		boundary.Close()
 		want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
+		// Syntax/decoder range errors fail unconstrained parameter import.
+		// Destination precision overflow (22008) occurs later, without portal Context.
+		if tc.code != "22008" {
+			want.Context = "unnamed portal parameter $2 = '...'"
+		}
 		var got *stuntgres.Error
 		if !errors.As(err, &got) || *got != want {
-			t.Fatal(err, want)
+			t.Fatalf("diagnostic = %#v (%v), want %#v", got, err, want)
 		}
 		check(db, "SELECT v FROM "+tc.table, [][]any{{"00:00:01"}})
 	}

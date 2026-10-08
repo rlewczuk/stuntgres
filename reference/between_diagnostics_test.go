@@ -43,7 +43,7 @@ func TestReferenceBetweenDiagnostics(t *testing.T) {
 			bad.errorStage = "execute"
 			pg := *bad.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			bad.postgresDiagnostic = &pg
+			bad.diagnostic = &pg
 			betweenReferenceBoth(t, p, bad)
 		})
 	}

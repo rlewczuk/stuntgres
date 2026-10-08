@@ -54,7 +54,7 @@ func TestReferenceExpressionCoreDiagnostics(t *testing.T){
  {"SELECT id FROM t WHERE 'truth'",referenceDiagnostic{Code:"22P02",Message:`invalid input syntax for type boolean: "truth"`,Position:"24"}},
  {"SELECT $0 FROM t",referenceDiagnostic{Code:"42P02",Message:"there is no parameter $0",Position:"8"}},
  }{step:=referenceImplicitError(tc.q,tc.d);step.selectRows=true;step.errorStage="execute";p.step(t,step);step.errorStage="prepare";p.step(t,referencePrepared(step))}
- bad:=referenceImplicitError("SELECT id FROM t WHERE $1",referenceDiagnostic{Code:"22P02",Message:`invalid input syntax for type boolean: "truth"`},"truth");bad.selectRows=true;bad.errorStage="execute";pg:=*bad.diagnostic;pg.Context="unnamed portal parameter $1 = '...'";bad.postgresDiagnostic=&pg;p.step(t,bad);p.step(t,referencePrepared(bad))
+ bad:=referenceImplicitError("SELECT id FROM t WHERE $1",referenceDiagnostic{Code:"22P02",Message:`invalid input syntax for type boolean: "truth"`,Context:"unnamed portal parameter $1 = '...'"},"truth");bad.selectRows=true;bad.errorStage="execute";p.step(t,bad);p.step(t,referencePrepared(bad))
  for _,tc:=range []struct{q,detail string;arg any}{
  {"SELECT $1 FROM t WHERE v=$1 ORDER BY id","integer versus text",1},
  {"SELECT $1 FROM t WHERE f=$1 ORDER BY id","boolean versus text",true},

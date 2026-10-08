@@ -157,7 +157,7 @@ func TestCompareOpsSmoke(t *testing.T) {
 		rows.Close()
 		t.Fatal("bad parameter exposed cursor")
 	}
-	if err := typeCoreDiagnostic(err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}); err != nil {
+	if err := typeCoreDiagnostic(err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`, Context:"unnamed portal parameter $1 = '...'"}); err != nil {
 		t.Fatal(err)
 	}
 	// Capture before fetching, then replace storage through public native controls.

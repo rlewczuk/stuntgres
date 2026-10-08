@@ -57,9 +57,7 @@ func TestReferenceFloatDeclarationsDiagnostics(t *testing.T) {
 					code, message = "22003", `"`+arg+`" is out of range for type real`
 				}
 				want := referenceDiagnostic{Code: code, Message: message}
-				if backend.name == "postgres" {
-					want.Context = "unnamed portal parameter $1 = '...'"
-				}
+				want.Context = "unnamed portal parameter $1 = '...'"
 				for _, prepared := range []bool{false, true} {
 					s := referenceImplicitError("INSERT INTO f VALUES($1,'1')", want, arg)
 					s.prepared = prepared

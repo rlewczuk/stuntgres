@@ -132,7 +132,7 @@ func TestReferenceCompareOpsDiagnostics(t *testing.T) {
 			bad.errorStage = "execute"
 			pg := *bad.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			bad.postgresDiagnostic = &pg
+			bad.diagnostic = &pg
 			p.step(t, bad)
 			p.step(t, referencePrepared(bad))
 		})

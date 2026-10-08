@@ -236,6 +236,13 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 					}
 					n.sequence = &o
 				}
+				if len(r.identities)!=0 {
+					n.identities=make(map[int32]columnIdentity,len(r.identities))
+					for attribute, identity := range r.identities {
+						if destination, ok := mapping[identity.sequence]; ok { identity.sequence=destination }
+						n.identities[attribute]=identity
+					}
+				}
 				d = &n
 			}
 			next.descriptors[target] = d
@@ -312,6 +319,7 @@ type dumpSequence struct {
 	state                   sequenceGenerator
 	comment                 string
 	ownedTable, ownedColumn string
+	divergent               bool
 }
 
 func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []string) {
@@ -344,12 +352,25 @@ func sequenceDumpStatements(sequences []dumpSequence) (creation, completion []st
 		if s.options.cycle {
 			cycle = "CYCLE"
 		}
-		prefix = append(prefix, fmt.Sprintf("CREATE %sSEQUENCE %s AS %s INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s;\n", persistence, name, strings.ToUpper(typ), s.options.increment, s.options.min, s.options.max, s.options.start, s.options.cache, cycle))
-		if s.ownedTable != "" {
-			suffix = append(suffix, "ALTER SEQUENCE "+name+" OWNED BY "+s.ownedTable+"."+quoteIdentifier(s.ownedColumn)+";\n")
+		if !s.options.identity {
+			prefix = append(prefix, fmt.Sprintf("CREATE %sSEQUENCE %s AS %s INCREMENT BY %d MINVALUE %d MAXVALUE %d START WITH %d CACHE %d %s;\n", persistence, name, strings.ToUpper(typ), s.options.increment, s.options.min, s.options.max, s.options.start, s.options.cache, cycle))
+			if s.ownedTable != "" {
+				suffix = append(suffix, "ALTER SEQUENCE "+name+" OWNED BY "+s.ownedTable+"."+quoteIdentifier(s.ownedColumn)+";\n")
+			}
+		} else {
+			if s.divergent {
+				suffix = append(suffix, fmt.Sprintf("ALTER SEQUENCE %s AS %s %s RESTART WITH %d;\n", name, strings.ToUpper(typ), sequenceNumericSQL(s.options), s.state.last))
+			}
+			if s.options.persistence == "unlogged" {
+				suffix = append(suffix, "ALTER SEQUENCE "+name+" SET UNLOGGED;\n")
+			}
 		}
 		if s.comment != "" {
-			prefix = append(prefix, "COMMENT ON SEQUENCE "+name+" IS "+commentLiteral(s.comment)+";\n")
+			if s.options.identity {
+				suffix = append(suffix, "COMMENT ON SEQUENCE "+name+" IS "+commentLiteral(s.comment)+";\n")
+			} else {
+				prefix = append(prefix, "COMMENT ON SEQUENCE "+name+" IS "+commentLiteral(s.comment)+";\n")
+			}
 		}
 		suffix = append(suffix, fmt.Sprintf("SELECT setval('%s',%d,%t);\n", strings.ReplaceAll(name, "'", "''"), s.state.last, s.state.called))
 	}

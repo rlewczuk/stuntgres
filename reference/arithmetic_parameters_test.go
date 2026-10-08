@@ -29,7 +29,7 @@ func TestReferenceArithmeticParameterDiagnostics(t *testing.T) {
 			step.errorStage = "execute"
 			pg := *step.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			step.postgresDiagnostic = &pg
+			step.diagnostic = &pg
 			p.step(t, step)
 			p.step(t, referencePrepared(step))
 		})

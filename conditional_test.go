@@ -102,7 +102,7 @@ func TestConditionalPreparedReuseAndMetadata(t *testing.T) {
 	if rows != nil {
 		rows.Close()
 	}
-	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`})
+	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`,Context:"unnamed portal parameter $1 = '...'"})
 	rows, err = stmt.Query(4)
 	if err != nil {
 		t.Fatal("failed execution poisoned prepared statement", err)

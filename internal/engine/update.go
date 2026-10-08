@@ -90,6 +90,12 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
 		}
 		seen[slot] = true
+		if identity, ok := b.relation.identities[b.relation.attributes[slot]]; ok && identity.mode == parser.IdentityAlways {
+			diagnostic := identityInsertError(a.Target.Text).(*sqlstate.Error)
+			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`,a.Target.Text)
+			diagnostic.Hint = ""
+			return diagnostic
+		}
 		b.targets = append(b.targets, slot)
 		source := u.assignments[i]
 		dest := b.relation.columns[slot]

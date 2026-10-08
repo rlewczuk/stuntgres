@@ -796,7 +796,7 @@ func TestSettingsBooleanBindingDiagnostics(t *testing.T) {
 		} else {
 			_, err = c.QueryContext(ctx, q, "application_name", "changed", "maybe")
 		}
-		settingsDiagnostic(t, err, "22P02", `invalid input syntax for type boolean: "maybe"`, "", "", "")
+		var diagnostic *Error;want:=Error{Severity:"ERROR",SeverityUnlocalized:"ERROR",Code:"22P02",Message:`invalid input syntax for type boolean: "maybe"`,Context:"unnamed portal parameter $3 = '...'"};if !errors.As(err,&diagnostic)||*diagnostic!=want{t.Fatal(diagnostic,err,want)}
 		settingsRows(t, c, "SHOW application_name", false, "application_name", "retained")
 	}
 	for _, q := range []string{`SELECT set_config('application_name','v','maybe')`, `SELECT set_config('application_name','a',)`} {
@@ -1135,7 +1135,7 @@ func TestSettingsBooleanByteInputAndHealthySession(t *testing.T) {
 		} else {
 			_, err = c.QueryContext(ctx, q, "application_name", "changed", []byte("maybe"))
 		}
-		settingsDiagnostic(t, err, "22P02", `invalid input syntax for type boolean: "maybe"`, "", "", "")
+		var diagnostic *Error;want:=Error{Severity:"ERROR",SeverityUnlocalized:"ERROR",Code:"22P02",Message:`invalid input syntax for type boolean: "maybe"`,Context:"unnamed portal parameter $3 = '...'"};if !errors.As(err,&diagnostic)||*diagnostic!=want{t.Fatal(diagnostic,err,want)}
 		settingsRows(t, c, "SHOW application_name", false, "application_name", "retained")
 		settingsRows(t, c, q, prepared, "set_config", "healthy", "application_name", "healthy", false)
 		settingsRows(t, c, q, prepared, "set_config", "", "application_name", nil, nil)

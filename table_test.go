@@ -64,7 +64,7 @@ func tableCoreMetadata(t *testing.T, db *sql.DB, prepared bool, q string, names,
 		v, known := c.Nullable()
 		var scan reflect.Type
 		switch n {
-		case "INT4", "INT8":
+		case "INT2", "INT4", "INT8":
 			scan = reflect.TypeFor[int64]()
 		case "TEXT":
 			scan = reflect.TypeFor[string]()

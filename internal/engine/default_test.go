@@ -123,11 +123,15 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, err := e.describe(op.ctx, statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, op, nil)
+	var defaults map[int32]columnDefault
+	if err == nil {
+		defaults, err = bindCreateDefaults(newExpressionBinder(op.ctx,e,sqltype.InputEnvironment{TransactionStart:a},op,nil),b.createColumns,b.createDeclarations)
+	}
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal("CREATE evaluated deferred narrowing", err)
 	}
-	for i, d := range b.createDefaults {
+	for i, d := range defaults {
 		if d.expression.ResultUsage() != b.createColumns[i-1].Usage || d.expression.Properties() != (ExprProperties{}) {
 			t.Fatal(d)
 		}
@@ -135,7 +139,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 	// Rebinding under a different operation clock must not change already-bound leaves.
 	c := &EvalContext{Context: context.Background()}
 	for _, attribute := range []int32{2, 3} {
-		value, err := b.createDefaults[attribute].expression.Eval(c)
+		value, err := defaults[attribute].expression.Eval(c)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -147,7 +151,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 			t.Fatal(value, expected)
 		}
 	}
-	if _, err := b.createDefaults[1].expression.Eval(c); err == nil {
+	if _, err := defaults[1].expression.Eval(c); err == nil {
 		t.Fatal("deferred narrowing not applied")
 	}
 }

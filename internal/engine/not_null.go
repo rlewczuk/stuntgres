@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -40,6 +39,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		case parser.DropColumn:
 			label = "DROP COLUMN"
 		case parser.SetNotNull:
+		case parser.AddIdentity, parser.DropIdentity, parser.SetIdentity:
+			label = "ALTER COLUMN"
 		default:
 			return fail(fmt.Errorf("stuntgres: invalid ALTER action"))
 		}
@@ -71,16 +72,19 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	defer func() { e.DiscardCatalogStage(stage) }()
 	next := old
 	// PostgreSQL runs DROP passes before original SET, then transformed ADD NN.
-	for pass := range 3 {
+	for pass := range 5 {
 		for _, action := range s.Actions {
-			selected := pass == 0 && (action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.SetNotNull || pass == 2 && action.Action == parser.AddNotNull
+			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.SetNotNull || pass == 2 && action.Action == parser.AddNotNull || pass == 3 && action.Action == parser.AddIdentity || pass == 4 && action.Action == parser.SetIdentity
 			if !selected {
 				continue
 			}
 			if err := op.Context().Err(); err != nil {
 				return Result{}, err
 			}
-			if action.Action == parser.DropColumn {
+			if action.Action == parser.AddIdentity || action.Action == parser.DropIdentity || action.Action == parser.SetIdentity {
+				if stage == nil { stage = e.BeginCatalogStage(auth.catalog) }
+				next, err = e.identityCandidate(scope,auth,stage,next,action)
+			} else if action.Action == parser.DropColumn {
 				if _, exists := next.index[action.Column.Text]; exists && stage == nil {
 					stage = e.BeginCatalogStage(auth.catalog)
 				}
@@ -93,7 +97,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 		}
 	}
-	if next == old || len(next.columns) == len(old.columns) && slices.Equal(next.notNullConstraints, old.notNullConstraints) && len(next.checkConstraints) == len(old.checkConstraints) {
+	if next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
 		return Result{}, nil
 	}
 	if old.revision == DefinitionRevision(^uint64(0)) {
@@ -186,11 +190,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	for a := range stage.removals {
+		if _, identity := stage.identityOriginals[a]; identity { continue }
 		dependencyTargets = append(dependencyTargets, a)
 	}
 	if len(dependencyTargets) != 0 {
 		changes.dependencies = append(changes.dependencies, catalogDependencyObservation{grantCatalog, dependencyTargets})
 	}
+	changes.dependencies = append(changes.dependencies,stage.identityDependencies...)
 	// Record all originals before provider callbacks; Reset cannot restamp them.
 	e.mu.Lock()
 	if ref.Epoch != e.state.epoch {
@@ -198,19 +204,26 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, ErrCatalogReplaced
 	}
 	for a, d := range stage.descriptors {
-		if e.state.descriptors[a] != grantCatalog.descriptors[a] {
+		original := grantCatalog.descriptors[a]
+		if captured, identity := stage.identityOriginals[a]; identity { original = captured }
+		if e.state.descriptors[a] != original {
 			e.mu.Unlock()
 			return Result{}, CatalogConflict{}
 		}
 		e.catalogChangeLocked(changes, a, d)
 	}
 	for a := range stage.removals {
-		if e.state.descriptors[a] != grantCatalog.descriptors[a] {
+		original := grantCatalog.descriptors[a]
+		if captured, identity := stage.identityOriginals[a]; identity { original = captured }
+		if e.state.descriptors[a] != original {
 			e.mu.Unlock()
 			return Result{}, CatalogConflict{}
 		}
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.generators, a)
+	}
+	for a, generator := range stage.generators {
+		changes.generators[a] = generator
 	}
 	shape.replacement, shape.relation = replacement, next
 	changes.storage[ref.Address] = shape
@@ -240,6 +253,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if projectedDeletes != nil {
 			scope.stage.deletes[ref.Address] = projectedDeletes
 		}
+	}
+	if len(stage.generators)!=0 {
+		e.mu.Lock()
+		for address := range stage.generators {
+			if memory := op.session.sequences[address]; memory != nil { memory.remaining = 0 }
+		}
+		e.mu.Unlock()
 	}
 	scope.catalog = changes
 	emitViewCascade(op, stage.viewCascadeNames)
@@ -303,6 +323,11 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 		}
 	}
 	adding := a.Action == parser.SetNotNull || a.Action == parser.AddNotNull
+	if !adding {
+		if _, ok := old.identities[old.attributes[slot]]; ok {
+			return nil, sqlError("42601",fmt.Sprintf(`column "%s" of relation "%s" is an identity column`,old.columns[slot].Name,old.name))
+		}
+	}
 	if adding && index >= 0 || !adding && index < 0 {
 		return old, nil
 	}

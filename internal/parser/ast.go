@@ -35,10 +35,33 @@ type Column struct {
 	Pos         Position
 }
 
+type IdentityMode uint8
+
+const (
+	IdentityNone IdentityMode = iota
+	IdentityAlways
+	IdentityByDefault
+)
+
+type IdentityDefinition struct {
+	Mode IdentityMode
+	Options []SequenceOption
+	Pos Position
+}
+
+type InsertOverride uint8
+
+const (
+	OverrideNone InsertOverride = iota
+	OverrideSystem
+	OverrideUser
+)
+
 type ColumnConstraint struct {
 	NotNull bool
 	Default Expr
 	Check   *CheckConstraint
+	Identity *IdentityDefinition
 	Name    Identifier
 	Pos     Position
 }
@@ -219,6 +242,9 @@ const (
 	AddNotNull
 	DropConstraint
 	DropColumn
+	AddIdentity
+	DropIdentity
+	SetIdentity
 )
 
 type AlterTableAction struct {
@@ -228,6 +254,7 @@ type AlterTableAction struct {
 	IfExists   bool
 	Mode       DropMode
 	Pos        Position
+	Identity *IdentityDefinition
 }
 
 type AlterTable struct {
@@ -275,6 +302,7 @@ type Insert struct {
 	Source        *InsertSource
 	Pos           Position
 	DefaultValues bool
+	Override InsertOverride
 }
 
 type InsertTarget struct {

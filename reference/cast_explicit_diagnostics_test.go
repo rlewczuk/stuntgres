@@ -98,7 +98,7 @@ func TestReferenceCastExplicitParameters(t *testing.T) {
 		if strings.Contains(q, "$1::int4") {
 			pg := *step.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			step.postgresDiagnostic = &pg
+			step.diagnostic = &pg
 		}
 		castReferenceBoth(t, p, step)
 		castReferenceBoth(t, p, referencePrepared(step))

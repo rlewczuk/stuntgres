@@ -30,9 +30,7 @@ func TestReferenceDateFullDiagnosticsAtomicityAndBoundaries(t *testing.T) {
 					}
 					run(s)
 					want.Position = ""
-					if b.pg {
-						want.Context = "unnamed portal parameter $1 = '...'"
-					}
+					want.Context = "unnamed portal parameter $1 = '...'"
 					s = referenceImplicitError("INSERT INTO d VALUES($1)", want)
 					s.args = []any{tc.input}
 					s.prepared = prepared
@@ -51,9 +49,7 @@ func TestReferenceDateFullDiagnosticsAtomicityAndBoundaries(t *testing.T) {
 			s := referenceImplicitError("INSERT INTO d VALUES('2000-02-29'),('bad')", referenceDiagnostic{Code: "22007", Message: `invalid input syntax for type date: "bad"`, Position: "37"})
 			run(s)
 			want := referenceDiagnostic{Code: "22007", Message: `invalid input syntax for type date: "bad"`}
-			if b.pg {
-				want.Context = "unnamed portal parameter $2 = '...'"
-			}
+			want.Context = "unnamed portal parameter $2 = '...'"
 			s = referenceImplicitError("INSERT INTO d VALUES($1),($2)", want)
 			s.args = []any{"2000-02-29", "bad"}
 			run(s)
@@ -185,9 +181,7 @@ func TestReferenceDateTimeParameterRangeDiagnostics(t *testing.T) {
 								t.Run(statement.name, func(t *testing.T) {
 									run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
 									want := referenceDiagnostic{Code: "22008", Message: tc.message}
-									if b.pg {
-										want.Context = "unnamed portal parameter $1 = '...'"
-									}
+									want.Context = "unnamed portal parameter $1 = '...'"
 									s := referenceImplicitError(statement.query, want, tc.input)
 									s.prepared = mode == "prepared"
 									s.errorStage = "execute"

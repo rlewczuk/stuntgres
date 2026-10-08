@@ -253,7 +253,7 @@ func TestLogicalSmoke(t *testing.T) {
 		rows.Close()
 		t.Fatal("invalid bind exposed rows")
 	}
-	if e := typeCoreDiagnostic(e, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`}); e != nil {
+	if e := typeCoreDiagnostic(e, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`,Context:"unnamed portal parameter $1 = '...'"}); e != nil {
 		t.Fatal(e)
 	}
 	exec("CREATE TABLE bag(a BOOL,b BOOL)", 0)

@@ -276,7 +276,7 @@ func TestUUIDDiagnosticsAndAtomicity(t *testing.T) {
 			if arg == true {
 				text = "true"
 			}
-			want := stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "` + text + `"`}
+			want := stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "` + text + `"`,Context:"unnamed portal parameter $1 = '...'"}
 			_, err = db.Exec(q, arg)
 			typeCoreDiagnostic(t, err, want)
 			_, err = stmt.Exec(arg)
@@ -311,7 +311,7 @@ func TestUUIDDiagnosticsAndAtomicity(t *testing.T) {
 			want stuntgres.Error
 		}{
 			{"INSERT INTO required VALUES(1,'00000000000000000000000000000000'),(2,'bad')", nil, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Position: "70"}},
-			{"INSERT INTO required VALUES(1,$1),(2,$2)", []any{uuidZ, "bad"}, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`}},
+			{"INSERT INTO required VALUES(1,$1),(2,$2)", []any{uuidZ, "bad"}, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Context: "unnamed portal parameter $2 = '...'"}},
 			{"INSERT INTO required VALUES(1,'00000000000000000000000000000000'),(2,NULL)", nil, stuntgres.Error{Code: "23502", Message: `null value in column "v" of relation "required" violates not-null constraint`, Detail: "Failing row contains (2, null).", Schema: "public", Table: "required", Column: "v"}},
 			{"INSERT INTO required VALUES(NULL,$1)", []any{"{A0EEBC999C0B4EF8BB6D6BB9BD380A11}"}, stuntgres.Error{Code: "23502", Message: `null value in column "id" of relation "required" violates not-null constraint`, Detail: "Failing row contains (null, " + uuidA + ").", Schema: "public", Table: "required", Column: "id"}},
 		} {
@@ -501,7 +501,7 @@ func TestUUIDAuthorization(t *testing.T) {
 		}{
 			{"SELECT v FROM u", nil, stuntgres.Error{Code: "42501", Message: "permission denied for table u"}},
 			{"INSERT INTO u VALUES($1)", []any{uuidA}, stuntgres.Error{Code: "42501", Message: "permission denied for table u"}},
-			{"INSERT INTO u VALUES($1)", []any{"bad"}, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`}},
+			{"INSERT INTO u VALUES($1)", []any{"bad"}, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`,Context:"unnamed portal parameter $1 = '...'"}},
 			{"INSERT INTO u VALUES('a0eebc999c0b4ef8bb6d6bb9bd380a11')", nil, stuntgres.Error{Code: "42501", Message: "permission denied for table u"}},
 		} {
 			var err error
@@ -564,6 +564,6 @@ func TestUUIDQueryDiagnosticHasNoCursor(t *testing.T) {
 			rows.Close()
 			t.Fatal("failed bound query exposed cursor")
 		}
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`,Context:"unnamed portal parameter $1 = '...'"})
 	}
 }

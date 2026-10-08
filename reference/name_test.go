@@ -110,7 +110,7 @@ func TestReferenceNameDiagnostics(t *testing.T) {
 					s := referenceImplicitError("INSERT INTO names VALUES($1)", referenceDiagnostic{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.suffix}, input)
 					pg := *s.diagnostic
 					pg.Context = "unnamed portal parameter $1"
-					s.postgresDiagnostic = &pg
+					s.diagnostic = &pg
 					s.prepared = prepared
 					s.errorStage = "execute"
 					steps = append(steps, s)

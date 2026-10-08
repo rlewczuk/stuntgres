@@ -102,12 +102,11 @@ func TestReferenceErrorFieldsConversion(t *testing.T) {
 					Severity: "ERROR", SeverityUnlocalized: "ERROR",
 					Code: tc.code, Message: tc.message,
 				}
-				postgres := native
-				postgres.Context = "unnamed portal parameter $1 = '...'"
+				native.Context = "unnamed portal parameter $1 = '...'"
 				p.step(t, referenceStep{
 					query: tc.query, args: []any{tc.value}, prepared: prepared,
 					selectRows: strings.HasPrefix(tc.query, "SELECT "),
-					state:      tc.code, diagnostic: &native, postgresDiagnostic: &postgres,
+					state:      tc.code, diagnostic: &native,
 					errorStage: "execute",
 				})
 			})

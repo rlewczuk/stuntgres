@@ -156,10 +156,9 @@ func TestReferenceRoleAuthorization(t *testing.T) {
 					parameterFailure := roleReferenceError("INSERT INTO secret VALUES($1)", "22P02", `invalid input syntax for type integer: "bad"`, "", prepared, "execute")
 					parameterFailure.args = []any{"bad"}
 					postgresParameterFailure := *parameterFailure.diagnostic
-					// Reuse the existing declared wire-portal context boundary: native is not
-					// a server and never fabricates PostgreSQL portal/source-location fields.
+					// True typed input failures retain the actual failing parameter index.
 					postgresParameterFailure.Context = "unnamed portal parameter $1 = '...'"
-					parameterFailure.postgresDiagnostic = &postgresParameterFailure
+					parameterFailure.diagnostic = &postgresParameterFailure
 					run(b, parameterFailure)
 					validParameter := roleReferenceError("INSERT INTO secret VALUES($1)", "42501", "permission denied for table secret", "", prepared, "execute")
 					validParameter.args = []any{"9"}

@@ -131,6 +131,15 @@ func frameImporter(values []driver.Value) engine.FrameImporter {
 		for i, raw := range values {
 			value, err := importParameter(ctx, raw, parameters.Types[i], input)
 			if err != nil {
+				if diagnostic, ok := err.(*Error); ok {
+					copy := *diagnostic
+					if copy.Context != "" { copy.Context += "\n" }
+					copy.Context += fmt.Sprintf("unnamed portal parameter $%d", i+1)
+					if copy.Code != "22021" {
+						if text, ok := raw.(string); ok && text == "" { copy.Context += " = ''" } else { copy.Context += " = '...'" }
+					}
+					return &copy
+				}
 				return err
 			}
 			dst[i] = value

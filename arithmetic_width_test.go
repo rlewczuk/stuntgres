@@ -35,7 +35,7 @@ func TestArithmeticWidthsAndAssignments(t *testing.T) {
 		arithmeticError(t, err, stuntgres.Error{Code: "22003", Message: tc.primary})
 	}
 	_, err = stmt.Exec("oops", 1)
-	arithmeticError(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`})
+	arithmeticError(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`,Context:"unnamed portal parameter $1 = '...'"})
 	arithmeticRows(t, db, "SELECT i,b FROM dest", []string{"INT4", "INT8"}, [][]any{{int64(8), int64(2147483649)}})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

@@ -49,7 +49,7 @@ func TestReferenceTypeCoreDiagnosticsAndAtomicity(t *testing.T) {
 		bound := referenceImplicitError("INSERT INTO failures("+tc.column+") VALUES($1)", referenceDiagnostic{Code: tc.code, Message: message}, tc.text)
 		pg := *bound.diagnostic
 		pg.Context = "unnamed portal parameter $1 = '...'"
-		bound.postgresDiagnostic = &pg
+		bound.diagnostic = &pg
 		bound.errorStage = "execute"
 		p.step(t, bound)
 		p.step(t, referencePrepared(bound))
@@ -62,7 +62,7 @@ func TestReferenceTypeCoreDiagnosticsAndAtomicity(t *testing.T) {
 		bound := referenceImplicitError("INSERT INTO failures(i) VALUES($1)", referenceDiagnostic{Code: "22003", Message: tc.message}, tc.value)
 		pg := *bound.diagnostic
 		pg.Context = "unnamed portal parameter $1 = '...'"
-		bound.postgresDiagnostic = &pg
+		bound.diagnostic = &pg
 		bound.errorStage = "execute"
 		p.step(t, bound)
 		p.step(t, unchanged)
@@ -118,7 +118,7 @@ func TestReferenceTypeCoreQuotedWhereDiagnostics(t *testing.T) {
 		bound.errorStage = "execute"
 		pg := *bound.diagnostic
 		pg.Context = "unnamed portal parameter $1 = '...'"
-		bound.postgresDiagnostic = &pg
+		bound.diagnostic = &pg
 		p.step(t, bound)
 		p.step(t, referencePrepared(bound))
 	}

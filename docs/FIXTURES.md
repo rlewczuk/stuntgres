@@ -58,9 +58,11 @@ Dump/Restore, including NUMERIC display scale. Public direct/prepared roundtrip
 coverage: `make test PACKAGES=. RUN='^TestViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0`.
 
 Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
-defaults, CREATE SEQUENCE, supported parameter-free scalar/default-request INSERT
-(including integer arithmetic), database-local COMMENT, generated sequence OWNED BY
-associations, SELECT setval(name,value,is_called), and named SET SESSION AUTHORIZATION
+defaults and identity definitions, CREATE SEQUENCE, supported parameter-free
+scalar/default-request INSERT (including integer arithmetic and SYSTEM identity
+override), database-local COMMENT, generated sequence OWNED BY associations,
+numeric/persistence configuration of internal identity sequences, SELECT setval(name,value,is_called),
+and named SET SESSION AUTHORIZATION
 owner directives. Parameters are recursively rejected, and other SQL remains
 excluded. Legacy CREATE/INSERT-only scripts remain bootstrap-owned. Referenced
 roles must already exist in the target engine. Restore captures a private role
@@ -77,6 +79,16 @@ ROLE replay. Ordinary post-Restore SQL still enforces USAGE/CREATE and ownership
 The shared object allocator skips live namespace and relation identities imported
 by Restore, so subsequent schema and table creation continues without collisions.
 Replacement does not rewind the destination's nonreuse counter.
+
+Identity Dump emits current generation and actual sequence names inline, skips
+duplicate sequence creation/AUTO ownership, and restores literal rows with SYSTEM
+override so replay never allocates identity values. Cache reservation high-water and
+last/is_called persist; unused session tails and currval/lastval do not. When direct
+ALTER SEQUENCE has diverged from the column type or persistence, replay first creates
+a valid column-type identity, then applies generated numeric/persistence configuration
+before final setval. Reciprocal ownership is remapped under retained TEMP collisions.
+Malformed configuration/rows/state or canceled imports leave the old database intact.
+
 
 Timezone-aware declarations, precision, frozen defaults, NULLs, BC and infinities
 use the existing canonical SQL replay. TIMESTAMPTZ literals are ISO UTC with an

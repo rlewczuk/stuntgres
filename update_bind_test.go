@@ -15,9 +15,9 @@ func TestUpdateCoreBindOccurrenceResolution(t *testing.T) {
 	}
 	defer stmt.Close()
 	_, err = db.Exec("UPDATE t SET a=$1,b=$1", "bad")
-	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`})
+	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`,Context:"unnamed portal parameter $1 = '...'"})
 	_, err = stmt.Exec("bad")
-	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`})
+	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`,Context:"unnamed portal parameter $1 = '...'"})
 	wantTuples(t, db, "SELECT a,b,f FROM t", [][]any{{int64(1), int64(2), true}})
 	for _, q := range []string{"UPDATE t SET a=$2", "UPDATE /*é*/ t SET a=$1,f=$1"} {
 		want := stuntgres.Error{Code: "42P18", Message: "could not determine data type of parameter $1"}

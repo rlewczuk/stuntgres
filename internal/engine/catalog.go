@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/parser"
 	"unicode/utf8"
 )
 
@@ -92,6 +93,7 @@ type relationDescriptor struct {
 	notNullConstraints []notNullConstraint
 	checkConstraints   []checkConstraint
 	defaults           map[int32]columnDefault
+	identities         map[int32]columnIdentity
 	relationKind       relationKind
 	sequence           *sequenceOptions
 	view               *viewDefinition
@@ -213,12 +215,21 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if _, _, err := bindSequenceOptions(r.sequence, sequenceGenerator{last: r.sequence.start}, nil); err != nil {
 			return err
 		}
+		if r.sequence.identity && r.sequence.owned == (ObjectAddress{}) {
+			return fmt.Errorf("stuntgres: identity sequence lacks ownership")
+		}
 		if owned := r.sequence.owned; owned != (ObjectAddress{}) {
 			tableAddress := owned
 			tableAddress.SubID = 0
 			table, ok := v.state.descriptors[tableAddress].(*relationDescriptor)
 			if !ok || table.relationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.owner != r.owner || table.namespace != r.namespace {
 				return fmt.Errorf("stuntgres: invalid sequence ownership dependency")
+			}
+			if r.sequence.identity {
+				identity, exists := table.identities[owned.SubID]
+				if !exists || identity.sequence != r.address {
+					return fmt.Errorf("stuntgres: inconsistent identity sequence ownership")
+				}
 			}
 		}
 		return nil
@@ -241,6 +252,24 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	}
 	if err := validateChecks(v, r, names); err != nil {
 		return err
+	}
+	for attribute, identity := range r.identities {
+		slot := -1
+		for i, live := range r.attributes { if live == attribute { slot=i;break } }
+		if slot < 0 || identity.mode != parser.IdentityAlways && identity.mode != parser.IdentityByDefault {
+			return fmt.Errorf("stuntgres: invalid column identity")
+		}
+		column := r.columns[slot]
+		id := column.Usage.Type.ID()
+		if column.Nullable || !column.NullabilityKnown || id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
+			return fmt.Errorf("stuntgres: invalid identity column type or nullability")
+		}
+		if _, exists := r.defaults[attribute]; exists { return fmt.Errorf("stuntgres: identity column has default") }
+		sequence, exists := v.state.descriptors[identity.sequence].(*relationDescriptor)
+		owned:=r.address;owned.SubID=attribute
+		if !exists || sequence.sequence == nil || !sequence.sequence.identity || sequence.sequence.owned != owned || sequence.owner != r.owner || sequence.namespace != r.namespace {
+			return fmt.Errorf("stuntgres: invalid column identity sequence")
+		}
 	}
 	for attribute, definition := range r.defaults {
 		slot := -1
@@ -310,6 +339,9 @@ type CatalogStage struct {
 	removals           map[ObjectAddress]catalogRemoval
 	rowShapes          map[ObjectAddress]catalogRowShape
 	oldNames           map[NameKey]bool
+	generators         map[ObjectAddress]*sequenceGenerator
+	identityOriginals  map[ObjectAddress]Descriptor
+	identityDependencies []catalogDependencyObservation
 	lifecycle          catalogLifecycle
 	invalid            error
 	authSession        *Session
@@ -768,6 +800,9 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			e.storage = storage
 			for a := range s.removals {
 				delete(e.sequences, a)
+			}
+			for a, generator := range s.generators {
+				e.sequences[a] = generator
 			}
 			e.nextRevision = nextRevision
 			s.lifecycle = catalogPublished

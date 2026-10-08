@@ -51,7 +51,7 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 						s.errorStage = "execute"
 						pg := *s.diagnostic
 						pg.Context = "unnamed portal parameter $1 = '...'"
-						s.postgresDiagnostic = &pg
+						s.diagnostic = &pg
 						run(s)
 					}
 				})
@@ -74,7 +74,7 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 					s.errorStage = "execute"
 					pg := *s.diagnostic
 					pg.Context = "unnamed portal parameter $1 = '...'"
-					s.postgresDiagnostic = &pg
+					s.diagnostic = &pg
 					run(s)
 				}
 			}
@@ -95,7 +95,7 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 			parameter := referenceImplicitError("INSERT INTO t VALUES($1),($2)", referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type time: \"bad\""}, "24:00", "bad")
 			pg := *parameter.diagnostic
 			pg.Context = "unnamed portal parameter $2 = '...'"
-			parameter.postgresDiagnostic = &pg
+			parameter.diagnostic = &pg
 			run(parameter)
 			run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.postgres, []string{"TIME"}, [][]any{{"00:00:00"}})))
 			run(referenceExec("CREATE TABLE nn(v TIME NOT NULL)", 0))

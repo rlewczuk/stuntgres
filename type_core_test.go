@@ -37,13 +37,13 @@ func TestTypeCoreDiagnosticsPhasesAndAtomicity(t *testing.T){
   message:="invalid input syntax for type "+tc.name+": \""+tc.text+"\"";if tc.code=="22003"{message="value \""+tc.text+"\" is out of range for type "+tc.name}
   q:="/*é*/ INSERT INTO failures("+tc.column+") VALUES('"+tc.text+"')";position:=strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q,"'")])+1)
   for _,prepare:=range []bool{false,true}{var err error;if prepare{stmt,e:=db.Prepare(q);err=e;if stmt!=nil{stmt.Close()}}else{_,err=db.Exec(q)};typeCoreDiagnostic(t,err,stuntgres.Error{Code:tc.code,Message:message,Position:position})}
-  stmt,err:=db.Prepare("INSERT INTO failures("+tc.column+") VALUES($1)");if err!=nil{t.Fatal(err)};_,err=stmt.Exec(tc.text);stmt.Close();typeCoreDiagnostic(t,err,stuntgres.Error{Code:tc.code,Message:message})
+  stmt,err:=db.Prepare("INSERT INTO failures("+tc.column+") VALUES($1)");if err!=nil{t.Fatal(err)};_,err=stmt.Exec(tc.text);stmt.Close();typeCoreDiagnostic(t,err,stuntgres.Error{Code:tc.code,Message:message,Context:"unnamed portal parameter $1 = '...'"})
  }
  for _,tc:=range []struct{value int64;message string}{{2147483648,`value "2147483648" is out of range for type integer`},{-2147483649,`value "-2147483649" is out of range for type integer`}}{
   for _,prepared:=range []bool{false,true}{
    var err error
    if prepared{stmt,e:=db.Prepare("INSERT INTO failures(i) VALUES($1)");if e!=nil{t.Fatal(e)};_,err=stmt.Exec(tc.value);stmt.Close()}else{_,err=db.Exec("INSERT INTO failures(i) VALUES($1)",tc.value)}
-   typeCoreDiagnostic(t,err,stuntgres.Error{Code:"22003",Message:tc.message})
+   typeCoreDiagnostic(t,err,stuntgres.Error{Code:"22003",Message:tc.message,Context:"unnamed portal parameter $1 = '...'"})
    wantTuples(t,db,"SELECT * FROM failures",[][]any{{int64(99),int64(99),"sentinel",true}})
   }
  }
@@ -77,6 +77,7 @@ func TestTypeCoreQuotedWhereDiagnostics(t *testing.T) {
 
 			bound := "/*é*/ SELECT "+tc.column+" FROM failures WHERE "+tc.column+"=$1"
 			want.Position = ""
+			want.Context="unnamed portal parameter $1 = '...'"
 			rows, err = db.Query(bound, tc.text)
 			if rows != nil { rows.Close(); t.Fatal("failed parameter Query exposed a cursor") }
 			typeCoreDiagnostic(t, err, want)

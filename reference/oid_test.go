@@ -143,14 +143,14 @@ func TestReferenceOIDInputDiagnostics(t *testing.T) {
 		s = referencePrepared(s)
 		s.errorStage = "prepare"
 		steps = append(steps, s)
-		// pq's text bind has a portal context; native has no wire portal.
+		// Both typed import paths retain the actual failing parameter context.
 		s = referenceImplicitError("INSERT INTO o VALUES($1)", referenceDiagnostic{Code: tc.code, Message: message}, tc.in)
 		pg := *s.diagnostic
 		pg.Context = "unnamed portal parameter $1 = '...'"
 		if tc.in == "" {
 			pg.Context = "unnamed portal parameter $1 = ''"
 		}
-		s.postgresDiagnostic = &pg
+		s.diagnostic = &pg
 		s.errorStage = "execute"
 		steps = append(steps, s)
 		s = referencePrepared(s)

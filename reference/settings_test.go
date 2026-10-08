@@ -383,7 +383,7 @@ func TestReferenceSettingsBooleanBindingDiagnostics(t *testing.T) {
 		pg := native
 		pg.Context = "unnamed portal parameter $3 = '...'"
 		s := referenceErrorDiagnostic("SELECT set_config($1,$2,$3)", native, "application_name", "changed", "maybe")
-		s.postgresDiagnostic = &pg
+		s.diagnostic = &pg
 		s.selectRows = true
 		s.prepared = prepared
 		s.errorStage = "execute"

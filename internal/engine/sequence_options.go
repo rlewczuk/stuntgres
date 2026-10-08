@@ -22,6 +22,7 @@ type sequenceOptions struct {
 	cycle                             bool
 	persistence                       string
 	owned                             ObjectAddress
+	identity                          bool
 }
 type sequenceGenerator struct {
 	last       int64

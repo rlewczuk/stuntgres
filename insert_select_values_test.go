@@ -63,7 +63,7 @@ func TestInsertSelectParameterOccurrences(t *testing.T) {
 		insertSelectCount(t, result, err, 1)
 	}
 	_, err = stmt.Exec("bad")
-	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`})
+	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`,Context:"unnamed portal parameter $1 = '...'"})
 	_, err = stmt.Exec()
 	if err == nil {
 		t.Fatal("missing Go argument accepted")

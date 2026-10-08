@@ -1,0 +1,48 @@
+package engine
+
+import (
+	"context"
+	"testing"
+)
+
+func TestIdentityAlterSequenceGrantFreshness(t *testing.T){
+	for _,action:=range []string{`ALTER TABLE i ALTER id SET CACHE 2`,`ALTER TABLE i ALTER id RESTART WITH 20`,`ALTER TABLE i ALTER id DROP IDENTITY`}{t.Run(action,func(t *testing.T){
+		e:=New();a,b:=sessionStart(t,e,nil),sessionStart(t,e,nil)
+		sessionSQL(t,a,`CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
+		tx:=transactionBegin(t,a)
+		sessionSQL(t,a,`ALTER SEQUENCE i_id_seq INCREMENT 3 RESTART WITH 10`)
+		ctx,cancel:=context.WithCancel(context.Background());defer cancel()
+		done:=lockAsync(e,b,ctx,action,false)
+		ref:=catalogRef(t,e,e.CatalogRead(),"i_id_seq")
+		mode:=shareRowExclusive;if action==`ALTER TABLE i ALTER id DROP IDENTITY`{mode=accessExclusive}
+		ownedLockQueued(t,e,ref,mode,done)
+		transactionEnd(t,a,tx,true)
+		lockAwait(t,done,nil)
+		if action==`ALTER TABLE i ALTER id DROP IDENTITY`{
+			table:=e.state.descriptors[catalogRef(t,e,e.CatalogRead(),"i").Address].(*relationDescriptor)
+			if len(table.identities)!=0 || e.state.descriptors[ref.Address]!=nil{t.Fatal("drop lost exact linked identity")}
+			sessionSQL(t,b,`INSERT INTO i VALUES(55)`)
+		}else{
+			d:=e.state.descriptors[ref.Address].(*relationDescriptor)
+			if d.sequence.increment!=3{t.Fatal("stale option overwrite",d.sequence.increment)}
+			sessionSQL(t,b,`INSERT INTO i DEFAULT VALUES`)
+			want:=int64(10);if action==`ALTER TABLE i ALTER id RESTART WITH 20`{want=20}
+			transactionRows(t,b,`SELECT id FROM i`,want)
+		}
+		lockEmpty(t,e)
+	})}
+}
+
+func TestIdentityAlterCanceledPublication(t *testing.T){
+	e:=New();a,b:=sessionStart(t,e,nil),sessionStart(t,e,nil)
+	sessionSQL(t,a,`CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
+	tx:=transactionBegin(t,a);sessionSQL(t,a,`ALTER SEQUENCE i_id_seq RESTART WITH 10`)
+	ctx,cancel:=context.WithCancel(context.Background())
+	done:=lockAsync(e,b,ctx,`ALTER TABLE i ALTER id DROP IDENTITY`,false)
+	ref:=catalogRef(t,e,e.CatalogRead(),"i_id_seq")
+	ownedLockQueued(t,e,ref,accessExclusive,done)
+	cancel();lockAwait(t,done,context.Canceled)
+	transactionEnd(t,a,tx,false)
+	sessionSQL(t,b,`INSERT INTO i DEFAULT VALUES`);transactionRows(t,b,`SELECT id FROM i`,1)
+	lockEmpty(t,e)
+}

@@ -21,7 +21,7 @@ func TestTimestampBranchErrorsAbortTransaction(t *testing.T) {
 			}
 			defer tx.Rollback()
 			_, err = tx.Exec("INSERT INTO t VALUES('2000-01-01'),($1)", tc.input)
-			typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint})
+			typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: tc.message, Hint: tc.hint,Context:"unnamed portal parameter $1 = '...'"})
 			for _, q := range []string{"SELECT v FROM t", "INSERT INTO t VALUES('epoch')"} {
 				_, err = tx.Exec(q)
 				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})

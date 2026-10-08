@@ -66,7 +66,7 @@ func TestReferenceNumericDiagnosticsPhasesAndAtomicity(t *testing.T) {
 		s.errorStage = "execute"
 		pg := *s.diagnostic
 		pg.Context = "unnamed portal parameter $1 = '...'"
-		s.postgresDiagnostic = &pg
+		s.diagnostic = &pg
 		p.step(t, s)
 		p.step(t, referencePrepared(s))
 	}

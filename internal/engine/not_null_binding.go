@@ -76,6 +76,7 @@ type createColumnDeclaration struct {
 	notNull       bool
 	name          string
 	defaultExpr   parser.Expr
+	identity      *parser.IdentityDefinition
 }
 
 func bindCreateColumnDeclaration(column *parser.Column, table string) (createColumnDeclaration, error) {
@@ -85,7 +86,20 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 		if constraint.Check != nil {
 			continue
 		}
+		if constraint.Identity != nil {
+			if declaration.identity != nil {
+				return declaration, insertError("42601", fmt.Sprintf(`multiple identity specifications for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
+			}
+			if declaration.defaultExpr != nil {
+				return declaration, insertError("42601", fmt.Sprintf(`both default and identity specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
+			}
+			declaration.identity = constraint.Identity
+			constraint.NotNull = true
+		}
 		if constraint.Default != nil {
+			if declaration.identity != nil {
+				return declaration, insertError("42601", fmt.Sprintf(`both default and identity specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
+			}
 			if declaration.defaultExpr != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`multiple default values specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}

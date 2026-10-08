@@ -56,6 +56,7 @@ func TestTimeDiagnosticsPhasesAndAtomicity(t *testing.T) {
 			}
 			timeDiagnostic(t, err, want)
 			want.Position = ""
+			want.Context="unnamed portal parameter $1 = '...'"
 			_, err = param.Exec(tc.input)
 			timeDiagnostic(t, err, want)
 			_, err = db.Exec("INSERT INTO t VALUES($1)", tc.input)
@@ -71,6 +72,7 @@ func TestTimeDiagnosticsPhasesAndAtomicity(t *testing.T) {
 		_, err = db.Prepare(q)
 		timeDiagnostic(t, err, want)
 		want.Position = ""
+		want.Context="unnamed portal parameter $1 = '...'"
 		_, err = param.Exec(input)
 		timeDiagnostic(t, err, want)
 		_, err = db.Exec("INSERT INTO t VALUES($1)", input)
@@ -89,7 +91,7 @@ func TestTimeDiagnosticsPhasesAndAtomicity(t *testing.T) {
 	_, err = db.Exec("INSERT INTO t VALUES('24:00'),('bad')")
 	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: "invalid input syntax for type time: \"bad\"", Position: "32"})
 	_, err = db.Exec("INSERT INTO t VALUES($1),($2)", "24:00", "bad")
-	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: "invalid input syntax for type time: \"bad\""})
+	timeDiagnostic(t, err, stuntgres.Error{Code: "22007", Message: "invalid input syntax for type time: \"bad\"", Context: "unnamed portal parameter $2 = '...'"})
 	timeQuery(t, db, "SELECT v FROM t", []string{"v"}, []string{"TIME"}, [][]any{{"00:00:00"}})
 	_, err = db.Prepare("SELECT $1 FROM t WHERE v=$1")
 	timeDiagnostic(t, err, stuntgres.Error{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "time without time zone versus text", Position: "8"})

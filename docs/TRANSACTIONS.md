@@ -11,7 +11,7 @@ override it. Go `ReadOnly: false` explicitly requests read-write access. SQL
 omitted modes inherit session defaults. INSERT (VALUES or SELECT), scalar UPDATE,
 SELECT, DELETE, settings and the single-target AX utility are supported, including
 prepared execution. CREATE tables before a block; sequence DDL, COMMENT ON
-SEQUENCE and selected ALTER TABLE nullability/named-NOT-NULL/DROP COLUMN
+SEQUENCE and selected ALTER TABLE nullability/named-NOT-NULL/DROP COLUMN/identity
 action lists are bounded transactional DDL exceptions. Successful private ALTER
 definitions govern subsequent metadata and writes; savepoints restore catalog,
 projected row shapes and own writes together. Commit installs these and sequence
@@ -31,6 +31,14 @@ allocation and setval survive rollback and later row-expression errors.
 ALTER SEQUENCE RESTART instead stages a private generator replacement, blocks
 peer functions (including cache hits), and commits or rolls back atomically
 with table INSERT/UPDATE/DELETE through the shared row-publication frontier.
+
+Identity ALTER ADD/DROP/SET generation/options/RESTART shares the existing private
+catalog/generator and savepoint journal. Own future inserts see successful private
+definitions; peers and Dump see committed state. Rollback restores definitions and
+private restarts, not live allocations already consumed by ordinary identity INSERT.
+DROP retains existing rows and NOT NULL. Native savepoint rollback conservatively
+retains locks until outer transaction end, not PostgreSQL subtransaction lock parity.
+
 UPDATE evaluates its RHS once after actual row-lock wait/recheck, using the
 initiating statement's sequence scope; it never replays sequence effects.
 
@@ -317,7 +325,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid ordinary command/Prepare or SQL start after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). Selected nullability/named-NOT-NULL/DROP COLUMN lists are supported. |
+| Explicit CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). Selected nullability/named-NOT-NULL/DROP COLUMN/identity lists are supported. |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported Go isolation option | Ordinary `stuntgres: unsupported transaction isolation level`, before state change |

@@ -15,11 +15,7 @@ func TestReferenceCharacterEncodingDiagnostics(t *testing.T) {
 			{[]byte{'a', 0, 'b'}, "0x00"}, {[]byte{0xff}, "0xff"}, {[]byte{0xc3, 0x28}, "0xc3 0x28"}, {[]byte{0xe2, 0x82}, "0xe2 0x82"},
 		} {
 			for _, arg := range []any{string(tc.payload), tc.payload} {
-				s := referenceImplicitError("INSERT INTO inputs("+column+") VALUES($1)", referenceDiagnostic{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.bytes}, arg)
-				pg := *s.diagnostic
-				// The wire portal context is external-only, not fabricated natively.
-				pg.Context = "unnamed portal parameter $1"
-				s.postgresDiagnostic = &pg
+				s := referenceImplicitError("INSERT INTO inputs("+column+") VALUES($1)", referenceDiagnostic{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.bytes, Context: "unnamed portal parameter $1"}, arg)
 				s.errorStage = "execute"
 				p.step(t, s)
 				p.step(t, referencePrepared(s))

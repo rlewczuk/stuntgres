@@ -54,7 +54,7 @@ func TestReferenceCommentInquiryDiagnostics(t *testing.T) {
 				s.errorStage = "execute"
 				pg := *s.diagnostic
 				pg.Context = tc.context
-				s.postgresDiagnostic = &pg
+				s.diagnostic = &pg
 				referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
 			}
 		})

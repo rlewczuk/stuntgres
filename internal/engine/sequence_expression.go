@@ -21,6 +21,7 @@ type sequenceCallExpression struct {
 	args      []BoundExpr
 	ref       ObjectRef
 	temporary SessionToken
+	identity bool
 }
 
 func (b *expressionBinder) sequenceSignatureError(r parser.CallExpr) error {
@@ -319,8 +320,10 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if x.name == "setval" {
 		mask = UpdatePrivilege
 	}
-	if err = auth.checkSequenceAny(ref, mask); err != nil {
-		return sqltype.Value{}, err
+	if !x.identity {
+		if err = auth.checkSequenceAny(ref, mask); err != nil {
+			return sqltype.Value{}, err
+		}
 	}
 	if scope.owner.readOnly && (x.name == "nextval" || x.name == "setval") {
 		ns, _ := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
@@ -390,6 +393,14 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		m.remaining = 0
 		if called {
 			m.value, m.valid = result, true
+		}
+	}
+	if x.identity {
+		switch x.usage.Type.ID() {
+		case sqltype.Int2:
+			result = int64(int16(result))
+		case sqltype.Int4:
+			result = int64(int32(result))
 		}
 	}
 	return sqltype.Integer(x.usage.Type, result)

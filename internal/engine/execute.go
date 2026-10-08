@@ -299,6 +299,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			for i, row := range b.expressions {
 				var privateRow []BoundExpr
 				for j, expression := range row {
+					if len(b.expressions) == 1 && len(b.identityDiscard) != 0 && b.identityDiscard[b.targets[j]] { continue }
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
 						return Result{}, insertValueError(auth.catalog, foldErr, b.relation.columns[b.targets[j]], stmt.(*parser.Insert).Rows[i][j], nil)
@@ -456,6 +457,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			row := make([]sqltype.Value, len(b.relation.columns))
 			for j, c := range b.relation.columns {
 				row[j] = sqltype.Null(c.Usage.Type)
+			}
+			if len(b.insertProjection) != 0 {
+				if err = evaluateIdentityValuesRow(auth.catalog, &b, expressions[i], source, row, len(s.Rows) > 1, &evaluation); err != nil {
+					return Result{}, err
+				}
+				rows[i] = row
+				continue
 			}
 			if len(b.defaults) != 0 {
 				supplied := b.expressions[i]

@@ -84,10 +84,16 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		d.columns[i].OriginAttribute = int16(i + 1)
 	}
 	d.notNullConstraints = b.createNotNull
-	d.defaults = b.createDefaults
 	if err := nameCreateNotNull(d, auth.catalog); err != nil {
 		return err
 	}
+	if err := e.stageCreateIdentities(auth, stage, d, s); err != nil {
+		return err
+	}
+	// Identity sequence construction precedes ordinary default cooking, but
+	// neither becomes visible until the complete stage is validated/published.
+	d.defaults, err = bindCreateDefaults(newExpressionBinder(op.Context(),e,input,op,nil),d.columns,b.createDeclarations)
+	if err != nil { return err }
 	if err := e.bindCreateChecks(op, auth, s, d, input); err != nil {
 		return err
 	}

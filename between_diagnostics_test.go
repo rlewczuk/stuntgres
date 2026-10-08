@@ -56,7 +56,7 @@ func TestBetweenDiagnostics(t *testing.T) {
 				rows.Close()
 				t.Fatal("bad input exposed cursor")
 			}
-			typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`})
+			typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`,Context:"unnamed portal parameter $1 = '...'"})
 			want := [][]any{}
 			if !empty {
 				want = [][]any{{true}, {nil}}

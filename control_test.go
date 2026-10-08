@@ -611,7 +611,7 @@ func TestBooleanDiagnosticsControls(t *testing.T) {
 	}
 	defer cursor.Close()
 	err = stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE replacement(flag BOOL); INSERT INTO replacement VALUES (TRUE),('o');"))
-	wantBooleanDiagnostic(t, err, `invalid input syntax for type boolean: "o"`, "77")
+	wantBooleanDiagnostic(t, err, `invalid input syntax for type boolean: "o"`, "77", "")
 	wantTuples(t, db, "SELECT id,flag FROM b ORDER BY id", want)
 	wantBooleanMetadata(t, db, "SELECT flag FROM b")
 	_, err = db.Query("SELECT flag FROM replacement")
@@ -655,7 +655,7 @@ func TestBooleanDiagnosticsControls(t *testing.T) {
 		}
 	}
 	wantBooleanDiagnostic(t, booleanFailure(t, db, "SELECT id FROM b WHERE flag='o'", "query"),
-		`invalid input syntax for type boolean: "o"`, "29")
+		`invalid input syntax for type boolean: "o"`, "29", "")
 }
 
 func TestTransactionNativeControls(t *testing.T) {

@@ -60,7 +60,7 @@ func TestReferenceTimeReviewClockPrecedence(t *testing.T) {
 							s.prepared, s.errorStage = prepared, "execute"
 							pg := *s.diagnostic
 							pg.Context = "unnamed portal parameter $1 = '...'"
-							s.postgresDiagnostic = &pg
+							s.diagnostic = &pg
 							run(s)
 							run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.postgres, []string{"TIME"}, [][]any{{"00:00:00"}})))
 						}

@@ -368,7 +368,7 @@ func TestCharacterDiagnostics(t *testing.T) {
 					} else {
 						_, err = db.Exec("INSERT INTO c VALUES($1)", value)
 					}
-					typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": 0x00`})
+					typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": 0x00`,Context:"unnamed portal parameter $1"})
 				}
 			}
 			for _, tc := range []struct {
@@ -390,7 +390,7 @@ func TestCharacterDiagnostics(t *testing.T) {
 						} else {
 							_, err = db.Exec("INSERT INTO c VALUES($1)", value)
 						}
-						typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.bytes})
+						typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.bytes,Context:"unnamed portal parameter $1"})
 					}
 				}
 			}

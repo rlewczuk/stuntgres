@@ -15,7 +15,7 @@ func TestReferenceUpdateCoreBindOccurrenceResolution(t *testing.T) {
 	bad.errorStage = "execute"
 	pg := *bad.diagnostic
 	pg.Context = "unnamed portal parameter $1 = '...'"
-	bad.postgresDiagnostic = &pg
+	bad.diagnostic = &pg
 	p.step(t, bad)
 	p.step(t, referencePrepared(bad))
 	p.step(t, referenceSelect("SELECT a,b,f FROM t", []string{"a", "b", "f"}, []string{"INT4", "INT4", "BOOL"}, [][]any{{int64(1), int64(2), true}}))

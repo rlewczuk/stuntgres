@@ -204,7 +204,7 @@ func TestReferenceUUIDDiagnosticsAndAtomicity(t *testing.T) {
 			s.errorStage = "execute"
 			pg := *s.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			s.postgresDiagnostic = &pg
+			s.diagnostic = &pg
 			p.step(t, s)
 			p.step(t, referencePrepared(s))
 		}
@@ -241,7 +241,7 @@ func TestReferenceUUIDDiagnosticsAndAtomicity(t *testing.T) {
 		if tc.diagnostic.Code == "22P02" && len(tc.args) > 0 {
 			pg := *s.diagnostic
 			pg.Context = "unnamed portal parameter $2 = '...'"
-			s.postgresDiagnostic = &pg
+			s.diagnostic = &pg
 		}
 		p.step(t, s)
 		s.errorStage = tc.stage

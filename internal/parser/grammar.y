@@ -56,6 +56,9 @@ package parser
  alterSequence *AlterSequence
  integer int64
  persistence string
+ identity *IdentityDefinition
+ identityMode IdentityMode
+ override InsertOverride
  caseArms []CaseArm
  caseArm CaseArm
  fromItem FromItem
@@ -104,6 +107,7 @@ package parser
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
+%token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -119,15 +123,15 @@ package parser
 /* KW_T, LIKE and WITH also start suffixes. Shift an adjacent type tail before
  * completing a single type name: known excluded families use their first type
  * location, while arbitrary tails are syntax errors at the second token. */
-/* Sequence options terminate an AS type name, rather than extending an
- * arbitrary two-word type spelling. Keep their precedence below TYPE_NAME. */
-%nonassoc START NO INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART
+/* Sequence options and an identity constraint terminate a generic type name,
+ * rather than extending an arbitrary two-word type spelling. */
+%nonassoc START NO INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART GENERATED
 %nonassoc TYPE_NAME
 /* Postfix casts put projection labels in the follow set of type names.
  * Preserve declaration grammar's deliberate type-tail shift rather than
  * leaving those decisions as implicit shift/reduce conflicts. Interval field
  * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
-%nonassoc IDENT SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC YEAR MONTH DAY HOUR MINUTE SECOND '.'
+%nonassoc IDENT SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
 %nonassoc '('
 %nonassoc KW_T CROSS INNER JOIN NATURAL LIKE WITH WITHOUT
@@ -248,6 +252,11 @@ package parser
 %type <integer> sequence_integer
 %type <persistence> sequence_persistence
 %type <tok> sequence_name_word
+%type <identity> identity_definition identity_alter_options
+%type <identityMode> identity_mode
+%type <sequenceOptions> identity_options identity_option_list
+%type <sequenceOption> identity_option identity_set_option
+%type <override> insert_override
 %%
 script: separators optional_statements ;
 separators: /* empty */ | separators ';' ;
@@ -295,6 +304,26 @@ sequence_option: AS type { $$=SequenceOption{Name:"as",Type:$2,Pos:$1.pos} }
  | RESTART sequence_integer { $$=SequenceOption{Name:"restart",Value:$2,Pos:$1.pos} }
  | RESTART WITH sequence_integer { $$=SequenceOption{Name:"restart",Value:$3,Pos:$1.pos} }
  | OWNED BY comment_column_name { $$=SequenceOption{Name:"owned",Owned:$3,Pos:$1.pos} } ;
+identity_mode: ALWAYS { $$=IdentityAlways } | BY DEFAULT { $$=IdentityByDefault } ;
+identity_definition: GENERATED identity_mode AS IDENTITY identity_options { $$=&IdentityDefinition{Mode:$2,Options:$5,Pos:$1.pos} } ;
+identity_options: /* empty */ { $$=nil } | '(' identity_option_list ')' { $$=$2 } ;
+identity_option_list: /* empty */ { $$=nil } | identity_option_list identity_option { $$=append($1,$2) } ;
+identity_option: sequence_option { $$=$1 } | SEQUENCE name relation_name { if $2.text!="name" {sqllex.(*lexer).syntax($2);return 1}; $$=SequenceOption{Name:"name",Owned:$3,Pos:$1.pos} }
+ | LOGGED { $$=SequenceOption{Name:"logged",Pos:$1.pos} }
+ | UNLOGGED { $$=SequenceOption{Name:"unlogged",Pos:$1.pos} } ;
+identity_set_option: sequence_option { $$=$1 }
+ | LOGGED { $$=SequenceOption{Name:"logged",Pos:$1.pos} }
+ | UNLOGGED { $$=SequenceOption{Name:"unlogged",Pos:$1.pos} } ;
+identity_alter_options: SET GENERATED identity_mode { $$=&IdentityDefinition{Mode:$3} }
+ | SET identity_set_option { if $2.Name=="as" || $2.Name=="owned" || $2.Name=="restart" {name:=$2.Name;if name=="owned"{name="owned_by"};sqllex.(*lexer).failAt("42601","sequence option \""+name+"\" not supported here",$2.Pos.Offset);return 1};$$=&IdentityDefinition{Options:[]SequenceOption{$2}} }
+ | RESTART { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Type:TypeName{Name:"default"},Pos:$1.pos}}} }
+ | RESTART sequence_integer { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Value:$2,Pos:$1.pos}}} }
+ | RESTART WITH sequence_integer { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Value:$3,Pos:$1.pos}}} }
+ | identity_alter_options SET GENERATED identity_mode { $$=$1; if $$.Mode!=IdentityNone {sqllex.(*lexer).failAt("42601","conflicting or redundant options",$2.pos.Offset);return 1};$$.Mode=$4 }
+ | identity_alter_options SET identity_set_option { if $3.Name=="as" || $3.Name=="owned" || $3.Name=="restart" {name:=$3.Name;if name=="owned"{name="owned_by"};sqllex.(*lexer).failAt("42601","sequence option \""+name+"\" not supported here",$3.Pos.Offset);return 1};$$=$1;$$.Options=append($$.Options,$3) }
+ | identity_alter_options RESTART { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Type:TypeName{Name:"default"},Pos:$2.pos}) }
+ | identity_alter_options RESTART sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$3,Pos:$2.pos}) }
+ | identity_alter_options RESTART WITH sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$4,Pos:$2.pos}) } ;
 comment: COMMENT ON TABLE relation_name IS comment_text { $$=&Comment{Kind:CommentTable,Name:$4,Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON COLUMN comment_column_name IS comment_text { $$=&Comment{Kind:CommentColumn,Name:$4,Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
  | COMMENT ON SCHEMA name IS comment_text { $$=&Comment{Kind:CommentSchema,Name:ObjectName{Parts:[]Identifier{{Text:$4.text,Pos:$4.pos}}},Text:$6.Text,Null:$6.Kind==NullValue,Pos:$1.pos} }
@@ -479,6 +508,10 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=AlterTabl
  | ALTER optional_column name DROP NOT NULL { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropNotNull,Pos:$1.pos} }
  | ADD table_not_null { $$=AlterTableAction{Column:$2.Column,Constraint:$2.Name,Action:AddNotNull,Pos:$1.pos} }
  | DROP CONSTRAINT drop_target drop_mode { $$=AlterTableAction{Constraint:$3.Name,Action:DropConstraint,IfExists:$3.IfExists,Mode:$4,Pos:$1.pos} }
+ | ALTER optional_column name ADD identity_definition { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AddIdentity,Identity:$5,Pos:$1.pos} }
+ | ALTER optional_column name DROP IDENTITY { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,Pos:$1.pos} }
+ | ALTER optional_column name DROP IDENTITY IF EXISTS { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,IfExists:true,Pos:$1.pos} }
+ | ALTER optional_column name identity_alter_options { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetIdentity,Identity:$4,Pos:$1.pos} }
  | ADD COLUMN { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ADD name { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
@@ -575,6 +608,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | DEFAULT default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
  | CONSTRAINT name DEFAULT default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | check_constraint { $$=ColumnConstraint{Check:$1,Pos:$1.Pos} }
+ | identity_definition { $$=ColumnConstraint{Identity:$1,Pos:$1.Pos} }
+ | CONSTRAINT name identity_definition { $$=ColumnConstraint{Identity:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
@@ -600,7 +635,10 @@ insert: INSERT INTO relation_name insert_input { $$=insertStatement($3,nil,$4,$1
  | INSERT INTO relation_name '(' insert_targets ')' insert_input suffix { sqllex.(*lexer).capability($8,unsupportedSuffixes,"INSERT suffix is unsupported"); return 1 }
  | INSERT INTO relation_name insert_input RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$5.pos.Offset);return 1 }
  | INSERT INTO relation_name '(' insert_targets ')' insert_input RETURNING { sqllex.(*lexer).failAt("0A000","INSERT suffix is unsupported",$8.pos.Offset);return 1 }
+ | INSERT INTO relation_name insert_override insert_input { s:=insertStatement($3,nil,$5,$1.pos);s.Override=$4;$$=s }
+ | INSERT INTO relation_name '(' insert_targets ')' insert_override insert_input { s:=insertStatement($3,$5,$8,$1.pos);s.Override=$7;$$=s }
  | INSERT INTO relation_name DEFAULT VALUES { $$=&Insert{Name:$3,Rows:[][]Expr{nil},Pos:$1.pos,DefaultValues:true} } ;
+insert_override: OVERRIDING SYSTEM VALUE { $$=OverrideSystem } | OVERRIDING USER VALUE { $$=OverrideUser } ;
 delete: DELETE FROM relation_name delete_alias delete_where delete_returning { if token:=deleteQualification($5,false); token!=nil {sqllex.(*lexer).syntax(*token);return 1}; $$=&Delete{Name:$3,Alias:Identifier{Text:$4.text,Pos:$4.pos},Where:$5,Returning:$6,Pos:$1.pos} }
  | DELETE FROM relation_name delete_alias delete_where suffix { sqllex.(*lexer).capability($6,unsupportedSuffixes,"DELETE suffix is unsupported"); return 1 }
  | DELETE FROM relation_name delete_alias delete_where USING { sqllex.(*lexer).failAt("0A000","DELETE suffix is unsupported",$6.pos.Offset);return 1 } ;
@@ -903,7 +941,8 @@ fetch_count: scalar_atom { $$=$1 }
  | '(' scalar_projection ')' { $$=$2 }
  | '+' NUMBER { $$=LiteralExpr{Value:numberValue($2,"")} }
  | '-' NUMBER { $$=LiteralExpr{Value:numberValue($2,"-")} } ;
-sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST ;
+sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST
+ | GENERATED | ALWAYS | IDENTITY | OVERRIDING | SYSTEM | VALUE ;
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name

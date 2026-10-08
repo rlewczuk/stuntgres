@@ -76,6 +76,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		notNullConstraints  []notNullConstraint
 		defaults            map[int32]columnDefault
 		descriptor          *relationDescriptor
+		identities          map[int32]columnIdentity
+		identitySequences   map[ObjectAddress]dumpSequence
 	}
 	tables := make([]dumpRelation, 0)
 	catalog := CatalogRead{owner: e, state: e.state}
@@ -306,6 +308,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				for i, sub := range table.attributes {
 					if sub == owned.SubID {
 						sequence.ownedColumn = table.columns[i].Name
+						if r.sequence.identity { sequence.divergent=identityDumpDivergent(*r.sequence,table.columns[i].Usage.Type.ID()) }
 					}
 				}
 			}
@@ -320,7 +323,12 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		oid := r.address.ObjectID
 		viewDependencies[oid] = nil // Tables have no table/view predecessors.
 		tableIndices[oid] = len(tables)
-		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, descriptor: r})
+		linked := make(map[ObjectAddress]dumpSequence, len(r.identities))
+		for _, identity := range r.identities {
+			sequence := e.state.descriptors[identity.sequence].(*relationDescriptor)
+			linked[identity.sequence] = dumpSequence{owner:principal.Name,schema:ns.name,name:sequence.name,options:*sequence.sequence,state:*e.sequences[identity.sequence],comment:sequence.comment}
+		}
+		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, descriptor: r, identities: r.identities, identitySequences: linked})
 	}
 	e.mu.Unlock()
 	viewOrder, err := viewDumpOrder(ctx, viewDependencies)
@@ -406,6 +414,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if definition, exists := t.defaults[t.attributes[i]]; exists {
 				line.WriteString(" DEFAULT " + definition.sql)
 			}
+			if identity, exists := t.identities[t.attributes[i]]; exists {
+				mode := "ALWAYS"; if identity.mode == parser.IdentityByDefault { mode = "BY DEFAULT" }
+				sequence := t.identitySequences[identity.sequence]
+				line.WriteString(" GENERATED "+mode+" AS IDENTITY (SEQUENCE NAME "+quoteIdentifier(sequence.schema)+"."+quoteIdentifier(sequence.name))
+				if !identityDumpDivergent(sequence.options,c.Usage.Type.ID()) { line.WriteString(" "+sequenceNumericSQL(sequence.options)) }
+				line.WriteString(")")
+			}
 			if !c.Nullable {
 				for _, constraint := range t.notNullConstraints {
 					if constraint.Attribute == t.attributes[i] {
@@ -459,7 +474,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				continue
 			}
-			line.WriteString("INSERT INTO " + qualified + " VALUES (")
+			line.WriteString("INSERT INTO " + qualified)
+			if len(t.identities)!=0 { line.WriteString(" OVERRIDING SYSTEM VALUE") }
+			line.WriteString(" VALUES (")
 			for i, v := range row {
 				if i > 0 {
 					line.WriteString(", ")
@@ -538,8 +555,8 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return sqlError("0A000", "restore cannot stage non-retractable effects")
 			}
 		case *parser.AlterSequence:
-			if s.Action != "" || len(s.Options) != 1 || s.Options[0].Name != "owned" {
-				return sqlError("0A000", "restore accepts only generated sequence ownership")
+			if !(s.Action == "" && len(s.Options) == 1 && s.Options[0].Name == "owned") {
+				if err := stage.validateRestoreIdentityConfiguration(op,s); err != nil { return err }
 			}
 		case *parser.Select:
 			if !restoreSequenceState(s) {

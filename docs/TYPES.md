@@ -54,8 +54,8 @@ This is not universal modulo32 conversion. Malformed input gives22P02
 `invalid input syntax for type oid: "<original>"`; range failure gives22003
 `value "<original>" is out of range for type oid`. Unsigned-long overflow
 precedes trailing-junk validation, which precedes32-bit narrowing.
-Literal failures point to the quote; native bind errors have no Position/Context.
-The pinned PostgreSQL18.0 failed text-bind diagnostic adds
+Literal failures point to the quote; typed bind input errors have no Position.
+Native and pinned PostgreSQL18.0 failed text-bind diagnostics add
 `unnamed portal parameter $1 = '...'` for nonempty input and
 `unnamed portal parameter $1 = ''` for empty input; the original value still
 appears verbatim in the primary message.
@@ -244,7 +244,7 @@ binary sixteen-byte UUIDs. General Go UUID structs/arrays are not added.
 Malformed UUID input returns `22P02` and
 `invalid input syntax for type uuid: "<original>"`. Literal errors occur eagerly,
 including Prepare on empty tables, and point to the quote in character offsets.
-Native parameter errors have no Position/Context; PostgreSQL's wire adapter adds
+Typed parameter input errors have no Position and carry
 `unnamed portal parameter $1 = '...'`. Later tuple/input/constraint failures publish
 no rows. UUID declarations and canonical quoted literals round-trip through the
 existing atomic native Dump/Reset/Restore controls, with retained UUID snapshots
@@ -420,7 +420,7 @@ text and parsed according to its SQL destination, not its Go kind. Finite
 overflow or nonzero input rounded to zero fails `22003`; nonzero subnormals
 are accepted. Bad syntax fails `22P02`, preserving the original input; range
 errors quote the recognized numeric prefix. Quoted textual input errors point
-to the quote, while native parameter input errors have no Position/Context.
+to the quote, while typed parameter input errors carry actual unnamed portal Context without Position.
 Conversion of an inferred NUMERIC literal to a float destination is instead
 execution-owned: Prepare succeeds, and range failure has no Position/Context.
 
@@ -585,7 +585,7 @@ nullability and no origin; a later identity cast of that expression does not
 restore the physical proof.
 
 Invalid string encoding uses22021 with PostgreSQL English byte diagnostics.
-Native binds have no wire portal Context. Both native and PostgreSQL CREATE
+Typed input failures carry actual unnamed portal Context. Both native and PostgreSQL CREATE
 utility Prepare accept invalid min/max/generic modifiers and TEXT modifiers;
 direct/prepared Execute reports their positioned semantic error.
 Keyword modifier syntax errors are Prepare errors on both backends.
@@ -716,7 +716,7 @@ Successful imports remain civil-day-only, with no clock/zone validation or conve
 
 Elementary month/day overflow includes the DateStyle Hint. Literal errors fail Prepare
 even on empty tables and point to the quote in character positions; native
-bind errors have no Position/Context. Incompatible typed DATE assignments name
+bind input errors carry actual unnamed portal Context without Position. Incompatible typed DATE assignments name
 the source type `date` (`TIME`/`TIMESTAMP` retain `without time zone`) and fail
 `42804` during analysis/Prepare without changing stored rows.
 DATE modifiers fail `42601` at the type name (CREATE execution, typed-literal

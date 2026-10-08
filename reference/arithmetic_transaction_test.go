@@ -18,7 +18,7 @@ func TestReferenceArithmeticTransactions(t *testing.T) {
 		if tc.code == "22P02" {
 			pg := *failed.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			failed.postgresDiagnostic = &pg
+			failed.diagnostic = &pg
 		}
 		p.step(t, failed)
 		p.step(t, referenceImplicitError("INSERT INTO t VALUES(2,2)", referenceDiagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))

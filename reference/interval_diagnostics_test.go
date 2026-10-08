@@ -36,7 +36,7 @@ func TestReferenceIntervalDiagnosticsAtomicityAndSyntax(t *testing.T) {
 					s.errorStage = "execute"
 					pg := *s.diagnostic
 					pg.Context = "unnamed portal parameter $2 = '...'"
-					s.postgresDiagnostic = &pg
+					s.diagnostic = &pg
 					run(s)
 				}
 				run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 day"}}))

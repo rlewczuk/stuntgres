@@ -293,7 +293,7 @@ func TestReferenceTimestampDiagnosticsAndAtomicity(t *testing.T) {
 				step := referenceImplicitError(q, referenceDiagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint}, tc.input)
 				pg := *step.diagnostic
 				pg.Context = "unnamed portal parameter $1 = '...'"
-				step.postgresDiagnostic = &pg
+				step.diagnostic = &pg
 				step.errorStage = "execute"
 				p.step(t, step)
 				p.step(t, referencePrepared(step))
@@ -356,7 +356,7 @@ func TestReferenceTimestampTimeParameterRangeDiagnostics(t *testing.T) {
 			step := referenceImplicitError(q, referenceDiagnostic{Code: tc.code, Message: tc.message}, tc.input)
 			pg := *step.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			step.postgresDiagnostic = &pg
+			step.diagnostic = &pg
 			step.errorStage = "execute"
 			p.step(t, step)
 			p.step(t, referencePrepared(step))
@@ -427,7 +427,7 @@ func TestReferenceTimestampNewInputErrorsAbortTransaction(t *testing.T) {
 			step.args = []any{tc.input}
 			pg := want
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			step.postgresDiagnostic = &pg
+			step.diagnostic = &pg
 			step.errorStage = "execute"
 			referenceRunStep(t, p.ctx, tx, recorder, step)
 			referenceRunStep(t, p.ctx, tx, recorder, referenceTransactionError(false, "SELECT v FROM t", referenceTransactionAborted()))

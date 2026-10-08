@@ -136,9 +136,7 @@ func TestReferenceUpdateCoreComposition(t *testing.T) {
 				}
 			}
 			dateError := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22007", Message: `invalid input syntax for type date: "bad"`}
-			if backend.pg {
-				dateError.Context = "unnamed portal parameter $1 = '...'"
-			}
+			dateError.Context = "unnamed portal parameter $1 = '...'"
 			for _, prepared := range []bool{false, true} {
 				var err error
 				if prepared {

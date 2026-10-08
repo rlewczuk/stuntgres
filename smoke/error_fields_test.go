@@ -110,6 +110,7 @@ func errorFieldsRun() error {
 			want := stuntgres.Error{
 				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02",
 				Message: `invalid input syntax for type integer: "not an integer"`,
+				Context: "unnamed portal parameter $1 = '...'",
 			}
 			if !errors.As(conversionErr, &got) || *got != want {
 				return fmt.Errorf("unexpected conversion diagnostic: %#v (%v)", got, conversionErr)

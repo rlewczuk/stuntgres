@@ -124,7 +124,7 @@ func TestNameSmoke(t *testing.T) {
 	check("SELECT n FROM longnames WHERE n='"+long+"'", [][]any{{short}})
 	check("SELECT n FROM longnames WHERE n=$1", [][]any{{short}}, long)
 	_, err = db.Exec("INSERT INTO ordered VALUES('new'),($1)", strings.Repeat("x", 63)+"\xff")
-	diagnostic(err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": 0xff`})
+	diagnostic(err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": 0xff`,Context:"unnamed portal parameter $1"})
 	check("SELECT n FROM ordered ORDER BY n", [][]any{{""}, {"A"}, {"a"}, {"a "}, {"é"}, {nil}})
 	_, err = db.Prepare("/*é*/ SELECT n FROM ordered WHERE n=TRUE")
 	diagnostic(err, stuntgres.Error{Code: "42883", Message: "operator does not exist: name = boolean", Position: "36", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})

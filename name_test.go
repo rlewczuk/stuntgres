@@ -213,9 +213,9 @@ func TestNameDiagnostics(t *testing.T) {
 					arg = nameValuer{[]byte(prefix + tc.raw), &calls}
 				}
 				_, err = stmt.Exec(arg)
-				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.suffix})
+				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.suffix,Context:"unnamed portal parameter $1"})
 				_, err = db.Exec("INSERT INTO names VALUES('ok'),($1)", arg)
-				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.suffix})
+				typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": ` + tc.suffix,Context:"unnamed portal parameter $1"})
 				wantTuples(t, db, "SELECT n FROM names", [][]any{{"sentinel"}})
 			}
 		}

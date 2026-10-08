@@ -73,7 +73,7 @@ func TestReferenceIntervalClockEndpointSessionAtomicity(t *testing.T) {
 				s.errorStage = "execute"
 				pg := *s.diagnostic
 				pg.Context = "unnamed portal parameter $2 = '...'"
-				s.postgresDiagnostic = &pg
+				s.diagnostic = &pg
 				referenceRunStep(t, p.ctx, a, backend.record, s)
 				referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{own.name}}))
 				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))

@@ -136,9 +136,7 @@ func TestReferenceDateDecodeDiagnosticsAndModifierPhases(t *testing.T) {
 					}
 					run(s)
 					want.Position = ""
-					if b.postgres {
-						want.Context = "unnamed portal parameter $1 = '...'"
-					}
+					want.Context = "unnamed portal parameter $1 = '...'"
 					s = referenceImplicitError("INSERT INTO d VALUES($1)", want)
 					s.args = []any{tc.input}
 					s.prepared = prepared

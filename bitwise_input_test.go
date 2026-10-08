@@ -28,12 +28,12 @@ func TestBitwiseContextualInputWidths(t *testing.T) {
 			rows.Close()
 		}
 		stmt.Close()
-		arithmeticError(t, err, stuntgres.Error{Code: tc.code, Message: tc.message})
+		arithmeticError(t, err, stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
 		rows, err = db.Query(tc.q, tc.arg)
 		if rows != nil {
 			rows.Close()
 		}
-		arithmeticError(t, err, stuntgres.Error{Code: tc.code, Message: tc.message})
+		arithmeticError(t, err, stuntgres.Error{Code: tc.code, Message: tc.message,Context:"unnamed portal parameter $1 = '...'"})
 	}
 	for _, tc := range []struct{ typ, meta string }{{"smallint", "INT2"}, {"integer", "INT4"}, {"bigint", "INT8"}} {
 		arithmeticRows(t, db, "SELECT 1::"+tc.typ+" & '3' FROM one", []string{tc.meta}, [][]any{{int64(1)}})

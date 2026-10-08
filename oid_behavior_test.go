@@ -156,7 +156,7 @@ func TestOIDBindsMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = stmt.Exec(30, []byte(nil))
-	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type oid: ""`})
+	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "22P02", Message: `invalid input syntax for type oid: ""`,Context:"unnamed portal parameter $2 = '...'"})
 	_, err = db.Prepare("SELECT $1 FROM o WHERE v=$1")
 	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "oid versus text", Position: "8"})
 	var nonnullable int64
@@ -223,7 +223,7 @@ func TestOIDDiagnosticsAtomicity(t *testing.T) {
 		}
 		_, err = stmt.Exec(tc.text)
 		stmt.Close()
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message})
+		typeCoreDiagnostic(t, err, stuntgres.Error{Code: tc.code, Message: message,Context:"unnamed portal parameter $1 = '...'"})
 		wantTuples(t, db, "SELECT v FROM o", [][]any{{int64(7)}})
 	}
 	_, castErr := db.Exec("INSERT INTO o VALUES('1'),((-1)::int8::oid)")

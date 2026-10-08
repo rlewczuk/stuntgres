@@ -13,8 +13,11 @@ import (
 	"stuntgres"
 )
 
-func booleanDiagnosticsDiagnostic(err error, message, position string) error {
+func booleanDiagnosticsDiagnostic(err error, message, position string, portal ...string) error {
 	want := stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: message, Position: position}
+	if len(portal) != 0 {
+		want.Context = portal[0]
+	}
 	var origin *stuntgres.Error
 	for depth := range 3 {
 		var got *stuntgres.Error
@@ -133,6 +136,10 @@ func booleanDiagnosticsRun() error {
 			return err
 		}
 		for _, input := range []struct{ value, message string }{{"o", invalid}, {"", `invalid input syntax for type boolean: ""`}} {
+			portalContext := "unnamed portal parameter $1 = '...'"
+			if input.value == "" {
+				portalContext = "unnamed portal parameter $1 = ''"
+			}
 			for _, prepared := range []bool{false, true} {
 				var failure error
 				if strings.HasPrefix(query, "SELECT") {
@@ -152,7 +159,7 @@ func booleanDiagnosticsRun() error {
 				} else {
 					_, failure = db.Exec(query, input.value)
 				}
-				if err := booleanDiagnosticsDiagnostic(failure, input.message, ""); err != nil {
+				if err := booleanDiagnosticsDiagnostic(failure, input.message, "", portalContext); err != nil {
 					stmt.Close()
 					return err
 				}
@@ -170,7 +177,7 @@ func booleanDiagnosticsRun() error {
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(1, "o")
-	if err := booleanDiagnosticsDiagnostic(err, invalid, ""); err != nil {
+	if err := booleanDiagnosticsDiagnostic(err, invalid, "", "unnamed portal parameter $2 = '...'"); err != nil {
 		return err
 	}
 	for i, value := range []any{true, false, nil, []byte("tr"), " \tOfF\n"} {

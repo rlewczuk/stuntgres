@@ -62,6 +62,9 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	}
 	for i, expr := range project.expressions {
 		target := out.relation.columns[out.targets[i]]
+		if identity, ok := out.relation.identities[out.relation.attributes[out.targets[i]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+			return identityInsertError(target.Name)
+		}
 		assigned, err := binder.assignOutput(expr, target)
 		if err != nil {
 			return err
@@ -72,8 +75,9 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	// This binding owns the schedule; supplied query outputs, including NULL,
 	// never consume defaults. Filter once rather than masking every row.
 	if len(out.defaults) != 0 {
-		remaining := len(out.relation.defaults)
+		remaining := len(out.relation.defaults)+len(out.relation.identities)
 		for _, target := range out.targets {
+			if len(out.identityDiscard)!=0 && out.identityDiscard[target] { continue }
 			if out.defaults[target] != nil {
 				out.defaults[target] = nil
 				remaining--
@@ -286,6 +290,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 		return nil, fmt.Errorf("stuntgres: INSERT query lacks final projection")
 	}
 	state := &queryState{source: source, parameters: parameters, input: input, output: output, locking: source.locks != nil}
+	b.statementScope = source.scope
 	stage, err := openQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return nil, err

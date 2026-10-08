@@ -73,7 +73,7 @@ func TestReferenceSmallintDiagnosticsAndAtomicity(t *testing.T) {
 				if tc.text == "" {
 					pg.Context = "unnamed portal parameter $1 = ''"
 				}
-				step.postgresDiagnostic = &pg
+				step.diagnostic = &pg
 				p.step(t, step)
 				p.step(t, referencePrepared(step))
 			}
@@ -94,7 +94,7 @@ func TestReferenceSmallintDiagnosticsAndAtomicity(t *testing.T) {
 		step.errorStage = "execute"
 		pg := *step.diagnostic
 		pg.Context = "unnamed portal parameter $1 = '...'"
-		step.postgresDiagnostic = &pg
+		step.diagnostic = &pg
 		p.step(t, step)
 		p.step(t, unchanged)
 		p.step(t, referencePrepared(step))
@@ -194,7 +194,7 @@ func TestReferenceSmallintAuthorization(t *testing.T) {
 				s.args = []any{"oops"}
 				pg := *s.diagnostic
 				pg.Context = "unnamed portal parameter $1 = '...'"
-				s.postgresDiagnostic = &pg
+				s.diagnostic = &pg
 				run(s)
 				run(roleReferenceError("INSERT INTO public.secret VALUES(32768)", "22003", "smallint out of range", "", prepared, "execute"))
 			}
@@ -221,7 +221,7 @@ func TestReferenceSmallintRemainingIntegerDiagnostics(t *testing.T) {
 			s.errorStage = "execute"
 			pg := *s.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
-			s.postgresDiagnostic = &pg
+			s.diagnostic = &pg
 			p.step(t, s)
 			p.step(t, referencePrepared(s))
 		}
