@@ -1,17 +1,16 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 )
 
 func TestReferenceDeleteReturningAliases(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db, r := backend.db, backend.recorder
 			referenceLockExec(t, p.ctx, db, "CREATE TABLE t(id INT NOT NULL,v TEXT)", 0)
 			for _, tc := range []struct {
 				query        string
@@ -30,6 +29,8 @@ func TestReferenceDeleteReturningAliases(t *testing.T) {
 				{"DELETE FROM t RETURNING CAST(COALESCE(new.id,old.id) AS BIGINT) AS kept,int8(old.id) AS wide,new.id::BIGINT AS gone", []string{"kept", "wide", "gone"}, []string{"INT8", "INT8", "INT8"}, []any{int64(2), int64(2), nil}},
 				{"DELETE FROM t RETURNING WITH (OLD AS o,NEW AS n) CAST(o.id AS BIGINT) AS predecessor,CAST(n.id AS BIGINT) AS replacement", []string{"predecessor", "replacement"}, []string{"INT8", "INT8"}, []any{int64(2), nil}},
 				{"DELETE FROM t RETURNING NULL::regclass AS predecessor,NULL::regclass AS replacement", []string{"predecessor", "replacement"}, []string{"REGCLASS", "REGCLASS"}, []any{nil, nil}},
+				{"DELETE FROM t RETURNING CASE WHEN new.id IS NULL THEN 'ok' ELSE v END AS label,abs(old.id),old.id IS DISTINCT FROM new.id", []string{"label", "abs", "?column?"}, []string{"TEXT", "INT4", "BOOL"}, []any{"ok", int64(2), true}},
+				{"DELETE FROM t RETURNING WITH (NEW AS n,OLD AS o) o.id,n.id,COALESCE(n.v,'fallback') AS label", []string{"id", "id", "label"}, []string{"INT4", "INT4", "TEXT"}, []any{int64(2), nil, "fallback"}},
 			} {
 				t.Run(tc.query, func(t *testing.T) {
 					for _, prepared := range []bool{false, true} {
@@ -56,11 +57,12 @@ func TestReferenceDeleteReturningAliases(t *testing.T) {
 }
 
 func TestReferenceDeleteReturningPreparedMetadata(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db := backend.db
 			a, _ := referenceLockConnections(t, p.ctx, db)
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+			r := backend.recorder
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT NOT NULL,n NUMERIC(8,2),b BYTEA,f BOOL,ts TIMESTAMP(3))", 0)
 			query := "DELETE FROM t WHERE id=$1 RETURNING old.id,new.id,n,new.n,b,new.b,f,new.f,ts,new.ts,$2 AS label"
 			held, err := a.PrepareContext(p.ctx, query)
@@ -86,7 +88,7 @@ func TestReferenceDeleteReturningPreparedMetadata(t *testing.T) {
 				if p, s, ok := meta[2].DecimalSize(); !ok || p != 8 || s != 2 {
 					t.Fatal(p, s, ok)
 				}
-				if i == 0 {
+				if !backend.pg {
 					if n, k := meta[1].Nullable(); !k || !n {
 						t.Fatal(n, k)
 					}
@@ -98,19 +100,22 @@ func TestReferenceDeleteReturningPreparedMetadata(t *testing.T) {
 				if !rows.Next() {
 					t.Fatal("missing deleted row", rows.Err())
 				}
-				var oldID int64
+				var oldID any
 				var newID any
 				var n, b any
 				var newN, newB any
-				var f bool
+				var f any
 				var newF any
 				var ts any
 				var newTS any
-				var label string
+				var label any
 				if err = rows.Scan(&oldID, &newID, &n, &newN, &b, &newB, &f, &newF, &ts, &newTS, &label); err != nil {
 					t.Fatal(err)
 				}
-				if oldID != int64(id) || newID != nil || referenceNormalize(n) != "12.30" || referenceNormalize(b) != string([]byte{1, 2}) || newN != nil || newB != nil || !f || newF != nil || newTS != nil || label != "fresh" {
+				for i, value := range []any{oldID, newID, n, newN, b, newB, f, newF, ts, newTS, label} {
+					referenceAssertRawValue(t, backend.pg, []string{"INT4", "INT4", "NUMERIC", "NUMERIC", "BYTEA", "BYTEA", "BOOL", "BOOL", "TIMESTAMP", "TIMESTAMP", "TEXT"}[i], value)
+				}
+				if oldID != int64(id) || newID != nil || referenceNormalize(n) != "12.30" || referenceNormalize(b) != string([]byte{1, 2}) || newN != nil || newB != nil || f != true || newF != nil || newTS != nil || label != "fresh" {
 					t.Fatal(oldID, newID, n, b, newN, newB, f, newF, ts, newTS, label)
 				}
 				if rows.Next() || rows.Err() != nil {
@@ -138,10 +143,10 @@ func TestReferenceDeleteReturningPreparedMetadata(t *testing.T) {
 }
 
 func TestReferenceDeleteReturningCrossKindAliases(t *testing.T) {
-	p := newReferencePair(t)
-	for backend, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[backend], func(t *testing.T) {
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[backend]
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db, r := backend.db, backend.recorder
 			a, _ := referenceLockConnections(t, p.ctx, db)
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT NOT NULL,v TEXT NOT NULL)", 0)
 			referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,'survivor')", 1)
@@ -179,9 +184,8 @@ func TestReferenceDeleteReturningCrossKindAliases(t *testing.T) {
 						}
 						s := referenceSelect(query, names, types, want)
 						s.bag = true
-						referenceRunStep(t, p.ctx, executor, r, s)
-						if step == 1 {
-							rows, err := executor.QueryContext(p.ctx, query)
+						{
+							rows, err := executor.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, r), query)
 							if err != nil {
 								t.Fatal(err)
 							}
@@ -191,17 +195,15 @@ func TestReferenceDeleteReturningCrossKindAliases(t *testing.T) {
 							}
 							for i, wantNullable := range tc.nullable {
 								n, k := meta[i].Nullable()
-								if backend == 0 && (!k || n != wantNullable) {
+								if !backend.pg && (!k || n != wantNullable) {
 									t.Fatal(tc.options, i, n, k, wantNullable)
 								}
-								if backend == 1 && k {
+								if backend.pg && k {
 									t.Fatal("pq unexpectedly claims nullability", i, n)
 								}
 							}
-							if rows.Next() || rows.Err() != nil {
-								t.Fatal(rows.Err())
-							}
-							rows.Close()
+							deleteReferenceConsume(t, backend.pg, rows, nil, s)
+							deleteReferenceRecorded(t, r, s)
 						}
 					}
 					if held != nil {

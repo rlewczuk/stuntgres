@@ -629,8 +629,9 @@ Test targets enforce a 300-second wall-clock deadline and are quiet by default.
 Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 `PACKAGES=./internal/parser` to scope ordinary or race tests.
 
-The migrated query-read scenarios and the BYTEA/short-INSERT pilots in
-`reference/` also run without Docker through the ordinary test binary:
+The migrated query-read, INSERT SELECT, UPDATE and DELETE/RETURNING scenarios
+and the BYTEA/short-INSERT pilots in `reference/` also run without Docker through
+the ordinary test binary:
 
 ```sh
 go test ./reference                         # quick: real stuntgres + expected data
@@ -641,20 +642,24 @@ go test -tags reference ./reference -args -reference=true # full legacy + migrat
 
 Query-read migration moves 67 original SQL-interaction tests into 80 untagged
 definitions covering projection, NULL counts, aggregates, joins, ordering and
-LIMIT, including raw metadata, held statements, cancellation and native controls.
-The BYTEA and short-INSERT pilots remain available alongside them. Each selected
-backend must satisfy independently hardcoded expectations, with explicit phases
-for backend-specific metadata, diagnostics, controls and lock witnesses; parity
-alone is not proof. Startup failure never falls back to native execution.
+LIMIT. The DML migration carries all 61 assigned root tests into complete
+reference assertion unions for INSERT SELECT, UPDATE and DELETE/RETURNING.
+Together they retain raw and command/RETURNING metadata, held statements,
+atomicity, cancellation and native controls. The BYTEA and short-INSERT pilots
+remain available alongside them. Each selected backend must satisfy independently
+hardcoded expectations, with explicit phases for backend-specific metadata,
+diagnostics, controls and lock witnesses; parity alone is not proof. Startup
+failure never falls back to native execution.
 See the [development guide](docs/DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
-for the migrated families and selection commands.
+for both migrated families and selection commands.
 
-The `reference` build tag still includes untouched legacy PostgreSQL tests; it
-does not select runtime mode. A tagged selection restricted to migrated tests
-with `-reference=false` remains Docker-free, but selecting a legacy test lazily
-starts the same pinned container even when the flag is absent or false. The
-query-read migration is not a whole-suite quick migration: unrelated functional
-families and the standalone PostgreSQL column-ACL complement remain tagged.
+The `reference` build tag still includes untouched legacy PostgreSQL tests and
+retained PostgreSQL-only edges; it does not select runtime mode. A tagged
+selection restricted to mode-aware migrated tests with `-reference=false`
+remains Docker-free, but selecting a legacy test lazily starts the same pinned
+container even when the flag is absent or false. These migrations are not a
+whole-suite quick migration: other unmigrated families, the standalone
+PostgreSQL column-ACL complement and DML server-only edges remain tagged.
 `make reference` enables the flag only for `./reference`. `make test-all` runs
 ordinary native/smoke/quick tests with race detection, then the full tagged
 reference package with race detection, under one aggregate 300-second deadline.

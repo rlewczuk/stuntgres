@@ -117,7 +117,7 @@ func TestReferenceDeleteReturningCurrentPredecessor(t *testing.T) {
 	}
 }
 
-func TestReferenceDeleteReturningCancellation(t *testing.T) {
+func TestReferenceDeleteReturningServerCancellation(t *testing.T) {
 	for _, kind := range []string{"admin", "lock_timeout", "statement_timeout"} {
 		t.Run("postgres/"+kind, func(t *testing.T) {
 			p := newReferencePair(t)

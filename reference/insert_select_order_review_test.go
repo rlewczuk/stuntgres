@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"strconv"
 	"strings"
 	"testing"
@@ -18,14 +15,10 @@ func TestReferenceInsertSelectOrderNumericClassification(t *testing.T) {
 				mode = "prepare"
 			}
 			t.Run(key+"/"+mode, func(t *testing.T) {
-				p := newReferencePair(t)
-				for _, backend := range []struct {
-					name   string
-					db     *sql.DB
-					record *referenceRecorder
-				}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
 					t.Run(backend.name, func(t *testing.T) {
-						run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+						run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
 						run(referenceExec("CREATE TABLE t(i INT)", 0))
 						run(referenceExec("INSERT INTO t VALUES(9)", 1))
 						q := "INSERT INTO t VALUES(1),(2) ORDER BY " + key
@@ -33,9 +26,18 @@ func TestReferenceInsertSelectOrderNumericClassification(t *testing.T) {
 							q = "/*é*/ " + q
 						}
 						if (strings.HasPrefix(key, "+") && key != "+1e131072") || key == "1" {
-							s := referenceExec(q, 2)
-							s.prepared = prepared
-							run(s)
+							if prepared {
+								stmt, err := backend.db.PrepareContext(p.ctx, q)
+								if err != nil {
+									t.Fatal(err)
+								}
+								defer stmt.Close()
+								run(referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
+								held := referenceHeldStatement{backend.db, stmt, q}
+								insertSelectRun(t, p.ctx, held, backend.recorder, referenceExec(q, 2))
+							} else {
+								run(referenceExec(q, 2))
+							}
 							run(referenceSelect("SELECT i FROM t ORDER BY i", []string{"i"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(9)}}))
 							return
 						}
@@ -56,7 +58,7 @@ func TestReferenceInsertSelectOrderNumericClassification(t *testing.T) {
 							if prepared {
 								s.errorStage = "prepare"
 							}
-							referenceRunStep(t, p.ctx, backend.db, backend.record, s)
+							run(s)
 						})
 						run(referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
 					})
@@ -80,14 +82,10 @@ func TestReferenceInsertSelectOrderDiagnosticPrecedence(t *testing.T) {
 					mode = "prepare"
 				}
 				t.Run(key+"/"+tc.name+"/"+mode, func(t *testing.T) {
-					p := newReferencePair(t)
-					for _, backend := range []struct {
-						name   string
-						db     *sql.DB
-						record *referenceRecorder
-					}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+					p := newReferenceScenario(t)
+					for _, backend := range p.backends() {
 						t.Run(backend.name, func(t *testing.T) {
-							run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+							run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
 							run(referenceExec("CREATE TABLE t(i INT)", 0))
 							run(referenceExec("INSERT INTO t VALUES(9)", 1))
 							t.Run("diagnostic", func(t *testing.T) {
@@ -97,7 +95,7 @@ func TestReferenceInsertSelectOrderDiagnosticPrecedence(t *testing.T) {
 								if prepared {
 									s.errorStage = "prepare"
 								}
-								referenceRunStep(t, p.ctx, backend.db, backend.record, s)
+								run(s)
 							})
 							run(referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
 						})

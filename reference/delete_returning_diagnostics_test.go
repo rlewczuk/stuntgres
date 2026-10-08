@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,10 +6,10 @@ import (
 )
 
 func TestReferenceDeleteReturningDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db, r := backend.db, backend.recorder
 			referenceLockExec(t, p.ctx, db, "CREATE TABLE t(id INT)", 0)
 			referenceLockExec(t, p.ctx, db, "INSERT INTO t VALUES(1),(2)", 2)
 			for _, tc := range []struct {
@@ -64,10 +62,10 @@ func TestReferenceDeleteReturningDiagnostics(t *testing.T) {
 }
 
 func TestReferenceDeleteReturningParameterOccurrenceDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db, r := backend.db, backend.recorder
 			referenceLockExec(t, p.ctx, db, "CREATE TABLE t(id INT)", 0)
 			for _, populated := range []bool{false, true} {
 				wantRows := [][]any{}
@@ -90,11 +88,12 @@ func TestReferenceDeleteReturningParameterOccurrenceDiagnostics(t *testing.T) {
 }
 
 func TestReferenceDeleteReturningParameterOrderControls(t *testing.T) {
-	p := newReferencePair(t)
-	for backend, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[backend], func(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db := backend.db
 			a, _ := referenceLockConnections(t, p.ctx, db)
-			r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[backend]
+			r := backend.recorder
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT)", 0)
 			for _, query := range []string{
 				"DELETE FROM t RETURNING $1::int4 AS typed,$1 AS repeated",

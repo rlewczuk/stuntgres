@@ -14,6 +14,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"stuntgres"
 	"sync"
@@ -116,6 +117,10 @@ func newReferenceFixture(t *testing.T, withPostgres, freshNative bool) *referenc
 		t.FailNow()
 	}
 	p := &referencePair{ctx: ctx, memoryRecord: &referenceRecorder{}, postgresRecord: &referenceRecorder{}}
+	if freshNative {
+		p.memoryRecord.rawBackend = referenceRawNative
+		p.postgresRecord.rawBackend = referenceRawPostgres
+	}
 	t.Cleanup(func() {
 		for _, db := range []*sql.DB{p.memory, p.postgres, p.native} {
 			if db != nil {
@@ -369,16 +374,61 @@ func referenceNormalize(v any) any {
 		return value.Round(0).UTC()
 	case []byte:
 		return string(value)
-	case int:
-		return int64(value)
-	case int32:
-		return int64(value)
-	case int16:
-		return int64(value)
-	case int8:
-		return int64(value)
 	default:
 		return v
+	}
+}
+
+// Check public any-scan representations before the existing value normalization.
+// These codec contracts are independent of ColumnType.ScanType descriptors.
+func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value any) {
+	t.Helper()
+	if value == nil {
+		return // The complete row comparison independently requires SQL NULL.
+	}
+	var want reflect.Type
+	switch sqlType {
+	case "INT2", "INT4", "INT8":
+		want = reflect.TypeFor[int64]()
+	case "FLOAT4", "FLOAT8":
+		want = reflect.TypeFor[float64]()
+	case "BOOL":
+		want = reflect.TypeFor[bool]()
+	case "TEXT", "CHAR", "VARCHAR":
+		want = reflect.TypeFor[string]()
+	case "NUMERIC", "UUID", "NAME":
+		want = reflect.TypeFor[string]()
+		if postgres {
+			want = reflect.TypeFor[[]byte]()
+		}
+	case "DATE", "TIME", "TIMETZ":
+		want = reflect.TypeFor[string]()
+		if postgres {
+			want = reflect.TypeFor[time.Time]()
+		}
+	case "TIMESTAMP", "TIMESTAMPTZ":
+		want = reflect.TypeFor[time.Time]()
+		if encoded, ok := value.([]byte); ok {
+			switch string(encoded) {
+			case "infinity", "-infinity":
+				want = reflect.TypeFor[[]byte]()
+			}
+		}
+	case "BYTEA":
+		want = reflect.TypeFor[[]byte]()
+	case "REGCLASS":
+		if !postgres {
+			t.Fatal("non-NULL native REGCLASS is not an independently specified raw observation")
+		}
+		want = reflect.TypeFor[[]byte]()
+	default:
+		t.Fatalf("unspecified raw representation for SQL type %s", sqlType)
+	}
+	if reflect.TypeOf(value) != want {
+		t.Fatalf("raw %s postgres=%v got %T %#v want %v", sqlType, postgres, value, value, want)
+	}
+	if bytes, ok := value.([]byte); ok && bytes == nil {
+		t.Fatalf("raw %s got typed nil bytes rather than SQL NULL or a nonnil payload", sqlType)
 	}
 }
 
@@ -486,10 +536,10 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	for i, typ := range columnTypes {
 		types[i] = typ.DatabaseTypeName()
 	}
-	if !reflect.DeepEqual(columns, s.columns) {
+	if !slices.Equal(columns, s.columns) {
 		t.Fatalf("columns got %#v want %#v", columns, s.columns)
 	}
-	if !reflect.DeepEqual(types, s.types) {
+	if !slices.Equal(types, s.types) {
 		t.Fatalf("types got %#v want %#v", types, s.types)
 	}
 	values := make([][]any, 0)
@@ -503,6 +553,9 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 			t.Fatal(err)
 		}
 		for i, v := range row {
+			if recorder.rawBackend != referenceRawLegacy {
+				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, s.types[i], v)
+			}
 			row[i] = referenceNormalize(v)
 		}
 		values = append(values, row)
@@ -530,25 +583,30 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 		recorder.mu.Unlock()
 		t.Fatal("successful query has no recorded result")
 	}
-	captured := make([][]any, 0, len(recorded.Rows))
-	for _, row := range recorded.Rows {
-		converted := make([]any, len(row))
-		for i, v := range row {
-			converted[i] = referenceNormalize(v)
-		}
-		captured = append(captured, converted)
-	}
+	// Recorded rows own immutable cells; retain their slice header under the lock.
+	recordedRows := recorded.Rows
 	capturedColumns := make([]string, len(recorded.Columns))
 	copy(capturedColumns, recorded.Columns)
 	closed, closeErr := recorded.Closed, recorded.CloseErr
 	recorder.mu.Unlock()
-	if !referenceRecordedRowsMatch(captured, s) || !reflect.DeepEqual(capturedColumns, s.columns) {
+	captured := make([][]any, 0, len(recordedRows))
+	for _, row := range recordedRows {
+		converted := make([]any, len(row))
+		for i, v := range row {
+			if recorder.rawBackend != referenceRawLegacy {
+				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, s.types[i], v)
+			}
+			converted[i] = referenceNormalize(v)
+		}
+		captured = append(captured, converted)
+	}
+	if !referenceRecordedRowsMatch(captured, s) || !slices.Equal(capturedColumns, s.columns) {
 		t.Fatalf("recorded query data columns=%#v rows=%#v", capturedColumns, captured)
 	}
 	if !closed || closeErr != nil {
 		t.Fatalf("recorded cursor close: closed=%v error=%v", closed, closeErr)
 	}
-	return referenceObserved{columns: columns, types: types, rows: values}
+	return referenceObserved{columns: capturedColumns, types: types, rows: values}
 }
 
 func (p *referencePair) step(t *testing.T, s referenceStep) {
@@ -776,9 +834,19 @@ type referenceOperation struct {
 	CloseErr error
 }
 
+type referenceRawBackend uint8
+
+const (
+	referenceRawLegacy referenceRawBackend = iota
+	referenceRawNative
+	referenceRawPostgres
+)
+
 type referenceRecorder struct {
 	mu         sync.Mutex
 	operations []*referenceOperation
+	// Immutable fixture provenance; legacy scenarios retain their comparisons.
+	rawBackend referenceRawBackend
 }
 
 func referenceCopyValue(v driver.Value) driver.Value {
@@ -995,4 +1063,32 @@ func isolationReferenceWant(code, message string) referenceDiagnostic {
 func isolationReferenceDiagnostic(t *testing.T, err error, want referenceDiagnostic) {
 	t.Helper()
 	referenceAssertDiagnostic(t, err, &want)
+}
+
+// Every outstanding operation is canceled and joined before transaction/connection
+// cleanup and the shared fixture's schema reset, including on assertion failure.
+func referenceLockOperation(t *testing.T, ctx context.Context, call func(context.Context) relationOutcome) func() relationOutcome {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	done := make(chan relationOutcome, 1)
+	joined := false
+	go func() { done <- call(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		if !joined {
+			o := referenceLockResult(t, done)
+			if o.rows != nil {
+				o.rows.Close()
+			}
+			if o.stmt != nil {
+				o.stmt.Close()
+			}
+		}
+	})
+	return func() relationOutcome {
+		t.Helper()
+		o := referenceLockResult(t, done)
+		joined = true
+		return o
+	}
 }

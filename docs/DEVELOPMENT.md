@@ -43,9 +43,33 @@ are `TestReferenceNullCount*`, `TestReferenceQueryAggregate*`,
 `TestReferenceQueryJoins*`, `TestReferenceQueryLimit*` and
 `TestReferenceQueryOrder*`. These include cohesive boundary, consumer, metadata
 and lifecycle splits, plus the existing reference-only complements that belong
-to the migrated definitions. The original BYTEA and short-INSERT pilots,
+to the migrated definitions. Select the complete query-read family in both modes:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReference(NullCount[A-Za-z0-9_]*|QueryAggregate[A-Za-z0-9_]*|CountExpression[A-Za-z0-9_]*|QueryCore[A-Za-z0-9_]*|QueryJoins[A-Za-z0-9_]*|QueryLimit[A-Za-z0-9_]*|QueryOrder[A-Za-z0-9_]*)$' VERBOSE=0
+make reference RUN='^TestReference(NullCount[A-Za-z0-9_]*|QueryAggregate[A-Za-z0-9_]*|CountExpression[A-Za-z0-9_]*|QueryCore[A-Za-z0-9_]*|QueryJoins[A-Za-z0-9_]*|QueryLimit[A-Za-z0-9_]*|QueryOrder[A-Za-z0-9_]*)$' VERBOSE=0
+```
+
+The original query projection/bags/metadata and ORDER BY position pilots are
+included in the query-read family. The BYTEA and short-INSERT pilots,
 `TestReferenceByteaInputBindsMetadata` and
-`TestReferenceInsertImplicitShortDiagnostics`, remain available.
+`TestReferenceInsertImplicitShortDiagnostics`, remain available alongside it.
+
+It also discovers the migrated INSERT SELECT, UPDATE and DELETE/RETURNING
+families. Their 61 former root interaction tests are merged with existing
+reference assertions and split into cohesive definitions of at most 150 lines.
+Original raw `Scan(&any)` representations are checked before value normalization,
+including native `int64` and string outputs, SQL NULL, owned BYTEA and nonnil empty
+bytes. PostgreSQL codec expectations are independent: pq returns actual `int64`
+integer cells even when INT4 ScanType is `int32`, and NUMERIC/UUID cells are byte
+slices rather than native strings. Retained cursors obey the same raw contract;
+normalized complete rows and owned middleware recordings remain checked afterward.
+Select every resulting DML definition, including retained tagged oracle edges:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|UpdateCore[A-Za-z0-9_]*|DeleteCore[A-Za-z0-9_]*|DeleteReturning[A-Za-z0-9_]*)$' VERBOSE=0
+make reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|UpdateCore[A-Za-z0-9_]*|DeleteCore[A-Za-z0-9_]*|DeleteReturning[A-Za-z0-9_]*)$' VERBOSE=0
+```
 
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean
@@ -69,13 +93,17 @@ legacy tagged case. `make test-all` first runs `go test -race ./...`, then
 test flags and one shared 300-second wall-clock bound.
 
 The tag retains untouched legacy PostgreSQL-only definitions. A tagged selection
-restricted to migrated scenarios with `-reference=false` (flag after `-args`)
-is still Docker-free; selecting actual legacy cases lazily starts the same
-singleton even when the runtime flag is absent/false. The tag alone therefore
-does not make the whole legacy suite quick. Unrelated functional families,
-including richer tagged ordering/lock complements and the standalone PostgreSQL
-count column-ACL test, remain unchanged. Root `queryCoreRows`, `nullCountError`
-and `queryJoinsPublicFixture` remain for unmigrated callers, not as SQL test bodies.
+restricted to mode-aware migrated scenarios with `-reference=false` (flag after
+`-args`) is still Docker-free; selecting actual legacy cases lazily starts the
+same singleton even when the runtime flag is absent/false. The tag alone
+therefore does not make the whole legacy suite quick. Other unmigrated families,
+richer tagged ordering/lock complements, the standalone PostgreSQL count
+column-ACL test and DML rules/triggers, privilege and exact blocker/server-
+cancellation edges remain tagged. Root `queryCoreRows`, `nullCountError` and
+`queryJoinsPublicFixture` remain for unmigrated callers, not as SQL test bodies.
+Untagged migrated definitions use the mode-aware fixture; host Dump/Reset/Restore
+and raw native cursor phases use its unwrapped native pool, with independently
+specified SQL consumer phases on PostgreSQL.
 
 For example, these tagged legacy join diagnostics explicitly own a real pair
 even with the migrated runtime mode disabled. This command requires Docker:
@@ -117,7 +145,7 @@ make test PACKAGES=./reference RUN='^TestReferenceQueryJoinsExportAndSchemaOwner
 make reference RUN='^TestReferenceQueryJoinsExportAndSchemaOwnership$' VERBOSE=0
 ```
 
-Migrated pools use a fresh native driver per fixture; wrapped and native control
+Mode-aware pools use a fresh native driver per fixture; wrapped and native control
 pools share that driver/DSN without exposing controls through middleware. Cleanup
 closes rows before statements and all pools before schema reset. PostgreSQL
 lifecycle, owner provisioning and administrative-session safeguards below remain

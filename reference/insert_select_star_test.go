@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -15,20 +13,24 @@ func TestReferenceInsertSelectStarDiagnostics(t *testing.T) {
 		{"CREATE TABLE s(v TEXT)", "INSERT INTO t SELECT *", referenceDiagnostic{Code: "42601", Message: "SELECT * with no tables specified is not valid", Position: "22"}},
 	} {
 		t.Run(tc.q+tc.source, func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE t(i INT)", 0))
-			p.step(t, referenceExec("INSERT INTO t VALUES(9)", 1))
-			p.step(t, referenceExec(tc.source, 0))
-			for _, prepared := range []bool{false, true} {
-				failure := referenceImplicitError(tc.q, tc.want)
-				failure.prepared = prepared
-				failure.errorStage = "execute"
-				if prepared {
-					failure.errorStage = "prepare"
-				}
-				p.step(t, failure)
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
+					run(referenceExec("CREATE TABLE t(i INT)", 0))
+					run(referenceExec("INSERT INTO t VALUES(9)", 1))
+					run(referenceExec(tc.source, 0))
+					for _, prepared := range []bool{false, true} {
+						failure := referenceImplicitError(tc.q, tc.want)
+						failure.prepared, failure.errorStage = prepared, "execute"
+						if prepared {
+							failure.errorStage = "prepare"
+						}
+						run(failure)
+						run(referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
+					}
+				})
 			}
-			p.step(t, referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
 		})
 	}
 }

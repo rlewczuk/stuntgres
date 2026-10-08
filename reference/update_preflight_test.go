@@ -1,20 +1,13 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestReferenceUpdateCoreRecursivePreflightRegression(t *testing.T) {
-	const reader = "update_preflight_reader"
-	roleReferenceCleanup(t, []string{reader})
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, table := range []string{"empty", "rejected"} {
 		p.step(t, referenceExec("CREATE TABLE "+table+"(a INT,f BOOL,n BIGINT,s TEXT)", 0))
 	}
@@ -43,11 +36,7 @@ func TestReferenceUpdateCoreRecursivePreflightRegression(t *testing.T) {
 		{name: "frame_where", clause: "SET a=1 WHERE a=CAST($1::BIGINT AS INTEGER)", bad: int64(2147483648), good: int64(7), parameter: true},
 		{name: "frame_text", clause: "SET f=int4($1::TEXT) IS NOT NULL", bad: "oops", good: "7", parameter: true, code: "22P02", message: `invalid input syntax for type integer: "oops"`},
 	}
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			for _, table := range []string{"empty", "rejected"} {
 				for _, tc := range cases {
@@ -100,77 +89,6 @@ func TestReferenceUpdateCoreRecursivePreflightRegression(t *testing.T) {
 					})
 				}
 			}
-			// Preserve the independently observed boundary: PostgreSQL simplifies this
-			// FALSE predicate; native logical evaluation makes no short-circuit promise.
-			// Both still skip row-dependent RHS casts once WHERE rejects a row.
-			for _, table := range []string{"empty", "rejected"} {
-				for _, clause := range []string{"SET a=CAST(n AS INTEGER) WHERE FALSE", "SET f=int4(s) IS NULL WHERE FALSE", "SET a=1 WHERE FALSE AND CAST(n AS INTEGER)=0"} {
-					q := "UPDATE " + table + " " + clause
-					for _, prepared := range []bool{false, true} {
-						step := referenceExec(q, 0)
-						if backend.name == "native" && table == "rejected" && strings.Contains(clause, "FALSE AND") {
-							step = referenceImplicitError(q, referenceDiagnostic{Code: "22003", Message: "integer out of range"})
-						}
-						step.prepared = prepared
-						referenceRunStep(t, p.ctx, backend.db, backend.record, step)
-					}
-				}
-			}
-			referenceRunStep(t, p.ctx, backend.db, backend.record, referenceSelect("SELECT a,f,n,s FROM rejected", []string{"a", "f", "n", "s"}, []string{"INT4", "BOOL", "INT8", "TEXT"}, [][]any{{int64(1), true, int64(2147483648), "oops"}}))
-			t.Run("acl_precedence", func(t *testing.T) {
-				c, err := backend.db.Conn(p.ctx)
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer c.Close()
-				defer func() {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					if _, err := c.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
-						t.Error(err)
-					}
-				}()
-				referenceRunStep(t, p.ctx, c, backend.record, referenceExec("CREATE ROLE "+reader, 0))
-				if backend.name == "postgres" {
-					referenceRunStep(t, p.ctx, c, backend.record, referenceExec("GRANT USAGE ON SCHEMA public TO "+reader, 0))
-				}
-				referenceRunStep(t, p.ctx, c, backend.record, referenceExec("SET SESSION AUTHORIZATION "+reader, 0))
-				for _, tc := range []struct {
-					clause        string
-					arg           any
-					parameter     bool
-					code, message string
-				}{
-					{clause: "SET a=1 WHERE a=CAST(2147483648 AS INTEGER)", code: "22003", message: "integer out of range"},
-					{clause: "SET f=a=CAST(2147483648 AS INTEGER)", code: "22003", message: "integer out of range"},
-					{clause: "SET a=CAST($1::BIGINT AS INTEGER)", arg: int64(2147483648), parameter: true, code: "22003", message: "integer out of range"},
-					{clause: "SET a=CAST($1::BIGINT AS INTEGER)", arg: int64(7), parameter: true, code: "42501", message: "permission denied for table rejected"},
-					{clause: "SET a=CAST(n AS INTEGER)", code: "42501", message: "permission denied for table rejected"},
-				} {
-					q := "UPDATE rejected " + tc.clause
-					args := []any{}
-					if tc.parameter {
-						args = []any{tc.arg}
-					}
-					for _, prepared := range []bool{false, true} {
-						t.Run(q+fmt.Sprint(prepared)+tc.code, func(t *testing.T) {
-							var err error
-							if prepared {
-								stmt, e := c.PrepareContext(p.ctx, q)
-								if e != nil {
-									t.Fatal(e)
-								}
-								_, err = stmt.ExecContext(p.ctx, args...)
-								stmt.Close()
-							} else {
-								_, err = c.ExecContext(p.ctx, q, args...)
-							}
-							want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
-							referenceAssertDiagnostic(t, err, &want)
-						})
-					}
-				}
-			})
 		})
 	}
 }

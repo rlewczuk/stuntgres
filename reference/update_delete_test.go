@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -13,21 +10,19 @@ func TestReferenceUpdateCoreDeleteComposition(t *testing.T) {
 			for _, deleteFirst := range []bool{false, true} {
 				name := map[bool]string{false: "direct", true: "prepared"}[prepared] + map[bool]string{false: "/rollback", true: "/commit"}[commit] + map[bool]string{false: "/update_first", true: "/delete_first"}[deleteFirst]
 				t.Run(name, func(t *testing.T) {
-					p := newReferencePair(t)
-					for backend, db := range []*sql.DB{p.memory, p.postgres} {
-						t.Run([]string{"memory", "postgres"}[backend], func(t *testing.T) {
+					p := newReferenceScenario(t)
+					for _, backend := range p.backends() {
+						db := backend.db
+						t.Run(backend.name, func(t *testing.T) {
 							owner, peer := referenceLockConnections(t, p.ctx, db)
-							record := p.memoryRecord
-							if backend == 1 {
-								record = p.postgresRecord
-							}
+							record := backend.recorder
 							run := func(x referenceExecutor, step referenceStep) {
 								if prepared {
 									step = referencePrepared(step)
 								}
 								referenceRunStep(t, p.ctx, x, record, step)
 							}
-							exec := func(x referenceExecutor, q string, n int64) { run(x, referenceExec(q, n)) }
+							exec := func(x referenceExecutor, q string, n int64) { updateCoreExec(t, p.ctx, x, q, prepared, n) }
 							rows := func(x referenceExecutor, q string, want [][]any) {
 								step := referenceSelect(q, []string{"id", "v"}, []string{"INT4", "INT4"}, want)
 								step.bag = true

@@ -667,10 +667,11 @@ and storage identity, not descriptor-pointer equality; current authorization sti
 applies. Dump/ALTER see live committed heads and retained results keep old values.
 UPDATE privilege on assigned targets and SELECT on actual RHS/WHERE reads are
 checked independently; retained protected columns do not imply SELECT.
-Smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=1`;
-reference: `make reference RUN='^TestReferenceUpdateCore' VERBOSE=1`.
-Coexistence witnesses: `make test PACKAGES='./internal/engine .' RUN='^TestUpdateCoreDelete' VERBOSE=1`;
-`make reference RUN='^TestReferenceUpdateCoreDelete' VERBOSE=1`.
+Smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=0`;
+quick: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`;
+reference: `make reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`.
+Coexistence witnesses: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`;
+`make reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`.
 The feature smoke includes private UPDATE/self INSERT SELECT/DELETE count2,
 no-resurrection count0, peer visibility, rollback, commit and live control roundtrip.
 

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestReferenceUpdateCoreDeleteRowContention(t *testing.T) {
+func TestReferenceUpdateCoreDeleteRowContentionOracle(t *testing.T) {
 	for _, lane := range []string{"delete_blocks_update", "update_changes_predicate", "update_latest_delete"} {
 		for _, commit := range []bool{false, true} {
 			for _, prepared := range []bool{false, true} {
@@ -116,7 +116,7 @@ func TestReferenceUpdateCoreDeleteRowContention(t *testing.T) {
 	}
 }
 
-func TestReferenceUpdateCoreDeleteCancellation(t *testing.T) {
+func TestReferenceUpdateCoreDeleteServerCancellation(t *testing.T) {
 	for _, reverse := range []bool{false, true} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(map[bool]string{false: "delete_wait", true: "update_wait"}[reverse]+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {

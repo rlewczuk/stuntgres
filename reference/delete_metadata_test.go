@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -13,10 +10,10 @@ func TestReferenceDeleteCoreMetadataComment(t *testing.T) {
 		{"column", "COMMENT ON COLUMN t.id IS 'metadata only'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
-			for i, db := range []*sql.DB{p.memory, p.postgres} {
-				t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-					r := []*referenceRecorder{p.memoryRecord, p.postgresRecord}[i]
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					db, r := backend.db, backend.recorder
 					a, b := referenceLockConnections(t, p.ctx, db)
 					run := func(x referenceExecutor, step referenceStep) {
 						referenceRunStep(t, p.ctx, x, r, step)

@@ -660,9 +660,9 @@ Feature checks (run from the repository root):
 ```sh
 make test PACKAGES=./internal/parser RUN='^TestInsertSelect' VERBOSE=1
 make test PACKAGES=./internal/engine RUN='^TestInsertSelect' VERBOSE=1
-make test PACKAGES=. RUN='^TestInsertSelect' VERBOSE=1
-make reference RUN='^TestReferenceInsertSelect' VERBOSE=1
-make smoke RUN='^TestInsertSelectSmoke$' VERBOSE=1
+make test PACKAGES=./reference RUN='^TestReferenceInsertSelect[A-Za-z0-9_]*$' VERBOSE=0
+make reference RUN='^TestReferenceInsertSelect[A-Za-z0-9_]*$' VERBOSE=0
+make smoke RUN='^TestInsertSelectSmoke$' VERBOSE=0
 ```
 
 ## DELETE rows
@@ -759,8 +759,8 @@ Physical ctids/tuple error Context and PostgreSQL wire/C source fields are not
 fabricated by native diagnostics.
 
 Feature commands: `make smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`,
-`make test PACKAGES=./internal/engine RUN='^TestDeleteReturning' VERBOSE=0`,
-and `make reference RUN='^TestReferenceDeleteReturning' VERBOSE=0`.
+`make test PACKAGES=./reference RUN='^TestReferenceDeleteReturning[A-Za-z0-9_]*$' VERBOSE=0`,
+and `make reference RUN='^TestReferenceDeleteReturning[A-Za-z0-9_]*$' VERBOSE=0`.
 
 
 Immutable row identities/end roots preserve READ COMMITTED views, duplicates,
@@ -828,11 +828,11 @@ NULL insertion retain genuine 23502 enforcement. DELETE cannot violate the only
 currently supported constraint, NOT NULL. The real PostgreSQL foreign-key rejection
 witness is explicitly oracle-only, not native FK support or a synthetic constraint hook.
 
-Feature commands: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=1`,
-`make test PACKAGES=./internal/engine RUN='^TestDeleteCore' VERBOSE=1`,
-and `make reference RUN='^TestReferenceDeleteCore' VERBOSE=1`.
+Feature commands: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=0`,
+`make test PACKAGES=./reference RUN='^TestReferenceDeleteCore[A-Za-z0-9_]*$' VERBOSE=0`,
+and `make reference RUN='^TestReferenceDeleteCore[A-Za-z0-9_]*$' VERBOSE=0`.
 Integrated-expression smoke:
-`make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=1`.
+`make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=0`.
 
 ### DELETE change log
 
@@ -1129,8 +1129,8 @@ execution still checking current authority. Reset/Restore and generic self/forei
 catalog replacement detach/remint only live heads; retained old results remain
 immutable. These are existing surfaces composed, not additional DELETE syntax.
 
-Mixed-DML witnesses: `make test PACKAGES='./internal/engine .' RUN='^TestUpdateCoreDelete' VERBOSE=1`
-and `make reference RUN='^TestReferenceUpdateCoreDelete' VERBOSE=1`.
+Mixed-DML witnesses: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`
+and `make reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`.
 They cover direct/prepared duplicate-preserving composition and commit/rollback,
 cross-mode latest-row counts and frozen candidates, mixed cancellation/resource
 reacquisition, immutable candidate slots, all-relation publication, live-only
@@ -1138,9 +1138,10 @@ control/import behavior and identity exhaustion. Native internal waits observe
 the actual manager; PostgreSQL waits observe transaction-ID locks and the exact
 blocker. Public native effect/deadline tests do not claim queue-observation proof.
 
-Feature smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=1`.
-Independent pinned PostgreSQL witnesses:
-`make reference RUN='^TestReferenceUpdateCore' VERBOSE=1`.
+Feature smoke: `make smoke RUN='^TestUpdateCoreSmoke$' VERBOSE=0`.
+Docker-free and independently pinned PostgreSQL witnesses:
+`make test PACKAGES=./reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`
+and `make reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`.
 The diagnostic oracle distinguishes direct/Prepare/bind/runtime phases and
 asserts full portable fields, UTF8 character positions and atomic failures.
 The destination matrix covers TIME/TIMESTAMP precision, UUID input and NULL,

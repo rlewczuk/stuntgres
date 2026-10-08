@@ -1,21 +1,17 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 	"time"
 )
 
 func TestReferenceUpdateCoreDestinationMatrix(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-			record := p.memoryRecord
-			if i == 1 {
-				record = p.postgresRecord
-			}
+	const uuidA = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		db := backend.db
+		t.Run(backend.name, func(t *testing.T) {
+			record := backend.recorder
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, db, record, s) }
 			run(referenceExec("CREATE TABLE t(id INT,src INT,s TEXT,u UUID,tm TIME(2),ft TIME,ts TIMESTAMP(2),fs TIMESTAMP,n NUMERIC(3,1),fn NUMERIC,nn NUMERIC(2,-3),nw NUMERIC(3,5),b BOOL,r REAL,d DOUBLE PRECISION,sm SMALLINT,bi BIGINT)", 0))
 			run(referenceExec("INSERT INTO t VALUES(1,7,'old',NULL,NULL,TIME '04:05:06.126',NULL,TIMESTAMP '2024-01-02 03:04:05.126',1.0,1.25,0,0,FALSE,0,2.5,0,0),(2,-7,'old',NULL,NULL,TIME '04:05:06.124',NULL,TIMESTAMP '2024-01-02 03:04:05.124',1.0,-1.25,0,0,FALSE,0,-2.5,0,0)", 2))
@@ -23,7 +19,7 @@ func TestReferenceUpdateCoreDestinationMatrix(t *testing.T) {
 			names := []string{"id", "s", "u", "tm", "ts", "n", "nn", "nw", "b", "r", "sm", "bi"}
 			types := []string{"INT4", "TEXT", "UUID", "TIME", "TIMESTAMP", "NUMERIC", "NUMERIC", "NUMERIC", "BOOL", "FLOAT4", "INT2", "INT8"}
 			clocks := [2]any{"04:05:06.13", "04:05:06.12"}
-			if i == 1 {
+			if backend.pg {
 				clocks = [2]any{time.Date(0, 1, 1, 4, 5, 6, 130000000, time.UTC), time.Date(0, 1, 1, 4, 5, 6, 120000000, time.UTC)}
 			}
 			expected := func(uuid, boolean any) [][]any {

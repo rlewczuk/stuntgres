@@ -10,15 +10,6 @@ import (
 	"stuntgres"
 )
 
-func deleteReferenceRows(t *testing.T, p *referencePair, x referenceExecutor, r *referenceRecorder, ids ...int64) {
-	t.Helper()
-	rows := make([][]any, 0, len(ids))
-	for _, id := range ids {
-		rows = append(rows, []any{id})
-	}
-	referenceRunStep(t, p.ctx, x, r, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, rows))
-}
-
 func TestReferenceDeleteCorePrepared(t *testing.T) {
 	p := newReferencePair(t)
 	for i, db := range []*sql.DB{p.memory, p.postgres} {

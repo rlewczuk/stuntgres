@@ -13,34 +13,6 @@ import (
 	"time"
 )
 
-// Every outstanding operation is canceled and joined before transaction/connection
-// cleanup and the shared fixture's schema reset, including on assertion failure.
-func referenceLockOperation(t *testing.T, ctx context.Context, call func(context.Context) relationOutcome) func() relationOutcome {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	done := make(chan relationOutcome, 1)
-	joined := false
-	go func() { done <- call(ctx) }()
-	t.Cleanup(func() {
-		cancel()
-		if !joined {
-			o := referenceLockResult(t, done)
-			if o.rows != nil {
-				o.rows.Close()
-			}
-			if o.stmt != nil {
-				o.stmt.Close()
-			}
-		}
-	})
-	return func() relationOutcome {
-		t.Helper()
-		o := referenceLockResult(t, done)
-		joined = true
-		return o
-	}
-}
-
 func referenceLockPID(t *testing.T, ctx context.Context, conn *sql.Conn) int {
 	t.Helper()
 	var pid int

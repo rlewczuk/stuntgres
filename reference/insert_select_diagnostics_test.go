@@ -1,8 +1,8 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,51 +25,106 @@ func TestReferenceInsertSelectValuesDiagnostics(t *testing.T) {
 		{"INSERT INTO t(i,b) SELECT $1,$1", "42P08", "inconsistent types deduced for parameter $1", "$1"},
 	} {
 		t.Run(tc.q, func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE t(i INT,b BOOL)", 0))
-			p.step(t, referenceExec("INSERT INTO t VALUES(9,TRUE)", 1))
-			index := strings.Index(tc.q, tc.token)
-			if tc.code == "42P08" {
-				index = strings.LastIndex(tc.q, tc.token)
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
+					run(referenceExec("CREATE TABLE t(i INT,b BOOL)", 0))
+					run(referenceExec("INSERT INTO t VALUES(9,TRUE)", 1))
+					index := strings.Index(tc.q, tc.token)
+					if tc.code == "42P08" {
+						index = strings.LastIndex(tc.q, tc.token)
+					}
+					want := referenceDiagnostic{Code: tc.code, Message: tc.message, Position: strconv.Itoa(index + 1)}
+					if tc.code == "42P08" {
+						want.Detail = "integer versus boolean"
+					}
+					for _, prepared := range []bool{false, true} {
+						s := referenceImplicitError(tc.q, want)
+						if tc.code == "42P08" {
+							s.args = []any{nil}
+						}
+						s.prepared, s.errorStage = prepared, "execute"
+						if prepared {
+							s.errorStage = "prepare"
+						}
+						run(s)
+						run(referenceSelect("SELECT * FROM t", []string{"i", "b"}, []string{"INT4", "BOOL"}, [][]any{{int64(9), true}}))
+					}
+					if tc.code == "42P08" {
+						plain := want
+						if backend.pg {
+							plain = referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: "27"}
+						}
+						s := referenceImplicitError(tc.q, plain)
+						s.errorStage = "execute"
+						run(s)
+						run(referenceSelect("SELECT * FROM t", []string{"i", "b"}, []string{"INT4", "BOOL"}, [][]any{{int64(9), true}}))
+					}
+				})
 			}
-			want := referenceDiagnostic{Code: tc.code, Message: tc.message, Position: strconv.Itoa(index + 1)}
-			if tc.code == "42P08" {
-				want.Detail = "integer versus boolean"
-			}
-			for _, prepared := range []bool{false, true} {
-				s := referenceImplicitError(tc.q, want)
-				if tc.code == "42P08" {
-					s.args = []any{nil}
-				}
-				s.prepared = prepared
-				s.errorStage = "execute"
-				if prepared {
-					s.errorStage = "prepare"
-				}
-				p.step(t, s)
-			}
-			p.step(t, referenceSelect("SELECT * FROM t", []string{"i", "b"}, []string{"INT4", "BOOL"}, [][]any{{int64(9), true}}))
 		})
 	}
 }
 
 func TestReferenceInsertSelectAtomicConstraints(t *testing.T) {
-	p := newReferencePair(t)
-	for _, s := range []referenceStep{referenceExec("CREATE TABLE s(i INT)", 0), referenceExec("INSERT INTO s VALUES(1),(NULL)", 2), referenceExec("CREATE TABLE t(i INT NOT NULL)", 0), referenceExec("INSERT INTO t VALUES(9)", 1)} {
-		p.step(t, s)
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
+			for _, s := range []referenceStep{referenceExec("CREATE TABLE s(i INT)", 0), referenceExec("INSERT INTO s VALUES(1),(NULL)", 2), referenceExec("CREATE TABLE t(i INT NOT NULL)", 0), referenceExec("INSERT INTO t VALUES(9)", 1)} {
+				run(s)
+			}
+			sentinel := referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}})
+			for _, prepared := range []bool{false, true} {
+				s := referenceImplicitError("INSERT INTO t SELECT i FROM s ORDER BY i", referenceDiagnostic{Code: "23502", Message: `null value in column "i" of relation "t" violates not-null constraint`, Schema: "public", Table: "t", Column: "i", Detail: "Failing row contains (null)."})
+				s.prepared, s.errorStage = prepared, "execute"
+				run(s)
+				run(sentinel)
+				s = referenceImplicitError("INSERT INTO t SELECT i FROM s WHERE i='bad'", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`, Position: "39"})
+				s.errorStage = "execute"
+				run(s)
+				run(sentinel)
+				if prepared {
+					s.prepared, s.errorStage = true, "prepare"
+					run(s)
+					run(sentinel)
+				}
+			}
+		})
 	}
-	for _, prepared := range []bool{false, true} {
-		s := referenceImplicitError("INSERT INTO t SELECT i FROM s ORDER BY i", referenceDiagnostic{Code: "23502", Message: `null value in column "i" of relation "t" violates not-null constraint`, Schema: "public", Table: "t", Column: "i", Detail: "Failing row contains (null)."})
-		s.prepared = prepared
-		s.errorStage = "execute"
-		p.step(t, s)
-		s = referenceImplicitError("INSERT INTO t SELECT i FROM s WHERE i='bad'", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`, Position: "39"})
-		s.prepared = prepared
-		s.errorStage = "execute"
-		if prepared {
-			s.errorStage = "prepare"
-		}
-		p.step(t, s)
-		p.step(t, referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
+}
+
+func TestReferenceInsertSelectPreCanceled(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
+			for _, s := range []referenceStep{referenceExec("CREATE TABLE s(i INT)", 0), referenceExec("INSERT INTO s VALUES(1),(NULL)", 2), referenceExec("CREATE TABLE t(i INT NOT NULL)", 0), referenceExec("INSERT INTO t VALUES(9)", 1)} {
+				run(s)
+			}
+			for _, prepared := range []bool{false, true} {
+				query := "INSERT INTO t SELECT i FROM s"
+				var x referenceExecutor = backend.db
+				if prepared {
+					stmt, err := backend.db.PrepareContext(p.ctx, query)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer stmt.Close()
+					x = referenceHeldStatement{backend.db, stmt, query}
+				}
+				ctx, cancel := context.WithCancel(p.ctx)
+				cancel()
+				result, err := x.ExecContext(ctx, query)
+				if result != nil || !errors.Is(err, context.Canceled) {
+					t.Fatal(result, err)
+				}
+				if _, ok := err.(interface{ SQLState() string }); ok {
+					t.Fatal("ordinary cancellation gained SQLSTATE", err)
+				}
+				run(referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
+			}
+		})
 	}
 }

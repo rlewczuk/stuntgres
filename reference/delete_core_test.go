@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -19,17 +16,10 @@ func TestReferenceDeleteCoreSelection(t *testing.T) {
 		{"qualified_quoted_alias", `/*é*/ DELETE FROM public.t AS "d" WHERE "d"."v"=10`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			// Each backend owns its entire scenario. A native Fatal must not
 			// prevent the PostgreSQL scenario from executing independently.
-			for _, backend := range []struct {
-				name     string
-				db       *sql.DB
-				recorder *referenceRecorder
-			}{
-				{"memory", p.memory, p.memoryRecord},
-				{"postgres", p.postgres, p.postgresRecord},
-			} {
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					run := func(s referenceStep) {
 						t.Helper()
@@ -53,13 +43,24 @@ func TestReferenceDeleteCoreSelection(t *testing.T) {
 							if err != nil {
 								t.Fatal(err)
 							}
+							if _, err := result.LastInsertId(); err == nil {
+								t.Fatal("DELETE invented LastInsertId")
+							}
 							if got, err := result.RowsAffected(); err != nil || got != call.want {
 								t.Fatalf("RowsAffected got %d, %v; want %d", got, err, call.want)
 							}
 						}
 					} else {
-						run(referenceExec(tc.query, 3))
-						run(referenceExec(tc.query, 0))
+						for _, count := range []int64{3, 0} {
+							result, err := backend.db.ExecContext(p.ctx, tc.query)
+							if err != nil {
+								t.Fatal(err)
+							}
+							referenceLockAffected(t, result, count)
+							if _, err := result.LastInsertId(); err == nil {
+								t.Fatal("DELETE invented LastInsertId")
+							}
+						}
 					}
 					run(referenceSelect("SELECT id,v,f FROM t ORDER BY id", []string{"id", "v", "f"}, []string{"INT4", "INT4", "BOOL"}, [][]any{{int64(2), nil, nil}, {int64(3), int64(20), false}}))
 					run(referenceExec("DELETE FROM t WHERE FALSE", 0))

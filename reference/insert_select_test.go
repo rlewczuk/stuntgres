@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -7,38 +5,48 @@ import "testing"
 func TestReferenceInsertSelectCardinality(t *testing.T) {
 	for _, mode := range []string{"direct", "prepared"} {
 		t.Run(mode, func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE s(i INT,v TEXT,b BOOL)", 0))
-			p.step(t, referenceExec("INSERT INTO s VALUES(1,'a',TRUE),(1,'a',TRUE),(2,NULL,FALSE),(3,'c',NULL)", 4))
-			p.step(t, referenceExec("CREATE TABLE t(v TEXT,i BIGINT,b BOOL)", 0))
-			want := [][]any{}
-			for _, tc := range []struct {
-				arg   any
-				count int64
-				added [][]any
-			}{
-				{nil, 0, nil},
-				{true, 2, [][]any{{"a", int64(1), nil}, {"a", int64(1), nil}}},
-				{false, 1, [][]any{{nil, int64(2), nil}}},
-				{nil, 0, nil},
-			} {
-				step := referenceExec("INSERT INTO t(i,v) SELECT i,v FROM s WHERE b=$1 ORDER BY i", tc.count, tc.arg)
-				if mode == "prepared" {
-					step = referencePrepared(step)
-				}
-				p.step(t, step)
-				want = append(want, tc.added...)
-				p.step(t, referenceSelect("SELECT * FROM t ORDER BY i", []string{"v", "i", "b"}, []string{"TEXT", "INT8", "BOOL"}, want))
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
+					run(referenceExec("CREATE TABLE s(i INT,v TEXT,b BOOL)", 0))
+					run(referenceExec("INSERT INTO s VALUES(1,'a',TRUE),(1,'a',TRUE),(2,NULL,FALSE),(3,'c',NULL)", 4))
+					run(referenceExec("CREATE TABLE t(v TEXT,i BIGINT,b BOOL)", 0))
+					query := "INSERT INTO t(i,v) SELECT i,v FROM s WHERE b=$1 ORDER BY i"
+					var producer referenceExecutor = backend.db
+					if mode == "prepared" {
+						stmt, err := backend.db.PrepareContext(p.ctx, query)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer stmt.Close()
+						producer = referenceHeldStatement{backend.db, stmt, query}
+					}
+					run(referenceSelect("SELECT * FROM t", []string{"v", "i", "b"}, []string{"TEXT", "INT8", "BOOL"}, [][]any{}))
+					want := [][]any{}
+					for _, tc := range []struct {
+						arg   any
+						count int64
+						added [][]any
+					}{
+						{nil, 0, nil},
+						{true, 2, [][]any{{"a", int64(1), nil}, {"a", int64(1), nil}}},
+						{false, 1, [][]any{{nil, int64(2), nil}}},
+						{nil, 0, nil},
+					} {
+						insertSelectRun(t, p.ctx, producer, backend.recorder, referenceExec(query, tc.count, tc.arg))
+						want = append(want, tc.added...)
+						run(referenceSelect("SELECT * FROM t ORDER BY i", []string{"v", "i", "b"}, []string{"TEXT", "INT8", "BOOL"}, want))
+					}
+					step := referenceExec("INSERT INTO t SELECT v,i FROM s", 4)
+					step.prepared = mode == "prepared"
+					run(step)
+					want = append(want, []any{"a", int64(1), nil}, []any{"a", int64(1), nil}, []any{nil, int64(2), nil}, []any{"c", int64(3), nil})
+					rows := referenceSelect("SELECT * FROM t", []string{"v", "i", "b"}, []string{"TEXT", "INT8", "BOOL"}, want)
+					rows.bag = true
+					run(rows)
+				})
 			}
-			step := referenceExec("INSERT INTO t SELECT v,i FROM s", 4)
-			if mode == "prepared" {
-				step = referencePrepared(step)
-			}
-			p.step(t, step)
-			want = append(want, []any{"a", int64(1), nil}, []any{"a", int64(1), nil}, []any{nil, int64(2), nil}, []any{"c", int64(3), nil})
-			rows := referenceSelect("SELECT * FROM t", []string{"v", "i", "b"}, []string{"TEXT", "INT8", "BOOL"}, want)
-			rows.bag = true
-			p.step(t, rows)
 		})
 	}
 }
@@ -46,37 +54,48 @@ func TestReferenceInsertSelectCardinality(t *testing.T) {
 func TestReferenceInsertSelectValuesTyping(t *testing.T) {
 	for _, mode := range []string{"direct", "prepared"} {
 		t.Run(mode, func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE t(i INT)", 0))
-			for _, step := range []referenceStep{
-				referenceExec("INSERT INTO t(i) VALUES ('1')", 1),
-				referenceExec("INSERT INTO t(i) (VALUES ('1'))", 1),
-				referenceExec("INSERT INTO t(i) SELECT '1'", 1),
-				referenceExec("INSERT INTO t(i) SELECT NULL", 1),
-				referenceExec("INSERT INTO t(i) SELECT $1", 1, "7"),
-				referenceExec("INSERT INTO t(i) SELECT $1", 1, int64(8)),
-				referenceExec("INSERT INTO t(i) SELECT $1", 1, nil),
-				referenceExec("INSERT INTO t(i) VALUES (2),(3) ORDER BY 1 DESC", 2),
-			} {
-				if mode == "prepared" {
-					step = referencePrepared(step)
-				}
-				p.step(t, step)
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
+					run(referenceExec("CREATE TABLE t(i INT)", 0))
+					for _, step := range []referenceStep{
+						referenceExec("INSERT INTO t(i) VALUES ('1')", 1),
+						referenceExec("INSERT INTO t(i) (VALUES ('1'))", 1),
+						referenceExec("INSERT INTO t(i) SELECT '1'", 1),
+						referenceExec("INSERT INTO t(i) SELECT NULL", 1),
+						referenceExec("INSERT INTO t(i) VALUES (2),(3) ORDER BY 1 DESC", 2),
+					} {
+						step.prepared = mode == "prepared"
+						run(step)
+					}
+					query := "INSERT INTO t(i) SELECT $1"
+					var producer referenceExecutor = backend.db
+					if mode == "prepared" {
+						stmt, err := backend.db.PrepareContext(p.ctx, query)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer stmt.Close()
+						producer = referenceHeldStatement{backend.db, stmt, query}
+					}
+					for _, arg := range []any{"7", int64(8), nil} {
+						insertSelectRun(t, p.ctx, producer, backend.recorder, referenceExec(query, 1, arg))
+					}
+					run(referenceSelect("SELECT i FROM t ORDER BY i", []string{"i"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}, {int64(1)}, {int64(2)}, {int64(3)}, {int64(7)}, {int64(8)}, {nil}, {nil}}))
+					run(referenceExec("CREATE TABLE text_values(v TEXT)", 0))
+					run(referenceExec("CREATE TABLE big_values(i BIGINT)", 0))
+					for _, step := range []referenceStep{
+						referenceExec("INSERT INTO text_values(v) VALUES ('x'),(NULL),('x') ORDER BY 1", 3),
+						referenceExec("INSERT INTO big_values(i) VALUES (1),(2147483648),(NULL) ORDER BY column1", 3),
+					} {
+						step.prepared = mode == "prepared"
+						run(step)
+					}
+					run(referenceSelect("SELECT v FROM text_values ORDER BY v", []string{"v"}, []string{"TEXT"}, [][]any{{"x"}, {"x"}, {nil}}))
+					run(referenceSelect("SELECT i FROM big_values ORDER BY i", []string{"i"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(2147483648)}, {nil}}))
+				})
 			}
-			p.step(t, referenceSelect("SELECT i FROM t ORDER BY i", []string{"i"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(1)}, {int64(1)}, {int64(2)}, {int64(3)}, {int64(7)}, {int64(8)}, {nil}, {nil}}))
-			p.step(t, referenceExec("CREATE TABLE text_values(v TEXT)", 0))
-			p.step(t, referenceExec("CREATE TABLE big_values(i BIGINT)", 0))
-			for _, step := range []referenceStep{
-				referenceExec("INSERT INTO text_values(v) VALUES ('x'),(NULL),('x') ORDER BY 1", 3),
-				referenceExec("INSERT INTO big_values(i) VALUES (1),(2147483648),(NULL) ORDER BY column1", 3),
-			} {
-				if mode == "prepared" {
-					step = referencePrepared(step)
-				}
-				p.step(t, step)
-			}
-			p.step(t, referenceSelect("SELECT v FROM text_values ORDER BY v", []string{"v"}, []string{"TEXT"}, [][]any{{"x"}, {"x"}, {nil}}))
-			p.step(t, referenceSelect("SELECT i FROM big_values ORDER BY i", []string{"i"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(2147483648)}, {nil}}))
 		})
 	}
 }
@@ -104,21 +123,26 @@ func TestReferenceInsertSelectDiagnostics(t *testing.T) {
 		{"late_narrowing", "INSERT INTO t(i) SELECT i FROM s ORDER BY i", referenceDiagnostic{Code: "22003", Message: "integer out of range"}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE t(i INT,j INT)", 0))
-			p.step(t, referenceExec("INSERT INTO t VALUES(9,9)", 1))
-			p.step(t, referenceExec("CREATE TABLE s(i BIGINT)", 0))
-			p.step(t, referenceExec("INSERT INTO s VALUES(1),(2147483648)", 2))
-			p.step(t, referenceExec("CREATE TABLE empty(v TEXT)", 0))
-			step := referenceImplicitError(tc.query, tc.want)
-			step.errorStage = "execute"
-			p.step(t, step)
-			p.step(t, referenceSelect("SELECT * FROM t", []string{"i", "j"}, []string{"INT4", "INT4"}, [][]any{{int64(9), int64(9)}}))
-			if !tc.runtime {
-				step.errorStage = "prepare"
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
+					run(referenceExec("CREATE TABLE t(i INT,j INT)", 0))
+					run(referenceExec("INSERT INTO t VALUES(9,9)", 1))
+					run(referenceExec("CREATE TABLE s(i BIGINT)", 0))
+					run(referenceExec("INSERT INTO s VALUES(1),(2147483648)", 2))
+					run(referenceExec("CREATE TABLE empty(v TEXT)", 0))
+					step := referenceImplicitError(tc.query, tc.want)
+					step.errorStage = "execute"
+					run(step)
+					run(referenceSelect("SELECT * FROM t", []string{"i", "j"}, []string{"INT4", "INT4"}, [][]any{{int64(9), int64(9)}}))
+					if !tc.runtime {
+						step.errorStage = "prepare"
+					}
+					run(referencePrepared(step))
+					run(referenceSelect("SELECT * FROM t", []string{"i", "j"}, []string{"INT4", "INT4"}, [][]any{{int64(9), int64(9)}}))
+				})
 			}
-			p.step(t, referencePrepared(step))
-			p.step(t, referenceSelect("SELECT * FROM t", []string{"i", "j"}, []string{"INT4", "INT4"}, [][]any{{int64(9), int64(9)}}))
 		})
 	}
 }

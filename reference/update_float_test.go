@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceUpdateCoreFloatIntegerAssignment(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, source := range []string{"REAL", "DOUBLE PRECISION"} {
 		for _, target := range []struct{ sql, metadata, name string }{{"SMALLINT", "INT2", "smallint"}, {"INT", "INT4", "integer"}, {"BIGINT", "INT8", "bigint"}} {
 			p.step(t, referenceExec("CREATE TABLE t(id INT,f "+source+",n "+target.sql+")", 0))

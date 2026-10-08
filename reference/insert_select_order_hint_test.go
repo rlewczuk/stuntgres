@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -20,20 +18,24 @@ func TestReferenceInsertSelectValuesOrderSuggestions(t *testing.T) {
 	} {
 		q := "INSERT INTO t VALUES" + tc.values + " ORDER BY " + tc.key
 		t.Run(q, func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE t(i INT)", 0))
-			p.step(t, referenceExec("INSERT INTO t VALUES(9)", 1))
-			want := referenceDiagnostic{Code: "42703", Message: `column "` + tc.name + `" does not exist`, Hint: tc.hint, Position: strconv.Itoa(strings.Index(q, tc.key) + 1)}
-			for _, prepared := range []bool{false, true} {
-				step := referenceImplicitError(q, want)
-				step.prepared = prepared
-				step.errorStage = "execute"
-				if prepared {
-					step.errorStage = "prepare"
-				}
-				p.step(t, step)
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					run := func(s referenceStep) { insertSelectRun(t, p.ctx, backend.db, backend.recorder, s) }
+					run(referenceExec("CREATE TABLE t(i INT)", 0))
+					run(referenceExec("INSERT INTO t VALUES(9)", 1))
+					want := referenceDiagnostic{Code: "42703", Message: `column "` + tc.name + `" does not exist`, Hint: tc.hint, Position: strconv.Itoa(strings.Index(q, tc.key) + 1)}
+					for _, prepared := range []bool{false, true} {
+						step := referenceImplicitError(q, want)
+						step.prepared, step.errorStage = prepared, "execute"
+						if prepared {
+							step.errorStage = "prepare"
+						}
+						run(step)
+						run(referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
+					}
+				})
 			}
-			p.step(t, referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(9)}}))
 		})
 	}
 }
