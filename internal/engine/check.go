@@ -159,7 +159,20 @@ func (s *StatementScope) acquireCheckProviders(stage *CatalogStage) error {
 			for _, dep := range c.dependencies {
 				ref := dep.ref
 				ref.Address.SubID = 0
-				if ref.Address.ClassID == RelationClassID && ref.Address != d.address && !slices.Contains(refs, ref) {
+				if ref.Address.ClassID != RelationClassID || ref.Address == d.address {
+					continue
+				}
+				if _, incumbent := stage.base.state.descriptors[ref.Address]; !incumbent {
+					// New providers belong to this atomic candidate, not to the
+					// incumbent lock catalog. ValidateCatalogStage validates their
+					// complete metadata, attributes and reciprocal identity links.
+					provider, staged := stage.descriptors[ref.Address].(*relationDescriptor)
+					if !staged || provider.address != ref.Address || ref.owner != stage.owner.owner || ref.Epoch != stage.base.Epoch() {
+						return fmt.Errorf("stuntgres: invalid staged CHECK provider")
+					}
+					continue
+				}
+				if !slices.Contains(refs, ref) {
 					refs = append(refs, ref)
 				}
 			}

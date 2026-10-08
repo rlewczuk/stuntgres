@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 
@@ -251,20 +252,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			// references depend on their parent relation, not its column OID.
 			predecessors := make(map[OID]bool)
 			addPredecessor := func(address ObjectAddress) error {
-				address.SubID = 0
-				object, exists := e.state.descriptors[address]
-				if !exists {
-					return fmt.Errorf("stuntgres: missing view dump dependency")
+				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, address, r.address)
+				if err != nil {
+					return err
 				}
-				source, relation := object.(*relationDescriptor)
-				if !relation || source.relationKind == sequenceRelation || source.relationKind == catalogRelation {
-					return nil // Sequences/builtin providers already exist at replay.
+				if predecessor != 0 {
+					predecessors[predecessor] = true
 				}
-				namespace, exists := e.state.descriptors[source.namespace].(*namespaceDescriptor)
-				if !exists || namespace.temporary != (SessionToken{}) {
-					return fmt.Errorf("stuntgres: invalid view dump dependency lifetime")
-				}
-				predecessors[source.address.ObjectID] = true
 				return nil
 			}
 			for _, leaf := range r.view.sources {
@@ -323,7 +317,20 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return fmt.Errorf("stuntgres: relation storage is missing")
 		}
 		oid := r.address.ObjectID
-		viewDependencies[oid] = nil // Tables have no table/view predecessors.
+		var predecessors []OID
+		for _, check := range r.checkConstraints {
+			for _, dependency := range check.dependencies {
+				predecessor, err := dumpPredecessor(CatalogRead{owner: e, state: e.state}, dependency.ref.Address, r.address)
+				if err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				if predecessor != 0 && !slices.Contains(predecessors, predecessor) {
+					predecessors = append(predecessors, predecessor)
+				}
+			}
+		}
+		viewDependencies[oid] = predecessors
 		tableIndices[oid] = len(tables)
 		linked := make(map[ObjectAddress]dumpSequence, len(r.identities))
 		for _, identity := range r.identities {

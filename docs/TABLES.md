@@ -191,6 +191,17 @@ replace identity inputs only, leaving ordinary columns/defaults unchanged.
 Sequence allocation and session memories survive row failure/rollback; transactional
 RESTART replaces a private generator and rolls back with identity metadata.
 
+Existing sequence calls in CHECK can reference the identity sequence declared
+by the same CREATE TABLE, with automatic or explicit SEQUENCE NAME, including
+nested CREATE SCHEMA elements. Binding uses one private staged catalog for
+namespace lookup, regclass identity and provider stamps; incumbent admission and
+runtime authorization remain live. Failed construction installs neither table,
+sequence nor generator. CREATE and Dump do not evaluate the CHECK. For a fresh
+CACHE 1 sequence, an omitted INSERT
+produces id 1 and its own `CHECK(nextval('i_id_seq') > 0)` consumes 2.
+Own-table CHECK references do not obstruct reciprocal table/sequence cleanup;
+external view/CHECK dependencies retain the ordinary restrictive drop behavior.
+
 ALTER ADD requires NOT NULL and no regular default; it never backfills old rows.
 SET generation/options and RESTART affect future inserts. DROP IDENTITY removes
 only its internal sequence and preserves rows/NOT NULL. Direct sequence DROP and

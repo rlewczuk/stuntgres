@@ -141,6 +141,10 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 		ref := ObjectRef{}
 		found := false
 		var temporary SessionToken
+		auth, err := b.bindingAuthorization()
+		if err != nil {
+			return nil, ref, err
+		}
 		if b.expected != nil && b.expected.sequences != nil {
 			for _, constant := range b.expected.sequences.constants {
 				if constant.offset == literal.Value.Pos.Offset {
@@ -150,10 +154,8 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 			}
 		}
 		if !found {
-			auth, err := b.engine.authorizationLocked(b.op)
-			if err != nil {
-				return nil, ref, err
-			}
+			// Resolve only uncaptured literals; held constants retain their exact
+			// provider identity rather than following a later name replacement.
 			ref, err = b.engine.regclassLocked(auth, literal.Value.Text)
 			if err != nil {
 				return nil, ref, sequenceInputError(err, literal.Value.Pos, "", 0)
@@ -165,10 +167,8 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 			}
 		}
 		var stamp DefinitionRevision
-		auth, err := b.engine.authorizationLocked(b.op)
-		if err != nil {
-			return nil, ref, err
-		}
+		// Capture the provider stamp from the same authority as its name and
+		// temporary lifetime, never from a different published catalog.
 		if d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor); ok {
 			stamp = d.sequencePlanStamp
 		}

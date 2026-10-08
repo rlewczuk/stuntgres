@@ -27,8 +27,11 @@ the destination generation, and atomically installs definitions with ordinary
 data. Derived catalog sources initialize normally and are not dumped. Restored
 views remain dynamic; later base writes and dependency checks still apply.
 Failed/canceled imports retain old catalogs, dependencies and held result rows.
-Dump orders tables and views through the incumbent persistent view-source topology:
-tables have no predecessors; views depend on both table and view sources.
+Dump orders tables and views through their persistent provider topology.
+Views depend on table/view sources and expression providers; tables depend on
+their CHECK providers. An identity-sequence dependency waits for the owning table
+whose inline declaration creates it. A table's own identity CHECK is not a
+self-edge; ordinary standalone sequences remain in the earlier creation prefix.
 Creation addresses break ties between ready objects. Retained TEMP collision
 remapping may move a source OID above its dependent; topology then wins so replay
 remains executable, without promising allocator-relative diagnostic-order parity.
@@ -88,6 +91,12 @@ ALTER SEQUENCE has diverged from the column type or persistence, replay first cr
 a valid column-type identity, then applies generated numeric/persistence configuration
 before final setval. Reciprocal ownership is remapped under retained TEMP collisions.
 Malformed configuration/rows/state or canceled imports leave the old database intact.
+CREATE and Dump never evaluate CHECK definitions, including CHECK calls to a
+newly declared identity sequence. Restoring literal SYSTEM rows bypasses identity
+generation, but ordinary CHECK validation can still call nextval; final setval
+restores the captured sequence state. Owner-table collisions with retained TEMP
+sequences preserve this replay ordering through Dump/Restore/redump.
+Feature smoke: `make smoke RUN='^TestIdentityCheckControlsSmoke$' VERBOSE=0`.
 
 
 Timezone-aware declarations, precision, frozen defaults, NULLs, BC and infinities

@@ -167,8 +167,11 @@ on SMALLINT, INTEGER and BIGINT, using an internally owned sequence rather than 
 stored DEFAULT. INSERT omission/DEFAULT generates; SYSTEM and USER overrides,
 identity ALTER lists, transactions/savepoints and native Dump/Restore reuse the
 existing sequence/session authorities. Identity is NOT NULL, not inherently unique.
+Existing CHECK calls can use the same declaration's identity sequence without
+definition-time allocation. Dump orders identity-sequence view/CHECK dependents
+after their owning table, including retained TEMP collision remaps.
 SERIAL and expression-generated columns remain excluded.
-Feature smokes: `make smoke RUN='^TestIdentity(Smoke|LifecycleSmoke|ControlsSmoke)$' VERBOSE=0`.
+Feature smokes: `make smoke RUN='^TestIdentity(Smoke|LifecycleSmoke|ControlsSmoke|CheckControlsSmoke)$' VERBOSE=0`.
 
 
 The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling

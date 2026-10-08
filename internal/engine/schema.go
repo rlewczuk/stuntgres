@@ -96,6 +96,11 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err != nil {
 		return err
 	}
+	if len(d.identities) != 0 {
+		// CHECK cooking sees the identity sequences in the same private
+		// candidate; their descriptors/generators are not yet published.
+		auth.catalog = e.stageRead(stage)
+	}
 	if err := e.bindCreateChecks(op, auth, s, d, input); err != nil {
 		return err
 	}

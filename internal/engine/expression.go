@@ -597,6 +597,15 @@ type expressionBinder struct {
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
 	return &expressionBinder{engine: e, ctx: ctx, parameters: make(map[int]sqltype.Usage), input: input, op: op, expected: expected}
 }
+
+// Binding must retain the caller's catalog/path authority, including a private
+// CREATE candidate. Execution still opens providers through live authorization.
+func (b *expressionBinder) bindingAuthorization() (AuthorizationView, error) {
+	if b.queryAuth != nil {
+		return *b.queryAuth, nil
+	}
+	return b.engine.authorizationLocked(b.op)
+}
 func (b *expressionBinder) typ(id sqltype.ID) *sqltype.Descriptor {
 	d, _ := (CatalogRead{owner: b.engine, state: b.engine.state}).LookupType(id)
 	return d

@@ -6,6 +6,42 @@ import (
 	"fmt"
 )
 
+// Standalone sequences are emitted before this graph. An identity sequence is
+// instead created by its owning table's inline declaration, so dependencies on
+// it must wait for that exact reciprocal owner, even after address remapping.
+func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, error) {
+	address.SubID = 0
+	object, exists := view.Descriptor(address)
+	if !exists {
+		return 0, fmt.Errorf("stuntgres: missing dump dependency")
+	}
+	source, relation := object.(*relationDescriptor)
+	if !relation || source.relationKind == catalogRelation {
+		return 0, nil
+	}
+	if source.relationKind == sequenceRelation {
+		if !source.sequence.identity {
+			return 0, nil
+		}
+		owned := source.sequence.owned
+		ownerAddress := owned
+		ownerAddress.SubID = 0
+		table, ok := view.state.descriptors[ownerAddress].(*relationDescriptor)
+		if !ok || table.relationKind != tableRelation || !table.hasAttribute(owned.SubID) || table.identities[owned.SubID].sequence != address || table.namespace != source.namespace {
+			return 0, fmt.Errorf("stuntgres: invalid identity dump dependency")
+		}
+		source = table
+	}
+	namespace, exists := view.state.descriptors[source.namespace].(*namespaceDescriptor)
+	if !exists || namespace.temporary != (SessionToken{}) {
+		return 0, fmt.Errorf("stuntgres: invalid dump dependency lifetime")
+	}
+	if source.address == consumer {
+		return 0, nil
+	}
+	return source.address.ObjectID, nil
+}
+
 // OIDs break ties among tables/views whose persistent predecessors are ready.
 // Restore may remap a source above its dependent, so topology takes precedence
 // over creation-address order in that exceptional case.

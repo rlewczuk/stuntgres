@@ -261,7 +261,7 @@ func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName
 }
 
 func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKind) (bool, error) {
-	auth, err := b.engine.authorizationLocked(b.op)
+	auth, err := b.bindingAuthorization()
 	if err != nil {
 		return false, err
 	}
