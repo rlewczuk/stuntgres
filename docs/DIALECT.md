@@ -1149,6 +1149,15 @@ comma-separated atomic lists, including explicit transactions and savepoints.
 Same-session metadata and DML see successful private definitions; rollback
 restores descriptor, row shape and own-write roots. Commit publishes these with
 sequence metadata/generators and DML through one callback-free installation.
+Successive DROP actions see earlier staged view/owned-sequence removals; final
+publication still fences the original dependency observations. Dependency
+sequence admission preserves callback-safe replacement freedom without changing
+ordinary sequence-function/DML reservations. UPDATE binding and staging use the
+same private layout, including moved surviving slots and retained handles.
+If the first ordinary RR snapshot follows private column projection, raw
+committed roots retain authority while corresponding private dense snapshots
+retain values/types. Savepoint restoration repairs a missing private projection
+against those retained roots without refreshing ordinary RR visibility.
 Preparation fences the owning transaction epoch before combining private
 descriptors with the catalog/type generation. Provider validation remains
 outside engine locks against that immutable generation; replacement is checked

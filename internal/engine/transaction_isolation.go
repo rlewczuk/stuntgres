@@ -169,32 +169,74 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	t, e := s.owner, s.op.session.Engine()
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.snapshotSet {
+	needsProjection := func(roots map[ObjectAddress]transactionRoot) bool {
+		if t.isolation != RepeatableRead || t.catalog == nil {
+			return false
+		}
+		for address, shape := range t.catalog.storage {
+			if root, exists := roots[address]; exists && !shape.hasSnapshot && len(root.relation.columns) != len(shape.relation.columns) {
+				return true
+			}
+		}
+		return false
+	}
+	if t.snapshotSet && !needsProjection(t.roots) {
 		return nil
 	}
+	session := s.op.session
 	e.mu.Lock()
-	defer e.mu.Unlock()
-	s.op.session.mu.Lock()
-	defer s.op.session.mu.Unlock()
-	if err := publicationOperationLocked(e, s.op); err != nil {
+	session.mu.Lock()
+	check := func() error {
+		if err := publicationOperationLocked(e, s.op); err != nil {
+			return err
+		}
+		if t.ref != s.txRef || t.ref.epoch != e.state.epoch {
+			return ErrCatalogReplaced
+		}
+		return nil
+	}
+	if err := check(); err != nil {
+		session.mu.Unlock()
+		e.mu.Unlock()
 		return err
 	}
-	if t.ref != s.txRef || t.ref.epoch != e.state.epoch {
-		return ErrCatalogReplaced
-	}
-	if t.isolation == RepeatableRead {
-		roots := make(map[ObjectAddress]transactionRoot, len(e.storage))
+	roots, frontier := t.roots, t.frontier
+	if !t.snapshotSet && t.isolation == RepeatableRead {
+		roots = make(map[ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
-			relation, ok := e.state.descriptors[address].(*relationDescriptor)
-			if ok {
+			if relation, ok := e.state.descriptors[address].(*relationDescriptor); ok {
 				roots[address] = transactionRoot{storage.versions, storage.ends, storage, relation}
 			}
 		}
-		t.roots = roots
-		t.frontier = e.commitSeq
+		frontier = e.commitSeq
 	}
-	t.snapshotSet = true
-	return nil
+	if !needsProjection(roots) {
+		t.roots, t.frontier = roots, frontier
+		t.snapshotSet = true
+		session.mu.Unlock()
+		e.mu.Unlock()
+		return nil
+	}
+	catalog := t.catalog
+	session.mu.Unlock()
+	e.mu.Unlock()
+	// Raw roots remain the committed authority. Dense private projections are
+	// prepared outside metadata locks and attached only after final admission.
+	projected, err := projectPrivateSnapshotRoots(s.op.Context(), catalog, roots)
+	if err != nil {
+		return err
+	}
+	e.mu.Lock()
+	session.mu.Lock()
+	err = check()
+	if err == nil {
+		t.catalog = projected
+		t.roots, t.frontier = roots, frontier
+		t.snapshotSet = true
+	}
+	session.mu.Unlock()
+	e.mu.Unlock()
+	return err
 }
 func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {

@@ -144,7 +144,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.viewCascadeNames...)
 	for a := range stage.removals {
 		if r, ok := stage.base.state.descriptors[a].(*relationDescriptor); ok && r.relationKind == sequenceRelation {
-			if err := scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, accessExclusive); err != nil {
+			if err := scope.acquireSequence(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: a}, accessExclusive, true); err != nil {
 				return Result{}, err
 			}
 		}

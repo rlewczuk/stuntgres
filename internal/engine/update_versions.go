@@ -78,8 +78,8 @@ func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows [][]sqltype.V
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	relation, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
-	if !ok || e.storage[ref.Address] == nil || len(old) != len(rows) {
+	relation, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
+	if !ok || e.privateStorageLocked(s.owner.catalog, ref.Address) == nil || len(old) != len(rows) {
 		return errors.New("stuntgres: invalid update stage")
 	}
 	for i, row := range rows {

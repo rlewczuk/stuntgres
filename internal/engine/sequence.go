@@ -65,7 +65,7 @@ func tableKind(d *relationDescriptor, operation string) error {
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: message, Detail: detail}
 }
-func (s *StatementScope) acquireSequence(ref ObjectRef, mode relationLockMode) error {
+func (s *StatementScope) acquireSequence(ref ObjectRef, mode relationLockMode, reserveReplacement bool) error {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
 	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref}, mode, policy)
@@ -79,7 +79,7 @@ func (s *StatementScope) acquireSequence(ref ObjectRef, mode relationLockMode) e
 	if err != nil {
 		return err
 	}
-	if s.implicit && !s.replacementRead {
+	if reserveReplacement && s.implicit && !s.replacementRead {
 		e.replacementMu.RLock()
 		s.replacementRead = true
 	}
@@ -112,7 +112,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 		return ObjectAddress{}, err
 	}
 	e.mu.Unlock()
-	err = scope.acquireSequence(ref, accessShare)
+	err = scope.acquireSequence(ref, accessShare, true)
 	e.mu.Lock()
 	if err != nil {
 		return ObjectAddress{}, err
@@ -272,7 +272,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if s.Action == "rename" || s.Action == "schema" {
 			mode = accessExclusive
 		}
-		if err = scope.acquireSequence(ref, mode); err != nil {
+		if err = scope.acquireSequence(ref, mode, true); err != nil {
 			return Result{}, err
 		}
 		e.mu.Lock()
@@ -448,7 +448,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	e.mu.Unlock()
 	for _, ref := range refs {
-		if err = scope.acquireSequence(ref, accessExclusive); err != nil {
+		if err = scope.acquireSequence(ref, accessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
@@ -463,7 +463,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
-	dependents := viewDependencyClosure(auth.catalog, targets)
+	dependents := viewDependencyClosure(auth.catalog, targets, nil)
 	if len(dependents) > 0 && s.Mode == parser.DropRestrict {
 		return Result{}, viewRestrictError(auth.catalog, dependents)
 	}

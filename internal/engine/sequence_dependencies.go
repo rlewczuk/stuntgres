@@ -5,6 +5,12 @@ import "stuntgres/internal/parser"
 // AUTO dependencies use stable attribute SubIDs, never compacted column slots.
 func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
 	for a, d := range stage.base.state.descriptors {
+		if _, removed := stage.removals[a]; removed {
+			continue
+		}
+		if replacement, changed := stage.descriptors[a]; changed {
+			d = replacement
+		}
 		r, ok := d.(*relationDescriptor)
 		if !ok || r.relationKind != sequenceRelation || r.sequence.owned == (ObjectAddress{}) {
 			continue
@@ -24,7 +30,8 @@ func (s *StatementScope) stageOwnedSequences(stage *CatalogStage, targets []Obje
 			return err
 		}
 		ref := ObjectRef{owner: stage.owner.owner, Epoch: stage.base.Epoch(), Address: a}
-		if err := s.acquireSequence(ref, accessExclusive); err != nil {
+		// Dependency DDL validates providers outside replacement reservations.
+		if err := s.acquireSequence(ref, accessExclusive, false); err != nil {
 			return err
 		}
 		if err := stage.Remove(ref); err != nil {

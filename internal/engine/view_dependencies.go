@@ -31,11 +31,29 @@ type viewDependencyEdge struct {
 	target ObjectAddress
 }
 
-func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress) []viewDependencyEdge {
+func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress, stage *CatalogStage) []viewDependencyEdge {
 	var views []*relationDescriptor
-	for _, descriptor := range catalog.state.descriptors {
+	collect := func(address ObjectAddress, descriptor Descriptor) {
+		if stage != nil {
+			if _, removed := stage.removals[address]; removed {
+				return
+			}
+			if replacement, changed := stage.descriptors[address]; changed {
+				descriptor = replacement
+			}
+		}
 		if d, ok := descriptor.(*relationDescriptor); ok && d.view != nil {
 			views = append(views, d)
+		}
+	}
+	for address, descriptor := range catalog.state.descriptors {
+		collect(address, descriptor)
+	}
+	if stage != nil {
+		for address, descriptor := range stage.descriptors {
+			if _, existing := catalog.state.descriptors[address]; !existing {
+				collect(address, descriptor)
+			}
 		}
 	}
 	sort.Slice(views, func(i, j int) bool { return views[i].address.ObjectID < views[j].address.ObjectID })
@@ -87,7 +105,7 @@ func viewRestrictError(catalog CatalogRead, edges []viewDependencyEdge) error {
 }
 
 func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
-	edges := viewDependencyClosure(stage.base, targets)
+	edges := viewDependencyClosure(stage.base, targets, stage)
 	if len(edges) == 0 {
 		return nil
 	}

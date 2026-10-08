@@ -25,7 +25,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquireSequence(ref, shareUpdateExclusive); err != nil {
+	if err = scope.acquireSequence(ref, shareUpdateExclusive, true); err != nil {
 		return Result{}, err
 	}
 	e.mu.Lock()

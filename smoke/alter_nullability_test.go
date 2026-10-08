@@ -3,7 +3,6 @@ package smoke_test
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 	"stuntgres"
@@ -70,6 +69,7 @@ func TestAlterNullabilitySmoke(t *testing.T) {
 	run("ROLLBACK TO s", 0)
 	run("ALTER TABLE t DROP COLUMN b, ALTER a SET NOT NULL", 0)
 	run("INSERT INTO t VALUES(9)", 1)
+	run("UPDATE t SET a=10 WHERE a=9", 1)
 	blocked, stop := context.WithTimeout(ctx, 50*time.Millisecond)
 	rows, waitErr := peer.QueryContext(blocked, "SELECT * FROM t")
 	stop()
@@ -79,32 +79,17 @@ func TestAlterNullabilitySmoke(t *testing.T) {
 	if !errors.Is(waitErr, context.DeadlineExceeded) {
 		t.Fatal("peer was not blocked by private ALTER", waitErr)
 	}
-	type observation struct {
-		rows *sql.Rows
-		err  error
-	}
-	observed := make(chan observation, 1)
-	started := make(chan struct{})
-	go func() {
-		close(started)
-		r, e := peer.QueryContext(ctx, "SELECT * FROM t ORDER BY a")
-		observed <- observation{r, e}
-	}()
-	<-started
+	// The deadline probe proves native blocking, not enqueue of a later call.
+	// Exact queued transitions are observed by the engine and pinned-PG fixtures.
 	if err = tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	var outcome observation
-	select {
-	case outcome = <-observed:
-	case <-ctx.Done():
-		t.Fatal(ctx.Err())
+	rows, err = peer.QueryContext(ctx, "SELECT * FROM t ORDER BY a")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if outcome.err != nil {
-		t.Fatal(outcome.err)
-	}
-	notNullSmokeRows(t, outcome.rows, []string{"a"}, []string{"INT4"}, []bool{false}, [][]any{{int64(7)}, {int64(9)}})
-	notNullSmokeQuery(t, db, "SELECT * FROM t ORDER BY a", []string{"a"}, []string{"INT4"}, []bool{false}, [][]any{{int64(7)}, {int64(9)}})
+	notNullSmokeRows(t, rows, []string{"a"}, []string{"INT4"}, []bool{false}, [][]any{{int64(7)}, {int64(10)}})
+	notNullSmokeQuery(t, db, "SELECT * FROM t ORDER BY a", []string{"a"}, []string{"INT4"}, []bool{false}, [][]any{{int64(7)}, {int64(10)}})
 }
 
 func TestAlterNullabilityControlsSmoke(t *testing.T) {

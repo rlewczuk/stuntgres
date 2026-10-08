@@ -539,7 +539,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.ref != requiredRef {
 			return b, ErrCatalogReplaced
 		}
-		b.relation = e.state.descriptors[b.ref.Address].(*relationDescriptor)
+		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
 		if b.relation.relationKind == viewRelation || b.relation.relationKind == catalogRelation {
 			return b, tableKind(b.relation, "change")
 		}

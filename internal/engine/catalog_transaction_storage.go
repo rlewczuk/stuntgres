@@ -107,3 +107,37 @@ func projectDeletions(root *privateDeletionRoot, store *relationStorage) *privat
 	}
 	return next
 }
+
+// Savepoint marks may predate first snapshot establishment. Clone only the
+// immutable shape map when attaching the matching projection to such a mark.
+func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, roots map[ObjectAddress]transactionRoot) (*catalogChanges, error) {
+	var next *catalogChanges
+	for address, shape := range catalog.storage {
+		root, exists := roots[address]
+		if !exists || shape.hasSnapshot || len(root.relation.columns) == len(shape.relation.columns) {
+			continue
+		}
+		versions := shape.replacement.versions
+		if root.storage != shape.original || root.ends != shape.ends || !sameVersionRoot(root.versions, shape.root) {
+			var err error
+			versions, err = projectVersions(ctx, root.versions, root.relation, shape.relation)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if next == nil {
+			copy := *catalog
+			next = &copy
+			next.storage = make(map[ObjectAddress]catalogStorageChange, len(catalog.storage))
+			for a, entry := range catalog.storage {
+				next.storage[a] = entry
+			}
+		}
+		shape.snapshot, shape.hasSnapshot = versions, true
+		next.storage[address] = shape
+	}
+	if next == nil {
+		return catalog, nil
+	}
+	return next, nil
+}

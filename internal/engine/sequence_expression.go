@@ -293,7 +293,7 @@ func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if beforeErr != nil {
 		return sqltype.Value{}, beforeErr
 	}
-	if err := scope.acquireSequence(ref, rowExclusive); err != nil {
+	if err := scope.acquireSequence(ref, rowExclusive, true); err != nil {
 		return sqltype.Value{}, err
 	}
 	e.mu.Lock()
