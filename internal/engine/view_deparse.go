@@ -299,6 +299,23 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			// decoded quoted keyword names cannot be replayed unqualified.
 			return "pg_catalog." + name + "()", nil
 		}
+		if e.StringSyntax == parser.TrimStringSyntax {
+			if len(e.Args) < 1 || len(e.Args) > 2 {
+				return "", fmt.Errorf("stuntgres: invalid stored TRIM arity")
+			}
+			source, err := child(e.Args[0])
+			if err != nil {
+				return "", err
+			}
+			set := ""
+			if len(e.Args) == 2 {
+				set, err = child(e.Args[1])
+				if err != nil {
+					return "", err
+				}
+			}
+			return trimSyntaxSQL(name, source, set, len(e.Args))
+		}
 		if e.Syntax == parser.SQLFunctionSyntax {
 			return renderBinaryCall(name, e.Syntax, e.Args, "pg_catalog."+name, child)
 		}
@@ -307,6 +324,10 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return "pg_catalog.position(" + text + ")", err
 		}
 		text, err := args(e.Args)
+		switch name {
+		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized":
+			return "pg_catalog." + name + "(" + text + ")", err
+		}
 		return objectNameText(e.Name) + "(" + text + ")", err
 	case parser.CallExpr:
 		text, err := args(e.Args)

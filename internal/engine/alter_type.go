@@ -106,7 +106,11 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 	binder.relation, binder.ref, binder.noParameters, binder.queryAuth = original, ref, true, &auth
 	binder.queryNamespace = namespace
 	binder.querySources = []queryLeaf{{ref: ref, relation: original}}
-	return binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
+	node, err := binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
+	if err == nil && binder.regclassConcat {
+		err = e.captureCommentSnapshotLocked(scope)
+	}
+	return node, err
 }
 
 // Binding retains the statement-original row namespace, even after DROP passes.
@@ -241,6 +245,9 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 		definition.expression = expression
 		definition.OID = 0
 		replacement.defaults[attribute] = definition
+	}
+	if err := e.captureCheckCommentSnapshotLocked(scope, &replacement); err != nil {
+		return fail(err)
 	}
 	return &replacement, transformation, nil
 }

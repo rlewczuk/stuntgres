@@ -123,6 +123,8 @@ func firstQueryBoundVariable(expr BoundExpr) parser.Position {
 		return firstQueryBoundArgs(e.args)
 	case binaryExpression:
 		return firstQueryBoundArgs(e.args)
+	case stringExpression:
+		return firstQueryBoundArgs(e.args)
 	case mathExpression:
 		return firstQueryBoundArgs(e.args)
 	case randomExpression:

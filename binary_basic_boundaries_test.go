@@ -152,7 +152,7 @@ func TestBinaryBasicContextualPreparedFramesAndOwnership(t *testing.T) {
 func TestBinaryBasicTruthfulCapabilityBoundaries(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), t.Name())
 	execSQL(t, db, "CREATE TABLE t(v BYTEA,s TEXT)")
-	for _, q := range []string{"SELECT length(NULL)", "SELECT octet_length('é')", "SELECT bit_length($1)", "SELECT btrim(NULL,NULL)", "SELECT ltrim(' x ')", "SELECT rtrim(s) FROM t", "SELECT length(v,'UTF8') FROM t", "SELECT v||s FROM t", "SELECT s||v FROM t", "SELECT 'a'||'b' FROM t"} {
+	for _, q := range []string{"SELECT length(NULL)", "SELECT octet_length('é')", "SELECT bit_length($1)", "SELECT length(v,'UTF8') FROM t"} {
 		s, err := db.Prepare(q)
 		if s != nil {
 			s.Close()
@@ -161,6 +161,35 @@ func TestBinaryBasicTruthfulCapabilityBoundaries(t *testing.T) {
 		var se *stuntgres.Error
 		if !errors.As(err, &se) || se.Code != "0A000" {
 			t.Fatal(q, err)
+		}
+	}
+	// String overloads are now admitted by the consuming string-core part;
+	// the inherited BYTEA capability boundary must not pretend they are absent.
+	execSQL(t, db, `INSERT INTO t VALUES('\x41',' x ')`)
+	for _, tc := range []struct {
+		q    string
+		want any
+	}{
+		{"SELECT btrim(NULL,NULL) AS v", nil},
+		{"SELECT ltrim(' x ') AS v", "x "},
+		{"SELECT rtrim(s) AS v FROM t", " x"},
+		{"SELECT v||s AS v FROM t", `\x41 x `},
+		{"SELECT s||v AS v FROM t", ` x \x41`},
+		{"SELECT 'a'||'b' AS v FROM t", "ab"},
+	} {
+		for _, prepared := range []bool{false, true} {
+			if prepared {
+				stmt, err := db.Prepare(tc.q)
+				if err != nil {
+					t.Fatal(tc.q, err)
+				}
+				rows, err := stmt.Query()
+				queryCoreRows(t, rows, err, []string{"v"}, []string{"TEXT"}, [][]any{{tc.want}}, false)
+				stmt.Close()
+			} else {
+				rows, err := db.Query(tc.q)
+				queryCoreRows(t, rows, err, []string{"v"}, []string{"TEXT"}, [][]any{{tc.want}}, false)
+			}
 		}
 	}
 }
@@ -176,7 +205,6 @@ func TestBinaryBasicExcludedSyntaxAndOccurrenceTyping(t *testing.T) {
 	typeCoreDiagnostic(t, trimErr, stuntgres.Error{Code: "42883", Message: "function pg_catalog.btrim(bytea) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
 	for _, q := range []string{
 		"SELECT byteacat(v,v) FROM t",
-		"INSERT INTO dst SELECT 'a'||'b' FROM t",
 	} {
 		_, err := db.Exec(q)
 		var se *stuntgres.Error
@@ -184,6 +212,23 @@ func TestBinaryBasicExcludedSyntaxAndOccurrenceTyping(t *testing.T) {
 			t.Fatal(q, err)
 		}
 	}
+	for _, tc := range []struct {
+		q    string
+		want stuntgres.Error
+	}{
+		{"SELECT TRIM(v) FROM t", stuntgres.Error{Code: "42883", Message: "function pg_catalog.btrim(bytea) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}},
+		{"INSERT INTO dst SELECT 'a'||'b' FROM t", stuntgres.Error{Code: "42804", Message: `column "v" is of type bytea but expression is of type text`, Position: "24", Hint: "You will need to rewrite or cast the expression."}},
+	} {
+		_, err := db.Exec(tc.q)
+		typeCoreDiagnostic(t, err, tc.want)
+		stmt, err := db.Prepare(tc.q)
+		if stmt != nil {
+			stmt.Close()
+			t.Fatal("failed analysis published a statement", tc.q)
+		}
+		typeCoreDiagnostic(t, err, tc.want)
+	}
+	wantTuples(t, db, "SELECT v FROM dst", [][]any{})
 	_, err := db.Exec("CREATE TABLE bad(v BYTEA DEFAULT length(NULL))")
 	var se *stuntgres.Error
 	if !errors.As(err, &se) || se.Code != "0A000" {

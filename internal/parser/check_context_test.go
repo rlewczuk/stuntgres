@@ -55,6 +55,30 @@ func TestCheckSelectedScalarContextDoesNotLeak(t *testing.T) {
 	}
 }
 
+func TestStringCoreDefaultSelectedFunctionBoundary(t *testing.T) {
+	for _, name := range []string{
+		"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible",
+		"abs", "num_nulls",
+	} {
+		for _, prefix := range []string{"", "pg_catalog."} {
+			query := "CREATE TABLE default_boundary(id BOOL DEFAULT " + prefix + name + "(23))"
+			keywordDiagnostic(t, query, "0A000", "functions are unsupported", "47")
+		}
+	}
+	// String calls have their own admitted scalar productions. The legacy
+	// selected-function rejection must not capture their DEFAULT route.
+	for _, query := range []string{
+		"CREATE TABLE t(v TEXT DEFAULT btrim(' x '))",
+		"CREATE TABLE t(v TEXT DEFAULT normalize('é',NFC))",
+		"CREATE TABLE t(v TEXT DEFAULT 'x'||42)",
+	} {
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(query, statements, err)
+		}
+	}
+}
+
 func TestCheckASTIdentityAndModifiers(t *testing.T) {
 	statements, err := Parse("CREATE TABLE t(a INT CONSTRAINT c CHECK(a=1) NO INHERIT NOT NULL,CONSTRAINT d CHECK(a>0))")
 	if err != nil {

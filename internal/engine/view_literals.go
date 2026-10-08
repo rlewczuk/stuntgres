@@ -131,6 +131,8 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 					return child(operand, n)
 				}
 			}
+		case stringExpression:
+			return children(r.Args, n.args)
 		case bitwiseExpression:
 			if err := child(r.Args[0], n.left); err != nil {
 				return err
@@ -231,6 +233,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			}
 		}
 		if n, ok := bound.(binaryExpression); ok {
+			return children(r.Args, n.args)
+		}
+		if n, ok := bound.(stringExpression); ok {
 			return children(r.Args, n.args)
 		}
 		if n, ok := bound.(mathExpression); ok {

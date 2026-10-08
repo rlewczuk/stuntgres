@@ -47,14 +47,7 @@ func renderBinaryCall[T any](name string, syntax parser.FunctionSyntax, args []T
 		if len(parts) != 2 {
 			break
 		}
-		direction := "BOTH"
-		if name == "ltrim" {
-			direction = "LEADING"
-		}
-		if name == "rtrim" {
-			direction = "TRAILING"
-		}
-		return "TRIM(" + direction + " " + parts[1] + " FROM " + parts[0] + ")", nil
+		return trimSyntaxSQL(name, parts[0], parts[1], len(parts))
 	}
 	return "", fmt.Errorf("stuntgres: invalid SQL binary syntax")
 }

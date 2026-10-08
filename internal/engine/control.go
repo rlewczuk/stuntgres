@@ -705,6 +705,21 @@ func commentLiteral(text string) string {
 
 func restoreScalar(raw parser.Expr) error {
 	switch r := raw.(type) {
+	case parser.FunctionExpr:
+		if len(r.Name.Parts) < 1 || len(r.Name.Parts) > 2 {
+			return fmt.Errorf("stuntgres: invalid restore scalar")
+		}
+		switch r.Name.Parts[len(r.Name.Parts)-1].Text {
+		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized":
+		default:
+			return fmt.Errorf("stuntgres: invalid restore scalar")
+		}
+		for _, child := range r.Args {
+			if err := restoreScalar(child); err != nil {
+				return err
+			}
+		}
+		return nil
 	case parser.CaseExpr:
 		if r.Test != nil {
 			if err := restoreScalar(r.Test); err != nil {

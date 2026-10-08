@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -67,6 +68,18 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		}
 		assigned, err := binder.assignOutput(expr, target)
 		if err != nil {
+			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && s.Source.Select != nil {
+				// Projection expansion can change output indices. Match the
+				// retained source position instead of indexing raw targets.
+				for _, raw := range s.Source.Select.Targets {
+					if raw.SourcePosition() == expr.SourcePosition() && parser.ContainsStringExpression(raw) {
+						copy := *d
+						copy.Position = strconv.Itoa(parser.ExpressionStart(raw).Character)
+						err = &copy
+						break
+					}
+				}
+			}
 			return err
 		}
 		project.expressions[i] = assigned

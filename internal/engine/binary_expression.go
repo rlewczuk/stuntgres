@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -32,6 +31,29 @@ func (e binaryExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		values[i] = v
 	}
 	return e.plan.Evaluate(c.Context, values[:len(e.args)]...)
+}
+
+func (n binaryExpression) validateSyntax() error {
+	if n.syntax == parser.OrdinaryFunctionSyntax {
+		return nil
+	}
+	if n.syntax == parser.SQLFunctionSyntax {
+		switch n.plan.Name() {
+		case "overlay":
+			if len(n.args) == 3 || len(n.args) == 4 {
+				return nil
+			}
+		case "substring":
+			if len(n.args) == 2 || len(n.args) == 3 {
+				return nil
+			}
+		case "position", "btrim", "ltrim", "rtrim":
+			if len(n.args) == 2 {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("stuntgres: invalid stored binary syntax")
 }
 
 func binaryTextType(d *sqltype.Descriptor) bool {
@@ -107,8 +129,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 			}
 		}
 	}
-	unaryTextTrim := name == "btrim" || name == "ltrim" || name == "rtrim"
-	text := len(operands) == arity || (unaryTextTrim && len(operands) == 1)
+	text := len(operands) == arity
 	for i, o := range operands {
 		if binaryArgumentID(name, i) == sqltype.Int4 {
 			d := o.descriptor()
@@ -143,50 +164,10 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	if !known {
 		return missing()
 	}
-	expr, err := b.finishBinary(name, raw.Pos, operands)
-	if err != nil {
-		return nil, err
-	}
-	e := expr.(binaryExpression)
-	e.syntax = raw.Syntax
-	return e, nil
+	return b.finishBinary(name, raw.Pos, operands, raw.Syntax)
 }
 
-func (b *expressionBinder) bindBinaryConcat(raw parser.OperatorExpr) (BoundExpr, error) {
-	visible, err := b.builtinVisible(raw.Name, operatorLookup)
-	if err != nil {
-		return nil, err
-	}
-	if len(raw.Args) != 2 {
-		return nil, fmt.Errorf("stuntgres: invalid binary concatenation arity")
-	}
-	operands := make([]comparisonOperand, 2)
-	for i, r := range raw.Args {
-		operands[i], err = b.comparisonOperand(r)
-		if err != nil {
-			return nil, err
-		}
-	}
-	lt, rt := operands[0].descriptor(), operands[1].descriptor()
-	missing := func() (BoundExpr, error) {
-		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
-	}
-	if !visible {
-		return missing()
-	}
-	// PostgreSQL's actual text/anynonarray siblings must not be reported absent.
-	if (lt != nil && binaryTextType(lt)) || (rt != nil && binaryTextType(rt)) || (lt == nil && (rt == nil || rt.ID() != sqltype.Bytea)) || (rt == nil && lt.ID() != sqltype.Bytea) {
-		return nil, expressionError("0A000", "text overloads of || are unsupported", raw.Pos)
-	}
-	for _, d := range []*sqltype.Descriptor{lt, rt} {
-		if d != nil && d.ID() != sqltype.Bytea {
-			return missing()
-		}
-	}
-	return b.finishBinary("||", raw.Pos, operands)
-}
-
-func (b *expressionBinder) finishBinary(name string, pos parser.Position, operands []comparisonOperand) (BoundExpr, error) {
+func (b *expressionBinder) finishBinary(name string, pos parser.Position, operands []comparisonOperand, syntax parser.FunctionSyntax) (BoundExpr, error) {
 	args := make([]BoundExpr, len(operands))
 	var usages [4]sqltype.Usage
 	properties := ExprProperties{Volatility: Immutable}
@@ -220,7 +201,11 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 	if err != nil {
 		return nil, err
 	}
-	return binaryExpression{expressionInfo: b.info(usage, pos, properties), plan: plan, args: args}, nil
+	node := binaryExpression{expressionInfo: b.info(usage, pos, properties), plan: plan, args: args, syntax: syntax}
+	if err := node.validateSyntax(); err != nil {
+		return nil, err
+	}
+	return node, nil
 }
 
 func binaryArgumentID(name string, index int) sqltype.ID {

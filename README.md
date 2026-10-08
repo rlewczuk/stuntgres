@@ -130,11 +130,28 @@ Trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
 Known BYTEA operands infer unknown byte arguments; inferred Go binds remain raw
 octets. Selected functions share query/write/CHECK/view consumers and native
 replay, preserving SQL-syntax provenance in compact/pretty CHECK deparsing.
-TEXT/regex siblings, encoding-aware length, DEFAULT functions and direct byteacat
-remain excluded; no new cast edges or byteapos alias are added.
+TEXT/regex slicing and count siblings, encoding-aware length, DEFAULT functions
+and direct byteacat remain excluded; no new cast edges or byteapos alias are added.
+Core strings provide TEXT trim/concatenation siblings through the shared dispatch.
 See [BYTEA](docs/TYPES.md#bytea). Feature smoke:
 `make smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`; independent pinned reference:
 `make reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
+
+Change note: core strings support `||` string overloads, `btrim`/`ltrim`/`rtrim`,
+SQL `TRIM`, `normalize` and `IS [NOT] [form] NORMALIZED`. Character operands
+convert to TEXT, removing BPCHAR trailing spaces; mixed concatenation uses the
+existing scalar type's text output and captured session output settings.
+Normalization uses pinned Unicode16 data and PostgreSQL18.0 release semantics,
+including its Hangul TBASE boundary and normalized-predicate quickcheck.
+Stored string DEFAULT/CHECK expressions support compact/pretty SQL deparsing,
+typed native structural carriers and syntax-preserving Dump/Restore. Ordinary
+calls display resolved TEXT conversions; special syntax hides implicit casts.
+Explicit-set BYTEA SQL TRIM keeps its special spelling through CHECK replay
+without adding BYTEA DEFAULT or cast support. Parameter-free Restore INSERTs
+accept the selected string functions, and trim checks cancellation during both
+endpoint and set traversal without allocating a replacement string.
+See [syntax and boundaries](docs/DIALECT.md#core-string-functions--change-note).
+Feature smoke: `make smoke RUN='^TestStringCoreSmoke$' VERBOSE=0`.
 
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;

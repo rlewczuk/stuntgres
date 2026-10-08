@@ -431,6 +431,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	if b.regclassConcat && b.query == nil {
+		if err = e.captureCommentSnapshotLocked(scope); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
 	switch s := stmt.(type) {
 	case *parser.Update:
 		if b.returning != nil {

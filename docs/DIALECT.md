@@ -540,7 +540,7 @@ ALTER semantic default diagnostics have empty Position; syntax and CREATE positi
 are unchanged. Qualified/quoted targets, ONLY/ONLY(...) and trailing `*` are accepted
 for standalone tables. Inheritance remains rejected: descendant recursion is a
 PostgreSQL-only reference contract. Action lists, IF EXISTS for these actions,
-UPDATE DEFAULT, new expression providers and explicit-transaction SET/DROP DEFAULT
+UPDATE DEFAULT, unimplemented expression families and explicit-transaction SET/DROP DEFAULT
 remain excluded. Selected TYPE/nullability/DROP COLUMN lists support explicit
 transactions. Dump serializes current CREATE definitions and explicit rows; Restore's
 existing whitelist does not admit ALTER TABLE history.
@@ -792,6 +792,85 @@ any unrelated visible sequence output.
 
 Feature smoke: `make smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
 Independent pinned reference: `make reference RUN='^TestReferenceRandom' VERBOSE=0`.
+
+### Core string functions — change note
+
+`btrim(text[,set])`, `ltrim(text[,set])` and `rtrim(text[,set])` remove endpoint
+codepoints belonging to a set, not a substring. The omitted set is exactly ASCII
+space; empty sets change nothing, and tabs/nonbreaking spaces are not implicit
+whitespace. SQL `TRIM` supports BOTH/LEADING/TRAILING, the FROM variants and
+ordinary argument-list variants, lowering to these providers with the source
+first. There is no ordinary `trim()` function alias.
+Endpoint and set-membership scans check cancellation during bounded work intervals
+and return a slice of the immutable input without allocating a replacement string.
+Shared trim names select TEXT or the existing two-BYTEA signature after analyzing
+operands once; a known BYTEA peer infers unknown BYTEA arguments, while all-unknown
+arguments prefer TEXT.
+
+
+`||` resolves the release TEXT/TEXT, TEXT/ANYNONARRAY and ANYNONARRAY/TEXT string
+signatures over existing scalars. Successful results are TEXT, typmod-1.
+BPCHAR conversion removes trailing ASCII spaces; TEXT/VARCHAR preserve theirs.
+BOOL mixed output is `true`/`false`, without changing ordinary boolean export.
+BYTEA, numeric widths, OID, NAME, temporal values, UUID, REGCLASS and VOID retain
+their type-owned text output. Prepared executions capture current ByteaOutput,
+DateStyle, IntervalStyle and TimeZone settings; eager results remain owned.
+REGCLASS presentation also uses the captured relation search path: names are
+quoted and schema-qualified when needed, while nonexistent identities remain
+numeric. Held prepared concatenation observes current execution namespace
+visibility without changing its internal OID or retaining a live formatter.
+Volatile VOID children execute normally even though their text output is empty.
+Internal CHAR preserves PostgreSQL category-aware ambiguity with string/unknown
+peers (42725); CHAR/integer is a successful mixed overload with printable octal
+high-byte output. Arrays (including result-only NAME[]), `concat()` and new
+cast/type families are not added. Existing BYTEA/BYTEA concatenation is preserved;
+known BYTEA/unknown selects it, while unknown/unknown prefers TEXT.
+
+`normalize(text[,form])` and `is_normalized(text[,form])` default to NFC.
+Unquoted SQL `normalize` requires an NFC/NFD/NFKC/NFKD keyword; quoted or
+qualified ordinary calls accept ASCII-case-insensitive TEXT form names without
+whitespace trimming or Unicode lookalike folding (for example, Kelvin SIGN is
+not ASCII K). `IS [NOT] [form] NORMALIZED` yields BOOL and uses the same
+release quickcheck. Resolved signatures are strict: NULL skips the body; malformed
+forms otherwise fail22023 without a runtime call Position. Binding/arity/type/
+namespace failures occur during analysis, including beneath typed NULL.
+
+Normalization uses pinned Unicode16 canonical/compatibility data, recursive
+decomposition, stable canonical ordering, exclusions, blocking and algorithmic
+Hangul. PostgreSQL18.0's inclusive TBASE composition consumes U+11A7 after an LV
+syllable: NFC/NFKC of U+AC00 U+11A7 is U+AC00, yet its release quickcheck predicate
+is TRUE. This is release compatibility, not a claim that the predicate always
+equals normalize(input)==input. The independent official corpus remains unchanged,
+with a separate release-boundary regression. No locale/case folding, stream-safe
+CGJ insertion or truncation is performed.
+
+These expressions compose in existing queries, writes/RETURNING, grouping,
+defaults/checks, views and native Dump/Restore. Bounded selected-string no-FROM
+SELECT is supported, not arbitrary scalar singletons. Native text stays UTF8;
+there is no server-encoding configuration. The independent LATIN1 PostgreSQL
+oracle records nonnull normalization's encoding restriction; strict NULL still
+bypasses it. Input UTF8/NUL validation remains at existing textual boundaries.
+Stored DEFAULT/CHECK string nodes support all existing compact/pretty deparse
+signatures and typed native structural carriers. SQL TRIM, special NORMALIZE
+(including omitted versus explicit NFC), and normalized predicates retain their
+syntax through Dump/Restore, rename and supplied-relation rendering; ordinary
+normalize calls render as quoted function names. Ordinary calls display resolved
+non-TEXT character argument conversions, including source, set and form operands;
+special syntax hides those implicit conversions. Rendering never installs runtime
+coercions or evaluates arguments. Structural output records `String <provider>`
+with recursive typed children, not PostgreSQL physical nodes.
+Parameter-free Restore INSERTs accept only the selected string function family
+and recursively reject parameters and unsupported nested producers. Failed
+normalization publishes no replacement and preserves held old results.
+String-dependent INSERT rows analyze source occurrences before target assignment;
+their conflicting parameter diagnostics use existing occurrence coercion. This
+does not change the native stringless assignment or settings inference boundary.
+The shared concatenation grammar does not admit other selected functions as bare
+CREATE DEFAULTs: their existing `0A000`, `functions are unsupported` rejection
+remains positioned at the function occurrence, including visibility inquiries.
+
+See [data provenance and regeneration](TYPES.md#unicode16-normalization-data).
+Smoke: `make smoke RUN='^TestStringCoreSmoke$' VERBOSE=0`.
 
 ### Scale and rounding functions — change note
 
@@ -1066,7 +1145,7 @@ empty results remain nonnull empty. Known BYTEA operands contextualize unknown
 byte arguments, with INT4 index/count slots and raw Go binds. Results retain
 BYTEA/INT4 metadata even on empty rowsets. Scalar query/write/view/CHECK consumers
 and native replay share the providers; DEFAULT functions remain excluded.
-Real TEXT/regex siblings and encoding-aware length are truthful0A000 boundaries.
+TEXT/regex slicing and count siblings and encoding-aware length remain truthful0A000 boundaries.
 The excluded `length(bytea,name)` candidate also recognizes unknown source/encoding
 arguments and existing implicit TEXT/VARCHAR/BPCHAR-to-NAME encoding conversions.
 It is not executed; genuinely absent signatures such as `length(bytea,integer)`
@@ -1076,6 +1155,7 @@ OVERLAY/POSITION/SUBSTRING/TRIM syntax; ordinary calls retain identifier quoting
 (including `"overlay"`). Concat retains `||` grouping. Native `conbin` emits
 typed `Binary <name>` nodes and recursive children without evaluation, not
 PostgreSQL nodeToString interchange. Captured carriers survive native replay.
+Special BYTEA TRIM nodes also record `syntax TRIM`; ordinary Binary tags are unchanged.
 No new typed BYTEA literals, casts, direct byteacat, byteapos alias, general
 binary functions, arrays or wire server are added; existing cast admission
 is unchanged. Binary slicing smoke:

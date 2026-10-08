@@ -179,6 +179,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if len(n.args) < 1 || len(n.args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored binary arity")
 		}
+		if err := n.validateSyntax(); err != nil {
+			return "", err
+		}
 		var usages [4]sqltype.Usage
 		for i, arg := range n.args {
 			if arg == nil {
@@ -202,6 +205,62 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
+	case stringExpression:
+		if len(n.args) < 1 || len(n.args) > 2 {
+			return "", fmt.Errorf("stuntgres: invalid stored string arity")
+		}
+		var usages [2]sqltype.Usage
+		for i, arg := range n.args {
+			if arg == nil {
+				return "", fmt.Errorf("stuntgres: missing string operand")
+			}
+			usages[i] = arg.ResultUsage()
+		}
+		plan, err := sqltype.BindString(n.plan.Name(), u, n.plan.TextUsage(), usages[:len(n.args)], n.textual)
+		if err != nil || plan != n.plan {
+			return "", fmt.Errorf("stuntgres: invalid stored string provider")
+		}
+		if r.commentSnapshot != nil {
+			for i, arg := range n.args {
+				if !n.textual[i] && arg.ResultUsage().Type.ID() == sqltype.Regclass {
+					*r.commentSnapshot = true
+				}
+			}
+		}
+		if n.plan.Name() == "||" {
+			left, err := r.stringArgumentSQL(ctx, view, n.args[0])
+			if err != nil {
+				return "", err
+			}
+			right, err := r.stringArgumentSQL(ctx, view, n.args[1])
+			if err != nil {
+				return "", err
+			}
+			return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
+		}
+		if n.syntax != parser.OrdinaryStringSyntax {
+			source, err := r.stringArgumentSQL(ctx, view, n.args[0])
+			if err != nil {
+				return "", err
+			}
+			set := ""
+			if n.syntax == parser.TrimStringSyntax && len(n.args) == 2 {
+				set, err = r.stringArgumentSQL(ctx, view, n.args[1])
+				if err != nil {
+					return "", err
+				}
+			}
+			return n.specialSQL(source, set)
+		}
+		parts := make([]string, len(n.args))
+		for i, arg := range n.args {
+			text, err := r.stringArgumentSQL(ctx, view, arg)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = text
+		}
+		return "pg_catalog." + n.plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 	case mathExpression:
 		if len(n.args) == 0 || len(n.args) > 2 {
 			return "", fmt.Errorf("stuntgres: invalid stored math arity")
@@ -649,6 +708,20 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	}
 }
 
+// A captured NAME literal would otherwise replay as unknown and resolve to TEXT
+// inside a string call. Keep its admitted type without changing general literal
+// serialization or the generation-owned literal slots used for CHECK rebinding.
+func (r scalarRenderer) stringArgumentSQL(ctx context.Context, view CatalogRead, arg BoundExpr) (string, error) {
+	text, err := r.sql(ctx, view, arg)
+	if err != nil {
+		return "", err
+	}
+	if literal, ok := arg.(literalExpression); ok && literal.usage.Type.ID() == sqltype.Name && r.checkLiterals == nil {
+		return "CAST(" + text + " AS NAME)", nil
+	}
+	return text, nil
+}
+
 func (r scalarRenderer) functionSQL(ctx context.Context, view CatalogRead, name string, args []BoundExpr) (string, error) {
 	parts := make([]string, len(args))
 	for i, arg := range args {
@@ -757,6 +830,24 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 			return node, false, nil
 		}
 		n.plan, err = sqltype.BindBinary(n.plan.Name(), info.usage, usages[:len(n.args)]...)
+		n.expressionInfo = info
+		rebound = n
+	case stringExpression:
+		n.args = append([]BoundExpr(nil), n.args...)
+		var usages [2]sqltype.Usage
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+			usages[i] = n.args[i].ResultUsage()
+		}
+		if err != nil {
+			return node, false, err
+		}
+		text := n.plan.TextUsage()
+		text.Type = retainedType(text.Type)
+		if !changed && text == n.plan.TextUsage() {
+			return node, false, nil
+		}
+		n.plan, err = sqltype.BindString(n.plan.Name(), info.usage, text, usages[:len(n.args)], n.textual)
 		n.expressionInfo = info
 		rebound = n
 	case mathExpression:

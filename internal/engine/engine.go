@@ -74,6 +74,7 @@ type binding struct {
 	temporals          []temporalConstant
 	predicate          BoundExpr
 	sequenceConstants  []sequenceConstant
+	regclassConcat     bool
 }
 
 func New() *Engine {
@@ -514,6 +515,32 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				return b, insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 			}
 			b.expressions[rowIndex] = make([]BoundExpr, len(row))
+			stringRow := false
+			for _, v := range row {
+				stringRow = stringRow || parser.ContainsStringExpression(v)
+			}
+			if stringRow {
+				// Keep the existing assignment admission, but analyze each source
+				// once before target types constrain shared parameter occurrences.
+				for j, v := range row {
+					if _, requested := v.(parser.DefaultExpr); requested {
+						continue
+					}
+					c := b.relation.columns[b.targets[j]]
+					if identity, ok := b.relation.identities[b.relation.attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+						return b, identityInsertError(c.Name)
+					}
+					if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
+						b.expressions[rowIndex][j] = unknownOutput{expressionInfo: expressionInfo{pos: v.SourcePosition()}, raw: v}
+						continue
+					}
+					plan, err := binder.bind(v, expressionPolicy{context: assignmentContext, deferAssignment: true})
+					if err != nil {
+						return b, err
+					}
+					b.expressions[rowIndex][j] = plan
+				}
+			}
 			for j, v := range row {
 				if _, requested := v.(parser.DefaultExpr); requested {
 					continue
@@ -522,7 +549,18 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				if identity, ok := b.relation.identities[b.relation.attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 					return b, identityInsertError(c.Name)
 				}
-				plan, err := bind(v, c, sqltype.Assignment)
+				var plan BoundExpr
+				var err error
+				if stringRow {
+					plan, err = binder.assignOutput(b.expressions[rowIndex][j], c)
+					if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
+						copy := *d
+						copy.Position = strconv.Itoa(parser.ExpressionStart(v).Character)
+						err = &copy
+					}
+				} else {
+					plan, err = bind(v, c, sqltype.Assignment)
+				}
 				if err != nil {
 					var source *sqltype.Descriptor
 					if plan != nil {
@@ -657,6 +695,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
 	b.visibilitySnapshot = binder.visibilitySnapshot
 	b.sequenceConstants = binder.sequenceConstants
+	b.regclassConcat = binder.regclassConcat
 	b.viewLiterals = binder.viewLiterals
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars
 	b.viewNamespaces = binder.viewNamespaces

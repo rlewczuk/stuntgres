@@ -27,11 +27,18 @@ const (
 	ByteaEscape
 )
 
+// RegclassFormatter is supplied only for execution-owned string output. The
+// concrete datum remains an OID; catalog presentation belongs to its statement.
+type RegclassFormatter interface {
+	FormatRegclass(uint32) (string, error)
+}
+
 type OutputEnvironment struct {
 	ByteaOutput   ByteaOutput
 	Zone          *Zone
 	DateStyle     DateStyle
 	IntervalStyle IntervalStyle
+	Regclass      RegclassFormatter
 }
 
 func hexNibble(text string) (byte, error) {

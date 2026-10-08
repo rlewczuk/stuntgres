@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"strconv"
 
 	"stuntgres/internal/parser"
@@ -42,6 +43,15 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 		rows.regclassOutput[key] = text
 	}
 	return nil
+}
+
+// String output uses the same captured namespace presentation as finalRows,
+// without changing the canonical OID datum or consulting a later live catalog.
+func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
+	if s == nil || s.commentCatalog.state == nil {
+		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
+	}
+	return regclassSpelling(s.commentCatalog, s.deparsePath, OID(id)), nil
 }
 
 // regclassSpelling uses only the statement's captured catalog and relation path.

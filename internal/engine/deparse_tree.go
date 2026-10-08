@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -118,9 +119,18 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case mathExpression:
 		out.WriteString("Math " + n.plan.Name())
 		err = args(n.args)
+	case stringExpression:
+		out.WriteString("String " + n.plan.Name())
+		err = args(n.args)
 	case binaryExpression:
+		if err := n.validateSyntax(); err != nil {
+			return err
+		}
 		out.WriteString("Binary ")
 		out.WriteString(n.plan.Name())
+		if n.syntax == parser.SQLFunctionSyntax && (n.plan.Name() == "btrim" || n.plan.Name() == "ltrim" || n.plan.Name() == "rtrim") {
+			out.WriteString(" syntax TRIM")
+		}
 		err = args(n.args)
 	case randomExpression:
 		out.WriteString("Random " + n.name)

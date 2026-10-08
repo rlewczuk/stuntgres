@@ -31,7 +31,6 @@ package parser
  value Value
  expr Expr
  call FunctionExpr
- trimDirection string
  predicate PredicateKind
  selectStmt *Select
  insertSource *InsertSource
@@ -100,6 +99,7 @@ package parser
 %token <tok> INTERVAL HOUR MINUTE SECOND DAY MONTH YEAR
 %token <tok> SET SHOW RESET ALL SESSION TO DEFAULT LOCAL SETTING_FUNC ON
 %token <tok> SELECTED_FUNC VARIADIC
+%token <tok> STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD LEADING TRAILING BOTH
 %token <tok> CASE WHEN THEN ELSE COALESCE NULLIF GREATEST LEAST
 %token <tok> IF EXISTS
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
@@ -112,7 +112,7 @@ package parser
 %token <tok> CONSTRAINT ADD INHERITS
 %token <tok> CHECK
 %token <tok> CHECK_FUNC
-%token <tok> OVERLAY POSITION SUBSTRING TRIM PLACING BOTH LEADING TRAILING
+%token <tok> OVERLAY POSITION SUBSTRING PLACING
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
@@ -145,9 +145,10 @@ package parser
  * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
 %nonassoc IDENT SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
-%nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING TRIM
+%nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
 %nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
+%nonassoc STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD
 %nonassoc '('
 %nonassoc KW_T CROSS INNER JOIN NATURAL LIKE WITH WITHOUT
 %nonassoc '='
@@ -156,7 +157,6 @@ package parser
  * target_or only when a logical/comparison continuation requires it. */
 %nonassoc ')'
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
-%type <trimDirection> trim_direction
 %type <alterActions> alter_actions
 %type <alterAction> alter_selected_action
 %type <tok> alter_type_keyword
@@ -204,6 +204,9 @@ package parser
 %type <tok> predicate_suffix
 %type <tok> excluded_role_target excluded_role_assignment
 %type <tok> cast_function
+%type <expr> string_function
+%type <tok> string_word normalization_form normalized_form trim_direction
+%type <row> trim_arguments trim_list
 %type <settingName> setting_name set_name local_setting_name
 %type <zoneSet> zone_setting
 %type <integer> interval_precision
@@ -725,6 +728,8 @@ delete_target: delete_comparison { $$=$1 }
  | delete_target NOTNULL { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
  | delete_target IS truth_kind %prec IS { $$=PredicateExpr{Kind:$3,Left:$1,Pos:$2.pos} }
  | delete_target IS DISTINCT FROM delete_target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
+ | delete_target IS normalized_form NORMALIZED %prec IS { $$=normalizedExpr($1,$3,$2.pos,false) }
+ | delete_target IS NOT normalized_form NORMALIZED %prec IS { $$=normalizedExpr($1,$4,$2.pos,true) }
  | delete_target IS NOT DISTINCT FROM delete_target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
 delete_not: delete_target { $$=$1 } | NOT delete_not { $$=LogicalExpr{Op:LogicalNot,Left:$2,Pos:$1.pos} } ;
 delete_and: delete_not { $$=$1 } | delete_and AND delete_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
@@ -781,9 +786,12 @@ scalar: scalar_atom { $$=$1 }
  | scalar AT TIME ZONE scalar %prec AT { $$=TimeZoneExpr{Value:$1,Zone:$5,Pos:$2.pos} }
  | scalar AT LOCAL %prec AT { $$=TimeZoneExpr{Value:$1,Local:true,Pos:$2.pos} }
  | scalar SYMBOLIC_OPERATOR scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar SYMBOLIC_OPERATOR function { if $2.text!="||" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
+ | function SYMBOLIC_OPERATOR scalar { if $2.text!="||" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
  | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
+ | string_function { $$=$1 }
  | CURRENT_CATALOG { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
  | CURRENT_ROLE { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
  | CURRENT_USER { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
@@ -822,11 +830,7 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | SUBSTRING '(' scalar FOR scalar FROM scalar ')' { $$=binarySQLCall("substring",$1.pos,[]Expr{$3,$7,$5}) }
  | SUBSTRING '(' scalar FOR scalar ')' { $$=binarySQLCall("substring",$1.pos,[]Expr{$3,binarySubstringStart(),binarySubstringCount($5)}) }
  | SUBSTRING '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"substring",Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
- | TRIM '(' trim_direction scalar FROM function_values ')' { $$=binarySQLCall($3,$1.pos,append($6,$4)) }
- | TRIM '(' trim_direction FROM function_values ')' { $$=binarySQLCall($3,$1.pos,$5) }
- | TRIM '(' trim_direction function_values ')' { $$=binarySQLCall($3,$1.pos,$4) }
  | name '.' CHECK_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} } ;
-trim_direction: /* empty */ { $$="btrim" } | BOTH { $$="btrim" } | LEADING { $$="ltrim" } | TRAILING { $$="rtrim" } ;
 conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$3,Else:$4,Pos:$1.pos} }
  | COALESCE '(' conditional_args ')' { $$=ConditionalExpr{Kind:Coalesce,Args:$3,Pos:$1.pos} }
  | GREATEST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Greatest,Args:$3,Pos:$1.pos} }
@@ -882,6 +886,7 @@ operator_symbol: '+' | '-' | '*' | '/' | '%' | SYMBOLIC_OPERATOR | comparison_op
 /* CREATE DEFAULT follows restricted b_expr; parenthesized targets retain the
  * ordinary predicate/logical surface without changing SELECT admission. */
 default_target: target_base %prec NAME_LIST { $$=$1 }
+ | function %prec NAME_LIST { sqllex.(*lexer).failAt("0A000","functions are unsupported",$1.SourcePosition().Offset);return 1 }
  | target_base comparison_operator target_base { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
  | default_target IS DISTINCT FROM default_target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
  | default_target IS NOT DISTINCT FROM default_target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
@@ -908,6 +913,8 @@ target: target_comparison { $$=$1 }
  | target NOTNULL { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
  | target IS truth_kind %prec IS { $$=PredicateExpr{Kind:$3,Left:$1,Pos:$2.pos} }
  | target IS DISTINCT FROM target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
+ | target IS normalized_form NORMALIZED %prec IS { $$=normalizedExpr($1,$3,$2.pos,false) }
+ | target IS NOT normalized_form NORMALIZED %prec IS { $$=normalizedExpr($1,$4,$2.pos,true) }
  | target IS NOT DISTINCT FROM target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
 target_not: target { $$=$1 }
  | NOT target_not { $$=LogicalExpr{Op:LogicalNot,Left:$2,Pos:$1.pos} } ;
@@ -930,6 +937,20 @@ function_args: /* empty */ { $$=FunctionExpr{} }
  | VARIADIC function_argument { $$=FunctionExpr{Args:[]Expr{$2},Variadic:true} }
  | function_values ',' VARIADIC function_argument { $$=FunctionExpr{Args:append($1,$4),Variadic:true} } ;
 function_values: function_argument { $$=[]Expr{$1} } | function_values ',' function_argument { $$=append($1,$3) } ;
+string_function: STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
+ | name '.' STRING_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} }
+ | NORMALIZE '(' scalar ')' { $$=stringBuiltin("normalize",$1.pos,[]Expr{$3}) }
+ | NORMALIZE '(' scalar ',' normalization_form ')' { $$=stringBuiltin("normalize",$1.pos,[]Expr{$3,stringForm($5)}) }
+ | TRIM '(' trim_direction trim_arguments ')' { $$=stringBuiltin($3.text,$1.pos,$4) } ;
+normalization_form: NFC | NFD | NFKC | NFKD ;
+normalized_form: /* empty */ { $$=lexeme{text:"NFC"} } | normalization_form ;
+trim_direction: /* empty */ { $$=lexeme{text:"btrim"} }
+ | BOTH { $$=lexeme{text:"btrim",pos:$1.pos} }
+ | LEADING { $$=lexeme{text:"ltrim",pos:$1.pos} }
+ | TRAILING { $$=lexeme{text:"rtrim",pos:$1.pos} } ;
+trim_list: function_values { $$=$1 } ;
+trim_arguments: trim_list { $$=$1 } | FROM trim_list { $$=$2 }
+ | scalar FROM trim_list { $$=append($3,$1) } ;
 truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
  | FALSE { $$=IsFalse } | NOT FALSE { $$=IsNotFalse }
  | UNKNOWN { $$=IsUnknown } | NOT UNKNOWN { $$=IsNotUnknown } ;
@@ -1023,25 +1044,29 @@ fetch_count: scalar_atom { $$=$1 }
 sequence_name_word: SEQUENCE | INCREMENT | MINVALUE | MAXVALUE | CACHE | CYCLE | OWNED | RESTART | TEMP | UNLOGGED | LOGGED | SEQUENCE_FUNC %prec NAME_LIST
  | GENERATED | ALWAYS | IDENTITY | OVERRIDING | SYSTEM | VALUE ;
 conditional_word: COALESCE | NULLIF | GREATEST | LEAST ;
+string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NFKD ;
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
+ | string_word
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
 non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX
- | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST | TRIM %prec NAME_LIST
+ | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
+ | string_word
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY
- | OVERLAY | POSITION | SUBSTRING | TRIM | CHECK_FUNC ;
+ | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR ;
+generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR
+ | string_word | LEADING | TRAILING | BOTH ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */

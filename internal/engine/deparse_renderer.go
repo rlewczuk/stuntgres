@@ -440,7 +440,59 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return text.String(), nil
 	case mathExpression:
 		return function(n.plan.Name(), n.args, true)
+	case stringExpression:
+		if n.plan.Name() == "||" {
+			return binary(n.args[0], n.args[1], "||", 5, parent)
+		}
+		if n.syntax == parser.OrdinaryStringSyntax {
+			name := n.plan.Name()
+			if name == "normalize" {
+				name = `"normalize"`
+			}
+			parts := make([]string, len(n.args))
+			for i, arg := range n.args {
+				argRenderer := r
+				argRenderer.showImplicit = true
+				text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
+				if err != nil {
+					return "", err
+				}
+				// These resolved TEXT conversions belong to the provider, not
+				// bound coercion children. Present them without evaluating or
+				// adding a second runtime conversion.
+				if n.textual[i] && arg.ResultUsage().Type != n.plan.TextUsage().Type {
+					simple := false
+					switch arg.(type) {
+					case columnExpression, literalExpression, coercionExpression:
+						simple = true
+					}
+					text, err = r.cast(text, n.plan.TextUsage(), simple)
+					if err != nil {
+						return "", err
+					}
+				}
+				parts[i] = text
+			}
+			return name + "(" + strings.Join(parts, ", ") + ")", nil
+		}
+		argRenderer := r
+		argRenderer.showImplicit = false
+		source, err := argRenderer.sql(ctx, n.args[0], pgRenderParent{})
+		if err != nil {
+			return "", err
+		}
+		set := ""
+		if n.syntax == parser.TrimStringSyntax && len(n.args) == 2 {
+			set, err = argRenderer.sql(ctx, n.args[1], pgRenderParent{})
+			if err != nil {
+				return "", err
+			}
+		}
+		return n.specialSQL(source, set)
 	case binaryExpression:
+		if err := n.validateSyntax(); err != nil {
+			return "", err
+		}
 		if n.plan.Name() == "||" {
 			return binary(n.args[0], n.args[1], "||", 5, parent)
 		}

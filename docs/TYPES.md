@@ -25,8 +25,10 @@ collation). Nonnull VOID exports an empty native string; strict `setseed(NULL)`
 exports nil with the same VOID result metadata. DatabaseTypeName is `VOID`,
 ScanType is string, and there is no Length/PrecisionScale or physical column
 origin. VOID is not a TEXT/NULL alias and remains excluded from declarations,
-input/typed literals, explicit casts, storage, operators and native data dumps.
-The selected result addition does not add a general pseudo-type subsystem.
+input/typed literals, explicit casts, storage and native data dumps. Its sole new
+operator participation is mixed string `||`: nonnull VOID contributes empty TEXT
+without deleting the volatile `setseed` child. No general pseudo-type subsystem
+is added.
 
 
 ## OID — unsigned scalar change note
@@ -111,6 +113,13 @@ characters; ordering compares unsigned bytes. It is not Unicode CHAR(n).
 Canonical SQL literals use that same printable CHAR output, quoted as SQL text,
 so contextual high-byte literals remain valid UTF8 and preserve their original
 byte through queried view-definition reconstruction and native Dump/Restore.
+String functions use the release implicit internal-CHAR-to-TEXT operation without
+adding public casts. String `||` resolution preserves CHAR's categoryZ:
+CHAR/TEXT (including typed NULL) is ambiguous42725 in either direction, whereas
+CHAR/integer and integer/CHAR have unique mixed overloads. Their successful
+high-byte output remains four printable ASCII bytes, and zero contributes empty
+TEXT. NAME/TEXT/VARCHAR/BPCHAR are categoryS and prefer the TEXT/TEXT overload.
+
 
 Stored view literal annotations retain the analyzed scalar and complete type usage,
 not just the source spelling. Canonical temporal introducers preserve precision;
@@ -246,17 +255,21 @@ byte arguments and INT4 index/count slots; SMALLINT slots coerce implicitly,
 but BIGINT/NUMERIC/TEXT/BOOL do not. FOR-only SUBSTRING uses the existing explicit
 INT4 cast admission. Inferred Go byte binds stay raw, not byteain text.
 Results retain BYTEA/INT4 metadata without samples and ignore output settings.
-Real TEXT/regex siblings and encoding-aware length remain unsupported0A000.
+TEXT/regex slicing and count siblings and encoding-aware length remain unsupported0A000.
 Functions retain the DEFAULT exclusion; query/write/CHECK/view consumers share
 the provider and native replay. No byteapos alias or new cast edges are added.
 CHECK compact/pretty SQL deparsing retains SQL-origin special-form spelling and
 ordinary callee quoting. Native structural PG_NODE_TREE records `Binary <name>`
 with typed recursive children, never provider evaluation or PostgreSQL physical
 node serialization; immutable captured carriers survive catalog replacement.
+Special BYTEA TRIM nodes also record `syntax TRIM`; ordinary Binary tags are unchanged.
 Spelling provenance is presentation-only: equivalent SQL and ordinary calls
 share grouping/HAVING and duplicate-label ORDER BY semantic identity.
 Selected slicing/search fixed scalar signatures also accept matching `VARIADIC`
 call spelling without adding array arguments or variadic execution providers.
+Core strings implement TEXT trim/concatenation siblings through shared names.
+Operands are analyzed once before selecting their concrete BYTEA or string
+signature; all-unknown trim/concatenation calls prefer TEXT, never a destination.
 Encoding-aware length exclusion recognizes its real BYTEA/NAME signature with
 unknown operands or implicit TEXT/VARCHAR/BPCHAR encoding-name inputs; it returns
 positioned 0A000 without adding encoding-aware evaluation. An integer encoding
@@ -646,6 +659,57 @@ TOAST/disk storage remain external-only mechanisms.
 Focused checks: `make test PACKAGES=. RUN='^TestCharacter'`,
 `make reference RUN='^TestReferenceCharacter'` (real pinned PostgreSQL18.0),
 and `make smoke RUN='^TestCharacterSmoke$'`.
+
+## Unicode16 normalization data
+
+The core string providers return TEXT/-1 (BOOL/-1 for normalization predicates)
+and reuse implicit character conversion before evaluation. BPCHAR padding is
+removed from source, trim set and ordinary form operands; VARCHAR/TEXT tails
+remain meaningful. Trim works on UTF8 codepoints, not grapheme clusters.
+Mixed string `||` uses descriptor-owned explicit-text output, including BOOL
+`true`/`false`; existing adapter output is not repurposed as a conversion.
+REGCLASS mixed output formats its canonical OID through the execution's captured
+catalog and relation search path: visible names are unqualified, shadowed names
+are schema-qualified, and necessary identifier quotes are preserved. Missing
+relations retain numeric output (zero spells `-`). The datum is not rewritten,
+no public cast edge is added, and retained TEXT results never consult a later
+catalog. Nested stored CHECK and explicit write/USING expressions propagate
+snapshot demand through existing statement capture. Native DEFAULT retains its
+existing REGCLASS-input exclusion (0A000); ordinary string defaults still compose
+with trim/normalization/concatenation. PostgreSQL-only DEFAULT success is tested
+separately, not advertised as native capability.
+
+
+Normalization data is pinned to Unicode **16.0.0** in
+`internal/sqltype/unicode16/data/UnicodeData.txt` and
+`DerivedNormalizationProps.txt`. The unmodified official conformance corpus is
+`internal/sqltype/unicode16/testdata/NormalizationTest.txt`; Unicode attribution
+and license are retained beside the runtime. Sources:
+https://www.unicode.org/Public/16.0.0/ucd/UnicodeData.txt,
+https://www.unicode.org/Public/16.0.0/ucd/DerivedNormalizationProps.txt and
+https://www.unicode.org/Public/16.0.0/ucd/NormalizationTest.txt.
+
+From the repository root, deterministic regeneration is:
+
+```sh
+go run ./internal/sqltype/unicode16/generate \
+  -source internal/sqltype/unicode16/data \
+  -output internal/sqltype/unicode16/tables_generated.go
+```
+
+The standard-library-only generator emits sorted static sparse arrays, recursive
+decomposition sequences, composition exclusions and all four quickcheck tables.
+Runtime has no network, ICU/cgo, mutable startup maps or dependence on Go's host
+Unicode tables. Tests compare regeneration byte-for-byte, exercise every official
+corpus row and independently read assigned scalars absent from Part1.
+
+The target is PostgreSQL18.0 release behavior. Its inclusive Hangul TBASE
+composition consumes U+11A7 after LV, and predicate quickcheck may still return
+TRUE for that input. The official corpus is not edited to hide this release
+boundary; a separate pinned regression covers it. This is not a blanket claim
+of Unicode conformance beyond the exercised corpus. Native text encoding remains
+UTF8, with no new encoding setting; the real PostgreSQL LATIN1 oracle is an
+independent encoding-restriction witness, not a native configuration option.
 
 ## Time without time zone
 

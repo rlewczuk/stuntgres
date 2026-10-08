@@ -455,6 +455,25 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
+	case stringExpression:
+		var args []BoundExpr
+		for i, arg := range e.args {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				if args == nil {
+					args = append([]BoundExpr(nil), e.args...)
+				}
+				args[i] = folded
+			}
+		}
+		if args != nil {
+			e.args = args
+		}
+		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
+		return next, changed || args != nil, err
 	case mathExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {
@@ -600,6 +619,8 @@ type expressionPolicy struct {
 	mode             sqltype.CoercionContext
 	column           string
 	booleanConstruct string
+	// Selected string INSERT rows analyze occurrences before target assignment.
+	deferAssignment bool
 	// Operand skips the enclosing WHERE BOOL check while binding predicate children.
 	operand bool
 }
@@ -630,6 +651,7 @@ type expressionBinder struct {
 	checkConsumer         bool
 	visibilitySnapshot    bool
 	sequenceConstants     []sequenceConstant
+	regclassConcat        bool
 	aggregateClause       string
 	aggregates            []aggregateCall
 	queryAuth             *AuthorizationView
@@ -1074,7 +1096,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	case parser.OperatorExpr:
 		var err error
 		if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
-			node, err = b.bindBinaryConcat(r)
+			node, err = b.bindStringConcat(r)
 		} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 			node, err = b.bindBitwise(r)
 		} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {
@@ -1094,7 +1116,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	if policy.booleanConstruct != "" && node.ResultUsage().Type.ID() != sqltype.Bool {
 		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
 	}
-	if (policy.context == assignmentContext || policy.context == functionArgumentContext) && node.ResultUsage() != policy.expected {
+	if !policy.deferAssignment && (policy.context == assignmentContext || policy.context == functionArgumentContext) && node.ResultUsage() != policy.expected {
 		plan, err := sqltype.PlanCoercion(node.ResultUsage(), policy.expected, policy.mode)
 		if err != nil {
 			// Retain the resolved source for the assignment caller's diagnostic.

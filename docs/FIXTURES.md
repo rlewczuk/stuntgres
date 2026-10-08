@@ -67,8 +67,26 @@ override), database-local COMMENT, generated sequence OWNED BY associations,
 numeric/persistence configuration of internal identity sequences, SELECT setval(name,value,is_called),
 and named SET SESSION AUTHORIZATION
 owner directives. Parameters are recursively rejected, and other SQL remains
-excluded. Legacy CREATE/INSERT-only scripts remain bootstrap-owned. Referenced
-roles must already exist in the target engine. Restore captures a private role
+excluded. Legacy CREATE/INSERT-only scripts remain bootstrap-owned.
+
+Selected parameter-free btrim/ltrim/rtrim, normalize and is_normalized calls,
+including their already-admitted special forms and nested string concatenation,
+share ordinary scalar execution. Restore validates every argument: arbitrary
+FunctionExpr producers (including random/VOID effects) remain excluded. BOOL
+VALUES use the existing ordinary is_normalized function route, not new IS-predicate
+VALUES syntax. Bad normalization forms reach the shared 22023 provider error,
+and failed imports preserve old data/catalogs and held cursors.
+Stored string DEFAULT/CHECK expressions retain special versus ordinary syntax,
+omitted versus explicit normalization forms, and recursive structural/deparse
+carriers through native replay without evaluating definitions during Dump.
+Ordinary string calls display their resolved TEXT conversions without changing
+runtime arguments; special syntax hides implicit conversions. Explicit-set special
+BYTEA TRIM CHECKs preserve direction and spelling, including nested consumers and
+retained carriers. This does not admit BYTEA DEFAULTs or additional public casts.
+Captured NAME literals inside string arguments retain an explicit admitted NAME
+annotation during replay, rather than becoming unknown literals resolved as TEXT.
+
+Referenced roles must already exist in the target engine. Restore captures a private role
 snapshot before input I/O, starts an initialized private catalog, executes through
 the same SQL engine, remaps owners into target principal authority, then atomically
 **replaces** descriptors, storage and epoch, never merges or resets roles/live

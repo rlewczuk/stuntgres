@@ -661,6 +661,42 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		token.code = SELECTED_FUNC
 	}
 	switch token.lexeme.text {
+	case "btrim", "ltrim", "rtrim", "is_normalized":
+		if token.code == IDENT {
+			token.code = STRING_FUNC
+		}
+	case "normalize", "trim":
+		if token.code == IDENT || token.lexeme.keyword != nil {
+			token.code = STRING_FUNC
+			if token.lexeme.keyword != nil && l.previousToken != int('.') {
+				if token.lexeme.text == "normalize" {
+					token.code = NORMALIZE
+				} else {
+					token.code = TRIM
+				}
+			}
+		}
+	case "normalized", "nfc", "nfd", "nfkc", "nfkd", "leading", "trailing", "both":
+		if token.lexeme.keyword != nil {
+			switch token.lexeme.text {
+			case "normalized":
+				token.code = NORMALIZED
+			case "nfc":
+				token.code = NFC
+			case "nfd":
+				token.code = NFD
+			case "nfkc":
+				token.code = NFKC
+			case "nfkd":
+				token.code = NFKD
+			case "leading":
+				token.code = LEADING
+			case "trailing":
+				token.code = TRAILING
+			case "both":
+				token.code = BOTH
+			}
+		}
 	case "operator":
 		if token.lexeme.keyword != nil {
 			next := l.nextRaw()
@@ -669,7 +705,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = OPERATOR
 			}
 		}
-	case "overlay", "position", "substring", "trim":
+	case "overlay", "position", "substring":
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == '(' {
@@ -683,25 +719,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 					token.code = POSITION
 				case "substring":
 					token.code = SUBSTRING
-				case "trim":
-					token.code = TRIM
 				}
 			}
 		}
-	case "placing", "both", "leading", "trailing":
+	case "placing":
 		if token.lexeme.keyword != nil {
-			switch token.lexeme.text {
-			case "placing":
-				token.code = PLACING
-			case "both":
-				token.code = BOTH
-			case "leading":
-				token.code = LEADING
-			case "trailing":
-				token.code = TRAILING
-			}
+			token.code = PLACING
 		}
-	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim", "substr":
+	case "bit_length", "octet_length", "length", "substr":
 		if token.code == IDENT {
 			token.code = SELECTED_FUNC
 		}

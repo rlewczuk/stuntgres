@@ -99,6 +99,9 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case binaryExpression:
 		n.args = args(n.args)
 		next = n
+	case stringExpression:
+		n.args = args(n.args)
+		next = n
 	case mathExpression:
 		n.args = args(n.args)
 		next = n

@@ -444,6 +444,14 @@ func (s *Select) IsSingleton() bool {
 	if identities {
 		return true
 	}
+	stringsOnly := true
+	for _, target := range s.Targets {
+		valid, found := stringSingleton(target)
+		stringsOnly = stringsOnly && valid && found
+	}
+	if stringsOnly {
+		return true
+	}
 	for _, target := range s.Targets {
 		if cast, ok := target.(CastExpr); ok && cast.TypeName.Name == "pg_node_tree" && singletonArgument(cast.Child) {
 			continue
@@ -779,7 +787,7 @@ type IdentityExpr struct {
 func (IdentityExpr) expression()                {}
 func (e IdentityExpr) SourcePosition() Position { return e.Pos }
 
-// FunctionSyntax retains SQL special-form provenance for stored expressions.
+// FunctionSyntax retains SQL special-form provenance for binary expressions.
 type FunctionSyntax uint8
 
 const (
@@ -787,12 +795,24 @@ const (
 	SQLFunctionSyntax
 )
 
+// StringSyntax retains the selected string family's distinct SQL forms.
+// Shared BYTEA TRIM lowering translates TrimStringSyntax to SQLFunctionSyntax.
+type StringSyntax uint8
+
+const (
+	OrdinaryStringSyntax StringSyntax = iota
+	TrimStringSyntax
+	NormalizeStringSyntax
+	NormalizedStringSyntax
+)
+
 type FunctionExpr struct {
-	Name     ObjectName
-	Args     []Expr
-	Pos      Position
-	Variadic bool
-	Syntax   FunctionSyntax
+	Name         ObjectName
+	Args         []Expr
+	Pos          Position
+	Variadic     bool
+	Syntax       FunctionSyntax
+	StringSyntax StringSyntax
 }
 
 // AggregateExpr retains count/Boolean argument syntax and diagnostic-only single-argument SUM.

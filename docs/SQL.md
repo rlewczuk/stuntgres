@@ -94,6 +94,13 @@ scalar := query_column | value | (scalar) | CAST(scalar AS cast_type) | scalar::
           [WHEN logical_target THEN logical_target ...] [ELSE logical_target] END
         | (COALESCE | GREATEST | LEAST)(logical_target [, ...])
         | NULLIF(logical_target, logical_target)
+        | scalar || scalar | string_call
+string_call := (btrim | ltrim | rtrim | is_normalized)(scalar [, scalar])
+             | normalize(scalar [, normalization_form])
+             | [schema.] "normalize"(scalar [, scalar])
+             | TRIM([BOTH | LEADING | TRAILING] [scalar] FROM scalar)
+             | TRIM([BOTH | LEADING | TRAILING] scalar [, scalar])
+normalization_form := NFC | NFD | NFKC | NFKD
 cast_type := INTEGER | INT | INT4 | BIGINT | INT8 | BOOLEAN | BOOL | TEXT
            | (CHAR | CHARACTER | BPCHAR | VARCHAR | CHARACTER VARYING) [(length)]
 comparison_operator := = | <> | != | < | <= | > | >=
@@ -108,6 +115,7 @@ lower_endpoint := between_target | scalar comparison_operator scalar
 logical_target := between_expression | comparison | NOT logical_target
                 | logical_target AND logical_target | logical_target OR logical_target
                 | (logical_target)
+                | scalar IS [NOT] [normalization_form] NORMALIZED
 logical_predicate := logical_target
 delete_predicate := logical_predicate with optional target/alias qualification on columns
 query_column := column | qualifier.column | schema.table.column
@@ -160,6 +168,13 @@ plus target-context bindings, supply these types without expanding the existing
 typed-literal or general explicit-cast boundaries.
 Random calls are excluded from DEFAULT, INSERT VALUES, WHERE and settings.
 See [random behavior and diagnostics](DIALECT.md#random-functions--change-note).
+
+Selected string expressions also form a bounded singleton exception, with
+existing scalar children and nested selected calls. This does not admit ordinary
+`SELECT 1`, arbitrary mathematical expression singletons or new function families.
+Unquoted `normalize` uses a form keyword; qualified or quoted ordinary calls
+accept a TEXT form value. SQL TRIM lowers to btrim/ltrim/rtrim, not a `trim()`
+function alias. See [core strings](DIALECT.md#core-string-functions--change-note).
 
 
 The FROM productions above are precedence notation: explicit joins bind tighter
