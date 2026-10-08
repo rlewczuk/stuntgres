@@ -519,6 +519,13 @@ simultaneous assignments, before publishing any row write. Failed multirow
 statements retain original rows and consume the existing transaction abort/
 savepoint policy. Supported volatile scalar effects are evaluated once when
 reached and are not rewound by row-write rollback.
+Comment inquiries (`col_description`, either `obj_description` signature and
+`shobj_description`) share the immutable statement-owned catalog/role comment
+snapshot on every INSERT route and UPDATE. A later statement sees committed comment
+changes; capture is not repeated per row or when a query source opens. These
+functions remain excluded from DEFAULT. Table/column COMMENT in explicit transactions
+retains its existing unsupported boundary; PostgreSQL private-comment behavior is
+independently covered as a release-only control.
 
 Names use distinct referenced columns rather than syntactic placement:
 one attribute yields `table_column_check`, otherwise `table_check`, with
@@ -532,6 +539,21 @@ explicit transaction, successful removal and column compaction affect only the
 private descriptor/row roots until Commit; Rollback and savepoints restore
 CHECK enforcement together with the original layout and DML. Peer operations
 retain the existing ACCESS EXCLUSIVE wait rules.
+
+Persistent CHECK creation holds each referenced relation with ACCESS SHARE
+through its single catalog publication; sequence DROP takes ACCESS EXCLUSIVE
+and scans the grant-time dependent set. Current-root publication also fences
+new external CHECK edges against provider removal, including lower-level catalog
+stages. This is a native no-orphan safety boundary, not identical PostgreSQL
+concurrency scheduling: pinned PostgreSQL 18.0 permits CREATE referencing a
+sequence while another session's DROP remains private. Native CREATE instead
+waits; rollback permits the original provider identity, while commit rejects
+its disappearance without publishing a table fragment. Cancellation releases
+the contender's holds through the existing transaction ticket.
+Restrictive sequence diagnostics retain every supported CHECK and view edge.
+CHECK edges and canonical dumped definitions retain declaration order, separate
+from alphabetical row-enforcement order.
+
 Sequence CREATE/options precede table definitions in Dump so CHECK bindings can
 resolve real providers; ownership and captured setval follow table data.
 Restore genuinely reevaluates volatile CHECKs while inserting staged rows.

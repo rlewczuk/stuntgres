@@ -77,10 +77,21 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, mode, scope.queryLocks)
 }
 
+// captureCommentSnapshotLocked shares one immutable catalog/role pair across
+// query providers and completed-row CHECK evaluation. The caller holds e.mu.
 func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) {
 	if scope.commentCatalog.state == nil {
 		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
 		scope.commentRoles = RoleRead{e, e.roles}
+	}
+}
+
+func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) {
+	for _, check := range relation.checkConstraints {
+		if check.commentSnapshot {
+			e.captureCommentSnapshotLocked(scope)
+			return
+		}
 	}
 }
 

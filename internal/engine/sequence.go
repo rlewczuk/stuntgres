@@ -467,15 +467,16 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	// and view removal; no descriptor is published before StatementScope.Finish.
 	checkStage := e.BeginCatalogStage(auth.catalog)
 	defer e.DiscardCatalogStage(checkStage)
-	if err := stageCheckDependents(checkStage, targets, s.Mode); err != nil {
+	checkEdges, err := stageCheckDependents(checkStage, targets, s.Mode)
+	if err != nil {
 		return Result{}, err
 	}
 	for address, descriptor := range checkStage.descriptors {
 		e.catalogChangeLocked(changes, address, descriptor)
 	}
 	dependents := viewDependencyClosure(auth.catalog, targets, nil)
-	if len(dependents) > 0 && s.Mode == parser.DropRestrict {
-		return Result{}, viewRestrictError(auth.catalog, dependents)
+	if (len(dependents) > 0 || len(checkEdges) > 0) && s.Mode == parser.DropRestrict {
+		return Result{}, supportedRestrictError(auth.catalog, checkEdges, dependents)
 	}
 	cascade := checkStage.viewCascadeNames
 	for _, edge := range dependents {
@@ -493,6 +494,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		e.catalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.generators, ref.Address)
 	}
+	changes.dependencies = append(changes.dependencies, catalogDependencyObservation{base: auth.catalog.state, targets: targets})
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil

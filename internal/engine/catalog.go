@@ -686,6 +686,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 					return ChangeSet{}, err
 				}
 			}
+			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.checkConstraints) != 0 {
+				if err := validateCheckProviders(CatalogRead{owner: e, state: next}, relation); err != nil {
+					return ChangeSet{}, err
+				}
+			}
 		}
 		e.mu.Lock()
 		if op != nil {

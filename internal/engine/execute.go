@@ -127,12 +127,16 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		base := CatalogRead{owner: e, state: e.state}
 		stage := e.BeginCatalogStage(base)
+		defer e.DiscardCatalogStage(stage)
 		stage.authSession = op.session
 		stage.authRevision = auth.revision
 		stage.roleRevision = auth.roles.state.revision
 		er = e.schemaTableLocked(op, auth, stage, s, ns, auth.state.CurrentUser, scope.input)
 		e.mu.Unlock()
 		if er != nil {
+			return Result{}, er
+		}
+		if er = scope.acquireCheckProviders(stage); er != nil {
 			return Result{}, er
 		}
 		prepared, er := e.ValidateCatalogStage(ctx, stage)
@@ -403,6 +407,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	switch s := stmt.(type) {
 	case *parser.Update:
+		e.captureCheckCommentSnapshotLocked(scope, b.relation)
 		view, err := scope.acquireDataViewLocked(e, b.ref)
 		if err != nil {
 			e.mu.Unlock()
@@ -417,6 +422,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return e.executeUpdate(ctx, scope, b, source, canonical, schema)
 	case *parser.Insert:
+		e.captureCheckCommentSnapshotLocked(scope, b.relation)
 		if s.Source != nil {
 			source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Source.Select != nil && len(b.querySources) == 0)
 			if sourceErr != nil {

@@ -70,8 +70,9 @@ func bindCreateDefaults(b *expressionBinder, columns []ColumnDescriptor, declara
 // DEFAULT admits closed Immutable/Stable trees; CHECK admits its actual owner
 // row and existing volatile providers. Assignment wrappers keep deferred input.
 type scalarRenderer struct {
-	owner        *relationDescriptor
-	dependencies *[]ObjectRef
+	owner           *relationDescriptor
+	dependencies    *[]ObjectRef
+	commentSnapshot *bool
 }
 
 func defaultSQL(ctx context.Context, view CatalogRead, node BoundExpr) (string, error) {
@@ -155,6 +156,47 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			name = "num_nonnulls"
 		} else if n.kind != countNulls {
 			return "", fmt.Errorf("stuntgres: invalid stored null count")
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
+	case commentInquiryExpression:
+		if r.owner == nil {
+			return "", fmt.Errorf("stuntgres: comment inquiries are unsupported in stored defaults")
+		}
+		name, arity, second := "obj_description", 2, sqltype.Name
+		switch n.kind {
+		case columnDescription:
+			name, second = "col_description", sqltype.Int4
+		case objectDescription:
+		case legacyDescription:
+			arity = 1
+		case sharedDescription:
+			name = "shobj_description"
+		default:
+			return "", fmt.Errorf("stuntgres: invalid stored comment inquiry kind")
+		}
+		if len(n.args) != arity || u != u.Type.Usage() || u.Type.ID() != sqltype.Text {
+			return "", fmt.Errorf("stuntgres: invalid stored comment inquiry signature")
+		}
+		properties := ExprProperties{Volatility: Stable}
+		for i, arg := range n.args {
+			id := sqltype.Oid
+			if i == 1 {
+				id = second
+			}
+			if arg == nil || arg.ResultUsage().Type == nil || arg.ResultUsage() != arg.ResultUsage().Type.Usage() || arg.ResultUsage().Type.ID() != id {
+				return "", fmt.Errorf("stuntgres: invalid stored comment inquiry argument")
+			}
+			child := arg.Properties()
+			properties.Volatility = max(properties.Volatility, child.Volatility)
+			properties.RowDependent = properties.RowDependent || child.RowDependent
+			properties.ParameterDependent = properties.ParameterDependent || child.ParameterDependent
+			properties.StageDependent = properties.StageDependent || child.StageDependent
+		}
+		if p != properties {
+			return "", fmt.Errorf("stuntgres: invalid stored comment inquiry properties")
+		}
+		if r.commentSnapshot != nil {
+			*r.commentSnapshot = true
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
 	case currentSchemasExpression:

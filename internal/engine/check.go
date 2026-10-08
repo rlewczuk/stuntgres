@@ -14,10 +14,13 @@ import (
 // A CHECK is a typed immutable current-row expression. Its dependencies retain
 // stable attribute and provider identities, never a name-keyed SQL cache.
 type checkConstraint struct {
-	Name         string
-	NoInherit    bool
-	expression   BoundExpr
-	dependencies []expressionDependency
+	Name      string
+	NoInherit bool
+	// Declaration order is independent of alphabetical enforcement order.
+	ordinal         int
+	expression      BoundExpr
+	dependencies    []expressionDependency
+	commentSnapshot bool
 }
 
 func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *relationDescriptor, input sqltype.InputEnvironment) error {
@@ -50,7 +53,7 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 		installed[c.Name] = true
 	}
 	current := make(map[string]bool, len(raw))
-	for _, c := range raw {
+	for ordinal, c := range raw {
 		binder := newExpressionBinder(op.Context(), e, input, op, nil)
 		binder.checkConsumer, binder.noParameters = true, true
 		binder.queryAuth = &auth
@@ -80,9 +83,9 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 			return diagnostic
 		}
 		current[name], used[name] = true, true
-		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, expression: node}
+		definition := checkConstraint{Name: name, NoInherit: c.NoInherit, ordinal: ordinal, expression: node}
 		var dependencies []ObjectRef
-		if _, err := (scalarRenderer{owner: d, dependencies: &dependencies}).sql(op.Context(), auth.catalog, node); err != nil {
+		if _, err := (scalarRenderer{owner: d, dependencies: &dependencies, commentSnapshot: &definition.commentSnapshot}).sql(op.Context(), auth.catalog, node); err != nil {
 			return err
 		}
 		for _, ref := range dependencies {
@@ -100,6 +103,98 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 	return nil
 }
 
+func orderedChecks(d *relationDescriptor) []checkConstraint {
+	checks := slices.Clone(d.checkConstraints)
+	slices.SortFunc(checks, func(a, b checkConstraint) int { return a.ordinal - b.ordinal })
+	return checks
+}
+
+func checkDepends(d *relationDescriptor, target ObjectAddress) bool {
+	for _, c := range d.checkConstraints {
+		for _, dep := range c.dependencies {
+			a := dep.ref.Address
+			if a.ClassID == target.ClassID && a.ObjectID == target.ObjectID && (target.SubID == 0 || a.SubID == target.SubID) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// The merge fence checks external identities against the candidate current root,
+// not the stage's older validation snapshot. The publisher retries if that root
+// changes before its single final install. No rendering or row evaluation here.
+func validateCheckProviders(view CatalogRead, d *relationDescriptor) error {
+	for _, c := range d.checkConstraints {
+		for _, dep := range c.dependencies {
+			address := dep.ref.Address
+			address.SubID = 0
+			if address == d.address {
+				continue
+			}
+			provider, ok := view.Descriptor(address)
+			if !ok || dep.ref.owner != view.owner.owner || dep.ref.Epoch != view.Epoch() || (provider.Kind() != RelationObject && provider.Kind() != TypeObject) {
+				return fmt.Errorf("stuntgres: invalid check provider dependency")
+			}
+			if relation, ok := provider.(*relationDescriptor); ok && dep.ref.Address.SubID != 0 && !relation.hasAttribute(dep.ref.Address.SubID) {
+				return fmt.Errorf("stuntgres: missing check provider attribute")
+			}
+		}
+	}
+	return nil
+}
+
+// Persistent definition holds use the incumbent ticket and replacement fence.
+// Admission occurs outside Engine.mu; after a wait identities are opened anew,
+// never retargeted by name or evaluated to establish a dependency.
+func (s *StatementScope) acquireCheckProviders(stage *CatalogStage) error {
+	var refs []ObjectRef
+	for _, descriptor := range stage.descriptors {
+		d, ok := descriptor.(*relationDescriptor)
+		if !ok {
+			continue
+		}
+		for _, c := range d.checkConstraints {
+			for _, dep := range c.dependencies {
+				ref := dep.ref
+				ref.Address.SubID = 0
+				if ref.Address.ClassID == RelationClassID && ref.Address != d.address && !slices.Contains(refs, ref) {
+					refs = append(refs, ref)
+				}
+			}
+		}
+	}
+	slices.SortFunc(refs, func(a, b ObjectRef) int {
+		if a.Address.ObjectID < b.Address.ObjectID {
+			return -1
+		}
+		if a.Address.ObjectID > b.Address.ObjectID {
+			return 1
+		}
+		return 0
+	})
+	e := s.op.session.Engine()
+	for _, ref := range refs {
+		if err := s.acquireSequence(ref, accessShare, true); err != nil {
+			return err
+		}
+		e.mu.Lock()
+		auth, err := e.authorizationLocked(s.op)
+		if err == nil {
+			provider, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
+			original, existed := stage.base.state.descriptors[ref.Address].(*relationDescriptor)
+			if !ok || !existed || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || provider.relationKind != original.relationKind {
+				err = fmt.Errorf("stuntgres: CHECK provider disappeared before publication")
+			}
+		}
+		e.mu.Unlock()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bool) error {
 	previous := ""
 	for _, c := range d.checkConstraints {
@@ -108,8 +203,12 @@ func validateChecks(view CatalogRead, d *relationDescriptor, names map[string]bo
 		}
 		names[c.Name], previous = true, c.Name
 		var actual []ObjectRef
-		if _, err := (scalarRenderer{owner: d, dependencies: &actual}).sql(context.Background(), view, c.expression); err != nil {
+		var commentSnapshot bool
+		if _, err := (scalarRenderer{owner: d, dependencies: &actual, commentSnapshot: &commentSnapshot}).sql(context.Background(), view, c.expression); err != nil {
 			return err
+		}
+		if commentSnapshot != c.commentSnapshot {
+			return fmt.Errorf("stuntgres: inconsistent check comment snapshot manifest")
 		}
 		if len(actual) != len(c.dependencies) {
 			return fmt.Errorf("stuntgres: inconsistent check dependency manifest")
@@ -177,9 +276,15 @@ func checkDetailError(schema, table, name, detail string) error {
 	return d
 }
 
+type checkDependencyEdge struct {
+	relation *relationDescriptor
+	check    checkConstraint
+	target   ObjectAddress
+}
+
 // Provider references join the incumbent dependency stage. Owner-local column
 // dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
-func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
+func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) ([]checkDependencyEdge, error) {
 	var relations []*relationDescriptor
 	for address, descriptor := range stage.base.state.descriptors {
 		d, ok := descriptor.(*relationDescriptor)
@@ -212,6 +317,7 @@ func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode par
 		}
 		return 0
 	})
+	var edges []checkDependencyEdge
 	for _, d := range relations {
 		var kept []checkConstraint
 		changed := false
@@ -233,24 +339,37 @@ func stageCheckDependents(stage *CatalogStage, targets []ObjectAddress, mode par
 				kept = append(kept, c)
 				continue
 			}
-			object := dependencyObject(stage.base, dependency)
+			edges = append(edges, checkDependencyEdge{d, c, dependency})
 			if mode == parser.DropRestrict {
-				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + object + " because other objects depend on it", Detail: "constraint " + c.Name + " on table " + d.name + " depends on " + object, Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+				continue
 			}
 			changed = true
-			stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to constraint "+c.Name+" on table "+d.name)
 		}
 		if changed {
 			copy := *d
 			copy.revision++
 			if copy.revision == 0 {
-				return fmt.Errorf("stuntgres: definition revision exhausted")
+				return nil, fmt.Errorf("stuntgres: definition revision exhausted")
 			}
 			copy.checkConstraints = kept
 			if err := stage.Replace(&copy); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	slices.SortStableFunc(edges, func(a, b checkDependencyEdge) int {
+		if a.relation.address.ObjectID < b.relation.address.ObjectID {
+			return -1
+		}
+		if a.relation.address.ObjectID > b.relation.address.ObjectID {
+			return 1
+		}
+		return a.check.ordinal - b.check.ordinal
+	})
+	if mode != parser.DropRestrict {
+		for _, edge := range edges {
+			stage.viewCascadeNames = append(stage.viewCascadeNames, "drop cascades to constraint "+edge.check.Name+" on table "+edge.relation.name)
+		}
+	}
+	return edges, nil
 }

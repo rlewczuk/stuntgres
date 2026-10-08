@@ -143,7 +143,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 				continue
 			}
 			for _, target := range observation.targets {
-				if viewDepends(relation, target) || relation.sequence != nil && relation.sequence.owned == target {
+				if viewDepends(relation, target) || checkDepends(relation, target) || relation.sequence != nil && relation.sequence.owned == target {
 					return CatalogConflict{}
 				}
 			}

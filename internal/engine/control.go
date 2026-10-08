@@ -406,7 +406,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
-		for _, c := range t.descriptor.checkConstraints {
+		for _, c := range orderedChecks(t.descriptor) {
 			text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, c.expression)
 			if err != nil {
 				return err

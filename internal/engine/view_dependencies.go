@@ -105,16 +105,32 @@ func viewRestrictError(catalog CatalogRead, edges []viewDependencyEdge) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + object + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
 
+func supportedRestrictError(catalog CatalogRead, checks []checkDependencyEdge, views []viewDependencyEdge) error {
+	if len(checks) == 0 {
+		return viewRestrictError(catalog, views)
+	}
+	target := checks[0].target
+	details := make([]string, 0, len(checks)+len(views))
+	for _, edge := range checks {
+		details = append(details, "constraint "+edge.check.Name+" on table "+edge.relation.name+" depends on "+dependencyObject(catalog, edge.target))
+	}
+	for _, edge := range views {
+		details = append(details, "view "+edge.view.name+" depends on "+dependencyObject(catalog, edge.target))
+	}
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + dependencyObject(catalog, target) + " because other objects depend on it", Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+}
+
 func stageViewDependents(stage *CatalogStage, targets []ObjectAddress, mode parser.DropMode) error {
-	if err := stageCheckDependents(stage, targets, mode); err != nil {
+	checks, err := stageCheckDependents(stage, targets, mode)
+	if err != nil {
 		return err
 	}
 	edges := viewDependencyClosure(stage.base, targets, stage)
-	if len(edges) == 0 {
+	if len(edges) == 0 && len(checks) == 0 {
 		return nil
 	}
 	if mode == parser.DropRestrict {
-		return viewRestrictError(stage.base, edges)
+		return supportedRestrictError(stage.base, checks, edges)
 	}
 	for _, edge := range edges {
 		d := edge.view
