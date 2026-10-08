@@ -12,22 +12,22 @@ func TestAlterDropColumnSyntax(t *testing.T) {
 		if err != nil || len(statements) != 1 {
 			t.Fatal(q, statements, err)
 		}
-		s, ok := statements[0].(*AlterTableDropColumn)
-		if !ok || s.Pos.Character != 1 || s.Column.Pos.Character == 0 {
+		s, ok := statements[0].(*AlterTable)
+		if !ok || s.Pos.Character != 1 || len(s.Actions) != 1 || s.Actions[0].Column.Pos.Character == 0 {
 			t.Fatal(q, s)
 		}
 		switch q {
 		case `ALTER TABLE "S"."T" DROP COLUMN "COLUMN"`:
-			if s.Column.Text != "COLUMN" {
-				t.Fatal("quoted keyword target changed", s.Column)
+			if s.Actions[0].Column.Text != "COLUMN" {
+				t.Fatal("quoted keyword target changed", s.Actions[0].Column)
 			}
 		case `ALTER TABLE t DROP "column"`, `ALTER TABLE t DROP COLUMN "column"`:
-			if s.Column.Text != "column" {
-				t.Fatal("quoted keyword target changed", s.Column)
+			if s.Actions[0].Column.Text != "column" {
+				t.Fatal("quoted keyword target changed", s.Actions[0].Column)
 			}
 		}
 	}
-	for _, q := range []string{`ALTER TABLE t DROP COLUMN )`, `ALTER TABLE t DROP b, DROP c`, `ALTER TABLE t DROP b garbage`, `ALTER TABLE ONLY(t DROP b`, `ALTER TABLE t DROP COLUMN b; SELECT * FROM`} {
+	for _, q := range []string{`ALTER TABLE t DROP COLUMN )`, `ALTER TABLE t DROP b garbage`, `ALTER TABLE ONLY(t DROP b`, `ALTER TABLE t DROP COLUMN b; SELECT * FROM`} {
 		if s, err := Parse(q); err == nil || s != nil {
 			t.Fatal("accepted incomplete input", q, s, err)
 		}
@@ -55,7 +55,6 @@ func TestAlterDropColumnDefaultMarker(t *testing.T) {
 
 func TestAlterDropColumnCapabilityBoundaries(t *testing.T) {
 	for _, tc := range []struct{ q, message, position string }{
-		{"ALTER TABLE t DROP b, DROP c", "ALTER TABLE action lists are unsupported", "21"},
 		{"ALTER TABLE t ADD COLUMN c INT", "ALTER TABLE action is unsupported", "15"},
 	} {
 		_, err := Parse(tc.q)

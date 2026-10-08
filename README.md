@@ -114,6 +114,13 @@ Native keyless UPDATE uses NO KEY UPDATE; DELETE uses UPDATE. See
 matrix, privileges, eager execution and bounded syntax.
 Feature smoke: `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
 
+Selected `ALTER TABLE` nullability and named NOT NULL operations compose atomic
+action lists with `DROP COLUMN`, including explicit transactions/savepoints.
+Validation includes fresh grant-time committed NULLs and own writes; SET/DROP
+alone does not copy stored values. Private metadata, row projections and DML
+publish together at Commit; Dump excludes private changes.
+Feature smokes: `make smoke RUN='^TestAlterNullability(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
 The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling
 is preserved, textual input clips at a63-byte UTF8 boundary, and comparisons use
 C byte order. NAME has distinct metadata from TEXT and round-trips through

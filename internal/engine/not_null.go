@@ -2,19 +2,17 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-// The caller holds Engine.mu and an owner-authorized AX grant. Every path
-// releases Engine.mu; descriptor publication never rewrites row storage.
-func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTableNotNull, count int) (Result, error) {
+// AX protects the captured incarnation; candidates remain private until Finish.
+// The caller holds Engine.mu. Every return releases it before callbacks/scanning.
+func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTable, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
-	}
-	if s.Action < parser.SetNotNull || s.Action > parser.DropConstraint || s.Mode != parser.DropRestrict && s.Mode != parser.DropCascade {
-		return fail(fmt.Errorf("stuntgres: invalid not-null alteration"))
 	}
 	ref, err := e.resolveReference(auth, s.Name)
 	if err == nil && ref != scope.lockedRef {
@@ -27,24 +25,233 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
-	action := "ALTER COLUMN ... SET NOT NULL"
-	switch s.Action {
-	case parser.DropNotNull:
-		action = "ALTER COLUMN ... DROP NOT NULL"
-	case parser.AddNotNull:
-		action = "ADD CONSTRAINT"
-	case parser.DropConstraint:
-		action = "DROP CONSTRAINT"
+	if len(s.Actions) == 0 {
+		return fail(fmt.Errorf("stuntgres: empty ALTER TABLE"))
 	}
-	if err := tableKind(old, action); err != nil {
-		return fail(err)
+	for _, action := range s.Actions {
+		label := "ALTER COLUMN ... SET NOT NULL"
+		switch action.Action {
+		case parser.DropNotNull:
+			label = "ALTER COLUMN ... DROP NOT NULL"
+		case parser.AddNotNull:
+			label = "ADD CONSTRAINT"
+		case parser.DropConstraint:
+			label = "DROP CONSTRAINT"
+		case parser.DropColumn:
+			label = "DROP COLUMN"
+		case parser.SetNotNull:
+		default:
+			return fail(fmt.Errorf("stuntgres: invalid ALTER action"))
+		}
+		if err := tableKind(old, label); err != nil {
+			return fail(err)
+		}
 	}
-	slot := -1
-	constraintIndex := -1
-	if s.Action == parser.DropConstraint {
+	changes := scope.owner.catalog
+	original := e.storage[ref.Address]
+	store := e.privateStorageLocked(changes, ref.Address)
+	if store == nil || original == nil {
+		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
+	}
+	var shape catalogStorageChange
+	exists := false
+	if changes != nil {
+		shape, exists = changes.storage[ref.Address]
+	}
+	if !exists {
+		shape = catalogStorageChange{original: original, root: original.versions, ends: original.ends, generation: original.generation, replacement: store, relation: old}
+	}
+	versions, ends, frontier := store.versions, store.ends, e.commitSeq
+	snapshot, snapshotExists := scope.owner.roots[ref.Address]
+	grantCatalog := e.state
+	schema := auth.catalog.state.descriptors[old.namespace].Name()
+	var stage *CatalogStage
+	scope.catalogAuthority = &catalogAuthority{session: op.session, authorization: auth.revision, roles: auth.roles.state.revision, ref: ref, descriptor: e.state.descriptors[ref.Address]}
+	e.mu.Unlock()
+	defer func() { e.DiscardCatalogStage(stage) }()
+	next := old
+	// PostgreSQL runs DROP passes before original SET, then transformed ADD NN.
+	for pass := range 3 {
+		for _, action := range s.Actions {
+			selected := pass == 0 && (action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.SetNotNull || pass == 2 && action.Action == parser.AddNotNull
+			if !selected {
+				continue
+			}
+			if err := op.Context().Err(); err != nil {
+				return Result{}, err
+			}
+			if action.Action == parser.DropColumn {
+				if _, exists := next.index[action.Column.Text]; exists && stage == nil {
+					stage = e.BeginCatalogStage(auth.catalog)
+				}
+				next, err = scope.dropColumnCandidate(stage, next, ref, action)
+			} else {
+				next, err = notNullCandidate(op, auth.catalog, next, action)
+			}
+			if err != nil {
+				return Result{}, err
+			}
+		}
+	}
+	if next == old || len(next.columns) == len(old.columns) && slices.Equal(next.notNullConstraints, old.notNullConstraints) {
+		return Result{}, nil
+	}
+	if old.revision == DefinitionRevision(^uint64(0)) {
+		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+	}
+	next.revision = old.revision + 1
+	replacement := store
+	projectedWrites := scope.ownWrites[ref.Address]
+	projectedDeletes := scope.ownDeletes[ref.Address]
+	if len(old.columns) != len(next.columns) {
+		if store.generation == ^uint64(0) {
+			return Result{}, fmt.Errorf("stuntgres: storage generation exhausted")
+		}
+		versions, err = projectVersions(op.Context(), versions, old, next)
+		if err != nil {
+			return Result{}, err
+		}
+		replacement = &relationStorage{versions: versions, ends: ends, generation: store.generation + 1}
+		projectedWrites, err = projectVersions(op.Context(), projectedWrites, old, next)
+		if err != nil {
+			return Result{}, err
+		}
+		projectedDeletes = projectDeletions(projectedDeletes, replacement)
+		if scope.owner.isolation == RepeatableRead && snapshotExists {
+			shape.snapshot, err = projectVersions(op.Context(), snapshot.versions, snapshot.relation, next)
+			if err != nil {
+				return Result{}, err
+			}
+			shape.hasSnapshot = true
+		}
+	}
+	needsScan := false
+	for _, column := range next.columns {
+		if !column.Nullable && old.columns[old.index[column.Name]].Nullable {
+			needsScan = true
+			break
+		}
+	}
+	// Ignore committed predecessors replaced by own writes, and all ended rows.
+	var replaced map[RowID]bool
+	if needsScan {
+		for _, row := range projectedWrites {
+			if row.base != 0 {
+				if replaced == nil {
+					replaced = make(map[RowID]bool)
+				}
+				replaced[row.row] = true
+			}
+		}
+	}
+	scan := func(rows []rowVersion, committed bool) error {
+		for _, row := range rows {
+			if err := op.Context().Err(); err != nil {
+				return err
+			}
+			if committed && replaced[row.row] || !liveVersion(row, frontier, ends, projectedDeletes) {
+				continue
+			}
+			for slot, column := range next.columns {
+				if !column.Nullable && row.values[slot].IsNull() {
+					d := sqlError("23502", fmt.Sprintf(`column "%s" of relation "%s" contains null values`, column.Name, next.name)).(*sqlstate.Error)
+					d.Schema, d.Table, d.Column = schema, next.name, column.Name
+					return d
+				}
+			}
+		}
+		return nil
+	}
+	if needsScan {
+		if err := scan(versions, true); err != nil {
+			return Result{}, err
+		}
+		if err := scan(projectedWrites, false); err != nil {
+			return Result{}, err
+		}
+	}
+	changes = cloneCatalogChanges(changes)
+	if stage == nil {
+		stage = e.BeginCatalogStage(auth.catalog)
+	}
+	if err := stage.Replace(next); err != nil {
+		return Result{}, err
+	}
+	var dependencyTargets []ObjectAddress
+	for i, attribute := range old.attributes {
+		if _, survives := next.index[old.columns[i].Name]; !survives {
+			target := ref.Address
+			target.SubID = attribute
+			dependencyTargets = append(dependencyTargets, target)
+		}
+	}
+	for a := range stage.removals {
+		dependencyTargets = append(dependencyTargets, a)
+	}
+	if len(dependencyTargets) != 0 {
+		changes.dependencies = append(changes.dependencies, catalogDependencyObservation{grantCatalog, dependencyTargets})
+	}
+	// Record all originals before provider callbacks; Reset cannot restamp them.
+	e.mu.Lock()
+	if ref.Epoch != e.state.epoch {
+		e.mu.Unlock()
+		return Result{}, ErrCatalogReplaced
+	}
+	for a, d := range stage.descriptors {
+		if e.state.descriptors[a] != grantCatalog.descriptors[a] {
+			e.mu.Unlock()
+			return Result{}, CatalogConflict{}
+		}
+		e.catalogChangeLocked(changes, a, d)
+	}
+	for a := range stage.removals {
+		if e.state.descriptors[a] != grantCatalog.descriptors[a] {
+			e.mu.Unlock()
+			return Result{}, CatalogConflict{}
+		}
+		e.catalogChangeLocked(changes, a, nil)
+		delete(changes.generators, a)
+	}
+	shape.replacement, shape.relation = replacement, next
+	changes.storage[ref.Address] = shape
+	e.mu.Unlock()
+	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
+		return Result{}, err
+	}
+	// A shape statement replaces prior own roots only on the successful merge.
+	if replacement != store {
+		scope.projectedRoots = true
+		if len(scope.ownWrites) != 0 {
+			scope.stage.rows = make(map[ObjectAddress][]rowVersion, len(scope.ownWrites))
+			for a, rows := range scope.ownWrites {
+				scope.stage.rows[a] = rows
+			}
+			if len(projectedWrites) != 0 {
+				scope.stage.rows[ref.Address] = projectedWrites
+			}
+			scope.stage.replacing = true
+		}
+		if len(scope.ownDeletes) != 0 {
+			scope.stage.deletes = make(map[ObjectAddress]*privateDeletionRoot, len(scope.ownDeletes))
+		}
+		for a, root := range scope.ownDeletes {
+			scope.stage.deletes[a] = root
+		}
+		if projectedDeletes != nil {
+			scope.stage.deletes[ref.Address] = projectedDeletes
+		}
+	}
+	scope.catalog = changes
+	emitViewCascade(op, stage.viewCascadeNames)
+	return Result{}, nil
+}
+
+func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescriptor, a parser.AlterTableAction) (*relationDescriptor, error) {
+	slot, index := -1, -1
+	if a.Action == parser.DropConstraint {
 		for i, c := range old.notNullConstraints {
-			if c.Name == s.Constraint.Text {
-				constraintIndex = i
+			if c.Name == a.Constraint.Text {
+				index = i
 				for j, attr := range old.attributes {
 					if attr == c.Attribute {
 						slot = j
@@ -54,93 +261,51 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 				break
 			}
 		}
-		if slot < 0 && !s.IfExists {
-			return fail(sqlError("42704", fmt.Sprintf(`constraint "%s" of relation "%s" does not exist`, s.Constraint.Text, old.name)))
+		if slot < 0 {
+			if !a.IfExists {
+				return nil, sqlError("42704", fmt.Sprintf(`constraint "%s" of relation "%s" does not exist`, a.Constraint.Text, old.name))
+			}
+			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`constraint "%s" of relation "%s" does not exist, skipping`, a.Constraint.Text, old.name)})
+			return old, nil
 		}
 	} else {
-		if isSystemColumn(s.Column.Text) {
-			if s.Action == parser.AddNotNull {
-				return fail(sqlError("0A000", fmt.Sprintf(`cannot add not-null constraint on system column "%s"`, s.Column.Text)))
+		if isSystemColumn(a.Column.Text) {
+			message := "system-column nullability is unsupported"
+			if a.Action == parser.AddNotNull {
+				message = fmt.Sprintf(`cannot add not-null constraint on system column "%s"`, a.Column.Text)
+			} else if a.Action == parser.DropNotNull {
+				message = fmt.Sprintf(`cannot alter system column "%s"`, a.Column.Text)
 			}
-			if s.Action == parser.DropNotNull {
-				return fail(sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, s.Column.Text)))
-			}
-			return fail(sqlError("0A000", "system-column nullability is unsupported"))
+			return nil, sqlError("0A000", message)
 		}
-		var exists bool
-		slot, exists = old.index[s.Column.Text]
-		if !exists {
-			return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.name)))
+		var ok bool
+		slot, ok = old.index[a.Column.Text]
+		if !ok {
+			return nil, sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, old.name))
 		}
 		for i, c := range old.notNullConstraints {
 			if c.Attribute == old.attributes[slot] {
-				constraintIndex = i
+				index = i
 				break
 			}
 		}
 	}
-	adding := s.Action == parser.SetNotNull || s.Action == parser.AddNotNull
-	if slot < 0 || adding && constraintIndex >= 0 || !adding && constraintIndex < 0 {
-		op.session.mu.Lock()
-		err = publicationOperationLocked(e, op)
-		op.session.mu.Unlock()
-		if err == nil {
-			err = op.Context().Err()
-		}
-		if err == nil {
-			scope.completed = true
-		}
-		e.mu.Unlock()
-		if err != nil {
-			return Result{}, err
-		}
-		if slot < 0 {
-			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`constraint "%s" of relation "%s" does not exist, skipping`, s.Constraint.Text, old.name)})
-		}
-		return Result{}, nil
+	adding := a.Action == parser.SetNotNull || a.Action == parser.AddNotNull
+	if adding && index >= 0 || !adding && index < 0 {
+		return old, nil
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
-		return fail(fmt.Errorf("stuntgres: definition revision exhausted"))
-	}
-	original := e.storage[ref.Address]
-	if original == nil {
-		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
-	}
-	versions := original.versions
-	observedLength := len(versions)
-	observedGeneration := original.generation
-	frontier := e.commitSeq
-	ends := original.ends
-	name := s.Constraint.Text
+	name := a.Constraint.Text
 	if adding {
 		if name == "" {
-			name = generatedNotNullName(old.name, old.columns[slot].Name, constraintNames(auth.catalog, old.namespace))
+			name = generatedNotNullName(old.name, old.columns[slot].Name, constraintNames(catalog, old.namespace, old))
 		}
 		for _, c := range old.notNullConstraints {
 			if c.Name == name {
-				return fail(sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name)))
-			}
-		}
-	}
-	schema := auth.catalog.state.descriptors[old.namespace].Name()
-	stage := e.BeginCatalogStage(auth.catalog)
-	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
-	e.mu.Unlock()
-	defer e.DiscardCatalogStage(stage)
-	if adding {
-		for _, row := range versions {
-			if err := op.Context().Err(); err != nil {
-				return Result{}, err
-			}
-			if liveVersion(row, frontier, ends, nil) && row.born != 0 && row.values[slot].IsNull() {
-				diagnostic := sqlError("23502", fmt.Sprintf(`column "%s" of relation "%s" contains null values`, old.columns[slot].Name, old.name)).(*sqlstate.Error)
-				diagnostic.Schema, diagnostic.Table, diagnostic.Column = schema, old.name, old.columns[slot].Name
-				return Result{}, diagnostic
+				return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.name))
 			}
 		}
 	}
 	next := *old
-	next.revision++
 	next.columns = append([]ColumnDescriptor(nil), old.columns...)
 	next.columns[slot].Nullable = !adding
 	if adding {
@@ -149,19 +314,8 @@ func (e *Engine) alterNotNullLocked(scope *StatementScope, op *Operation, auth A
 		next.notNullConstraints[len(old.notNullConstraints)] = notNullConstraint{Name: name, Attribute: old.attributes[slot]}
 	} else {
 		next.notNullConstraints = make([]notNullConstraint, 0, len(old.notNullConstraints)-1)
-		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[:constraintIndex]...)
-		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[constraintIndex+1:]...)
+		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[:index]...)
+		next.notNullConstraints = append(next.notNullConstraints, old.notNullConstraints[index+1:]...)
 	}
-	if err := stage.alterRelation(op.Context(), ref, &next, original, original, observedLength, observedGeneration, ends); err != nil {
-		return Result{}, err
-	}
-	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
-	if err != nil {
-		return Result{}, err
-	}
-	if _, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
-		return Result{}, err
-	}
-	scope.completed = true
-	return Result{}, nil
+	return &next, nil
 }

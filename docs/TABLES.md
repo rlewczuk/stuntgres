@@ -319,11 +319,16 @@ either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
 unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
-CHECK, primary keys, domains and general ALTER action lists remain excluded.
-Explicit-transaction DDL remains `0A000` and aborts the native block. Independent
-PostgreSQL-only tests witness inherited OR nullability, inherited-drop rejection,
-NO INHERIT, CHECK unknown acceptance, deferred validation, and transactional DDL
-rollback. UPDATE enforcement is now a shared native/reference witness.
+CHECK, primary keys, domains and unrelated ALTER actions remain excluded.
+Selected ALTER COLUMN SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
+DROP COLUMN compose atomic comma-separated lists in implicit and explicit
+transactions. PostgreSQL pass order is DROP, original SET, transformed ADD;
+validation follows all actions in final physical column order. Fresh grant-time
+NULL scans include own writes/deletions even in RR; ordinary RR queries retain
+their snapshot. Savepoints restore private descriptors, projected row shapes and
+own DML together. Pure nullability changes never rewrite stored values.
+PostgreSQL-only tests still witness inherited OR nullability, inherited-drop
+rejection, NO INHERIT, CHECK unknown acceptance and deferred validation.
 
 Public feature smokes:
 
@@ -372,7 +377,7 @@ controls, not pg_dump, physical storage durability or network protocol support.
 Views, foreign keys, indexes, CHECKs, row types and inheritance have no native
 stored-definition descriptors; PostgreSQL reference witnesses exercise view/FK
 dependency preservation, hierarchy and transactional DDL separately. Native
-explicit-transaction ALTER and RENAME CONSTRAINT remain unsupported.
+explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
 
 ```sh
 make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1
@@ -403,9 +408,10 @@ attribute identities back to live column names, not dense slot numbers.
 New direct/prepared queries omit the dropped column. Previously
 prepared explicit survivor queries rebind successfully; dropped-column queries
 fail `42703`, and a changed-width prepared star fails the existing `0A000`,
-`cached plan must not change result type` signature boundary. ALTER remains
-unsupported in native explicit transactions (`0A000`, aborting the block);
-PostgreSQL transactional DDL is an external-only reference witness.
+`cached plan must not change result type` signature boundary. DROP COLUMN,
+including mixed nullability lists, participates in the existing private catalog
+overlay and combined row/catalog Commit. Savepoint and full rollback restore
+the prior width, values and stable identities; no public prefix is installed.
 Missing expression-column diagnostics interpolate decoded quoted identifiers
 literally, including embedded quotes/backslashes, with character-based positions
 when direct or retained/new prepared queries rebind after DROP.

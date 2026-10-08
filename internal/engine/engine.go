@@ -213,7 +213,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
+	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTable, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
 		return StatementDescription{}, nil
@@ -425,7 +425,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
-		b.storage = e.storage[b.ref.Address]
+		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 		if b.storage == nil && b.relation.relationKind == tableRelation {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
 		}
@@ -518,7 +518,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			return b, ErrCatalogReplaced
 		}
 		b.relation = auth.catalog.state.descriptors[b.ref.Address].(*relationDescriptor)
-		b.storage = e.storage[b.ref.Address]
+		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 		if b.storage == nil && b.relation.relationKind == tableRelation {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
 		}
@@ -543,7 +543,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		if b.relation.relationKind == viewRelation || b.relation.relationKind == catalogRelation {
 			return b, tableKind(b.relation, "change")
 		}
-		b.storage = e.storage[b.ref.Address]
+		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
 		if b.storage == nil {
 			return b, fmt.Errorf("stuntgres: relation storage is missing")
 		}

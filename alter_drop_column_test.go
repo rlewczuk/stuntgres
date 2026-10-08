@@ -133,10 +133,18 @@ func TestAlterDropColumnNoticesOwnershipAndTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = tx.Exec("ALTER TABLE t DROP b")
-	alterDropDiagnostic(t, err, "0A000", "statement is unsupported in an explicit transaction", "")
-	_, err = tx.Query("SELECT * FROM t")
-	alterDropDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block", "")
+	if _, err = tx.Exec("ALTER TABLE t DROP b"); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := tx.Query("SELECT * FROM t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, err := rows.Columns()
+	if err != nil || !reflect.DeepEqual(names, []string{"a"}) {
+		t.Fatal(names, err)
+	}
+	rows.Close()
 	if err = tx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +236,6 @@ func TestAlterDropColumnShapesAndAtomicParserBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ q, code, message, position string }{
-		{"ALTER TABLE t DROP b, DROP a", "0A000", "ALTER TABLE action lists are unsupported", "21"},
 		{"ALTER TABLE t ADD COLUMN c INT", "0A000", "ALTER TABLE action is unsupported", "15"},
 		{"ALTER TABLE t DROP COLUMN )", "42601", `syntax error at or near ")"`, "27"},
 		{`ALTER TABLE t DROP COLUMN "quo""te\\tail"`, "42703", `column "quo"te\\tail" of relation "t" does not exist`, ""},

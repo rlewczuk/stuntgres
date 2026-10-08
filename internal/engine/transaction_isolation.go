@@ -220,7 +220,7 @@ func modifyingTag(stmt parser.Statement) string {
 		return "CREATE TABLE"
 	case *parser.DropTable:
 		return "DROP TABLE"
-	case *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableNotNull, *parser.AlterTableDropColumn:
+	case *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTable:
 		return "ALTER TABLE"
 	case *parser.CreateSchema:
 		return "CREATE SCHEMA"
@@ -269,7 +269,7 @@ func explicitUtility(stmt parser.Statement) bool {
 	switch stmt.(type) {
 	case *parser.CreateView:
 		return true
-	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableNotNull, *parser.AlterTableDropColumn, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
+	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization:
 		return true
 	}
 	return false

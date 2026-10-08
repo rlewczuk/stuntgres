@@ -30,7 +30,7 @@ func (s *StatementScope) acquireQueryRelations(sel *parser.Select, authorityStmt
 
 // Validate exact admission identity without resolving SQL names again. Metadata
 // revisions may refresh authority before binding, never an already bound layout.
-func currentQuerySourceLocked(e *Engine, catalog CatalogRead, source queryLeaf) (*relationDescriptor, error) {
+func currentQuerySourceLocked(e *Engine, catalog CatalogRead, changes *catalogChanges, source queryLeaf) (*relationDescriptor, error) {
 	current, ok := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
 	if !ok || source.relation == nil || source.ref.owner != e.owner || source.ref.Epoch != e.state.epoch || source.ref.Address.SubID != 0 ||
 		current.address != source.relation.address || current.namespace != source.relation.namespace || current.name != source.relation.name || current.relationKind != source.relation.relationKind ||
@@ -41,7 +41,7 @@ func currentQuerySourceLocked(e *Engine, catalog CatalogRead, source queryLeaf) 
 		if current.sequence == nil || source.storage != nil || current.sequencePlanStamp != source.relation.sequencePlanStamp {
 			return nil, ErrCatalogReplaced
 		}
-	} else if e.storage[source.ref.Address] != source.storage {
+	} else if e.privateStorageLocked(changes, source.ref.Address) != source.storage {
 		return nil, ErrCatalogReplaced
 	}
 	return current, nil
@@ -79,7 +79,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 
 func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
 	if scope.commentCatalog.state == nil {
-		scope.commentCatalog = e.sequenceCatalogLocked(scope.owner.sequences)
+		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
 		scope.commentRoles = RoleRead{e, e.roles}
 	}
 	if len(leaves) == 0 {

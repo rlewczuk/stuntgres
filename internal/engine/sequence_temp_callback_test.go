@@ -41,7 +41,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 			sessionSQL(t, b, "BEGIN")
 			sessionSQL(t, b, "CREATE TEMP SEQUENCE unrelated_temp")
 			e.mu.Lock()
-			private := e.sequenceCatalogLocked(b.transactions.sequences).state
+			private := e.privateCatalogLocked(b.transactions.catalog).state
 			e.mu.Unlock()
 			if scenario == "Rollback" {
 				sessionSQL(t, b, "ROLLBACK")

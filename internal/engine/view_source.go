@@ -13,14 +13,14 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		e.mu.Unlock()
 		return nil, err
 	}
-	d, exists := e.sequenceCatalogLocked(scope.owner.sequences).state.descriptors[ref.Address].(*relationDescriptor)
+	d, exists := e.privateCatalogLocked(scope.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch || !exists {
 		e.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
 	switch d.relationKind {
 	case catalogRelation:
-		source, err := e.captureCatalogSourceLocked(ctx, e.sequenceCatalogLocked(scope.owner.sequences), ref, d)
+		source, err := e.captureCatalogSourceLocked(ctx, e.privateCatalogLocked(scope.owner.catalog), ref, d)
 		e.mu.Unlock()
 		return source, err
 	case sequenceRelation:
@@ -29,7 +29,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		return source, err
 	case viewRelation:
 		definition := d.view
-		if mode == 0 && !viewHasStoredRowMarks(d, e.sequenceCatalogLocked(scope.owner.sequences)) {
+		if mode == 0 && !viewHasStoredRowMarks(d, e.privateCatalogLocked(scope.owner.catalog)) {
 			locks = nil
 		}
 		if err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mode); err != nil {
@@ -47,11 +47,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 			e.mu.Unlock()
 			return nil, err
 		}
-		catalog := e.sequenceCatalogLocked(scope.owner.sequences)
+		catalog := e.privateCatalogLocked(scope.owner.catalog)
 		leaves := make([]queryLeaf, len(definition.sources))
 		for i, leaf := range definition.sources {
 			relation := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-			leaves[i] = queryLeaf{ref: leaf.ref, relation: relation, storage: e.storage[leaf.ref.Address]}
+			leaves[i] = queryLeaf{ref: leaf.ref, relation: relation, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address)}
 		}
 		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, viewRowMode(definition, mode), locks)
 		e.mu.Unlock()
@@ -140,7 +140,7 @@ func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ObjectRef,
 	if err != nil {
 		return err
 	}
-	auth.catalog = e.sequenceCatalogLocked(scope.owner.sequences)
+	auth.catalog = e.privateCatalogLocked(scope.owner.catalog)
 	d, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok || ref.owner != e.owner || ref.Epoch != auth.catalog.Epoch() || d.view != definition {
 		return ErrCatalogReplaced

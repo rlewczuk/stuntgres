@@ -50,8 +50,8 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if s.Null {
 		next.comment = ""
 	}
-	changes := cloneSequenceChanges(scope.owner.sequences)
-	e.sequenceChangeLocked(changes, ref.Address, &next)
-	scope.sequences = changes
+	changes := cloneCatalogChanges(scope.owner.catalog)
+	e.catalogChangeLocked(changes, ref.Address, &next)
+	scope.catalog = changes
 	return Result{}, nil
 }

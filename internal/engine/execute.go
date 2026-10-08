@@ -70,11 +70,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if s, ok := stmt.(*parser.AlterTableDropColumn); ok {
-		return e.alterDropColumnLocked(scope, op, auth, s, count)
-	}
-	if s, ok := stmt.(*parser.AlterTableNotNull); ok {
-		return e.alterNotNullLocked(scope, op, auth, s, count)
+	if s, ok := stmt.(*parser.AlterTable); ok {
+		return e.alterTableLocked(scope, op, auth, s, count)
 	}
 	switch s := stmt.(type) {
 	case *parser.AlterTableSetSchema:

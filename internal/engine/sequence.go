@@ -99,7 +99,7 @@ func (e *Engine) sequenceColumnsLocked() []ColumnDescriptor {
 
 // Caller holds Engine.mu. Drop it for manager admission and restore it on every
 // return; the dependency lock belongs to the statement's transaction ticket.
-func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *sequenceChanges, d *relationDescriptor, raw parser.ObjectName) (ObjectAddress, error) {
+func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *catalogChanges, d *relationDescriptor, raw parser.ObjectName) (ObjectAddress, error) {
 	if len(raw.Parts) == 1 && raw.Parts[0].Text == "none" {
 		return ObjectAddress{}, nil
 	}
@@ -121,7 +121,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	if err != nil {
 		return ObjectAddress{}, err
 	}
-	fresh.catalog = e.sequenceCatalogLocked(changes)
+	fresh.catalog = e.privateCatalogLocked(changes)
 	*auth = fresh
 	// Keep the captured incarnation, not a replacement now found by name.
 	r, ok := auth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
@@ -177,13 +177,13 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				return Result{}, err
 			}
 		}
-		changes := cloneSequenceChanges(scope.owner.sequences)
+		changes := cloneCatalogChanges(scope.owner.catalog)
 		ns, err := e.sequenceCreationNamespaceLocked(auth, s, changes)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		auth.catalog = e.sequenceCatalogLocked(changes)
+		auth.catalog = e.privateCatalogLocked(changes)
 		if err = auth.CheckCreate(ns); err != nil && !op.restoreTableDestination {
 			e.mu.Unlock()
 			return Result{}, err
@@ -232,13 +232,13 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				}
 			}
 		}
-		e.sequenceChangeLocked(changes, d.address, d)
+		e.catalogChangeLocked(changes, d.address, d)
 		initial := options.start
 		if restart != nil {
 			initial = *restart
 		}
 		changes.generators[d.address] = &sequenceGenerator{last: initial, generation: rev}
-		scope.sequences = changes
+		scope.catalog = changes
 		e.mu.Unlock()
 		return Result{}, nil
 	case *parser.AlterSequence:
@@ -289,7 +289,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err = auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err != nil {
 			return Result{}, err
 		}
-		changes := cloneSequenceChanges(scope.owner.sequences)
+		changes := cloneCatalogChanges(scope.owner.catalog)
 		state := e.sequenceGeneratorLocked(scope, ref.Address)
 		if state == nil {
 			return Result{}, fmt.Errorf("stuntgres: sequence state missing")
@@ -367,7 +367,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 			// pg_temp may stage a namespace. Resolve permissions and endpoints
 			// against that same private catalog, without publishing on rejection.
-			auth.catalog = e.sequenceCatalogLocked(changes)
+			auth.catalog = e.privateCatalogLocked(changes)
 			if err = auth.CheckCreate(ns); err != nil {
 				return Result{}, err
 			}
@@ -393,7 +393,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if a, exists := auth.catalog.state.names[key]; exists && a != d.address {
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.name))
 		}
-		e.sequenceChangeLocked(changes, d.address, &d)
+		e.catalogChangeLocked(changes, d.address, &d)
 		if rewrite || persistenceChanged {
 			replacement := *state
 			replacement.generation = rev
@@ -407,7 +407,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				m.remaining = 0
 			}
 		}
-		scope.sequences = changes
+		scope.catalog = changes
 		return Result{}, nil
 	case *parser.DropSequence:
 		return e.dropSequences(scope, s)
@@ -458,7 +458,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	if err != nil {
 		return Result{}, err
 	}
-	changes := cloneSequenceChanges(scope.owner.sequences)
+	changes := cloneCatalogChanges(scope.owner.catalog)
 	targets := make([]ObjectAddress, len(refs))
 	for i, ref := range refs {
 		targets[i] = ref.Address
@@ -469,7 +469,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	var cascade []string
 	for _, edge := range dependents {
-		e.sequenceChangeLocked(changes, edge.view.address, nil)
+		e.catalogChangeLocked(changes, edge.view.address, nil)
 		cascade = append(cascade, "drop cascades to view "+edge.view.name)
 	}
 	for _, ref := range refs {
@@ -480,10 +480,10 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if err = sequenceDropOwner(auth, ref, d); err != nil {
 			return Result{}, err
 		}
-		e.sequenceChangeLocked(changes, ref.Address, nil)
+		e.catalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.generators, ref.Address)
 	}
-	scope.sequences = changes
+	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil
 }

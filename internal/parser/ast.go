@@ -172,17 +172,6 @@ type DropTable struct {
 
 func (*DropTable) statement() {}
 
-type AlterTableDropColumn struct {
-	Name     ObjectName
-	Column   Identifier
-	IfExists bool
-	Mode     DropMode
-	Only     bool
-	Pos      Position
-}
-
-func (*AlterTableDropColumn) statement() {}
-
 type AlterTableRenameColumn struct {
 	Name     ObjectName
 	Column   Identifier
@@ -213,27 +202,33 @@ type AlterTableSetSchema struct {
 
 func (*AlterTableSetSchema) statement() {}
 
-type NotNullAction uint8
+type AlterTableActionKind uint8
 
 const (
-	SetNotNull NotNullAction = iota + 1
+	SetNotNull AlterTableActionKind = iota + 1
 	DropNotNull
 	AddNotNull
 	DropConstraint
+	DropColumn
 )
 
-type AlterTableNotNull struct {
-	Name       ObjectName
+type AlterTableAction struct {
 	Column     Identifier
 	Constraint Identifier
-	Action     NotNullAction
+	Action     AlterTableActionKind
 	IfExists   bool
-	Only       bool
 	Mode       DropMode
 	Pos        Position
 }
 
-func (*AlterTableNotNull) statement() {}
+type AlterTable struct {
+	Name    ObjectName
+	Actions []AlterTableAction
+	Only    bool
+	Pos     Position
+}
+
+func (*AlterTable) statement() {}
 
 type alterTarget struct {
 	Name     ObjectName

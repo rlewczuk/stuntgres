@@ -201,7 +201,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		}
 		relation := b.queryAuth.catalog.state.descriptors[ref.Address].(*relationDescriptor)
 		leaf := len(b.querySources)
-		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.storage[ref.Address]})
+		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address)})
 		columns := make([]queryColumn, len(relation.columns))
 		for i, c := range relation.columns {
 			columns[i] = queryColumn{c, i, leaf, i}

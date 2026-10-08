@@ -100,7 +100,7 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row RowID, mode relatio
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	_, err = currentQuerySourceLocked(e, e.sequenceCatalogLocked(s.owner.sequences), leaf)
+	_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf)
 	return err
 }
 
@@ -108,7 +108,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if _, err := currentQuerySourceLocked(e, e.sequenceCatalogLocked(s.owner.sequences), leaf); err != nil {
+	if _, err := currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf); err != nil {
 		return rowVersion{}, false, err
 	}
 	store := leaf.storage

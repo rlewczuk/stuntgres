@@ -73,7 +73,7 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 		if ref.Epoch != e.state.epoch {
 			return nil, ErrCatalogReplaced
 		}
-		if e.storage[ref.Address] == nil {
+		if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
 			return nil, errors.New("stuntgres: relation storage is missing")
 		}
 	}
@@ -86,7 +86,7 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 			if _, ok := data.committed[ref.Address]; !ok {
 				return nil, errors.New("stuntgres: relation is outside statement data view")
 			}
-			if data.generationAt(ref.Address) != e.storage[ref.Address] {
+			if data.generationAt(ref.Address) != e.privateStorageLocked(s.owner.catalog, ref.Address) {
 				return nil, ErrCatalogReplaced
 			}
 		}
@@ -98,23 +98,28 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 	}
 	data := &visibilityData{
 		tx: s.txRef, command: s.command, frontier: frontier,
-		catalog:   CatalogRead{owner: e, state: e.state},
+		catalog:   e.privateCatalogLocked(s.owner.catalog),
 		committed: make(map[ObjectAddress][]rowVersion, len(refs)),
 	}
 	if len(refs) > 1 {
 		data.generations = make(map[ObjectAddress]*relationStorage, len(refs))
 	}
 	for _, ref := range refs {
-		storage := e.storage[ref.Address]
+		storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
 		versions, ends := storage.versions, storage.ends
 		if s.owner.isolation == RepeatableRead {
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
 				current, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
-				if !ok || root.storage != storage || !sameRelationRowShape(root.relation, current) {
+				if !ok || root.storage != e.storage[ref.Address] || !sameRelationRowShape(root.relation, current) {
 					return nil, ErrCatalogReplaced
 				}
 				versions, ends = root.versions, root.ends
+				if s.owner.catalog != nil {
+					if shape, changed := s.owner.catalog.storage[ref.Address]; changed && shape.hasSnapshot {
+						versions = shape.snapshot
+					}
+				}
 			} else {
 				versions, ends = nil, nil
 			}

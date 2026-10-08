@@ -7,6 +7,8 @@ import "errors"
 type rowPublication struct {
 	address            ObjectAddress
 	store              *relationStorage
+	original           *relationStorage
+	originalRelation   *relationDescriptor
 	relation           *relationDescriptor
 	root, next, writes []rowVersion
 	ends, nextEnds     *deletionRoot
@@ -23,10 +25,10 @@ func (e *Engine) publishWrites(op *Operation, ref TxRef, writes map[ObjectAddres
 	if ref.attachment.state != TxActive && ref.attachment.state != TxImplicit {
 		return errors.New("stuntgres: inactive publication transaction")
 	}
-	return e.publishRows(op, ref, writes, deletes, ref.attachment.sequences)
+	return e.publishRows(op, ref, writes, deletes, ref.attachment.catalog, nil)
 }
 
-func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *sequenceChanges) error {
+func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress][]rowVersion, deletes map[ObjectAddress]*privateDeletionRoot, c *catalogChanges, authority *catalogAuthority) error {
 	if len(writes) == 0 && len(deletes) == 0 && c == nil {
 		e.mu.Lock()
 		defer e.mu.Unlock()
@@ -38,13 +40,16 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		if ref.epoch != e.state.epoch {
 			return ErrCatalogReplaced
 		}
+		if err := e.catalogAuthorityPreflightLocked(authority); err != nil {
+			return err
+		}
 		return nil
 	}
 	for {
 		var nextCatalog *catalogState
 		var err error
 		if c != nil {
-			nextCatalog, err = e.prepareSequenceCatalog(op.Context(), c)
+			nextCatalog, err = e.preparePrivateCatalog(op.Context(), c, ref.epoch)
 			if err != nil {
 				return err
 			}
@@ -63,7 +68,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 				e.mu.Unlock()
 				continue
 			}
-			if err = e.sequencePreflightLocked(c); err != nil {
+			if err = e.catalogPreflightLocked(c); err != nil {
 				e.mu.Unlock()
 				return err
 			}
@@ -77,12 +82,17 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			}
 		}
 		capture := func(a ObjectAddress, rows []rowVersion, deletion *privateDeletionRoot) error {
-			store := e.storage[a]
-			relation, live := e.state.descriptors[a].(*relationDescriptor)
+			original := e.storage[a]
+			store := e.privateStorageLocked(c, a)
+			originalRelation, live := e.state.descriptors[a].(*relationDescriptor)
+			relation := originalRelation
+			if c != nil {
+				relation, live = nextCatalog.descriptors[a].(*relationDescriptor)
+			}
 			if store == nil || !live || a.SubID != 0 {
 				return ErrCatalogReplaced
 			}
-			prepared = append(prepared, rowPublication{address: a, store: store, relation: relation, root: store.versions, writes: rows, ends: store.ends, deletion: deletion, generation: store.generation, singleSlot: -1})
+			prepared = append(prepared, rowPublication{address: a, store: store, original: original, originalRelation: originalRelation, relation: relation, root: store.versions, writes: rows, ends: store.ends, deletion: deletion, generation: store.generation, singleSlot: -1})
 			return nil
 		}
 		for a, rows := range writes {
@@ -105,6 +115,9 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			return err
 		}
 		if c != nil {
+			for a, shape := range c.storage {
+				nextStorage[a] = shape.replacement
+			}
 			for a, d := range c.descriptors {
 				if d == nil {
 					delete(nextSequences, a)
@@ -235,12 +248,12 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		changed := c != nil && (e.state != current || e.commitSeq != frontier)
 		if err == nil {
 			for _, p := range prepared {
-				if e.storage[p.address] != p.store || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
+				if e.storage[p.address] != p.original || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
 					changed = true
 					break
 				}
 				current, ok := e.state.descriptors[p.address].(*relationDescriptor)
-				if !ok || !sameRelationRowShape(p.relation, current) {
+				if !ok || !sameRelationRowShape(p.originalRelation, current) {
 					err = ErrCatalogReplaced
 					break
 				}
@@ -251,7 +264,10 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			}
 		}
 		if err == nil && !changed && c != nil {
-			err = e.sequencePreflightLocked(c)
+			err = e.catalogPreflightLocked(c)
+		}
+		if err == nil {
+			err = e.catalogAuthorityPreflightLocked(authority)
 		}
 		if err != nil {
 			session.mu.Unlock()
@@ -262,6 +278,19 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			session.mu.Unlock()
 			e.mu.Unlock()
 			continue
+		}
+		nextRevision := e.nextRevision
+		if c != nil {
+			for _, d := range c.descriptors {
+				if d != nil {
+					if revision := descriptorRevisionFrontier(d); revision >= nextRevision {
+						nextRevision = revision
+						if nextRevision != DefinitionRevision(^uint64(0)) {
+							nextRevision++
+						}
+					}
+				}
+			}
 		}
 		// No callback, allocation or failure remains after this point.
 		for _, p := range prepared {
@@ -289,6 +318,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 			e.sequences = nextSequences
 			e.storage = nextStorage
 			e.state = nextCatalog
+			e.nextRevision = nextRevision
 			for a, d := range c.descriptors {
 				if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == session.token {
 					session.temporaryNamespace = a

@@ -353,7 +353,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	}
 	view := CatalogRead{e, e.state}
 	if s.transactions != nil {
-		view = e.sequenceCatalogLocked(s.transactions.sequences)
+		view = e.privateCatalogLocked(s.transactions.catalog)
 	}
 	return AuthorizationView{engine: e, catalog: view, roles: r, state: a.state, revision: a.revision, settings: s.settings, session: s}, nil
 }

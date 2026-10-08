@@ -72,14 +72,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			name.Parts = name.Parts[:len(name.Parts)-1]
 		}
 		mode = shareUpdateExclusive
-	case *parser.AlterTableDropColumn:
-		if !execute {
-			return nil
-		}
-		name = v.Name
-		mode = accessExclusive
-		ownerOnly = true
-	case *parser.AlterTableNotNull:
+	case *parser.AlterTable:
 		if !execute {
 			return nil
 		}
@@ -212,12 +205,12 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	descriptor, live := e.sequenceCatalogLocked(s.owner.sequences).state.descriptors[ref.Address].(*relationDescriptor)
+	descriptor, live := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
 	if ref.owner != e.owner || ref.Epoch != e.state.epoch || txref.epoch != e.state.epoch || !live {
 		return ErrCatalogReplaced
 	}
 	if source {
-		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, storage: e.storage[ref.Address]})
+		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
@@ -226,7 +219,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			if descriptor.relationKind != tableRelation {
 				break
 			}
-			s.lockedStorage = e.storage[ref.Address]
+			s.lockedStorage = e.privateStorageLocked(s.owner.catalog, ref.Address)
 			if s.lockedStorage == nil {
 				return errors.New("stuntgres: relation storage is missing")
 			}
@@ -273,9 +266,9 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 	if len(s.querySources) == 0 && s.lockedRef.owner == nil {
 		return nil
 	}
-	catalog := e.sequenceCatalogLocked(s.owner.sequences)
+	catalog := e.privateCatalogLocked(s.owner.catalog)
 	for i, source := range s.querySources {
-		current, err := currentQuerySourceLocked(e, catalog, source)
+		current, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, source)
 		if err != nil {
 			return err
 		}
@@ -297,7 +290,7 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 	} else if s.lockedStorage != nil {
 		relation, ok := current.(*relationDescriptor)
 		captured, capturedOK := s.lockedDescriptor.(*relationDescriptor)
-		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.storage[s.lockedRef.Address] != s.lockedStorage || !sameRelationRowShape(captured, relation) {
+		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.catalog, s.lockedRef.Address) != s.lockedStorage || !sameRelationRowShape(captured, relation) {
 			return ErrCatalogReplaced
 		}
 	} else if current != s.lockedDescriptor {

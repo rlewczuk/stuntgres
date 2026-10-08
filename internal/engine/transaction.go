@@ -80,7 +80,7 @@ type transactionOwner struct {
 	snapshotSet    bool
 	frontier       CommitSeq
 	roots          map[ObjectAddress]transactionRoot
-	sequences      *sequenceChanges
+	catalog        *catalogChanges
 	savepoints     []savepointMark
 }
 
@@ -94,7 +94,7 @@ func (t *transactionOwner) clear() {
 	t.snapshotSet = false
 	t.frontier = 0
 	t.roots = nil
-	t.sequences = nil
+	t.catalog = nil
 	clear(t.savepoints)
 	t.savepoints = nil
 }
@@ -239,7 +239,9 @@ type StatementScope struct {
 	implicit           bool
 	input              sqltype.InputEnvironment
 	output             sqltype.OutputEnvironment
-	sequences          *sequenceChanges
+	catalog            *catalogChanges
+	catalogAuthority   *catalogAuthority
+	projectedRoots     bool
 	searchPathResults  [2]sqltype.Value
 	commentCatalog     CatalogRead
 	commentRoles       RoleRead
@@ -411,10 +413,10 @@ func (w *WriteStage) Apply(ref ObjectRef, rows [][]sqltype.Value) error {
 	if ref.Epoch != e.state.epoch || ref.Epoch != s.owner.ref.epoch {
 		return ErrCatalogReplaced
 	}
-	if e.storage[ref.Address] == nil {
+	if e.privateStorageLocked(s.owner.catalog, ref.Address) == nil {
 		return errors.New("stuntgres: relation storage is missing")
 	}
-	relation, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
+	relation, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[ref.Address].(*relationDescriptor)
 	if !ok {
 		return errors.New("stuntgres: invalid relation descriptor")
 	}
@@ -574,22 +576,35 @@ func (s *StatementScope) Finish(err error) error {
 		err = e.validateOperation(s.op)
 	}
 	if err == nil && s.worked {
-		if s.sequences != nil {
-			t.sequences = s.sequences
+		catalog := t.catalog
+		if s.catalog != nil {
+			catalog = s.catalog
 		}
 		if t.state == TxImplicit {
 			if !s.completed {
-				err = e.publishWrites(s.op, t.ref, s.stage.rows, s.stage.deletes)
+				err = e.publishRows(s.op, t.ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority)
 			}
 		} else {
-			deletes := mergeDeletions(t.deletes, s.stage.deletes)
-			writes := prepareOwnWrites(t.writes, s.stage.rows, s.stage.replacing)
+			var deletes map[ObjectAddress]*privateDeletionRoot
+			var writes map[ObjectAddress][]rowVersion
+			if s.projectedRoots {
+				writes, deletes = s.stage.rows, s.stage.deletes
+			} else {
+				deletes = mergeDeletions(t.deletes, s.stage.deletes)
+				writes = prepareOwnWrites(t.writes, s.stage.rows, s.stage.replacing)
+			}
 			session := s.op.session
 			e.mu.Lock()
 			session.mu.Lock()
 			err = publicationOperationLocked(e, s.op)
 			if err == nil && t.ref.epoch != e.state.epoch {
 				err = ErrCatalogReplaced
+			}
+			if err == nil && s.catalog != nil {
+				err = e.catalogPreflightLocked(catalog)
+			}
+			if err == nil {
+				err = e.catalogAuthorityPreflightLocked(s.catalogAuthority)
 			}
 			if err == nil {
 				for a, rows := range s.stage.rows {
@@ -599,6 +614,7 @@ func (s *StatementScope) Finish(err error) error {
 				}
 				t.writes = writes
 				t.deletes = deletes
+				t.catalog = catalog
 			}
 			session.mu.Unlock()
 			e.mu.Unlock()
@@ -634,7 +650,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.deletes = nil
 			t.roots = nil
 			t.frontier = 0
-			t.sequences = nil
+			t.catalog = nil
 			endedTicket = t.ticket
 			t.ticket = nil
 		}

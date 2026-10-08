@@ -7,7 +7,7 @@ import "slices"
 type sequenceAnalysis struct {
 	constants []sequenceConstant
 	path      sequenceEnvironment
-	private   *sequenceChanges
+	private   *catalogChanges
 	session   SessionToken
 	// Namespace callbacks invalidate analysis even when the effective path is equal.
 	namespace uint64
@@ -23,7 +23,7 @@ type sequencePathKey struct {
 	namespace            uint64
 	epoch                CatalogEpoch
 	temp, prefix         ObjectAddress
-	private              *sequenceChanges
+	private              *catalogChanges
 }
 type sequencePathCache struct {
 	valid       bool
@@ -34,7 +34,7 @@ type sequencePathCache struct {
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvironment, error) {
 	key := sequencePathKey{role: auth.state.CurrentUser, authorization: auth.revision, roles: auth.roles.state.revision, namespace: auth.catalog.state.namespaceGeneration, epoch: auth.catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix}
 	if auth.session != nil && auth.session.transactions != nil {
-		key.private = auth.session.transactions.sequences
+		key.private = auth.session.transactions.catalog
 	}
 	if auth.settings != nil {
 		auth.settings.mu.Lock()
@@ -68,7 +68,7 @@ func (e *Engine) sequenceAnalysisLocked(auth AuthorizationView, constants []sequ
 	if err != nil {
 		return sequenceAnalysis{}, err
 	}
-	return sequenceAnalysis{constants: constants, path: path, private: auth.session.transactions.sequences, session: auth.session.token, namespace: auth.catalog.state.namespaceGeneration}, nil
+	return sequenceAnalysis{constants: constants, path: path, private: auth.session.transactions.catalog, session: auth.session.token, namespace: auth.catalog.state.namespaceGeneration}, nil
 }
 func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *sequenceAnalysis) (bool, error) {
 	if analysis == nil || len(analysis.constants) == 0 {
@@ -78,7 +78,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	if err != nil {
 		return false, err
 	}
-	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.sequences || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(path, analysis.path)
+	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.catalog.state.namespaceGeneration || !sameSequenceEnvironment(path, analysis.path)
 	for _, constant := range analysis.constants {
 		ref := constant.ref
 		if ref.owner != e.owner {

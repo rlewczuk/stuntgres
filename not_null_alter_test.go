@@ -123,10 +123,14 @@ func TestNotNullAlterNoticeOwnershipAndTransaction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = tx.Exec(q)
-		notNullDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: "statement is unsupported in an explicit transaction"})
-		_, err = tx.Query("SELECT * FROM t")
-		notNullDiagnostic(t, err, stuntgres.Error{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"})
+		if _, err = tx.Exec(q); err != nil {
+			t.Fatal(q, err)
+		}
+		rows, err := tx.Query("SELECT * FROM t")
+		if err != nil {
+			t.Fatal(err)
+		}
+		rows.Close()
 		if err = tx.Rollback(); err != nil {
 			t.Fatal(err)
 		}

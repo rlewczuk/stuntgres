@@ -14,7 +14,7 @@ type savepointMark struct {
 	name      string
 	writes    map[ObjectAddress][]rowVersion
 	deletes   map[ObjectAddress]*privateDeletionRoot
-	sequences *sequenceChanges
+	catalog   *catalogChanges
 	settings  settingsMark
 	isolation Isolation
 	readOnly  bool
@@ -51,11 +51,11 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 		// still retained by a result opened before rollback.
 		writes[a] = rows[:len(rows):len(rows)]
 	}
-	return savepointMark{name, writes, t.deletes, t.sequences, t.session.settings.savepoint(), t.isolation, t.readOnly}
+	return savepointMark{name, writes, t.deletes, t.catalog, t.session.settings.savepoint(), t.isolation, t.readOnly}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
-	t.writes, t.deletes, t.sequences = mark.writes, mark.deletes, mark.sequences
+	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.session.settings.restoreSavepoint(settings)
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
 	t.syncCharacteristics()
@@ -146,7 +146,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	case parser.CreateSavepoint:
 		t.savepoints = append(stack, mark)
 	case parser.RollbackSavepoint:
-		t.writes, t.deletes, t.sequences = mark.writes, mark.deletes, mark.sequences
+		t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 		t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
 		t.isolation, t.readOnly = mark.isolation, mark.readOnly
 		t.session.settings.currentIsolation = isolationText(t.isolation)

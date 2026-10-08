@@ -15,8 +15,8 @@ func temporaryNamespace(auth AuthorizationView) ObjectAddress {
 			return a
 		}
 	}
-	if owner := auth.session.transactions; owner != nil && owner.sequences != nil {
-		for a, d := range owner.sequences.descriptors {
+	if owner := auth.session.transactions; owner != nil && owner.catalog != nil {
+		for a, d := range owner.catalog.descriptors {
 			if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary == auth.session.token {
 				return a
 			}
@@ -24,7 +24,7 @@ func temporaryNamespace(auth AuthorizationView) ObjectAddress {
 	}
 	return ObjectAddress{}
 }
-func (e *Engine) sequenceCreationNamespaceLocked(auth AuthorizationView, s *parser.CreateSequence, c *sequenceChanges) (ObjectRef, error) {
+func (e *Engine) sequenceCreationNamespaceLocked(auth AuthorizationView, s *parser.CreateSequence, c *catalogChanges) (ObjectRef, error) {
 	if len(s.Name.Parts) == 2 && s.Name.Parts[0].Text != "pg_temp" {
 		return e.creationNamespace(auth, s.Name)
 	}
@@ -51,7 +51,7 @@ func (e *Engine) sequenceCreationNamespaceLocked(auth AuthorizationView, s *pars
 		return ObjectRef{}, err
 	}
 	ns := &namespaceDescriptor{address: ObjectAddress{ClassID: NamespaceClassID, ObjectID: oid}, name: fmt.Sprintf("pg_temp_%d", auth.session.token.id), revision: rev, owner: auth.state.CurrentUser, temporary: auth.session.token}
-	e.sequenceChangeLocked(c, ns.address, ns)
+	e.catalogChangeLocked(c, ns.address, ns)
 	return ObjectRef{owner: e.owner, Epoch: e.state.epoch, Address: ns.address}, nil
 }
 

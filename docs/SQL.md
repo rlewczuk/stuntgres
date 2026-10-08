@@ -478,7 +478,9 @@ unused reserved values. Peer setval does not discard already reserved
 tails. Transactional ALTER/restart publishes a fresh generation at commit
 and blocks peer sequence functions (including cache hits); rollback keeps
 the old global generator. CREATE/DROP and sequence comments are likewise
-transactional without expanding other transactional DDL.
+transactional through the shared catalog overlay, alongside selected ALTER TABLE
+nullability/named-NOT-NULL/DROP COLUMN action lists. Unrelated transactional DDL
+is not enabled.
 
 TEMP sequences shadow persistent names only for their creating physical
 session, accept its `pg_temp` alias, and disappear at physical end.

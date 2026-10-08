@@ -80,13 +80,8 @@ func TestReferenceNotNullExternalTransactionalDDL(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if db == p.memory {
-					referenceRunStep(t, p.ctx, tx, record, referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "statement is unsupported in an explicit transaction"}))
-					referenceRunStep(t, p.ctx, tx, record, referenceImplicitError("INSERT INTO t VALUES(8)", referenceDiagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
-				} else {
-					referenceRunStep(t, p.ctx, tx, record, referenceExec(q, 0))
-					referenceRunStep(t, p.ctx, tx, record, referenceImplicitError("INSERT INTO t VALUES(NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "a"}))
-				}
+				referenceRunStep(t, p.ctx, tx, record, referenceExec(q, 0))
+				referenceRunStep(t, p.ctx, tx, record, referenceImplicitError("INSERT INTO t VALUES(NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "a"}))
 				if err = tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}

@@ -48,6 +48,11 @@ func notNullSmokeQuery(t *testing.T, db *sql.DB, q string, names, types []string
 	if err != nil {
 		t.Fatal(err)
 	}
+	notNullSmokeRows(t, rows, names, types, nullable, want)
+}
+
+func notNullSmokeRows(t *testing.T, rows *sql.Rows, names, types []string, nullable []bool, want [][]any) {
+	t.Helper()
 	defer rows.Close()
 	labels, err := rows.Columns()
 	if err != nil || !reflect.DeepEqual(labels, names) {

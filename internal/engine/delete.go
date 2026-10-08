@@ -100,7 +100,7 @@ func (s *StatementScope) acquireRow(candidate deleteCandidate) error {
 	if err = s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	if candidate.ref.owner != e.owner || candidate.ref.Epoch != e.state.epoch || candidate.storage != e.storage[candidate.ref.Address] {
+	if candidate.ref.owner != e.owner || candidate.ref.Epoch != e.state.epoch || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return ErrCatalogReplaced
 	}
 	return nil
@@ -136,7 +136,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 	if candidate.ref.owner != e.owner || candidate.ref.Address.SubID != 0 || candidate.row == 0 || candidate.version == 0 {
 		return false, errors.New("stuntgres: invalid deletion identity")
 	}
-	if candidate.ref.Epoch != e.state.epoch || candidate.ref.Epoch != s.txRef.epoch || candidate.storage == nil || candidate.storage != e.storage[candidate.ref.Address] {
+	if candidate.ref.Epoch != e.state.epoch || candidate.ref.Epoch != s.txRef.epoch || candidate.storage == nil || candidate.storage != e.privateStorageLocked(s.owner.catalog, candidate.ref.Address) {
 		return false, ErrCatalogReplaced
 	}
 	if s.view == nil {
@@ -154,7 +154,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 		return false, errors.New("stuntgres: deletion is outside its candidate view")
 	}
 	rows := s.ownWrites[candidate.ref.Address]
-	storage := e.storage[candidate.ref.Address]
+	storage := e.privateStorageLocked(s.owner.catalog, candidate.ref.Address)
 	if storage == nil {
 		return false, errors.New("stuntgres: relation storage is missing")
 	}
@@ -162,7 +162,7 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 		rows = storage.versions
 	}
 	original, slot, found := rowByID(rows, candidate.row, candidate.ordinal)
-	relation, ok := e.state.descriptors[candidate.ref.Address].(*relationDescriptor)
+	relation, ok := e.privateCatalogLocked(s.owner.catalog).state.descriptors[candidate.ref.Address].(*relationDescriptor)
 	if !found || !ok || len(original.values) != len(relation.columns) {
 		return false, errors.New("stuntgres: invalid deletion predecessor")
 	}
@@ -271,7 +271,7 @@ func (s *StatementScope) latestDeleteRow(candidate deleteCandidate) (rowVersion,
 	if err := s.validateLockedRelation(e); err != nil {
 		return rowVersion{}, false, err
 	}
-	store := e.storage[candidate.ref.Address]
+	store := e.privateStorageLocked(s.owner.catalog, candidate.ref.Address)
 	if store == nil || store != candidate.storage {
 		return rowVersion{}, false, ErrCatalogReplaced
 	}

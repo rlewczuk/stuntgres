@@ -210,7 +210,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	// source identity cannot authorize admission in the replacement catalog;
 	// the fixture's already-Finished statement no longer owns any grants.
 	e.mu.Lock()
-	_, err = currentQuerySourceLocked(e, CatalogRead{e, e.state}, grant)
+	_, err = currentQuerySourceLocked(e, CatalogRead{e, e.state}, nil, grant)
 	e.mu.Unlock()
 	if !errors.Is(err, ErrCatalogReplaced) {
 		t.Fatal(old, err)

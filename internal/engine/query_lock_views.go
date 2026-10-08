@@ -80,7 +80,7 @@ func queryOwnAggregate(node LogicalNode) bool {
 	}
 }
 func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) (relationLockMode, error) {
-	catalog := e.sequenceCatalogLocked(scope.owner.sequences)
+	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	mode := queryRootRowMode(root)
 	var visit func(*relationDescriptor, relationLockMode) (relationLockMode, error)
 	visit = func(d *relationDescriptor, mode relationLockMode) (relationLockMode, error) {
@@ -194,7 +194,7 @@ func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) error {
 	inherited := queryRootRowMode(root)
 	marked, views := false, false
-	catalog := e.sequenceCatalogLocked(scope.owner.sequences)
+	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	var visit func(*relationDescriptor, relationLockMode) error
 	visit = func(d *relationDescriptor, mode relationLockMode) error {
 		if d.view != nil {

@@ -10,9 +10,17 @@ name in settings. Default Go isolation honors the session default; explicit
 override it. Go `ReadOnly: false` explicitly requests read-write access. SQL
 omitted modes inherit session defaults. INSERT (VALUES or SELECT), scalar UPDATE,
 SELECT, DELETE, settings and the single-target AX utility are supported, including
-prepared execution. CREATE tables before a block; sequence DDL and COMMENT ON
-SEQUENCE are the bounded transactional DDL exceptions. Other transactional DDL,
-SERIALIZABLE/SSI and DEFERRABLE safe snapshots remain unsupported.
+prepared execution. CREATE tables before a block; sequence DDL, COMMENT ON
+SEQUENCE and selected ALTER TABLE nullability/named-NOT-NULL/DROP COLUMN
+action lists are bounded transactional DDL exceptions. Successful private ALTER
+definitions govern subsequent metadata and writes; savepoints restore catalog,
+projected row shapes and own writes together. Commit installs these and sequence
+changes atomically with DML. Successful statement authorization is retained
+through Commit despite later role-catalog revisions or internal actor changes.
+Native SET ROLE and transactional SESSION AUTHORIZATION remain excluded;
+the real PostgreSQL SET ROLE lifetime witness does not enable native SQL.
+Other transactional DDL, SERIALIZABLE/SSI and DEFERRABLE
+safe snapshots remain unsupported.
 In read-write explicit blocks, role creation/removal and SET/RESET SESSION
 AUTHORIZATION retain native `0A000` capability boundaries, not PostgreSQL parity.
 Identity SELECT remains supported in both access modes.
@@ -309,7 +317,7 @@ successful private work.
 | Boundary | SQLSTATE / English diagnostic |
 |---|---|
 | Valid ordinary command/Prepare or SQL start after explicit failure | `25P02`: `current transaction is aborted, commands ignored until end of transaction block` |
-| Explicit CREATE/ALTER/DROP TABLE, schema, COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands) |
+| Explicit CREATE/DROP TABLE, table/column RENAME, schema, non-sequence COMMENT or role/session-authorization utilities | Native capability boundary `0A000`: `statement is unsupported in an explicit transaction`; aborts the block (PostgreSQL supports these commands). Selected nullability/named-NOT-NULL/DROP COLUMN lists are supported. |
 | INSERT NULL into t(v INT NOT NULL) | `23502`: `null value in column "v" of relation "t" violates not-null constraint`; Detail `Failing row contains (null).`, Schema `public`, Table `t`, Column `v` |
 | Original parse/coercion/bind/constraint failure | Original diagnostic, not a transaction wrapper; `SELECT FROM` yields `42601`, `syntax error at or near "FROM"`, Position `8` |
 | Unsupported Go isolation option | Ordinary `stuntgres: unsupported transaction isolation level`, before state change |

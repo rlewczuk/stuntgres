@@ -9,9 +9,12 @@ import (
 )
 
 // Names are namespace-wide only when generated. Explicit names are relation-local.
-func constraintNames(read CatalogRead, namespace ObjectAddress) map[string]bool {
+func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relationDescriptor) map[string]bool {
 	names := make(map[string]bool)
 	for _, descriptor := range read.state.descriptors {
+		if candidate != nil && descriptor.Address() == candidate.address {
+			descriptor = candidate
+		}
 		if relation, ok := descriptor.(*relationDescriptor); ok && relation.namespace == namespace {
 			for _, constraint := range relation.notNullConstraints {
 				names[constraint.Name] = true
@@ -161,7 +164,7 @@ func nameCreateNotNull(d *relationDescriptor, read CatalogRead) error {
 	if len(d.notNullConstraints) == 0 {
 		return nil
 	}
-	used := constraintNames(read, d.namespace)
+	used := constraintNames(read, d.namespace, nil)
 	// A local false entry was generated; true entries were explicitly named.
 	local := make(map[string]bool, len(d.notNullConstraints))
 	for i := range d.notNullConstraints {

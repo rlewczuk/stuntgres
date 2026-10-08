@@ -1107,8 +1107,16 @@ Prepare does not resolve or wait for these utility targets. In contrast, a
 subsequent absence probe `SELECT * FROM t` is analyzed on direct Exec/Query or
 semantic Prepare and returns42P01 at character15 on both native and PostgreSQL;
 this SELECT record must not inherit the utility's unpositioned-error policy.
-SET/ADD scans visible committed rows before metadata-only publication; old NULL
-fails23502 with column/schema/table, no Detail/Constraint. INSERT23502 includes
+SET/ADD builds the final descriptor before one NULL scan in physical attribute
+order. DROP actions run first, original SET actions next, transformed ADD NOT
+NULL actions last (within each pass, original order). A later action error
+precedes validation and installs no descriptor, dependency, generator or row
+prefix. Executed IF EXISTS notices remain delivered even if a later action fails.
+Validation uses fresh committed roots after AX grant, including under RR, plus
+own successful INSERT/UPDATE/DELETE effects; ordinary RR queries stay snapshot
+isolated. Existing NULL fails23502 with column/schema/table, no Detail/Constraint.
+Pure nullability changes retain the exact storage/backing; only DROP COLUMN
+projects rows. INSERT23502 includes
 failing-row Detail even for a named constraint. Both identify the decoded column
 literally; all failures preserve schema/data. Compatible SET/ADD retains existing
 name; DROP makes nullable; redundant operations are count-zero/no-revision.
@@ -1136,8 +1144,21 @@ included. Restore uses common isolated CREATE/INSERT binding and atomic target
 replacement. Scalar UPDATE uses existing expressions, destination coercions and
 NOT NULL enforcement (see below). Inheritance and NOT VALID/VALIDATE/NO INHERIT
 remain explicit native0A000 boundaries with real PostgreSQL-only witnesses.
-CHECK/PK/domains/general ALTER lists and explicit-transaction DDL remain
-excluded, never successful no-ops.
+Selected nullability/named-NOT-NULL actions and existing DROP COLUMN compose
+comma-separated atomic lists, including explicit transactions and savepoints.
+Same-session metadata and DML see successful private definitions; rollback
+restores descriptor, row shape and own-write roots. Commit publishes these with
+sequence metadata/generators and DML through one callback-free installation.
+Preparation fences the owning transaction epoch before combining private
+descriptors with the catalog/type generation. Provider validation remains
+outside engine locks against that immutable generation; replacement is checked
+again before installation and reports the ordinary catalog-replaced error.
+Successful statement authorization is retained through Commit despite later
+role-catalog revisions or internal actor changes, without reauthorizing table
+ownership. Native SET ROLE and transactional SESSION AUTHORIZATION remain
+excluded; PostgreSQL's SET ROLE lifetime witness is an independent control.
+CHECK/PK/domains and unrelated ALTER actions/transactional DDL remain excluded,
+never successful no-ops.
 Post-drop Dump/Restore captures nullable declarations, remaining NOT NULL
 identities, rows, defaults/comments and owned-sequence state/associations; it
 does not replay ALTER history or add ALTER to the Restore whitelist. Physical
@@ -1228,7 +1249,7 @@ do not collide. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 DROP TABLE supports grouped schema-qualified/path targets, IF EXISTS and RESTRICT/CASCADE with whole-group atomic preflight. Table owner, schema owner or superuser authority is required. Both modes remove selected tables and AUTO-dependent owned sequences, plus contained metadata/storage/ACLs; neither removes schemas/types/roles/independent LIKE clones. Retained Rows survive removal. Public DROP TABLE remains excluded from private Restore.
 
-ALTER TABLE also supports one DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] action, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact; descriptor+storage publish through one guarded CatalogStage, checking original storage root/observed length/deletion-root identity against concurrent row publication. Native dependencies include named NOT NULL/ACL/comments, stored views and AUTO-dependent sequences keyed by stable attribute SubID. Indexes/FKs/hierarchy and transactional table DDL remain external-only witnesses. Explicit native transactions exclude ALTER TABLE. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
+ALTER TABLE supports DROP [COLUMN] [IF EXISTS] name [RESTRICT|CASCADE] alone or in selected nullability lists, ordinary t/t* and ONLY t/ONLY(t) for standalone tables. Table OwnerOnly (not schema-owner fallback) execution uses AX; metadata-only Prepare does not lock. Survivor attribute/origin IDs remain stable while dense rows/metadata compact. Native dependencies include named NOT NULL/ACL/comments, stored views and AUTO-dependent sequences keyed by stable attribute SubID. The existing transaction descriptor overlay carries projected committed/own rows and dependent view/owned-sequence removals through successful Finish, savepoint recovery and combined Commit. Final installation checks original storage pointer/root/independent length/generation/deletion roots. Index/FK/hierarchy mechanisms remain excluded; unrelated table DDL stays unsupported in explicit transactions. Retained snapshots stay immutable; prepared survivors rebind, changed result shapes retain the cached-type boundary.
 The optional ALTER DROP COLUMN keyword consumes the shared dedicated COLUMN token used by COMMENT, not legacy KW_R text matching. Quoted keyword targets remain decoded IDENT names; preserve keyword categories and positioned parser errors when integrating grammar changes.
 Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion per row through common Insert. DEFAULT VALUES also applies declared defaults/typed NULL for nonzero-column tables; VALUES() remains invalid syntax. Restore does not accept ALTER TABLE history. Feature smoke: `make smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'`.
 
@@ -1296,9 +1317,9 @@ concurrent delete.
 Read-only modifying utilities reject with 25006 before object resolution,
 authorization and relation locks, including missing or locked targets and
 statements prepared before BEGIN. DML retains semantic analysis before read-only
-execution rejection. Utility Prepare inside explicit transactions and read-write
-utility execution retain the native unsupported 0A000 boundary; no transactional
-DDL support is implied.
+execution rejection. Selected ALTER nullability/named-NOT-NULL/DROP COLUMN lists
+and sequence utilities permit effect-free Prepare and transactional execution;
+unrelated utility Prepare/execution retains its native unsupported0A000 boundary.
 Feature commands: `make test RUN='^TestTransactionIsolation'`,
 `make reference RUN='^TestReferenceTransactionIsolation'`,
 `make smoke RUN='^TestTransactionIsolationSmoke$$'`.
@@ -1494,7 +1515,7 @@ typed OID datums or adding general OID casts/catalog queries.
 
 Sequence metadata, transactional generator replacements and INSERT/UPDATE/DELETE row versions publish together at Finish/COMMIT through the same immutable prepare/validate/install frontier. Ordinary nextval/setval effects and physical-session memories are outside rollback. RX protects demanded nonnull function calls; ALTER uses SRX and administrative rename/schema changes use AX. Sequence row reads use AS and retain captured data/types through subsequent changes. Native log_cnt0 intentionally differs from PostgreSQL WAL prelogging counters; tests assert both independently.
 
-Sequence DDL and COMMENT ON SEQUENCE are the bounded exception to the general explicit-transaction DDL exclusion above. TEMP sequence namespaces are session-private, shadow persistent relations, and survive persistent Reset/Restore until physical end. Controls preserve settings/roles/temp memories, exclude TEMP objects from Dump, serialize effective persistent options and called state, and reject invalid staged replacement atomically.
+Sequence DDL, COMMENT ON SEQUENCE and the selected ALTER TABLE action lists above are bounded exceptions to the general explicit-transaction DDL exclusion. TEMP sequence namespaces are session-private, shadow persistent relations, and survive persistent Reset/Restore until physical end. Controls preserve settings/roles/temp memories, exclude TEMP objects from Dump, serialize effective persistent options and called state, and reject invalid staged replacement atomically.
 
 The internal native catalog-fixture replacement seam imports a persistent source
 projection only. Repeated self replacement preserves destination live TEMP once;
