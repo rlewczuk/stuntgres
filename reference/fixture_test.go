@@ -173,7 +173,6 @@ func newReferenceFixture(t *testing.T, withPostgres, freshNative bool) *referenc
 	return p
 }
 
-
 type referenceDiagnostic struct {
 	Severity            string
 	SeverityUnlocalized string

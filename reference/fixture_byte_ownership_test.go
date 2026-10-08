@@ -10,7 +10,7 @@ import (
 
 func TestReferenceFixtureByteOwnership(t *testing.T) {
 	for _, tc := range []struct {
-		name string
+		name  string
 		value driver.Value
 	}{
 		{"null", nil},

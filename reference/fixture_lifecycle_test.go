@@ -63,10 +63,10 @@ func referenceStart() error {
 }
 
 type referenceBackend struct {
-	name string
-	db *sql.DB
+	name     string
+	db       *sql.DB
 	recorder *referenceRecorder
-	pg bool
+	pg       bool
 }
 
 func (p *referencePair) backends() []referenceBackend {

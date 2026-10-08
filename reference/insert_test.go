@@ -34,7 +34,6 @@ func TestReferenceInsertImplicitShortTargets(t *testing.T) {
 	p.step(t, referenceSelect(`SELECT * FROM "Odd" ORDER BY "Id"`, []string{"Id", "label"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), nil}}))
 }
 
-
 func TestReferenceInsertImplicitShortQuotedDiagnostics(t *testing.T) {
 	p := newReferencePair(t)
 	p.step(t, referenceExec(`CREATE TABLE "t""é"("a""b" INT NOT NULL,label TEXT,flag BOOL)`, 0))

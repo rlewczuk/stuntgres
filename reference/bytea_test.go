@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-
 func TestReferenceByteaDiagnosticsAndOutput(t *testing.T) {
 	p := newReferencePair(t)
 	for _, db := range []*sql.DB{p.memory, p.postgres} {

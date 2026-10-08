@@ -8,13 +8,11 @@ import (
 	"testing"
 )
 
-
 func queryCoreReferenceSetup(t *testing.T) *referencePair {
 	p := newReferencePair(t)
 	queryCoreSeed(t, p)
 	return p
 }
-
 
 func TestReferenceQueryCoreHiddenSortAndHeldFrames(t *testing.T) {
 	p := queryCoreReferenceSetup(t)
