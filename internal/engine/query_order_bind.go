@@ -160,7 +160,7 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 				properties := output.Properties()
 				properties.StageDependent = true
 				projection[j] = cachedOrderExpression{
-					expressionInfo: expressionInfo{usage: output.ResultUsage(), pos: output.SourcePosition(), properties: properties},
+					expressionInfo: expressionInfo{usage: output.ResultUsage(), pos: output.SourcePosition(), properties: properties, collationConflict: output.CollationIndeterminate(), collationExplicit: output.ExplicitCollation()},
 					slot:           key.cache,
 				}
 				break

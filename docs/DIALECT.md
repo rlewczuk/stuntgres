@@ -2256,3 +2256,51 @@ atomically. Smokes:
 `make smoke RUN='^TestBtreeIndex(Smoke|ControlsSmoke|LifecycleSmoke)$' VERBOSE=0`.
 The independent reference family is `TestReferenceBtreeIndex...`.
 
+## LIKE and ILIKE — change note
+
+LIKE, NOT LIKE, ILIKE and NOT ILIKE are whole-string predicates. Their operator
+spellings are `~~`, `!~~`, `~~*` and `!~~*`, also available through
+`OPERATOR(pg_catalog.symbol)` and the existing namespace/authorization rules.
+Keyword predicates accept `ESCAPE`; symbolic predicates do not accept that suffix.
+`%` consumes zero or more characters and `_` one UTF8 code point, including
+newlines. Regex punctuation has no special meaning. No Unicode normalization
+or grapheme counting is performed.
+
+Backslash is the default escape. ESCAPE is empty (disable escaping) or one TEXT
+code point; custom escapes quote the following character, including themselves.
+Escape normalization precedes ASCII-only ILIKE folding under admitted
+default/C/POSIX collations. Thus É/é do not match case-insensitively. C and POSIX
+are distinct identities: conflicting implicit nondefault operands, including an
+escape operand, raise 42P22 when matching non-NULL values. Implicit default yields
+to either. Existing scalar COLLATE annotations select default/C/POSIX explicitly;
+an explicit annotation, including default, wins over implicit conflicts.
+Equal explicit identities combine; different explicit identities fail analysis
+and Prepare with 42P21 at the second conflicting COLLATE, even for NULL or empty
+input. Collatable casts, conditional results and supported string outputs retain
+this expression authority. Stored view columns expose implicit physical identity.
+Other locale/nondeterministic providers remain excluded.
+
+BPCHAR matching preserves the left operand's physical trailing spaces; BPCHAR
+patterns/escapes convert to TEXT and trim those spaces. VARCHAR retains them.
+Existing BYTEA LIKE/NOT LIKE uses octets and an empty or one-octet escape; BYTEA
+ILIKE has no signature (42883). No binary producers or casts are added.
+Negation complements successful booleans only; NULL inputs produce BOOL NULL.
+
+Invalid escape length is 22025 `invalid escape string`, with Hint
+`Escape string must be empty or one character.`. A demanded trailing escape
+is 22025 `LIKE pattern must not end with escape character`; mismatches or
+exhaustion can return false without reaching it. Runtime errors have no query
+Position. Incompatible operators/escape argument types fail analysis/Prepare
+with 42883 at LIKE/ILIKE or NOT, using canonical symbols/function signatures.
+Prepare does not perform matching. Execute preflights immutable row-independent
+normalization, even on empty relations or a constant NULL lhs. Row-dependent
+normalization is not run on empty/filtered input. A variable NULL lhs still
+evaluates the escape child; a constant NULL lhs can eliminate row-dependent
+matching after independent normalization preflight. Held executions never retain
+normalized parameter values.
+
+Matching participates in shared CHECK/view expression consumers, deparse/rebind
+and atomic public Dump/Reset/Restore. Regex/SIMILAR TO, additional locales and
+general no-FROM scalar SELECT are not included.
+Feature smoke: `make smoke RUN='^TestLikeSmoke$' VERBOSE=0`.
+

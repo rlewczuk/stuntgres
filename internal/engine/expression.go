@@ -29,6 +29,9 @@ type ExprProperties struct {
 type BoundExpr interface {
 	boundExpression()
 	ResultUsage() sqltype.Usage
+	CollationIndeterminate() bool
+	// ExplicitCollation returns the annotation origin; zero means implicit.
+	ExplicitCollation() parser.Position
 	SourcePosition() parser.Position
 	Properties() ExprProperties
 	Eval(*EvalContext) (sqltype.Value, error)
@@ -45,16 +48,20 @@ type EvalContext struct {
 	Output         sqltype.OutputEnvironment
 }
 type expressionInfo struct {
-	usage       sqltype.Usage
-	pos         parser.Position
-	properties  ExprProperties
-	unknownNull bool
+	usage             sqltype.Usage
+	pos               parser.Position
+	properties        ExprProperties
+	unknownNull       bool
+	collationConflict bool
+	collationExplicit parser.Position
 }
 
-func (expressionInfo) boundExpression()                  {}
-func (e expressionInfo) ResultUsage() sqltype.Usage      { return e.usage }
-func (e expressionInfo) SourcePosition() parser.Position { return e.pos }
-func (e expressionInfo) Properties() ExprProperties      { return e.properties }
+func (expressionInfo) boundExpression()                     {}
+func (e expressionInfo) ResultUsage() sqltype.Usage         { return e.usage }
+func (e expressionInfo) SourcePosition() parser.Position    { return e.pos }
+func (e expressionInfo) Properties() ExprProperties         { return e.properties }
+func (e expressionInfo) CollationIndeterminate() bool       { return e.collationConflict }
+func (e expressionInfo) ExplicitCollation() parser.Position { return e.collationExplicit }
 func evaluationContext(c *EvalContext) error {
 	if c == nil || c.Context == nil {
 		return fmt.Errorf("stuntgres: missing expression context")
@@ -262,6 +269,41 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		if changed {
 			return e, true, nil
 		}
+	case likeEscapeExpression:
+		pattern, pc, err := preflightCoercionsWithPolicy(c, e.pattern, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		escape, ec, err := preflightCoercionsWithPolicy(c, e.escape, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.pattern, e.escape = pattern, escape
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
+		return e, pc || ec, nil
+	case likeExpression:
+		left, lc, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		right, rc, err := preflightCoercionsWithPolicy(c, e.right, decisiveDefaults)
+		if err != nil {
+			return nil, false, err
+		}
+		e.left, e.right = left, right
+		if randomLiteralNull(left) || randomLiteralNull(right) {
+			return preflightValue(c, e.expressionInfo, sqltype.Null(e.usage.Type), nil)
+		}
+		p := e.Properties()
+		if p.Volatility == Immutable && !p.RowDependent && !p.StageDependent {
+			value, err := e.Eval(c)
+			return preflightValue(c, e.expressionInfo, value, err)
+		}
+		return e, lc || rc, nil
 	case comparisonExpression:
 		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.left, decisiveDefaults)
 		if err != nil {
@@ -1095,7 +1137,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
-		node = collationExpression{b.info(usage, r.Pos, child.Properties()), child}
+		info := b.info(usage, r.Pos, child.Properties())
+		info.collationExplicit = r.Pos
+		node = collationExpression{info, child}
 	case parser.CastExpr:
 		var err error
 		node, err = b.cast(r, policy)
@@ -1127,6 +1171,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		var err error
 		if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
 			node, err = b.bindStringConcat(r)
+		} else if len(r.Name.Parts) > 0 && likeName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
+			node, err = b.bindLike(r)
 		} else if len(r.Name.Parts) > 0 && bitwiseName(r.Name.Parts[len(r.Name.Parts)-1].Text) {
 			node, err = b.bindBitwise(r)
 		} else if len(r.Name.Parts) > 0 && (arithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text) || symbolicArithmeticName(r.Name.Parts[len(r.Name.Parts)-1].Text)) {
@@ -1159,7 +1205,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			}
 			return node, err
 		}
-		node = coercionExpression{b.info(policy.expected, raw.SourcePosition(), coercionProperties(node, plan)), node, plan, policy.mode}
+		info, err := collatedInfo(b.info(policy.expected, raw.SourcePosition(), coercionProperties(node, plan)), node)
+		if err != nil {
+			return nil, err
+		}
+		node = coercionExpression{info, node, plan, policy.mode}
 	}
 	return node, nil
 }
@@ -1261,6 +1311,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, err
 	}
 	source := child.ResultUsage()
+	if target.Collation.ID != 0 && source.Collation.ID != 0 {
+		target.Collation = source.Collation
+	}
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
 		if source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
@@ -1278,7 +1331,11 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if start := child.SourcePosition(); start.Character > 0 && (pos.Character <= 0 || start.Character < pos.Character) {
 		pos = start
 	}
-	return coercionExpression{b.info(target, pos, coercionProperties(child, plan)), child, plan, sqltype.Explicit}, nil
+	info, err := collatedInfo(b.info(target, pos, coercionProperties(child, plan)), child)
+	if err != nil {
+		return nil, err
+	}
+	return coercionExpression{info, child, plan, sqltype.Explicit}, nil
 }
 
 // Strong column/function names survive standard casts; weak literal names do not.

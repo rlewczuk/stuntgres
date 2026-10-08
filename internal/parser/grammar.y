@@ -107,6 +107,7 @@ package parser
 %token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %token <tok> LOCK ACCESS EXCLUSIVE MODE IN
 %token <tok> LIKE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA
+%token <tok> ILIKE ESCAPE
 %token <tok> COMMENT COLUMN IS
 %token <tok> COLLATE
 %token <tok> ISNULL NOTNULL DISTINCT UNKNOWN
@@ -128,6 +129,8 @@ package parser
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
 %nonassoc BETWEEN NOT
+/* ESCAPE shifts after a complete pattern, but cannot become a cast type tail. */
+%nonassoc ESCAPE
 %left SYMBOLIC_OPERATOR OPERATOR
 %left '+' '-'
 %left '*' '/' '%'
@@ -151,7 +154,7 @@ package parser
 %nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %nonassoc STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD
 %nonassoc '('
-%nonassoc KW_T CROSS INNER JOIN NATURAL LIKE WITH WITHOUT
+%nonassoc KW_T CROSS INNER JOIN NATURAL LIKE ILIKE WITH WITHOUT
 %nonassoc '='
 %left COLLATE
 %left ':'
@@ -236,6 +239,8 @@ package parser
 %type <expr> having
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument insert_value
+%type <tok> like_operator
+%type <expr> target_escape delete_escape
 %type <expr> conditional case_test case_else conditional_value
 %type <caseArms> case_arms
 %type <caseArm> case_arm
@@ -730,11 +735,16 @@ delete_lower: delete_base { $$=$1 }
  | delete_lower IS DISTINCT FROM delete_lower %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
  | delete_lower IS NOT DISTINCT FROM delete_lower %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
 delete_between: delete_base %prec IS { $$=$1 }
- | delete_between_predicate { $$=$1 } ;
+ | delete_between_predicate { $$=$1 }
+ | delete_base like_operator delete_base delete_escape %prec BETWEEN { $$=likeExpr($1,$3,$4,$2,false,$2.pos) }
+ | delete_base NOT like_operator delete_base delete_escape %prec BETWEEN { $$=likeExpr($1,$4,$5,$3,true,$2.pos) } ;
 delete_between_predicate: delete_base BETWEEN delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$3,$5,$2.pos,false,false) }
  | delete_base NOT BETWEEN delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,true,false) }
  | delete_base BETWEEN SYMMETRIC delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,false,true) }
  | delete_base NOT BETWEEN SYMMETRIC delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$5,$7,$2.pos,true,true) } ;
+like_operator: LIKE | ILIKE ;
+delete_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE delete_base { $$=$2 } ;
+target_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE target_base { $$=$2 } ;
 /* Match the ordinary bounded comparison consumer: grouped predicates can be
  * operands, but comparison chains and arithmetic remain nonassociative/scalar. */
 delete_comparison: delete_between { $$=$1 }
@@ -881,6 +891,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | NATURAL '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | IS '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | LIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | ILIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | AUTHORIZATION '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | ISNULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
@@ -916,7 +927,9 @@ default_target: target_base %prec NAME_LIST { $$=$1 }
 target_base: operand %prec NAME_LIST { $$=$1 }
  | '(' target_or ')' { $$=groupedQualification($2) } ;
 target_between: target_base %prec IS { $$=$1 }
- | target_between_predicate { $$=$1 } ;
+ | target_between_predicate { $$=$1 }
+ | target_base like_operator target_base target_escape %prec BETWEEN { $$=likeExpr($1,$3,$4,$2,false,$2.pos) }
+ | target_base NOT like_operator target_base target_escape %prec BETWEEN { $$=likeExpr($1,$4,$5,$3,true,$2.pos) } ;
 target_between_predicate: target_base BETWEEN default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$3,$5,$2.pos,false,false) }
  | target_base NOT BETWEEN default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,true,false) }
  | target_base BETWEEN SYMMETRIC default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,false,true) }
@@ -978,7 +991,11 @@ truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
 projection_item: projection_target %prec NAME_LIST { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{}}} }
  | scalar COLLATE { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
  | scalar_projection bare_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
- | scalar_projection AS col_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$3.text,Pos:$3.pos}}} } ;
+ | scalar_projection AS col_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$3.text,Pos:$3.pos}}} }
+/* A keyword after a complete projection base can be a bare label when no
+ * pattern operand follows. Factor here so predicate-starter lookahead retains
+ * LIKE/ILIKE matching, without relaxing WHERE or lexical keyword identity. */
+ | target_base like_operator { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} } ;
 projection: projection_item { $$=$1 }
  | projection ',' projection_item { $1.Targets=append($1.Targets,$3.Targets...);$1.Labels=append($1.Labels,$3.Labels...);$$=$1 } ;
 from_list: joined_table { $$=$1 }
@@ -1071,6 +1088,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
+ | ESCAPE
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
@@ -1082,18 +1100,17 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
- | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY
+ | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY | ILIKE | ESCAPE
  | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR
+generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR | ILIKE | ESCAPE
  | string_word | LEADING | TRAILING | BOTH ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */
 bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.text=="over") {sqllex.(*lexer).failAt("0A000","aggregate modifiers are unsupported",$1.pos.Offset);return 1}; if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
- | LIKE { $$=$1 }
  | COLLATE { $$=$1 }
  | COLUMN { $$=$1 }
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
@@ -1104,9 +1121,9 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | USING | CURRENT_CATALOG | SYSTEM_USER | CONCURRENTLY ;
-col_label: name | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
+col_label: name | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | ILIKE ;
 suffix: predicate_suffix | GROUP | HAVING ;
-predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
+predicate_suffix: KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label %prec NAME_LIST { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }

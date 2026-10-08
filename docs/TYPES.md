@@ -1279,3 +1279,27 @@ added. See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
 Feature smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 
 
+## Pattern matching and physical character values
+
+LIKE/ILIKE preserves physical BPCHAR padding on the left. For CHAR(3) storing
+`a`, LIKE `a` is false, LIKE `a__` true; an explicit TEXT conversion trims
+padding. BPCHAR patterns and escape strings convert to TEXT and trim padding.
+VARCHAR/TEXT trailing spaces remain significant. Text `_` advances one UTF8
+code point; BYTEA `_` advances one octet, so c3a9 matches `__`, not `_`.
+ILIKE folds ASCII A–Z only under default/C/POSIX; no Unicode folding is implied.
+Supported implicit column collation identities remain distinct and conflicting
+C/POSIX matching produces demanded 42P22. Explicit scalar COLLATE default/C/POSIX
+annotations override implicit identity or indeterminacy; distinct explicit
+identities fail analysis with 42P21 at the conflicting annotation.
+Result metadata is BOOL, including NULL and empty relations.
+No new character/binary conversions are introduced.
+Collation identity and explicit annotation authority survive collatable casts,
+conditional and supported string result wrappers, group/order caches and native
+replay. Stored view columns retain their physical identity as implicit operands.
+Indeterminacy and explicit annotation origins are expression metadata,
+not an invalid stored Usage: CREATE VIEW rejects an indeterminate collatable
+output at execution, while determinate POSIX outputs retain identity951.
+Terminal-pattern escape errors remain lazy, including the release's ordering
+after `%` consumes adjacent `_` wildcards; exhausted literal input does not
+globally validate unreachable pattern suffixes.
+

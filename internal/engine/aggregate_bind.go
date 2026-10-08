@@ -12,7 +12,7 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	if a == nil || other == nil {
 		return a == nil && other == nil
 	}
-	if a.ResultUsage() != other.ResultUsage() {
+	if a.ResultUsage() != other.ResultUsage() || a.CollationIndeterminate() != other.CollationIndeterminate() || (a.ExplicitCollation().Character > 0) != (other.ExplicitCollation().Character > 0) {
 		return false
 	}
 	same := b.sameGroupExpression
@@ -56,6 +56,12 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case arithmeticExpression:
 		o, ok := other.(arithmeticExpression)
 		return ok && e.provider == o.provider && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
+	case likeExpression:
+		o, ok := other.(likeExpression)
+		return ok && e.provider == o.provider && e.operator == o.operator && e.namespace == o.namespace && same(e.left, o.left) && same(e.right, o.right)
+	case likeEscapeExpression:
+		o, ok := other.(likeEscapeExpression)
+		return ok && e.provider == o.provider && same(e.pattern, o.pattern) && same(e.escape, o.escape)
 	case comparisonExpression:
 		o, ok := other.(comparisonExpression)
 		return ok && e.predicate == o.predicate && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
@@ -198,7 +204,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			properties := expr.Properties()
 			properties.RowDependent = false
 			properties.StageDependent = true
-			info := expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition(), properties: properties}
+			info := expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition(), properties: properties, collationConflict: expr.CollationIndeterminate(), collationExplicit: expr.ExplicitCollation()}
 			return groupExpression{info, i}, nil
 		}
 	}
@@ -258,6 +264,14 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 	case arithmeticExpression:
 		e.left = rewrite(e.left)
 		e.right = rewrite(e.right)
+		stage(&e.expressionInfo)
+		expr = e
+	case likeExpression:
+		e.left, e.right = rewrite(e.left), rewrite(e.right)
+		stage(&e.expressionInfo)
+		expr = e
+	case likeEscapeExpression:
+		e.pattern, e.escape = rewrite(e.pattern), rewrite(e.escape)
 		stage(&e.expressionInfo)
 		expr = e
 	case comparisonExpression:
@@ -390,6 +404,12 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 	case arithmeticExpression:
 		walk(e.left)
 		walk(e.right)
+	case likeExpression:
+		walk(e.left)
+		walk(e.right)
+	case likeEscapeExpression:
+		walk(e.pattern)
+		walk(e.escape)
 	case comparisonExpression:
 		walk(e.left)
 		walk(e.right)

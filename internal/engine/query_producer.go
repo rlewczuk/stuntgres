@@ -84,7 +84,7 @@ func (b *expressionBinder) scheduleCountProjection(root LogicalNode, projection 
 			slot := ordered.cacheWidth
 			ordered.outputs = append(ordered.outputs, expr)
 			ordered.cacheWidth++
-			projection[i] = cachedOrderExpression{expressionInfo: expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition(), properties: expr.Properties()}, slot: slot}
+			projection[i] = cachedOrderExpression{expressionInfo: expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition(), properties: expr.Properties(), collationConflict: expr.CollationIndeterminate(), collationExplicit: expr.ExplicitCollation()}, slot: slot}
 		} else {
 			late = append(late, expr)
 			lateSlots = append(lateSlots, i)
@@ -98,7 +98,7 @@ func (b *expressionBinder) scheduleCountProjection(root LogicalNode, projection 
 	}
 	for j, i := range lateSlots {
 		expr := projection[i]
-		projection[i] = cachedOrderExpression{expressionInfo: expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition(), properties: expr.Properties()}, slot: base + j}
+		projection[i] = cachedOrderExpression{expressionInfo: expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition(), properties: expr.Properties(), collationConflict: expr.CollationIndeterminate(), collationExplicit: expr.ExplicitCollation()}, slot: base + j}
 	}
 	return &evaluationNode{querySchema: root.Schema(), child: root, expressions: late, base: base}
 }

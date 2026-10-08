@@ -81,6 +81,12 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case arithmeticExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n
+	case likeExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		next = n
+	case likeEscapeExpression:
+		n.pattern, n.escape = child(n.pattern), child(n.escape)
+		next = n
 	case comparisonExpression:
 		n.left, n.right = child(n.left), child(n.right)
 		next = n

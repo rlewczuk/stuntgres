@@ -53,11 +53,15 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 		p.ParameterDependent = p.ParameterDependent || child.ParameterDependent
 		p.StageDependent = p.StageDependent || child.StageDependent
 	}
-	plan, err := sqltype.BindString(name, result, b.typ(sqltype.Text).Usage(), usages[:len(args)], textual)
+	info, err := collatedInfo(b.info(result, pos, p), args...)
 	if err != nil {
 		return nil, err
 	}
-	return stringExpression{b.info(result, pos, p), plan, args, textual, syntax}, nil
+	plan, err := sqltype.BindString(name, info.usage, b.typ(sqltype.Text).Usage(), usages[:len(args)], textual)
+	if err != nil {
+		return nil, err
+	}
+	return stringExpression{info, plan, args, textual, syntax}, nil
 }
 func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text

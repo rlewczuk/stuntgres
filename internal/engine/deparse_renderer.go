@@ -368,6 +368,18 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return text, err
 		}
 		return binary(n.left, n.right, op, 5, parent)
+	case likeExpression:
+		return binary(n.left, n.right, operator(n.namespace, n.operator), 5, parent)
+	case likeEscapeExpression:
+		pattern, err := child(n.pattern)
+		if err != nil {
+			return "", err
+		}
+		escape, err := child(n.escape)
+		if err != nil {
+			return "", err
+		}
+		return "pg_catalog.like_escape(" + pattern + ", " + escape + ")", nil
 	case comparisonExpression:
 		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:

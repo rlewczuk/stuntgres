@@ -274,6 +274,18 @@ and explicit namespace removals round-trip through native controls.
 See [semantics and boundaries](docs/SQL.md#object-comment-inquiries--change-note).
 Feature smoke: `make smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
 
+LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,
+keyword ESCAPE and symbolic `~~`/`!~~`/`~~*`/`!~~*` operators. TEXT wildcards
+advance UTF8 code points; existing BYTEA LIKE advances octets. BPCHAR left
+operands retain physical padding. Supported default/C/POSIX ILIKE folds ASCII
+only; C and POSIX remain distinct collation identities. Existing scalar COLLATE
+annotations select default/C/POSIX explicitly and override implicit conflicts.
+Additional locale providers, regex and SIMILAR TO remain outside this feature.
+Collatable wrappers retain identity and demanded conflicts; indeterminate TEXT
+view outputs are rejected before publication, while BOOL matching views replay.
+See [matching semantics](docs/DIALECT.md#like-and-ilike--change-note).
+Feature smoke: `make smoke RUN='^TestLikeSmoke$' VERBOSE=0`.
+
 SELECT, shared INSERT SELECT and decorated VALUES support expression ORDER BY,
 output labels/ordinals, multiple keys and per-key ASC/DESC/NULLS FIRST/LAST.
 Referenced output values are evaluated once before sort and reused. With a

@@ -1,0 +1,91 @@
+//go:build reference
+
+package reference_test
+
+import (
+	"strconv"
+	"strings"
+	"testing"
+)
+
+func TestReferenceLikeOraclePrecedence(t *testing.T) { likeReferencePrecedence(t, true) }
+func TestReferenceLikePrecedence(t *testing.T)       { likeReferencePrecedence(t, false) }
+func likeReferencePrecedence(t *testing.T, oracleOnly bool) {
+	p := newReferencePair(t)
+	run := func(s referenceStep) {
+		if oracleOnly {
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
+		} else {
+			p.step(t, s)
+		}
+	}
+	run(referenceExec("CREATE TABLE t(a TEXT,b TEXT,c TEXT)", 0))
+	for _, symbol := range []string{"~~", "OPERATOR(pg_catalog.~~)"} {
+		for _, tc := range []struct{ q, message string }{
+			{"SELECT a LIKE b " + symbol + " c FROM t", "operator does not exist: text ~~ boolean"},
+			{"SELECT a " + symbol + " b LIKE c FROM t", "operator does not exist: boolean ~~ text"},
+		} {
+			t.Run(tc.q, func(t *testing.T) {
+				s := referenceImplicitError(tc.q, referenceDiagnostic{Code: "42883", Message: tc.message, Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: strconv.Itoa(strings.Index(tc.q, " LIKE ") + 2)})
+				s.selectRows = true
+				s.errorStage = "execute"
+				run(s)
+				s.errorStage = "prepare"
+				run(referencePrepared(s))
+			})
+		}
+	}
+}
+
+func TestReferenceLikeOracleMixedPrecedence(t *testing.T) { likeReferenceMixedPrecedence(t, true) }
+func TestReferenceLikeMixedPrecedence(t *testing.T)       { likeReferenceMixedPrecedence(t, false) }
+
+func likeReferenceMixedPrecedence(t *testing.T, oracleOnly bool) {
+	p := newReferencePair(t)
+	run := func(t *testing.T, s referenceStep) {
+		if oracleOnly {
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
+		} else {
+			p.step(t, s)
+		}
+	}
+	run(t, referenceExec("CREATE TABLE t(id INT,v TEXT)", 0))
+	run(t, referenceExec("INSERT INTO t VALUES(1,'ab'),(2,'b'),(3,NULL)", 3))
+	for _, tc := range []struct {
+		expression string
+		rows       [][]any
+	}{
+		{"NOT v LIKE 'a%'", [][]any{{false}, {true}, {nil}}},
+		{"v LIKE 'a%' = FALSE", [][]any{{false}, {true}, {nil}}},
+		{"v LIKE 'a%' OR v LIKE 'b%' AND FALSE", [][]any{{true}, {false}, {nil}}},
+		{"v LIKE 'a%' AND id BETWEEN 1 AND 2", [][]any{{true}, {false}, {false}}},
+		{"(v LIKE 'a%') BETWEEN FALSE AND TRUE", [][]any{{true}, {true}, {nil}}},
+		{"NOT v LIKE 'a%' AND TRUE OR v LIKE 'b%'", [][]any{{false}, {true}, {nil}}},
+	} {
+		t.Run(tc.expression, func(t *testing.T) {
+			s := referenceSelect("SELECT "+tc.expression+" AS matched FROM t ORDER BY id", []string{"matched"}, []string{"BOOL"}, tc.rows)
+			run(t, s)
+			run(t, referencePrepared(s))
+		})
+	}
+	for _, tc := range []struct{ query, token, position string }{
+		{"SELECT v LIKE 'a%' BETWEEN FALSE AND TRUE FROM t", "BETWEEN", "20"},
+		{"SELECT v BETWEEN 'a' AND 'z' LIKE 'a%' FROM t", "LIKE", "30"},
+		{"SELECT v BETWEEN 'a' AND 'z' LIKE FROM t", "LIKE", "30"},
+		{"SELECT v BETWEEN 'a' AND 'z' ILIKE FROM t", "ILIKE", "30"},
+		{"SELECT v='a' LIKE FROM t", "FROM", "19"},
+		{"SELECT v LIKE 'a' LIKE FROM t", "LIKE", "19"},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			s := referenceImplicitError(tc.query, referenceDiagnostic{Code: "42601", Message: "syntax error at or near \"" + tc.token + "\"", Position: tc.position})
+			s.selectRows = true
+			s.errorStage = "execute"
+			run(t, s)
+			s.errorStage = "prepare"
+			run(t, referencePrepared(s))
+		})
+	}
+	s := referenceSelect("SELECT (v BETWEEN 'a' AND 'z') LIKE FROM t ORDER BY id", []string{"like"}, []string{"BOOL"}, [][]any{{true}, {true}, {nil}})
+	run(t, s)
+	run(t, referencePrepared(s))
+}

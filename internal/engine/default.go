@@ -594,6 +594,30 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
+	case likeExpression:
+		left, err := r.sql(ctx, view, n.left)
+		if err != nil {
+			return "", err
+		}
+		right, err := r.sql(ctx, view, n.right)
+		if err != nil {
+			return "", err
+		}
+		operator := n.operator
+		if n.namespace != "" {
+			operator = "OPERATOR(" + pgIdentifier(n.namespace) + "." + operator + ")"
+		}
+		return "(" + left + " " + operator + " " + right + ")", nil
+	case likeEscapeExpression:
+		pattern, err := r.sql(ctx, view, n.pattern)
+		if err != nil {
+			return "", err
+		}
+		escape, err := r.sql(ctx, view, n.escape)
+		if err != nil {
+			return "", err
+		}
+		return "pg_catalog.like_escape(" + pattern + ", " + escape + ")", nil
 	case comparisonExpression:
 		if u.Type.ID() != sqltype.Bool || n.left == nil || n.right == nil {
 			return "", fmt.Errorf("stuntgres: invalid default predicate")
@@ -762,7 +786,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 	if node == nil {
 		return nil, false, nil
 	}
-	info := expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties()}
+	info := expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties(), collationConflict: node.CollationIndeterminate(), collationExplicit: node.ExplicitCollation()}
 	typ := retainedType(info.usage.Type)
 	changed := typ != info.usage.Type
 	info.usage.Type = typ
@@ -1006,6 +1030,33 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		}
 		if changed && err == nil {
 			n.provider, err = sqltype.BindArithmetic(n.operator, typ, n.right == nil)
+		}
+		n.expressionInfo = info
+		rebound = n
+	case likeExpression:
+		n.left, n.right = child(n.left), child(n.right)
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			var collation expressionInfo
+			collation, err = collatedInfo(expressionInfo{usage: n.left.ResultUsage(), pos: info.pos}, n.left, n.right)
+			if err == nil {
+				n.provider, err = sqltype.BindLike(n.operator, n.left.ResultUsage(), n.right.ResultUsage(), info.usage, collation.collationConflict)
+			}
+		}
+		n.expressionInfo = info
+		rebound = n
+	case likeEscapeExpression:
+		n.pattern, n.escape = child(n.pattern), child(n.escape)
+		if !changed {
+			return node, false, err
+		}
+		if err == nil {
+			info, err = collatedInfo(info, n.pattern, n.escape)
+			if err == nil {
+				n.provider, err = sqltype.BindLikeEscape(n.pattern.ResultUsage(), n.escape.ResultUsage(), info.usage)
+			}
 		}
 		n.expressionInfo = info
 		rebound = n

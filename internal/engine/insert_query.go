@@ -386,7 +386,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 
 func identityUnusedOutput(expression BoundExpr) BoundExpr {
 	return literalExpression{
-		expressionInfo: expressionInfo{usage: expression.ResultUsage(), pos: expression.SourcePosition()},
+		expressionInfo: expressionInfo{usage: expression.ResultUsage(), pos: expression.SourcePosition(), collationConflict: expression.CollationIndeterminate(), collationExplicit: expression.ExplicitCollation()},
 		value:          sqltype.Null(expression.ResultUsage().Type),
 	}
 }

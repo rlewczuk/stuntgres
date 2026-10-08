@@ -96,6 +96,9 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid NULLIF operand value")
 		}
 		if !left.IsNull() && !right.IsNull() {
+			if e.CollationIndeterminate() {
+				return sqltype.Value{}, conditionalCollationError()
+			}
 			sign, err := e.comparison.Compare(c.Context, left, right, c.Input)
 			if err != nil {
 				return sqltype.Value{}, err
@@ -125,6 +128,9 @@ func (e conditionalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			best = value
 			continue
 		}
+		if e.CollationIndeterminate() {
+			return sqltype.Value{}, conditionalCollationError()
+		}
 		sign, err := e.comparison.Compare(c.Context, value, best, c.Input)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -143,6 +149,10 @@ func mergeExpressionProperties(a, b ExprProperties) ExprProperties {
 	a.ParameterDependent = a.ParameterDependent || b.ParameterDependent
 	a.StageDependent = a.StageDependent || b.StageDependent
 	return a
+}
+
+func conditionalCollationError() error {
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
 }
 
 // commonExpressionUsage is also the VALUES authority. The caller supplies the
@@ -201,11 +211,16 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if node.ResultUsage().Type == target.Type {
 		return node, nil
 	}
-	plan, err := sqltype.PlanCoercion(node.ResultUsage(), target.Type.Usage(), sqltype.Implicit)
+	info, err := collatedInfo(b.info(target.Type.Usage(), node.SourcePosition(), ExprProperties{}), node)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.usage, sqltype.Implicit)
 	if err != nil {
 		return nil, expressionError("42846", fmt.Sprintf("%s could not convert type %s to %s", label, node.ResultUsage().Type.DiagnosticName(), target.Type.DiagnosticName()), commonOperandStart(o))
 	}
-	return coercionExpression{b.info(target.Type.Usage(), node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Implicit}, nil
+	info.properties = coercionProperties(node, plan)
+	return coercionExpression{info, node, plan, sqltype.Implicit}, nil
 }
 func equalityError(err error, left, right *sqltype.Descriptor, pos parser.Position) error {
 	d, ok := err.(*sqlstate.Error)
@@ -288,7 +303,11 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 	if comparison.SessionDependent() {
 		properties = mergeExpressionProperties(properties, ExprProperties{Volatility: Stable})
 	}
-	return conditionalExpression{b.info(usage, raw.Pos, properties), raw.Kind, args, comparison}, nil
+	info, err := collatedInfo(b.info(usage, raw.Pos, properties), args...)
+	if err != nil {
+		return nil, err
+	}
+	return conditionalExpression{info, raw.Kind, args, comparison}, nil
 }
 func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 	var test BoundExpr
@@ -364,7 +383,19 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (BoundExpr, error) {
 			properties = mergeExpressionProperties(properties, ExprProperties{Volatility: Stable})
 		}
 	}
-	return caseExpression{b.info(usage, raw.Pos, properties), test, arms, otherwiseNode}, nil
+	info := b.info(usage.Type.Usage(), raw.Pos, properties)
+	info.usage.Typmod = usage.Typmod
+	for _, arm := range arms {
+		info, err = collatedInfo(info, arm.result)
+		if err != nil {
+			return nil, err
+		}
+	}
+	info, err = collatedInfo(info, otherwiseNode)
+	if err != nil {
+		return nil, err
+	}
+	return caseExpression{info, test, arms, otherwiseNode}, nil
 }
 func conditionalName(raw parser.ConditionalExpr) string { return strings.ToLower(raw.Kind.String()) }
 

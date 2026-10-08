@@ -218,6 +218,17 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	projection, ok := b.query.Root.(*projectNode)
+	if !ok {
+		e.mu.Unlock()
+		return Result{}, fmt.Errorf("stuntgres: view lacks final projection")
+	}
+	for i, expression := range projection.expressions {
+		if expression.CollationIndeterminate() {
+			e.mu.Unlock()
+			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: fmt.Sprintf(`could not determine which collation to use for view column "%s"`, projection.Schema()[i].Name), Hint: "Use the COLLATE clause to set the collation explicitly."}
+		}
+	}
 	var oid, rule OID
 	if old != nil {
 		if err := checkViewPrefix(old.columns, b.query.Root.Schema()); err != nil {

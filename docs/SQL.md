@@ -782,3 +782,38 @@ methods, opclasses/collations, INCLUDE, storage parameters/tablespaces and
 DROP/ALTER INDEX remain excluded; no planner, index-only scan or physical tree
 claim is made.
 
+## Whole-string pattern predicates
+
+`lhs [NOT] LIKE pattern [ESCAPE escape]` and
+`lhs [NOT] ILIKE pattern [ESCAPE escape]` return BOOL, preserving NULL.
+Symbolic `~~`/`!~~`/`~~*`/`!~~*` and qualified OPERATOR spellings are supported.
+Keyword predicates have BETWEEN-level precedence; symbols use generic operator
+precedence. ESCAPE is only a keyword-form suffix. TEXT/NAME/BPCHAR left operands
+and TEXT patterns are admitted (VARCHAR converts implicitly); existing BYTEA
+has LIKE/NOT LIKE only. See [the matching contract](DIALECT.md#like-and-ilike--change-note)
+for physical character, collation, escape and diagnostic behavior.
+Pattern and escape operands retain ordinary explicit-cast syntax, including
+`b LIKE $1::bytea ESCAPE $2::bytea`. Escape overload selection precedes the
+outer operator: unknown pattern/escape arguments select TEXT independently
+of a BYTEA lhs, so select the binary normalization signature with typed inputs.
+LIKE and ILIKE retain contextual projection-label spelling: `SELECT x ilike
+FROM t` names the column `ilike`, while a following pattern operand selects
+the predicate. Bare LIKE/ILIKE labels apply to complete scalar or grouped bases,
+not ungrouped completed predicates: `(v BETWEEN 'a' AND 'z') LIKE` is a label,
+while `v BETWEEN 'a' AND 'z' LIKE` fails at LIKE. This does not admit incomplete
+WHERE predicates or trailing input.
+Keyword predicates also use the shared SELECT/UPDATE WHERE operand path,
+including column patterns/escapes and held parameters; failed demanded escape
+normalization does not publish earlier UPDATE row changes.
+Collatable casts, conditional result arms and supported string outputs preserve
+collation identity and indeterminacy independently of runtime branch choice.
+Existing scalar COLLATE annotations override implicit conflicts, including an
+explicit default annotation. Different explicit annotations fail analysis and
+Prepare with 42P21 at the second conflicting COLLATE; equal identities combine.
+A demanded implicit C/POSIX comparison in NULLIF/GREATEST/LEAST raises 42P22
+before an enclosing LIKE;
+NULL controls retain their normal lazy comparison behavior. Views exposing
+indeterminate collatable results reject Execute with 42P22, without publishing
+the view; Prepare still succeeds. BOOL views containing matching predicates
+remain valid and report matching errors only when their operands are demanded.
+

@@ -85,6 +85,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	case bitwiseExpression:
 		fmt.Fprintf(out, "Bitwise %d namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)
+	case likeExpression:
+		fmt.Fprintf(out, "Like %s namespace %q", n.operator, n.namespace)
+		err = pair(n.left, n.right)
+	case likeEscapeExpression:
+		fmt.Fprintf(out, "LikeEscape")
+		err = pair(n.pattern, n.escape)
 	case comparisonExpression:
 		fmt.Fprintf(out, "Compare %s namespace %q", n.operator, n.namespace)
 		err = pair(n.left, n.right)

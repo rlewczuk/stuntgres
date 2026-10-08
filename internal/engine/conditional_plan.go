@@ -167,6 +167,18 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			e.right, err = child(e.right)
 		}
 		expression = e
+	case likeExpression:
+		e.left, err = child(e.left)
+		if err == nil {
+			e.right, err = child(e.right)
+		}
+		expression = e
+	case likeEscapeExpression:
+		e.pattern, err = child(e.pattern)
+		if err == nil {
+			e.escape, err = child(e.escape)
+		}
+		expression = e
 	case comparisonExpression:
 		e.left, err = child(e.left)
 		if err == nil {
@@ -393,7 +405,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if err != nil {
 			return nil, false, err
 		}
-		return literalExpression{expressionInfo{usage: expression.ResultUsage(), pos: expression.SourcePosition(), properties: p}, value}, true, nil
+		return literalExpression{expressionInfo{usage: expression.ResultUsage(), pos: expression.SourcePosition(), properties: p, collationConflict: expression.CollationIndeterminate(), collationExplicit: expression.ExplicitCollation()}, value}, true, nil
 	}
 	return expression, changed, nil
 }
@@ -424,6 +436,10 @@ func conditionalConstantInputs(node BoundExpr) bool {
 		return literal(e.left) && (e.right == nil || literal(e.right))
 	case arithmeticExpression:
 		return literal(e.left) && (e.right == nil || literal(e.right))
+	case likeExpression:
+		return literal(e.left) && literal(e.right)
+	case likeEscapeExpression:
+		return literal(e.pattern) && literal(e.escape)
 	case comparisonExpression:
 		return literal(e.left) && literal(e.right)
 	case logicalExpression:

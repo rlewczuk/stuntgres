@@ -153,6 +153,11 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 				return child(r.Args[1], n.right)
 			}
 			return nil
+		case likeExpression:
+			if err := child(r.Args[0], n.left); err != nil {
+				return err
+			}
+			return child(r.Args[1], n.right)
 		case comparisonExpression:
 			if err := child(r.Args[0], n.left); err != nil {
 				return err
@@ -200,6 +205,12 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 	case parser.FunctionExpr:
 		if _, ok := bound.(identityExpression); ok && len(r.Args) == 0 {
 			return nil
+		}
+		if n, ok := bound.(likeEscapeExpression); ok {
+			if err := child(r.Args[0], n.pattern); err != nil {
+				return err
+			}
+			return child(r.Args[1], n.escape)
 		}
 		if n, ok := bound.(deparseExpression); ok {
 			return children(r.Args, n.args)

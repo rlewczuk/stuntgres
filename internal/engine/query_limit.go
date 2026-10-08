@@ -100,6 +100,10 @@ func firstQueryBoundVariable(expr BoundExpr) parser.Position {
 		return firstQueryBoundPair(e.left, e.right)
 	case arithmeticExpression:
 		return firstQueryBoundPair(e.left, e.right)
+	case likeExpression:
+		return firstQueryBoundPair(e.left, e.right)
+	case likeEscapeExpression:
+		return firstQueryBoundPair(e.pattern, e.escape)
 	case comparisonExpression:
 		return firstQueryBoundPair(e.left, e.right)
 	case logicalExpression:
