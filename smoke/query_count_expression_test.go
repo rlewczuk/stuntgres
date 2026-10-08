@@ -2,6 +2,7 @@ package smoke_test
 
 import (
 	"database/sql"
+	"strings"
 	"stuntgres"
 	"testing"
 )
@@ -80,6 +81,11 @@ func TestCountExpressionSmoke(t *testing.T) {
 	}{
 		{"SELECT count() FROM t", stuntgres.Error{Code: "42809", Message: "count(*) must be used to call a parameterless aggregate function", Position: "8"}},
 		{"SELECT count(1,2) FROM t", stuntgres.Error{Code: "42883", Message: "function count(integer, integer) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
+		{"SELECT pg_catalog.count() FROM t", stuntgres.Error{Code: "42809", Message: "pg_catalog.count(*) must be used to call a parameterless aggregate function", Position: "8"}},
+		{"SELECT count(count(*),missing) FROM t", stuntgres.Error{Code: "42703", Message: `column "missing" does not exist`, Position: "23"}},
+		{"SELECT count(count(*),1) FROM t", stuntgres.Error{Code: "42883", Message: "function count(bigint, integer) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
+		{"SELECT count(count(*)) FROM t", stuntgres.Error{Code: "42803", Message: "aggregate function calls cannot be nested", Position: "14"}},
+		{"SELECT count(" + strings.Repeat("1,", 100) + "1) FROM t", stuntgres.Error{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
 	} {
 		rows, err := db.Query(tc.q)
 		if rows != nil {

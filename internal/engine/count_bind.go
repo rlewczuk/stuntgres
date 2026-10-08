@@ -15,10 +15,10 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 		if err != nil {
 			return nil, err
 		}
-		if inner := aggregateOccurrence(arg); inner != nil {
-			return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
-		}
 		args[i] = arg
+	}
+	if len(args) > 100 {
+		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	if !visible || raw.Name != "count" || (!raw.Star && len(args) > 1) {
 		types := make([]string, len(args))
@@ -36,11 +36,14 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 		return nil, d
 	}
 	if !raw.Star && len(args) == 0 {
-		return nil, expressionError("42809", "count(*) must be used to call a parameterless aggregate function", raw.Pos)
+		return nil, expressionError("42809", objectNameText(name)+"(*) must be used to call a parameterless aggregate function", raw.Pos)
 	}
 	call := aggregateCall{provider: countProvider{b.typ(sqltype.Int8).Usage()}}
 	properties := ExprProperties{StageDependent: true}
 	if len(args) == 1 {
+		if inner := aggregateOccurrence(args[0]); inner != nil {
+			return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
+		}
 		call.argument = args[0]
 		p := args[0].Properties()
 		properties.ParameterDependent, properties.Volatility = p.ParameterDependent, p.Volatility

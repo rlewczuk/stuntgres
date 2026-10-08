@@ -346,11 +346,18 @@ HAVING uses contextual BOOL typing and keeps only TRUE, never FALSE or NULL.
 Its count calls may be hidden from the projection schema.
 
 Expression arguments use the original source row and require their column
-rights even on empty/FALSE input. Nested aggregates give42803 at the inner call.
+rights even on empty/FALSE input. Arguments are analyzed once before the outer
+call's diagnostics. More than 100 arguments gives54023, `cannot pass more than
+100 arguments to a function`; a 100-argument call still gives the ordinary42883
+unresolved-signature diagnostic. Bad arity or an unresolved name gives42883 with
+actual argument types and the PostgreSQL explicit-casts hint. Child analysis
+errors take precedence over these diagnostics.
 `count()` gives42809, `count(*) must be used to call a parameterless aggregate
-function`. Bad arity gives42883 with actual argument types and the PostgreSQL
-explicit-casts hint; argument analysis errors take precedence. The ANY signature
-does not infer a bare `$1`: use `count(CAST($1 AS INT))` (NULL gives0).
+function`; `pg_catalog.count()` retains `pg_catalog.count(*)` in that message.
+Only a resolved aggregate call checks nesting: `count(count(*))` gives42803 at
+the inner call, while `count(count(*),1)` gives42883 at the outer call and
+`count(count(*),missing)` reports the missing column instead.
+The ANY signature does not infer a bare `$1`: use `count(CAST($1 AS INT))` (NULL gives0).
 An earlier unresolved ANY occurrence followed by a typed occurrence gives42P08;
 otherwise an unresolved parameter gives42P18.
 

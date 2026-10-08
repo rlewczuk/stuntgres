@@ -131,7 +131,10 @@ Feature smoke: `make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0`;
 real independent oracle: `make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0`.
 Expression-count smoke: `make smoke RUN='^TestCountExpressionSmoke$' VERBOSE=0`;
 independent oracle: `make reference RUN='^TestReferenceCountExpression' VERBOSE=0`.
-Parameterless count() gives42809; bad arity gives42883 with actual argument types.
+Parameterless count() gives42809 and preserves a qualified call name in its message.
+Children are analyzed before the more-than-100-argument guard54023 and signature
+resolution; bad arity (including 100 arguments) gives42883 with actual argument types.
+Only a resolved aggregate call rejects nesting with42803 at the inner call.
 ANY does not infer bare parameter types: cast unresolved parameters explicitly.
 
 Simple/searched CASE, COALESCE, NULLIF, GREATEST and LEAST are scalar constructs
