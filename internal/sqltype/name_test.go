@@ -111,7 +111,7 @@ func TestNameCoercion(t *testing.T) {
 	for _, tc := range []struct {
 		source, target ID
 		mode           CoercionContext
-	}{{Name, Int4, Assignment}, {Bool, Name, Implicit}, {Name, VarChar, Implicit}, {Name, BPChar, Implicit}, {Text, Name, Explicit}, {Name, Text, Explicit}, {Name, Name, Explicit}} {
+	}{{Name, Int4, Assignment}, {Bool, Name, Implicit}, {Name, VarChar, Implicit}, {Name, BPChar, Implicit}, {Text, Name, Explicit}, {Name, Text, Explicit}} {
 		if _, err := PlanCoercion(ds[tc.source].Usage(), ds[tc.target].Usage(), tc.mode); err == nil {
 			t.Fatal("unbounded coercion", tc)
 		}

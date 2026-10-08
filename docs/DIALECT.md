@@ -24,6 +24,11 @@ an opaque lookup token, and is **not** PostgreSQL nodeToString physical intercha
 External non-NULL input always fails0A000, including empty/invalid text; typed NULL
 is ordinary. The four `pg_get_constraintdef`/`pg_get_expr` signatures return TEXT,
 with structural rendering, strict NULL, current names and supplied-relation lookup.
+Both modes preserve grouped predicate operands and current provider visibility.
+Standard/postfix same-type scalar annotations and existing directional numeric
+edges consume returned definitions; function casts and known-TEXT input conversion
+boundaries are unchanged. Literal NULL may carry `::unknown` syntax provenance,
+but UNKNOWN is not an input/DDL type.
 See [query contracts](QUERIES.md#constraint-and-expression-deparsing).
 
 
@@ -348,8 +353,9 @@ Feature smoke: `make smoke RUN='^TestUpdateReturning(Smoke|ControlsSmoke)$' VERB
 Column DEFAULT declarations admit outer scalar/typed temporal/existing cast/
 INT4/INT8 unary and binary arithmetic, integral bitwise operations, comparison
 and IS [NOT] DISTINCT FROM syntax.
-CAST and postfix casts reuse existing baseline, character-family and bounded
-OID conversions; function-style casts additionally admit oid, not general functions.
+CAST and postfix casts reuse existing baseline, character-family, bounded OID/
+temporal conversions, same-type stored scalar usages and directional numeric
+edges. Function-style casts retain their bounded whitelist, including oid.
 Logical NOT/AND/OR and null/truth tests require parentheses
 (e.g. DEFAULT (NULL IS NULL)), as PostgreSQL's restricted default grammar requires.
 Columns (0A000) and parameters (42P02) remain prohibited inside casts and decisive
@@ -956,8 +962,9 @@ Baseline casts remain scalar leaves in existing comparisons, null/Boolean
 predicates, Boolean expressions and selected null-count arguments. Selected null-count-only no-FROM projections
 may use literal/parameter cast arguments; standalone casts still require FROM.
 Scalar grouping also admits existing column operands, e.g. `(id)=1` and `(i)<(j)`.
-It does not admit comparison/logical operands such as `(id=1)=TRUE`, comparison
-chaining, or logical/comparison INSERT/settings expressions.
+Grouped predicates also serve as ordinary comparison operands, such as
+`(id=1)=TRUE`. Ungrouped comparison chaining, predicate arithmetic and ordinary
+logical/comparison INSERT/settings expressions remain excluded.
 First standard/postfix parameter casts establish source type, later casts convert
 it; int4/int8/bool unknown parameter calls are42725, text($1) infers TEXT.
 Standard/postfix names preserve strong column/function names, otherwise target
@@ -1015,12 +1022,12 @@ INT2/INT4/INT8 metadata survive empty results and replay. Unsupported signatures
 report42883 and ambiguous unknown signatures42725, with English messages and
 operator positions. See [width/count behavior](TYPES.md#integral-bitwise-operators).
 Catalog-qualified OPERATOR(pg_catalog.symbol) forms retain these same bitwise
-providers and scoped cast rules; wrong namespaces do not bypass lookup, and
+providers and ordinary bounded cast rules; wrong namespaces do not bypass lookup, and
 canonical defaults/views preserve explicit qualification.
 No BIT/VARBIT provider, ordinary SMALLINT arithmetic or no-FROM widening is added.
-Standard SMALLINT `CAST`/`::` is bounded to selected bitwise operands/counts
-and integral wrappers of bitwise results used by default/view replay; standalone
-SMALLINT casts, unrelated sibling casts, known TEXT casts and `int2()` stay excluded.
+Standard SMALLINT CAST/`::` now uses the ordinary existing directional numeric
+coercion edges, including standalone and conditional occurrences. Known TEXT
+input conversions and `int2()` function-style casts remain excluded.
 Smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
 
 INT4/INT8 arithmetic uses the common expression binder in table SELECT,
@@ -1671,8 +1678,8 @@ pg_catalog.int4 is valid, pg_catalog.integer is not an alias. Qualified operator
 use OPERATOR(schema.symbol) and generic operator precedence.
 Qualified temporal declarations such as pg_catalog.time(3) and
 pg_catalog.timestamp(3) preserve precision and canonical TIME(3)/TIMESTAMP(3)
-Dump/Restore declarations. Temporal explicit casts remain excluded, whether
-qualified or unqualified; qualification does not enlarge the existing cast family.
+Dump/Restore declarations. Bounded temporal explicit casts and same-type precision
+annotations work qualified or unqualified, without adding conversion providers.
 
 The scalar function owner exposes stable, strict current_schemas(boolean).
 FALSE returns the explicit searchable path; TRUE includes implicit namespaces.

@@ -836,7 +836,7 @@ operator_symbol: '+' | '-' | '*' | '/' | '%' | SYMBOLIC_OPERATOR | comparison_op
 /* CREATE DEFAULT follows restricted b_expr; parenthesized targets retain the
  * ordinary predicate/logical surface without changing SELECT admission. */
 default_target: target_base %prec NAME_LIST { $$=$1 }
- | operand comparison_operator operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
+ | target_base comparison_operator target_base { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
  | default_target IS DISTINCT FROM default_target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
  | default_target IS NOT DISTINCT FROM default_target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
 /* On ')', keep a grouped scalar in the operand layer so arithmetic may follow.
@@ -851,13 +851,10 @@ target_between_predicate: target_base BETWEEN default_target AND target_base %pr
  | target_base NOT BETWEEN default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,true,false) }
  | target_base BETWEEN SYMMETRIC default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,false,true) }
  | target_base NOT BETWEEN SYMMETRIC default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$5,$7,$2.pos,true,true) } ;
-/* Preserve scalar-only ordinary comparison operands. A real BETWEEN predicate
- * can participate in the release's lower-precedence comparison layer without
- * admitting standalone comparisons of arbitrary grouped logical values. */
+/* Comparison operands may be grouped predicates; the nonrecursive layer keeps
+ * ungrouped comparison chains nonassociative. Arithmetic remains scalar-only. */
 target_comparison: target_between { $$=$1 }
- | operand comparison_operator operand { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
- | target_between_predicate comparison_operator target_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
- | operand comparison_operator target_between_predicate { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} } ;
+ | target_between comparison_operator target_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} } ;
 target: target_comparison { $$=$1 }
  | target IS NULL %prec IS { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
  | target IS NOT NULL %prec IS { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }

@@ -712,6 +712,32 @@ func BaselineCastType(id ID) bool {
 	return id == Int4 || id == Int8 || id == Text || id == Bool
 }
 
+// StoredScalarCastType is the concrete annotation surface of stored expressions.
+// Admission of a type does not add conversion edges to PlanCoercion.
+func StoredScalarCastType(id ID) bool {
+	switch id {
+	case Bool, Int2, Int4, Int8, Oid, Text, Name, BPChar, VarChar, Bytea, UUID,
+		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval:
+		return true
+	}
+	return false
+}
+
+func StoredNumericCastPair(source, target ID) bool {
+	numeric := func(id ID) bool {
+		return id == Int2 || id == Int4 || id == Int8 || id == Numeric || id == Float4 || id == Float8
+	}
+	if !numeric(source) || !numeric(target) {
+		return false
+	}
+	for _, spec := range baselineCasts {
+		if spec.source == source && spec.target == target {
+			return true
+		}
+	}
+	return false
+}
+
 func TemporalCastType(id ID) bool {
 	return id == Date || id == Time || id == Timestamp || id == Timestamptz || id == Timetz
 }
@@ -746,7 +772,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, failure("42804", "incompatible source and destination types")
 	}
 	if context == Explicit {
-		if !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !OIDCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
+		if !(source.Type == target.Type && StoredScalarCastType(source.Type.id)) && !StoredNumericCastPair(source.Type.id, target.Type.id) && !(BaselineCastType(source.Type.id) && BaselineCastType(target.Type.id)) && !(IsCharacter(source.Type.id) && IsCharacter(target.Type.id)) && !OIDCastPair(source.Type.id, target.Type.id) && !TemporalCastPair(source.Type.id, target.Type.id) {
 			return p, failure("0A000", "explicit casts are supported only for int4, int8, text and bool")
 		}
 		switch {

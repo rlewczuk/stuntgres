@@ -113,6 +113,7 @@ type Operation struct {
 	statementDeadline       time.Time
 	sourceContext           context.Context
 	commandAdmission        bool
+	nonstandardStrings      bool
 	restoreTableDestination bool
 	restoreInsertAuthority  bool
 	restoreCommentAuthority bool

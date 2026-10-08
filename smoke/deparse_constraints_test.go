@@ -106,4 +106,131 @@ func TestDeparseConstraintsSmoke(t *testing.T) {
 	}
 	text(true, "SELECT pg_get_constraintdef(oid,true) FROM pg_catalog.pg_constraint WHERE conname='ck'", `CHECK ("A renamed"::bigint > 0)`)
 	text(false, "SELECT pg_get_expr(adbin,0) FROM pg_catalog.pg_attrdef", "7")
+	deparseReviewSmoke(t, db)
+}
+
+func deparseReviewSmoke(t *testing.T, db *sql.DB) {
+	badDetail := func(value string) string {
+		if value == "NULL" {
+			return "null"
+		}
+		return value
+	}
+	t.Helper()
+	for i, tc := range []struct{ expression, good, bad string }{
+		{"FALSE BETWEEN (a<2) AND TRUE", "2", "1"},
+		{"a BETWEEN 1 AND 3 = TRUE", "2", "4"},
+		{"round(a::numeric,1)>0", "2", "0"},
+		{"num_nonnulls(a,NULL)>0", "2", "NULL"},
+	} {
+		original := fmt.Sprintf("review_original%d", i)
+		constraint := fmt.Sprintf("review_c%d", i)
+		notNullSmokeExec(t, db, false, "CREATE TABLE "+original+"(a INT,CONSTRAINT "+constraint+" CHECK("+tc.expression+"))", 0)
+		for _, pretty := range []bool{false, true} {
+			var suffix string
+			if err := db.QueryRow("SELECT pg_get_constraintdef(oid,$1) FROM pg_catalog.pg_constraint WHERE conname=$2", pretty, constraint).Scan(&suffix); err != nil {
+				t.Fatal(err)
+			}
+			copy := fmt.Sprintf("review_copy%d_%t", i, pretty)
+			notNullSmokeExec(t, db, false, "CREATE TABLE "+copy+"(a INT,CONSTRAINT copied "+suffix+")", 0)
+			notNullSmokeExec(t, db, true, "INSERT INTO "+copy+" VALUES("+tc.good+")", 1)
+			_, err := db.Exec("INSERT INTO " + copy + " VALUES(" + tc.bad + ")")
+			notNullSmokeDiagnostic(t, err, stuntgres.Error{Code: "23514", Message: `new row for relation "` + copy + `" violates check constraint "copied"`, Detail: "Failing row contains (" + badDetail(tc.bad) + ").", Schema: "public", Table: copy, Constraint: "copied"})
+			if i != 3 {
+				notNullSmokeExec(t, db, false, "INSERT INTO "+copy+" VALUES(NULL)", 1)
+			}
+		}
+	}
+	notNullSmokeExec(t, db, false, "CREATE TABLE review_time(a TIME DEFAULT TIME(3) '12:34:56.1234')", 0)
+	for _, pretty := range []bool{false, true} {
+		var expression string
+		if err := db.QueryRow("SELECT pg_get_expr(adbin,0,$1) FROM pg_catalog.pg_attrdef WHERE adrelid='review_time'::regclass", pretty).Scan(&expression); err != nil {
+			t.Fatal(err)
+		}
+		if expression != "'12:34:56.1234'::time(3) without time zone" {
+			t.Fatal(expression)
+		}
+		copy := fmt.Sprintf("review_time_%t", pretty)
+		notNullSmokeExec(t, db, false, "CREATE TABLE "+copy+"(a TIME DEFAULT "+expression+")", 0)
+		notNullSmokeExec(t, db, false, "INSERT INTO "+copy+" DEFAULT VALUES", 1)
+		var got string
+		if err := db.QueryRow("SELECT a::text FROM " + copy).Scan(&got); err != nil || got != "12:34:56.123" {
+			t.Fatal(got, err)
+		}
+	}
+	conn, err := db.Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	exec := func(q string) {
+		t.Helper()
+		if _, err := conn.ExecContext(context.Background(), q); err != nil {
+			t.Fatal(q, err)
+		}
+	}
+	exec("CREATE SCHEMA review_shadow")
+	exec("CREATE SEQUENCE public.review_s START 40")
+	exec("CREATE SEQUENCE review_shadow.review_s START 900")
+	exec("CREATE TABLE review_provider(a INT,CONSTRAINT review_provider_c CHECK(nextval('public.review_s')<100))")
+	stmt, err := conn.PrepareContext(context.Background(), "SELECT pg_get_constraintdef(oid,$1) FROM pg_catalog.pg_constraint WHERE conname='review_provider_c'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	observe := func(pretty bool, want string) {
+		t.Helper()
+		var direct, prepared string
+		query := fmt.Sprintf("SELECT pg_get_constraintdef(oid,%t) FROM pg_catalog.pg_constraint WHERE conname='review_provider_c'", pretty)
+		if err := conn.QueryRowContext(context.Background(), query).Scan(&direct); err != nil {
+			t.Fatal(err)
+		}
+		if err := stmt.QueryRowContext(context.Background(), pretty).Scan(&prepared); err != nil {
+			t.Fatal(err)
+		}
+		if direct != want || prepared != want {
+			t.Fatal(direct, prepared, want)
+		}
+	}
+	exec("SET search_path TO review_shadow,public")
+	for _, pretty := range []bool{false, true} {
+		var suffix string
+		if err := stmt.QueryRowContext(context.Background(), pretty).Scan(&suffix); err != nil {
+			t.Fatal(err)
+		}
+		want := "CHECK ((nextval('public.review_s'::regclass) < 100))"
+		if pretty {
+			want = "CHECK (nextval('public.review_s'::regclass) < 100)"
+		}
+		if suffix != want {
+			t.Fatal(suffix, want)
+		}
+		observe(pretty, want)
+		var called bool
+		if err := conn.QueryRowContext(context.Background(), "SELECT is_called FROM public.review_s").Scan(&called); err != nil || called {
+			t.Fatal(called, err)
+		}
+		exec(fmt.Sprintf("CREATE TABLE public.review_provider_%t(a INT,CONSTRAINT copied %s)", pretty, suffix))
+	}
+	exec("SET search_path TO public,review_shadow")
+	observe(false, "CHECK ((nextval('review_s'::regclass) < 100))")
+	observe(true, "CHECK (nextval('review_s'::regclass) < 100)")
+	exec("SET search_path TO review_shadow,public")
+	exec("ALTER SEQUENCE public.review_s RENAME TO \"Renamed review sequence\"")
+	var suffix string
+	if err := stmt.QueryRowContext(context.Background(), true).Scan(&suffix); err != nil || suffix != `CHECK (nextval('"Renamed review sequence"'::regclass) < 100)` {
+		t.Fatal(suffix, err)
+	}
+	observe(true, `CHECK (nextval('"Renamed review sequence"'::regclass) < 100)`)
+	exec("INSERT INTO public.review_provider_false VALUES(1)")
+	exec("INSERT INTO public.review_provider_true VALUES(1)")
+	var last int64
+	var called bool
+	if err := conn.QueryRowContext(context.Background(), `SELECT last_value,is_called FROM public."Renamed review sequence"`).Scan(&last, &called); err != nil || last != 41 || !called {
+		t.Fatal(last, called, err)
+	}
+	if err := conn.QueryRowContext(context.Background(), "SELECT last_value,is_called FROM review_shadow.review_s").Scan(&last, &called); err != nil || last != 900 || called {
+		t.Fatal(last, called, err)
+	}
+	exec("SET search_path TO public")
 }

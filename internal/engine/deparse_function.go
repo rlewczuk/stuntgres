@@ -84,6 +84,8 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Value{}, err
 		}
 	}
+	renderer := pgRenderer{view: view, pretty: pretty, path: c.statementScope.deparsePath,
+		output: c.statementScope.output, nonstandardStrings: c.statementScope.op.nonstandardStrings}
 	index := 1
 	if e.constraint {
 		index = 0
@@ -116,7 +118,8 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					continue
 				}
 				found = true
-				rendered, err := (pgRenderer{view: view, relation: relation, pretty: pretty}).sql(c.Context, def.expression, 0)
+				renderer.relation = relation
+				rendered, err := renderer.sql(c.Context, def.expression, 0)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -145,7 +148,8 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				return sqltype.Null(e.usage.Type), nil
 			}
 		}
-		text, err = (pgRenderer{view: view, relation: relation, pretty: pretty}).sql(c.Context, tree.expression, 0)
+		renderer.relation = relation
+		text, err = renderer.sql(c.Context, tree.expression, 0)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

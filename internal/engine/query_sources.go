@@ -79,30 +79,41 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 
 // captureCommentSnapshotLocked shares one immutable catalog/role pair across
 // query providers and completed-row CHECK evaluation. The caller holds e.mu.
-func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) {
+func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 	if scope.commentCatalog.state == nil {
 		scope.commentCatalog = e.privateCatalogLocked(scope.owner.catalog)
 		scope.commentRoles = RoleRead{e, e.roles}
 	}
+	if scope.deparsePath == nil {
+		auth, err := e.authorizationLocked(scope.op)
+		if err != nil {
+			return err
+		}
+		auth.catalog, auth.roles = scope.commentCatalog, scope.commentRoles
+		scope.deparsePath, err = e.referencePath(auth)
+		return err
+	}
+	return nil
 }
 
-func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) {
+func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *relationDescriptor) error {
 	for _, definition := range relation.defaults {
 		if definition.catalogSnapshot {
-			e.captureCommentSnapshotLocked(scope)
-			return
+			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
 	for _, check := range relation.checkConstraints {
 		if check.commentSnapshot {
-			e.captureCommentSnapshotLocked(scope)
-			return
+			return e.captureCommentSnapshotLocked(scope)
 		}
 	}
+	return nil
 }
 
 func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
-	e.captureCommentSnapshotLocked(scope)
+	if err := e.captureCommentSnapshotLocked(scope); err != nil {
+		return nil, err
+	}
 	if len(leaves) == 0 {
 		return &querySource{singleton: singleton, scope: scope, locks: locks}, nil
 	}

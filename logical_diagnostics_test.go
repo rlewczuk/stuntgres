@@ -40,7 +40,6 @@ func TestLogicalOperandDiagnosticsAndBoundaries(t *testing.T) {
 	}
 	for _, q := range []string{
 		"SELECT TRUE AND FALSE", "SELECT id=1=TRUE FROM t",
-		"SELECT (id=1)=TRUE FROM t",
 		"INSERT INTO t(id) VALUES(TRUE AND FALSE)", "INSERT INTO t(id) VALUES(NOT TRUE)",
 		"SELECT current_setting(TRUE AND FALSE)",
 		"SELECT f(a) AND a FROM t",

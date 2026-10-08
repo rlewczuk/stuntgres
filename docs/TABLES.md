@@ -15,6 +15,12 @@ present, or `NOT NULL <current-column>`. Returned CHECK suffixes can be consumed
 by CREATE for the same supported scalar syntax and enforcement semantics; original
 source formatting is not preserved. Rename updates quoted names without rebinding
 the stored types/providers. `pg_get_expr` renders catalog tree expressions.
+Both compact and pretty suffixes preserve nested comparison grouping and provider
+identity under search-path shadowing. Copying a returned default into the same
+destination Usage preserves typed assignment values, not merely its output text.
+NUMERIC(4,2) DEFAULT '1.2' deparses as 1.2 but inserts 1.20; CHARACTER(3) DEFAULT
+'xy' deparses unsized and inserts 'xy '. Temporal precision is likewise applied
+by the stored coercion/assignment tree; INTERVAL retains input field/precision sizing.
 
 CREATE DEFAULT NULL and transparent casts of literal NULL create no pg_attrdef
 definition; ALTER SET DEFAULT NULL removes one. This narrow producer normalization
@@ -81,9 +87,10 @@ this does not require the expression's volatility to be Immutable. Supported
 closed, parameter-free, row-independent Immutable and Stable trees are admitted,
 including temporal casts, `AT TIME ZONE`/`AT LOCAL`, comparisons, CASE and NULLIF.
 Session-dependent temporal operations remain Stable, not folded constants.
-Existing literal/NULL, typed DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ, baseline and
-character-family CAST/`::` casts, baseline function-style casts, INT4/INT8
-unary/binary arithmetic, scalar comparisons and IS [NOT] DISTINCT FROM are admitted
+Existing literal/NULL, typed temporal/interval constants, same-type scalar Usage
+CAST/`::` annotations, existing directional numeric and baseline/character/OID/
+temporal casts, bounded function-style casts, INT4/INT8 unary/binary arithmetic,
+scalar comparisons and IS [NOT] DISTINCT FROM are admitted
 at the outer level. Volatile producers and execution-stage-dependent nodes remain
 unsupported defaults.
 CREATE DEFAULT Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
@@ -193,8 +200,8 @@ Known TEXT children stay typed, so `CAST('oops'::text AS INT)` remains an
 execution-demanded conversion through empty/populated controls rather than
 becoming a CREATE-time unknown-input error. Recursive DATE leaves retain DATE
 introducers, including BC comparisons whose civil ordering differs from TEXT.
-Root BYTEA defaults reuse the existing canonical hex codec and return raw octets;
-no typed BYTEA compound syntax or new cast family is added.
+BYTEA defaults reuse the existing canonical hex codec and return raw octets;
+same-type BYTEA annotations add no known-TEXT-to-BYTEA conversion provider.
 
 Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
 Independent pinned PostgreSQL witnesses: `make reference RUN='^TestReferenceDefault' VERBOSE=1`.

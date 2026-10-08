@@ -43,17 +43,13 @@ func TestBitwiseParameterAmbiguityAndAdmission(t *testing.T) {
 	arithmeticError(t, err, stuntgres.Error{Code: "0A000", Message: "SELECT without FROM is unsupported", Position: "1"})
 }
 
-func TestBitwiseScopedSmallintCasts(t *testing.T) {
+func TestBitwiseSmallintCasts(t *testing.T) {
 	_, db := arithmeticDB(t)
 	arithmeticExec(t, db, "CREATE TABLE one(v INTEGER,s SMALLINT)", 0)
 	arithmeticExec(t, db, "INSERT INTO one VALUES(1,1)", 1)
 	for _, tc := range []struct {
 		query, position string
 	}{
-		{"SELECT 1::smallint FROM one", "9"},
-		{"SELECT CAST(1 AS smallint) FROM one", "8"},
-		{"SELECT ~1::smallint,1::smallint FROM one", "22"},
-		{"SELECT COALESCE(1 & 1,2::smallint) FROM one", "24"},
 		{"SELECT CAST('1'::text AS smallint) & 1 FROM one", "8"},
 	} {
 		rows, err := db.Query(tc.query)

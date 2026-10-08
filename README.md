@@ -39,6 +39,10 @@ Minimal `pg_catalog.pg_constraint` and `pg_catalog.pg_attrdef` projections expos
 real definition identities and immutable structural trees. Compact/pretty
 decompilation traverses bound definitions without evaluating them, uses current
 column names, and resolves Vars against the supplied relation's stable attributes.
+Both modes retain nonassociative grouping, current search-path provider visibility,
+implicit function-argument annotations and raw preassignment/precision metadata.
+Returned SQL consumes bounded same-type and existing directional numeric casts;
+literal NULL::unknown retains provenance without adding a concrete UNKNOWN type.
 Native tree output is not PostgreSQL's physical node serialization; non-NULL
 external tree input is rejected. See [deparsing](docs/QUERIES.md#constraint-and-expression-deparsing).
 Feature smoke: `make smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
@@ -97,7 +101,7 @@ precision (up to 1000 fractional places). See the
 Feature smoke: `make smoke RUN='^TestMathScalarSmoke$' VERBOSE=0`.
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;
-temporal explicit casts remain excluded whether qualified or unqualified.
+bounded temporal explicit casts and same-type precision annotations are supported.
 `SELECT current_schemas(false)` returns a genuine result-only NAME[] (`_NAME`)
 as a native string, or NULL for a NULL boolean argument. General arrays and
 SQL type/function/operator DDL remain excluded. TEMP remains sequence-only;

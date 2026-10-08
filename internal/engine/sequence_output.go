@@ -35,31 +35,34 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 		if err != nil {
 			return err
 		}
-		text := key
-		address := ObjectAddress{ClassID: RelationClassID, ObjectID: OID(n)}
-		if n == 0 {
-			text = "-"
-		} else if d, ok := auth.catalog.state.descriptors[address].(*relationDescriptor); ok {
-			text = regclassIdentifier(d.name)
-			visible := false
-			for _, namespace := range path {
-				found, exists := auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: d.name}]
-				if exists {
-					visible = found == address
-					break
-				}
-			}
-			if !visible {
-				namespace := auth.catalog.state.descriptors[d.namespace]
-				text = regclassIdentifier(namespace.Name()) + "." + text
-			}
-		}
+		text := regclassSpelling(auth.catalog, path, OID(n))
 		if rows.regclassOutput == nil {
 			rows.regclassOutput = make(map[string]string)
 		}
 		rows.regclassOutput[key] = text
 	}
 	return nil
+}
+
+// regclassSpelling uses only the statement's captured catalog and relation path.
+func regclassSpelling(view CatalogRead, path []ObjectAddress, id OID) string {
+	if id == 0 {
+		return "-"
+	}
+	address := ObjectAddress{ClassID: RelationClassID, ObjectID: id}
+	if d, ok := view.state.descriptors[address].(*relationDescriptor); ok {
+		text := regclassIdentifier(d.name)
+		for _, namespace := range path {
+			if found, exists := view.state.names[NameKey{ClassID: RelationClassID, Namespace: namespace, Name: d.name}]; exists {
+				if found == address {
+					return text
+				}
+				break
+			}
+		}
+		return regclassIdentifier(view.state.descriptors[d.namespace].Name()) + "." + text
+	}
+	return strconv.FormatUint(uint64(id), 10)
 }
 
 func regclassIdentifier(name string) string {

@@ -328,9 +328,10 @@ this does not add NUMERIC operators or general casts.
 
 Numeric SQL parsing does not broaden SET's plain-decimal-integer grammar:
 settings' quoted numeric codecs retain their separate units/prefix behavior.
-No serial, NUMERIC/SMALLINT arithmetic, general functions, numeric casts, general operator syntax or
-SELECT-without-FROM expansion is introduced; existing SMALLINT participates in
-exact numeric comparison and checked integer assignment.
+No serial, NUMERIC/SMALLINT arithmetic, general functions/operator syntax or
+SELECT-without-FROM expansion is introduced. Standard/postfix annotations reuse
+same-type scalar usages and existing directional numeric coercion edges;
+known-TEXT input conversion and function-cast boundaries remain unchanged.
 
 Feature smoke: `make smoke RUN='^TestNumericSmoke$' VERBOSE=1`.
 The same smoke includes signed integer carry failures beside successful extrema,
@@ -359,13 +360,11 @@ their type. Shifts preserve the left type and require an INTEGER right operand
 Computed metadata is INT2/INT4/INT8 with int64 ScanType, including NULL and
 empty results, without inherited physical-column origin or known nullability.
 
-Standard `CAST`/`::` syntax can establish SMALLINT within a selected bitwise
-operand (including a shift count), and integral casts can wrap a bitwise result
-for default/view replay. These use existing checked integral conversions or
-contextual unknown input; no new coercion edges are added. For example,
-`~1::smallint` is INT2 and `CAST(32767::smallint << 1 AS bigint)` is INT8 -2.
-This is not general SMALLINT cast admission: standalone `1::smallint`, an
-unrelated CASE/COALESCE sibling cast, known TEXT-to-SMALLINT casts and `int2()`
+Standard CAST/`::` syntax uses existing checked integral conversions or contextual
+unknown input, including SMALLINT annotations and bitwise result wrappers.
+No new coercion edges are added. For example, `~1::smallint` is INT2 and
+`CAST(32767::smallint << 1 AS bigint)` is INT8 -2. Standalone and conditional
+SMALLINT casts use the same binder; known TEXT-to-SMALLINT and `int2()`
 function-style casts retain their existing exclusions.
 
 Shifts truncate to the left width rather than raising arithmetic overflow.

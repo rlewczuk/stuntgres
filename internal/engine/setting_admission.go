@@ -19,6 +19,7 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	}
 	s.settings.mu.Lock()
 	standard := s.settings.typedValue("standard_conforming_strings").boolean
+	op.nonstandardStrings = !standard
 	timeout := s.settings.typedValue("statement_timeout").number
 	op.lockTimeout = time.Duration(s.settings.typedValue("lock_timeout").number) * time.Millisecond
 	op.noticeThreshold, _ = messageLevel(s.settings.value(clientMinMessages.Name))

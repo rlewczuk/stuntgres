@@ -54,6 +54,9 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 		out.WriteString("Const")
 		if n.value.IsNull() {
 			out.WriteString(" null")
+			if n.unknownNull {
+				out.WriteString(" unknown")
+			}
 		} else {
 			text, failure := n.value.Type().Output(ctx, n.value)
 			if failure != nil {

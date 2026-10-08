@@ -310,9 +310,9 @@ USING aliases preserve synthetic merged usage without substituting a physical
 operand or allowing a later output-name override to retarget the key.
 
 Views reuse the supported OID scalar and BETWEEN lowering, including nested
-predicate-valued endpoints. Canonical replay uses the same scalar CASE bridge
-as stored defaults for grouped predicate operands; it does not broaden ordinary
-comparison syntax or evaluate definitions during serialization.
+predicate-valued endpoints. Canonical replay preserves grouped predicate
+comparison operands directly through the common nonassociative comparison
+grammar; it never evaluates definitions during serialization.
 
 Stored literal occurrences retain their analyzed value and type usage, including
 temporal precision, independently typed BETWEEN occurrences and each JOIN ON clause.

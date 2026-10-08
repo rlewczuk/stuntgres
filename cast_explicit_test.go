@@ -269,10 +269,6 @@ func TestCastExplicitDiagnosticsAndPhases(t *testing.T) {
 	}
 	_, err := db.Query(`SELECT "integer"('42') FROM t`)
 	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "42883", Message: "function integer(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
-	for _, q := range []string{"SELECT 1::int2 FROM t", "SELECT CAST(i AS numeric) FROM t", "SELECT CAST(NULL AS uuid) FROM t"} {
-		_, err := db.Query(q)
-		typeCoreDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: map[bool]string{true: "9", false: "8"}[strings.Contains(q, "::")]})
-	}
 }
 func TestCastExplicitPreparedFrames(t *testing.T) {
 	_, db := castExplicitSetup(t)
@@ -493,9 +489,6 @@ func TestCastExplicitBoundariesAndCursorCancellation(t *testing.T) {
 			t.Fatal("nested forbidden column accepted", q)
 		}
 	}
-	execSQL(t, db, "CREATE TABLE adjacent(i INT2)")
-	_, err := db.Query("SELECT CAST(i AS int4) FROM adjacent")
-	typeCoreDiagnostic(t, err, stuntgres.Error{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: "8"})
 	ctx, cancel := context.WithCancel(context.Background())
 	raw, err := d.Open(t.Name())
 	if err != nil {

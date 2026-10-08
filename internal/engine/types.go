@@ -35,6 +35,8 @@ type temporalConstant struct {
 	typeID       sqltype.ID
 	west         int32
 	months, days int32
+	typed        bool
+	typedTypmod  int32
 }
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
@@ -87,6 +89,10 @@ func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 
 // Called only by the existing binder against its current coherent catalog.
 func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage, error) {
+	return e.resolveAnnotationType(raw, op, false)
+}
+
+func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unknownNull bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
 		switch name {
@@ -137,6 +143,9 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
 	}
 	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
+	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
+		return d.Usage(), nil
+	}
 	if !d.Concrete() || d.ID() == sqltype.Char || d.ID() == sqltype.Void || d.ID() == sqltype.NameArray {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}

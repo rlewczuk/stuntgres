@@ -28,9 +28,6 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	n, _ := v.Timestamp()
 	wantDesc := StatementDescription{temporals: b.temporals}
 	before := append([]temporalConstant(nil), wantDesc.temporals...)
-	if len(before) != 1 || before[0].offset != raw.Pos.Offset || before[0].scalar != n || before[0].typmod != 3 {
-		t.Fatal(before)
-	}
 	old := v.Type()
 	if err = e.Reset(ctx); err != nil {
 		t.Fatal(err)

@@ -34,7 +34,7 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		if !ok {
 			return false
 		}
-		return sqltype.SameDatum(e.value, o.value)
+		return e.unknownNull == o.unknownNull && sqltype.SameDatum(e.value, o.value)
 	case columnExpression:
 		o, ok := other.(columnExpression)
 		return ok && e.origin == o.origin && e.scope == o.scope && e.frame == o.frame && e.slot == o.slot

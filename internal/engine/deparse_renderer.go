@@ -10,9 +10,13 @@ import (
 )
 
 type pgRenderer struct {
-	view     CatalogRead
-	relation *relationDescriptor
-	pretty   bool
+	view               CatalogRead
+	relation           *relationDescriptor
+	pretty             bool
+	path               []ObjectAddress
+	output             sqltype.OutputEnvironment
+	nonstandardStrings bool
+	showImplicit       bool
 }
 
 func pgIdentifier(name string) string {
@@ -60,20 +64,26 @@ func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string
 func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, error) {
 	u := n.ResultUsage()
 	v := n.value
+	if n.unknownNull && (!v.IsNull() || u.Type == nil || u.Type.ID() != sqltype.Text) {
+		return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")
+	}
 	typ, err := pgType(u)
 	if err != nil {
 		return "", err
 	}
 	if v.IsNull() {
+		if n.unknownNull {
+			return "NULL::unknown", nil
+		}
 		return "NULL::" + typ, nil
 	}
-	text, err := v.Type().Output(ctx, v)
+	text, err := v.Type().OutputWithEnvironment(ctx, v, r.output)
 	if err != nil {
 		return "", err
 	}
 	quote := func(s string) string {
-		if strings.Contains(s, "\\") {
-			return commentLiteral(s)
+		if r.nonstandardStrings {
+			s = strings.ReplaceAll(s, "\\", "\\\\")
 		}
 		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 	}
@@ -103,12 +113,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		return quote(text) + "::" + typ, nil
 	case sqltype.Regclass:
 		if id, err := strconv.ParseUint(text, 10, 32); err == nil {
-			if relation, ok := r.view.state.descriptors[ObjectAddress{ClassID: RelationClassID, ObjectID: OID(id)}].(*relationDescriptor); ok {
-				text = pgIdentifier(relation.name)
-				if namespace := r.view.state.descriptors[relation.namespace]; namespace != nil && namespace.Name() != "public" {
-					text = pgIdentifier(namespace.Name()) + "." + text
-				}
-			}
+			text = regclassSpelling(r.view, r.path, OID(id))
 		}
 		return quote(text) + "::regclass", nil
 	case sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.NameArray:
@@ -127,11 +132,15 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 	if node == nil || node.ResultUsage().Type == nil {
 		return "", fmt.Errorf("stuntgres: missing deparse node")
 	}
+	showImplicit := r.showImplicit
+	r.showImplicit = false
 	child := func(n BoundExpr) (string, error) { return r.sql(ctx, n, 0) }
-	function := func(name string, args []BoundExpr) (string, error) {
+	function := func(name string, args []BoundExpr, implicit bool) (string, error) {
 		parts := make([]string, len(args))
 		for i, arg := range args {
-			text, err := child(arg)
+			argRenderer := r
+			argRenderer.showImplicit = implicit
+			text, err := argRenderer.sql(ctx, arg, 0)
 			if err != nil {
 				return "", err
 			}
@@ -140,7 +149,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		return name + "(" + strings.Join(parts, ", ") + ")", nil
 	}
 	unary := func(n BoundExpr, suffix string) (string, error) {
-		text, err := r.sql(ctx, n, 4)
+		text, err := r.sql(ctx, n, 5)
 		if err != nil {
 			return "", err
 		}
@@ -154,7 +163,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 	// coercion nodes. Reconstruct the contextual Const cast that PostgreSQL
 	// records for integer operands of numeric/floating comparisons.
 	comparisonChild := func(node, other BoundExpr) (string, error) {
-		text, err := r.sql(ctx, node, 4)
+		text, err := r.sql(ctx, node, 5)
 		if err != nil {
 			return "", err
 		}
@@ -204,11 +213,16 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 	case columnExpression:
 		return deparseAttribute(r.relation, n.origin.Address.SubID)
 	case coercionExpression:
+		if literal, ok := n.child.(literalExpression); ok && n.mode == sqltype.Explicit &&
+			literal.usage.Type == n.usage.Type && n.usage.Typmod >= 0 {
+			literal.usage = n.usage
+			return r.literal(ctx, literal)
+		}
 		text, err := child(n.child)
 		if err != nil {
 			return "", err
 		}
-		if n.mode == sqltype.Implicit {
+		if n.mode == sqltype.Implicit && !showImplicit {
 			// Const coercions have type-owned annotations; casts of Vars for operator
 			// resolution are invisible in PostgreSQL presentation.
 			if _, ok := n.child.(literalExpression); !ok {
@@ -292,7 +306,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		if int(n.kind) >= len(names) {
 			return "", fmt.Errorf("stuntgres: invalid deparse conditional")
 		}
-		return function(names[n.kind], n.args)
+		return function(names[n.kind], n.args, false)
 	case caseExpression:
 		var text strings.Builder
 		text.WriteString("\nCASE")
@@ -325,15 +339,15 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		text.WriteString("\nEND")
 		return text.String(), nil
 	case mathExpression:
-		return function(n.plan.Name(), n.args)
+		return function(n.plan.Name(), n.args, true)
 	case randomExpression:
-		return function(n.name, n.args)
+		return function(n.name, n.args, true)
 	case nullCountExpression:
 		name := "num_nulls"
 		if n.kind == countNonnulls {
 			name = "num_nonnulls"
 		}
-		return function(name, n.args)
+		return function(name, n.args, true)
 	case commentInquiryExpression:
 		name := "obj_description"
 		if n.kind == columnDescription {
@@ -342,11 +356,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		if n.kind == sharedDescription {
 			name = "shobj_description"
 		}
-		return function(name, n.args)
+		return function(name, n.args, true)
 	case currentSchemasExpression:
-		return function("current_schemas", []BoundExpr{n.arg})
+		return function("current_schemas", []BoundExpr{n.arg}, true)
 	case sequenceCallExpression:
-		return function(n.name, n.args)
+		return function(n.name, n.args, true)
 	case timeZoneExpression:
 		text, err := child(n.value)
 		if err != nil {
@@ -365,7 +379,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		if n.constraint {
 			name = "pg_get_constraintdef"
 		}
-		return function(name, n.args)
+		return function(name, n.args, true)
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse node %T", node)
 	}

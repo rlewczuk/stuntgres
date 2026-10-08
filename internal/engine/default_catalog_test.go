@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"strings"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,7 +16,8 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, old); err != nil {
 		t.Fatal("validation evaluated narrowing", err)
 	}
-	for _, mutate := range []func(*relationDescriptor){
+	names := []string{"missing-attribute", "wrong-destination", "noncanonical-text", "parameter-dependent-valid-oid", "nonnull-literal-type-mismatch-valid-oid", "missing-oid"}
+	for i, mutate := range []func(*relationDescriptor){
 		func(d *relationDescriptor) { d.defaults = map[int32]columnDefault{99: old.defaults[1]} },
 		func(d *relationDescriptor) { d.defaults = map[int32]columnDefault{1: old.defaults[2]} },
 		func(d *relationDescriptor) {
@@ -26,19 +28,43 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
 			node := parameterExpression{expressionInfo: expressionInfo{usage: u, properties: ExprProperties{ParameterDependent: true}}, number: 1}
-			d.defaults = map[int32]columnDefault{1: {expression: node, sql: "0"}}
+			bad := old.defaults[1]
+			bad.expression, bad.sql = node, "0"
+			d.defaults = map[int32]columnDefault{1: bad}
+			if _, err := (scalarRenderer{}).sql(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored default properties" {
+				t.Fatal("parameter invariant not reached", err)
+			}
 		},
 		func(d *relationDescriptor) {
 			u := old.columns[0].Usage
-			node := literalExpression{expressionInfo: expressionInfo{usage: u}, value: sqltype.Null(old.columns[1].Usage.Type)}
-			d.defaults = map[int32]columnDefault{1: {expression: node, sql: "NULL"}}
+			node := literalExpression{expressionInfo: expressionInfo{usage: u}, value: sqltype.Boolean(old.columns[1].Usage.Type, true)}
+			bad := old.defaults[1]
+			bad.expression, bad.sql = node, "TRUE"
+			d.defaults = map[int32]columnDefault{1: bad}
+			if _, err := (scalarRenderer{}).sql(context.Background(), view, node); err == nil || err.Error() != "stuntgres: invalid stored literal" {
+				t.Fatal("literal type invariant not reached", err)
+			}
+		},
+		func(d *relationDescriptor) {
+			bad := old.defaults[1]
+			bad.OID = 0
+			d.defaults = map[int32]columnDefault{1: bad}
+			if err := (relationProvider{}).Validate(view, d); err == nil || err.Error() != "stuntgres: invalid column default destination" {
+				t.Fatal("missing identity invariant not reached", err)
+			}
 		},
 	} {
-		next := *old
-		mutate(&next)
-		if err := (relationProvider{}).Validate(view, &next); err == nil {
-			t.Fatal("invalid definition accepted", next.defaults)
-		}
+		t.Run(names[i], func(t *testing.T) {
+			next := *old
+			mutate(&next)
+			want := "stuntgres: invalid column default expression"
+			if i < 2 || i == 5 {
+				want = "stuntgres: invalid column default destination"
+			}
+			if err := (relationProvider{}).Validate(view, &next); err == nil || err.Error() != want {
+				t.Fatal("wrong invariant failure", next.defaults, err, want)
+			}
+		})
 	}
 }
 

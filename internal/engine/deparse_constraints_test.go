@@ -56,10 +56,10 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 		{"num_nulls(a)>0", "(num_nulls(a) > 0)", "num_nulls(a) > 0"},
 		{"num_nonnulls(a)>0", "(num_nonnulls(a) > 0)", "num_nonnulls(a) > 0"},
 		{"current_schemas(false) IS NOT NULL", "(current_schemas(false) IS NOT NULL)", "current_schemas(false) IS NOT NULL"},
-		{"obj_description(a,'pg_class') IS NULL", "(obj_description(a, 'pg_class'::name) IS NULL)", "obj_description(a, 'pg_class'::name) IS NULL"},
-		{"col_description(a,1) IS NULL", "(col_description(a, 1) IS NULL)", "col_description(a, 1) IS NULL"},
-		{"shobj_description(a,'pg_authid') IS NULL", "(shobj_description(a, 'pg_authid'::name) IS NULL)", "shobj_description(a, 'pg_authid'::name) IS NULL"},
-		{"obj_description(a) IS NULL", "(obj_description(a) IS NULL)", "obj_description(a) IS NULL"},
+		{"obj_description(a,'pg_class') IS NULL", "(obj_description((a)::oid, 'pg_class'::name) IS NULL)", "obj_description(a::oid, 'pg_class'::name) IS NULL"},
+		{"col_description(a,1) IS NULL", "(col_description((a)::oid, 1) IS NULL)", "col_description(a::oid, 1) IS NULL"},
+		{"shobj_description(a,'pg_authid') IS NULL", "(shobj_description((a)::oid, 'pg_authid'::name) IS NULL)", "shobj_description(a::oid, 'pg_authid'::name) IS NULL"},
+		{"obj_description(a) IS NULL", "(obj_description((a)::oid) IS NULL)", "obj_description(a::oid) IS NULL"},
 		{"TIMESTAMP '2026-10-08 00:00:00' AT LOCAL IS NOT NULL", "(('2026-10-08 00:00:00'::timestamp without time zone AT LOCAL) IS NOT NULL)", "('2026-10-08 00:00:00'::timestamp without time zone AT LOCAL) IS NOT NULL"},
 		{"(a OPERATOR(pg_catalog.&) 3)=1", "((a & 3) = 1)", "(a & 3) = 1"},
 		{"a OPERATOR(pg_catalog.>) 0", "(a > 0)", "a > 0"},
@@ -112,7 +112,7 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 		{sqltype.Char, "x", "'x'::\"char\"", "'x'::\"char\""},
 		{sqltype.BPChar, "hi", "'hi'::bpchar", "'hi'::bpchar"},
 		{sqltype.VarChar, "hi", "'hi'::character varying", "'hi'::character varying"},
-		{sqltype.Bytea, `\x00ff`, `E'\\x00ff'::bytea`, `E'\\x00ff'::bytea`},
+		{sqltype.Bytea, `\x00ff`, `'\x00ff'::bytea`, `'\x00ff'::bytea`},
 		{sqltype.UUID, "00000000-0000-0000-0000-000000000001", "'00000000-0000-0000-0000-000000000001'::uuid", "'00000000-0000-0000-0000-000000000001'::uuid"},
 		{sqltype.Numeric, "1.20", "1.20", "1.20"},
 		{sqltype.Numeric, "NaN", "'NaN'::numeric", "'NaN'::numeric"},
@@ -389,7 +389,7 @@ func TestDeparseConstraintsVolatileTreesDoNotExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pretty := range []bool{false, true} {
-		got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.checkConstraints[0].expression, 0)
+		got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: []ObjectAddress{{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}}}).sql(context.Background(), d.checkConstraints[0].expression, 0)
 		want := "((nextval('s'::regclass) > 0) AND (random() > (0)::double precision))"
 		if pretty {
 			want = "nextval('s'::regclass) > 0 AND random() > 0::double precision"

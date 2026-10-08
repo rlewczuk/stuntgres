@@ -415,9 +415,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	switch s := stmt.(type) {
 	case *parser.Update:
 		if b.returning != nil {
-			e.captureCommentSnapshotLocked(scope)
+			err = e.captureCommentSnapshotLocked(scope)
 		} else {
-			e.captureCheckCommentSnapshotLocked(scope, b.relation)
+			err = e.captureCheckCommentSnapshotLocked(scope, b.relation)
+		}
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
 		}
 		view, err := scope.acquireDataViewLocked(e, b.ref)
 		if err != nil {
@@ -433,7 +437,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return e.executeUpdate(ctx, scope, b, source, canonical, schema)
 	case *parser.Insert:
-		e.captureCheckCommentSnapshotLocked(scope, b.relation)
+		if err := e.captureCheckCommentSnapshotLocked(scope, b.relation); err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
 		if s.Source != nil {
 			source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Source.Select != nil && len(b.querySources) == 0)
 			if sourceErr != nil {
@@ -530,7 +537,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.Delete:
 		view, viewErr := scope.acquireDataViewLocked(e, b.ref)
 		if viewErr == nil && b.returning != nil {
-			e.captureCommentSnapshotLocked(scope)
+			viewErr = e.captureCommentSnapshotLocked(scope)
 		}
 		e.mu.Unlock()
 		if viewErr != nil {

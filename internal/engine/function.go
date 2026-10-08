@@ -124,6 +124,14 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		if err != nil {
 			return nil, err
 		}
+		if unknownNullSyntax(rawArg) {
+			literal, ok := arg.(literalExpression)
+			if !ok || !literal.value.IsNull() || literal.usage.Type.ID() != sqltype.Text {
+				return nil, fmt.Errorf("stuntgres: invalid unknown null-count argument")
+			}
+			literal.unknownNull = true
+			arg = literal
+		}
 		if args != nil {
 			args[i] = arg
 		}
@@ -272,4 +280,17 @@ func (b *expressionBinder) bindCurrentSchemas(raw parser.FunctionExpr) (BoundExp
 		p.Volatility = Stable
 	}
 	return currentSchemasExpression{b.info(typ.Usage(), raw.Pos, p), arg}, nil
+}
+
+// unknownNullSyntax recognizes provenance carriers, not a concrete UNKNOWN type.
+// Callers still resolve any annotation through the ordinary catalog/type path.
+func unknownNullSyntax(raw parser.Expr) bool {
+	if cast, ok := raw.(parser.CastExpr); ok {
+		if cast.Syntax == parser.FunctionCast || cast.TypeName.Name != "unknown" {
+			return false
+		}
+		raw = cast.Child
+	}
+	literal, ok := raw.(parser.LiteralExpr)
+	return ok && literal.Value.Kind == parser.NullValue
 }

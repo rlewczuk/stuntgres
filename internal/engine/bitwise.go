@@ -59,27 +59,6 @@ func selectedBitwiseName(name string) bool {
 	return false
 }
 
-// A cast around a selected bitwise result must also survive default/view replay.
-// Do not search arbitrary descendants: unrelated conditional siblings stay excluded.
-func bitwiseCastSource(raw parser.Expr) bool {
-	switch n := raw.(type) {
-	case parser.CastExpr:
-		return n.Syntax != parser.FunctionCast && bitwiseCastSource(n.Child)
-	case parser.OperatorExpr:
-		return len(n.Name.Parts) >= 1 && len(n.Name.Parts) <= 2 && selectedBitwiseName(n.Name.Parts[len(n.Name.Parts)-1].Text)
-	}
-	return false
-}
-
-// Keep explicit syntax on the node, but reuse the existing integral assignment
-// plan for the scoped INT2 seam. Global sqltype explicit admission stays unchanged.
-func planExpressionCoercion(source, target sqltype.Usage, mode sqltype.CoercionContext) (sqltype.CoercionPlan, error) {
-	if mode == sqltype.Explicit && integralBitwiseType(source.Type) && integralBitwiseType(target.Type) &&
-		(source.Type.ID() == sqltype.Int2 || target.Type.ID() == sqltype.Int2) {
-		return sqltype.PlanCoercion(source, target, sqltype.Assignment)
-	}
-	return sqltype.PlanCoercion(source, target, mode)
-}
 func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid bitwise expression")
@@ -89,7 +68,7 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 	if err != nil {
 		return nil, err
 	}
-	policy := expressionPolicy{context: projectionContext, bitwiseOperand: selectedBitwiseName(name)}
+	policy := expressionPolicy{context: projectionContext}
 	left, err := b.comparisonOperandPolicy(raw.Args[0], policy)
 	if err != nil {
 		return nil, err

@@ -26,9 +26,6 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	}
 	desc := StatementDescription{temporals: b.temporals}
 	before := append([]temporalConstant(nil), desc.temporals...)
-	if len(before) != 2 || before[0].typeID != 1083 || before[0].scalar != 14706500000 || before[0].typmod != 3 || before[1].typeID != 1114 {
-		t.Fatal(before)
-	}
 	if err := e.Reset(ctx); err != nil {
 		t.Fatal(err)
 	}

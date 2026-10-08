@@ -86,6 +86,16 @@ objects are reminted in the private candidate before installation.
 Dump/Restore preserves CHECK casts/names/NO INHERIT, NOT NULL and explicit
 defaults through canonical SQL replay, not raw definition OID directives.
 Restored IDs may differ; current owner/attribute relationships and behavior persist.
+Structural unknown-NULL provenance and raw temporal precision survive replay;
+destination sizing remains an executable coercion rather than a deparse-time value.
+The deparse reference matrix independently checks every admitted persisted
+family/type, both actual returned suffix/default copies, typed assignment results,
+nonassociative grouping and visibility-controlled sequence effects.
+Additional metadata witnesses retain signed INT4 minimum constants, typed NULL
+arguments, raw explicit TIME(3) precision, and quote/backslash spelling under both
+standard_conforming_strings settings. Actual copied NUMERIC(2,-1) defaults retain
+149/995 before assignment: 149 rounds to 150; 995 overflows at Execute, with no
+partial row prefix. Native replay asserts the same stored structure and behavior.
 Derived pg_constraint/pg_attrdef rows and stateless deparse functions are not dumped.
 Failed/canceled Restore leaves data/catalogs and held eager tree/result snapshots intact.
 

@@ -41,26 +41,11 @@ func TestReferenceBitwiseParameterResolution(t *testing.T) {
 	}
 }
 
-func TestReferenceBitwiseScopedSmallintCasts(t *testing.T) {
+func TestReferenceBitwiseSmallintCasts(t *testing.T) {
 	p := newReferencePair(t)
 	p.step(t, referenceExec("CREATE TABLE one(v INTEGER)", 0))
 	p.step(t, referenceExec("INSERT INTO one VALUES(1)", 1))
 	for _, prepared := range []bool{false, true} {
-		for _, tc := range []struct{ query, position string }{
-			{"SELECT 1::smallint FROM one", "9"},
-			{"SELECT CAST(1 AS smallint) FROM one", "8"},
-		} {
-			native := referenceImplicitError(tc.query, referenceDiagnostic{Code: "0A000", Message: "explicit casts are supported only for int4, int8, text and bool", Position: tc.position})
-			native.selectRows = true
-			native.prepared = prepared
-			if prepared {
-				native.errorStage = "prepare"
-			}
-			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-			postgres := referenceSelect(native.query, []string{"int2"}, []string{"INT2"}, [][]any{{int64(1)}})
-			postgres.prepared = prepared
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, postgres)
-		}
 		step := referenceSelect("SELECT ~CAST(1 AS smallint),CAST(32767 AS smallint) << CAST(1 AS smallint),CAST(32767::smallint << 1 AS bigint),~NULL::smallint FROM one", []string{"?column?", "?column?", "int8", "?column?"}, []string{"INT2", "INT2", "INT8", "INT2"}, [][]any{{int64(-2), int64(-2), int64(-2), nil}})
 		step.prepared = prepared
 		p.step(t, step)

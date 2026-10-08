@@ -55,7 +55,7 @@ func TestBetweenGroupedComparisonEndpoints(t *testing.T) {
 	}
 }
 
-func TestBetweenPreservesOrdinaryGroupedComparisonBoundary(t *testing.T) {
+func TestBetweenGroupedComparisonConsumption(t *testing.T) {
 	for _, query := range []string{
 		"SELECT (id=1)=TRUE FROM t",
 		"SELECT (v IS NULL)=TRUE FROM t",
@@ -64,8 +64,8 @@ func TestBetweenPreservesOrdinaryGroupedComparisonBoundary(t *testing.T) {
 		"SELECT CASE WHEN (v IS NULL)=TRUE THEN 1 ELSE 0 END FROM t",
 		"CREATE TABLE d(b BOOL DEFAULT ((1=1)=TRUE))",
 	} {
-		if statements, err := Parse(query); err == nil || len(statements) != 0 {
-			t.Fatal("ordinary grouped comparison scope expanded", query, statements, err)
+		if statements, err := Parse(query); err != nil || len(statements) != 1 {
+			t.Fatal("grouped comparison rejected", query, statements, err)
 		}
 	}
 	for _, query := range []string{
@@ -76,6 +76,11 @@ func TestBetweenPreservesOrdinaryGroupedComparisonBoundary(t *testing.T) {
 	} {
 		if _, err := Parse(query); err != nil {
 			t.Fatal("BETWEEN comparison/grouping rejected", query, err)
+		}
+	}
+	for _, query := range []string{"SELECT id<2<3 FROM t", "SELECT (id<2)+1 FROM t"} {
+		if _, err := Parse(query); err == nil {
+			t.Fatal("nonassociative/arithmetic boundary lost", query)
 		}
 	}
 }

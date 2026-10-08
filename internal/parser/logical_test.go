@@ -78,7 +78,7 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 	}
 	for _, q := range []string{
 		"SELECT TRUE AND FALSE",
-		"SELECT id=1=TRUE FROM t", "SELECT (id=1)=TRUE FROM t",
+		"SELECT id=1=TRUE FROM t",
 		"INSERT INTO t VALUES(TRUE AND FALSE)", "INSERT INTO t VALUES(NOT TRUE)",
 		"INSERT INTO t SELECT TRUE AND FALSE FROM t RETURNING a", "SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
 		"SELECT f(a) AND b FROM t",

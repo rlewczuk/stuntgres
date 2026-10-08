@@ -247,6 +247,7 @@ type StatementScope struct {
 	commentRoles        RoleRead
 	identity            identitySnapshot
 	currentSchemaResult sqltype.Value
+	deparsePath         []ObjectAddress
 }
 
 type WriteStage struct {

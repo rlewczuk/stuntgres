@@ -17,6 +17,31 @@ Numeric comparison constants retain contextual casts needed for reconstruction;
 assignment-only casts stay invisible. Omitted `random_normal` arguments remain
 omitted in the bound call and use their defaults only during evaluation.
 
+Comparison operands retain required grouping in both modes, including lowered
+BETWEEN predicates used under another comparison. Grouped predicates are valid
+comparison operands; ungrouped comparison chains and Boolean arithmetic are not.
+Ordinary function arguments show their bound implicit casts, unlike operator
+Vars and assignment sizing. Regclass spelling uses the statement's captured
+catalog and effective relation path: a shadowed provider is schema-qualified,
+while a visible provider is unqualified regardless of its namespace.
+
+Standard CAST and postfix `::` consume same-type annotations/typmods for admitted
+stored scalar types and existing directional integer/numeric/float conversion
+edges. They do not add generic known-TEXT input conversions, transitive cast
+search or function-form casts. `NULL::unknown` (or standard CAST of literal NULL)
+is a bounded syntax carrier, not a concrete UNKNOWN value/input/column type.
+Polymorphic null-count arguments retain this provenance through native replay.
+
+Typed TIME/TIMESTAMP literals retain the pre-precision constant plus the ordinary
+typmod coercion: output may contain `.1234::time(3)` while execution yields `.123`.
+Unknown-string defaults similarly retain preassignment values and omit destination
+sizing in presentation. INTERVAL input is the exception: its field/precision
+typmod applies at input and remains on the stored literal. Signed literal constants
+retain checked constant identity rather than becoming evaluated arithmetic.
+Literal output uses captured output settings and plain SQL quotes, never an E
+prefix; backslashes double only with standard_conforming_strings off.
+
+
 ```sql
 SELECT pg_get_constraintdef(oid, true)
 FROM pg_catalog.pg_constraint WHERE conname = 'positive';
@@ -1333,14 +1358,12 @@ Existing DELETE/UPDATE/CASE/conditional, INSERT SELECT, grouping/HAVING and
 parenthesized DEFAULT consumers share this lowering without new native paths.
 Ordinary scalar-only INSERT VALUES/settings and other documented boundaries
 remain unchanged. Grouped predicate values are admitted as BETWEEN's tested
-value/endpoints. This does not broaden ordinary comparisons without a BETWEEN
-predicate: `(v IS NULL)=TRUE` and `(id=1)=TRUE` remain outside the native dialect.
+value/endpoints and as ordinary comparison operands, including `(v IS NULL)=TRUE`
+and `(id=1)=TRUE`. Ungrouped chains remain nonassociative.
 Native Dump/Restore preserves grouped comparison/logical/nested BETWEEN
 defaults, including fresh DEFAULT inserts after replay. Predicate-valued
-comparison operands serialize through the existing scalar identity
-`CASE WHEN TRUE THEN ... END`; this preserves typed NULL and deferred errors
-without evaluating defaults during serialization or admitting unrelated grouped
-ordinary comparisons.
+comparison operands serialize directly with structural parentheses, without
+CASE identity bridges or evaluation of stored definitions.
 
 Executable feature evidence: `make smoke RUN='^TestBetweenSmoke$' VERBOSE=0`,
 `make test PACKAGES=. RUN='^TestBetween' VERBOSE=0`,

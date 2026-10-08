@@ -207,7 +207,6 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if err != nil {
 			return "", err
 		}
-		left = viewComparisonOperandSQL(e.Args[0], left)
 		op := e.Name.Parts[len(e.Name.Parts)-1].Text
 		if len(e.Name.Parts) == 2 {
 			op = "OPERATOR(" + quoteIdentifier(e.Name.Parts[0].Text) + "." + op + ")"
@@ -219,7 +218,6 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		if err != nil {
 			return "", err
 		}
-		right = viewComparisonOperandSQL(e.Args[1], right)
 		return "(" + left + " " + op + " " + right + ")", nil
 	case parser.LogicalExpr:
 		left, err := child(e.Left)
@@ -311,21 +309,6 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return "CAST(" + text + " AS regclass)", err
 	}
 	return "", fmt.Errorf("stuntgres: unsupported view deparser expression %T", raw)
-}
-
-// BETWEEN lowers to ordinary comparison/logical nodes. Predicate-valued
-// operands need the same scalar CASE bridge used by stored defaults on replay.
-func viewComparisonOperandSQL(raw parser.Expr, text string) string {
-	switch e := raw.(type) {
-	case parser.LogicalExpr, parser.PredicateExpr:
-		return predicateOperandSQL(text)
-	case parser.OperatorExpr:
-		switch e.Name.Parts[len(e.Name.Parts)-1].Text {
-		case "=", "<>", "!=", "<", "<=", ">", ">=":
-			return predicateOperandSQL(text)
-		}
-	}
-	return text
 }
 
 func syntaxTypeSQL(t parser.TypeName) string {

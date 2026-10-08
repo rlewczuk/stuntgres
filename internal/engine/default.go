@@ -27,7 +27,11 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column ColumnDescriptor)
 	previous := b.defaultConsumer
 	b.defaultConsumer = true
 	defer func() { b.defaultConsumer = previous }()
-	node, err := b.bind(raw, expressionPolicy{context: projectionContext, expected: column.Usage.Type.Usage()})
+	inputUsage := column.Usage.Type.Usage()
+	if inputUsage.Type.ID() == sqltype.Interval {
+		inputUsage = column.Usage
+	}
+	node, err := b.bind(raw, expressionPolicy{context: projectionContext, expected: inputUsage})
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +341,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default coercion mode")
 		}
-		plan, err := planExpressionCoercion(n.child.ResultUsage(), u, n.mode)
+		plan, err := sqltype.PlanCoercion(n.child.ResultUsage(), u, n.mode)
 		if err != nil || plan != n.plan {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
@@ -487,11 +491,11 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if err != nil || predicate != n.predicate {
 			return "", fmt.Errorf("stuntgres: invalid default predicate binding")
 		}
-		left, err := r.comparisonOperandSQL(ctx, view, n.left)
+		left, err := r.sql(ctx, view, n.left)
 		if err != nil {
 			return "", err
 		}
-		right, err := r.comparisonOperandSQL(ctx, view, n.right)
+		right, err := r.sql(ctx, view, n.right)
 		if err != nil {
 			return "", err
 		}
@@ -607,27 +611,6 @@ func (r scalarRenderer) record(ref ObjectRef) {
 		}
 	}
 	*r.dependencies = append(*r.dependencies, ref)
-}
-
-// Grouped predicate operands arise from BETWEEN lowering, but ordinary
-// comparisons intentionally retain scalar-only operands in the replay grammar.
-// CASE is the existing scalar identity bridge; serialize/validate its child
-// first, without evaluating the stored default or widening the grammar.
-func (r scalarRenderer) comparisonOperandSQL(ctx context.Context, view CatalogRead, child BoundExpr) (string, error) {
-	text, err := r.sql(ctx, view, child)
-	if err != nil {
-		return "", err
-	}
-	switch child.(type) {
-	case comparisonExpression, nullTestExpression, truthTestExpression, distinctExpression, logicalExpression:
-		return predicateOperandSQL(text), nil
-	default:
-		return text, nil
-	}
-}
-
-func predicateOperandSQL(text string) string {
-	return "(CASE WHEN TRUE THEN " + text + " END)"
 }
 
 // Replacement can retain TEMP sequence builtin generations. Rebind persisted
@@ -788,6 +771,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		n.expressionInfo = info
 		rebound = n
 	case literalExpression:
+		info.unknownNull = n.unknownNull
 		if !changed {
 			return node, false, nil
 		}
@@ -810,7 +794,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 			return node, false, err
 		}
 		if changed && err == nil {
-			n.plan, err = planExpressionCoercion(n.child.ResultUsage(), info.usage, n.mode)
+			n.plan, err = sqltype.PlanCoercion(n.child.ResultUsage(), info.usage, n.mode)
 		}
 		n.expressionInfo = info
 		rebound = n
@@ -911,6 +895,12 @@ func literalSQL(ctx context.Context, n literalExpression) (string, error) {
 	u := n.ResultUsage()
 	if n.value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
+	}
+	if n.unknownNull {
+		if !n.value.IsNull() || u.Type.ID() != sqltype.Text {
+			return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")
+		}
+		return "NULL::unknown", nil
 	}
 	literal, err := u.Type.SQLLiteral(ctx, n.value)
 	if err == nil && u.Type.ID() == sqltype.Oid {

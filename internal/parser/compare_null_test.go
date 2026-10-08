@@ -107,7 +107,7 @@ func TestCompareNullParserGroupingAndBoundaries(t *testing.T) {
 		"SELECT v IS DISTINCT FROM 1 IS NULL FROM t",
 		"INSERT INTO t VALUES(1 IS NULL)", "SELECT set_config('x',TRUE IS NULL,FALSE)",
 		"SELECT v IS OF (integer) FROM t",
-		"SELECT v=1=1 FROM t", "SELECT (v IS NULL)=TRUE FROM t",
+		"SELECT v=1=1 FROM t",
 		"SELECT num_nulls(v) IS NULL FROM t", "SELECT num_nulls(v IS NULL) FROM t",
 		"SELECT (num_nulls(v)) IS NULL FROM t", "SELECT num_nulls((v IS NULL)) FROM t",
 		"SELECT num_nulls(v)=1 FROM t", "SELECT 1=num_nulls(v) FROM t",

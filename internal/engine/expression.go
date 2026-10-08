@@ -44,9 +44,10 @@ type EvalContext struct {
 	Output         sqltype.OutputEnvironment
 }
 type expressionInfo struct {
-	usage      sqltype.Usage
-	pos        parser.Position
-	properties ExprProperties
+	usage       sqltype.Usage
+	pos         parser.Position
+	properties  ExprProperties
+	unknownNull bool
 }
 
 func (expressionInfo) boundExpression()                  {}
@@ -69,7 +70,8 @@ func (e literalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.usage.Type == nil || !e.usage.Type.Concrete() || e.value.Type() != e.usage.Type {
+	if e.usage.Type == nil || !e.usage.Type.Concrete() || e.value.Type() != e.usage.Type ||
+		e.unknownNull && (!e.value.IsNull() || e.usage.Type.ID() != sqltype.Text) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid literal expression")
 	}
 	return e.value, nil
@@ -571,8 +573,6 @@ type expressionPolicy struct {
 	booleanConstruct string
 	// Operand skips the enclosing WHERE BOOL check while binding predicate children.
 	operand bool
-	// Only selected bitwise operands propagate this through standard cast chains.
-	bitwiseOperand bool
 }
 type expressionDependency struct {
 	ref      ObjectRef
@@ -643,7 +643,7 @@ func (b *expressionBinder) dependency(ref ObjectRef, revision DefinitionRevision
 }
 func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProperties) expressionInfo {
 	b.dependency(ObjectRef{owner: b.engine.owner, Epoch: b.engine.state.epoch, Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}}, 1)
-	return expressionInfo{u, pos, p}
+	return expressionInfo{usage: u, pos: pos, properties: p}
 }
 func expressionError(code, message string, pos parser.Position) error {
 	d := sqlError(code, message).(*sqlstate.Error)
@@ -962,7 +962,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, literalInputError(err, r)
 		}
-		node = literalExpression{b.info(value.Type().Usage(), v.Pos, ExprProperties{}), value}
+		literalUsage := value.Type().Usage()
+		if v.Kind == parser.StringValue && u.Type.ID() == sqltype.Interval {
+			literalUsage = u
+		}
+		node = literalExpression{b.info(literalUsage, v.Pos, ExprProperties{}), value}
 	case parser.TypedLiteralExpr:
 		rawType := r.TypeName
 		saved, found, err := b.captureAt(r.Pos.Offset)
@@ -978,15 +982,37 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 		if found {
 			u.Typmod = saved.typmod
+			if saved.typed {
+				u.Typmod = saved.typedTypmod
+			}
 		}
-		value, err := b.inputConstant(r.Text, u, r.Pos)
+		inputUsage := u
+		if u.Type.ID() != sqltype.Interval {
+			inputUsage = u.Type.Usage()
+		}
+		value, err := b.inputConstant(r.Text, inputUsage, r.Pos)
 		if err != nil {
 			return nil, inputErrorAt(err, r.Pos)
 		}
-		node = literalExpression{b.info(u, r.Pos, ExprProperties{}), value}
+		if b.expected == nil {
+			for i := range b.temporals {
+				if b.temporals[i].offset == r.Pos.Offset && b.temporals[i].typeID == u.Type.ID() {
+					b.temporals[i].typed = true
+					b.temporals[i].typedTypmod = u.Typmod
+				}
+			}
+		}
+		node = literalExpression{b.info(inputUsage, r.Pos, ExprProperties{}), value}
+		if inputUsage != u {
+			plan, err := sqltype.PlanCoercion(inputUsage, u, sqltype.Explicit)
+			if err != nil {
+				return nil, err
+			}
+			node = coercionExpression{b.info(u, r.Pos, coercionProperties(node, plan)), node, plan, sqltype.Explicit}
+		}
 	case parser.CastExpr:
 		var err error
-		node, err = b.cast(r, policy.bitwiseOperand)
+		node, err = b.cast(r, policy)
 		if err != nil {
 			return nil, err
 		}
@@ -1067,7 +1093,7 @@ func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error
 	return d
 }
 
-func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (BoundExpr, error) {
+func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolicy) (BoundExpr, error) {
 	if !b.defaultConsumer && b.queryNamespace == nil && b.returningAliases == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
@@ -1098,22 +1124,31 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 		}
 		return nil, functionCastError(raw, source, false)
 	}
-	target, err := b.engine.resolveType(raw.TypeName, b.op)
+	rawNull, isNull := raw.Child.(parser.LiteralExpr)
+	unknownNull := raw.Syntax != parser.FunctionCast && isNull && rawNull.Value.Kind == parser.NullValue
+	target, err := b.engine.resolveAnnotationType(raw.TypeName, b.op, unknownNull)
 	if err != nil {
 		return nil, err
+	}
+	if target.Type.ID() == sqltype.Unknown {
+		// UNKNOWN is syntax provenance only, never an executable datum type.
+		return b.bind(raw.Child, outerPolicy)
 	}
 	if target.Type.ID() == sqltype.Regclass {
 		node, _, err := b.bindRegclass(raw.Child)
 		return node, err
 	}
-	bitwiseCast := raw.Syntax != parser.FunctionCast && (bitwiseOperand || bitwiseCastSource(raw.Child))
-	if !sqltype.BaselineCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.Oid && target.Type.ID() != sqltype.Int2 && !sqltype.IsCharacter(target.Type.ID()) && !sqltype.TemporalCastType(target.Type.ID()) {
+	if !sqltype.StoredScalarCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
-	policy := expressionPolicy{context: projectionContext, bitwiseOperand: bitwiseOperand}
+	policy := expressionPolicy{context: projectionContext}
 	switch child := raw.Child.(type) {
 	case parser.LiteralExpr:
 		if child.Value.Kind == parser.StringValue || child.Value.Kind == parser.NullValue {
+			policy.expected = target
+		}
+	case parser.CastExpr:
+		if unknownNullSyntax(child) {
 			policy.expected = target
 		}
 	case parser.ParameterExpr:
@@ -1138,15 +1173,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, bitwiseOperand bool) (Bound
 		return nil, err
 	}
 	source := child.ResultUsage()
-	scopedIntegral := bitwiseCast && integralBitwiseType(source.Type) && integralBitwiseType(target.Type)
-	var plan sqltype.CoercionPlan
-	if scopedIntegral {
-		plan, err = planExpressionCoercion(source, target, sqltype.Explicit)
-	} else {
-		plan, err = sqltype.PlanCoercion(source, target, sqltype.Explicit)
-	}
+	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if !scopedIntegral && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
@@ -1228,7 +1257,8 @@ func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error)
 		if i < len(captures) && captures[i].offset == offset {
 			saved := captures[i]
 			for i++; i < len(captures) && captures[i].offset == offset; i++ {
-				if captures[i].typeID != saved.typeID || captures[i].typmod != saved.typmod {
+				if captures[i].typeID != saved.typeID || captures[i].typmod != saved.typmod ||
+					captures[i].typed != saved.typed || captures[i].typedTypmod != saved.typedTypmod {
 					return temporalConstant{}, false, fmt.Errorf("stuntgres: ambiguous captured temporal metadata")
 				}
 			}
@@ -1367,6 +1397,15 @@ func (b *expressionBinder) comparisonOperand(raw parser.Expr) (comparisonOperand
 func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expressionPolicy) (comparisonOperand, error) {
 	if literal, ok := raw.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
 		return comparisonOperand{raw: raw}, nil
+	}
+	if annotation, ok := raw.(parser.CastExpr); ok && unknownNullSyntax(raw) {
+		target, err := b.engine.resolveAnnotationType(annotation.TypeName, b.op, true)
+		if err != nil {
+			return comparisonOperand{}, err
+		}
+		if target.Type.ID() == sqltype.Unknown {
+			return comparisonOperand{raw: annotation.Child}, nil
+		}
 	}
 	switch raw.(type) {
 	case parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
@@ -1555,11 +1594,29 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		return nil, fmt.Errorf("stuntgres: invalid arithmetic expression")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	// Unqualified numeric unary plus is identity; input errors belong to its
-	// operand token, including ORDER expressions. Qualified calls use lookup.
-	if name == "+" && len(raw.Args) == 1 && len(raw.Name.Parts) == 1 {
-		if literal, ok := raw.Args[0].(parser.LiteralExpr); ok && literal.Value.Kind == parser.NumericValue {
-			return b.bind(literal, expressionPolicy{context: projectionContext})
+	// Only syntactic signed constants normalize. Other unary expressions keep
+	// their provider tree and runtime overflow/error phase.
+	if (name == "+" || name == "-") && len(raw.Args) == 1 && len(raw.Name.Parts) == 1 {
+		if literal, ok := raw.Args[0].(parser.LiteralExpr); ok {
+			switch literal.Value.Kind {
+			case parser.IntegerValue:
+				if name == "-" && literal.Value.Integer != -1<<63 {
+					literal.Value.Integer = -literal.Value.Integer
+				} else if name == "-" {
+					break
+				}
+				literal.Value.Pos = raw.Pos
+				return b.bind(literal, expressionPolicy{context: projectionContext})
+			case parser.NumericValue:
+				if name == "-" {
+					if strings.HasPrefix(literal.Value.Text, "-") {
+						literal.Value.Text = strings.TrimPrefix(literal.Value.Text, "-")
+					} else {
+						literal.Value.Text = "-" + literal.Value.Text
+					}
+				}
+				return b.bind(literal, expressionPolicy{context: projectionContext})
+			}
 		}
 	}
 	operator := sqltype.ArithmeticAdd

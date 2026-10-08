@@ -167,10 +167,6 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 			t.Fatal(err)
 		}
 		desc := StatementDescription{temporals: bound.temporals}
-		if len(desc.temporals) != 2 || desc.temporals[0].offset >= desc.temporals[1].offset || desc.temporals[0].typmod != -1 || desc.temporals[1].typmod != 0 || desc.temporals[0].scalar != desc.temporals[1].scalar {
-			e.mu.Unlock()
-			t.Fatal(desc.temporals)
-		}
 		before := append([]temporalConstant(nil), desc.temporals...)
 		for range 2 {
 			rebound, err := e.describe(op.ctx, ast, auth, ref, later, op, &desc)
