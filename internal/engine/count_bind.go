@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.ObjectName, visible bool) (BoundExpr, error) {
+func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.ObjectName) (BoundExpr, error) {
 	args := make([]BoundExpr, len(raw.Args))
 	for i, child := range raw.Args {
 		arg, err := b.bind(child, expressionPolicy{context: projectionContext})
@@ -19,6 +19,10 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 	}
 	if len(args) > 100 {
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	visible, err := b.builtinVisible(name, functionLookup)
+	if err != nil {
+		return nil, err
 	}
 	if !visible || raw.Name != "count" || (!raw.Star && len(args) > 1) {
 		types := make([]string, len(args))

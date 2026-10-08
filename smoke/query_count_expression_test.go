@@ -86,6 +86,10 @@ func TestCountExpressionSmoke(t *testing.T) {
 		{"SELECT count(count(*),1) FROM t", stuntgres.Error{Code: "42883", Message: "function count(bigint, integer) does not exist", Hint: "No function matches the given name and argument types. You might need to add explicit type casts.", Position: "8"}},
 		{"SELECT count(count(*)) FROM t", stuntgres.Error{Code: "42803", Message: "aggregate function calls cannot be nested", Position: "14"}},
 		{"SELECT count(" + strings.Repeat("1,", 100) + "1) FROM t", stuntgres.Error{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
+		{"SELECT count_missing_schema.count(missing) FROM t", stuntgres.Error{Code: "42703", Message: `column "missing" does not exist`, Position: "35"}},
+		{"SELECT count_missing_schema.count(" + strings.Repeat("1,", 100) + "1) FROM empty", stuntgres.Error{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
+		{"SELECT count_missing_schema.count(1) FROM t WHERE FALSE", stuntgres.Error{Code: "3F000", Message: `schema "count_missing_schema" does not exist`, Position: "8"}},
+		{"SELECT count_missing_schema.count(" + strings.Repeat("1,", 100) + "missing) FROM empty WHERE FALSE", stuntgres.Error{Code: "42703", Message: `column "missing" does not exist`, Position: "235"}},
 	} {
 		rows, err := db.Query(tc.q)
 		if rows != nil {

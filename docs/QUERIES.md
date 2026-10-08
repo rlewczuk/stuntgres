@@ -349,9 +349,13 @@ Expression arguments use the original source row and require their column
 rights even on empty/FALSE input. Arguments are analyzed once before the outer
 call's diagnostics. More than 100 arguments gives54023, `cannot pass more than
 100 arguments to a function`; a 100-argument call still gives the ordinary42883
-unresolved-signature diagnostic. Bad arity or an unresolved name gives42883 with
-actual argument types and the PostgreSQL explicit-casts hint. Child analysis
-errors take precedence over these diagnostics.
+unresolved-signature diagnostic. Namespace/visibility resolution follows child
+analysis and the argument-limit guard: an absent explicit schema gives3F000,
+`schema "count_missing_schema" does not exist`. Thus
+`count_missing_schema.count(missing)` reports the missing column, while an
+over-limit call with valid children reports54023 before the absent schema.
+Bad arity or an unresolved function in an existing schema gives42883 with actual
+argument types and the PostgreSQL explicit-casts hint.
 `count()` gives42809, `count(*) must be used to call a parameterless aggregate
 function`; `pg_catalog.count()` retains `pg_catalog.count(*)` in that message.
 Only a resolved aggregate call checks nesting: `count(count(*))` gives42803 at

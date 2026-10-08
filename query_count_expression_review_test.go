@@ -17,7 +17,8 @@ func TestCountExpressionReviewRegression(t *testing.T) {
 	// transformed children precede the 100-argument guard (134-146), signature
 	// lookup (635-644), parameterless-name formatting (784-793), and aggregate
 	// nesting analysis (parse_agg.c:675-698). The root's pinned PostgreSQL
-	// 18.0 postgres_first direct/prepared checkpoint validated every record.
+	// 18.0 postgres_first direct/prepared checkpoints validated every record,
+	// including F4 child/guard precedence over namespace lookup.
 	// Full-record comparison also requires every unlisted field to be empty.
 	const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	args100 := strings.Repeat("1,", 99) + "1"
@@ -36,6 +37,10 @@ func TestCountExpressionReviewRegression(t *testing.T) {
 		{"count(" + strings.Repeat("1,", 100) + "missing)", stuntgres.Error{Code: "42703", Message: `column "missing" does not exist`, Position: "214"}},
 		{"count(count(*)," + args100 + ")", stuntgres.Error{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
 		{"count(count(*)," + strings.Repeat("1,", 99) + "missing)", stuntgres.Error{Code: "42703", Message: `column "missing" does not exist`, Position: "221"}},
+		{"count_missing_schema.count(missing)", stuntgres.Error{Code: "42703", Message: `column "missing" does not exist`, Position: "35"}},
+		{"count_missing_schema.count(" + args101 + ")", stuntgres.Error{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
+		{"count_missing_schema.count(1)", stuntgres.Error{Code: "3F000", Message: `schema "count_missing_schema" does not exist`, Position: "8"}},
+		{"count_missing_schema.count(" + strings.Repeat("1,", 100) + "missing)", stuntgres.Error{Code: "42703", Message: `column "missing" does not exist`, Position: "235"}},
 	} {
 		for _, source := range []string{"t", "empty", "t WHERE FALSE", "empty WHERE FALSE"} {
 			query := "SELECT " + tc.call + " FROM " + source

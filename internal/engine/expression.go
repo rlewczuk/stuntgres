@@ -774,11 +774,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if r.Schema != nil {
 			name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 		}
-		visible, err := b.builtinVisible(name, functionLookup)
-		if err != nil {
-			return nil, err
-		}
-		node, err = b.bindCount(r, name, visible)
+		var err error
+		node, err = b.bindCount(r, name)
 		if err != nil {
 			return nil, err
 		}
