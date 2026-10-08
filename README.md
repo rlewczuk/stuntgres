@@ -43,6 +43,11 @@ Both modes retain nonassociative grouping, current search-path provider visibili
 implicit function-argument annotations and raw preassignment/precision metadata.
 Returned SQL consumes bounded same-type and existing directional numeric casts;
 literal NULL::unknown retains provenance without adding a concrete UNKNOWN type.
+Change note: synthetic numeric comparison annotations use the base type, never the opposite
+column's precision/scale; genuinely explicit sizing casts remain executable.
+Consumer fixtures distinguish conditional NULL/branch behavior, controlled comment
+state, session paths/zones and per-backend seeded random effects. Exact renderer
+strings or one successful insertion alone are not behavioral compatibility proof.
 Native tree output is not PostgreSQL's physical node serialization; non-NULL
 external tree input is rejected. See [deparsing](docs/QUERIES.md#constraint-and-expression-deparsing).
 Feature smoke: `make smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.

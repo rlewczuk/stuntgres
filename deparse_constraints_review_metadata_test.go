@@ -193,11 +193,11 @@ func TestDeparseConstraintsReviewIntervalZoneExecution(t *testing.T) {
 						notNullDiagnostic(t, err, stuntgres.Error{Code: "22023", Message: tc.message})
 					}
 				}
-				count := int64(0)
+				retained := [][]any{}
 				if tc.message == "" {
-					count = 2
+					retained = [][]any{{int64(1)}, {int64(1)}}
 				}
-				wantTuples(t, db, "SELECT COUNT(*) FROM "+name, [][]any{{count}})
+				wantTuples(t, db, "SELECT a FROM "+name+" ORDER BY a", retained)
 			}
 			if tc.message == "" {
 				deparseReviewTypedValue(t, db, "SELECT "+expression+" FROM original WHERE a=1 LIMIT 1", "TIMESTAMPTZ", "2026-10-07 22:00:00+00")

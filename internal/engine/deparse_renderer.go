@@ -123,9 +123,40 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	}
 }
 
-// Parent contexts only affect pretty presentation. Arithmetic operators remain
-// parenthesized like ruleutils even in pretty mode; Boolean precedence is explicit.
-func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string, error) {
+// A zero parent is a top-level or syntax-separated expression. Operator parents
+// additionally distinguish operand side so pretty output preserves the tree.
+type pgRenderParent struct {
+	precedence int
+	operator   string
+	right      bool
+}
+
+func pgOperatorPriority(op string) int {
+	switch op {
+	case "+", "-":
+		return 1
+	case "*", "/", "%":
+		return 2
+	}
+	return 0
+}
+
+func pgOperatorGrouped(op string, binary bool, parent pgRenderParent) bool {
+	if parent.precedence == 0 {
+		return false
+	}
+	if !binary {
+		return true
+	}
+	parentPriority := pgOperatorPriority(parent.operator)
+	if parentPriority == 0 {
+		return true
+	}
+	childPriority := pgOperatorPriority(op)
+	return childPriority == 0 || childPriority < parentPriority || childPriority == parentPriority && parent.right
+}
+
+func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderParent) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -134,13 +165,13 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 	}
 	showImplicit := r.showImplicit
 	r.showImplicit = false
-	child := func(n BoundExpr) (string, error) { return r.sql(ctx, n, 0) }
+	child := func(n BoundExpr) (string, error) { return r.sql(ctx, n, pgRenderParent{}) }
 	function := func(name string, args []BoundExpr, implicit bool) (string, error) {
 		parts := make([]string, len(args))
 		for i, arg := range args {
 			argRenderer := r
 			argRenderer.showImplicit = implicit
-			text, err := argRenderer.sql(ctx, arg, 0)
+			text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
 			if err != nil {
 				return "", err
 			}
@@ -149,12 +180,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		return name + "(" + strings.Join(parts, ", ") + ")", nil
 	}
 	unary := func(n BoundExpr, suffix string) (string, error) {
-		text, err := r.sql(ctx, n, 5)
+		text, err := r.sql(ctx, n, pgRenderParent{precedence: 5})
 		if err != nil {
 			return "", err
 		}
 		text += suffix
-		if !r.pretty || parent > 4 {
+		if !r.pretty || parent.precedence > 4 {
 			text = "(" + text + ")"
 		}
 		return text, nil
@@ -163,12 +194,12 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 	// coercion nodes. Reconstruct the contextual Const cast that PostgreSQL
 	// records for integer operands of numeric/floating comparisons.
 	comparisonChild := func(node, other BoundExpr) (string, error) {
-		text, err := r.sql(ctx, node, 5)
+		text, err := r.sql(ctx, node, pgRenderParent{precedence: 5})
 		if err != nil {
 			return "", err
 		}
 		if _, constant := node.(literalExpression); constant {
-			id, target := node.ResultUsage().Type.ID(), other.ResultUsage()
+			id, target := node.ResultUsage().Type.ID(), other.ResultUsage().Type.Usage()
 			if (id == sqltype.Int2 || id == sqltype.Int4 || id == sqltype.Int8) &&
 				(target.Type.ID() == sqltype.Numeric || target.Type.ID() == sqltype.Float8) {
 				return r.cast(text, target, true)
@@ -176,13 +207,13 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		}
 		return text, nil
 	}
-	binary := func(left, right BoundExpr, op string, precedence int, always bool) (string, error) {
+	binary := func(left, right BoundExpr, op string, precedence int, enclosing pgRenderParent) (string, error) {
 		var a, b string
 		var err error
 		if precedence == 4 {
 			a, err = comparisonChild(left, right)
 		} else {
-			a, err = r.sql(ctx, left, precedence)
+			a, err = r.sql(ctx, left, pgRenderParent{precedence: precedence, operator: op})
 		}
 		if err != nil {
 			return "", err
@@ -190,16 +221,30 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		if precedence == 4 {
 			b, err = comparisonChild(right, left)
 		} else {
-			b, err = r.sql(ctx, right, precedence)
+			b, err = r.sql(ctx, right, pgRenderParent{precedence: precedence, operator: op, right: true})
 		}
 		if err != nil {
 			return "", err
 		}
 		text := a + " " + op + " " + b
-		if always || !r.pretty || parent > precedence {
+		grouped := !r.pretty
+		if r.pretty {
+			grouped = enclosing.precedence > precedence
+			if precedence == 5 {
+				grouped = pgOperatorGrouped(op, true, enclosing)
+			}
+		}
+		if grouped {
 			text = "(" + text + ")"
 		}
 		return text, nil
+	}
+	logicalNot := func(text string) string {
+		text = "NOT " + text
+		if !r.pretty || parent.precedence > 3 || parent.operator == "NOT" {
+			text = "(" + text + ")"
+		}
+		return text
 	}
 	operator := func(namespace, spelling string) string {
 		if namespace == "" || namespace == "pg_catalog" {
@@ -218,22 +263,22 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 			literal.usage = n.usage
 			return r.literal(ctx, literal)
 		}
-		text, err := child(n.child)
-		if err != nil {
-			return "", err
-		}
 		if n.mode == sqltype.Implicit && !showImplicit {
 			// Const coercions have type-owned annotations; casts of Vars for operator
 			// resolution are invisible in PostgreSQL presentation.
 			if _, ok := n.child.(literalExpression); !ok {
-				return text, nil
+				return r.sql(ctx, n.child, parent)
 			}
 			if n.child.ResultUsage().Type.ID() == n.ResultUsage().Type.ID() {
-				return text, nil
+				return r.sql(ctx, n.child, parent)
 			}
 		}
 		if n.mode == sqltype.Assignment {
-			return text, nil
+			return r.sql(ctx, n.child, parent)
+		}
+		text, err := child(n.child)
+		if err != nil {
+			return "", err
 		}
 		_, simpleColumn := n.child.(columnExpression)
 		_, simpleLiteral := n.child.(literalExpression)
@@ -245,10 +290,14 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		}
 		op := operator(n.namespace, ops[n.operator])
 		if n.right == nil {
-			text, err := child(n.left)
-			return "(" + op + " " + text + ")", err
+			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 5, operator: op})
+			text = op + " " + text
+			if !r.pretty || pgOperatorGrouped(op, false, parent) {
+				text = "(" + text + ")"
+			}
+			return text, err
 		}
-		return binary(n.left, n.right, op, 5, true)
+		return binary(n.left, n.right, op, 5, parent)
 	case bitwiseExpression:
 		ops := [...]string{"&", "|", "#", "~", "<<", ">>"}
 		if int(n.operator) >= len(ops) {
@@ -256,12 +305,16 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		}
 		op := operator(n.namespace, ops[n.operator])
 		if n.right == nil {
-			text, err := child(n.left)
-			return "(" + op + " " + text + ")", err
+			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 5, operator: op})
+			text = op + " " + text
+			if !r.pretty || pgOperatorGrouped(op, false, parent) {
+				text = "(" + text + ")"
+			}
+			return text, err
 		}
-		return binary(n.left, n.right, op, 5, true)
+		return binary(n.left, n.right, op, 5, parent)
 	case comparisonExpression:
-		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, false)
+		return binary(n.left, n.right, operator(n.namespace, n.operator), 4, parent)
 	case nullTestExpression:
 		suffix := " IS NULL"
 		if n.not {
@@ -279,28 +332,28 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 		}
 		return unary(n.child, suffix+truth[n.truth])
 	case distinctExpression:
-		op := "IS DISTINCT FROM"
+		enclosing := parent
 		if n.not {
-			op = "IS NOT DISTINCT FROM"
+			enclosing = pgRenderParent{precedence: 3, operator: "NOT"}
 		}
-		return binary(n.left, n.right, op, 4, false)
+		text, err := binary(n.left, n.right, "IS DISTINCT FROM", 4, enclosing)
+		if n.not && err == nil {
+			text = logicalNot(text)
+		}
+		return text, err
 	case logicalExpression:
 		if n.op == parser.LogicalNot {
-			text, err := r.sql(ctx, n.left, 3)
+			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 3, operator: "NOT"})
 			if err != nil {
 				return "", err
 			}
-			text = "NOT " + text
-			if !r.pretty || parent > 3 {
-				text = "(" + text + ")"
-			}
-			return text, nil
+			return logicalNot(text), nil
 		}
 		op, precedence := "AND", 2
 		if n.op == parser.LogicalOr {
 			op, precedence = "OR", 1
 		}
-		return binary(n.left, n.right, op, precedence, false)
+		return binary(n.left, n.right, op, precedence, parent)
 	case conditionalExpression:
 		names := [...]string{"COALESCE", "NULLIF", "GREATEST", "LEAST"}
 		if int(n.kind) >= len(names) {
@@ -329,13 +382,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent int) (string
 			}
 			text.WriteString("\n    WHEN " + condition + " THEN " + result)
 		}
-		if !structuralNull(n.otherwise) {
-			otherwise, err := child(n.otherwise)
-			if err != nil {
-				return "", err
-			}
-			text.WriteString("\n    ELSE " + otherwise)
+		otherwise, err := child(n.otherwise)
+		if err != nil {
+			return "", err
 		}
+		text.WriteString("\n    ELSE " + otherwise)
 		text.WriteString("\nEND")
 		return text.String(), nil
 	case mathExpression:

@@ -119,7 +119,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 				}
 				found = true
 				renderer.relation = relation
-				rendered, err := renderer.sql(c.Context, def.expression, 0)
+				rendered, err := renderer.sql(c.Context, def.expression, pgRenderParent{})
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -149,7 +149,7 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			}
 		}
 		renderer.relation = relation
-		text, err = renderer.sql(c.Context, tree.expression, 0)
+		text, err = renderer.sql(c.Context, tree.expression, pgRenderParent{})
 		if err != nil {
 			return sqltype.Value{}, err
 		}

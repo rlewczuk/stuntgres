@@ -88,9 +88,33 @@ defaults through canonical SQL replay, not raw definition OID directives.
 Restored IDs may differ; current owner/attribute relationships and behavior persist.
 Structural unknown-NULL provenance and raw temporal precision survive replay;
 destination sizing remains an executable coercion rather than a deparse-time value.
-The deparse reference matrix independently checks every admitted persisted
-family/type, both actual returned suffix/default copies, typed assignment results,
-nonassociative grouping and visibility-controlled sequence effects.
+The deparse reference matrix supplies independent release strings for admitted
+persisted families/types; these goldens and its generic successful insertion are
+not, by themselves, family behavioral completion. Dedicated consumer fixtures
+create compact/pretty copies from actual returned SQL and require direct/prepared
+accepted, rejected and NULL rows, complete logical error records, and exact old
+row contents after failed INSERT/batch/UPDATE. Positive/negative NUMERIC typmods
+distinguish unsized synthetic annotations from genuine explicit sizing failures.
+Conditional consumers distinguish searched/simple CASE, absent ELSE, short-circuit
+errors, COALESCE/NULLIF/GREATEST/LEAST and integer arithmetic boundaries.
+Comment consumers control object/column/namespace/shared-role contents and retain
+prepared handles across changes. Namespace/shared-role witnesses discover the
+backend's own identities through existing pg_class relnamespace/relowner fields,
+capture and restore prior comments, and drop the owned namespace before session
+reset. They need no new catalog projection or cross-backend allocator parity.
+Random consumers independently replay each backend's seeded same-call effects,
+including strict NULL and failed statements; native/PostgreSQL sample equality
+is deliberately not asserted.
+current_schemas CHECK enforcement tests strict BOOL NULL, not NAME[] comparison.
+Changing effective paths is separately observable through the same held public
+read. Typed TIMESTAMP/TIMESTAMPTZ/TIMETZ AT/LOCAL consumers check result-sensitive
+rows, current session zones, provider errors and unchanged typed row values.
+Both session-resolved UTC abbreviation consumers and fixed IANA Etc/UTC consumers
+are retained. Under UTC-2, PostgreSQL resolves the UTC abbreviation to +02;
+the TIMESTAMP/TIMETZ predicates can therefore reject the same held input.
+Etc/UTC retains the intended fixed-zone conversion. These are distinct runtime
+witnesses, not adapter exceptions or substitutions of one zone for the other.
+Plain TIME AT and NAME[] equality/order remain outside the admitted surface.
 Additional metadata witnesses retain signed INT4 minimum constants, typed NULL
 arguments, raw explicit TIME(3) precision, and quote/backslash spelling under both
 standard_conforming_strings settings. Actual copied NUMERIC(2,-1) defaults retain

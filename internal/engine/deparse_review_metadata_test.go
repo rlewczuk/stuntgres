@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -56,8 +57,8 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), rebound, 0)
-			want, err2 := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, 0)
+			got, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), rebound, pgRenderParent{})
+			want, err2 := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, pgRenderParent{})
 			if err != nil || err2 != nil || got != want || !strings.Contains(got, ".1234") {
 				t.Fatal(got, want, err, err2)
 			}
@@ -98,7 +99,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := (pgRenderer{view: target.CatalogRead()}).sql(context.Background(), remapped, 0)
+		got, err := (pgRenderer{view: target.CatalogRead()}).sql(context.Background(), remapped, pgRenderParent{})
 		if err != nil || !strings.Contains(got, "NULL::unknown") {
 			t.Fatal(got, err)
 		}
@@ -127,7 +128,7 @@ func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
 		off  bool
 		want string
 	}{{false, "'a''b\\c'::text"}, {true, "'a''b\\\\c'::text"}} {
-		got, err := (pgRenderer{view: e.CatalogRead(), nonstandardStrings: tc.off}).sql(context.Background(), literal, 0)
+		got, err := (pgRenderer{view: e.CatalogRead(), nonstandardStrings: tc.off}).sql(context.Background(), literal, pgRenderParent{})
 		if err != nil || got != tc.want {
 			t.Fatal(got, tc.want, err)
 		}
@@ -226,7 +227,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	if leaf.unknownNull || leaf.usage.Type.ID() != sqltype.Int4 || !leaf.value.IsNull() {
 		t.Fatal(leaf)
 	}
-	text, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, 0)
+	text, err := (pgRenderer{view: e.CatalogRead()}).sql(context.Background(), node, pgRenderParent{})
 	if err != nil || text != "num_nulls(NULL::integer)" {
 		t.Fatal(text, err)
 	}
@@ -292,5 +293,139 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	rows := tuples(run(t, e, "SELECT clock=TIME '04:05:06.124' AS rounded,number FROM v"))
 	if len(rows) != 1 || len(rows[0]) != 2 || rows[0][0] != true || rows[0][1] != int64(2147483648) {
 		t.Fatal(rows)
+	}
+}
+
+func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
+	for _, declaration := range []string{"NUMERIC(4,2)", "NUMERIC(2,-1)"} {
+		for _, constant := range []struct{ input, compact, pretty string }{
+			{"CAST('1000' AS SMALLINT)", "('1000'::smallint)::numeric", "'1000'::smallint::numeric"},
+			{"1000", "(1000)::numeric", "1000::numeric"},
+			{"2147483648", "('2147483648'::bigint)::numeric", "'2147483648'::bigint::numeric"},
+		} {
+			for _, op := range []string{"<", "=", "IS DISTINCT FROM"} {
+				for _, reverse := range []bool{false, true} {
+					t.Run(declaration+"/"+constant.input+"/"+op+fmt.Sprint(reverse), func(t *testing.T) {
+						left, right := "n", constant.input
+						if reverse {
+							left, right = right, left
+						}
+						e := New()
+						run(t, e, "CREATE TABLE t(n "+declaration+",CONSTRAINT c CHECK("+left+" "+op+" "+right+"))")
+						view := e.CatalogRead()
+						d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+						node := d.checkConstraints[0].expression
+						for _, pretty := range []bool{false, true} {
+							a, b := "n", constant.compact
+							if pretty {
+								b = constant.pretty
+							}
+							if reverse {
+								a, b = b, a
+							}
+							want := a + " " + op + " " + b
+							if !pretty {
+								want = "(" + want + ")"
+							}
+							got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
+							if err != nil || got != want {
+								t.Fatalf("got %q, %v; want %q", got, err, want)
+							}
+						}
+					})
+				}
+			}
+		}
+	}
+	// Genuine stored coercions remain sized; floating synthetic annotations
+	// remain base usages. Neither expectation depends on helper/source layout.
+	for _, tc := range []struct{ declaration, input, compact, pretty string }{
+		{"NUMERIC(4,2)", "n<CAST(1000 AS NUMERIC(4,2))", "(n < (1000)::numeric(4,2))", "n < 1000::numeric(4,2)"},
+		{"NUMERIC(2,-1)", "n<CAST(10000 AS NUMERIC(2,-1))", "(n < (10000)::numeric(2,-1))", "n < 10000::numeric(2,-1)"},
+		{"DOUBLE PRECISION", "n<1000", "(n < (1000)::double precision)", "n < 1000::double precision"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			e := New()
+			run(t, e, "CREATE TABLE t(n "+tc.declaration+",CONSTRAINT c CHECK("+tc.input+"))")
+			view := e.CatalogRead()
+			d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+			for _, pretty := range []bool{false, true} {
+				want := tc.compact
+				if pretty {
+					want = tc.pretty
+				}
+				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.checkConstraints[0].expression, pgRenderParent{})
+				if err != nil || got != want {
+					t.Fatalf("got %q, %v; want %q", got, err, want)
+				}
+			}
+		})
+	}
+}
+
+// Release-observed presentation obligations. These also have real returned-SQL
+// consumers; printer-only regressions cannot be hidden by semantic equivalence.
+func TestDeparseConstraintsReviewConditionalPresentation(t *testing.T) {
+	for _, tc := range []struct{ input, compact, pretty string }{
+		{"(-a+(b-1)*2)/2>0", "((((- a) + ((b - 1) * 2)) / 2) > 0)", "(((- a) + (b - 1) * 2) / 2) > 0"},
+		{"CASE WHEN flag THEN 1 ELSE 1/a END>0", "(\nCASE\n    WHEN flag THEN 1\n    ELSE (1 / a)\nEND > 0)", "\nCASE\n    WHEN flag THEN 1\n    ELSE 1 / a\nEND > 0"},
+		{"CASE WHEN flag THEN a END>0", "(\nCASE\n    WHEN flag THEN a\n    ELSE NULL::integer\nEND > 0)", "\nCASE\n    WHEN flag THEN a\n    ELSE NULL::integer\nEND > 0"},
+		{"a IS NOT DISTINCT FROM b", "(NOT (a IS DISTINCT FROM b))", "NOT a IS DISTINCT FROM b"},
+		{"CASE WHEN flag THEN (a&b) ELSE 1 END>0", "(\nCASE\n    WHEN flag THEN (a & b)\n    ELSE 1\nEND > 0)", "\nCASE\n    WHEN flag THEN a & b\n    ELSE 1\nEND > 0"},
+		{"abs(a&b)>0", "(abs((a & b)) > 0)", "abs(a & b) > 0"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			e := New()
+			run(t, e, "CREATE TABLE t(a INT,b INT,flag BOOL,CONSTRAINT c CHECK("+tc.input+"))")
+			view := e.CatalogRead()
+			d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+			for _, pretty := range []bool{false, true} {
+				want := tc.compact
+				if pretty {
+					want = tc.pretty
+				}
+				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), d.checkConstraints[0].expression, pgRenderParent{})
+				if err != nil || got != want {
+					t.Fatalf("got %q, %v; want %q", got, err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestDeparseConstraintsReviewPrinterContexts(t *testing.T) {
+	for _, tc := range []struct{ name, input, compact, pretty string }{
+		{"high_under_low", "a+b*c", "(a + (b * c))", "a + b * c"},
+		{"low_under_high", "(a+b)*c", "((a + b) * c)", "(a + b) * c"},
+		{"same_left", "(a-b)-c", "((a - b) - c)", "a - b - c"},
+		{"same_right", "a-(b-c)", "(a - (b - c))", "a - (b - c)"},
+		{"addition_right", "a+(b+c)", "(a + (b + c))", "a + (b + c)"},
+		{"division_right", "a/(b/c)", "(a / (b / c))", "a / (b / c)"},
+		{"division_left", "(a/b)/c", "((a / b) / c)", "a / b / c"},
+		{"unary_top", "-a", "(- a)", "- a"},
+		{"unary_operand", "-a+b", "((- a) + b)", "(- a) + b"},
+		{"nested_unary", "-(-a)", "(- (- a))", "- (- a)"},
+		{"separated_function", "abs(a+b)", "abs((a + b))", "abs(a + b)"},
+		{"separated_bitwise", "abs(a&b)", "abs((a & b))", "abs(a & b)"},
+		{"bitwise_operand", "a+(b&c)", "(a + (b & c))", "a + (b & c)"},
+		{"bitwise_parent", "(a+b)&c", "((a + b) & c)", "(a + b) & c"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := New()
+			run(t, e, "CREATE TABLE t(a INT,b INT,c INT,CONSTRAINT ck CHECK(("+tc.input+")>0))")
+			view := e.CatalogRead()
+			d := view.state.descriptors[roleTableRef(t, e, "t").Address].(*relationDescriptor)
+			node := d.checkConstraints[0].expression.(comparisonExpression).left
+			for _, pretty := range []bool{false, true} {
+				want := tc.compact
+				if pretty {
+					want = tc.pretty
+				}
+				got, err := (pgRenderer{view: view, relation: d, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
+				if err != nil || got != want {
+					t.Fatalf("got %q, %v; want %q", got, err, want)
+				}
+			}
+		})
 	}
 }

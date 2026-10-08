@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"stuntgres"
 	"testing"
+	"time"
 )
 
 func TestDeparseConstraintsSmoke(t *testing.T) {
@@ -107,6 +108,7 @@ func TestDeparseConstraintsSmoke(t *testing.T) {
 	text(true, "SELECT pg_get_constraintdef(oid,true) FROM pg_catalog.pg_constraint WHERE conname='ck'", `CHECK ("A renamed"::bigint > 0)`)
 	text(false, "SELECT pg_get_expr(adbin,0) FROM pg_catalog.pg_attrdef", "7")
 	deparseReviewSmoke(t, db)
+	deparseReviewConsumerSmoke(t, db)
 }
 
 func deparseReviewSmoke(t *testing.T, db *sql.DB) {
@@ -233,4 +235,203 @@ func deparseReviewSmoke(t *testing.T, db *sql.DB) {
 		t.Fatal(last, called, err)
 	}
 	exec("SET search_path TO public")
+}
+
+func deparseReviewConsumerSmoke(t *testing.T, db *sql.DB) {
+	t.Helper()
+	db.SetMaxOpenConns(1)
+	for i, tc := range []struct{ columns, input, compact, pretty, good, bad, detail, code, message string }{
+		{"n NUMERIC(4,2)", "n<1000", "CHECK ((n < (1000)::numeric))", "CHECK (n < 1000::numeric)", "(1),(NULL)", "", "", "", ""},
+		{"n NUMERIC(4,2)", "n<CAST(1000 AS NUMERIC(4,2))", "CHECK ((n < (1000)::numeric(4,2)))", "CHECK (n < 1000::numeric(4,2))", "", "(1)", "A field with precision 4, scale 2 must round to an absolute value less than 10^2.", "22003", "numeric field overflow"},
+		{"a INT,flag BOOL", "CASE WHEN flag THEN a ELSE 2 END>0", "CHECK ((\nCASE\n    WHEN flag THEN a\n    ELSE 2\nEND > 0))", "CHECK (\nCASE\n    WHEN flag THEN a\n    ELSE 2\nEND > 0)", "(1,true),(0,false),(NULL,true)", "(0,true)", "0, t", "23514", ""},
+		{"id INT,b BOOL", "current_schemas(b) IS NOT NULL", "CHECK ((current_schemas(b) IS NOT NULL))", "CHECK (current_schemas(b) IS NOT NULL)", "(1,true),(2,false)", "(3,NULL)", "3, null", "23514", ""},
+		{"id INT,v TIMESTAMP", "(v AT LOCAL)>TIMESTAMPTZ '2026-10-08 00:00:00+00'", "CHECK (((v AT LOCAL) > '2026-10-08 00:00:00+00'::timestamp with time zone))", "CHECK ((v AT LOCAL) > '2026-10-08 00:00:00+00'::timestamp with time zone)", "(1,'2026-10-08 01:00:00'),(2,NULL)", "(3,'2026-10-07 23:00:00')", "3, 2026-10-07 23:00:00", "23514", ""},
+		{"p DOUBLE PRECISION", "random_normal(5,0)>p", "CHECK ((random_normal((5)::double precision, (0)::double precision) > p))", "CHECK (random_normal(5::double precision, 0::double precision) > p)", "(4),(NULL)", "(5)", "5", "23514", ""},
+		{"a INT,flag BOOL", "CASE WHEN flag THEN a END>0", "CHECK ((\nCASE\n    WHEN flag THEN a\n    ELSE NULL::integer\nEND > 0))", "CHECK (\nCASE\n    WHEN flag THEN a\n    ELSE NULL::integer\nEND > 0)", "(1,true),(0,false),(NULL,true)", "(0,true)", "0, t", "23514", ""},
+		{"a INT,flag BOOL", "CASE WHEN flag THEN 1 ELSE 1/a END>0", "CHECK ((\nCASE\n    WHEN flag THEN 1\n    ELSE (1 / a)\nEND > 0))", "CHECK (\nCASE\n    WHEN flag THEN 1\n    ELSE 1 / a\nEND > 0)", "(0,true),(1,false),(NULL,false)", "(0,false)", "", "22012", "division by zero"},
+		{"a INT,b INT", "a IS NOT DISTINCT FROM b", "CHECK ((NOT (a IS DISTINCT FROM b)))", "CHECK (NOT a IS DISTINCT FROM b)", "(1,1),(NULL,NULL)", "(1,2)", "1, 2", "23514", ""},
+		{"a INT,b INT,c INT,expected INT", "(a-b)-c=expected", "CHECK ((((a - b) - c) = expected))", "CHECK ((a - b - c) = expected)", "(10,6,2,2),(NULL,6,2,2)", "(10,6,2,6)", "10, 6, 2, 6", "23514", ""},
+		{"id INT,v TIMESTAMP", "(v AT TIME ZONE 'UTC')>TIMESTAMPTZ '2026-10-08 00:00:00+00'", "CHECK (((v AT TIME ZONE 'UTC'::text) > '2026-10-08 00:00:00+00'::timestamp with time zone))", "CHECK ((v AT TIME ZONE 'UTC'::text) > '2026-10-08 00:00:00+00'::timestamp with time zone)", "(1,'2026-10-08 01:00:00'),(2,NULL)", "(3,'2026-10-07 23:00:00')", "3, 2026-10-07 23:00:00", "23514", ""},
+		{"id INT,v TIMESTAMP", "(v AT TIME ZONE 'Etc/UTC')>TIMESTAMPTZ '2026-10-08 00:00:00+00'", "CHECK (((v AT TIME ZONE 'Etc/UTC'::text) > '2026-10-08 00:00:00+00'::timestamp with time zone))", "CHECK ((v AT TIME ZONE 'Etc/UTC'::text) > '2026-10-08 00:00:00+00'::timestamp with time zone)", "(1,'2026-10-08 01:00:00'),(2,NULL)", "(3,'2026-10-07 23:00:00')", "3, 2026-10-07 23:00:00", "23514", ""},
+	} {
+		original := fmt.Sprintf("consumer_original%d", i)
+		constraint := fmt.Sprintf("consumer_c%d", i)
+		notNullSmokeExec(t, db, false, "SET TIME ZONE 'UTC'", 0)
+		notNullSmokeExec(t, db, false, "CREATE TABLE "+original+"("+tc.columns+",CONSTRAINT "+constraint+" CHECK("+tc.input+"))", 0)
+		for mode, want := range []string{tc.compact, tc.pretty} {
+			var actual string
+			if err := db.QueryRow("SELECT pg_get_constraintdef(oid,$1) FROM pg_catalog.pg_constraint WHERE conname=$2", mode == 1, constraint).Scan(&actual); err != nil || actual != want {
+				t.Fatal(actual, want, err)
+			}
+			name := fmt.Sprintf("consumer_copy%d_%d", i, mode)
+			notNullSmokeExec(t, db, false, "CREATE TABLE "+name+"("+tc.columns+",CONSTRAINT copied "+actual+")", 0)
+			for _, prepared := range []bool{false, true} {
+				notNullSmokeExec(t, db, false, "DELETE FROM "+name, 0)
+				if tc.good != "" {
+					count := int64(2)
+					if i == 2 || i == 6 || i == 7 {
+						count = 3
+					}
+					notNullSmokeExec(t, db, prepared, "INSERT INTO "+name+" VALUES"+tc.good, count)
+				}
+				if tc.bad != "" {
+					var err error
+					if prepared {
+						s, e := db.Prepare("INSERT INTO " + name + " VALUES" + tc.bad)
+						if e != nil {
+							t.Fatal(e)
+						}
+						_, err = s.Exec()
+						s.Close()
+					} else {
+						_, err = db.Exec("INSERT INTO " + name + " VALUES" + tc.bad)
+					}
+					wantError := stuntgres.Error{Code: tc.code, Message: tc.message, Detail: tc.detail}
+					if tc.code == "23514" {
+						wantError.Message = `new row for relation "` + name + `" violates check constraint "copied"`
+						wantError.Detail = "Failing row contains (" + tc.detail + ")."
+						wantError.Schema = "public"
+						wantError.Table = name
+						wantError.Constraint = "copied"
+					}
+					notNullSmokeDiagnostic(t, err, wantError)
+				}
+				if i == 0 {
+					notNullSmokeQuery(t, db, "SELECT n FROM "+name+" ORDER BY n NULLS FIRST", []string{"n"}, []string{"NUMERIC"}, []bool{true}, [][]any{{nil}, {"1.00"}})
+				}
+				if i == 2 {
+					notNullSmokeQuery(t, db, "SELECT a,flag FROM "+name+" ORDER BY a NULLS FIRST", []string{"a", "flag"}, []string{"INT4", "BOOL"}, []bool{true, true}, [][]any{{nil, true}, {int64(0), false}, {int64(1), true}})
+				}
+				if i == 3 {
+					notNullSmokeExec(t, db, false, "CREATE SCHEMA path_first_"+name, 0)
+					notNullSmokeExec(t, db, false, "CREATE SCHEMA path_second_"+name, 0)
+					held, e := db.Prepare("SELECT current_schemas(b) FROM public." + name + " WHERE id=$1")
+					if e != nil {
+						t.Fatal(e)
+					}
+					for _, reverse := range []bool{false, true} {
+						first, second := "path_first_"+name, "path_second_"+name
+						if reverse {
+							first, second = second, first
+						}
+						notNullSmokeExec(t, db, false, "SET search_path TO "+first+","+second, 0)
+						for id, want := range []string{"{pg_catalog," + first + "," + second + "}", "{" + first + "," + second + "}"} {
+							var got string
+							if e := held.QueryRow(id + 1).Scan(&got); e != nil || got != want {
+								t.Fatal(got, want, e)
+							}
+						}
+					}
+					held.Close()
+					notNullSmokeExec(t, db, false, "SET search_path TO public", 0)
+					notNullSmokeExec(t, db, false, "DROP SCHEMA path_first_"+name, 0)
+					notNullSmokeExec(t, db, false, "DROP SCHEMA path_second_"+name, 0)
+					notNullSmokeQuery(t, db, "SELECT id,b FROM "+name+" ORDER BY id", []string{"id", "b"}, []string{"INT4", "BOOL"}, []bool{true, true}, [][]any{{int64(1), true}, {int64(2), false}})
+				}
+				if i == 4 {
+					held, e := db.Prepare("INSERT INTO " + name + " VALUES(7,$1)")
+					if e != nil {
+						t.Fatal(e)
+					}
+					if _, e := held.Exec("2026-10-08 01:00:00"); e != nil {
+						t.Fatal(e)
+					}
+					notNullSmokeExec(t, db, false, "SET TIME ZONE 'UTC-2'", 0)
+					_, e = held.Exec("2026-10-08 01:00:00")
+					notNullSmokeDiagnostic(t, e, stuntgres.Error{Code: "23514", Message: `new row for relation "` + name + `" violates check constraint "copied"`, Detail: "Failing row contains (7, 2026-10-08 01:00:00).", Schema: "public", Table: name, Constraint: "copied"})
+					var instant time.Time
+					if e := db.QueryRow("SELECT v AT LOCAL FROM " + name + " WHERE id=1").Scan(&instant); e != nil || !instant.Equal(time.Date(2026, 10, 7, 23, 0, 0, 0, time.UTC)) {
+						t.Fatal(instant, e)
+					}
+					held.Close()
+					notNullSmokeExec(t, db, false, "SET TIME ZONE 'UTC'", 0)
+				}
+				if i == 5 {
+					var ignored any
+					if e := db.QueryRow("SELECT setseed(0.25)").Scan(&ignored); e != nil {
+						t.Fatal(e)
+					}
+					var control, got float64
+					if e := db.QueryRow("SELECT random_normal(5,0)").Scan(&control); e != nil || control != 5 {
+						t.Fatal(control, e)
+					}
+					if e := db.QueryRow("SELECT random()").Scan(&control); e != nil {
+						t.Fatal(e)
+					}
+					if e := db.QueryRow("SELECT setseed(0.25)").Scan(&ignored); e != nil {
+						t.Fatal(e)
+					}
+					notNullSmokeExec(t, db, prepared, "INSERT INTO "+name+" VALUES(4)", 1)
+					if e := db.QueryRow("SELECT random()").Scan(&got); e != nil || got != control {
+						t.Fatal(got, control, e)
+					}
+				}
+				if i == 6 {
+					notNullSmokeQuery(t, db, "SELECT a,flag FROM "+name+" ORDER BY a NULLS FIRST", []string{"a", "flag"}, []string{"INT4", "BOOL"}, []bool{true, true}, [][]any{{nil, true}, {int64(0), false}, {int64(1), true}})
+				}
+				if i == 7 {
+					notNullSmokeQuery(t, db, "SELECT a,flag FROM "+name+" ORDER BY a NULLS FIRST", []string{"a", "flag"}, []string{"INT4", "BOOL"}, []bool{true, true}, [][]any{{nil, false}, {int64(0), true}, {int64(1), false}})
+				}
+				if i == 8 {
+					_, e := db.Exec("INSERT INTO " + name + " VALUES(1,NULL)")
+					notNullSmokeDiagnostic(t, e, stuntgres.Error{Code: "23514", Message: `new row for relation "` + name + `" violates check constraint "copied"`, Detail: "Failing row contains (1, null).", Schema: "public", Table: name, Constraint: "copied"})
+					notNullSmokeQuery(t, db, "SELECT a,b FROM "+name+" ORDER BY a NULLS FIRST", []string{"a", "b"}, []string{"INT4", "INT4"}, []bool{true, true}, [][]any{{nil, nil}, {int64(1), int64(1)}})
+				}
+				if i == 9 {
+					notNullSmokeQuery(t, db, "SELECT a,b,c,expected FROM "+name+" ORDER BY a NULLS FIRST", []string{"a", "b", "c", "expected"}, []string{"INT4", "INT4", "INT4", "INT4"}, []bool{true, true, true, true}, [][]any{{nil, int64(6), int64(2), int64(2)}, {int64(10), int64(6), int64(2), int64(2)}})
+				}
+				if i == 10 || i == 11 {
+					stored := time.Date(2026, 10, 8, 1, 0, 0, 0, time.UTC)
+					retained := [][]any{{int64(1), stored}, {int64(2), nil}}
+					snapshot := func() {
+						notNullSmokeQuery(t, db, "SELECT id,v FROM "+name+" ORDER BY id", []string{"id", "v"}, []string{"INT4", "TIMESTAMP"}, []bool{true, true}, retained)
+					}
+					snapshot()
+					held, e := db.Prepare("INSERT INTO " + name + " VALUES(7,$1)")
+					if e != nil {
+						t.Fatal(e)
+					}
+					defer held.Close()
+					if _, e := held.Exec("2026-10-08 01:00:00"); e != nil {
+						t.Fatal(e)
+					}
+					retained = append(retained, []any{int64(7), stored})
+					notNullSmokeExec(t, db, false, "SET TIME ZONE 'UTC-2'", 0)
+					_, e = held.Exec("2026-10-08 01:00:00")
+					zone, hour := "UTC", 23
+					day := 7
+					if i == 10 {
+						notNullSmokeDiagnostic(t, e, stuntgres.Error{Code: "23514", Message: `new row for relation "` + name + `" violates check constraint "copied"`, Detail: "Failing row contains (7, 2026-10-08 01:00:00).", Schema: "public", Table: name, Constraint: "copied"})
+					} else {
+						if e != nil {
+							t.Fatal(e)
+						}
+						retained = append(retained, []any{int64(7), stored})
+						zone, hour, day = "Etc/UTC", 1, 8
+					}
+					var instant time.Time
+					if e := db.QueryRow("SELECT v AT TIME ZONE '" + zone + "' FROM " + name + " WHERE id=1").Scan(&instant); e != nil || !instant.Equal(time.Date(2026, 10, day, hour, 0, 0, 0, time.UTC)) {
+						t.Fatal(instant, e)
+					}
+					notNullSmokeExec(t, db, false, "SET TIME ZONE 'UTC'", 0)
+					snapshot()
+					held.Close()
+				}
+				count := int64(2)
+				if i == 1 {
+					count = 0
+				}
+				if i == 2 || i == 4 || i == 5 || i == 6 || i == 7 {
+					count = 3
+				}
+				if i == 10 {
+					count = 3
+				}
+				if i == 11 {
+					count = 4
+				}
+				notNullSmokeExec(t, db, false, "DELETE FROM "+name, count)
+			}
+		}
+	}
 }

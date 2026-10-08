@@ -1,6 +1,7 @@
 package stuntgres_test
 
 import (
+	"context"
 	"database/sql"
 	"math"
 	"reflect"
@@ -110,5 +111,49 @@ func deparseReviewTypedValue(t *testing.T, db *sql.DB, query, declaration, value
 		if err := rows.Close(); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// Stateful consumer fixtures retain their physical session while exercising
+// both public inquiry paths and TEXT metadata.
+func deparseReviewConnText(t *testing.T, conn *sql.Conn, query, want string) {
+	t.Helper()
+	for _, prepared := range []bool{false, true} {
+		var rows *sql.Rows
+		var err error
+		var held *sql.Stmt
+		if prepared {
+			held, err = conn.PrepareContext(context.Background(), query)
+			if err == nil {
+				rows, err = held.QueryContext(context.Background())
+			}
+		} else {
+			rows, err = conn.QueryContext(context.Background(), query)
+		}
+		if held != nil {
+			defer held.Close()
+		}
+		if err != nil {
+			t.Fatal(query, err)
+		}
+		types, err := rows.ColumnTypes()
+		if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "TEXT" || types[0].ScanType() != reflect.TypeOf("") {
+			rows.Close()
+			t.Fatal(types, err)
+		}
+		if !rows.Next() {
+			rows.Close()
+			t.Fatal("missing text", rows.Err())
+		}
+		var got string
+		if err := rows.Scan(&got); err != nil || got != want {
+			rows.Close()
+			t.Fatal(got, want, err)
+		}
+		if rows.Next() || rows.Err() != nil {
+			rows.Close()
+			t.Fatal("extra text", rows.Err())
+		}
+		rows.Close()
 	}
 }

@@ -5,6 +5,7 @@ package reference_test
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"testing"
 )
 
@@ -40,14 +41,21 @@ func TestReferenceDeparseConstraintsReviewNestedBehavior(t *testing.T) {
 					if i > 0 {
 						constraint = fmt.Sprintf("c%d", i-1)
 					}
+					var good any
+					if tc.good != "NULL" {
+						good, _ = strconv.ParseInt(tc.good, 10, 64)
+					}
+					retained := [][]any{}
 					for _, prepared := range []bool{false, true} {
 						step := referenceExec("INSERT INTO "+name+" VALUES("+tc.good+",NULL)", 1)
 						step.prepared = prepared
 						run(step)
+						retained = append(retained, []any{good, nil})
 						if tc.name != "null_count" && tc.name != "nonnull" {
 							step = referenceExec("INSERT INTO "+name+" VALUES(NULL,NULL)", 1)
 							step.prepared = prepared
 							run(step)
+							retained = append([][]any{{nil, nil}}, retained...)
 						}
 						detail := tc.bad
 						if detail == "NULL" {
@@ -57,6 +65,7 @@ func TestReferenceDeparseConstraintsReviewNestedBehavior(t *testing.T) {
 							step = referenceImplicitError(query, referenceCheckViolation(name, constraint, detail+", null"))
 							step.prepared = prepared
 							run(step)
+							run(referenceSelect("SELECT a,b FROM "+name+" ORDER BY a NULLS FIRST", []string{"a", "b"}, []string{"INT4", "INT4"}, retained))
 						}
 					}
 					count := int64(4)

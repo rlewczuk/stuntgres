@@ -21,6 +21,13 @@ destination Usage preserves typed assignment values, not merely its output text.
 NUMERIC(4,2) DEFAULT '1.2' deparses as 1.2 but inserts 1.20; CHARACTER(3) DEFAULT
 'xy' deparses unsized and inserts 'xy '. Temporal precision is likewise applied
 by the stored coercion/assignment tree; INTERVAL retains input field/precision sizing.
+Synthetic comparison casts never inherit an unrelated column's typmod:
+NUMERIC(4,2) n<1000 emits unsized ::numeric, so copying cannot introduce a sizing
+overflow. A real CAST(1000 AS NUMERIC(4,2)) remains sized and erroring.
+Actual-copy fixtures require exact retained row values after rejected batch
+INSERT and UPDATE, not merely unchanged row counts. CHECK is not retroactively
+revalidated when comments, search paths or session TimeZone change; subsequent
+DML observes current provider/session state through held prepared handles.
 
 CREATE DEFAULT NULL and transparent casts of literal NULL create no pg_attrdef
 definition; ALTER SET DEFAULT NULL removes one. This narrow producer normalization

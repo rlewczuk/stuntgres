@@ -125,11 +125,11 @@ func TestReferenceDeparseConstraintsReviewIntervalZoneExecution(t *testing.T) {
 						step.prepared = prepared
 						run(step)
 					}
-					count := int64(0)
+					retained := [][]any{}
 					if tc.message == "" {
-						count = 2
+						retained = [][]any{{int64(1)}, {int64(1)}}
 					}
-					run(referenceSelect("SELECT COUNT(*) AS n FROM "+name, []string{"n"}, []string{"INT8"}, [][]any{{count}}))
+					run(referenceSelect("SELECT a FROM "+name+" ORDER BY a", []string{"a"}, []string{"INT4"}, retained))
 				}
 				if tc.message == "" {
 					deparseReviewTypedValue(t, conn, postgres, "SELECT "+expression+" FROM original WHERE a=1 LIMIT 1", "TIMESTAMPTZ", "2026-10-07 22:00:00+00")

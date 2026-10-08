@@ -13,8 +13,10 @@ Pretty changes presentation, not the authoritative expression or its evaluation.
 Stored expressions are never evaluated by introspection, including dormant errors
 and volatile sequence/random providers. Canonical native replay remains separate.
 Boolean constants render as SQL `true`/`false`, not their text-codec `t`/`f`.
-Numeric comparison constants retain contextual casts needed for reconstruction;
-assignment-only casts stay invisible. Omitted `random_normal` arguments remain
+Synthetic numeric comparison annotations use the descriptor's base Usage; an
+opposite NUMERIC(4,2) or NUMERIC(2,-1) column does not size the comparison constant.
+Real explicit typmod coercions remain sized and may fail at execution with22003.
+Assignment-only casts stay invisible. Omitted random_normal arguments remain
 omitted in the bound call and use their defaults only during evaluation.
 
 Comparison operands retain required grouping in both modes, including lowered
@@ -24,6 +26,13 @@ Ordinary function arguments show their bound implicit casts, unlike operator
 Vars and assignment sizing. Regclass spelling uses the statement's captured
 catalog and effective relation path: a shadowed provider is schema-qualified,
 while a visible provider is unqualified regardless of its namespace.
+The canonical presentation contract renders negative DISTINCT as logical
+`NOT ... IS DISTINCT FROM ...` and renders a CASE's authoritative ELSE result,
+including an inferred typed NULL when the source omitted ELSE. Pretty arithmetic
+uses parent/operand-side grouping rather than flattening the stored tree: left
+equal-priority children can omit groups, right children retain them; function and
+CASE argument boundaries separate expressions. Comparison operands still retain
+their required groups. These are presentation rules, not new operators or Eval.
 
 Standard CAST and postfix `::` consume same-type annotations/typmods for admitted
 stored scalar types and existing directional integer/numeric/float conversion
@@ -67,6 +76,15 @@ with the PostgreSQL function Hint and source character Position. Bounded
 `pg_get_*` parser admission allows these diagnostics, not additional providers
 or arbitrary relationless scalar SELECT. Prepared calls use current statement
 catalog authority and import typed arguments on execution.
+
+Executable reconstruction fixtures consume actual compact/pretty outputs before
+checking conditional acceptance/NULL/errors, controlled COMMENT state, and each
+backend's own seeded random continuation. A failed row publication preserves
+old row values but does not rewind random-provider effects. Held statements
+recapture comment, search-path and TimeZone state. current_schemas(b) IS NOT NULL
+checks strict BOOL NULL, not path membership; path reversal is observed separately
+through public NAME[] output. NAME[] comparison/order and plain TIME AT are not
+added by reconstruction; admitted AT inputs are TIMESTAMP/TIMESTAMPTZ/TIMETZ.
 
 Feature smoke: `make smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
 

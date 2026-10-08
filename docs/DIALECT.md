@@ -29,6 +29,11 @@ Standard/postfix same-type scalar annotations and existing directional numeric
 edges consume returned definitions; function casts and known-TEXT input conversion
 boundaries are unchanged. Literal NULL may carry `::unknown` syntax provenance,
 but UNKNOWN is not an input/DDL type.
+Synthetic comparison casts are unsized base-type annotations, not destination
+column assignments; actual explicit NUMERIC precision/scale remains enforced.
+Reconstruction does not add NAME[] equality/order or plain TIME AT inputs.
+current_schemas behavior uses strict BOOL NULL and public changing-path output;
+AT/LOCAL consumer fixtures use typed TIMESTAMP/TIMESTAMPTZ/TIMETZ columns.
 See [query contracts](QUERIES.md#constraint-and-expression-deparsing).
 
 
