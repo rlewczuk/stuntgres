@@ -28,7 +28,7 @@ metadata-only. See [privileges, conflict matrix and savepoint lifetime](TRANSACT
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
 CREATE VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
-element := column type [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression | check_constraint]...
+element := column type [COLLATE [schema.]name] [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression | check_constraint]...
          | [CONSTRAINT name] NOT NULL column | check_constraint | LIKE [schema.]source
 check_constraint := [CONSTRAINT name] CHECK (scalar_expression) [NO INHERIT]
 DROP TABLE [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
@@ -41,6 +41,7 @@ ALTER TABLE target ALTER [COLUMN] column SET NOT NULL
 ALTER TABLE target ALTER [COLUMN] column DROP NOT NULL
 ALTER TABLE target ADD [CONSTRAINT name] NOT NULL column
 ALTER TABLE target DROP CONSTRAINT [IF EXISTS] name [RESTRICT | CASCADE]
+ALTER TABLE target ALTER [COLUMN] column [SET DATA] TYPE type [COLLATE [schema.]name] [USING expression]
 ALTER TABLE [IF EXISTS] target SET SCHEMA schema
 target := [schema.]name [*] | ONLY [schema.]name | ONLY ([schema.]name)
 INSERT INTO [schema.]name [(column [, ...])] VALUES (insert_value [, ...]) [, ...]

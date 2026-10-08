@@ -49,6 +49,13 @@ func (u Usage) Valid() bool {
 	if !u.Type.Concrete() || !u.Type.validTypmod(u.Typmod) {
 		return false
 	}
+	return u.validCollation()
+}
+
+func (u Usage) validCollation() bool {
+	if IsCharacter(u.Type.ID()) || u.Type.ID() == Name {
+		return u.Collation.Derivation == Default && (u.Collation.ID == 100 || u.Collation.ID == 950 || u.Collation.ID == 951)
+	}
 	return u.Collation == u.Type.Usage().Collation
 }
 

@@ -31,7 +31,7 @@ func TestOrderingUsage(t *testing.T) {
 				t.Fatal("nonnull provider admitted NULL")
 			}
 			invalid := d.Usage()
-			invalid.Collation.ID++
+			invalid.Collation.ID = 999999
 			if _, err := BindOrdering(invalid); err == nil {
 				t.Fatal("unbounded collation admitted")
 			}

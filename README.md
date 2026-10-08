@@ -182,6 +182,18 @@ after their owning table, including retained TEMP collision remaps.
 SERIAL and expression-generated columns remain excluded.
 Feature smokes: `make smoke RUN='^TestIdentity(Smoke|LifecycleSmoke|ControlsSmoke|CheckControlsSmoke)$' VERBOSE=0`.
 
+Change note: `ALTER TABLE target ALTER [COLUMN] c [SET DATA] TYPE type
+[COLLATE name] [USING expression]` joins those atomic action lists. Assignment
+conversion and USING evaluate current live rows atomically; every USING reads
+the original tuple, including columns dropped in the same command. Defaults
+are independently coerced, existing NOT NULL is rechecked, and dependent views
+block the change. Column COLLATE supports only real pg_catalog default/C/POSIX
+identities under UTF8/C byte ordering; native Dump/Restore retains them.
+Fresh results expose the new type/typmod; held prepared results reject changed
+type/typmod/collation while eager rows retain their original metadata and values.
+See [ALTER TYPE semantics and boundaries](docs/DIALECT.md#alter-column-type--change-note).
+Feature smoke: `make smoke RUN='^TestAlterType(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
 
 The [supported types](docs/TYPES.md) include NAME values: mixed-case spelling
 is preserved, textual input clips at a63-byte UTF8 boundary, and comparisons use

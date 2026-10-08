@@ -122,7 +122,7 @@ var keywords = [...]keyword{
 	{"close", Unreserved, true, 0},
 	{"cluster", Unreserved, true, 0},
 	{"coalesce", ColumnName, true, COALESCE},
-	{"collate", Reserved, true, 0},
+	{"collate", Reserved, true, COLLATE},
 	{"collation", TypeFunctionName, true, 0},
 	{"column", Reserved, true, COLUMN},
 	{"columns", Unreserved, true, 0},

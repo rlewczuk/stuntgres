@@ -1228,8 +1228,9 @@ the declarations succeeds with a generated suffix. Explicit names remain
 relation-local. LIKE copies identities in source constraint-name order at its
 element position onto fresh attributes, never hierarchy or source dependencies.
 
-Selected ALTER TABLE actions are ALTER [COLUMN] c SET/DROP NOT NULL, ADD
-[CONSTRAINT n] NOT NULL c, and DROP CONSTRAINT [IF EXISTS] n [RESTRICT|CASCADE].
+Selected ALTER TABLE actions are ALTER [COLUMN] c SET/DROP NOT NULL,
+ALTER [COLUMN] c [SET DATA] TYPE type [COLLATE name] [USING expression],
+ADD [CONSTRAINT n] NOT NULL c, and DROP CONSTRAINT [IF EXISTS] n [RESTRICT|CASCADE].
 They share t/t*/ONLY t/ONLY(t), OwnerOnly AX and metadata-only effect-free Prepare.
 Execution captures the admitted command's lock_timeout policy; blocked utilities
 fail55P03 without Position or catalog effects, even for semantic no-ops.
@@ -1238,15 +1239,15 @@ subsequent absence probe `SELECT * FROM t` is analyzed on direct Exec/Query or
 semantic Prepare and returns42P01 at character15 on both native and PostgreSQL;
 this SELECT record must not inherit the utility's unpositioned-error policy.
 SET/ADD builds the final descriptor before one NULL scan in physical attribute
-order. DROP actions run first, original SET actions next, transformed ADD NOT
-NULL actions last (within each pass, original order). A later action error
+order. DROP actions run first, TYPE actions next, original SET actions next,
+transformed ADD NOT NULL actions last (within each pass, original order). A later action error
 precedes validation and installs no descriptor, dependency, generator or row
 prefix. Executed IF EXISTS notices remain delivered even if a later action fails.
 Validation uses fresh committed roots after AX grant, including under RR, plus
 own successful INSERT/UPDATE/DELETE effects; ordinary RR queries stay snapshot
 isolated. Existing NULL fails23502 with column/schema/table, no Detail/Constraint.
-Pure nullability changes retain the exact storage/backing; only DROP COLUMN
-projects rows. INSERT23502 includes
+Pure nullability changes retain the exact storage/backing; DROP COLUMN projects
+rows and TYPE may rewrite live rows. INSERT23502 includes
 failing-row Detail even for a named constraint. Both identify the decoded column
 literally; all failures preserve schema/data. Compatible SET/ADD retains existing
 name; DROP makes nullable; redundant operations are count-zero/no-revision.
@@ -1354,6 +1355,57 @@ CHECK alone never changes known Nullable metadata.
 
 Public smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
 
+### ALTER COLUMN TYPE — change note
+
+`ALTER TABLE target ALTER [COLUMN] c [SET DATA] TYPE type [COLLATE name]
+[USING expression]` shares the existing owner-authorized AX transaction,
+catalog, binder and SQL type coercion providers. Without USING, conversion is
+assignment coercion, not an arbitrary explicit cast. TEXT to INTEGER therefore
+requires `USING c::integer`, even on empty/all-NULL tables. Every USING reads
+the old row and may reference other old columns, including a source dropped in
+the same list. All target conversions and final NOT NULL checks complete before
+any descriptor or row becomes visible. Late invalid input, overflow, typmod,
+dependency or cancellation failures preserve the complete previous definition
+and data; explicit failures abort the transaction until rollback/savepoint recovery.
+
+Character shrinking uses assignment length checks; an explicit character cast
+inside USING truncates by characters. Numeric and temporal modifiers reuse their
+existing rounding/range/environment providers. Stored defaults retain immutable,
+unevaluated expressions and are independently assignment-coerced: USING never
+changes a default. Existing standalone SET/DROP DEFAULT remains a separate
+utility, not an action in TYPE lists. Existing named NOT
+NULL, stable attribute/relation identities, comments, ownership and ACLs survive.
+Dependent views/rules reject TYPE with0A000, even same-type commands; views
+reading only unrelated attributes survive. Key/index revalidation remains
+an explicit absent SQL engine capability, independently witnessed on PostgreSQL,
+not an external-only mechanism or a successful native no-op.
+
+Column COLLATE (also in final CREATE declarations for Restore) resolves only
+`pg_catalog."default"`100, `"C"`950 and `"POSIX"`951, with namespace authority,
+UTF8/C byte comparison and distinct stored collation identities. Omission resets
+to the target type's intrinsic default. Missing names/noncollatable types fail;
+other locale/ICU implementations and general COLLATE expressions remain excluded.
+Dump emits final type/typmod/nondefault collation/default/NOT NULL declarations,
+not ALTER history; Restore retains its CREATE/INSERT whitelist and atomic replay.
+
+Fresh direct/new prepared results expose updated metadata. Held prepared results
+whose type/typmod/collation changes fail0A000 `cached plan must not change result
+type`; stable result signatures rebind. Acquired eager rows retain old data/schema.
+Held prepared INSERT/UPDATE retains its original inferred input parameter types,
+then assignment-coerces to the new destination: widening input7 succeeds;
+narrowing BIGINT input2147483648 to INTEGER fails22003 without inserting a prefix.
+Fresh parameterized preparations infer the new destination type.
+TYPE converts only grant-time live committed heads plus surviving own DML, not
+invalid ended/deleted/replaced predecessors. Its RR owner reads the captured
+live replacement; rollback/savepoints retain original immutable roots without
+replaying USING. A peer RR future statement after replacement retains the native
+catalog-replaced fence. This differs intentionally from PostgreSQL's physical
+rewrite caveat (a pre-rewrite snapshot can subsequently see an empty table).
+Physical MVCC rewrite, WAL/crash durability, ANALYZE statistics, pg_dump archives
+and a wire/network server are not native logical-control mechanisms.
+
+Smoke: `make smoke RUN='^TestAlterType(Smoke|ControlsSmoke)$' VERBOSE=0`.
+Pinned reference: `make reference RUN='^TestReferenceAlterType' VERBOSE=0`.
 
 
 Standalone ALTER TABLE RENAME [COLUMN] old TO new and RENAME TO new support

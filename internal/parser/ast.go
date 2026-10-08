@@ -32,6 +32,7 @@ type Column struct {
 	Name        string
 	TypeName    TypeName
 	Constraints []ColumnConstraint
+	Collation   *ObjectName
 	Pos         Position
 }
 
@@ -245,6 +246,7 @@ const (
 	AddIdentity
 	DropIdentity
 	SetIdentity
+	AlterColumnType
 )
 
 type AlterTableAction struct {
@@ -255,6 +257,9 @@ type AlterTableAction struct {
 	Mode       DropMode
 	Pos        Position
 	Identity   *IdentityDefinition
+	TypeName   TypeName
+	Collation  *ObjectName
+	Using      Expr
 }
 
 type AlterTable struct {

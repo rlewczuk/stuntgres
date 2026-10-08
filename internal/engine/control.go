@@ -420,6 +420,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				return err
 			}
 			line.WriteString(quoteIdentifier(c.Name) + " " + declaration)
+			if c.Usage.Collation.ID != c.Usage.Type.Usage().Collation.ID {
+				name := builtinCollationName(c.Usage.Collation.ID)
+				if name == "" {
+					return fmt.Errorf("stuntgres: unsupported stored collation")
+				}
+				line.WriteString(" COLLATE \"pg_catalog\"." + quoteIdentifier(name))
+			}
 			if definition, exists := t.defaults[t.attributes[i]]; exists {
 				line.WriteString(" DEFAULT " + definition.sql)
 			}

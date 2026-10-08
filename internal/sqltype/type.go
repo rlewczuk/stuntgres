@@ -879,7 +879,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.Type.Concrete() {
 		return Comparison{}, fmt.Errorf("invalid ordering usage")
 	}
-	if u.Collation != u.Type.Usage().Collation {
+	if !u.validCollation() {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
 	}
 	switch u.Type.id {

@@ -9,16 +9,17 @@ import (
 // values. Each handle has independent release authority. The immutable data is
 // naturally reclaimed after the last view/result owner; no registry is needed.
 type visibilityData struct {
-	tx               TxRef
-	command          CommandID
-	frontier         CommitSeq
-	catalog          CatalogRead
-	committed        map[ObjectAddress][]rowVersion
-	generations      map[ObjectAddress]*relationStorage
-	singleGeneration *relationStorage
-	own              map[ObjectAddress][]rowVersion
-	ends             map[ObjectAddress]*deletionRoot
-	deleted          map[ObjectAddress]*privateDeletionRoot
+	tx                 TxRef
+	command            CommandID
+	frontier           CommitSeq
+	rewrittenFrontiers map[ObjectAddress]CommitSeq
+	catalog            CatalogRead
+	committed          map[ObjectAddress][]rowVersion
+	generations        map[ObjectAddress]*relationStorage
+	singleGeneration   *relationStorage
+	own                map[ObjectAddress][]rowVersion
+	ends               map[ObjectAddress]*deletionRoot
+	deleted            map[ObjectAddress]*privateDeletionRoot
 }
 
 func (d *visibilityData) generationAt(address ObjectAddress) *relationStorage {
@@ -29,6 +30,13 @@ func (d *visibilityData) generationAt(address ObjectAddress) *relationStorage {
 		return d.singleGeneration
 	}
 	return nil
+}
+
+func (d *visibilityData) frontierAt(address ObjectAddress) CommitSeq {
+	if frontier, ok := d.rewrittenFrontiers[address]; ok {
+		return frontier
+	}
+	return d.frontier
 }
 
 type VisibilityView struct {
@@ -107,7 +115,11 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 	for _, ref := range refs {
 		storage := e.privateStorageLocked(s.owner.catalog, ref.Address)
 		versions, ends := storage.versions, storage.ends
-		if s.owner.isolation == RepeatableRead {
+		var rewrite catalogStorageChange
+		if s.owner.catalog != nil {
+			rewrite = s.owner.catalog.storage[ref.Address]
+		}
+		if s.owner.isolation == RepeatableRead && !rewrite.rewritten {
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
 				current, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
@@ -123,6 +135,12 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 			} else {
 				versions, ends = nil, nil
 			}
+		}
+		if rewrite.rewritten && s.owner.isolation == RepeatableRead {
+			if data.rewrittenFrontiers == nil {
+				data.rewrittenFrontiers = make(map[ObjectAddress]CommitSeq)
+			}
+			data.rewrittenFrontiers[ref.Address] = rewrite.frontier
 		}
 		data.committed[ref.Address] = versions
 		if data.generations != nil {

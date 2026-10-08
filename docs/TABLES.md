@@ -68,8 +68,10 @@ unsupported defaults.
 CREATE DEFAULT Boolean NOT/AND/OR and null/truth tests require parentheses, e.g.
 `DEFAULT (NOT NULL)` or `DEFAULT (NULL IS NULL)`. Column references and positional
 parameters are prohibited even inside casts or decisive logical branches.
-General SQL functions, subqueries, arithmetic beyond existing INT4/INT8 operators,
+General SQL functions, subqueries, arithmetic beyond admitted scalar operators,
 new cast families and serial remain outside this DEFAULT-expression surface.
+ALTER TYPE independently assignment-coerces stored defaults; USING transforms
+existing rows only, never the default expression or future DEFAULT inserts.
 Restrictions apply as ordinary recursive binding reaches each occurrence; earlier
 child Boolean, input and operator diagnostics retain their PostgreSQL precedence.
 The existing null, truth and distinct predicates retain their ordinary typed
@@ -389,14 +391,21 @@ either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
 unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
-Primary keys, domains and unrelated ALTER actions remain excluded.
-Selected ALTER COLUMN SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
+Primary/unique/foreign keys, SQL indexes, domains and unrelated ALTER
+actions remain excluded engine capabilities, not external-only mechanisms.
+Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
 DROP COLUMN compose atomic comma-separated lists in implicit and explicit
-transactions. PostgreSQL pass order is DROP, original SET, transformed ADD;
-validation follows all actions in final physical column order. Fresh grant-time
-NULL scans include own writes/deletions even in RR; ordinary RR queries retain
-their snapshot. Savepoints restore private descriptors, projected row shapes and
-own DML together. Pure nullability changes never rewrite stored values.
+transactions. PostgreSQL pass order is DROP, TYPE, original SET, transformed
+ADD; validation follows all actions in final physical column order. TYPE binds
+USING against the statement-original descriptor and evaluates original tuples,
+including dropped source columns. Defaults are independently coerced; dependent
+views block even same-type changes. Fresh grant-time live scans include own
+writes/deletions even in RR, and ignore invalid dead predecessors. Ordinary RR
+queries retain their snapshot; the TYPE owner's private queries instead see its
+captured live rewrite. Savepoints restore descriptors, storage and own DML
+together. Pure nullability changes never rewrite stored values. Native held
+eager results remain immutable; peer future statements retain the native
+replacement fence rather than simulating PostgreSQL's physical rewrite MVCC.
 PostgreSQL-only tests still witness inherited OR nullability, inherited-drop
 rejection, NOT NULL NO INHERIT and deferred validation. CHECK unknown acceptance
 and UPDATE enforcement are shared native/reference witnesses.

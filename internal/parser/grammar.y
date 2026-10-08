@@ -43,6 +43,7 @@ package parser
  tail queryTail
  desc bool
  objectName ObjectName
+ collation *ObjectName
  settingValues settingList
  settingValue settingAtom
  roleOptions roleOptionState
@@ -101,6 +102,7 @@ package parser
 %token <tok> LOCK ACCESS EXCLUSIVE MODE IN
 %token <tok> LIKE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA
 %token <tok> COMMENT COLUMN IS
+%token <tok> COLLATE
 %token <tok> ISNULL NOTNULL DISTINCT UNKNOWN
 %token <tok> CONSTRAINT ADD INHERITS
 %token <tok> CHECK
@@ -112,7 +114,7 @@ package parser
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
-%nonassoc INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
+%nonassoc INTO KW_R COLLATE CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
 /* Predicate continuations reduce a completed cast type before consuming IS,
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
@@ -145,6 +147,9 @@ package parser
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization identity_select excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <alterActions> alter_actions
 %type <alterAction> alter_selected_action
+%type <tok> alter_type_keyword
+%type <collation> column_collation
+%type <expr> alter_using
 %type <stmt> delete
 %type <tok> delete_alias from_alias
 %type <returning> returning
@@ -513,7 +518,12 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=AlterTabl
  | ADD COLUMN { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ADD name { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
- | ALTER optional_column name KW_U { if $4.text!="type" { sqllex.(*lexer).syntax($4);return 1 };sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 } ;
+ | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} } ;
+alter_type_keyword: KW_U { if $1.text!="type" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
+ | SET KW_U KW_U { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};if $3.text!="type" {sqllex.(*lexer).syntax($3);return 1};$$=$1 } ;
+column_collation: /* empty */ {$$=nil}
+ | COLLATE relation_name {name:=$2;name.Parts[0].Pos=$1.pos;$$=&name} ;
+alter_using: /* empty */ {$$=nil} | USING scalar_projection {$$=$2} ;
 alter_default_single: ALTER TABLE alter_target ALTER optional_column name SET DEFAULT target_or { $$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:SetDefault,Expression:$9,Pos:$1.pos} }
  | ALTER TABLE alter_target ALTER optional_column name DROP DEFAULT { $$=&AlterTableDefault{Name:$3.Name,Column:Identifier{Text:$6.text,Pos:$6.pos},Only:$3.Only,Action:DropDefault,Pos:$1.pos} } ;
 alter_rename_single: ALTER TABLE rename_target RENAME TO name { $$=&AlterTableRenameTable{Name:$3.Name,NewName:Identifier{Text:$6.text,Pos:$6.pos},IfExists:$3.IfExists,Pos:$1.pos} }
@@ -533,7 +543,7 @@ drop_target: name { $$=dropTarget{Name:Identifier{Text:$1.text,Pos:$1.pos}} }
 /* EXISTS cannot start an ALTER action: retain it for IF EXISTS lookahead,
  * rather than competing with an unqualified relation literally named if. */
 alter_action: generic_word_without_exists | OWNER | SET ;
-column: name type nullability { $$ = Column{Name:$1.text, TypeName:$2, Constraints:$3, Pos:$1.pos} } ;
+column: name type column_collation nullability { $$ = Column{Name:$1.text, TypeName:$2, Collation:$3, Constraints:$4, Pos:$1.pos} } ;
 type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeName{Name:"bigint",Pos:$1.pos} } | TEXT %prec TYPE_NAME { $$ = TypeName{Name:"text",Pos:$1.pos} } | BOOLEAN { $$ = TypeName{Name:"boolean",Pos:$1.pos} }
  | type_name %prec TYPE_NAME { $$=columnType($1) }
  | temporal_type { $$=$1 }
@@ -984,9 +994,9 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | USING ;
-col_label: name | RETURNING | VARIADIC | LIKE | KW_T | KW_R | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
+col_label: name | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING ;
 suffix: predicate_suffix | GROUP | HAVING ;
-predicate_suffix: LIKE | KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
+predicate_suffix: LIKE | KW_T | KW_R | COLLATE | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }

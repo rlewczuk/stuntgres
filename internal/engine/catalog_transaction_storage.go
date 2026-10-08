@@ -15,6 +15,8 @@ type catalogStorageChange struct {
 	relation    *relationDescriptor
 	snapshot    []rowVersion
 	hasSnapshot bool
+	rewritten   bool
+	frontier    CommitSeq
 }
 
 type catalogDependencyObservation struct {
@@ -114,7 +116,7 @@ func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, r
 	var next *catalogChanges
 	for address, shape := range catalog.storage {
 		root, exists := roots[address]
-		if !exists || shape.hasSnapshot || len(root.relation.columns) == len(shape.relation.columns) {
+		if !exists || shape.rewritten || shape.hasSnapshot || len(root.relation.columns) == len(shape.relation.columns) {
 			continue
 		}
 		versions := shape.replacement.versions

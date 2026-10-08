@@ -351,6 +351,10 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				if err != nil {
 					return b, err
 				}
+				u, err = e.resolveColumnCollation(u, c.Collation, op)
+				if err != nil {
+					return b, err
+				}
 				if u.Type.ID() == sqltype.Regclass {
 					return b, typeDiagnostic(c.TypeName, "0A000", "unsupported column type")
 				}

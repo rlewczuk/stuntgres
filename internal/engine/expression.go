@@ -869,6 +869,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if established := b.updateInputParameters[r.Number]; established.Type != nil {
 			u = established
 		}
+		// A retained prepared parameter is an input contract, not the current
+		// destination column's type. Reanalysis adds ordinary coercion from
+		// that immutable source to the fresh destination.
+		if b.expected != nil && r.Number <= len(b.expected.Parameters.Types) {
+			u = b.expected.Parameters.Types[r.Number-1]
+		}
 		if u.Type == nil {
 			u = b.parameters[r.Number]
 		}

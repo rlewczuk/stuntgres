@@ -333,7 +333,7 @@ func captureQuerySource(ctx context.Context, view *VisibilityView, ref ObjectRef
 		return nil, err
 	}
 	data := source.view.read()
-	return selectQuerySource(ctx, source, data.frontier, data.ends[ref.Address], data.deleted[ref.Address])
+	return selectQuerySource(ctx, source, data.frontierAt(ref.Address), data.ends[ref.Address], data.deleted[ref.Address])
 }
 
 func captureQueryPrefix(view *VisibilityView, ref ObjectRef) (*querySource, error) {

@@ -41,6 +41,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		case parser.SetNotNull:
 		case parser.AddIdentity, parser.DropIdentity, parser.SetIdentity:
 			label = "ALTER COLUMN"
+		case parser.AlterColumnType:
+			label = "ALTER COLUMN ... TYPE"
 		default:
 			return fail(fmt.Errorf("stuntgres: invalid ALTER action"))
 		}
@@ -71,10 +73,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	e.mu.Unlock()
 	defer func() { e.DiscardCatalogStage(stage) }()
 	next := old
-	// PostgreSQL runs DROP passes before original SET, then transformed ADD NN.
-	for pass := range 5 {
+	var transformations []columnTransformation
+	// PostgreSQL runs DROP, TYPE, original SET, ADD NN, then identity ADD/SET.
+	for pass := range 6 {
 		for _, action := range s.Actions {
-			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.SetNotNull || pass == 2 && action.Action == parser.AddNotNull || pass == 3 && action.Action == parser.AddIdentity || pass == 4 && action.Action == parser.SetIdentity
+			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.SetNotNull || pass == 3 && action.Action == parser.AddNotNull || pass == 4 && action.Action == parser.AddIdentity || pass == 5 && action.Action == parser.SetIdentity
 			if !selected {
 				continue
 			}
@@ -91,6 +94,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					stage = e.BeginCatalogStage(auth.catalog)
 				}
 				next, err = scope.dropColumnCandidate(stage, next, ref, action)
+			} else if action.Action == parser.AlterColumnType {
+				var transformation columnTransformation
+				next, transformation, err = e.alterTypeCandidate(scope, op, auth, stage, old, next, ref, action)
+				if err == nil {
+					transformations = append(transformations, transformation)
+				}
 			} else {
 				next, err = notNullCandidate(op, auth.catalog, next, action)
 			}
@@ -99,17 +108,31 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 		}
 	}
-	if next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
+	if len(transformations) == 0 && next == old && (stage == nil || len(stage.descriptors) == 0 && len(stage.removals) == 0 && len(stage.generators) == 0) {
 		return Result{}, nil
 	}
-	if old.revision == DefinitionRevision(^uint64(0)) {
-		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+	if next != old {
+		if old.revision == DefinitionRevision(^uint64(0)) {
+			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+		}
+		next.revision = old.revision + 1
 	}
-	next.revision = old.revision + 1
+	rewrite := false
+	for _, transformation := range transformations {
+		rewrite = rewrite || transformation.rewrite
+	}
 	replacement := store
 	projectedWrites := scope.ownWrites[ref.Address]
 	projectedDeletes := scope.ownDeletes[ref.Address]
-	if len(old.columns) != len(next.columns) {
+	if rewrite {
+		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, old, next, store, frontier, transformations)
+		if err != nil {
+			return Result{}, err
+		}
+		versions, ends = replacement.versions, replacement.ends
+		shape.rewritten, shape.frontier = true, frontier
+		shape.snapshot, shape.hasSnapshot = nil, false
+	} else if len(old.columns) != len(next.columns) {
 		if store.generation == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: storage generation exhausted")
 		}
@@ -123,7 +146,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 		projectedDeletes = projectDeletions(projectedDeletes, replacement)
-		if scope.owner.isolation == RepeatableRead && snapshotExists {
+		if scope.owner.isolation == RepeatableRead && snapshotExists && !shape.rewritten {
 			shape.snapshot, err = projectVersions(op.Context(), snapshot.versions, snapshot.relation, next)
 			if err != nil {
 				return Result{}, err
@@ -131,7 +154,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			shape.hasSnapshot = true
 		}
 	}
-	needsScan := false
+	needsScan := rewrite
 	for _, column := range next.columns {
 		if !column.Nullable && old.columns[old.index[column.Name]].Nullable {
 			needsScan = true
@@ -191,6 +214,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			dependencyTargets = append(dependencyTargets, target)
 		}
 	}
+	for _, transformation := range transformations {
+		target := ref.Address
+		target.SubID = transformation.attribute
+		dependencyTargets = append(dependencyTargets, target)
+	}
 	for a := range stage.removals {
 		if _, identity := stage.identityOriginals[a]; identity {
 			continue
@@ -247,20 +275,14 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			for a, rows := range scope.ownWrites {
 				scope.stage.rows[a] = rows
 			}
-			if len(projectedWrites) != 0 {
-				scope.stage.rows[ref.Address] = projectedWrites
-			}
+			scope.stage.rows[ref.Address] = projectedWrites
 			scope.stage.replacing = true
 		}
-		if len(scope.ownDeletes) != 0 {
-			scope.stage.deletes = make(map[ObjectAddress]*privateDeletionRoot, len(scope.ownDeletes))
-		}
+		scope.stage.deletes = make(map[ObjectAddress]*privateDeletionRoot, len(scope.ownDeletes)+1)
 		for a, root := range scope.ownDeletes {
 			scope.stage.deletes[a] = root
 		}
-		if projectedDeletes != nil {
-			scope.stage.deletes[ref.Address] = projectedDeletes
-		}
+		scope.stage.deletes[ref.Address] = projectedDeletes
 	}
 	if len(stage.generators) != 0 {
 		e.mu.Lock()
