@@ -75,7 +75,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return b.bindCommentInquiry(raw, visible)
 	case "like_escape":
 		return b.bindLikeEscape(raw, visible)
-	case "bit_length", "octet_length", "length", "overlay", "position", "substring", "substr":
+	case "bit_length", "octet_length", "length", "overlay", "position", "substring", "substr", "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
 		return b.bindBinaryFunction(raw, visible)
 	case "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
 		return b.bindMath(raw, visible)
@@ -236,6 +236,22 @@ func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 
 // functionSignatureError binds diagnostic operands once, only on a failure path.
 func (b *expressionBinder) functionSignatureError(raw parser.FunctionExpr) error {
+	// Syntactic hash admission preserves quoted spelling. On this failure route
+	// only, the argument limit still precedes exact-name signature resolution.
+	if len(raw.Args) > 100 && len(raw.Name.Parts) > 0 {
+		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+		for _, selected := range [...]string{"crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512"} {
+			if len(name) != len(selected) || !strings.EqualFold(name, selected) {
+				continue
+			}
+			for _, rawArg := range raw.Args {
+				if _, err := b.bind(rawArg, expressionPolicy{context: projectionContext}); err != nil {
+					return err
+				}
+			}
+			return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+		}
+	}
 	names, err := b.functionArgumentTypeNames(raw)
 	if err != nil {
 		return err

@@ -95,6 +95,23 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 		return nil, expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
 	}
 	missing := func() (BoundExpr, error) { return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names) }
+	hash := false
+	switch name {
+	case "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
+		hash = true
+	}
+	if hash {
+		if !visible || len(operands) != 1 {
+			return missing()
+		}
+		d := operands[0].descriptor()
+		// Unknown MD5 belongs to the excluded TEXT overload in PostgreSQL.
+		// CRC/SHA have a unique BYTEA signature and may infer it here.
+		if (d == nil && name == "md5") || (d != nil && d.ID() != sqltype.Bytea) {
+			return missing()
+		}
+		return b.finishBinary(name, raw.Pos, operands, raw.Syntax)
+	}
 	// PostgreSQL accepts VARIADIC spelling for these fixed scalar signatures;
 	// it does not introduce an array argument or a variadic execution plan.
 	selectedSlice := name == "overlay" || name == "position" || name == "substring" || name == "substr"
@@ -193,8 +210,13 @@ func (b *expressionBinder) finishBinary(name string, pos parser.Position, operan
 		properties.StageDependent = properties.StageDependent || p.StageDependent
 	}
 	id := sqltype.Bytea
-	if name == "length" || name == "octet_length" || name == "bit_length" || name == "position" {
+	switch name {
+	case "length", "octet_length", "bit_length", "position":
 		id = sqltype.Int4
+	case "crc32", "crc32c":
+		id = sqltype.Int8
+	case "md5":
+		id = sqltype.Text
 	}
 	usage := b.typ(id).Usage()
 	plan, err := sqltype.BindBinary(name, usage, usages[:len(operands)]...)

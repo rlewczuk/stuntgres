@@ -989,8 +989,9 @@ non-TEXT character argument conversions, including source, set and form operands
 special syntax hides those implicit conversions. Rendering never installs runtime
 coercions or evaluates arguments. Structural output records `String <provider>`
 with recursive typed children, not PostgreSQL physical nodes.
-Parameter-free Restore INSERTs accept only the selected string function family
-and recursively reject parameters and unsupported nested producers. Failed
+Parameter-free Restore INSERTs accept the selected string function family,
+LIKE escape normalization and the seven BYTEA hashes documented below;
+they recursively reject parameters and unsupported nested producers. Failed
 normalization publishes no replacement and preserves held old results.
 String-dependent INSERT rows analyze source occurrences before target assignment;
 their conflicting parameter diagnostics use existing occurrence coercion. This
@@ -1286,9 +1287,9 @@ OVERLAY/POSITION/SUBSTRING/TRIM syntax; ordinary calls retain identifier quoting
 typed `Binary <name>` nodes and recursive children without evaluation, not
 PostgreSQL nodeToString interchange. Captured carriers survive native replay.
 Special BYTEA TRIM nodes also record `syntax TRIM`; ordinary Binary tags are unchanged.
-No new typed BYTEA literals, casts, direct byteacat, byteapos alias, general
-binary functions, arrays or wire server are added; existing cast admission
-is unchanged. Binary slicing smoke:
+No new typed BYTEA literals, casts, direct byteacat, byteapos alias, binary
+functions beyond the selected raw-byte families, arrays or wire server are
+added; existing cast admission is unchanged. Binary slicing smoke:
 `make smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`; pinned independent reference:
 `make reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
 Selected slicing/search fixed scalar signatures accept matching `VARIADIC`
@@ -1301,6 +1302,80 @@ Smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=0`;
 Docker-free native witnesses: `make test PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`;
 pinned independent reference of the same definitions:
 `make reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
+
+### BYTEA checksums and hashes — change note
+
+Exactly seven unary BYTEA signatures are admitted in existing scalar consumers:
+
+| Call | Result |
+| --- | --- |
+| `crc32(bytea)` | INT8: IEEE CRC32, unsigned range 0..4294967295 |
+| `crc32c(bytea)` | INT8: Castagnoli CRC32C, same unsigned range |
+| `md5(bytea)` | TEXT: 32 lowercase hexadecimal characters |
+| `sha224(bytea)`, `sha256(bytea)` | BYTEA: 28 / 32 raw digest bytes |
+| `sha384(bytea)`, `sha512(bytea)` | BYTEA: 48 / 64 raw digest bytes |
+
+Hash input is immutable raw octets: embedded NUL, high bytes and invalid UTF8
+octets are valid. There is no string normalization, byteain re-decoding or
+output-format hashing. Strict NULL yields typed NULL; empty input yields a
+nonnull digest (CRC zero). Unknown CRC/SHA SQL literals, NULL and parameters
+infer BYTEA; Go string/[]byte binds are raw bytes. Literal `'\x41'` hashes A,
+but a bound `\x41` hashes its four literal bytes. Inference is occurrence-based:
+an earlier SHA occurrence can fix a shared parameter as BYTEA for later MD5.
+
+Native MD5 TEXT and unresolved/unknown operands intentionally fail 42883 with
+the existing missing-function primary, standard explicit-casts Hint and
+character-based function Position. PostgreSQL's independent TEXT overload is
+tested, not implemented here. In particular, MD5-first parameter occurrence
+selects TEXT on PostgreSQL and can make a later SHA call fail `sha256(text)`;
+native instead rejects the initial `md5(unknown)`. No backwards/global inference
+pass or Go-kind-based overload selection is introduced.
+
+Quoted lowercase hash names resolve normally. Quoted uppercase/mixed-case names
+retain their spelling and fail 42883 rather than selecting a lowercase routine.
+For these admitted calls, child-analysis errors precede the 100-argument limit;
+101 valid arguments fail 54023 at the function token with no Hint, even when
+the quoted spelling would otherwise fail routine lookup. Direct Query and actual
+Prepare independently cover all seven names and these diagnostic stages.
+
+Ordinary/pg_catalog calls and matching fixed-signature VARIADIC decoration use
+the existing namespace/signature authority; no arrays are added. Wrong
+types/arity use 42883; absent explicit schema uses 3F000. Inferred malformed
+BYTEA literals retain the existing 22023/22P02 English diagnostics and
+character-based quote locations, eagerly at direct Query/Prepare analysis.
+Valid raw bytes have no hash-data errors. Runtime cancellation stays owned by
+the existing context/adapter boundary, without a fabricated source Position.
+Public precanceled tests use DB calls and DB-owned prepared statements;
+PostgreSQL's watcher on an already borrowed Conn can race a tiny query.
+
+Computed result names/types and raw int64/string/[]byte representations remain
+available on NULL-only/empty results and retained metadata. Native computed
+Nullable is unknown. MD5 TEXT Length is MaxInt64 on both adapters, native
+CRC/SHA Length is unavailable, and DecimalSize is unavailable for all results.
+Fixed digest sizes do not add BYTEA typmods. bytea_output does not change
+digest values. Returned SHA buffers never alias stored inputs, retained cursors
+or other executions. CRC reads raw octets directly with immutable standard-library
+tables and no scratch or copies. Cryptographic hashes use per-evaluation state
+and fixed 4096-byte scratch. Both paths check cancellation during input and before
+publication. No unsafe aliases, proportional temporary input copy, new dependency
+or PostgreSQL/OpenSSL provider-policy emulation is introduced.
+
+Queries, predicates, grouping/aggregates, conditionals, writes and UPDATE RETURNING,
+named CHECKs and views reuse the binary carrier and staged publication.
+Dump preserves stored raw inputs/digests and structural CHECK/view calls;
+Reset/Restore rebinds destination descriptors without evaluating stored rows.
+Parameter-free Restore INSERTs admit these seven hash names recursively,
+including `sha256('abc')`. Nested parameters remain rejected with 42P02 at the
+parameter token. Parameter/input/read/cancellation failures publish no replacement,
+even after a valid staged prefix, and retained results stay detached. DEFAULT
+functions remain excluded. No md5(TEXT), SHA1, encode/decode, pgcrypto, routine
+catalog/OID publication, new cast edges or adjacent function family is implied.
+
+Feature smoke:
+`make test PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;
+pinned counterpart: `make reference RUN='^TestReferenceBinaryHash' VERBOSE=0`;
+provider units: `make test PACKAGES=./internal/sqltype RUN='^TestBinaryHash' VERBOSE=0`.
+
 
 Integral bitwise operators `& | # ~ << >>` now use a separate SMALLINT/
 INTEGER/BIGINT provider in existing general scalar consumers: queries,
@@ -2105,6 +2180,13 @@ live settings and shared role effects are not authorized by these witnesses.
 Trusted Restore INSERT and database-local COMMENT use local validated captured-bootstrap AuthorizationViews, never session identity mutation. COMMENT authority covers qualified lookup, lock resolution and metadata mutation, is restricted to local targets and is cleared after each statement. Named CREATE owner groups remain intact; per-statement private markers cannot affect public Prepare/INSERT/COMMENT or persist schema/table ACL grants.
 
 Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported defaults/identity, CREATE SEQUENCE, INSERT with supported parameter-free scalar/default-request forms (including integer arithmetic and SYSTEM identity override), database-local COMMENT, generated sequence OWNED BY associations, numeric/persistence configuration of internally owned identity sequences, SELECT setval(name,value,is_called), and named SET SESSION AUTHORIZATION only. Nested parameters remain rejected recursively. Dump reconstructs bootstrap identity/name/owner changes before user objects; retained canonical builtin ACLs transform owner grantor/grantee, recreated public has absent ACL, and unchanged bootstrap retains legacy bytes. Local schema comments follow schema creation, table/column comments follow CREATE before INSERT under owner groups. Arbitrary explicit ACL serialization stays unsupported. Held INSERT rebinding INT4→TEXT rejects native 0A000 before importer/write; pinned PostgreSQL retains INT4 parameters and assignment-coerces to TEXT, an explicitly asserted difference.
+
+The parameter-free scalar inventory includes the selected string functions,
+LIKE escape normalization and `crc32`, `crc32c`, `md5(bytea)`, `sha224`,
+`sha256`, `sha384`, `sha512`. Hash operands use normal signature/inference
+validation, recursively reject parameters and preserve Restore atomicity;
+this does not admit arbitrary functions, query INSERT sources or hash DEFAULTs.
+
 
 SERIAL native controls use the same shared CREATE/default binder, including
 canonical `nextval(CAST('qualified_sequence' AS regclass))` replay. Dump retains

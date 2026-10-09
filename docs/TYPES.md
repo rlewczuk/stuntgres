@@ -238,6 +238,35 @@ local adapter ownership: `make test PACKAGES=. RUN='^TestByteaAdapterOwnership$'
 codec witnesses: `make test PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=0`.
 Pinned reference: `make reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
 
+BYTEA checksums and hashes use these unary raw-byte signatures:
+
+| Signature | SQL result | Representation |
+| --- | --- | --- |
+| `crc32(bytea)`, `crc32c(bytea)` | INT8 | Zero-extended unsigned 32-bit IEEE / Castagnoli checksum |
+| `md5(bytea)` | TEXT | 32 lowercase hexadecimal characters |
+| `sha224(bytea)`, `sha256(bytea)` | BYTEA | 28 / 32 raw digest bytes |
+| `sha384(bytea)`, `sha512(bytea)` | BYTEA | 48 / 64 raw digest bytes |
+
+All are strict: typed NULL yields the typed result NULL, whereas empty input
+has a nonnull digest (CRC zero). NUL, invalid UTF8 octets and backslashes are
+hashed as bytes, not decoded or normalized. SQL unknown CRC/SHA literals and
+parameters infer BYTEA; raw Go binds never invoke byteain. For example,
+`sha256('\x41')` hashes A, while a raw bound `\x41` hashes four literal bytes.
+MD5 requires a BYTEA column/expression or parameter already inferred as BYTEA
+by a preceding occurrence; native TEXT/unknown MD5 is excluded with 42883,
+not coerced to BYTEA based on a Go argument's kind.
+
+Results have computed unknown nullability and no physical origin. MD5 TEXT
+reports Length MaxInt64 on both adapters; native CRC/SHA Length is unavailable.
+DecimalSize is unavailable for every result; fixed SHA lengths do not add typmods.
+Changing bytea_output affects neither checksum integers nor MD5 text nor raw
+SHA bytes. Every exported SHA buffer is independently owned. Providers check
+cancellation at bounded chunks and before result publication; hashing does not
+allocate scratch proportional to input size. Query/write/CHECK/view and native
+replay use the existing scalar provider; hash DEFAULT calls remain excluded.
+Hash feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;
+pinned reference: `make reference RUN='^TestReferenceBinaryHash' VERBOSE=0`.
+
 Raw binary scalar signatures include `||(bytea,bytea)`, `length(bytea)`,
 `octet_length(bytea)`, `bit_length(bytea)`, `btrim/ltrim/rtrim(bytea,bytea)`,
 `overlay(bytea,bytea,int4[,int4])`, `substring/substr(bytea,int4[,int4])`,

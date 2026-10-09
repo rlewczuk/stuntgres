@@ -711,6 +711,7 @@ func restoreScalar(raw parser.Expr) error {
 		}
 		switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap":
+		case "crc32", "crc32c", "md5", "sha224", "sha256", "sha384", "sha512":
 		case "like_escape":
 			if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {
 				return fmt.Errorf("stuntgres: invalid restore scalar")

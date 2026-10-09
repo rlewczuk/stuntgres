@@ -657,7 +657,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
-	if token.code == IDENT && strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_") {
+	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	switch token.lexeme.text {
@@ -1068,6 +1068,21 @@ func binaryScalarFunction(name string) bool {
 	switch name {
 	case "bit_length", "octet_length", "length", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape":
 		return true
+	}
+	return binaryHashFunction(name)
+}
+
+// Admission recognizes quoted hash spellings without normalizing the AST.
+// Resolution remains exact, so quoted mixed/uppercase names can fail 42883.
+func binaryHashFunction(name string) bool {
+	switch len(name) {
+	case 3:
+		return strings.EqualFold(name, "md5")
+	case 5:
+		return strings.EqualFold(name, "crc32")
+	case 6:
+		return strings.EqualFold(name, "crc32c") || strings.EqualFold(name, "sha224") ||
+			strings.EqualFold(name, "sha256") || strings.EqualFold(name, "sha384") || strings.EqualFold(name, "sha512")
 	}
 	return false
 }

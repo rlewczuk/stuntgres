@@ -137,6 +137,21 @@ See [BYTEA](docs/TYPES.md#bytea). Feature smoke:
 `make smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`; independent pinned reference:
 `make reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
 
+BYTEA checksums and hashes operate on the raw octets, including NUL and high
+bytes: `crc32`/`crc32c` return unsigned 32-bit checksums in INT8, `md5(bytea)`
+returns 32 lowercase hexadecimal TEXT characters, and `sha224`/`sha256`/`sha384`/
+`sha512` return raw BYTEA digests of 28/32/48/64 bytes. All are strict; empty
+input has a nonnull digest. CRC/SHA infer BYTEA for unknown literals and binds;
+MD5 requires an already-known BYTEA operand. Native MD5 TEXT/unknown calls
+remain missing-function boundaries (42883), independently tested against
+PostgreSQL's TEXT overload. Hashes compose in queries, writes, CHECKs and views,
+and parameter-free hash calls are admitted in native Restore INSERTs; DEFAULT
+functions remain excluded. Cryptographic hashes use bounded scratch; all
+providers check cancellation without payload-sized temporary copies. See the
+[hash contract](docs/DIALECT.md#bytea-checksums-and-hashes--change-note).
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;
+pinned counterpart: `make reference RUN='^TestReferenceBinaryHash' VERBOSE=0`.
+
 Change note: core strings support `||` string overloads, `btrim`/`ltrim`/`rtrim`,
 SQL `TRIM`, `normalize` and `IS [NOT] [form] NORMALIZED`. Character operands
 convert to TEXT, removing BPCHAR trailing spaces; mixed concatenation uses the
