@@ -105,6 +105,11 @@ owns a 30-second context and pool cleanup; real fixtures reset `public` before
 and after each case. All real fixtures share one bounded-lifecycle container:
 **do not use `t.Parallel()`**.
 
+Non-public schemas are not reset by the fixture. Register
+`schemaReferenceCleanup(t, "schema_name")` before constructing the scenario
+when a case creates or moves objects into another schema; otherwise a later
+case can fail with `42P06` even when it passes in isolation.
+
 `p.step(t, step)` executes one description on native and, when enabled,
 PostgreSQL. Each backend must match the supplied expectations independently;
 complete observed records are then compared for parity. SELECT checks include
