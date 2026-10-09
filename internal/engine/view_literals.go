@@ -17,6 +17,10 @@ const (
 	viewOrderLiteral
 	viewOffsetLiteral
 	viewLimitLiteral
+	viewValuesCellLiteral
+	viewValuesOrderLiteral
+	viewValuesOffsetLiteral
+	viewValuesLimitLiteral
 )
 
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
@@ -25,6 +29,7 @@ type viewLiteralPath struct {
 	clause viewLiteralClause
 	target int
 	node   int
+	source, row int
 }
 
 func (b *expressionBinder) captureViewLiterals(raw parser.Expr, bound BoundExpr, clause viewLiteralClause, target int) error {
@@ -318,9 +323,20 @@ func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
 		}
 	}
 	join := 0
+	values := 0
+	if v.syntax.Values != nil {
+		if err := v.validateValuesLiterals(catalog, v.syntax.Values, values, &count, &columnCount); err != nil {
+			return err
+		}
+		values++
+	}
 	var validateFrom func(parser.FromItem) error
 	validateFrom = func(item parser.FromItem) error {
 		switch n := item.(type) {
+		case *parser.ValuesQuery:
+			ordinal := values
+			values++
+			return v.validateValuesLiterals(catalog, n, ordinal, &count, &columnCount)
 		case *parser.AliasReference:
 			return validateFrom(n.Input)
 		case *parser.JoinReference:
@@ -378,6 +394,14 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			(*count)++
 			return nil
 		}
+		if integer, ok := raw.(parser.LiteralExpr); ok && path.clause == viewValuesOrderLiteral && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
+			root := viewValuesAt(v.query.Root, path.source)
+			if root == nil {
+				return fmt.Errorf("stuntgres: missing VALUES order frame")
+			}
+			_, _, err := orderOrdinal(raw, len(root.Schema()))
+			return err
+		}
 		if integer, ok := raw.(parser.LiteralExpr); ok && (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral) && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
 			if path.clause == viewOrderLiteral {
 				_, _, err := orderOrdinal(raw, len(v.query.Root.Schema()))
@@ -392,6 +416,9 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		root := viewFromRoot(v.query.Root)
 		if path.clause == viewJoinLiteral {
 			root = viewJoinAt(root, path.target)
+		}
+		if path.clause == viewValuesOrderLiteral {
+			root = viewValuesAt(v.query.Root, path.source)
 		}
 		if !ok || root == nil || slot < 0 || slot >= len(root.Schema()) {
 			return fmt.Errorf("stuntgres: invalid view column occurrence")

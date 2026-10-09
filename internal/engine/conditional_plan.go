@@ -405,7 +405,7 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 		if err != nil {
 			return nil, false, err
 		}
-		return literalExpression{expressionInfo{usage: expression.ResultUsage(), pos: expression.SourcePosition(), properties: p, collationConflict: expression.CollationIndeterminate(), collationExplicit: expression.ExplicitCollation()}, value}, true, nil
+		return literalExpression{boundExpressionInfo(expression), value}, true, nil
 	}
 	return expression, changed, nil
 }

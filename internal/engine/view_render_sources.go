@@ -62,6 +62,7 @@ type viewRenderer struct {
 	slots                       map[LogicalNode]map[int]string
 	reserved                    map[string]bool
 	namespace, occurrence, join int
+	values int
 }
 type viewRenderColumn struct {
 	name string
@@ -172,6 +173,22 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 	ns := v.namespaces[v.namespace]
 	v.namespace++
 	switch n := item.(type) {
+	case *parser.ValuesQuery:
+		ordinal := v.values
+		v.values++
+		text, err := v.valuesSQL(ctx, catalog, n, ordinal)
+		if err != nil {
+			return viewRenderFrom{}, err
+		}
+		root := viewValuesAt(v.query.Root, ordinal)
+		from := viewRenderFrom{text: text, root: root}
+		for i, column := range root.Schema() {
+			from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
+		}
+		aliased := v.aliasFrom(from, ns, v.sourceAlias(len(v.sources)+ordinal))
+		// An explicit VALUES alias replaces the renderer's generated alias.
+		aliased.relation = "(" + text + ")"
+		return aliased, nil
 	case *parser.TableReference:
 		occurrence := v.occurrence
 		v.occurrence++

@@ -16,6 +16,7 @@ type queryQualifier struct {
 	name, schema, original, alias string
 	ref                           ObjectRef
 	columns                       []queryColumn
+	excludeColumnDiagnostics      bool // Whole-join and USING aliases are not error RTE candidates.
 }
 type queryNamespace struct {
 	columns                   []queryColumn
@@ -113,6 +114,9 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 			err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, q.alias)
 		} else {
 			err.Detail = fmt.Sprintf(`There is an entry for table "%s", but it cannot be referenced from this part of the query.`, q.name)
+			if b.queryNonLateral && !q.excludeColumnDiagnostics {
+				err.Hint = "To reference that table, you must mark this subquery with LATERAL."
+			}
 		}
 		return nil, err
 	}
@@ -155,7 +159,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 	if len(parts) > 1 {
 		qualifier = parts[len(parts)-2].Text
 	}
-	detail, hint, err := queryColumnDiagnostic(b.queryHidden, qualifier, name, raw.Pos)
+	detail, hint, err := queryColumnDiagnostic(b.queryHidden, qualifier, name, raw.Pos, b.queryNonLateral)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +196,18 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 	switch n := item.(type) {
 	case nil:
 		return &singletonNode{}, queryNamespace{}, nil
+	case *parser.ValuesQuery:
+		query, err := b.bindValues(n, false)
+		if err != nil {
+			return nil, queryNamespace{}, err
+		}
+		schema := query.Root.Schema()
+		columns := make([]queryColumn, len(schema))
+		for i, column := range schema {
+			columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1}
+		}
+		b.queryHidden = append(b.queryHidden, queryQualifier{name: "unnamed_subquery", columns: columns})
+		return query.Root, queryNamespace{columns: columns, frame: schema}, nil
 	case *parser.TableReference:
 		ref, err := b.engine.resolveReference(*b.queryAuth, n.Name)
 		if err != nil {
@@ -217,7 +233,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		}
 		if len(n.Columns) > len(ns.columns) {
 			kind := "join expression"
-			if _, table := n.Input.(*parser.TableReference); table {
+			switch n.Input.(type) {
+			case *parser.TableReference, *parser.ValuesQuery:
 				kind = "table"
 			}
 			return nil, queryNamespace{}, sqlError("42P10", fmt.Sprintf(`%s "%s" has %d columns available but %d columns specified`, kind, n.Name.Text, len(ns.columns), len(n.Columns)))
@@ -230,7 +247,10 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if _, table := n.Input.(*parser.TableReference); table {
 			q.ref, q.schema, q.original = ns.qualifiers[0].ref, ns.qualifiers[0].schema, ns.qualifiers[0].original
 			b.queryHidden[len(b.queryHidden)-1] = q
+		} else if _, values := n.Input.(*parser.ValuesQuery); values {
+			b.queryHidden[len(b.queryHidden)-1] = q
 		} else {
+			q.excludeColumnDiagnostics = true
 			b.queryHidden = append(b.queryHidden, q)
 		}
 		ns.qualifiers = []queryQualifier{q}
@@ -334,7 +354,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 				merged = append(merged, column)
 			}
 			if n.UsingAlias != nil {
-				q := queryQualifier{name: n.UsingAlias.Text, alias: n.UsingAlias.Text, columns: append([]queryColumn(nil), merged...)}
+				q := queryQualifier{name: n.UsingAlias.Text, alias: n.UsingAlias.Text, columns: append([]queryColumn(nil), merged...), excludeColumnDiagnostics: true}
 				for _, prior := range ns.qualifiers {
 					if prior.name == q.name {
 						return nil, queryNamespace{}, sqlError("42712", fmt.Sprintf(`table name "%s" specified more than once`, q.name))

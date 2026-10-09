@@ -30,6 +30,7 @@ type BoundExpr interface {
 	boundExpression()
 	ResultUsage() sqltype.Usage
 	CollationIndeterminate() bool
+	ImplicitCollationConflict() (sqltype.CollationRef, sqltype.CollationRef, parser.Position)
 	// ExplicitCollation returns the annotation origin; zero means implicit.
 	ExplicitCollation() parser.Position
 	SourcePosition() parser.Position
@@ -54,6 +55,8 @@ type expressionInfo struct {
 	unknownNull       bool
 	collationConflict bool
 	collationExplicit parser.Position
+	collationLeft, collationRight sqltype.CollationRef
+	collationConflictPos parser.Position
 }
 
 func (expressionInfo) boundExpression()                     {}
@@ -62,6 +65,15 @@ func (e expressionInfo) SourcePosition() parser.Position    { return e.pos }
 func (e expressionInfo) Properties() ExprProperties         { return e.properties }
 func (e expressionInfo) CollationIndeterminate() bool       { return e.collationConflict }
 func (e expressionInfo) ExplicitCollation() parser.Position { return e.collationExplicit }
+func (e expressionInfo) ImplicitCollationConflict() (sqltype.CollationRef, sqltype.CollationRef, parser.Position) {
+	return e.collationLeft, e.collationRight, e.collationConflictPos
+}
+
+// Preserve diagnostic provenance when an existing wrapper copies metadata.
+func boundExpressionInfo(node BoundExpr) expressionInfo {
+	left, right, position := node.ImplicitCollationConflict()
+	return expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties(), collationConflict: node.CollationIndeterminate(), collationExplicit: node.ExplicitCollation(), collationLeft: left, collationRight: right, collationConflictPos: position}
+}
 func evaluationContext(c *EvalContext) error {
 	if c == nil || c.Context == nil {
 		return fmt.Errorf("stuntgres: missing expression context")
@@ -717,6 +729,8 @@ type expressionBinder struct {
 	querySources          []queryLeaf
 	queryNamespace        *queryNamespace
 	queryHidden           []queryQualifier
+	queryNonLateral       bool
+	viewValuesCount       int
 	noParameters          bool
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
@@ -901,6 +915,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, err
 		}
 	case parser.AggregateExpr:
+		if b.aggregateClause == "VALUES" {
+			return nil, expressionError("42803", "aggregate functions are not allowed in VALUES", r.Pos)
+		}
 		if r.Name == "sum" {
 			if b.aggregateClause != "RETURNING" {
 				return nil, expressionError("0A000", "functions are unsupported", r.Pos)

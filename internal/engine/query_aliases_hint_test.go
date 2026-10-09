@@ -59,8 +59,8 @@ func TestQueryAliasesHintOccurrences(t *testing.T) {
 				entry.columns = append(entry.columns, queryColumn{descriptor: ColumnDescriptor{Name: name}})
 			}
 			// Synthetic whole-join entries must not add a third tie or win.
-			join := queryQualifier{name: "j", columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "id"}}}}
-			if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry, join}, tc.qualifier, "id", parser.Position{Offset: -1}); err != nil || detail != "" || hint != tc.want {
+			join := queryQualifier{name: "j", columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "id"}}}, excludeColumnDiagnostics: true}
+			if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry, join}, tc.qualifier, "id", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != tc.want {
 				t.Fatal(detail, hint, err, tc.want)
 			}
 		})
@@ -92,7 +92,7 @@ func TestQueryAliasesUnicodeHintCutoff(t *testing.T) {
 	entry := queryQualifier{name: "x", ref: ref, columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "aa"}}}}
 	// Two character substitutions are allowed because PostgreSQL's cutoff
 	// uses the four UTF8 bytes of the request, not its two characters.
-	if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "x", "éé", parser.Position{Offset: -1}); err != nil || detail != "" || hint != `Perhaps you meant to reference the column "x.aa".` {
+	if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "x", "éé", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != `Perhaps you meant to reference the column "x.aa".` {
 		t.Fatal(detail, hint, err)
 	}
 }
@@ -107,7 +107,7 @@ func TestQueryAliasesExactDiagnosticPrecedence(t *testing.T) {
 	fuzzy := base
 	fuzzy.name = "x"
 	fuzzy.columns = []queryColumn{{descriptor: ColumnDescriptor{Name: "iid"}}}
-	join := queryQualifier{name: "j", columns: base.columns}
+	join := queryQualifier{name: "j", columns: base.columns, excludeColumnDiagnostics: true}
 	for _, tc := range []struct {
 		name, qualifier string
 		entries         []queryQualifier
@@ -121,7 +121,7 @@ func TestQueryAliasesExactDiagnosticPrecedence(t *testing.T) {
 		{"synthetic_join_excluded", "", []queryQualifier{join}, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			detail, hint, err := queryColumnDiagnostic(tc.entries, tc.qualifier, "id", parser.Position{Offset: -1})
+			detail, hint, err := queryColumnDiagnostic(tc.entries, tc.qualifier, "id", parser.Position{Offset: -1}, false)
 			if err != nil || detail != tc.detail || hint != tc.hint {
 				t.Fatal(detail, hint, err, tc.detail, tc.hint)
 			}
@@ -151,7 +151,7 @@ func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Character, not byte Offset, supplies the positioned diagnostic.
-			detail, hint, err := queryColumnDiagnostic(tc.entries, tc.qualifier, "id", parser.Position{Offset: 15, Character: 14})
+			detail, hint, err := queryColumnDiagnostic(tc.entries, tc.qualifier, "id", parser.Position{Offset: 15, Character: 14}, false)
 			var got *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42702", Message: `column reference "id" is ambiguous`, Position: "14"}
 			if detail != "" || hint != "" || !errors.As(err, &got) || *got != want {
@@ -161,9 +161,26 @@ func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 	}
 	// Join RTEs are excluded even if their exposed aliases repeat the name.
 	join := duplicate
-	join.ref = ObjectRef{}
-	detail, hint, err := queryColumnDiagnostic([]queryQualifier{join}, "", "id", parser.Position{Character: 8})
+	join.excludeColumnDiagnostics = true
+	detail, hint, err := queryColumnDiagnostic([]queryQualifier{join}, "", "id", parser.Position{Character: 8}, false)
 	if err != nil || detail != "" || hint != "" {
 		t.Fatal(detail, hint, err)
+	}
+}
+
+func TestQueryValuesMissingColumnDiagnostics(t *testing.T) {
+	entry := queryQualifier{name: "v", columns: []queryColumn{{descriptor: ColumnDescriptor{Name: "n"}}}}
+	detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "v", "nn", parser.Position{Character: 8}, false)
+	if err != nil || detail != "" || hint != `Perhaps you meant to reference the column "v.n".` { t.Fatal(detail, hint, err) }
+	for _, nonLateral := range []bool{false, true} {
+		detail, hint, err = queryColumnDiagnostic([]queryQualifier{entry}, "", "n", parser.Position{Character: 8}, nonLateral)
+		wantHint := ""
+		if nonLateral { wantHint = "To reference that column, you must mark this subquery with LATERAL." }
+		if err != nil || detail != `There is a column named "n" in table "v", but it cannot be referenced from this part of the query.` || hint != wantHint { t.Fatal(detail, hint, err) }
+	}
+	entry.excludeColumnDiagnostics = true
+	for _, name := range []string{"n", "nn"} {
+		detail, hint, err = queryColumnDiagnostic([]queryQualifier{entry}, "", name, parser.Position{Character: 8}, true)
+		if err != nil || detail != "" || hint != "" { t.Fatal("excluded join diagnostic", detail, hint, err) }
 	}
 }

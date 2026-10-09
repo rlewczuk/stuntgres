@@ -6,6 +6,16 @@ type TableReference struct{ Name ObjectName }
 
 func (*TableReference) fromItem() {}
 
+// ValuesQuery is a finite query source, not destination-context INSERT input.
+type ValuesQuery struct {
+	Rows [][]Expr
+	Order *Order
+	Bounds *QueryBounds
+	Pos Position
+}
+
+func (*ValuesQuery) fromItem() {}
+
 type JoinReference struct {
 	Left, Right FromItem
 	On          Expr

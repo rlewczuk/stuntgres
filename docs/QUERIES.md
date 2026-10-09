@@ -92,12 +92,12 @@ Feature smoke: `make smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
 ## LIMIT, OFFSET and FETCH — change note (changelog)
 
 Table-backed SELECT, stored scalar view definitions, the shared INSERT SELECT
-producer, decorated VALUES and already-admitted selected-call singleton SELECT
-accept `LIMIT expression`, `LIMIT ALL`, `OFFSET expression [ROW | ROWS]`, and
+producer, standalone/FROM/decorated VALUES and already-admitted selected-call
+singleton SELECT accept `LIMIT expression`, `LIMIT ALL`, `OFFSET expression [ROW | ROWS]`, and
 `FETCH FIRST | NEXT [count] ROW | ROWS ONLY`. Omitted FETCH count is1.
 OFFSET and LIMIT/FETCH may appear in either order, after ORDER BY. One admitted
 locking clause may precede or follow the count decoration. Ordinary `SELECT 1`,
-standalone VALUES, WITH TIES and comma-style `LIMIT n,m` remain excluded.
+WITH TIES and comma-style `LIMIT n,m` remain excluded.
 
 ```sql
 SELECT id FROM t ORDER BY id OFFSET 1 FETCH NEXT 2 ROWS ONLY;
@@ -359,9 +359,9 @@ the right input); converted merged keys have synthetic origin/typmod metadata.
 ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
 but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
 ORDER expressions resolve the complete joined namespace.
-Outer/LATERAL joins, derived queries, CTEs and FROM functions remain excluded;
-UPDATE FROM and DELETE USING are not
-enabled by query joins.
+Outer/LATERAL joins, derived SELECT queries, CTEs and FROM functions remain excluded;
+parenthesized VALUES is a supported non-lateral source. UPDATE FROM and DELETE
+USING are not enabled by query joins.
 
 An ON clause cannot follow CROSS/NATURAL JOIN or a completed join condition:
 these malformed joined queries report positioned `42601` at ON. Other excluded
@@ -657,8 +657,8 @@ available in query sources. SELECT result names retain the existing cast naming
 rules. Source and assignment conversions use the same recursive, execution-private
 preflight as ordinary SELECT, outside the engine lock and before source capture.
 
-Plain `VALUES ('1')` and `(VALUES ('1'))` retain destination-context typing.
-Adding the supported one-key ORDER BY makes VALUES a query source: each column
+Within INSERT, plain `VALUES ('1')` and `(VALUES ('1'))` retain destination-context
+typing. ORDER BY or LIMIT/OFFSET/FETCH makes VALUES a query source: each column
 gets a common type first, with all-unknown columns becoming TEXT. Consequently
 `INSERT INTO integer_target VALUES ('1') ORDER BY 1` fails 42804 with the rewrite/
 cast Hint and no Position; it does not silently reparse known TEXT as integer.
@@ -671,10 +671,10 @@ Duplicate occurrences and NULL sort placement for column/ordinal keys are retain
 ORDER analysis follows target validation and VALUES width/common typing. Raw
 parsing always consumes the complete script first, so later syntax errors take
 precedence over ORDER analysis errors and prevent effects from a valid prefix.
-These VALUES/no-FROM forms do not add standalone VALUES or ordinary no-FROM SELECT.
-WITH/CTE, general casts/functions, LIMIT, RETURNING and ON CONFLICT remain outside
-this INSERT producer surface. Supported SELECT row-lock clauses are described in
-[SELECT row locking](#select-row-locking--change-note).
+These INSERT-only no-FROM SELECT forms do not add ordinary no-FROM SELECT.
+Standalone and FROM VALUES use the same query-source binder and runtime described
+below. WITH/CTE, RETURNING and ON CONFLICT remain outside this INSERT producer surface.
+Supported SELECT row-lock clauses are described in [SELECT row locking](#select-row-locking--change-note).
 
 The target RX lock is acquired before source relation locks: AS for ordinary
 sources, ROW SHARE for marked sources, including stored view clauses. Target
@@ -1969,3 +1969,64 @@ prefix effects. No outer/derived joins, keys/indexes, LIMIT/OFFSET,
 set operations or additional locking subsystem are introduced.
 Smoke: `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`;
 reference: `make reference RUN='^TestReferenceRowLock' VERBOSE=0`.
+
+## Standalone and FROM VALUES — change note (changelog)
+
+`VALUES (1,'a'),(1,'a'),(2,NULL)` is an executable query, including parenthesized
+query forms. `SELECT v.* FROM (VALUES (1,'a'),(2,NULL)) AS v(n,s)` admits VALUES
+as a non-lateral relation. The relation alias is optional; default output names
+are `column1`, `column2`, etc. Positional column aliases may rename a prefix and
+may repeat names; ordinary qualified/unqualified ambiguity rules still apply.
+An unaliased source has no user-visible `unnamed_subquery` qualifier.
+Parentheses may group the VALUES query before its alias or group a whole join;
+they cannot wrap an already aliased VALUES operand alone.
+
+Each column resolves its common type independently, left to right, before
+execution or destination assignment. Unknown-only columns become TEXT. Existing
+directional implicit casts, character typmods and default/C/POSIX collation
+rules remain authoritative; VALUES does not infer types from an INSERT target.
+Rows must have equal widths. DEFAULT and aggregate calls are not VALUES cells.
+Cells cannot reference surrounding FROM operands or their own output columns.
+VALUES entries and aliases still participate in ordinary missing-column spelling
+suggestions despite having no physical catalog identity. Rejected references to
+preceding physical or VALUES operands retain inaccessible-entry Detail and the
+observed table/column LATERAL Hint; that diagnostic does not enable correlation
+or LATERAL syntax.
+Diagnostic Positions count characters, including multibyte comments, and full
+raw-script parsing precedes effects from any valid prefix.
+
+Duplicates and typed NULLs retain bag multiplicity. Local ORDER BY and
+LIMIT/OFFSET/FETCH operate on VALUES before outer predicates, joins, grouping,
+ordering or counts. Cells use existing scalar binding, coercion and execution
+preflight; prepared statements rebind through the same parameter path. Synthetic
+columns have computed metadata and no catalog identity, physical attribute
+origin, ACL use or row-lock target. Mixed table/VALUES joins still capture and
+authorize every real leaf through the existing statement-view path.
+
+Standalone VALUES cannot have FOR UPDATE. SELECT over FROM VALUES accepts the
+existing locking clause but locks no synthetic rows; mixed queries retain locks
+on their real leaves. This does not add OF syntax. Physical row rechecks retain
+the frozen synthetic occurrence rather than evaluating its cells again.
+This is a consumer-visible native execution boundary, not PostgreSQL EPQ
+expression-replay parity. Both refresh replaced physical rows and requalify
+predicates. Native retains the locally selected synthetic occurrence and its
+already-consumed effects; PostgreSQL may reevaluate volatile VALUES cells during
+EPQ. On a later rejected execution PostgreSQL can also avoid that operand, while
+native's existing join/view predicate boundary still demands it. Consequently
+sequence-valued synthetic outputs and counters can differ independently of
+physical replacement, duplicate multiplicity and predicate-rejection outcomes.
+
+Stored views admit standalone and FROM VALUES, including local decorations and
+mixed joins. Structural source-local literal paths remain separate from physical
+source ordinals. Deparsed definitions execute with preserved labels, types and
+bags; native Dump/Reset/Restore retains typed cells and computed outputs.
+Restore still rejects query INSERT sources before publication, and failed
+Restore leaves the prior engine intact. Eager results own metadata and exported
+cells across subsequent Reset/Restore; public Next does not execute SQL.
+
+This does not add derived SELECT, LATERAL, outer joins, CTEs, set operations or
+FROM functions. Ordinary destination-context INSERT VALUES and INSERT-only
+no-FROM SELECT remain separate contextual entry points.
+
+Independent coverage: `make reference RUN='^TestReferenceQueryFromValues' VERBOSE=0`.
+

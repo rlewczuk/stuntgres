@@ -369,15 +369,13 @@ func (*Insert) statement() {}
 // Only decorated VALUES is represented as a query source.
 type InsertSource struct {
 	Select *Select
-	Rows   [][]Expr
-	Order  *Order
-	Bounds *QueryBounds
+	Values *ValuesQuery
 }
 
 func insertStatement(name ObjectName, targets []InsertTarget, source *InsertSource, pos Position) *Insert {
 	stmt := &Insert{Name: name, Targets: targets, Pos: pos}
-	if source.Select == nil && source.Order == nil && source.Bounds == nil {
-		stmt.Rows = source.Rows
+	if source.Select == nil && source.Values.Order == nil && source.Values.Bounds == nil {
+		stmt.Rows = source.Values.Rows
 	} else {
 		stmt.Source = source
 	}
@@ -423,6 +421,7 @@ func (*Update) statement() {}
 
 type Select struct {
 	From    FromItem
+	Values  *ValuesQuery
 	Targets []Expr
 	Labels  []Identifier
 	Where   Expr
@@ -454,7 +453,7 @@ type queryTail struct {
 
 // IsSingleton admits selected-call and identity-derived projections without FROM.
 func (s *Select) IsSingleton() bool {
-	if s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
+	if s.Values != nil || s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
 		return false
 	}
 	for _, target := range s.Targets {

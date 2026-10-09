@@ -12,6 +12,22 @@ import (
 func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (string, error) {
 	s := v.syntax
 	renderer := newViewRenderer(v)
+	if s.Values != nil {
+		text, err := renderer.valuesSQL(ctx, catalog, s.Values, 0)
+		if err != nil {
+			return "", err
+		}
+		labels := make([]string, len(v.query.Root.Schema()))
+		renamed := false
+		for i, column := range v.query.Root.Schema() {
+			labels[i] = quoteIdentifier(column.Name)
+			renamed = renamed || column.Name != fmt.Sprintf("column%d", i+1)
+		}
+		if renamed {
+			text = "SELECT * FROM (" + text + ") AS __view_values(" + strings.Join(labels, ", ") + ")"
+		}
+		return text, nil
+	}
 	var from string
 	if s.From != nil {
 		source, err := renderer.fromSQL(ctx, catalog, s.From)
@@ -157,7 +173,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			name := quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name)
 			return "'" + strings.ReplaceAll(name, "'", "''") + "'", nil
 		}
-		if (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral) && path.node == 0 && e.Value.Kind == parser.IntegerValue {
+		if (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral || path.clause == viewValuesOrderLiteral) && path.node == 0 && e.Value.Kind == parser.IntegerValue {
 			return strconv.FormatInt(e.Value.Integer, 10), nil
 		}
 		return "", fmt.Errorf("stuntgres: missing analyzed view literal")
@@ -169,6 +185,9 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		root := viewFromRoot(v.query.Root)
 		if path.clause == viewJoinLiteral {
 			root = viewJoinAt(root, path.target)
+		}
+		if path.clause == viewValuesOrderLiteral {
+			root = viewValuesAt(v.query.Root, path.source)
 		}
 		return v.slotSQL(ctx, catalog, root, slot)
 	case parser.TypedLiteralExpr:

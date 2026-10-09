@@ -146,8 +146,10 @@ func recheckScratchWidth(node LogicalNode) int {
 		return recheckScratchWidth(n.child)
 	case *evaluationNode:
 		return recheckScratchWidth(n.child)
-	case *sourceNode:
+	case *valuesNode, *sourceNode:
 		return 0
+	case *projectNode:
+		return recheckScratchWidth(n.child)
 	case *joinNode:
 		return len(n.Schema()) + recheckScratchWidth(n.left) + recheckScratchWidth(n.right)
 	case *filterNode:
@@ -160,12 +162,17 @@ func recheckScratchWidth(node LogicalNode) int {
 
 // Rebuild only the frozen combination using the original bound frame layout.
 // Sort is deliberately ignored: PostgreSQL orders before row arbitration.
-func recheckQueryRow(node LogicalNode, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int) ([]sqltype.Value, bool, error) {
+func recheckQueryRow(node LogicalNode, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
 	switch n := node.(type) {
+	case *valuesNode:
+		return frozen, true, nil
+	case *projectNode:
+		// A nested VALUES projection exposes its already produced slots.
+		return recheckQueryRow(n.child, rows, evaluation, scratch, offset, frozen)
 	case *limitNode:
-		return recheckQueryRow(n.child, rows, evaluation, scratch, offset)
+		return recheckQueryRow(n.child, rows, evaluation, scratch, offset, frozen)
 	case *evaluationNode:
-		row, ok, err := recheckQueryRow(n.child, rows, evaluation, scratch, offset)
+		row, ok, err := recheckQueryRow(n.child, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -181,7 +188,7 @@ func recheckQueryRow(node LogicalNode, rows [][]sqltype.Value, evaluation *EvalC
 	case *sourceNode:
 		return rows[n.occurrence], true, nil
 	case *sortNode:
-		row, ok, err := recheckQueryRow(n.child, rows, evaluation, scratch, offset)
+		row, ok, err := recheckQueryRow(n.child, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -190,7 +197,7 @@ func recheckQueryRow(node LogicalNode, rows [][]sqltype.Value, evaluation *EvalC
 		}
 		return row, true, nil
 	case *filterNode:
-		row, ok, err := recheckQueryRow(n.child, rows, evaluation, scratch, offset)
+		row, ok, err := recheckQueryRow(n.child, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -198,11 +205,11 @@ func recheckQueryRow(node LogicalNode, rows [][]sqltype.Value, evaluation *EvalC
 		matches, err := updateMatches(evaluation, n.predicate)
 		return row, matches, err
 	case *joinNode:
-		left, ok, err := recheckQueryRow(n.left, rows, evaluation, scratch, offset)
+		left, ok, err := recheckQueryRow(n.left, rows, evaluation, scratch, offset, frozen[:n.leftWidth])
 		if err != nil || !ok {
 			return nil, ok, err
 		}
-		right, ok, err := recheckQueryRow(n.right, rows, evaluation, scratch, offset)
+		right, ok, err := recheckQueryRow(n.right, rows, evaluation, scratch, offset, frozen[n.leftWidth:n.leftWidth+n.rightWidth])
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -318,7 +325,7 @@ func openRowLockNode(ctx context.Context, state *queryState, n *rowLockNode) (in
 				offset := 0
 				evaluation.orderValues = child.orderRow(i)
 				var ok bool
-				row, ok, err = recheckQueryRow(n.child, currentRows, &evaluation, scratch, &offset)
+				row, ok, err = recheckQueryRow(n.child, currentRows, &evaluation, scratch, &offset, row)
 				if err != nil {
 					return false, err
 				}

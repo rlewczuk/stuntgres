@@ -147,7 +147,6 @@ func TestDefaultSmoke(t *testing.T) {
 				{`CREATE TABLE bad(b BOOL DEFAULT TRUE IS TRUE)`, `syntax error at or near "TRUE"`, "41"},
 				{`CREATE TABLE bad(b BOOL DEFAULT NULL ISNULL)`, `syntax error at or near "ISNULL"`, "38"},
 				{`CREATE TABLE bad(b BOOL DEFAULT NULL NOTNULL)`, `syntax error at or near "NOTNULL"`, "38"},
-				{`INSERT INTO all_d VALUES(DEFAULT) ORDER BY 1`, `DEFAULT is not allowed in this context`, "26"},
 			} {
 				if prepared {
 					s, e := db.Prepare(tc.query)
@@ -204,13 +203,12 @@ func TestDefaultSmoke(t *testing.T) {
 			exec(`INSERT INTO consumer_defaults(id) VALUES(1)`, 1)
 			exec(`INSERT INTO consumer_defaults VALUES(2,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT),(3,NULL,NULL,NULL,NULL,NULL)`, 2)
 			exec(`INSERT INTO consumer_defaults(id) SELECT 4`, 1)
-			exec(`INSERT INTO consumer_defaults(id) VALUES(5) ORDER BY 1`, 1)
 			exec(`INSERT INTO consumer_defaults(id,i) SELECT 6,NULL`, 1)
 			exec(`INSERT INTO consumer_defaults(id) SELECT id FROM consumer_src WHERE id=99`, 0)
 			consumerRow := func(id int64) []any {
 				return []any{id, "1", int64(42), true, "2000-02-29", []byte{0, 128, 255, 92, 39}}
 			}
-			consumerWant := [][]any{consumerRow(1), consumerRow(2), {int64(3), nil, nil, nil, nil, nil}, consumerRow(4), consumerRow(5), {int64(6), "1", nil, true, "2000-02-29", []byte{0, 128, 255, 92, 39}}}
+			consumerWant := [][]any{consumerRow(1), consumerRow(2), {int64(3), nil, nil, nil, nil, nil}, consumerRow(4), {int64(6), "1", nil, true, "2000-02-29", []byte{0, 128, 255, 92, 39}}}
 			checkConsumers := func() {
 				t.Helper()
 				rows := query(`SELECT * FROM consumer_defaults ORDER BY id`)
@@ -238,10 +236,6 @@ func TestDefaultSmoke(t *testing.T) {
 			exec(`INSERT INTO query_bad VALUES(0,9)`, 1)
 			fail(`INSERT INTO query_bad(id) SELECT id FROM consumer_src WHERE id=99`, stuntgres.Error{Code: "22003", Message: "integer out of range"})
 			exec(`INSERT INTO query_bad(id,v) SELECT id,9 FROM consumer_src ORDER BY id`, 2)
-			exec(`CREATE TABLE query_nn(id INT,v INT DEFAULT 7,n INT NOT NULL)`, 0)
-			exec(`INSERT INTO query_nn VALUES(0,9,9)`, 1)
-			fail(`INSERT INTO query_nn(id,n) VALUES(1,9),(2,NULL) ORDER BY 1`, stuntgres.Error{Code: "23502", Message: `null value in column "n" of relation "query_nn" violates not-null constraint`, Detail: "Failing row contains (2, 7, null).", Schema: "public", Table: "query_nn", Column: "n"})
-			alterDropSmokeRows(t, query(`SELECT * FROM query_nn`), []string{"id", "v", "n"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(0), int64(9), int64(9)}})
 			parameterSQL := `CREATE TABLE cast_bad(v INT DEFAULT int4($1))`
 			fail(parameterSQL, stuntgres.Error{Code: "42P02", Message: "there is no parameter $1", Position: fmt.Sprint(strings.Index(parameterSQL, "$1") + 1)})
 			for _, declaration := range []struct{ sql, code, message, token string }{

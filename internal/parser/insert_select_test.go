@@ -40,7 +40,7 @@ func TestInsertSelectBoundaries(t *testing.T) {
 	for _, q := range []string{
 		"INSERT INTO t SELECT 1 RETURNING i", "INSERT INTO t VALUES(1) ORDER BY 1 LIMIT 1 LIMIT 2",
 		"INSERT INTO t WITH x AS (SELECT 1) SELECT 1",
-		"INSERT INTO t VALUES()", "VALUES(1)", "SELECT 1",
+		"INSERT INTO t VALUES()", "SELECT 1",
 		"INSERT INTO t VALUES(1); INSERT INTO t (SELECT 1) VALUES(2)",
 	} {
 		stmts, err := Parse(q)
@@ -57,7 +57,7 @@ func TestOrderInsertSyntax(t *testing.T) {
 		if err != nil || len(statements) != 2 {
 			t.Fatal(q, statements, err)
 		}
-		order := statements[0].(*Insert).Source.Order
+		order := statements[0].(*Insert).Source.Values.Order
 		if order == nil || len(order.Keys) == 0 || order.Keys[0].Expr == nil {
 			t.Fatal(order)
 		}

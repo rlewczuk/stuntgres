@@ -66,7 +66,8 @@ duplicate multiplicities and NULL nonmatch follow PostgreSQL18.0. Merged common
 types may retain either physical origin or a synthetic conversion origin.
 Every source is authorized and captures one coherent selected statement view.
 Prepared execution rebinds all sources; eager results survive native Reset/Restore.
-Outer/LATERAL/derived/CTE/function FROM remain excluded.
+Outer/LATERAL joins, derived SELECT, CTE and function FROM remain excluded;
+parenthesized VALUES is a supported non-lateral FROM operand.
 See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
 Feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`;
 independent pinned reference: `make reference RUN='^TestReferenceQueryJoins' VERBOSE=0`.
@@ -152,8 +153,8 @@ Smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
 
 ### LIMIT, OFFSET and FETCH — change note
 
-Table SELECT, shared INSERT SELECT/decorated VALUES, stored scalar views and
-already-admitted singleton calls accept LIMIT/ALL, OFFSET [ROW/ROWS] and FETCH
+Table SELECT, standalone/FROM VALUES, shared INSERT SELECT/decorated VALUES,
+stored scalar views and already-admitted singleton calls accept LIMIT/ALL, OFFSET [ROW/ROWS] and FETCH
 FIRST/NEXT [count] ROW/ROWS ONLY. OFFSET and LIMIT/FETCH accept either order;
 FETCH defaults to1. Bounds use BIGINT assignment conversion and evaluate once,
 OFFSET first. NULL OFFSET is0, NULL LIMIT/ALL unlimited; negative bounds give
@@ -242,11 +243,37 @@ See [conditional expressions](QUERIES.md#conditional-expressions).
 Feature witnesses: `make smoke RUN='^TestConditionalSmoke$' VERBOSE=0` and
 `make reference RUN='^TestReferenceConditional' VERBOSE=0`.
 
+### Standalone and FROM VALUES — change note
+
+VALUES is a query and a parenthesized, optionally aliased non-lateral FROM source.
+It exposes computed `columnN` columns, independently common-types each column
+(unknown-only becomes TEXT), preserves duplicate occurrences and typed NULLs,
+and supports local ORDER BY and LIMIT/OFFSET/FETCH. Positional column aliases may
+rename a prefix. Existing inner/cross joins, expressions, INSERT SELECT and
+stored views compose through the shared binder and occurrence runtime.
+DEFAULT, aggregates and surrounding FROM references are not admitted in cells.
+Missing-column suggestions include VALUES labels/aliases without a catalog
+identity. Inaccessible preceding operands retain table/column LATERAL diagnostic
+hints, independently of whether those operands are physical; no correlation is added.
+Synthetic columns have no physical ACL/origin/locking identity. Standalone
+VALUES rejects FOR UPDATE; FROM VALUES accepts existing SELECT locking with no
+synthetic locks. Mixed physical sources retain ordinary lock/recheck behavior.
+Native rechecks reuse eagerly captured synthetic values/effects instead of
+PostgreSQL EPQ volatile-expression replay; sequence outputs/counters can differ.
+Existing native join/view predicate boundaries also retain operand demand where
+PostgreSQL may avoid an already-rejected operand. Physical row replacement and
+predicate requalification remain supported; this adds no expression replay.
+Stored views deparse and round-trip through native controls with owned metadata
+and results. No derived SELECT, LATERAL or new locking syntax is added.
+See [VALUES contracts](QUERIES.md#standalone-and-from-values--change-note-changelog).
+Independent pinned reference: `make reference RUN='^TestReferenceQueryFromValues' VERBOSE=0`.
+
+
 INSERT additionally accepts SELECT sources with the existing projection/filter/
 expression-ordering surface, parenthesized sources and INSERT-only no-FROM literal/
 parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;
-`SELECT FROM source` retains table occurrence/filter semantics. These do not
-expand standalone SELECT or standalone VALUES. Explicit targets match source
+`SELECT FROM source` retains table occurrence/filter semantics. These INSERT-only
+forms do not expand standalone SELECT. Explicit targets match source
 schema width; implicit targets map first N live columns. Omitted columns use
 declared defaults or typed NULL and enforce NOT NULL. SERIAL uses ordinary
 width-checked defaults, distinct from identity overrides. The minimum fixed

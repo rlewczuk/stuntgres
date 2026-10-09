@@ -90,6 +90,12 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 		if err != nil {
 			return nil, err
 		}
+		if expression.CollationIndeterminate() {
+			left, right, position := expression.ImplicitCollationConflict()
+			d := expressionError("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, builtinCollationName(left.ID), builtinCollationName(right.ID)), position).(*sqlstate.Error)
+			d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
+			return nil, d
+		}
 		if output >= 0 {
 			projection[output] = expression
 		}
@@ -159,8 +165,10 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 				keys[k].output = true
 				properties := output.Properties()
 				properties.StageDependent = true
+				info := boundExpressionInfo(output)
+				info.properties = properties
 				projection[j] = cachedOrderExpression{
-					expressionInfo: expressionInfo{usage: output.ResultUsage(), pos: output.SourcePosition(), properties: properties, collationConflict: output.CollationIndeterminate(), collationExplicit: output.ExplicitCollation()},
+					expressionInfo: info,
 					slot:           key.cache,
 				}
 				break

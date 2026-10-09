@@ -38,7 +38,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		query, err = binder.bindSelect(sel, true)
 		out.querySources = binder.querySources
 	} else {
-		query, err = binder.bindValues(s.Source, s.Override == parser.OverrideUser && len(out.relation.identities) != 0)
+		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.identities) != 0)
 	}
 	if err != nil {
 		return err
@@ -87,7 +87,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	}
 	// Analysis and parameter inference above remain complete. Only unused pure
 	// USER identity projections lose runtime demand, before coercion preflight.
-	if len(out.identityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Rows) == 1) {
+	if len(out.identityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Values.Rows) == 1) {
 		for i, target := range out.targets {
 			expression := project.expressions[i]
 			if !out.identityDiscard[target] || expression.Properties().Volatility == Volatile {
@@ -141,20 +141,28 @@ func typeCategory(t *sqltype.Descriptor) byte {
 func preferredType(t *sqltype.Descriptor) bool {
 	return t.ID() == sqltype.Oid || t.ID() == sqltype.Text || t.ID() == sqltype.Float8 || t.ID() == sqltype.Bool
 }
-func commonValuesUsage(nodes [][]BoundExpr, column int, text sqltype.Usage) (sqltype.Usage, error) {
+func commonValuesUsage(nodes [][]BoundExpr, raw [][]parser.Expr, column int, text sqltype.Usage) (sqltype.Usage, error) {
 	return selectCommonUsage(len(nodes), func(i int) comparisonOperand {
-		node := nodes[i][column]
-		return comparisonOperand{node: node}
+		operand := comparisonOperand{node: nodes[i][column]}
+		if raw != nil {
+			operand.raw = raw[i][column]
+		}
+		return operand
 	}, text, "VALUES")
 }
-func (b *expressionBinder) bindValues(source *parser.InsertSource, identityDiscard bool) (*BoundQuery, error) {
+func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscard bool) (*BoundQuery, error) {
+	oldNamespace, oldRelation, oldClause, oldNonLateral := b.queryNamespace, b.relation, b.aggregateClause, b.queryNonLateral
+	b.queryNamespace, b.relation = &queryNamespace{}, nil
+	b.aggregateClause, b.queryNonLateral = "VALUES", true
+	defer func() {
+		b.queryNamespace, b.relation, b.aggregateClause, b.queryNonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
+	}()
+	occurrence := b.viewValuesCount
+	b.viewValuesCount++
 	width := len(source.Rows[0])
 	nodes := make([][]BoundExpr, len(source.Rows))
 	for i, row := range source.Rows {
-		if len(row) != width {
-			return nil, expressionError("42601", "VALUES lists must all be the same length", row[0].SourcePosition())
-		}
-		nodes[i] = make([]BoundExpr, width)
+		nodes[i] = make([]BoundExpr, len(row))
 		for j, raw := range row {
 			if _, requested := raw.(parser.DefaultExpr); requested {
 				return nil, expressionError("42601", "DEFAULT is not allowed in this context", raw.SourcePosition())
@@ -165,40 +173,37 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource, identityDisca
 				return nil, err
 			}
 		}
+		if len(row) != width {
+			return nil, expressionError("42601", "VALUES lists must all be the same length", parser.ExpressionStart(row[0]))
+		}
 	}
 	schema := make([]ColumnDescriptor, width)
 	projection := make([]BoundExpr, width)
 	for j := range width {
-		common, err := commonValuesUsage(nodes, j, b.typ(sqltype.Text).Usage())
+		common, err := commonValuesUsage(nodes, source.Rows, j, b.typ(sqltype.Text).Usage())
 		if err != nil {
 			return nil, err
 		}
+		info := b.info(common, parser.Position{Offset: -1}, ExprProperties{RowDependent: true})
 		for i := range nodes {
-			node := nodes[i][j]
-			switch n := node.(type) {
-			case unknownOutput:
-				node, err = b.bind(n.raw, expressionPolicy{context: projectionContext, expected: common})
-			case parameterExpression:
-				if n.usage.Type == nil {
-					node, err = b.coerceParameter(n, common)
-				}
-			}
+			node, err := b.coerceConditional(comparisonOperand{raw: source.Rows[i][j], node: nodes[i][j]}, common, "VALUES")
 			if err != nil {
 				return nil, err
 			}
-			if node.ResultUsage() == common {
-				nodes[i][j] = node
-				continue
-			}
-			plan, err := sqltype.PlanCoercion(node.ResultUsage(), common, sqltype.Implicit)
-			if err != nil {
-				return nil, expressionError("42846", fmt.Sprintf("VALUES could not convert type %s to %s", node.ResultUsage().Type.DiagnosticName(), common.Type.DiagnosticName()), node.SourcePosition())
-			}
-			node = coercionExpression{b.info(common, node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Implicit}
 			nodes[i][j] = node
+			info, err = collatedInfo(info, node)
+			if err != nil {
+				return nil, err
+			}
+			if b.noParameters {
+				if err := b.captureValuesViewLiteral(source.Rows[i][j], node, viewValuesCellLiteral, occurrence, i, j); err != nil {
+					return nil, err
+				}
+			}
 		}
+		common = info.usage
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
-		projection[j] = columnExpression{expressionInfo: b.info(common, parser.Position{Offset: -1}, ExprProperties{RowDependent: true}), scope: 1, frame: 1, slot: j}
+		projection[j] = columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: j}
 	}
 	values := &valuesNode{querySchema: schema, rows: nodes}
 	if identityDiscard && len(nodes) == 1 {
@@ -211,16 +216,31 @@ func (b *expressionBinder) bindValues(source *parser.InsertSource, identityDisca
 		names[i] = column.Name
 		namespace.columns = append(namespace.columns, queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1})
 	}
-	oldNamespace := b.queryNamespace
 	b.queryNamespace = &namespace
-	defer func() { b.queryNamespace = oldNamespace }()
 	order, err := b.bindOrder(source.Order, projection, names)
 	if err != nil {
 		return nil, err
 	}
-	bounds, err := b.bindQueryBounds(source.Bounds)
+	bounds, err := b.bindQueryBounds(source.Bounds, false) // VALUES captures literals with its source-local paths below.
 	if err != nil {
 		return nil, err
+	}
+	if b.noParameters {
+		if source.Order != nil {
+			for i, key := range source.Order.Keys {
+				if err := b.captureValuesViewLiteral(key.Expr, order[i].expression, viewValuesOrderLiteral, occurrence, 0, i); err != nil {
+					return nil, err
+				}
+			}
+		}
+		if source.Bounds != nil {
+			if err := b.captureValuesViewLiteral(source.Bounds.Offset, bounds.offset, viewValuesOffsetLiteral, occurrence, 0, 0); err != nil {
+				return nil, err
+			}
+			if err := b.captureValuesViewLiteral(source.Bounds.Count, bounds.count, viewValuesLimitLiteral, occurrence, 0, 0); err != nil {
+				return nil, err
+			}
+		}
 	}
 	root, err = b.finishOrder(root, order, projection)
 	if err != nil {
@@ -385,8 +405,10 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 }
 
 func identityUnusedOutput(expression BoundExpr) BoundExpr {
+	info := boundExpressionInfo(expression)
+	info.properties = ExprProperties{}
 	return literalExpression{
-		expressionInfo: expressionInfo{usage: expression.ResultUsage(), pos: expression.SourcePosition(), collationConflict: expression.CollationIndeterminate(), collationExplicit: expression.ExplicitCollation()},
+		expressionInfo: info,
 		value:          sqltype.Null(expression.ResultUsage().Type),
 	}
 }

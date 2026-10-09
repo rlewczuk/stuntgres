@@ -786,7 +786,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 	if node == nil {
 		return nil, false, nil
 	}
-	info := expressionInfo{usage: node.ResultUsage(), pos: node.SourcePosition(), properties: node.Properties(), collationConflict: node.CollationIndeterminate(), collationExplicit: node.ExplicitCollation()}
+	info := boundExpressionInfo(node)
 	typ := retainedType(info.usage.Type)
 	changed := typ != info.usage.Type
 	info.usage.Type = typ

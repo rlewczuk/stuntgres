@@ -34,6 +34,7 @@ package parser
  predicate PredicateKind
  selectStmt *Select
  insertSource *InsertSource
+ valuesQuery *ValuesQuery
  order *Order
  orderKey OrderKey
  orderKeys []OrderKey
@@ -186,6 +187,10 @@ package parser
 %type <tok> view_option_value
 %type <expr> delete_where delete_operand delete_base delete_lower delete_between delete_between_predicate delete_comparison delete_target delete_not delete_and delete_or
 %type <expr> update_where scalar_projection
+%type <valuesQuery> query_values parenthesized_values
+%type <rows> query_rows
+%type <row> query_row query_cells
+%type <expr> query_cell
 %type <stmt> update
 %type <assignments> update_assignments
 %type <assignment> update_assignment
@@ -763,7 +768,7 @@ delete_not: delete_target { $$=$1 } | NOT delete_not { $$=LogicalExpr{Op:Logical
 delete_and: delete_not { $$=$1 } | delete_and AND delete_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
 delete_or: delete_and { $$=$1 } | delete_or OR delete_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
 insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
-insert_input: VALUES rows order bounds { $$=&InsertSource{Rows:$2,Order:$3,Bounds:$4} }
+insert_input: VALUES rows order bounds { $$=&InsertSource{Values:&ValuesQuery{Rows:$2,Order:$3,Bounds:$4,Pos:$1.pos}} }
  | insert_select { $$=&InsertSource{Select:$1} }
  | '(' insert_input ')' { $$=$2 } ;
 insert_select: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
@@ -779,6 +784,13 @@ row: '(' insert_values ')' { $$ = $2 } ;
 values: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$ = []Expr{$1} } | values ',' scalar { if !sqllex.(*lexer).scalarInput($3) { return 1 }; $$ = append($1,$3) } ;
 insert_value: scalar { if !sqllex.(*lexer).scalarInput($1) { return 1 }; $$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
 insert_values: insert_value { $$=[]Expr{$1} } | insert_values ',' insert_value { $$=append($1,$3) } ;
+query_values: VALUES query_rows order bounds { $$=&ValuesQuery{Rows:$2,Order:$3,Bounds:$4,Pos:$1.pos} } ;
+parenthesized_values: '(' query_values ')' { $$=$2 }
+ | '(' parenthesized_values ')' { $$=$2 } ;
+query_rows: query_row { $$=[][]Expr{$1} } | query_rows ',' query_row { $$=append($1,$3) } ;
+query_row: '(' query_cells ')' { $$=$2 } ;
+query_cells: query_cell { $$=[]Expr{$1} } | query_cells ',' query_cell { $$=append($1,$3) } ;
+query_cell: scalar_projection { $$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
 scalar: scalar_atom { $$=$1 }
  | '(' scalar ')' { $$=groupedQualification($2) }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
@@ -904,7 +916,9 @@ select: SELECT projection FROM from_list where group having order query_tail { $
  | SELECT projection FROM from_list where group having order suffix { if $9.keyword!=nil && $9.keyword.token==ON {if _,table:=$4.(*TableReference);!table {sqllex.(*lexer).syntax($9);return 1}};sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT projection FROM from_list where group having order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$9.pos.Offset); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }
- | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos } ;
+ | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos }
+ | query_values locking { $$=&Select{Values:$1,Locking:$2,Pos:$1.Pos} }
+ | parenthesized_values locking { $$=&Select{Values:$1,Locking:$2,Pos:$1.Pos} } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 sequence_args: /* empty */ { $$=nil } | sequence_values { $$=$1 } ;
 sequence_values: operand { $$=[]Expr{$1} }
@@ -1007,7 +1021,13 @@ joined_table: from_atom { $$=$1 }
  | joined_table NATURAL inner_join JOIN from_atom { $$=&JoinReference{Left:$1,Right:$5,Natural:true,Pos:$2.pos} } ;
 inner_join: /* empty */ { $$=false } | INNER { $$=true } ;
 from_base: relation_name { $$=&TableReference{Name:$1} }
- | '(' from_list ')' { $$=$2 } ;
+ | '(' from_list ')' {
+    if alias,ok:=$2.(*AliasReference);ok {
+       if _,values:=alias.Input.(*ValuesQuery);values {sqllex.(*lexer).syntax($<tok>3);return 1}
+    }
+    $$=$2
+   }
+ | parenthesized_values { $$=$1 } ;
 from_atom: from_base { $$=$1 }
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
  | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} } ;

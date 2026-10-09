@@ -47,7 +47,7 @@ func TestCharacterSourceValuesCommonUsage(t *testing.T) {
 			}
 			rows[i] = []BoundExpr{queryProbe(u, nil)}
 		}
-		got, err := commonValuesUsage(rows, 0, usage(sqltype.Text))
+		got, err := commonValuesUsage(rows, nil, 0, usage(sqltype.Text))
 		if err != nil {
 			t.Errorf("ids=%v: %v", tc.ids, err)
 			continue
@@ -79,7 +79,7 @@ func TestCharacterSourceValuesSchemaAndTypmods(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "INSERT INTO dst VALUES("+tc.first+"),("+tc.second+") ORDER BY 1").(*parser.Insert)
-		query, err := b.bindValues(raw.Source, false)
+		query, err := b.bindValues(raw.Source.Values, false)
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -98,7 +98,7 @@ func TestCharacterSourceValuesSchemaAndTypmods(t *testing.T) {
 		a, _ := e.CatalogRead().LookupType(tc.first)
 		b, _ := e.CatalogRead().LookupType(tc.second)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		_, err := commonValuesUsage([][]BoundExpr{{queryProbe(a.Usage(), nil)}, {queryProbe(b.Usage(), nil)}}, 0, text.Usage())
+		_, err := commonValuesUsage([][]BoundExpr{{queryProbe(a.Usage(), nil)}, {queryProbe(b.Usage(), nil)}}, nil, 0, text.Usage())
 		d, ok := err.(*sqlstate.Error)
 		if !ok || d.Code != "42804" || d.Message != tc.message {
 			t.Fatal("category boundary changed", tc, err)
@@ -121,7 +121,7 @@ func TestCharacterSourceValuesCrossIdentityTypmods(t *testing.T) {
 			text, _ := e.CatalogRead().LookupType(sqltype.Text)
 			a, b := first.Usage(), second.Usage()
 			a.Typmod, b.Typmod = 6, 6
-			got, err := commonValuesUsage([][]BoundExpr{{queryProbe(a, nil)}, {queryProbe(b, nil)}}, 0, text.Usage())
+			got, err := commonValuesUsage([][]BoundExpr{{queryProbe(a, nil)}, {queryProbe(b, nil)}}, nil, 0, text.Usage())
 			if err != nil || got != first.Usage() {
 				t.Fatal("cross-identity width retained", tc, got, err)
 			}

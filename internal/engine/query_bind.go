@@ -30,6 +30,12 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (BoundEx
 // bindSelect is shared by public SELECT and the internal INSERT producer.
 // Only the latter defers output unknowns to destination assignment.
 func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*BoundQuery, error) {
+	if s.Values != nil {
+		if s.Locking != nil {
+			return nil, sqlError("0A000", s.Locking.Mode+" cannot be applied to VALUES")
+		}
+		return b.bindValues(s.Values, false)
+	}
 	oldClause, oldAggregates := b.aggregateClause, b.aggregates
 	defer func() { b.aggregateClause, b.aggregates = oldClause, oldAggregates }()
 	root, namespace, err := b.bindFrom(s.From)
@@ -191,7 +197,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		}
 		s.Order = &frozen
 	}
-	bounds, err := b.bindQueryBounds(s.Bounds)
+	bounds, err := b.bindQueryBounds(s.Bounds, true)
 	if err != nil {
 		return nil, err
 	}

@@ -50,13 +50,13 @@ func boundedNameDistance(name string, key, left, right []int, limit int) int {
 // queryColumnDiagnostic follows PostgreSQL18's missing-column RTE diagnostics.
 // Within-entry exact ambiguity is checked regardless of qualifier penalty;
 // otherwise inaccessible exact entries precede fuzzy spelling suggestions.
-// Synthetic whole-join entries are excluded; visibility and identity unchanged.
-func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos parser.Position) (detail, hint string, err error) {
+// Whole-join and USING alias entries are explicitly excluded, independently of identity.
+func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos parser.Position, nonLateral bool) (detail, hint string, err error) {
 	longest := 0
 	var exactRelation string
 	exactCount := 0
 	for _, q := range entries {
-		if q.ref == (ObjectRef{}) {
+		if q.excludeColumnDiagnostics {
 			continue
 		}
 		longest = max(longest, len(q.name))
@@ -86,7 +86,10 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 		return detail, hint, nil
 	}
 	if exactCount == 1 {
-		return fmt.Sprintf(`There is a column named "%s" in table "%s", but it cannot be referenced from this part of the query.`, name, exactRelation), "", nil
+		if nonLateral {
+			hint = "To reference that column, you must mark this subquery with LATERAL."
+		}
+		return fmt.Sprintf(`There is a column named "%s" in table "%s", but it cannot be referenced from this part of the query.`, name, exactRelation), hint, nil
 	}
 	if longest == 0 {
 		return "", "", nil
@@ -114,7 +117,7 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 	var candidates [2]candidate
 	best, ties := 4, 0
 	for _, q := range entries {
-		if q.ref == (ObjectRef{}) {
+		if q.excludeColumnDiagnostics {
 			continue
 		}
 		penalty := 0

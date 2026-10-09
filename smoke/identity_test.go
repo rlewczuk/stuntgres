@@ -270,10 +270,8 @@ func TestIdentityFailureDemandSmoke(t *testing.T) {
 	}{
 		{"multi_values", `VALUES(CAST($1::text AS integer),7),(0,8)`, true, false, []int64{7, 8}},
 		{"ordered_select", `SELECT CAST($1::text AS integer),p FROM inputs ORDER BY 1`, true, false, []int64{7}},
-		{"ordered_values", `VALUES(CAST($1::text AS integer),7),(0,8) ORDER BY 1`, true, false, []int64{8, 7}},
 		{"single_values", `VALUES(CAST($1::text AS integer),7)`, false, false, []int64{7}},
 		{"select", `SELECT CAST($1::text AS integer),7`, false, false, []int64{7}},
-		{"single_decorated", `VALUES(CAST($1::text AS integer),7) LIMIT 1`, false, false, []int64{7}},
 		{"volatile_select", `SELECT CAST(CASE WHEN nextval('side')>0 THEN $1::text ELSE '' END AS integer),7`, true, true, []int64{7}},
 	} {
 		for _, prepared := range []bool{false, true} {

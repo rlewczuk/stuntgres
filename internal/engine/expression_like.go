@@ -103,10 +103,19 @@ func collatedInfo(info expressionInfo, inputs ...BoundExpr) (expressionInfo, err
 				info.collationExplicit = explicit
 			}
 			info.collationConflict = false
+			info.collationLeft, info.collationRight, info.collationConflictPos = sqltype.CollationRef{}, sqltype.CollationRef{}, parser.Position{}
 		} else if info.collationExplicit.Character == 0 {
-			var conflict bool
-			info.usage.Collation, conflict = likeCollation(info.usage, u)
-			info.collationConflict = info.collationConflict || conflict || input.CollationIndeterminate()
+			selected, conflict := likeCollation(info.usage, u)
+			indeterminate := input.CollationIndeterminate()
+			if !info.collationConflict {
+				if indeterminate {
+					info.collationLeft, info.collationRight, info.collationConflictPos = input.ImplicitCollationConflict()
+				} else if conflict {
+					info.collationLeft, info.collationRight, info.collationConflictPos = info.usage.Collation, u.Collation, input.SourcePosition()
+				}
+			}
+			info.usage.Collation = selected
+			info.collationConflict = info.collationConflict || conflict || indeterminate
 		}
 	}
 	return info, nil

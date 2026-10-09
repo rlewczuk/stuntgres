@@ -365,6 +365,7 @@ func checkViewPrefix(old, next []ColumnDescriptor) error {
 
 func (v *viewDefinition) validateNamespaces() error {
 	ordinal, occurrence, join := 0, 0, 0
+	values := 0
 	var visit func(parser.FromItem) (LogicalNode, error)
 	visit = func(item parser.FromItem) (LogicalNode, error) {
 		if item == nil {
@@ -377,6 +378,9 @@ func (v *viewDefinition) validateNamespaces() error {
 		ordinal++
 		var root LogicalNode
 		switch n := item.(type) {
+		case *parser.ValuesQuery:
+			root = viewValuesAt(v.query.Root, values)
+			values++
 		case *parser.TableReference:
 			root = viewSourceAt(viewFromRoot(v.query.Root), occurrence)
 			occurrence++

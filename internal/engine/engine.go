@@ -665,7 +665,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		}
 	case *parser.Select:
 		var err error
-		if s.From == nil && !s.IsSingleton() {
+		if s.Values == nil && s.From == nil && !s.IsSingleton() {
 			return b, sqlError("0A000", "SELECT without FROM is unsupported")
 		}
 		binder.queryAuth = &auth

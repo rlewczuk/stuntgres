@@ -17,6 +17,7 @@ func TestQueryLimitGrammar(t *testing.T) {
 		"SELECT id FROM t ORDER BY id FOR UPDATE LIMIT 1",
 		"SELECT id FROM t ORDER BY id LIMIT 1 FOR UPDATE",
 		"SELECT nextval('s') LIMIT 0",
+		"VALUES(1) LIMIT 1",
 		"INSERT INTO t VALUES(1),(2) LIMIT 1",
 		"INSERT INTO t (VALUES(1),(2) OFFSET 1 FETCH NEXT ROW ONLY)",
 		"INSERT INTO t (SELECT LIMIT 0)",
@@ -29,7 +30,7 @@ func TestQueryLimitGrammar(t *testing.T) {
 			}
 			switch s := statements[0].(type) {
 			case *Select:
-				if s.Bounds == nil {
+				if s.Bounds == nil && (s.Values == nil || s.Values.Bounds == nil) {
 					t.Fatal("lost count decoration")
 				}
 			case *Insert:
@@ -42,7 +43,7 @@ func TestQueryLimitGrammar(t *testing.T) {
 		})
 	}
 	for _, query := range []string{
-		"SELECT 1 LIMIT 1", "VALUES(1) LIMIT 1",
+		"SELECT 1 LIMIT 1",
 		"SELECT id FROM t LIMIT 1 LIMIT 2", "SELECT id FROM t OFFSET 1 OFFSET 2",
 		"SELECT id FROM t LIMIT 1 FETCH FIRST ROW ONLY",
 		"SELECT id FROM t FETCH FIRST 1+1 ROW ONLY",

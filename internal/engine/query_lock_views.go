@@ -315,7 +315,7 @@ func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 		return queryLockRecheckWidth(n.child, inputs)
 	case *sourceNode:
 		return queryLockSourceWidth(querySourceAt(inputs, n.occurrence))
-	case *singletonNode:
+	case *singletonNode, *valuesNode:
 		return 0
 	case *rowLockNode:
 		return queryLockRecheckWidth(n.child, inputs)
@@ -360,18 +360,25 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 		}
 		previous := evaluation.orderValues
 		evaluation.orderValues = source.lineage.currentOrder
-		row, ok, err := recheckLockedQuery(source.lineage.root, source.lineage.inputs, rows, evaluation, scratch, offset)
+		frozenIndex := source.lineage.currentIndex
+		if source.lineage.selection != nil {
+			frozenIndex = source.lineage.selection[frozenIndex]
+		}
+		frozen := source.lineage.stage.row(frozenIndex)
+		row, ok, err := recheckLockedQuery(source.lineage.root, source.lineage.inputs, rows, evaluation, scratch, offset, frozen)
 		evaluation.orderValues = previous
 		return row, ok, err
 	}
 	return rows[source.occurrence], true, nil
 }
-func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int) ([]sqltype.Value, bool, error) {
+func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
 	switch n := node.(type) {
+	case *valuesNode:
+		return frozen, true, nil
 	case *limitNode:
-		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset)
+		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
 	case *evaluationNode:
-		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset)
+		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -389,9 +396,9 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	case *singletonNode:
 		return nil, true, nil
 	case *rowLockNode:
-		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset)
+		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
 	case *sortNode:
-		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset)
+		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -400,7 +407,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		}
 		return row, true, nil
 	case *filterNode:
-		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset)
+		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -408,7 +415,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		matches, err := updateMatches(evaluation, n.predicate)
 		return row, matches, err
 	case *projectNode:
-		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset)
+		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -424,11 +431,11 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		}
 		return frame, true, nil
 	case *joinNode:
-		left, ok, err := recheckLockedQuery(n.left, inputs, rows, evaluation, scratch, offset)
+		left, ok, err := recheckLockedQuery(n.left, inputs, rows, evaluation, scratch, offset, frozen[:n.leftWidth])
 		if err != nil || !ok {
 			return nil, ok, err
 		}
-		right, ok, err := recheckLockedQuery(n.right, inputs, rows, evaluation, scratch, offset)
+		right, ok, err := recheckLockedQuery(n.right, inputs, rows, evaluation, scratch, offset, frozen[n.leftWidth:n.leftWidth+n.rightWidth])
 		if err != nil || !ok {
 			return nil, ok, err
 		}
@@ -525,7 +532,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 			if changed {
 				evaluation.orderValues = child.orderRow(i)
 				offset := 0
-				replacement, ok, err := recheckLockedQuery(node, state.source, currentRows, &evaluation, scratch, &offset)
+				replacement, ok, err := recheckLockedQuery(node, state.source, currentRows, &evaluation, scratch, &offset, row)
 				if err != nil {
 					return false, err
 				}

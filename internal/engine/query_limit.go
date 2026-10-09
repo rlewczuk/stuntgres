@@ -13,7 +13,7 @@ type limitNode struct {
 	offset, count BoundExpr
 }
 
-func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds) (*limitNode, error) {
+func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiterals bool) (*limitNode, error) {
 	if raw == nil {
 		return nil, nil
 	}
@@ -22,16 +22,16 @@ func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds) (*limitNode,
 	old := b.aggregateClause
 	defer func() { b.aggregateClause = old }()
 	b.aggregateClause = "OFFSET"
-	n.offset, err = b.bindQueryBound(raw.Offset, "OFFSET", viewOffsetLiteral)
+	n.offset, err = b.bindQueryBound(raw.Offset, "OFFSET", viewOffsetLiteral, captureLiterals)
 	if err != nil {
 		return nil, err
 	}
 	b.aggregateClause = "LIMIT"
-	n.count, err = b.bindQueryBound(raw.Count, "LIMIT", viewLimitLiteral)
+	n.count, err = b.bindQueryBound(raw.Count, "LIMIT", viewLimitLiteral, captureLiterals)
 	return n, err
 }
 
-func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, literalClause viewLiteralClause) (BoundExpr, error) {
+func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, literalClause viewLiteralClause, captureLiterals bool) (BoundExpr, error) {
 	if raw == nil {
 		return nil, nil
 	}
@@ -62,7 +62,7 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		pos := firstQueryBoundVariable(expr)
 		return nil, expressionError("42P10", "argument of "+clause+" must not contain variables", pos)
 	}
-	if b.noParameters {
+	if b.noParameters && captureLiterals {
 		if err := b.captureViewLiterals(raw, expr, literalClause, 0); err != nil {
 			return nil, err
 		}

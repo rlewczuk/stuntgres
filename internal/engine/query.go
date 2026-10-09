@@ -601,7 +601,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 	case *aggregateNode:
 		return openAggregateNode(ctx, state, n)
 	case *valuesNode:
-		if state.source == nil || state.source.view != nil {
+		if state.source == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
 		source := &querySource{flatWidth: len(n.Schema()), materialized: true}

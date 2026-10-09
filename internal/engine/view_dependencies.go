@@ -260,10 +260,18 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			}
 		}
 		switch n := node.(type) {
-		case *limitNode:
-			if definition.syntax.Bounds == nil {
-				return fmt.Errorf("stuntgres: unexpected stored view bounds")
+		case *valuesNode:
+			for _, row := range n.rows {
+				if len(row) != len(n.Schema()) {
+					return fmt.Errorf("stuntgres: invalid view VALUES width")
+				}
+				for i, expression := range row {
+					if expression == nil || expression.ResultUsage().Type != n.Schema()[i].Usage.Type || expression.Properties().RowDependent {
+						return fmt.Errorf("stuntgres: invalid view VALUES cell")
+					}
+				}
 			}
+		case *limitNode:
 			for _, expr := range []BoundExpr{n.offset, n.count} {
 				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expr.Properties().RowDependent || expr.Properties().StageDependent) {
 					return fmt.Errorf("stuntgres: invalid stored view bound")

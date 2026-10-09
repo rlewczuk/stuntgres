@@ -305,6 +305,16 @@ view outputs are rejected before publication, while BOOL matching views replay.
 See [matching semantics](docs/DIALECT.md#like-and-ilike--change-note).
 Feature smoke: `make smoke RUN='^TestLikeSmoke$' VERBOSE=0`.
 
+Standalone `VALUES (1,'a'),(1,'a'),(2,NULL)` and parenthesized VALUES in FROM are
+supported queries. Optional relation/column aliases expose computed `columnN`
+outputs with independent common typing (unknown-only becomes TEXT). Duplicate
+bags, local ordering/counts, inner/cross joins, INSERT SELECT and stored views
+share existing binding, execution, metadata and native replay paths. VALUES
+cells are non-lateral and reject DEFAULT and aggregates; derived SELECT and
+LATERAL remain excluded. Ordinary INSERT VALUES retains destination-context
+typing. See [VALUES contracts and change note](docs/QUERIES.md#standalone-and-from-values--change-note-changelog).
+Independent reference: `make reference RUN='^TestReferenceQueryFromValues' VERBOSE=0`.
+
 SELECT, shared INSERT SELECT and decorated VALUES support expression ORDER BY,
 output labels/ordinals, multiple keys and per-key ASC/DESC/NULLS FIRST/LAST.
 Referenced output values are evaluated once before sort and reused. With a

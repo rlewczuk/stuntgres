@@ -204,7 +204,8 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			properties := expr.Properties()
 			properties.RowDependent = false
 			properties.StageDependent = true
-			info := expressionInfo{usage: expr.ResultUsage(), pos: expr.SourcePosition(), properties: properties, collationConflict: expr.CollationIndeterminate(), collationExplicit: expr.ExplicitCollation()}
+			info := boundExpressionInfo(expr)
+			info.properties = properties
 			return groupExpression{info, i}, nil
 		}
 	}
