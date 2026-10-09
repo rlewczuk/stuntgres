@@ -53,6 +53,7 @@ func TestReferenceExpressionIndexAlterTypeDependency(t *testing.T) {
 }
 
 func TestReferenceExpressionIndexLifecycle(t *testing.T) {
+	schemaReferenceCleanup(t, "moved")
 	p := newReferenceScenario(t)
 	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
