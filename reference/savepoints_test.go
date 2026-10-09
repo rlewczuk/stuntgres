@@ -1,17 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
-// PostgreSQL is deliberately exercised first. Every backend is asserted against
-// independently specified constants, never against the other backend's output.
+// Each selected backend is checked against literal expectations.
 func savepointsReference(t *testing.T, scenario func(*testing.T, controlsReferenceFixture)) {
 	t.Helper()
-	pair := newReferencePair(t)
-	for _, postgres := range []bool{true, false} {
-		t.Run(map[bool]string{true: "postgres", false: "memory"}[postgres], func(t *testing.T) {
-			f := newControlsReferenceFixture(t, pair, postgres)
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			f := newControlsReferenceFixture(t, pair, backend.pg)
 			f.exec(t, f.b, "CREATE TABLE t(v INT NOT NULL)", false, 0)
 			defer func() { f.a.ExecContext(pair.ctx, "ROLLBACK"); f.exec(t, f.b, "DROP TABLE t", false, 0) }()
 			scenario(t, f)

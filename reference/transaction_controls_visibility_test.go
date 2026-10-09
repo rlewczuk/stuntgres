@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -12,13 +10,13 @@ import (
 func TestReferenceTransactionControlsVisibilityAndRecovery(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			pair := newReferencePair(t)
-			for _, postgres := range []bool{false, true} {
-				t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
-					f := newControlsReferenceFixture(t, pair, postgres)
+			pair := newReferenceScenario(t)
+			for _, backend := range pair.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					f := newControlsReferenceFixture(t, pair, backend.pg)
 					f.exec(t, f.b, "CREATE TABLE t(v INT NOT NULL)", false, 0)
 					f.exec(t, f.a, "BEGIN", prepared, 0)
-					f.exec(t, f.a, "INSERT INTO t VALUES(1),(2)", true, 2)
+					referenceRunStep(t, pair.ctx, f.a, f.recorder, referenceStep{query: "INSERT INTO t VALUES($1),($2)", prepared: true, args: []any{int64(1), int64(2)}, affected: 2})
 					f.rows(t, f.a, 1, 2)
 					f.rows(t, f.b)
 					f.exec(t, f.a, "END", prepared, 0)
@@ -44,10 +42,10 @@ func TestReferenceTransactionControlsVisibilityAndRecovery(t *testing.T) {
 	}
 }
 func TestReferenceTransactionControlsChainVisibility(t *testing.T) {
-	pair := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
-		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
-			f := newControlsReferenceFixture(t, pair, postgres)
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			f := newControlsReferenceFixture(t, pair, backend.pg)
 			for _, q := range []string{"COMMIT AND CHAIN", "ROLLBACK AND CHAIN", "COMMIT WORK AND CHAIN", "ABORT TRANSACTION AND CHAIN"} {
 				f.exec(t, f.b, "CREATE TABLE t(v INT NOT NULL)", false, 0)
 				f.exec(t, f.a, "BEGIN", false, 0)
@@ -71,9 +69,10 @@ func TestReferenceTransactionControlsChainVisibility(t *testing.T) {
 	}
 }
 func TestReferenceTransactionControlsGoInterop(t *testing.T) {
-	pair := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
-		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			postgres := backend.pg
 			f := newControlsReferenceFixture(t, pair, postgres)
 			ctx := pair.ctx
 			f.exec(t, f.b, "CREATE TABLE t(v INT NOT NULL)", false, 0)

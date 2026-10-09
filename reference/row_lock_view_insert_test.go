@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -20,11 +17,7 @@ func TestReferenceRowLockViewInsert(t *testing.T) {
 						suffix = " " + clause
 					}
 					query := "INSERT INTO destination SELECT val FROM " + source + " WHERE id=1" + suffix
-					for _, backend := range []struct {
-						name   string
-						db     *sql.DB
-						record *referenceRecorder
-					}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+					for _, backend := range p.backends() {
 						t.Run(backend.name, func(t *testing.T) {
 							a, b := referenceLockConnections(t, p.ctx, backend.db)
 							holder, err := a.BeginTx(p.ctx, nil)
@@ -33,8 +26,8 @@ func TestReferenceRowLockViewInsert(t *testing.T) {
 							}
 							defer holder.Rollback()
 							referenceRowAffected(t, p.ctx, holder, query, prepared, 1)
-							referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM destination", prepared), 11)
-							if backend.name == "postgres" {
+							referenceLimitLockValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM destination", prepared), backend.pg, 11)
+							if backend.pg {
 								ap, bp := referenceRowPIDs(t, p.ctx, a, b)
 								done := referenceRowAsync(t, p.ctx, b, "DELETE FROM t WHERE id=1", prepared, false)
 								referenceRowWait(t, p.ctx, bp, ap)
@@ -53,12 +46,12 @@ func TestReferenceRowLockViewInsert(t *testing.T) {
 								}
 								referenceRowAffected(t, p.ctx, b, "DELETE FROM t WHERE id=1", prepared, 1)
 							}
-							referenceRowValues(t, referenceRowQuery(p.ctx, a, "SELECT v FROM destination", false))
+							referenceLimitLockValues(t, referenceRowQuery(p.ctx, a, "SELECT v FROM destination", false), backend.pg)
 							referenceRowAffected(t, p.ctx, a, "INSERT INTO t VALUES(1,10)", false, 1)
 							failure := referenceImplicitError("INSERT INTO destination SELECT 1/(val-11) FROM "+source+" WHERE id=1"+suffix, referenceDiagnostic{Code: "22012", Message: "division by zero"})
 							failure.prepared, failure.errorStage = prepared, "execute"
-							referenceRunStep(t, p.ctx, a, backend.record, failure)
-							referenceRowValues(t, referenceRowQuery(p.ctx, b, "SELECT v FROM destination", false))
+							referenceRunStep(t, p.ctx, a, backend.recorder, failure)
+							referenceLimitLockValues(t, referenceRowQuery(p.ctx, b, "SELECT v FROM destination", false), backend.pg)
 							referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v WHERE id=1", prepared, 1)
 						})
 					}

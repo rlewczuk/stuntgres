@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"

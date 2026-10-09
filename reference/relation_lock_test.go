@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -7,37 +5,19 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"runtime"
 	"testing"
 	"time"
 )
 
-func referenceLockWait(t *testing.T, ctx context.Context, pid int) {
-	t.Helper()
-	for {
-		var waiting bool
-		err := referenceAdmin.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='relation' AND NOT granted) AND cardinality(pg_blocking_pids($1)) > 0`, pid).Scan(&waiting)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			return
-		}
-		if ctx.Err() != nil {
-			t.Fatal(ctx.Err())
-		}
-		runtime.Gosched()
-	}
-}
 func TestReferenceRelationLockBlocking(t *testing.T) {
 	for _, phase := range []string{"direct-select", "direct-insert", "prepare-select", "prepare-insert", "cached-select", "cached-insert"} {
 		for _, commit := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%t", phase, commit), func(t *testing.T) {
-				pair := newReferencePair(t)
-				for index, db := range []*sql.DB{pair.memory, pair.postgres} {
-					t.Run([]string{"memory", "postgres"}[index], func(t *testing.T) {
+				pair := newReferenceScenario(t)
+				for _, backend := range pair.backends() {
+					t.Run(backend.name, func(t *testing.T) {
 						ctx := pair.ctx
-						a, b := referenceLockConnections(t, ctx, db)
+						a, b := referenceLockConnections(t, ctx, backend.db)
 						referenceLockExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
 						referenceLockExec(t, ctx, a, "INSERT INTO t VALUES(7)", 1)
 						selectQuery := phase == "direct-select" || phase == "prepare-select" || phase == "cached-select"
@@ -71,7 +51,7 @@ func TestReferenceRelationLockBlocking(t *testing.T) {
 						referenceLockAffected(t, r, 0)
 						referenceLockExec(t, ctx, tx, "INSERT INTO t VALUES(1)", 1)
 						pid := 0
-						if index == 1 {
+						if backend.pg {
 							if err = b.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
 								t.Fatal(err)
 							}
@@ -84,8 +64,7 @@ func TestReferenceRelationLockBlocking(t *testing.T) {
 								t.Fatal("held AX must prevent native completion", err)
 							}
 						}
-						done := make(chan relationOutcome, 1)
-						go func() {
+						await := referenceLockOperation(t, ctx, func(ctx context.Context) relationOutcome {
 							o := relationOutcome{}
 							switch phase {
 							case "prepare-select", "prepare-insert":
@@ -101,10 +80,10 @@ func TestReferenceRelationLockBlocking(t *testing.T) {
 									o.result, o.err = b.ExecContext(ctx, q)
 								}
 							}
-							done <- o
-						}()
-						if index == 1 {
-							referenceLockWait(t, ctx, pid)
+							return o
+						})
+						if backend.pg {
+							referenceLockWaitBehind(t, ctx, pid, referenceLockPID(t, ctx, a), referenceLockOID(t, ctx, "t"), map[bool]string{false: "RowExclusiveLock", true: "AccessShareLock"}[selectQuery])
 						}
 						if commit {
 							err = tx.Commit()
@@ -114,7 +93,7 @@ func TestReferenceRelationLockBlocking(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						o := referenceLockResult(t, done)
+						o := await()
 						if o.err != nil {
 							t.Fatal(o.err)
 						}
@@ -131,9 +110,9 @@ func TestReferenceRelationLockBlocking(t *testing.T) {
 						}
 						if selectQuery {
 							if commit {
-								referenceTransactionValues(t, o.rows, 1, 7)
+								referenceLimitLockValues(t, o, backend.pg, 1, 7)
 							} else {
-								referenceTransactionValues(t, o.rows, 7)
+								referenceLimitLockValues(t, o, backend.pg, 7)
 							}
 						} else {
 							referenceLockAffected(t, o.result, 1)
@@ -144,15 +123,15 @@ func TestReferenceRelationLockBlocking(t *testing.T) {
 						}
 						if selectQuery {
 							if commit {
-								referenceTransactionValues(t, rows, 1, 7)
+								referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 1, 7)
 							} else {
-								referenceTransactionValues(t, rows, 7)
+								referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 7)
 							}
 						} else {
 							if commit {
-								referenceTransactionValues(t, rows, 1, 2, 7)
+								referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 1, 2, 7)
 							} else {
-								referenceTransactionValues(t, rows, 2, 7)
+								referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 2, 7)
 							}
 						}
 					})
@@ -165,11 +144,11 @@ func TestReferenceRelationLockCompatibilityAndPreparation(t *testing.T) {
 	for _, q := range []string{"SELECT v FROM t", "INSERT INTO t VALUES(1)"} {
 		for _, prepare := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%t", q, prepare), func(t *testing.T) {
-				pair := newReferencePair(t)
-				for index, db := range []*sql.DB{pair.memory, pair.postgres} {
-					t.Run([]string{"memory", "postgres"}[index], func(t *testing.T) {
+				pair := newReferenceScenario(t)
+				for _, backend := range pair.backends() {
+					t.Run(backend.name, func(t *testing.T) {
 						ctx := pair.ctx
-						a, b := referenceLockConnections(t, ctx, db)
+						a, b := referenceLockConnections(t, ctx, backend.db)
 						referenceLockExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
 						referenceLockExec(t, ctx, a, "INSERT INTO t VALUES(7)", 1)
 						implicit, err := a.PrepareContext(ctx, q)
@@ -200,7 +179,7 @@ func TestReferenceRelationLockCompatibilityAndPreparation(t *testing.T) {
 								if err != nil {
 									t.Fatal(err)
 								}
-								referenceTransactionValues(t, rows, 7)
+								referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 7)
 							} else {
 								referenceLockExec(t, ctx, reader, q, 1)
 							}
@@ -210,7 +189,7 @@ func TestReferenceRelationLockCompatibilityAndPreparation(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						referenceTransactionValues(t, rows, 7)
+						referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 7)
 						referenceLockExec(t, ctx, b, "INSERT INTO t VALUES(8)", 1)
 						writer, err := b.BeginTx(ctx, nil)
 						if err != nil {
@@ -218,12 +197,12 @@ func TestReferenceRelationLockCompatibilityAndPreparation(t *testing.T) {
 						}
 						defer writer.Rollback()
 						pid := 0
-						if index == 1 {
+						if backend.pg {
 							if err = writer.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
 								t.Fatal(err)
 							}
 						}
-						if index == 0 {
+						if !backend.pg {
 							bounded, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
 							_, err = writer.ExecContext(bounded, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 							cancel()
@@ -233,14 +212,13 @@ func TestReferenceRelationLockCompatibilityAndPreparation(t *testing.T) {
 							writer.Rollback()
 							reader.Rollback()
 						} else {
-							done := make(chan relationOutcome, 1)
-							go func() {
+							await := referenceLockOperation(t, ctx, func(ctx context.Context) relationOutcome {
 								r, err := writer.ExecContext(ctx, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
-								done <- relationOutcome{result: r, err: err}
-							}()
-							referenceLockWait(t, ctx, pid)
+								return relationOutcome{result: r, err: err}
+							})
+							referenceLockWaitBehind(t, ctx, pid, referenceLockPID(t, ctx, a), referenceLockOID(t, ctx, "t"), "AccessExclusiveLock")
 							reader.Rollback()
-							o := referenceLockResult(t, done)
+							o := await()
 							if o.err != nil {
 								t.Fatal(o.err)
 							}
@@ -258,7 +236,7 @@ func TestReferenceRelationLockCompatibilityAndPreparation(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						referenceTransactionValues(t, rows, 7, 8, 9)
+						referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 7, 8, 9)
 						owner.Rollback()
 					})
 				}
@@ -270,11 +248,11 @@ func TestReferenceRelationLockCancellation(t *testing.T) {
 	for _, q := range []string{"SELECT v FROM t", "INSERT INTO t VALUES(2)"} {
 		for _, prepare := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%t", q, prepare), func(t *testing.T) {
-				pair := newReferencePair(t)
-				for index, db := range []*sql.DB{pair.memory, pair.postgres} {
-					t.Run([]string{"memory", "postgres"}[index], func(t *testing.T) {
+				pair := newReferenceScenario(t)
+				for _, backend := range pair.backends() {
+					t.Run(backend.name, func(t *testing.T) {
 						ctx := pair.ctx
-						a, b := referenceLockConnections(t, ctx, db)
+						a, b := referenceLockConnections(t, ctx, backend.db)
 						referenceLockExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
 						referenceLockExec(t, ctx, a, "INSERT INTO t VALUES(7)", 1)
 						holder, err := a.BeginTx(ctx, nil)
@@ -289,42 +267,45 @@ func TestReferenceRelationLockCancellation(t *testing.T) {
 						}
 						defer waiter.Rollback()
 						pid := 0
-						if index == 1 {
+						if backend.pg {
 							if err = waiter.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
 								t.Fatal(err)
 							}
 						}
 						callCtx, cancel := context.WithCancel(ctx)
-						if index == 0 {
+						if !backend.pg {
 							cancel()
 							callCtx, cancel = context.WithTimeout(ctx, 30*time.Millisecond)
 						}
 						defer cancel()
-						done := make(chan relationOutcome, 1)
-						go func() {
+						await := referenceLockOperation(t, callCtx, func(ctx context.Context) relationOutcome {
 							o := relationOutcome{}
 							if prepare {
-								o.stmt, o.err = waiter.PrepareContext(callCtx, q)
+								o.stmt, o.err = waiter.PrepareContext(ctx, q)
 							} else {
-								o.result, o.err = waiter.ExecContext(callCtx, q)
+								o.result, o.err = waiter.ExecContext(ctx, q)
 							}
-							done <- o
-						}()
-						if index == 1 {
-							referenceLockWait(t, ctx, pid)
+							return o
+						})
+						if backend.pg {
+							referenceLockWaitBehind(t, ctx, pid, referenceLockPID(t, ctx, a), referenceLockOID(t, ctx, "t"), map[bool]string{false: "RowExclusiveLock", true: "AccessShareLock"}[q[0] == 'S'])
 							var canceled bool
 							if err = referenceAdmin.QueryRowContext(ctx, "SELECT pg_cancel_backend($1)", pid).Scan(&canceled); err != nil || !canceled {
 								t.Fatal(canceled, err)
 							}
 						}
-						o := referenceLockResult(t, done)
+						o := await()
 						if o.stmt != nil {
 							o.stmt.Close()
 							t.Fatal("canceled Prepare exposed stmt")
 						}
-						if index == 0 {
+						if !backend.pg {
 							if !errors.Is(o.err, context.DeadlineExceeded) {
 								t.Fatal(o.err)
+							}
+							var state interface{ SQLState() string }
+							if errors.As(o.err, &state) {
+								t.Fatal("ordinary caller deadline fabricated SQLSTATE", o.err)
 							}
 						} else {
 							want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"}
@@ -342,7 +323,7 @@ func TestReferenceRelationLockCancellation(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						referenceTransactionValues(t, rows, 7)
+						referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 7)
 						referenceLockExec(t, ctx, b, "INSERT INTO t VALUES(3)", 1)
 					})
 				}

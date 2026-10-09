@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -14,6 +12,9 @@ import (
 
 func TestReferenceTransactionIsolationReadOnlyUtilityPrecedence(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
 			for _, utility := range []struct{ query, tag string }{
 				{"ALTER TABLE target RENAME TO renamed", "ALTER TABLE"},
@@ -22,21 +23,13 @@ func TestReferenceTransactionIsolationReadOnlyUtilityPrecedence(t *testing.T) {
 				for _, missing := range []bool{false, true} {
 					for _, prepared := range []bool{false, true} {
 						t.Run(utility.tag+map[bool]string{false: "/locked", true: "/missing"}[missing]+map[bool]string{false: "/direct", true: "/held_prepared"}[prepared], func(t *testing.T) {
-							p := newReferencePair(t)
+							p := newReferenceScenario(t)
 							db := p.memory
 							if postgres {
 								db = p.postgres
 							}
-							a, err := db.Conn(p.ctx)
-							if err != nil {
-								t.Fatal(err)
-							}
-							defer a.Close()
-							b, err := db.Conn(p.ctx)
-							if err != nil {
-								t.Fatal(err)
-							}
-							defer b.Close()
+							a, b := referenceLockConnections(t, p.ctx, db)
+							var err error
 							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 							defer cancel()
 							isolationReferenceAffected(t, ctx, b, "CREATE TABLE t(v INT)", false, 0)
@@ -81,8 +74,8 @@ func TestReferenceTransactionIsolationReadOnlyUtilityPrecedence(t *testing.T) {
 							if !missing {
 								isolationReferenceAffected(t, ctx, b, "ROLLBACK", false, 0)
 							}
-							isolationReferenceSelect(t, ctx, b, "SELECT v FROM t", false, 1)
-							isolationReferenceSelect(t, ctx, a, "SELECT v FROM t", false, 1)
+							isolationReferenceSelect(t, ctx, b, postgres, "SELECT v FROM t", false, 1)
+							isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM t", false, 1)
 							if postgres {
 								var comment string
 								if err := b.QueryRowContext(ctx, "SELECT obj_description('public.t'::regclass,'pg_class')").Scan(&comment); err != nil || comment != "original" {

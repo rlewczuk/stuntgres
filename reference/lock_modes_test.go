@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,10 +7,12 @@ import (
 )
 
 func lockModesBackends(t *testing.T, run func(*testing.T, context.Context, *sql.Conn, *sql.Conn)) {
-	pair := newReferencePair(t)
-	// Oracle runs first so native red behavior cannot prevent independent PG observations.
-	for i, db := range []*sql.DB{pair.postgres, pair.memory} {
-		t.Run([]string{"postgres", "memory"}[i], func(t *testing.T) { a, b := referenceLockConnections(t, pair.ctx, db); run(t, pair.ctx, a, b) })
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			a, b := referenceLockConnections(t, pair.ctx, backend.db)
+			run(t, pair.ctx, a, b)
+		})
 	}
 }
 func lockModesDiagnostic(t *testing.T, err error, code, message, detail string) {
@@ -20,6 +20,7 @@ func lockModesDiagnostic(t *testing.T, err error, code, message, detail string) 
 	want := controlsReferenceDiagnostic(code, message)
 	want.Detail = detail
 	referenceAssertDiagnostic(t, err, &want)
+	referenceState(t, err, code)
 }
 
 var lockModesNames = []string{"ACCESS SHARE", "ROW SHARE", "ROW EXCLUSIVE", "SHARE UPDATE EXCLUSIVE", "SHARE", "SHARE ROW EXCLUSIVE", "EXCLUSIVE", "ACCESS EXCLUSIVE"}
@@ -198,6 +199,12 @@ func TestReferenceLockModesOrder(t *testing.T) {
 		lockModesProbe(t, ctx, b, "LOCK t, missing NOWAIT", "55P03", `could not obtain lock on relation "t"`)
 		lockModesProbe(t, ctx, b, "LOCK missing, t NOWAIT", "42P01", `relation "missing" does not exist`)
 	})
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		if backend.pg {
+			lockModesOrderWait(t, pair, backend)
+		}
+	}
 }
 func TestReferenceLockModesStandaloneMarkers(t *testing.T) {
 	lockModesBackends(t, func(t *testing.T, ctx context.Context, a, b *sql.Conn) {
@@ -271,6 +278,12 @@ func TestReferenceLockModesSavepoints(t *testing.T) {
 			})
 		}
 	})
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		if backend.pg {
+			lockModesSavepointWake(t, pair, backend)
+		}
+	}
 }
 func TestReferenceLockModesLifetime(t *testing.T) {
 	lockModesBackends(t, func(t *testing.T, ctx context.Context, a, b *sql.Conn) {

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -27,7 +25,7 @@ func referenceTestTransactionIsolationTiming(t *testing.T, postgres bool) {
 	for _, first := range []string{"SELECT num_nonnulls(1)", "SELECT current_user", "SELECT current_setting('application_name')", "SELECT v FROM t", "INSERT INTO t VALUES(2)", "INSERT INTO t SELECT v FROM t", "UPDATE t SET v=3", "DELETE FROM t"} {
 		for _, prepare := range []bool{false, true} {
 			t.Run(first+map[bool]string{false: "/execute", true: "/prepare"}[prepare], func(t *testing.T) {
-				_, a, b := isolationReferenceConnections(t, postgres)
+				_, a, b := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 				ctx := context.Background()
 				isolationReferenceAffected(t, ctx, b, "CREATE TABLE t(v INT)", false, 0)
 				isolationReferenceAffected(t, ctx, b, "INSERT INTO t VALUES(1)", false, 1)
@@ -52,21 +50,21 @@ func referenceTestTransactionIsolationTiming(t *testing.T, postgres bool) {
 		}
 	}
 	for _, query := range []string{"SET TRANSACTION READ WRITE", "SET transaction_read_only TO off"} {
-		_, a, _ := isolationReferenceConnections(t, postgres)
+		_, a, _ := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 		ctx := context.Background()
 		isolationReferenceAffected(t, ctx, a, "BEGIN READ ONLY", false, 0)
 		isolationReferenceAffected(t, ctx, a, "SELECT num_nonnulls(1)", false, 1)
 		referenceIsolationError(t, a, query, "25001", "transaction read-write mode must be set before any query", false)
 		isolationReferenceAffected(t, ctx, a, "ROLLBACK", false, 0)
 	}
-	_, a, _ := isolationReferenceConnections(t, postgres)
+	_, a, _ := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 	ctx := context.Background()
 	isolationReferenceAffected(t, ctx, a, "BEGIN", false, 0)
 	referenceIsolationError(t, a, "SELECT set_config('transaction_isolation','repeatable read',false)", "25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query", false)
 	isolationReferenceAffected(t, ctx, a, "ROLLBACK", false, 0)
 }
 func referenceTestTransactionIsolationDefaults(t *testing.T, postgres bool) {
-	_, a, b := isolationReferenceConnections(t, postgres)
+	_, a, b := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 	ctx := context.Background()
 	isolationReferenceAffected(t, ctx, a, "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY", false, 0)
 	referenceIsolationShow(t, b, "default_transaction_isolation", "read committed")
@@ -119,14 +117,14 @@ func referenceTestTransactionIsolationDefaults(t *testing.T, postgres bool) {
 func referenceTestTransactionIsolationResetRules(t *testing.T, postgres bool) {
 	for _, name := range []string{"transaction_isolation", "transaction_read_only"} {
 		for _, query := range []string{"RESET " + name, "SET " + name + " TO DEFAULT", "SELECT set_config('" + name + "',NULL,false)"} {
-			_, a, _ := isolationReferenceConnections(t, postgres)
+			_, a, _ := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 			ctx := context.Background()
 			isolationReferenceAffected(t, ctx, a, "BEGIN", false, 0)
 			referenceIsolationError(t, a, query, "0A000", "parameter \""+name+"\" cannot be reset", false)
 			isolationReferenceAffected(t, ctx, a, "ROLLBACK", false, 0)
 		}
 	}
-	_, a, _ := isolationReferenceConnections(t, postgres)
+	_, a, _ := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 	ctx := context.Background()
 	isolationReferenceAffected(t, ctx, a, "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY", false, 0)
 	isolationReferenceAffected(t, ctx, a, "BEGIN", false, 0)
@@ -150,7 +148,7 @@ func referenceTestTransactionIsolationReadOnly(t *testing.T, postgres bool) {
 	for _, item := range tags {
 		for _, prepared := range []bool{false, true} {
 			t.Run(item.query+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
-				_, a, b := isolationReferenceConnections(t, postgres)
+				_, a, b := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 				ctx := context.Background()
 				isolationReferenceAffected(t, ctx, b, "CREATE TABLE t(v INT)", false, 0)
 				isolationReferenceAffected(t, ctx, b, "INSERT INTO t VALUES(1)", false, 1)
@@ -171,11 +169,11 @@ func referenceTestTransactionIsolationReadOnly(t *testing.T, postgres bool) {
 					referenceIsolationError(t, a, item.query, "25006", "cannot execute "+item.tag+" in a read-only transaction", prepared)
 				}
 				isolationReferenceAffected(t, ctx, a, "ROLLBACK", false, 0)
-				isolationReferenceSelect(t, ctx, b, "SELECT v FROM t", false, 1)
+				isolationReferenceSelect(t, ctx, b, postgres, "SELECT v FROM t", false, 1)
 			})
 		}
 	}
-	_, a, b := isolationReferenceConnections(t, postgres)
+	_, a, b := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 	ctx := context.Background()
 	isolationReferenceAffected(t, ctx, b, "CREATE TABLE t(v INT)", false, 0)
 	statement, err := a.PrepareContext(ctx, "INSERT INTO t VALUES(1)")
@@ -192,29 +190,41 @@ func referenceTestTransactionIsolationReadOnly(t *testing.T, postgres bool) {
 	isolationReferenceAffected(t, ctx, a, "SET TRANSACTION READ ONLY", false, 0)
 	referenceIsolationError(t, a, "INSERT INTO t VALUES(4)", "25006", "cannot execute INSERT in a read-only transaction", false)
 	isolationReferenceAffected(t, ctx, a, "ROLLBACK", false, 0)
-	isolationReferenceSelect(t, ctx, b, "SELECT v FROM t", false)
+	isolationReferenceSelect(t, ctx, b, postgres, "SELECT v FROM t", false)
 }
 
 func TestReferenceTransactionIsolationTiming(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) { referenceTestTransactionIsolationTiming(t, postgres) })
 	}
 }
 
 func TestReferenceTransactionIsolationDefaults(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) { referenceTestTransactionIsolationDefaults(t, postgres) })
 	}
 }
 
 func TestReferenceTransactionIsolationResetRules(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) { referenceTestTransactionIsolationResetRules(t, postgres) })
 	}
 }
 
 func TestReferenceTransactionIsolationReadOnly(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) { referenceTestTransactionIsolationReadOnly(t, postgres) })
 	}
 }

@@ -631,8 +631,9 @@ Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 
 The migrated query-read, scalar-type, INSERT SELECT, UPDATE, DELETE/RETURNING,
 identity, arithmetic, bitwise, mathematical and scalar expression scenarios,
-DATE/TIME/TIMESTAMP interaction tests, and BYTEA/short-INSERT pilots in
-`reference/` also run without Docker through the ordinary test binary:
+DATE/TIME/TIMESTAMP interactions, transactions, savepoints, relation/row locks
+and BYTEA/short-INSERT pilots in `reference/` also run without Docker through
+the ordinary test binary:
 
 ```sh
 go test ./reference                         # quick: real stuntgres + expected data
@@ -666,6 +667,14 @@ unions, including accepted/rejected input corpora, precision, held clocks, owned
 raw rows and retained metadata. Native Dump/Reset/Restore phases use the common
 scenario's public control pool; true mode also replays its unchanged SQL on
 PostgreSQL.
+The transaction/locking migration carries all 111 assigned original SQL tests
+from 38 root files into 130 untagged external definitions, merging their complete
+owning reference assertions, including the same-family row-lock ViewInsert case.
+Native controls and raw Begin-context lifetime remain distinct capability phases;
+actual PostgreSQL server cancellation and physical lock witnesses are independent
+phases, not native queue or raw-context parity. Pure non-SQL terminal reasons and
+raw reuse mechanics remain root units. This is test relocation/deduplication, not
+new SQL support or a production API change.
 Together these families retain raw and command/RETURNING metadata, genuinely
 reused and concurrent held statements, atomicity, cancellation and native
 controls. The BYTEA and short-INSERT pilots remain available alongside them.
@@ -682,8 +691,9 @@ retained PostgreSQL-only edges; it does not select runtime mode. A tagged
 selection restricted to mode-aware migrated tests with `-reference=false`
 remains Docker-free, but selecting a legacy test lazily starts the same pinned
 container even when the flag is absent or false. These migrations are not a
-whole-suite quick migration: other unmigrated families, the standalone
-PostgreSQL column-ACL complement and DML server-only edges remain tagged.
+whole-suite quick migration: unmigrated families and PostgreSQL-only ACL,
+inheritance, keyed-row, role-lifetime and DML server edges remain tagged, as does
+the cross-family `TestReferenceControlTransactionsDiagnostics` scenario.
 `make reference` enables the flag only for `./reference`. `make test-all` runs
 ordinary native/smoke/quick tests with race detection, then the full tagged
 reference package with race detection, under one aggregate 900-second deadline.

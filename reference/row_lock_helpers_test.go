@@ -3,6 +3,7 @@ package reference_test
 import (
 	"context"
 	"database/sql"
+	"reflect"
 	"runtime"
 	"testing"
 	"time"
@@ -24,14 +25,18 @@ func referenceRowExecute(ctx context.Context, x referenceExecutor, query string,
 	}
 	return outcome
 }
-func referenceRowAsync(t *testing.T, ctx context.Context, x referenceExecutor, query string, prepared, selectRows bool) <-chan relationOutcome {
+func referenceRowAsync(t *testing.T, ctx context.Context, x referenceExecutor, query string, prepared, selectRows bool, raw ...referenceRawBackend) <-chan relationOutcome {
 	t.Helper()
 	bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
 	done := make(chan relationOutcome, 1)
+	backend := referenceRawLegacy
+	if len(raw) != 0 {
+		backend = raw[0]
+	}
 	go func() {
 		var outcome relationOutcome
 		if selectRows {
-			outcome = referenceRowQuery(bounded, x, query, prepared)
+			outcome = referenceRowQuery(bounded, x, query, prepared, backend)
 		} else {
 			outcome = referenceRowExecute(bounded, x, query, prepared)
 		}
@@ -68,6 +73,8 @@ type relationOutcome struct {
 	stmt   *sql.Stmt
 	result sql.Result
 	err    error
+	// Optional immutable fixture provenance for retained-cursor descriptors.
+	rawBackend referenceRawBackend
 }
 
 func referenceLockResult(t *testing.T, done <-chan relationOutcome) relationOutcome {
@@ -96,12 +103,22 @@ func referenceLockConnections(t *testing.T, ctx context.Context, db *sql.DB) (*s
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { a.Close() })
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		a.ExecContext(ctx, "ROLLBACK")
+		a.Close()
+	})
 	b, err := db.Conn(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { b.Close() })
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		b.ExecContext(ctx, "ROLLBACK")
+		b.Close()
+	})
 	return a, b
 }
 func referenceLockExec(t *testing.T, ctx context.Context, x referenceExecutor, q string, n int64) {
@@ -131,8 +148,11 @@ func referenceRowWait(t *testing.T, ctx context.Context, pid, holder int) {
 		runtime.Gosched()
 	}
 }
-func referenceRowQuery(ctx context.Context, x referenceExecutor, query string, prepared bool) relationOutcome {
+func referenceRowQuery(ctx context.Context, x referenceExecutor, query string, prepared bool, raw ...referenceRawBackend) relationOutcome {
 	var outcome relationOutcome
+	if len(raw) != 0 {
+		outcome.rawBackend = raw[0]
+	}
 	if prepared {
 		outcome.stmt, outcome.err = x.PrepareContext(ctx, query)
 		if outcome.err == nil {
@@ -165,11 +185,24 @@ func referenceRowValues(t *testing.T, outcome relationOutcome, want ...int64) {
 	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != "INT4" {
 		t.Fatal(types, err)
 	}
+	if outcome.rawBackend != referenceRawLegacy {
+		scan := reflect.TypeFor[int64]()
+		if outcome.rawBackend == referenceRawPostgres {
+			scan = reflect.TypeFor[int32]()
+		}
+		if types[0].ScanType() != scan {
+			t.Fatalf("INT4 ScanType %v, want %v", types[0].ScanType(), scan)
+		}
+	}
 	var got []int64
 	for outcome.rows.Next() {
-		var v int64
-		if err := outcome.rows.Scan(&v); err != nil {
+		var value any
+		if err := outcome.rows.Scan(&value); err != nil {
 			t.Fatal(err)
+		}
+		v, ok := value.(int64)
+		if !ok {
+			t.Fatalf("raw INT4 payload %T, want int64", value)
 		}
 		got = append(got, v)
 	}
@@ -184,6 +217,22 @@ func referenceRowValues(t *testing.T, outcome relationOutcome, want ...int64) {
 			t.Fatal(got, want)
 		}
 	}
+	if err := outcome.rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if outcome.stmt != nil {
+		if err := outcome.stmt.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := outcome.rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if outcome.stmt != nil {
+		if err := outcome.stmt.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 func referenceRowPIDs(t *testing.T, ctx context.Context, a, b *sql.Conn) (int, int) {
 	t.Helper()
@@ -195,4 +244,26 @@ func referenceRowPIDs(t *testing.T, ctx context.Context, a, b *sql.Conn) (int, i
 		t.Fatal(err)
 	}
 	return ap, bp
+}
+
+// A positive native is_called transition proves volatile evaluation used the
+// original pre-release candidate. It is not a guessed timeout or a public lock
+// hook; exact native queued-request ownership is proved by engine tests.
+func referenceLimitSequenceCapture(t *testing.T, parent context.Context, holder *sql.Tx) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	defer cancel()
+	for {
+		var called bool
+		if err := holder.QueryRowContext(ctx, "SELECT is_called FROM s").Scan(&called); err != nil {
+			t.Fatal("original volatile candidate was not observed", err)
+		}
+		if called {
+			return
+		}
+		if err := ctx.Err(); err != nil {
+			t.Fatal(err)
+		}
+		runtime.Gosched()
+	}
 }

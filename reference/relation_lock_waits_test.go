@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -18,16 +16,17 @@ func referenceWaitsDiagnostic(t *testing.T, err error, code, message string, pos
 	if got := referenceExtractDiagnostic(t, err); got != want {
 		t.Fatalf("got %#v want %#v", got, want)
 	}
+	referenceState(t, err, code)
 }
 
 func TestReferenceRelationLockWaitsNowait(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			for index, db := range []*sql.DB{p.memory, p.postgres} {
-				t.Run([]string{"native", "postgres"}[index], func(t *testing.T) {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
 					ctx := p.ctx
-					a, b := referenceLockConnections(t, ctx, db)
+					a, b := referenceLockConnections(t, ctx, backend.db)
 					referenceLockExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
 					referenceLockExec(t, ctx, a, `CREATE TABLE "T"(v INT)`, 0)
 					holder, err := a.BeginTx(ctx, nil)
@@ -87,7 +86,7 @@ func TestReferenceRelationLockWaitsNowait(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					referenceTransactionValues(t, rows, 1)
+					referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 1)
 				})
 			}
 		})
@@ -106,15 +105,15 @@ func TestReferenceRelationLockWaitsTimeout(t *testing.T) {
 			{"100ms", "100ms", "57014", "canceling statement due to statement timeout"},
 		} {
 			t.Run(phase+"/"+tc.lock+"/"+tc.statement, func(t *testing.T) {
-				p := newReferencePair(t)
-				for index, db := range []*sql.DB{p.memory, p.postgres} {
-					t.Run([]string{"native", "postgres"}[index], func(t *testing.T) {
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
+					t.Run(backend.name, func(t *testing.T) {
 						ctx := p.ctx
-						a, b := referenceLockConnections(t, ctx, db)
+						a, b := referenceLockConnections(t, ctx, backend.db)
 						referenceLockExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
 						referenceLockExec(t, ctx, a, "INSERT INTO t VALUES(7)", 1)
 						ap, bp := 0, 0
-						if index == 1 {
+						if backend.pg {
 							ap = referenceLockPID(t, ctx, a)
 							bp = referenceLockPID(t, ctx, b)
 						}
@@ -149,7 +148,7 @@ func TestReferenceRelationLockWaitsTimeout(t *testing.T) {
 								return relationOutcome{rows: rows, err: err}
 							}
 						})
-						if index == 1 {
+						if backend.pg {
 							referenceLockWaitBehind(t, ctx, bp, ap, referenceLockOID(t, ctx, "public.t"), "AccessShareLock")
 						}
 						o := await()
@@ -173,7 +172,7 @@ func TestReferenceRelationLockWaitsTimeout(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						referenceTransactionValues(t, rows, 7)
+						referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 7)
 						referenceLockExec(t, ctx, b, "INSERT INTO t VALUES(2)", 1)
 					})
 				}
@@ -183,11 +182,11 @@ func TestReferenceRelationLockWaitsTimeout(t *testing.T) {
 }
 
 func TestReferenceRelationLockWaitsSettings(t *testing.T) {
-	p := newReferencePair(t)
-	for index, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[index], func(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
 			ctx := p.ctx
-			conn, err := db.Conn(ctx)
+			conn, err := backend.db.Conn(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -214,6 +213,7 @@ func TestReferenceRelationLockWaitsSettings(t *testing.T) {
 				if got := referenceExtractDiagnostic(t, err); got != want {
 					t.Fatal(got, want)
 				}
+				referenceState(t, err, "22023")
 				check("0")
 			}
 			for _, commit := range []bool{false, true} {

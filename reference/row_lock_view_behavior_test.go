@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -13,7 +10,7 @@ import (
 
 func referenceViewFixture(t *testing.T) *referencePair {
 	t.Helper()
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, s := range []referenceStep{
 		referenceExec("CREATE TABLE t(id INT,v INT)", 0), referenceExec("INSERT INTO t VALUES(1,10),(2,20),(3,30)", 3),
 		referenceExec("CREATE VIEW v AS SELECT id,v FROM t WHERE id<3", 0), referenceExec("CREATE VIEW w AS SELECT id,v+1 AS val FROM v", 0),
@@ -33,6 +30,10 @@ func referenceViewNativeBlocked(t *testing.T, ctx context.Context, x referenceEx
 	if !errors.Is(out.err, context.DeadlineExceeded) || out.result != nil {
 		t.Fatal("native view conflict", out)
 	}
+	var state interface{ SQLState() string }
+	if errors.As(out.err, &state) {
+		t.Fatal("caller deadline fabricated SQLSTATE", out.err)
+	}
 }
 
 func TestReferenceRowLockViews(t *testing.T) {
@@ -42,16 +43,8 @@ func TestReferenceRowLockViews(t *testing.T) {
 				p := referenceViewFixture(t)
 				expected := referenceSelect("SELECT val FROM w WHERE id=1 "+clause, []string{"val"}, []string{"INT4"}, [][]any{{int64(11)}})
 				expected.prepared = prepared
-				// Literal schema/values are asserted on the oracle before the native result.
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, expected)
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, expected)
-				for _, backend := range []struct {
-					name   string
-					db     *sql.DB
-					record *referenceRecorder
-				}{
-					{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord},
-				} {
+				p.step(t, expected)
+				for _, backend := range p.backends() {
 					t.Run(backend.name, func(t *testing.T) {
 						a, b := referenceLockConnections(t, p.ctx, backend.db)
 						holder, err := a.BeginTx(p.ctx, nil)
@@ -59,14 +52,31 @@ func TestReferenceRowLockViews(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer holder.Rollback()
-						referenceRunStep(t, p.ctx, holder, backend.record, expected)
-						referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT val FROM w WHERE id=1", []string{"val"}, []string{"INT4"}, [][]any{{int64(11)}}))
+						referenceRunStep(t, p.ctx, holder, backend.recorder, expected)
+						ordinary := referenceSelect("SELECT val FROM w WHERE id=1", []string{"val"}, []string{"INT4"}, [][]any{{int64(11)}})
+						ordinary.prepared = prepared
+						referenceRunStep(t, p.ctx, b, backend.recorder, ordinary)
 						referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v WHERE id=2", prepared, 1)
 						referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v WHERE id=3", prepared, 1)
+						referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v+1 WHERE id=2", prepared, 1)
+						referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v+1 WHERE id=3", prepared, 1)
 						if clause == "FOR KEY SHARE" {
 							referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=40 WHERE id=1", prepared, 1)
+						} else if !backend.pg {
+							referenceViewNativeBlocked(t, p.ctx, b, "UPDATE t SET v=40 WHERE id=1", prepared)
+						} else {
+							referenceLockExec(t, p.ctx, b, "SET lock_timeout='100ms'", 0)
+							ap, bp := referenceRowPIDs(t, p.ctx, a, b)
+							done := referenceRowAsync(t, p.ctx, b, "UPDATE t SET v=40 WHERE id=1", prepared, false)
+							referenceRowWait(t, p.ctx, bp, ap)
+							out := referenceLockResult(t, done)
+							if out.result != nil {
+								t.Fatal("failed view update returned result")
+							}
+							referenceRowTimeoutDiagnostic(t, out.err, true, "55P03", "canceling statement due to lock timeout", "updating")
+							referenceLockExec(t, p.ctx, b, "RESET lock_timeout", 0)
 						}
-						if backend.name == "native" {
+						if !backend.pg {
 							referenceViewNativeBlocked(t, p.ctx, b, "DELETE FROM t WHERE id=1", prepared)
 							if err := holder.Rollback(); err != nil {
 								t.Fatal(err)
@@ -90,9 +100,12 @@ func TestReferenceRowLockViews(t *testing.T) {
 			})
 		}
 	}
+	if *referenceMode {
+		referenceViewReadCommitted(t)
+	}
 }
 
-func TestReferenceRowLockViewProvenance(t *testing.T) {
+func referenceViewReferenceProvenance(t *testing.T) {
 	for _, body := range []string{
 		"SELECT a.id,a.v+1 AS val FROM t a JOIN t b USING(id)",
 		"SELECT a.id,a.v+1 AS val FROM t a NATURAL JOIN t b",
@@ -101,7 +114,7 @@ func TestReferenceRowLockViewProvenance(t *testing.T) {
 		"SELECT t.id,t.v+1 AS val FROM t JOIN u ON t.id=u.id",
 	} {
 		t.Run(body, func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			for _, s := range []referenceStep{referenceExec("CREATE TABLE t(id INT,v INT)", 0), referenceExec("INSERT INTO t VALUES(1,10),(2,20)", 2), referenceExec("CREATE TABLE u(id INT)", 0), referenceExec("INSERT INTO u VALUES(1),(1),(3)", 3), referenceExec("CREATE VIEW constant_view AS SELECT num_nulls(NULL) AS n", 0), referenceExec("CREATE VIEW joined AS "+body, 0)} {
 				p.step(t, s)
 			}
@@ -114,10 +127,7 @@ func TestReferenceRowLockViewProvenance(t *testing.T) {
 				step.prepared, step.bag = prepared, true
 				p.step(t, step)
 			}
-			for _, backend := range []struct {
-				name string
-				db   *sql.DB
-			}{{"postgres", p.postgres}, {"native", p.memory}} {
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					a, b := referenceLockConnections(t, p.ctx, backend.db)
 					holder, err := a.BeginTx(p.ctx, nil)
@@ -129,7 +139,7 @@ func TestReferenceRowLockViewProvenance(t *testing.T) {
 					for i := range expected {
 						expected[i] = 11
 					}
-					referenceViewValues(t, referenceRowQuery(p.ctx, holder, "SELECT val FROM joined WHERE id=1 FOR UPDATE", true), "val", "INT4", expected...)
+					referenceViewValues(t, referenceRowQuery(p.ctx, holder, "SELECT val FROM joined WHERE id=1 FOR UPDATE", true, backend.recorder.rawBackend), "val", "INT4", expected...)
 					referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v WHERE id=2", true, 1)
 					referenceRowAffected(t, p.ctx, b, "DELETE FROM u WHERE id=3", true, 1)
 					query := "DELETE FROM t WHERE id=1"
@@ -138,7 +148,7 @@ func TestReferenceRowLockViewProvenance(t *testing.T) {
 						query = "DELETE FROM u WHERE id=1"
 						count = 2
 					}
-					if backend.name == "native" {
+					if !backend.pg {
 						referenceViewNativeBlocked(t, p.ctx, b, query, true)
 						holder.Rollback()
 						referenceRowAffected(t, p.ctx, b, query, true, count)
@@ -157,15 +167,6 @@ func TestReferenceRowLockViewProvenance(t *testing.T) {
 			}
 		})
 	}
-	t.Run("zero_width", func(t *testing.T) {
-		p := newReferencePair(t)
-		for _, s := range []referenceStep{referenceExec("CREATE TABLE t(id INT)", 0), referenceExec("INSERT INTO t VALUES(1),(2)", 2), referenceExec("CREATE VIEW zero_width AS SELECT FROM t WHERE id=1", 0)} {
-			p.step(t, s)
-		}
-		step := referenceSelect("SELECT FROM zero_width FOR KEY SHARE", []string{}, []string{}, [][]any{{}})
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
-	})
 }
 
 func TestReferenceRowLockViewStored(t *testing.T) {
@@ -174,9 +175,12 @@ func TestReferenceRowLockViewStored(t *testing.T) {
 			t.Run(clause+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 				p := referenceViewFixture(t)
 				p.step(t, referenceExec("CREATE VIEW stored AS SELECT id,v FROM t ORDER BY id "+clause, 0))
-				for _, db := range []*sql.DB{p.postgres, p.memory} {
+				implicit := referenceSelect("SELECT v FROM stored WHERE id=1", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}})
+				implicit.prepared = prepared
+				p.step(t, implicit)
+				for _, backend := range p.backends() {
 					var definition string
-					if err := db.QueryRowContext(p.ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='stored'").Scan(&definition); err != nil {
+					if err := backend.db.QueryRowContext(p.ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='stored'").Scan(&definition); err != nil {
 						t.Fatal(err)
 					}
 					order, mark := strings.Index(definition, "ORDER BY"), strings.Index(definition, clause)
@@ -184,11 +188,7 @@ func TestReferenceRowLockViewStored(t *testing.T) {
 						t.Fatal("stored mark must follow ORDER BY", definition)
 					}
 				}
-				for _, backend := range []struct {
-					name   string
-					db     *sql.DB
-					record *referenceRecorder
-				}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+				for _, backend := range p.backends() {
 					t.Run(backend.name, func(t *testing.T) {
 						a, b := referenceLockConnections(t, p.ctx, backend.db)
 						holder, err := a.BeginTx(p.ctx, nil)
@@ -198,12 +198,13 @@ func TestReferenceRowLockViewStored(t *testing.T) {
 						defer holder.Rollback()
 						step := referenceSelect("SELECT v FROM stored WHERE id=1", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}})
 						step.prepared = prepared
-						referenceRunStep(t, p.ctx, holder, backend.record, step)
+						referenceRunStep(t, p.ctx, holder, backend.recorder, step)
 						referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v WHERE id=2", prepared, 1)
 						referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v WHERE id=3", prepared, 1)
-						if backend.name == "native" {
+						if !backend.pg {
 							referenceViewNativeBlocked(t, p.ctx, b, "DELETE FROM t WHERE id=1", prepared)
 							holder.Rollback()
+							referenceRowAffected(t, p.ctx, b, "DELETE FROM t WHERE id=1", prepared, 1)
 						} else {
 							ap, bp := referenceRowPIDs(t, p.ctx, a, b)
 							done := referenceRowAsync(t, p.ctx, b, "DELETE FROM t WHERE id=1", prepared, false)
@@ -220,34 +221,4 @@ func TestReferenceRowLockViewStored(t *testing.T) {
 			})
 		}
 	}
-	t.Run("strength_and_unmarked_sibling", func(t *testing.T) {
-		p := referenceViewFixture(t)
-		for _, s := range []referenceStep{referenceExec("CREATE TABLE u(id INT)", 0), referenceExec("INSERT INTO u VALUES(1)", 1), referenceExec("CREATE VIEW stored AS SELECT id,v FROM t FOR SHARE", 0)} {
-			p.step(t, s)
-		}
-		for _, backend := range []struct {
-			db     *sql.DB
-			record *referenceRecorder
-		}{{p.postgres, p.postgresRecord}, {p.memory, p.memoryRecord}} {
-			a, b := referenceLockConnections(t, p.ctx, backend.db)
-			holder, err := a.BeginTx(p.ctx, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			func() {
-				defer holder.Rollback()
-				referenceRunStep(t, p.ctx, holder, backend.record, referenceSelect("SELECT stored.v FROM stored CROSS JOIN u WHERE stored.id=1 FOR NO KEY UPDATE", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))
-				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT v FROM t WHERE id=1 FOR KEY SHARE", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))
-			}()
-			holder, err = a.BeginTx(p.ctx, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			func() {
-				defer holder.Rollback()
-				referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT stored.v FROM stored CROSS JOIN u WHERE stored.id=1", true), 10)
-				referenceRowAffected(t, p.ctx, b, "DELETE FROM u", true, 1)
-			}()
-		}
-	})
 }

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -14,11 +12,13 @@ func TestReferenceSavepointsDiagnostics(t *testing.T) {
 		f.exec(t, f.a, "BEGIN", false, 0)
 		f.exec(t, f.a, "INSERT INTO t VALUES(1)", false, 1)
 		f.exec(t, f.a, "SAVEPOINT known", false, 0)
-		_, err := f.a.ExecContext(f.pair.ctx, `RELEASE "a""b"`)
 		want := controlsReferenceDiagnostic("3B001", `savepoint "a"b" does not exist`)
-		referenceAssertDiagnostic(t, err, &want)
+		for _, command := range []string{`RELEASE "a""b"`, `ROLLBACK TO "a""b"`} {
+			_, err := f.a.ExecContext(f.pair.ctx, command)
+			referenceAssertDiagnostic(t, err, &want)
+		}
 		for _, command := range []string{"SAVEPOINT other", "RELEASE known"} {
-			_, err = f.a.ExecContext(f.pair.ctx, command)
+			_, err := f.a.ExecContext(f.pair.ctx, command)
 			want = referenceTransactionAborted()
 			referenceAssertDiagnostic(t, err, &want)
 		}
@@ -65,6 +65,20 @@ func TestReferenceSavepointsPrepareBoundaries(t *testing.T) {
 		f.rows(t, f.a, 1, 2)
 		_, err = f.a.ExecContext(ctx, "RELEASE missing")
 		want = controlsReferenceDiagnostic("3B001", `savepoint "missing" does not exist`)
+		referenceAssertDiagnostic(t, err, &want)
+		f.exec(t, f.a, "ROLLBACK TO s", false, 0)
+		f.exec(t, f.a, "INSERT INTO t VALUES(2)", false, 1)
+		unknown, err := f.a.PrepareContext(ctx, "RELEASE missing")
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := unknown.ExecContext(ctx)
+		if closeErr := unknown.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		if r != nil {
+			t.Fatal("failed held RELEASE returned a result")
+		}
 		referenceAssertDiagnostic(t, err, &want)
 		want = referenceTransactionAborted()
 		for _, q := range []string{"SAVEPOINT s", "RELEASE s"} {

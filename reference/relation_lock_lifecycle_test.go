@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,16 +9,14 @@ import (
 func TestReferenceRelationLockLifecycleAndDiagnostics(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			pair := newReferencePair(t)
-			for index, db := range []*sql.DB{pair.memory, pair.postgres} {
-				t.Run([]string{"memory", "postgres"}[index], func(t *testing.T) {
+			pair := newReferenceScenario(t)
+			for _, backend := range pair.backends() {
+				t.Run(backend.name, func(t *testing.T) {
 					ctx := pair.ctx
-					a, b := referenceLockConnections(t, ctx, db)
-					recorder := pair.memoryRecord
-					if index == 1 {
-						recorder = pair.postgresRecord
-					}
+					a, b := referenceLockConnections(t, ctx, backend.db)
+					recorder := backend.recorder
 					referenceLockExec(t, ctx, a, "CREATE TABLE t(v INT NOT NULL)", 0)
+					referenceRelationRowsCloseHold(t, pair, backend, a, b)
 					// Utility preparation succeeds even for absent targets/outside a block.
 					stmt, err := a.PrepareContext(ctx, "LOCK TABLE absent IN ACCESS EXCLUSIVE MODE")
 					if err != nil {
@@ -50,18 +46,11 @@ func TestReferenceRelationLockLifecycleAndDiagnostics(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						referenceLockExec(t, ctx, owner, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE", 0)
+						referenceRunStep(t, ctx, owner, recorder, referenceStep{query: "LOCK TABLE t IN ACCESS EXCLUSIVE MODE", prepared: prepared, affected: 0})
 						referenceLockExec(t, ctx, owner, "INSERT INTO t VALUES(1)", 1)
 						if failure == "constraint" {
-							stmt, err := owner.PrepareContext(ctx, "INSERT INTO t VALUES(NULL)")
-							if err != nil {
-								t.Fatal("constraint must prepare", err)
-							}
-							_, err = stmt.ExecContext(ctx)
-							stmt.Close()
-							if got := referenceExtractDiagnostic(t, err); got != referenceTransactionNull() {
-								t.Fatal(got)
-							}
+							wantNull := referenceTransactionNull()
+							referenceAssertDiagnostic(t, transactionConstraintExec(t, ctx, owner, "INSERT INTO t VALUES(NULL)", prepared), &wantNull)
 						} else {
 							stmt, err := owner.PrepareContext(ctx, "SELECT * FROM t WHERE v = )")
 							if stmt != nil {
@@ -76,7 +65,7 @@ func TestReferenceRelationLockLifecycleAndDiagnostics(t *testing.T) {
 						if err != nil {
 							t.Fatal("abort did not release AX", err)
 						}
-						referenceTransactionValues(t, rows)
+						referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg)
 						referenceRunStep(t, ctx, owner, recorder, referenceTransactionError(false, "LOCK TABLE absent IN ACCESS EXCLUSIVE MODE", referenceTransactionAborted()))
 						if err = owner.Commit(); err == nil {
 							t.Fatal("failed transaction committed")
@@ -85,7 +74,7 @@ func TestReferenceRelationLockLifecycleAndDiagnostics(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						referenceTransactionValues(t, rows)
+						referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg)
 					}
 				})
 			}
@@ -94,28 +83,30 @@ func TestReferenceRelationLockLifecycleAndDiagnostics(t *testing.T) {
 }
 func TestReferenceRelationLockOrdinaryAuthority(t *testing.T) {
 	roleReferenceCleanup(t, []string{"lock_core_reader"})
-	pair := newReferencePair(t)
+	pair := newReferenceScenario(t)
 	pair.step(t, referenceExec("CREATE USER lock_core_reader", 0))
 	pair.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
 	// The fixture recreates public without PUBLIC's schema USAGE privilege.
 	// Make the reader's lookup authority explicit before testing its table rights.
-	if _, err := referenceAdmin.ExecContext(pair.ctx, "GRANT USAGE ON SCHEMA public TO lock_core_reader"); err != nil {
-		t.Fatal(err)
+	if pair.postgres != nil {
+		if _, err := referenceAdmin.ExecContext(pair.ctx, "GRANT USAGE ON SCHEMA public TO lock_core_reader"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := referenceAdmin.ExecContext(pair.ctx, "GRANT SELECT, INSERT ON t TO lock_core_reader"); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := referenceAdmin.ExecContext(pair.ctx, "GRANT SELECT, INSERT ON t TO lock_core_reader"); err != nil {
-		t.Fatal(err)
-	}
-	for index, db := range []*sql.DB{pair.memory, pair.postgres} {
-		t.Run([]string{"memory", "postgres"}[index], func(t *testing.T) {
+	for _, backend := range pair.backends() {
+		t.Run(backend.name, func(t *testing.T) {
 			ctx := pair.ctx
-			a, err := db.Conn(ctx)
+			a, err := backend.db.Conn(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer a.Close()
 			referenceLockExec(t, ctx, a, "SET SESSION AUTHORIZATION lock_core_reader", 0)
 			defer a.ExecContext(ctx, "RESET SESSION AUTHORIZATION")
-			if index == 1 {
+			if backend.pg {
 				rows, err := a.QueryContext(ctx, "SELECT v FROM t")
 				if err != nil {
 					t.Fatal(err)

@@ -140,9 +140,9 @@ func newReferenceFixture(t *testing.T, withPostgres, freshNative bool) *referenc
 	if err != nil {
 		t.Fatal(err)
 	}
+	p.nativeConnector = connector.(*stuntgres.Connector)
 	p.native = sql.OpenDB(connector)
 	if freshNative {
-		p.nativeConnector = connector.(*stuntgres.Connector)
 		wrapped := sqlmw.Driver(noticeReferenceDriver{connector}, referenceInterceptor{})
 		configured, err := wrapped.(driver.DriverContext).OpenConnector("")
 		if err != nil {
@@ -548,6 +548,31 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	types := make([]string, len(columnTypes))
 	for i, typ := range columnTypes {
 		types[i] = typ.DatabaseTypeName()
+		if recorder.rawBackend != referenceRawLegacy {
+			var scan reflect.Type
+			switch types[i] {
+			case "INT4":
+				scan = reflect.TypeFor[int64]()
+				if recorder.rawBackend == referenceRawPostgres {
+					scan = reflect.TypeFor[int32]()
+				}
+			case "INT8":
+				scan = reflect.TypeFor[int64]()
+			case "OID":
+				scan = reflect.TypeFor[int64]()
+				if recorder.rawBackend == referenceRawPostgres {
+					scan = reflect.TypeFor[any]()
+					length, lengthKnown := typ.Length()
+					nullable, nullableKnown := typ.Nullable()
+					if length != 0 || lengthKnown || nullable || nullableKnown {
+						t.Fatalf("pq OID length/nullable descriptor: %d/%t %t/%t", length, lengthKnown, nullable, nullableKnown)
+					}
+				}
+			}
+			if scan != nil && typ.ScanType() != scan {
+				t.Fatalf("%s ScanType %v, want %v", types[i], typ.ScanType(), scan)
+			}
+		}
 	}
 	if !slices.Equal(columns, s.columns) {
 		t.Fatalf("columns got %#v want %#v", columns, s.columns)
@@ -659,7 +684,7 @@ func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records 
 		connector = pq.ConnectorWithNoticeHandler(base, func(n *pq.Error) { *records = append(*records, referenceExtractDiagnostic(t, n)) })
 	} else {
 		base := p.nativeConnector
-		if base == nil {
+		if base == nil || p.memoryRecord.rawBackend == referenceRawLegacy {
 			legacy, err := referenceMemoryDriver.OpenConnector("reference/" + t.Name())
 			if err != nil {
 				t.Fatal(err)
@@ -681,15 +706,11 @@ func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { c.Close() })
-	record := &referenceRecorder{}
-	if p.nativeConnector != nil {
-		if postgres {
-			record.rawBackend = referenceRawPostgres
-		} else {
-			record.rawBackend = referenceRawNative
-		}
+	recorder := &referenceRecorder{rawBackend: p.memoryRecord.rawBackend}
+	if postgres {
+		recorder.rawBackend = p.postgresRecord.rawBackend
 	}
-	return db, c, record
+	return db, c, recorder
 }
 
 func roleReferenceCleanup(t *testing.T, names []string) {
@@ -1026,7 +1047,13 @@ func newControlsReferenceFixture(t *testing.T, pair *referencePair, postgres boo
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { a.ExecContext(context.Background(), "ROLLBACK"); b.Close() })
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		a.ExecContext(ctx, "ROLLBACK")
+		b.ExecContext(ctx, "ROLLBACK")
+		b.Close()
+	})
 	return controlsReferenceFixture{pair: pair, db: db, a: a, b: b, notices: notices, recorder: recorder}
 }
 
@@ -1056,9 +1083,8 @@ func (f controlsReferenceFixture) rows(t *testing.T, x referenceExecutor, values
 	t.Helper()
 	referenceRunStep(t, f.pair.ctx, x, f.recorder, referenceTransactionRows(false, "SELECT v FROM t ORDER BY v", values...))
 }
-func isolationReferenceConnections(t *testing.T, postgres bool) (*sql.DB, *sql.Conn, *sql.Conn) {
+func isolationReferenceConnections(t *testing.T, pair *referencePair, postgres bool) (*sql.DB, *sql.Conn, *sql.Conn) {
 	t.Helper()
-	pair := newReferencePair(t)
 	db := pair.memory
 	if postgres {
 		db = pair.postgres
@@ -1072,8 +1098,10 @@ func isolationReferenceConnections(t *testing.T, postgres bool) (*sql.DB, *sql.C
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		a.ExecContext(context.Background(), "ROLLBACK")
-		b.ExecContext(context.Background(), "ROLLBACK")
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		a.ExecContext(ctx, "ROLLBACK")
+		b.ExecContext(ctx, "ROLLBACK")
 		a.Close()
 		b.Close()
 	})
@@ -1083,9 +1111,13 @@ func isolationReferenceAffected(t *testing.T, ctx context.Context, x referenceEx
 	t.Helper()
 	referenceRunStep(t, ctx, x, &referenceRecorder{}, referenceStep{query: query, prepared: prepared, affected: want})
 }
-func isolationReferenceSelect(t *testing.T, ctx context.Context, x referenceExecutor, query string, prepared bool, want ...int64) {
+func isolationReferenceSelect(t *testing.T, ctx context.Context, x referenceExecutor, postgres bool, query string, prepared bool, want ...int64) {
 	t.Helper()
-	referenceRunStep(t, ctx, x, &referenceRecorder{}, referenceTransactionRows(prepared, query, want...))
+	rawBackend := referenceRawNative
+	if postgres {
+		rawBackend = referenceRawPostgres
+	}
+	referenceRunStep(t, ctx, x, &referenceRecorder{rawBackend: rawBackend}, referenceTransactionRows(prepared, query, want...))
 }
 func isolationReferenceWant(code, message string) referenceDiagnostic {
 	return referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
@@ -1093,6 +1125,7 @@ func isolationReferenceWant(code, message string) referenceDiagnostic {
 func isolationReferenceDiagnostic(t *testing.T, err error, want referenceDiagnostic) {
 	t.Helper()
 	referenceAssertDiagnostic(t, err, &want)
+	referenceState(t, err, want.Code)
 }
 
 // Every outstanding operation is canceled and joined before transaction/connection
@@ -1121,4 +1154,68 @@ func referenceLockOperation(t *testing.T, ctx context.Context, call func(context
 		joined = true
 		return o
 	}
+}
+
+// PostgreSQL statement cancellation preserves its session. lib/pq cancellation
+// through a Go context can instead close the transport, and a fast SET can win
+// that race even with a pre-canceled context. Use server-side cancellation after
+// an observed admission barrier, not a timing assumption about either driver.
+func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn, prepared bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
+	defer cancel()
+	var pid int
+	if err := conn.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	const query = "SELECT pg_sleep(600)"
+	var stmt *sql.Stmt
+	if prepared {
+		var err error
+		stmt, err = conn.PrepareContext(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stmt.Close()
+	}
+	result := make(chan error, 1)
+	go func() {
+		var err error
+		if stmt != nil {
+			_, err = stmt.ExecContext(ctx)
+		} else {
+			_, err = conn.ExecContext(ctx, query)
+		}
+		result <- err
+	}()
+	for {
+		var active bool
+		err := referenceAdmin.QueryRowContext(ctx,
+			"SELECT COALESCE((SELECT state = 'active' AND query = $2 FROM pg_stat_activity WHERE pid = $1), FALSE)",
+			pid, query).Scan(&active)
+		if err != nil {
+			cancel()
+			statementErr := <-result
+			t.Fatalf("cancellation admission barrier: %v; statement: %v", err, statementErr)
+		}
+		if active {
+			break
+		}
+		select {
+		case err := <-result:
+			t.Fatalf("statement completed before cancellation admission: %v", err)
+		default:
+		}
+	}
+	var signaled bool
+	if err := referenceAdmin.QueryRowContext(ctx, "SELECT pg_cancel_backend($1)", pid).Scan(&signaled); err != nil || !signaled {
+		cancel()
+		statementErr := <-result
+		t.Fatalf("cancel backend: signaled=%t error=%v; statement: %v", signaled, err, statementErr)
+	}
+	err := <-result
+	referenceAssertDiagnostic(t, err, &referenceDiagnostic{
+		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014",
+		Message: "canceling statement due to user request",
+	})
 }

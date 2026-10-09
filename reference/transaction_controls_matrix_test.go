@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -19,10 +17,10 @@ func TestReferenceTransactionControlsStateMatrix(t *testing.T) {
 	}
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			pair := newReferencePair(t)
-			for _, postgres := range []bool{false, true} {
-				t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
-					f := newControlsReferenceFixture(t, pair, postgres)
+			pair := newReferenceScenario(t)
+			for _, backend := range pair.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					f := newControlsReferenceFixture(t, pair, backend.pg)
 					ctx := pair.ctx
 					for _, state := range []string{"idle", "active", "aborted"} {
 						for _, q := range queries {
@@ -134,10 +132,10 @@ func TestReferenceTransactionControlsStateMatrix(t *testing.T) {
 }
 
 func TestReferenceTransactionControlsPrepareBoundaries(t *testing.T) {
-	pair := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
-		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
-			f := newControlsReferenceFixture(t, pair, postgres)
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			f := newControlsReferenceFixture(t, pair, backend.pg)
 			ctx := pair.ctx
 			f.exec(t, f.b, "CREATE TABLE t(v INT NOT NULL)", false, 0)
 			begin, err := f.a.PrepareContext(ctx, "BEGIN")

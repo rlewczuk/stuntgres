@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 )
 
@@ -15,12 +12,12 @@ func TestReferenceRelationLockWaitsAbort(t *testing.T) {
 			name = "prepare"
 		}
 		t.Run(name, func(t *testing.T) {
-			p := newReferencePair(t)
-			for index, db := range []*sql.DB{p.memory, p.postgres} {
-				t.Run([]string{"native", "postgres"}[index], func(t *testing.T) {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
 					ctx := p.ctx
-					a, b := referenceLockConnections(t, ctx, db)
-					c, err := db.Conn(ctx)
+					a, b := referenceLockConnections(t, ctx, backend.db)
+					c, err := backend.db.Conn(ctx)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -28,7 +25,7 @@ func TestReferenceRelationLockWaitsAbort(t *testing.T) {
 					referenceLockExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
 					referenceLockExec(t, ctx, a, "CREATE TABLE u(v INT)", 0)
 					ap, bp := 0, 0
-					if index == 1 {
+					if backend.pg {
 						ap = referenceLockPID(t, ctx, a)
 						bp = referenceLockPID(t, ctx, b)
 					}
@@ -53,7 +50,7 @@ func TestReferenceRelationLockWaitsAbort(t *testing.T) {
 						rows, err := waiter.QueryContext(ctx, "SELECT v FROM t")
 						return relationOutcome{rows: rows, err: err}
 					})
-					if index == 1 {
+					if backend.pg {
 						referenceLockWaitBehind(t, ctx, bp, ap, referenceLockOID(t, ctx, "public.t"), "AccessShareLock")
 					}
 					o := await()
@@ -80,7 +77,7 @@ func TestReferenceRelationLockWaitsAbort(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					referenceTransactionValues(t, rows)
+					referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg)
 					peer.Rollback()
 					waiter.Rollback()
 					holder.Rollback()
@@ -89,7 +86,7 @@ func TestReferenceRelationLockWaitsAbort(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					referenceTransactionValues(t, rows, 2)
+					referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 2)
 				})
 			}
 		})

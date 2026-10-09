@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,14 +6,11 @@ import (
 )
 
 func TestReferenceRowLockKeyShareSnapshot(t *testing.T) {
-	p := newReferencePair(t)
-	for backend, db := range []*sql.DB{p.postgres, p.memory} {
-		t.Run([]string{"postgres_first", "memory"}[backend], func(t *testing.T) {
-			a, b := referenceLockConnections(t, p.ctx, db)
-			recorder := p.postgresRecord
-			if backend == 1 {
-				recorder = p.memoryRecord
-			}
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			a, b := referenceLockConnections(t, p.ctx, backend.db)
+			recorder := backend.recorder
 			referenceRunStep(t, p.ctx, a, recorder, referenceExec("CREATE TABLE t(id INT,v INT)", 0))
 			referenceRunStep(t, p.ctx, a, recorder, referenceExec("INSERT INTO t VALUES(1,10)", 1))
 			reader, err := b.BeginTx(p.ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
@@ -42,14 +37,11 @@ func TestReferenceRowLockKeyShareSnapshot(t *testing.T) {
 func TestReferenceRowLockKeyShareDeletedReplacement(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			p := newReferencePair(t)
-			for backend, db := range []*sql.DB{p.postgres, p.memory} {
-				t.Run([]string{"postgres", "memory"}[backend], func(t *testing.T) {
-					a, b := referenceLockConnections(t, p.ctx, db)
-					recorder := p.postgresRecord
-					if backend == 1 {
-						recorder = p.memoryRecord
-					}
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					a, b := referenceLockConnections(t, p.ctx, backend.db)
+					recorder := backend.recorder
 					referenceRunStep(t, p.ctx, a, recorder, referenceExec("CREATE TABLE t(id INT,v INT)", 0))
 					referenceRunStep(t, p.ctx, a, recorder, referenceExec("INSERT INTO t VALUES(1,10)", 1))
 					reader, err := b.BeginTx(p.ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
@@ -67,6 +59,7 @@ func TestReferenceRowLockKeyShareDeletedReplacement(t *testing.T) {
 						step = referencePrepared(step)
 					}
 					referenceRunStep(t, p.ctx, reader, recorder, step)
+					referenceRunStep(t, p.ctx, reader, recorder, referenceTransactionError(false, "SELECT v FROM t", referenceTransactionAborted()))
 				})
 			}
 		})

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -25,7 +23,7 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 				path = "held_prepared"
 			}
 			t.Run(mode.name+"/"+path, func(t *testing.T) {
-				_, a, b := isolationReferenceConnections(t, postgres)
+				_, a, b := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				t.Cleanup(func() {
@@ -56,14 +54,14 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 				selectT := func(want ...int64) {
 					t.Helper()
 					if held == nil {
-						isolationReferenceSelect(t, ctx, a, "SELECT v FROM t ORDER BY v", false, want...)
+						isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM t ORDER BY v", false, want...)
 						return
 					}
 					rows, err := held.QueryContext(ctx)
 					if err != nil {
 						t.Fatal(err)
 					}
-					referenceTransactionValues(t, rows, want...)
+					referenceLimitLockValues(t, relationOutcome{rows: rows}, postgres, want...)
 				}
 
 				isolationReferenceAffected(t, ctx, a, "BEGIN ISOLATION LEVEL "+mode.isolation, false, 0)
@@ -82,17 +80,17 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 
 				if mode.stable {
 					selectT(1, 2)
-					isolationReferenceSelect(t, ctx, a, "SELECT v FROM u ORDER BY v", false, 10)
-					isolationReferenceSelect(t, ctx, a, "SELECT v FROM e ORDER BY v", false)
+					isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM u ORDER BY v", false, 10)
+					isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM e ORDER BY v", false)
 					// r was never read or prepared: retain its replaced old root too.
-					isolationReferenceSelect(t, ctx, a, "SELECT v FROM r ORDER BY v", false, 10)
-					isolationReferenceSelect(t, ctx, a, "SELECT v FROM d ORDER BY v", false, 40)
+					isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM r ORDER BY v", false, 10)
+					isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM d ORDER BY v", false, 40)
 				} else {
 					selectT(1, 2, 3)
-					isolationReferenceSelect(t, ctx, a, "SELECT v FROM u ORDER BY v", false, 10, 20)
-					isolationReferenceSelect(t, ctx, a, "SELECT v FROM e ORDER BY v", false, 30)
-					isolationReferenceSelect(t, ctx, a, "SELECT v FROM r ORDER BY v", false, 20)
-					isolationReferenceSelect(t, ctx, a, "SELECT v FROM d ORDER BY v", false)
+					isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM u ORDER BY v", false, 10, 20)
+					isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM e ORDER BY v", false, 30)
+					isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM r ORDER BY v", false, 20)
+					isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM d ORDER BY v", false)
 				}
 
 				isolationReferenceAffected(t, ctx, a, "INSERT INTO t VALUES(4)", false, 1)
@@ -101,9 +99,9 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 				} else {
 					selectT(1, 2, 3, 4)
 				}
-				isolationReferenceSelect(t, ctx, b, "SELECT v FROM t ORDER BY v", false, 1, 2, 3)
+				isolationReferenceSelect(t, ctx, b, postgres, "SELECT v FROM t ORDER BY v", false, 1, 2, 3)
 				isolationReferenceAffected(t, ctx, a, "COMMIT", false, 0)
-				isolationReferenceSelect(t, ctx, b, "SELECT v FROM t ORDER BY v", false, 1, 2, 3, 4)
+				isolationReferenceSelect(t, ctx, b, postgres, "SELECT v FROM t ORDER BY v", false, 1, 2, 3, 4)
 			})
 		}
 	}
@@ -114,7 +112,7 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 			path = "prepared"
 		}
 		t.Run("RR/concurrent_update/"+path, func(t *testing.T) {
-			_, a, b := isolationReferenceConnections(t, postgres)
+			_, a, b := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			t.Cleanup(func() {
@@ -125,7 +123,7 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 			isolationReferenceAffected(t, ctx, b, "CREATE TABLE t(v INT)", false, 0)
 			isolationReferenceAffected(t, ctx, b, "INSERT INTO t VALUES(10)", false, 1)
 			isolationReferenceAffected(t, ctx, a, "BEGIN ISOLATION LEVEL REPEATABLE READ", false, 0)
-			isolationReferenceSelect(t, ctx, a, "SELECT v FROM t ORDER BY v", false, 10)
+			isolationReferenceSelect(t, ctx, a, postgres, "SELECT v FROM t ORDER BY v", false, 10)
 			isolationReferenceAffected(t, ctx, b, "UPDATE t SET v=20 WHERE v=10", false, 1)
 			// The existing helper requires successful Prepare before actual Exec.
 			err := transactionConstraintExec(t, ctx, a, "UPDATE t SET v=30", prepared)
@@ -133,13 +131,22 @@ func referenceIsolationVisibility(t *testing.T, postgres bool) {
 			_, err = a.ExecContext(ctx, "SELECT v FROM t ORDER BY v")
 			isolationReferenceDiagnostic(t, err, referenceTransactionAborted())
 			isolationReferenceAffected(t, ctx, a, "ROLLBACK", false, 0)
-			isolationReferenceSelect(t, ctx, b, "SELECT v FROM t ORDER BY v", false, 20)
+			isolationReferenceSelect(t, ctx, b, postgres, "SELECT v FROM t ORDER BY v", false, 20)
 		})
 	}
 }
 
 func TestReferenceTransactionIsolationVisibility(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
-		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) { referenceIsolationVisibility(t, postgres) })
+		if postgres && !*referenceMode {
+			continue
+		}
+		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
+			referenceIsolationVisibility(t, postgres)
+			referenceIsolationCatalogLifecycle(t, postgres)
+		})
+	}
+	if *referenceMode {
+		t.Run("snapshot_admission", referenceIsolationSnapshotPhases)
 	}
 }

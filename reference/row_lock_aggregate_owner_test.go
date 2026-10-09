@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -23,14 +20,15 @@ func TestReferenceRowLockAggregateStatementOwner(t *testing.T) {
 						want = append(want, 1)
 					}
 					query := "SELECT count(*) AS n FROM " + from + " GROUP BY nextval('s') ORDER BY n"
-					for _, backend := range []struct {
-						name string
-						db   *sql.DB
-					}{{"postgres", p.postgres}, {"native", p.memory}} {
+					for _, backend := range p.backends() {
 						t.Run(backend.name, func(t *testing.T) {
 							a, b := referenceLockConnections(t, p.ctx, backend.db)
+							values := func(out relationOutcome, want ...int64) {
+								out.rawBackend = backend.recorder.rawBackend
+								referenceViewValues(t, out, "n", "INT8", want...)
+							}
 							ap, bp := 0, 0
-							if backend.name == "postgres" {
+							if backend.pg {
 								ap, bp = referenceRowPIDs(t, p.ctx, a, b)
 							}
 							holder, err := a.BeginTx(p.ctx, nil)
@@ -40,16 +38,16 @@ func TestReferenceRowLockAggregateStatementOwner(t *testing.T) {
 							defer holder.Rollback()
 							if insert {
 								referenceRowAffected(t, p.ctx, holder, "INSERT INTO destination "+query, prepared, int64(len(want)))
-								referenceViewValues(t, referenceRowQuery(p.ctx, holder, "SELECT n FROM destination ORDER BY n", false), "n", "INT8", want...)
+								values(referenceRowQuery(p.ctx, holder, "SELECT n FROM destination ORDER BY n", false), want...)
 							} else {
-								referenceViewValues(t, referenceRowQuery(p.ctx, holder, query, prepared), "n", "INT8", want...)
+								values(referenceRowQuery(p.ctx, holder, query, prepared), want...)
 							}
-							referenceViewValues(t, referenceRowQuery(p.ctx, holder, "SELECT currval('s') AS n", false), "n", "INT8", int64(len(want)))
+							values(referenceRowQuery(p.ctx, holder, "SELECT currval('s') AS n", false), int64(len(want)))
 							referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=v WHERE id=3", false, 1)
 							if joined {
 								referenceRowAffected(t, p.ctx, b, "DELETE FROM u WHERE id=2", false, 1)
 							}
-							if backend.name == "postgres" {
+							if backend.pg {
 								done := referenceRowAsync(t, p.ctx, b, "DELETE FROM t WHERE id=1", prepared, false)
 								referenceRowWait(t, p.ctx, bp, ap)
 								if err := holder.Rollback(); err != nil {
@@ -67,8 +65,8 @@ func TestReferenceRowLockAggregateStatementOwner(t *testing.T) {
 								}
 								referenceRowAffected(t, p.ctx, b, "DELETE FROM t WHERE id=1", prepared, 1)
 							}
-							referenceViewValues(t, referenceRowQuery(p.ctx, b, "SELECT n FROM destination", false), "n", "INT8")
-							referenceViewValues(t, referenceRowQuery(p.ctx, a, "SELECT currval('s') AS n", false), "n", "INT8", int64(len(want)))
+							values(referenceRowQuery(p.ctx, b, "SELECT n FROM destination", false))
+							values(referenceRowQuery(p.ctx, a, "SELECT currval('s') AS n", false), int64(len(want)))
 						})
 					}
 				})

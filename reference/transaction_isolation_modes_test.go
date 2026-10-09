@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,10 +6,10 @@ import (
 )
 
 func TestReferenceTransactionIsolationModes(t *testing.T) {
-	pair := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
-		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
-			f := newControlsReferenceFixture(t, pair, postgres)
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			f := newControlsReferenceFixture(t, pair, backend.pg)
 			ctx := pair.ctx
 			held, err := f.a.PrepareContext(ctx, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
 			if err != nil {
@@ -37,6 +35,8 @@ func TestReferenceTransactionIsolationModes(t *testing.T) {
 			referenceIsolationShow(t, f.a, "transaction_isolation", "repeatable read")
 			referenceIsolationShow(t, f.a, "transaction_read_only", "off")
 			f.exec(t, f.a, "ROLLBACK", false, 0)
+			_, err = f.a.ExecContext(ctx, "BEGIN READ ONLY junk")
+			referenceState(t, err, "42601")
 			f.exec(t, f.a, "BEGIN READ ONLY,READ WRITE ISOLATION LEVEL READ UNCOMMITTED", false, 0)
 			referenceIsolationShow(t, f.a, "transaction_isolation", "read uncommitted")
 			referenceIsolationShow(t, f.a, "transaction_read_only", "off")
@@ -46,9 +46,12 @@ func TestReferenceTransactionIsolationModes(t *testing.T) {
 }
 func TestReferenceTransactionIsolationReadOnlyAnalysisPrecedence(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		for _, query := range []string{"UPDATE t SET missing=2", "INSERT INTO missing VALUES(2)", "DELETE FROM t WHERE missing=2"} {
 			t.Run(map[bool]string{false: "memory/", true: "postgres/"}[postgres]+query, func(t *testing.T) {
-				_, a, b := isolationReferenceConnections(t, postgres)
+				_, a, b := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 				ctx := context.Background()
 				isolationReferenceAffected(t, ctx, b, "CREATE TABLE t(v INT)", false, 0)
 				isolationReferenceAffected(t, ctx, a, "BEGIN READ ONLY", false, 0)
@@ -70,12 +73,31 @@ func TestReferenceTransactionIsolationReadOnlyAnalysisPrecedence(t *testing.T) {
 			})
 		}
 	}
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name+"/implicit_and_lock", func(t *testing.T) {
+			a, b := referenceLockConnections(t, p.ctx, backend.db)
+			referenceLockExec(t, p.ctx, b, "CREATE TABLE t(v INT)", 0)
+			referenceLockExec(t, p.ctx, a, "SET default_transaction_read_only=on", 0)
+			for _, tc := range []struct{ query, tag string }{{"INSERT INTO t VALUES(1)", "INSERT"}, {"CREATE TABLE forbidden(v INT)", "CREATE TABLE"}} {
+				s := referenceErrorDiagnostic(tc.query, controlsReferenceDiagnostic("25006", "cannot execute "+tc.tag+" in a read-only transaction"))
+				referenceRunStep(t, p.ctx, a, backend.recorder, s)
+			}
+			referenceLockExec(t, p.ctx, a, "BEGIN READ ONLY", 0)
+			referenceRunStep(t, p.ctx, a, backend.recorder, referenceStep{query: "LOCK TABLE t IN ACCESS EXCLUSIVE MODE", prepared: true, affected: 0})
+			referenceLockExec(t, p.ctx, a, "ROLLBACK", 0)
+			isolationReferenceSelect(t, p.ctx, b, backend.pg, "SELECT v FROM t", false)
+		})
+	}
 }
 
 func TestReferenceTransactionIsolationOwnerSettingReads(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) {
-			_, a, _ := isolationReferenceConnections(t, postgres)
+			_, a, _ := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 			ctx := context.Background()
 			isolationReferenceAffected(t, ctx, a, "SET default_transaction_read_only TO on", false, 0)
 			tx, err := a.BeginTx(ctx, nil)

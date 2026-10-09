@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,17 +7,20 @@ import (
 
 func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 	for _, source := range []string{"t", "w", "stored"} {
+		if source != "stored" && !*referenceMode {
+			continue
+		}
 		for _, change := range []string{"UPDATE t SET v=30 WHERE id=1", "DELETE FROM t WHERE id=1"} {
 			for _, commit := range []bool{false, true} {
 				for _, prepared := range []bool{false, true} {
 					t.Run(source+change+map[bool]string{false: "/rollback", true: "/commit"}[commit]+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
-						p := newReferencePair(t)
-						for backend, db := range []*sql.DB{p.postgres, p.memory} {
-							if backend == 1 && source != "stored" {
+						p := newReferenceScenario(t)
+						for _, backend := range p.backends() {
+							if !backend.pg && source != "stored" {
 								continue
 							}
-							t.Run([]string{"postgres", "memory"}[backend], func(t *testing.T) {
-								a, b := referenceLockConnections(t, p.ctx, db)
+							t.Run(backend.name, func(t *testing.T) {
+								a, b := referenceLockConnections(t, p.ctx, backend.db)
 								for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "INSERT INTO t VALUES(1,10),(2,20)", "CREATE VIEW inner_view AS SELECT id,v+1 AS val FROM t ORDER BY val,id", "CREATE VIEW w AS SELECT id,val+1 AS shifted FROM inner_view ORDER BY shifted,id", "CREATE VIEW stored AS SELECT id,v FROM t ORDER BY v+1,id FOR UPDATE"} {
 									if _, err := a.ExecContext(p.ctx, q); err != nil {
 										t.Fatal(err)
@@ -36,7 +37,7 @@ func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 									query += " FOR UPDATE"
 								}
 								ap, bp := 0, 0
-								if backend == 0 {
+								if backend.pg {
 									ap, bp = referenceRowPIDs(t, p.ctx, a, b)
 								}
 								holder, err := a.BeginTx(p.ctx, nil)
@@ -44,10 +45,10 @@ func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 									t.Fatal(err)
 								}
 								defer holder.Rollback()
-								referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM t WHERE id=1 FOR UPDATE", false), 10)
+								referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM t WHERE id=1 FOR UPDATE", false, backend.recorder.rawBackend), 10)
 								referenceRowAffected(t, p.ctx, holder, change, false, 1)
-								done := referenceRowAsync(t, p.ctx, b, query, prepared, true)
-								if backend == 0 {
+								done := referenceRowAsync(t, p.ctx, b, query, prepared, true, backend.recorder.rawBackend)
+								if backend.pg {
 									referenceRowWait(t, p.ctx, bp, ap)
 								}
 								if commit {
@@ -77,18 +78,27 @@ func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 			}
 		}
 	}
+	if *referenceMode {
+		referenceRowOrderedRejection(t)
+	}
+}
+
+func TestReferenceRowLockOrderedCacheVolatile(t *testing.T) {
 	for _, source := range []string{"t", "w", "stored", "stored_rows"} {
+		if source != "stored" && source != "stored_rows" && !*referenceMode {
+			continue
+		}
 		for _, replacement := range []bool{false, true} {
 			for _, commit := range []bool{false, true} {
 				for _, prepared := range []bool{false, true} {
 					t.Run("volatile/"+source+map[bool]string{false: "/unchanged", true: "/replacement"}[replacement]+map[bool]string{false: "/rollback", true: "/commit"}[commit]+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
-						p := newReferencePair(t)
-						for backend, db := range []*sql.DB{p.postgres, p.memory} {
-							if backend == 1 && source != "stored" && source != "stored_rows" {
+						p := newReferenceScenario(t)
+						for _, backend := range p.backends() {
+							if !backend.pg && source != "stored" && source != "stored_rows" {
 								continue
 							}
-							t.Run([]string{"postgres", "memory"}[backend], func(t *testing.T) {
-								a, b := referenceLockConnections(t, p.ctx, db)
+							t.Run(backend.name, func(t *testing.T) {
+								a, b := referenceLockConnections(t, p.ctx, backend.db)
 								for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "INSERT INTO t VALUES(1,10)", "CREATE SEQUENCE s", "CREATE VIEW w AS SELECT id,v FROM t", "CREATE VIEW stored AS SELECT id,nextval('s') AS n FROM t ORDER BY n,n FOR UPDATE"} {
 									if _, err := a.ExecContext(p.ctx, q); err != nil {
 										t.Fatal(err)
@@ -107,7 +117,7 @@ func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 								want := int64(1)
 								if replacement {
 									ap, bp := 0, 0
-									if backend == 0 {
+									if backend.pg {
 										ap, bp = referenceRowPIDs(t, p.ctx, a, b)
 									}
 									holder, err := a.BeginTx(p.ctx, nil)
@@ -115,10 +125,10 @@ func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 										t.Fatal(err)
 									}
 									defer holder.Rollback()
-									referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM t FOR UPDATE", false), 10)
+									referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM t FOR UPDATE", false, backend.recorder.rawBackend), 10)
 									referenceRowAffected(t, p.ctx, holder, "UPDATE t SET v=30", false, 1)
-									done := referenceRowAsync(t, p.ctx, b, query, prepared, true)
-									if backend == 0 {
+									done := referenceRowAsync(t, p.ctx, b, query, prepared, true, backend.recorder.rawBackend)
+									if backend.pg {
 										referenceRowWait(t, p.ctx, bp, ap)
 									} else if source != "stored_rows" {
 										referenceLimitSequenceCapture(t, p.ctx, holder)
@@ -136,13 +146,10 @@ func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 									}
 									referenceViewValues(t, referenceLockResult(t, done), "n", "INT8", want)
 								} else {
-									referenceViewValues(t, referenceRowQuery(p.ctx, b, query, prepared), "n", "INT8", want)
+									referenceViewValues(t, referenceRowQuery(p.ctx, b, query, prepared, backend.recorder.rawBackend), "n", "INT8", want)
 								}
 								step := referenceSelect("SELECT currval('s') AS n", []string{"n"}, []string{"INT8"}, [][]any{{want}})
-								record := p.postgresRecord
-								if backend == 1 {
-									record = p.memoryRecord
-								}
+								record := backend.recorder
 								referenceRunStep(t, p.ctx, b, record, step)
 							})
 						}
@@ -153,8 +160,8 @@ func TestReferenceRowLockOrderedCacheFrontier(t *testing.T) {
 	}
 }
 
-func TestReferenceRowLockOrderedCacheRejection(t *testing.T) {
-	p := newReferencePair(t)
+func referenceRowOrderedRejection(t *testing.T) {
+	p := newReferenceScenario(t)
 	a, b := referenceLockConnections(t, p.ctx, p.postgres)
 	for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "INSERT INTO t VALUES(1,10),(2,20)", "CREATE TABLE u(id INT)", "INSERT INTO u VALUES(1),(1),(2),(2)", "CREATE VIEW w AS SELECT t.id,t.v+1 AS k FROM t JOIN u USING(id) WHERE t.v<25 ORDER BY k,id"} {
 		if _, err := a.ExecContext(p.ctx, q); err != nil {
@@ -167,9 +174,9 @@ func TestReferenceRowLockOrderedCacheRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer holder.Rollback()
-	referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM t WHERE id=1 FOR UPDATE", false), 10)
+	referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM t WHERE id=1 FOR UPDATE", false, referenceRawPostgres), 10)
 	referenceRowAffected(t, p.ctx, holder, "UPDATE t SET v=30 WHERE id=1", false, 1)
-	done := referenceRowAsync(t, p.ctx, b, "SELECT k+1 AS output FROM w ORDER BY output,id FOR UPDATE", true, true)
+	done := referenceRowAsync(t, p.ctx, b, "SELECT k+1 AS output FROM w ORDER BY output,id FOR UPDATE", true, true, referenceRawPostgres)
 	referenceRowWait(t, p.ctx, bp, ap)
 	if err := holder.Commit(); err != nil {
 		t.Fatal(err)
@@ -183,9 +190,9 @@ func TestReferenceRowLockOrderedCacheRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer holder.Rollback()
-	referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM t WHERE id=1 FOR UPDATE", false), 30)
+	referenceRowValues(t, referenceRowQuery(p.ctx, holder, "SELECT v FROM t WHERE id=1 FOR UPDATE", false, referenceRawPostgres), 30)
 	referenceRowAffected(t, p.ctx, holder, "UPDATE t SET v=40 WHERE id=1", false, 1)
-	done = referenceRowAsync(t, p.ctx, b, "SELECT n FROM grouped", true, true)
+	done = referenceRowAsync(t, p.ctx, b, "SELECT n FROM grouped", true, true, referenceRawPostgres)
 	referenceRowWait(t, p.ctx, bp, ap)
 	if err := holder.Commit(); err != nil {
 		t.Fatal(err)
@@ -198,10 +205,7 @@ func TestReferenceRowLockOrderedCacheSnapshot(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			t.Run(clause+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 				p := referenceViewFixture(t)
-				for _, backend := range []struct {
-					db     *sql.DB
-					record *referenceRecorder
-				}{{p.postgres, p.postgresRecord}, {p.memory, p.memoryRecord}} {
+				for _, backend := range p.backends() {
 					a, b := referenceLockConnections(t, p.ctx, backend.db)
 					reader, err := b.BeginTx(p.ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 					if err != nil {
@@ -209,15 +213,15 @@ func TestReferenceRowLockOrderedCacheSnapshot(t *testing.T) {
 					}
 					func() {
 						defer reader.Rollback()
-						referenceViewValues(t, referenceRowQuery(p.ctx, reader, "SELECT val+1 AS k FROM w WHERE id<3 ORDER BY k,id", false), "k", "INT4", 12, 22)
+						referenceViewValues(t, referenceRowQuery(p.ctx, reader, "SELECT val+1 AS k FROM w WHERE id<3 ORDER BY k,id", false, backend.recorder.rawBackend), "k", "INT4", 12, 22)
 						referenceRowAffected(t, p.ctx, a, "UPDATE t SET v=30 WHERE id=1", false, 1)
 						query := "SELECT val+1 AS k FROM w WHERE id<3 ORDER BY k,id " + clause
 						if clause == "FOR KEY SHARE" {
-							referenceViewValues(t, referenceRowQuery(p.ctx, reader, query, prepared), "k", "INT4", 12, 22)
+							referenceViewValues(t, referenceRowQuery(p.ctx, reader, query, prepared, backend.recorder.rawBackend), "k", "INT4", 12, 22)
 						} else {
 							step := referenceImplicitError(query, referenceDiagnostic{Code: "40001", Message: "could not serialize access due to concurrent update"})
 							step.selectRows, step.prepared, step.errorStage = true, prepared, "execute"
-							referenceRunStep(t, p.ctx, reader, backend.record, step)
+							referenceRunStep(t, p.ctx, reader, backend.recorder, step)
 						}
 					}()
 				}

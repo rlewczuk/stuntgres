@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"reflect"
 	"regexp"
@@ -13,10 +10,10 @@ import (
 )
 
 func TestReferenceRowLockLifetime(t *testing.T) {
-	p := newReferencePair(t)
-	for backend, db := range []*sql.DB{p.postgres, p.memory} {
-		t.Run([]string{"postgres", "memory"}[backend], func(t *testing.T) {
-			a, b := referenceLockConnections(t, p.ctx, db)
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			a, b := referenceLockConnections(t, p.ctx, backend.db)
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT,v INT)", 0)
 			referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,10)", 1)
 			tx, err := a.BeginTx(p.ctx, nil)
@@ -31,19 +28,28 @@ func TestReferenceRowLockLifetime(t *testing.T) {
 			defer stmt.Close()
 			referenceLockExec(t, p.ctx, b, "UPDATE t SET v=11", 1) // Prepare has no row hold.
 			rows, err := stmt.QueryContext(p.ctx)
-			referenceRowValues(t, relationOutcome{rows: rows, err: err}, 11)
+			referenceRowValues(t, relationOutcome{rows: rows, err: err, rawBackend: backend.recorder.rawBackend}, 11)
 			stmt.Close()
-			recorder := p.postgresRecord
-			if backend == 1 {
-				recorder = p.memoryRecord
+			recorder := backend.recorder
+			if !backend.pg {
+				bounded, cancel := context.WithTimeout(p.ctx, 30*time.Millisecond)
+				out := referenceRowExecute(bounded, b, "UPDATE t SET v=12", false)
+				cancel()
+				if out.result != nil || !errors.Is(out.err, context.DeadlineExceeded) {
+					t.Fatal("closed cursor/statement lost row grant", out.result, out.err)
+				}
+				var state interface{ SQLState() string }
+				if errors.As(out.err, &state) {
+					t.Fatal("caller deadline fabricated SQLSTATE", out.err)
+				}
 			}
 			referenceRunStep(t, p.ctx, b, recorder, referenceExec("SET lock_timeout='20ms'", 0))
 			_, err = b.ExecContext(p.ctx, "UPDATE t SET v=12")
-			referenceRowTimeoutDiagnostic(t, err, backend == 0, "55P03", "canceling statement due to lock timeout", "updating")
+			referenceRowTimeoutDiagnostic(t, err, backend.pg, "55P03", "canceling statement due to lock timeout", "updating")
 			referenceRunStep(t, p.ctx, b, recorder, referenceExec("RESET lock_timeout", 0))
 			referenceRunStep(t, p.ctx, b, recorder, referenceExec("SET statement_timeout='20ms'", 0))
 			_, err = b.ExecContext(p.ctx, "SELECT v FROM t FOR UPDATE")
-			referenceRowTimeoutDiagnostic(t, err, backend == 0, "57014", "canceling statement due to statement timeout", "locking")
+			referenceRowTimeoutDiagnostic(t, err, backend.pg, "57014", "canceling statement due to statement timeout", "locking")
 			referenceRunStep(t, p.ctx, b, recorder, referenceExec("RESET statement_timeout", 0))
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
@@ -53,17 +59,17 @@ func TestReferenceRowLockLifetime(t *testing.T) {
 	}
 }
 func TestReferenceRowLockJoinedIndependence(t *testing.T) {
-	p := newReferencePair(t)
-	for backend, db := range []*sql.DB{p.postgres, p.memory} {
-		t.Run([]string{"postgres", "memory"}[backend], func(t *testing.T) {
-			a, b := referenceLockConnections(t, p.ctx, db)
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			a, b := referenceLockConnections(t, p.ctx, backend.db)
 			for _, q := range []string{"CREATE TABLE t(id INT,v INT)", "CREATE TABLE u(id INT)", "INSERT INTO t VALUES(1,10),(2,20)", "INSERT INTO u VALUES(1),(3)"} {
 				if _, err := a.ExecContext(p.ctx, q); err != nil {
 					t.Fatal(err)
 				}
 			}
 			ap, bp := 0, 0
-			if backend == 0 {
+			if backend.pg {
 				ap, bp = referenceRowPIDs(t, p.ctx, a, b)
 			}
 			for _, prepared := range []bool{false, true} {
@@ -73,10 +79,10 @@ func TestReferenceRowLockJoinedIndependence(t *testing.T) {
 				}
 				func() {
 					defer tx.Rollback()
-					referenceRowValues(t, referenceRowQuery(p.ctx, tx, "SELECT t.v FROM t JOIN u USING(id) FOR SHARE", prepared), 10)
+					referenceRowValues(t, referenceRowQuery(p.ctx, tx, "SELECT t.v FROM t JOIN u USING(id) FOR SHARE", prepared, backend.recorder.rawBackend), 10)
 					referenceRowAffected(t, p.ctx, b, "UPDATE u SET id=3 WHERE id=3", prepared, 1)
 					referenceRowAffected(t, p.ctx, b, "UPDATE t SET v=20 WHERE id=2", prepared, 1)
-					if backend == 0 {
+					if backend.pg {
 						ctx, cancel := context.WithTimeout(p.ctx, 5*time.Second)
 						defer cancel()
 						done := referenceRowAsync(t, ctx, b, "DELETE FROM u WHERE id=1", prepared, false)
@@ -95,55 +101,22 @@ func TestReferenceRowLockJoinedIndependence(t *testing.T) {
 						if !errors.Is(outcome.err, context.DeadlineExceeded) {
 							t.Fatal(outcome.err)
 						}
+						if outcome.result != nil {
+							t.Fatal("failed joined DELETE returned result")
+						}
+						var state interface{ SQLState() string }
+						if errors.As(outcome.err, &state) {
+							t.Fatal("caller deadline fabricated SQLSTATE", outcome.err)
+						}
 					}
 				}()
+				if !backend.pg {
+					referenceRowAffected(t, p.ctx, b, "DELETE FROM u WHERE id=1", prepared, 1)
+					referenceRowAffected(t, p.ctx, b, "INSERT INTO u VALUES(1)", prepared, 1)
+				}
 			}
 		})
 	}
-}
-func TestReferenceRowLockKeyControl(t *testing.T) {
-	p := newReferencePair(t)
-	a, b := referenceLockConnections(t, p.ctx, p.postgres)
-	referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT PRIMARY KEY,v INT)", 0)
-	referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,10)", 1)
-	ap, bp := referenceRowPIDs(t, p.ctx, a, b)
-	tx, err := a.BeginTx(p.ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	referenceRowValues(t, referenceRowQuery(p.ctx, tx, "SELECT v FROM t FOR KEY SHARE", false), 10)
-	// PostgreSQL-only unique-key metadata control; native tables are keyless.
-	referenceLockExec(t, p.ctx, b, "UPDATE t SET v=20 WHERE id=1", 1)
-	ctx, cancel := context.WithTimeout(p.ctx, 5*time.Second)
-	defer cancel()
-	done := referenceRowAsync(t, ctx, b, "UPDATE t SET id=2 WHERE id=1", true, false)
-	referenceRowWait(t, ctx, bp, ap)
-	tx.Rollback()
-	outcome := referenceLockResult(t, done)
-	if outcome.err != nil {
-		t.Fatal(outcome.err)
-	}
-	referenceLockAffected(t, outcome.result, 1)
-	referenceRowValues(t, referenceRowQuery(p.ctx, b, "SELECT v FROM t WHERE id=2 FOR UPDATE", true), 20)
-}
-func TestReferenceRowLockSavepointControl(t *testing.T) {
-	p := newReferencePair(t)
-	a, b := referenceLockConnections(t, p.ctx, p.postgres)
-	referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT,v INT)", 0)
-	referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,10),(2,20)", 2)
-	tx, err := a.BeginTx(p.ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	referenceRowValues(t, referenceRowQuery(p.ctx, tx, "SELECT v FROM t WHERE id=1 FOR KEY SHARE", false), 10)
-	referenceLockExec(t, p.ctx, tx, "SAVEPOINT s", 0)
-	referenceRowValues(t, referenceRowQuery(p.ctx, tx, "SELECT v FROM t WHERE id=2 FOR SHARE", true), 20)
-	referenceLockExec(t, p.ctx, tx, "ROLLBACK TO s", 0)
-	// Postmark row grants release; the native contribution checkpoint has
-	// matching public and internal witnesses.
-	referenceLockExec(t, p.ctx, b, "UPDATE t SET v=21 WHERE id=2", 1)
 }
 
 func referenceRowTimeoutDiagnostic(t *testing.T, err error, postgres bool, code, message, action string) {
@@ -160,4 +133,5 @@ func referenceRowTimeoutDiagnostic(t *testing.T, err error, postgres bool, code,
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("wait diagnostic %#v want %#v", got, want)
 	}
+	referenceState(t, err, code)
 }

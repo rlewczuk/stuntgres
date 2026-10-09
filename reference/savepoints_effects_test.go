@@ -1,8 +1,10 @@
-//go:build reference
-
 package reference_test
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+)
 
 func TestReferenceSavepointsSettingsJournal(t *testing.T) {
 	savepointsReference(t, func(t *testing.T, f controlsReferenceFixture) {
@@ -110,11 +112,28 @@ func TestReferenceSavepointsCancellationAndControls(t *testing.T) {
 			f.a.ExecContext(ctx, "ROLLBACK")
 			f.b.ExecContext(ctx, "DROP TABLE u")
 		}()
+		if f.recorder.rawBackend == referenceRawPostgres {
+			f.exec(t, f.a, "BEGIN", false, 0)
+			f.exec(t, f.a, "INSERT INTO t VALUES(1)", false, 1)
+			referenceTransactionPreCanceledRetirement(t, &f, "SAVEPOINT canceled", "ROLLBACK TO canceled")
+		}
 		f.exec(t, f.b, "BEGIN", false, 0)
 		f.exec(t, f.b, "LOCK TABLE u IN ACCESS EXCLUSIVE MODE", false, 0)
 		f.exec(t, f.a, "BEGIN", false, 0)
 		f.exec(t, f.a, "INSERT INTO t VALUES(1)", false, 1)
 		f.exec(t, f.a, "SAVEPOINT s", false, 0)
+		if f.recorder.rawBackend != referenceRawPostgres {
+			canceled, cancel := context.WithCancel(ctx)
+			cancel()
+			r, err := f.a.ExecContext(canceled, "SAVEPOINT canceled")
+			if !errors.Is(err, context.Canceled) || r != nil {
+				t.Fatal("pre-canceled SAVEPOINT", r, err)
+			}
+			if _, ok := err.(interface{ SQLState() string }); ok {
+				t.Fatal("caller cancellation exposes SQLState", err)
+			}
+		}
+		f.rows(t, f.a, 1)
 		f.exec(t, f.a, "SET LOCAL statement_timeout='10ms'", false, 0)
 		_, err := f.a.ExecContext(ctx, "SELECT v FROM u")
 		want := controlsReferenceDiagnostic("57014", "canceling statement due to statement timeout")
@@ -146,7 +165,7 @@ func TestReferenceSavepointsMixedRelease(t *testing.T) {
 		exec("INSERT INTO t VALUES(4),(4)", 2)
 		exec("ROLLBACK TO parent_mark", 0)
 		f.rows(t, f.a, 1, 2)
-		isolationReferenceSelect(t, f.pair.ctx, f.a, "SELECT v FROM u ORDER BY v", false, 9)
+		referenceRunStep(t, f.pair.ctx, f.a, f.recorder, referenceTransactionRows(false, "SELECT v FROM u ORDER BY v", 9))
 		exec("SAVEPOINT child", 0)
 		exec("UPDATE t SET v=11 WHERE v=1", 1)
 		exec("DELETE FROM t WHERE v=2", 1)
@@ -156,6 +175,6 @@ func TestReferenceSavepointsMixedRelease(t *testing.T) {
 		f.rows(t, f.b, 1, 2)
 		exec("COMMIT", 0)
 		f.rows(t, f.b, 4, 4, 11)
-		isolationReferenceSelect(t, f.pair.ctx, f.b, "SELECT v FROM u ORDER BY v", false, 9, 10)
+		referenceRunStep(t, f.pair.ctx, f.b, f.recorder, referenceTransactionRows(false, "SELECT v FROM u ORDER BY v", 9, 10))
 	})
 }

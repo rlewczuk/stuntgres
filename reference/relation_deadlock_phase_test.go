@@ -1,40 +1,38 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestReferenceRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 	for _, phase := range []string{"direct", "prepare", "cached"} {
-		for _, tc := range []struct{ create, q, token string }{
-			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t", "t"},
-			{"CREATE TABLE t(id INT,v INT)", "INSERT INTO t VALUES(1,7)", "t"},
-			{"CREATE TABLE t(id INT,v INT)", "UPDATE t SET v=7 WHERE id=1", "t"},
-			{"CREATE TABLE t(id INT,v INT)", "DELETE FROM t WHERE id=1", "t"},
-			{"CREATE TABLE t(id INT,v INT)", "  SELECT v FROM public.t", "public.t"},
-			{"CREATE TABLE \"猫\"(id INT,v INT)", "/*猫*/ SELECT v FROM \"猫\"", "\"猫\""},
-			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR KEY SHARE", "t"},
-			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR SHARE", "t"},
-			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR NO KEY UPDATE", "t"},
-			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR UPDATE", "t"},
-			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR KEY SHARE", "public.t"},
-			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR SHARE", "public.t"},
-			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR NO KEY UPDATE", "public.t"},
-			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR UPDATE", "public.t"},
+		for _, tc := range []struct{ create, q, position string }{
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t", "15"},
+			{"CREATE TABLE t(id INT,v INT)", "INSERT INTO t VALUES(1,7)", "13"},
+			{"CREATE TABLE t(id INT,v INT)", "UPDATE t SET v=7 WHERE id=1", "8"},
+			{"CREATE TABLE t(id INT,v INT)", "DELETE FROM t WHERE id=1", "13"},
+			{"CREATE TABLE t(id INT,v INT)", " SELECT v FROM public.t", "16"},
+			{"CREATE TABLE t(id INT,v INT)", "  SELECT v FROM public.t", "17"},
+			{"CREATE TABLE \"猫\"(id INT,v INT)", "/*猫*/ SELECT v FROM \"猫\"", "21"},
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR KEY SHARE", "15"},
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR SHARE", "15"},
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR NO KEY UPDATE", "15"},
+			{"CREATE TABLE t(id INT,v INT)", "SELECT v FROM t FOR UPDATE", "15"},
+			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR KEY SHARE", "21"},
+			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR SHARE", "21"},
+			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR NO KEY UPDATE", "21"},
+			{"CREATE TABLE t(id INT,v INT)", "/*é*/ SELECT v FROM public.t FOR UPDATE", "21"},
 		} {
 			t.Run(phase+"/"+tc.q, func(t *testing.T) {
-				p := newReferencePair(t)
-				for index, db := range []*sql.DB{p.memory, p.postgres} {
-					t.Run([]string{"native", "postgres"}[index], func(t *testing.T) {
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
+					t.Run(backend.name, func(t *testing.T) {
 						ctx := p.ctx
-						a, b := referenceLockConnections(t, ctx, db)
+						a, b := referenceLockConnections(t, ctx, backend.db)
 						referenceLockExec(t, ctx, a, tc.create, 0)
 						referenceLockExec(t, ctx, a, "CREATE TABLE u(v INT)", 0)
 						name := "t"
@@ -43,7 +41,7 @@ func TestReferenceRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 						}
 						ap, bp := 0, 0
 						var target, other, database int64
-						if index == 1 {
+						if backend.pg {
 							ap = referenceLockPID(t, ctx, a)
 							bp = referenceLockPID(t, ctx, b)
 							target = referenceLockOID(t, ctx, "public."+name)
@@ -75,7 +73,7 @@ func TestReferenceRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 							r, err := a.ExecContext(ctx, "LOCK TABLE u IN ACCESS EXCLUSIVE MODE")
 							return relationOutcome{result: r, err: err}
 						})
-						if index == 1 {
+						if backend.pg {
 							referenceLockWaitBehind(t, ctx, ap, bp, other, "AccessExclusiveLock")
 						}
 						second := referenceLockOperation(t, ctx, func(ctx context.Context) relationOutcome {
@@ -109,14 +107,14 @@ func TestReferenceRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 						if victim < 0 {
 							t.Fatal("no victim")
 						}
-						if index == 1 && victim != 1 {
+						if backend.pg && victim != 1 {
 							t.Fatal("oracle detector orchestration did not produce analysis victim")
 						}
 						position := ""
 						if victim == 1 && phase != "cached" {
-							position = strconv.Itoa(len([]rune(tc.q[:strings.LastIndex(tc.q, tc.token)])) + 1)
+							position = tc.position
 						}
-						if index == 0 {
+						if !backend.pg {
 							deadlockPublicError(t, outcomes[victim].err, position)
 						} else {
 							d := referenceExtractDiagnostic(t, outcomes[victim].err)
@@ -131,6 +129,7 @@ func TestReferenceRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 								}
 							}
 							referenceDeadlockAnalysisPhysical(t, d, []int{ap, bp}, target, other, database, mode)
+							referenceState(t, outcomes[victim].err, "40P01")
 						}
 						if victim == 1 {
 							referenceLockAffected(t, outcomes[0].result, 0)
@@ -139,7 +138,7 @@ func TestReferenceRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 						deadlockPublicAborted(t, ctx, conns[victim], "SELECT v FROM u")
 						referenceLockExec(t, ctx, conns[victim], "ROLLBACK", 0)
 						referenceLockExec(t, ctx, conns[1-victim], "ROLLBACK", 0)
-						deadlockPublicRows(t, ctx, a, "SELECT v FROM u", nil)
+						deadlockPublicRows(t, ctx, a, backend.pg, "SELECT v FROM u", nil)
 						referenceLockExec(t, ctx, b, "BEGIN", 0)
 						referenceLockExec(t, ctx, b, "LOCK TABLE "+name+" IN ACCESS EXCLUSIVE MODE NOWAIT", 0)
 						referenceLockExec(t, ctx, b, "LOCK TABLE u IN ACCESS EXCLUSIVE MODE NOWAIT", 0)
@@ -176,14 +175,14 @@ func referenceDeadlockAnalysisPhysical(t *testing.T, d referenceDiagnostic, pids
 }
 
 func TestReferenceRelationDeadlockAcyclic(t *testing.T) {
-	for _, commit := range []bool{false, true} {
-		t.Run(fmt.Sprint(commit), func(t *testing.T) {
-			p := newReferencePair(t)
-			for index, db := range []*sql.DB{p.memory, p.postgres} {
-				t.Run([]string{"native", "postgres"}[index], func(t *testing.T) {
+	for _, ends := range [][3]string{{"ROLLBACK", "ROLLBACK", "ROLLBACK"}, {"COMMIT", "COMMIT", "COMMIT"}, {"COMMIT", "ROLLBACK", "COMMIT"}} {
+		t.Run(strings.Join(ends[:], "/"), func(t *testing.T) {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
 					ctx := p.ctx
-					a, b := referenceLockConnections(t, ctx, db)
-					c, err := db.Conn(ctx)
+					a, b := referenceLockConnections(t, ctx, backend.db)
+					c, err := backend.db.Conn(ctx)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -192,7 +191,7 @@ func TestReferenceRelationDeadlockAcyclic(t *testing.T) {
 					referenceLockExec(t, ctx, a, "CREATE TABLE u(v INT)", 0)
 					ap, bp, cp := 0, 0, 0
 					var x, y int64
-					if index == 1 {
+					if backend.pg {
 						ap = referenceLockPID(t, ctx, a)
 						bp = referenceLockPID(t, ctx, b)
 						cp = referenceLockPID(t, ctx, c)
@@ -209,33 +208,29 @@ func TestReferenceRelationDeadlockAcyclic(t *testing.T) {
 						r, err := b.ExecContext(ctx, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 						return relationOutcome{result: r, err: err}
 					})
-					if index == 1 {
+					if backend.pg {
 						referenceLockWaitBehind(t, ctx, bp, ap, x, "AccessExclusiveLock")
 					}
 					rc := referenceLockOperation(t, ctx, func(ctx context.Context) relationOutcome {
 						r, err := c.ExecContext(ctx, "LOCK TABLE u IN ACCESS EXCLUSIVE MODE")
 						return relationOutcome{result: r, err: err}
 					})
-					if index == 1 {
+					if backend.pg {
 						referenceLockWaitBehind(t, ctx, cp, bp, y, "AccessExclusiveLock")
 					}
-					end := "ROLLBACK"
-					if commit {
-						end = "COMMIT"
-					}
-					referenceLockExec(t, ctx, a, end, 0)
+					referenceLockExec(t, ctx, a, ends[0], 0)
 					o := rb()
 					if o.err != nil {
 						t.Fatal("acyclic B", o.err)
 					}
 					referenceLockAffected(t, o.result, 0)
-					referenceLockExec(t, ctx, b, end, 0)
+					referenceLockExec(t, ctx, b, ends[1], 0)
 					o = rc()
 					if o.err != nil {
 						t.Fatal("acyclic C", o.err)
 					}
 					referenceLockAffected(t, o.result, 0)
-					referenceLockExec(t, ctx, c, end, 0)
+					referenceLockExec(t, ctx, c, ends[2], 0)
 				})
 			}
 		})

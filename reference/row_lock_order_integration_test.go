@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -7,11 +5,7 @@ import "testing"
 func TestReferenceRowLockOrderingIntegrationFailingFirst(t *testing.T) {
 	p := referenceViewFixture(t)
 	p.step(t, referenceExec("CREATE VIEW ordered_stored AS SELECT id,v FROM t WHERE id<3 ORDER BY v+1 DESC,id ASC FOR UPDATE", 0))
-	for _, backend := range []struct {
-		name   string
-		db     referenceExecutor
-		record *referenceRecorder
-	}{{"postgres_first", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			for _, clause := range referenceRowClauses {
 				for _, prepared := range []bool{false, true} {
@@ -25,10 +19,13 @@ func TestReferenceRowLockOrderingIntegrationFailingFirst(t *testing.T) {
 					} {
 						step := referenceSelect(test.query, []string{test.column}, []string{"INT4"}, test.values)
 						step.prepared = prepared
-						referenceRunStep(t, p.ctx, backend.db, backend.record, step)
+						referenceRunStep(t, p.ctx, backend.db, backend.recorder, step)
 					}
 				}
 			}
 		})
+	}
+	if *referenceMode {
+		referenceRowOrderingWaits(t)
 	}
 }

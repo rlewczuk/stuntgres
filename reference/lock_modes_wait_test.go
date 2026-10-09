@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -7,11 +5,11 @@ import (
 	"testing"
 )
 
-func TestReferenceLockModesOrderWait(t *testing.T) {
-	pair := newReferencePair(t)
+func lockModesOrderWait(t *testing.T, pair *referencePair, backend referenceBackend) {
+	t.Helper()
 	ctx := pair.ctx
-	a, b := referenceLockConnections(t, ctx, pair.postgres)
-	c, err := pair.postgres.Conn(ctx)
+	a, b := referenceLockConnections(t, ctx, backend.db)
+	c, err := backend.db.Conn(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,10 +36,10 @@ func TestReferenceLockModesOrderWait(t *testing.T) {
 	lockModesExec(t, ctx, b, "ROLLBACK")
 }
 
-func TestReferenceLockModesSavepointWake(t *testing.T) {
-	pair := newReferencePair(t)
+func lockModesSavepointWake(t *testing.T, pair *referencePair, backend referenceBackend) {
+	t.Helper()
 	ctx := pair.ctx
-	a, b := referenceLockConnections(t, ctx, pair.postgres)
+	a, b := referenceLockConnections(t, ctx, backend.db)
 	lockModesExec(t, ctx, a, "CREATE TABLE t(v INT)")
 	ap, bp := referenceLockPID(t, ctx, a), referenceLockPID(t, ctx, b)
 	oid := referenceLockOID(t, ctx, "t")

@@ -125,11 +125,12 @@ ending newer work. This intentionally differs from pinned lib/pq: its old
 GoTx.Commit after SQL COMMIT AND CHAIN issues an unqualified end and publishes
 the newer block. Do not mix these lifetimes expecting pq's behavior.
 
-Run `go test -count=1 -v -timeout=300s -run '^TestTransactionControlsSmoke$' ./smoke`
+Run `make smoke RUN='^TestTransactionControlsSmoke$' VERBOSE=1`
 for public direct/held-prepared peer visibility, recovery, aliases, chains and
-complete warning/error/count/INT4 assertions. Independent real PostgreSQL
-coverage is selected by `go test -tags=reference -count=1 -v -timeout=300s
--run '^TestReferenceTransactionControls' ./reference`.
+complete warning/error/count/INT4 assertions. The migrated SQL controls run
+without Docker through `make test PACKAGES=./reference RUN='^TestReferenceTransactionControls[A-Za-z0-9_]*$'`;
+independently enable real
+PostgreSQL with `make reference RUN='^TestReferenceTransactionControls[A-Za-z0-9_]*$'`.
 
 ## Savepoints and recoverable errors
 
@@ -464,9 +465,18 @@ rollback/commit, refreshed prepared reads, exact rows/types/counts, full
 23502/25P02 records, failed Commit/recovery, independent autocommit, cancellation
 and native replacement/preservation. Go test reports the result.
 
-Scoped witnesses: `go test -run '^TestTransaction' -count=1 ./...`,
-`go test -race -run '^TestTransaction' -count=1 ./...`, and
-`go test -tags=reference -run '^TestReferenceTransaction' -count=1 -v ./reference`.
+Scoped migrated SQL witnesses:
+`make test PACKAGES=./reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`,
+`make race PACKAGES=./reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`, and
+`make reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`.
+Pure root mechanics remain selected separately by
+`make test PACKAGES=. RUN='^TestTransaction(TerminalReasons|RawReuseState)$'`.
+They distinguish CleanClose, Terminated and Abandoned without SQL; public
+rollback/publication remains in the migrated scenarios. Native raw Begin-context
+lifetime is substantive in both binary modes, not pq raw-context parity.
+Its independent PG server/direct+prepared cancel, PID preservation and healthy
+rollback witness lives once in `TestReferenceTransactionBeginContextCancellation`.
+See [migration inventory and capability phases](DEVELOPMENT.md#dual-mode-transactions-savepoints-and-locking).
 These supplement, not replace, the [full verification targets](DEVELOPMENT.md). The real reference oracle
 remains pinned PostgreSQL **18.0 UTF8/C**; current official `/docs/18/` manuals
 identify **18.6**, and local **20devel** sources are research only. See
@@ -602,9 +612,11 @@ tuple wait Context is independently checked only by reference controls, never
 fabricated from native logical RowIDs.
 
 Feature checks: `make test PACKAGES=./internal/engine RUN='^TestRowLock' VERBOSE=0`,
-`make test PACKAGES=. RUN='^TestRowLock' VERBOSE=0`,
-`make reference RUN='^TestReferenceRowLock' VERBOSE=0`, and
+`make test PACKAGES=./reference RUN='^TestReferenceRowLock[A-Za-z0-9_]*$' VERBOSE=0`,
+`make reference RUN='^TestReferenceRowLock[A-Za-z0-9_]*$' VERBOSE=0`, and
 `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
+The family selector includes the migrated ViewInsert union; tagged PostgreSQL
+ACL/keyed controls remain exclusive and are included only by the tagged command.
 Exact native queue witnesses live in engine tests; public native deadlines are
 conflict boundaries, not enqueue proof. PostgreSQL resumed-version witnesses use
 actual Lock wait state and pg_blocking_pids, not relation-only pg_locks probes.

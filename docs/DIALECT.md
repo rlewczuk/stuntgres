@@ -1820,9 +1820,13 @@ statements prepared before BEGIN. DML retains semantic analysis before read-only
 execution rejection. Selected ALTER TYPE/nullability/named-NOT-NULL/DROP COLUMN lists
 and sequence utilities permit effect-free Prepare and transactional execution;
 unrelated utility Prepare/execution retains its native unsupported0A000 boundary.
-Feature commands: `make test RUN='^TestTransactionIsolation'`,
-`make reference RUN='^TestReferenceTransactionIsolation'`,
-`make smoke RUN='^TestTransactionIsolationSmoke$$'`.
+Feature commands: `make test PACKAGES=./reference RUN='^TestReferenceTransactionIsolation[A-Za-z0-9_]*$'`,
+`make reference RUN='^TestReferenceTransactionIsolation[A-Za-z0-9_]*$'`,
+`make smoke RUN='^TestTransactionIsolationSmoke$'`.
+The migrated SQL witnesses use the same untagged definitions in native and actual
+PostgreSQL modes; backend-specific capabilities remain independent phases.
+See [transaction/locking test migration](DEVELOPMENT.md#dual-mode-transactions-savepoints-and-locking)
+for the 111-original/130-definition inventory and retained tagged controls.
 
 Control classification precedes ordinary implicit birth/epoch/command gating. Prepare is effect/notice-free; start Prepare Aborted gives 25P02, end Prepare remains eligible without recovering until Exec. Same-epoch SQL Aborted COMMIT succeeds by rollback/count0, whereas Go Commit keeps its failed-transaction ordinary error. Completed controls Finish once without late authority checks/merge/command advance into a chained incarnation. Shared private helpers never reacquire admission; one physical-session owner and publishWrites remain sole authority. CHAIN reserves a fresh current-epoch ref and empty ticket before old publication under the existing short replacement read fence; install is infallible, then release old holds before waking waiters. Resolve old settings actions after publication and before clearing/installing the next incarnation; CHAIN inherits committed SESSION values, never LOCAL values or old actions. Old native GoTx refs cannot end a new SQL incarnation (intentionally unlike pq's unqualified old end). Healthy pool reuse/borrower Close preserves SQL blocks; pin and explicitly end before pool return. Physical end drains and discards only its own private work/holds. Restore's whitelist still rejects controls; no script-transaction expansion.
 

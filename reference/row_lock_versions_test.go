@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,14 +6,14 @@ import (
 	"time"
 )
 
-func TestReferenceRowLockReadCommitted(t *testing.T) {
+func referenceRowReadCommittedWaits(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		for _, clause := range referenceRowClauses {
 			for _, change := range []string{"UPDATE t SET v=20 WHERE id=1", "DELETE FROM t WHERE id=1"} {
 				for _, commit := range []bool{false, true} {
 					for _, predicate := range []bool{false, true} {
 						t.Run(clause+"/"+change+map[bool]string{false: "/rollback", true: "/commit"}[commit]+map[bool]string{false: "/identity", true: "/predicate"}[predicate]+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
-							p := newReferencePair(t)
+							p := newReferenceScenario(t)
 							// Exact resumed behavior uses a public PostgreSQL wait observer. Native
 							// engine companions independently prove the same queue/version invariants.
 							a, b := referenceLockConnections(t, p.ctx, p.postgres)
@@ -34,7 +32,7 @@ func TestReferenceRowLockReadCommitted(t *testing.T) {
 							defer reader.Rollback()
 							// Strong hold makes every clause actually wait, including KEY SHARE,
 							// which is compatible with a keyless UPDATE's automatic NO KEY UPDATE.
-							referenceRowValues(t, referenceRowQuery(p.ctx, tx, "SELECT v FROM t WHERE id=1 FOR UPDATE", false), 10)
+							referenceRowValues(t, referenceRowQuery(p.ctx, tx, "SELECT v FROM t WHERE id=1 FOR UPDATE", false, referenceRawPostgres), 10)
 							referenceLockExec(t, p.ctx, tx, change, 1)
 							query := "SELECT v FROM t WHERE id=1 " + clause
 							if predicate {
@@ -42,7 +40,7 @@ func TestReferenceRowLockReadCommitted(t *testing.T) {
 							}
 							ctx, cancel := context.WithTimeout(p.ctx, 5*time.Second)
 							defer cancel()
-							done := referenceRowAsync(t, ctx, reader, query, prepared, true)
+							done := referenceRowAsync(t, ctx, reader, query, prepared, true, referenceRawPostgres)
 							referenceRowWait(t, ctx, bp, ap)
 							referenceLockExec(t, p.ctx, p.postgres, "INSERT INTO t VALUES(3,10)", 1)
 							referenceLockExec(t, p.ctx, p.postgres, "UPDATE t SET v=10 WHERE id=2", 1)
@@ -90,10 +88,10 @@ func TestReferenceRowLockReadCommitted(t *testing.T) {
 		}
 	}
 }
-func TestReferenceRowLockOrdering(t *testing.T) {
+func referenceRowOrderingWaits(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			a, b := referenceLockConnections(t, p.ctx, p.postgres)
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT,v INT)", 0)
 			referenceLockExec(t, p.ctx, a, "INSERT INTO t VALUES(1,10),(2,20)", 2)
@@ -111,12 +109,12 @@ func TestReferenceRowLockOrdering(t *testing.T) {
 			if err := tx.Commit(); err != nil {
 				t.Fatal(err)
 			}
-			referenceRowValues(t, referenceLockResult(t, done), 30, 20)
+			referenceLimitLockValues(t, referenceLockResult(t, done), true, 30, 20)
 		})
 	}
 }
 func TestReferenceRowLockJoins(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, step := range []referenceStep{referenceExec("CREATE TABLE a(id INT,v INT)", 0), referenceExec("CREATE TABLE b(id INT,v INT)", 0), referenceExec("INSERT INTO a VALUES(1,10),(1,10),(2,20)", 3), referenceExec("INSERT INTO b VALUES(1,10),(1,10),(3,30)", 3)} {
 		p.step(t, step)
 	}
@@ -140,11 +138,15 @@ func TestReferenceRowLockJoins(t *testing.T) {
 			})
 		}
 	}
+	referenceRowTextJoins(t)
+	if *referenceMode {
+		referenceRowJoinRecheck(t)
+	}
 }
-func TestReferenceRowLockJoinRecheck(t *testing.T) {
+func referenceRowJoinRecheck(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			a, b := referenceLockConnections(t, p.ctx, p.postgres)
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE t(id INT,v INT)", 0)
 			referenceLockExec(t, p.ctx, a, "CREATE TABLE u(id INT)", 0)
@@ -159,7 +161,7 @@ func TestReferenceRowLockJoinRecheck(t *testing.T) {
 			referenceLockExec(t, p.ctx, tx, "UPDATE t SET id=3 WHERE id=1", 1)
 			ctx, cancel := context.WithTimeout(p.ctx, 5*time.Second)
 			defer cancel()
-			done := referenceRowAsync(t, ctx, b, "SELECT t.v FROM t JOIN u ON t.id=u.id FOR SHARE", prepared, true)
+			done := referenceRowAsync(t, ctx, b, "SELECT t.v FROM t JOIN u ON t.id=u.id FOR SHARE", prepared, true, referenceRawPostgres)
 			referenceRowWait(t, ctx, bp, ap)
 			if err := tx.Commit(); err != nil {
 				t.Fatal(err)

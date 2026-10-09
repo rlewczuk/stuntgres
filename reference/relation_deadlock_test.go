@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -28,7 +26,7 @@ func deadlockPublicConn(t *testing.T, ctx context.Context, db *sql.DB) *sql.Conn
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
+	t.Cleanup(func() { deadlockPublicRollback(c); c.Close() })
 	return c
 }
 func deadlockPublicExec(t *testing.T, ctx context.Context, c *sql.Conn, q string, count int64) {
@@ -49,7 +47,7 @@ func deadlockPublicCount(t *testing.T, r sql.Result, want int64) {
 		t.Fatalf("count %d (%v), want %d", n, err, want)
 	}
 }
-func deadlockPublicRows(t *testing.T, ctx context.Context, c *sql.Conn, q string, want [][]int64) {
+func deadlockPublicRows(t *testing.T, ctx context.Context, c *sql.Conn, postgres bool, q string, want [][]int64) {
 	t.Helper()
 	rows, err := c.QueryContext(ctx, q)
 	if err != nil {
@@ -65,9 +63,13 @@ func deadlockPublicRows(t *testing.T, ctx context.Context, c *sql.Conn, q string
 	if err != nil {
 		t.Fatal(err)
 	}
+	scan := reflect.TypeFor[int64]()
+	if postgres {
+		scan = reflect.TypeFor[int32]()
+	}
 	for _, column := range metadata {
-		if column.DatabaseTypeName() != "INT4" {
-			t.Fatalf("logical SQL type %s, want INT4", column.DatabaseTypeName())
+		if column.DatabaseTypeName() != "INT4" || column.ScanType() != scan {
+			t.Fatalf("INT4 metadata %s/%v, want INT4/%v", column.DatabaseTypeName(), column.ScanType(), scan)
 		}
 	}
 	for rows.Next() {
@@ -94,6 +96,12 @@ func deadlockPublicRows(t *testing.T, ctx context.Context, c *sql.Conn, q string
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows %v want %v", got, want)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 func deadlockPublicWorker(t *testing.T, parent context.Context, index int, call func(context.Context) (sql.Result, error)) func() deadlockPublicOutcome {
@@ -125,6 +133,7 @@ func deadlockPublicError(t *testing.T, err error, position string) *stuntgres.Er
 	if d.InternalPosition != "" || d.InternalQuery != "" || d.Schema != "" || d.Table != "" || d.Column != "" || d.DataType != "" || d.Constraint != "" || d.File != "" || d.Line != "" || d.Routine != "" {
 		t.Fatalf("unexpected unrelated native fields %#v", d)
 	}
+	referenceState(t, err, "40P01")
 	lines := strings.Split(strings.TrimSpace(d.Detail), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("two-edge detail: %q", d.Detail)
@@ -224,7 +233,7 @@ func deadlockPublicCycle(t *testing.T, db *sql.DB, kind string, cached bool, pos
 	}
 	if kind != "table" {
 		reader := deadlockPublicConn(t, ctx, db)
-		deadlockPublicRows(t, ctx, reader, "SELECT id,v FROM t ORDER BY id", [][]int64{{1, 10}, {2, 20}})
+		deadlockPublicRows(t, ctx, reader, postgres, "SELECT id,v FROM t ORDER BY id", [][]int64{{1, 10}, {2, 20}})
 	}
 	if postgres {
 		oids[referenceLockOID(t, ctx, "public.t")] = true
@@ -240,7 +249,7 @@ func deadlockPublicCycle(t *testing.T, db *sql.DB, kind string, cached bool, pos
 			if kind == "table" || kind == "mixed" {
 				referenceLockWaitBehind(t, ctx, pids[0], pids[1], referenceLockOID(t, ctx, "public.u"), "AccessExclusiveLock")
 			} else {
-				deleteReferenceWaitRow(t, ctx, pids[0], pids[1])
+				referenceRowWait(t, ctx, pids[0], pids[1])
 			}
 		}
 		diagnostic = func(err error, victim int, kind string) {
@@ -321,8 +330,8 @@ func deadlockPublicCycle(t *testing.T, db *sql.DB, kind string, cached bool, pos
 			u = append(u, []int64{202})
 		}
 	}
-	deadlockPublicRows(t, ctx, a, "SELECT id,v FROM t ORDER BY id", want)
-	deadlockPublicRows(t, ctx, a, "SELECT v FROM u ORDER BY v", u)
+	deadlockPublicRows(t, ctx, a, postgres, "SELECT id,v FROM t ORDER BY id", want)
+	deadlockPublicRows(t, ctx, a, postgres, "SELECT v FROM u ORDER BY v", u)
 	deadlockPublicExec(t, ctx, conns[victim], "BEGIN", 0)
 	deadlockPublicExec(t, ctx, conns[victim], "LOCK TABLE t IN ACCESS EXCLUSIVE MODE NOWAIT", 0)
 	deadlockPublicExec(t, ctx, conns[victim], "LOCK TABLE u IN ACCESS EXCLUSIVE MODE NOWAIT", 0)
@@ -358,7 +367,7 @@ func deadlockPublicSoftQueue(t *testing.T, db *sql.DB, postgres bool, observe fu
 			}
 		}
 	}
-	deadlockPublicRows(t, ctx, a, "SELECT v FROM t", [][]int64{{10}})
+	deadlockPublicRows(t, ctx, a, postgres, "SELECT v FROM t", [][]int64{{10}})
 	deadlockPublicExec(t, ctx, c, "LOCK TABLE u IN ACCESS EXCLUSIVE MODE", 0)
 	rb := deadlockPublicWorker(t, ctx, 1, func(ctx context.Context) (sql.Result, error) {
 		return b.ExecContext(ctx, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
@@ -431,6 +440,7 @@ func referenceDeadlockPhysical(t *testing.T, err error, pids []int, relations ma
 	if d.Code != "40P01" || d.Message != "deadlock detected" || d.Severity != "ERROR" || d.SeverityUnlocalized != "ERROR" || d.Hint != "See server log for query details." || d.Position != "" || d.InternalPosition != "" || d.InternalQuery != "" || d.Schema != "" || d.Table != "" || d.Column != "" || d.DataType != "" || d.Constraint != "" {
 		t.Fatalf("physical diagnostic %#v", d)
 	}
+	referenceState(t, err, "40P01")
 	lines := strings.Split(strings.TrimSpace(d.Detail), "\n")
 	if len(lines) != 2 {
 		t.Fatalf("two cycle edges: %q", d.Detail)
@@ -507,10 +517,10 @@ func referenceDeadlockKinds(t *testing.T, kinds []string) {
 	for _, kind := range kinds {
 		for _, cached := range []bool{false, true} {
 			t.Run(kind+"/"+fmt.Sprint(cached), func(t *testing.T) {
-				p := newReferencePair(t)
-				for i, db := range []*sql.DB{p.memory, p.postgres} {
-					t.Run([]string{"native", "postgres"}[i], func(t *testing.T) {
-						deadlockPublicCycle(t, db, kind, cached, i == 1, nil, func(err error, _ int, _ string) { deadlockPublicError(t, err, "") })
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
+					t.Run(backend.name, func(t *testing.T) {
+						deadlockPublicCycle(t, backend.db, kind, cached, backend.pg, nil, func(err error, _ int, _ string) { deadlockPublicError(t, err, "") })
 					})
 				}
 			})
@@ -518,8 +528,8 @@ func referenceDeadlockKinds(t *testing.T, kinds []string) {
 	}
 }
 func TestReferenceRelationDeadlockSoftQueue(t *testing.T) {
-	p := newReferencePair(t)
-	for i, db := range []*sql.DB{p.memory, p.postgres} {
-		t.Run([]string{"native", "postgres"}[i], func(t *testing.T) { deadlockPublicSoftQueue(t, db, i == 1, nil) })
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) { deadlockPublicSoftQueue(t, backend.db, backend.pg, nil) })
 	}
 }

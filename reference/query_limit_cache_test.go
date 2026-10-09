@@ -3,11 +3,8 @@
 package reference_test
 
 import (
-	"context"
 	"database/sql"
-	"runtime"
 	"testing"
-	"time"
 )
 
 func TestReferenceQueryLimitLockedCache(t *testing.T) {
@@ -58,27 +55,5 @@ func TestReferenceQueryLimitLockedCache(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-// A positive native is_called transition proves volatile evaluation used the
-// original pre-release candidate. It is not a guessed timeout or a public lock
-// hook; exact native queued-request ownership is proved by engine tests.
-func referenceLimitSequenceCapture(t *testing.T, parent context.Context, holder *sql.Tx) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
-	defer cancel()
-	for {
-		var called bool
-		if err := holder.QueryRowContext(ctx, "SELECT is_called FROM s").Scan(&called); err != nil {
-			t.Fatal("original volatile candidate was not observed", err)
-		}
-		if called {
-			return
-		}
-		if err := ctx.Err(); err != nil {
-			t.Fatal(err)
-		}
-		runtime.Gosched()
 	}
 }

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestReferenceSession(t *testing.T) {
@@ -191,68 +190,4 @@ func TestReferenceSession(t *testing.T) {
 			}
 		})
 	}
-}
-
-// PostgreSQL statement cancellation preserves its session. lib/pq cancellation
-// through a Go context can instead close the transport, and a fast SET can win
-// that race even with a pre-canceled context. Use server-side cancellation after
-// an observed admission barrier, not a timing assumption about either driver.
-func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn, prepared bool) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
-	defer cancel()
-	var pid int
-	if err := conn.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid); err != nil {
-		t.Fatal(err)
-	}
-	const query = "SELECT pg_sleep(600)"
-	var stmt *sql.Stmt
-	if prepared {
-		var err error
-		stmt, err = conn.PrepareContext(ctx, query)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer stmt.Close()
-	}
-	result := make(chan error, 1)
-	go func() {
-		var err error
-		if stmt != nil {
-			_, err = stmt.ExecContext(ctx)
-		} else {
-			_, err = conn.ExecContext(ctx, query)
-		}
-		result <- err
-	}()
-	for {
-		var active bool
-		err := referenceAdmin.QueryRowContext(ctx,
-			"SELECT COALESCE((SELECT state = 'active' AND query = $2 FROM pg_stat_activity WHERE pid = $1), FALSE)",
-			pid, query).Scan(&active)
-		if err != nil {
-			cancel()
-			statementErr := <-result
-			t.Fatalf("cancellation admission barrier: %v; statement: %v", err, statementErr)
-		}
-		if active {
-			break
-		}
-		select {
-		case err := <-result:
-			t.Fatalf("statement completed before cancellation admission: %v", err)
-		default:
-		}
-	}
-	var signaled bool
-	if err := referenceAdmin.QueryRowContext(ctx, "SELECT pg_cancel_backend($1)", pid).Scan(&signaled); err != nil || !signaled {
-		cancel()
-		statementErr := <-result
-		t.Fatalf("cancel backend: signaled=%t error=%v; statement: %v", signaled, err, statementErr)
-	}
-	err := <-result
-	referenceAssertDiagnostic(t, err, &referenceDiagnostic{
-		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014",
-		Message: "canceling statement due to user request",
-	})
 }

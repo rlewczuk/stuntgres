@@ -1,6 +1,9 @@
 package reference_test
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func referenceViewValues(t *testing.T, outcome relationOutcome, column, typ string, want ...int64) {
 	t.Helper()
@@ -24,13 +27,26 @@ func referenceViewValues(t *testing.T, outcome relationOutcome, column, typ stri
 	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != typ {
 		t.Fatal(types, err)
 	}
+	if outcome.rawBackend != referenceRawLegacy {
+		scan := reflect.TypeFor[int64]()
+		if typ == "INT4" && outcome.rawBackend == referenceRawPostgres {
+			scan = reflect.TypeFor[int32]()
+		}
+		if types[0].ScanType() != scan {
+			t.Fatalf("%s ScanType %v, want %v", typ, types[0].ScanType(), scan)
+		}
+	}
 	var got []int64
 	for outcome.rows.Next() {
-		var value int64
+		var value any
 		if err := outcome.rows.Scan(&value); err != nil {
 			t.Fatal(err)
 		}
-		got = append(got, value)
+		n, ok := value.(int64)
+		if !ok {
+			t.Fatalf("raw %s payload %T, want int64", typ, value)
+		}
+		got = append(got, n)
 	}
 	if err := outcome.rows.Err(); err != nil {
 		t.Fatal(err)
@@ -41,6 +57,22 @@ func referenceViewValues(t *testing.T, outcome relationOutcome, column, typ stri
 	for i := range got {
 		if got[i] != want[i] {
 			t.Fatal(got, want)
+		}
+	}
+	if err := outcome.rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if outcome.stmt != nil {
+		if err := outcome.stmt.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := outcome.rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if outcome.stmt != nil {
+		if err := outcome.stmt.Close(); err != nil {
+			t.Fatal(err)
 		}
 	}
 }

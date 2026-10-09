@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 )
 
@@ -15,14 +12,14 @@ func TestReferenceRelationLockWaitsTimeoutPosition(t *testing.T) {
 		{"INSERT INTO t VALUES(2)", "13"},
 	} {
 		t.Run(tc.query, func(t *testing.T) {
-			p := newReferencePair(t)
-			for index, db := range []*sql.DB{p.memory, p.postgres} {
-				t.Run([]string{"native", "postgres"}[index], func(t *testing.T) {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
 					ctx := p.ctx
-					a, b := referenceLockConnections(t, ctx, db)
+					a, b := referenceLockConnections(t, ctx, backend.db)
 					referenceLockExec(t, ctx, a, "CREATE TABLE t(v INT)", 0)
 					ap, bp := 0, 0
-					if index == 1 {
+					if backend.pg {
 						ap = referenceLockPID(t, ctx, a)
 						bp = referenceLockPID(t, ctx, b)
 					}
@@ -54,7 +51,7 @@ func TestReferenceRelationLockWaitsTimeoutPosition(t *testing.T) {
 								return relationOutcome{result: result, err: err}
 							}
 						})
-						if index == 1 {
+						if backend.pg {
 							mode := "AccessShareLock"
 							if tc.position == "13" {
 								mode = "RowExclusiveLock"
@@ -65,6 +62,9 @@ func TestReferenceRelationLockWaitsTimeoutPosition(t *testing.T) {
 						if o.stmt != nil {
 							o.stmt.Close()
 							t.Fatal("failed Prepare returned handle")
+						}
+						if o.result != nil {
+							t.Fatal("failed wait returned result", o.result)
 						}
 						position := tc.position
 						if phase == "cached" {
@@ -79,7 +79,7 @@ func TestReferenceRelationLockWaitsTimeoutPosition(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					referenceTransactionValues(t, rows)
+					referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg)
 				})
 			}
 		})

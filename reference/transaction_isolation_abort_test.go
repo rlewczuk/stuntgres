@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -17,7 +15,7 @@ func referenceTestTransactionIsolationAbortRestoration(t *testing.T, postgres bo
 		for _, end := range []string{"COMMIT", "ROLLBACK", "COMMIT AND CHAIN", "ROLLBACK AND CHAIN"} {
 			for _, prepared := range []bool{false, true} {
 				t.Run(baseline.mode+"/"+end+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
-					_, a, _ := isolationReferenceConnections(t, postgres)
+					_, a, _ := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 					ctx := context.Background()
 					isolationReferenceAffected(t, ctx, a, "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL "+baseline.mode, prepared, 0)
 					isolationReferenceAffected(t, ctx, a, "BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE", prepared, 0)
@@ -44,15 +42,21 @@ func referenceTestTransactionIsolationAbortRestoration(t *testing.T, postgres bo
 
 func TestReferenceTransactionIsolationAbortRestoration(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		t.Run(map[bool]string{false: "memory", true: "postgres"}[postgres], func(t *testing.T) { referenceTestTransactionIsolationAbortRestoration(t, postgres) })
 	}
 }
 
 func TestReferenceTransactionIsolationChainedAbortBaseline(t *testing.T) {
 	for _, postgres := range []bool{false, true} {
+		if postgres && !*referenceMode {
+			continue
+		}
 		for _, end := range []string{"COMMIT AND CHAIN", "ROLLBACK AND CHAIN"} {
 			t.Run(map[bool]string{false: "memory/", true: "postgres/"}[postgres]+end, func(t *testing.T) {
-				_, a, _ := isolationReferenceConnections(t, postgres)
+				_, a, _ := isolationReferenceConnections(t, newReferenceScenario(t), postgres)
 				ctx := context.Background()
 				isolationReferenceAffected(t, ctx, a, "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY", false, 0)
 				isolationReferenceAffected(t, ctx, a, "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED READ WRITE", false, 0)

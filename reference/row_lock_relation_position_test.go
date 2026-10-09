@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 )
 
@@ -12,10 +9,10 @@ func TestReferenceRowLockRelationWaitPosition(t *testing.T) {
 	for _, clause := range referenceRowClauses {
 		for _, tc := range []struct{ query, position string }{{"SELECT v FROM t ", "15"}, {"/*é*/ SELECT v FROM public.t ", "21"}, {"INSERT INTO destination SELECT v FROM public.t ", "39"}} {
 			t.Run(clause+"/"+tc.query, func(t *testing.T) {
-				p := newReferencePair(t)
-				for index, db := range []*sql.DB{p.postgres, p.memory} {
-					t.Run([]string{"postgres", "native"}[index], func(t *testing.T) {
-						a, b := referenceLockConnections(t, p.ctx, db)
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
+					t.Run(backend.name, func(t *testing.T) {
+						a, b := referenceLockConnections(t, p.ctx, backend.db)
 						referenceLockExec(t, p.ctx, a, "CREATE TABLE t(v INT)", 0)
 						referenceLockExec(t, p.ctx, a, "CREATE TABLE destination(v INT)", 0)
 						query := tc.query + clause
@@ -27,7 +24,7 @@ func TestReferenceRowLockRelationWaitPosition(t *testing.T) {
 						referenceLockExec(t, p.ctx, b, "SET lock_timeout='100ms'", 0)
 						ap, bp := 0, 0
 						var oid int64
-						if index == 0 {
+						if backend.pg {
 							ap = referenceLockPID(t, p.ctx, a)
 							bp = referenceLockPID(t, p.ctx, b)
 							oid = referenceLockOID(t, p.ctx, "public.t")
@@ -53,7 +50,7 @@ func TestReferenceRowLockRelationWaitPosition(t *testing.T) {
 										return relationOutcome{result: result, err: err}
 									}
 								})
-								if index == 0 {
+								if backend.pg {
 									referenceLockWaitBehind(t, p.ctx, bp, ap, oid, "RowShareLock")
 								}
 								out := await()

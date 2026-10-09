@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -12,15 +10,12 @@ import (
 func TestReferenceTransactionVisibilityRefreshAtomicity(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			pair := newReferencePair(t)
+			pair := newReferenceScenario(t)
 			var traces [2][]referenceObserved
-			for index, db := range []*sql.DB{pair.memory, pair.postgres} {
-				t.Run([]string{"memory", "postgres"}[index], func(t *testing.T) {
+			for index, backend := range pair.backends() {
+				t.Run(backend.name, func(t *testing.T) {
 					ctx := pair.ctx
-					recorder := pair.memoryRecord
-					if index == 1 {
-						recorder = pair.postgresRecord
-					}
+					db, recorder := backend.db, backend.recorder
 					a, err := db.Conn(ctx)
 					if err != nil {
 						t.Fatal(err)
@@ -81,7 +76,7 @@ func TestReferenceTransactionVisibilityRefreshAtomicity(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					referenceTransactionValues(t, rows, 1, 3)
+					referenceLimitLockValues(t, relationOutcome{rows: rows}, backend.pg, 1, 3)
 					insert(reader, "INSERT INTO t VALUES(2)", 1)
 					writer, err := a.BeginTx(ctx, nil)
 					if err != nil {
@@ -103,7 +98,7 @@ func TestReferenceTransactionVisibilityRefreshAtomicity(t *testing.T) {
 					step(a, referenceTransactionRows(prepared, "SELECT v FROM t ORDER BY v", 1, 3, 4, 4))
 				})
 			}
-			if !t.Failed() && !reflect.DeepEqual(traces[0], traces[1]) {
+			if pair.postgres != nil && !t.Failed() && !reflect.DeepEqual(traces[0], traces[1]) {
 				t.Fatal("independently asserted transaction traces differ", traces)
 			}
 		})
@@ -112,15 +107,12 @@ func TestReferenceTransactionVisibilityRefreshAtomicity(t *testing.T) {
 func TestReferenceTransactionFailuresAndAutocommit(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			pair := newReferencePair(t)
+			pair := newReferenceScenario(t)
 			var traces [2][]referenceObserved
-			for index, db := range []*sql.DB{pair.memory, pair.postgres} {
-				t.Run([]string{"memory", "postgres"}[index], func(t *testing.T) {
+			for index, backend := range pair.backends() {
+				t.Run(backend.name, func(t *testing.T) {
 					ctx := pair.ctx
-					recorder := pair.memoryRecord
-					if index == 1 {
-						recorder = pair.postgresRecord
-					}
+					db, recorder := backend.db, backend.recorder
 					a, err := db.Conn(ctx)
 					if err != nil {
 						t.Fatal(err)
@@ -223,51 +215,47 @@ func TestReferenceTransactionFailuresAndAutocommit(t *testing.T) {
 					step(b, referenceTransactionRows(prepared, "SELECT v FROM t ORDER BY v", 7, 9, 10))
 				})
 			}
-			if !t.Failed() && !reflect.DeepEqual(traces[0], traces[1]) {
+			if pair.postgres != nil && !t.Failed() && !reflect.DeepEqual(traces[0], traces[1]) {
 				t.Fatal("independently asserted failure traces differ", traces)
 			}
 		})
 	}
 }
-func TestReferenceTransactionCancellationOracle(t *testing.T) {
-	for _, prepared := range []bool{false, true} {
-		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			pair := newReferencePair(t)
-			ctx := pair.ctx
-			a, err := pair.postgres.Conn(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer a.Close()
-			b, err := pair.postgres.Conn(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer b.Close()
-			referenceRunStep(t, ctx, b, pair.postgresRecord, referenceStep{query: "CREATE TABLE t(v INT)"})
-			referenceRunStep(t, ctx, b, pair.postgresRecord, referenceStep{query: "INSERT INTO t VALUES(7)", affected: 1})
-			var before, after int
-			if err = a.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&before); err != nil {
-				t.Fatal(err)
-			}
-			tx, err := a.BeginTx(ctx, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer tx.Rollback()
-			referenceRunStep(t, ctx, tx, pair.postgresRecord, referenceStep{query: "INSERT INTO t VALUES(1)", prepared: prepared, affected: 1})
-			// pg_sleep is solely an oracle synchronization statement. Native cancellation
-			// uses actual Operation contexts in TestTransactionPublicationLinearization.
-			referenceSessionCancel(t, ctx, a, prepared)
-			referenceRunStep(t, ctx, tx, pair.postgresRecord, referenceTransactionError(false, "SELECT v FROM t", referenceTransactionAborted()))
-			if err = tx.Rollback(); err != nil {
-				t.Fatal(err)
-			}
-			referenceRunStep(t, ctx, b, pair.postgresRecord, referenceTransactionRows(prepared, "SELECT v FROM t ORDER BY v", 7))
-			if err = a.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&after); err != nil || after != before {
-				t.Fatal("cancellation replaced healthy backend", before, after, err)
-			}
-			referenceRunStep(t, ctx, a, pair.postgresRecord, referenceTransactionRows(prepared, "SELECT v FROM t ORDER BY v", 7))
-		})
+func referenceTransactionCancellationOracle(t *testing.T, pair *referencePair, prepared bool) {
+	t.Helper()
+	ctx := pair.ctx
+	a, err := pair.postgres.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer a.Close()
+	b, err := pair.postgres.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	referenceRunStep(t, ctx, b, pair.postgresRecord, referenceStep{query: "CREATE TABLE t(v INT)"})
+	referenceRunStep(t, ctx, b, pair.postgresRecord, referenceStep{query: "INSERT INTO t VALUES(7)", affected: 1})
+	var before, after int
+	if err = a.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := a.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	referenceRunStep(t, ctx, tx, pair.postgresRecord, referenceStep{query: "INSERT INTO t VALUES(1)", prepared: prepared, affected: 1})
+	// pg_sleep is solely an oracle synchronization statement. Native cancellation
+	// uses actual Operation contexts in TestTransactionPublicationLinearization.
+	referenceSessionCancel(t, ctx, a, prepared)
+	referenceRunStep(t, ctx, tx, pair.postgresRecord, referenceTransactionError(false, "SELECT v FROM t", referenceTransactionAborted()))
+	if err = tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	referenceRunStep(t, ctx, b, pair.postgresRecord, referenceTransactionRows(prepared, "SELECT v FROM t ORDER BY v", 7))
+	if err = a.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&after); err != nil || after != before {
+		t.Fatal("cancellation replaced healthy backend", before, after, err)
+	}
+	referenceRunStep(t, ctx, a, pair.postgresRecord, referenceTransactionRows(prepared, "SELECT v FROM t ORDER BY v", 7))
 }

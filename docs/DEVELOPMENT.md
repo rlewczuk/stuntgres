@@ -180,6 +180,68 @@ The view migration's aggregate verification uses an external task-specific
 `timeout --signal=KILL 300s make test-all VERBOSE=0` bound for one full invocation;
 this does not change the shared Makefile's 900-second policy.
 
+### Dual-mode transactions, savepoints and locking
+
+All 111 assigned original SQL tests in 38 root files are migrated/merged with
+their owning reference assertions into 130 untagged external definitions.
+Families are `TestReferenceLockModes*`, `TestReferenceRelationDeadlock*`,
+`TestReferenceRelationLock*`, `TestReferenceRowLock*`, `TestReferenceSavepoints*`
+and `TestReferenceTransaction*`. The row-lock family includes the complete
+same-family `TestReferenceRowLockViewInsert` union. Test bodies are at most
+150 lines and functional reference files at most 750 lines; meaningful phase
+splits retain the original matrices, metadata, diagnostics and cleanup.
+
+Use this bounded family selector rather than former root SQL test names:
+
+```sh
+LOCKS_RUN='^TestReference(LockModes|RelationDeadlock|RelationLock|RowLock|Savepoints|Transaction)[A-Za-z0-9_]*$'
+make test PACKAGES=./reference RUN="$LOCKS_RUN" VERBOSE=0
+go test -count=1 -run "$LOCKS_RUN" ./reference -args -reference=false
+make reference RUN="$LOCKS_RUN" VERBOSE=0
+make race PACKAGES=./reference RUN="$LOCKS_RUN" VERBOSE=0
+```
+
+These are family selections, not an exact catalog inventory: the tagged
+`make reference` command additionally selects retained PostgreSQL-only controls
+within these prefixes. ACL/privilege, inheritance, primary-key row-lock and role
+lifetime controls remain tagged; the cross-family
+`TestReferenceControlTransactionsDiagnostics` is unchanged and outside this
+selector. Do not claim a tagged legacy selection is Docker-free merely because
+`-reference=false` is supplied. In the ordinary binary, false/default executes
+the real native definitions without Docker; true starts actual pinned PostgreSQL
+and startup failure is visible and nonzero, even with a no-match RUN.
+
+Common phases independently assert literal rows/counts, direct and genuinely
+held prepared routes, diagnostics and owned raw recordings. INT4 ScanType is
+native `int64` versus pq `int32`, with raw integer cells `int64` on both.
+OID cells are independently native `int64` versus pq decimal bytes before
+normalization. Native Dump/Reset/Restore and retained rows use their actual
+connector/Driver/DSN; legacy notice callers retain their separate subtest DSNs.
+Already-canceled pq control commands can return success before physical retirement;
+their isolated retirement/reopen witnesses do not replace common SQL timer,
+rollback-to-savepoint or server-signal recovery.
+
+`TestReferenceTransactionRawBeginContextLifetime` is an explicitly native-only
+capability phase with real raw Begin-context cancellation and successful
+caller-managed rollback in both binary modes. Its independent PostgreSQL
+server/direct+prepared cancellation, preserved PID and healthy rollback proof
+lives once in `TestReferenceTransactionBeginContextCancellation`; pq watcher
+timing is not a portable raw-context guarantee. Public native deadlines establish
+conflict, not exact queue membership; exact native queue/reorder witnesses stay
+in engine tests. PostgreSQL phases observe actual waits, PIDs and object identities.
+
+Two focused root units contain no SQL:
+
+```sh
+make test PACKAGES=. RUN='^TestTransaction(TerminalReasons|RawReuseState)$' VERBOSE=0
+```
+
+Terminal reasons preserve distinct CleanClose, Terminated and Abandoned mechanics;
+raw reuse preserves local active-state invariants. They are not substitutes for
+the migrated public rollback/publication witnesses. The aggregate migration gate
+is `timeout --signal=KILL 300s make test-all VERBOSE=0`, covering native and full
+tagged PostgreSQL race suites once; shared Makefile deadlines remain unchanged.
+
 ### Dual-mode CHECK constraint interactions
 
 The 31 former root CHECK interaction tests are merged with their existing
