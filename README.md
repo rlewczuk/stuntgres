@@ -596,6 +596,15 @@ count evaluates its argument per source row and counts only non-NULL values.
 `every` is the AND operation with its own output label. They ignore NULL inputs
 and return NULL for empty/all-NULL input. Arguments still evaluate after a
 decisive false AND or true OR, so late errors veto the entire result.
+`avg(INTERVAL)` returns nullable INTERVAL, ignoring NULL and returning NULL for
+empty/all-NULL input. Its checked month/day/microsecond sums retain physical
+representation; fractional months cascade at 30 days and fractional days at 24
+hours, with PostgreSQL floating-point nearest-even rounding. For example,
+averaging `1 mon` and zero yields `15 days`, not a normalized duration.
+The result has unrestricted interval precision; numeric AVG remains unsupported.
+Public AVG feature checks use the same independent contract in both modes:
+`make test PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
+and `make reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
 Equal typed keys, including NULL keys, form one group; empty global count returns one row
 containing zero, while empty grouped input returns no rows. Group order is not
 promised. The same eager pipeline serves direct/prepared queries and

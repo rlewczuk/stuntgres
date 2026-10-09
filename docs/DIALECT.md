@@ -189,8 +189,21 @@ string/NULL literals and bare parameters infer BOOL; typed TEXT/INTEGER argument
 give42883 with actual signature, explicit-casts hint and character call position.
 All eligible argument occurrences evaluate even after a decisive Boolean state.
 
+`avg(INTERVAL)` returns nullable INTERVAL/Go string, ignoring NULL and returning
+NULL for empty/all-NULL input. Checked signed32 month/day and signed64 microsecond
+sums can overflow even when the mathematical average would fit (`22008`,
+`interval out of range`). Fractional months cascade at 30 days/month, fractional
+days at 24 hours/day; nearest-even floating-point rounding preserves physical
+components without justifying days/time. The result does not inherit source
+field/precision restrictions. Mixed positive/negative infinities fail22008;
+same-sign infinity dominates only after finite transitions have been checked.
+Unknown strings, NULL and unconstrained parameters give42725 ambiguity; use an
+explicit interval cast. Invalid types/arity give42883 with the real signature,
+explicit-casts hint and character position. Valid numeric AVG overloads remain
+native0A000 capabilities, not nonexistent PostgreSQL signatures.
+
 Grouping does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every, FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
+aggregates other than count/bool_and/bool_or/every/avg(interval), FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression

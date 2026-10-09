@@ -1319,6 +1319,26 @@ scenarios, with independent native string and pq byte-slice representations:
 `make test PACKAGES=./reference RUN='^TestReferenceInterval[A-Za-z0-9_]*$' VERBOSE=0`
 and `make reference RUN='^TestReferenceInterval[A-Za-z0-9_]*$' VERBOSE=0`.
 
+### Interval average
+
+`avg(INTERVAL)` returns unrestricted INTERVAL (typmod -1), including when its
+input is `INTERVAL SECOND(0)`: the mean of one second and zero is `00:00:00.5`.
+A subsequent SECOND(0) destination assignment rounds independently to one second.
+NULL inputs are ignored; no non-NULL input yields typed NULL. Native metadata is
+known nullable even for NOT NULL source columns, with no physical source origin.
+The existing string/nil codec and Execute-time IntervalStyle capture apply.
+
+The mean divides checked month/day/microsecond sums independently, cascading
+fractional months at 30 days/month and fractional days at 24 hours/day, with
+PostgreSQL float8 conversion, intermediate six-decimal rounding and nearest-even
+microsecond rounding. It does not use the comparison span or justify components:
+the mean of one month and 30 days is `30 days`; of one day and24hours, `24:00:00`.
+Finite component overflow, reserved infinity tuples, mixed infinity signs and
+division range errors report22008. Finite sums are checked even after infinity.
+General interval arithmetic and numeric AVG remain excluded. Public contracts:
+`make test PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
+and `make reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
+
 
 ## Pattern matching and physical character values
 

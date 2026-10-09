@@ -549,8 +549,42 @@ column rights even on empty input. No all-column read is invented by count-star.
 INSERT assignment and RowsAffected use selected output occurrences, not the count
 datum. Restore's generated-sequence SELECT whitelist is unchanged.
 
+### Interval average — change note
+
+`avg(interval)` shares the grouped/global eager pipeline, including HAVING,
+hidden ORDER BY, repeated calls, prepared execution, views and INSERT SELECT.
+Each execution/group owns fresh checked component sums. NULL does not contribute
+to the denominator; empty/all-NULL global input returns one typed NULL, while
+empty keyed input returns no rows with INTERVAL metadata. A zero mean is not NULL.
+
+```sql
+CREATE TABLE durations (category TEXT, elapsed INTERVAL);
+INSERT INTO durations VALUES ('work','1 mon'),('work','0'),('work',NULL);
+SELECT category,avg(elapsed) FROM durations GROUP BY category;
+-- Unordered bag: ('work','15 days').
+```
+
+The result is nullable INTERVAL with no physical column origin or inherited
+typmod. Fractional months become 30-day fractions, fractional days become
+24-hour fractions; PostgreSQL's float8/nearest-even stages are preserved rather
+than exact-rational division or interval typmod rounding. Component sums and
+division boundaries fail with22008, `interval out of range`, including finite
+overflow after infinity. Both infinity signs fail; one sign yields that infinity.
+Late group errors publish neither rows nor partial INSERT batches.
+
+Explicitly type ambiguous arguments (`avg($1::interval)`, `avg(NULL::interval)`):
+bare unknown NULL/string/parameter calls give42725 and the explicit-casts hint.
+Invalid signatures and arity give42883, including `avg()`/`avg(*)`; more than100
+arguments gives54023. Namespace lookup/ACL and nested/clause/grouping diagnostics
+use the existing authority. Numeric AVG is valid PostgreSQL but native0A000.
+Native Dump/Restore preserves stored interval inputs/views, never aggregate state.
+
+Public feature smoke, using independently pinned PostgreSQL18.0 expectations:
+`make test PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
+and `make reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
+
 This does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
+aggregates other than count/bool_and/bool_or/every/avg(interval), FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
 OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
 optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded

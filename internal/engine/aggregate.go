@@ -22,6 +22,7 @@ const (
 	aggregateCount aggregateOperation = iota
 	aggregateAnd
 	aggregateOr
+	aggregateIntervalAvg
 )
 
 type aggregateCall struct {
