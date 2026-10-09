@@ -16,6 +16,7 @@ type domainDependency struct {
 	label                 string
 	relation              *relationDescriptor
 	column                string
+	automatic             bool
 }
 
 // PostgreSQL dependency traversal visits a dependent domain's descendants before
@@ -29,7 +30,7 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domain
 	for changed := true; changed; {
 		changed = false
 		for a, d := range stage.base.state.descriptors {
-			if t, ok := d.(*typeDescriptor); ok && t.typ.IsDomain() && !domains[a] && domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.DomainBase().Type.ID())}] {
+			if t, ok := d.(*typeDescriptor); ok && !domains[a] && (t.typ.IsDomain() && domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.DomainBase().Type.ID())}] || t.typ.IsArray() && domains[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(t.typ.Element().ID())}]) {
 				domains[a] = true
 				changed = true
 			}
@@ -68,6 +69,9 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domain
 			case *typeDescriptor:
 				if d.typ.IsDomain() && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.DomainBase().Type.ID())}) {
 					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "type " + typeDiagnosticNameAt(stage.base, d, stage.dependencyPath)})
+				}
+				if d.typ.IsArray() && target == (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())}) {
+					direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, automatic: true})
 				}
 			case *relationDescriptor:
 				if replacement, ok := stage.descriptors[a].(*relationDescriptor); ok {
@@ -170,9 +174,11 @@ func domainRestrictError(stage *CatalogStage, edges []domainDependency) error {
 	if len(stage.domainTargets) == 1 {
 		message = "cannot drop " + dependencyObject(stage.base, stage.domainTargets[0], stage.dependencyPath) + " because other objects depend on it"
 	}
-	details := make([]string, len(edges))
-	for i, edge := range edges {
-		details[i] = edge.label + " depends on " + dependencyObject(stage.base, edge.target, stage.dependencyPath)
+	details := make([]string, 0, len(edges))
+	for _, edge := range edges {
+		if !edge.automatic {
+			details = append(details, edge.label+" depends on "+dependencyObject(stage.base, edge.target, stage.dependencyPath))
+		}
 	}
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: message, Detail: strings.Join(details, "\n"), Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 }
@@ -185,7 +191,11 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 	if err != nil {
 		return err
 	}
-	if mode == parser.DropRestrict && len(edges) != 0 {
+	visible := false
+	for _, edge := range edges {
+		visible = visible || !edge.automatic
+	}
+	if mode == parser.DropRestrict && visible {
 		return domainRestrictError(stage, edges)
 	}
 	targets := append([]ObjectAddress(nil), stage.domainTargets...)
@@ -264,7 +274,9 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 	}
 	stage.viewCascadeNames = nil
 	for _, edge := range edges {
-		stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+edge.label)
+		if !edge.automatic {
+			stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+edge.label)
+		}
 	}
 	return nil
 }
@@ -297,7 +309,7 @@ func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView,
 		details = append(details, label+" depends on schema "+dependencyIdentifier(namespace))
 		stage.schemaCascadeNames = append(stage.schemaCascadeNames, "drop cascades to "+label)
 		for _, edge := range edges {
-			if edge.root == d.Address() {
+			if edge.root == d.Address() && !edge.automatic {
 				details = append(details, edge.label+" depends on "+dependencyObject(stage.base, edge.target, stage.dependencyPath))
 			}
 		}

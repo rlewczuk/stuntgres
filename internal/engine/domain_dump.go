@@ -38,6 +38,19 @@ func defaultDomainACL(d *typeDescriptor) bool {
 // Catalog rendering resolves the captured namespace, including renamed schemas;
 // the immutable codec never consults a mutable engine to format a domain name.
 func catalogTypeDeclaration(view CatalogRead, u sqltype.Usage) (string, error) {
+	if u.Type.IsArray() {
+		array, ok := view.LookupArray(u.Type.Element())
+		if !ok || array != u.Type || !u.Valid() {
+			return "", fmt.Errorf("stuntgres: invalid array declaration authority")
+		}
+		element := u
+		element.Type = u.Type.Element()
+		declaration, err := catalogTypeDeclaration(view, element)
+		if err != nil {
+			return "", err
+		}
+		return declaration + "[]", nil
+	}
 	if !u.Type.IsDomain() {
 		return u.Declaration()
 	}
@@ -62,8 +75,12 @@ func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead,
 		id := d.Address().ObjectID
 		descriptors[id] = d
 		dependencies[id] = nil
-		if d.typ.DomainBase().Type.IsDomain() {
-			dependencies[id] = []OID{OID(d.typ.DomainBase().Type.ID())}
+		base := d.typ.DomainBase().Type
+		if base.IsArray() {
+			base = base.Element()
+		}
+		if base.IsDomain() {
+			dependencies[id] = []OID{OID(base.ID())}
 		}
 	}
 	order, err := viewDumpOrder(ctx, dependencies)
@@ -81,11 +98,12 @@ func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead,
 		if er != nil {
 			return nil, er
 		}
-		if base.Type.ID() == sqltype.NameArray {
+		if base.Type.IsArray() {
 			if d.dimensions == 0 {
-				declaration = quoteIdentifier(view.state.descriptors[ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}].Name()) + "._name"
+				array := view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}]
+				declaration = quoteIdentifier(view.state.descriptors[array.Namespace()].Name()) + "." + quoteIdentifier(array.Name())
 			} else {
-				declaration = "NAME" + strings.Repeat("[]", int(d.dimensions))
+				declaration = strings.TrimSuffix(declaration, "[]") + strings.Repeat("[]", int(d.dimensions))
 			}
 		}
 		collation := ""
@@ -131,6 +149,21 @@ func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpressio
 		}
 		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
+	if u.Type.IsArray() {
+		declaration, err := catalogTypeDeclaration(view, u)
+		if err != nil {
+			return "", err
+		}
+		literal := "NULL"
+		if !n.value.IsNull() {
+			text, err := u.Type.OutputWithEnvironment(ctx, n.value, sqltype.OutputEnvironment{Regclass: catalogRegclassOutput{view: view}})
+			if err != nil {
+				return "", err
+			}
+			literal = "'" + strings.ReplaceAll(text, "'", "''") + "'"
+		}
+		return "CAST(" + literal + " AS " + declaration + ")", nil
+	}
 	if u.Type.ID() == sqltype.Regclass && !n.value.IsNull() {
 		text, err := n.value.Text()
 		if err != nil {
@@ -143,4 +176,13 @@ func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpressio
 		return "CAST('" + strings.ReplaceAll(regclassSpelling(view, nil, OID(id)), "'", "''") + "' AS REGCLASS)", nil
 	}
 	return literalSQL(ctx, n)
+}
+
+type catalogRegclassOutput struct {
+	view CatalogRead
+	path []ObjectAddress
+}
+
+func (r catalogRegclassOutput) FormatRegclass(id uint32) (string, error) {
+	return regclassSpelling(r.view, r.path, OID(id)), nil
 }

@@ -569,7 +569,8 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 			return fmt.Errorf("stuntgres: only user relations can be removed")
 		}
 	case *typeDescriptor:
-		if !d.(*typeDescriptor).typ.IsDomain() {
+		t := d.(*typeDescriptor)
+		if !t.typ.IsDomain() && !(t.typ.IsArray() && t.typ.Element().IsDomain()) {
 			return fmt.Errorf("stuntgres: builtin types cannot be removed")
 		}
 	default:

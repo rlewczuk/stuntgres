@@ -86,7 +86,7 @@ func TestTimePrecisionScannerAndBoundaries(t *testing.T) {
 			t.Fatal(raw)
 		}
 	}
-	for _, q := range []string{"SELECT TIME '24:00'", "CREATE TABLE t(v TIME[])"} {
+	for _, q := range []string{"SELECT TIME '24:00'"} {
 		_, err := Parse(q)
 		var got *sqlstate.Error
 		if !errors.As(err, &got) || got.Code != "0A000" {

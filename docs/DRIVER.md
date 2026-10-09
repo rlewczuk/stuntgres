@@ -20,9 +20,12 @@ No generator state is serialized into Dump. Feature smoke:
 
 Domain results retain a distinct logical engine identity but export their ultimate
 base values and metadata, including inherited numeric precision/scale or character
-length on empty/all-NULL results. Native NAME[] domain values/ScanType are strings
-with DatabaseTypeName `_NAME`; pinned lib/pq instead exposes raw []byte and
-interface{} ScanType. Native domain columns declare nullable true; pq does not
+length on empty/all-NULL scalar results. Native array/domain-array values and
+ScanType are strings with the actual uppercase array DatabaseTypeName; pinned
+lib/pq instead exposes raw []byte and interface{} ScanType, and reports no name for
+dynamic user-domain array OIDs. Array Length is unknown; NUMERIC[] DecimalSize
+tracks its element typmod (unsized native is unknown, pinned pq is65535/65531).
+Native domain columns declare nullable true; pq does not
 provide Nullable metadata. Ordinary base-owned conversion/input errors are not
 suppressed or normalized between adapters.
 

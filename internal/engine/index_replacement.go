@@ -2,11 +2,17 @@ package engine
 
 import "context"
 
-// Storage is private to replacement. Allocator frontiers advance only after
-// comparison, root construction and cancellation have all succeeded.
+// Imported storage is private to replacement. Exact retained TEMP storage keeps
+// its internal lifetime and row identities. Allocator frontiers advance only
+// after comparison, root construction and cancellation have all succeeded.
 func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage) (map[ObjectAddress]*logicalIndexRoot, uint64, uint64, error) {
 	rowID, versionID := e.nextRow, e.nextVersion
-	for _, relation := range storage {
+	for address, relation := range storage {
+		if descriptor := next.descriptors[address]; descriptor != nil && e.storage[address] == relation {
+			if namespace, ok := next.descriptors[descriptor.Namespace()].(*namespaceDescriptor); ok && namespace.temporary != (SessionToken{}) {
+				continue
+			}
+		}
 		for i := range relation.versions {
 			rowID++
 			versionID++

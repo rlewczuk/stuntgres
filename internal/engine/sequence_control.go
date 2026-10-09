@@ -65,25 +65,56 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 			temporary[a] = d
 		}
 	}
-	// Exact retained sequence descriptors also retain their builtin type
-	// generation. Keep those dependencies, then retag only affected imported
-	// columns and detached live values; never rewrite retained TEMP or source rows.
-	var retainedInt8, retainedBool *sqltype.Descriptor
-	for _, d := range temporary {
-		if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
-			retainedInt8 = r.columns[0].Usage.Type
-			retainedBool = r.columns[2].Usage.Type
-		}
-	}
-	typesChanged := false
-	for _, typ := range [...]*sqltype.Descriptor{retainedInt8, retainedBool} {
-		if typ == nil {
+	// Persistent replacement cannot substitute imported domains for a live
+	// TEMP array's exact dependency identities. Fail before allocator/state work.
+	for _, descriptor := range temporary {
+		relation, ok := descriptor.(*relationDescriptor)
+		if !ok {
 			continue
 		}
+		for _, column := range relation.columns {
+			typ := column.Usage.Type
+			if !typ.BaseType().IsArray() || !arrayDomainDependency(typ) {
+				continue
+			}
+			if !retainedArrayDependencies(e.state, next, typ) {
+				return fmt.Errorf("stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported")
+			}
+		}
+	}
+	// Retained TEMP columns retain exact builtin generations and their array
+	// associations. Imported columns/values are reowned below, never TEMP rows.
+	typesChanged := false
+	retained := make(map[sqltype.ID]bool)
+	var retainBuiltin func(*sqltype.Descriptor)
+	retainBuiltin = func(typ *sqltype.Descriptor) {
+		if typ == nil || typ.IsDomain() || typ.IsArray() && typ.Element().IsDomain() || retained[typ.ID()] {
+			return
+		}
+		retained[typ.ID()] = true
 		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
+		source, ok := e.state.descriptors[address].(*typeDescriptor)
+		if !ok || source.typ != typ {
+			return
+		}
 		if imported, ok := next.descriptors[address].(*typeDescriptor); ok && imported.typ != typ {
-			next.descriptors[address] = e.state.descriptors[address]
+			next.descriptors[address] = source
 			typesChanged = true
+		}
+		if typ.IsArray() {
+			retainBuiltin(typ.Element())
+		}
+		if source.array != 0 {
+			if array, ok := e.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(source.array)}].(*typeDescriptor); ok {
+				retainBuiltin(array.typ)
+			}
+		}
+	}
+	for _, descriptor := range temporary {
+		if relation, ok := descriptor.(*relationDescriptor); ok {
+			for _, column := range relation.columns {
+				retainBuiltin(column.Usage.Type)
+			}
 		}
 	}
 	mapping := make(map[ObjectAddress]ObjectAddress)
@@ -222,6 +253,9 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState
 	for a, d := range temporary {
 		next.descriptors[a] = d
 		next.names[relationNameKey(d)] = a
+		if rows := e.storage[a]; rows != nil {
+			storage[a] = rows
+		}
 		if g := e.sequences[a]; g != nil {
 			sequences[a] = g
 		}
@@ -344,4 +378,29 @@ func restoreSequenceState(s *parser.Select) bool {
 	second := call.Args[1].(parser.LiteralExpr)
 	third := call.Args[2].(parser.LiteralExpr)
 	return first.Value.Kind == parser.StringValue && second.Value.Kind == parser.IntegerValue && third.Value.Kind == parser.BooleanValue
+}
+
+func arrayDomainDependency(typ *sqltype.Descriptor) bool {
+	if typ.IsDomain() {
+		return true
+	}
+	return typ.IsArray() && arrayDomainDependency(typ.Element())
+}
+func retainedArrayDependencies(source, target *catalogState, typ *sqltype.Descriptor) bool {
+	address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(typ.ID())}
+	old, ok := source.descriptors[address].(*typeDescriptor)
+	if !ok {
+		return false
+	}
+	next, ok := target.descriptors[address].(*typeDescriptor)
+	if !ok || old.typ != typ || next.typ != typ || old.array != next.array || old.Namespace() != next.Namespace() || old.owner != next.owner || old.Revision() != next.Revision() {
+		return false
+	}
+	if typ.IsDomain() {
+		return retainedArrayDependencies(source, target, typ.DomainBase().Type)
+	}
+	if typ.IsArray() {
+		return retainedArrayDependencies(source, target, typ.Element())
+	}
+	return true
 }

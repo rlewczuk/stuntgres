@@ -322,7 +322,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 					if sqltype.StringCategory(id) {
 						preferred++
 					}
-				} else if !sqltype.StringScalar(id) {
+				} else if !sqltype.StringScalar(t) {
 					viable = false
 				}
 			}

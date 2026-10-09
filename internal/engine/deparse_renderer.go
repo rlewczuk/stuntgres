@@ -78,6 +78,15 @@ func pgType(u sqltype.Usage) (string, error) {
 }
 
 func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
+	if !u.Type.IsDomain() && u.Type.IsArray() {
+		element := u
+		element.Type = u.Type.Element()
+		typ, err := r.typeSQL(element)
+		if err != nil {
+			return "", err
+		}
+		return typ + "[]", nil
+	}
 	if !u.Type.IsDomain() {
 		return pgType(u)
 	}
@@ -115,7 +124,11 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 		}
 		return "NULL::" + typ, nil
 	}
-	text, err := v.Type().OutputWithEnvironment(ctx, v, r.output)
+	output := r.output
+	if v.Type().BaseType().IsArray() && v.Type().ContainsRegclass() {
+		output.Regclass = catalogRegclassOutput{view: r.view, path: r.path}
+	}
+	text, err := v.Type().OutputWithEnvironment(ctx, v, output)
 	if err != nil {
 		return "", err
 	}
@@ -124,6 +137,9 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			s = strings.ReplaceAll(s, "\\", "\\\\")
 		}
 		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+	}
+	if u.Type.IsArray() {
+		return quote(text) + "::" + typ, nil
 	}
 	if u.Type.IsDomain() {
 		if u.Type.BaseType().ID() == sqltype.Regclass {
@@ -164,7 +180,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			text = regclassSpelling(r.view, r.path, OID(id))
 		}
 		return quote(text) + "::regclass", nil
-	case sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval, sqltype.NameArray:
+	case sqltype.Text, sqltype.Name, sqltype.Char, sqltype.BPChar, sqltype.VarChar, sqltype.Bytea, sqltype.UUID, sqltype.Date, sqltype.Time, sqltype.Timetz, sqltype.Timestamp, sqltype.Timestamptz, sqltype.Interval:
 		return quote(text) + "::" + typ, nil
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse constant type %d", u.Type.ID())

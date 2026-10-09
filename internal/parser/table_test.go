@@ -79,7 +79,7 @@ func TestTableCoreOptionsAndBoundaries(t *testing.T) {
 }
 
 func TestTableCoreExcludedTypeSyntaxNeverSkips(t *testing.T) {
-	for _, declaration := range []string{"BIT VARYING", "INT(4)", "INT[]"} {
+	for _, declaration := range []string{"BIT VARYING", "INT(4)"} {
 		statements, err := Parse("CREATE TABLE IF NOT EXISTS t (id " + declaration + "); INSERT INTO t VALUES(1)")
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {

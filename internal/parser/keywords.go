@@ -81,7 +81,7 @@ var keywords = [...]keyword{
 	{"analyze", Reserved, true, 0},
 	{"and", Reserved, true, AND},
 	{"any", Reserved, true, 0},
-	{"array", Reserved, false, 0},
+	{"array", Reserved, false, ARRAY},
 	{"as", Reserved, false, AS},
 	{"asc", Reserved, true, ASC},
 	{"asensitive", Unreserved, true, 0},

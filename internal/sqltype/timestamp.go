@@ -1,6 +1,7 @@
 package sqltype
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strconv"
@@ -25,6 +26,11 @@ type InputEnvironment struct {
 	Zone             *Zone
 	DateStyle        DateStyle
 	IntervalStyle    IntervalStyle
+	Regclass         RegclassResolver
+}
+
+type RegclassResolver interface {
+	ResolveRegclass(context.Context, string) (uint32, error)
 }
 
 func TimestampValue(d *Descriptor, n int64) (Value, error) {
@@ -43,6 +49,9 @@ func (v Value) Timestamp() (int64, error) {
 	return v.integer, nil
 }
 func (d *Descriptor) validTypmod(p int32) bool {
+	if d.IsArray() {
+		return d.element.validTypmod(p)
+	}
 	return p == -1 || d.id == Interval && intervalTypmodValid(p) || (d.id == Timestamp || d.id == Time || d.id == Timestamptz || d.id == Timetz) && p >= 0 && p <= 6 || d.id == Numeric && numericTypmodValid(p) || (d.id == BPChar || d.id == VarChar) && p >= 5 && p <= maximumCharacterLength+4
 }
 func (u Usage) Valid() bool {
@@ -58,6 +67,10 @@ func (u Usage) validCollation() bool {
 		base.Collation = u.Collation
 		return base.validCollation()
 	}
+	if u.Type.IsArray() {
+		u.Type = u.Type.element
+		return u.validCollation()
+	}
 	if IsCharacter(u.Type.ID()) || u.Type.ID() == Name {
 		return u.Collation.Derivation == Default && (u.Collation.ID == 100 || u.Collation.ID == 950 || u.Collation.ID == 951 || u.Collation.ID == 811 || u.Collation.ID == 6411)
 	}
@@ -67,6 +80,9 @@ func (u Usage) validCollation() bool {
 // CheckModifierSupport rejects absent type-modifier providers before the
 // statement owner interprets raw modifier expressions.
 func (d *Descriptor) CheckModifierSupport() error {
+	if d.IsArray() {
+		return d.element.CheckModifierSupport()
+	}
 	if d.IsDomain() {
 		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
 	}
@@ -91,6 +107,11 @@ func (d *Descriptor) CheckModifierSupport() error {
 // ResolveModifiers returns an effective usage and optional provider warning.
 // Source positions and warning delivery belong to the statement owner.
 func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Error, error) {
+	if d.IsArray() {
+		u, warning, err := d.element.ResolveModifiers(modifiers...)
+		u.Type = d
+		return u, warning, err
+	}
 	u := d.Usage()
 	if err := d.CheckModifierSupport(); err != nil {
 		return u, nil, err
@@ -161,6 +182,11 @@ func (d *Descriptor) ResolveModifiers(modifiers ...int32) (Usage, *sqlstate.Erro
 func (u Usage) Declaration() (string, error) {
 	if !u.Valid() {
 		return "", fmt.Errorf("invalid declaration usage")
+	}
+	if u.Type.IsArray() {
+		u.Type = u.Type.element
+		declaration, err := u.Declaration()
+		return declaration + "[]", err
 	}
 	if u.Type.id == Interval {
 		return intervalDeclaration(u.Typmod), nil

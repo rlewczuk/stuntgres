@@ -79,7 +79,7 @@ func TestStringCoreProviderScalars(t *testing.T) {
 			t.Fatal(tc, got, err)
 		}
 	}
-	if StringScalar(NameArray) || StringScalar(Unknown) || StringScalar(0) || StringCategory(Char) || !StringTextInput(Char) {
+	if StringScalar(types[NameArray]) || StringScalar(types[Unknown]) || StringScalar(nil) || StringCategory(Char) || !StringTextInput(Char) {
 		t.Fatal("scalar/category boundary")
 	}
 }

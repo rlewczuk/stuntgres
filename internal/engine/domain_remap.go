@@ -22,12 +22,15 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain base")
 		}
-		if !d.typ.IsDomain() {
+		if !d.typ.IsDomain() && !d.typ.IsArray() {
 			visited[address] = true
 			return nil
 		}
 		active[address] = true
 		base := d.typ.DomainBase()
+		if d.typ.IsArray() {
+			base = d.typ.Element().Usage()
+		}
 		baseAddress := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}
 		if err := visit(baseAddress); err != nil {
 			return err
@@ -46,14 +49,29 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 			return fmt.Errorf("stuntgres: missing domain namespace")
 		}
 		declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(d.Name())
-		if base.Type != d.typ.DomainBase().Type || target != address || namespace != d.Namespace() || declaration != d.typ.SQLName() {
-			typ, err := sqltype.Domain(sqltype.ID(target.ObjectID), d.Name(), declaration, base)
+		previous := d.typ.DomainBase().Type
+		if d.typ.IsArray() {
+			previous = d.typ.Element()
+		}
+		associated := d.array
+		if destination, ok := mapping[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(associated)}]; ok {
+			associated = sqltype.ID(destination.ObjectID)
+		}
+		if base.Type != previous || target != address || namespace != d.Namespace() || d.typ.IsDomain() && declaration != d.typ.SQLName() || associated != d.array {
+			var typ *sqltype.Descriptor
+			var err error
+			if d.typ.IsArray() {
+				typ, err = sqltype.Array(sqltype.ID(target.ObjectID), d.Name(), base.Type)
+			} else {
+				typ, err = sqltype.Domain(sqltype.ID(target.ObjectID), d.Name(), declaration, base)
+			}
 			if err != nil {
 				return err
 			}
 			copy := *d
 			copy.typ = typ
 			copy.namespace = namespace
+			copy.array = associated
 			next.descriptors[address] = &copy
 			changed = true
 		}
@@ -62,7 +80,7 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 		return nil
 	}
 	for address, d := range next.descriptors {
-		if t, ok := d.(*typeDescriptor); ok && t.typ.IsDomain() {
+		if t, ok := d.(*typeDescriptor); ok && (t.typ.IsDomain() || t.typ.IsArray()) {
 			if err := visit(address); err != nil {
 				return false, err
 			}
@@ -74,6 +92,9 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 // Only an explicit catalog identity mapping can reidentify a domain. Ordinary
 // Value.Retag remains a checked same-logical-ID generation reownership operation.
 func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor) (sqltype.Value, error) {
+	if value.Type().BaseType().IsArray() && target.BaseType().IsArray() {
+		return value.MapArray(target, reownDomainDatum)
+	}
 	if value.Type().ID() == target.ID() {
 		return value.Retag(target)
 	}
@@ -144,30 +165,18 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 						return err
 					}
 				}
-				if len(mapping) != 0 && !rebound.IsNull() && target.BaseType().ID() == sqltype.Regclass {
-					physical, er := rebound.BaseValue()
-					if er != nil {
-						return er
-					}
-					text, er := physical.Text()
-					if er != nil {
-						return er
-					}
-					oid, er := strconv.ParseUint(text, 10, 32)
-					if er != nil {
-						return er
-					}
-					if destination, ok := mapping[ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}]; ok {
-						physical = sqltype.String(target.BaseType(), strconv.FormatUint(uint64(destination.ObjectID), 10))
-						rebound = physical
-						if target.IsDomain() {
-							rebound, err = target.Wrap(physical)
-							if err != nil {
-								return err
-							}
+				if len(mapping) != 0 && !rebound.IsNull() && target.ContainsRegclass() {
+					remapped, er := remapRegclassDatum(rebound, func(id OID) OID {
+						if target, ok := mapping[ObjectAddress{ClassID: RelationClassID, ObjectID: id}]; ok {
+							return target.ObjectID
 						}
-						changed = true
+						return id
+					})
+					if er != nil {
+						return er
 					}
+					changed = changed || remapped != rebound
+					rebound = remapped
 				}
 				if changed {
 					if values == nil {
@@ -190,4 +199,41 @@ func reownCatalogScalarTypes(next *catalogState, storage map[ObjectAddress]*rela
 		}
 	}
 	return nil
+}
+
+// Remap captured relation identities recursively without rendering or reparsing
+// array text. Payloads are copied only on the first affected element.
+func remapRegclassDatum(value sqltype.Value, destination func(OID) OID) (sqltype.Value, error) {
+	if value.IsNull() {
+		return value, nil
+	}
+	if value.Type().BaseType().IsArray() {
+		return value.MapArray(value.Type(), func(element sqltype.Value, _ *sqltype.Descriptor) (sqltype.Value, error) {
+			return remapRegclassDatum(element, destination)
+		})
+	}
+	if value.Type().BaseType().ID() != sqltype.Regclass {
+		return value, nil
+	}
+	physical, err := value.BaseValue()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	text, err := physical.Text()
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	oid, err := strconv.ParseUint(text, 10, 32)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	target := destination(OID(oid))
+	if target == OID(oid) {
+		return value, nil
+	}
+	physical = sqltype.String(value.Type().BaseType(), strconv.FormatUint(uint64(target), 10))
+	if value.Type().IsDomain() {
+		return value.Type().Wrap(physical)
+	}
+	return physical, nil
 }

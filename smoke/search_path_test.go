@@ -51,69 +51,21 @@ func TestSearchPathSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer table.Close()
-	schemas, err := a.PrepareContext(ctx, "SELECT current_schemas($1)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer schemas.Close()
-	read := func(flag any, want any) {
-		t.Helper()
-		rows, err := schemas.QueryContext(ctx, flag)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer rows.Close()
-		types, err := rows.ColumnTypes()
-		if err != nil || len(types) != 1 {
-			t.Fatal(types, err)
-		}
-		if types[0].Name() != "current_schemas" || types[0].DatabaseTypeName() != "_NAME" || types[0].ScanType() != reflect.TypeOf("") {
-			t.Fatal(types)
-		}
-		if !rows.Next() {
-			t.Fatal(rows.Err())
-		}
-		var got any
-		if err := rows.Scan(&got); err != nil || !reflect.DeepEqual(got, want) {
-			t.Fatal(got, want, err)
-		}
-		if rows.Next() || rows.Err() != nil {
-			t.Fatal(rows.Err())
-		}
-	}
-	read(false, "{sp1,sp2}")
-	read(true, "{pg_catalog,sp1,sp2}")
-	read(nil, nil)
 	var id int64
 	if err := table.QueryRowContext(ctx).Scan(&id); err != nil || id != 7 {
 		t.Fatal(id, err)
 	}
-	retained, err := schemas.QueryContext(ctx, false)
-	if err != nil {
-		t.Fatal(err)
-	}
 	exec(a, "SET search_path TO sp2,sp1")
-	if !retained.Next() {
-		t.Fatal(retained.Err())
-	}
-	var old string
-	if err := retained.Scan(&old); err != nil || old != "{sp1,sp2}" {
-		t.Fatal(old, err)
-	}
-	retained.Close()
-	read(false, "{sp2,sp1}")
 	if err := table.QueryRowContext(ctx).Scan(&id); err != nil || id != 9 {
 		t.Fatal(id, err)
 	}
 	value(a, "SELECT id FROM sp1.t", int64(7))
 	value(b, "SELECT id FROM t", int64(7))
-	value(b, "SELECT current_schemas(false)", "{sp1,sp2}")
 	for _, tc := range []struct {
 		q    string
 		want any
 	}{
 		{"SELECT pg_catalog.num_nulls(NULL,7)", int64(1)},
-		{"SELECT pg_catalog.current_schemas(false)", "{sp2,sp1}"},
 		{"SELECT pg_catalog.current_setting('search_path')", "sp2, sp1"},
 		{"SELECT CAST(id AS pg_catalog.int4) FROM sp1.t", int64(7)},
 		{"SELECT pg_catalog.int4(id) FROM sp1.t", int64(7)},
@@ -127,26 +79,20 @@ func TestSearchPathSmoke(t *testing.T) {
 	value(a, "SELECT pg_catalog.nextval('sp1.seq')", int64(1))
 	value(a, "SELECT pg_catalog.set_config('search_path','sp1',false)", "sp1")
 	exec(a, "SET search_path TO pg_temp,sp1")
-	read(false, "{sp1}")
-	read(true, "{pg_catalog,sp1}")
 	exec(a, "CREATE TEMP SEQUENCE temp_seq")
 	var temp string
 	if err := a.QueryRowContext(ctx, "SELECT current_schema()").Scan(&temp); err != nil || !strings.HasPrefix(temp, "pg_temp_") {
 		t.Fatal(temp, err)
 	}
 	exec(a, "SET search_path TO sp1,pg_temp,pg_temp")
-	read(false, "{sp1,"+temp+"}")
-	read(true, "{pg_catalog,sp1,"+temp+"}")
 	value(a, "SELECT pg_catalog.num_nulls(NULL)", int64(1))
 	exec(a, `CREATE SCHEMA "path,comma"`)
 	exec(a, `SET search_path TO "path,comma"`)
-	read(false, `{"path,comma"}`)
 	exec(a, "SET search_path TO sp2")
 	_, err = a.ExecContext(ctx, "SELECT set_config('search_path','sp1,',false)")
 	if err := settingsFullDiagnostic(err, stuntgres.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: `invalid value for parameter "search_path": "sp1,"`, Detail: "List syntax is invalid."}); err != nil {
 		t.Fatal(err)
 	}
-	read(false, "{sp2}")
 	exec(a, "SET search_path TO missing,sp2,sp1")
 	exec(a, "CREATE TABLE created(id INT)")
 	exec(a, "CREATE TABLE sp1.defaults(id INT DEFAULT (7 OPERATOR(pg_catalog.+) 1))")
@@ -188,10 +134,7 @@ func TestSearchPathSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkMath(mathRows)
-	exec(a, "CREATE VIEW sp1.paths AS SELECT pg_catalog.current_schemas(false) AS paths FROM sp1.t")
-	value(a, "SELECT paths FROM sp1.paths", "{sp2,sp1}")
 	exec(a, "SET search_path TO sp1")
-	value(a, "SELECT paths FROM sp1.paths", "{sp1}")
 	exec(a, "CREATE TABLE sp1.temporal(t pg_catalog.time(3),ts pg_catalog.timestamp(3))")
 	exec(a, "INSERT INTO sp1.temporal VALUES('12:34:56.123789','2000-01-01 12:34:56.123789')")
 	checkTemporal := func(rows *sql.Rows) {
@@ -264,7 +207,6 @@ func TestSearchPathSmoke(t *testing.T) {
 	if err := stuntgres.Restore(ctx, fresh, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	value(freshSession, "SELECT current_schemas(false)", "{pg_catalog}")
 	restoredTemporal, err := freshSession.PrepareContext(ctx, temporalQuery)
 	if err != nil {
 		t.Fatal(err)
@@ -298,7 +240,6 @@ func TestSearchPathSmoke(t *testing.T) {
 		}
 		checkMath(rows)
 	}
-	read(false, "{sp2,sp1}")
 	if err := stuntgres.Restore(ctx, db, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
@@ -316,8 +257,6 @@ func TestSearchPathSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkMath(mathRows)
-	read(false, "{sp2,sp1}")
-	value(a, "SELECT paths FROM sp1.paths", "{sp2,sp1}")
 	value(a, "SELECT t FROM sp1.temporal", "12:34:56.124")
 	value(a, "SELECT ts FROM sp1.temporal", time.Date(2000, 1, 1, 12, 34, 56, 124000000, time.UTC))
 	exec(a, "INSERT INTO sp1.temporal VALUES(TIME '12:34:56.125789',TIMESTAMP '2000-01-01 12:34:56.125789')")

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -210,26 +211,32 @@ func sequenceInputError(err error, pos parser.Position, context string, paramete
 	}
 	return err
 }
-func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef, error) {
+func regclassNumeric(text string) (uint32, bool, error) {
 	input := text
 	if input == "-" {
 		input = "0"
 	}
-	if input != "" {
-		numeric := true
-		for _, c := range input {
-			if c < '0' || c > '9' {
-				numeric = false
-				break
-			}
+	if input == "" {
+		return 0, false, nil
+	}
+	for _, c := range input {
+		if c < '0' || c > '9' {
+			return 0, false, nil
 		}
-		if numeric {
-			n, err := strconv.ParseUint(input, 10, 32)
-			if err != nil {
-				return ObjectRef{}, sqlError("22003", fmt.Sprintf(`value "%s" is out of range for type oid`, text))
-			}
-			return ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(n)}}, nil
+	}
+	n, err := strconv.ParseUint(input, 10, 32)
+	if err != nil {
+		return 0, true, sqlError("22003", fmt.Sprintf(`value "%s" is out of range for type oid`, text))
+	}
+	return uint32(n), true, nil
+}
+
+func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef, error) {
+	if oid, numeric, err := regclassNumeric(text); numeric {
+		if err != nil {
+			return ObjectRef{}, err
 		}
+		return ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}}, nil
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
@@ -239,6 +246,72 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ObjectRef,
 		return ObjectRef{}, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, objectNameText(name)))
 	}
 	return e.resolveRelationReference(auth, name, false)
+}
+
+// Element input retains the statement's immutable authority, including its
+// already-selected relation path. It never locks or consults a later catalog.
+type capturedRegclassInput struct {
+	auth      AuthorizationView
+	path      []ObjectAddress
+	temporary ObjectAddress
+	token     SessionToken
+}
+
+func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassResolver, error) {
+	path, err := e.referencePath(auth)
+	if err != nil {
+		return nil, err
+	}
+	input := capturedRegclassInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
+	if auth.session != nil {
+		input.token = auth.session.token
+	}
+	input.auth.session = nil
+	input.auth.settings = nil
+	return input, nil
+}
+func (r capturedRegclassInput) ResolveRegclass(ctx context.Context, text string) (uint32, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if oid, numeric, err := regclassNumeric(text); numeric {
+		return oid, err
+	}
+	name, err := parser.ParseRegclassName(text)
+	if err != nil {
+		return 0, sqlError("42602", "invalid name syntax")
+	}
+	if len(name.Parts) == 3 {
+		return 0, sqlError("0A000", fmt.Sprintf(`cross-database references are not implemented: "%s"`, objectNameText(name)))
+	}
+	path := r.path
+	if len(name.Parts) == 2 {
+		ns := r.auth.catalog.state.names[NameKey{ClassID: NamespaceClassID, Name: name.Parts[0].Text}]
+		if name.Parts[0].Text == "pg_temp" {
+			ns = r.temporary
+		}
+		if ns == (ObjectAddress{}) {
+			path = nil
+		} else {
+			namespace := r.auth.catalog.state.descriptors[ns].(*namespaceDescriptor)
+			if namespace.temporary != (SessionToken{}) && namespace.temporary != r.token {
+				return 0, sqlError("42501", fmt.Sprintf("permission denied for schema %s", namespace.name))
+			}
+			if err := r.auth.CanUse(ObjectRef{owner: r.auth.engine.owner, Epoch: r.auth.catalog.Epoch(), Address: ns}); err != nil {
+				return 0, err
+			}
+			path = []ObjectAddress{ns}
+		}
+	}
+	for _, ns := range path {
+		if address, ok := r.auth.catalog.state.names[NameKey{ClassID: RelationClassID, Namespace: ns, Name: name.Parts[len(name.Parts)-1].Text}]; ok {
+			if _, ok := r.auth.catalog.state.descriptors[address].(*relationDescriptor); !ok {
+				return 0, fmt.Errorf("stuntgres: invalid relation descriptor")
+			}
+			return uint32(address.ObjectID), nil
+		}
+	}
+	return 0, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, objectNameText(name)))
 }
 func (x sequenceCallExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {

@@ -47,7 +47,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	if target.Type.IsDomain() {
+	if target.Type.IsDomain() && !target.Type.BaseType().IsArray() {
 		base := target.BaseUsage()
 		value, err := importParameter(ctx, raw, base, input)
 		if err != nil {
@@ -193,9 +193,10 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 			return nil, err
 		}
 	}
+	if v.Type().IsArray() {
+		return v.Type().OutputWithEnvironment(ctx, v, output)
+	}
 	switch v.Type().ID() {
-	case sqltype.NameArray:
-		return v.NamesOutput()
 	case sqltype.Oid:
 		n, err := v.OID()
 		return int64(n), err
@@ -240,6 +241,9 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 }
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
+	if d.BaseType().IsArray() {
+		return reflect.TypeFor[string]()
+	}
 	switch d.BaseType().ID() {
 	case sqltype.Bytea:
 		return reflect.TypeFor[[]byte]()
@@ -249,7 +253,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[int64]()
 	case sqltype.Float4, sqltype.Float8:
 		return reflect.TypeFor[float64]()
-	case sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.NameArray, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Char:
+	case sqltype.PgNodeTree, sqltype.Interval, sqltype.Void, sqltype.Text, sqltype.BPChar, sqltype.VarChar, sqltype.Name, sqltype.UUID, sqltype.Time, sqltype.Timetz, sqltype.Numeric, sqltype.Date, sqltype.Regclass, sqltype.Char:
 		return reflect.TypeFor[string]()
 	case sqltype.Bool:
 		return reflect.TypeFor[bool]()

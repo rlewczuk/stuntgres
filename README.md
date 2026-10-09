@@ -36,16 +36,31 @@ Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`.
 
+Change note: arrays now provide catalog-owned storage and literal input/output
+over every supported stored scalar family and domains, including arrays of
+domains, domains over arrays and nested array-valued domains. `type[]`, repeated
+brackets and standard `type ARRAY[n]` declarations resolve the element before its
+associated array; declared bounds do not constrain stored shape. Native values
+are canonical array-literal strings, with owned immutable dimensions/elements,
+typed NULLs, element typmods and statement-owned temporal/REGCLASS presentation.
+Domain publication/drop and native Dump/Restore retain both association halves
+and recursively reown stored identities. No ARRAY constructors, subscripts,
+operators, array functions or new catalog projections are added.
+See [arrays](docs/TYPES.md#arrays--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArraySmoke$' VERBOSE=0`;
+independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArraySmoke$' VERBOSE=0`.
+Full array definitions: run the same commands with `RUN='^TestReferenceArray'`.
+
 Change note: `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` declares a
-catalog-owned logical type over a supported scalar or bounded `NAME[]` base.
+catalog-owned logical type over a supported scalar or array base.
 Domain columns, direct/prepared input, inherited base typmods, operators/functions
 and explicit assignment/cast-back retain the distinction between logical identity
 and physical codecs. `DROP DOMAIN [IF EXISTS] ... [RESTRICT | CASCADE]` follows
 real type/column/stored-expression dependencies: CASCADE removes dependent columns
 and views, not unrelated tables or surviving rows. Native Dump/Restore preserves
 qualified declarations, chains, owners and data. Domain DEFAULT/CHECK/NOT NULL,
-ALTER DOMAIN, general arrays, type ACL-management SQL and transactional domain DDL
-remain excluded. See [domains](docs/TYPES.md#domains--change-note).
+ALTER DOMAIN, array operators/functions/constructors/subscripts, type ACL-management
+SQL and transactional domain DDL remain excluded. See [domains](docs/TYPES.md#domains--change-note).
 Feature smokes:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$' VERBOSE=0`,
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$' VERBOSE=0`,
@@ -265,10 +280,10 @@ pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestRefer
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;
 bounded temporal explicit casts and same-type precision annotations are supported.
-`SELECT current_schemas(false)` returns a genuine bounded NAME[] (`_NAME`)
-as a native string, or NULL for a NULL boolean argument. Its codec also supports
-the selected domain-base input/storage/cast path; general arrays and
-CREATE TYPE/function/operator DDL remain excluded. TEMP remains sequence-only;
+`SELECT current_schemas(false)` returns a genuine NAME[] (`_NAME`)
+as a native string, or NULL for a NULL boolean argument, through the shared
+array storage/literal codec. CREATE TYPE/function/operator DDL remain excluded.
+TEMP remains sequence-only;
 introspection does not allocate an absent temporary namespace.
 Native ORDER on NAME[] is explicitly unsupported at analysis, including empty
 sources; PostgreSQL's array comparator remains outside the bounded native surface.

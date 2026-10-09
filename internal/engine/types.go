@@ -37,6 +37,7 @@ type temporalConstant struct {
 	months, days int32
 	typed        bool
 	typedTypmod  int32
+	value        sqltype.Value // immutable typed array literal, including temporal elements
 }
 
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
@@ -49,6 +50,7 @@ type typeDescriptor struct {
 	owner      PrincipalRef
 	acl        ACLValue
 	dimensions int32
+	array      sqltype.ID
 }
 
 func (d *typeDescriptor) Address() ObjectAddress {
@@ -92,6 +94,23 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 			return fmt.Errorf("stuntgres: invalid domain base generation")
 		}
 	}
+	if t.typ.IsArray() {
+		element := t.typ.Element()
+		actual, exists := view.LookupType(element.ID())
+		if !exists || actual != element {
+			return fmt.Errorf("stuntgres: invalid array element generation")
+		}
+		owner, exists := view.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(element.ID())})
+		if !exists || owner.(*typeDescriptor).array != t.typ.ID() {
+			return fmt.Errorf("stuntgres: invalid associated array identity")
+		}
+	}
+	if t.array != 0 {
+		array, exists := view.LookupType(t.array)
+		if !exists || !array.IsArray() || array.Element() != t.typ {
+			return fmt.Errorf("stuntgres: invalid element array association")
+		}
+	}
 	return nil
 }
 
@@ -107,9 +126,45 @@ func (r CatalogRead) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return t.typ, true
 }
 
+func (r CatalogRead) LookupArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
+	if element == nil {
+		return nil, false
+	}
+	owner, ok := r.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(element.ID())})
+	if !ok || owner.(*typeDescriptor).typ != element {
+		return nil, false
+	}
+	array, ok := r.LookupType(owner.(*typeDescriptor).array)
+	return array, ok && array.IsArray() && array.Element() == element
+}
+
 // Called only by the existing binder against its current coherent catalog.
 func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage, error) {
-	return e.resolveAnnotationType(raw, op, false)
+	u, err := e.resolveAnnotationType(raw, op, false)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	if physical := u.Type.BaseType(); physical.IsArray() && !storedArrayElement(physical.Element()) {
+		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
+	}
+	if u.Type.IsArray() && u.Type.Element().IsDomain() {
+		auth, err := e.authorizationLocked(op)
+		if err != nil {
+			return sqltype.Usage{}, err
+		}
+		if err := auth.CanUse(ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}}); err != nil {
+			return sqltype.Usage{}, err
+		}
+	}
+	return u, nil
+}
+
+func storedArrayElement(typ *sqltype.Descriptor) bool {
+	physical := typ.BaseType()
+	if physical.IsArray() {
+		return storedArrayElement(physical.Element())
+	}
+	return sqltype.StoredScalarCastType(physical.ID()) || physical.ID() == sqltype.Regclass
 }
 
 func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unknownNull bool) (sqltype.Usage, error) {
@@ -139,12 +194,6 @@ func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, u
 		case "character varying":
 			name = "varchar"
 		}
-	}
-	if len(raw.ArrayBounds) > 0 {
-		if name != "name" {
-			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "array types are unsupported")
-		}
-		name = "_name"
 	}
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -234,6 +283,13 @@ func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, u
 			}
 			op.emitNotice(levelWarning, *warning)
 		}
+	}
+	if len(raw.ArrayBounds) > 0 {
+		array, ok := view.LookupArray(d)
+		if !ok {
+			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported array element type")
+		}
+		u.Type = array
 	}
 	return u, nil
 }

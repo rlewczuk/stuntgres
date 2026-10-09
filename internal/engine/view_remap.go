@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"stuntgres/internal/sqltype"
 )
 
@@ -34,26 +33,13 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case identityExpression:
 		next = n
 	case literalExpression:
-		if n.usage.Type.BaseType().ID() == sqltype.Regclass && !n.value.IsNull() {
-			physical, failure := n.value.BaseValue()
+		if n.usage.Type.ContainsRegclass() && !n.value.IsNull() {
+			var failure error
+			n.value, failure = remapRegclassDatum(n.value, func(id OID) OID {
+				return ref(ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: id}}).Address.ObjectID
+			})
 			if failure != nil {
 				return nil, failure
-			}
-			text, failure := physical.Text()
-			if failure != nil {
-				return nil, failure
-			}
-			oid, failure := strconv.ParseUint(text, 10, 32)
-			if failure != nil {
-				return nil, failure
-			}
-			target := ref(ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}})
-			n.value = sqltype.String(physical.Type(), strconv.FormatUint(uint64(target.Address.ObjectID), 10))
-			if n.usage.Type.IsDomain() {
-				n.value, failure = n.usage.Type.Wrap(n.value)
-				if failure != nil {
-					return nil, failure
-				}
 			}
 		}
 		next = n

@@ -201,7 +201,7 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 			return fmt.Errorf("stuntgres: missing view domain cast type")
 		}
 		actual, ok := v.LookupType(usage.Type.ID())
-		if !ok || actual != usage.Type || !usage.Valid() || !usage.Type.IsDomain() {
+		if !ok || actual != usage.Type || !usage.Valid() || !(usage.Type.IsDomain() || usage.Type.IsArray() && usage.Type.Element().IsDomain()) {
 			return fmt.Errorf("stuntgres: invalid view domain cast authority")
 		}
 	}

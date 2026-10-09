@@ -256,6 +256,9 @@ type referenceStep struct {
 	errorStage         string
 	columns, types     []string
 	rows               [][]any
+	// rawTypes declares codec families separately from catalog names, for example
+	// a user array whose lib/pq DatabaseTypeName is empty.
+	rawTypes []string
 	// checkMetadata inspects the actual cursor before iteration, including empty results.
 	checkMetadata func(t *testing.T, rows *sql.Rows)
 	// checkScan rescans the current row into specialized destinations, never SQL.
@@ -439,11 +442,11 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 		}
 	case "BYTEA":
 		want = reflect.TypeFor[[]byte]()
-	case "_TEXT":
-		if !postgres {
-			t.Fatal("native TEXT[] is outside the supported type surface")
+	case "_BOOL", "_BYTEA", "_INT2", "_INT4", "_INT8", "_TEXT", "_OID", "_BPCHAR", "_VARCHAR", "_FLOAT4", "_FLOAT8", "_NUMERIC", "_DATE", "_TIME", "_TIMETZ", "_TIMESTAMP", "_TIMESTAMPTZ", "_INTERVAL", "_UUID", "_REGCLASS":
+		want = reflect.TypeFor[string]()
+		if postgres {
+			want = reflect.TypeFor[[]byte]()
 		}
-		want = reflect.TypeFor[[]byte]()
 	default:
 		t.Fatalf("unspecified raw representation for SQL type %s", sqlType)
 	}
@@ -631,6 +634,13 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	if s.checkMetadata != nil {
 		s.checkMetadata(t, rows)
 	}
+	rawTypes := s.types
+	if s.rawTypes != nil {
+		if len(s.rawTypes) != len(s.types) {
+			t.Fatal("raw codec family count differs from column count")
+		}
+		rawTypes = s.rawTypes
+	}
 	values := make([][]any, 0)
 	for rows.Next() {
 		row := make([]any, len(columns))
@@ -643,7 +653,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 		}
 		for i, v := range row {
 			if recorder.rawBackend != referenceRawLegacy {
-				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, s.types[i], v)
+				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, rawTypes[i], v)
 			}
 		}
 		if s.checkScan != nil {
@@ -693,7 +703,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 		converted := make([]any, len(row))
 		for i, v := range row {
 			if recorder.rawBackend != referenceRawLegacy {
-				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, s.types[i], v)
+				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, rawTypes[i], v)
 			}
 			converted[i] = referenceNormalize(v)
 		}

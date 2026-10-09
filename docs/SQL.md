@@ -17,10 +17,11 @@ Detailed contracts are grouped by topic:
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
 
-Domain declarations use represented scalar/domain bases and the bounded NAME[]
-codec. NULL is the default; explicit NULL is accepted. DEFAULT/CHECK/NOT NULL,
-ALTER DOMAIN, general arrays, native type ACL-management SQL and explicit-transaction
-domain DDL remain excluded. Duplicate domain names are diagnosed before the proposed
+Domain declarations use represented scalar/domain or supported array bases.
+NULL is the default; explicit NULL is accepted. DEFAULT/CHECK/NOT NULL,
+ALTER DOMAIN, array operators/functions/constructors/subscripts, native type
+ACL-management SQL and explicit-transaction domain DDL remain excluded.
+Duplicate domain names are diagnosed before the proposed
 base type. Namespace CREATE, represented base USAGE and owner-only DROP use current
 authority. RESTRICT reports actual type/column/stored-expression dependencies;
 CASCADE removes dependent columns/types/expressions while preserving unrelated

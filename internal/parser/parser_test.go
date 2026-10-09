@@ -107,7 +107,6 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT f(x) FROM t", "0A000"},
 		{"SELECT 1", "0A000"},
-		{"CREATE TABLE t (x INT[])", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"DELETE FROM t USING u", "0A000"},
 		{"CREATE TABLE \"\" (x INT)", "42601"}, {"SELECT * FROM \"unterminated", "42601"},

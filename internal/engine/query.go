@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"stuntgres/internal/sqltype"
 )
@@ -920,6 +921,13 @@ func (r *finalRows) RegclassText(v sqltype.Value) (string, error) {
 		return "", err
 	}
 	text, ok := r.regclassOutput[key]
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
+	}
+	return text, nil
+}
+func (r *finalRows) FormatRegclass(id uint32) (string, error) {
+	text, ok := r.regclassOutput[strconv.FormatUint(uint64(id), 10)]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
 	}

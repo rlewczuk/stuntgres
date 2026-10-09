@@ -9,7 +9,7 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 ### Domains — change note
 
 `CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]`
-supports the existing stored scalar families, domain chains and bounded NAME[].
+supports the existing stored scalar families, domain chains and supported arrays.
 The target schema requires CREATE; a domain base requires its represented USAGE
 authority. Domains have distinct catalog IDs, owners, namespaces and immediate
 bases. Their nullable values use the ultimate base codec/typmod/collation.
@@ -26,9 +26,9 @@ Contextual literals read the unmodified physical base first: lexical errors stay
 eager, while assignment typmod enforcement and explicit truncation use the normal
 execution coercion. Qualified modifier syntax resolves the actual catalog type,
 including a domain whose name is also a builtin spelling.
-The default is typed NULL. Domain DEFAULT/CHECK/NOT NULL, ALTER DOMAIN, general
-arrays, GRANT/REVOKE TYPE/DOMAIN and explicit-transaction domain utilities remain
-unsupported, not successful no-ops.
+The default is typed NULL. Domain DEFAULT/CHECK/NOT NULL, ALTER DOMAIN,
+array operators/functions/constructors/subscripts, GRANT/REVOKE TYPE/DOMAIN and
+explicit-transaction domain utilities remain unsupported, not successful no-ops.
 The migrated visibility boundary retains its exact CREATE DOMAIN d AS integer
 Query, empty utility result and typed7/true INT4/BOOL witness. DROP followed by
 quiet Prepare leaves the type absent until SAME held Execute; six other native
@@ -76,7 +76,7 @@ boundaries are unchanged. Literal NULL may carry `::unknown` syntax provenance,
 but UNKNOWN is not an input/DDL type.
 Synthetic comparison casts are unsized base-type annotations, not destination
 column assignments; actual explicit NUMERIC precision/scale remains enforced.
-Reconstruction does not add NAME[] equality/order or plain TIME AT inputs.
+Reconstruction does not add array equality/order or plain TIME AT inputs.
 current_schemas behavior uses strict BOOL NULL and public changing-path output;
 AT/LOCAL consumer fixtures use typed TIMESTAMP/TIMESTAMPTZ/TIMETZ columns.
 Persisted identity leaves preserve keyword versus ordinary-call syntax and stable

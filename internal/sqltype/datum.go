@@ -13,6 +13,25 @@ func SameDatum(a, b Value) bool {
 	if a.null || b.null {
 		return a.null == b.null
 	}
+	if a.typ.BaseType().IsArray() {
+		if a.array == nil || b.array == nil {
+			return false
+		}
+		if len(a.array.dimensions) != len(b.array.dimensions) || len(a.array.elements) != len(b.array.elements) {
+			return false
+		}
+		for i, dim := range a.array.dimensions {
+			if dim != b.array.dimensions[i] {
+				return false
+			}
+		}
+		for i, element := range a.array.elements {
+			if !SameDatum(element, b.array.elements[i]) {
+				return false
+			}
+		}
+		return true
+	}
 	switch a.typ.BaseType().id {
 	case PgNodeTree:
 		return a.tree == b.tree
@@ -33,7 +52,7 @@ func SameDatum(a, b Value) bool {
 	case Numeric:
 		return a.text == b.text && a.exponent == b.exponent && a.scale == b.scale &&
 			a.negative == b.negative && a.special == b.special
-	case Text, VarChar, BPChar, Name, NameArray, Bytea, Regclass, Char:
+	case Text, VarChar, BPChar, Name, Bytea, Regclass, Char:
 		return a.text == b.text
 	case UUID:
 		return a.uuid == b.uuid

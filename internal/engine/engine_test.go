@@ -130,13 +130,14 @@ func testExport(v sqltype.Value) driver.Value {
 	if v.IsNull() {
 		return nil
 	}
-	switch v.Type().ID() {
-	case sqltype.NameArray:
-		s, err := v.NamesOutput()
+	if v.Type().BaseType().IsArray() {
+		s, err := v.Type().Output(context.Background(), v)
 		if err != nil {
 			panic(err)
 		}
 		return s
+	}
+	switch v.Type().ID() {
 	case sqltype.Int2, sqltype.Int4, sqltype.Int8:
 		n, err := v.Integer()
 		if err != nil {
@@ -199,6 +200,9 @@ func testExecuteFrame(e *Engine, op *Operation, stmt parser.Statement, args []dr
 			}
 			value, err := p.Types[i].Type.InputWithEnvironment(ctx, s, -1, input)
 			if err != nil {
+				if p.Types[i].Type.ContainsRegclass() {
+					return sequenceInputError(err, parser.Position{}, "", i+1)
+				}
 				return err
 			}
 			dst[i] = value

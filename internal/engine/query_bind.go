@@ -219,7 +219,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			}
 		}
 		result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
-		regclassOutput = regclassOutput || (result.Usage.Type != nil && result.Usage.Type.BaseType().ID() == sqltype.Regclass)
+		regclassOutput = regclassOutput || result.Usage.Type.ContainsRegclass()
 		result.Name = targetNames[i]
 		if c, ok := expr.(columnExpression); ok {
 			result = namespace.frame[c.slot]

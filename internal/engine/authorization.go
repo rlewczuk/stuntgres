@@ -494,6 +494,10 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 	if err != nil {
 		return err
 	}
+	if t, ok := d.(*typeDescriptor); ok && t.typ.IsArray() && !req.OwnerOnly && req.Privileges == UsagePrivilege {
+		req.Object.Address.ObjectID = OID(t.typ.Element().ID())
+		return v.Check(req)
+	}
 	actor, err := v.roles.Descriptor(v.state.CurrentUser)
 	if err != nil {
 		return err

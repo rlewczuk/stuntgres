@@ -92,6 +92,7 @@ package parser
 %token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN
+%token <tok> ARRAY
 %token <tok> HAVING
 %token <tok> UNIQUE
 %token <tok> NOT_DEFERRABLE_LA
@@ -668,8 +669,10 @@ type: INTEGER { $$ = TypeName{Name:"integer",Pos:$1.pos} } | BIGINT { $$ = TypeN
  | type_name type_name %prec TYPE_NAME { if $1.keyword!=nil && $2.keyword!=nil && ($1.text=="double" && $2.text=="precision" || $1.text=="character" && $2.text=="varying") { $$=TypeName{Name:$1.text+" "+$2.text,Pos:$1.pos} } else { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 } }
  | type_name WITH { if excludedTypeTail($1,$2) { sqllex.(*lexer).failAt("0A000","unsupported column type",$1.pos.Offset) } else { sqllex.(*lexer).syntax($2) }; return 1 }
  | type_name '.' col_label { $$=TypeName{Name:$3.text,Quoted:columnType($3).Quoted,Schema:&Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos} }
- | type '[' ']' { if $1.Name!="name" {sqllex.(*lexer).failAt("0A000","array types are unsupported except NAME[]",$2.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
- | type '[' NUMBER ']' { if $1.Name!="name" {sqllex.(*lexer).failAt("0A000","array types are unsupported except NAME[]",$2.pos.Offset);return 1};n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$3.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) } ;
+ | type '[' ']' { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
+ | type '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$3,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$3.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) }
+ | type ARRAY { $$=$1;$$.ArrayBounds=append($$.ArrayBounds,0) }
+ | type ARRAY '[' NUMBER ']' { n,ok:=sequenceInteger(sqllex,$4,"");if !ok{return 1};if n>2147483647{sqllex.(*lexer).failAt("22003","array dimension is out of range",$4.pos.Offset);return 1};$$=$1;$$.ArrayBounds=append($$.ArrayBounds,int32(n)) } ;
 /* Descriptor modifiers share raw constant syntax; FLOAT and temporal types retain
  * their distinct unsigned/single precision contracts. */
 type_modifier_head: type_name '(' {var ok bool;$$,ok=typeModifierHead(sqllex,$1,$2,false);if !ok{return 1}}
@@ -1216,7 +1219,7 @@ generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
- | DOMAIN
+ | DOMAIN | ARRAY
  | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
@@ -1233,7 +1236,7 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CONCURRENTLY ;
-col_label: name | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE ;
+col_label: name | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

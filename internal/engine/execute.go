@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"strconv"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -238,6 +237,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
+	if b.regclassInput != nil {
+		scope.input.Regclass = b.regclassInput
+	}
+	for _, usage := range b.parameters.Types {
+		if usage.Type.ContainsRegclass() && scope.input.Regclass == nil {
+			scope.input.Regclass, err = e.captureRegclassInput(auth)
+			if err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+		}
+	}
 	if err := scope.validateQuerySources(b.querySources); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -285,34 +296,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if v.Type() != b.parameters.Types[i].Type {
 				e.mu.Unlock()
 				return Result{}, fmt.Errorf("stuntgres: invalid parameter frame")
-			}
-			if !v.IsNull() && v.Type().BaseType().ID() == sqltype.Regclass {
-				logical := v.Type()
-				if logical.IsDomain() {
-					v, err = v.BaseValue()
-					if err != nil {
-						e.mu.Unlock()
-						return Result{}, err
-					}
-				}
-				text, inputErr := v.Text()
-				if inputErr != nil {
-					e.mu.Unlock()
-					return Result{}, inputErr
-				}
-				ref, inputErr := e.regclassLocked(auth, text)
-				if inputErr != nil {
-					e.mu.Unlock()
-					return Result{}, sequenceInputError(inputErr, parser.Position{}, "", i+1)
-				}
-				canonical[i] = sqltype.String(v.Type(), strconv.FormatUint(uint64(ref.Address.ObjectID), 10))
-				if logical.IsDomain() {
-					canonical[i], err = logical.Wrap(canonical[i])
-					if err != nil {
-						e.mu.Unlock()
-						return Result{}, err
-					}
-				}
 			}
 		}
 	}

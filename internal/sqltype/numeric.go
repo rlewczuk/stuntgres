@@ -29,6 +29,10 @@ func numericTypmodValid(p int32) bool {
 }
 func (u Usage) DecimalSize() (int64, int64, bool) {
 	u = u.BaseUsage()
+	if u.Type != nil && u.Type.IsArray() {
+		u.Type = u.Type.element
+		return u.DecimalSize()
+	}
 	if u.Type == nil || u.Type.id != Numeric || u.Typmod < 0 {
 		return 0, 0, false
 	}

@@ -7,8 +7,8 @@ func (p CoercionPlan) SessionDependent() bool {
 	}
 	if p.method == viaIO {
 		// CoerceViaIO invokes both the source output and target input procedure.
-		// interval_in is stable even when the source is immutable TEXT.
-		return p.source.Type.OutputSessionDependent() || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
+		// array_in and interval_in are STABLE even for immutable TEXT input.
+		return p.source.Type.OutputSessionDependent() || p.target.Type.BaseType().IsArray() || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
 	}
 	return false
 }
@@ -17,8 +17,11 @@ func (p CoercionPlan) SessionDependent() bool {
 // volatility, not whether an implementation happens to read an environment.
 // Domain output delegates to its concrete base output procedure.
 func (d *Descriptor) OutputSessionDependent() bool {
+	if d.BaseType().IsArray() {
+		return true
+	}
 	switch d.BaseType().ID() {
-	case Regclass, Date, Timestamp, Timestamptz, Interval, NameArray:
+	case Regclass, Date, Timestamp, Timestamptz, Interval:
 		return true
 	default:
 		return false

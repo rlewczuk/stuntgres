@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -42,7 +43,10 @@ func sequenceBoundaryRunner(t *testing.T, e *Engine, op *Operation, query string
 			if err == nil {
 				frame[0] = value
 			}
-			return err
+			if err != nil {
+				return sequenceInputError(err, parser.Position{}, "", 1)
+			}
+			return nil
 		})
 		return r, scope.Finish(err)
 	}
@@ -70,7 +74,10 @@ func TestSequenceRegclassCommentIdentityBoundary(t *testing.T) {
 						_, err = e.Execute(op, statement(t, "SELECT currval('"+name+"')"), 0, nil)
 						sequenceBoundaryDiagnostic(t, err, sqlstate.Error{Code: "55000", Message: fmt.Sprintf(`currval of sequence "%s" is not yet defined in this session`, name)})
 					}
-					for _, tc := range []struct{ query string; want int64 }{{"SELECT lastval()", 71}, {"SELECT nextval('base')", 17}, {"SELECT nextval('nested')", 31}} {
+					for _, tc := range []struct {
+						query string
+						want  int64
+					}{{"SELECT lastval()", 71}, {"SELECT nextval('base')", 17}, {"SELECT nextval('nested')", 31}} {
 						r = roleExecute(t, e, op, tc.query)
 						got := tuples(r)
 						r.Rows.Close()
@@ -91,11 +98,14 @@ func TestSequenceRegclassSymbolicIdentityBoundary(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			long := strings.Repeat("界", 22)
-			for _, q := range []string{`CREATE SEQUENCE "base--suffix" START 17`, `CREATE SEQUENCE "base/*suffix*/" START 31`, `CREATE SEQUENCE "s-other" START 41`, `CREATE SEQUENCE "123" START 51`, `CREATE SEQUENCE "-" START 61`, `CREATE SCHEMA "Mixed.Schema"`, `CREATE SEQUENCE "Mixed.Schema"."a""b.dot" START 71`, `CREATE SEQUENCE "`+long+`" START 81`, `CREATE SEQUENCE "s""quote" START 91`} {
+			for _, q := range []string{`CREATE SEQUENCE "base--suffix" START 17`, `CREATE SEQUENCE "base/*suffix*/" START 31`, `CREATE SEQUENCE "s-other" START 41`, `CREATE SEQUENCE "123" START 51`, `CREATE SEQUENCE "-" START 61`, `CREATE SCHEMA "Mixed.Schema"`, `CREATE SEQUENCE "Mixed.Schema"."a""b.dot" START 71`, `CREATE SEQUENCE "` + long + `" START 81`, `CREATE SEQUENCE "s""quote" START 91`} {
 				roleExecute(t, e, op, q)
 			}
 			run := sequenceBoundaryRunner(t, e, op, "SELECT nextval($1)", prepared)
-			for _, tc := range []struct{ input string; want int64 }{{"BASE--suffix", 17}, {"base/*suffix*/", 31}, {"s-other", 41}, {" \t123\n", 51}, {" - ", 61}, {` "Mixed.Schema" . "a""b.dot" `, 71}, {long, 81}, {`s"quote`, 91}} {
+			for _, tc := range []struct {
+				input string
+				want  int64
+			}{{"BASE--suffix", 17}, {"base/*suffix*/", 31}, {"s-other", 41}, {" \t123\n", 51}, {" - ", 61}, {` "Mixed.Schema" . "a""b.dot" `, 71}, {long, 81}, {`s"quote`, 91}} {
 				r, err := run(tc.input)
 				if err != nil {
 					t.Fatal(tc.input, err)
@@ -130,7 +140,7 @@ func TestSequenceRegclassLiteralSyntaxBoundary(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE SEQUENCE base START 17")
 	for _, tc := range []struct{ input, code, message string }{{"base--suffix", "42P01", `relation "base--suffix" does not exist`}, {"base/*suffix*/", "42P01", `relation "base/*suffix*/" does not exist`}, {`""`, "42P01", `relation "" does not exist`}, {"base trailing", "42602", "invalid name syntax"}, {`"base"suffix`, "42602", "invalid name syntax"}, {"base.", "42602", "invalid name syntax"}, {".base", "42602", "invalid name syntax"}, {`"base`, "42602", "invalid name syntax"}, {"", "42602", "invalid name syntax"}, {" \t\n", "42602", "invalid name syntax"}, {"db.public.base", "0A000", `cross-database references are not implemented: "db.public.base"`}} {
-		query := "SELECT nextval('"+tc.input+"')"
+		query := "SELECT nextval('" + tc.input + "')"
 		_, err := e.Describe(op, statement(t, query))
 		sequenceBoundaryDiagnostic(t, err, sqlstate.Error{Code: tc.code, Message: tc.message, Position: "16"})
 	}

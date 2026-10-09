@@ -18,11 +18,89 @@ DATE/TIME/INTERVAL as canonical `string`, finite TIMESTAMP as `time.Time`, times
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
 
+## Arrays — change note
+
+Arrays are immutable catalog-owned values over the supported stored scalars:
+BOOL, BYTEA, NAME, INT2/INT4/INT8, TEXT/BPCHAR/VARCHAR, OID, FLOAT4/FLOAT8,
+NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL and UUID. Domains over
+supported scalars or arrays may also be elements; a REGCLASS domain is supported,
+while bare REGCLASS and REGCLASS[] table columns retain their existing exclusion.
+There is no added CHAR, BOX, UNKNOWN, VOID or PG_NODE_TREE array family.
+Each represented element has one authoritative associated array ID. User domains
+and their automatic arrays publish together, share namespace/owner/ACL authority,
+and cannot leave an orphan on failed creation or dependency removal. Generated
+names start with `_`, clip on UTF8 boundaries and use collision suffixes; resolving
+`schema.domain[]` follows that association, never a guessed underscore name.
+Internal IDs, reverse links and column origins do not add driver/catalog APIs.
+
+`INT[]`, `INT[][]`, `INT[2][3]`, `INT ARRAY` and `INT ARRAY[4]` describe the same
+array type. Element identity and existing element typmod/collation resolve before
+array lookup; declared dimensions/extents do not restrict actual stored shape.
+The literal codec supports empty arrays/elements, rectangular dimensions (up to
+six), signed lower bounds, quoted and escaped tokens, and whole NULL versus NULL
+elements versus quoted `"NULL"`. Only unquoted, unescaped NULL is a null element.
+NAME clipping, BYTEA escapes, exact NUMERIC sizing and the other scalar input
+rules apply at each element. Canonical examples are `{NULL,"NULL","",alpha}`,
+`{{a,b},{c,NULL}}` and `[0:1]={a,b}`. Malformed/ragged arrays retain full22P02
+Detail, descending bounds fail2202E, and rank/size limits fail54000. Literal and
+parameter diagnostics retain their existing source-position/portal contexts.
+Explicit literal dimension prefixes freeze rank and extents before element input;
+inferred rank freezes at the first scalar or NULL element. Opening rank overflow
+and closed-subarray extent mismatches fail before later element input. A scalar's
+own input error still precedes its depth mismatch. Prefix shape errors use
+`Specified array dimensions do not match array contents.`; inferred shape errors
+use `Multidimensional arrays must have sub-arrays with matching dimensions.`.
+Both array input and output procedures are STABLE, even for setting-independent
+elements. Explicit TEXT-to-array and array-to-TEXT IO casts, including physical
+domain wrappers, therefore cannot survive in immutable stored generation
+expressions. Identity coercions and immutable retained payload sharing are unchanged.
+No array-to-array cast graph, equality/order/grouping, operators, constructors,
+subscripts or additional array functions are introduced.
+
+Ordinary INTERVAL DAY/HOUR array input first parses bare `1` as seconds and then
+applies the field mask, yielding zero; array elements which are DAY/HOUR domains
+apply their domain input mask first, yielding one day/hour. A domain over an
+INTERVAL array retains the corresponding literal-versus-parameter distinction.
+DATE/TIME/TIMESTAMP/interval/BYTEA element output uses the captured output
+environment. Relative temporal literals bind to statement/transaction time;
+REGCLASS elements resolve under one captured catalog/search-path/authorization
+view and retain canonical numeric identities. Retained results format names from
+their old captured catalog, not a later live provider.
+
+Native array DatabaseTypeName is the actual uppercase catalog name (`_INT4`,
+`_NUMERIC`, or a collision-resolved user-domain array name); ScanType/raw values
+are string. Pinned pq independently uses interface{} ScanType and owned []byte
+raw values, with an empty DatabaseTypeName for dynamic user-domain array OIDs.
+Array Length is unknown even for character elements. Sized NUMERIC[] reports the
+element precision/scale; unsized native NUMERIC[] reports unknown while pinned pq
+reports its independent65535/65531 result. Empty/all-NULL results keep the same
+metadata. String/byte binds represent array literal text; nil is whole typed NULL.
+
+Native Dump writes qualified typed array literals using stable temporal/BYTEA
+settings and stable REGCLASS identity presentation, independent of live output
+settings. Restore reowns nested domains/arrays and REGCLASS leaves explicitly;
+source payloads and retained eager rows are not rewritten.
+Stored-expression deparsing and Dump/Restore preserve the logical name of a domain
+over an array, including domain chains, rather than rewriting its cast as the
+underlying element array type.
+Persistent replacement preserves an existing internal TEMP builtin-array descriptor,
+storage generation, row/version identities and its exact builtin dependency
+generations; retained rows are not reminted or mutated as imported persistent rows.
+It atomically rejects incompatible live internal TEMP user-domain array dependencies
+with the ordinary error
+`stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported`;
+it never retains old persistent domains or retargets by name/OID coincidence.
+Automatically associated arrays remain internal lifetime dependencies: DROP traverses
+them to real dependent objects without exposing generated-array or blank labels in
+domain/schema dependency diagnostics. Stored defaults and constraints retain their
+actual definition-allocation chronology.
+Public TEMP-table creation is still unsupported; TEMP sequences are unchanged.
+
 ## Domains — change note
 
 Domains are immutable catalog-owned logical types, not aliases or per-value boxed
 objects. `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` accepts supported
-stored scalar bases, another domain, and bounded NAME[]. Immediate-base identity,
+stored scalar bases, another domain, and supported arrays. Immediate-base identity,
 inherited typmod/collation, namespace, owner and distinct type ID remain represented.
 VOID, UNKNOWN and RECORD are not valid bases. Domain DEFAULT/CHECK/NOT NULL and
 ALTER DOMAIN are excluded; omitted values and bound nil remain typed NULL.
@@ -52,33 +130,18 @@ downcast, including stored defaults/checks/views.
 Driver values and DatabaseTypeName/ScanType/Length/DecimalSize describe the ultimate
 base, including empty/all-NULL results. Integer-domain rows use native int64;
 numeric(5,2) uses string and precision5/scale2; varchar(3) uses string and length3;
-NAME[] uses `_NAME`/string. Pinned lib/pq independently uses int32 ScanType for INT4
-and interface{} ScanType/raw []byte for NUMERIC/_NAME. Native nullable declarations
+array bases use their actual associated array name/string. Pinned lib/pq independently
+uses int32 ScanType for INT4 and interface{} ScanType/raw []byte for NUMERIC/arrays.
+Native nullable declarations
 are known true, unlike pq's unavailable Nullable metadata.
 REGCLASS-domain result spelling is captured from current catalog authority before
 returning rows, for source-backed projections and materialized outputs alike;
 row export does not fall back to a later live catalog.
 
-NAME[] text input supports whole NULL versus NULL elements versus quoted `\"NULL\"`,
-empty arrays/elements, quoted escapes, rectangular nested dimensions, explicit
-lower bounds and 63-byte UTF8 NAME clipping. Declaration dimensions/sizes do not
-restrict actual shape. Canonical examples are `{NULL,\"NULL\",\"\",alpha}`,
-`{{a,b},{c,NULL}}`, and `[0:1]={a,b}`. Malformed/ragged arrays fail22P02 with the
-base Detail; no ARRAY constructors, subscripts, equality/order or other general
-array families are introduced.
-An unquoted backslash-escaped NULL spelling, such as `{\NULL}` or `{N\ULL}`,
-is a nonnull NAME element and canonically prints `{"NULL"}`; only unquoted,
-unescaped NULL tokens denote null elements. Assignment, casts and native logical
-Dump/Restore preserve that distinction.
-Descending explicit bounds fail2202E, `upper bound cannot be less than lower bound`;
-literal input diagnostics retain the quote's source character position.
-The existing `current_schemas(false)` NAME[] producer can be assigned to a NAME[]
-domain through ordinary scalar INSERT input; it does not introduce general
-array constructors or arbitrary scalar function admission.
 Custom schema USAGE-only ACL SQL probes are explicit PostgreSQL controls: there
 is no native public schema-ACL mutation fixture. Native private catalog units
 exercise actual ACL filtering and first-usable-schema CREATE denial without
-inventing a public GRANT path; ordinary paths and NAME[] storage remain dual-mode.
+inventing a public GRANT path; ordinary paths and supported array storage remain dual-mode.
 
 Native Dump/Restore preserves qualified declarations, chains, base sizing, owners,
 arrays, NULL and dependent persistent expressions. Changed domain ACLs are rejected

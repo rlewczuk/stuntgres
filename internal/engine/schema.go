@@ -392,6 +392,8 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 				dependent = append(dependent, r)
 			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsDomain() {
 				domains = append(domains, t)
+			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsArray() && t.typ.Element().IsDomain() {
+				continue // removed automatically with its element domain
 			} else {
 				return nil, sqlError("0A000", "dropping schemas with unsupported object dependencies is unsupported")
 			}

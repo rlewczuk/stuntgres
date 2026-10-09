@@ -26,7 +26,7 @@ func PlanExtremaCharText(source, target Usage) (CoercionPlan, error) {
 	}
 	return p, nil
 }
-func StringScalar(id ID) bool { return id != Unknown && id != NameArray && id != 0 }
+func StringScalar(d *Descriptor) bool { return d.Concrete() && !d.BaseType().IsArray() }
 
 // ConcatOutput is the release mixed wrapper's explicit-to-text output, not the
 // driver export representation or a new public cast edge.
@@ -185,7 +185,7 @@ func BindString(name string, result, text Usage, args []Usage, textual [4]bool, 
 					return p, err
 				}
 			}
-		} else if !StringScalar(u.Type.BaseType().ID()) {
+		} else if !StringScalar(u.Type) {
 			return p, fmt.Errorf("invalid mixed string input")
 		}
 	}

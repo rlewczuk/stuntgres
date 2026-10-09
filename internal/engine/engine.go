@@ -76,6 +76,7 @@ type binding struct {
 	predicate          BoundExpr
 	sequenceConstants  []sequenceConstant
 	regclassConcat     bool
+	regclassInput      sqltype.RegclassResolver
 }
 
 func New() *Engine {
@@ -145,7 +146,7 @@ func newEngine(providers []CatalogProvider, definitions []SettingDefinition) (*E
 		e.state.names[NameKey{ClassID: NamespaceClassID, Name: d.name}] = d.address
 	}
 	for _, typ := range sqltype.Builtins() {
-		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID())}
+		d := &typeDescriptor{typ: typ, comment: builtinTypeComment(typ.ID()), array: typ.AssociatedArray()}
 		e.state.descriptors[d.Address()] = d
 		e.state.names[NameKey{ClassID: TypeClassID, Namespace: d.Namespace(), Name: d.Name()}] = d.Address()
 	}
@@ -376,7 +377,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				if err != nil {
 					return b, err
 				}
-				if u.Type.ID() == sqltype.Regclass {
+				if u.Type.ID() == sqltype.Regclass || u.Type.IsArray() && u.Type.Element().ID() == sqltype.Regclass {
 					return b, typeDiagnostic(c.TypeName, "0A000", "unsupported column type")
 				}
 				declaration, err := bindCreateColumnDeclaration(c, table)
@@ -714,6 +715,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.visibilitySnapshot = binder.visibilitySnapshot
 	b.sequenceConstants = binder.sequenceConstants
 	b.regclassConcat = binder.regclassConcat
+	b.regclassInput = binder.input.Regclass
 	b.viewLiterals = binder.viewLiterals
 	b.viewDomainCasts = binder.viewDomainCasts
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars

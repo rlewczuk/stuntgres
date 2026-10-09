@@ -1381,8 +1381,13 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		node, _, err := b.bindRegclass(raw.Child)
 		return node, err
 	}
-	if !target.Type.IsDomain() && !sqltype.StoredScalarCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.NameArray {
+	if !target.Type.IsDomain() && !sqltype.StoredScalarCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray() {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
+	}
+	if target.Type.ContainsRegclass() {
+		if err := b.captureElementInput(); err != nil {
+			return nil, err
+		}
 	}
 	policy := expressionPolicy{context: projectionContext}
 	switch child := raw.Child.(type) {
@@ -1422,7 +1427,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, err
 	}
 	source := child.ResultUsage()
-	if source.Type.BaseType().ID() == sqltype.Regclass && target.Type.BaseType().ID() == sqltype.Text {
+	if source.Type.ContainsRegclass() && target.Type.BaseType().ID() == sqltype.Text {
 		b.regclassConcat = true
 	}
 	if target.Collation.ID != 0 && source.Collation.ID != 0 {
@@ -1553,6 +1558,36 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		return node.(literalExpression).value, nil
 	}
+	if u.Type.BaseType().IsArray() {
+		c, found, err := b.captured(pos.Offset, u)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if found {
+			return c.value.Retag(u.Type)
+		}
+		if u.Type.ContainsRegclass() {
+			if err := b.captureElementInput(); err != nil {
+				return sqltype.Value{}, err
+			}
+		}
+		value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
+		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && pos.Character > 0 {
+				copy := *diagnostic
+				copy.Position = strconv.Itoa(pos.Character)
+				return sqltype.Value{}, &copy
+			}
+			return sqltype.Value{}, err
+		}
+		if b.expected == nil {
+			i := sort.Search(len(b.temporals), func(i int) bool { return b.temporals[i].offset >= pos.Offset })
+			b.temporals = append(b.temporals, temporalConstant{})
+			copy(b.temporals[i+1:], b.temporals[i:])
+			b.temporals[i] = temporalConstant{offset: pos.Offset, typmod: u.Typmod, typeID: u.Type.ID(), value: value}
+		}
+		return value, nil
+	}
 	if u.Type.ID() != sqltype.Interval && u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
 		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
 	}
@@ -1621,6 +1656,18 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		b.temporals[i] = temporalConstant{offset: pos.Offset, scalar: n, typmod: u.Typmod, typeID: u.Type.ID(), west: west, months: months, days: days}
 	}
 	return v, nil
+}
+
+func (b *expressionBinder) captureElementInput() error {
+	if b.input.Regclass != nil {
+		return nil
+	}
+	auth, err := b.bindingAuthorization()
+	if err != nil {
+		return err
+	}
+	b.input.Regclass, err = b.engine.captureRegclassInput(auth)
+	return err
 }
 func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
 	d, ok := err.(*sqlstate.Error)

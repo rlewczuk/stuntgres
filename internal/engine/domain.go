@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
+	"unicode/utf8"
 )
 
 // Domain declarations use the same private catalog publication as schema DDL.
@@ -38,7 +39,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if base.Type.IsDomain() {
+	if base.Type.IsDomain() || base.Type.IsArray() && base.Type.Element().IsDomain() {
 		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}}
 		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 		if err = auth.CanUse(ref); err != nil {
@@ -60,7 +61,35 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	acl := ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: auth.state.CurrentUser, Grantee: ACLGrantee{Public: true}, Privileges: UsagePrivilege}, {Grantor: auth.state.CurrentUser, Grantee: ACLGrantee{Role: auth.state.CurrentUser}, Privileges: UsagePrivilege, GrantOptions: UsagePrivilege}}}
-	return stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, dimensions: int32(len(s.Base.ArrayBounds))})
+	arrayOID, err := e.allocateOIDLocked()
+	if err != nil {
+		return err
+	}
+	prefix := name
+	for len(prefix) > 62 {
+		_, width := utf8.DecodeLastRuneInString(prefix)
+		prefix = prefix[:len(prefix)-width]
+	}
+	arrayName := "_" + prefix
+	for suffix := 1; len(auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: arrayName})) != 0 || stage.names[NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: arrayName}] != (ObjectAddress{}); suffix++ {
+		// Keep the suffix while clipping the UTF8 identifier through the parser's
+		// existing normalization limit (domain names are already clipped).
+		tail := fmt.Sprintf("_%d", suffix)
+		prefix := name
+		for len(prefix) > 62-len(tail) {
+			_, width := utf8.DecodeLastRuneInString(prefix)
+			prefix = prefix[:len(prefix)-width]
+		}
+		arrayName = "_" + prefix + tail
+	}
+	array, err := sqltype.Array(sqltype.ID(arrayOID), arrayName, typ)
+	if err != nil {
+		return err
+	}
+	if err = stage.Create(&typeDescriptor{typ: typ, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl, dimensions: int32(len(s.Base.ArrayBounds)), array: array.ID()}); err != nil {
+		return err
+	}
+	return stage.Create(&typeDescriptor{typ: array, namespace: ns.Address, revision: revision, owner: auth.state.CurrentUser, acl: acl})
 }
 
 func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
@@ -103,6 +132,12 @@ func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, st
 }
 
 func typeDiagnosticNameAt(catalog CatalogRead, d *typeDescriptor, path []ObjectAddress) string {
+	if d.typ.IsArray() {
+		element, ok := catalog.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.Element().ID())})
+		if ok {
+			return typeDiagnosticNameAt(catalog, element.(*typeDescriptor), path) + "[]"
+		}
+	}
 	name := dependencyIdentifier(d.Name())
 	if path == nil {
 		return name
@@ -125,6 +160,12 @@ func validateTypeProviders(view CatalogRead, d Descriptor) error {
 			base := d.typ.DomainBase()
 			actual, ok := view.LookupType(base.Type.ID())
 			if !ok || actual != base.Type {
+				return CatalogConflict{}
+			}
+		}
+		if d.typ.IsArray() {
+			actual, ok := view.LookupType(d.typ.Element().ID())
+			if !ok || actual != d.typ.Element() {
 				return CatalogConflict{}
 			}
 		}

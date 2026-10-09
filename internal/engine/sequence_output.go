@@ -51,7 +51,15 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 }
 
 func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []ObjectAddress, value sqltype.Value) error {
-	if value.IsNull() || value.Type().BaseType().ID() != sqltype.Regclass {
+	if value.IsNull() || !value.Type().ContainsRegclass() {
+		return nil
+	}
+	if value.Type().BaseType().IsArray() {
+		for i := 0; i < value.ArrayLen(); i++ {
+			if err := captureRegclassOutputValue(rows, catalog, path, value.ArrayElement(i)); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 	if value.Type().IsDomain() {
@@ -76,6 +84,7 @@ func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []Obj
 		rows.regclassOutput = make(map[string]string)
 	}
 	rows.regclassOutput[key] = regclassSpelling(catalog, path, OID(n))
+	rows.output.Regclass = rows
 	return nil
 }
 

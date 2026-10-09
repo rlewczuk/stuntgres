@@ -32,31 +32,37 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		}
 		t.Run(d.Name(), func(t *testing.T) {
 			var values []sqltype.Value
-			switch d.ID() {
-			case sqltype.Void:
-				values = append(values, sqltype.VoidValue(d))
-			case sqltype.NameArray:
-				v, err := sqltype.Names(d, []string{"public", "MiXeDé"})
+			if d.IsArray() {
+				element, err := d.Element().Input(ctx, inputs[d.Element().ID()][0], -1)
 				if err != nil {
 					t.Fatal(err)
 				}
-				values = append(values, v)
-			case sqltype.PgNodeTree:
-				v, err := sqltype.Tree(d, anyValueUnitTree{})
+				value, err := sqltype.ArrayValue(d, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, []sqltype.Value{element, sqltype.Null(d.Element())})
 				if err != nil {
 					t.Fatal(err)
 				}
-				values = append(values, v)
-			default:
-				for _, text := range inputs[d.ID()] {
-					v, err := d.Input(ctx, text, -1)
+				values = append(values, value)
+			} else {
+				switch d.ID() {
+				case sqltype.Void:
+					values = append(values, sqltype.VoidValue(d))
+				case sqltype.PgNodeTree:
+					v, err := sqltype.Tree(d, anyValueUnitTree{})
 					if err != nil {
-						t.Fatal(text, err)
+						t.Fatal(err)
 					}
 					values = append(values, v)
-				}
-				if len(values) == 0 {
-					t.Fatalf("missing concrete carrier witness %s", d.Name())
+				default:
+					for _, text := range inputs[d.ID()] {
+						v, err := d.Input(ctx, text, -1)
+						if err != nil {
+							t.Fatal(text, err)
+						}
+						values = append(values, v)
+					}
+					if len(values) == 0 {
+						t.Fatalf("missing concrete carrier witness %s", d.Name())
+					}
 				}
 			}
 			if d.ID() == sqltype.Float8 {
@@ -96,10 +102,10 @@ func TestAnyValueProviderDatums(t *testing.T) {
 				}
 				for range 2 {
 					got, err := p.Finalize(ctx, state)
-					// SameDatum deliberately excludes VOID/NAME[] expression
-					// identity; exact comparable carriers still retain all payload.
+					// VOID has no structural datum identity; its checked carrier
+					// still survives aggregation without reconstruction.
 					same := sqltype.SameDatum(got, want)
-					if d.ID() == sqltype.Void || d.ID() == sqltype.NameArray {
+					if d.ID() == sqltype.Void {
 						same = got == want
 					}
 					if err != nil || !same {

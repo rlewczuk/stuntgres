@@ -172,6 +172,14 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			case *typeDescriptor:
 				if t.typ.IsDomain() {
 					domains = append(domains, t)
+				} else if t.typ.IsArray() {
+					if err := (typeProvider{}).Validate(catalog, t); err != nil {
+						e.mu.Unlock()
+						return err
+					}
+				} else if t.Namespace().ObjectID != PGCatalogNamespaceOID {
+					e.mu.Unlock()
+					return fmt.Errorf("stuntgres: dump cannot serialize unsupported user type")
 				}
 				continue
 			case *collationDescriptor, *conversionDescriptor:
