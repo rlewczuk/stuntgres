@@ -512,6 +512,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			}
 			break
 		}
+		binder.aggregateClause = "INSERT VALUES"
 		b.expressions = make([][]BoundExpr, len(s.Rows))
 		for rowIndex, row := range s.Rows {
 			if rowIndex > 0 && len(row) != len(s.Rows[0]) {

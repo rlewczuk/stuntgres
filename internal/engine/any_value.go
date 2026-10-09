@@ -21,7 +21,7 @@ func (p anyValueProvider) Init(ctx context.Context) (any, error) {
 	}
 	return &anyValueState{value: sqltype.Null(p.usage.Type)}, nil
 }
-func (p anyValueProvider) Advance(ctx context.Context, state any, value sqltype.Value) error {
+func (p anyValueProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

@@ -292,7 +292,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 		l.genericModifier = true
 		l.dateLiteralModifier = true
 		return true
-	case "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value":
+	case "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg":
 		return true
 	case "integer", "bigint", "boolean", "int":
 		if callee.keyword == nil {
@@ -304,7 +304,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 }
 
 func ordinaryAggregate(name string) bool {
-	return name == "count" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value"
+	return name == "count" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg"
 }
 
 func (l *lexer) scalarInput(expr Expr) bool {
@@ -329,6 +329,11 @@ func (l *lexer) scalarInputTree(expr Expr) bool {
 	case AggregateExpr:
 		for _, arg := range r.Args {
 			if !l.scalarInputTree(arg) {
+				return false
+			}
+		}
+		for _, key := range r.Order {
+			if !l.scalarInputTree(key.Expr) {
 				return false
 			}
 		}

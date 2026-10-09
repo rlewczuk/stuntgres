@@ -13,15 +13,15 @@ import (
 
 type aggregateProbeProvider struct {
 	aggregateProvider
-	advance  func(context.Context, any, sqltype.Value) error
+	advance  func(context.Context, any, sqltype.Value, sqltype.Value) error
 	finalize func(context.Context, any) (sqltype.Value, error)
 }
 
-func (p aggregateProbeProvider) Advance(ctx context.Context, s any, value sqltype.Value) error {
+func (p aggregateProbeProvider) Advance(ctx context.Context, s any, value, separator sqltype.Value) error {
 	if p.advance != nil {
-		return p.advance(ctx, s, value)
+		return p.advance(ctx, s, value, separator)
 	}
-	return p.aggregateProvider.Advance(ctx, s, value)
+	return p.aggregateProvider.Advance(ctx, s, value, separator)
 }
 func (p aggregateProbeProvider) Finalize(ctx context.Context, s any) (sqltype.Value, error) {
 	if p.finalize != nil {
@@ -50,7 +50,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 		t.Fatal(n, err)
 	}
 	for range 2 {
-		if err := p.Advance(context.Background(), a, sqltype.Value{}); err != nil {
+		if err := p.Advance(context.Background(), a, sqltype.Value{}, sqltype.Value{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -66,7 +66,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 	}
 	a.(*countState).count = math.MaxInt64
 	var diagnostic *sqlstate.Error
-	if err := p.Advance(context.Background(), a, sqltype.Value{}); !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "bigint out of range" {
+	if err := p.Advance(context.Background(), a, sqltype.Value{}, sqltype.Value{}); !errors.As(err, &diagnostic) || diagnostic.Code != "22003" || diagnostic.Message != "bigint out of range" {
 		t.Fatal(err)
 	}
 }
@@ -124,8 +124,8 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 				})
 			case "advance":
 				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any, value sqltype.Value) error {
-					err := original.Advance(ctx, s, value)
+				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any, value, separator sqltype.Value) error {
+					err := original.Advance(ctx, s, value, separator)
 					cancel()
 					return err
 				}}
@@ -340,6 +340,7 @@ type aggregateSortCancelContext struct {
 	source            *querySource
 	comparisonEntered bool
 	finalizedGroups   int
+	aggregateOrdering bool
 }
 
 func (c *aggregateSortCancelContext) Err() error {
@@ -347,16 +348,17 @@ func (c *aggregateSortCancelContext) Err() error {
 		var pcs [32]uintptr
 		n := runtime.Callers(2, pcs[:])
 		frames := runtime.CallersFrames(pcs[:n])
-		comparison, merge := false, false
+		comparison, merge, replay := false, false, false
 		for {
 			frame, more := frames.Next()
 			comparison = comparison || strings.HasSuffix(frame.Function, ".Comparison.Compare")
 			merge = merge || strings.Contains(frame.Function, ".mergeQueryIndices")
+			replay = replay || strings.HasSuffix(frame.Function, ".replayOrderedAggregate")
 			if !more {
 				break
 			}
 		}
-		if comparison && merge && c.source.view == nil && c.source.anonymous != nil {
+		if comparison && merge && (c.aggregateOrdering && replay || !c.aggregateOrdering && c.source.view == nil && c.source.anonymous != nil) {
 			c.comparisonEntered = true
 			c.finalizedGroups = len(c.source.anonymous)
 			c.cancel()

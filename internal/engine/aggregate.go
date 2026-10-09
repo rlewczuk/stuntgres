@@ -12,7 +12,7 @@ import (
 type aggregateProvider interface {
 	ResultUsage() sqltype.Usage
 	Init(context.Context) (any, error)
-	Advance(context.Context, any, sqltype.Value) error
+	Advance(context.Context, any, sqltype.Value, sqltype.Value) error
 	Finalize(context.Context, any) (sqltype.Value, error)
 }
 
@@ -26,11 +26,14 @@ const (
 	aggregateNumericAvg
 	aggregateFloatAvg
 	aggregateAnyValue
+	aggregateString
 )
 
 type aggregateCall struct {
 	provider  aggregateProvider
 	argument  BoundExpr
+	separator BoundExpr
+	order     []sortKey
 	operation aggregateOperation
 }
 type countProvider struct{ usage sqltype.Usage }
@@ -43,7 +46,7 @@ func (p countProvider) Init(ctx context.Context) (any, error) {
 	}
 	return &countState{}, nil
 }
-func (p countProvider) Advance(ctx context.Context, state any, _ sqltype.Value) error {
+func (p countProvider) Advance(ctx context.Context, state any, _, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

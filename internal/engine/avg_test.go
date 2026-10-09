@@ -36,11 +36,11 @@ func TestAvgProviders(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := p.Advance(ctx, state, v); err != nil {
+			if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if err := p.Advance(ctx, state, sqltype.Null(input)); err != nil {
+		if err := p.Advance(ctx, state, sqltype.Null(input), sqltype.Value{}); err != nil {
 			t.Fatal(err)
 		}
 		for range 2 {
@@ -64,14 +64,14 @@ func TestAvgProviders(t *testing.T) {
 		foreign, _ := New().CatalogRead().LookupType(id)
 		wrong, _ := foreign.Input(ctx, "1", -1)
 		for _, invalid := range []sqltype.Value{{}, wrong} {
-			err := p.Advance(ctx, state, invalid)
+			err := p.Advance(ctx, state, invalid, sqltype.Value{})
 			var diagnostic interface{ SQLState() string }
 			if err == nil || errors.As(err, &diagnostic) {
 				t.Fatal("ownership must be ordinary error", err)
 			}
 		}
 		for _, invalid := range []any{nil, struct{}{}, (*sqltype.NumericAvgState)(nil), (*sqltype.FloatAvgState)(nil)} {
-			if err := p.Advance(ctx, invalid, v); err == nil {
+			if err := p.Advance(ctx, invalid, v, sqltype.Value{}); err == nil {
 				t.Fatal("invalid state accepted")
 			}
 			if _, err := p.Finalize(ctx, invalid); err == nil {
@@ -94,7 +94,7 @@ func TestAvgProviders(t *testing.T) {
 					t.Error(err)
 					return
 				}
-				if err := p.Advance(ctx, s, one); err != nil {
+				if err := p.Advance(ctx, s, one, sqltype.Value{}); err != nil {
 					t.Error(err)
 					return
 				}
@@ -137,7 +137,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := next.Advance(ctx, state, foreign); err == nil {
+		if err := next.Advance(ctx, state, foreign, sqltype.Value{}); err == nil {
 			t.Fatal("restored provider retained source input ownership")
 		}
 		for _, text := range []string{"1", "3"} {
@@ -145,7 +145,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := next.Advance(ctx, state, value); err != nil {
+			if err := next.Advance(ctx, state, value, sqltype.Value{}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -165,7 +165,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := provider.Advance(ctx, originalState, foreign); err != nil {
+		if err := provider.Advance(ctx, originalState, foreign, sqltype.Value{}); err != nil {
 			t.Fatal("remapping mutated original provider", err)
 		}
 	}
@@ -198,7 +198,7 @@ func TestAvgProviderCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		one, _ := input.Input(context.Background(), "1", -1)
-		if err := p.Advance(ctx, state, one); err != context.Canceled {
+		if err := p.Advance(ctx, state, one, sqltype.Value{}); err != context.Canceled {
 			t.Fatal(err)
 		}
 		if out, err := p.Finalize(ctx, state); out.Type() != nil || err != context.Canceled {
@@ -211,7 +211,7 @@ func TestAvgProviderCancellation(t *testing.T) {
 		if state, err := p.Init(&avgCheckContext{Context: context.Background(), cancelAt: 2}); state != nil || err != context.Canceled {
 			t.Fatal(state, err)
 		}
-		if err := p.Advance(&avgCheckContext{Context: context.Background(), cancelAt: 2}, state, one); err != context.Canceled {
+		if err := p.Advance(&avgCheckContext{Context: context.Background(), cancelAt: 2}, state, one, sqltype.Value{}); err != context.Canceled {
 			t.Fatal("post-transition cancellation", err)
 		}
 		if out, err := p.Finalize(&avgCheckContext{Context: context.Background(), cancelAt: 2}, state); out.Type() != nil || err != context.Canceled {
@@ -265,8 +265,8 @@ func TestAvgEagerCancellation(t *testing.T) {
 			original := node.calls[0].provider
 			switch phase {
 			case "advance":
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any, v sqltype.Value) error {
-					err := original.Advance(ctx, s, v)
+				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, s any, v, separator sqltype.Value) error {
+					err := original.Advance(ctx, s, v, separator)
 					cancel()
 					return err
 				}}

@@ -14,8 +14,9 @@ type aggregateNode struct {
 	calls    []aggregateCall
 }
 type queryGroup struct {
-	keys   []sqltype.Value
-	states []any
+	keys    []sqltype.Value
+	states  []any
+	ordered [][]sqltype.Value
 }
 
 func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode) (indexedStage, error) {
@@ -37,11 +38,21 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		buckets = make(map[uint64][]int)
 	}
 	scratch := make([]sqltype.Value, len(n.keys))
+	orderedWidth := 0
+	for _, call := range n.calls {
+		if len(call.order) > 0 && len(call.order)+2 > orderedWidth {
+			orderedWidth = len(call.order) + 2
+		}
+	}
+	tuple := make([]sqltype.Value, orderedWidth)
 	newGroup := func() (int, error) {
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
 		group := queryGroup{keys: make([]sqltype.Value, len(n.Schema())), states: make([]any, len(n.calls))}
+		if orderedWidth > 0 {
+			group.ordered = make([][]sqltype.Value, len(n.calls))
+		}
 		copy(group.keys, scratch)
 		for i, call := range n.calls {
 			var err error
@@ -111,11 +122,40 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 				if err := ctx.Err(); err != nil {
 					return indexedStage{}, err
 				}
-				if value.IsNull() {
-					continue
+			}
+			var separator sqltype.Value
+			if call.separator != nil {
+				separator, err = call.separator.Eval(&evaluation)
+				if err != nil {
+					return indexedStage{}, err
+				}
+				if err := ctx.Err(); err != nil {
+					return indexedStage{}, err
 				}
 			}
-			if err := call.provider.Advance(ctx, groups[index].states[p], value); err != nil {
+			if len(call.order) > 0 {
+				tuple[0], tuple[1] = value, separator
+				for k, key := range call.order {
+					tuple[k+2], err = key.expression.Eval(&evaluation)
+					if err != nil {
+						return indexedStage{}, err
+					}
+					if tuple[k+2].Type() != key.expression.ResultUsage().Type {
+						return indexedStage{}, fmt.Errorf("stuntgres: invalid aggregate ordering value")
+					}
+					if err := ctx.Err(); err != nil {
+						return indexedStage{}, err
+					}
+				}
+				if !value.IsNull() {
+					groups[index].ordered[p] = append(groups[index].ordered[p], tuple[:len(call.order)+2]...)
+				}
+				continue
+			}
+			if call.argument != nil && value.IsNull() {
+				continue
+			}
+			if err := call.provider.Advance(ctx, groups[index].states[p], value, separator); err != nil {
 				return indexedStage{}, err
 			}
 			if err := ctx.Err(); err != nil {
@@ -130,6 +170,11 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		}
 		row := group.keys
 		for p, call := range n.calls {
+			if len(call.order) > 0 {
+				if err := replayOrderedAggregate(ctx, state, call, group.states[p], group.ordered[p]); err != nil {
+					return indexedStage{}, err
+				}
+			}
 			value, err := call.provider.Finalize(ctx, group.states[p])
 			if err != nil {
 				return indexedStage{}, err
@@ -180,4 +225,51 @@ func findQueryGroup(ctx context.Context, grouping []sqltype.Grouping, keys []sql
 		}
 	}
 	return -1, ctx.Err()
+}
+
+func replayOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, aggregateState any, tuples []sqltype.Value) error {
+	width := len(call.order) + 2
+	indices := make([]int, len(tuples)/width)
+	for i := range indices {
+		indices[i] = i
+	}
+	if err := mergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
+		for k, key := range call.order {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
+			left, right := tuples[a*width+k+2], tuples[b*width+k+2]
+			if left.IsNull() && right.IsNull() {
+				continue
+			}
+			if left.IsNull() || right.IsNull() {
+				if left.IsNull() == key.nullsFirst {
+					return -1, nil
+				}
+				return 1, nil
+			}
+			sign, err := key.comparison.Compare(ctx, left, right, state.input)
+			if err != nil {
+				return 0, err
+			}
+			if sign != 0 {
+				if key.desc {
+					sign = -sign
+				}
+				return sign, nil
+			}
+		}
+		return 0, ctx.Err()
+	}); err != nil {
+		return err
+	}
+	for _, index := range indices {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := call.provider.Advance(ctx, aggregateState, tuples[index*width], tuples[index*width+1]); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
 }

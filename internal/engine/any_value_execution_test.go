@@ -52,12 +52,12 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 				return sqltype.Integer(usage.Type, 73)
 			})
 			original := node.calls[0].provider
-			node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, state any, v sqltype.Value) error {
+			node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
 				advances++
 				if v.IsNull() || v.Type() != usage.Type {
 					t.Fatal("transition datum contract", v)
 				}
-				err := original.Advance(ctx, state, v)
+				err := original.Advance(ctx, state, v, separator)
 				if phase == "advance" {
 					cancel()
 				}

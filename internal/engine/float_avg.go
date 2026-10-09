@@ -22,7 +22,7 @@ func (p floatAvgProvider) Init(ctx context.Context) (any, error) {
 	}
 	return state, nil
 }
-func (p floatAvgProvider) Advance(ctx context.Context, state any, value sqltype.Value) error {
+func (p floatAvgProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

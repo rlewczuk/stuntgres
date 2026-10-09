@@ -28,7 +28,7 @@ func TestBooleanAggregateProvider(t *testing.T) {
 				} else {
 					want = want || v
 				}
-				if err := p.Advance(context.Background(), state, sqltype.Boolean(p.ResultUsage().Type, v)); err != nil {
+				if err := p.Advance(context.Background(), state, sqltype.Boolean(p.ResultUsage().Type, v), sqltype.Value{}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -50,7 +50,7 @@ func TestBooleanAggregateProvider(t *testing.T) {
 			if err != nil || !value.IsNull() || value.Type() != p.ResultUsage().Type {
 				t.Fatal("state leaked", value, err)
 			}
-			if err := p.Advance(context.Background(), struct{}{}, sqltype.Boolean(p.ResultUsage().Type, true)); err == nil {
+			if err := p.Advance(context.Background(), struct{}{}, sqltype.Boolean(p.ResultUsage().Type, true), sqltype.Value{}); err == nil {
 				t.Fatal("invalid state accepted")
 			}
 		}
@@ -126,13 +126,13 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 					return sqltype.Boolean(usage.Type, name == "bool_or"), nil
 				})
 				original := node.calls[0].provider
-				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, state any, v sqltype.Value) error {
+				node.calls[0].provider = aggregateProbeProvider{aggregateProvider: original, advance: func(ctx context.Context, state any, v, separator sqltype.Value) error {
 					advances++
 					got, err := v.Boolean()
 					if err != nil || got != (name == "bool_or") {
 						t.Fatal("datum delivery", v, err)
 					}
-					err = original.Advance(ctx, state, v)
+					err = original.Advance(ctx, state, v, separator)
 					if phase == "advance" {
 						cancel()
 					}

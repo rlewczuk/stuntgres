@@ -20,7 +20,7 @@ func (p booleanAggregateProvider) Init(ctx context.Context) (any, error) {
 	}
 	return &booleanAggregateState{}, nil
 }
-func (p booleanAggregateProvider) Advance(ctx context.Context, state any, value sqltype.Value) error {
+func (p booleanAggregateProvider) Advance(ctx context.Context, state any, value, _ sqltype.Value) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

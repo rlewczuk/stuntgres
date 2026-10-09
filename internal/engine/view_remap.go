@@ -268,11 +268,24 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 			case anyValueProvider:
 				p.usage.Type = typ(p.usage.Type)
 				copy.calls[i].provider = p
+			case stringAggregateProvider:
+				p.usage.Type = typ(p.usage.Type)
+				copy.calls[i].provider = p
 			default:
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
 			}
 			if call.argument != nil {
 				copy.calls[i].argument = expression(call.argument)
+			}
+			if call.separator != nil {
+				copy.calls[i].separator = expression(call.separator)
+			}
+			copy.calls[i].order = append([]sortKey(nil), call.order...)
+			for k, key := range call.order {
+				copy.calls[i].order[k].expression = expression(key.expression)
+				if err == nil {
+					copy.calls[i].order[k].comparison, err = sqltype.BindOrdering(copy.calls[i].order[k].expression.ResultUsage())
+				}
 			}
 		}
 		next = &copy

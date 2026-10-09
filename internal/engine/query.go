@@ -177,18 +177,43 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		}
 		var calls []aggregateCall
 		for i, call := range n.calls {
-			if call.argument == nil {
-				continue
+			for j, expression := range [2]BoundExpr{call.argument, call.separator} {
+				if expression == nil {
+					continue
+				}
+				folded, replacement, err := preflightCoercions(c, expression)
+				if err != nil {
+					return nil, err
+				}
+				if replacement {
+					if calls == nil {
+						calls = append([]aggregateCall(nil), n.calls...)
+					}
+					if j == 0 {
+						calls[i].argument = folded
+					} else {
+						calls[i].separator = folded
+					}
+				}
 			}
-			folded, replacement, err := preflightCoercions(c, call.argument)
-			if err != nil {
-				return nil, err
+			var order []sortKey
+			for k, key := range call.order {
+				folded, replacement, err := preflightCoercions(c, key.expression)
+				if err != nil {
+					return nil, err
+				}
+				if replacement {
+					if order == nil {
+						order = append([]sortKey(nil), call.order...)
+					}
+					order[k].expression = folded
+				}
 			}
-			if replacement {
+			if order != nil {
 				if calls == nil {
 					calls = append([]aggregateCall(nil), n.calls...)
 				}
-				calls[i].argument = folded
+				calls[i].order = order
 			}
 		}
 		child, err := preflightQuery(c, n.child)

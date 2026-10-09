@@ -292,6 +292,32 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			return name + "(*)", nil
 		}
 		text, err := args(e.Args)
+		if err != nil {
+			return "", err
+		}
+		if len(e.Order) > 0 {
+			text += " ORDER BY "
+			for i, key := range e.Order {
+				if i > 0 {
+					text += ", "
+				}
+				part, err := child(key.Expr)
+				if err != nil {
+					return "", err
+				}
+				text += part
+				if key.Desc {
+					text += " DESC"
+				} else {
+					text += " ASC"
+				}
+				if key.Nulls == parser.NullsFirst {
+					text += " NULLS FIRST"
+				} else if key.Nulls == parser.NullsLast {
+					text += " NULLS LAST"
+				}
+			}
+		}
 		return name + "(" + text + ")", err
 	case parser.ConditionalExpr:
 		text, err := args(e.Args)

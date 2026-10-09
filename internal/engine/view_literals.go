@@ -26,9 +26,9 @@ const (
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
 // the same source position independently to different types in its two branches.
 type viewLiteralPath struct {
-	clause viewLiteralClause
-	target int
-	node   int
+	clause      viewLiteralClause
+	target      int
+	node        int
 	source, row int
 }
 
@@ -102,8 +102,29 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			if r.Star {
 				return nil
 			}
-			if len(r.Args) == 1 && n.slot >= 0 && n.slot < len(b.aggregates) {
-				return child(r.Args[0], b.aggregates[n.slot].argument)
+			if n.slot >= 0 && n.slot < len(b.aggregates) {
+				call := b.aggregates[n.slot]
+				for i, arg := range r.Args {
+					expression := call.argument
+					if i == 1 {
+						expression = call.separator
+					}
+					if expression == nil || i > 1 {
+						return fmt.Errorf("stuntgres: invalid stored aggregate arguments")
+					}
+					if err := child(arg, expression); err != nil {
+						return err
+					}
+				}
+				if len(r.Order) != len(call.order) {
+					return fmt.Errorf("stuntgres: invalid stored aggregate ordering")
+				}
+				for i, key := range r.Order {
+					if err := child(key.Expr, call.order[i].expression); err != nil {
+						return err
+					}
+				}
+				return nil
 			}
 		}
 	case parser.TimeZoneExpr:
@@ -436,6 +457,11 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 	case parser.AggregateExpr:
 		for _, arg := range r.Args {
 			if err := child(arg); err != nil {
+				return err
+			}
+		}
+		for _, key := range r.Order {
+			if err := child(key.Expr); err != nil {
 				return err
 			}
 		}

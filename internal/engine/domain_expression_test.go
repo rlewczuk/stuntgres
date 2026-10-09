@@ -100,7 +100,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = provider.Advance(context.Background(), state, argument); err != nil {
+	if err = provider.Advance(context.Background(), state, argument, sqltype.Value{}); err != nil {
 		t.Fatal(err)
 	}
 	value, err := provider.Finalize(context.Background(), state)

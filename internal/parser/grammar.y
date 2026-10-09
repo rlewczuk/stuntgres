@@ -845,10 +845,20 @@ scalar: scalar_atom { $$=$1 }
  | cast_function '*' ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1}; $$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
  | cast_function ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Pos:$1.pos} }
  | qualified_call_head ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Pos:$1.Pos} }
- | cast_function DISTINCT scalar ')' { sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.pos.Offset);return 1 }
- | cast_function ALL scalar ')' { sqllex.(*lexer).failAt("0A000","aggregate ALL is unsupported",$1.pos.Offset);return 1 }
- | cast_function '*' ORDER BY name direction ')' { sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1 }
- | cast_function scalar ORDER BY name direction ')' { sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1 }
+ | cast_function DISTINCT count_values order ')' { sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.pos.Offset);return 1 }
+ | cast_function ALL count_values order ')' { sqllex.(*lexer).failAt("0A000","aggregate ALL is unsupported",$1.pos.Offset);return 1 }
+ | qualified_call_head DISTINCT count_values order ')' { sqllex.(*lexer).failAt("0A000","aggregate DISTINCT is unsupported",$1.Pos.Offset);return 1 }
+ | qualified_call_head ALL count_values order ')' { sqllex.(*lexer).failAt("0A000","aggregate ALL is unsupported",$1.Pos.Offset);return 1 }
+ | cast_function '*' ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Star:true,Order:$5,Pos:$1.pos} }
+ | qualified_call_head '*' ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Order:$5,Pos:$1.Pos} }
+ | cast_function delete_or ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
+ | qualified_call_head delete_or ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
+ | cast_function delete_or ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
+ | qualified_call_head delete_or ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
+ | cast_function function ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
+ | qualified_call_head function ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
+ | cast_function function ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
+ | qualified_call_head function ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
  /* Share the call opener, but retain raw DATE modifiers instead of reducing
   * them as scalar literals (which would convert overflowing numbers too early). */
  | cast_function date_literal_precision ')' STRING {raw:=columnType($1);raw.Modifiers=$2.Modifiers;$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
@@ -1141,6 +1151,14 @@ fetch_count: scalar_atom { $$=$1 }
  | qualified_call_head function ',' count_values ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
  | cast_function '*' ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
  | qualified_call_head '*' ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Pos:$1.Pos} }
+ | cast_function delete_or ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
+ | qualified_call_head delete_or ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
+ | cast_function function ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
+ | qualified_call_head function ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
+ | cast_function delete_or ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
+ | qualified_call_head delete_or ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
+ | cast_function function ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
+ | qualified_call_head function ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
  | function { $$=$1 }
  | '(' scalar_projection ')' { $$=$2 }
  | '+' NUMBER { $$=LiteralExpr{Value:numberValue($2,"")} }

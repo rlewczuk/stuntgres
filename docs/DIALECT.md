@@ -285,8 +285,31 @@ HAVING/ORDER and INSERT SELECT share the ordinary aggregate pipeline.
 Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValueSmoke$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
 
+`string_agg(TEXT,TEXT)` and `string_agg(BYTEA,BYTEA)` return the corresponding
+nullable base type with unrestricted typmod and no physical origin. BYTEA retains
+raw octets, not encoded text. NULL values are ignored; NULL delimiters add no
+separator. The first surviving value ignores its delimiter; each later value uses
+its own delimiter, including empty values. Empty/all-NULL global input returns
+typed NULL; empty keyed input has no rows and complete metadata.
+Native TEXT Length is `(MaxInt64,true)`; native BYTEA Length is `(0,false)`.
+Both lib/pq overloads expose `(MaxInt64,true)`; DecimalSize is unavailable.
+Only these calls admit in-call `ORDER BY` source expressions, multiple keys,
+ASC/DESC and NULLS FIRST/LAST. Integer keys are constants, not output ordinals;
+projection aliases are invisible. Different calls sort independently. Without
+in-call ordering, concatenation order is unspecified; outer ORDER sorts groups.
+Unknown arguments infer TEXT, or BYTEA when either known operand selects BYTEA.
+Existing VARCHAR/NAME/BPCHAR/domain-base implicit coercions apply; mixed TEXT/BYTEA
+and integer/Boolean signatures fail42883 with full signature/hint/character position.
+Both arguments and all ordering keys evaluate even when the value is NULL.
+Native late failure/cancellation publishes no cursor or partial INSERT batch.
+Calls in INSERT VALUES give42803 at the call. INSERT RETURNING remains an
+independent native0A000 suffix boundary rather than aggregate-clause parity.
+Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
+independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
+
 Grouping does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value, FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg,
+FILTER/DISTINCT/ALL/OVER, in-call ordering of sibling aggregates, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression

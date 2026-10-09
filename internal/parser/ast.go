@@ -884,11 +884,12 @@ type FunctionExpr struct {
 	StringSyntax StringSyntax
 }
 
-// AggregateExpr retains count/Boolean/average/any_value argument syntax and diagnostic-only single-argument SUM.
+// AggregateExpr retains ordinary aggregate arguments, call-local ordering and diagnostic-only single-argument SUM.
 type AggregateExpr struct {
 	Name   string
 	Star   bool
 	Args   []Expr
+	Order  []OrderKey
 	Schema *Identifier
 	Pos    Position
 }

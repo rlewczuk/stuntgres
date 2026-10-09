@@ -934,7 +934,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, err
 		}
 	case parser.AggregateExpr:
-		if b.aggregateClause == "VALUES" {
+		if b.aggregateClause == "VALUES" || b.aggregateClause == "INSERT VALUES" && r.Name == "string_agg" {
 			return nil, expressionError("42803", "aggregate functions are not allowed in VALUES", r.Pos)
 		}
 		if r.Name == "sum" {
@@ -992,6 +992,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			node, err = b.bindAvg(r, name)
 		} else if r.Name == "any_value" {
 			node, err = b.bindAnyValue(r, name)
+		} else if r.Name == "string_agg" {
+			node, err = b.bindStringAggregate(r, name)
 		} else {
 			node, err = b.bindCount(r, name)
 		}

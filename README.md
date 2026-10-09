@@ -741,6 +741,18 @@ veto all output after a candidate is retained. Public direct/prepared, view,
 HAVING/ORDER and INSERT SELECT witnesses share one independent contract:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
+Change note: `string_agg(text,text)` and `string_agg(bytea,bytea)` return nullable
+TEXT/Go string and BYTEA/raw Go []byte. NULL values are ignored; a NULL delimiter
+adds no separator. Each later surviving value uses its own row's delimiter;
+the first delimiter is ignored and empty values still count as values.
+Empty/all-NULL global input returns typed NULL. Use call-local
+`ORDER BY` with a unique tiebreaker to guarantee concatenation order; outer
+ordering only orders result groups. Each call can use different source-key order.
+Direct/prepared queries, held statements, INSERT SELECT and persistent views/native
+Dump/Restore use the same eager pipeline. DISTINCT/FILTER/ALL/OVER, ordered sibling
+aggregates, no-FROM aggregates and array_agg remain excluded.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
+pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
 Equal typed keys, including NULL keys, form one group; empty global count returns one row
 containing zero, while empty grouped input returns no rows. Group order is not
 promised. The same eager pipeline serves direct/prepared queries and

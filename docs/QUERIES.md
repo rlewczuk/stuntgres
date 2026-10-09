@@ -672,6 +672,66 @@ Full shared contracts: `make quickcheck PACKAGES=./reference RUN='^TestReference
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
 Each backend asserts membership independently when multiple candidates exist.
 
+### Text and binary concatenation — change note
+
+`string_agg(value,delimiter)` has exactly two overloads: TEXT→TEXT and
+BYTEA→BYTEA with same-type delimiters. Results are nullable base types without
+source typmod or physical origin. BYTEA values and separators retain raw octets.
+Metadata follows existing adapters: native TEXT Length is `(MaxInt64,true)`,
+native BYTEA Length is `(0,false)`, and lib/pq exposes `(MaxInt64,true)` for
+both overloads. DecimalSize is unavailable; native aggregate Nullable is
+`(true,true)` while lib/pq reports unknown nullability.
+Unknown literals/parameters default to TEXT; a known BYTEA operand on either
+side selects BYTEA. Existing character/domain-base implicit coercions apply,
+including CHAR trailing-space conversion; integers/Booleans and mixed typed
+TEXT/BYTEA are not implicitly converted to form a signature.
+
+NULL values contribute nothing. NULL delimiters contribute no separator, not
+row exclusion. The first surviving value ignores its delimiter; each later
+surviving value uses its own row's delimiter. Empty values are real values:
+empty followed by `x` with comma yields `,x`. Empty/all-NULL global input returns
+one typed NULL; empty keyed input returns no rows with full metadata.
+
+```sql
+CREATE TABLE fragments(id INTEGER,v TEXT,d TEXT);
+INSERT INTO fragments VALUES(3,'c','/'),(1,'a','ignored'),(2,'b',NULL);
+SELECT string_agg(v,d ORDER BY id) FROM fragments; -- ab/c
+SELECT string_agg(v,d ORDER BY id DESC) FROM fragments; -- cbignoreda
+```
+
+In-call ORDER BY binds input expressions, not projection labels or output
+ordinals. Use source keys with a unique tiebreaker for exact ordering. Multiple
+keys, ASC/DESC and NULLS FIRST/LAST follow normal typed ordering; integer `1`
+inside the call is a constant. Calls with opposite orders sort independently.
+Without call-local ordering the concatenation order is unspecified; outer
+ORDER BY orders output groups, not their input values.
+
+Value, delimiter and each key occurrence evaluate once per eligible row, even
+when the value is NULL. Cached ordered datums are replayed only after successful
+evaluation and sorting. Native all-group finalization precedes cursor publication;
+late expression/comparison errors and cancellation veto all output. PostgreSQL
+may instead stream an earlier completed group and expose the later error through
+Rows.Err. INSERT SELECT remains statement-atomic on both backends.
+
+Direct/newly prepared and SAME held statements, scalar wrappers, hidden HAVING/
+outer ORDER, INSERT SELECT and persistent aggregate views share the ordinary
+pipeline. Native Dump/Reset/Restore replays definitions, arguments/literals and
+hidden ordering keys, never transition state. Source rename and fresh held
+executions use current catalog/data; existing eager native cursors retain values.
+Column permissions apply to both arguments and hidden keys, including empty input.
+Bad signatures/arity, nesting, forbidden clauses, missing keys and malformed
+ORDER preserve complete SQLSTATE/English diagnostics and character positions.
+In INSERT VALUES, string_agg gives42803 at the call. INSERT RETURNING is still
+an independent native0A000 suffix exclusion; it does not reach aggregate binding.
+
+DISTINCT/FILTER/ALL/OVER, ordered sibling aggregates, no-FROM aggregates and
+array_agg remain excluded. Unsupported XML ordering controls do not add XML or
+cast edges. Public smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`.
+Shared contracts:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
+
 ### Interval average — change note
 
 `avg(interval)` shares the grouped/global eager pipeline, including HAVING,
@@ -748,8 +808,9 @@ and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumeri
 Use `RUN='^TestReferenceNumericAvgSmoke$'` in both commands for the focused smoke.
 
 This does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
-OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg,
+FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER on sibling
+aggregates, OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
 optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded
 even with a selected sequence/REGCLASS sibling; those aggregate-free singleton

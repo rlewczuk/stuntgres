@@ -453,6 +453,11 @@ func qualifiedCastChild(raw parser.Expr) error {
 				return err
 			}
 		}
+		for _, key := range e.Order {
+			if err := qualifiedCastChild(key.Expr); err != nil {
+				return err
+			}
+		}
 	case parser.CollateExpr:
 		return qualifiedCastChild(e.Child)
 	case parser.CastExpr:

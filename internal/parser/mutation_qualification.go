@@ -37,7 +37,13 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 	switch e := expr.(type) {
 	case AggregateExpr:
 		inCast = true
-		children = e.Args
+		for _, arg := range e.Args {
+			absorb(arg)
+		}
+		for _, key := range e.Order {
+			absorb(key.Expr)
+		}
+		return result
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
 			result.qualifier, result.qualified = e.QualificationPos, true
@@ -125,7 +131,17 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	var children []Expr
 	switch e := expr.(type) {
 	case AggregateExpr:
-		children = e.Args
+		for _, arg := range e.Args {
+			if token, reject := nonqueryQualification(arg, assignment); token != nil {
+				return token, reject
+			}
+		}
+		for _, key := range e.Order {
+			if token, reject := nonqueryQualification(key.Expr, assignment); token != nil {
+				return token, reject
+			}
+		}
+		return nil, false
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 {
 			return &lexeme{raw: ".", pos: e.QualificationPos}, assignment && !e.QualificationGrouped
@@ -222,6 +238,9 @@ func markGroupedQualification(expr Expr) (Expr, bool) {
 	case AggregateExpr:
 		for i, child := range e.Args {
 			e.Args[i], _ = markGroupedQualification(child)
+		}
+		for i, key := range e.Order {
+			e.Order[i].Expr, _ = markGroupedQualification(key.Expr)
 		}
 	case ColumnExpr:
 		if len(e.Name.Parts) > 1 && !e.QualificationGrouped {

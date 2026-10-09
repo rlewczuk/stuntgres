@@ -85,13 +85,13 @@ func TestAnyValueProviderDatums(t *testing.T) {
 						t.Fatal("initial typed NULL", got, err)
 					}
 				}
-				if err := p.Advance(ctx, state, sqltype.Null(d)); err != nil {
+				if err := p.Advance(ctx, state, sqltype.Null(d), sqltype.Value{}); err != nil {
 					t.Fatal(err)
 				}
-				if err := p.Advance(ctx, state, want); err != nil {
+				if err := p.Advance(ctx, state, want, sqltype.Value{}); err != nil {
 					t.Fatal(err)
 				}
-				if err := p.Advance(ctx, state, sqltype.Null(d)); err != nil {
+				if err := p.Advance(ctx, state, sqltype.Null(d), sqltype.Value{}); err != nil {
 					t.Fatal(err)
 				}
 				for range 2 {
@@ -110,7 +110,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 				if err != nil || !got.IsNull() || got.Type() != d {
 					t.Fatal("group/execution leaked", got, err)
 				}
-				if err := p.Advance(ctx, state, want); err != nil {
+				if err := p.Advance(ctx, state, want, sqltype.Value{}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -139,7 +139,7 @@ func TestAnyValueProviderStateAndCancellation(t *testing.T) {
 	first, _ := sqltype.Integer(typ, 41)
 	second, _ := sqltype.Integer(typ, 73)
 	for _, v := range []sqltype.Value{first, second, sqltype.Null(typ)} {
-		if err := p.Advance(ctx, state, v); err != nil {
+		if err := p.Advance(ctx, state, v, sqltype.Value{}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -148,7 +148,7 @@ func TestAnyValueProviderStateAndCancellation(t *testing.T) {
 		t.Fatal("private retention algorithm", got, err)
 	}
 	for _, invalid := range []any{nil, struct{}{}, (*anyValueState)(nil), &anyValueState{}, &anyValueState{sqltype.Null(foreign)}} {
-		if err := p.Advance(ctx, invalid, first); err == nil {
+		if err := p.Advance(ctx, invalid, first, sqltype.Value{}); err == nil {
 			t.Fatal("invalid state accepted", invalid)
 		}
 		if _, err := p.Finalize(ctx, invalid); err == nil {
@@ -157,7 +157,7 @@ func TestAnyValueProviderStateAndCancellation(t *testing.T) {
 	}
 	foreignValue, _ := sqltype.Integer(foreign, 9)
 	for _, invalid := range []sqltype.Value{{}, sqltype.Null(foreign), foreignValue} {
-		if err := p.Advance(ctx, state, invalid); err == nil {
+		if err := p.Advance(ctx, state, invalid, sqltype.Value{}); err == nil {
 			t.Fatal("foreign/invalid candidate accepted after retention")
 		}
 	}
@@ -170,7 +170,7 @@ func TestAnyValueProviderStateAndCancellation(t *testing.T) {
 		t.Fatal(s, err)
 	}
 	before := state.(*anyValueState).value
-	if err := p.Advance(canceled, state, second); err != context.Canceled || !sqltype.SameDatum(before, state.(*anyValueState).value) {
+	if err := p.Advance(canceled, state, second, sqltype.Value{}); err != context.Canceled || !sqltype.SameDatum(before, state.(*anyValueState).value) {
 		t.Fatal("canceled transition mutated state", err)
 	}
 	if _, err := p.Finalize(canceled, state); err != context.Canceled {
