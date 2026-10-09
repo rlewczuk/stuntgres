@@ -199,6 +199,13 @@ func TestReferenceSettingsAuthenticatedAccessClasses(t *testing.T) {
 		conn *sql.Conn
 	}{{"postgres", admin}, {"settings_reader", reader}} {
 		settingsAuthenticatedIdentity(t, principal.conn, principal.name, nil)
+		var sessionUser, currentUser string
+		if err := principal.conn.QueryRowContext(ctx, "SELECT session_user,current_user").Scan(&sessionUser, &currentUser); err != nil {
+			t.Fatal(err)
+		}
+		if sessionUser != principal.name || currentUser != principal.name {
+			t.Fatalf("authenticated identity got %q/%q want %q", sessionUser, currentUser, principal.name)
+		}
 		for _, definition := range []struct{ name, value, code, message string }{
 			{"server_encoding", "UTF8", "55P02", `parameter "server_encoding" cannot be changed`},
 			{"log_statement_stats", "off", "42501", `permission denied to set parameter "log_statement_stats"`},

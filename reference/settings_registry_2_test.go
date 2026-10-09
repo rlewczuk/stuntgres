@@ -183,11 +183,13 @@ func TestReferenceSettingsNumericPrefixEdges(t *testing.T) {
 	defer c.Close()
 	for _, prepared := range []bool{false, true} {
 		for _, tc := range []struct{ name, input, want string }{
+			{"edge.count", "010", "8"}, {"edge.count", "0xA", "10"}, {"edge.count", "010.5", "10"},
 			{"edge.count", "010e1", "100"}, {"edge.count", "0x1.8p1", "3"}, {"edge.count", ".5", "0"}, {"edge.count", " 2.5 ", "2"}, {"edge.count", "9223372036854775808e-18", "9"}, {"edge.count", "0e-999", "0"},
 			{"edge.real", "010", "10"}, {"edge.real", "0xA", "10"}, {"edge.real", "010.5", "10.5"}, {"edge.real", "010e1", "100"}, {"edge.real", "08.5", "8.5"}, {"edge.real", "0x1p0", "1"}, {"edge.real", "+.5", "0.5"}, {"edge.real", "-.5", "-0.5"}, {"edge.real", " .5", "0.5"}, {"edge.real", "0e-999", "0"}, {"edge.real", "0x1p-1074", "4.94066e-324"},
 		} {
 			sessionSet(t, c, "SET "+tc.name+" TO '"+tc.input+"'", prepared)
 			settingsRows(t, c, "SHOW "+tc.name, prepared, tc.name, tc.want)
+			settingsRows(t, c, "SELECT current_setting($1)", prepared, "current_setting", tc.want, tc.name)
 			settingsRows(t, c, "SELECT set_config($1,$2,false)", prepared, "set_config", tc.want, tc.name, tc.input)
 		}
 		for _, name := range []string{"edge.count", "edge.real"} {
@@ -221,5 +223,28 @@ func TestReferenceSettingsNumericPrefixEdges(t *testing.T) {
 		_, err = c.ExecContext(ctx, "SELECT set_config('demo.ratio','-inf',false)")
 		settingsDiagnostic(t, err, "22023", `-Infinity is outside the valid range for parameter "demo.ratio" (0 .. 10)`, "", "", "")
 		settingsRows(t, c, "SHOW demo.ratio", prepared, "demo.ratio", "1")
+		sessionSet(t, c, "SET demo.ratio TO '2.1234567'", prepared)
+		for _, tc := range []struct{ input, prefix string }{{"Infinity", "Infinity"}, {"-inf", "-Infinity"}} {
+			const query = "SELECT set_config('demo.ratio',$1,false)"
+			if prepared {
+				statement, prepareErr := c.PrepareContext(ctx, query)
+				if prepareErr != nil {
+					t.Fatal(prepareErr)
+				}
+				_, err = statement.ExecContext(ctx, tc.input)
+				statement.Close()
+			} else {
+				_, err = c.ExecContext(ctx, query, tc.input)
+			}
+			settingsDiagnostic(t, err, "22023", tc.prefix+` is outside the valid range for parameter "demo.ratio" (0 .. 10)`, "", "", "")
+			settingsRows(t, c, "SHOW demo.ratio", prepared, "demo.ratio", "2.12346")
+		}
+		sessionSet(t, c, "RESET demo.ratio", prepared)
+		for _, name := range []string{"edge.count", "edge.real"} {
+			sessionSet(t, c, "SET "+name+" TO DEFAULT", prepared)
+			sessionSet(t, c, "RESET "+name, prepared)
+			settingsRows(t, c, "SELECT set_config($1,NULL,NULL)", prepared, "set_config", "0", name)
+			settingsRows(t, c, "SHOW "+name, prepared, name, "0")
+		}
 	}
 }

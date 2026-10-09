@@ -52,6 +52,9 @@ func TestReferenceSettingsSetConfigReentry(t *testing.T) {
 		if err = c.Raw(func(v any) error { physical = v.(driver.QueryerContext); return nil }); err != nil {
 			t.Fatal(err)
 		}
+		if len(notices) != 0 {
+			t.Fatal("default initialization emitted notice", notices)
+		}
 		original := strings.Repeat("a", 64)
 		clipped := strings.Repeat("a", 63)
 		want := stuntgres.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: `identifier "` + original + `" will be truncated to "` + clipped + `"`}
@@ -77,15 +80,18 @@ func TestReferenceSettingsSetConfigReentry(t *testing.T) {
 			} else {
 				settingsRows(t, c, q, false, "set_config", clipped, "application_name", original)
 			}
+			sessionSet(t, c, "SET application_name TO '"+original+"'", prepared)
 			count := 0
 			if threshold == "notice" {
-				count = 1
+				count = 2
 			}
 			if len(notices) != before+count || callbackError != nil {
 				t.Fatal(notices, callbackError)
 			}
-			if count == 1 && notices[len(notices)-1] != want {
-				t.Fatal(notices)
+			for _, notice := range notices[before:] {
+				if notice != want {
+					t.Fatal(notice)
+				}
 			}
 			settingsRows(t, c, "SHOW application_name", false, "application_name", clipped)
 		}

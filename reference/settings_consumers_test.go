@@ -82,6 +82,10 @@ func TestReferenceSettingsBooleanBindingDiagnostics(t *testing.T) {
 				s.selectRows = true
 				s.prepared = prepared
 				s.errorStage = "execute"
+				exec := s
+				exec.selectRows = false
+				referenceRunStep(t, p.ctx, c, backend.recorder, exec)
+				referenceRunStep(t, p.ctx, c, backend.recorder, localReferenceSelect(backend.pg, "SHOW application_name", "application_name", baseline))
 				referenceRunStep(t, p.ctx, c, backend.recorder, s)
 				referenceRunStep(t, p.ctx, c, backend.recorder, localReferenceSelect(backend.pg, "SHOW application_name", "application_name", baseline))
 				for _, tc := range []struct{ query, code, message string }{

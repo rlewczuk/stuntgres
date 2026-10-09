@@ -34,6 +34,7 @@ func TestReferenceSettingsPublicTypedSQL(t *testing.T) {
 			}
 			defer b.Close()
 			for _, tc := range []struct{ name, input, want string }{
+				{"demo.flag", "yes", "on"},
 				{"demo.flag", "TRUE", "on"}, {"demo.flag", "f", "off"}, {"demo.text", "é a b", "é a b"}, {"demo.text", "DEFAULT", "DEFAULT"}, {"demo.text", "", ""},
 				{"demo.count", "2.5", "2"}, {"demo.count", "3.5", "4"}, {"demo.count", "010", "8"}, {"demo.count", "0xA", "10"}, {"demo.count", "-10", "-10"},
 				{"demo.count", "010.5", "10"}, {"demo.ratio", "0x1p-1074", "4.94066e-324"},
@@ -71,6 +72,21 @@ func TestReferenceSettingsPublicTypedSQL(t *testing.T) {
 			count, err := result.RowsAffected()
 			if err != nil || count != 1 {
 				t.Fatal(count, err)
+			}
+			if prepared {
+				statement, prepareErr := a.PrepareContext(context.Background(), "SELECT current_setting('demo.text')")
+				if prepareErr != nil {
+					t.Fatal(prepareErr)
+				}
+				result, err = statement.ExecContext(context.Background())
+				statement.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+				count, err = result.RowsAffected()
+				if err != nil || count != 1 {
+					t.Fatal(count, err)
+				}
 			}
 			settingsRows(t, a, "SELECT set_config($1,$1,false)", prepared, "set_config", "demo.text", "demo.text")
 		})
@@ -133,6 +149,29 @@ func TestReferenceSettingsErrorsAndAtomicity(t *testing.T) {
 					settingsRows(t, a, "SHOW "+prior.name, prepared, prior.name, prior.value)
 				}
 			}
+		}
+		for _, tc := range []struct{ name, input, message, hint, want string }{
+			{"demo.memory", "1 mb", `invalid value for parameter "demo.memory": "1 mb"`, `Valid units for this parameter are "B", "kB", "MB", "GB", and "TB".`, "1MB"},
+			{"demo.duration", "1 MS", `invalid value for parameter "demo.duration": "1 MS"`, `Valid units for this parameter are "us", "ms", "s", "min", "h", and "d".`, "1500ms"},
+			{"statement_timeout", "08.5", `invalid value for parameter "statement_timeout": "08.5"`, `Valid units for this parameter are "us", "ms", "s", "min", "h", and "d".`, "0"},
+			{"statement_timeout", "0x1p0", `invalid value for parameter "statement_timeout": "0x1p0"`, `Valid units for this parameter are "us", "ms", "s", "min", "h", and "d".`, "0"},
+			{"statement_timeout", "2147483648", `invalid value for parameter "statement_timeout": "2147483648"`, "Value exceeds integer range.", "0"},
+			{"demo.real_time", "11s", `11 s is outside the valid range for parameter "demo.real_time" (0 s .. 10 s)`, "", "1s"},
+			{"demo.mode", "bad", `invalid value for parameter "demo.mode": "bad"`, "Available values: safe, fast.", "safe"},
+		} {
+			const query = "SELECT set_config($1,$2,false)"
+			if prepared {
+				statement, prepareErr := a.PrepareContext(context.Background(), query)
+				if prepareErr != nil {
+					t.Fatal(prepareErr)
+				}
+				_, err = statement.ExecContext(context.Background(), tc.name, tc.input)
+				statement.Close()
+			} else {
+				_, err = a.ExecContext(context.Background(), query, tc.name, tc.input)
+			}
+			settingsDiagnostic(t, err, "22023", tc.message, tc.hint, "", "")
+			settingsRows(t, a, "SHOW "+tc.name, prepared, tc.name, tc.want)
 		}
 		for _, name := range []string{"server_encoding", "demo.fixed", "log_statement_stats", "demo.priv"} {
 			code := "55P02"
@@ -237,6 +276,14 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 	// Native host registration/control phase; PostgreSQL has no RegisterSetting API.
 	ctx := context.Background()
 	d := settingsTestDriver(t)
+	for _, definition := range []stuntgres.SettingDefinition{
+		{Name: "edge.count", Type: stuntgres.SettingInteger, Default: "0", IntegerMin: -200, IntegerMax: 200, Description: "numeric prefix"},
+		{Name: "edge.real", Type: stuntgres.SettingFloating, Default: "0", FloatMin: -200, FloatMax: 200, Description: "real prefix"},
+	} {
+		if err := d.RegisterSetting(definition); err != nil {
+			t.Fatal(err)
+		}
+	}
 	db := sessionPool(t, d, "lifecycle")
 	db.SetMaxOpenConns(2)
 	db.SetMaxIdleConns(2)
@@ -304,6 +351,8 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		}
 		expected[v.Name] = [2]string{value, v.Description}
 	}
+	expected["edge.count"] = [2]string{"0", "numeric prefix"}
+	expected["edge.real"] = [2]string{"0", "real prefix"}
 	last := ""
 	for rows.Next() {
 		var n, v, desc string
@@ -353,6 +402,7 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		t.Fatal("not replaced")
 	}
 	settingsRows(t, a, "SHOW demo.text", false, "demo.text", "seed")
+	settingsRows(t, b, "SHOW demo.text", false, "demo.text", "seed")
 	_, err = a.ExecContext(ctx, "SHOW demo.placeholder")
 	settingsDiagnostic(t, err, "42704", `unrecognized configuration parameter "demo.placeholder"`, "", "", "")
 	var v int

@@ -146,6 +146,20 @@ For pq user cancellation use observed server admission and joined completion,
 then check the SAME physical owner and preheld consumers. Do not assert a
 race-prone fast precanceled pq command must return nil outputs, or cancel its
 Go context during a notice callback and invent stable transport health.
+
+Settings timeout witnesses live in `TestReferenceSettingsPublicTimeoutStages`
+and `TestReferenceSettingsPublicTimeoutRollbackCleanup`. Once a physical owner
+is armed with the genuine 1ms statement timer, even `SHOW` or `RESET` can
+legitimately time out under scheduling pressure. The implicit-timeout scenario
+therefore disposes of its armed owner without further SQL; transaction rollback
+restores timeout 0 before checking SAME-owner and held-statement recovery.
+`TestReferenceSettingsSQL` checks tiny-timeout encoding on the arming command
+and then disposes of that isolated owner. Do not increase the timer, retry an
+expired-owner reset, or suppress its diagnostic to make fixture cleanup pass.
+The superseded `TestSettingsSmoke` is removed; its typed registry, numeric,
+metadata, notice/reentry, parser capture, access and connection-lifecycle
+obligations remain in the existing shared `TestReferenceSettings*` consumers.
+
 Original source methods are obligations, not interchangeable API labels.
 For proven DB/Tx plain calls, set referenceStep.nonContext=true on the existing
 runner: actual Exec/Query/Prepare and returned Stmt.Exec/Query retain complete

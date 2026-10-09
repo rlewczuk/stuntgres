@@ -48,25 +48,27 @@ func TestReferenceSettingsExactDecimalSubnormal(t *testing.T) {
 	defer c.Close()
 	for _, prepared := range []bool{false, true} {
 		settingsRows(t, c, "SHOW demo.exact", prepared, "demo.exact", "1.11254e-308")
-		for _, input := range []string{exact, "+" + exact, " " + exact + " "} {
-			sessionSet(t, c, "SET demo.ratio TO '"+input+"'", prepared)
-			settingsRows(t, c, "SHOW demo.ratio", prepared, "demo.ratio", "1.11254e-308")
-			settingsRows(t, c, "SELECT set_config($1,$2,false)", prepared, "set_config", "1.11254e-308", "demo.ratio", input)
-		}
-		for _, input := range []string{inexact, "1e-320", "1e-999"} {
-			for _, q := range []string{"SET demo.ratio TO '" + input + "'", "SELECT set_config('demo.ratio','" + input + "',false)"} {
-				if prepared {
-					s, e := c.PrepareContext(ctx, q)
-					if e != nil {
-						t.Fatal(e)
+		for _, name := range []string{"demo.ratio", "demo.exact"} {
+			for _, input := range []string{exact, "+" + exact, " " + exact + " "} {
+				sessionSet(t, c, "SET "+name+" TO '"+input+"'", prepared)
+				settingsRows(t, c, "SHOW "+name, prepared, name, "1.11254e-308")
+				settingsRows(t, c, "SELECT set_config($1,$2,false)", prepared, "set_config", "1.11254e-308", name, input)
+			}
+			for _, input := range []string{inexact, "1e-320", "1e-999"} {
+				for _, q := range []string{"SET " + name + " TO '" + input + "'", "SELECT set_config('" + name + "','" + input + "',false)"} {
+					if prepared {
+						s, e := c.PrepareContext(ctx, q)
+						if e != nil {
+							t.Fatal(e)
+						}
+						_, err = s.ExecContext(ctx)
+						s.Close()
+					} else {
+						_, err = c.ExecContext(ctx, q)
 					}
-					_, err = s.ExecContext(ctx)
-					s.Close()
-				} else {
-					_, err = c.ExecContext(ctx, q)
+					settingsDiagnostic(t, err, "22023", `invalid value for parameter "`+name+`": "`+input+`"`, "", "", "")
+					settingsRows(t, c, "SHOW "+name, prepared, name, "1.11254e-308")
 				}
-				settingsDiagnostic(t, err, "22023", `invalid value for parameter "demo.ratio": "`+input+`"`, "", "", "")
-				settingsRows(t, c, "SHOW demo.ratio", prepared, "demo.ratio", "1.11254e-308")
 			}
 		}
 		sessionSet(t, c, "SET demo.exact TO '2'", prepared)
