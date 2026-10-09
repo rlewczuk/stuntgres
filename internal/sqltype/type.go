@@ -195,6 +195,7 @@ type Value struct {
 	uuid            [16]byte
 	months, days    int32
 	tree            *treePayload
+	treeKey         bool // text is an immutable prepared structural equality/output key.
 	array           *arrayPayload
 }
 
@@ -589,6 +590,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	}
 	switch d.id {
 	case PgNodeTree:
+		if v.treeKey {
+			return v.text, nil
+		}
 		if v.tree == nil {
 			return "", fmt.Errorf("missing structural tree payload")
 		}

@@ -53,6 +53,11 @@ func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog Catalo
 		return validateQueryJoinExecution(c, n.child, catalog, inherited)
 	case *aggregateNode:
 		return validateQueryJoinExecution(c, n.child, catalog, inherited)
+	case *distinctNode:
+		if inherited != 0 {
+			return sqlError("0A000", queryRowClause(inherited)+" is not allowed with DISTINCT clause")
+		}
+		return validateQueryJoinExecution(c, n.child, catalog, inherited)
 	}
 	return nil
 }

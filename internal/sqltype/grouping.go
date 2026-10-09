@@ -6,6 +6,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"stuntgres/internal/sqlstate"
 )
 
 // Grouping binds NOT DISTINCT equality and a compatible hash to one concrete
@@ -13,6 +15,8 @@ import (
 type Grouping struct {
 	usage      Usage
 	comparison Comparison
+	element    *Grouping
+	prepare    bool
 }
 
 func BindGrouping(usage Usage) (Grouping, error) {
@@ -22,15 +26,51 @@ func BindGrouping(usage Usage) (Grouping, error) {
 	if usage.Type.BaseType().id == JSON {
 		return Grouping{}, failure("42883", "could not identify an equality operator for type json")
 	}
+	if !usage.validCollation() {
+		return Grouping{}, fmt.Errorf("invalid grouping collation")
+	}
+	g := Grouping{usage: usage}
+	base := usage.Type.BaseType()
+	if base.IsArray() {
+		elementUsage := base.element.Usage()
+		elementUsage.Collation = usage.Collation
+		element, err := BindGrouping(elementUsage)
+		if err != nil {
+			return Grouping{}, err
+		}
+		g.element, g.prepare = &element, element.prepare
+		return g, nil
+	}
+	if base.IsEnum() {
+		return g, nil
+	}
+	if base.id == PgNodeTree {
+		g.prepare = true
+		return g, nil
+	}
+	switch base.id {
+	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass:
+	default:
+		return Grouping{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an equality operator for type " + base.DiagnosticName()}
+	}
 	comparison, err := BindComparison(usage.Type, usage.Type)
 	if err != nil {
 		return Grouping{}, err
 	}
-	return Grouping{usage, comparison}, nil
+	g.comparison = comparison
+	return g, nil
 }
 func (g Grouping) check(v Value) error {
 	if g.usage.Type == nil || v.typ != g.usage.Type {
 		return fmt.Errorf("invalid grouping value")
+	}
+	if !v.null && v.typ.BaseType().IsEnum() {
+		base := v.typ.BaseType()
+		value := v
+		value.typ = base
+		if _, err := base.enumOutput(value); err != nil {
+			return err
+		}
 	}
 	if !v.null && v.typ.BaseType().id == Regclass {
 		if len(v.text) == 0 || len(v.text) > 1 && v.text[0] == '0' {
@@ -60,8 +100,49 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 	if a.null || b.null {
 		return a.null == b.null, ctx.Err()
 	}
-	if a.typ.BaseType().id == Regclass {
-		return a.text == b.text, ctx.Err()
+	if g.element != nil {
+		if a.array == nil || b.array == nil {
+			return false, fmt.Errorf("missing grouping array payload")
+		}
+		if len(a.array.dimensions) != len(b.array.dimensions) {
+			return false, nil
+		}
+		for i, dim := range a.array.dimensions {
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+			if dim != b.array.dimensions[i] {
+				return false, nil
+			}
+		}
+		for i, value := range a.array.elements {
+			equal, err := g.element.Equal(ctx, value, b.array.elements[i])
+			if err != nil || !equal {
+				return equal, err
+			}
+		}
+		return true, ctx.Err()
+	}
+	if a.typ.BaseType().IsEnum() {
+		return a.integer == b.integer, ctx.Err()
+	}
+	if a.typ.BaseType().id == PgNodeTree {
+		var err error
+		a, err = g.PrepareKey(ctx, a)
+		if err != nil {
+			return false, err
+		}
+		b, err = g.PrepareKey(ctx, b)
+		if err != nil {
+			return false, err
+		}
+		return groupingTextEqual(ctx, a.text, b.text)
+	}
+	switch a.typ.BaseType().id {
+	case Text, VarChar, Name, Bytea, Regclass, Char:
+		return groupingTextEqual(ctx, a.text, b.text)
+	case BPChar:
+		return groupingTextEqual(ctx, strings.TrimRight(a.text, " "), strings.TrimRight(b.text, " "))
 	}
 	n, err := g.comparison.Compare(ctx, a, b, InputEnvironment{})
 	if err != nil {
@@ -102,7 +183,42 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		return h, ctx.Err()
 	}
 	byteHash(1)
+	if v.typ.IsEnum() {
+		integerHash(uint64(v.integer))
+		return h, ctx.Err()
+	}
+	if g.element != nil {
+		if v.array == nil {
+			return 0, fmt.Errorf("missing grouping array payload")
+		}
+		integerHash(uint64(len(v.array.dimensions)))
+		for _, dim := range v.array.dimensions {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
+			integerHash(uint64(int64(dim.Lower)))
+			integerHash(uint64(dim.Length))
+		}
+		for _, value := range v.array.elements {
+			key, err := g.element.Hash(ctx, value)
+			if err != nil {
+				return 0, err
+			}
+			integerHash(key)
+		}
+		return h, ctx.Err()
+	}
 	switch v.typ.id {
+	case PgNodeTree:
+		// Preserve the logical descriptor for PrepareKey's generation check.
+		v.typ = g.usage.Type
+		prepared, err := g.PrepareKey(ctx, v)
+		if err != nil {
+			return 0, err
+		}
+		if err := textHash(prepared.text); err != nil {
+			return 0, err
+		}
 	case Interval:
 		byteHash(byte(intervalInfinity(v) + 1))
 		if intervalInfinity(v) == 0 {
@@ -161,4 +277,20 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 		return 0, fmt.Errorf("unsupported grouping type")
 	}
 	return h, ctx.Err()
+}
+
+func groupingTextEqual(ctx context.Context, a, b string) (bool, error) {
+	if len(a) != len(b) {
+		return false, ctx.Err()
+	}
+	for offset := 0; offset < len(a); offset += 1024 {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		end := min(offset+1024, len(a))
+		if a[offset:end] != b[offset:end] {
+			return false, ctx.Err()
+		}
+	}
+	return true, ctx.Err()
 }

@@ -105,11 +105,12 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []BoundExpr
 			}
 		}
 		keys[i] = sortKey{
-			expression: expression,
-			position:   raw.Pos.Character,
-			desc:       raw.Desc,
-			nullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc,
-			cache:      -1,
+			expression:    expression,
+			position:      raw.Pos.Character,
+			outputOrdinal: output + 1,
+			desc:          raw.Desc,
+			nullsFirst:    raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc,
+			cache:         -1,
 		}
 	}
 	return keys, nil

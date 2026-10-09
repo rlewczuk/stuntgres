@@ -21,11 +21,6 @@ func TestReferenceJSONCapabilityBoundaries(t *testing.T) {
 				referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE u(v JSON)", 0))
 				for _, prepared := range []bool{false, true} {
 					s := referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: tc.pos})
-					if !backend.pg && tc.q == "SELECT DISTINCT v FROM u" {
-						// DISTINCT is outside the native SELECT grammar, independent
-						// of JSON's lack of an equality provider.
-						s = referenceImplicitError(tc.q, referenceDiagnostic{Code: "42601", Message: `syntax error at or near "DISTINCT"`, Position: "8"})
-					}
 					s.errorStage = "execute"
 					if prepared {
 						s = referencePrepared(s)

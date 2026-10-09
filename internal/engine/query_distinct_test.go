@@ -1,0 +1,147 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/sqltype"
+)
+
+func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
+	_, query, source := queryCoreFixture(t, "SELECT DISTINCT v AS shown FROM t ORDER BY shown,shown DESC")
+	project := query.Root.(*projectNode)
+	sort := project.child.(*sortNode)
+	node := sort.child.(*distinctNode)
+	if len(node.expressions) != 1 || len(node.grouping) != 1 || project.Schema()[0].OriginTable == 0 || project.Schema()[0].OriginAttribute != 2 || !project.Schema()[0].Nullable || !project.Schema()[0].NullabilityKnown {
+		t.Fatal(project.Schema(), node)
+	}
+	for _, key := range sort.keys {
+		if key.slot != 0 || key.cache != -1 {
+			t.Fatal("ORDER must read projected slot", key)
+		}
+	}
+	original := node.expressions[0]
+	calls := 0
+	node.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
+	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	if err != nil || count != 3 || calls != 4 || source.view != nil {
+		t.Fatal(rows, count, calls, err, source.view)
+	}
+	defer rows.Close()
+	scratch := make([]sqltype.Value, 1)
+	for _, want := range []int64{1, 2} {
+		present, err := rows.Next(context.Background(), scratch)
+		value, _ := scratch[0].Integer()
+		if err != nil || !present || value != want {
+			t.Fatal(present, value, err)
+		}
+	}
+	present, err := rows.Next(context.Background(), scratch)
+	if err != nil || !present || !scratch[0].IsNull() {
+		t.Fatal(present, scratch, err)
+	}
+}
+
+func TestQueryDistinctCollisionCandidates(t *testing.T) {
+	_, query, source := queryCoreFixture(t, "SELECT DISTINCT v FROM t")
+	defer source.close()
+	node := query.Root.(*projectNode).child.(*distinctNode)
+	d := node.Schema()[0].Usage.Type
+	one, _ := sqltype.Integer(d, 1)
+	two, _ := sqltype.Integer(d, 2)
+	flat := []sqltype.Value{one, two}
+	if index, err := findDistinctTuple(context.Background(), node.grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
+		t.Fatal("collision suppressed unequal tuple", index, err)
+	}
+	if index, err := findDistinctTuple(context.Background(), node.grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
+		t.Fatal(index, err)
+	}
+	ctx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
+	if _, err := findDistinctTuple(ctx, node.grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+}
+
+func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
+	for _, phase := range []string{"projection", "late failure", "prepublication", "hash"} {
+		t.Run(phase, func(t *testing.T) {
+			_, query, source := queryCoreFixture(t, "SELECT DISTINCT v FROM t")
+			project := query.Root.(*projectNode)
+			node := project.child.(*distinctNode)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			original := node.expressions[0]
+			calls := 0
+			sentinel := errors.New("late distinct projection")
+			var evaluationContext context.Context = ctx
+			if phase == "hash" {
+				var text *sqltype.Descriptor
+				for _, d := range sqltype.Builtins() {
+					if d.ID() == sqltype.Text {
+						text = d
+					}
+				}
+				usage := text.Usage()
+				node.querySchema[0].Usage = usage
+				node.grouping[0], _ = sqltype.BindGrouping(usage)
+				armed := &aggregateCancelContext{Context: ctx, at: 4}
+				evaluationContext = armed
+				node.expressions[0] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
+					armed.armed = true
+					return sqltype.String(text, strings.Repeat("x", 4096)), nil
+				})
+			} else {
+				node.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+					calls++
+					if phase == "projection" {
+						cancel()
+					}
+					if phase == "late failure" && calls == 4 {
+						return sqltype.Value{}, sentinel
+					}
+					return original.Eval(c)
+				})
+				if phase == "prepublication" {
+					slot := project.expressions[0]
+					published := 0
+					project.expressions[0] = queryProbe(slot.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+						published++
+						if published == 3 {
+							cancel()
+						}
+						return slot.Eval(c)
+					})
+				}
+			}
+			rows, count, err := finalizeQuery(evaluationContext, query.Root, source, nil)
+			want := error(context.Canceled)
+			if phase == "late failure" {
+				want = sentinel
+			}
+			if rows != nil || count != 0 || !errors.Is(err, want) || source.view != nil {
+				t.Fatal(rows, count, err, want, source.view)
+			}
+		})
+	}
+}
+
+func TestQueryDistinctInsertNoBatchOnLateProjectionFailure(t *testing.T) {
+	b, source := insertSelectEvaluationFixture(t, "SELECT DISTINCT v FROM t")
+	node := b.query.Root.(*projectNode).child.(*distinctNode)
+	original := node.expressions[0]
+	calls := 0
+	sentinel := errors.New("late distinct INSERT source")
+	node.expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
+		calls++
+		if calls == 3 {
+			return sqltype.Value{}, sentinel
+		}
+		return original.Eval(c)
+	})
+	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
+	if rows != nil || err != sentinel || source.view != nil || source.anonymous != nil {
+		t.Fatal(rows, err, source)
+	}
+}

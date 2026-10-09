@@ -55,6 +55,7 @@ type sortKey struct {
 	expression       BoundExpr
 	comparison       sqltype.Comparison
 	position         int // Original ORDER reference character position, not reused output syntax.
+	outputOrdinal    int // One-based resolved output occurrence; zero is a SQL expression.
 	slot, cache      int
 	desc, nullsFirst bool
 	output           bool // This cache slot supplies a visible projection.
@@ -79,6 +80,8 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		return nil, err
 	}
 	switch n := node.(type) {
+	case *distinctNode:
+		return preflightDistinct(c, n)
 	case *limitNode:
 		child, err := preflightQuery(c, n.child)
 		if err != nil {
@@ -635,6 +638,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return openRowLockNode(ctx, state, n)
 	case *joinNode:
 		return openJoinNode(ctx, state, n)
+	case *distinctNode:
+		return openDistinctNode(ctx, state, n)
 	case *aggregateNode:
 		return openAggregateNode(ctx, state, n)
 	case *valuesNode:

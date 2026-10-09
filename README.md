@@ -169,7 +169,7 @@ Output labels stay invisible to sibling targets and WHERE; bare ORDER labels
 prefer outputs while compound/qualified ORDER uses inputs. This corrects
 missing-name diagnostics without changing resolution or physical privileges.
 See [query labels and relation aliases](docs/QUERIES.md#query-labels-and-relation-aliases--diagnostic-fidelity-change-note).
-Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
+Public feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
 
 DELETE supports `RETURNING *`, scalar expressions and PostgreSQL18 OLD/NEW
 output aliases. Deleted occurrences return their actual pre-deletion values
@@ -516,7 +516,18 @@ count decoration, cheap immutable outputs run below Sort; unrelated volatile
 outputs run after Sort but before OFFSET/LIMIT. Unordered queries and complete
 sort peers have no portable relative order. General COLLATE remains excluded.
 See [ordering semantics](docs/QUERIES.md#expression-ordering--change-note-changelog).
-Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
+Public feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryOrder' VERBOSE=0`.
+
+Change note: ordinary SELECT DISTINCT now eliminates duplicate complete projected
+tuples, with NULL-equal type-owned keys and no implicit ordering promise. Recursive
+arrays/domains retain structural equality; supported tree carriers retain their
+binary-compatible structural text equality. Projection is evaluated once before
+deduplication; ORDER must reference projected outputs, and locking DISTINCT is
+rejected. Views/native replay and INSERT SELECT share source-typed deduplication
+before destination assignment. DISTINCT ON and aggregate/grouping DISTINCT,
+ordinary array operators/order and new FROM forms remain excluded.
+See [distinct projected rows](docs/QUERIES.md#distinct-projected-rows--change-note-changelog).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
 
 SELECT, shared INSERT SELECT and decorated VALUES support LIMIT/OFFSET and
 FETCH FIRST/NEXT ROW/ROWS ONLY. Counts use BIGINT assignment conversion; zero

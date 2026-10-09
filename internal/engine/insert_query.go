@@ -441,6 +441,8 @@ func pruneIdentityQueryProducer(node LogicalNode, expression BoundExpr) (Logical
 		expression = coercion.child
 	}
 	switch n := node.(type) {
+	case *distinctNode:
+		return n, false // Every projected slot participates in source cardinality.
 	case *limitNode:
 		var discard bool
 		n.child, discard = pruneIdentityQueryProducer(n.child, expression)

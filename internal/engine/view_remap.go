@@ -207,6 +207,18 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 		next = &singletonNode{querySchema: schema}
 	case *projectNode:
 		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions)}
+	case *distinctNode:
+		copy := *n
+		copy.querySchema = schema
+		copy.child = child(n.child)
+		copy.expressions = expressions(n.expressions)
+		copy.grouping = make([]sqltype.Grouping, len(copy.expressions))
+		for i, expression := range copy.expressions {
+			if err == nil {
+				copy.grouping[i], err = sqltype.BindGrouping(expression.ResultUsage())
+			}
+		}
+		next = &copy
 	case *filterNode:
 		next = &filterNode{querySchema: schema, child: child(n.child), predicate: expression(n.predicate)}
 	case *sortNode:

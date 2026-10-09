@@ -49,7 +49,7 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, pre
 					}
 					targets[i] = fmt.Sprintf("column%d AS %s", i+1, pgIdentifier(name))
 				}
-				return viewTargetsSQL(targets, presentation) + "\n   FROM (" + text + ") AS __view_values", nil
+				return viewTargetsSQL(targets, presentation, false) + "\n   FROM (" + text + ") AS __view_values", nil
 			}
 			text = "SELECT * FROM (" + text + ") AS __view_values(" + strings.Join(labels, ", ") + ")"
 		}
@@ -105,7 +105,7 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, pre
 			targets[i] += " AS " + identifier(label)
 		}
 	}
-	text := viewTargetsSQL(targets, presentation)
+	text := viewTargetsSQL(targets, presentation, s.Distinct)
 	clause := " "
 	if presentation.deparse {
 		clause = "\n  "
@@ -189,13 +189,17 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, pre
 }
 
 // Measure complete target bytes, never split identifiers, literals or expressions.
-func viewTargetsSQL(targets []string, presentation viewPresentation) string {
+func viewTargetsSQL(targets []string, presentation viewPresentation, distinct bool) string {
+	prefix := "SELECT "
+	if distinct {
+		prefix += "DISTINCT "
+	}
 	if !presentation.deparse {
-		return "SELECT " + strings.Join(targets, ", ")
+		return prefix + strings.Join(targets, ", ")
 	}
 	var layout strings.Builder
-	layout.WriteString(" SELECT ")
-	lineBytes := 8
+	layout.WriteString(" " + prefix)
+	lineBytes := 1 + len(prefix)
 	for i, target := range targets {
 		if i > 0 {
 			if presentation.wrap >= 0 && (presentation.wrap == 0 || int64(lineBytes+2+len(target)) > presentation.wrap) {

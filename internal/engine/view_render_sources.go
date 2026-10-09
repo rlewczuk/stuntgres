@@ -29,6 +29,8 @@ func viewFromRoot(node LogicalNode) LogicalNode {
 			node = n.child
 		case *aggregateNode:
 			node = n.child
+		case *distinctNode:
+			node = n.child
 		default:
 			return node
 		}

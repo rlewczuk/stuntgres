@@ -172,7 +172,7 @@ func recheckScratchWidth(node LogicalNode) int {
 		return recheckScratchWidth(n.child)
 	case *evaluationNode:
 		return recheckScratchWidth(n.child)
-	case *valuesNode, *sourceNode:
+	case *valuesNode, *sourceNode, *distinctNode:
 		return 0
 	case *projectNode:
 		return recheckScratchWidth(n.child)
@@ -191,6 +191,8 @@ func recheckScratchWidth(node LogicalNode) int {
 func recheckQueryRow(node LogicalNode, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
 	switch n := node.(type) {
 	case *valuesNode:
+		return frozen, true, nil
+	case *distinctNode:
 		return frozen, true, nil
 	case *projectNode:
 		// A nested VALUES projection exposes its already produced slots.

@@ -57,8 +57,10 @@ DecimalSize; native ScanType is `string` and declaration nullability is known.
 pq exposes raw `[]byte`, ScanType `interface{}` and unknown nullability.
 Native Dump/Restore retains exact JSON bytes, typed stored expressions and
 captured cursor ownership; invalid late Restore leaves the live catalog intact.
-No jsonb/jsonpath, JSON operators/functions, SQL/JSON constructor `json(...)`,
-general SELECT DISTINCT or pg_type catalog projections are introduced.
+Ordinary SELECT DISTINCT rejects JSON keys, including JSON domain/array keys,
+with 42883 because JSON has no equality provider.
+No jsonb/jsonpath, JSON operators/functions, SQL/JSON constructor `json(...)`
+or pg_type catalog projections are introduced.
 
 Feature smoke (each invocation has a 900-second deadline):
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`
@@ -102,7 +104,11 @@ Both array input and output procedures are STABLE, even for setting-independent
 elements. Explicit TEXT-to-array and array-to-TEXT IO casts, including physical
 domain wrappers, therefore cannot survive in immutable stored generation
 expressions. Identity coercions and immutable retained payload sharing are unchanged.
-No array-to-array cast graph, equality/order/grouping, operators, constructors,
+Array grouping/key equality, including SELECT DISTINCT, compares rank, dimensions,
+lower bounds and recursively typed NULL-aware elements; numeric scale, BPCHAR
+padding and floating NaN/signed-zero normalization follow their scalar contracts.
+Domains retain logical identity while delegating key equivalence to their bases.
+No array-to-array cast graph, ordinary comparison operators/order, constructors,
 subscripts or additional array functions are introduced.
 
 Ordinary INTERVAL DAY/HOUR array input first parses bare `1` as seconds and then
@@ -179,6 +185,12 @@ invalid labels fail22P02 with positioned literals or unnamed portal parameter
 Context for bound values. Typed TEXT cannot implicitly assign or compare as enum;
 explicit enum↔TEXT casts are supported. Modifiers and COLLATE are rejected.
 Domains over enum retain their immediate/physical enum authority.
+DISTINCT keys use the same checked declaration ordinals for enums and domains
+over enums, with NULL-equal grouping semantics and strict descriptor generations.
+Recursive keys also support admitted projected arrays of domain-over-enum
+elements and domains over those arrays. Native enum-array column storage remains
+excluded; projected literal/annotation codecs are not storage admission, and
+ordinary array comparison/ordering and polymorphic enum operators are unchanged.
 
 Standalone SELECT admits a bounded cast-derived enum scalar: literal or bound
 enum casts, their ordinary comparisons, Boolean predicates, and explicit TEXT
@@ -1557,8 +1569,7 @@ Prepared capture, comparison, conversion and native replay retain that identity.
 Timestamptz equality/order uses the instant. Timetz compares non-modular UTC-clock
 keys and then seconds-west offset: `09:00+01` sorts before, and is unequal to,
 `08:00+00`. Grouping, ordering and conditional/distinct predicates share these semantics.
-SELECT DISTINCT remains outside the supported query surface; min/max reuse these
-same temporal comparison semantics.
+SELECT DISTINCT and min/max reuse these same temporal comparison semantics.
 
 Selected datetime casts interpret civil DATE/TIMESTAMP in session TimeZone when
 converting/comparing with an instant; reverse casts use local civil fields.

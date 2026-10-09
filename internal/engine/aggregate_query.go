@@ -87,6 +87,10 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 			if err = ctx.Err(); err != nil {
 				return indexedStage{}, err
 			}
+			value, err = n.grouping[k].PrepareKey(ctx, value)
+			if err != nil {
+				return indexedStage{}, err
+			}
 			scratch[k] = value
 			h, err := n.grouping[k].Hash(ctx, value)
 			if err != nil {

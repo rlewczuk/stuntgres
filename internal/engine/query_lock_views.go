@@ -62,6 +62,8 @@ func queryRootRowMode(node LogicalNode) relationLockMode {
 			node = n.child
 		case *rowLockNode:
 			return n.mode
+		case *distinctNode, *aggregateNode:
+			return 0 // Descendant marks are consumed at materialization.
 		default:
 			return 0
 		}
@@ -128,6 +130,8 @@ func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
 	}
 	suffix := ""
 	switch {
+	case d.syntax.Distinct:
+		suffix = "DISTINCT clause"
 	case len(d.syntax.GroupBy) != 0:
 		suffix = "GROUP BY clause"
 	case d.syntax.Having != nil:
@@ -150,6 +154,9 @@ func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
 				node = n.child
 			case *aggregateNode:
 				suffix = "aggregate functions"
+				node = nil
+			case *distinctNode:
+				suffix = "DISTINCT clause"
 				node = nil
 			default:
 				node = nil
@@ -280,7 +287,7 @@ func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	switch n := node.(type) {
 	case *limitNode:
 		return queryLockRecheckWidth(n.child, inputs)
-	case *aggregateNode:
+	case *aggregateNode, *distinctNode:
 		return 0 // Its input marks/provenance have already been consumed.
 	case *evaluationNode:
 		return queryLockRecheckWidth(n.child, inputs)
@@ -352,6 +359,8 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 	switch n := node.(type) {
 	case *valuesNode:
 		return frozen, true, nil
+	case *distinctNode:
+		return frozen, true, nil // Its source marks were settled during materialization.
 	case *limitNode:
 		return recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
 	case *evaluationNode:

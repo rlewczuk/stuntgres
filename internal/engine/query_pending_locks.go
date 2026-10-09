@@ -34,7 +34,7 @@ func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPending
 		}
 		dst = pendingQueryMarks(n.left, inputs, dst)
 		return pendingQueryMarks(n.right, inputs, dst)
-	case *sortNode, *aggregateNode, *limitNode:
+	case *sortNode, *aggregateNode, *distinctNode, *limitNode:
 		// These owners consume descendant pending marks. Own marks sit above
 		// their Sort and therefore are discovered separately by rowLockNode.
 		return dst

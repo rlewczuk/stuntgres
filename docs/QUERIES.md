@@ -230,13 +230,65 @@ the existing native Dump/Restore path; finalized results survive replacement.
 This is a diagnostic correction and focused alias coverage, not new DISTINCT
 or grouping support.
 
-Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
+Public feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
 Dual-mode alias union:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAliases[A-Za-z0-9_]*$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAliases[A-Za-z0-9_]*$' VERBOSE=0`.
 Both backends assert complete diagnostics; the separate PostgreSQL column-ACL
 companion is `TestReferenceQueryAliasesPostgresColumnACL`. A postgres subtest
 filter on a shared scenario is not a substitute for native coverage.
+
+## Distinct projected rows — change note (changelog)
+
+Ordinary `SELECT DISTINCT expression [, ...] FROM source` deduplicates the
+**complete projected tuple**, after WHERE and grouping/HAVING and before
+ORDER BY, OFFSET and LIMIT. Already-admitted selected-call singleton projections
+also accept DISTINCT; ordinary relationless `SELECT DISTINCT 1` remains excluded
+(native0A000). Each visible expression is evaluated once per demanded source
+occurrence, including volatile expressions; ordering reuses the projected datum.
+All keys must finish before a positive LIMIT can publish rows. LIMIT0 retains
+binding/type/authority checks without demanding runtime keys.
+
+Two NULLs are equal in each projected position; one NULL and one non-NULL are
+different. Equality follows the represented type's key contract: numeric scale,
+floating NaN/signed zero, BPCHAR padding, temporal/interval and projected REGCLASS
+identity retain their existing semantics. REGCLASS literal providers can be
+projected over a table source; DISTINCT does not add REGCLASS column storage or
+TEXT-column-to-REGCLASS casts. Recursive array keys include rank, extents, lower
+bounds and NULL-aware element equality, including domain carriers.
+Enum and enum-domain keys use checked declaration ordinals, including recursively
+inside admitted projected domain-element arrays. This does not add enum-array
+column storage or ordinary array operators.
+Immutable `pg_node_tree` carriers use their binary-compatible structural text
+equality representation, not payload-pointer identity. Result labels, logical
+usages, typmods, collation and physical origin/nullability survive row elimination,
+including empty results. No implicit output order or representative spelling is
+promised; use an explicit ORDER BY where ordering matters.
+
+ORDER keys must resolve to a projected expression: a standalone output alias,
+ordinal or exact projected expression is accepted. An unprojected input column or
+an expression merely derived from a projected value fails42P10. Existing output
+alias precedence and ambiguous/missing-name/ordinal diagnostics remain unchanged.
+An alias or ordinal retains its exact visible occurrence: with two independent
+`random()` projections, `ORDER BY` the second alias or ordinal2 reads the second
+retained draw, including through persistent views. Equivalent expression syntax
+does not merge independently visible volatile occurrences.
+VOID projections fail analysis42883, even on empty input. All four FOR locking
+modes fail0A000, including inherited locking through a DISTINCT view.
+
+Persistent views, held/prepared execution and native Dump/Restore share this
+pipeline. INSERT SELECT deduplicates **source-typed** keys before destination
+assignment: different numeric source values that round to the same INTEGER still
+insert separate occurrences. OVERRIDING USER VALUE cannot prune a DISTINCT key.
+Failure/cancellation publishes no partial native cursor or INSERT batch.
+DISTINCT ON, aggregate/grouping DISTINCT modifiers, ordinary array comparison
+operators/ordering, general FROM expansion and spill/planner machinery remain
+excluded.
+
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
+Independent pinned18.0 contract:
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryDistinct' VERBOSE=0`.
 
 ## Expression ordering — change note (changelog)
 
@@ -320,7 +372,7 @@ bare ORDER key for that nested output-override fixture: the original view and it
 own definition replay have different sequence-to-row associations. Native definition
 compatibility does not assume PostgreSQL's own deparse fidelity in that case.
 
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryOrder' VERBOSE=0`.
 View persistence smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryOrderView' VERBOSE=0`.
 Independent pinned18.0 reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryOrder' VERBOSE=0`.
 

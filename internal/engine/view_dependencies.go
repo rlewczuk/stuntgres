@@ -343,6 +343,8 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			return visit(n.child)
 		case *aggregateNode:
 			return visit(n.child)
+		case *distinctNode:
+			return visit(n.child)
 		case *singletonNode:
 		default:
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)

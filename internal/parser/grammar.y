@@ -865,6 +865,8 @@ insert_input: VALUES rows order bounds { $$=&InsertSource{Values:&ValuesQuery{Ro
  | insert_select { $$=&InsertSource{Select:$1} }
  | '(' insert_input ')' { $$=$2 } ;
 insert_select: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
+ | SELECT DISTINCT projection FROM from_list where group having order query_tail { $3.Distinct=true; $3.From=$5; $3.Where=$6; $3.GroupBy=$7; $3.Having=$8; $3.Order=$9; $3.Locking=$10.Locking; $3.Bounds=$10.Bounds; $3.Pos=$1.pos; $$=$3 }
+ | SELECT DISTINCT projection bounds { if !sqllex.(*lexer).nonqueryProjection($3.Targets) {return 1};$3.Distinct=true;$3.Bounds=$4;$3.Pos=$1.pos; $$=$3 }
  | SELECT projection bounds { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; $$=$2 }
  | SELECT FROM from_list where group having order query_tail { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8.Locking,Bounds:$8.Bounds,Pos:$1.pos} }
  /* Keep the undecorated zero-width source explicit. An empty bounds reduction
@@ -1027,6 +1029,8 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
 /* Newly admitted FROM trees diagnose a misplaced ON as syntax. Preserve the
  * legacy single-table suffix capability boundary for otherwise excluded SQL. */
 select_query: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
+ | SELECT DISTINCT projection FROM from_list where group having order query_tail { $3.Distinct=true; $3.From=$5; $3.Where=$6; $3.GroupBy=$7; $3.Having=$8; $3.Order=$9; $3.Locking=$10.Locking; $3.Bounds=$10.Bounds; $3.Pos=$1.pos; $$=$3 }
+ | SELECT DISTINCT projection bounds { if !sqllex.(*lexer).indexExpression&&!sqllex.(*lexer).nonqueryProjection($3.Targets) {return 1};$3.Distinct=true;$3.Bounds=$4;$3.Pos=$1.pos; if sqllex.(*lexer).indexExpression||$3.IsSingleton() { $$=$3 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT FROM from_list where group having order query_tail { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8.Locking,Bounds:$8.Bounds,Pos:$1.pos} }
  | SELECT projection bounds { if !sqllex.(*lexer).indexExpression&&!sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; if sqllex.(*lexer).indexExpression||$2.IsSingleton()||$2.IsTypeSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }

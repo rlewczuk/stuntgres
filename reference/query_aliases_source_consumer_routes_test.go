@@ -77,6 +77,19 @@ func TestReferenceQueryAliasesMetadataSourceConsumerRoutes(t *testing.T) {
 				rows, err := stmt.Query(tc.args...)
 				stringCoreRetainedRows(t, rows, err, []string{"sum"}, []string{"INT4"}, tc.want, false)
 			}
+			if !backend.pg {
+				ctx, cancel := context.WithCancel(p.ctx)
+				cancel()
+				rows, err := stmt.QueryContext(ctx, 10, 1)
+				if rows != nil {
+					rows.Close()
+					t.Fatal("canceled parameterized held execution exposed rows")
+				}
+				var state interface{ SQLState() string }
+				if !errors.Is(err, context.Canceled) || errors.As(err, &state) {
+					t.Fatal("context failure must remain ordinary", err)
+				}
+			}
 			for _, args := range [][]any{{10}, {struct{}{}, 1}} {
 				rows, err := stmt.Query(args...)
 				if rows != nil {

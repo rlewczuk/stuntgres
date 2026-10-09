@@ -117,8 +117,9 @@ JSON typed literals are candidates for that convention; unrelated DATE/TIME/
 TIMESTAMP typed literals retain their existing no-FROM exclusion.
 Generic JSON[] and domains reuse existing associations. JSON has no ordinary
 equality/order/group/hash or B-tree provider. GROUP BY denial retains the key's
-original SQL source Position. SELECT DISTINCT remains outside
-native syntax, and pg_type projections remain outside the catalog surface.
+original SQL source Position. Ordinary SELECT DISTINCT is supported, but JSON
+keys, including JSON domain/array keys, fail equality analysis with 42883.
+pg_type projections remain outside the catalog surface.
 Missing default B-tree classes report42704 with the existing Hint for both direct
 and expression keys, including atomic ALTER TYPE reconstruction. Explicit
 incompatible classes retain42804. JSON INCLUDE payloads require no comparator
@@ -159,6 +160,21 @@ parenthesized VALUES is a supported non-lateral FROM operand.
 See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`;
 independent pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
+
+Ordinary SELECT DISTINCT deduplicates complete projected rows using type-owned
+NULL-equal key semantics, after WHERE/grouping/HAVING and before ORDER/OFFSET/LIMIT.
+Projection is evaluated once per source occurrence; ORDER reads projected values
+and must reference a projected expression, output alias or ordinal. Hidden keys
+fail42P10 and all four locking modes fail0A000, also through DISTINCT views.
+Native metadata, held execution, INSERT SELECT source-type equality and
+Dump/Restore retain the same contract. Arrays/domains use structural key equality.
+Enums and enum domains use declaration-ordinal keys. Explicit ORDER aliases and
+ordinals preserve the selected visible occurrence, including independent repeated
+volatile projections. Projected enum-domain arrays do not widen array storage.
+Ordinary array operators/order, DISTINCT ON and aggregate/grouping DISTINCT
+modifiers remain excluded. No implicit order is promised.
+See [distinct projected rows](QUERIES.md#distinct-projected-rows--change-note-changelog).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryDistinctSmoke$$' VERBOSE=0`.
 
 Persistent CREATE VIEW supports the current SELECT body, optional prefix output
 names, security_barrier/security_invoker Boolean options, nested ordinary reads
@@ -205,7 +221,7 @@ earlier exact entries. Diagnostics never change visibility or physical-column
 authorization. Complete logical English
 diagnostics and character positions have independent pinned18.0 reference
 expectations. See [alias diagnostic fidelity](QUERIES.md#query-labels-and-relation-aliases--diagnostic-fidelity-change-note).
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
 
 Four trailing SELECT locking clauses are supported: `FOR KEY SHARE`, `FOR SHARE`,
 `FOR NO KEY UPDATE` and `FOR UPDATE`, including current inner/cross joins,

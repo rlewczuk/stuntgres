@@ -447,7 +447,7 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 		}
 	case "BYTEA":
 		want = reflect.TypeFor[[]byte]()
-	case "_BOOL", "_BYTEA", "_INT2", "_INT4", "_INT8", "_TEXT", "_OID", "_BPCHAR", "_VARCHAR", "_FLOAT4", "_FLOAT8", "_NUMERIC", "_DATE", "_TIME", "_TIMETZ", "_TIMESTAMP", "_TIMESTAMPTZ", "_INTERVAL", "_UUID", "_REGCLASS", "_JSON":
+	case "_BOOL", "_BYTEA", "_INT2", "_INT4", "_INT8", "_TEXT", "_OID", "_BPCHAR", "_VARCHAR", "_FLOAT4", "_FLOAT8", "_NUMERIC", "_DATE", "_TIME", "_TIMETZ", "_TIMESTAMP", "_TIMESTAMPTZ", "_INTERVAL", "_UUID", "_REGCLASS", "_JSON", "_ENUM":
 		want = reflect.TypeFor[string]()
 		if postgres {
 			want = reflect.TypeFor[[]byte]()

@@ -497,17 +497,18 @@ type UpdateAssignment struct {
 func (*Update) statement() {}
 
 type Select struct {
-	From    FromItem
-	Values  *ValuesQuery
-	Targets []Expr
-	Labels  []Identifier
-	Where   Expr
-	GroupBy []Expr
-	Having  Expr
-	Order   *Order
-	Pos     Position
-	Locking *RowLockClause
-	Bounds  *QueryBounds
+	From     FromItem
+	Distinct bool
+	Values   *ValuesQuery
+	Targets  []Expr
+	Labels   []Identifier
+	Where    Expr
+	GroupBy  []Expr
+	Having   Expr
+	Order    *Order
+	Pos      Position
+	Locking  *RowLockClause
+	Bounds   *QueryBounds
 }
 
 func (*Select) statement() {}
