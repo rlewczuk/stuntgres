@@ -11,6 +11,23 @@ make bench      # fresh engine + connector + pool + Ping + Close, five runs
 make deps       # list non-standard production dependencies
 ```
 
+Parser generation uses `internal/parser/generate.sh` through the existing
+`go:generate` directive. The helper runs pinned `goyacc@v0.50.0` with the unchanged
+`-l -p sql -o grammar_gen.go -v /dev/null grammar.y` flags in a unique temporary
+directory beneath `internal/parser`, with a symlink to the original `grammar.y`.
+It renames the completed `grammar_gen.go` over the checked-in output only after
+successful generation. The temporary output is on the same filesystem, so this
+publication is atomic: concurrent generators and builds cannot observe a partial
+or interleaved parser. Failed generation leaves the previous parser intact;
+normal exits and catchable termination signals clean up the temporary directory.
+The original input/output basenames preserve the generated header and format.
+Never hand-edit `grammar_gen.go`; continue to use `make generate`.
+
+Atomic output publication does not freeze grammar/source inputs or the integration
+tip. Verification must still compare its starting and ending integration tips and
+rerun on the current tip if it advances; concurrent source changes are not made
+safe by the generation helper.
+
 Each `make quickcheck` invocation enforces a fixed 900-second wall-clock deadline
 across parser generation and all selected packages, including compilation, plus a per-package timeout.
 Use `RACE=1` for race-enabled tests and `REFERENCE=1 PACKAGES=./reference` for

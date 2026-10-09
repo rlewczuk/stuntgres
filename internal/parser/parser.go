@@ -1,6 +1,6 @@
 package parser
 
-//go:generate go run golang.org/x/tools/cmd/goyacc@v0.50.0 -l -p sql -o grammar_gen.go -v /dev/null grammar.y
+//go:generate sh generate.sh
 
 import (
 	"context"
