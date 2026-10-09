@@ -176,6 +176,10 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 			return false, errors.New("stuntgres: duplicate staged deletion")
 		}
 	}
+	event := [1]serializableWrite{{row: candidate.row, version: candidate.version, base: original.version, baseBorn: original.born, creator: e.serializable.creators[original.version], deletion: true}}
+	if err := e.serializableWriteLocked(s, candidate.ref, event[:]); err != nil {
+		return false, err
+	}
 	if w.deletes == nil {
 		w.deletes = make(map[ObjectAddress]*privateDeletionRoot)
 	}

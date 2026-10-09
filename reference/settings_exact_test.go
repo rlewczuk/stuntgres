@@ -71,6 +71,9 @@ func TestReferenceSettingsExactDecimalSubnormal(t *testing.T) {
 				}
 			}
 		}
+		sessionSet(t, c, "SET demo.exact TO '1'", prepared)
+		sessionSet(t, c, "RESET demo.exact", prepared)
+		settingsRows(t, c, "SHOW demo.exact", prepared, "demo.exact", "1.11254e-308")
 		sessionSet(t, c, "SET demo.exact TO '2'", prepared)
 		for _, q := range []string{"SET demo.exact TO DEFAULT", "RESET demo.exact", "RESET ALL"} {
 			sessionSet(t, c, q, prepared)

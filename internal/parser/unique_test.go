@@ -113,8 +113,8 @@ func TestUniqueNotLookaheadPreservesConstraintsAndTransactions(t *testing.T) {
 		default:
 			t.Fatal(statement)
 		}
-		if len(modes) != 1 || !modes[0].Unsupported {
-			t.Fatal("changed transaction capability boundary", query, modes)
+		if len(modes) != 1 || !modes[0].DeferrableSet || modes[0].Deferrable {
+			t.Fatal("lost NOT DEFERRABLE transaction value", query, modes)
 		}
 	}
 	for _, query := range []string{"SELECT NOT FALSE FROM t", "SELECT 1 IS NOT DISTINCT FROM 1 FROM t", "SELECT 1 IS NOT NULL FROM t"} {

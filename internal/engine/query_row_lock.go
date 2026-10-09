@@ -147,7 +147,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 		return rowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
 	}
 	present := liveVersion(current, e.commitSeq, store.ends, s.ownDeletes[leaf.ref.Address])
-	if s.owner.isolation == RepeatableRead && current.born != 0 {
+	if stableIsolation(s.owner.isolation) && current.born != 0 {
 		changed := current.born > s.owner.frontier
 		if store.ends != nil {
 			end, ok := store.ends.rows[current.row]

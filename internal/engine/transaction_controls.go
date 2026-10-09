@@ -91,7 +91,12 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	}
 	t.mu.Lock()
 	var old, candidate *relationTicket
+	var next TxRef
+	installedNext := false
 	defer func() {
+		if !installedNext {
+			e.endSerializable(next, false)
+		}
 		t.mu.Unlock()
 		e.locks.end(candidate)
 		e.locks.end(old)
@@ -111,13 +116,13 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 				old = t.ticket
 				t.ticket = nil
 				t.session.settings.finishTransaction(false)
+				e.endSerializable(t.ref, false)
 				t.clear()
 			}
 			return EndResult{}, err
 		}
 	}
-	var next TxRef
-	isolation, readOnly := t.isolation, t.readOnly
+	isolation, readOnly, deferrable := t.isolation, t.readOnly, t.deferrable
 	if chain && (!commit || t.state == TxAborted) && len(t.savepoints) != 0 {
 		// Abort pops every retained child before PostgreSQL selects CHAIN
 		// characteristics. Healthy commit instead carries the current child
@@ -131,9 +136,14 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		e.mu.Lock()
 		op.session.mu.Lock()
 		err := publicationOperationLocked(e, op)
+		if err == nil && e.diagnosticTx == ^uint32(0) {
+			err = errors.New("stuntgres: transaction diagnostic identity exhausted")
+		}
 		if err == nil {
 			t.next++
-			next = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t}
+			e.diagnosticTx++
+			next = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
+			e.enrollSerializableLocked(next, isolation)
 		}
 		op.session.mu.Unlock()
 		e.mu.Unlock()
@@ -172,6 +182,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 	old = t.ticket
 	t.ticket = nil
 	t.session.settings.finishTransaction(committed)
+	e.endSerializable(t.ref, committed)
 	t.clear()
 	if err != nil {
 		return EndResult{}, err
@@ -182,13 +193,16 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		t.ref = next
 		t.state = TxActive
 		t.isolation, t.readOnly = isolation, readOnly
+		t.deferrable = deferrable
 		// CHAIN restores modes directly: they are the new block's unstacked
 		// baseline, unlike BEGIN's overrides of session defaults.
 		t.entryIsolation, t.entryReadOnly = isolation, readOnly
+		t.entryDeferrable = deferrable
 		t.syncCharacteristics()
 		t.start = time.Now().UTC()
 		t.ticket = candidate
 		candidate = nil
+		installedNext = true
 	}
 	return EndResult{Committed: committed}, nil
 }
@@ -212,9 +226,6 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 	t.mu.Unlock()
 	var err error
 	if control.Kind == parser.KindStart {
-		if err := validateModes(control.Modes); err != nil {
-			return Result{}, err
-		}
 		if state == TxIdle {
 			_, err = e.beginAdmitted(s.op, t)
 			if err == nil {

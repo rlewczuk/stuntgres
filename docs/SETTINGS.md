@@ -51,7 +51,7 @@ SET reuses the [literal decoding rules](LEXICAL.md): for example,
 `SET application_name TO E'a\nb'` decodes the newline first, then SHOW returns
 literal `a\x0ab`. No second setting-specific string decoder is used.
 
-The exact supported builtin registry contains these sixteen settings:
+The exact supported builtin registry contains these eighteen settings:
 
 | Name | Default / access | Actual behavior |
 | --- | --- | --- |
@@ -69,8 +69,10 @@ The exact supported builtin registry contains these sixteen settings:
 | log_statement_stats | off / privileged | Deny-only: all writes and individual RESET fail 42501; no logging activation |
 | default_transaction_isolation | read committed / session | Isolation default for new transactions |
 | default_transaction_read_only | off / session | Read-only default for new transactions |
+| default_transaction_deferrable | off / session | Deferrable default for new transactions |
 | transaction_isolation | read committed / transaction | Current transaction isolation level |
 | transaction_read_only | off / transaction | Current transaction read-only status |
+| transaction_deferrable | off / transaction | Current transaction deferrable status |
 
 Prepared literals retain Prepare-time string mode; prepared SHOW/functions read
 Execute-time values. To retain a literal prepared before LOCAL within a transaction,
@@ -81,6 +83,23 @@ engine's own timer returns 57014 `canceling statement due to statement timeout`;
 caller cancellation/deadlines remain ordinary context errors. Zero disables
 the timer. RESET ALL resets session-settable definitions and placeholders,
 skipping read-only and privileged definitions.
+
+Current transaction isolation, read-only and deferrable settings resolve the same
+transaction owner as SQL and Go controls. Current RESET, DEFAULT and set_config
+with NULL fail 0A000 `parameter \"<name>\" cannot be reset`; RESET ALL skips these
+three current modes but resets their session defaults transactionally. Isolation
+cannot change after the first snapshot; late read-only to read-write fails 25001.
+Changing DEFERRABLE after the first query fails 25001 even for the same value;
+setting it in a child block fails 25001 independently. The query-backed
+set_config route establishes a query snapshot before assignment and therefore
+cannot set the current DEFERRABLE mode. Use prequery SET/SET LOCAL or SET
+TRANSACTION instead. Savepoints restore DEFERRABLE alongside isolation and access
+mode. It controls safe-snapshot acquisition only for Serializable read-only
+transactions; see [transactions](TRANSACTIONS.md#serializable-snapshot-isolation).
+Go BeginTx inherits default_transaction_deferrable: database/sql.TxOptions has
+no deferrability field, so its omission is not an explicit NOT DEFERRABLE request.
+Unlike the explicitly supplied Go ReadOnly flag, this default is preserved for
+both default and explicitly selected Serializable isolation.
 
 Settings participate in transactions and named savepoint marks. SESSION (also
 plain SET) persists on commit and restores its pretransaction value on rollback
@@ -178,25 +197,24 @@ and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
 Native Reset/Restore preserve live settings and use default-on parsing;
 Dump excludes settings. Retained SHOW/SELECT snapshots outlive session end.
 
-Run `make quickcheck PACKAGES=./smoke RUN='^TestSettingsSmoke$'`. Migrated settings SQL
-uses the same external definitions in both modes:
+Migrated settings SQL uses the same external definitions in both modes:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceSettings[A-Za-z0-9_]*$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettings[A-Za-z0-9_]*$' VERBOSE=0`.
 The reference suite separately executes real PostgreSQL numeric/enum settings,
 non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
 placeholders are never claimed to validate native typed registrations.
-The native smoke also asserts SESSION/LOCAL ordering, commit and rollback
-restoration, transactional RESET ALL, and aborted-transaction recovery on the
-same physical connection, plus fixed read-only/deny-only access for both
-bootstrap postgres and an ordinary authenticated role. These assertions do not
-add privilege-grant mechanisms.
+The shared reference corpus also asserts SESSION/LOCAL ordering, commit and
+rollback restoration, transactional RESET ALL and aborted-transaction recovery on
+the same physical connection, plus read-only/deny-only access for bootstrap
+postgres and an ordinary authenticated role. These assertions do not add
+privilege-grant mechanisms.
 
-Settings smoke also asserts exact decimal subnormal handling and underflow
+The reference corpus also asserts exact decimal subnormal handling and underflow
 rejection, typed boolean/string/integer/floating/enum settings, normalized units
 and bounds, SET/RESET/SHOW/SHOW ALL/current_setting/set_config behavior,
 prepare-time parser mode, healthy sessions after 57014 timeouts, 55P02/42501
 access failures, transactional local scope, retained settings on reuse,
-and replacement defaults with surviving data. Go test reports the result.
+and replacement defaults with surviving data.
 
 The public1ms timeout corpus keeps direct Execute, actual Prepare and execution
 of statements held before arming, including all four original workload sizes.

@@ -1177,7 +1177,8 @@ Held statements recheck at Execute. Ordinary (nonlocking) SELECT, settings,
 controls and supported ACCESS EXCLUSIVE LOCK remain allowed. Locking SELECT
 uses analysis-before-read-only execution diagnostics like DML. Failures
 abort/discard prior private work.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTransactionIsolationSmoke$$' VERBOSE=1`.
+Feature smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceSerializableMigratedIsolation$' VERBOSE=1`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSerializableMigratedIsolation$' VERBOSE=1`.
 
 INSERT query sources use that same live view, including earlier own deletions:
 self-insert copies only captured survivors, never deleted history or its new batch.

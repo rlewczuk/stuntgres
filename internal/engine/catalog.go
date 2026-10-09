@@ -1157,6 +1157,7 @@ func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, re
 		e.sequences = sequences
 		e.clearPersistentSequenceMemoryLocked()
 		e.nextRevision = nextRevision
+		e.fenceSerializableLocked()
 		installed = next.epoch
 		return ChangeSet{Replacement: true}, nil
 	}
@@ -1247,6 +1248,7 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalogS
 	e.sequences = sequences
 	e.clearPersistentSequenceMemoryLocked()
 	e.nextRevision = nextRevision
+	e.fenceSerializableLocked()
 	return nil
 }
 

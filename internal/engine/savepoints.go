@@ -11,14 +11,15 @@ import (
 // Marks retain immutable logical roots and held lock contributions, not
 // generator counters or snapshots. The outer block keeps the same ticket.
 type savepointMark struct {
-	name      string
-	writes    map[ObjectAddress][]rowVersion
-	deletes   map[ObjectAddress]*privateDeletionRoot
-	catalog   *catalogChanges
-	settings  settingsMark
-	isolation Isolation
-	readOnly  bool
-	locks     relationLockCheckpoint
+	name       string
+	writes     map[ObjectAddress][]rowVersion
+	deletes    map[ObjectAddress]*privateDeletionRoot
+	catalog    *catalogChanges
+	settings   settingsMark
+	isolation  Isolation
+	readOnly   bool
+	deferrable bool
+	locks      relationLockCheckpoint
 }
 
 type settingsMark struct {
@@ -52,14 +53,19 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 		// still retained by a result opened before rollback.
 		writes[a] = rows[:len(rows):len(rows)]
 	}
-	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, locks: t.session.Engine().locks.checkpoint(t.ticket)}
+	return savepointMark{name: name, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: t.session.Engine().locks.checkpoint(t.ticket)}
 }
 
 func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.session.settings.restoreSavepoint(settings)
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
+	t.deferrable = mark.deferrable
 	t.syncCharacteristics()
+	e := t.session.Engine()
+	e.mu.Lock()
+	e.reconcileSerializableWritesLocked(t)
+	e.mu.Unlock()
 }
 
 func (t *transactionOwner) truncateSavepoints(n int) {
@@ -151,8 +157,12 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
 			t.isolation, t.readOnly = mark.isolation, mark.readOnly
+			t.deferrable = mark.deferrable
 			t.session.settings.currentIsolation = isolationText(t.isolation)
 			t.session.settings.currentReadOnly = t.readOnly
+			t.session.settings.currentDeferrable = t.deferrable
+			e.reconcileSerializableWritesLocked(t)
+			e.enrollSerializableLocked(t.ref, t.isolation)
 			t.truncateSavepoints(index + 1)
 			t.state = TxActive
 		case parser.ReleaseSavepoint:

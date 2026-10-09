@@ -51,6 +51,20 @@ Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArraySmo
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArraySmoke$' VERBOSE=0`.
 Full array definitions: run the same commands with `RUN='^TestReferenceArray'`.
 
+Change note: Serializable transactions now use stable snapshots plus nonblocking
+read/write dependency tracking. Unsafe write skew fails with SQLSTATE `40001`
+without publishing the loser's writes; callers retry the entire transaction.
+SQL `SERIALIZABLE READ ONLY DEFERRABLE` waits for a safe snapshot at first data
+analysis (including actual Prepare), with statement timeout and ordinary
+cancellation/epoch fencing. Predicates are conservative whole-relation footprints;
+continuous overlap retains dependency evidence until the cohort drains.
+`sql.LevelSerializable`, current/default deferrable settings and savepoint/CHAIN
+characteristic restoration use the existing transaction owner.
+See [transactions](docs/TRANSACTIONS.md#serializable-snapshot-isolation).
+Feature smokes:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSerializable' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSerializable' VERBOSE=0`.
+
 Change note: `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` declares a
 catalog-owned logical type over a supported scalar or array base.
 Domain columns, direct/prepared input, inherited base typmods, operators/functions

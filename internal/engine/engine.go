@@ -32,6 +32,8 @@ type Engine struct {
 	nextRow             uint64
 	nextVersion         uint64
 	commitSeq           CommitSeq
+	diagnosticTx        uint32
+	serializable        serializableTracker
 	roles               *roleCatalog
 	nextPrincipal       uint64
 	importTargets       map[PrincipalRef]PrincipalRef

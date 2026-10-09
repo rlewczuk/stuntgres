@@ -14,7 +14,7 @@ func TestReferenceTransactionOptionsAndExplicitUtilityBoundary(t *testing.T) {
 			run(b, referenceExec("CREATE TABLE t(v INT)", 0))
 			for _, level := range []sql.IsolationLevel{sql.LevelSerializable, sql.LevelSnapshot, sql.LevelLinearizable} {
 				tx, err := a.BeginTx(p.ctx, &sql.TxOptions{Isolation: level})
-				if backend.pg && level == sql.LevelSerializable {
+				if level == sql.LevelSerializable {
 					if err != nil || tx == nil {
 						t.Fatal(tx, err)
 					}

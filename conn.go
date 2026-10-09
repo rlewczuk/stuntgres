@@ -78,6 +78,8 @@ func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx
 		level = engine.ReadUncommitted
 	case driver.IsolationLevel(sql.LevelRepeatableRead):
 		level = engine.RepeatableRead
+	case driver.IsolationLevel(sql.LevelSerializable):
+		level = engine.Serializable
 	default:
 		return nil, errors.New("stuntgres: unsupported transaction isolation level")
 	}

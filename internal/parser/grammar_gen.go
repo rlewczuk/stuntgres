@@ -5228,12 +5228,12 @@ sqldefault:
 	case 158:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]
 		{
-			sqlVAL.mode = TransactionMode{Unsupported: true}
+			sqlVAL.mode = TransactionMode{DeferrableSet: true, Deferrable: true}
 		}
 	case 159:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]
 		{
-			sqlVAL.mode = TransactionMode{Unsupported: true}
+			sqlVAL.mode = TransactionMode{DeferrableSet: true}
 		}
 	case 160:
 		sqlDollar = sqlS[sqlpt-2 : sqlpt+1]

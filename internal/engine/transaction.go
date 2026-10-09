@@ -36,8 +36,10 @@ const (
 )
 
 type TxOptions struct {
-	Isolation Isolation
-	ReadOnly  bool
+	Isolation     Isolation
+	ReadOnly      bool
+	Deferrable    bool
+	DeferrableSet bool
 }
 
 type TxRef struct {
@@ -46,6 +48,7 @@ type TxRef struct {
 	id         TxID
 	epoch      CatalogEpoch
 	attachment *transactionOwner
+	diagnostic uint32
 }
 
 func (r TxRef) ID() TxID { return r.id }
@@ -66,26 +69,28 @@ type rowVersion struct {
 }
 
 type transactionOwner struct {
-	admission      sync.Mutex
-	ticket         *relationTicket
-	mu             sync.Mutex
-	session        *Session
-	state          TxState
-	ref            TxRef
-	next           TxID
-	command        CommandID
-	writes         map[ObjectAddress][]rowVersion
-	deletes        map[ObjectAddress]*privateDeletionRoot
-	start          time.Time
-	isolation      Isolation
-	readOnly       bool
-	entryIsolation Isolation
-	entryReadOnly  bool
-	snapshotSet    bool
-	frontier       CommitSeq
-	roots          map[ObjectAddress]transactionRoot
-	catalog        *catalogChanges
-	savepoints     []savepointMark
+	admission       sync.Mutex
+	ticket          *relationTicket
+	mu              sync.Mutex
+	session         *Session
+	state           TxState
+	ref             TxRef
+	next            TxID
+	command         CommandID
+	writes          map[ObjectAddress][]rowVersion
+	deletes         map[ObjectAddress]*privateDeletionRoot
+	start           time.Time
+	isolation       Isolation
+	readOnly        bool
+	deferrable      bool
+	entryIsolation  Isolation
+	entryReadOnly   bool
+	entryDeferrable bool
+	snapshotSet     bool
+	frontier        CommitSeq
+	roots           map[ObjectAddress]transactionRoot
+	catalog         *catalogChanges
+	savepoints      []savepointMark
 }
 
 func (t *transactionOwner) clear() {
@@ -111,6 +116,7 @@ func (t *transactionOwner) EndSession(token SessionToken, _ EndReason) error {
 		t.mu.Unlock()
 		return errors.New("stuntgres: foreign transaction session")
 	}
+	t.session.Engine().endSerializable(t.ref, false)
 	t.session.settings.finishTransaction(false)
 	t.clear()
 	ticket := t.ticket
@@ -143,23 +149,28 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState) 
 	if err := publicationOperationLocked(e, op); err != nil {
 		return err
 	}
-	if settings.value("default_transaction_isolation") == "serializable" {
-		return sqlError("0A000", "transaction mode is unsupported")
+	if e.diagnosticTx == ^uint32(0) {
+		return errors.New("stuntgres: transaction diagnostic identity exhausted")
 	}
+	e.diagnosticTx++
 	t.next++
-	t.ref = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t}
+	t.ref = TxRef{owner: e, session: t.session.token, id: t.next, epoch: e.state.epoch, attachment: t, diagnostic: e.diagnosticTx}
 	t.state = state
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
 	t.readOnly = settings.value("default_transaction_read_only") == "on"
+	t.deferrable = settings.value("default_transaction_deferrable") == "on"
 	t.entryIsolation, t.entryReadOnly = t.isolation, t.readOnly
+	t.entryDeferrable = t.deferrable
 	settings.currentIsolation = isolationText(t.isolation)
 	settings.currentReadOnly = t.readOnly
+	settings.currentDeferrable = t.deferrable
+	e.enrollSerializableLocked(t.ref, t.isolation)
 	t.start = time.Now().UTC()
 	return nil
 }
 
 func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
-	if options.Isolation > RepeatableRead {
+	if options.Isolation > Serializable {
 		return TxRef{}, errors.New("stuntgres: unsupported transaction isolation level")
 	}
 	if err := e.transactionAdmission(op); err != nil {
@@ -175,6 +186,9 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (TxRef, error) {
 			t.isolation = options.Isolation
 		}
 		t.readOnly = options.ReadOnly
+		if options.DeferrableSet {
+			t.deferrable = options.Deferrable
+		}
 		t.syncCharacteristics()
 		t.mu.Unlock()
 	}
@@ -471,6 +485,14 @@ func (w *WriteStage) applyValidated(ref ObjectRef, rows [][]sqltype.Value) error
 		e.nextVersion++
 		versions[i] = rowVersion{row: RowID(e.nextRow), version: VersionID(e.nextVersion), values: row}
 	}
+	if serializableRelevant(e.serializable.nodes[s.txRef]) {
+		for _, row := range versions {
+			event := [1]serializableWrite{{row: row.row, version: row.version}}
+			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
+				return err
+			}
+		}
+	}
 	if w.rows == nil {
 		w.rows = make(map[ObjectAddress][]rowVersion)
 	}
@@ -491,14 +513,11 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 		return StatementDescription{}, nil
 	}
 	if _, ok := stmt.(*parser.TransactionControl); ok {
-		if err := validateModes(stmt.(*parser.TransactionControl).Modes); err != nil {
-			return StatementDescription{}, err
-		}
 		s.controlOutcome = controlDescribed
 		return StatementDescription{}, nil
 	}
-	if characteristics, ok := stmt.(*parser.TransactionCharacteristics); ok {
-		return StatementDescription{}, validateModes(characteristics.Modes)
+	if _, ok := stmt.(*parser.TransactionCharacteristics); ok {
+		return StatementDescription{}, nil
 	}
 	if err := s.snapshotPhase(stmt); err != nil {
 		return StatementDescription{}, err
@@ -658,6 +677,7 @@ func (s *StatementScope) Finish(err error) error {
 					t.writes = writes
 					t.deletes = deletes
 					t.catalog = catalog
+					e.reconcileSerializableWritesLocked(t)
 				}
 				session.mu.Unlock()
 				e.mu.Unlock()
@@ -672,6 +692,7 @@ func (s *StatementScope) Finish(err error) error {
 	var endedTicket *relationTicket
 	if t.state == TxImplicit {
 		t.session.settings.finishTransaction(err == nil)
+		e.endSerializable(t.ref, err == nil)
 		endedTicket = t.ticket
 		t.ticket = nil
 		t.clear()
@@ -688,9 +709,11 @@ func (s *StatementScope) Finish(err error) error {
 			t.state = TxAborted
 		} else {
 			t.session.settings.finishTransaction(false)
+			e.endSerializable(t.ref, false)
 			t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
-			t.syncCharacteristics()
+			t.deferrable = t.entryDeferrable
 			t.state = TxAborted
+			t.syncCharacteristics()
 			t.writes = nil
 			t.deletes = nil
 			t.roots = nil

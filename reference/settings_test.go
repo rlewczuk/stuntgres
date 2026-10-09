@@ -137,28 +137,30 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 					run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, a, backend.recorder, s) }
 					// Independent REL_18_0 guc_tables.c short_desc expectations.
 					expected := map[string][2]string{
-						"DateStyle":                     {"ISO, MDY", "Sets the display format for date and time values."},
-						"TimeZone":                      {"UTC", "Sets the time zone for displaying and interpreting time stamps."},
-						"application_name":              {"", "Sets the application name to be reported in statistics and logs."},
-						"bytea_output":                  {"hex", "Sets the output format for bytea."},
-						"IntervalStyle":                 {"postgres", "Sets the display format for interval values."},
-						"client_min_messages":           {"notice", "Sets the message levels that are sent to the client."},
-						"default_transaction_isolation": {"read committed", "Sets the transaction isolation level of each new transaction."},
-						"default_transaction_read_only": {"off", "Sets the default read-only status of new transactions."},
-						"lock_timeout":                  {"0", "Sets the maximum allowed duration of any wait for a lock."},
-						"log_statement_stats":           {"off", "Writes cumulative performance statistics to the server log."},
-						"search_path":                   {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
-						"server_encoding":               {"UTF8", "Shows the server (database) character set encoding."},
-						"standard_conforming_strings":   {"on", "Causes '...' strings to treat backslashes literally."},
-						"statement_timeout":             {"0", "Sets the maximum allowed duration of any statement."},
-						"transaction_isolation":         {"read committed", "Sets the current transaction's isolation level."},
-						"transaction_read_only":         {"off", "Sets the current transaction's read-only status."},
+						"DateStyle":                      {"ISO, MDY", "Sets the display format for date and time values."},
+						"TimeZone":                       {"UTC", "Sets the time zone for displaying and interpreting time stamps."},
+						"application_name":               {"", "Sets the application name to be reported in statistics and logs."},
+						"bytea_output":                   {"hex", "Sets the output format for bytea."},
+						"IntervalStyle":                  {"postgres", "Sets the display format for interval values."},
+						"client_min_messages":            {"notice", "Sets the message levels that are sent to the client."},
+						"default_transaction_deferrable": {"off", "Sets the default deferrable status of new transactions."},
+						"default_transaction_isolation":  {"read committed", "Sets the transaction isolation level of each new transaction."},
+						"default_transaction_read_only":  {"off", "Sets the default read-only status of new transactions."},
+						"lock_timeout":                   {"0", "Sets the maximum allowed duration of any wait for a lock."},
+						"log_statement_stats":            {"off", "Writes cumulative performance statistics to the server log."},
+						"search_path":                    {`"$user", public`, "Sets the schema search order for names that are not schema-qualified."},
+						"server_encoding":                {"UTF8", "Shows the server (database) character set encoding."},
+						"standard_conforming_strings":    {"on", "Causes '...' strings to treat backslashes literally."},
+						"statement_timeout":              {"0", "Sets the maximum allowed duration of any statement."},
+						"transaction_deferrable":         {"off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
+						"transaction_isolation":          {"read committed", "Sets the current transaction's isolation level."},
+						"transaction_read_only":          {"off", "Sets the current transaction's read-only status."},
 					}
 					query := "SHOW ALL"
 					if backend.name == "postgres" {
 						expected["TimeZone"] = [2]string{"Etc/UTC", "Sets the time zone for displaying and interpreting time stamps."}
 						// Project the genuine registry, not fabricated whole-catalog parity.
-						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','application_name','bytea_output','client_min_messages','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_isolation','transaction_read_only') ORDER BY lower(name)"
+						query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','application_name','bytea_output','client_min_messages','default_transaction_deferrable','default_transaction_isolation','default_transaction_read_only','IntervalStyle','lock_timeout','log_statement_stats','search_path','server_encoding','standard_conforming_strings','statement_timeout','transaction_deferrable','transaction_isolation','transaction_read_only') ORDER BY lower(name)"
 						run(referenceSelect("SELECT name FROM pg_settings WHERE name='demo.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
 					}
 					var rows *sql.Rows

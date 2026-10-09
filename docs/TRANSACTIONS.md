@@ -3,11 +3,12 @@
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
 `DB.BeginTx` / `Conn.BeginTx` and `sql.Tx.Commit` / `Rollback` support
-READ COMMITTED, READ UNCOMMITTED and REPEATABLE READ, with read-only or read-write
+READ COMMITTED, READ UNCOMMITTED, REPEATABLE READ and SERIALIZABLE, with read-only or read-write
 access. READ UNCOMMITTED has READ COMMITTED visibility but retains its requested
 name in settings. Default Go isolation honors the session default; explicit
-`sql.LevelReadCommitted`, `sql.LevelReadUncommitted` and `sql.LevelRepeatableRead`
-override it. Go `ReadOnly: false` explicitly requests read-write access. SQL
+`sql.LevelReadCommitted`, `sql.LevelReadUncommitted`, `sql.LevelRepeatableRead`
+and `sql.LevelSerializable` override it. Go `ReadOnly: false` explicitly requests
+read-write access. SQL
 omitted modes inherit session defaults. INSERT (VALUES or SELECT), scalar UPDATE,
 SELECT, DELETE, settings and the single-target AX utility are supported, including
 prepared execution. CREATE tables before a block; sequence DDL, COMMENT ON
@@ -19,8 +20,7 @@ changes atomically with DML. Successful statement authorization is retained
 through Commit despite later role-catalog revisions or internal actor changes.
 Native SET ROLE and transactional SESSION AUTHORIZATION remain excluded;
 the real PostgreSQL SET ROLE lifetime witness does not enable native SQL.
-Other transactional DDL, SERIALIZABLE/SSI and DEFERRABLE
-safe snapshots remain unsupported.
+Other transactional DDL remains unsupported.
 ADD COLUMN jointly restores schema, high-water identities, captured nonvolatile
 old-row fills and own writes on rollback/savepoint recovery. Supported nextval
 backfill draws remain nontransactional. Standalone SET/DROP DEFAULT and unsupported
@@ -71,14 +71,77 @@ START TRANSACTION
 ```
 
 BEGIN/START accept ordered `ISOLATION LEVEL READ COMMITTED | READ UNCOMMITTED |
-REPEATABLE READ`, `READ ONLY` and `READ WRITE` assignments, comma-separated or
-juxtaposed. `SET TRANSACTION` changes current characteristics; `SET SESSION
-CHARACTERISTICS AS TRANSACTION` changes next-transaction defaults. Complete
-SERIALIZABLE and [NOT] DEFERRABLE modes fail native `0A000`,
-`transaction mode is unsupported`; malformed clauses/suffixes retain `42601`.
-These excluded modes are not implemented as aliases or successful no-ops.
+REPEATABLE READ | SERIALIZABLE`, `READ ONLY`, `READ WRITE`, `DEFERRABLE` and
+`NOT DEFERRABLE` assignments, comma-separated or juxtaposed. `SET TRANSACTION`
+changes current characteristics; `SET SESSION CHARACTERISTICS AS TRANSACTION`
+changes next-transaction defaults. Malformed clauses/suffixes retain `42601`.
 Two-phase PREPARE TRANSACTION/COMMIT PREPARED/ROLLBACK PREPARED fail `0A000`
 without effects.
+
+## Serializable snapshot isolation
+
+SERIALIZABLE keeps the existing stable snapshot and publication authority and adds
+nonblocking read/write dependencies. Reads of supported permanent stored tables
+record whole-relation predicates before filtering, including empty results and
+source reads for supported writes. These predicates never wait for a writer and
+are not relation/row locks. System providers, sequences and metadata-only effects
+do not participate. Existing relation/row lock behavior remains independent.
+
+Dependencies are retained across overlapping transaction lifetimes, including
+committed participants, and cleared when the cohort drains. Whole-relation
+predicates can reject same-relation workloads PostgreSQL's finer predicates would
+allow; continuous overlap can retain graph memory for longer. Unrelated relations
+or an unrelated commit-frontier advance alone do not create conflicts.
+
+An unsafe write skew cannot publish both participants. Failures use SQLSTATE
+`40001`, Message `could not serialize access due to read/write dependencies among
+transactions`, a reason-code Detail and Hint `The transaction might succeed if
+retried.` A doomed participant discovers its failure on its next participating
+read, write or commit; no peer session is asynchronously aborted. Failed
+statements expose no partial writes or results. The caller must retry the entire
+transaction, not merely the failed statement. This guarantee requires the
+participating transactions to use Serializable; mixed-isolation workloads gain
+no cross-level serializability guarantee.
+
+Ordinary read-only Serializable transactions still track dependencies until their
+snapshot is proven safe. `SERIALIZABLE READ ONLY DEFERRABLE` may wait before the
+first data-analysis call, including actual Prepare, while overlapping writers
+resolve. Unsafe provisional roots are discarded and recaptured before any data,
+handle or predicate is exposed; an accepted safe snapshot needs no SSI predicates.
+BEGIN, settings inspection and transaction-control Prepare do not capture it.
+Data Prepare may establish the stable snapshot but adds no executed predicate and
+the prepared handle owns no execution snapshot. DEFERRABLE outside Serializable
+read-only mode has no safe-snapshot effect. Statement timeout covers this wait;
+lock_timeout does not. Caller cancellation, session end and catalog replacement
+retain their ordinary errors and wake the waiter.
+
+Child rollback restores private writes and current characteristics, not predicate
+reads, established dependencies, doom or the history of an attempted participating
+write. Outer rollback removes its live participation; committed overlap evidence
+remains until safe reclamation. Every successful native epoch replacement,
+including same-owner catalog replacement and Reset/Restore, fences old SSI
+participation and wakes unresolved safe-snapshot acquisitions with the ordinary
+replacement error, without waiting for their candidate writers to finish.
+Failed replacement preparation leaves those acquisitions and committed state
+unchanged; already captured immutable results retain their original payloads.
+A participating write attempt also prevents a subsequent READ ONLY assignment
+from acquiring read-only graph exemptions or being omitted from another
+transaction's safe-snapshot writer candidates, even after its private write
+was rolled back.
+Accepted creation and ending evidence have distinct identities even for the
+same row version. Rolling back an own DELETE after a saved INSERT discards only
+the ending; its surviving insertion remains visible to SSI dependency checks.
+
+The PostgreSQL prepared-pivot commit branch requires SQL two-phase commit, which
+is unsupported here. Final dependency validation and installation share Engine.mu:
+there is no observable finalized-but-uncommitted state. Finalized-pivot read
+failures and active-pivot commit failures retain their actual dependency behavior.
+
+Reference feature smoke (both modes):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSerializable' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSerializable' VERBOSE=0`.
+See [PostgreSQL 18 isolation](https://www.postgresql.org/docs/18/transaction-iso.html#XACT-SERIALIZABLE)
+and [retry handling](https://www.postgresql.org/docs/18/mvcc-serialization-failure-handling.html).
 
 SQL BEGIN groups private writes on the physical session. Redundant BEGIN/START
 succeeds with count zero and WARNING `25001`, `there is already a transaction in
@@ -325,8 +388,8 @@ invent those mechanisms. Direct relation analysis and semantic data Prepare add
 the relation token's one-based character Position to 40P01 (as for lock timeout).
 Cached Execute, utility locks and runtime row waits leave Position absent.
 Cancellation/deadline cleanup and exact epoch fencing remain independent of
-cycle detection. Predicate/SSI tracking is not part of this blocking graph;
-SERIALIZABLE remains unsupported.
+cycle detection. Nonblocking predicate/SSI tracking is separate from this blocking
+graph; it cannot introduce a predicate deadlock.
 
 An explicit transaction sees successful earlier private writes/deletes; other
 sessions see only committed data. READ COMMITTED/UNCOMMITTED execution captures a
@@ -340,7 +403,8 @@ autocommit statements.
 Committed row vectors grow amortized rather than copying the entire relation on
 each INSERT. Captured visible prefixes never change; query views retain only the
 relation consumed by the current bounded SELECT, including that relation's own
-earlier private writes. Preparation performs metadata analysis, not row capture.
+earlier private writes. Data preparation may establish a transaction snapshot but
+does not register an executed SSI predicate or retain row capture in the handle.
 Committed and private versions retain canonical typed values and their descriptor
 generations through the existing type foundation. Prepared handles retain the
 AST, source and parameter/result description, never a data view. Argument

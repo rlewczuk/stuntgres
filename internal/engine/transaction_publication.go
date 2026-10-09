@@ -43,6 +43,10 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		if err := e.catalogAuthorityPreflightLocked(authority); err != nil {
 			return err
 		}
+		if err := e.serializablePrecommitLocked(ref); err != nil {
+			return err
+		}
+		e.serializableCommittedLocked(ref, e.commitSeq)
 		return nil
 	}
 	for {
@@ -342,6 +346,11 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 				}
 			}
 		}
+		if err := e.serializablePrecommitLocked(ref); err != nil {
+			session.mu.Unlock()
+			e.mu.Unlock()
+			return err
+		}
 		// No callback, allocation or failure remains after this point.
 		for _, p := range prepared {
 			for i, row := range p.writes {
@@ -382,6 +391,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.indexRoots)
 		e.indexRoots = indexRoots
 		e.commitSeq++
+		e.serializableCommittedLocked(ref, e.commitSeq)
 		session.mu.Unlock()
 		e.mu.Unlock()
 		return nil

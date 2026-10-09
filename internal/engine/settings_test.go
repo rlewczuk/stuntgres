@@ -19,6 +19,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"bytea_output", "hex", "Sets the output format for bytea."},
 		{"client_min_messages", "notice", "Sets the message levels that are sent to the client."},
 		{"DateStyle", "ISO, MDY", "Sets the display format for date and time values."},
+		{"default_transaction_deferrable", "off", "Sets the default deferrable status of new transactions."},
 		{"default_transaction_isolation", "read committed", "Sets the transaction isolation level of each new transaction."},
 		{"default_transaction_read_only", "off", "Sets the default read-only status of new transactions."},
 		{"IntervalStyle", "postgres", "Sets the display format for interval values."},
@@ -29,6 +30,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		{"standard_conforming_strings", "on", "Causes '...' strings to treat backslashes literally."},
 		{"statement_timeout", "0", "Sets the maximum allowed duration of any statement."},
 		{"TimeZone", "UTC", "Sets the time zone for displaying and interpreting time stamps."},
+		{"transaction_deferrable", "off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
 		{"transaction_isolation", "read committed", "Sets the current transaction's isolation level."},
 		{"transaction_read_only", "off", "Sets the current transaction's read-only status."},
 	}

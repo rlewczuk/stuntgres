@@ -88,6 +88,8 @@ var builtinSettings = []SettingDefinition{
 	{Name: "transaction_isolation", Type: SettingEnum, BootDefault: "read committed", EnumValues: []string{"read committed", "read uncommitted", "repeatable read", "serializable"}, Description: "Sets the current transaction's isolation level."},
 	{Name: "default_transaction_read_only", Type: SettingBoolean, BootDefault: "off", Description: "Sets the default read-only status of new transactions."},
 	{Name: "transaction_read_only", Type: SettingBoolean, BootDefault: "off", Description: "Sets the current transaction's read-only status."},
+	{Name: "default_transaction_deferrable", Type: SettingBoolean, BootDefault: "off", Description: "Sets the default deferrable status of new transactions."},
+	{Name: "transaction_deferrable", Type: SettingBoolean, BootDefault: "off", Description: "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."},
 	{Name: "bytea_output", Type: SettingEnum, BootDefault: "hex", EnumValues: []string{"escape", "hex"}, Description: "Sets the output format for bytea."},
 	{Name: "timezone", Type: SettingString, BootDefault: "UTC", Description: "Sets the time zone for displaying and interpreting time stamps."},
 	{Name: "datestyle", Type: SettingString, BootDefault: "ISO, MDY", Description: "Sets the display format for date and time values."},

@@ -100,6 +100,15 @@ func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows [][]sqltype.V
 		e.nextVersion++
 		versions[i] = rowVersion{row: predecessor.row, version: VersionID(e.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange}
 	}
+	if serializableRelevant(e.serializable.nodes[s.txRef]) {
+		for i, row := range versions {
+			predecessor := old[i]
+			event := [1]serializableWrite{{row: row.row, version: row.version, base: predecessor.version, baseBorn: predecessor.born, creator: e.serializable.creators[predecessor.version]}}
+			if err := e.serializableWriteLocked(s, ref, event[:]); err != nil {
+				return err
+			}
+		}
+	}
 	if len(versions) != 0 {
 		if w.rows == nil {
 			w.rows = make(map[ObjectAddress][]rowVersion)

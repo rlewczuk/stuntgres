@@ -2,29 +2,22 @@ package reference_test
 
 import "testing"
 
-func TestReferenceTransactionIsolationUnsupportedModes(t *testing.T) {
-	p := newReferenceScenario(t)
-	for _, backend := range p.backends() {
-		t.Run(backend.name, func(t *testing.T) {
-			a, _ := referenceLockConnections(t, p.ctx, backend.db)
-			for _, mode := range []string{"ISOLATION LEVEL SERIALIZABLE", "DEFERRABLE", "NOT DEFERRABLE"} {
-				if backend.pg {
-					referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec("BEGIN "+mode, 0))
-					name, want := "transaction_deferrable", "off"
-					if mode == "ISOLATION LEVEL SERIALIZABLE" {
-						name, want = "transaction_isolation", "serializable"
-					}
-					if mode == "DEFERRABLE" {
-						want = "on"
-					}
-					referenceIsolationShow(t, a, name, want)
-					referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec("ROLLBACK", 0))
-				} else {
-					referenceRunStep(t, p.ctx, a, backend.recorder, referenceErrorDiagnostic("BEGIN "+mode, controlsReferenceDiagnostic("0A000", "transaction mode is unsupported")))
-				}
+func TestReferenceTransactionIsolationSupportedSerializableModes(t *testing.T) {
+	serializableReferenceScenario(t, func(t *testing.T, p *referencePair, backend referenceBackend) {
+		a, _ := referenceLockConnections(t, p.ctx, backend.db)
+		for _, mode := range []string{"ISOLATION LEVEL SERIALIZABLE", "DEFERRABLE", "NOT DEFERRABLE"} {
+			referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec("BEGIN "+mode, 0))
+			name, want := "transaction_deferrable", "off"
+			if mode == "ISOLATION LEVEL SERIALIZABLE" {
+				name, want = "transaction_isolation", "serializable"
 			}
-		})
-	}
+			if mode == "DEFERRABLE" {
+				want = "on"
+			}
+			referenceIsolationShow(t, a, name, want)
+			referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec("ROLLBACK", 0))
+		}
+	})
 }
 
 func TestReferenceTransactionIsolationUtilityUnsupportedBoundary(t *testing.T) {

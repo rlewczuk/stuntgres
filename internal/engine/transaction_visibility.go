@@ -98,10 +98,15 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 				return nil, ErrCatalogReplaced
 			}
 		}
+		for _, ref := range refs {
+			if err := e.serializableReadLocked(s, ref); err != nil {
+				return nil, err
+			}
+		}
 		return s.view, nil
 	}
 	frontier := e.commitSeq
-	if s.owner.isolation == RepeatableRead {
+	if stableIsolation(s.owner.isolation) {
 		frontier = s.owner.frontier
 	}
 	data := &visibilityData{
@@ -119,7 +124,7 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 		if s.owner.catalog != nil {
 			rewrite = s.owner.catalog.storage[ref.Address]
 		}
-		if s.owner.isolation == RepeatableRead && !rewrite.rewritten {
+		if stableIsolation(s.owner.isolation) && !rewrite.rewritten {
 			root, exists := s.owner.roots[ref.Address]
 			if exists {
 				current, ok := e.state.descriptors[ref.Address].(*relationDescriptor)
@@ -136,7 +141,7 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 				versions, ends = nil, nil
 			}
 		}
-		if rewrite.rewritten && s.owner.isolation == RepeatableRead {
+		if rewrite.rewritten && stableIsolation(s.owner.isolation) {
 			if data.rewrittenFrontiers == nil {
 				data.rewrittenFrontiers = make(map[ObjectAddress]CommitSeq)
 			}
@@ -179,6 +184,11 @@ func (s *StatementScope) acquireDataViewsLocked(e *Engine, refs []ObjectRef) (*V
 					data.deleted[ref.Address] = root
 				}
 			}
+		}
+	}
+	for _, ref := range refs {
+		if err := e.serializableReadLocked(s, ref); err != nil {
+			return nil, err
 		}
 	}
 	s.view = newVisibilityView(data)

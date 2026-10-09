@@ -22,8 +22,9 @@ type sessionSettings struct {
 	actions             map[string]settingAction
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
-	currentIsolation string
-	currentReadOnly  bool
+	currentIsolation  string
+	currentReadOnly   bool
+	currentDeferrable bool
 }
 
 type settingOverride struct {
@@ -149,6 +150,12 @@ func (s *sessionSettings) value(name string) string {
 		}
 		return "off"
 	}
+	if name == "transaction_deferrable" {
+		if s.currentDeferrable {
+			return "on"
+		}
+		return "off"
+	}
 	if v, ok := s.values[name]; ok {
 		return v
 	}
@@ -188,7 +195,7 @@ func settingAccess(d SettingDefinition) error {
 // applySetting stages callbacks without publication locks, then atomically
 // installs recognition, transaction action and effective typed/text override.
 func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDefinition, input *string, local bool) (string, error) {
-	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" {
+	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
 		return e.applyCurrentCharacteristic(op, d, input)
 	}
 	if err := settingAccess(d); err != nil {
@@ -219,9 +226,6 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 		if err != nil {
 			return "", err
 		}
-	}
-	if d.Name == "default_transaction_isolation" && input != nil && d.format(v) == "serializable" {
-		return "", sqlError("0A000", "transaction mode is unsupported")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()

@@ -133,7 +133,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			query := "SHOW ALL"
 			if backend.name == "postgres" {
-				query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone') ORDER BY name"
+				query = "SELECT name,setting,short_desc FROM pg_settings WHERE name IN ('DateStyle','TimeZone','default_transaction_deferrable','transaction_deferrable') ORDER BY name"
 			}
 			var rows *sql.Rows
 			var err error
@@ -175,12 +175,15 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				}
 			}
 			want := map[string][2]string{"DateStyle": {"ISO, MDY", "Sets the display format for date and time values."}, "TimeZone": {"UTC", "Sets the time zone for displaying and interpreting time stamps."}}
+			want["default_transaction_deferrable"] = [2]string{"off", "Sets the default deferrable status of new transactions."}
+			want["transaction_deferrable"] = [2]string{"off", "Whether to defer a read-only serializable transaction until it can be executed with no possible serialization failures."}
 			expectedNames := map[string]bool{
 				"DateStyle": true, "IntervalStyle": true, "TimeZone": true, "application_name": true,
 				"bytea_output": true, "client_min_messages": true, "default_transaction_isolation": true,
 				"default_transaction_read_only": true, "lock_timeout": true, "log_statement_stats": true,
 				"search_path": true, "server_encoding": true, "standard_conforming_strings": true,
 				"statement_timeout": true, "transaction_isolation": true, "transaction_read_only": true,
+				"default_transaction_deferrable": true, "transaction_deferrable": true,
 			}
 			count, last := 0, ""
 			for rows.Next() {
@@ -211,7 +214,7 @@ func TestReferenceTimezoneBuiltinRegistryDescriptions(t *testing.T) {
 				rows.Close()
 				t.Fatal("registry completeness", rows.Err(), want)
 			}
-			if !backend.pg && (count != 16 || len(expectedNames) != 0) {
+			if !backend.pg && (count != 18 || len(expectedNames) != 0) {
 				rows.Close()
 				t.Fatal("builtin cardinality/set", count, expectedNames)
 			}

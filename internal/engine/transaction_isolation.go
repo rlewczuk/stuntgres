@@ -33,6 +33,8 @@ func isolationText(level Isolation) string {
 		return "read uncommitted"
 	case RepeatableRead:
 		return "repeatable read"
+	case Serializable:
+		return "serializable"
 	default:
 		return "read committed"
 	}
@@ -42,21 +44,17 @@ func (t *transactionOwner) syncCharacteristics() {
 	settings.mu.Lock()
 	settings.currentIsolation = isolationText(t.isolation)
 	settings.currentReadOnly = t.readOnly
+	settings.currentDeferrable = t.deferrable
 	settings.mu.Unlock()
-}
-func validateModes(modes []parser.TransactionMode) error {
-	for _, mode := range modes {
-		if mode.Unsupported || mode.Isolation == parser.IsolationSerializable {
-			return sqlError("0A000", "transaction mode is unsupported")
-		}
+	e := t.session.Engine()
+	e.mu.Lock()
+	if !t.snapshotSet && (t.state == TxActive || t.state == TxImplicit) {
+		e.enrollSerializableLocked(t.ref, t.isolation)
 	}
-	return nil
+	e.mu.Unlock()
 }
 func (t *transactionOwner) assignModes(modes []parser.TransactionMode) error {
-	if err := validateModes(modes); err != nil {
-		return err
-	}
-	isolation, readOnly := t.isolation, t.readOnly
+	isolation, readOnly, deferrable := t.isolation, t.readOnly, t.deferrable
 	for _, mode := range modes {
 		if mode.Isolation != parser.IsolationDefault {
 			next := Isolation(mode.Isolation)
@@ -77,8 +75,18 @@ func (t *transactionOwner) assignModes(modes []parser.TransactionMode) error {
 			}
 			readOnly = mode.ReadOnly
 		}
+		if mode.DeferrableSet {
+			if len(t.savepoints) != 0 {
+				return sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE cannot be called within a subtransaction")
+			}
+			if t.snapshotSet {
+				return sqlError("25001", "SET TRANSACTION [NOT] DEFERRABLE must be called before any query")
+			}
+			deferrable = mode.Deferrable
+		}
 	}
 	t.isolation, t.readOnly = isolation, readOnly
+	t.deferrable = deferrable
 	t.syncCharacteristics()
 	return nil
 }
@@ -99,6 +107,8 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d SettingDefinition, 
 	mode := parser.TransactionMode{}
 	if d.Name == "transaction_isolation" {
 		mode.Isolation = parser.TransactionIsolation(isolationFromText(d.format(value)))
+	} else if d.Name == "transaction_deferrable" {
+		mode.DeferrableSet, mode.Deferrable = true, d.format(value) == "on"
 	} else {
 		mode.AccessSet = true
 		mode.ReadOnly = d.format(value) == "on"
@@ -109,6 +119,12 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d SettingDefinition, 
 	if d.Name == "transaction_isolation" {
 		return isolationText(t.isolation), nil
 	}
+	if d.Name == "transaction_deferrable" {
+		if t.deferrable {
+			return "on", nil
+		}
+		return "off", nil
+	}
 	if t.readOnly {
 		return "on", nil
 	}
@@ -117,9 +133,6 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d SettingDefinition, 
 func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacteristics, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: transaction characteristics take no arguments")
-	}
-	if err := validateModes(stmt.Modes); err != nil {
-		return Result{}, err
 	}
 	e, t := s.op.session.Engine(), s.owner
 	if !s.op.commandAdmission {
@@ -134,6 +147,12 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 			if mode.AccessSet {
 				name, value = "default_transaction_read_only", "off"
 				if mode.ReadOnly {
+					value = "on"
+				}
+			}
+			if mode.DeferrableSet {
+				name, value = "default_transaction_deferrable", "off"
+				if mode.Deferrable {
 					value = "on"
 				}
 			}
@@ -170,8 +189,11 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 	t, e := s.owner, s.op.session.Engine()
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if err := s.acquireSerializableSnapshot(); err != nil {
+		return err
+	}
 	needsProjection := func(roots map[ObjectAddress]transactionRoot) bool {
-		if t.isolation != RepeatableRead || t.catalog == nil {
+		if !stableIsolation(t.isolation) || t.catalog == nil {
 			return false
 		}
 		for address, shape := range t.catalog.storage {
@@ -202,7 +224,7 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 		return err
 	}
 	roots, frontier := t.roots, t.frontier
-	if !t.snapshotSet && t.isolation == RepeatableRead {
+	if !t.snapshotSet && stableIsolation(t.isolation) {
 		roots = make(map[ObjectAddress]transactionRoot, len(e.storage))
 		for address, storage := range e.storage {
 			if relation, ok := e.state.descriptors[address].(*relationDescriptor); ok {
@@ -334,7 +356,7 @@ func explicitUtility(stmt parser.Statement) bool {
 	return false
 }
 func (s *StatementScope) repeatableConflict(head rowVersion, end *deletionRoot) error {
-	if s.owner.isolation != RepeatableRead || head.born == 0 {
+	if !stableIsolation(s.owner.isolation) || head.born == 0 {
 		return nil
 	}
 	// The snapshot's predecessor was replaced before its successor was deleted.

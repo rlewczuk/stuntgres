@@ -61,16 +61,34 @@ func TestReferenceSettingsSetConfigReentry(t *testing.T) {
 		for _, threshold := range []string{"notice", "warning", "error"} {
 			sessionSet(t, c, "SET client_min_messages TO "+threshold, false)
 			before := len(notices)
+			checkNotices := func(commands int) {
+				t.Helper()
+				count := 0
+				if threshold == "notice" {
+					count = commands
+				}
+				if len(notices) != before+count || callbackError != nil {
+					t.Fatal(notices, callbackError)
+				}
+				for _, notice := range notices[before:] {
+					if notice != want {
+						t.Fatal("notice diagnostic", notice, want)
+					}
+				}
+			}
+			sessionSet(t, c, "SET application_name TO '"+original+"'", prepared)
+			checkNotices(1)
 			q := "SELECT set_config($1,$2,false)"
 			if prepared {
+				beforePrepare := len(notices)
 				s, e := c.PrepareContext(ctx, q)
 				if e != nil {
 					t.Fatal(e)
 				}
-				if len(notices) != before {
+				if len(notices) != beforePrepare {
 					t.Fatal("prepare emitted notice")
 				}
-				settingsRows(t, c, "SHOW application_name", false, "application_name", map[bool]string{true: clipped, false: ""}[before > 0])
+				settingsRows(t, c, "SHOW application_name", false, "application_name", clipped)
 				rows, e := s.QueryContext(ctx, "application_name", original)
 				if e != nil {
 					t.Fatal(e)
@@ -80,19 +98,9 @@ func TestReferenceSettingsSetConfigReentry(t *testing.T) {
 			} else {
 				settingsRows(t, c, q, false, "set_config", clipped, "application_name", original)
 			}
+			checkNotices(2)
 			sessionSet(t, c, "SET application_name TO '"+original+"'", prepared)
-			count := 0
-			if threshold == "notice" {
-				count = 2
-			}
-			if len(notices) != before+count || callbackError != nil {
-				t.Fatal(notices, callbackError)
-			}
-			for _, notice := range notices[before:] {
-				if notice != want {
-					t.Fatal(notice)
-				}
-			}
+			checkNotices(3)
 			settingsRows(t, c, "SHOW application_name", false, "application_name", clipped)
 		}
 		sessionSet(t, c, "RESET client_min_messages", false)
@@ -105,5 +113,75 @@ func TestReferenceSettingsSetConfigReentry(t *testing.T) {
 		}
 		c.Close()
 		db.Close()
+	}
+}
+
+// The callback adapter above is native-only. This independent shared schedule
+// establishes the notice count and all diagnostic fields against PostgreSQL.
+func TestReferenceSettingsClippingNoticeSchedule(t *testing.T) {
+	p := newReferenceScenario(t)
+	original := strings.Repeat("a", 64)
+	clipped := strings.Repeat("a", 63)
+	want := referenceDiagnostic{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42622", Message: `identifier "` + original + `" will be truncated to "` + clipped + `"`}
+	for _, backend := range p.backends() {
+		var notices []referenceDiagnostic
+		_, c, record := noticeReferencePool(t, p, backend.pg, &notices)
+		for _, prepared := range []bool{false, true} {
+			run := func(s referenceStep) {
+				s.prepared = prepared
+				referenceRunStep(t, p.ctx, c, record, s)
+			}
+			for _, threshold := range []string{"notice", "warning", "error"} {
+				run(referenceExec("SET client_min_messages TO "+threshold, 0))
+				checkCommand := func(before int) {
+					t.Helper()
+					count := 0
+					if threshold == "notice" {
+						count = 1
+					}
+					if len(notices) != before+count {
+						t.Fatal("per-command notice count", threshold, notices[before:])
+					}
+					for _, notice := range notices[before:] {
+						if notice != want {
+							t.Fatal("notice diagnostic", notice, want)
+						}
+					}
+				}
+				before := len(notices)
+				run(referenceExec("SET application_name TO '"+original+"'", 0))
+				checkCommand(before)
+				before = len(notices)
+				q := "SELECT set_config($1,$2,false)"
+				step := referenceSelect(q, []string{"set_config"}, []string{"TEXT"}, [][]any{{clipped}}, "application_name", original)
+				if prepared {
+					stmt, err := c.PrepareContext(p.ctx, q)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer stmt.Close()
+					if len(notices) != before {
+						t.Fatal("Prepare emitted notice", notices[before:])
+					}
+					referenceRunStep(t, p.ctx, c, record, referenceSelect("SHOW application_name", []string{"application_name"}, []string{"TEXT"}, [][]any{{clipped}}))
+					referenceRunStep(t, p.ctx, referenceHeldStatement{c, stmt, q}, record, step)
+					stmt.Close()
+				} else {
+					run(step)
+				}
+				checkCommand(before)
+				before = len(notices)
+				run(referenceExec("SET application_name TO '"+original+"'", 0))
+				checkCommand(before)
+			}
+			run(referenceExec("RESET client_min_messages", 0))
+			before := len(notices)
+			run(referenceSelect("SELECT set_config('application_name',NULL,false)", []string{"set_config"}, []string{"TEXT"}, [][]any{{""}}))
+			run(referenceExec("SET application_name TO DEFAULT", 0))
+			run(referenceExec("RESET application_name", 0))
+			if len(notices) != before {
+				t.Fatal("default restore emitted notice", notices[before:])
+			}
+		}
 	}
 }

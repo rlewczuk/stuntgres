@@ -278,6 +278,19 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		return Result{}, err
 	}
 	rewrite = rewrite || volatileAdd
+	if rewrite {
+		scope.owner.mu.Lock()
+		err = scope.acquireSerializableSnapshot()
+		if err == nil {
+			e.mu.Lock()
+			err = e.serializableReadLocked(scope, ref)
+			e.mu.Unlock()
+		}
+		scope.owner.mu.Unlock()
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	if len(fills) != 0 || len(shape.fills) != 0 {
 		shape.fills = maps.Clone(shape.fills)
 		if shape.fills == nil {
@@ -336,7 +349,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 		projectedDeletes = projectDeletions(projectedDeletes, replacement)
-		if scope.owner.isolation == RepeatableRead && snapshotExists && !shape.rewritten {
+		if stableIsolation(scope.owner.isolation) && snapshotExists && !shape.rewritten {
 			if slices.Equal(snapshot.relation.attributes, old.attributes) {
 				shape.snapshot, err = projection.versions(op.Context(), snapshot.versions)
 			} else {
@@ -513,6 +526,20 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			}
 		}
 		e.mu.Unlock()
+	}
+	if rewrite {
+		scope.owner.mu.Lock()
+		e.mu.Lock()
+		err = scope.validateLockedRelation(e)
+		if err == nil {
+			event := [1]serializableWrite{{rewrite: true}}
+			err = e.serializableWriteLocked(scope, ref, event[:])
+		}
+		e.mu.Unlock()
+		scope.owner.mu.Unlock()
+		if err != nil {
+			return Result{}, err
+		}
 	}
 	scope.catalog = changes
 	emitViewCascade(op, stage.viewCascadeNames)

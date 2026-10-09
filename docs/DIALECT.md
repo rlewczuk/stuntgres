@@ -2268,16 +2268,18 @@ The optional ALTER DROP COLUMN keyword consumes the shared dedicated COLUMN toke
 Canonical populated zero-column Dump uses one public DEFAULT VALUES insertion per row through common Insert. DEFAULT VALUES also applies declared defaults/typed NULL for nonzero-column tables; VALUES() remains invalid syntax. Restore does not accept ALTER TABLE history. Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$'`.
 
 Do not widen syntax beyond the selected surface: no nested transactions,
-2PC, SERIALIZABLE/SSI, DEFERRABLE safe snapshots, SELECT aliases/qualified columns,
+2PC, SELECT aliases/qualified columns,
 general casts/joins/functions/expressions, primary
 keys, UPDATE FROM/row-subqueries/CURRENT OF and DELETE USING/CURRENT OF.
 SQL BEGIN [WORK|TRANSACTION] and START TRANSACTION accept ordered isolation
-READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ and READ ONLY/READ WRITE modes.
-SET TRANSACTION changes current owner modes; SET SESSION CHARACTERISTICS AS
-TRANSACTION changes typed defaults. SERIALIZABLE/[NOT] DEFERRABLE syntax is
-complete but execution is native 0A000; malformed suffixes remain 42601.
-Driver default isolation honors defaults; explicit RU/RC/RR overrides and Go
-ReadOnly=false requests RW. COMMIT/END/ROLLBACK/ABORT [WORK|TRANSACTION]
+READ COMMITTED/READ UNCOMMITTED/REPEATABLE READ/SERIALIZABLE, READ ONLY/READ WRITE
+and [NOT] DEFERRABLE modes. SET TRANSACTION changes current owner modes;
+SET SESSION CHARACTERISTICS AS TRANSACTION changes typed defaults.
+SERIALIZABLE uses stable snapshots and nonblocking read/write dependency tracking;
+READ ONLY DEFERRABLE waits for a safe snapshot before its first data analysis.
+Malformed suffixes remain 42601. Driver default isolation honors defaults;
+explicit RU/RC/RR/SER overrides and Go ReadOnly=false requests RW.
+COMMIT/END/ROLLBACK/ABORT [WORK|TRANSACTION]
 [AND [NO] CHAIN] retain qualified handles and one publication authority.
 SAVEPOINT name, RELEASE [SAVEPOINT] name and ROLLBACK [WORK|TRANSACTION] TO
 [SAVEPOINT] name support nested marks and newest-name shadow/reveal. Rollback
@@ -2297,12 +2299,18 @@ separate native explicit boundary.
 
 Settings use the existing registry, typed values and SESSION/LOCAL action journal.
 Commit preserves SESSION, rollback/abort restores, LOCAL expires. Current
-transaction_isolation/read_only resolve the owner; default_transaction_isolation/
-read_only affect next starts only. Current RESET/SET DEFAULT/set_config(NULL)
+transaction_isolation/read_only/deferrable resolve the owner;
+default_transaction_isolation/read_only/deferrable affect next starts only.
+Current RESET/SET DEFAULT/set_config(NULL)
 reject 0A000 `parameter "<name>" cannot be reset`; RESET ALL excludes current
 modes but transactionally resets defaults. Different isolation after the first
 snapshot fails 25001; identical requested mode succeeds (RU != RC). Late RO→RW
 fails 25001; RW→RO succeeds. SET TRANSACTION outside a block warns25P01 at Exec.
+DEFERRABLE changes after the first query fail 25001 even when requesting its
+existing value; query-backed set_config therefore cannot assign it. A subtransaction
+assignment fails 25001 before the late-query check. Savepoints restore all three
+characteristics; attempted participating writes and predicate evidence survive
+child rollback until the outer transaction ends.
 Route current assignments before Engine/settings/Session locks, never invert
 owner-first order. Providers/normalizers run outside publication locks.
 Physical settings registration, search_path alias, timer and adapter boundaries
@@ -2335,9 +2343,8 @@ statements prepared before BEGIN. DML retains semantic analysis before read-only
 execution rejection. Selected ALTER TYPE/nullability/named-NOT-NULL/DROP COLUMN lists
 and sequence utilities permit effect-free Prepare and transactional execution;
 unrelated utility Prepare/execution retains its native unsupported0A000 boundary.
-Feature commands: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTransactionIsolation[A-Za-z0-9_]*$'`,
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTransactionIsolation[A-Za-z0-9_]*$'`,
-`make quickcheck PACKAGES=./smoke RUN='^TestTransactionIsolationSmoke$'`.
+Feature commands: `make quickcheck PACKAGES=./reference RUN='^TestReference(Serializable|TransactionIsolation)'`,
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Serializable|TransactionIsolation)'`.
 The migrated SQL witnesses use the same untagged definitions in native and actual
 PostgreSQL modes; backend-specific capabilities remain independent phases.
 See [transaction/locking test migration](DEVELOPMENT.md#dual-mode-transactions-savepoints-and-locking)

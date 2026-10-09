@@ -698,10 +698,11 @@ const (
 )
 
 type TransactionMode struct {
-	Isolation   TransactionIsolation
-	AccessSet   bool
-	ReadOnly    bool
-	Unsupported bool
+	Isolation     TransactionIsolation
+	AccessSet     bool
+	ReadOnly      bool
+	DeferrableSet bool
+	Deferrable    bool
 }
 
 type TransactionCharacteristics struct {

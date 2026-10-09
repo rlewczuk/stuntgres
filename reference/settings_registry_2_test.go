@@ -182,6 +182,19 @@ func TestReferenceSettingsNumericPrefixEdges(t *testing.T) {
 	}
 	defer c.Close()
 	for _, prepared := range []bool{false, true} {
+		exec := func(q string, args ...any) error {
+			if !prepared {
+				_, err := c.ExecContext(ctx, q, args...)
+				return err
+			}
+			stmt, err := c.PrepareContext(ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+			_, err = stmt.ExecContext(ctx, args...)
+			return err
+		}
 		for _, tc := range []struct{ name, input, want string }{
 			{"edge.count", "010", "8"}, {"edge.count", "0xA", "10"}, {"edge.count", "010.5", "10"},
 			{"edge.count", "010e1", "100"}, {"edge.count", "0x1.8p1", "3"}, {"edge.count", ".5", "0"}, {"edge.count", " 2.5 ", "2"}, {"edge.count", "9223372036854775808e-18", "9"}, {"edge.count", "0e-999", "0"},
@@ -217,10 +230,10 @@ func TestReferenceSettingsNumericPrefixEdges(t *testing.T) {
 			}
 		}
 		for _, input := range []string{"08.5", "0x1p0"} {
-			_, err = c.ExecContext(ctx, "SELECT set_config('statement_timeout',$1,false)", input)
+			err = exec("SELECT set_config('statement_timeout',$1,false)", input)
 			settingsDiagnostic(t, err, "22023", `invalid value for parameter "statement_timeout": "`+input+`"`, `Valid units for this parameter are "us", "ms", "s", "min", "h", and "d".`, "", "")
 		}
-		_, err = c.ExecContext(ctx, "SELECT set_config('demo.ratio','-inf',false)")
+		err = exec("SELECT set_config('demo.ratio','-inf',false)")
 		settingsDiagnostic(t, err, "22023", `-Infinity is outside the valid range for parameter "demo.ratio" (0 .. 10)`, "", "", "")
 		settingsRows(t, c, "SHOW demo.ratio", prepared, "demo.ratio", "1")
 		sessionSet(t, c, "SET demo.ratio TO '2.1234567'", prepared)
