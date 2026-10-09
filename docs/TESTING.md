@@ -109,6 +109,10 @@ Non-public schemas are not reset by the fixture. Register
 `schemaReferenceCleanup(t, "schema_name")` before constructing the scenario
 when a case creates or moves objects into another schema; otherwise a later
 case can fail with `42P06` even when it passes in isolation.
+Dropping a moved view does not remove its destination schema. Prepared utility
+and native replay cases must register that schema too, even when they drop every
+view they created. Registering before the scenario lets fixture handles close
+before schema teardown.
 
 `p.step(t, step)` executes one description on native and, when enabled,
 PostgreSQL. Each backend must match the supplied expectations independently;
