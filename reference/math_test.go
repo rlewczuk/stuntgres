@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,7 +6,7 @@ import (
 )
 
 func TestReferenceMathSignatures(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, prepared := range []bool{false, true} {
 		s := referenceSelect("SELECT round(4),round('4'),round(4.0),round(4,4),trunc(4),sign(4),scale(4),min_scale(4),trim_scale(4),mod(9,4)",
 			[]string{"round", "round", "round", "round", "trunc", "sign", "scale", "min_scale", "trim_scale", "mod"},
@@ -25,6 +23,32 @@ func TestReferenceMathSignatures(t *testing.T) {
 		[][]any{{int64(0), int64(0), int64(0), "0.00", float64(9), float64(2), float64(4), "9"}})
 	p.step(t, s)
 	p.step(t, referencePrepared(s))
+	p.step(t, referenceExec("CREATE TABLE m(s SMALLINT,i INTEGER,b BIGINT,n NUMERIC,r REAL,d DOUBLE PRECISION)", 0))
+	p.step(t, referenceExec("INSERT INTO m VALUES(9,9,9,9.00,2.5,3.5)", 1))
+	root := referenceSelect("SELECT mod(s,s),mod(s,i),mod(i,b),mod(i,n),round(s),round(i),round(b),round(r),round(d),round(n),scale(i),min_scale(b),trim_scale(s) FROM m",
+		[]string{"mod", "mod", "mod", "mod", "round", "round", "round", "round", "round", "round", "scale", "min_scale", "trim_scale"},
+		[]string{"INT2", "INT4", "INT8", "NUMERIC", "FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8", "NUMERIC", "INT4", "INT4", "NUMERIC"},
+		[][]any{{int64(0), int64(0), int64(0), "0.00", float64(9), float64(9), float64(9), float64(2), float64(4), "9", int64(0), int64(0), "9"}})
+	p.step(t, root)
+	p.step(t, referencePrepared(root))
+	for _, backend := range p.backends() {
+		func() {
+			const query = "SELECT mod(b,$1) FROM m"
+			stmt, err := backend.db.PrepareContext(p.ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := stmt.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			held := referenceHeldStatement{backend.db, stmt, query}
+			for _, tc := range []struct{ arg, want any }{{int64(4), int64(1)}, {nil, nil}, {int64(-4), int64(1)}} {
+				referenceRunStep(t, p.ctx, held, backend.recorder, referenceSelect(query, []string{"mod"}, []string{"INT8"}, [][]any{{tc.want}}, tc.arg))
+			}
+		}()
+	}
 	for _, tc := range []struct{ input, want any }{{"1.25", "1.3"}, {"-1.25", "-1.3"}, {nil, nil}} {
 		s := referencePrepared(referenceSelect("SELECT round($1,$2)", []string{"round"}, []string{"NUMERIC"}, [][]any{{tc.want}}))
 		s.args = []any{tc.input, 1}
@@ -39,7 +63,7 @@ func TestReferenceMathSignatures(t *testing.T) {
 
 func TestReferenceMathNumericRoundScale(t *testing.T) {
 	t.Run("limits", referenceMathScaleLimits)
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, tc := range []struct {
 		expression, name, typ string
 		want                  any
@@ -69,6 +93,14 @@ func TestReferenceMathNumericRoundScale(t *testing.T) {
 		{"trim_scale('NaN')", "trim_scale", "NUMERIC", "NaN"},
 		{"round('Infinity',2)", "round", "NUMERIC", "Infinity"},
 		{"trunc('-Infinity',2)", "trunc", "NUMERIC", "-Infinity"},
+		{"round(1.25,1)", "round", "NUMERIC", "1.3"},
+		{"round(-1.25,1)", "round", "NUMERIC", "-1.3"},
+		{"trunc(1.25,1)", "trunc", "NUMERIC", "1.2"},
+		{"round(1500,-3)", "round", "NUMERIC", "2000"},
+		{"trunc(1.23,4)", "trunc", "NUMERIC", "1.2300"},
+		{"scale(0.0000)", "scale", "INT4", int64(4)},
+		{"min_scale(0.0000)", "min_scale", "INT4", int64(0)},
+		{"min_scale('-Infinity')", "min_scale", "INT4", nil},
 	} {
 		s := referenceSelect("SELECT "+tc.expression, []string{tc.name}, []string{tc.typ}, [][]any{{tc.want}})
 		p.step(t, s)
@@ -78,7 +110,7 @@ func TestReferenceMathNumericRoundScale(t *testing.T) {
 
 func TestReferenceMathSignModulo(t *testing.T) {
 	t.Run("float", referenceMathFloat)
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, tc := range []struct {
 		expression, name, typ string
 		want                  any
@@ -98,6 +130,17 @@ func TestReferenceMathSignModulo(t *testing.T) {
 		{"mod('NaN',0.0)", "mod", "NUMERIC", "NaN"},
 		{"mod(1.2300,'Infinity')", "mod", "NUMERIC", "1.2300"},
 		{"mod(1,NULL)", "mod", "INT4", nil},
+		{"sign(13.000)", "sign", "NUMERIC", "1"},
+		{"sign(COALESCE('-Infinity',1.0))", "sign", "NUMERIC", "-1"},
+		{"sign('-0')", "sign", "FLOAT8", float64(0)},
+		{"mod(-9,-4)", "mod", "INT4", int64(-1)},
+		{"mod(0.0000,4.0)", "mod", "NUMERIC", "0.0000"},
+		{"mod(-9007199254740993.25,2.0)", "mod", "NUMERIC", "-1.25"},
+		{"mod(9223372036854775808,3)", "mod", "NUMERIC", "2"},
+		{"mod(0.0,'NaN')", "mod", "NUMERIC", "NaN"},
+		{"mod('Infinity',1.0)", "mod", "NUMERIC", "NaN"},
+		{"sign(NULL)", "sign", "FLOAT8", nil},
+		{"mod(NULL,1)", "mod", "INT4", nil},
 	} {
 		s := referenceSelect("SELECT "+tc.expression, []string{tc.name}, []string{tc.typ}, [][]any{{tc.want}})
 		p.step(t, s)
@@ -106,7 +149,7 @@ func TestReferenceMathSignModulo(t *testing.T) {
 }
 
 func TestReferenceMathDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE signatures(d DOUBLE PRECISION,n NUMERIC,b BIGINT)", 0))
 	hint := "No function matches the given name and argument types. You might need to add explicit type casts."
 	for _, tc := range []struct{ query, code, message, position, hint string }{

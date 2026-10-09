@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -10,7 +8,7 @@ import (
 func TestReferenceArithmeticInsertSourceContextualPositions(t *testing.T) {
 	for _, populated := range []bool{false, true} {
 		t.Run(map[bool]string{false: "empty", true: "populated"}[populated], func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			p.step(t, referenceExec("CREATE TABLE d(f BOOL)", 0))
 			p.step(t, referenceExec("INSERT INTO d VALUES(TRUE)", 1))
 			p.step(t, referenceExec("CREATE TABLE s(i INT)", 0))
@@ -41,11 +39,13 @@ func TestReferenceArithmeticInsertSourceContextualPositions(t *testing.T) {
 						query := prefix.text + source.before + operand.expr + source.after
 						failure := referenceImplicitError(query, referenceDiagnostic{Code: source.code, Message: source.message, Hint: source.hint, Position: fmt.Sprint(source.start + operand.offset + prefix.offset)})
 						failure.errorStage = "execute"
-						p.step(t, failure)
+						referenceArithmeticFailure(t, p, failure)
 						p.step(t, remaining)
+						p.step(t, referencePrepared(remaining))
 						failure.errorStage = "prepare"
-						p.step(t, referencePrepared(failure))
+						referenceArithmeticFailure(t, p, referencePrepared(failure))
 						p.step(t, remaining)
+						p.step(t, referencePrepared(remaining))
 					}
 				}
 			}
@@ -61,52 +61,52 @@ func TestReferenceArithmeticInsertSourceContextualPositions(t *testing.T) {
 			} {
 				failure := referenceImplicitError(tc.query, referenceDiagnostic{Code: "42804", Message: `column "f" is of type boolean but expression is of type ` + tc.typ, Hint: "You will need to rewrite or cast the expression.", Position: tc.position})
 				failure.errorStage = "execute"
-				p.step(t, failure)
+				referenceArithmeticFailure(t, p, failure)
 				p.step(t, remaining)
+				p.step(t, referencePrepared(remaining))
 				failure.errorStage = "prepare"
-				p.step(t, referencePrepared(failure))
+				referenceArithmeticFailure(t, p, referencePrepared(failure))
 				p.step(t, remaining)
+				p.step(t, referencePrepared(remaining))
 			}
 			failure := referenceImplicitError("INSERT INTO d SELECT 1+TRUE", referenceDiagnostic{Code: "42883", Message: "operator does not exist: integer + boolean", Position: "23", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})
 			failure.errorStage = "execute"
-			p.step(t, failure)
-			failure.errorStage = "prepare"
-			p.step(t, referencePrepared(failure))
+			referenceArithmeticFailure(t, p, failure)
 			p.step(t, remaining)
+			p.step(t, referencePrepared(remaining))
+			failure.errorStage = "prepare"
+			referenceArithmeticFailure(t, p, referencePrepared(failure))
+			p.step(t, remaining)
+			p.step(t, referencePrepared(remaining))
 		})
 	}
 }
 
 func TestReferenceArithmeticInsertSourceLimitBoundary(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE d(f BOOL)", 0))
 	p.step(t, referenceExec("INSERT INTO d VALUES(TRUE)", 1))
 	for _, tc := range []struct{ query, nativePosition, pgPosition string }{
 		{"INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "29", "29"},
 		{"/*é*/ INSERT INTO d VALUES(TRUE),(1+2) LIMIT 1", "35", "35"},
 	} {
-		for _, backend := range []struct {
-			db     referenceExecutor
-			record *referenceRecorder
-			want   referenceDiagnostic
-		}{
-			{p.memory, p.memoryRecord, referenceDiagnostic{Code: "42804", Message: "VALUES types boolean and integer cannot be matched", Position: tc.nativePosition}},
-			{p.postgres, p.postgresRecord, referenceDiagnostic{Code: "42804", Message: "VALUES types boolean and integer cannot be matched", Position: tc.pgPosition}},
-		} {
-			failure := referenceImplicitError(tc.query, backend.want)
-			failure.errorStage = "execute"
-			referenceRunStep(t, p.ctx, backend.db, backend.record, failure)
-			failure.errorStage = "prepare"
-			referenceRunStep(t, p.ctx, backend.db, backend.record, referencePrepared(failure))
-			referenceRunStep(t, p.ctx, backend.db, backend.record, referenceSelect("SELECT f FROM d", []string{"f"}, []string{"BOOL"}, [][]any{{true}}))
-		}
+		failure := referenceImplicitError(tc.query, referenceDiagnostic{Code: "42804", Message: "VALUES types boolean and integer cannot be matched", Position: tc.nativePosition})
+		failure.errorStage = "execute"
+		referenceArithmeticFailure(t, p, failure)
+		remaining := referenceSelect("SELECT f FROM d", []string{"f"}, []string{"BOOL"}, [][]any{{true}})
+		p.step(t, remaining)
+		p.step(t, referencePrepared(remaining))
+		failure.errorStage = "prepare"
+		referenceArithmeticFailure(t, p, referencePrepared(failure))
+		p.step(t, remaining)
+		p.step(t, referencePrepared(remaining))
 	}
 }
 
 func TestReferenceArithmeticInsertSourceTableExcessPositions(t *testing.T) {
 	for _, populated := range []bool{false, true} {
 		t.Run(map[bool]string{false: "empty", true: "populated"}[populated], func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			p.step(t, referenceExec("CREATE TABLE d(i INT)", 0))
 			p.step(t, referenceExec("INSERT INTO d VALUES(42)", 1))
 			p.step(t, referenceExec("CREATE TABLE s(i INT)", 0))
@@ -131,11 +131,13 @@ func TestReferenceArithmeticInsertSourceTableExcessPositions(t *testing.T) {
 						query := prefix.text + "INSERT INTO d" + target.text + " SELECT i," + operand.expr + " FROM s"
 						failure := referenceImplicitError(query, referenceDiagnostic{Code: "42601", Message: "INSERT has more expressions than target columns", Position: fmt.Sprint(24 + operand.offset + target.offset + prefix.offset)})
 						failure.errorStage = "execute"
-						p.step(t, failure)
+						referenceArithmeticFailure(t, p, failure)
 						p.step(t, remaining)
+						p.step(t, referencePrepared(remaining))
 						failure.errorStage = "prepare"
-						p.step(t, referencePrepared(failure))
+						referenceArithmeticFailure(t, p, referencePrepared(failure))
 						p.step(t, remaining)
+						p.step(t, referencePrepared(remaining))
 					}
 				}
 			}
@@ -146,7 +148,7 @@ func TestReferenceArithmeticInsertSourceTableExcessPositions(t *testing.T) {
 func TestReferenceArithmeticInsertSourceSuccess(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			p.step(t, referenceExec("CREATE TABLE good(id INT,i INT,b BIGINT)", 0))
 			insert := referenceExec("INSERT INTO good SELECT 1,7/2,-7%2", 1)
 			insert.prepared = prepared

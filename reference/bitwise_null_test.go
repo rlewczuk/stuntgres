@@ -1,14 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"bytes"
 	"strings"
+	"stuntgres"
 	"testing"
 )
 
 func TestReferenceBitwiseTypedNullBothSides(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE one(v INTEGER)", 0))
 	p.step(t, referenceExec("INSERT INTO one VALUES(1)", 1))
 	for _, tc := range []struct{ q, typ string }{
@@ -35,7 +35,7 @@ func TestReferenceBitwiseTypedNullBothSides(t *testing.T) {
 }
 
 func TestReferenceBitwiseConstantNullRowConversion(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE null_input(id INTEGER,x TEXT)", 0))
 	p.step(t, referenceExec("INSERT INTO null_input VALUES(1,'bad'),(2,'7')", 2))
 	for _, width := range []struct{ sql, typ, cast string }{
@@ -50,23 +50,22 @@ func TestReferenceBitwiseConstantNullRowConversion(t *testing.T) {
 			}
 			q := "SELECT NULL::" + width.sql + " " + op + " " + leftPeer + "," + width.cast + " " + op + " " + rightNull + " FROM null_input ORDER BY id"
 			step := referenceSelect(q, []string{"?column?", "?column?"}, []string{width.typ, width.typ}, [][]any{{nil, nil}, {nil, nil}})
-			t.Run(width.sql+"/"+op+"/direct", func(t *testing.T) { p.step(t, step) })
-			t.Run(width.sql+"/"+op+"/prepared", func(t *testing.T) { p.step(t, referencePrepared(step)) })
+			t.Run(width.sql+"/"+op, func(t *testing.T) { referenceArithmeticMetadata(t, p, step) })
 			empty := referenceSelect(strings.Replace(q, " ORDER BY id", " WHERE FALSE ORDER BY id", 1), []string{"?column?", "?column?"}, []string{width.typ, width.typ}, [][]any{})
 			t.Run(width.sql+"/"+op+"/empty", func(t *testing.T) {
-				p.step(t, empty)
-				p.step(t, referencePrepared(empty))
+				referenceArithmeticMetadata(t, p, empty)
 			})
 		}
 	}
 }
 
 func TestReferenceBitwiseConstantNullConsumers(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE null_source(id INTEGER,x TEXT,i INTEGER,b BIGINT)", 0))
 	p.step(t, referenceExec("INSERT INTO null_source VALUES(1,'bad',9,9),(2,'7',9,9)", 2))
 	for _, step := range []referenceStep{
 		referenceSelect("SELECT COALESCE(NULL::integer & CAST(x AS integer),5) AS fallback,CASE WHEN id=1 THEN CAST(x AS bigint) >> NULL::integer ELSE NULL::bigint END AS mask FROM null_source ORDER BY id", []string{"fallback", "mask"}, []string{"INT4", "INT8"}, [][]any{{int64(5), nil}, {int64(5), nil}}),
+		referenceSelect("SELECT COALESCE(NULL::integer & CAST(x AS integer),5),CASE WHEN id=1 THEN CAST(x AS bigint) >> NULL::integer ELSE NULL::bigint END FROM null_source ORDER BY id", []string{"coalesce", "case"}, []string{"INT4", "INT8"}, [][]any{{int64(5), nil}, {int64(5), nil}}),
 		referenceSelect("SELECT id FROM null_source WHERE (CAST(x AS integer) # NULL::integer) IS NULL ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}),
 	} {
 		p.step(t, step)
@@ -88,6 +87,24 @@ func TestReferenceBitwiseConstantNullConsumers(t *testing.T) {
 			p.step(t, step)
 		}
 		p.step(t, referenceSelect("SELECT i,b FROM null_source ORDER BY id", []string{"i", "b"}, []string{"INT4", "INT8"}, [][]any{{nil, nil}, {nil, nil}}))
+		p.step(t, referencePrepared(referenceSelect("SELECT i,b FROM null_source ORDER BY id", []string{"i", "b"}, []string{"INT4", "INT8"}, [][]any{{nil, nil}, {nil, nil}})))
 	}
 	p.step(t, referenceSelect("SELECT s,b FROM null_dest ORDER BY id", []string{"s", "b"}, []string{"INT2", "INT8"}, [][]any{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}}))
+	p.step(t, referencePrepared(referenceSelect("SELECT s,b FROM null_dest ORDER BY id", []string{"s", "b"}, []string{"INT2", "INT8"}, [][]any{{nil, nil}, {nil, nil}, {nil, nil}, {nil, nil}})))
+	dependency := referenceImplicitError("ALTER TABLE null_source DROP COLUMN x", referenceDiagnostic{Code: "2BP01", Message: "cannot drop column x of table null_source because other objects depend on it", Detail: "view null_view depends on column x of table null_source", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
+	dependency.errorStage = "execute"
+	referenceArithmeticFailure(t, p, dependency)
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referencePrepared(step))
+	referenceRunStep(t, p.ctx, referenceArithmeticExecutor{p.memory, t}, p.memoryRecord, dependency)
 }

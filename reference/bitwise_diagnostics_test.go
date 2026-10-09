@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceBitwiseDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE one(v INTEGER,n NUMERIC)", 0))
 	for _, tc := range []struct{ q, code, message, pos, hint string }{
 		{"SELECT '1' & '2' FROM one", "42725", "operator is not unique: unknown & unknown", "12", "Could not choose a best candidate operator. You might need to add explicit type casts."},
@@ -28,8 +26,21 @@ func TestReferenceBitwiseDiagnostics(t *testing.T) {
 	} {
 		step := referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.pos, Hint: tc.hint})
 		step.selectRows = true
+		step.errorStage = "execute"
 		p.step(t, step)
 		step.errorStage = "prepare"
 		p.step(t, referencePrepared(step))
+	}
+	for _, tc := range []struct {
+		query string
+		value int64
+	}{{"SELECT 1&1", 1}, {"SELECT ~1", -2}, {"SELECT 1<<1", 2}} {
+		failure := referenceImplicitError(tc.query, referenceDiagnostic{Code: "0A000", Message: "SELECT without FROM is unsupported", Position: "1"})
+		failure.selectRows, failure.errorStage = true, "execute"
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
+		if p.postgres != nil {
+			success := referenceSelect(tc.query, []string{"?column?"}, []string{"INT4"}, [][]any{{tc.value}})
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, success)
+		}
 	}
 }

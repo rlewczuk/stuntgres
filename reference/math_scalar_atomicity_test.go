@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceMathScalarDomainAtomicity(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE source(id INT,s SMALLINT,b BIGINT,n NUMERIC)", 0))
 	p.step(t, referenceExec("INSERT INTO source VALUES(1,-5,5,7.00),(2,-32768,-1,8.00)", 2))
 	p.step(t, referenceExec("CREATE TABLE copied(n NUMERIC)", 0))

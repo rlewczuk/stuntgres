@@ -1,15 +1,15 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"math/big"
+	"context"
+	"errors"
+	"math"
 	"strings"
 	"testing"
 )
 
 func TestReferenceMathScalarValues(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, tc := range []struct {
 		expr, name, typ string
 		want            any
@@ -37,7 +37,7 @@ func TestReferenceMathScalarValues(t *testing.T) {
 }
 
 func TestReferenceMathScalarWidthsAndParameters(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE m(s SMALLINT,i INTEGER,b BIGINT,r REAL,d DOUBLE PRECISION,n NUMERIC(8,3))", 0))
 	p.step(t, referenceExec("INSERT INTO m VALUES(-17,-17,-17,-17.5,-17.5,-17.400)", 1))
 	s := referenceSelect("SELECT abs(s),abs(i),abs(b),abs(r),abs(d),abs(n),ceil(s),ceiling(r),floor(n) FROM m", []string{"abs", "abs", "abs", "abs", "abs", "abs", "ceil", "ceiling", "floor"}, []string{"INT2", "INT4", "INT8", "FLOAT4", "FLOAT8", "NUMERIC", "FLOAT8", "FLOAT8", "NUMERIC"}, [][]any{{int64(17), int64(17), int64(17), float64(17.5), float64(17.5), "17.400", float64(-17), float64(-17), "-18"}})
@@ -50,7 +50,7 @@ func TestReferenceMathScalarWidthsAndParameters(t *testing.T) {
 }
 
 func TestReferenceMathScalarDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	hint := "No function matches the given name and argument types. You might need to add explicit type casts."
 	for _, name := range []string{"abs", "ceil", "ceiling", "floor", "exp", "div", "factorial"} {
 		s := referenceImplicitError("SELECT "+name+"()", referenceDiagnostic{Code: "42883", Message: "function " + name + "() does not exist", Position: "8", Hint: hint})
@@ -67,6 +67,17 @@ func TestReferenceMathScalarDiagnostics(t *testing.T) {
 		s := referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.pos})
 		s.selectRows = true
 		s.errorStage = "execute"
+		p.step(t, s)
+		s.errorStage = "prepare"
+		p.step(t, referencePrepared(s))
+	}
+	for _, tc := range []struct{ q, code, message, pos, hint string }{
+		{"SELECT factorial(5.0)", "42883", "function factorial(numeric) does not exist", "8", hint},
+		{"/*é*/ SELECT factorial(5.0)", "42883", "function factorial(numeric) does not exist", "14", hint},
+		{"SELECT abs(" + strings.Repeat("1,", 100) + "1)", "54023", "cannot pass more than 100 arguments to a function", "8", ""},
+	} {
+		s := referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.pos, Hint: tc.hint})
+		s.selectRows, s.errorStage = true, "execute"
 		p.step(t, s)
 		s.errorStage = "prepare"
 		p.step(t, referencePrepared(s))
@@ -91,36 +102,34 @@ func TestReferenceMathScalarDiagnostics(t *testing.T) {
 	}
 }
 
-func referenceScalarProduct(lo, hi int64) *big.Int {
-	if lo > hi {
-		return big.NewInt(1)
-	}
-	if lo == hi {
-		return big.NewInt(lo)
-	}
-	mid := (lo + hi) / 2
-	return new(big.Int).Mul(referenceScalarProduct(lo, mid), referenceScalarProduct(mid+1, hi))
-}
-
-func TestReferenceMathScalarFactorialMaximum(t *testing.T) {
-	p := newReferencePair(t)
-	want := referenceScalarProduct(2, 32177).String()
-	s := referenceSelect("SELECT factorial(32177)", []string{"factorial"}, []string{"NUMERIC"}, [][]any{{want}})
-	p.step(t, s)
-	p.step(t, referencePrepared(s))
-}
-
 func TestReferenceMathScalarConsumers(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE m(id INT,n NUMERIC,d NUMERIC)", 0))
-	p.step(t, referenceExec("INSERT INTO m VALUES(1,-9.00,4),(2,9.00,0),(3,NULL,4)", 3))
+	p := newReferenceScenario(t)
+	p.step(t, referenceExec("CREATE TABLE m(id INT,n NUMERIC,d NUMERIC,i BIGINT)", 0))
+	p.step(t, referenceExec("INSERT INTO m VALUES(1,-9.00,4,5),(2,9.00,0,-1),(3,NULL,4,NULL)", 3))
 	p.step(t, referenceExec("CREATE TABLE copied(n NUMERIC)", 0))
+	for _, step := range []referenceStep{
+		referenceSelect("SELECT abs(floor(n)) FROM m ORDER BY id", []string{"abs"}, []string{"NUMERIC"}, [][]any{{"9"}, {"9"}, {nil}}),
+		referenceSelect("SELECT factorial(count(*)) FROM m", []string{"factorial"}, []string{"NUMERIC"}, [][]any{{"6"}}),
+	} {
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
+	}
 	for _, q := range []string{"UPDATE m SET n=div(n,d)", "INSERT INTO copied SELECT div(n,d) FROM m"} {
 		s := referenceImplicitError(q, referenceDiagnostic{Code: "22012", Message: "division by zero"})
 		s.errorStage = "execute"
 		p.step(t, s)
 		p.step(t, referenceSelect("SELECT n FROM m ORDER BY id", []string{"n"}, []string{"NUMERIC"}, [][]any{{"-9.00"}, {"9.00"}, {nil}}))
 		p.step(t, referenceSelect("SELECT n FROM copied", []string{"n"}, []string{"NUMERIC"}, [][]any{}))
+	}
+	failed := referenceImplicitError("UPDATE m SET n=factorial(i)", referenceDiagnostic{Code: "22003", Message: "factorial of a negative number is undefined"})
+	failed.errorStage = "execute"
+	p.step(t, failed)
+	for _, step := range []referenceStep{
+		referenceSelect("SELECT n FROM m ORDER BY id", []string{"n"}, []string{"NUMERIC"}, [][]any{{"-9.00"}, {"9.00"}, {nil}}),
+		referenceSelect("SELECT n FROM copied", []string{"n"}, []string{"NUMERIC"}, nil),
+	} {
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
 	}
 	p.step(t, referenceSelect("SELECT abs(n),count(*) FROM m GROUP BY 1 ORDER BY 1", []string{"abs", "count"}, []string{"NUMERIC", "INT8"}, [][]any{{"9.00", int64(2)}, {nil, int64(1)}}))
 	p.step(t, referenceExec("UPDATE m SET n=abs(n)", 3))
@@ -130,4 +139,62 @@ func TestReferenceMathScalarConsumers(t *testing.T) {
 	s.bag = true
 	p.step(t, s)
 	p.step(t, referencePrepared(s))
+	p.step(t, referenceExec("CREATE VIEW scalar_full_view AS SELECT id,ceil(n) AS c,ceiling(n) AS cc,floor(n) AS f,div(n,4) AS q,exp(0.0) AS e,factorial(5) AS fac FROM m", 0))
+	held, err := p.memory.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, p.memoryRecord), "SELECT n FROM copied")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	if p.postgres != nil {
+		for _, name := range []string{"scalar_view", "scalar_full_view"} {
+			if _, err := p.postgres.ExecContext(p.ctx, "DROP VIEW "+name); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	referenceArithmeticRoundtrip(t, p, "copied", "m")
+	full := referenceSelect("SELECT c,cc,f,q,e,fac FROM scalar_full_view ORDER BY id", []string{"c", "cc", "f", "q", "e", "fac"}, []string{"NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC"}, [][]any{{"9", "9", "9", "2", "1.0000000000000000", "120"}, {"9", "9", "9", "2", "1.0000000000000000", "120"}, {nil, nil, nil, nil, "1.0000000000000000", "120"}})
+	p.step(t, full)
+	p.step(t, referencePrepared(full))
+	if !held.Next() {
+		t.Fatal(held.Err())
+	}
+	var old string
+	if err := held.Scan(&old); err != nil || old != "2" {
+		t.Fatal(old, err)
+	}
+	if !held.Next() {
+		t.Fatal(held.Err())
+	}
+	if err := held.Scan(&old); err != nil || old != "2" {
+		t.Fatal(old, err)
+	}
+	if !held.Next() {
+		t.Fatal(held.Err())
+	}
+	var null any
+	if err := held.Scan(&null); err != nil || null != nil {
+		t.Fatal(null, err)
+	}
+	if held.Next() || held.Err() != nil {
+		t.Fatal("held copied end", held.Err())
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+	canceled, cancel := context.WithCancel(p.ctx)
+	cancel()
+	for _, backend := range p.backends() {
+		result, err := backend.db.ExecContext(canceled, "UPDATE m SET n=exp(n)")
+		if result != nil || !errors.Is(err, context.Canceled) {
+			t.Fatal(result, err)
+		}
+		var zero float64
+		if err := backend.db.QueryRowContext(p.ctx, "SELECT ceil('-0.5')").Scan(&zero); err != nil || zero != 0 || !math.Signbit(zero) {
+			t.Fatal(zero, err)
+		}
+	}
+	remaining := referenceSelect("SELECT n FROM m ORDER BY id", []string{"n"}, []string{"NUMERIC"}, [][]any{{"9.00"}, {"9.00"}, {nil}})
+	p.step(t, remaining)
+	p.step(t, referencePrepared(remaining))
 }

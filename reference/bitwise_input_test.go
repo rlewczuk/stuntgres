@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceBitwiseContextualInputWidths(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE one(v INTEGER)", 0))
 	p.step(t, referenceExec("INSERT INTO one VALUES(1)", 1))
 	for _, tc := range []struct{ q, arg, code, message string }{

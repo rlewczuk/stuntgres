@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -9,7 +7,7 @@ import "testing"
 func referenceMathPrivileges(t *testing.T) {
 	const reader = "math_column_reader"
 	roleReferenceCleanup(t, []string{reader})
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	conn, err := p.postgres.Conn(p.ctx)
 	if err != nil {
 		t.Fatal(err)

@@ -1,11 +1,13 @@
-//go:build reference
-
 package reference_test
 
-import "testing"
+import (
+	"strconv"
+	"strings"
+	"testing"
+)
 
 func TestReferenceArithmeticRebasedBooleanPredicateGrouping(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT,i INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,7),(2,0),(3,NULL)", 3))
 	for _, step := range []referenceStep{
@@ -19,7 +21,7 @@ func TestReferenceArithmeticRebasedBooleanPredicateGrouping(t *testing.T) {
 }
 
 func TestReferenceArithmeticSelectedFunctionComposition(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT,i INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,7),(2,NULL)", 2))
 	for _, step := range []referenceStep{
@@ -43,13 +45,57 @@ func TestReferenceArithmeticSelectedFunctionComposition(t *testing.T) {
 		{"SELECT num_nonnulls(i+1) FROM t ORDER BY id", "num_nonnulls", "arithmetic in null-count arguments is unsupported", "22", [][]any{{int64(1)}, {int64(0)}}},
 	} {
 		success := referenceSelect(tc.query, []string{tc.column}, []string{"INT4"}, tc.rows)
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, success)
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(success))
+		if p.postgres != nil {
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, success)
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(success))
+		}
 		failure := referenceImplicitError(tc.query, referenceDiagnostic{Code: "0A000", Message: tc.message, Position: tc.position})
 		failure.selectRows = true
 		failure.errorStage = "execute"
 		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
 		failure.errorStage = "prepare"
 		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referencePrepared(failure))
+	}
+}
+
+func TestReferenceArithmeticSelectedFunctionArgumentBoundary(t *testing.T) {
+	p := newReferenceScenario(t)
+	p.step(t, referenceExec("CREATE TABLE t(i INT)", 0))
+	p.step(t, referenceExec("INSERT INTO t VALUES(7)", 1))
+	for _, tc := range []struct {
+		query, operator string
+		args            []any
+	}{
+		{"SELECT num_nulls(1+2)", "+", nil},
+		{"SELECT num_nulls(1+2) FROM t", "+", nil},
+		{"SELECT num_nulls(num_nonnulls(i+1)) FROM t", "+", nil},
+		{"SELECT num_nulls(-i) FROM t", "-", nil},
+		{"SELECT num_nulls(+$1)", "+", []any{7}},
+		{"SELECT num_nulls(+$1) FROM t", "+", []any{7}},
+		{"SELECT num_nulls(num_nonnulls(1+2))", "+", nil},
+		{"SELECT num_nulls(+ +1)", "+", nil},
+	} {
+		want := referenceDiagnostic{Code: "0A000", Message: "arithmetic in null-count arguments is unsupported", Position: strconv.Itoa(strings.Index(tc.query, tc.operator) + 1)}
+		if !strings.Contains(tc.query, " FROM ") {
+			want.Message, want.Position = "SELECT without FROM is unsupported", "1"
+		}
+		failure := referenceImplicitError(tc.query, want, tc.args...)
+		failure.selectRows, failure.errorStage = true, "execute"
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
+		failure.errorStage = "prepare"
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referencePrepared(failure))
+		if p.postgres != nil {
+			success := referenceSelect(tc.query, []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(0)}}, tc.args...)
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, success)
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(success))
+		}
+	}
+	for _, step := range []referenceStep{
+		referenceSelect("SELECT num_nulls(+1,-2,+1.5,+0x8000000000000000,NULL)", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
+		referenceSelect("SELECT num_nulls(num_nonnulls(i)) FROM t", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(0)}}),
+		referenceSelect("SELECT i=$1,num_nulls($1) FROM t", []string{"?column?", "num_nulls"}, []string{"BOOL", "INT4"}, [][]any{{false, int64(0)}}, 1),
+	} {
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
 	}
 }

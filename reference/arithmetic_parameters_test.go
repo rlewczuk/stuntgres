@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -7,7 +5,7 @@ import "testing"
 func TestReferenceArithmeticParameterDiagnostics(t *testing.T) {
 	for _, empty := range []bool{false, true} {
 		t.Run(map[bool]string{false: "populated", true: "empty"}[empty], func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			p.step(t, referenceExec("CREATE TABLE t(i INT,b BIGINT,s TEXT)", 0))
 			if !empty {
 				p.step(t, referenceExec("INSERT INTO t VALUES(7,7,'x')", 1))
@@ -37,9 +35,10 @@ func TestReferenceArithmeticParameterDiagnostics(t *testing.T) {
 }
 
 func TestReferenceArithmeticSignedNumericLiteral(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE n(v NUMERIC)", 0))
 	p.step(t, referenceExec("INSERT INTO n VALUES(+1.5)", 1))
 	p.step(t, referencePrepared(referenceExec("INSERT INTO n VALUES(+9223372036854775808)", 1)))
 	p.step(t, referenceSelect("SELECT v FROM n ORDER BY v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"1.5"}, {"9223372036854775808"}}))
+	p.step(t, referencePrepared(referenceSelect("SELECT v FROM n ORDER BY v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"1.5"}, {"9223372036854775808"}})))
 }

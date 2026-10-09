@@ -629,9 +629,9 @@ Test targets enforce a 900-second wall-clock deadline and are quiet by default.
 Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 `PACKAGES=./internal/parser` to scope ordinary or race tests.
 
-The migrated query-read, INSERT SELECT, UPDATE, DELETE/RETURNING and identity
-scenarios and the BYTEA/short-INSERT pilots in `reference/` also run without Docker
-through the ordinary test binary:
+The migrated query-read, INSERT SELECT, UPDATE, DELETE/RETURNING, identity,
+arithmetic, bitwise and mathematical scenarios and the BYTEA/short-INSERT pilots
+in `reference/` also run without Docker through the ordinary test binary:
 
 ```sh
 go test ./reference                         # quick: real stuntgres + expected data
@@ -646,12 +646,15 @@ LIMIT. The DML migration carries all 61 assigned root tests into complete
 reference assertion unions for INSERT SELECT, UPDATE and DELETE/RETURNING.
 Identity migration likewise merges all 28 assigned root interaction tests with
 existing reference assertions in untagged `TestReferenceIdentity*` definitions.
-Together they retain raw and command/RETURNING metadata, held statements,
-atomicity, cancellation and native controls. The BYTEA and short-INSERT pilots
-remain available alongside them. Each selected backend must satisfy independently
-hardcoded expectations, with explicit phases for backend-specific metadata,
-diagnostics, controls and lock witnesses; parity alone is not proof. Startup
-failure never falls back to native execution.
+The arithmetic migration carries 61 original tests into 81 untagged definitions,
+including every bitwise width/shift/signature vector and mathematical metadata,
+parameter and lifecycle case. Together these families retain raw and
+command/RETURNING metadata, held statements, atomicity, cancellation and native
+controls. The BYTEA and short-INSERT pilots remain available alongside them.
+Each selected backend must satisfy independently hardcoded expectations, with
+explicit phases for backend-specific metadata, diagnostics, controls and lock
+witnesses; parity alone is not proof. Startup failure never falls back to native
+execution.
 See the [development guide](docs/DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
 for the migrated families and selection commands.
 

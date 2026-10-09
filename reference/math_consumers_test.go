@@ -1,8 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"math"
 	"strings"
@@ -10,8 +9,10 @@ import (
 )
 
 func TestReferenceMathConsumers(t *testing.T) {
-	t.Run("privileges", referenceMathPrivileges)
-	p := newReferencePair(t)
+	if *referenceMode {
+		t.Run("privileges", referenceMathPrivileges)
+	}
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE m(id INT,n NUMERIC,d NUMERIC)", 0))
 	p.step(t, referenceExec("INSERT INTO m VALUES(1,1.25,4),(2,1.24,0),(3,-1.25,4)", 3))
 	p.step(t, referenceExec("CREATE TABLE group_inputs(n NUMERIC)", 0))
@@ -57,6 +58,9 @@ func TestReferenceMathConsumers(t *testing.T) {
 		s.errorStage = "execute"
 		s.prepared = prepared
 		p.step(t, s)
+		execError := s
+		execError.selectRows = false
+		p.step(t, execError)
 		s = referenceSelect("SELECT mod(n,0) FROM nullable", []string{"mod"}, []string{"NUMERIC"}, [][]any{{nil}})
 		s.prepared = prepared
 		p.step(t, s)
@@ -66,16 +70,13 @@ func TestReferenceMathConsumers(t *testing.T) {
 // Feature-local IEEE assertions do not collapse NaN or the sign of zero in the
 // common fixture. Each backend is asserted independently, including preparation.
 func referenceMathFloat(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE math_float(id INT,d DOUBLE PRECISION,inf DOUBLE PRECISION)", 0))
 	p.step(t, referenceExec("INSERT INTO math_float VALUES(1,'-0.5','Infinity'),(2,NULL,NULL)", 2))
 	nullTrunc := referenceSelect("SELECT trunc(d) FROM math_float WHERE id=2", []string{"trunc"}, []string{"FLOAT8"}, [][]any{{nil}})
 	p.step(t, nullTrunc)
 	p.step(t, referencePrepared(nullTrunc))
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"postgres", p.postgres}, {"native", p.memory}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			for _, tc := range []struct {
 				q    string
@@ -87,7 +88,7 @@ func referenceMathFloat(t *testing.T) {
 				{"SELECT sign('NaN')", 0}, {"SELECT sign('-0')", 0}, {"SELECT sign('Infinity')", 1}, {"SELECT sign('-Infinity')", -1},
 			} {
 				for _, prepared := range []bool{false, true} {
-					var row *sql.Row
+					var row *sql.Rows
 					var stmt *sql.Stmt
 					if prepared {
 						var err error
@@ -95,15 +96,44 @@ func referenceMathFloat(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						row = stmt.QueryRowContext(p.ctx)
+						row, err = stmt.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder))
+						if err != nil {
+							stmt.Close()
+							t.Fatal(err)
+						}
 					} else {
-						row = backend.db.QueryRowContext(p.ctx, tc.q)
+						var err error
+						row, err = backend.db.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), tc.q)
+						if err != nil {
+							t.Fatal(err)
+						}
+					}
+					labels, err := row.Columns()
+					name := strings.SplitN(strings.TrimPrefix(tc.q, "SELECT "), "(", 2)[0]
+					meta, metaErr := row.ColumnTypes()
+					if err != nil || len(labels) != 1 || labels[0] != name || metaErr != nil || len(meta) != 1 || meta[0].DatabaseTypeName() != "FLOAT8" {
+						row.Close()
+						t.Fatal("IEEE metadata", labels, meta, err, metaErr)
+					}
+					if !row.Next() {
+						row.Close()
+						t.Fatal("missing IEEE row", row.Err())
 					}
 					var got float64
-					err := row.Scan(&got)
-					if stmt != nil {
-						stmt.Close()
+					err = row.Scan(&got)
+					if row.Next() || row.Err() != nil {
+						row.Close()
+						t.Fatal("IEEE end", row.Err())
 					}
+					if err := row.Close(); err != nil {
+						t.Fatal(err)
+					}
+					if stmt != nil {
+						if err := stmt.Close(); err != nil {
+							t.Fatal(err)
+						}
+					}
+					referenceArithmeticRecordedClosure(t, backend.recorder, tc.q, 1, 1)
 					if err != nil || (math.IsNaN(tc.want) && !math.IsNaN(got)) || (!math.IsNaN(tc.want) && (got != tc.want || math.Signbit(got) != math.Signbit(tc.want))) {
 						t.Fatal(tc.q, got, err)
 					}
@@ -114,29 +144,23 @@ func referenceMathFloat(t *testing.T) {
 }
 
 func referenceMathScaleLimits(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, name := range []string{"round", "trunc"} {
-		for _, backend := range []struct {
-			name string
-			db   *sql.DB
-		}{{"postgres", p.postgres}, {"native", p.memory}} {
-			q := "SELECT " + name + "(1.23,2147483647)"
-			var text string
-			if err := backend.db.QueryRowContext(p.ctx, q).Scan(&text); err != nil {
-				t.Fatal(backend.name, q, err)
-			}
-			if len(text) != 16385 || !strings.HasPrefix(text, "1.23") || strings.Trim(text[4:], "0") != "" {
-				t.Fatal(backend.name, name, "clamped output length", len(text))
-			}
-		}
-		p.step(t, referenceSelect("SELECT "+name+"(1.23,-2147483648)", []string{name}, []string{"NUMERIC"}, [][]any{{"0"}}))
+		q := "SELECT " + name + "(1.23,2147483647)"
+		want := "1.23" + strings.Repeat("0", 16381)
+		referenceArithmeticMetadata(t, p, referenceSelect(q, []string{name}, []string{"NUMERIC"}, [][]any{{want}}))
+		step := referenceSelect("SELECT "+name+"(1.23,-2147483648)", []string{name}, []string{"NUMERIC"}, [][]any{{"0"}})
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
 	}
 	for _, q := range []string{"SELECT round(5.5e131071,-131073)", "SELECT round(5.5e131071,-1000000)", "SELECT trunc(5.5e131071,-131072)"} {
 		name := "round"
 		if strings.Contains(q, "trunc") {
 			name = "trunc"
 		}
-		p.step(t, referenceSelect(q, []string{name}, []string{"NUMERIC"}, [][]any{{"0"}}))
+		step := referenceSelect(q, []string{name}, []string{"NUMERIC"}, [][]any{{"0"}})
+		p.step(t, step)
+		p.step(t, referencePrepared(step))
 	}
 	s := referenceImplicitError("SELECT round(5.5e131071,-131072)", referenceDiagnostic{Code: "22003", Message: "value overflows numeric format"})
 	s.errorStage = "execute"

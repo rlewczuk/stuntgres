@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"math"
-	"strings"
 	"testing"
 )
 
@@ -177,58 +176,5 @@ func TestReferenceMathScalarFloatingOverloads(t *testing.T) {
 		s.selectRows, s.errorStage = true, "execute"
 		p.step(t, s)
 		p.step(t, referencePrepared(s))
-	}
-}
-
-func TestReferenceMathScalarTypedNullOverloads(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE scalar_nulls(s SMALLINT,i INTEGER,b BIGINT,r REAL,d DOUBLE PRECISION,n NUMERIC(8,3))", 0))
-	p.step(t, referenceExec("INSERT INTO scalar_nulls VALUES(NULL,NULL,NULL,NULL,NULL,NULL)", 1))
-	names := []string{"abs", "abs", "abs", "abs", "abs", "abs", "ceil", "ceiling", "floor", "exp", "ceil", "ceiling", "floor", "exp", "div", "factorial"}
-	types := []string{"INT2", "INT4", "INT8", "FLOAT4", "FLOAT8", "NUMERIC", "FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC"}
-	query := "SELECT abs(s),abs(i),abs(b),abs(r),abs(d),abs(n),ceil(d),ceiling(d),floor(d),exp(d),ceil(n),ceiling(n),floor(n),exp(n),div(n,n),factorial(b) FROM scalar_nulls"
-	for _, empty := range []bool{false, true} {
-		q := query
-		want := [][]any{make([]any, len(names))}
-		if empty {
-			q += " WHERE false"
-			want = [][]any{}
-		}
-		s := referenceSelect(q, names, types, want)
-		p.step(t, s)
-		p.step(t, referencePrepared(s))
-	}
-	// The fixture asserts each exact public result type. The native adapter's
-	// derived NUMERIC typmod must also stay unconstrained, not source NUMERIC(8,3).
-	for _, prepared := range []bool{false, true} {
-		var rows *sql.Rows
-		var err error
-		if prepared {
-			stmt, e := p.memory.PrepareContext(p.ctx, query)
-			if e != nil {
-				t.Fatal(e)
-			}
-			rows, err = stmt.QueryContext(p.ctx)
-			stmt.Close()
-		} else {
-			rows, err = p.memory.QueryContext(p.ctx, query)
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		columnTypes, err := rows.ColumnTypes()
-		if err != nil {
-			rows.Close()
-			t.Fatal(err)
-		}
-		for _, typ := range columnTypes {
-			if strings.EqualFold(typ.DatabaseTypeName(), "NUMERIC") {
-				if _, _, constrained := typ.DecimalSize(); constrained {
-					rows.Close()
-					t.Fatal("typed NULL inherited source typmod", typ)
-				}
-			}
-		}
-		rows.Close()
 	}
 }

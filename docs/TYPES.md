@@ -464,6 +464,10 @@ destination is BIGINT and INTEGER shift counts. BIT/VARBIT, ordinary SMALLINT
 arithmetic, NUMERIC/float/OID bitwise overloads and ordinary SELECT without
 FROM remain excluded.
 Feature smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
+The arithmetic/bitwise/math reference definitions also run Docker-free through
+`make test PACKAGES=./reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0`.
+The identical definitions add pinned PostgreSQL18.0 under `make reference` with
+that selector; retained tagged oracle-only complements remain server-only.
 
 ## Binary floating point
 

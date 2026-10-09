@@ -203,6 +203,30 @@ without converting their unrelated legacy scenarios. Root `tableCoreExec`,
 for unmigrated callers. The cross-family DROP-system assertion union also retains
 its tagged legacy owner until the catalog's final driver/session deduplication.
 
+Arithmetic, bitwise and mathematical migration adds 81 untagged definitions from
+61 former root interaction tests. Full original/reference assertion unions retain
+all three 136-case shift grids, 170 bitwise value vectors, 126 nonintegral signature
+diagnostics, integer overflow, radix inputs, cast and contextual diagnostics,
+precision/scale, held parameter recovery, transactions and cancellation.
+Select the whole family in both modes:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0
+make reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0
+```
+
+The tagged command also includes retained PostgreSQL-only family complements.
+For Docker-unavailable explicit false, use the ordinary untagged reference binary
+with the same selector. Native public driver cursors retain snapshots and repeated
+cancellation errors across Dump/Reset/Restore; PostgreSQL replay consumes unchanged
+owner-bearing streams only in selected server phases. Raw integral ScanType widths
+and derived NUMERIC DecimalSize differ: native computed NUMERIC has unknown typmod,
+whereas pq exposes unconstrained `(65535,65531,true)`. Both are independently
+asserted before fixture normalization. Native-excluded scalar-input and no-FROM
+spellings retain their errors alongside exact PostgreSQL results/diagnostics.
+For this migration's stricter aggregate proof, use
+`timeout --signal=KILL 300s make test-all VERBOSE=0`; the shared target's 900-second
+deadline is unchanged.
 
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean

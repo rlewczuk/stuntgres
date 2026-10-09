@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,7 +6,7 @@ import (
 )
 
 func TestReferenceArithmeticContextualDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(i INT)", 0))
 	p.step(t, referenceExec("CREATE TABLE d(f BOOL)", 0))
 	for _, populated := range []bool{false, true} {
@@ -37,45 +35,32 @@ func TestReferenceArithmeticContextualDiagnostics(t *testing.T) {
 		}
 	}
 	p.step(t, referenceSelect("SELECT f FROM d", []string{"f"}, []string{"BOOL"}, nil))
+	p.step(t, referencePrepared(referenceSelect("SELECT f FROM d", []string{"f"}, []string{"BOOL"}, nil)))
 }
 
 func TestReferenceArithmeticCombinedOperatorBoundary(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(i INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(7)", 1))
 	step := referenceImplicitError("SELECT i%-1 FROM t", referenceDiagnostic{Code: "42883", Message: "operator does not exist: integer %- integer", Position: "9", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})
 	step.selectRows = true
+	step.errorStage = "execute"
 	p.step(t, step)
 	step.errorStage = "prepare"
 	p.step(t, referencePrepared(step))
 	failed := referenceImplicitError("INSERT INTO t VALUES(1),(7%-1)", referenceDiagnostic{Code: "42883", Message: "operator does not exist: integer %- integer", Position: "27", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})
+	failed.errorStage = "execute"
 	p.step(t, failed)
 	failed.errorStage = "prepare"
 	p.step(t, referencePrepared(failed))
 	p.step(t, referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
+	p.step(t, referencePrepared(referenceSelect("SELECT i FROM t", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}})))
 	p.step(t, referenceSelect("SELECT i% -1 FROM t", []string{"?column?"}, []string{"INT4"}, [][]any{{int64(0)}}))
-}
-
-// Arithmetic syntax is admitted inside logical operands; a Boolean input must
-// fail operator resolution independently of whether the table contains rows.
-func TestReferenceArithmeticLogicalOperandDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(a BOOL)", 0))
-	for _, populated := range []bool{false, true} {
-		if populated {
-			p.step(t, referenceExec("INSERT INTO t VALUES(TRUE)", 1))
-		}
-		step := referenceImplicitError("SELECT a+1 AND a FROM t", referenceDiagnostic{Code: "42883", Message: "operator does not exist: boolean + integer", Position: "9", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})
-		step.selectRows = true
-		step.errorStage = "execute"
-		p.step(t, step)
-		step.errorStage = "prepare"
-		p.step(t, referencePrepared(step))
-	}
+	p.step(t, referencePrepared(referenceSelect("SELECT i% -1 FROM t", []string{"?column?"}, []string{"INT4"}, [][]any{{int64(0)}})))
 }
 
 func TestReferenceArithmeticTruthTestContextualDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(i INT,b BIGINT)", 0))
 	for _, populated := range []bool{false, true} {
 		if populated {
