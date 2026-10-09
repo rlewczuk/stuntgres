@@ -525,6 +525,20 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 			text, err := args(e.Args)
 			return "pg_catalog.position(" + text + ")", err
 		}
+		if name == "format" && e.Variadic {
+			parts := make([]string, len(e.Args))
+			for i, arg := range e.Args {
+				text, err := child(arg)
+				if err != nil {
+					return "", err
+				}
+				if i == len(e.Args)-1 {
+					text = "VARIADIC " + text
+				}
+				parts[i] = text
+			}
+			return objectNameText(e.Name) + "(" + strings.Join(parts, ", ") + ")", nil
+		}
 		text, err := args(e.Args)
 		switch name {
 		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":

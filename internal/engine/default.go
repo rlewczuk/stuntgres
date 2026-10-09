@@ -290,6 +290,36 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", fmt.Errorf("stuntgres: invalid stored null count")
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
+	case formatExpression:
+		if len(n.args) < 1 || len(n.args) > 100 || u.Type.ID() != sqltype.Text || n.args[0].ResultUsage().Type.ID() != sqltype.Text || n.int4 == nil || n.int4.ID() != sqltype.Int4 || n.variadic && (len(n.args) != 2 || !n.args[1].ResultUsage().Type.BaseType().IsArray()) {
+			return "", fmt.Errorf("stuntgres: invalid stored format signature")
+		}
+		parts := make([]string, len(n.args))
+		for i, arg := range n.args {
+			if r.commentSnapshot != nil && arg.ResultUsage().Type.ContainsRegclass() {
+				*r.commentSnapshot = true
+			}
+			text, err := r.sql(ctx, view, arg)
+			if err != nil {
+				return "", err
+			}
+			// ANY operands cannot rely on a formal argument type on replay.
+			if literal, ok := arg.(literalExpression); ok && !literal.unknownNull && !literal.usage.Type.IsDomain() && r.checkLiterals == nil {
+				id := literal.usage.Type.ID()
+				if id != sqltype.Text && id != sqltype.Int4 && id != sqltype.Bool && id != sqltype.Regclass {
+					declaration, err := catalogTypeDeclaration(view, literal.usage)
+					if err != nil {
+						return "", err
+					}
+					text = "CAST(" + text + " AS " + declaration + ")"
+				}
+			}
+			if n.variadic && i == len(n.args)-1 {
+				text = "VARIADIC " + text
+			}
+			parts[i] = text
+		}
+		return "pg_catalog.format(" + strings.Join(parts, ", ") + ")", nil
 	case visibilityInquiryExpression:
 		if r.owner == nil {
 			return "", fmt.Errorf("stuntgres: visibility inquiries are unsupported in stored defaults")
@@ -942,6 +972,16 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		for i := range n.args {
 			n.args[i] = child(n.args[i])
 		}
+		n.expressionInfo = info
+		rebound = n
+	case formatExpression:
+		n.args = append([]BoundExpr(nil), n.args...)
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		int4 := retainedType(n.int4)
+		changed = changed || int4 != n.int4
+		n.int4 = int4
 		n.expressionInfo = info
 		rebound = n
 	case caseExpression:

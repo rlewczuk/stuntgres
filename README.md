@@ -250,6 +250,23 @@ the trimmed TEXT conversion. Results are strict INT4, with zero for not found an
 one for an empty needle. Selected string functions compose in DEFAULT/CHECK/views
 and native replay. See [String length and search](docs/DIALECT.md#string-length-and-search--change-note).
 
+`format(format_text[,arguments...])` supports PostgreSQL `%s`, `%I`, `%L`,
+`%%`, positional arguments, sequential arguments and literal/asterisk widths.
+Widths count Unicode codepoints in the final quoted spelling, never truncate,
+and negative dynamic widths left-align. `%s` uses the original datatype's output;
+`%I` quotes identifiers and `%L` quotes literals (including backslash `E` spelling).
+The stable, nonstrict TEXT result preserves NULL and child-evaluation semantics.
+Argument analysis transforms children once before the100-argument syntax limit,
+then resolves namespaces/signatures; invalid children win over both failures,
+including quoted format spellings and scoped missing nested calls.
+Explicit `VARIADIC` consumes any already-supported typed array or domain over it,
+including multidimensional, lower-bound, NULL and empty arrays. It borrows the
+existing immutable array payload; format adds no array types or syntax. The shared expression works in
+query/write/RETURNING, DEFAULT/CHECK/views and native replay.
+See [String formatting](docs/DIALECT.md#string-formatting--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatSmoke$' VERBOSE=0`;
+the independent pinned PostgreSQL counterpart adds `REFERENCE=1`.
+
 String replacement supports `overlay(text,text,int4[,int4])` and SQL OVERLAY,
 literal `replace` and codepoint-wise `translate`. Overlay counts characters,
 including combining marks separately: zero count inserts, negative count can

@@ -41,8 +41,11 @@ type lexer struct {
 	multipleModifiers   bool
 	// CHECK alone admits existing selected scalar calls as operand leaves.
 	// Depth changes only for tokens returned to yacc, never raw lookahead.
-	checkPending                                          bool
-	checkDepth                                            int
+	checkPending bool
+	checkDepth   int
+	// Entered by an actual format call-head reduction, not a format-named
+	// declaration. Only returned nested parentheses alter argument depth.
+	formatDepth                                           int
 	indexExpression                                       bool
 	generationPending                                     bool
 	generationDepth                                       int
@@ -59,6 +62,12 @@ type rawToken struct {
 	code    int
 	lexeme  lexeme
 	unicode bool
+}
+
+func (l *lexer) formatCallHead(callee lexeme) {
+	if l.formatDepth == 0 && strings.EqualFold(callee.text, "format") {
+		l.formatDepth = 1
+	}
 }
 
 func wordSet(words string) map[string]bool {
@@ -675,12 +684,12 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
-	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
-	// REPLACE is also an unreserved keyword (CREATE OR REPLACE VIEW). Promote
-	// only its call spelling, leaving the bare keyword and labels unchanged.
-	if token.lexeme.keyword != nil && token.lexeme.text == "replace" {
+	// REPLACE and FORMAT are unreserved keywords outside call syntax.
+	// Preserve bare identifiers and output labels.
+	if token.lexeme.keyword != nil && (token.lexeme.text == "replace" || token.lexeme.text == "format") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == int('(') {
@@ -806,6 +815,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = CHECK_FUNC
 		}
 	}
+	// Otherwise-unselected calls inside format arguments reach resolution only.
+	// Outside that actual call context, existing capability guards remain.
+	if l.formatDepth > 0 && token.code == IDENT && token.lexeme.keyword == nil && !ordinaryCastFunction(token.lexeme) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = CHECK_FUNC
+			token.lexeme.resolutionOnly = true
+		}
+	}
 	// Distinguish forbidden index subqueries from ordinary grouping/VALUES
 	// before yacc, retaining the real opening parenthesis diagnostic location.
 	if l.indexExpression && token.code == int('(') {
@@ -903,6 +922,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			l.checkDepth = 1
 		}
 		l.checkPending = token.code == CHECK
+	}
+	if l.formatDepth > 0 {
+		switch token.code {
+		case int('('):
+			l.formatDepth++
+		case int(')'):
+			l.formatDepth--
+		}
 	}
 	l.current = token.lexeme
 	v.tok = token.lexeme
@@ -1178,10 +1205,10 @@ func (l *lexer) floatNumericSyntax(start int) bool {
 // scalar-call production; unrelated projection functions retain their boundary.
 func binaryScalarFunction(name string) bool {
 	switch name {
-	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape":
+	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape", "format":
 		return true
 	}
-	return binaryHashFunction(name) || stringReplacementFunction(name)
+	return binaryHashFunction(name) || stringReplacementFunction(name) || strings.EqualFold(name, "format")
 }
 
 // Admission recognizes quoted hash spellings without normalizing the AST.

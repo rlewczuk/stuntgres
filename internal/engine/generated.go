@@ -165,6 +165,8 @@ func generationImmutable(node BoundExpr) bool {
 		return args(n.args)
 	case nullCountExpression:
 		return args(n.args)
+	case formatExpression:
+		return false
 	default:
 		return node.Properties().Volatility == Immutable && !node.Properties().StageDependent && !node.Properties().ParameterDependent
 	}
@@ -259,6 +261,8 @@ func generationHasTableOID(node BoundExpr) bool {
 	case mathExpression:
 		return args(n.args)
 	case nullCountExpression:
+		return args(n.args)
+	case formatExpression:
 		return args(n.args)
 	case timeZoneExpression:
 		return both(n.value, n.zone)
@@ -449,6 +453,8 @@ func validateGenerationPlan(view CatalogRead, d *relationDescriptor, node BoundE
 	case mathExpression:
 		return args(n.args)
 	case nullCountExpression:
+		return args(n.args)
+	case formatExpression:
 		return args(n.args)
 	default:
 		return fmt.Errorf("stuntgres: unsupported generation plan provider %T", node)

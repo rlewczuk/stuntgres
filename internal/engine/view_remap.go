@@ -133,6 +133,9 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case nullCountExpression:
 		n.args = args(n.args)
 		next = n
+	case formatExpression:
+		n.args = args(n.args)
+		next = n
 	case randomExpression:
 		n.args = args(n.args)
 		next = n

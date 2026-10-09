@@ -203,6 +203,17 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 			}
 		}
 		return true
+	case formatExpression:
+		o, ok := other.(formatExpression)
+		if !ok || e.variadic != o.variadic || len(e.args) != len(o.args) {
+			return false
+		}
+		for i := range e.args {
+			if !same(e.args[i], o.args[i]) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
@@ -400,6 +411,13 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case formatExpression:
+		e.args = append([]BoundExpr(nil), e.args...)
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	}
 	return expr, err
 }
@@ -495,6 +513,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case nullCountExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
+	case formatExpression:
 		for _, arg := range e.args {
 			walk(arg)
 		}

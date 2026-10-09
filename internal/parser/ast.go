@@ -561,6 +561,27 @@ func (s *Select) IsSingleton() bool {
 	if stringsOnly {
 		return true
 	}
+	// A format ANY occurrence must reach normal shared parameter analysis even
+	// when a sibling target is the same bare parameter. Keep other bare targets
+	// and every existing clause/aggregate boundary outside singleton admission.
+	formatParameters, hasFormat, hasParameter := true, false, false
+	for _, target := range s.Targets {
+		if _, ok := target.(ParameterExpr); ok {
+			hasParameter = true
+			continue
+		}
+		call, ok := target.(FunctionExpr)
+		if !ok || len(call.Name.Parts) == 0 || !strings.EqualFold(call.Name.Parts[len(call.Name.Parts)-1].Text, "format") {
+			formatParameters = false
+			continue
+		}
+		valid, found := stringSingleton(call)
+		formatParameters = formatParameters && valid && found
+		hasFormat = true
+	}
+	if hasFormat && hasParameter && formatParameters {
+		return true
+	}
 	for _, target := range s.Targets {
 		if cast, ok := target.(CastExpr); ok && cast.TypeName.Name == "pg_node_tree" && singletonArgument(cast.Child) {
 			continue
@@ -620,13 +641,16 @@ func singletonArgument(expr Expr) bool {
 		if len(e.Name.Parts) < 1 || len(e.Name.Parts) > 2 {
 			return false
 		}
-		switch e.Name.Parts[len(e.Name.Parts)-1].Text {
-		case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "lower", "upper", "casefold", "initcap", "replace", "translate", "starts_with":
-		case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
-		case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
-		default:
-			if !binaryHashFunction(e.Name.Parts[len(e.Name.Parts)-1].Text) && !strings.HasPrefix(strings.ToLower(e.Name.Parts[len(e.Name.Parts)-1].Text), "pg_get_") {
-				return false
+		if !e.ResolutionOnly {
+			switch e.Name.Parts[len(e.Name.Parts)-1].Text {
+			case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "lower", "upper", "casefold", "initcap", "replace", "translate", "starts_with", "format":
+			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible", "col_description", "obj_description", "shobj_description", "num_nulls", "num_nonnulls", "current_schemas", "random", "random_normal", "setseed", "min_scale", "round", "scale", "trim_scale", "trunc", "sign", "mod", "abs", "ceil", "ceiling", "div", "exp", "factorial", "floor":
+			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
+			default:
+				name := e.Name.Parts[len(e.Name.Parts)-1].Text
+				if !binaryHashFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+					return false
+				}
 			}
 		}
 		for _, arg := range e.Args {
@@ -923,12 +947,13 @@ const (
 )
 
 type FunctionExpr struct {
-	Name         ObjectName
-	Args         []Expr
-	Pos          Position
-	Variadic     bool
-	Syntax       FunctionSyntax
-	StringSyntax StringSyntax
+	Name           ObjectName
+	Args           []Expr
+	Pos            Position
+	Variadic       bool
+	ResolutionOnly bool // Absent ordinary call: diagnostics, never provider dispatch.
+	Syntax         FunctionSyntax
+	StringSyntax   StringSyntax
 }
 
 // AggregateExpr retains ordinary aggregate arguments, call-local ordering and diagnostic-only single-argument SUM.

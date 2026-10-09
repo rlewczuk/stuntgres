@@ -62,6 +62,8 @@ func plannedVolatility(node BoundExpr) Volatility {
 		return children(n.args...)
 	case nullCountExpression:
 		return children(n.args...)
+	case formatExpression:
+		return merge(Stable, children(n.args...))
 	case caseExpression:
 		v := children(n.test, n.otherwise)
 		for _, arm := range n.arms {

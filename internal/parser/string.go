@@ -1,5 +1,7 @@
 package parser
 
+import "strings"
+
 // Dedicated SQL syntax resolves pg_catalog independently of ordinary search_path.
 func stringBuiltin(name string, pos Position, args []Expr) FunctionExpr {
 	syntax := TrimStringSyntax
@@ -67,7 +69,7 @@ func stringSingleton(expr Expr) (valid, found bool) {
 			return false, false
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
-		found = name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" || name == "overlay" || stringReplacementFunction(name)
+		found = strings.EqualFold(name, "format") || name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" || name == "overlay" || stringReplacementFunction(name)
 		if !found && !singletonArgument(e) {
 			return false, false
 		}

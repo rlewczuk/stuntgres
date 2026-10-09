@@ -589,6 +589,21 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			name = "num_nonnulls"
 		}
 		return function(name, n.args, true)
+	case formatExpression:
+		parts := make([]string, len(n.args))
+		for i, arg := range n.args {
+			argRenderer := r
+			argRenderer.showImplicit = true
+			text, err := argRenderer.sql(ctx, arg, pgRenderParent{functionArgument: true})
+			if err != nil {
+				return "", err
+			}
+			if n.variadic && i == len(n.args)-1 {
+				text = "VARIADIC " + text
+			}
+			parts[i] = text
+		}
+		return "format(" + strings.Join(parts, ", ") + ")", nil
 	case visibilityInquiryExpression:
 		u := n.ResultUsage()
 		if n.kind.class() == 0 || u != u.Type.Usage() || u.Type.ID() != sqltype.Bool || n.arg == nil {

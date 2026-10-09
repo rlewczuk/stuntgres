@@ -62,12 +62,13 @@ func ParseWithOptions(query string, options Options) ([]Statement, error) {
 }
 
 type lexeme struct {
-	text    string
-	raw     string
-	pos     Position
-	keyword *keyword
-	numeric bool
-	generic bool
+	text           string
+	raw            string
+	pos            Position
+	keyword        *keyword
+	numeric        bool
+	generic        bool
+	resolutionOnly bool
 }
 
 func integerValue(l sqlLexer, tok lexeme, sign string) (Value, bool) {
@@ -286,18 +287,23 @@ func (l *lexer) call(callee, opener lexeme) {
 	}
 }
 
-func (l *lexer) castFunction(callee, opener lexeme) bool {
+func ordinaryCastFunction(callee lexeme) bool {
 	switch callee.text {
-	case "date", "timestamptz", "timetz":
-		l.genericModifier = true
-		l.dateLiteralModifier = true
-		return true
-	case "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "min", "max":
+	case "date", "timestamptz", "timetz", "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "min", "max":
 		return true
 	case "integer", "bigint", "boolean", "int":
-		if callee.keyword == nil {
-			return true // Bounded quoted alias diagnostic belongs to binding.
+		return callee.keyword == nil // Quoted alias diagnostics belong to binding.
+	}
+	return false
+}
+
+func (l *lexer) castFunction(callee, opener lexeme) bool {
+	if ordinaryCastFunction(callee) {
+		if callee.text == "date" || callee.text == "timestamptz" || callee.text == "timetz" {
+			l.genericModifier = true
+			l.dateLiteralModifier = true
 		}
+		return true
 	}
 	l.call(callee, opener)
 	return false

@@ -139,6 +139,8 @@ func firstQueryBoundVariable(expr BoundExpr) parser.Position {
 		return firstQueryBoundArgs(e.args)
 	case nullCountExpression:
 		return firstQueryBoundArgs(e.args)
+	case formatExpression:
+		return firstQueryBoundArgs(e.args)
 	}
 	return expr.SourcePosition()
 }

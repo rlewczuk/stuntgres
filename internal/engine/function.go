@@ -51,6 +51,12 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+	if raw.ResolutionOnly || name != "format" && strings.EqualFold(name, "format") {
+		return nil, b.formatDiagnosticSignatureError(raw)
+	}
+	if name == "format" {
+		return b.bindFormat(raw)
+	}
 	if parser.IdentityFunctionName(name) {
 		return b.bindIdentityFunction(raw)
 	}
@@ -234,6 +240,27 @@ func (e currentSchemasExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		return scope.searchPathResults[1], nil
 	}
 	return scope.searchPathResults[0], nil
+}
+
+// The admitted format failure paths follow argument transformation, global
+// syntax limit, namespace resolution, then missing-signature diagnostics.
+func (b *expressionBinder) formatDiagnosticSignatureError(raw parser.FunctionExpr) error {
+	if len(raw.Args) > 100 {
+		for _, arg := range raw.Args {
+			if _, err := b.bind(arg, expressionPolicy{context: projectionContext}); err != nil {
+				return err
+			}
+		}
+		return expressionError("54023", "cannot pass more than 100 arguments to a function", raw.Pos)
+	}
+	names, err := b.functionArgumentTypeNames(raw)
+	if err != nil {
+		return err
+	}
+	if _, err := b.builtinVisible(raw.Name, functionLookup); err != nil {
+		return err
+	}
+	return functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 }
 
 // functionSignatureError binds diagnostic operands once, only on a failure path.

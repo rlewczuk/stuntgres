@@ -1214,6 +1214,116 @@ Independent witness registry:
 `make quickcheck PACKAGES=./reference RUN='^(TestReferenceStringReplace(Overlay|Replace|Translate|Prefix|Signatures|Diagnostics|Collation|Metadata|Consumers|Atomicity|Stored|Controls|Cancellation)|TestReferenceBinarySliceCapabilityBoundaries)$' VERBOSE=0`;
 the same command with `REFERENCE=1` validates pinned PostgreSQL.
 
+### String formatting — change note
+
+`format(format_text[,arguments...])` and `pg_catalog.format` return computed TEXT
+(OID25, typmod-1, ordinary derived collation, no physical table/attribute origin).
+The first argument follows TEXT input/coercion rules; subsequent ANY arguments
+retain their original datatype, typmod and output behavior rather than sharing
+a common type. Output includes BOOL `t`/`f`, padded CHAR, numeric scale, the
+existing temporal/settings environment and statement-visible REGCLASS names.
+The function is stable and nonstrict, with every supplied child evaluated once,
+left-to-right, including unused children and children of a NULL format string.
+NULL format strings return NULL TEXT only after that child evaluation.
+
+Runtime syntax is `%[position$][-][width]type`: supported types are `%s`, `%I`
+and `%L`; bare `%%` emits one percent and consumes no argument. `%s` emits
+datatype output without quoting, `%I` uses canonical PostgreSQL identifier
+quoting, and `%L` doubles apostrophes and backslashes with uppercase `E` when
+needed. NULL becomes empty `%s` or unquoted `NULL` for `%L`; NULL `%I` fails22004.
+Unreserved identifiers such as `abort` need no quotes, while reserved words,
+uppercase, non-ASCII, empty and otherwise nonidentifier spellings are quoted.
+
+Positions start at1. Sequential consumption follows the last consumed argument,
+not the greatest positional argument. Width may be decimal, `*`, or `*n$`;
+dynamic width is consumed before the value. NULL width means0, negative width
+left-aligns, repeated minus flags are accepted, and leading zeroes are decimal
+width spelling rather than zero-padding. Width counts Unicode codepoints in the
+final quoted output (including quotes/escapes); combining marks count separately.
+Over-width values are never truncated. INT2/INT4 widths use their integer value;
+other types use original datatype output and the existing INT4 input grammar.
+
+Explicit `VARIADIC` accepts exactly the format string plus any already-supported
+typed array datum, or a domain over it. It borrows the upstream immutable flat
+payload and preserves each element's original datatype and NULL identity;
+existing array input owns quoted `"NULL"`, empty elements, escapes, lower bounds
+and row-major multidimensional order. NULL/empty arrays supply zero arguments.
+Expansion may exceed100 elements; the ordinary syntactic call limit remains100
+arguments, including the format string. Preceding ordinary arguments with
+VARIADIC retain the recorded missing-signature error. Format implements no new
+array types or syntax, arbitrary successful routine dispatch or `sprintf`.
+REGCLASS-array literal annotations retain their existing array cast identity in
+both `value::regclass[]` and `CAST(value AS regclass[])`, including native replay
+of typed leaves in stored format expressions. Ordinary array output and borrowed
+VARIADIC elements use statement-visible relation names; this does not admit
+directly declared REGCLASS-array columns or change scalar REGCLASS casts.
+Resolution-only absent-call admission is confined to actual selected format
+arguments: missing nested children retain42883 without installing providers.
+Selected format spelling/signature diagnostics remain unchanged. Outside those
+arguments, old generic-call/keyword capability guards remain native0A000,
+including standalone `sprintf` (independently42883 on PostgreSQL); no special
+name handling or successful no-FROM widening is added. Bare `format` stays an
+ordinary identifier, including table/type declarations.
+
+Unknown format-position parameters infer TEXT only after all children, the
+syntactic argument limit, namespace and signature selection have been analyzed.
+An unresolved first occurrence constrained by a later `$1::integer` therefore
+fails with42P08, `inconsistent types deduced for parameter $1`, Detail
+`integer versus text`, at the first occurrence; a later `$1::text` is compatible.
+ANY arguments alone cannot infer parameters: direct and prepared calls share
+42P18/42P08 analysis rules, and no supplied Go value or later runtime width
+changes parameter analysis. Pattern
+grammar, widths and output errors remain evaluation-owned, not prepare-time
+constant folds. English diagnostics preserve complete severity/code/message,
+hint and character location: malformed verbs/specifiers and too-few arguments
+use22023, zero argument positions22023, numeric/width overflow22003, and INT4
+input failures retain22P02. Missing signatures42883, bad scalar VARIADIC42804
+and excessive syntax arguments54023 retain their analysis locations. Invalid
+verbs precede width/value extraction; NULL identifier precedes INT_MIN padding
+overflow. For an ordered late NULL identifier failure the pinned18.0 contract
+is an immediate Query error with no cursor, not a partially delivered result.
+
+Selected format and its admitted diagnostic failure paths transform all children
+once, then check the syntactic100-argument limit, then resolve namespaces and
+signatures. Invalid children therefore precede both54023 and missing-schema
+3F000, including NULL format strings and quoted `"FORMAT"`/scoped missing calls.
+Quoted or missing calls with100 valid arguments retain42883 and the ordinary
+explicit-casts hint;101 valid arguments use54023 at the call, without a hint.
+Over-limit analysis traverses children without allocating executable argument
+storage or diagnostic type-name slices; unrelated providers keep their existing
+analysis order and unsupported-call guards.
+
+The shared node participates in predicates, CASE/COALESCE/extrema, grouping,
+sorting, joins, LIMIT legality, INSERT/UPDATE/DELETE RETURNING, DEFAULT/CHECK,
+views, catalog retention/type rewrites and native normalization/restore. Stored
+rendering preserves typed ANY leaves, VARIADIC spelling and held descriptor
+generations. Stable format is rejected by immutable generated/index contexts;
+volatile children remain volatile, and lazy conditional consumers remain lazy.
+Collation metadata derives normally, including conflicts, but format itself
+does not demand collation-sensitive execution. Parser, quoting, array decoding,
+copying and padding use bounded cancellation checks without intermediate quoted
+payload copies, token arrays or format caches.
+Public metadata witnesses use standard `sql.Rows` descriptors and stored-view
+results; derived collations are exercised by demanding `lower` consumers across
+stored views. Exact OID25, typmod-1, collation100/950/6411 and no-origin assertions
+use the real package binder/schema harness, not an unexposed `pg_attribute`.
+Formatted aggregate descendants use existing COUNT/MIN providers; format adds no
+SELECT SUM implementation. DEFAULT introspection joins exposed pg_attrdef and
+pg_class on matching OID types rather than adding an OID=REGCLASS operator.
+Direct computed format reports unknown nullable metadata. Projecting its stored
+view column preserves the existing native catalog-known nullable descriptor
+(`true/true`); pq still exposes unknown (`false/false`) nullable metadata.
+
+Independent public witness registry:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceFormat' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormat' VERBOSE=0`.
+Actual end-to-end feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceFormatSmoke$' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFormatSmoke$' VERBOSE=0`.
+Each quickcheck has a900-second root-managed deadline. Package units exercise the
+provider, bound metadata/evaluation, immutable descriptor retagging and existing
+typed array consumption; public witnesses share untagged definitions in both modes.
+
 ### Core string functions — change note
 
 `btrim(text[,set])`, `ltrim(text[,set])` and `rtrim(text[,set])` remove endpoint

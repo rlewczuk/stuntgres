@@ -1,5 +1,7 @@
 package parser
 
+import "context"
+
 // PostgreSQL 18.0 src/include/parser/kwlist.h (identical in 18.6).
 // https://github.com/postgres/postgres/blob/REL_18_0/src/include/parser/kwlist.h
 // Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -49,17 +51,39 @@ func lookupKeyword(word string) *keyword {
 // IdentifierNeedsQuotes follows PostgreSQL's identifier output rules, using
 // the same keyword inventory as input rather than a second display inventory.
 func IdentifierNeedsQuotes(name string) bool {
-	if name == "" || !(name[0] >= 'a' && name[0] <= 'z' || name[0] == '_') {
-		return true
-	}
-	for i := 1; i < len(name); i++ {
-		c := name[i]
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_') {
-			return true
+	quoted, _ := identifierNeedsQuotes(nil, name)
+	return quoted
+}
+
+// IdentifierNeedsQuotesContext applies the same canonical inventory while
+// bounding cancellation work for runtime identifier output.
+func IdentifierNeedsQuotesContext(ctx context.Context, name string) (bool, error) {
+	return identifierNeedsQuotes(ctx, name)
+}
+
+func identifierNeedsQuotes(ctx context.Context, name string) (bool, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return false, err
 		}
 	}
+	if name == "" || !(name[0] >= 'a' && name[0] <= 'z' || name[0] == '_') {
+		return true, nil
+	}
+	for i := 1; i < len(name); i++ {
+		if ctx != nil && i&255 == 0 {
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+		}
+		c := name[i]
+		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_') {
+			return true, nil
+		}
+	}
+	// Comparisons are bounded by keyword spelling length, not payload length.
 	k := lookupKeyword(name)
-	return k != nil && k.category != Unreserved
+	return k != nil && k.category != Unreserved, nil
 }
 
 // Syntax terminals live in the same inventory; zero means a category terminal.

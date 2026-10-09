@@ -306,6 +306,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if n, ok := bound.(nullCountExpression); ok {
 			return children(r.Args, n.args)
 		}
+		if n, ok := bound.(formatExpression); ok {
+			return children(r.Args, n.args)
+		}
 	case parser.CallExpr:
 		if n, ok := bound.(sequenceCallExpression); ok {
 			return children(r.Args, n.args)
