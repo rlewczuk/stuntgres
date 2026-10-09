@@ -80,9 +80,11 @@ func settingsTimeoutStage(t *testing.T, p *referencePair, backend referenceBacke
 			defer held[i].Close()
 		}
 	}
+	// Once armed, the next owner SQL must be the intended workload: even SHOW
+	// can legitimately exceed 1ms under scheduling pressure. Setting encoding is
+	// independently asserted by TestReferenceSettingsSQL; cleanup is checked at 0.
 	if !rollback {
 		run(owner, referenceExec("SET statement_timeout TO '1ms'", 0))
-		run(owner, localReferenceSelect(backend.pg, "SHOW statement_timeout", "statement_timeout", "1ms"))
 	}
 	timedOut := false
 	for i, query := range queries {
@@ -97,7 +99,6 @@ func settingsTimeoutStage(t *testing.T, p *referencePair, backend referenceBacke
 			defer tx.Rollback()
 			executor = tx
 			run(tx, referenceExec("SET SESSION statement_timeout TO '1ms'", 0))
-			run(tx, localReferenceSelect(backend.pg, "SHOW statement_timeout", "statement_timeout", "1ms"))
 		}
 		if contextErr := p.ctx.Err(); contextErr != nil {
 			t.Fatal("fixture context expired before server timeout workload", contextErr)
