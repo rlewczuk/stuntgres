@@ -297,6 +297,15 @@ Run `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFeature
 test or implementation changes, rerun both selectively before review, then run
 ordinary quickcheck and the post-integration fullcheck.
 
+## Allocation checks
+
+For package-function byte-allocation budgets, use calibrated
+`testing.Benchmark` measurements and normalize `AllocedBytesPerOp` to one
+provider evaluation when a benchmark iteration evaluates a batch.
+Short process-wide `runtime.MemStats.TotalAlloc` samples can charge unrelated
+runtime allocations to the provider, especially under the race detector.
+Keep independently chosen payload-size and allocation-count bounds unchanged.
+
 ## Optional last-resort implementation materials
 
 This guide is sufficient for ordinary dual-mode tests. Do **not** read other
