@@ -9,6 +9,7 @@ import (
 // The complete sequential settings-local smoke schedule, retaining its Go Tx,
 // Conn QueryRow, held Prepare, notice order and rollback recovery routes.
 func TestReferenceSettingsMigratedLocalSmoke(t *testing.T) {
+	schemaReferenceCleanup(t, "local_path")
 	p := newReferenceScenario(t)
 	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
