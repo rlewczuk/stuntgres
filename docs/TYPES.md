@@ -1498,9 +1498,35 @@ microsecond rounding. It does not use the comparison span or justify components:
 the mean of one month and 30 days is `30 days`; of one day and24hours, `24:00:00`.
 Finite component overflow, reserved infinity tuples, mixed infinity signs and
 division range errors report22008. Finite sums are checked even after infinity.
-General interval arithmetic and numeric AVG remain excluded. Public contracts:
+General interval arithmetic remains excluded. Public interval AVG contracts:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
+
+### Numeric and floating average — change note
+
+AVG over SMALLINT/INTEGER/BIGINT/NUMERIC returns unrestricted NUMERIC (OID1700,
+typmod -1); AVG over REAL/DOUBLE PRECISION returns FLOAT8 (OID701). Native
+NUMERIC export remains string and FLOAT8 float64. Results are known nullable
+without physical origin, even for NOT NULL inputs. NULLs do not contribute;
+empty/all-NULL input returns typed NULL. Input numeric precision/scale never
+becomes output metadata.
+
+Exact decimal sums retain finite input display scale, including zero and
+cancellation. PostgreSQL's normalized base-10000 division rule chooses output
+scale, capped at1000 fractional digits, with ties away from zero. Singleton1
+returns `1.00000000000000000000`; inputs1,NULL,3 return `2.0000000000000000`.
+Packed finite SUM overflow precedes division (22003, `value overflows numeric
+format`); oversized transient sums can cancel. NaN/both infinity signs yield
+NaN and one infinity sign dominates finite sums, before finite packing.
+
+REAL widens from its stored binary32 value. Float AVG uses the complete
+Youngs–Cramer transition, including Sxx overflow checks (22003, `value out of
+range: overflow`), even though final output uses only Sx/N. Final division
+permits IEEE underflow/signed zero. No unordered floating evaluation order is
+promised. General numeric arithmetic is not added by this bounded aggregate.
+Public contracts:
+`make quickcheck PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`.
 
 
 ## Pattern matching and physical character values

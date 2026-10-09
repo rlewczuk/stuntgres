@@ -254,9 +254,23 @@ components without justifying days/time. The result does not inherit source
 field/precision restrictions. Mixed positive/negative infinities fail22008;
 same-sign infinity dominates only after finite transitions have been checked.
 Unknown strings, NULL and unconstrained parameters give42725 ambiguity; use an
-explicit interval cast. Invalid types/arity give42883 with the real signature,
-explicit-casts hint and character position. Valid numeric AVG overloads remain
-native0A000 capabilities, not nonexistent PostgreSQL signatures.
+explicit cast to a supported AVG input. Invalid types/arity give42883 with the
+real signature, explicit-casts hint and character position.
+
+`avg(SMALLINT/INTEGER/BIGINT/NUMERIC)` returns unrestricted nullable NUMERIC;
+`avg(REAL/DOUBLE PRECISION)` returns unrestricted nullable FLOAT8. Empty/all-NULL
+global input returns typed NULL; empty keyed input returns no rows, retaining
+metadata. NUMERIC sums are exact, with base-10000 division scale capped at1000;
+packing the finite sum can fail22003 even if the mean fits. NaN or opposite
+numeric infinities return NaN; one infinity sign dominates finite sums.
+REAL inputs widen from stored binary32. Float AVG retains the full
+Youngs–Cramer state: sum or Sxx overflow fails22003, `value out of range: overflow`.
+Final division permits IEEE underflow/signed zero; NaN/infinity follow IEEE
+arithmetic. Result metadata drops input typmod and physical origin. Eager
+execution preserves late-error/cancellation and INSERT SELECT atomicity, without
+promising an unordered floating accumulation order.
+Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceNumericAvgSmoke$' VERBOSE=0`;
+independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumericAvgSmoke$' VERBOSE=0`.
 
 `any_value(anyelement)` returns an arbitrary non-NULL datum of the concrete input
 type, not a stable first/last/minimum/maximum winner. Empty/all-NULL global input
@@ -272,7 +286,7 @@ Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValueS
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
 
 Grouping does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every/avg(interval)/any_value, FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value, FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression

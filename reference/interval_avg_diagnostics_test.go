@@ -72,23 +72,16 @@ func TestReferenceIntervalAvgDiagnostics(t *testing.T) {
 			s.errorStage = "execute"
 			run(s)
 		}
-		// Valid PostgreSQL but explicitly excluded native signatures/capabilities.
+		// All six numeric overloads now have one shared successful contract.
 		for _, kind := range []string{"smallint", "integer", "bigint", "numeric", "real", "double precision"} {
 			q := "SELECT avg(1::" + kind + ") FROM t"
-			if pg {
-				var value any = "1.00000000000000000000"
-				typ := "NUMERIC"
-				if kind == "smallint" || kind == "integer" || kind == "bigint" {
-					value = "1.00000000000000000000"
-				}
-				if kind == "real" || kind == "double precision" {
-					value = float64(1)
-					typ = "FLOAT8"
-				}
-				intervalAvgBoth(t, p, conn, recorder, referenceSelect(q, []string{"avg"}, []string{typ}, [][]any{{value}}))
-			} else {
-				intervalAvgBoth(t, p, conn, recorder, referenceError(q, "0A000"))
+			var value any = "1.00000000000000000000"
+			typ := "NUMERIC"
+			if kind == "real" || kind == "double precision" {
+				value = float64(1)
+				typ = "FLOAT8"
 			}
+			intervalAvgBoth(t, p, conn, recorder, referenceSelect(q, []string{"avg"}, []string{typ}, [][]any{{value}}))
 		}
 		for _, q := range []string{"SELECT avg(DISTINCT v) FROM t", "SELECT avg(ALL v) FROM t", "SELECT avg(v ORDER BY v) FROM t", "SELECT avg(v) FILTER (WHERE TRUE) FROM t", "SELECT avg(v) OVER () FROM t", "SELECT avg(INTERVAL '2 days')"} {
 			if pg {

@@ -883,7 +883,7 @@ type FunctionExpr struct {
 	StringSyntax StringSyntax
 }
 
-// AggregateExpr retains count/Boolean/interval-average/any_value argument syntax and diagnostic-only single-argument SUM.
+// AggregateExpr retains count/Boolean/average/any_value argument syntax and diagnostic-only single-argument SUM.
 type AggregateExpr struct {
 	Name   string
 	Star   bool

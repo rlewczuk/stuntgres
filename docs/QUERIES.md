@@ -699,15 +699,56 @@ Explicitly type ambiguous arguments (`avg($1::interval)`, `avg(NULL::interval)`)
 bare unknown NULL/string/parameter calls give42725 and the explicit-casts hint.
 Invalid signatures and arity give42883, including `avg()`/`avg(*)`; more than100
 arguments gives54023. Namespace lookup/ACL and nested/clause/grouping diagnostics
-use the existing authority. Numeric AVG is valid PostgreSQL but native0A000.
+use the existing authority for all supported AVG overloads.
 Native Dump/Restore preserves stored interval inputs/views, never aggregate state.
 
 Public feature smoke, using independently pinned PostgreSQL18.0 expectations:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
 
+`avg(SMALLINT)`, `avg(INTEGER)`, `avg(BIGINT)` and `avg(NUMERIC)` return
+unrestricted NUMERIC; `avg(REAL)` and `avg(DOUBLE PRECISION)` return FLOAT8.
+Each is nullable, with no physical origin or inherited typmod, including for
+NOT NULL or sized NUMERIC inputs. NULL is omitted from the denominator;
+empty/all-NULL global input yields one typed NULL row, empty keyed input none.
+
+```sql
+CREATE TABLE readings (n NUMERIC, r REAL);
+INSERT INTO readings VALUES (1,1),(NULL,NULL),(3,3);
+SELECT avg(n),avg(r) FROM readings;
+-- ('2.0000000000000000', 2), with NUMERIC/FLOAT8 result types.
+```
+
+Exact numeric accumulation preserves the maximum finite input display scale.
+Division chooses scale from the normalized base-10000 sum/count weights and
+leading digits, with at least16 significant digits, never more than1000
+fractional digits, and ties rounded away from zero. Thus AVG of singleton1 has
+20 fractional digits, not a fixed16. The finite SUM is packed before division:
+two `9e131071` numeric inputs fail22003, `value overflows numeric format`, even
+though their mathematical mean fits. Transient oversized sums may cancel before
+finalization. NaN or both infinity signs yield NaN; a single infinity sign
+dominates even an unrepresentable finite sum.
+
+REAL is widened from binary32 (AVG of REAL0.1 is FLOAT8
+`0.10000000149011612`). FLOAT8 transitions retain PostgreSQL's N/Sx/Sxx
+Youngs–Cramer state: `{1e200,0}` fails22003 through Sxx although the sum is finite.
+Final division permits IEEE underflow and signed zero; nonfinite values follow
+IEEE arithmetic. Unordered input has no promised floating evaluation order.
+All groups finalize eagerly before any result or INSERT SELECT batch is
+published. Prepared reexecution creates fresh group states; native Dump/Restore
+stores inputs/views, never mutable accumulators, and restores both AVG input and
+result type ownership for all six numeric overloads. Infinity/NaN do not skip
+later argument evaluation: a later row's supported TEXT-to-INTEGER cast error
+still vetoes the entire aggregate result. INSERT RETURNING remains an independent
+native syntax exclusion.
+
+Numeric AVG contract and feature smoke (both independently asserted modes):
+`make quickcheck PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`.
+Use `RUN='^TestReferenceNumericAvgSmoke$'` in both commands for the focused smoke.
+
 This does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every/avg(interval)/any_value, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
 OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
 optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded

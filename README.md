@@ -713,10 +713,18 @@ empty/all-NULL input. Its checked month/day/microsecond sums retain physical
 representation; fractional months cascade at 30 days and fractional days at 24
 hours, with PostgreSQL floating-point nearest-even rounding. For example,
 averaging `1 mon` and zero yields `15 days`, not a normalized duration.
-The result has unrestricted interval precision; numeric AVG remains unsupported.
-Public AVG feature checks use the same independent contract in both modes:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
-and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
+The result has unrestricted interval precision.
+`avg(SMALLINT/INTEGER/BIGINT/NUMERIC)` returns nullable, unrestricted NUMERIC
+with an exact sum and PostgreSQL's base-10000 division scale (at most 1000
+fractional digits). The packed sum can overflow even when the mean would fit.
+`avg(REAL/DOUBLE PRECISION)` returns FLOAT8; REAL is widened from binary32.
+PostgreSQL's full Youngs–Cramer transition is retained, so variance-state
+overflow can reject a finite mean. All overloads ignore NULL and return typed
+NULL for empty/all-NULL input. For `1,NULL,3`, the mean is numeric
+`2.0000000000000000` or floating `2`. No unordered floating accumulation order
+is promised. Public AVG feature checks use independent assertions in both modes:
+`make quickcheck PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumericAvg.*|TestReferenceIntervalAvgDiagnostics)$' VERBOSE=0`.
 `any_value(anyelement)` returns an arbitrary non-NULL input of its concrete type,
 or typed NULL for empty/all-NULL input. It preserves the datum representation
 and collation, but not input typmod or physical origin; metadata is nullable.

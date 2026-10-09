@@ -23,6 +23,8 @@ const (
 	aggregateAnd
 	aggregateOr
 	aggregateIntervalAvg
+	aggregateNumericAvg
+	aggregateFloatAvg
 	aggregateAnyValue
 )
 
