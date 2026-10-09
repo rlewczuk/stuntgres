@@ -976,6 +976,29 @@ orphans. Dump captures actual options/current names; Restore/replacement rebuild
 key-only roots with destination identities.
 See [B-tree design](design/PG18-INDEX-BTREE.md) and [clause design](design/PG18-INDEX-CLAUSES.md).
 
+Ordinary index RENAME preserves its substantive root and stable parent/key
+identities; a UNIQUE backing rename atomically changes its parent constraint
+record and current23505 diagnostic name without rebuilding the root. DROP INDEX
+groups preflight kinds/ownership/dependencies and deduplicate addresses before
+one publication; a backing index is internally owned and cannot be dropped
+directly, including with CASCADE.
+
+REINDEX INDEX rebuilds exactly the selected real root; REINDEX TABLE rebuilds all
+implemented roots atomically from committed live versions, including expression
+and UNIQUE keys. It does not change rows, descriptor/key/OID/version identities or
+unselected sibling roots. No-index TABLE is a NOTICE/no-op, not a synthetic
+definition publication. Failed waits/builds/final publication preserve all prior
+state. Valid physical options remain unsupported rather than simulated.
+Internal detached metadata projects complete flags/vectors, retained analyzed
+expression lists, actual key collations and central actual B-tree class identities
+from one immutable CatalogRead. Total attributes include repeated INCLUDE payload
+attributes; class/collation/direction vectors contain keys only. Maintenance
+preserves every implemented explicit provider and included payload, including
+non-orderable JSON payload. It adds no SQL catalog family.
+See [maintenance design](design/PG18-INDEX-MAINTENANCE.md) and
+[SQL syntax/boundaries](SQL.md#index-maintenance).
+
+
 
 ## Stored generated columns
 

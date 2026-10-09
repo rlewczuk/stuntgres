@@ -82,6 +82,10 @@ package parser
  createIndex *CreateIndex
  alterView *AlterView
  enumLabels []EnumLabel
+ alterIndex *AlterIndex
+ indexOptions []IndexOption
+ indexOption IndexOption
+ indexValue Value
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -133,7 +137,7 @@ package parser
 %token <tok> COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE
 %token <tok> SEQUENCE INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART TEMP UNLOGGED LOGGED SEQUENCE_FUNC
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
-%token <tok> INDEX
+%token <tok> INDEX REINDEX
 %token <tok> CONCURRENTLY
 %token <tok> INCLUDE TABLESPACE
 /* Contextual command continuations remain below arithmetic precedence. */
@@ -162,7 +166,9 @@ package parser
  * Preserve declaration grammar's deliberate type-tail shift rather than
  * leaving those decisions as implicit shift/reduce conflicts. Interval field
  * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
-%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
+/* REINDEX previously used KW_U: keep that same type-tail shift when promoting
+ * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX '.'
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING
 %nonassoc GENERATION_OVER
@@ -205,6 +211,12 @@ package parser
 %type <viewOptions> index_options index_option_list
 %type <viewOption> index_option
 %type <tok> index_option_value
+%type <stmt> alter_index drop_index reindex
+%type <alterIndex> alter_index_head
+%type <indexOptions> maintenance_index_option_list reindex_options reindex_option_list
+%type <indexOption> maintenance_index_option reindex_option
+%type <tok> index_option_name reindex_kind maintenance_concurrent
+%type <indexValue> maintenance_index_option_value
 %type <identifiers> view_columns view_names
 %type <viewOptions> view_options view_option_list
 %type <viewOption> view_option
@@ -335,7 +347,7 @@ separators: /* empty */ | separators ';' ;
 optional_statements: /* empty */ | accepted tail ;
 tail: /* empty */ | ';' separators optional_statements ;
 accepted: statement { if $1 != nil { sqllex.(*lexer).statements = append(sqllex.(*lexer).statements, $1) } } ;
-statement: create | create_sequence | alter_sequence | drop_sequence | alter_view | drop_view | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
+statement: create | create_sequence | alter_sequence | drop_sequence | alter_index | drop_index | reindex | alter_view | drop_view | drop_table | alter_drop_column | insert | update | delete | select | set | show | reset | create_role | drop_role | session_authorization | excluded_role | lock_table | create_schema | alter_schema | drop_schema | comment | transaction_control
  | drop_domain
  | generic_word { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
  | DROP { sqllex.(*lexer).capability($1,unsupportedCommands,"statement is unsupported"); return 1 }
@@ -575,6 +587,39 @@ domain_constraints: /* empty */ {$$=nil}
  | column_suffix {sqllex.(*lexer).capability($1,unsupportedSuffixes,"domain constraints are unsupported");return 1} ;
 drop_domain: DROP DOMAIN relation_names drop_mode { $$=&DropDomain{Names:$3,Mode:$4,Pos:$1.pos} }
  | DROP DOMAIN IF EXISTS relation_names drop_mode { $$=&DropDomain{Names:$5,IfExists:true,Mode:$6,Pos:$1.pos} } ;
+/* Index reloptions use '='; REINDEX controls use whitespace. Keep them separate
+ * so malformed option syntax fails before any earlier statement can execute. */
+maintenance_concurrent: /* empty */ {$$=lexeme{}} | CONCURRENTLY ;
+drop_index: DROP INDEX maintenance_concurrent relation_names drop_mode {$$=&DropIndex{Names:$4,Concurrent:$3.pos,Mode:$5,Pos:$1.pos}}
+ | DROP INDEX maintenance_concurrent IF EXISTS relation_names drop_mode {$$=&DropIndex{Names:$6,IfExists:true,Concurrent:$3.pos,Mode:$7,Pos:$1.pos}} ;
+alter_index_head: ALTER INDEX relation_name {$$=&AlterIndex{Name:$3,Pos:$1.pos}}
+ | ALTER INDEX IF EXISTS relation_name {$$=&AlterIndex{Name:$5,IfExists:true,Pos:$1.pos}} ;
+alter_index: alter_index_head RENAME TO name {$1.Action="rename";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.ActionPos=$2.pos;$$=$1}
+ | alter_index_head SET '(' maintenance_index_option_list ')' {$1.Action="set";$1.Options=$4;$1.ActionPos=$2.pos;$$=$1}
+ | alter_index_head RESET '(' maintenance_index_option_list ')' {$1.Action="reset";$1.Options=$4;$1.ActionPos=$2.pos;$$=$1}
+ | alter_index_head SET name name {if $3.text!="tablespace"{sqllex.(*lexer).syntax($3);return 1};$1.Action="tablespace";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.ActionPos=$3.pos;$$=$1}
+ | alter_index_head ALTER COLUMN NUMBER SET name maintenance_index_option_value {if $6.text!="statistics"{sqllex.(*lexer).syntax($6);return 1};$1.Action="statistics";$1.Target=Identifier{Text:$4.text,Pos:$4.pos};$1.ActionPos=$6.pos;$$=$1} ;
+index_option_name: name | CONCURRENTLY ;
+maintenance_index_option_value: name {$$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos}}
+ | STRING {$$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos}}
+ | NUMBER {$$=numberValue($1,"");$$.Text=$1.text}
+ | TRUE {$$=Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}
+ | FALSE {$$=Value{Kind:BooleanValue,Text:"false",Pos:$1.pos}}
+ | ON {$$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos}}
+ | '-' NUMBER {$$=numberValue($2,"-");$$.Text="-"+$2.text;$$.Pos=$1.pos}
+ | '+' NUMBER {$$=numberValue($2,"+");$$.Text="+"+$2.text;$$.Pos=$1.pos} ;
+maintenance_index_option_list: maintenance_index_option {$$=[]IndexOption{$1}} | maintenance_index_option_list ',' maintenance_index_option {$$=append($1,$3)} ;
+maintenance_index_option: index_option_name {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
+ | index_option_name '=' maintenance_index_option_value {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3,HasValue:true}}
+ | name '.' index_option_name {$$=IndexOption{Namespace:$1.text,Name:Identifier{Text:$3.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$3.pos}}}
+ | name '.' index_option_name '=' maintenance_index_option_value {$$=IndexOption{Namespace:$1.text,Name:Identifier{Text:$3.text,Pos:$1.pos},Value:$5,HasValue:true}} ;
+reindex_options: /* empty */ {$$=nil} | '(' reindex_option_list ')' {$$=$2} ;
+reindex_option_list: reindex_option {$$=[]IndexOption{$1}} | reindex_option_list ',' reindex_option {$$=append($1,$3)} ;
+reindex_option: col_label {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:Value{Kind:BooleanValue,Boolean:true,Text:"true",Pos:$1.pos}}}
+ | col_label maintenance_index_option_value {$$=IndexOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$2,HasValue:true}} ;
+reindex_kind: name | TABLE ;
+reindex: REINDEX reindex_options reindex_kind maintenance_concurrent relation_name {if $3.text!="index"&&$3.text!="table"&&$3.text!="schema"&&$3.text!="database"&&$3.text!="system"{sqllex.(*lexer).syntax($3);return 1};$$=&Reindex{Name:$5,Kind:Identifier{Text:$3.text,Pos:$3.pos},Options:$2,Concurrent:$4.pos,Pos:$1.pos}} ;
+
 index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos} }
  | CREATE INDEX name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$3.text,Pos:$3.pos},Table:$5,Pos:$1.pos} }
  | CREATE INDEX IF NOT EXISTS name ON relation_name { $$=&CreateIndex{Name:Identifier{Text:$6.text,Pos:$6.pos},Table:$8,IfNotExists:true,Pos:$1.pos} }
@@ -1266,7 +1311,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
  * A call opener shifts on the scalar path; declaration/name contexts reduce. */
-non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX
+non_between_name: setting_word_without_between | ROLE | LOCAL | VIEW | INDEX | REINDEX
  | OVERLAY %prec NAME_LIST | POSITION %prec NAME_LIST | SUBSTRING %prec NAME_LIST
  | CHECK_FUNC %prec NAME_LIST { if $1.keyword!=nil && !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 name: non_between_name | BETWEEN ;
@@ -1274,7 +1319,7 @@ transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
  | DOMAIN | TYPE | INCLUDE | TABLESPACE
- | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | CONCURRENTLY | ILIKE | ESCAPE
+ | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
  | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;

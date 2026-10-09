@@ -950,12 +950,65 @@ inherited-equivalent collations become implicit; genuine overrides remain.
 Writable explicit CREATE INDEX transactions are excluded natively (0A000),
 while PostgreSQL supports transactional creation/rollback. Read-only execution
 returns 25006 first. Standalone CREATE UNIQUE INDEX, partial/concurrent
-indexes, non-btree methods, unowned collations/classes, class parameters, storage
-parameters/tablespaces and DROP/ALTER INDEX remain excluded; CREATE TABLE UNIQUE
-constraints are supported with owned backing B-trees. No unique-index attachment,
-planner, physical index-only scan or physical tree claim is made. Admitted
-collations are default, C, POSIX, pg_c_utf8 and pg_unicode_fast; class/provider
-inventory and directional binary compatibility are documented in the clause design.
+indexes, non-btree methods, unowned collations/classes, class parameters and storage
+parameters/tablespaces remain excluded; CREATE TABLE UNIQUE constraints are
+supported with owned backing B-trees. Ordinary maintenance is described below.
+No unique-index attachment, planner, physical index-only scan or physical tree
+claim is made. Admitted collations are default, C, POSIX, pg_c_utf8 and
+pg_unicode_fast; class/provider inventory and directional binary compatibility
+are documented in the clause design.
+
+### Index maintenance
+
+```sql
+DROP INDEX [IF EXISTS] [schema.]name [, ...] [CASCADE|RESTRICT];
+ALTER INDEX [IF EXISTS] [schema.]name RENAME TO destination;
+REINDEX INDEX [schema.]name;
+REINDEX TABLE [schema.]name;
+```
+
+Every utility returns zero affected rows/no result columns and Prepare is
+syntax-only. DROP preflights every target before waiting/publishing, deduplicates
+repeated addresses, and removes only selected ordinary indexes. IF EXISTS emits
+complete missing-index/schema notices. Backing UNIQUE indexes cannot be dropped
+directly even with CASCADE: use DROP CONSTRAINT. Rename retains root/key/OID
+identities; backing rename also changes its parent constraint name atomically.
+Table/sequence/view rename aliases use the shared relation rename contract.
+
+REINDEX INDEX publishes one freshly built logical root, while TABLE rebuilds every
+implemented simple/expression/UNIQUE root together from grant-time committed live
+rows. Empty-index TABLE returns zero plus a NOTICE. Descriptor/table/version
+identities stay unchanged and failures preserve all predecessor roots.
+All implemented explicit/binary-compatible/pattern classes, effective collations,
+repeated INCLUDE attributes and non-orderable payloads survive maintenance.
+Enum/domain indexes retain existing declaration-order providers. Internal metadata
+uses actual central IndexClass identity: total attribute counts include payloads,
+while class/collation/options cover keys only. It is not a default-class substitute.
+DROP needs index or schema ownership; rename needs ownership plus schema CREATE;
+rebuild needs parent MAINTAIN. Existing lock/cancellation/epoch authority applies.
+
+Native writable explicit execution is0A000 before lookup or waits; native
+read-only execution is25006 first, intentionally differing from PostgreSQL's
+REINDEX lookup/lock-before-read-only precedence. Valid physical SET/RESET requests
+are0A000 `index storage parameters are unsupported` without mutation, after
+target/kind/ACL and ordered option validation. Missing ALTER IF EXISTS skips those
+semantic option checks. REINDEX controls use whitespace, not '=': after the
+intentional native transaction gates, the complete malformed-control list is
+validated before target/schema lookup, kind/ACL checks or waits. Unknown/parallel
+controls and malformed Boolean values are42601; an earlier valid control cannot
+mask a later invalid one. Quiet Prepare stays syntax-only. Valid options retain
+normal target admission before their explicit capability diagnostics, as do
+concurrent operations, TABLESPACE/global targets and statistics at their existing
+phases. No meaningful option is discarded.
+
+Compact full/column/pretty pg_get_indexdef uses original analyzed keys and current
+names, including correct expression parentheses and actual collations. Dump
+retains canonical replay rendering. The internal pg_index/pg_indexes-shaped
+projection is not a new SQL inquiry interface.
+See [the design](design/PG18-INDEX-MAINTENANCE.md).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`;
+repeat the same selector with `REFERENCE=1`.
+
 
 ## Whole-string pattern predicates
 

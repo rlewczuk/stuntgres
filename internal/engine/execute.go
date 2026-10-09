@@ -19,6 +19,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	switch stmt.(type) {
 	case *parser.CreateIndex:
 		return e.executeCreateIndex(scope, stmt.(*parser.CreateIndex), count)
+	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
+		return e.executeIndexMaintenance(scope, stmt, count)
 	case *parser.CreateView:
 		return e.executeCreateView(scope, stmt.(*parser.CreateView), count)
 	case *parser.AlterView:

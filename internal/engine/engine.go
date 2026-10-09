@@ -240,7 +240,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
-	case *parser.CreateIndex, *parser.AlterView, *parser.DropView:
+	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.AlterView, *parser.DropView:
 		return StatementDescription{}, nil
 	case *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
 		return StatementDescription{}, nil

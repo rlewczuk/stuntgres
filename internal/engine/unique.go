@@ -166,8 +166,12 @@ func (e *Engine) stageCreateUniques(stage *CatalogStage, d *relationDescriptor, 
 		labels := make(map[string]bool)
 		for j, a := range c.Attributes {
 			slot := slices.Index(d.attributes, a)
-			definition.keys[j] = indexKey{attribute: a}
 			column := d.columns[slot]
+			class, ok := sqltype.DefaultIndexClass(column.Usage.Type)
+			if !ok {
+				return indexDefaultClassError(column.Usage.Type.DiagnosticName())
+			}
+			definition.keys[j] = indexKey{attribute: a, class: class}
 			label := column.Name
 			for suffix := 1; labels[label]; suffix++ {
 				label = indexColumnLabel(column.Name, suffix)

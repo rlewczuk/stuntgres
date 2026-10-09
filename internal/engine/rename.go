@@ -44,7 +44,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		return fail(err)
 	}
 	old := scope.lockedDescriptor.(*relationDescriptor)
-	if old.relationKind == indexRelation {
+	if columnRename && old.relationKind == indexRelation {
 		return fail(tableKind(old, "rename"))
 	}
 	slot := -1
@@ -105,6 +105,13 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 	}
 	stage := e.BeginCatalogStage(auth.catalog)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision
+	if !columnRename && old.sqlIndex != nil && old.sqlIndex.unique != nil {
+		if err = stageBackingIndexRename(stage, &next); err != nil {
+			e.mu.Unlock()
+			e.DiscardCatalogStage(stage)
+			return Result{}, err
+		}
+	}
 	e.mu.Unlock()
 	if scope.replacementRead {
 		e.replacementMu.RUnlock()

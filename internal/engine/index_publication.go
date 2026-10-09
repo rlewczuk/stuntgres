@@ -234,7 +234,7 @@ func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, 
 // Constructors poll cancellation while doing index work; the publication owner
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
-func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuild map[ObjectAddress]bool) (map[ObjectAddress]*logicalIndexRoot, error) {
+func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuildParents map[ObjectAddress]bool, rebuildIndexes map[ObjectAddress]*relationDescriptor) (map[ObjectAddress]*logicalIndexRoot, error) {
 	var result map[ObjectAddress]*logicalIndexRoot
 	for a, d := range next.descriptors {
 		index, ok := d.(*relationDescriptor)
@@ -246,7 +246,7 @@ func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalog
 		}
 		root := roots[a]
 		old, _ := current.descriptors[a].(*relationDescriptor)
-		if root == nil || old == nil || old.sqlIndex != index.sqlIndex || rebuild[index.sqlIndex.parent] {
+		if root == nil || old == nil || rebuildParents[index.sqlIndex.parent] || rebuildIndexes[a] != nil || !sameIndexKeySemantics(old, index) {
 			if err := validateIndexDefinition(CatalogRead{owner: e, state: next}, index); err != nil {
 				return nil, err
 			}
@@ -266,6 +266,27 @@ func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalog
 		result[a] = root
 	}
 	return result, nil
+}
+
+// A backing-constraint rename changes a wrapper, not an ordered key. Keep the
+// root only when every actual key/provider/null-policy identity is unchanged.
+func sameIndexKeySemantics(a, b *relationDescriptor) bool {
+	if a == b {
+		return true
+	}
+	if a.sqlIndex == nil || b.sqlIndex == nil || a.sqlIndex.parent != b.sqlIndex.parent || !slices.Equal(a.sqlIndex.keys, b.sqlIndex.keys) || !slices.Equal(a.sqlIndex.include, b.sqlIndex.include) || len(a.columns) != len(b.columns) {
+		return false
+	}
+	for i, column := range a.columns {
+		if column.Usage != b.columns[i].Usage {
+			return false
+		}
+	}
+	x, y := a.sqlIndex.unique, b.sqlIndex.unique
+	if x == nil || y == nil {
+		return x == nil && y == nil
+	}
+	return x.NullsNotDistinct == y.NullsNotDistinct && slices.Equal(x.Attributes, y.Attributes)
 }
 
 // Only changed roots require a storage fence. Unchanged siblings may have

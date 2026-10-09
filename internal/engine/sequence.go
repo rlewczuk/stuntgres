@@ -471,7 +471,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 			e.mu.Unlock()
 			return Result{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`"%s" is not a sequence`, d.name), Hint: "Use DROP TABLE to remove a table."}
 		}
-		if er = sequenceDropOwner(auth, ref, d); er != nil {
+		if er = relationDropOwner(auth, ref, d); er != nil {
 			e.mu.Unlock()
 			return Result{}, er
 		}
@@ -520,7 +520,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if !ok {
 			return Result{}, ErrCatalogReplaced
 		}
-		if err = sequenceDropOwner(auth, ref, d); err != nil {
+		if err = relationDropOwner(auth, ref, d); err != nil {
 			return Result{}, err
 		}
 		if d.sequence.identity {
@@ -534,13 +534,14 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	emitViewCascade(scope.op, cascade)
 	return Result{}, nil
 }
-func sequenceDropOwner(auth AuthorizationView, ref ObjectRef, d *relationDescriptor) error {
-	if err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true}); err == nil {
+func relationDropOwner(auth AuthorizationView, ref ObjectRef, d *relationDescriptor) error {
+	err := auth.Check(AccessRequirement{Object: ref, OwnerOnly: true})
+	if err == nil {
 		return nil
 	}
 	ns := auth.catalog.state.descriptors[d.namespace].(*namespaceDescriptor)
 	if ns.owner == auth.state.CurrentUser {
 		return nil
 	}
-	return sqlError("42501", fmt.Sprintf("must be owner of sequence %s", d.name))
+	return err
 }

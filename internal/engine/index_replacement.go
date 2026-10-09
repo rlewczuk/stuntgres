@@ -22,6 +22,6 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			row.keyChangedAt, row.pendingKeyChange = 0, false
 		}
 	}
-	roots, err := e.prepareIndexCatalog(ctx, &catalogState{}, next, storage, nil, nil)
+	roots, err := e.prepareIndexCatalog(ctx, &catalogState{}, next, storage, nil, nil, nil)
 	return roots, rowID, versionID, err
 }

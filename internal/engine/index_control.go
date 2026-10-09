@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/sqltype"
 )
 
 type indexPresentation struct {
@@ -19,21 +20,6 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		return "", err
 	}
 	parent := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
-	expressionSQL := func(key indexKey) (string, error) {
-		if presentation.dump {
-			return (scalarRenderer{owner: parent}).sql(ctx, catalog, key.derived.definition)
-		}
-		text, err := (pgRenderer{view: catalog, relation: parent, pretty: presentation.pretty, path: presentation.path}).sql(ctx, key.derived.definition, pgRenderParent{})
-		if err != nil {
-			return "", err
-		}
-		// Index expression grouping applies to both full and attribute-only
-		// inquiries; pretty rendering may already omit the operator's inner group.
-		if !pgIndexFunctionExpression(key.derived.definition) {
-			text = "(" + text + ")"
-		}
-		return text, nil
-	}
 	if presentation.column != 0 {
 		if presentation.column < 1 || presentation.column > int64(len(index.columns)) {
 			return "", nil
@@ -42,8 +28,18 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			return deparseAttribute(parent, index.sqlIndex.include[presentation.column-int64(len(index.sqlIndex.keys))-1])
 		}
 		key := index.sqlIndex.keys[presentation.column-1]
+		if !presentation.dump {
+			text, wrapped, _, err := compactIndexKeySQL(ctx, catalog, parent, key, presentation)
+			if err != nil {
+				return "", err
+			}
+			if wrapped {
+				text = "(" + text + ")"
+			}
+			return text, nil
+		}
 		if key.derived != nil {
-			return expressionSQL(key)
+			return (scalarRenderer{owner: parent}).sql(ctx, catalog, key.derived.definition)
 		}
 		return deparseAttribute(parent, key.attribute)
 	}
@@ -66,16 +62,34 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 		if i > 0 {
 			sql.WriteString(", ")
 		}
-		if key.derived != nil {
-			text, err := expressionSQL(key)
+		presented := key
+		if !presentation.dump {
+			text, wrapped, usage, err := compactIndexKeySQL(ctx, catalog, parent, key, presentation)
 			if err != nil {
 				return "", err
 			}
-			if !presentation.dump {
-				sql.WriteString(text)
-			} else {
-				sql.WriteString("(" + text + ")")
+			if wrapped {
+				sql.WriteByte('(')
 			}
+			sql.WriteString(text)
+			if wrapped {
+				sql.WriteByte(')')
+			}
+			presented = reconstructIndexKey(key, usage, usage)
+			actual, err := indexKeyUsage(parent, key)
+			if err != nil {
+				return "", err
+			}
+			presented.collation = 0
+			if actual.Collation.ID != usage.Collation.ID {
+				presented.collation = actual.Collation.ID
+			}
+		} else if key.derived != nil {
+			text, err := (scalarRenderer{owner: parent}).sql(ctx, catalog, key.derived.definition)
+			if err != nil {
+				return "", err
+			}
+			sql.WriteString("(" + text + ")")
 		} else {
 			slot := -1
 			for j, attribute := range parent.attributes {
@@ -88,14 +102,6 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 				return "", fmt.Errorf("stuntgres: index attribute is missing")
 			}
 			sql.WriteString(identifier(parent.columns[slot].Name))
-		}
-		presented := key
-		if !presentation.dump {
-			usage, err := indexKeyBaseUsage(parent, key)
-			if err != nil {
-				return "", err
-			}
-			presented = reconstructIndexKey(key, usage, usage)
 		}
 		if presented.collation != 0 {
 			sql.WriteString(" COLLATE ")
@@ -162,4 +168,28 @@ func pgIndexFunctionExpression(node BoundExpr) bool {
 	default:
 		return false
 	}
+}
+
+// Compact presentation shares ComputeIndexAttrs classification with metadata,
+// the existing TYPE-buffer function grammar, and the decoration reconstruction
+// owner. Return the classified column/expression usage, not its type default:
+// PostgreSQL compares full-key collation with that usage. Dump stays canonical.
+func compactIndexKeySQL(ctx context.Context, catalog CatalogRead, parent *relationDescriptor, key indexKey, presentation indexPresentation) (string, bool, sqltype.Usage, error) {
+	attribute, node, err := indexCatalogKey(parent, key)
+	if err != nil {
+		return "", false, sqltype.Usage{}, err
+	}
+	if node == nil {
+		usage, err := indexKeyBaseUsage(parent, indexKey{attribute: attribute})
+		if err != nil {
+			return "", false, sqltype.Usage{}, err
+		}
+		text, err := deparseAttribute(parent, attribute)
+		return text, false, usage, err
+	}
+	text, err := (pgRenderer{view: catalog, relation: parent, pretty: presentation.pretty, path: presentation.path}).sql(ctx, node, pgRenderParent{})
+	if err != nil {
+		return "", false, sqltype.Usage{}, err
+	}
+	return text, !pgIndexFunctionExpression(node), node.ResultUsage(), nil
 }

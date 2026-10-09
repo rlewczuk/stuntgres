@@ -401,6 +401,9 @@ type CatalogStage struct {
 	touched              map[NameKey]ObjectAddress
 	removals             map[ObjectAddress]catalogRemoval
 	rowShapes            map[ObjectAddress]catalogRowShape
+	indexRebuilds        map[ObjectAddress]*relationDescriptor
+	indexParents         map[ObjectAddress]*relationDescriptor
+	indexSets            map[ObjectAddress]int
 	oldNames             map[NameKey]bool
 	generators           map[ObjectAddress]*sequenceGenerator
 	identityOriginals    map[ObjectAddress]Descriptor
@@ -628,6 +631,10 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	e.mu.Lock()
+	if err := s.validateIndexMaintenance(e.state); err != nil {
+		e.mu.Unlock()
+		return nil, err
+	}
 	if err := e.evolveStageIndexesLocked(s, ObjectAddress{}, nil); err != nil {
 		e.mu.Unlock()
 		return nil, err
@@ -710,6 +717,10 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		if p.epoch != current.epoch || token.Epoch != current.epoch {
 			e.mu.Unlock()
 			return ChangeSet{}, ErrCatalogReplaced
+		}
+		if err := s.validateIndexMaintenance(current); err != nil {
+			e.mu.Unlock()
+			return ChangeSet{}, err
 		}
 		for _, base := range s.domainBases {
 			if current.descriptors[base.Address()] != base {
@@ -855,7 +866,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			buildStores[a] = storage[a]
 		}
-		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, indexPredecessors, rebuildIndexes)
+		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, indexPredecessors, rebuildIndexes, s.indexRebuilds)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}

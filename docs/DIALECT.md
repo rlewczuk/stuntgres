@@ -3129,7 +3129,8 @@ partial/concurrent/standalone-unique definitions and unowned providers are bound
 capability exclusions, not ignored clauses. Invalid INCLUDE decorations get
 42P17; expressions in INCLUDE get 0A000; excess total attributes get 54011.
 Class parameter validation follows duplicate-name/IF NOT EXISTS handling.
-No DROP/ALTER INDEX, unique attachment or broad index inquiry catalogs are added.
+Ordinary DROP/rename/rebuild utilities are described below; unique attachment
+and broad index SQL inquiry catalogs remain excluded.
 
 Expression keys use the existing scalar binder, type/collation providers,
 constant simplifier and evaluator, not an index-specific interpreter. Admission
@@ -3280,4 +3281,49 @@ roundtrip through native Dump/Restore and import remapping. Held eager rows
 survive replacement; old prepared logical contracts cannot retarget by name.
 ALTER/DROP TYPE, pg_enum catalogs, enum arrays and other CREATE TYPE forms
 remain excluded. See [types](TYPES.md#enums--change-note).
+
+
+## Index maintenance — change note
+
+Ordinary DROP INDEX groups, ALTER INDEX RENAME and REINDEX INDEX/TABLE operate on
+real logical B-trees. Repeated DROP addresses are deduplicated; late group
+kind/missing/dependency failures remove nothing. Backing UNIQUE rename retains
+both OIDs and the substantive root while updating current constraint enforcement
+names; direct backing DROP remains2BP01 even with CASCADE.
+
+The existing lock manager owns AX-parent-before-index DROP, Share-parent-before-
+AX-index rebuild and SUE index rename admission. Non-index rename aliases delegate
+to shared AX rename. Parent MAINTAIN permits non-owner rebuild; DROP permits
+schema ownership, whereas rename also requires target ownership and schema CREATE.
+Real selected/all-root rebuilds preserve rows/descriptors/version identities and
+unselected siblings; no-index TABLE returns NOTICE without publishing metadata.
+
+Native Prepare remains syntax-only. Native read-only25006 precedes lookup, ACLs
+and waits; writable explicit0A000 follows before those phases. PostgreSQL supports
+transactional utilities and REINDEX may resolve/wait before its read-only gate.
+Physical SET/RESET, tablespace movement, statistics, valid REINDEX controls,
+concurrency and global targets remain honest capability boundaries. Invalid
+ordered reloptions retain their input-order diagnostics. After native transaction
+gates, malformed/unknown REINDEX controls validate the complete list before
+target/schema lookup, kind/ACL checks or waits, including a bad control after an
+earlier valid one. Valid capability rejection stays at its existing target phase.
+REINDEX uses whitespace controls, not '='; Boolean integer0/1 is not quoted
+'0'/'yes'. Missing ALTER IF EXISTS skips semantic option validation.
+
+Internal metadata projects complete stable-attribute/direction/null/collation/
+actual-opclass vectors and original analyzed expression lists from one capture;
+published flags are not invented invalid-index history. Total attributes include
+INCLUDE repetitions, while class/collation/options contain only keys. Top-level
+scalar collations use their real stable attribute/no indexprs where PostgreSQL does.
+Central IndexClass owns actual identities; BindOrdering obtains default identities
+from it, retaining enum/domain declaration ordering and internal Char/Regclass
+without expanding excluded stored declarations or Char domains. All implemented
+explicit classes/collations and INCLUDE payloads survive maintenance. Full/column/
+pretty index deparse uses the existing PG renderer and compatibility reconstruction
+owner; native Dump retains canonical replay, including admitted decorations.
+No new pg_index/pg_indexes SQL source, node-tree list API, optimizer or physical
+storage behavior is added.
+See [the design](design/PG18-INDEX-MAINTENANCE.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`;
+repeat with `REFERENCE=1` for the independent pinned oracle.
 

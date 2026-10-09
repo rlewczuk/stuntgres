@@ -433,7 +433,7 @@ var keywords = [...]keyword{
 	{"references", Reserved, true, 0},
 	{"referencing", Unreserved, true, 0},
 	{"refresh", Unreserved, true, 0},
-	{"reindex", Unreserved, true, 0},
+	{"reindex", Unreserved, true, REINDEX},
 	{"relative", Unreserved, true, 0},
 	{"release", Unreserved, true, RELEASE},
 	{"rename", Unreserved, true, RENAME},

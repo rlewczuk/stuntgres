@@ -264,7 +264,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 				}
 			}
 			var indexErr error
-			indexRoots, indexErr = e.prepareIndexCatalog(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes)
+			indexRoots, indexErr = e.prepareIndexCatalog(op.Context(), current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, nil)
 			if indexErr != nil {
 				return indexErr
 			}

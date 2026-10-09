@@ -245,6 +245,7 @@ type StatementScope struct {
 	lockedRef              ObjectRef
 	viewCreationNamespace  ObjectRef
 	lockedDescriptor       Descriptor
+	indexMaintenance       *indexMaintenanceGrant
 	querySources           []queryLeaf
 	queryLocks             *queryLockContext
 	activeViews            []ObjectAddress
@@ -522,7 +523,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if err := s.snapshotPhase(stmt); err != nil {
 		return StatementDescription{}, err
 	}
-	_, indexBuild := stmt.(*parser.CreateIndex)
+	indexBuild := earlyIndexUtility(stmt)
 	if s.owner.state == TxActive && explicitUtility(stmt) && !indexBuild {
 		return StatementDescription{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
@@ -557,7 +558,7 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 	if err := s.readOnlyUtilityEligibility(stmt); err != nil {
 		return Result{}, err
 	}
-	_, indexBuild := stmt.(*parser.CreateIndex)
+	indexBuild := earlyIndexUtility(stmt)
 	if indexBuild {
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err
@@ -734,6 +735,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.uniqueBinding = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil
+	s.indexMaintenance = nil
 	s.viewCreationNamespace = ObjectRef{}
 	s.lockedStorage = nil
 	s.querySources = nil

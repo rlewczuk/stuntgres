@@ -756,3 +756,31 @@ commit, with rollback/savepoint atomicity. Published roots are immutable;
 historical and own-write queries still consume the existing selected MVCC view,
 not current-only index membership.
 
+
+## Index maintenance admission and publication
+
+DROP INDEX preflights whole groups, then takes AX on all distinct sorted parents
+before AX on selected sorted indexes. REINDEX INDEX takes parent Share before
+selected index AX; TABLE takes parent Share before every implemented index AX and
+fences the captured index set. Index rename uses SUE, while non-index rename
+aliases use AX. All grants use the existing transaction ticket/queue; authority
+is checked before waiting and rechecked against exact grant-time identities.
+There is no retry by recreated name or a separate lock manager.
+
+DROP admits index ownership or schema ownership; rename requires ownership plus
+schema CREATE; rebuild checks parent MAINTAIN with diagnostics naming the requested
+index/table. Selected catalog-stage rebuild intents install actual freshly
+extracted/sorted/validated roots atomically. Prior writers' committed rows are
+included, rolled-back private writes are absent, and unchanged siblings keep their
+newest roots. Operation/authorization/epoch/store/context fences veto all partial
+installation and normal Finish releases failed/pending implicit contributions.
+
+Native DROP/ALTER INDEX and REINDEX retain syntax-only Prepare even in an active
+transaction. Execute returns canonical25006 for read-only before lookup/ACL/wait,
+then writable explicit0A000 before those phases. PostgreSQL utilities support
+transactional rollback; PostgreSQL REINDEX may resolve/wait before read-only
+rejection. The reference suite asserts that difference explicitly. Native queries
+still scan parent snapshots; these utilities add no optimizer index-scan locks or
+historical visibility based on current-only roots.
+See [index maintenance design](design/PG18-INDEX-MAINTENANCE.md).
+

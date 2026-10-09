@@ -532,6 +532,9 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		if r, ok := d.(*relationDescriptor); ok && r.relationKind == viewRelation {
 			kind = "view"
 		}
+		if r, ok := d.(*relationDescriptor); ok && r.relationKind == indexRelation {
+			kind = "index"
+		}
 		if req.Object.Address.SubID > 0 && d.Kind() == RelationObject {
 			kind = "relation"
 		}

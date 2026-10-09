@@ -54,6 +54,22 @@ remain unsupported. See [datetime formatting](docs/DIALECT.md#datetime-formattin
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeFormattingFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeFormattingFeatureSmoke$' VERBOSE=0`.
 
+Change note: ordinary `DROP INDEX`, `ALTER INDEX ... RENAME TO`,
+`REINDEX INDEX` and `REINDEX TABLE` operate on substantive logical B-trees.
+Grouped drops preflight atomically; backing-index rename retains constraint/index
+identities and ongoing UNIQUE enforcement. Rebuilds replace selected real roots,
+not descriptors or table rows. Native execution is excluded in writable explicit
+transactions, and read-only rejection precedes lookup/locks. Physical options,
+tablespaces, statistics and concurrent/global rebuild requests remain explicit
+capability boundaries, not no-op successes. Internal coherent metadata uses
+central actual B-tree class identities and key/INCLUDE vectors, including admitted
+explicit providers and enum domains; no new SQL catalog source is added.
+See [maintenance contracts](docs/SQL.md#index-maintenance) and
+[the design](docs/design/PG18-INDEX-MAINTENANCE.md).
+Feature smokes:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`;
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`.
+
 Change note: floating `+`, unary `+`, `-`, unary `-`, `*`, `/` and `^`
 use PostgreSQL operand resolution and fixed REAL/DOUBLE PRECISION widths.
 Known integer/NUMERIC operands mixed with REAL widen to DOUBLE; unknown

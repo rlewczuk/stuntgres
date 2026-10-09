@@ -58,12 +58,18 @@ func (e *Engine) rebuildAlterUniquesLocked(stage *CatalogStage, parent *relation
 			return nil, err
 		}
 		definition := *index.sqlIndex
+		definition.keys = slices.Clone(index.sqlIndex.keys)
 		definition.unique = c
 		clone.sqlIndex = &definition
 		clone.columns = slices.Clone(index.columns)
 		for j, key := range definition.keys {
 			slot := slices.Index(parent.attributes, key.attribute)
 			clone.columns[j].Usage = parent.columns[slot].Usage
+			class, ok := sqltype.DefaultIndexClass(clone.columns[j].Usage.Type)
+			if !ok {
+				return nil, indexDefaultClassError(clone.columns[j].Usage.Type.DiagnosticName())
+			}
+			definition.keys[j].class = class
 			clone.columns[j].OriginTable = uint32(id)
 		}
 		if err := stage.Create(&clone); err != nil {
@@ -119,7 +125,12 @@ func validateAlterUniques(ctx context.Context, auth AuthorizationView, ref Objec
 		c := &parent.uniqueConstraints[i]
 		d := indexDefinition{parent: parent.address, unique: c, keys: make([]indexKey, len(c.Attributes))}
 		for j, attr := range c.Attributes {
-			d.keys[j] = indexKey{attribute: attr}
+			usage := parent.columns[slices.Index(parent.attributes, attr)].Usage
+			class, ok := sqltype.DefaultIndexClass(usage.Type)
+			if !ok {
+				return nil, indexDefaultClassError(usage.Type.DiagnosticName())
+			}
+			d.keys[j] = indexKey{attribute: attr, class: class}
 		}
 		root, err := buildIndexRoot(ctx, parent, &d, &candidate)
 		if err != nil {

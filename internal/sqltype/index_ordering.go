@@ -12,72 +12,109 @@ type IndexClass struct {
 	Name   string
 	Family string
 	input  ID
+	oid    uint32
+	enum   bool
 }
+
+// OID is the released identity of this implemented B-tree class. Unsupported
+// diagnostic-only classes do not advertise an ordering identity.
+func (c IndexClass) OID() uint32 { return c.oid }
 
 func LookupIndexClass(name string) (IndexClass, bool) {
 	c := IndexClass{Name: name, Family: name}
 	switch name {
 	case "bool_ops":
 		c.input = Bool
+		c.oid = 10003
 	case "bytea_ops":
 		c.input = Bytea
+		c.oid = 10006
 	case "char_ops":
 		c.input = Char
+		c.oid = 10007
 	case "name_ops":
 		c.input = Name
+		c.oid = 10028
 	case "int2_ops":
 		c.input = Int2
 		c.Family = "integer_ops"
+		c.oid = 1979
 	case "int4_ops":
 		c.input = Int4
 		c.Family = "integer_ops"
+		c.oid = 1978
 	case "int8_ops":
 		c.input = Int8
 		c.Family = "integer_ops"
+		c.oid = 3124
 	case "text_ops", "varchar_ops":
 		c.input = Text
 		c.Family = "text_ops"
+		c.oid = 3126
+		if name == "varchar_ops" {
+			c.oid = 10044
+		}
 	case "bpchar_ops":
 		c.input = BPChar
+		c.oid = 10004
 	case "oid_ops":
 		c.input = Oid
+		c.oid = 1981
 	case "float4_ops":
 		c.input = Float4
 		c.Family = "float_ops"
+		c.oid = 10012
 	case "float8_ops":
 		c.input = Float8
 		c.Family = "float_ops"
+		c.oid = 3123
 	case "date_ops":
 		c.input = Date
 		c.Family = "datetime_ops"
+		c.oid = 3122
 	case "time_ops":
 		c.input = Time
+		c.oid = 10038
 	case "timestamp_ops":
 		c.input = Timestamp
 		c.Family = "datetime_ops"
+		c.oid = 3128
 	case "timestamptz_ops":
 		c.input = Timestamptz
 		c.Family = "datetime_ops"
+		c.oid = 3127
 	case "timetz_ops":
 		c.input = Timetz
+		c.oid = 10041
 	case "interval_ops":
 		c.input = Interval
+		c.oid = 10022
 	case "numeric_ops":
 		c.input = Numeric
+		c.oid = 3125
 	case "uuid_ops":
 		c.input = UUID
+		c.oid = 10065
 	case "text_pattern_ops", "varchar_pattern_ops":
 		c.input = Text
 		c.Family = "text_pattern_ops"
+		c.oid = 4217
+		if name == "varchar_pattern_ops" {
+			c.oid = 4218
+		}
 	case "bpchar_pattern_ops":
 		c.input = BPChar
+		c.oid = 4219
+	case "enum_ops":
+		c.oid = 10069
+		c.enum = true
 	case "array_ops":
 		c.input = NameArray
 	case "tid_ops":
 		c.input = 27 // Diagnostic identity only; no tid descriptor/provider.
 	// Released classes without an owned input/comparator. They cannot authorize
 	// an implemented scalar just because their spelling exists in pg_catalog.
-	case "record_ops", "record_image_ops", "enum_ops", "network_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "jsonb_ops", "money_ops", "tsquery_ops", "tsvector_ops", "xid8_ops":
+	case "record_ops", "record_image_ops", "network_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "jsonb_ops", "money_ops", "tsquery_ops", "tsvector_ops", "xid8_ops":
 	default:
 		return IndexClass{}, false
 	}
@@ -87,6 +124,9 @@ func LookupIndexClass(name string) (IndexClass, bool) {
 func DefaultIndexClass(t *Descriptor) (IndexClass, bool) {
 	if !t.Concrete() {
 		return IndexClass{}, false
+	}
+	if t.BaseType().IsEnum() {
+		return LookupIndexClass("enum_ops")
 	}
 	return DefaultIndexClassID(t.BaseType().id)
 }
@@ -151,6 +191,9 @@ func DefaultIndexClassID(id ID) (IndexClass, bool) {
 func (c IndexClass) Accepts(t *Descriptor) bool {
 	if !t.Concrete() {
 		return false
+	}
+	if c.enum {
+		return t.BaseType().IsEnum()
 	}
 	return c.AcceptsID(t.BaseType().id)
 }

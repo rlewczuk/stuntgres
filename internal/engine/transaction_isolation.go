@@ -265,6 +265,12 @@ func modifyingTag(stmt parser.Statement) string {
 	switch stmt.(type) {
 	case *parser.CreateIndex:
 		return "CREATE INDEX"
+	case *parser.DropIndex:
+		return "DROP INDEX"
+	case *parser.AlterIndex:
+		return "ALTER INDEX"
+	case *parser.Reindex:
+		return "REINDEX"
 	case *parser.CreateView:
 		return "CREATE VIEW"
 	case *parser.AlterView:
@@ -344,7 +350,7 @@ func explicitUtility(stmt parser.Statement) bool {
 		return false
 	}
 	switch stmt.(type) {
-	case *parser.CreateIndex, *parser.CreateView, *parser.AlterView, *parser.DropView:
+	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
 	case *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
 		return true
@@ -370,4 +376,14 @@ func (s *StatementScope) repeatableConflict(head rowVersion, end *deletionRoot) 
 		}
 	}
 	return nil
+}
+
+// Only index utilities have a syntax-only Describe and an early Execute gate.
+// Other utility admission precedence is deliberately unchanged.
+func earlyIndexUtility(stmt parser.Statement) bool {
+	switch stmt.(type) {
+	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
+		return true
+	}
+	return false
 }

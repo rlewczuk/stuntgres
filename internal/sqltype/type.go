@@ -1093,7 +1093,14 @@ func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnviron
 	return Value{}, fmt.Errorf("invalid coercion plan")
 }
 
-type Comparison struct{ left, right *Descriptor }
+type Comparison struct {
+	left, right         *Descriptor
+	defaultBtreeOpclass uint32
+}
+
+// DefaultBtreeOpclass identifies the provider admitted by BindOrdering.
+// Comparisons bound for scalar equality do not imply an ordering provider.
+func (p Comparison) DefaultBtreeOpclass() uint32 { return p.defaultBtreeOpclass }
 
 // BindOrdering validates the actual builtin provider and bounded C collation
 // before any rows are read, including empty and all-NULL inputs.
@@ -1107,24 +1114,27 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == JSON {
 		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.BaseType().DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
 	}
-	if u.Type.BaseType().IsEnum() {
-		// Ordering uses the base enum provider, not polymorphic scalar operator
-		// eligibility. Retain the domain identity for Compare's datum checks.
-		return Comparison{u.Type, u.Type}, nil
-	}
-	switch u.Type.BaseType().id {
-	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass:
-	case Void:
-		message := "could not identify an ordering operator for type void"
-		return Comparison{}, &sqlstate.Error{
-			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883",
-			Message: message,
-			Hint:    "Use an explicit ordering operator or modify the query.",
+	if !u.Type.BaseType().IsEnum() {
+		switch u.Type.BaseType().id {
+		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8,
+			Interval, Name, Numeric, Oid, Regclass, Text, VarChar, Time,
+			Timestamp, Timestamptz, Timetz, UUID:
+		case Void:
+			message := "could not identify an ordering operator for type void"
+			return Comparison{}, &sqlstate.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883",
+				Message: message,
+				Hint:    "Use an explicit ordering operator or modify the query.",
+			}
+		default:
+			return Comparison{}, fmt.Errorf("invalid ordering type")
 		}
-	default:
-		return Comparison{}, fmt.Errorf("invalid ordering type")
 	}
-	return BindComparison(u.Type, u.Type)
+	class, ok := DefaultIndexClass(u.Type)
+	if !ok || class.OID() == 0 {
+		return Comparison{}, fmt.Errorf("invalid ordering class identity")
+	}
+	return Comparison{left: u.Type, right: u.Type, defaultBtreeOpclass: class.OID()}, nil
 }
 
 func (p Comparison) SessionDependent() bool {
@@ -1132,7 +1142,7 @@ func (p Comparison) SessionDependent() bool {
 }
 
 func BindComparison(left, right *Descriptor) (Comparison, error) {
-	p := Comparison{left, right}
+	p := Comparison{left: left, right: right}
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
 	}
