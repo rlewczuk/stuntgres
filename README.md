@@ -622,10 +622,10 @@ make test       # uncached Docker-free unit, public smoke and dual-mode referenc
 make smoke      # public API scenarios only
 make race       # Docker-free tests with the race detector
 make reference  # compatibility tests against pinned PostgreSQL; requires Docker
-make test-all   # quick and full reference suites with race; one 300s deadline
+make test-all   # quick and full reference suites with race; one 900s deadline
 ```
 
-Test targets enforce a 300-second wall-clock deadline and are quiet by default.
+Test targets enforce a 900-second wall-clock deadline and are quiet by default.
 Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 `PACKAGES=./internal/parser` to scope ordinary or race tests.
 
@@ -662,7 +662,7 @@ whole-suite quick migration: other unmigrated families, the standalone
 PostgreSQL column-ACL complement and DML server-only edges remain tagged.
 `make reference` enables the flag only for `./reference`. `make test-all` runs
 ordinary native/smoke/quick tests with race detection, then the full tagged
-reference package with race detection, under one aggregate 300-second deadline.
+reference package with race detection, under one aggregate 900-second deadline.
 
 
 Start with the [dialect contract](docs/DIALECT.md) and

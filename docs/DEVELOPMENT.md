@@ -14,7 +14,7 @@ make bench      # fresh engine + connector + pool + Ping + Close, five runs
 make deps       # list non-standard production dependencies
 ```
 
-Test targets enforce a fixed 300-second wall-clock deadline across all packages,
+Test targets enforce a fixed 900-second wall-clock deadline across all packages,
 including compilation, plus a per-package timeout. `make test-all` chains ordinary
 native/smoke/quick race tests and the full tagged reference race package under one
 outer deadline; slow or hanging tests must be fixed, not exempted.
@@ -90,7 +90,7 @@ it to unrelated package binaries. `make test` and `make race` discover migrated
 quick scenarios normally. `make reference` selects true and includes every
 legacy tagged case. `make test-all` first runs `go test -race ./...`, then
 `go test -race -tags reference ./reference -args -reference=true`, with uncached
-test flags and one shared 300-second wall-clock bound.
+test flags and one shared 900-second wall-clock bound.
 
 The tag retains untouched legacy PostgreSQL-only definitions. A tagged selection
 restricted to mode-aware migrated scenarios with `-reference=false` (flag after

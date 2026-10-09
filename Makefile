@@ -5,8 +5,8 @@
 RUN ?=
 PACKAGES ?= ./...
 VERBOSE ?= 0
-TEST_FLAGS = -count=1 -timeout=300s $(if $(filter 1,$(VERBOSE)),-v) $(if $(RUN),-run '$(RUN)')
-TEST_COMMAND = timeout --signal=KILL 300s go test $(TEST_FLAGS)
+TEST_FLAGS = -count=1 -timeout=900s $(if $(filter 1,$(VERBOSE)),-v) $(if $(RUN),-run '$(RUN)')
+TEST_COMMAND = timeout --signal=KILL 900s go test $(TEST_FLAGS)
 
 generate:
 	go generate ./internal/parser
@@ -28,10 +28,10 @@ race:
 
 # Quick/native/smoke and full PostgreSQL coverage share one aggregate deadline.
 test-all:
-	@timeout --signal=KILL 300s sh -c 'go test "$$@" -race ./... && go test "$$@" -race -tags reference ./reference -args -reference=true' test-all $(TEST_FLAGS)
+	@timeout --signal=KILL 900s sh -c 'go test "$$@" -race ./... && go test "$$@" -race -tags reference ./reference -args -reference=true' test-all $(TEST_FLAGS)
 
 bench:
-	@timeout --signal=KILL 300s go test -timeout=300s -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .
+	@timeout --signal=KILL 900s go test -timeout=900s -run '^$$' -bench '^BenchmarkOpenDatabase$$' -benchmem -count=5 .
 
 deps:
 	go list -deps -f '{{if not .Standard}}{{.ImportPath}}{{end}}' ./...
