@@ -8,7 +8,7 @@ func (p CoercionPlan) SessionDependent() bool {
 	if p.method == viaIO {
 		// CoerceViaIO invokes both the source output and target input procedure.
 		// array_in and interval_in are STABLE even for immutable TEXT input.
-		return p.source.Type.OutputSessionDependent() || p.target.Type.BaseType().IsArray() || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
+		return p.source.Type.OutputSessionDependent() || p.target.Type.BaseType().IsArray() || target == Regclass || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
 	}
 	return false
 }

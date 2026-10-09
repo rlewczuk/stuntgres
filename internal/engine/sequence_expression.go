@@ -195,8 +195,27 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (BoundExpr, ObjectRef, 
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
 		return literalExpression{b.info(typ.Usage(), literal.Value.Pos, ExprProperties{}), sqltype.String(typ, text)}, ref, nil
 	}
-	node, err := b.bind(raw, expressionPolicy{context: functionArgumentContext, expected: typ.Usage(), mode: sqltype.Implicit})
-	return node, ObjectRef{}, err
+	// This legacy provider also owns explicit REGCLASS annotations and sequence
+	// inputs. New contextual inquiry coercions must not widen its public boundary.
+	node, err := b.bind(raw, expressionPolicy{context: functionArgumentContext, expected: typ.Usage(), mode: sqltype.Implicit, deferAssignment: true})
+	if err != nil {
+		return nil, ObjectRef{}, err
+	}
+	if node.ResultUsage().BaseUsage().Type != typ {
+		return nil, ObjectRef{}, sqlError("42804", "incompatible source and destination types")
+	}
+	if node.ResultUsage() == typ.Usage() {
+		return node, ObjectRef{}, nil
+	}
+	plan, err := sqltype.PlanCoercion(node.ResultUsage(), typ.Usage(), sqltype.Implicit)
+	if err != nil {
+		return nil, ObjectRef{}, err
+	}
+	info, err := collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), coercionProperties(node, plan)), node)
+	if err != nil {
+		return nil, ObjectRef{}, err
+	}
+	return coercionExpression{info, node, plan, sqltype.Implicit}, ObjectRef{}, nil
 }
 func sequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	if d, ok := err.(*sqlstate.Error); ok {

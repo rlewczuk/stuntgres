@@ -128,6 +128,17 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 	}
 	r.record(ObjectRef{owner: view.owner.owner, Epoch: view.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}})
 	switch n := node.(type) {
+	case indexPropertyExpression:
+		if r.owner == nil {
+			return "", fmt.Errorf("stuntgres: index property inquiries are unsupported in stored defaults")
+		}
+		if err := validateStoredIndexPropertyExpression(n); err != nil {
+			return "", err
+		}
+		if n.kind != accessMethodProperty && r.commentSnapshot != nil {
+			*r.commentSnapshot = true
+		}
+		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), n.children())
 	case deparseExpression:
 		if err := validateDeparseExpression(n); err != nil {
 			return "", err
@@ -802,6 +813,22 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 	switch n := node.(type) {
 	case tableOIDExpression:
 		n.expressionInfo = info
+		rebound = n
+	case indexPropertyExpression:
+		for i := range n.children() {
+			n.args[i] = child(n.args[i])
+		}
+		if err != nil {
+			return nil, false, err
+		}
+		n.expressionInfo = info
+		if n.kind != accessMethodProperty {
+			n.oidUsage.Type = retainedType(n.oidUsage.Type)
+			n.oidPlan, err = sqltype.PlanCoercion(n.args[0].ResultUsage(), n.oidUsage, sqltype.Implicit)
+			if err != nil {
+				return nil, false, err
+			}
+		}
 		rebound = n
 	case deparseExpression:
 		n.args = append([]BoundExpr(nil), n.args...)

@@ -630,6 +630,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			return "", err
 		}
 		return "(" + text + " AT TIME ZONE " + zone + ")", nil
+	case indexPropertyExpression:
+		if err := validateStoredIndexPropertyExpression(n); err != nil {
+			return "", err
+		}
+		return function(n.kind.name(), n.children(), true)
 	case deparseExpression:
 		if err := validateDeparseExpression(n); err != nil {
 			return "", err

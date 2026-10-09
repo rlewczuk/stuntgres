@@ -770,8 +770,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | NOT NULL { $$=ColumnConstraint{NotNull:true,Pos:$1.pos} }
  | CONSTRAINT name NULL { $$=ColumnConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | CONSTRAINT name NOT NULL { $$=ColumnConstraint{NotNull:true,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
- | DEFAULT default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
- | CONSTRAINT name DEFAULT default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
+ | DEFAULT default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};if !sqllex.(*lexer).defaultIndexPropertyAllowed($2) {return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
+ | CONSTRAINT name DEFAULT default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};if !sqllex.(*lexer).defaultIndexPropertyAllowed($4) {return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | check_constraint { $$=ColumnConstraint{Check:$1,Pos:$1.Pos} }
  | column_unique { $$=ColumnConstraint{Unique:$1,Pos:$1.Pos} }
  | identity_definition { $$=ColumnConstraint{Identity:$1,Pos:$1.Pos} }

@@ -77,6 +77,8 @@ func firstQueryBoundVariable(expr BoundExpr) parser.Position {
 	switch e := expr.(type) {
 	case columnExpression, groupExpression, aggregateExpression:
 		return expr.SourcePosition()
+	case indexPropertyExpression:
+		return firstQueryBoundArgs(e.children())
 	case deparseExpression:
 		return firstQueryBoundArgs(e.args)
 	case visibilityInquiryExpression:

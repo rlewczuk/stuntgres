@@ -181,6 +181,12 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			out.WriteString("AtTimeZone")
 			err = pair(n.value, n.zone)
 		}
+	case indexPropertyExpression:
+		if err := validateStoredIndexPropertyExpression(n); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "IndexProperty kind %d", n.kind)
+		err = args(n.children())
 	case deparseExpression:
 		fmt.Fprintf(out, "Deparse signature %d", n.signature)
 		err = args(n.args)

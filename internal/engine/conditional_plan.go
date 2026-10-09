@@ -338,6 +338,20 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			changed = true
 		}
 		expression = e
+	case indexPropertyExpression:
+		e.properties = ExprProperties{Volatility: Stable}
+		for i, old := range e.children() {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args[i] = node
+				changed = true
+			}
+			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+		}
+		expression = e
 	case deparseExpression:
 		var args []BoundExpr
 		for i, old := range e.args {

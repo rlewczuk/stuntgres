@@ -19,6 +19,26 @@ func dumpPredecessor(view CatalogRead, address, consumer ObjectAddress) (OID, er
 	if !relation || source.relationKind == catalogRelation {
 		return 0, nil
 	}
+	// UNIQUE indexes are created inline with their parent. Ordinary indexes
+	// have their own graph node and must remain an exact predecessor.
+	if source.relationKind == indexRelation && source.sqlIndex != nil && source.sqlIndex.unique != nil {
+		unique := source.sqlIndex.unique
+		parent, ok := view.state.descriptors[source.sqlIndex.parent].(*relationDescriptor)
+		if !ok || parent.relationKind != tableRelation || parent.namespace != source.namespace || parent.owner != source.owner || unique.Index != source.address {
+			return 0, fmt.Errorf("stuntgres: invalid unique index dump dependency")
+		}
+		found := false
+		for _, constraint := range parent.uniqueConstraints {
+			if constraint.Index == source.address && constraint.OID == unique.OID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return 0, fmt.Errorf("stuntgres: orphan unique index dump dependency")
+		}
+		source = parent
+	}
 	if source.relationKind == sequenceRelation {
 		if !source.sequence.identity {
 			return 0, nil

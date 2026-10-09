@@ -2491,6 +2491,35 @@ objects/data, not session search_path; it is not external pg_dump, wire protocol
 server configuration or filesystem durability.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
 
+### Index capability inquiries — change note
+
+`pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
+`pg_index_column_has_property(regclass,integer,text)` are STABLE/STRICT nullable
+BOOL functions in existing typed scalar consumers. Property names match ASCII
+case-insensitively without trimming. Unknown/wrong-level names, invalid numeric
+identities, non-index relations and invalid index-column ordinals return NULL.
+Missing named REGCLASS input is a normal resolution error, not an invalid-OID NULL.
+OID, integer widths, TEXT/VARCHAR and existing domains implicitly select the
+documented REGCLASS signature; explicit cast and storage admission are unchanged.
+String conversion uses captured statement input authority.
+
+Fixed builtin AM IDs403/405/783/2742/4000/3580 answer documented capabilities;
+this does not add pg_am, other catalogs or non-B-tree DDL. B-tree can_order is true.
+All four whole-index capabilities, including backward_scan, are true for existing
+B-tree definitions. Ordered keys report their DESC/NULLS FIRST definition.
+INCLUDE columns are returnable but not orderable; their asc/desc/null-order and
+search_array/search_nulls inquiries are NULL. Invalid property is distinct from
+a recognized false capability. These are definition properties, not optimizer
+or physical scan observations.
+
+Views, CHECKs, grouping and existing expression consumers share the same node.
+Native DEFAULT admission remains excluded, and STABLE calls are rejected in index
+and generated expressions. Canonical index/view/CHECK definitions survive native
+Dump/Restore and renames; stateless inquiries add no serialization mechanism.
+See [design and complete capability tables](design/PG18-FUNC-INFO-INDEX-PROPERTIES.md).
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0`;
+pinned mode adds `REFERENCE=1` to that same command.
+
 ### Search-path visibility inquiries — change note
 
 The four PostgreSQL18 inquiry names each have one STABLE/STRICT `(oid) → boolean`

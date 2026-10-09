@@ -7251,6 +7251,9 @@ sqldefault:
 				sqllex.(*lexer).syntax(*token)
 				return 1
 			}
+			if !sqllex.(*lexer).defaultIndexPropertyAllowed(sqlDollar[2].expr) {
+				return 1
+			}
 			sqlVAL.constraint = ColumnConstraint{Default: sqlDollar[2].expr, Pos: sqlDollar[1].tok.pos}
 		}
 	case 512:
@@ -7258,6 +7261,9 @@ sqldefault:
 		{
 			if token, _ := nonqueryQualification(sqlDollar[4].expr, false); token != nil {
 				sqllex.(*lexer).syntax(*token)
+				return 1
+			}
+			if !sqllex.(*lexer).defaultIndexPropertyAllowed(sqlDollar[4].expr) {
 				return 1
 			}
 			sqlVAL.constraint = ColumnConstraint{Default: sqlDollar[4].expr, Name: Identifier{Text: sqlDollar[2].tok.text, Pos: sqlDollar[2].tok.pos}, Pos: sqlDollar[3].tok.pos}

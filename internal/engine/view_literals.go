@@ -247,6 +247,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			}
 			return child(r.Args[1], n.escape)
 		}
+		if n, ok := bound.(indexPropertyExpression); ok {
+			return children(r.Args, n.children())
+		}
 		if n, ok := bound.(deparseExpression); ok {
 			return children(r.Args, n.args)
 		}
@@ -255,6 +258,12 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		}
 		if n, ok := bound.(literalExpression); ok && n.value.IsNull() && n.value.Type().ID() == sqltype.Bool {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
+			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
+				node, err := b.bindIndexPropertyStructure(r, false)
+				if err != nil {
+					return err
+				}
+				return children(r.Args, node.(indexPropertyExpression).children())
 			case "pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible":
 				structure, err := b.bindVisibilityInquiryStructure(r)
 				if err != nil {

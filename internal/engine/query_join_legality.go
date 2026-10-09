@@ -332,6 +332,8 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 		children = e.args
 	case sequenceCallExpression:
 		children = e.args
+	case indexPropertyExpression:
+		children = e.children()
 	case deparseExpression:
 		children = e.args
 	case commentInquiryExpression:

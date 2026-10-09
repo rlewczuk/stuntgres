@@ -119,6 +119,20 @@ make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexClauses
 This smoke does not replace the complete identical dual-mode family selection
 documented in [the index-clause design](design/PG18-INDEX-CLAUSES.md).
 
+The index-property smoke checks the eleven independently expected BOOL values
+for B-tree AM/index capabilities, mixed DESC/NULLS ordering and INCLUDE roles,
+plus prepared true/false/NULL and explicit native Reset/Restore/foreign restore:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0
+```
+
+Run both with a900-second deadline. The full `^TestReferenceIndexProperties`
+selector covers every new definition; see [the inquiry design](design/PG18-FUNC-INFO-INDEX-PROPERTIES.md)
+for the shared-coercion consumer risk selectors. Smoke does not replace those
+identical dual-mode selective runs, ordinary quickcheck or post-merge fullcheck.
+
 ## How the dual-mode fixture works
 
 `newReferenceScenario(t)` creates a fresh native engine, a middleware-wrapped

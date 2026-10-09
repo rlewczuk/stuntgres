@@ -116,6 +116,11 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case currentSchemasExpression:
 		n.arg = child(n.arg)
 		next = n
+	case indexPropertyExpression:
+		for i := range n.children() {
+			n.args[i] = child(n.args[i])
+		}
+		next = n
 	case deparseExpression:
 		n.args = args(n.args)
 		next = n

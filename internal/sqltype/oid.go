@@ -1,6 +1,9 @@
 package sqltype
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // OIDValue constructs a distinct unsigned four-byte scalar, not a regclass.
 func OIDValue(d *Descriptor, n uint32) (Value, error) {
@@ -66,6 +69,19 @@ func (d *Descriptor) oidInput(text string) (Value, error) {
 }
 
 func oidCoercion(v Value, target *Descriptor) (Value, error) {
+	if target.id == Regclass {
+		var oid uint32
+		if v.typ.id == Oid {
+			oid = v.oid
+		} else {
+			if v.typ.id == Int8 && (v.integer < 0 || v.integer > 4294967295) {
+				return Value{}, failure("22003", "OID out of range")
+			}
+			oid = uint32(v.integer)
+		}
+		// Canonical identity is validated here; avoid parsing it again in String.
+		return Value{typ: target, text: strconv.FormatUint(uint64(oid), 10), oid: oid, integer: 1}, nil
+	}
 	if target.id == Oid {
 		if v.typ.id == Regclass {
 			if v.integer != 1 {

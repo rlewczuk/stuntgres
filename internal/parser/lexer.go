@@ -675,7 +675,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
-	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	// REPLACE is also an unreserved keyword (CREATE OR REPLACE VIEW). Promote
@@ -796,7 +796,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || token.lexeme.text == "current_schemas") {
+	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || token.lexeme.text == "current_schemas") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {
@@ -1202,4 +1202,11 @@ func binaryHashFunction(name string) bool {
 // Admission preserves quoted case in the AST; routine resolution stays exact.
 func stringReplacementFunction(name string) bool {
 	return strings.EqualFold(name, "replace") || strings.EqualFold(name, "translate") || strings.EqualFold(name, "starts_with")
+}
+
+// Preserve quoted case for ordinary signature diagnostics. Prefix admission
+// parses unresolved inquiry-family names; it does not grant builtin dispatch.
+func indexPropertyCallName(name string) bool {
+	return strings.EqualFold(name, "pg_indexam_has_property") ||
+		len(name) >= len("pg_index_") && strings.EqualFold(name[:len("pg_index_")], "pg_index_")
 }

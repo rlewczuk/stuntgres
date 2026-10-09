@@ -23,6 +23,7 @@ func TestReferenceDeleteReturningDiagnostics(t *testing.T) {
 				{"qualifier", "DELETE FROM t RETURNING x.id", referenceDiagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "x"`, Position: "25"}},
 				{"hidden_target", "DELETE FROM t AS d RETURNING t.id", referenceDiagnostic{Code: "42P01", Message: `invalid reference to FROM-clause entry for table "t"`, Position: "30", Hint: `Perhaps you meant to reference the table alias "d".`}},
 				{"hidden_old", "DELETE FROM t RETURNING WITH (OLD AS o) old.id", referenceDiagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "old"`, Position: "41"}},
+				{"hidden_new", "DELETE FROM t RETURNING WITH (NEW AS n) new.id", referenceDiagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "new"`, Position: "41"}},
 				{"cross_hidden_old", "DELETE FROM t RETURNING WITH (OLD AS new) old.id", referenceDiagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "old"`, Position: "43"}},
 				{"cross_hidden_new", "DELETE FROM t RETURNING WITH (NEW AS old) new.id", referenceDiagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "new"`, Position: "43"}},
 				{"cross_collision", "DELETE FROM t RETURNING WITH (OLD AS new, NEW AS new) id", referenceDiagnostic{Code: "42712", Message: `table name "new" specified more than once`, Position: "43"}},
@@ -30,6 +31,7 @@ func TestReferenceDeleteReturningDiagnostics(t *testing.T) {
 				{"duplicate_new", "DELETE FROM t RETURNING WITH (NEW AS n, NEW AS p) id", referenceDiagnostic{Code: "42601", Message: "NEW cannot be specified multiple times", Position: "41"}},
 				{"target_collision", "DELETE FROM t RETURNING WITH (OLD AS t) id", referenceDiagnostic{Code: "42712", Message: `table name "t" specified more than once`, Position: "31"}},
 				{"alias_collision", "DELETE FROM t RETURNING WITH (OLD AS o, NEW AS o) id", referenceDiagnostic{Code: "42712", Message: `table name "o" specified more than once`, Position: "41"}},
+				{"old_where", "DELETE FROM t WHERE old.id=1 RETURNING id", referenceDiagnostic{Code: "42P01", Message: `missing FROM-clause entry for table "old"`, Position: "21"}},
 				{"aggregate", "DELETE FROM t RETURNING count(*)", referenceDiagnostic{Code: "42803", Message: "aggregate functions are not allowed in RETURNING", Position: "25"}},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
@@ -56,6 +58,7 @@ func TestReferenceDeleteReturningDiagnostics(t *testing.T) {
 					s.errorStage = "prepare"
 				}
 				referenceRunStep(t, p.ctx, db, r, s)
+				deleteReferenceRows(t, p, db, r, 1, 2)
 			}
 		})
 	}
@@ -122,6 +125,47 @@ func TestReferenceDeleteReturningParameterOrderControls(t *testing.T) {
 						held.Close()
 					}
 					referenceRunStep(t, p.ctx, a, r, referenceSelect("SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{}))
+				}
+			}
+		})
+	}
+}
+
+func TestReferenceDeleteReturningRegclassBoundary(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db, r := backend.db, backend.recorder
+			referenceLockExec(t, p.ctx, db, "CREATE TABLE rt(v TEXT)", 0)
+			for _, prepared := range []bool{false, true} {
+				for _, tc := range []struct {
+					query          string
+					columns, types []string
+					values         []any
+					want           referenceDiagnostic
+				}{
+					{"DELETE FROM rt RETURNING old.v::regclass,new.v::regclass", []string{"v", "v"}, []string{"REGCLASS", "REGCLASS"}, []any{nil, nil}, referenceDiagnostic{Code: "0A000", Message: "qualified column references are unsupported", Position: "26"}},
+					{"DELETE FROM rt RETURNING new.v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}, referenceDiagnostic{Code: "0A000", Message: "qualified column references are unsupported", Position: "26"}},
+					{"DELETE FROM rt RETURNING v::regclass", []string{"v"}, []string{"REGCLASS"}, []any{nil}, referenceDiagnostic{Code: "42804", Message: "incompatible source and destination types"}},
+					{"DELETE FROM rt RETURNING CAST(v AS regclass)", []string{"v"}, []string{"REGCLASS"}, []any{nil}, referenceDiagnostic{Code: "42804", Message: "incompatible source and destination types"}},
+				} {
+					referenceLockExec(t, p.ctx, db, "INSERT INTO rt VALUES(NULL)", 1)
+					if backend.pg {
+						s := referenceSelect(tc.query, tc.columns, tc.types, [][]any{tc.values})
+						s.prepared = prepared
+						referenceRunStep(t, p.ctx, db, r, s)
+					} else {
+						// Native's legacy explicit provider remains bounded even
+						// though inquiries accept contextual TEXT arguments.
+						s := referenceImplicitError(tc.query, tc.want)
+						s.prepared, s.selectRows, s.errorStage = prepared, true, "execute"
+						if prepared {
+							s.errorStage = "prepare"
+						}
+						referenceRunStep(t, p.ctx, db, r, s)
+						referenceRunStep(t, p.ctx, db, r, referenceSelect("SELECT v FROM rt", []string{"v"}, []string{"TEXT"}, [][]any{{nil}}))
+						referenceLockExec(t, p.ctx, db, "DELETE FROM rt", 1)
+					}
 				}
 			}
 		})

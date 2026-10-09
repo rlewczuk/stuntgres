@@ -10,6 +10,17 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: PostgreSQL 18 index capability inquiries support
+`pg_indexam_has_property(oid,text)`, `pg_index_has_property(regclass,text)` and
+`pg_index_column_has_property(regclass,integer,text)` with strict nullable BOOL
+results. Existing index definitions determine direction, NULL ordering and
+INCLUDE applicability; fixed builtin AM inquiries do not enable non-B-tree DDL.
+Unknown/inapplicable properties and invalid numeric objects/columns yield NULL.
+Existing native Dump/Restore preserves definitions without extra builtin state.
+See [index capability inquiries](docs/design/PG18-FUNC-INFO-INDEX-PROPERTIES.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0`.
+
 Change note: JSON scalar storage now validates syntax while retaining exact
 source whitespace, key order, duplicate keys, numbers and escape spelling.
 SQL NULL and JSON `null` remain distinct. Direct/prepared columns, bound values,

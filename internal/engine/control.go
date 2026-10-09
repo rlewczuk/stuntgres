@@ -80,6 +80,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	viewDependencies := make(map[OID][]OID)
 	viewIndices := make(map[OID]int)
 	tableIndices := make(map[OID]int)
+	indexIndices := make(map[OID]int)
 	// Only newly added default edges are removed if their topology is cyclic.
 	var defaultPredecessors map[OID][]OID
 	type dumpComment struct{ name, text string }
@@ -244,6 +245,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				e.mu.Unlock()
 				return err
 			}
+			oid := r.address.ObjectID
+			viewDependencies[oid] = []OID{r.sqlIndex.parent.ObjectID}
+			indexIndices[oid] = len(indexes)
 			indexes = append(indexes, dumpView{principal.Name, sql})
 			continue
 		}
@@ -458,6 +462,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	// The interpreter need not be logged in as the native bootstrap owner.
 	// Establish even the first group's owner before creating dependent objects.
 	for _, oid := range viewOrder {
+		if position, isIndex := indexIndices[oid]; isIndex {
+			index := indexes[position]
+			if index.owner != currentOwner {
+				if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(index.owner, "'", "''") + "';\n"); err != nil {
+					return err
+				}
+				currentOwner = index.owner
+			}
+			if err := emit(index.sql); err != nil {
+				return err
+			}
+			continue
+		}
 		if index, isView := viewIndices[oid]; isView {
 			view := views[index]
 			if view.owner != currentOwner {
@@ -600,18 +617,6 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			currentOwner = t.owner
 		}
 		if err := t.emitRows(ctx, catalog, emit); err != nil {
-			return err
-		}
-	}
-	sort.Slice(indexes, func(i, j int) bool { return indexes[i].sql < indexes[j].sql })
-	for _, index := range indexes {
-		if index.owner != currentOwner {
-			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(index.owner, "'", "''") + "';\n"); err != nil {
-				return err
-			}
-			currentOwner = index.owner
-		}
-		if err := emit(index.sql); err != nil {
 			return err
 		}
 	}

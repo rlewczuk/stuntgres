@@ -584,6 +584,23 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 			e.args = args
 			return e, true, nil
 		}
+	case indexPropertyExpression:
+		did := false
+		e.properties = ExprProperties{Volatility: Stable}
+		for i, arg := range e.children() {
+			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed {
+				e.args[i] = folded
+				did = true
+			}
+			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+		}
+		if did {
+			return e, true, nil
+		}
 	case deparseExpression:
 		var args []BoundExpr
 		for i, arg := range e.args {
@@ -1308,6 +1325,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
 	}
 	if !policy.deferAssignment && (policy.context == assignmentContext || policy.context == functionArgumentContext) && node.ResultUsage() != policy.expected {
+		if policy.expected.Type.ContainsRegclass() {
+			if err := b.captureElementInput(); err != nil {
+				return nil, err
+			}
+		}
 		plan, err := sqltype.PlanCoercion(node.ResultUsage(), policy.expected, policy.mode)
 		if err != nil {
 			// Retain the resolved source for the assignment caller's diagnostic.

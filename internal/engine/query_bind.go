@@ -266,6 +266,9 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		if _, ok := expr.(deparseExpression); ok {
 			result.Nullable, result.NullabilityKnown = true, true
 		}
+		if _, ok := expr.(indexPropertyExpression); ok {
+			result.Nullable, result.NullabilityKnown = true, true
+		}
 		results[i] = result
 	}
 	var distinctFamilies []sqltype.Grouping

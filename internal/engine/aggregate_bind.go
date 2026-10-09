@@ -156,6 +156,17 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 			}
 		}
 		return true
+	case indexPropertyExpression:
+		o, ok := other.(indexPropertyExpression)
+		if !ok || e.kind != o.kind {
+			return false
+		}
+		for i, arg := range e.children() {
+			if !same(arg, o.args[i]) {
+				return false
+			}
+		}
+		return true
 	case deparseExpression:
 		o, ok := other.(deparseExpression)
 		if !ok || e.signature != o.signature || len(e.args) != len(o.args) {
@@ -350,6 +361,16 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case indexPropertyExpression:
+		e.properties = ExprProperties{Volatility: Stable}
+		for i := range e.children() {
+			e.args[i] = rewrite(e.args[i])
+			if err != nil {
+				return nil, err
+			}
+			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
+		}
+		expr = e
 	case deparseExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		e.properties = ExprProperties{Volatility: Stable}
@@ -457,6 +478,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 		}
 	case randomExpression:
 		for _, arg := range e.args {
+			walk(arg)
+		}
+	case indexPropertyExpression:
+		for _, arg := range e.children() {
 			walk(arg)
 		}
 	case deparseExpression:
