@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -42,28 +40,29 @@ func TestReferenceIdentityDiagnosticRecords(t *testing.T) {
 }
 
 func TestReferenceIdentityOverrideSourceShape(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		for _, tc := range []struct {
-			query  string
-			last   int64
-			called bool
-			rows   [][]int64
-		}{
-			{`INSERT INTO i OVERRIDING USER VALUE VALUES(nextval('side'),10)`, 50, false, [][]int64{{1, 10}}},
-			{`INSERT INTO i OVERRIDING USER VALUE VALUES(nextval('side'),16),(nextval('side'),17)`, 51, true, [][]int64{{1, 16}, {2, 17}}},
-			{`INSERT INTO i OVERRIDING USER VALUE SELECT nextval('side'),14`, 50, true, [][]int64{{1, 14}}},
-		} {
-			identityRefExec(t, db, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,p INT)`, 0)
-			identityRefExec(t, db, `CREATE SEQUENCE side START 50 CACHE 1`, 0)
-			identityRefExec(t, db, tc.query, int64(len(tc.rows)))
-			identityRefRows(t, db, `SELECT * FROM i ORDER BY id`, tc.rows)
-			var last int64
-			var called bool
-			if err := db.QueryRow(`SELECT last_value,is_called FROM side`).Scan(&last, &called); err != nil || last != tc.last || called != tc.called {
-				t.Fatal(last, called, err)
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
+		t.Run(b.name, func(t *testing.T) {
+			c := identityConnection(t, p.ctx, b.db)
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, b.recorder, s) }
+			for _, tc := range []struct {
+				query  string
+				last   int64
+				called bool
+				rows   [][]any
+			}{
+				{`INSERT INTO i OVERRIDING USER VALUE VALUES(nextval('side'),10)`, 50, false, [][]any{{int64(1), int64(10)}}},
+				{`INSERT INTO i OVERRIDING USER VALUE VALUES(nextval('side'),16),(nextval('side'),17)`, 51, true, [][]any{{int64(1), int64(16)}, {int64(2), int64(17)}}},
+				{`INSERT INTO i OVERRIDING USER VALUE SELECT nextval('side'),14`, 50, true, [][]any{{int64(1), int64(14)}}},
+			} {
+				run(referenceExec(`CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,p INT)`, 0))
+				run(referenceExec(`CREATE SEQUENCE side START 50 CACHE 1`, 0))
+				run(referenceExec(tc.query, int64(len(tc.rows))))
+				run(referenceSelect(`SELECT * FROM i ORDER BY id`, []string{"id", "p"}, []string{"INT4", "INT4"}, tc.rows))
+				run(identitySequenceState("side", tc.last, tc.called))
+				run(referenceExec(`DROP TABLE i`, 0))
+				run(referenceExec(`DROP SEQUENCE side`, 0))
 			}
-			identityRefExec(t, db, `DROP TABLE i`, 0)
-			identityRefExec(t, db, `DROP SEQUENCE side`, 0)
-		}
-	})
+		})
+	}
 }

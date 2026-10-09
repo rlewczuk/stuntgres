@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -19,86 +17,86 @@ func TestReferenceIdentityOwnCheck(t *testing.T) {
 		{"schema", `CREATE SCHEMA portable CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CONSTRAINT c CHECK(nextval('portable.i_id_seq')>0))`, "portable.i", "portable.i_id_seq"},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			var empty bytes.Buffer
-			for _, db := range []*sql.DB{p.memory, p.postgres} {
-				identityRefExec(t, db, scenario.create, 0)
-				identityCheckRefState(t, db, scenario.sequence, 1, false)
-				if db == p.memory {
+			for _, b := range p.backends() {
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
+				run(referenceExec(scenario.create, 0))
+				run(identitySequenceState(scenario.sequence, 1, false))
+				if !b.pg {
 					if err := stuntgres.Dump(p.ctx, p.native, &empty); err != nil {
 						t.Fatal(err)
 					}
-					identityCheckRefState(t, db, scenario.sequence, 1, false)
+					run(identitySequenceState(scenario.sequence, 1, false))
 					if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(empty.Bytes())); err != nil {
 						t.Fatal(err)
 					}
 				} else {
+					drop := `DROP TABLE i`
 					if scenario.name == "schema" {
-						identityRefExec(t, db, `DROP SCHEMA portable CASCADE`, 0)
-					} else {
-						identityRefExec(t, db, `DROP TABLE i`, 0)
+						drop = `DROP SCHEMA portable CASCADE`
 					}
-					if _, err := db.ExecContext(p.ctx, empty.String()); err != nil {
-						t.Fatal("unchanged empty native SQL replay", err, empty.String())
+					run(referenceExec(drop, 0))
+					if _, err := b.db.ExecContext(p.ctx, empty.String()); err != nil {
+						t.Fatal("unchanged empty replay", err)
 					}
 				}
-				identityCheckRefState(t, db, scenario.sequence, 1, false)
-				identityRefExec(t, db, `INSERT INTO `+scenario.table+` DEFAULT VALUES`, 1)
-				identityRefRows(t, db, `SELECT id FROM `+scenario.table, [][]int64{{1}})
-				identityCheckRefState(t, db, scenario.sequence, 2, true)
+				run(identitySequenceState(scenario.sequence, 1, false))
+				run(referenceExec(`INSERT INTO `+scenario.table+` DEFAULT VALUES`, 1))
+				run(referenceSelect(`SELECT id FROM `+scenario.table, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+				run(identitySequenceState(scenario.sequence, 2, true))
 			}
+			query := `INSERT INTO ` + scenario.table + ` DEFAULT VALUES`
+			held := identityHeld(t, p.ctx, p.memory, query)
 			var dump bytes.Buffer
 			if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 				t.Fatal(err)
 			}
-			identityCheckRefState(t, p.memory, scenario.sequence, 2, true)
-			if scenario.name == "schema" {
-				identityRefExec(t, p.postgres, `DROP SCHEMA portable CASCADE`, 0)
-			} else {
-				identityRefExec(t, p.postgres, `DROP TABLE i`, 0)
-			}
-			if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-				t.Fatal("unchanged native SQL replay", err, dump.String())
+			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, identitySequenceState(scenario.sequence, 2, true))
+			if p.postgres != nil {
+				drop := `DROP TABLE i`
+				if scenario.name == "schema" {
+					drop = `DROP SCHEMA portable CASCADE`
+				}
+				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec(drop, 0))
+				if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+					t.Fatal("unchanged populated replay", err)
+				}
 			}
 			if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal(err)
 			}
-			for _, db := range []*sql.DB{p.memory, p.postgres} {
-				identityCheckRefState(t, db, scenario.sequence, 2, true)
-				held, err := db.Prepare(`INSERT INTO ` + scenario.table + ` DEFAULT VALUES`)
-				if err != nil {
-					t.Fatal(err)
-				}
-				result, err := held.Exec()
-				held.Close()
-				if err != nil {
-					t.Fatal(err)
-				}
-				if n, err := result.RowsAffected(); err != nil || n != 1 {
-					t.Fatal(n, err)
-				}
-				identityRefRows(t, db, `SELECT id FROM `+scenario.table+` ORDER BY id`, [][]int64{{1}, {3}})
-				identityCheckRefState(t, db, scenario.sequence, 4, true)
-				identityRefExec(t, db, `DROP TABLE `+scenario.table, 0)
+			var again bytes.Buffer
+			if err := stuntgres.Dump(p.ctx, p.native, &again); err != nil {
+				t.Fatal(err)
 			}
-			if scenario.name == "schema" {
-				identityRefExec(t, p.postgres, `DROP SCHEMA portable CASCADE`, 0)
+			if !bytes.Equal(dump.Bytes(), again.Bytes()) {
+				t.Fatalf("redump mismatch\n%s\n%s", dump.Bytes(), again.Bytes())
+			}
+			for _, b := range p.backends() {
+				var executor referenceExecutor = held
+				if b.pg {
+					executor = identityHeld(t, p.ctx, b.db, query)
+				}
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, executor, b.recorder, s) }
+				run(identitySequenceState(scenario.sequence, 2, true))
+				run(referenceExec(query, 1))
+				run(referenceSelect(`SELECT id FROM `+scenario.table+` ORDER BY id`, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(3)}}))
+				run(identitySequenceState(scenario.sequence, 4, true))
+				run(referenceExec(`DROP TABLE `+scenario.table, 0))
+				s := referenceImplicitError(`SELECT * FROM `+scenario.sequence, referenceDiagnostic{Code: "42P01", Message: `relation "` + scenario.sequence + `" does not exist`, Position: "15"})
+				s.selectRows = true
+				run(s)
+				if scenario.name == "schema" {
+					run(referenceExec(`DROP SCHEMA portable CASCADE`, 0))
+				}
 			}
 		})
 	}
 }
 
-func identityCheckRefState(t *testing.T, db *sql.DB, sequence string, want int64, called bool) {
-	t.Helper()
-	var value int64
-	var gotCalled bool
-	if err := db.QueryRow(`SELECT last_value,is_called FROM `+sequence).Scan(&value, &gotCalled); err != nil || value != want || gotCalled != called {
-		t.Fatal(sequence, value, gotCalled, err)
-	}
-}
-
 func TestReferenceIdentityControlsOwnerCollision(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	connector, err := stuntgres.NewDriver().OpenConnector(t.Name())
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +129,7 @@ func TestReferenceIdentityControlsOwnerCollision(t *testing.T) {
 	if _, err := kept.ExecContext(p.ctx, `CREATE TEMP SEQUENCE kept START 30 CACHE 10`); err != nil {
 		t.Fatal(err)
 	}
-	sequenceProbeValue(t, p.ctx, kept, `SELECT nextval('kept')`, 30)
+	identityRefConnValue(t, p.ctx, kept, `SELECT nextval('kept')`, 30)
 	var tempOID int64
 	if err := kept.QueryRowContext(p.ctx, `SELECT oid FROM pg_catalog.pg_class WHERE relname='kept'`).Scan(&tempOID); err != nil || tempOID != sourceOwner {
 		t.Fatal("fixture lacks owner-table collision", tempOID, sourceOwner, err)
@@ -169,8 +167,10 @@ func TestReferenceIdentityControlsOwnerCollision(t *testing.T) {
 	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal("unchanged remapped native SQL replay", err, dump.String())
+	if p.postgres != nil {
+		if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+			t.Fatal("unchanged remapped native SQL replay", err, dump.String())
+		}
 	}
 	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
@@ -179,47 +179,53 @@ func TestReferenceIdentityControlsOwnerCollision(t *testing.T) {
 	if err := stuntgres.Dump(context.Background(), p.native, &again); err != nil {
 		t.Fatal(err)
 	}
-	identityRefRows(t, p.postgres, `SELECT id FROM portable.i`, [][]int64{{1}})
-	identityCheckRefState(t, p.postgres, "portable.i_id_seq", 1, true)
-	identityRefExec(t, p.postgres, `DROP SCHEMA portable CASCADE`, 0)
-	if _, err := p.postgres.ExecContext(p.ctx, again.String()); err != nil {
-		t.Fatal("unchanged second dump replay", err, again.String())
+	if p.postgres != nil {
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect(`SELECT id FROM portable.i`, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, identitySequenceState("portable.i_id_seq", 1, true))
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec(`DROP SCHEMA portable CASCADE`, 0))
+		if _, err := p.postgres.ExecContext(p.ctx, again.String()); err != nil {
+			t.Fatal("unchanged second dump replay", err, again.String())
+		}
 	}
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
-		identityRefRows(t, db, `SELECT last_value FROM portable.v`, [][]int64{{1}})
-		identityCheckRefState(t, db, "portable.i_id_seq", 1, true)
-		identityRefExec(t, db, `INSERT INTO portable.c VALUES(7)`, 1)
-		identityRefRows(t, db, `SELECT last_value FROM portable.v`, [][]int64{{2}})
-		identityRefExec(t, db, `INSERT INTO portable.i DEFAULT VALUES`, 1)
-		identityRefRows(t, db, `SELECT id FROM portable.i ORDER BY id`, [][]int64{{1}, {3}})
-		identityRefRows(t, db, `SELECT last_value FROM portable.v`, [][]int64{{3}})
-		_, err := db.Exec(`ALTER TABLE portable.i ALTER id DROP IDENTITY`)
-		identityRefState(t, err, "2BP01")
-		identityRefExec(t, db, `DROP TABLE portable.i CASCADE`, 0)
-		identityRefExec(t, db, `INSERT INTO portable.c VALUES(9)`, 1)
-		identityRefRows(t, db, `SELECT p FROM portable.c ORDER BY p`, [][]int64{{7}, {9}})
+	for _, b := range p.backends() {
+		run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
+		run(referenceSelect(`SELECT last_value FROM portable.v`, []string{"last_value"}, []string{"INT8"}, [][]any{{int64(1)}}))
+		run(identitySequenceState("portable.i_id_seq", 1, true))
+		run(referenceExec(`INSERT INTO portable.c VALUES(7)`, 1))
+		run(referenceSelect(`SELECT last_value FROM portable.v`, []string{"last_value"}, []string{"INT8"}, [][]any{{int64(2)}}))
+		run(referenceExec(`INSERT INTO portable.i DEFAULT VALUES`, 1))
+		run(referenceSelect(`SELECT id FROM portable.i ORDER BY id`, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(3)}}))
+		run(referenceSelect(`SELECT last_value FROM portable.v`, []string{"last_value"}, []string{"INT8"}, [][]any{{int64(3)}}))
+		// Native restored visibility uses unqualified names; PostgreSQL's public
+		// search path requires portable qualification. Assert both full records.
+		nativeDrop := referenceDiagnostic{Code: "2BP01", Message: "cannot drop sequence i_id_seq because other objects depend on it", Detail: "view v depends on sequence i_id_seq\nconstraint c_check on table c depends on sequence i_id_seq", Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
+		postgresDrop := controlsReferenceDiagnostic("2BP01", "cannot drop sequence portable.i_id_seq because other objects depend on it")
+		postgresDrop.Detail = "view portable.v depends on sequence portable.i_id_seq\nconstraint c_check on table portable.c depends on sequence portable.i_id_seq"
+		postgresDrop.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
+		drop := referenceImplicitError(`ALTER TABLE portable.i ALTER id DROP IDENTITY`, nativeDrop)
+		drop.postgresDiagnostic = &postgresDrop
+		run(drop)
+		run(referenceExec(`DROP TABLE portable.i CASCADE`, 0))
+		run(referenceExec(`INSERT INTO portable.c VALUES(9)`, 1))
+		run(referenceSelect(`SELECT p FROM portable.c ORDER BY p`, []string{"p"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(9)}}))
+		run(referenceExec(`DROP SCHEMA portable CASCADE`, 0))
 	}
-	sequenceProbeValue(t, p.ctx, kept, `SELECT nextval('kept')`, 31)
-	identityRefExec(t, p.postgres, `DROP SCHEMA portable CASCADE`, 0)
+	identityRefConnValue(t, p.ctx, kept, `SELECT nextval('kept')`, 31)
 }
 
 func TestReferenceIdentityOwnCheckConstructionFailure(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		for _, q := range []string{
-			`CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('bad_id_seq')>0),CHECK(missing>0))`,
-			`CREATE SCHEMA failed CREATE TABLE prior(id INT GENERATED ALWAYS AS IDENTITY) CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('failed.bad_id_seq')>0),CHECK(missing>0))`,
-		} {
-			_, err := db.Exec(q)
-			want := controlsReferenceDiagnostic("42703", `column "missing" does not exist`)
-			want.Position = strconv.Itoa(strings.Index(q, "missing") + 1)
-			referenceAssertDiagnostic(t, err, &want)
-		}
-		identityRefExec(t, db, `CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('bad_id_seq')>0))`, 0)
-		identityCheckRefState(t, db, "bad_id_seq", 1, false)
-		identityRefExec(t, db, `CREATE SCHEMA failed CREATE TABLE prior(id INT GENERATED ALWAYS AS IDENTITY) CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('failed.bad_id_seq')>0))`, 0)
-		identityCheckRefState(t, db, "failed.prior_id_seq", 1, false)
-		identityCheckRefState(t, db, "failed.bad_id_seq", 1, false)
-		identityRefExec(t, db, `DROP TABLE bad`, 0)
-		identityRefExec(t, db, `DROP SCHEMA failed CASCADE`, 0)
-	})
+	p := newReferenceScenario(t)
+	for _, q := range []string{
+		`CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('bad_id_seq')>0),CHECK(missing>0))`,
+		`CREATE SCHEMA failed CREATE TABLE prior(id INT GENERATED ALWAYS AS IDENTITY) CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('failed.bad_id_seq')>0),CHECK(missing>0))`,
+	} {
+		p.step(t, referenceImplicitError(q, referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: strconv.Itoa(strings.Index(q, "missing") + 1)}))
+	}
+	p.step(t, referenceExec(`CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('bad_id_seq')>0))`, 0))
+	p.step(t, identitySequenceState("bad_id_seq", 1, false))
+	p.step(t, referenceExec(`CREATE SCHEMA failed CREATE TABLE prior(id INT GENERATED ALWAYS AS IDENTITY) CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('failed.bad_id_seq')>0))`, 0))
+	p.step(t, identitySequenceState("failed.prior_id_seq", 1, false))
+	p.step(t, identitySequenceState("failed.bad_id_seq", 1, false))
+	p.step(t, referenceExec(`DROP TABLE bad`, 0))
+	p.step(t, referenceExec(`DROP SCHEMA failed CASCADE`, 0))
 }

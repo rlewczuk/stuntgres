@@ -1,22 +1,16 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"reflect"
 	"testing"
 )
 
 func identityReferenceCase(t *testing.T, run func(*testing.T, *sql.DB)) {
 	t.Helper()
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"native", p.memory}, {"postgres", p.postgres}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) { run(t, backend.db) })
 	}
 }
@@ -37,11 +31,11 @@ func identityRefRows(t *testing.T, db *sql.DB, q string, want [][]int64) {
 		t.Fatal(q, err)
 	}
 	defer rows.Close()
-	var got [][]int64
 	columns, err := rows.Columns()
 	if err != nil {
 		t.Fatal(err)
 	}
+	var got [][]int64
 	for rows.Next() {
 		v := make([]int64, len(columns))
 		dest := make([]any, len(v))
@@ -56,153 +50,323 @@ func identityRefRows(t *testing.T, db *sql.DB, q string, want [][]int64) {
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("%s got=%v want=%v", q, got, want)
 	}
 }
-func identityRefState(t *testing.T, err error, code string) {
-	t.Helper()
-	var state interface{ SQLState() string }
-	if !errors.As(err, &state) || state.SQLState() != code {
-		t.Fatalf("error=%v want SQLSTATE %s", err, code)
-	}
-}
 
 func TestReferenceIdentityDeclaration(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		for _, typ := range []string{"SMALLINT", "INTEGER", "BIGINT"} {
-			identityRefExec(t, db, `CREATE TABLE i(id `+typ+` GENERATED ALWAYS AS IDENTITY,p INT DEFAULT 7)`, 0)
-			identityRefExec(t, db, `INSERT INTO i DEFAULT VALUES`, 1)
-			identityRefExec(t, db, `INSERT INTO i VALUES(DEFAULT,DEFAULT)`, 1)
-			identityRefRows(t, db, `SELECT * FROM i ORDER BY id`, [][]int64{{1, 7}, {2, 7}})
-			identityRefExec(t, db, `DROP TABLE i`, 0)
+	for _, prepared := range []bool{false, true} {
+		p := newReferenceScenario(t)
+		for _, backend := range p.backends() {
+			t.Run(backend.name, func(t *testing.T) {
+				run := func(s referenceStep) {
+					s.prepared = prepared
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+				}
+				for _, typ := range []string{"SMALLINT", "INTEGER", "BIGINT"} {
+					run(referenceExec(`CREATE TABLE i(id `+typ+` GENERATED ALWAYS AS IDENTITY,p INT DEFAULT 7)`, 0))
+					typeName := map[string]string{"SMALLINT": "INT2", "INTEGER": "INT4", "BIGINT": "INT8"}[typ]
+					identityEmptyMetadata(t, p.ctx, backend, prepared, `SELECT * FROM i`, []string{"id", "p"}, []string{typeName, "INT4"}, []bool{false, true})
+					run(referenceExec(`INSERT INTO i DEFAULT VALUES`, 1))
+					run(referenceExec(`INSERT INTO i VALUES(DEFAULT,DEFAULT)`, 1))
+					run(referenceSelect(`SELECT * FROM i ORDER BY id`, []string{"id", "p"}, []string{typeName, "INT4"}, [][]any{{int64(1), int64(7)}, {int64(2), int64(7)}}))
+					run(referenceExec(`DROP TABLE i`, 0))
+				}
+				run(referenceExec(`CREATE TABLE i(id INTEGER GENERATED ALWAYS AS IDENTITY,p INT DEFAULT 7)`, 0))
+				identityEmptyMetadata(t, p.ctx, backend, prepared, `SELECT * FROM i`, []string{"id", "p"}, []string{"INT4", "INT4"}, []bool{false, true})
+				run(referenceExec(`INSERT INTO i(p) VALUES(DEFAULT)`, 1))
+				run(referenceExec(`INSERT INTO i VALUES(DEFAULT,DEFAULT)`, 1))
+				run(referenceSelect(`SELECT * FROM i ORDER BY id`, []string{"id", "p"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(7)}, {int64(2), int64(7)}}))
+			})
 		}
-	})
+	}
 }
 func TestReferenceIdentityOverride(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		identityRefExec(t, db, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,p INT DEFAULT 7)`, 0)
-		_, err := db.Exec(`INSERT INTO i VALUES(99,8)`)
-		identityRefState(t, err, "428C9")
-		identityRefExec(t, db, `INSERT INTO i OVERRIDING SYSTEM VALUE VALUES(99,8)`, 1)
-		identityRefExec(t, db, `INSERT INTO i DEFAULT VALUES`, 1)
-		identityRefExec(t, db, `INSERT INTO i OVERRIDING USER VALUE VALUES(99,9)`, 1)
-		identityRefRows(t, db, `SELECT * FROM i ORDER BY id`, [][]int64{{1, 7}, {2, 9}, {99, 8}})
-	})
+	for _, prepared := range []bool{false, true} {
+		p := newReferenceScenario(t)
+		for _, backend := range p.backends() {
+			t.Run(backend.name, func(t *testing.T) {
+				run := func(s referenceStep) {
+					s.prepared = prepared
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+				}
+				run(referenceExec(`CREATE TABLE a(id INT GENERATED ALWAYS AS IDENTITY,p INT DEFAULT 7)`, 0))
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceImplicitError(`INSERT INTO a VALUES(99,8)`, identityAlwaysDiagnostic()))
+				run(referenceExec(`INSERT INTO a OVERRIDING SYSTEM VALUE VALUES(99,8)`, 1))
+				run(referenceExec(`INSERT INTO a DEFAULT VALUES`, 1))
+				run(referenceExec(`INSERT INTO a OVERRIDING USER VALUE VALUES(99,9)`, 1))
+				run(referenceSelect(`SELECT * FROM a ORDER BY id`, []string{"id", "p"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(7)}, {int64(2), int64(9)}, {int64(99), int64(8)}}))
+				run(referenceExec(`INSERT INTO a VALUES(DEFAULT,DEFAULT)`, 1))
+				run(referenceSelect(`SELECT * FROM a ORDER BY id`, []string{"id", "p"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(7)}, {int64(2), int64(9)}, {int64(3), int64(7)}, {int64(99), int64(8)}}))
+				run(referenceExec(`CREATE TABLE b(id INT GENERATED BY DEFAULT AS IDENTITY)`, 0))
+				for _, q := range []string{`INSERT INTO b DEFAULT VALUES`, `INSERT INTO b VALUES(99)`, `INSERT INTO b VALUES(DEFAULT)`} {
+					run(referenceExec(q, 1))
+				}
+				run(referenceSelect(`SELECT * FROM b ORDER BY id`, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(99)}}))
+			})
+		}
+	}
 }
 func TestReferenceIdentityOptions(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		identityRefExec(t, db, `CREATE TABLE i(id SMALLINT GENERATED ALWAYS AS IDENTITY(START 7 INCREMENT 3))`, 0)
-		identityRefExec(t, db, `INSERT INTO i DEFAULT VALUES`, 1)
-		identityRefExec(t, db, `INSERT INTO i DEFAULT VALUES`, 1)
-		identityRefRows(t, db, `SELECT * FROM i ORDER BY id`, [][]int64{{7}, {10}})
-		identityRefExec(t, db, `ALTER SEQUENCE i_id_seq AS bigint MAXVALUE 100000 RESTART WITH 32768`, 0)
-		identityRefExec(t, db, `INSERT INTO i DEFAULT VALUES`, 1)
-		identityRefRows(t, db, `SELECT * FROM i ORDER BY id`, [][]int64{{-32768}, {7}, {10}})
-	})
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			c := identityConnection(t, p.ctx, backend.db)
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, backend.recorder, s) }
+			run(referenceExec(`CREATE TABLE opt(id INT GENERATED BY DEFAULT AS IDENTITY(START 7 INCREMENT 3 CACHE 1))`, 0))
+			for range 2 {
+				run(referenceExec(`INSERT INTO opt DEFAULT VALUES`, 1))
+			}
+			run(referenceExec(`ALTER TABLE opt ALTER id SET START 20`, 0))
+			run(referenceExec(`INSERT INTO opt DEFAULT VALUES`, 1))
+			run(referenceExec(`ALTER TABLE opt ALTER id RESTART`, 0))
+			run(referenceExec(`INSERT INTO opt DEFAULT VALUES`, 1))
+			run(referenceSelect(`SELECT * FROM opt ORDER BY id`, []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(10)}, {int64(13)}, {int64(20)}}))
+			for _, prior := range []bool{false, true} {
+				opts := ""
+				if prior {
+					opts = "(START 7 INCREMENT 3)"
+				}
+				run(referenceExec(`CREATE TABLE narrow(id SMALLINT GENERATED ALWAYS AS IDENTITY`+opts+`)`, 0))
+				if prior {
+					for range 2 {
+						run(referenceExec(`INSERT INTO narrow DEFAULT VALUES`, 1))
+					}
+					run(referenceSelect(`SELECT * FROM narrow ORDER BY id`, []string{"id"}, []string{"INT2"}, [][]any{{int64(7)}, {int64(10)}}))
+				}
+				run(referenceExec(`ALTER SEQUENCE narrow_id_seq AS bigint MAXVALUE 100000 RESTART WITH 32768`, 0))
+				run(referenceExec(`INSERT INTO narrow DEFAULT VALUES`, 1))
+				want := [][]any{{int64(-32768)}}
+				if prior {
+					want = append(want, []any{int64(7)}, []any{int64(10)})
+				}
+				run(referenceSelect(`SELECT * FROM narrow ORDER BY id`, []string{"id"}, []string{"INT2"}, want))
+				run(referenceSelect(`SELECT currval('narrow_id_seq')`, []string{"currval"}, []string{"INT8"}, [][]any{{int64(32768)}}))
+				run(referenceExec(`DROP TABLE narrow`, 0))
+			}
+		})
+	}
 }
 func TestReferenceIdentityAlter(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		identityRefExec(t, db, `CREATE TABLE i(id INT NOT NULL)`, 0)
-		identityRefExec(t, db, `INSERT INTO i VALUES(40)`, 1)
-		identityRefExec(t, db, `ALTER TABLE i ALTER id ADD GENERATED BY DEFAULT AS IDENTITY`, 0)
-		identityRefExec(t, db, `INSERT INTO i DEFAULT VALUES`, 1)
-		identityRefExec(t, db, `ALTER TABLE i ALTER id SET GENERATED ALWAYS SET INCREMENT 3 RESTART WITH 20`, 0)
-		identityRefExec(t, db, `INSERT INTO i DEFAULT VALUES`, 1)
-		identityRefRows(t, db, `SELECT * FROM i ORDER BY id`, [][]int64{{1}, {20}, {40}})
-		identityRefExec(t, db, `ALTER TABLE i ALTER id DROP IDENTITY`, 0)
-		_, err := db.Exec(`INSERT INTO i DEFAULT VALUES`)
-		identityRefState(t, err, "23502")
-	})
+	for _, heldRoute := range []bool{false, true} {
+		p := newReferenceScenario(t)
+		for _, backend := range p.backends() {
+			t.Run(backend.name, func(t *testing.T) {
+				c := identityConnection(t, p.ctx, backend.db)
+				var executor referenceExecutor = c
+				run := func(s referenceStep) { referenceRunStep(t, p.ctx, executor, backend.recorder, s) }
+				run(referenceExec(`CREATE TABLE a(id INT NOT NULL)`, 0))
+				run(referenceExec(`INSERT INTO a VALUES(40)`, 1))
+				run(referenceExec(`ALTER TABLE a ALTER id ADD GENERATED BY DEFAULT AS IDENTITY`, 0))
+				if heldRoute {
+					executor = identityHeld(t, p.ctx, c, `INSERT INTO a DEFAULT VALUES`)
+				}
+				run(referenceExec(`INSERT INTO a DEFAULT VALUES`, 1))
+				run(referenceExec(`ALTER TABLE a ALTER id SET GENERATED ALWAYS SET INCREMENT 3 RESTART WITH 20`, 0))
+				run(referenceExec(`INSERT INTO a DEFAULT VALUES`, 1))
+				run(referenceSelect(`SELECT * FROM a ORDER BY id`, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(20)}, {int64(40)}}))
+				run(referenceExec(`ALTER TABLE a ALTER id DROP IDENTITY`, 0))
+				run(referenceImplicitError(`INSERT INTO a DEFAULT VALUES`, referenceDiagnostic{Code: "23502", Message: `null value in column "id" of relation "a" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "a", Column: "id"}))
+				run(referenceExec(`INSERT INTO a VALUES(55)`, 1))
+			})
+		}
+	}
 }
 func TestReferenceIdentityTransactions(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		ctx := context.Background()
-		c, err := db.Conn(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer c.Close()
-		for _, q := range []string{`CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`, `INSERT INTO i DEFAULT VALUES`, `BEGIN`, `ALTER TABLE i ALTER id RESTART WITH 100`, `INSERT INTO i DEFAULT VALUES`, `ROLLBACK`, `INSERT INTO i DEFAULT VALUES`, `BEGIN`, `SAVEPOINT s`, `ALTER TABLE i ALTER id DROP IDENTITY`, `ROLLBACK TO s`, `INSERT INTO i DEFAULT VALUES`, `COMMIT`} {
-			if _, err := c.ExecContext(ctx, q); err != nil {
-				t.Fatal(q, err)
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			c := identityConnection(t, p.ctx, backend.db)
+			defer c.ExecContext(p.ctx, `ROLLBACK`)
+			for _, q := range []string{`CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`, `INSERT INTO i DEFAULT VALUES`, `BEGIN`, `ALTER TABLE i ALTER id RESTART WITH 100`, `INSERT INTO i DEFAULT VALUES`, `ROLLBACK`, `INSERT INTO i DEFAULT VALUES`, `BEGIN`, `SAVEPOINT s`, `ALTER TABLE i ALTER id DROP IDENTITY`, `ROLLBACK TO s`, `INSERT INTO i DEFAULT VALUES`, `COMMIT`} {
+				n := int64(0)
+				if q == `INSERT INTO i DEFAULT VALUES` {
+					n = 1
+				}
+				referenceRunStep(t, p.ctx, c, backend.recorder, referenceExec(q, n))
 			}
-		}
-		identityRefRows(t, db, `SELECT * FROM i ORDER BY id`, [][]int64{{1}, {2}, {3}})
-	})
+			referenceRunStep(t, p.ctx, c, backend.recorder, referenceSelect(`SELECT * FROM i ORDER BY id`, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}}))
+			for _, q := range []string{`BEGIN`, `INSERT INTO i DEFAULT VALUES`, `ROLLBACK`, `INSERT INTO i DEFAULT VALUES`} {
+				n := int64(0)
+				if q == `INSERT INTO i DEFAULT VALUES` {
+					n = 1
+				}
+				referenceRunStep(t, p.ctx, c, backend.recorder, referenceExec(q, n))
+			}
+			referenceRunStep(t, p.ctx, c, backend.recorder, referenceSelect(`SELECT * FROM i ORDER BY id`, []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}, {int64(5)}}))
+		})
+	}
 }
 func TestReferenceIdentityLifecycle(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		identityRefExec(t, db, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`, 0)
-		_, err := db.Exec(`DROP SEQUENCE i_id_seq CASCADE`)
-		identityRefState(t, err, "2BP01")
-		_, err = db.Exec(`ALTER SEQUENCE i_id_seq OWNED BY NONE`)
-		identityRefState(t, err, "0A000")
-		identityRefExec(t, db, `ALTER TABLE i RENAME COLUMN id TO other`, 0)
-		identityRefExec(t, db, `INSERT INTO i DEFAULT VALUES`, 1)
-		identityRefRows(t, db, `SELECT * FROM i`, [][]int64{{1}})
-		identityRefExec(t, db, `DROP TABLE i`, 0)
-		_, err = db.Exec(`SELECT nextval('i_id_seq')`)
-		identityRefState(t, err, "42P01")
-	})
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
+			for _, multi := range []bool{false, true} {
+				name, column := "i", "id"
+				q := `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`
+				if multi {
+					name, column, q = "life", "a", `CREATE TABLE life(a INT GENERATED ALWAYS AS IDENTITY,b INT,c INT GENERATED BY DEFAULT AS IDENTITY)`
+				}
+				run(referenceExec(q, 0))
+				seq := name + "_" + column + "_seq"
+				run(referenceImplicitError(`DROP SEQUENCE `+seq+` CASCADE`, referenceDiagnostic{Code: "2BP01", Message: "cannot drop sequence " + seq + " because column " + column + " of table " + name + " requires it", Hint: "You can drop column " + column + " of table " + name + " instead."}))
+				run(referenceImplicitError(`ALTER SEQUENCE `+seq+` OWNED BY NONE`, referenceDiagnostic{Code: "0A000", Message: "cannot change ownership of identity sequence", Detail: `Sequence "` + seq + `" is linked to table "` + name + `".`}))
+				if multi {
+					run(referenceExec(`ALTER TABLE life DROP COLUMN b`, 0))
+					column = "c"
+				}
+				run(referenceExec(`ALTER TABLE `+name+` RENAME COLUMN `+column+` TO other`, 0))
+				run(referenceExec(`INSERT INTO `+name+` DEFAULT VALUES`, 1))
+				cols, types, want := []string{"other"}, []string{"INT4"}, [][]any{{int64(1)}}
+				if multi {
+					cols, types, want = []string{"a", "other"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}}
+				}
+				run(referenceSelect(`SELECT * FROM `+name, cols, types, want))
+				if multi {
+					run(referenceExec(`ALTER TABLE life DROP COLUMN a`, 0))
+				}
+				run(referenceExec(`DROP TABLE `+name, 0))
+				missing := name + "_" + column + "_seq"
+				run(referenceImplicitError(`SELECT nextval('`+missing+`')`, referenceDiagnostic{Code: "42P01", Message: `relation "` + missing + `" does not exist`, Position: "16"}))
+			}
+		})
+	}
 }
 func TestReferenceIdentitySessions(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		ctx := context.Background()
-		a, err := db.Conn(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer a.Close()
-		b, err := db.Conn(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer b.Close()
-		sequenceProbeExec(t, ctx, a, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
-		for _, c := range []*sql.Conn{a, b} {
-			if _, err := c.ExecContext(ctx, `INSERT INTO i DEFAULT VALUES`); err != nil {
-				t.Fatal(err)
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			a, b := identityConnection(t, p.ctx, backend.db), identityConnection(t, p.ctx, backend.db)
+			referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec(`CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`, 0))
+			for i, c := range []*sql.Conn{a, b} {
+				referenceRunStep(t, p.ctx, c, backend.recorder, referenceExec(`INSERT INTO i DEFAULT VALUES`, 1))
+				referenceRunStep(t, p.ctx, c, backend.recorder, referenceSelect(`SELECT currval('i_id_seq')`, []string{"currval"}, []string{"INT8"}, [][]any{{int64(i + 1)}}))
 			}
-		}
-		sequenceProbeValue(t, ctx, a, `SELECT currval('i_id_seq')`, 1)
-		sequenceProbeValue(t, ctx, b, `SELECT currval('i_id_seq')`, 2)
-	})
+		})
+	}
 }
 func TestReferenceIdentityDiagnostics(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		identityRefExec(t, db, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`, 0)
-		for _, q := range []string{`INSERT INTO i VALUES(NULL)`, `INSERT INTO i SELECT 99 FROM i WHERE false`} {
-			_, err := db.Exec(q)
-			identityRefState(t, err, "428C9")
+	p := newReferenceScenario(t)
+	p.step(t, referenceExec(`CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`, 0))
+	for _, q := range []string{`INSERT INTO i VALUES(NULL)`, `INSERT INTO i SELECT 99 FROM i WHERE false`} {
+		p.step(t, referenceImplicitError(q, identityAlwaysDiagnostic()))
+	}
+	s := referencePrepared(referenceImplicitError(`INSERT INTO i VALUES($1)`, identityAlwaysDiagnostic()))
+	s.errorStage = "prepare"
+	p.step(t, s)
+	for _, q := range []string{`ALTER TABLE i ALTER id DROP NOT NULL`, `ALTER TABLE i ALTER id SET DEFAULT 4`, `ALTER TABLE i ALTER id DROP DEFAULT`} {
+		want := referenceDiagnostic{Code: "42601", Message: `column "id" of relation "i" is an identity column`}
+		if q == `ALTER TABLE i ALTER id DROP DEFAULT` {
+			want.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP IDENTITY instead."
 		}
-		stmt, err := db.Prepare(`INSERT INTO i VALUES($1)`)
-		if stmt != nil {
-			stmt.Close()
-		}
-		identityRefState(t, err, "428C9")
-		for _, q := range []string{`ALTER TABLE i ALTER id DROP NOT NULL`, `ALTER TABLE i ALTER id SET DEFAULT 4`, `ALTER TABLE i ALTER id DROP DEFAULT`} {
-			_, err := db.Exec(q)
-			identityRefState(t, err, "42601")
-		}
-	})
+		p.step(t, referenceImplicitError(q, want))
+	}
 }
 func TestReferenceIdentityMetadata(t *testing.T) {
-	identityReferenceCase(t, func(t *testing.T, db *sql.DB) {
-		identityRefExec(t, db, `CREATE TABLE i(a SMALLINT GENERATED ALWAYS AS IDENTITY,b INT GENERATED BY DEFAULT AS IDENTITY,c BIGINT GENERATED ALWAYS AS IDENTITY)`, 0)
-		rows, err := db.Query(`SELECT * FROM i`)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer rows.Close()
-		types, err := rows.ColumnTypes()
-		if err != nil {
-			t.Fatal(err)
-		}
-		for i, want := range []string{"INT2", "INT4", "INT8"} {
-			if types[i].DatabaseTypeName() != want {
-				t.Fatal(types[i].DatabaseTypeName(), want)
-			}
+	p := newReferenceScenario(t)
+	p.step(t, referenceExec(`CREATE TABLE i(a SMALLINT GENERATED ALWAYS AS IDENTITY,b INT GENERATED BY DEFAULT AS IDENTITY,c BIGINT GENERATED ALWAYS AS IDENTITY)`, 0))
+	for _, backend := range p.backends() {
+		identityEmptyMetadata(t, p.ctx, backend, false, `SELECT * FROM i`, []string{"a", "b", "c"}, []string{"INT2", "INT4", "INT8"}, []bool{false, false, false})
+	}
+	p.step(t, referenceExec(`INSERT INTO i DEFAULT VALUES`, 1))
+	p.step(t, referenceSelect(`SELECT * FROM i`, []string{"a", "b", "c"}, []string{"INT2", "INT4", "INT8"}, [][]any{{int64(1), int64(1), int64(1)}}))
+}
+
+func identityAlwaysDiagnostic() referenceDiagnostic {
+	return referenceDiagnostic{Code: "428C9", Message: `cannot insert a non-DEFAULT value into column "id"`, Detail: `Column "id" is an identity column defined as GENERATED ALWAYS.`, Hint: "Use OVERRIDING SYSTEM VALUE to override."}
+}
+func identityConnection(t *testing.T, ctx context.Context, db *sql.DB) *sql.Conn {
+	t.Helper()
+	c, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := c.Close(); err != nil {
+			t.Error(err)
 		}
 	})
+	return c
+}
+func identityHeld(t *testing.T, ctx context.Context, c referenceExecutor, q string) referenceHeldStatement {
+	t.Helper()
+	s, err := c.PrepareContext(ctx, q)
+	if err != nil {
+		if s != nil {
+			s.Close()
+		}
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	return referenceHeldStatement{referenceExecutor: c, statement: s, query: q}
+}
+func identityEmptyMetadata(t *testing.T, ctx context.Context, backend referenceBackend, prepared bool, q string, labels, types []string, nullable []bool) {
+	t.Helper()
+	ctx = context.WithValue(ctx, referenceRecorderKey{}, backend.recorder)
+	var executor referenceExecutor = backend.db
+	if prepared {
+		held := identityHeld(t, ctx, backend.db, q)
+		defer held.statement.Close()
+		executor = held
+	}
+	rows, err := executor.QueryContext(ctx, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil || !reflect.DeepEqual(cols, labels) {
+		t.Fatal(cols, err)
+	}
+	cts, err := rows.ColumnTypes()
+	if err != nil || len(cts) != len(types) {
+		t.Fatal(cts, err)
+	}
+	for i, ct := range cts {
+		if ct.DatabaseTypeName() != types[i] {
+			t.Fatal(ct.DatabaseTypeName(), types[i])
+		}
+		want := reflect.TypeOf(int64(0))
+		if backend.pg {
+			if types[i] == "INT2" {
+				want = reflect.TypeOf(int16(0))
+			}
+			if types[i] == "INT4" {
+				want = reflect.TypeOf(int32(0))
+			}
+		}
+		if ct.ScanType() != want {
+			t.Fatal(ct.ScanType(), want)
+		}
+		n, known := ct.Nullable()
+		if backend.pg {
+			if known {
+				t.Fatal("pq Nullable must be unknown")
+			}
+		} else if !known || n != nullable[i] {
+			t.Fatal(n, known, nullable[i])
+		}
+	}
+	if rows.Next() {
+		t.Fatal("empty metadata query returned a row")
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Reuse the fixture's owned recorder and cursor-closure checks for the empty shape.
+	s := referenceSelect(q, labels, types, nil)
+	s.prepared = prepared
+	referenceRunStep(t, ctx, backend.db, backend.recorder, s)
 }

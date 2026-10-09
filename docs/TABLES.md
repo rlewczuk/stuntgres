@@ -265,6 +265,24 @@ column address. Catalog validation requires both directions, integral type, NOT 
 no ordinary default and matching owner/schema. Native replacement remaps both links,
 including collisions with retained TEMP sequences, rather than associating by name.
 
+The assigned identity SQL regression scenarios live in untagged external
+`reference/` definitions selected by `^TestReferenceIdentity[A-Za-z0-9_]*$`.
+They merge the 28 former root interaction tests with existing reference
+assertions, including actual held-statement reuse, empty/raw metadata, failure
+demand and session-cache checkpoints. The same definitions run against native
+stuntgres by default and add the pinned PostgreSQL oracle with explicit
+`-reference=true`; see the [development guide](DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
+for complete family commands.
+
+Native Dump/Reset/Restore, retained snapshots and repeated owner/TEMP remaps are
+explicit native phases; PostgreSQL independently replays the unchanged SQL
+stream and checks its consumers, owners, comments and persistence. Raw metadata
+and complete backend-specific diagnostics are asserted before normalization.
+Unordered source consumers retain duplicate-preserving payload bags without a
+portable generated-ID/payload association. These test-routing changes do not
+expand SQL support or imply physical durability parity. Unrelated tagged
+catalog, authority and lock witnesses remain separate.
+
 Identity ALTER waits for the exact linked sequence operation lock, then uses its
 grant-time committed options/generator while preserving staged changes and the
 original table/storage fences. A concurrently committed ALTER SEQUENCE must not be

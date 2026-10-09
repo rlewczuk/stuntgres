@@ -71,6 +71,31 @@ make test PACKAGES=./reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|Upd
 make reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|UpdateCore[A-Za-z0-9_]*|DeleteCore[A-Za-z0-9_]*|DeleteReturning[A-Za-z0-9_]*)$' VERBOSE=0
 ```
 
+The identity family also runs as untagged `TestReferenceIdentity*` definitions,
+merging all 28 assigned former root interaction tests with the complete existing
+reference assertions. It covers declaration and option precedence, ALWAYS/BY
+DEFAULT and overrides, source/parameter evaluation order, sequence ownership,
+transaction/savepoint/session publication, own-sequence CHECK evaluation and
+native reconstruction. Select the entire family in both modes:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReferenceIdentity[A-Za-z0-9_]*$' VERBOSE=0
+make reference RUN='^TestReferenceIdentity[A-Za-z0-9_]*$' VERBOSE=0
+```
+
+The same definitions retain actual direct/prepared routes and reused held
+statements. Native empty integral metadata has `int64` ScanType and known
+Nullable; pq independently reports INT2/INT4/INT8 ScanTypes of
+`int16`/`int32`/`int64` and unknown Nullable, while raw integer cells remain
+`int64` on both. Unordered linked sources check generated IDs and
+duplicate-preserving payload bags without inventing portable ID/payload coupling.
+Dump/Reset/Restore and retained native cursor/statement phases use the unwrapped
+pool; PostgreSQL independently consumes the unchanged owner-bearing dump stream.
+The owner-collision restrictive-drop diagnostic preserves native unqualified
+names and PostgreSQL schema-qualified names as complete separate records before
+any normalization. Catalog, INSERT-only authority and lock-freshness witnesses
+remain tagged; this is not a conversion of unrelated reference families.
+
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean
 test-binary flag adds real PostgreSQL; the build tag is not the mode selector:
