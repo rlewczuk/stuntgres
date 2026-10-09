@@ -1,109 +1,57 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"bytes"
-	"database/sql"
-	"reflect"
+	"context"
 	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
-
-	"stuntgres"
 )
 
 func TestReferenceOIDValuesMetadata(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"postgres", p.postgres}, {"native", p.memory}} {
+	p := newReferenceScenario(t)
+	p.step(t, referenceExec("CREATE TABLE o(id INT,v OID)", 0))
+	p.step(t, referenceExec("INSERT INTO o VALUES(1,'0'),(2,'1'),(3,'2147483647'),(4,'2147483648'),(5,'4294967295'),(6,NULL)", 6))
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			for _, q := range []string{"CREATE TABLE o(id INT,v OID)", "INSERT INTO o VALUES(1,'0'),(2,'1'),(3,'2147483647'),(4,'2147483648'),(5,'4294967295'),(6,NULL)"} {
-				if _, err := backend.db.ExecContext(p.ctx, q); err != nil {
-					t.Fatal(err)
-				}
-			}
-			stmt, err := backend.db.PrepareContext(p.ctx, "INSERT INTO o VALUES($1,$2)")
+			q := "INSERT INTO o VALUES($1,$2)"
+			stmt, err := backend.db.PrepareContext(p.ctx, q)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer stmt.Close()
+			held := referenceHeldStatement{referenceExecutor: backend.db, statement: stmt, query: q}
 			for i, arg := range []any{int64(-1), []byte("2147483648"), "0", nil} {
-				result, err := stmt.ExecContext(p.ctx, i+10, arg)
-				if err != nil {
-					t.Fatal(err)
-				}
-				n, err := result.RowsAffected()
-				if err != nil || n != 1 {
-					t.Fatal(n, err)
-				}
+				referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(q, 1, i+10, arg))
 			}
-			for _, tc := range []struct {
-				q    string
-				want []any
-			}{
-				{"SELECT v FROM o WHERE id<7 ORDER BY v", []any{int64(0), int64(1), int64(2147483647), int64(2147483648), int64(4294967295), nil}},
-				{"SELECT v FROM o WHERE id<7 ORDER BY v DESC", []any{nil, int64(4294967295), int64(2147483648), int64(2147483647), int64(1), int64(0)}},
-				{"SELECT v FROM o WHERE id=10", []any{int64(4294967295)}}, {"SELECT v FROM o WHERE id=11", []any{int64(2147483648)}}, {"SELECT v FROM o WHERE id=12", []any{int64(0)}}, {"SELECT v FROM o WHERE id=13", []any{nil}}, {"SELECT v FROM o WHERE id=99", []any{}},
+			for _, step := range []referenceStep{
+				referenceSelect("SELECT id,v FROM o WHERE id<7 ORDER BY id", []string{"id", "v"}, []string{"INT4", "OID"}, [][]any{{int64(1), int64(0)}, {int64(2), int64(1)}, {int64(3), int64(2147483647)}, {int64(4), int64(2147483648)}, {int64(5), int64(4294967295)}, {int64(6), nil}}),
+				referenceSelect("SELECT v FROM o WHERE id<7 ORDER BY v", []string{"v"}, []string{"OID"}, [][]any{{int64(0)}, {int64(1)}, {int64(2147483647)}, {int64(2147483648)}, {int64(4294967295)}, {nil}}),
+				referenceSelect("SELECT v FROM o WHERE id<7 ORDER BY v DESC", []string{"v"}, []string{"OID"}, [][]any{{nil}, {int64(4294967295)}, {int64(2147483648)}, {int64(2147483647)}, {int64(1)}, {int64(0)}}),
+				referenceSelect("SELECT v FROM o WHERE id=10", []string{"v"}, []string{"OID"}, [][]any{{int64(4294967295)}}),
+				referenceSelect("SELECT v FROM o WHERE id=11", []string{"v"}, []string{"OID"}, [][]any{{int64(2147483648)}}),
+				referenceSelect("SELECT v FROM o WHERE id=12", []string{"v"}, []string{"OID"}, [][]any{{int64(0)}}),
+				referenceSelect("SELECT v FROM o WHERE id=13", []string{"v"}, []string{"OID"}, [][]any{{nil}}),
+				referenceSelect("SELECT v FROM o WHERE id=99", []string{"v"}, []string{"OID"}, nil),
 			} {
-				rows, err := backend.db.QueryContext(p.ctx, tc.q)
-				if err != nil {
-					t.Fatal(err)
-				}
-				types, err := rows.ColumnTypes()
-				if err != nil {
-					t.Fatal(err)
-				}
-				ct := types[0]
-				scan := reflect.TypeFor[int64]()
-				if backend.name == "postgres" {
-					scan = reflect.TypeFor[any]()
-				}
-				if ct.DatabaseTypeName() != "OID" || ct.ScanType() != scan {
-					t.Fatal(ct)
-				}
-				if _, ok := ct.Length(); ok {
-					t.Fatal("length")
-				}
-				if _, _, ok := ct.DecimalSize(); ok {
-					t.Fatal("precision")
-				}
-				nullable, known := ct.Nullable()
-				if known != (backend.name == "native") || known && !nullable {
-					t.Fatal(nullable, known)
-				}
-				got := make([]any, 0)
-				for rows.Next() {
-					var raw any
-					if err = rows.Scan(&raw); err != nil {
+				oidReferenceRows(t, p.ctx, backend, backend.db, step)
+				if len(step.types) == 1 {
+					rows, err := backend.db.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), step.query)
+					if err != nil {
 						t.Fatal(err)
 					}
-					if raw != nil {
-						if backend.name == "postgres" {
-							b, ok := raw.([]byte)
-							if !ok {
-								t.Fatalf("raw OID %T", raw)
-							}
-							n, err := strconv.ParseUint(string(b), 10, 32)
-							if err != nil {
-								t.Fatal(err)
-							}
-							raw = int64(n)
-						} else if _, ok := raw.(int64); !ok {
-							t.Fatalf("raw OID %T", raw)
-						}
+					types, err := rows.ColumnTypes()
+					if err != nil {
+						rows.Close()
+						t.Fatal(err)
 					}
-					got = append(got, raw)
-				}
-				if err = rows.Err(); err != nil {
-					t.Fatal(err)
-				}
-				rows.Close()
-				if !reflect.DeepEqual(got, tc.want) {
-					t.Fatal(tc.q, got, tc.want)
+					nullable, known := types[0].Nullable()
+					if known != !backend.pg || nullable != !backend.pg {
+						t.Fatal(nullable, known)
+					}
+					if err := rows.Close(); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 		})
@@ -169,26 +117,4 @@ func TestReferenceOIDInputDiagnostics(t *testing.T) {
 	}
 	steps = append(steps, referenceSelect("SELECT v::int8 FROM o", []string{"v"}, []string{"INT8"}, [][]any{{int64(7)}}))
 	nameReferenceSteps(t, steps)
-}
-
-func TestReferenceOIDDumpReplay(t *testing.T) {
-	p := newReferencePair(t)
-	for _, q := range []string{"CREATE TABLE o(v OID DEFAULT '4294967295'::oid)", "INSERT INTO o VALUES('0'),('2147483648'),('4294967295'),(NULL)", "CREATE TABLE empty(v OID)"} {
-		if _, err := p.memory.ExecContext(p.ctx, q); err != nil {
-			t.Fatal(err)
-		}
-	}
-	var dump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal(err)
-	}
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.postgres, p.postgresRecord}, {p.memory, p.memoryRecord}} {
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceSelect("SELECT v::int8 FROM o ORDER BY v", []string{"v"}, []string{"INT8"}, [][]any{{int64(0)}, {int64(2147483648)}, {int64(4294967295)}, {nil}}))
-	}
 }

@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"math"
 	"reflect"
@@ -13,15 +14,24 @@ func referenceCharacterMetadata(t *testing.T, p *referencePair, db *sql.DB, quer
 	t.Helper()
 	var rows *sql.Rows
 	var err error
+	record := p.postgresRecord
+	if native {
+		record = p.memoryRecord
+	}
+	ctx := context.WithValue(p.ctx, referenceRecorderKey{}, record)
 	if prepared {
-		stmt, e := db.PrepareContext(p.ctx, query)
+		stmt, e := db.PrepareContext(ctx, query)
 		if e != nil {
 			t.Fatal(e)
 		}
-		defer stmt.Close()
-		rows, err = stmt.QueryContext(p.ctx)
+		defer func() {
+			if err := stmt.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		rows, err = stmt.QueryContext(ctx)
 	} else {
-		rows, err = db.QueryContext(p.ctx, query)
+		rows, err = db.QueryContext(ctx, query)
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -63,12 +73,41 @@ func referenceCharacterMetadata(t *testing.T, p *referencePair, db *sql.DB, quer
 		}
 	}
 	check()
+	values := make([]any, len(types))
+	destinations := make([]any, len(types))
+	for i := range values {
+		destinations[i] = &values[i]
+	}
 	for rows.Next() {
+		if err := rows.Scan(destinations...); err != nil {
+			t.Fatal(err)
+		}
+		for i, value := range values {
+			referenceAssertRawValue(t, !native, types[i], value)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
 	check()
-	rows.Close()
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
 	check()
+	record.mu.Lock()
+	var captured *referenceOperation
+	for _, operation := range record.operations {
+		if operation.SQL == query && operation.Columns != nil {
+			captured = operation
+		}
+	}
+	record.mu.Unlock()
+	if captured == nil || !reflect.DeepEqual(captured.Columns, names) || !captured.Closed || captured.CloseErr != nil || captured.Err != nil {
+		t.Fatal("missing consumed character metadata capture")
+	}
+	for _, row := range captured.Rows {
+		for i, value := range row {
+			referenceAssertRawValue(t, !native, types[i], value)
+		}
+	}
 }

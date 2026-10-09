@@ -78,6 +78,40 @@ make test PACKAGES=./reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|Upd
 make reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|UpdateCore[A-Za-z0-9_]*|DeleteCore[A-Za-z0-9_]*|DeleteReturning[A-Za-z0-9_]*)$' VERBOSE=0
 ```
 
+Scalar-type migration merges all 63 assigned root interaction tests from 25 files
+with existing reference assertions into 89 untagged definitions. The complete
+family, including the retained tagged NAME physical/binary complement in true
+mode, is selected with:
+
+```sh
+SCALAR='^TestReference(Character[A-Za-z0-9_]*|Float[A-Za-z0-9_]*|Name[A-Za-z0-9_]*|Numeric[A-Za-z0-9_]*|OID[A-Za-z0-9_]*|Smallint[A-Za-z0-9_]*|TypeCore[A-Za-z0-9_]*|UUID[A-Za-z0-9_]*)$'
+make test PACKAGES=./reference RUN="$SCALAR" VERBOSE=0
+make reference RUN="$SCALAR" VERBOSE=0
+```
+
+Raw cells, empty-result descriptors and owned middleware recordings are checked
+before normalization. pq INT2/FLOAT4 ScanType is int16/float32, despite actual
+int64/float64 cells; NUMERIC/UUID/NAME return owned bytes rather than native
+strings. FLOAT4 rounding, negative NUMERIC scale metadata and NAME/OID typed-nil
+parameter behavior have independent backend expectations. Native controls and
+capability exclusions remain explicit phases; guarded PostgreSQL replay consumes
+the unchanged owner-bearing stream. Actual held-statement reuse, concurrency,
+cancellation, failure atomicity and retained cursor metadata remain covered.
+
+The mixed OID/integer DISTINCT matrix checks all twelve BOOL database type names
+and `bool` ScanTypes on the actual direct and prepared cursors, together with
+raw values and owned consumed recordings. SELECT diagnostics retain their
+original Exec routes alongside Query/no-cursor and Prepare checks: eight NUMERIC
+cases, the SMALLINT Boolean comparison, three UUID type/WHERE cases, and direct
+and prepared Exec for denied UUID SELECT. Held UUID Query denial and recovery
+remain separate witnesses; SQL-equivalent Query coverage does not replace Exec.
+Original single-row consumer methods also remain distinct: FLOAT direct
+`QueryRow().Scan(float64,float64)`, OID same-statement `QueryRow().Scan(bool,bool)`,
+SMALLINT connection `QueryRowContext` recovery and UUID same-statement
+`QueryRowContext` denial/recovery. Non-Context calls cannot carry the fixture's
+recorder key; separate recorded Context companions retain the same independent
+values and owned-output/closure checks without replacing those original methods.
+
 The identity family also runs as untagged `TestReferenceIdentity*` definitions,
 merging all 28 assigned former root interaction tests with the complete existing
 reference assertions. It covers declaration and option precedence, ALWAYS/BY

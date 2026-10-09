@@ -1,13 +1,11 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"bytes"
+	"context"
 	"database/sql"
+	"errors"
 	"reflect"
 	"strings"
-	"stuntgres"
 	"testing"
 )
 
@@ -16,15 +14,17 @@ const uuidZ = "00000000-0000-0000-0000-000000000000"
 const uuidF = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 
 func TestReferenceUUIDCreateInputAndOrder(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE u(v UUID)", 0))
 	p.step(t, referenceExec("INSERT INTO u(v) VALUES(NULL),('ffffffff-ffff-ffff-ffff-ffffffffffff'),('{A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11}'),('00000000000000000000000000000000'),('a0eebc999c0b4ef8bb6d6bb9bd380a11')", 5))
 	p.step(t, referenceSelect("SELECT v FROM u ORDER BY v", []string{"v"}, []string{"UUID"}, [][]any{{uuidZ}, {uuidA}, {uuidA}, {uuidF}, {nil}}))
+	p.step(t, referenceSelect("SELECT v FROM u ORDER BY v DESC", []string{"v"}, []string{"UUID"}, [][]any{{nil}, {uuidF}, {uuidA}, {uuidA}, {uuidZ}}))
+	p.step(t, referenceSelect("SELECT v FROM u WHERE v=$1", []string{"v"}, []string{"UUID"}, [][]any{{uuidA}, {uuidA}}, "{A0EEBC999C0B4EF8BB6D6BB9BD380A11}"))
 	p.step(t, referencePrepared(referenceSelect("SELECT v FROM u WHERE v=$1", []string{"v"}, []string{"UUID"}, [][]any{{uuidA}, {uuidA}}, "{A0EEBC999C0B4EF8BB6D6BB9BD380A11}")))
 }
 
 func TestReferenceUUIDNoncanonicalGroupedForms(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE u(v UUID)", 0))
 	for _, prepared := range []bool{false, true} {
 		for _, form := range []string{
@@ -64,7 +64,7 @@ func TestReferenceUUIDNoncanonicalGroupedForms(t *testing.T) {
 }
 
 func TestReferenceUUIDBindingsAndRawMetadata(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE u(v UUID)", 0))
 	for _, prepared := range []bool{false, true} {
 		for _, arg := range []any{"{A0EEBC999C0B4EF8BB6D6BB9BD380A11}", []byte("ffffffffffffffffffffffffffffffff"), nil} {
@@ -76,26 +76,73 @@ func TestReferenceUUIDBindingsAndRawMetadata(t *testing.T) {
 	p.step(t, referenceSelect("SELECT v FROM u ORDER BY v DESC", []string{"v"}, []string{"UUID"}, [][]any{{nil}, {nil}, {uuidF}, {uuidF}, {uuidA}, {uuidA}}))
 	p.step(t, referenceSelect("SELECT v FROM u WHERE v=NULL", []string{"v"}, []string{"UUID"}, nil))
 	p.step(t, referencePrepared(referenceSelect("SELECT v FROM u WHERE v=$1", []string{"v"}, []string{"UUID"}, nil, nil)))
-	p.step(t, referenceExec("CREATE TABLE repeats(a UUID,b UUID)", 0))
-	for _, arg := range []any{uuidA, nil} {
-		p.step(t, referencePrepared(referenceExec("INSERT INTO repeats VALUES($1,$1)", 1, arg)))
+	p.step(t, referenceExec("CREATE TABLE root_u(v UUID)", 0))
+	for _, backend := range p.backends() {
+		func() {
+			q := "INSERT INTO root_u VALUES($1)"
+			stmt, err := backend.db.PrepareContext(p.ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+			held := referenceHeldStatement{referenceExecutor: backend.db, statement: stmt, query: q}
+			source := []byte("{A0EEBC999C0B4EF8BB6D6BB9BD380A11}")
+			for _, arg := range []any{source, uuidReferenceValuer(uuidF), nil} {
+				referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(q, 1, arg))
+			}
+			source[1] = '0'
+			q = "SELECT v FROM root_u WHERE v=$1"
+			filter, err := backend.db.PrepareContext(p.ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer filter.Close()
+			reused := referenceHeldStatement{referenceExecutor: backend.db, statement: filter, query: q}
+			for _, frame := range []struct {
+				arg  any
+				rows [][]any
+			}{{"{A0EEBC999C0B4EF8BB6D6BB9BD380A11}", [][]any{{uuidA}}}, {uuidF, [][]any{{uuidF}}}, {nil, nil}} {
+				rows, err := reused.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), q, frame.arg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				types, err := rows.ColumnTypes()
+				if err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				uuidReferenceColumns(t, types, backend.pg, []bool{true})
+				if err := rows.Close(); err != nil {
+					t.Fatal(err)
+				}
+				referenceRunStep(t, p.ctx, reused, backend.recorder, referenceSelect(q, []string{"v"}, []string{"UUID"}, frame.rows, frame.arg))
+			}
+			_, err = stmt.ExecContext(p.ctx, [16]byte{})
+			var state interface{ SQLState() string }
+			if err == nil || errors.As(err, &state) {
+				t.Fatal("ordinary binary-array error", err)
+			}
+			conflict := referenceImplicitError("SELECT $1 FROM root_u WHERE v=$1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "uuid versus text", Position: "8"})
+			conflict.errorStage = "prepare"
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(conflict))
+		}()
 	}
-	p.step(t, referenceSelect("SELECT * FROM repeats ORDER BY a", []string{"a", "b"}, []string{"UUID", "UUID"}, [][]any{{uuidA, uuidA}, {nil, nil}}))
-	for _, backend := range []struct {
-		db *sql.DB
-		pg bool
-	}{{p.memory, false}, {p.postgres, true}} {
+	for _, backend := range p.backends() {
 		for _, prepared := range []bool{false, true} {
 			query := func(q string) (*sql.Rows, error) {
 				if !prepared {
-					return backend.db.QueryContext(p.ctx, q)
+					return backend.db.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), q)
 				}
 				s, err := backend.db.PrepareContext(p.ctx, q)
 				if err != nil {
 					return nil, err
 				}
-				defer s.Close()
-				return s.QueryContext(p.ctx)
+				t.Cleanup(func() {
+					if err := s.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				return s.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder))
 			}
 			for _, q := range []string{"SELECT v FROM u ORDER BY v", "SELECT v FROM u WHERE v=NULL"} {
 				rows, err := query(q)
@@ -106,25 +153,7 @@ func TestReferenceUUIDBindingsAndRawMetadata(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				scan := reflect.TypeFor[string]()
-				if backend.pg {
-					scan = reflect.TypeFor[any]()
-				}
-				if types[0].DatabaseTypeName() != "UUID" || types[0].ScanType() != scan {
-					t.Fatal(types[0])
-				}
-				if _, ok := types[0].Length(); ok {
-					t.Fatal("length")
-				}
-				if _, _, ok := types[0].DecimalSize(); ok {
-					t.Fatal("decimal size")
-				}
-				if !backend.pg {
-					n, k := types[0].Nullable()
-					if !n || !k {
-						t.Fatal(n, k)
-					}
-				}
+				uuidReferenceColumns(t, types, backend.pg, []bool{true})
 				var retained []byte
 				var count int
 				want := []any{uuidA, uuidA, uuidF, uuidF, nil, nil}
@@ -172,7 +201,7 @@ func TestReferenceUUIDBindingsAndRawMetadata(t *testing.T) {
 }
 
 func TestReferenceUUIDDiagnosticsAndAtomicity(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE u(v UUID)", 0))
 	for _, tc := range []struct{ text string }{{"bad"}, {""}, {" a0eebc999c0b4ef8bb6d6bb9bd380a11"}, {"a0eebc999c0b4ef8bb6d6bb9bd380a11-"}, {"{a0eebc999c0b4ef8bb6d6bb9bd380a11"}, {"urn:uuid:a0eebc999c0b4ef8bb6d6bb9bd380a11"}} {
 		for _, prefix := range []string{"", "/*é*/ "} {
@@ -185,28 +214,44 @@ func TestReferenceUUIDDiagnosticsAndAtomicity(t *testing.T) {
 				s.selectRows = strings.HasPrefix(q, "SELECT")
 				s.errorStage = "execute"
 				p.step(t, s)
+				if s.selectRows {
+					exec := s
+					exec.selectRows = false
+					p.step(t, exec)
+				}
 				s.errorStage = "prepare"
 				p.step(t, referencePrepared(s))
 			}
 		}
 	}
-	for _, arg := range []any{"bad", []byte("bad"), 1, true} {
-		text := "bad"
-		if arg == 1 {
-			text = "1"
-		}
-		if arg == true {
-			text = "true"
-		}
+	for _, backend := range p.backends() {
 		for _, q := range []string{"INSERT INTO u(v) VALUES($1)", "SELECT v FROM u WHERE v=$1"} {
-			s := referenceImplicitError(q, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "` + text + `"`}, arg)
-			s.selectRows = strings.HasPrefix(q, "SELECT")
-			s.errorStage = "execute"
-			pg := *s.diagnostic
-			pg.Context = "unnamed portal parameter $1 = '...'"
-			s.diagnostic = &pg
-			p.step(t, s)
-			p.step(t, referencePrepared(s))
+			func() {
+				stmt, err := backend.db.PrepareContext(p.ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer stmt.Close()
+				held := referenceHeldStatement{referenceExecutor: backend.db, statement: stmt, query: q}
+				for _, arg := range []any{"bad", []byte("bad"), 1, true} {
+					text := "bad"
+					if arg == 1 {
+						text = "1"
+					}
+					if arg == true {
+						text = "true"
+					}
+					s := referenceImplicitError(q, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "` + text + `"`, Context: "unnamed portal parameter $1 = '...'"}, arg)
+					s.selectRows, s.errorStage = strings.HasPrefix(q, "SELECT"), "execute"
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+					referenceRunStep(t, p.ctx, held, backend.recorder, s)
+					if s.selectRows {
+						s.selectRows = false
+						referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+						referenceRunStep(t, p.ctx, held, backend.recorder, s)
+					}
+				}
+			}()
 		}
 	}
 	for _, tc := range []struct{ q, code, message, hint, pos string }{
@@ -220,9 +265,15 @@ func TestReferenceUUIDDiagnosticsAndAtomicity(t *testing.T) {
 		s.selectRows = strings.HasPrefix(tc.q, "SELECT")
 		s.errorStage = "execute"
 		p.step(t, s)
+		if s.selectRows {
+			exec := s
+			exec.selectRows = false
+			p.step(t, exec)
+		}
 		s.errorStage = "prepare"
 		p.step(t, referencePrepared(s))
 	}
+	p.step(t, referenceImplicitError(`CREATE TABLE bad(v "UUID")`, referenceDiagnostic{Code: "42704", Message: `type "UUID" does not exist`, Position: "20"}))
 	p.step(t, referenceExec("CREATE TABLE required(id INT NOT NULL,v UUID NOT NULL)", 0))
 	p.step(t, referenceExec("INSERT INTO required VALUES(99,$1)", 1, uuidA))
 	for _, tc := range []struct {
@@ -244,76 +295,59 @@ func TestReferenceUUIDDiagnosticsAndAtomicity(t *testing.T) {
 			s.diagnostic = &pg
 		}
 		p.step(t, s)
+		p.step(t, referenceSelect("SELECT * FROM required", []string{"id", "v"}, []string{"INT4", "UUID"}, [][]any{{int64(99), uuidA}}))
 		s.errorStage = tc.stage
 		p.step(t, referencePrepared(s))
 		p.step(t, referenceSelect("SELECT * FROM required", []string{"id", "v"}, []string{"INT4", "UUID"}, [][]any{{int64(99), uuidA}}))
 	}
-}
-
-func TestReferenceUUIDControls(t *testing.T) {
-	p := newReferencePair(t)
-	script := "CREATE TABLE empty(v UUID); CREATE TABLE saved(v UUID NOT NULL,n UUID); INSERT INTO saved VALUES('00000000000000000000000000000000',NULL),('{A0EEBC999C0B4EF8BB6D6BB9BD380A11}','ffffffffffffffffffffffffffffffff')"
-	if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err != nil {
-		t.Fatal(err)
+	for _, backend := range p.backends() {
+		ctx, cancel := context.WithCancel(p.ctx)
+		cancel()
+		if _, err := backend.db.ExecContext(ctx, "INSERT INTO u VALUES($1)", uuidA); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT * FROM u", []string{"v"}, []string{"UUID"}, nil))
 	}
-	var dump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
-		t.Fatal(dump.String(), err)
-	}
-	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
-		t.Fatal(err)
-	}
-	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
-		t.Fatal(err)
-	}
-	var redump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &redump); err != nil {
-		t.Fatal(redump.String(), err)
-	}
-	if _, err := p.postgres.ExecContext(p.ctx, redump.String()); err != nil {
-		t.Fatal(err)
-	}
-	p.step(t, referenceSelect("SELECT * FROM saved ORDER BY v", []string{"v", "n"}, []string{"UUID", "UUID"}, [][]any{{uuidZ, nil}, {uuidA, uuidF}}))
-	p.step(t, referenceSelect("SELECT * FROM empty", []string{"v"}, []string{"UUID"}, nil))
-	// Verify the restored identity through behavior, not incidental dump layout.
-	p.step(t, referenceImplicitError("INSERT INTO saved VALUES(NULL,NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "v" of relation "saved" violates not-null constraint`, Detail: "Failing row contains (null, null).", Schema: "public", Table: "saved", Column: "v"}))
-	p.step(t, referenceExec("ALTER TABLE saved DROP CONSTRAINT saved_v_not_null", 0))
-	p.step(t, referenceExec("INSERT INTO saved VALUES(NULL,NULL)", 1))
-	p.step(t, referenceSelect("SELECT * FROM saved WHERE v=$1", []string{"v", "n"}, []string{"UUID", "UUID"}, [][]any{{uuidA, uuidF}}, uuidA))
 }
 
 func TestReferenceUUIDAuthorization(t *testing.T) {
 	roleReferenceCleanup(t, []string{"uuid_reader"})
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE ROLE uuid_reader", 0))
 	// The fixture recreates public without PUBLIC privileges. Match native public
 	// namespace visibility before testing the independently denied table rights.
-	if _, err := referenceAdmin.ExecContext(p.ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
-		t.Fatal(err)
+	if p.postgres != nil {
+		if _, err := referenceAdmin.ExecContext(p.ctx, "GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC"); err != nil {
+			t.Fatal(err)
+		}
 	}
 	p.step(t, referenceExec("CREATE TABLE u(v UUID)", 0))
 	p.step(t, referenceExec("INSERT INTO u VALUES($1)", 1, uuidA))
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-		pg     bool
-	}{{p.memory, p.memoryRecord, false}, {p.postgres, p.postgresRecord, true}} {
+	for _, backend := range p.backends() {
 		c, err := backend.db.Conn(p.ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer c.Close()
 		held, err := c.PrepareContext(p.ctx, "SELECT v FROM u")
 		if err != nil {
 			t.Fatal(err)
 		}
-		referenceRunStep(t, p.ctx, c, backend.record, referenceExec("SET SESSION AUTHORIZATION uuid_reader", 0))
-		rows, err := held.QueryContext(p.ctx)
+		defer held.Close()
+		defer c.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
+		referenceRunStep(t, p.ctx, c, backend.recorder, referenceExec("SET SESSION AUTHORIZATION uuid_reader", 0))
+		var value string
+		err = held.QueryRowContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder)).Scan(&value)
+		want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table u"}
+		referenceAssertDiagnostic(t, err, &want)
+		rows, err := held.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder))
 		if rows != nil {
 			rows.Close()
 		}
-		want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table u"}
 		referenceAssertDiagnostic(t, err, &want)
-		held.Close()
+		if rows != nil {
+			t.Fatal("denied held Query exposed a cursor")
+		}
 		for _, prepared := range []bool{false, true} {
 			for _, q := range []string{"SELECT v FROM u", "INSERT INTO u VALUES('a0eebc999c0b4ef8bb6d6bb9bd380a11')", "INSERT INTO u VALUES($1)"} {
 				s := referenceImplicitError(q, referenceDiagnostic{Code: "42501", Message: "permission denied for table u"})
@@ -323,21 +357,48 @@ func TestReferenceUUIDAuthorization(t *testing.T) {
 				if strings.Contains(q, "$1") {
 					s.args = []any{uuidA}
 				}
-				referenceRunStep(t, p.ctx, c, backend.record, s)
+				referenceRunStep(t, p.ctx, c, backend.recorder, s)
+				if s.selectRows {
+					s.selectRows = false
+					referenceRunStep(t, p.ctx, c, backend.recorder, s)
+				}
 			}
 			s := referenceImplicitError("INSERT INTO u VALUES($1)", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type uuid: "bad"`, Context: "unnamed portal parameter $1 = '...'"}, "bad")
 			s.prepared = prepared
 			s.errorStage = "execute"
-			referenceRunStep(t, p.ctx, c, backend.record, s)
+			referenceRunStep(t, p.ctx, c, backend.recorder, s)
 		}
-		referenceRunStep(t, p.ctx, c, backend.record, referenceExec("RESET SESSION AUTHORIZATION", 0))
-		c.Close()
+		referenceRunStep(t, p.ctx, c, backend.recorder, referenceExec("RESET SESSION AUTHORIZATION", 0))
+		ctx := context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder)
+		backend.recorder.mu.Lock()
+		recordStart := len(backend.recorder.operations)
+		backend.recorder.mu.Unlock()
+		if err := held.QueryRowContext(ctx).Scan(&value); err != nil || value != uuidA {
+			t.Fatal("held single-row authorization recovery", value, err)
+		}
+		backend.recorder.mu.Lock()
+		var captured *referenceOperation
+		for _, op := range backend.recorder.operations[recordStart:] {
+			if op.SQL == "SELECT v FROM u" && op.Columns != nil {
+				captured = op
+			}
+		}
+		backend.recorder.mu.Unlock()
+		if captured == nil || !reflect.DeepEqual(captured.Columns, []string{"v"}) || len(captured.Rows) != 1 || len(captured.Rows[0]) != 1 || captured.Err != nil || !captured.Closed || captured.CloseErr != nil {
+			t.Fatal("held single-row authorization recovery recording", captured)
+		}
+		referenceAssertRawValue(t, backend.pg, "UUID", captured.Rows[0][0])
+		if referenceNormalize(captured.Rows[0][0]) != uuidA {
+			t.Fatal("recorded held single-row UUID recovery", captured.Rows)
+		}
+		reused := referenceHeldStatement{referenceExecutor: c, statement: held, query: "SELECT v FROM u"}
+		referenceRunStep(t, p.ctx, reused, backend.recorder, referenceSelect("SELECT v FROM u", []string{"v"}, []string{"UUID"}, [][]any{{uuidA}}))
 	}
 	p.step(t, referenceSelect("SELECT v FROM u", []string{"v"}, []string{"UUID"}, [][]any{{uuidA}}))
 }
 
 func TestReferenceUUIDOrderingAndNullMetadata(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE u(v UUID)", 0))
 	p.step(t, referenceExec("INSERT INTO u VALUES('80000000000000000000000000000000'),('00000100000000000000000000000000'),('00000001000000000000000000000000'),('7fffffffffffffffffffffffffffffff'),('00000000000000000000000000000001'),('00000000000000000000000000000000')", 6))
 	p.step(t, referenceSelect("SELECT v FROM u ORDER BY v", []string{"v"}, []string{"UUID"}, [][]any{{uuidZ}, {"00000000-0000-0000-0000-000000000001"}, {"00000001-0000-0000-0000-000000000000"}, {"00000100-0000-0000-0000-000000000000"}, {"7fffffff-ffff-ffff-ffff-ffffffffffff"}, {"80000000-0000-0000-0000-000000000000"}}))
@@ -346,12 +407,9 @@ func TestReferenceUUIDOrderingAndNullMetadata(t *testing.T) {
 	p.step(t, referencePrepared(referenceSelect("SELECT v,v FROM nulls", []string{"v", "v"}, []string{"UUID", "UUID"}, [][]any{{nil, nil}})))
 	p.step(t, referenceExec("CREATE TABLE required(v UUID NOT NULL)", 0))
 	p.step(t, referenceSelect("SELECT * FROM required", []string{"v"}, []string{"UUID"}, nil))
-	for _, backend := range []struct {
-		db *sql.DB
-		pg bool
-	}{{p.memory, false}, {p.postgres, true}} {
+	for _, backend := range p.backends() {
 		for _, q := range []string{"SELECT * FROM nulls", "SELECT * FROM required"} {
-			rows, err := backend.db.QueryContext(p.ctx, q)
+			rows, err := backend.db.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), q)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -359,29 +417,28 @@ func TestReferenceUUIDOrderingAndNullMetadata(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			scan := reflect.TypeFor[string]()
-			if backend.pg {
-				scan = reflect.TypeFor[any]()
-			}
-			if types[0].DatabaseTypeName() != "UUID" || types[0].ScanType() != scan {
-				t.Fatal(types[0])
-			}
-			if !backend.pg {
-				n, k := types[0].Nullable()
-				if !k || n != (q == "SELECT * FROM nulls") {
-					t.Fatal(n, k)
-				}
-			}
-			if rows.Next() {
+			uuidReferenceColumns(t, types, backend.pg, []bool{q == "SELECT * FROM nulls"})
+			count := 0
+			for rows.Next() {
 				var raw any
 				if err := rows.Scan(&raw); err != nil || raw != nil {
 					t.Fatal(raw, err)
 				}
+				count++
 			}
 			if err := rows.Err(); err != nil {
 				t.Fatal(err)
 			}
-			rows.Close()
+			if err := rows.Close(); err != nil {
+				t.Fatal(err)
+			}
+			expectedCount := 0
+			if q == "SELECT * FROM nulls" {
+				expectedCount = 1
+			}
+			if count != expectedCount {
+				t.Fatal(count, expectedCount)
+			}
 		}
 	}
 }

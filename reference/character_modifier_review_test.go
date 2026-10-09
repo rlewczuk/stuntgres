@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -35,30 +33,8 @@ func characterReviewModifierCases() []struct {
 	}
 }
 
-// This entrypoint executes SQL against PostgreSQL only, using the configured
-// pinned fixture rather than a second harness or inferred native parity.
-func TestReferenceCharacterReviewModifierOracle(t *testing.T) {
-	p := newReferencePair(t)
-	for _, tc := range characterReviewModifierCases() {
-		for _, prepared := range []bool{false, true} {
-			t.Run(tc.decl+"/prepared="+strconv.FormatBool(prepared), func(t *testing.T) {
-				q := "/*é🙂*/ CREATE TABLE invalid(v " + tc.decl + ")"
-				characterOracleExec(t, p, q, prepared, false, tc.diagnostic)
-				if tc.diagnostic.Code != "" {
-					return
-				}
-				t.Logf("query=%q prepared=%t stage=execute accepted length=2", q, prepared)
-				referenceCharacterMetadata(t, p, p.postgres, "SELECT v FROM invalid", prepared, false, []string{"v"}, []string{tc.typ}, []int64{2}, nil)
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("INSERT INTO invalid VALUES('a')", 1))
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect("SELECT v FROM invalid", []string{"v"}, []string{tc.typ}, [][]any{{tc.value}}))
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("DROP TABLE invalid", 0))
-			})
-		}
-	}
-}
-
 func TestReferenceCharacterReviewModifierDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, tc := range characterReviewModifierCases() {
 		for _, prepared := range []bool{false, true} {
 			t.Run(tc.decl+"/prepared="+strconv.FormatBool(prepared), func(t *testing.T) {
@@ -70,6 +46,9 @@ func TestReferenceCharacterReviewModifierDiagnostics(t *testing.T) {
 						s = referencePrepared(s)
 					}
 					p.step(t, s)
+					missing := referenceImplicitError("SELECT v FROM invalid", referenceDiagnostic{Code: "42P01", Message: `relation "invalid" does not exist`, Position: "15"})
+					missing.selectRows, missing.errorStage = true, "execute"
+					p.step(t, missing)
 					return
 				}
 				s := referenceExec(q, 0)
@@ -77,8 +56,9 @@ func TestReferenceCharacterReviewModifierDiagnostics(t *testing.T) {
 					s = referencePrepared(s)
 				}
 				p.step(t, s)
-				referenceCharacterMetadata(t, p, p.memory, "SELECT v FROM invalid", prepared, true, []string{"v"}, []string{tc.typ}, []int64{2}, []referenceCharacterNullability{{true,true}})
-				referenceCharacterMetadata(t, p, p.postgres, "SELECT v FROM invalid", prepared, false, []string{"v"}, []string{tc.typ}, []int64{2}, nil)
+				for _, backend := range p.backends() {
+					referenceCharacterMetadata(t, p, backend.db, "SELECT v FROM invalid", prepared, !backend.pg, []string{"v"}, []string{tc.typ}, []int64{2}, []referenceCharacterNullability{{true, true}})
+				}
 				p.step(t, referenceExec("INSERT INTO invalid VALUES('a')", 1))
 				p.step(t, referenceSelect("SELECT v FROM invalid", []string{"v"}, []string{tc.typ}, [][]any{{tc.value}}))
 				p.step(t, referenceExec("DROP TABLE invalid", 0))

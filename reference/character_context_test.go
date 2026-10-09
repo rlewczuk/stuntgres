@@ -1,17 +1,12 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
+	"context"
 	"testing"
 )
 
-// Character assignment IO must not widen function argument coercion. Character
-// casts use the existing comparison/logical surface without replacing its
-// noncharacter behavior; remaining capability boundaries are backend-specific.
 func TestReferenceCharacterContextBoundaries(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE seed(c CHAR(2))", 0))
 	p.step(t, referenceExec("INSERT INTO seed VALUES('a')", 1))
 	for _, s := range []referenceStep{
@@ -30,32 +25,30 @@ func TestReferenceCharacterContextBoundaries(t *testing.T) {
 		{`SELECT CAST('a' AS "VARCHAR") FROM seed`, "42704", "42704"},
 		{`SELECT 'a'::"character" FROM seed`, "42704", "42704"},
 	} {
-		q := tc.query
-		for _, native := range []bool{true, false} {
-			db, code := p.postgres, tc.postgresCode
-			if native {
-				db, code = p.memory, tc.nativeCode
+		for _, backend := range p.backends() {
+			code := tc.nativeCode
+			if backend.pg {
+				code = tc.postgresCode
 			}
 			for _, prepared := range []bool{false, true} {
+				ctx := context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder)
 				var err error
 				if prepared {
-					stmt, e := db.PrepareContext(p.ctx, q)
+					stmt, e := backend.db.PrepareContext(ctx, tc.query)
 					err = e
 					if stmt != nil {
 						stmt.Close()
-						t.Fatal("unsupported function argument exposed handle")
+						t.Fatal("unsupported argument exposed statement")
 					}
 				} else {
-					rows, e := db.QueryContext(p.ctx, q)
+					rows, e := backend.db.QueryContext(ctx, tc.query)
 					err = e
 					if rows != nil {
 						rows.Close()
-						t.Fatal("unsupported function argument exposed rows")
+						t.Fatal("unsupported argument exposed cursor")
 					}
 				}
-				if err == nil || referenceExtractDiagnostic(t, err).Code != code {
-					t.Fatal(native, prepared, q, err)
-				}
+				referenceState(t, err, code)
 			}
 		}
 	}
@@ -63,41 +56,24 @@ func TestReferenceCharacterContextBoundaries(t *testing.T) {
 }
 
 func TestReferenceCharacterSelectedSingletonCastArguments(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	q := "SELECT num_nulls(CAST($1 AS bpchar),CAST($1 AS text)),num_nonnulls(CAST($1 AS bpchar),CAST($1 AS text))"
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
-		for _, prepared := range []bool{false, true} {
-			var stmt *sql.Stmt
-			if prepared {
-				var err error
-				stmt, err = db.PrepareContext(p.ctx, q)
-				if err != nil {
-					t.Fatal(err)
-				}
+	for _, backend := range p.backends() {
+		func() {
+			stmt, err := backend.db.PrepareContext(p.ctx, q)
+			if err != nil {
+				t.Fatal(err)
 			}
+			defer stmt.Close()
+			held := referenceHeldStatement{referenceExecutor: backend.db, statement: stmt, query: q}
 			for _, frame := range []struct {
 				input any
 				want  []any
-			}{
-				{"a  ", []any{int64(0), int64(2)}},
-				{nil, []any{int64(2), int64(0)}},
-				{"z ", []any{int64(0), int64(2)}},
-			} {
-				var rows *sql.Rows
-				var err error
-				if prepared {
-					rows, err = stmt.QueryContext(p.ctx, frame.input)
-				} else {
-					rows, err = db.QueryContext(p.ctx, q, frame.input)
-				}
-				if err != nil {
-					t.Fatal(q, prepared, frame.input, err)
-				}
-				characterParameterReviewRows(t, rows, []string{"num_nulls", "num_nonnulls"}, []string{"INT4", "INT4"}, frame.want)
+			}{{"a  ", []any{int64(0), int64(2)}}, {nil, []any{int64(2), int64(0)}}, {"z ", []any{int64(0), int64(2)}}} {
+				s := referenceSelect(q, []string{"num_nulls", "num_nonnulls"}, []string{"INT4", "INT4"}, [][]any{frame.want}, frame.input)
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+				referenceRunStep(t, p.ctx, held, backend.recorder, s)
 			}
-			if stmt != nil {
-				stmt.Close()
-			}
-		}
+		}()
 	}
 }

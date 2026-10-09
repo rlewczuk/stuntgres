@@ -1,10 +1,13 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"bytes"
+	"context"
+	"database/sql/driver"
+	"errors"
 	"fmt"
+	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"stuntgres"
@@ -13,24 +16,63 @@ import (
 )
 
 func TestReferenceTypeCoreInputsInferenceAndMetadata(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE typed(i INTEGER NOT NULL,b BIGINT,t TEXT,f BOOLEAN)", 0))
 	p.step(t, referenceExec("INSERT INTO typed VALUES(-2147483648,-9223372036854775808,TRUE,' ye '),(2147483647,9223372036854775807,FALSE,'of')", 2))
-	p.step(t, referencePrepared(referenceExec("INSERT INTO typed VALUES($1,$2,$3,$4)", 1, "0x_FF", "0b10_10", []byte("owned"), "on")))
-	for _, s := range []string{" +0007 ", "0o17", "1_000"} {
-		p.step(t, referenceExec("INSERT INTO typed VALUES('"+s+"','"+s+"','x',NULL)", 1))
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			q := "INSERT INTO typed VALUES($1,$2,$3,$4)"
+			stmt, err := backend.db.PrepareContext(p.ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+			held := referenceHeldStatement{referenceExecutor: backend.db, statement: stmt, query: q}
+			owned := []byte("owned")
+			referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(q, 1, "0x_FF", "0b10_10", owned, "on"))
+			owned[0] = 'X'
+			for _, s := range []string{" +0007 ", "0o17", "1_000"} {
+				referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(q, 1, s, s, "x", nil))
+			}
+			ctx := context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder)
+			rows, err := backend.db.QueryContext(ctx, "SELECT * FROM typed")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rows.Close()
+			types, err := rows.ColumnTypes()
+			if err != nil {
+				t.Fatal(err)
+			}
+			scans := []reflect.Type{reflect.TypeFor[int64](), reflect.TypeFor[int64](), reflect.TypeFor[string](), reflect.TypeFor[bool]()}
+			if backend.pg {
+				scans[0] = reflect.TypeFor[int32]()
+			}
+			for i, name := range []string{"INT4", "INT8", "TEXT", "BOOL"} {
+				nullable, known := types[i].Nullable()
+				if types[i].DatabaseTypeName() != name || types[i].ScanType() != scans[i] || known != !backend.pg || nullable != (!backend.pg && i != 0) {
+					t.Fatal(types[i], nullable, known)
+				}
+			}
+			if err := rows.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 	p.step(t, referenceSelect("SELECT * FROM typed ORDER BY i", []string{"i", "b", "t", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(-2147483648), int64(-9223372036854775808), "true", true}, {int64(7), int64(7), "x", nil}, {int64(15), int64(15), "x", nil}, {int64(255), int64(10), "owned", true}, {int64(1000), int64(1000), "x", nil}, {int64(2147483647), int64(9223372036854775807), "false", false}}))
-	p.step(t, referenceExec("CREATE TABLE repeats(a INT,b TEXT,c INT)", 0))
-	for _, n := range []int{7, 8} {
-		p.step(t, referencePrepared(referenceExec("INSERT INTO repeats VALUES($1,$2,$1)", 1, n, "x")))
+	// The original reference literal routes remain distinct from held frames.
+	p.step(t, referenceExec("CREATE TABLE literal_inputs(i INT,b BIGINT)", 0))
+	for _, s := range []string{" +0007 ", "0o17", "1_000"} {
+		p.step(t, referenceExec("INSERT INTO literal_inputs VALUES('"+s+"','"+s+"')", 1))
 	}
-	p.step(t, referenceSelect("SELECT * FROM repeats ORDER BY a", []string{"a", "b", "c"}, []string{"INT4", "TEXT", "INT4"}, [][]any{{int64(7), "x", int64(7)}, {int64(8), "x", int64(8)}}))
+	p.step(t, referenceSelect("SELECT * FROM literal_inputs ORDER BY i", []string{"i", "b"}, []string{"INT4", "INT8"}, [][]any{{int64(7), int64(7)}, {int64(15), int64(15)}, {int64(1000), int64(1000)}}))
+	p.step(t, referenceSelect("SELECT i FROM typed WHERE i=2147483648", []string{"i"}, []string{"INT4"}, nil))
+	p.step(t, referenceSelect("SELECT i FROM typed WHERE i=$1", []string{"i"}, []string{"INT4"}, nil, nil))
 	p.step(t, referencePrepared(referenceSelect("SELECT i FROM typed WHERE i=2147483648", []string{"i"}, []string{"INT4"}, nil)))
 	p.step(t, referencePrepared(referenceSelect("SELECT i FROM typed WHERE i=$1", []string{"i"}, []string{"INT4"}, nil, nil)))
 }
 func TestReferenceTypeCoreDiagnosticsAndAtomicity(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE failures(i INT NOT NULL,b BIGINT,t TEXT,f BOOL)", 0))
 	p.step(t, referenceExec("INSERT INTO failures VALUES(99,99,'sentinel',TRUE)", 1))
 	unchanged := referenceSelect("SELECT * FROM failures", []string{"i", "b", "t", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(99), int64(99), "sentinel", true}})
@@ -84,19 +126,34 @@ func TestReferenceTypeCoreDiagnosticsAndAtomicity(t *testing.T) {
 		step := referenceImplicitError(q, referenceDiagnostic{Code: "22003", Message: "integer out of range"})
 		step.errorStage = "execute"
 		p.step(t, step)
+		p.step(t, unchanged)
 		p.step(t, referencePrepared(step))
 		p.step(t, unchanged)
 	}
+	quoted := referenceImplicitError("INSERT INTO failures(i) VALUES(1),('oops')", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`, Position: "36"})
+	p.step(t, quoted)
+	quoted.errorStage = "prepare"
+	p.step(t, referencePrepared(quoted))
+	p.step(t, unchanged)
 	q = "INSERT INTO failures(i) VALUES(1),(NULL)"
 	step = referenceImplicitError(q, referenceDiagnostic{Code: "23502", Message: `null value in column "i" of relation "failures" violates not-null constraint`, Detail: "Failing row contains (null, null, null, null).", Schema: "public", Table: "failures", Column: "i"})
 	step.errorStage = "execute"
 	p.step(t, step)
 	p.step(t, referencePrepared(step))
 	p.step(t, unchanged)
+	for _, backend := range p.backends() {
+		ctx, cancel := context.WithCancel(p.ctx)
+		cancel()
+		_, err := backend.db.ExecContext(ctx, "INSERT INTO failures(i) VALUES(1),(2)")
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, unchanged)
+	}
 }
 
 func TestReferenceTypeCoreQuotedWhereDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE failures(i INTEGER,b BIGINT,f BOOLEAN)", 0))
 	// Literal expectations are from root's pinned PostgreSQL 18.0 UTF8/C
 	// empty-table captures, not native outcomes or computed parser offsets.
@@ -125,9 +182,79 @@ func TestReferenceTypeCoreQuotedWhereDiagnostics(t *testing.T) {
 	p.step(t, referenceSelect("SELECT * FROM failures", []string{"i", "b", "f"}, []string{"INT4", "INT8", "BOOL"}, nil))
 }
 func TestReferenceTypeCoreDumpRoundTrip(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
+	// Preserve the original bound setup before the separate reference Restore.
+	for _, step := range []referenceStep{
+		referenceExec("CREATE TABLE typed(i INT NOT NULL,b BIGINT,t TEXT,f BOOL)", 0),
+		referenceExec("CREATE TABLE empty(i INT)", 0),
+		referenceExec("INSERT INTO typed VALUES($1,$2,$3,$4)", 1, -2147483648, int64(-9223372036854775808), "O'Brien\n\\tail", true),
+		referenceExec("INSERT INTO typed VALUES(2147483647,9223372036854775807,'',FALSE),(0,NULL,NULL,NULL)", 2),
+		referenceSelect("SELECT * FROM typed ORDER BY i", []string{"i", "b", "t", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(-2147483648), int64(-9223372036854775808), "O'Brien\n\\tail", true}, {int64(0), nil, nil, nil}, {int64(2147483647), int64(9223372036854775807), "", false}}),
+		referenceSelect("SELECT * FROM empty", []string{"i"}, []string{"INT4"}, nil),
+	} {
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
+	}
+	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+		t.Fatal(err)
+	}
 	script := "CREATE TABLE typed(i INT NOT NULL,b BIGINT,t TEXT,f BOOL); CREATE TABLE empty(i INT); INSERT INTO typed VALUES(-2147483648,-9223372036854775808,'O''Brien\n\\tail',TRUE),(0,NULL,NULL,NULL),(2147483647,9223372036854775807,'',FALSE)"
 	if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := p.native.Conn(p.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	err = conn.Raw(func(raw any) error {
+		cursor, err := raw.(driver.QueryerContext).QueryContext(p.ctx, "SELECT * FROM typed ORDER BY i", nil)
+		if err != nil {
+			return err
+		}
+		defer cursor.Close()
+		for range 2 {
+			var dump bytes.Buffer
+			if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+				return err
+			}
+			if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+				return err
+			}
+			if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
+				return err
+			}
+		}
+		checkMetadata := func() {
+			for i, name := range []string{"INT4", "INT8", "TEXT", "BOOL"} {
+				nullable, known := cursor.(driver.RowsColumnTypeNullable).ColumnTypeNullable(i)
+				if cursor.(driver.RowsColumnTypeDatabaseTypeName).ColumnTypeDatabaseTypeName(i) != name || !known || nullable != (i != 0) {
+					t.Fatal("retained metadata changed", name, nullable, known)
+				}
+			}
+		}
+		checkMetadata()
+		dst := make([]driver.Value, 4)
+		for _, row := range [][]any{{int64(-2147483648), int64(-9223372036854775808), "O'Brien\n\\tail", true}, {int64(0), nil, nil, nil}, {int64(2147483647), int64(9223372036854775807), "", false}} {
+			if err := cursor.Next(dst); err != nil {
+				return err
+			}
+			for i, v := range row {
+				if dst[i] != v {
+					t.Fatal(dst, row)
+				}
+			}
+		}
+		if err := cursor.Next(dst); err != io.EOF {
+			t.Fatal(err)
+		}
+		checkMetadata()
+		if err := cursor.Close(); err != nil {
+			return err
+		}
+		checkMetadata()
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	var dump bytes.Buffer
@@ -144,9 +271,17 @@ func TestReferenceTypeCoreDumpRoundTrip(t *testing.T) {
 	if err := stuntgres.Dump(p.ctx, p.native, &redump); err != nil || redump.String() != dump.String() {
 		t.Fatal(redump.String(), err)
 	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal(err)
+	if p.postgres != nil {
+		if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	p.step(t, referenceSelect("SELECT * FROM typed ORDER BY i", []string{"i", "b", "t", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(-2147483648), int64(-9223372036854775808), "O'Brien\n\\tail", true}, {int64(0), nil, nil, nil}, {int64(2147483647), int64(9223372036854775807), "", false}}))
 	p.step(t, referenceSelect("SELECT * FROM empty", []string{"i"}, []string{"INT4"}, nil))
+	for _, script := range []string{"CREATE TABLE replacement(i INT); INSERT INTO replacement VALUES(1),('oops')", "CREATE TABLE replacement(i INT); INSERT INTO replacement VALUES(1),(2147483648)", "CREATE TABLE replacement(i INT NOT NULL); INSERT INTO replacement VALUES(1),(NULL)", "CREATE TABLE replacement(i INT); INSERT INTO replacement VALUES($1)"} {
+		if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err == nil {
+			t.Fatal("bad restore accepted")
+		}
+		p.step(t, referenceSelect("SELECT * FROM typed ORDER BY i", []string{"i", "b", "t", "f"}, []string{"INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(-2147483648), int64(-9223372036854775808), "O'Brien\n\\tail", true}, {int64(0), nil, nil, nil}, {int64(2147483647), int64(9223372036854775807), "", false}}))
+	}
 }

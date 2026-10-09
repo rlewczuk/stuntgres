@@ -1,9 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
+	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -12,8 +10,14 @@ import (
 func TestReferenceNumericExactValuesInferenceAndTypmods(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
-			p := newReferencePair(t)
-			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+			p := newReferenceScenario(t)
+			run := func(s referenceStep) {
+				s.prepared = prepared
+				p.step(t, s)
+				if s.selectRows {
+					numericReferenceScanTypes(t, p, s)
+				}
+			}
 			run(referenceExec(`CREATE TABLE n(id INTEGER,v NUMERIC,a DECIMAL,b DEC,c "numeric")`, 0))
 			run(referenceSelect("SELECT * FROM n", []string{"id", "v", "a", "b", "c"}, []string{"INT4", "NUMERIC", "NUMERIC", "NUMERIC", "NUMERIC"}, nil))
 			exact := "12345678901234567890.1234567890123456789000"
@@ -54,36 +58,54 @@ func TestReferenceNumericExactValuesInferenceAndTypmods(t *testing.T) {
 	}
 }
 func TestReferenceNumericSpecialsAndHeldParameters(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE n(id INT,v NUMERIC)", 0))
 	p.step(t, referenceExec("INSERT INTO n VALUES(1,'-Infinity'),(2,-1),(3,0),(4,1),(5,'Infinity'),(6,'NaN'),(7,'NaN'),(8,NULL)", 8))
 	p.step(t, referenceSelect("SELECT v FROM n ORDER BY v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"-Infinity"}, {"-1"}, {"0"}, {"1"}, {"Infinity"}, {"NaN"}, {"NaN"}, {nil}}))
 	p.step(t, referencePrepared(referenceSelect("SELECT v FROM n ORDER BY v DESC", []string{"v"}, []string{"NUMERIC"}, [][]any{{nil}, {"NaN"}, {"NaN"}, {"Infinity"}, {"1"}, {"0"}, {"-1"}, {"-Infinity"}})))
+	p.step(t, referenceSelect("SELECT v FROM n ORDER BY v DESC", []string{"v"}, []string{"NUMERIC"}, [][]any{{nil}, {"NaN"}, {"NaN"}, {"Infinity"}, {"1"}, {"0"}, {"-1"}, {"-Infinity"}}))
 	p.step(t, referenceSelect("SELECT id FROM n WHERE v='NaN' ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(6)}, {int64(7)}}))
 	p.step(t, referenceSelect("SELECT id FROM n WHERE v=NULL", []string{"id"}, []string{"INT4"}, nil))
 	p.step(t, referenceExec("CREATE TABLE binds(v NUMERIC(3,1))", 0))
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
-		stmt, err := db.PrepareContext(p.ctx, "INSERT INTO binds VALUES($1)")
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, arg := range []any{"1.25", []byte("-1.25"), nil, int64(2), float64(1.5), "nan"} {
-			r, err := stmt.ExecContext(p.ctx, arg)
+	for _, backend := range p.backends() {
+		func() {
+			q := "INSERT INTO binds VALUES($1)"
+			stmt, err := backend.db.PrepareContext(p.ctx, q)
 			if err != nil {
-				t.Fatal(arg, err)
+				t.Fatal(err)
 			}
-			n, _ := r.RowsAffected()
-			if n != 1 {
-				t.Fatal(n)
+			defer stmt.Close()
+			held := referenceHeldStatement{referenceExecutor: backend.db, statement: stmt, query: q}
+			for _, arg := range []any{"1.25", []byte("-1.25"), nil, int64(2), float64(1.5), "nan"} {
+				referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(q, 1, arg))
 			}
-		}
-		_, err = stmt.ExecContext(p.ctx, "99.95")
-		want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "numeric field overflow", Detail: "A field with precision 3, scale 1 must round to an absolute value less than 10^2."}
-		referenceAssertDiagnostic(t, err, &want)
-		if _, err = stmt.ExecContext(p.ctx, "1.2"); err != nil {
-			t.Fatal(err)
-		}
-		stmt.Close()
+			failure := referenceImplicitError(q, referenceDiagnostic{Code: "22003", Message: "numeric field overflow", Detail: "A field with precision 3, scale 1 must round to an absolute value less than 10^2."}, "99.95")
+			failure.errorStage = "execute"
+			referenceRunStep(t, p.ctx, held, backend.recorder, failure)
+			referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(q, 1, "1.2"))
+			q = "SELECT id FROM n WHERE v=$1 ORDER BY id"
+			filter, err := backend.db.PrepareContext(p.ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer filter.Close()
+			reused := referenceHeldStatement{referenceExecutor: backend.db, statement: filter, query: q}
+			for _, frame := range []struct {
+				arg  any
+				rows [][]any
+			}{{"NaN", [][]any{{int64(6)}, {int64(7)}}}, {nil, nil}, {"-1", [][]any{{int64(2)}}}} {
+				rows, err := reused.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), q, frame.arg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				columns, err := rows.ColumnTypes()
+				if err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				numericReferenceQueryRows(t, backend, rows, columns, referenceSelect(q, []string{"id"}, []string{"INT4"}, frame.rows, frame.arg))
+			}
+		}()
 	}
 	p.step(t, referenceSelect("SELECT v FROM binds ORDER BY v", []string{"v"}, []string{"NUMERIC"}, [][]any{{"-1.3"}, {"1.2"}, {"1.3"}, {"1.5"}, {"2.0"}, {"NaN"}, {nil}}))
 	p.step(t, referencePrepared(referenceSelect("SELECT id FROM n WHERE v=$1 ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(6)}, {int64(7)}}, "NaN")))
@@ -101,13 +123,20 @@ func TestReferenceNumericSpecialsAndHeldParameters(t *testing.T) {
 	simple := referenceImplicitError(conflict.query, referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: "8"})
 	simple.selectRows = true
 	simple.errorStage = "execute"
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+	if p.postgres != nil {
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+	}
+	p.step(t, referenceSelect("SELECT $1 FROM n WHERE id=1", []string{"?column?"}, []string{"TEXT"}, [][]any{{"1.2500"}}, "1.2500"))
 	p.step(t, referenceExec("CREATE TABLE repeats(a NUMERIC(3,1),b NUMERIC(3,2))", 0))
 	p.step(t, referencePrepared(referenceExec("INSERT INTO repeats VALUES($1,$1)", 1, "1.255")))
 	p.step(t, referenceSelect("SELECT * FROM repeats", []string{"a", "b"}, []string{"NUMERIC", "NUMERIC"}, [][]any{{"1.3", "1.26"}}))
+	p.step(t, referenceExec("DROP TABLE repeats", 0))
+	p.step(t, referenceExec("CREATE TABLE repeats(a NUMERIC(3,1),b NUMERIC(3,2))", 0))
+	p.step(t, referenceExec("INSERT INTO repeats VALUES($1,$1)", 1, "1.255"))
+	p.step(t, referenceSelect("SELECT * FROM repeats", []string{"a", "b"}, []string{"NUMERIC", "NUMERIC"}, [][]any{{"1.3", "1.26"}}))
 	// pq's negative-scale DecimalSize decodes unsigned scale incorrectly. Native
 	// logical metadata is independently asserted rather than copied from pq.
-	rows, err := p.memory.QueryContext(p.ctx, "SELECT * FROM repeats")
+	rows, err := p.memory.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, p.memoryRecord), "SELECT * FROM repeats")
 	if err != nil {
 		t.Fatal(err)
 	}

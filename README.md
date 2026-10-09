@@ -629,8 +629,8 @@ Test targets enforce a 900-second wall-clock deadline and are quiet by default.
 Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 `PACKAGES=./internal/parser` to scope ordinary or race tests.
 
-The migrated query-read, INSERT SELECT, UPDATE, DELETE/RETURNING, identity,
-arithmetic, bitwise, mathematical and scalar expression scenarios,
+The migrated query-read, scalar-type, INSERT SELECT, UPDATE, DELETE/RETURNING,
+identity, arithmetic, bitwise, mathematical and scalar expression scenarios,
 DATE/TIME/TIMESTAMP interaction tests, and BYTEA/short-INSERT pilots in
 `reference/` also run without Docker through the ordinary test binary:
 
@@ -649,21 +649,30 @@ Identity migration likewise merges all 28 assigned root interaction tests with
 existing reference assertions in untagged `TestReferenceIdentity*` definitions.
 The arithmetic migration carries 61 original tests into 81 untagged definitions,
 including every bitwise width/shift/signature vector and mathematical metadata,
-parameter and lifecycle case. The scalar migration unions all 62 assigned root
-tests with existing reference assertions in 93 untagged definitions covering
-BETWEEN, explicit casts, null/truth/distinct predicates, ordinary comparisons,
-conditional expressions, expression core and logical operators. Together these
-families retain raw and command/RETURNING metadata, genuinely reused and concurrent
-held statements, atomicity, cancellation and native controls. The temporal
-migration carries all 51 assigned root DATE, TIME and timestamp-without-time-zone
-interaction tests into complete reference assertion unions, including
-accepted/rejected input corpora, precision, held clocks, owned raw rows and
-retained metadata. Native Dump/Reset/Restore phases use the common scenario's
-public control pool; true mode also replays its unchanged SQL on PostgreSQL.
-The BYTEA and short-INSERT pilots remain available alongside them. Each selected
-backend must satisfy independently hardcoded expectations, with explicit phases
-for backend-specific metadata, diagnostics, controls and lock witnesses; parity
-alone is not proof. Startup failure never falls back to native execution.
+parameter and lifecycle case. The scalar expression migration unions all 62
+assigned root tests with existing reference assertions in 93 untagged definitions
+covering BETWEEN, explicit casts, null/truth/distinct predicates, ordinary
+comparisons, conditional expressions, expression core and logical operators.
+The scalar-type migration merges all 63 assigned root SQL-interaction tests from
+25 files with existing reference coverage into 89 untagged definitions in the
+Character, Float, Name, Numeric, OID, Smallint, TypeCore and UUID families. They
+preserve raw values and descriptors, complete diagnostics, affected counts,
+ownership, actual held frames, concurrency, cancellation and retained native
+controls. Adapter differences are independently asserted; the NAME
+physical/binary complement remains a tagged PostgreSQL-only definition.
+The temporal migration carries all 51 assigned root DATE, TIME and
+timestamp-without-time-zone interaction tests into complete reference assertion
+unions, including accepted/rejected input corpora, precision, held clocks, owned
+raw rows and retained metadata. Native Dump/Reset/Restore phases use the common
+scenario's public control pool; true mode also replays its unchanged SQL on
+PostgreSQL.
+Together these families retain raw and command/RETURNING metadata, genuinely
+reused and concurrent held statements, atomicity, cancellation and native
+controls. The BYTEA and short-INSERT pilots remain available alongside them.
+Each selected backend must satisfy independently hardcoded expectations, with
+explicit phases for backend-specific metadata, diagnostics, controls and lock
+witnesses; parity alone is not proof. Startup failure never falls back to native
+execution.
 See the [development guide](docs/DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
 for the migrated families, temporal adapter differences and complete selection
 commands.

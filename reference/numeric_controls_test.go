@@ -1,28 +1,97 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"bytes"
 	"context"
+	"database/sql/driver"
 	"errors"
+	"io"
+	"reflect"
 	"strings"
 	"stuntgres"
 	"testing"
 )
 
+// The original direct bound seed is distinct from the reference Restore input.
+func numericReferenceOriginalControlSeed(t *testing.T, p *referencePair, exact string) {
+	t.Helper()
+	for _, step := range []referenceStep{
+		referenceExec("CREATE TABLE n(id INT,v NUMERIC,a NUMERIC(2,-3),b NUMERIC(3,5))", 0),
+		referenceExec("INSERT INTO n VALUES(1,$1,1500,.009994),(2,'NaN',NULL,NULL),(3,'Infinity',NULL,NULL),(4,'-Infinity',NULL,NULL),(5,NULL,NULL,NULL)", 5, []byte(exact)),
+		referenceSelect("SELECT * FROM n ORDER BY id", []string{"id", "v", "a", "b"}, []string{"INT4", "NUMERIC", "NUMERIC", "NUMERIC"}, [][]any{{int64(1), exact, "2000", "0.00999"}, {int64(2), "NaN", nil, nil}, {int64(3), "Infinity", nil, nil}, {int64(4), "-Infinity", nil, nil}, {int64(5), nil, nil, nil}}),
+	} {
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
+	}
+	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestReferenceNumericControlsAndBounds(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	exact := "12345678901234567890.1234567890123456789000"
+	numericReferenceOriginalControlSeed(t, p, exact)
 	script := "CREATE TABLE n(id INT,v DECIMAL,a NUMERIC(2,-3),b NUMERIC(3,5)); INSERT INTO n VALUES(1,'" + exact + "',1500,.009994),(2,'NaN',NULL,NULL),(3,'Infinity',NULL,NULL),(4,'-Infinity',NULL,NULL),(5,NULL,NULL,NULL)"
 	if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := p.native.Conn(p.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	err = conn.Raw(func(raw any) error {
+		query := raw.(driver.QueryerContext)
+		owned := []byte(exact)
+		cursor, err := query.QueryContext(p.ctx, "SELECT id,v,a,b FROM n WHERE v=$1", []driver.NamedValue{{Ordinal: 1, Value: owned}})
+		if err != nil {
+			return err
+		}
+		defer cursor.Close()
+		owned[0] = 'X'
+		var snapshot bytes.Buffer
+		if err := stuntgres.Dump(p.ctx, p.native, &snapshot); err != nil {
+			return err
+		}
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("INSERT INTO n VALUES(6,0,NULL,NULL)", 1))
+		if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+			return err
+		}
+		if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(snapshot.Bytes())); err != nil {
+			return err
+		}
+		precision, scale, known := cursor.(driver.RowsColumnTypePrecisionScale).ColumnTypePrecisionScale(2)
+		if cursor.(driver.RowsColumnTypeDatabaseTypeName).ColumnTypeDatabaseTypeName(1) != "NUMERIC" || precision != 2 || scale != -3 || !known {
+			t.Fatal(precision, scale, known)
+		}
+		dst := make([]driver.Value, 4)
+		if err := cursor.Next(dst); err != nil || !reflect.DeepEqual(dst, []driver.Value{int64(1), exact, "2000", "0.00999"}) {
+			t.Fatal(dst, err)
+		}
+		if err := cursor.Next(dst); err != io.EOF {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(p.ctx)
+		defer cancel()
+		canceled, err := query.QueryContext(ctx, "SELECT v FROM n", nil)
+		if err != nil {
+			return err
+		}
+		defer canceled.Close()
+		cancel()
+		if err := canceled.Next(make([]driver.Value, 1)); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(dump.String(), "NUMERIC(2,-3)") {
+	if !strings.Contains(dump.String(), "NUMERIC(2,-3)") || !strings.Contains(dump.String(), "'"+exact+"'") {
 		t.Fatal(dump.String())
 	}
 	held, err := p.native.QueryContext(p.ctx, "SELECT * FROM n ORDER BY id")
@@ -44,8 +113,10 @@ func TestReferenceNumericControlsAndBounds(t *testing.T) {
 	if err = stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal(err)
+	if p.postgres != nil {
+		if _, err = p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	want := [][]any{{int64(1), exact, "2000", "0.00999"}, {int64(2), "NaN", nil, nil}, {int64(3), "Infinity", nil, nil}, {int64(4), "-Infinity", nil, nil}, {int64(5), nil, nil, nil}}
 	step := referenceSelect("SELECT * FROM n ORDER BY id", []string{"id", "v", "a", "b"}, []string{"INT4", "NUMERIC", "NUMERIC", "NUMERIC"}, want)
@@ -84,28 +155,57 @@ func TestReferenceNumericControlsAndBounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.step(t, step)
-	// Independently check the format bounds without logging huge successful rows.
-	for _, db := range []referenceExecutor{p.memory, p.postgres} {
+}
+
+func TestReferenceNumericFormatBounds(t *testing.T) {
+	p := newReferenceScenario(t)
+	p.step(t, referenceExec("CREATE TABLE n(id INT)", 0))
+	p.step(t, referenceExec("INSERT INTO n VALUES(1)", 1))
+	for _, backend := range p.backends() {
 		for _, tc := range []struct {
 			in     string
 			length int
 			last   byte
 		}{{"1e131071", 131072, '0'}, {"1e-16383", 16385, '1'}} {
-			rows, err := db.QueryContext(p.ctx, "SELECT "+tc.in+" FROM n WHERE id=1")
+			q := "SELECT " + tc.in + " FROM n WHERE id=1"
+			rows, err := backend.db.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), q)
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer rows.Close()
 			if !rows.Next() {
 				t.Fatal(rows.Err())
 			}
-			var text string
-			if err = rows.Scan(&text); err != nil {
+			var raw any
+			if err := rows.Scan(&raw); err != nil {
 				t.Fatal(err)
 			}
+			referenceAssertRawValue(t, backend.pg, "NUMERIC", raw)
+			text := referenceNormalize(raw).(string)
 			if len(text) != tc.length || text[len(text)-1] != tc.last {
 				t.Fatal(len(text))
 			}
-			rows.Close()
+			if rows.Next() || rows.Err() != nil {
+				t.Fatal("extra rows", rows.Err())
+			}
+			if err := rows.Close(); err != nil {
+				t.Fatal(err)
+			}
+			backend.recorder.mu.Lock()
+			var recorded *referenceOperation
+			for _, op := range backend.recorder.operations {
+				if op.SQL == q && op.Columns != nil {
+					recorded = op
+				}
+			}
+			backend.recorder.mu.Unlock()
+			if recorded == nil || len(recorded.Rows) != 1 || !recorded.Closed || recorded.CloseErr != nil {
+				t.Fatal("missing consumed bounds observation")
+			}
+			referenceAssertRawValue(t, backend.pg, "NUMERIC", recorded.Rows[0][0])
+			if referenceNormalize(recorded.Rows[0][0]) != text {
+				t.Fatal("recorded bounds differ")
+			}
 		}
 	}
 }

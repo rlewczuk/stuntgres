@@ -77,7 +77,8 @@ cast binder. Unrelated cast families and standalone SELECT without FROM
 remain excluded. Run scalar witnesses FROM a real one-row table.
 Typed INT8 -1 fails, unlike text `'-1'` or an OID-inferred Go int64(-1) bind.
 String/textual bytes/Valuer/nil use the existing owned parameter path.
-Go uint64 above MaxInt64 remains an ordinary adapter conversion error.
+Native Go uint64 above MaxInt64 remains an ordinary adapter conversion error;
+pq accepts the argument and PostgreSQL rejects out-of-range OID input with22003.
 
 Native OID results/ScanType are int64; pinned lib/pq returns decimal []byte
 with interface{} ScanType. Both report OID and unavailable Length/DecimalSize,
@@ -94,7 +95,7 @@ receive/send, a network server, disk/WAL durability and external pg_dump
 process/archive support are non-engine mechanisms, not successful no-ops.
 
 Feature smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
-Native: `make test PACKAGES=. RUN='^TestOID.*$' VERBOSE=0`.
+Native: `make test PACKAGES=./reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
 Providers: `make test PACKAGES=./internal/sqltype RUN='^TestOID.*$' VERBOSE=0`.
 Pinned reference: `make reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
 
@@ -142,13 +143,14 @@ whereas 62 ASCII bytes plus `é` keeps only the ASCII prefix. This is not a
 
 The full input is validated before clipping. NUL and malformed UTF8, even in a
 discarded suffix, fail22021 with `invalid byte sequence for encoding "UTF8":`
-and the offending hexadecimal bytes. Native bind errors have no Position or
-Context; PostgreSQL text Bind encoding errors have `unnamed portal parameter $1`
-without a value suffix. String, textual `[]byte` and Valuer binds share the
-existing owned-input boundary; changing the source buffer cannot change rows.
-Nil interface is SQL NULL; native typed nil `[]byte` is an empty textual value,
-as for other non-BYTEA destinations. SQL TRUE/FALSE assignment uses boolout
-`t`/`f`, while inferred NAME Go bool binds encode `true`/`false`.
+and the offending hexadecimal bytes. Bound encoding errors have no Position and
+carry `unnamed portal parameter $1` without a value suffix in both adapters.
+String, textual `[]byte` and Valuer binds share the existing owned-input boundary;
+changing the source buffer cannot change rows. Nil interface is SQL NULL.
+Native typed nil `[]byte` is an empty NAME value; pq instead sends SQL NULL.
+A nonnil empty byte slice remains nonnull empty NAME in both adapters.
+SQL TRUE/FALSE assignment uses boolout `t`/`f`, while inferred NAME Go bool binds
+encode `true`/`false`.
 Modifiers such as `name(3)` are retained by CREATE utility Prepare but fail at
 Execute with positioned42601, `type modifier is not allowed for type "name"`,
 before modifier operand conversion.
@@ -185,7 +187,7 @@ Native persistence here is public in-memory logical Dump/Restore, not disk/WAL
 durability or PostgreSQL backup tools.
 
 Feature smoke: `make smoke RUN='^TestNameSmoke$' VERBOSE=0`.
-Native coverage: `make test PACKAGES=. RUN='^TestName' VERBOSE=0`;
+Native coverage: `make test PACKAGES=./reference RUN='^TestReferenceName' VERBOSE=0`;
 codec coverage: `make test PACKAGES=./internal/sqltype RUN='^TestName' VERBOSE=0`;
 pinned reference: `make reference RUN='^TestReferenceName' VERBOSE=0`.
 
@@ -364,8 +366,10 @@ numeric has unknown sizing. Bind arguments remain target-driven textual input,
 not Go-kind inference. Prepared numeric constants validate input syntax during
 Prepare, but typmod sizing happens at Execute: malformed `'oops'` is located at
 the literal, while numeric-field overflow has Detail and no Position. Parameter
-errors have no native Position/Context. Statement and Restore failures publish
-no partial rows. Dump quotes canonical exact numeric output and declarations;
+input errors have no query Position and carry the actual
+`unnamed portal parameter $n` Context, with ` = '...'` for nonempty decoded input
+and ` = ''` for empty decoded input. Statement and Restore failures publish no
+partial rows. Dump quotes canonical exact numeric output and declarations;
 Reset/Restore preserve old cursor values/metadata and deterministic redumps.
 
 `SELECT $1 FROM n WHERE v=$1` with a NUMERIC `v` fails during Prepare with
@@ -398,16 +402,17 @@ SELECT-without-FROM expansion is introduced. Standard/postfix annotations reuse
 same-type scalar usages and existing directional numeric coercion edges;
 known-TEXT input conversion and function-cast boundaries remain unchanged.
 
-Feature smoke: `make smoke RUN='^TestNumericSmoke$' VERBOSE=1`.
+Feature smoke: `make smoke RUN='^TestNumericSmoke$' VERBOSE=0`.
 The same smoke includes signed integer carry failures beside successful extrema,
 plus direct/prepared REAL/FLOAT8 assignments of 1.5, -1.5 and zero with a tiny
 exponent. Populated float comparisons against 1.0 and 1e100 assert exact result
 types even when no rows match, in both direct and prepared modes.
 Real pinned PostgreSQL witnesses:
-`make reference RUN='^TestReferenceNumeric.*$' VERBOSE=1`.
+`make reference RUN='^TestReferenceNumeric.*$' VERBOSE=0`.
 
 Native logical negative-scale metadata is asserted independently of lib/pq's
-unsigned-scale decoding defect, not by accepting its incorrect DecimalSize.
+unsigned decoding: NUMERIC(2,-3) reports `(2,-3,true)` natively and `(2,2045,true)`
+through pinned pq. The adapter difference does not change SQL rounding.
 For unconstrained NUMERIC results (including bounded random and selected math), pinned lib/pq
 reports DecimalSize `(65535,65531,true)` in direct and prepared queries by
 unsigned decoding of server typmod-1. Native metadata remains `(0,0,false)`;
@@ -524,10 +529,11 @@ has bits 0x15ae43fd, but narrowing pq's returned binary64 to binary32 produces
 Executable float acceptance (commands must run to establish verification):
 
 ```sh
-go test -count=1 -v -run '^TestFloat.*$' ./internal/sqltype .
-go test -count=1 -v ./internal/parser
-go test -tags reference -count=1 -v -run '^TestReferenceFloat.*$' ./reference
-go test -count=1 -v -run '^TestFloatSmoke$' ./smoke
+make test PACKAGES=./internal/sqltype RUN='^TestFloat.*$' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceFloat.*$' VERBOSE=0
+make test PACKAGES=./internal/parser VERBOSE=0
+make reference RUN='^TestReferenceFloat.*$' VERBOSE=0
+make smoke RUN='^TestFloatSmoke$' VERBOSE=0
 ```
 
 These assert exact release output/bit witnesses, precision/metadata, independently
@@ -667,9 +673,9 @@ NULL and old reader snapshots; failed staged restores publish nothing.
 PostgreSQL wire serving, COPY, pg_dump/pg_restore processes and physical
 TOAST/disk storage remain external-only mechanisms.
 
-Focused checks: `make test PACKAGES=. RUN='^TestCharacter'`,
-`make reference RUN='^TestReferenceCharacter'` (real pinned PostgreSQL18.0),
-and `make smoke RUN='^TestCharacterSmoke$'`.
+Focused checks: `make test PACKAGES=./reference RUN='^TestReferenceCharacter' VERBOSE=0`,
+`make reference RUN='^TestReferenceCharacter' VERBOSE=0` (real pinned PostgreSQL18.0),
+and `make smoke RUN='^TestCharacterSmoke$' VERBOSE=0`.
 
 ## Unicode16 normalization data
 

@@ -1,8 +1,8 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestReferenceNumericDiagnosticsPhasesAndAtomicity(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE n(v NUMERIC(3,1))", 0))
 	for _, tc := range []struct {
 		q    string
@@ -43,6 +43,10 @@ func TestReferenceNumericDiagnosticsPhasesAndAtomicity(t *testing.T) {
 				s.errorStage = "prepare"
 			}
 			p.step(t, s)
+			if s.selectRows && !prepared {
+				s.selectRows = false
+				p.step(t, s)
+			}
 		}
 	}
 	for _, literal := range []string{"'99.95'", "99.95", "'Infinity'", "'-Infinity'"} {
@@ -85,29 +89,6 @@ func TestReferenceNumericDiagnosticsPhasesAndAtomicity(t *testing.T) {
 	s := referenceImplicitError(q, referenceDiagnostic{Code: "42601", Message: `trailing junk after numeric literal at or near "1.2__3"`, Position: strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "1.2")]) + 1)})
 	s.selectRows = true
 	p.step(t, s)
-	p.step(t, referenceExec("CREATE TABLE atomic(id INT,v NUMERIC(3,1) NOT NULL,b BIGINT)", 0))
-	p.step(t, referenceExec("INSERT INTO atomic VALUES(99,9.9,99)", 1))
-	unchanged := referenceSelect("SELECT * FROM atomic", []string{"id", "v", "b"}, []string{"INT4", "NUMERIC", "INT8"}, [][]any{{int64(99), "9.9", int64(99)}})
-	for _, tc := range []struct {
-		q    string
-		want referenceDiagnostic
-	}{
-		{"INSERT INTO atomic VALUES(1,1.2,1),(2,'oops',2)", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type numeric: "oops"`, Position: "39"}},
-		{"INSERT INTO atomic VALUES(1,1.2,1),(2,99.95,2)", referenceDiagnostic{Code: "22003", Message: "numeric field overflow", Detail: "A field with precision 3, scale 1 must round to an absolute value less than 10^2."}},
-		{"INSERT INTO atomic VALUES(1,1.2,1),(2,1.2,9223372036854775808)", referenceDiagnostic{Code: "22003", Message: "bigint out of range"}},
-		{"INSERT INTO atomic VALUES(1,1.2,1),(2,NULL,2)", referenceDiagnostic{Code: "23502", Message: `null value in column "v" of relation "atomic" violates not-null constraint`, Schema: "public", Table: "atomic", Column: "v", Detail: "Failing row contains (2, null, 2)."}},
-	} {
-		for _, prepared := range []bool{false, true} {
-			s := referenceImplicitError(tc.q, tc.want)
-			s.prepared = prepared
-			s.errorStage = "execute"
-			if prepared && tc.want.Code == "22P02" {
-				s.errorStage = "prepare"
-			}
-			p.step(t, s)
-			p.step(t, unchanged)
-		}
-	}
 	for _, tc := range []struct{ decl, in, detail string }{{"NUMERIC(2,-3)", "99500", "A field with precision 2, scale -3 must round to an absolute value less than 10^5."}, {"NUMERIC(3,5)", ".009995", "A field with precision 3, scale 5 must round to an absolute value less than 10^-2."}, {"NUMERIC(2,2)", "1.00", "A field with precision 2, scale 2 must round to an absolute value less than 1."}} {
 		p.step(t, referenceExec("CREATE TABLE sized(v "+tc.decl+")", 0))
 		s := referenceImplicitError("INSERT INTO sized VALUES("+tc.in+")", referenceDiagnostic{Code: "22003", Message: "numeric field overflow", Detail: tc.detail})
@@ -115,5 +96,17 @@ func TestReferenceNumericDiagnosticsPhasesAndAtomicity(t *testing.T) {
 		p.step(t, s)
 		p.step(t, referencePrepared(s))
 		p.step(t, referenceExec("DROP TABLE sized", 0))
+	}
+	for _, backend := range p.backends() {
+		ctx, cancel := context.WithCancel(p.ctx)
+		cancel()
+		rows, err := backend.db.QueryContext(ctx, "SELECT v FROM n")
+		if rows != nil {
+			rows.Close()
+			t.Fatal("canceled Query exposed cursor")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
 	}
 }

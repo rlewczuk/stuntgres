@@ -1,8 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -14,8 +13,34 @@ import (
 func TestReferenceNumericConversionFailuresAndAtomicity(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+			p := newReferenceScenario(t)
+			run := func(s referenceStep) {
+				s.prepared = prepared
+				if s.state == "" || s.selectRows {
+					p.step(t, s)
+					return
+				}
+				for _, backend := range p.backends() {
+					ctx := context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder)
+					func() {
+						var executor referenceExecutor = backend.db
+						if prepared {
+							stmt, err := backend.db.PrepareContext(ctx, s.query)
+							if err != nil {
+								t.Fatal("conversion failed Prepare", err)
+							}
+							defer stmt.Close()
+							executor = referenceHeldStatement{referenceExecutor: backend.db, statement: stmt, query: s.query}
+						}
+						result, err := executor.ExecContext(ctx, s.query, s.args...)
+						if result != nil {
+							t.Fatal("failed assignment exposed an affected-count result")
+						}
+						referenceState(t, err, s.state)
+						referenceCheckDiagnostic(t, err, s, "execute")
+					}()
+				}
+			}
 			for _, tc := range []struct {
 				name, decl, typ, positive, negative, message string
 				maximum, minimum                             int64
