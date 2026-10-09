@@ -17,7 +17,7 @@ type viewDefinition struct {
 	dependencies     []expressionDependency
 	sequenceRefs     map[int]ObjectRef
 	literals         map[viewLiteralPath]literalExpression
-	domainCasts      map[viewLiteralPath]sqltype.Usage
+	castUsages       map[viewLiteralPath]sqltype.Usage
 	columns          map[viewLiteralPath]int
 	stars            map[int][]int
 	namespaces       []viewNamespace
@@ -255,7 +255,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	definition := &viewDefinition{query: b.query, syntax: view.Query, dependencies: b.dependencies, barrier: barrier, invoker: invoker, rule: rule}
 	definition.literals = b.viewLiterals
-	definition.domainCasts = b.viewDomainCasts
+	definition.castUsages = b.viewCastUsages
 	definition.columns, definition.stars = b.viewColumns, b.viewStars
 	definition.namespaces = b.viewNamespaces
 	definition.sequenceRefs = make(map[int]ObjectRef, len(b.sequenceConstants))

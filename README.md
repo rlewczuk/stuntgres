@@ -44,6 +44,15 @@ See [JSON types](docs/TYPES.md#json-textual-storage--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`.
 
+Change note: PostgreSQL 18 datetime templates support `to_char(timestamp,text)`,
+`to_char(timestamptz,text)`, `to_char(interval,text)`, `to_date(text,text)` and
+`to_timestamp(text,text)`. Templates use PostgreSQL tokens, not Go layouts or
+ordinary casts; prepared executions capture the current session zone. The five
+strict STABLE functions compose in queries, writes, DEFAULT/CHECK and views,
+including native Dump/Restore. Numeric formatting and epoch `to_timestamp`
+remain unsupported. See [datetime formatting](docs/DIALECT.md#datetime-formatting--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeFormattingFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeFormattingFeatureSmoke$' VERBOSE=0`.
 
 Change note: floating `+`, unary `+`, `-`, unary `-`, `*`, `/` and `^`
 use PostgreSQL operand resolution and fixed REAL/DOUBLE PRECISION widths.

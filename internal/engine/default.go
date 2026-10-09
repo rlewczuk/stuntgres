@@ -218,6 +218,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "", err
 		}
 		return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
+	case datetimeFormattingExpression:
+		return r.functionSQL(ctx, view, "pg_catalog."+n.plan.Name(), n.args[:])
 	case stringExpression:
 		if len(n.args) < 1 || len(n.args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored string arity")
@@ -922,6 +924,19 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 			return node, false, nil
 		}
 		n.plan, err = sqltype.BindBinary(n.plan.Name(), info.usage, usages[:len(n.args)]...)
+		n.expressionInfo = info
+		rebound = n
+	case datetimeFormattingExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		if err != nil {
+			return node, false, err
+		}
+		if !changed {
+			return node, false, nil
+		}
+		n.plan, err = n.plan.Retag(info.usage, n.args[0].ResultUsage())
 		n.expressionInfo = info
 		rebound = n
 	case stringExpression:

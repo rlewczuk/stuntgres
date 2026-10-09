@@ -557,6 +557,15 @@ func (s *Select) IsSingleton() bool {
 	if sessionOrString {
 		return true
 	}
+	datetimeValid, datetimeFound := true, false
+	for _, target := range s.Targets {
+		valid, found := stringSingletonFamily(target, true)
+		datetimeValid = datetimeValid && valid
+		datetimeFound = datetimeFound || found
+	}
+	if datetimeValid && datetimeFound {
+		return true
+	}
 	// A format ANY occurrence must reach normal shared parameter analysis even
 	// when a sibling target is the same bare parameter. Keep other bare targets
 	// and every existing clause/aggregate boundary outside singleton admission.
@@ -644,7 +653,7 @@ func singletonArgument(expr Expr) bool {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":
 			default:
 				name := e.Name.Parts[len(e.Name.Parts)-1].Text
-				if !binaryHashFunction(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
+				if !binaryHashFunction(name) && !datetimeFunctionName(name) && !strings.EqualFold(name, "format") && !strings.HasPrefix(strings.ToLower(name), "pg_get_") {
 					return false
 				}
 			}

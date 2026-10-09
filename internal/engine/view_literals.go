@@ -146,12 +146,10 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return child(r.Child, n.child)
 		}
 	case parser.CastExpr:
-		if typ := bound.ResultUsage().Type; typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
-			if b.viewDomainCasts == nil {
-				b.viewDomainCasts = make(map[viewLiteralPath]sqltype.Usage)
-			}
-			b.viewDomainCasts[path] = bound.ResultUsage()
+		if b.viewCastUsages == nil {
+			b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
 		}
+		b.viewCastUsages[path] = bound.ResultUsage()
 		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
 			bound = coercion.child
 		}
@@ -171,6 +169,8 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 					return child(operand, n)
 				}
 			}
+		case datetimeFormattingExpression:
+			return children(r.Args, n.args[:])
 		case stringExpression:
 			return children(r.Args, n.args)
 		case bitwiseExpression:
@@ -297,6 +297,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		}
 		if n, ok := bound.(binaryExpression); ok {
 			return children(r.Args, n.args)
+		}
+		if n, ok := bound.(datetimeFormattingExpression); ok {
+			return children(r.Args, n.args[:])
 		}
 		if n, ok := bound.(stringExpression); ok {
 			return children(r.Args, n.args)

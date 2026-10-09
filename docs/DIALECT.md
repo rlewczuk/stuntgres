@@ -190,6 +190,75 @@ and atomic publication. No interval arithmetic, date-time cross-family cast,
 justify/extract/make_interval, wire protocol or physical storage is added.
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 
+### Datetime formatting — change note
+
+The selected strict STABLE signatures are `to_char(timestamp,text) -> text`,
+`to_char(timestamptz,text) -> text`, `to_char(interval,text) -> text`,
+`to_date(text,text) -> date` and `to_timestamp(text,text) -> timestamptz`.
+Ordinary and `pg_catalog`-qualified calls share scalar binding and compose in
+the existing query, DML, DEFAULT, CHECK, view and introspection consumers.
+Selected datetime no-FROM projections permit existing scalar siblings, but do
+not admit general no-FROM SELECT or singleton WHERE. INSERT expressions use the
+existing INSERT surface; INSERT RETURNING remains an unsupported suffix, while
+UPDATE/DELETE RETURNING consume formatting expressions.
+Their STABLE classification excludes stored generated columns and expression
+indexes, even for fixed English names or timezone-free sources.
+Stored-view cast presentation uses captured type usage and canonical postfix
+syntax. Already-typed literals retain nested-cast parentheses outside function
+arguments; pretty function arguments preserve existing flattening. Replay keeps
+explicit CAST syntax, and qualified domain names follow the supplied coherent
+catalog/path rather than the original schema spelling.
+
+Templates recognize PostgreSQL 18's case-specific calendar/ISO, clock, fraction,
+era, ordinal, Roman-month and zone tokens. `FM` affects the next field; `TM`
+uses the available English names; `TH`/`th` add ordinals and uppercase `SP` is
+a no-op. Lowercase `sp` remains literal text.
+Quoted text and escapes are template syntax, not Go layouts. Output preserves
+literal text, name padding and interval's separate month/day/time fields:
+interval hours may exceed 23 and do not normalize days. Calendar names,
+weekday/era and zone fields that require an actual date reject intervals.
+Meridiem fields remain valid for intervals. Empty output masks and infinite
+sources produce NULL.
+
+Input completion follows PostgreSQL formatting rules, not ordinary temporal
+casts or DateStyle parsing. Short years are adjusted around 2020; ISO and
+Gregorian conventions cannot be mixed. Non-FX whitespace and separators are
+permissive; FX consumes exactly one source character per template separator
+but does not require that character to match. Quoted input text skips source
+characters rather than validating equality. Missing fields, trailing source,
+duplicate zero/nonzero fields and precedence use release formatting semantics.
+An empty source may leave a field unvisited and retain parsing defaults. A
+numeric or named field already reached before whitespace exhausts the source
+still demands its reader and can report an empty-field error; this is not
+general full-template or full-source validation.
+DATE is finalized within its own wider civil range, not through TIMESTAMP.
+Milliseconds and microseconds are additive; formatted timestamp fractions
+must stay below one second and clocks cannot exceed 23:59:59.
+
+TIMESTAMPTZ output uses the Execute-captured session zone, including historical
+abbreviations and second-resolution offsets. Numeric input offsets and the
+existing default abbreviation table are supported; named-zone and non-C locale
+configuration are not expanded. Integral-hour `OF` output omits `:00`.
+NULL skips formatting itself, not errors from demanded child expressions.
+Indeterminate implicit collation is diagnosed only when a reached `TM` name
+needs case conversion. Exact localized input spelling bypasses conversion;
+input fallback first demands `upper()`. Earlier parse/interval errors and
+unvisited names take precedence, and NULL/infinite output does not demand names.
+Returned values and metadata retain their original execution snapshot.
+
+Numeric `to_char`, `to_number` and one-argument epoch `to_timestamp` remain
+outside this datetime family; native numeric/epoch ownership reports 0A000.
+PostgreSQL's implicit TIME-to-INTERVAL formatting route depends on a cast not
+provided by the current native temporal substrate; native reports 0A000
+`time to interval conversion is unsupported`. This does not implement that
+adjacent cast. VARIADIC ARRAY constructors likewise retain the existing native
+parser capability diagnostic rather than adding general ARRAY syntax.
+The string-category resolver, DATE's implicit source promotion and namespace
+visibility retain the existing overload rules. No temporal arithmetic,
+new general casts, wire protocol or locale provider is added.
+Independent acceptance: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeFormatting' VERBOSE=0`;
+the pinned PostgreSQL counterpart adds `REFERENCE=1`.
+
 FROM supports comma products, CROSS JOIN, INNER/LEFT/RIGHT/FULL JOIN ON or USING,
 optional OUTER for non-inner kinds, and NATURAL variants, chains and parentheses. Table/whole-join aliases with or
 without AS support positional column aliases; qualified columns and mixed stars

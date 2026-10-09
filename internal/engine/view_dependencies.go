@@ -196,13 +196,13 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.columns) {
 		return fmt.Errorf("stuntgres: invalid view definition")
 	}
-	for _, usage := range definition.domainCasts {
+	for _, usage := range definition.castUsages {
 		if usage.Type == nil {
-			return fmt.Errorf("stuntgres: missing view domain cast type")
+			return fmt.Errorf("stuntgres: missing view cast type")
 		}
 		actual, ok := v.LookupType(usage.Type.ID())
-		if !ok || actual != usage.Type || !usage.Valid() || !(usage.Type.IsUserDefined() || usage.Type.IsArray() && usage.Type.Element().IsDomain()) {
-			return fmt.Errorf("stuntgres: invalid view domain cast authority")
+		if !ok || actual != usage.Type || !usage.Valid() {
+			return fmt.Errorf("stuntgres: invalid view cast authority")
 		}
 	}
 	if err := definition.validateLiterals(v); err != nil {

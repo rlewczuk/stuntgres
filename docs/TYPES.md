@@ -1177,13 +1177,39 @@ zone field, unlike TIMESTAMP `now`; `allballs` does. Malformed fields, modifiers
 later tuples and staged Restore failures never publish partial state. Dump quotes
 canonical clocks and Restore preserves precisions, NULLs, endpoints and old cursors.
 See the timezone-aware section below for TIMETZ, session settings and conversions.
-General temporal arithmetic/functions and ordinary no-FROM SELECT remain excluded.
+Other temporal arithmetic/functions and general no-FROM SELECT remain excluded;
+the selected datetime formatting functions are documented below.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimeSmoke$' VERBOSE=0`.
 Dual-mode migration: the public TIME SQL scenarios now live in `reference/`.
 Native coverage: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
 Real pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`;
 the tagged optional-date complement remains real-oracle coverage only.
+
+## Datetime formatting — change note
+
+`to_char` on TIMESTAMP, TIMESTAMPTZ and INTERVAL returns unsized TEXT.
+`to_date(text,text)` returns DATE directly, retaining DATE's wider range;
+`to_timestamp(text,text)` returns unsized TIMESTAMPTZ with microsecond precision.
+All five overloads are strict STABLE and use PostgreSQL formatting templates,
+not the input/output syntax of an ordinary cast. Their captured session
+environment survives retained cursors and is refreshed by prepared execution.
+Interval output keeps months, days and microseconds separate, allowing large
+and signed hours while rejecting fields requiring a real calendar date.
+Formatting readers preserve empty/truncated-input defaults without skipping
+already-demanded fields exhausted by whitespace. `TM` collation demand follows
+reached name conversion, not the entire mask; exact input names and NULL/infinite
+output do not demand a conversion solely because a mask contains `TM`.
+
+DatabaseTypeName is TEXT, DATE or TIMESTAMPTZ, independent of mask fields,
+source precision, empty results and NULL. Native DATE ScanType is string while
+pinned lib/pq DATE ScanType is time.Time; native BC strings and pq astronomical
+years are asserted independently. TIMESTAMPTZ scans as time.Time and TEXT as
+string. Mask fractions do not impose a result typmod or decimal precision.
+See [templates, modifiers and limits](DIALECT.md#datetime-formatting--change-note).
+Shared acceptance and native replacement controls:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeFormatting' VERBOSE=0`;
+pinned reference uses the same selector with `REFERENCE=1`.
 
 ## Civil DATE
 
@@ -1490,8 +1516,9 @@ replacement. Retained cursors keep original values, precision and origin metadat
 across append/Reset/Restore; exported infinity buffers cannot mutate stored values.
 
 Timezone-aware types, DateStyle/TimeZone and selected temporal casts/conversions
-are described below. General temporal functions/arithmetic and ordinary no-FROM
-SELECT remain excluded; the default input order is MDY.
+are described below. Other temporal functions/arithmetic and general no-FROM
+SELECT remain excluded; the default ordinary input order is MDY. Selected
+datetime formatting uses its explicit template instead.
 Dual-mode migration: public timestamp-without-time-zone SQL scenarios now live
 in `reference/`; obsolete root row/diagnostic helpers are removed.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimestampSmoke$' VERBOSE=0`.

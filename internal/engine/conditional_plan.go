@@ -251,6 +251,23 @@ func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults 
 			}
 		}
 		expression = e
+	case datetimeFormattingExpression:
+		for i, old := range e.args {
+			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if did {
+				e.args[i] = node
+				changed = true
+			}
+		}
+		for _, arg := range e.args {
+			if randomLiteralNull(arg) {
+				return literalExpression{e.expressionInfo, sqltype.Null(e.usage.Type)}, true, nil
+			}
+		}
+		expression = e
 	case stringExpression:
 		var args []BoundExpr
 		for i, old := range e.args {
@@ -497,6 +514,8 @@ func conditionalConstantInputs(node BoundExpr) bool {
 			}
 		}
 		return true
+	case datetimeFormattingExpression:
+		return literal(e.args[0]) && literal(e.args[1])
 	case stringExpression:
 		for _, arg := range e.args {
 			if !literal(arg) {

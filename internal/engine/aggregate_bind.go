@@ -126,6 +126,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 			}
 		}
 		return true
+	case datetimeFormattingExpression:
+		o, ok := other.(datetimeFormattingExpression)
+		return ok && e.plan.Name() == o.plan.Name() && same(e.args[0], o.args[0]) && same(e.args[1], o.args[1])
 	case stringExpression:
 		o, ok := other.(stringExpression)
 		if !ok || e.plan != o.plan || len(e.args) != len(o.args) {
@@ -354,6 +357,12 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		}
 		stage(&e.expressionInfo)
 		expr = e
+	case datetimeFormattingExpression:
+		for i := range e.args {
+			e.args[i] = rewrite(e.args[i])
+		}
+		stage(&e.expressionInfo)
+		expr = e
 	case stringExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
 		for i := range e.args {
@@ -486,6 +495,10 @@ func aggregateOccurrence(expr BoundExpr) *aggregateExpression {
 			walk(arg)
 		}
 	case binaryExpression:
+		for _, arg := range e.args {
+			walk(arg)
+		}
+	case datetimeFormattingExpression:
 		for _, arg := range e.args {
 			walk(arg)
 		}

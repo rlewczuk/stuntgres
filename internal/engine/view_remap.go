@@ -107,6 +107,11 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case binaryExpression:
 		n.args = args(n.args)
 		next = n
+	case datetimeFormattingExpression:
+		for i := range n.args {
+			n.args[i] = child(n.args[i])
+		}
+		next = n
 	case stringExpression:
 		n.args = args(n.args)
 		next = n
@@ -480,11 +485,11 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 				definition.literals[path] = node.(literalExpression)
 			}
 		}
-		if len(d.view.domainCasts) != 0 {
-			definition.domainCasts = make(map[viewLiteralPath]sqltype.Usage, len(d.view.domainCasts))
-			for path, usage := range d.view.domainCasts {
+		if len(d.view.castUsages) != 0 {
+			definition.castUsages = make(map[viewLiteralPath]sqltype.Usage, len(d.view.castUsages))
+			for path, usage := range d.view.castUsages {
 				usage.Type = typ(usage.Type)
-				definition.domainCasts[path] = usage
+				definition.castUsages[path] = usage
 			}
 		}
 		definition.sequenceRefs = make(map[int]ObjectRef, len(d.view.sequenceRefs))

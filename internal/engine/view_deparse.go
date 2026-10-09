@@ -244,7 +244,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	args := func(expressions []parser.Expr) (string, error) {
 		parts := make([]string, len(expressions))
 		for i, expr := range expressions {
-			text, err := child(expr)
+			text, err := operand(expr, pgRenderParent{functionArgument: true})
 			if err != nil {
 				return "", err
 			}
@@ -334,12 +334,22 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				return text, nil
 			}
 		}
-		declaration := syntaxTypeSQL(e.TypeName)
-		if usage, ok := v.domainCasts[path]; ok {
-			declaration, err = catalogTypeDeclaration(catalog, usage)
-			if err != nil {
-				return "", err
-			}
+		usage, ok := v.castUsages[path]
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing analyzed view cast usage")
+		}
+		if v.presentation.deparse {
+			r := pgRenderer{view: catalog, path: v.presentation.path, pretty: v.presentation.pretty}
+			_, simpleColumn := e.Child.(parser.ColumnExpr)
+			literal, capturedLiteral := v.literals[literalPath]
+			simpleLiteral := capturedLiteral && pgLiteralSimple(literal, text)
+			_, castChild := e.Child.(parser.CastExpr)
+			nestedCast := castChild || capturedLiteral && !simpleLiteral
+			return r.cast(text, usage, simpleColumn || simpleLiteral || v.presentation.pretty && parent.functionArgument && nestedCast)
+		}
+		declaration, err := catalogTypeDeclaration(catalog, usage)
+		if err != nil {
+			return "", err
 		}
 		return "CAST(" + text + " AS " + declaration + ")", nil
 	case parser.OperatorExpr:
@@ -562,33 +572,4 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return "CAST(" + text + " AS regclass)", err
 	}
 	return "", fmt.Errorf("stuntgres: unsupported view deparser expression %T", raw)
-}
-
-func syntaxTypeSQL(t parser.TypeName) string {
-	name := t.Name
-	if t.Quoted {
-		name = quoteIdentifier(name)
-	}
-	if t.Schema != nil {
-		name = quoteIdentifier(t.Schema.Text) + "." + quoteIdentifier(t.Name)
-	}
-	if len(t.Modifiers) > 0 {
-		parts := make([]string, len(t.Modifiers))
-		for i, m := range t.Modifiers {
-			if m.Integer != nil {
-				parts[i] = strconv.FormatInt(int64(*m.Integer), 10)
-			} else {
-				parts[i] = m.Raw
-			}
-		}
-		name += "(" + strings.Join(parts, ",") + ")"
-	}
-	for _, bound := range t.ArrayBounds {
-		name += "["
-		if bound >= 0 {
-			name += strconv.FormatInt(int64(bound), 10)
-		}
-		name += "]"
-	}
-	return name
 }

@@ -694,7 +694,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
-	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}
 	// REPLACE and FORMAT are unreserved keywords outside call syntax.
@@ -815,7 +815,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || token.lexeme.text == "current_schemas") {
+	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || datetimeFunctionName(token.lexeme.text) || token.lexeme.text == "current_schemas") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {
@@ -1246,4 +1246,9 @@ func stringReplacementFunction(name string) bool {
 func indexPropertyCallName(name string) bool {
 	return strings.EqualFold(name, "pg_indexam_has_property") ||
 		len(name) >= len("pg_index_") && strings.EqualFold(name[:len("pg_index_")], "pg_index_")
+}
+
+// Recognize quoted spellings for admission without changing exact resolution.
+func datetimeFunctionName(name string) bool {
+	return strings.EqualFold(name, "to_char") || strings.EqualFold(name, "to_date") || strings.EqualFold(name, "to_timestamp")
 }

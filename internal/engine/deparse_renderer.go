@@ -108,6 +108,26 @@ func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string
 	return child + "::" + typ, nil
 }
 
+// Captured literals can already carry a cast in their canonical presentation.
+// Numeric's emitted annotation is authoritative: integer-spelled, sized and
+// special values are annotated, while genuinely bare decimal literals are not.
+func pgLiteralSimple(n literalExpression, rendered string) bool {
+	if n.value.IsNull() || n.usage.Type.IsUserDefined() {
+		return false
+	}
+	switch n.usage.Type.ID() {
+	case sqltype.Bool:
+		return true
+	case sqltype.Int4:
+		value, err := n.value.Integer()
+		return err == nil && value >= 0
+	case sqltype.Numeric:
+		return !strings.Contains(rendered, "::")
+	default:
+		return false
+	}
+}
+
 func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, error) {
 	u := n.ResultUsage()
 	v := n.value
@@ -514,6 +534,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		return text.String(), nil
 	case mathExpression:
 		return function(n.plan.Name(), n.args, true)
+	case datetimeFormattingExpression:
+		return function(n.plan.Name(), n.args[:], true)
 	case stringExpression:
 		if n.plan.Name() == "||" {
 			return binary(n.args[0], n.args[1], "||", 5, parent)

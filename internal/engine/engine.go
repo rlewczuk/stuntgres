@@ -59,7 +59,7 @@ type binding struct {
 	querySources       []queryLeaf
 	visibilitySnapshot bool
 	viewLiterals       map[viewLiteralPath]literalExpression
-	viewDomainCasts    map[viewLiteralPath]sqltype.Usage
+	viewCastUsages     map[viewLiteralPath]sqltype.Usage
 	viewColumns        map[viewLiteralPath]int
 	viewStars          map[int][]int
 	viewNamespaces     []viewNamespace
@@ -720,7 +720,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.regclassConcat = binder.regclassConcat
 	b.regclassInput = binder.input.Regclass
 	b.viewLiterals = binder.viewLiterals
-	b.viewDomainCasts = binder.viewDomainCasts
+	b.viewCastUsages = binder.viewCastUsages
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars
 	b.viewNamespaces = binder.viewNamespaces
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
