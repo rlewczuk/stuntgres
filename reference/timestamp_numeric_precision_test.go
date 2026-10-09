@@ -1,23 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 func TestReferenceTimestampGenericNumericPrecisionExecution(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{
-		{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord},
-	} {
+	p := newTimestampReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			for _, head := range []string{`"timestamp"`, `U&"t\0069mestamp"`} {
 				for _, tc := range []struct{ number, raw, code string }{
 					{".5", ".5", "22P02"}, {"1.5e+3", "1.5e+3", "22P02"}, {"1e+2", "1e+2", "22P02"}, {"1.", "1.", "22P02"},

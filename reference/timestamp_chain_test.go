@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"testing"
@@ -12,19 +9,17 @@ import (
 )
 
 func TestReferenceTimestampSQLTransactionChainClock(t *testing.T) {
-	p := newTimestampReferencePair(t)
-	for backend, db := range []*sql.DB{p.memory, p.postgres} {
+	p := newTimestampReferenceScenario(t)
+	for _, backend := range p.backends() {
+		db := backend.db
 		for _, variant := range []string{"COMMIT", "ROLLBACK", "ABORTED_COMMIT"} {
-			t.Run(fmt.Sprintf("%d/%s", backend, variant), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s/%s", backend.name, variant), func(t *testing.T) {
 				end := variant
 				aborted := end == "ABORTED_COMMIT"
 				if aborted {
 					end = "COMMIT"
 				}
-				record := p.memoryRecord
-				if backend == 1 {
-					record = p.postgresRecord
-				}
+				record := backend.recorder
 				ctx := context.WithValue(p.ctx, referenceRecorderKey{}, record)
 				conn, err := db.Conn(ctx)
 				if err != nil {
@@ -72,7 +67,7 @@ func TestReferenceTimestampSQLTransactionChainClock(t *testing.T) {
 				if first.Before(before.Add(-time.Microsecond)) || first.After(after.Add(time.Microsecond)) {
 					t.Fatal("BEGIN start", first, before, after)
 				}
-				time.Sleep(3 * time.Millisecond)
+				referenceTemporalAdvanceClock(t, ctx, first)
 				if got := read(); !got.Equal(first) {
 					t.Fatal("old transaction unstable", got, first)
 				}
@@ -90,12 +85,12 @@ func TestReferenceTimestampSQLTransactionChainClock(t *testing.T) {
 				if !fresh.After(first) || fresh.Before(before.Add(-time.Microsecond)) || fresh.After(after.Add(time.Microsecond)) {
 					t.Fatal("CHAIN start", fresh, first, before, after)
 				}
-				time.Sleep(3 * time.Millisecond)
+				referenceTemporalAdvanceClock(t, ctx, fresh)
 				if got := read(); !got.Equal(fresh) {
 					t.Fatal("chained transaction unstable", got, fresh)
 				}
 				exec(end, 0)
-				time.Sleep(3 * time.Millisecond)
+				referenceTemporalAdvanceClock(t, ctx, fresh)
 				var implicit time.Time
 				if err = conn.QueryRowContext(ctx, "SELECT TIMESTAMP 'now' FROM "+anchor).Scan(&implicit); err != nil || !implicit.After(fresh) {
 					t.Fatal("plain end retained old clock", implicit, fresh, err)

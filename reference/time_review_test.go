@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,15 +8,10 @@ import (
 )
 
 func TestReferenceTimeReviewClockPrecedence(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name     string
-		postgres bool
-		db       *sql.DB
-		record   *referenceRecorder
-	}{{"native", false, p.memory, p.memoryRecord}, {"postgres", true, p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			run(referenceExec("CREATE TABLE t(v TIME)", 0))
 			run(referenceExec("INSERT INTO t VALUES('00:00')", 1))
 			// Source-derived expectations: DecodeTimeOnly token loop precedes
@@ -37,7 +29,7 @@ func TestReferenceTimeReviewClockPrecedence(t *testing.T) {
 				{"America/Bogus 12:60", "22007", "invalid input syntax for type time: \"America/Bogus 12:60\"", ""},
 			} {
 				t.Run(tc.input, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					for _, later := range []bool{false, true} {
 						q := "INSERT INTO t VALUES('" + tc.input + "')"
 						parameter := "INSERT INTO t VALUES($1)"
@@ -62,7 +54,7 @@ func TestReferenceTimeReviewClockPrecedence(t *testing.T) {
 							pg.Context = "unnamed portal parameter $1 = '...'"
 							s.diagnostic = &pg
 							run(s)
-							run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.postgres, []string{"TIME"}, [][]any{{"00:00:00"}})))
+							run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.pg, []string{"TIME"}, [][]any{{"00:00:00"}})))
 						}
 					}
 				})
@@ -72,13 +64,8 @@ func TestReferenceTimeReviewClockPrecedence(t *testing.T) {
 }
 
 func TestReferenceTimeReviewAssignmentIdentity(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name     string
-		postgres bool
-		db       *sql.DB
-		record   *referenceRecorder
-	}{{"native", false, p.memory, p.memoryRecord}, {"postgres", true, p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			for _, tc := range []struct {
 				name, declaration, destination, literal, source, sentinel, databaseType string
@@ -90,7 +77,7 @@ func TestReferenceTimeReviewAssignmentIdentity(t *testing.T) {
 				{"stampints", "INTEGER", "integer", "TIMESTAMP '2003-07-07'", "timestamp without time zone", "1", "INT4", int64(1)},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE "+tc.name+"(v "+tc.declaration+")", 0))
 					run(referenceExec("INSERT INTO "+tc.name+" VALUES("+tc.sentinel+")", 1))
 					count := 1
@@ -130,13 +117,21 @@ func TestReferenceTimeReviewAssignmentIdentity(t *testing.T) {
 								}
 							}
 							if tc.databaseType == "TIME" {
-								rows = referenceTimeRows(t, backend.postgres, []string{"TIME"}, rows)
+								rows = referenceTimeRows(t, backend.pg, []string{"TIME"}, rows)
 							}
 							run(referenceSelect("SELECT v FROM "+tc.name, []string{"v"}, []string{tc.databaseType}, rows))
 						}
 					}
 				})
 			}
+			run := func(s referenceStep) { referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, s) }
+			run(referenceExec("CREATE TABLE nonmidnight(v TIME)", 0))
+			for _, prepared := range []bool{false, true} {
+				s := referenceExec("INSERT INTO nonmidnight VALUES(TIMESTAMP '2003-07-07 04:05:06')", 1)
+				s.prepared = prepared
+				run(s)
+			}
+			run(referenceSelect("SELECT v FROM nonmidnight", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.pg, []string{"TIME"}, [][]any{{"04:05:06"}, {"04:05:06"}})))
 		})
 	}
 }

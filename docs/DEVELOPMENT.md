@@ -259,6 +259,57 @@ Native `NULLIF(NULL,10/v)` demands division at v=0 and reports22012, whereas the
 same pinned PostgreSQL query returns one SQL NULL. These are explicit backend
 expectations, not a generic-plan setting or optimizer short-circuit promise.
 
+The DATE, TIME and timestamp-without-time-zone families also migrate all 51
+assigned root SQL-interaction definitions into untagged external scenarios.
+They retain the full original/reference assertion union, including duplicate
+input vectors, direct/prepared/actually-held routes, statement atomicity,
+transaction aborts, precision notices, raw ownership, concurrency, cancellation
+and metadata after EOF/Close. Small shared root row/diagnostic helpers remain
+for unmigrated callers; no production SQL semantics change.
+
+The temporal route union includes one reused TIMESTAMP INSERT per backend
+across all twelve fractional vectors with text and `time.Time` argument frames,
+and another reused INSERT across both displacement limits. DATE civil bounds
+run through both direct and retained INSERT routes with exact doubled rows.
+The six original DATE literal failures run direct/prepared against the same
+initially empty target, checking its empty metadata after each failure before
+the populated-sentinel phase. Infinity ownership checks retain both stored
+TIMESTAMP cells and the noisy typed-literal constant, mutating scanned bytes
+after checked consumption/Close and checking an independent fresh read.
+
+Temporal checks assert raw adapter values before normalization: native DATE and
+TIME are strings, pq DATE/TIME are `time.Time`, finite TIMESTAMP values are
+zero-offset `time.Time`, and DATE/TIMESTAMP infinities are owned pq byte payloads.
+The DATE domain consumer handles infinity without weakening the shared raw
+checker. Pinned pq reports temporal nullability as unknown, while native physical
+columns retain their declared known nullability. A Go DATE bind at year-zero
+February 29 has independently expected native February 29 BC versus pq March 1
+BC, reflecting the pinned adapter's BC formatting rather than a changed codec.
+Finite TIMESTAMP raw offsets are asserted before clock expectations are
+canonicalized to UTC. pq may decode the same zero-offset civil value with an
+unnamed fixed Location rather than `time.UTC`; comparisons retain the instant,
+civil fields and precision, not Go Location pointer identity.
+
+Native controls run on the same scenario's unwrapped public control pool as
+the wrapped SQL reads. PostgreSQL phases consume the unchanged dumped SQL;
+they do not pretend to provide stuntgres Reset/Restore APIs. Prepared and
+transaction clocks use bounded strict clock-advance synchronization rather
+than sleeps. Full diagnostics distinguish analysis from execution and encode
+PostgreSQL setting-function and explicit-transaction DDL differences separately.
+The DATE PostgreSQL timestamp-comparison/transaction-relative complements and
+TIME optional-date completion stay tagged; whole migrated scenarios are not
+skipped in either mode. TIMETZ/TIMESTAMPTZ and other unmigrated families keep
+their existing coverage.
+
+Complete temporal migration selection (true mode also discovers the three
+retained tagged oracle complements):
+
+```sh
+RUN='^TestReference(DateDocumentedInputsAndCivilBounds|DateBindingRawMetadataAndNull|DateHeldBindingsAndCancellation|DateOrderingAndOperators|DateGregorianOrdering|DateDecodedCivilInputs|DateRepeatedSeparatorsContextualAndBound|DateDiagnosticsAndAtomicity|DateFullDiagnosticsAtomicityAndBoundaries|DateTimeParameterRangeDiagnostics|DateDecodeDiagnosticsAndModifierPhases|DateModifierDiagnostics|DateNotNullTransaction|DateTypedAssignmentDiagnostics|DateModifierConversionPrecedence|DateDumpRestoreAndPostgresReplay|DateRetainedCursorsAndCancellation|DateConcurrentPreparedOwnership|DateCanceledStagedRestorePreservesSnapshot|DatePostgresTimestampComparisons|DateTransactionRelativeInputs|TimeValuesParametersAndMetadata|TimeDeclarationsAndRetainedMetadata|TimeAcceptedInputsPrecisionAndOrdering|TimeHeldParametersAndOwnership|TimeDiagnosticsAndAtomicity|TimeDiagnosticBoundariesAndTransaction|TimeModifierDiagnostics|TimeNoticePhases|TimeNumericPrecision|TimeReviewClockPrecedence|TimeReviewAssignmentIdentity|TimeClocksAndAtomicity|TimeContextualPreparedClocksAndCancellation|TimePreparedCancellationAndArgumentCount|TimeDumpRestoreAndPostgresReplay|TimeRetainedCursorsAndCancellation|TimeOptionalDateCompletion|TimestampDocumentedInputs|TimestampHeldCorpusComparisons|TimestampPrecisionAndCivilParameters|TimestampCivilParameterOwnership|TimestampDeclarationsOccurrenceSizingAndOwnership|TimestampPublicDescriptionAndPreparedRelatives|TimestampSettingArgumentsUseScopeEnvironmentWithoutNewCasts|TimestampInvalidDeclarationNeverPublishesAndAbortsTransaction|TimestampQuotedUnicodeTypesAndKeywordIdentifiers|TimestampOrdinalBoundaryOrdering|TimestampBranchErrorsAbortTransaction|TimestampBranchCanonicalControlsAndComparison|TimestampNoisyNowPhysicalPrepare|TimestampTimeFractionConversion|TimestampSQLTransactionChainClock|TimestampClockAndPreparedLifetime|TimestampContextualPreparedConstants|TimestampCoreSpecialZoneAdjacency|TimestampPrecisionNoticePhase|TimestampOrderingAndNativeDump|TimestampRetainedNativeCursorAndRoundTrip|TimestampRestoreDiagnosticsAndCancellation|TimestampDiagnosticsAndAtomicity|TimestampEmptyDiagnosticsAndNotNullTransaction|TimestampDiagnosticModifiersAndInference|TimestampTimeParameterRangeDiagnostics|TimestampTimeDisplacementBounds|TimestampNewInputErrorsAbortTransaction|TimestampGenericNumericPrecisionExecution|TimestampPrecisionScannerDiagnostics)$'
+make test PACKAGES=./reference RUN="$RUN" VERBOSE=0
+make reference RUN="$RUN" VERBOSE=0
+```
+
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean
 test-binary flag adds real PostgreSQL; the build tag is not the mode selector:

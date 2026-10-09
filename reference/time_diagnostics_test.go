@@ -1,10 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -12,17 +8,28 @@ import (
 )
 
 func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name     string
-		postgres bool
-		db       *sql.DB
-		record   *referenceRecorder
-	}{{"native", false, p.memory, p.memoryRecord}, {"postgres", true, p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) {
+				referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, s)
+				if s.state != "" {
+					referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.pg, []string{"TIME"}, [][]any{{"00:00:00"}})))
+				}
+			}
 			run(referenceExec("CREATE TABLE t(v TIME)", 0))
 			run(referenceExec("INSERT INTO t VALUES('00:00')", 1))
+			paramQuery := "INSERT INTO t VALUES($1)"
+			param, err := backend.db.PrepareContext(p.ctx, paramQuery)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := param.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			held := referenceHeldStatement{referenceExecutor: backend.db, statement: param, query: paramQuery}
 			for _, tc := range []struct{ input, code, primary, hint string }{
 				{"25:00", "22008", "date/time field value out of range", ""}, {"12:60", "22008", "date/time field value out of range", ""}, {"12:00:61", "22008", "date/time field value out of range", ""}, {"24:01", "22008", "date/time field value out of range", ""}, {"24:00:00.1", "22008", "date/time field value out of range", ""}, {"23:59:60.01", "22008", "date/time field value out of range", ""},
 				{"250000", "22008", "date/time field value out of range", ""}, {"049900", "22008", "date/time field value out of range", ""}, {"040599", "22008", "date/time field value out of range", ""}, {"13:00 PM", "22008", "date/time field value out of range", ""},
@@ -44,7 +51,11 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 						}
 						run(s)
 					}
-					want.Position = ""
+					want.Position, want.Context = "", "unnamed portal parameter $1 = '...'"
+					s := referenceImplicitError(paramQuery, want, tc.input)
+					s.errorStage = "execute"
+					referenceTemporalRunStep(t, p.ctx, held, backend.recorder, s)
+					run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.pg, []string{"TIME"}, [][]any{{"00:00:00"}})))
 					for _, prepared := range []bool{false, true} {
 						s := referenceImplicitError("INSERT INTO t VALUES($1)", want, tc.input)
 						s.prepared = prepared
@@ -67,7 +78,11 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 					}
 					run(s)
 				}
-				want.Position = ""
+				want.Position, want.Context = "", "unnamed portal parameter $1 = '...'"
+				s := referenceImplicitError(paramQuery, want, input)
+				s.errorStage = "execute"
+				referenceTemporalRunStep(t, p.ctx, held, backend.recorder, s)
+				run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.pg, []string{"TIME"}, [][]any{{"00:00:00"}})))
 				for _, prepared := range []bool{false, true} {
 					s := referenceImplicitError("INSERT INTO t VALUES($1)", want, input)
 					s.prepared = prepared
@@ -78,6 +93,17 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 					run(s)
 				}
 			}
+		})
+	}
+}
+
+func TestReferenceTimeDiagnosticBoundariesAndTransaction(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			run := func(s referenceStep) { referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, s) }
+			run(referenceExec("CREATE TABLE t(v TIME)", 0))
+			run(referenceExec("INSERT INTO t VALUES('00:00')", 1))
 			for _, tc := range []struct{ q, code, message, position, detail, hint string }{
 				{"SELECT TIME 'bad' FROM t", "22007", "invalid input syntax for type time: \"bad\"", "13", "", ""},
 				{"SELECT TIME(0) '24:00:00.1' FROM t", "22008", "date/time field value out of range: \"24:00:00.1\"", "16", "", ""},
@@ -86,8 +112,13 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 			} {
 				s := referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.position, Detail: tc.detail, Hint: tc.hint})
 				s.prepared = true
+				s.selectRows = true
 				s.errorStage = "prepare"
 				run(s)
+				if tc.code == "42883" {
+					s.prepared, s.selectRows, s.errorStage = false, false, "execute"
+					run(s)
+				}
 			}
 			q := "/*é*/ INSERT INTO t VALUES('bad')"
 			run(referenceImplicitError(q, referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type time: \"bad\"", Position: strconv.Itoa(utf8.RuneCountInString(q[:strings.Index(q, "'bad'")]) + 1)}))
@@ -97,7 +128,7 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 			pg.Context = "unnamed portal parameter $2 = '...'"
 			parameter.diagnostic = &pg
 			run(parameter)
-			run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.postgres, []string{"TIME"}, [][]any{{"00:00:00"}})))
+			run(referenceSelect("SELECT v FROM t", []string{"v"}, []string{"TIME"}, referenceTimeRows(t, backend.pg, []string{"TIME"}, [][]any{{"00:00:00"}})))
 			run(referenceExec("CREATE TABLE nn(v TIME NOT NULL)", 0))
 			run(referenceImplicitError("INSERT INTO nn VALUES(NULL)", referenceDiagnostic{Code: "23502", Message: "null value in column \"v\" of relation \"nn\" violates not-null constraint", Detail: "Failing row contains (null).", Schema: "public", Table: "nn", Column: "v"}))
 			run(referenceImplicitError(`CREATE TABLE later(a TIME,v "time"(-1))`, referenceDiagnostic{Code: "22023", Message: "TIME(-1) precision must not be negative", Position: "29"}))
@@ -106,80 +137,11 @@ func TestReferenceTimeDiagnosticsAndAtomicity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			referenceRunStep(t, p.ctx, tx, backend.record, referenceImplicitError("INSERT INTO t VALUES('bad')", referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type time: \"bad\"", Position: "22"}))
-			referenceRunStep(t, p.ctx, tx, backend.record, referenceImplicitError("INSERT INTO t VALUES('24:00')", referenceDiagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
+			defer tx.Rollback()
+			referenceTemporalRunStep(t, p.ctx, tx, backend.recorder, referenceImplicitError("INSERT INTO t VALUES('bad')", referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type time: \"bad\"", Position: "22"}))
+			referenceTemporalRunStep(t, p.ctx, tx, backend.recorder, referenceImplicitError("INSERT INTO t VALUES('24:00')", referenceDiagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
 			if err = tx.Rollback(); err != nil {
 				t.Fatal(err)
-			}
-			for _, tc := range []struct{ q, code, message, position string }{
-				{"CREATE TABLE bad(v TIME(-1))", "42601", "syntax error at or near \"-\"", "25"},
-				{`CREATE TABLE bad(v "time"(-1))`, "22023", "TIME(-1) precision must not be negative", "20"},
-				{`CREATE TABLE bad(v "time"(+1))`, "42601", "type modifiers must be simple constants or identifiers", "20"},
-				{`CREATE TABLE bad(v "time"(1.5))`, "22P02", "invalid input syntax for type integer: \"1.5\"", "20"},
-				{`CREATE TABLE bad(v "time"(2147483648))`, "22003", "value \"2147483648\" is out of range for type integer", "20"},
-			} {
-				for _, prepared := range []bool{false, true} {
-					s := referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.position})
-					s.prepared = prepared
-					s.errorStage = "execute"
-					if strings.Contains(tc.q, "TIME(-1)") && prepared {
-						s.errorStage = "prepare"
-					}
-					run(s)
-				}
-				run(referenceExec("CREATE TABLE bad(v TIME)", 0))
-				run(referenceExec("DROP TABLE bad", 0))
-			}
-		})
-	}
-}
-
-func TestReferenceTimeNoticePhases(t *testing.T) {
-	p := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
-		t.Run(strconv.FormatBool(postgres), func(t *testing.T) {
-			var notices []referenceDiagnostic
-			_, conn, record := noticeReferencePool(t, p, postgres, &notices)
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, record, s) }
-			run(referenceExec("CREATE TABLE anchor(v TIME)", 0))
-			run(referenceExec("INSERT INTO anchor VALUES('00:00')", 1))
-			stmt, err := conn.PrepareContext(p.ctx, "SELECT TIME(7) '04:05:06.1234567' FROM anchor")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer stmt.Close()
-			want := referenceDiagnostic{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "TIME(7) precision reduced to maximum allowed, 6", Position: "8"}
-			if !reflect.DeepEqual(notices, []referenceDiagnostic{want}) {
-				t.Fatal(notices, want)
-			}
-			notices = nil
-			for range 2 {
-				var got any
-				if err = stmt.QueryRowContext(p.ctx).Scan(&got); err != nil {
-					t.Fatal(err)
-				}
-				expected := referenceTimeRows(t, postgres, []string{"TIME"}, [][]any{{"04:05:06.123457"}})[0][0]
-				if !reflect.DeepEqual(referenceNormalize(got), expected) {
-					t.Fatal(got, expected)
-				}
-			}
-			if len(notices) != 0 {
-				t.Fatal("warning repeated", notices)
-			}
-			utility, err := conn.PrepareContext(p.ctx, "CREATE TABLE capped(v TIME(7))")
-			if err != nil || len(notices) != 0 {
-				t.Fatal(err, notices)
-			}
-			_, err = utility.ExecContext(p.ctx)
-			utility.Close()
-			if err != nil {
-				t.Fatal(err)
-			}
-			want.Position = "23"
-			unpositioned := want
-			unpositioned.Position = ""
-			if !reflect.DeepEqual(notices, []referenceDiagnostic{want, unpositioned}) {
-				t.Fatal(notices)
 			}
 		})
 	}

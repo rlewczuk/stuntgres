@@ -782,9 +782,11 @@ canonical clocks and Restore preserves precisions, NULLs, endpoints and old curs
 See the timezone-aware section below for TIMETZ, session settings and conversions.
 General temporal arithmetic/functions and ordinary no-FROM SELECT remain excluded.
 
-Feature smoke: `make smoke RUN='^TestTimeSmoke$' VERBOSE=1`.
-Native coverage: `make test PACKAGES=. RUN='^TestTime.*$' VERBOSE=1`.
-Real pinned reference: `go test -tags reference -count=1 -timeout=300s -v -run '^TestReferenceTime.*$' ./reference`.
+Feature smoke: `make smoke RUN='^TestTimeSmoke$' VERBOSE=0`.
+Dual-mode migration: the public TIME SQL scenarios now live in `reference/`.
+Native coverage: `make test PACKAGES=./reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Real pinned reference: `make reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`;
+the tagged optional-date complement remains real-oracle coverage only.
 
 ## Civil DATE
 
@@ -848,9 +850,18 @@ unchanged. Dump quotes canonical DATE values;
 Reset/Restore preserve retained snapshots and metadata. Unordered queries have
 no portable row-order guarantee.
 
-Feature smoke: `make smoke RUN='^TestDateSmoke$' VERBOSE=1`.
-Independent pinned oracle: `make reference RUN='^TestReferenceDate' VERBOSE=1`.
-Native coverage: `make test PACKAGES=. RUN='^TestDate' VERBOSE=1`.
+Feature smoke: `make smoke RUN='^TestDateSmoke$' VERBOSE=0`.
+Dual-mode migration: the public DATE SQL scenarios now live in `reference/`.
+Native coverage: `make test PACKAGES=./reference RUN='^TestReferenceDate[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Independent pinned oracle: `make reference RUN='^TestReferenceDate[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+The tagged timestamp-comparison and transaction-relative complements remain
+real-oracle coverage. Pinned pq temporal descriptors report unknown nullability
+and unavailable Length/DecimalSize; native physical columns retain known
+nullability. pq's Go year-zero February 29 DATE binding formats March 1 BC,
+while native binding retains February 29 BC; textual BC input is unchanged.
+The civil-bound corpus retains both direct and reused prepared INSERTs and
+exact ordered multiplicities. Literal failure coverage checks the same target's
+empty rows and retained metadata before separately testing populated sentinels.
 
 ## Timestamp without time zone
 
@@ -994,10 +1005,11 @@ transaction start for the new incarnation; redundant BEGIN and control Prepare d
 reset it. Plain COMMIT/ROLLBACK clear it before the next implicit transaction.
 Independent public, codec/engine and pinned reference assertions retain both
 the floating-point and timestamp contracts after integration.
-Run `go test -count=1 -v -run '^TestTimestampSQLTransactionChainSmoke$' ./smoke`
+Run `make smoke RUN='^TestTimestampSQLTransactionChainSmoke$' VERBOSE=0`
 for literal/parameter clock stability, relative civil dates and fresh chain/end
-boundaries; `go test -tags reference -count=1 -v -run '^TestReferenceTimestampSQLTransactionChainClock$' ./reference`
-asserts these relationships separately on each backend, not absolute clock parity.
+boundaries. `make test PACKAGES=./reference RUN='^TestReferenceTimestampSQLTransactionChainClock$' VERBOSE=0`
+and `make reference RUN='^TestReferenceTimestampSQLTransactionChainClock$' VERBOSE=0`
+assert these relationships separately on each selected backend, not absolute clock parity.
 Freezing belongs to each physical driver preparation, not to SQL text in a
 pool-wide cache. Reuse the same Conn-prepared handle to retain a constant;
 `Tx.StmtContext` of that handle performs a new physical preparation and captures
@@ -1082,13 +1094,21 @@ across append/Reset/Restore; exported infinity buffers cannot mutate stored valu
 Timezone-aware types, DateStyle/TimeZone and selected temporal casts/conversions
 are described below. General temporal functions/arithmetic and ordinary no-FROM
 SELECT remain excluded; the default input order is MDY.
-Run `go test -count=1 -v -run '^TestTimestampSmoke$' ./smoke` for the feature smoke,
-`go test -count=1 -v -run '^TestTimestamp.*$' .` for public acceptance, and
-`go test -tags reference -count=1 -v -run '^TestReferenceTimestamp.*$' ./reference`
-for independently expected real PostgreSQL 18.0 scenarios.
+Dual-mode migration: public timestamp-without-time-zone SQL scenarios now live
+in `reference/`; shared root helpers remain for unmigrated callers.
+Feature smoke: `make smoke RUN='^TestTimestampSmoke$' VERBOSE=0`.
+Native acceptance: `make test PACKAGES=./reference RUN='^TestReferenceTimestamp[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Independent real PostgreSQL 18.0: `make reference RUN='^TestReferenceTimestamp[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Finite raw values must remain `time.Time` with offset zero before comparison;
+zero-offset fixed locations and UTC locations are not pointer-identical.
+Clock expectations retain microsecond instant and civil equality without
+requiring Location identity. Infinity byte mutation/fresh-read checks cover
+both stored columns and noisy typed-literal constants before normalization.
+Fractional text/`time.Time` frames and both displacement limits reuse their
+respective INSERT handles while retaining direct routes and exact row counts.
 Codec corner cases and allocation assertions can be selected with
-`go test -count=1 -v -run '^TestTimestamp.*$' ./internal/sqltype`;
-`go test -count=1 -v -run '^TestTimestamp.*Allocations$' ./internal/sqltype`
+`make test PACKAGES=./internal/sqltype RUN='^TestTimestamp.*$' VERBOSE=0`;
+`make test PACKAGES=./internal/sqltype RUN='^TestTimestamp.*Allocations$' VERBOSE=0`
 includes signed-whitespace and revised numeric/prefix/DST branches.
 
 ## Time-zone-aware values

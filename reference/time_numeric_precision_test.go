@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,14 +8,10 @@ import (
 )
 
 func TestReferenceTimeNumericPrecision(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceTemporalRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			for _, head := range []string{"TIME", `"time"`, `U&"t\0069me"`} {
 				for _, tc := range []struct{ number, token, primary string }{
 					{"1.5foo", "1.5foo", "trailing junk after numeric literal"}, {".5foo", ".5foo", "trailing junk after numeric literal"}, {"1.5e+", "1.5e+", "trailing junk after numeric literal"}, {"1..2", "..", "syntax error"}, {".5e-", ".5e-", "trailing junk after numeric literal"}, {"1.5e", "1.5e", "trailing junk after numeric literal"}, {"1.5e+3foo", "1.5e+3foo", "trailing junk after numeric literal"}, {"1.5_", "1.5_", "trailing junk after numeric literal"}, {"1.5e+3_", "1.5e+3_", "trailing junk after numeric literal"}, {"1e+", "1e+", "trailing junk after numeric literal"}, {"1efoo", "1efoo", "trailing junk after numeric literal"}, {"1.5e3foo", "1.5e3foo", "trailing junk after numeric literal"},

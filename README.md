@@ -630,9 +630,9 @@ Use `VERBOSE=1` for diagnostics, `RUN='^TestName$'` for selection, and
 `PACKAGES=./internal/parser` to scope ordinary or race tests.
 
 The migrated query-read, INSERT SELECT, UPDATE, DELETE/RETURNING, identity,
-arithmetic, bitwise, mathematical and scalar expression scenarios, plus the
-BYTEA/short-INSERT pilots in `reference/`, also run without Docker through the
-ordinary test binary:
+arithmetic, bitwise, mathematical and scalar expression scenarios,
+DATE/TIME/TIMESTAMP interaction tests, and BYTEA/short-INSERT pilots in
+`reference/` also run without Docker through the ordinary test binary:
 
 ```sh
 go test ./reference                         # quick: real stuntgres + expected data
@@ -654,13 +654,19 @@ tests with existing reference assertions in 93 untagged definitions covering
 BETWEEN, explicit casts, null/truth/distinct predicates, ordinary comparisons,
 conditional expressions, expression core and logical operators. Together these
 families retain raw and command/RETURNING metadata, genuinely reused and concurrent
-held statements, atomicity, cancellation and native controls. The BYTEA and
-short-INSERT pilots remain available alongside them. Each selected backend must
-satisfy independently hardcoded expectations, with explicit phases for
-backend-specific metadata, diagnostics, controls and lock witnesses; parity alone
-is not proof. Startup failure never falls back to native execution.
+held statements, atomicity, cancellation and native controls. The temporal
+migration carries all 51 assigned root DATE, TIME and timestamp-without-time-zone
+interaction tests into complete reference assertion unions, including
+accepted/rejected input corpora, precision, held clocks, owned raw rows and
+retained metadata. Native Dump/Reset/Restore phases use the common scenario's
+public control pool; true mode also replays its unchanged SQL on PostgreSQL.
+The BYTEA and short-INSERT pilots remain available alongside them. Each selected
+backend must satisfy independently hardcoded expectations, with explicit phases
+for backend-specific metadata, diagnostics, controls and lock witnesses; parity
+alone is not proof. Startup failure never falls back to native execution.
 See the [development guide](docs/DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
-for the migrated families and complete selection commands.
+for the migrated families, temporal adapter differences and complete selection
+commands.
 
 The `reference` build tag still includes untouched legacy PostgreSQL tests and
 retained PostgreSQL-only edges; it does not select runtime mode. A tagged

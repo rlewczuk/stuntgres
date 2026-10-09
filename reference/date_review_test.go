@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -11,14 +8,10 @@ import (
 // transformAssignedExpr and parse_coerce.c's transformed literal location.
 // In particular, DATE's format_type_be name has no time-zone suffix.
 func TestReferenceDateTypedAssignmentDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceDateRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			run(referenceExec("CREATE TABLE i(v INTEGER)", 0))
 			run(referenceExec("INSERT INTO i VALUES(7)", 1))
 			for _, prepared := range []bool{false, true} {
@@ -36,7 +29,7 @@ func TestReferenceDateTypedAssignmentDiagnostics(t *testing.T) {
 					if prepared {
 						s.errorStage = "prepare"
 					}
-					referenceRunStep(t, p.ctx, backend.db, backend.record, s)
+					referenceDateRunStep(t, p.ctx, backend.db, backend.recorder, s)
 				})
 				// Also check after a diagnostic mismatch in the child subtest.
 				run(referenceSelect("SELECT v FROM i ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
@@ -49,16 +42,12 @@ func TestReferenceDateTypedAssignmentDiagnostics(t *testing.T) {
 // raw expressions; DATE has no typmodin in pg_type.dat. Unary plus is an
 // admitted expression even though it is not a simple modifier constant.
 func TestReferenceDateModifierConversionPrecedence(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceDateRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			run(referenceExec("CREATE TABLE d(v DATE)", 0))
-			run(referenceExec("INSERT INTO d VALUES('infinity')", 1))
+			run(referenceExec("INSERT INTO d VALUES('infinity'),('2000-01-01')", 2))
 			for _, typ := range []string{"date", `"date"`} {
 				for _, modifier := range []string{"3.0", "2147483648", "999999999999999999999999999999", "+3", "+3.0", "+2147483648"} {
 					for _, prepared := range []bool{false, true} {
@@ -72,12 +61,12 @@ func TestReferenceDateModifierConversionPrecedence(t *testing.T) {
 									Code: "42601", Message: `type modifier is not allowed for type "date"`, Position: "20",
 								})
 								s.prepared, s.errorStage = prepared, "execute"
-								referenceRunStep(t, p.ctx, backend.db, backend.record, s)
+								referenceDateRunStep(t, p.ctx, backend.db, backend.recorder, s)
 							})
 							// CREATE Prepare is effect-free and succeeds; execution rejects
 							// the modifier without installing even a partial relation.
-							referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("CREATE TABLE bad(v DATE)", 0))
-							referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("DROP TABLE bad", 0))
+							referenceDateRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE bad(v DATE)", 0))
+							referenceDateRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("DROP TABLE bad", 0))
 							t.Run("typed_literal", func(t *testing.T) {
 								s := referenceImplicitError("SELECT "+typ+"("+modifier+") '1999-01-08' FROM d", referenceDiagnostic{
 									Code: "42601", Message: `type modifier is not allowed for type "date"`, Position: "8",
@@ -86,9 +75,9 @@ func TestReferenceDateModifierConversionPrecedence(t *testing.T) {
 								if prepared {
 									s.errorStage = "prepare"
 								}
-								referenceRunStep(t, p.ctx, backend.db, backend.record, s)
+								referenceDateRunStep(t, p.ctx, backend.db, backend.recorder, s)
 							})
-							referenceRunStep(t, p.ctx, backend.db, backend.record, referenceSelect("SELECT v FROM d", []string{"v"}, []string{"DATE"}, [][]any{{"infinity"}}))
+							referenceDateRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT v FROM d ORDER BY v", []string{"v"}, []string{"DATE"}, [][]any{{referenceDateExpected(backend.pg, "2000-01-01")}, {"infinity"}}))
 						})
 					}
 				}

@@ -1,29 +1,22 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 	"time"
 )
 
 func TestReferenceDateFullDiagnosticsAtomicityAndBoundaries(t *testing.T) {
-	p := newReferencePair(t)
-	for _, b := range []struct {
-		name   string
-		pg     bool
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", false, p.memory, p.memoryRecord}, {"postgres", true, p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+			run := func(s referenceStep) { referenceDateRunStep(t, p.ctx, b.db, b.recorder, s) }
 			run(referenceExec("CREATE TABLE d(v DATE)", 0))
 			for _, tc := range []struct{ input, code, primary, hint string }{{"bad", "22007", "invalid input syntax for type date", ""}, {"1900-02-29", "22008", "date/time field value out of range", ""}, {"1500-02-29", "22008", "date/time field value out of range", ""}, {"2100-02-29", "22008", "date/time field value out of range", ""}, {"0002-02-29 BC", "22008", "date/time field value out of range", ""}, {"2001-01-32", "22008", "date/time field value out of range", "Perhaps you need a different \"DateStyle\" setting."}, {"0000-01-01", "22008", "date/time field value out of range", ""}, {"4714-11-23 BC", "22008", "date out of range", ""}, {"5874898-01-01", "22008", "date out of range", ""}} {
 				for _, prepared := range []bool{false, true} {
 					want := referenceDiagnostic{Code: tc.code, Message: tc.primary + ": \"" + tc.input + "\"", Hint: tc.hint, Position: "13"}
 					s := referenceImplicitError("SELECT DATE '"+tc.input+"' FROM d", want)
 					s.prepared = prepared
+					s.selectRows = true
 					s.errorStage = "execute"
 					if prepared {
 						s.errorStage = "prepare"
@@ -40,6 +33,7 @@ func TestReferenceDateFullDiagnosticsAtomicityAndBoundaries(t *testing.T) {
 			}
 			for _, tc := range []struct{ sql, pos string }{{"/*é*/ INSERT INTO d VALUES('bad')", "28"}, {"/*é*/ SELECT DATE 'bad' FROM d", "19"}, {"SELECT v FROM d WHERE v='bad'", "25"}} {
 				s := referenceImplicitError(tc.sql, referenceDiagnostic{Code: "22007", Message: `invalid input syntax for type date: "bad"`, Position: tc.pos})
+				s.selectRows = tc.sql != "/*é*/ INSERT INTO d VALUES('bad')"
 				run(s)
 				s.prepared = true
 				s.errorStage = "prepare"
@@ -69,6 +63,7 @@ func TestReferenceDateFullDiagnosticsAtomicityAndBoundaries(t *testing.T) {
 					continue
 				}
 				s = referenceImplicitError("SELECT v FROM d WHERE v="+tc.literal, referenceDiagnostic{Code: "42883", Message: "operator does not exist: date = " + tc.typ, Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: "24"})
+				s.selectRows = true
 				run(s)
 				s.prepared = true
 				s.errorStage = "prepare"
@@ -82,75 +77,13 @@ func TestReferenceDateFullDiagnosticsAtomicityAndBoundaries(t *testing.T) {
 	}
 }
 
-func TestReferenceDatePostgresTimestampComparisons(t *testing.T) {
-	p := newReferencePair(t)
-	run := func(s referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s) }
-	run(referenceExec("CREATE TABLE d(id INTEGER,v DATE)", 0))
-	run(referenceExec("INSERT INTO d VALUES(1,'2000-01-01'),(2,'-infinity'),(3,'infinity'),(4,NULL)", 4))
-	for _, prepared := range []bool{false, true} {
-		for _, tc := range []struct {
-			sql  string
-			rows [][]any
-		}{
-			{"SELECT v=TIMESTAMP '2000-01-01',TIMESTAMP '2000-01-01'=v,v<TIMESTAMP '2000-01-01 12:00',TIMESTAMP '2000-01-01 12:00'>v FROM d WHERE id=1", [][]any{{true, true, true, true}}},
-			{"SELECT v=TIMESTAMP '-infinity',TIMESTAMP '-infinity'=v,v<TIMESTAMP '2000-01-01',TIMESTAMP '2000-01-01'>v FROM d WHERE id=2", [][]any{{true, true, true, true}}},
-			{"SELECT v=TIMESTAMP 'infinity',TIMESTAMP 'infinity'=v,v>TIMESTAMP '2000-01-01',TIMESTAMP '2000-01-01'<v FROM d WHERE id=3", [][]any{{true, true, true, true}}},
-			{"SELECT v=TIMESTAMP '2000-01-01',TIMESTAMP '2000-01-01'=v,v<TIMESTAMP '2000-01-01',TIMESTAMP '2000-01-01'<v FROM d WHERE id=4", [][]any{{nil, nil, nil, nil}}},
-		} {
-			s := referenceSelect(tc.sql, []string{"?column?", "?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, tc.rows)
-			s.prepared = prepared
-			run(s)
-		}
-	}
-}
-
-func TestReferenceDateTransactionRelativeInputs(t *testing.T) {
-	p := newReferencePair(t)
-	// The PostgreSQL oracle baseline is captured inside the same transaction,
-	// rather than assuming the wall clock will not cross a civil-day boundary.
-	tx, err := p.postgres.BeginTx(p.ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback()
-	if _, err = tx.ExecContext(p.ctx, "CREATE TABLE d(v DATE)"); err != nil {
-		t.Fatal(err)
-	}
-	var today, yesterday, tomorrow any
-	if err = tx.QueryRowContext(p.ctx, "SELECT CURRENT_DATE,CURRENT_DATE-1,CURRENT_DATE+1").Scan(&today, &yesterday, &tomorrow); err != nil {
-		t.Fatal(err)
-	}
-	stmt, err := tx.PrepareContext(p.ctx, "SELECT DATE 'today',DATE 'now',DATE 'yesterday',DATE 'tomorrow' FROM d")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stmt.Close()
-	if _, err = tx.ExecContext(p.ctx, "INSERT INTO d VALUES('today')"); err != nil {
-		t.Fatal(err)
-	}
-	for range 2 {
-		var a, b, c, d any
-		if err = stmt.QueryRowContext(p.ctx).Scan(&a, &b, &c, &d); err != nil {
-			t.Fatal(err)
-		}
-		if a != today || b != today || c != yesterday || d != tomorrow {
-			t.Fatal(a, b, c, d, today, yesterday, tomorrow)
-		}
-	}
-}
-
 func TestReferenceDateTimeParameterRangeDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	// Run independent backend subtests so a native regression does not hide
 	// the pinned PostgreSQL oracle's complete expected diagnostic records.
-	for _, b := range []struct {
-		name   string
-		pg     bool
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", false, p.memory, p.memoryRecord}, {"postgres", true, p.postgres, p.postgresRecord}} {
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+			run := func(s referenceStep) { referenceDateRunStep(t, p.ctx, b.db, b.recorder, s) }
 			run(referenceExec("CREATE TABLE d(v DATE)", 0))
 			run(referenceExec("INSERT INTO d VALUES('2000-01-01')", 1))
 			sentinel := any("2000-01-01")
@@ -179,7 +112,7 @@ func TestReferenceDateTimeParameterRangeDiagnostics(t *testing.T) {
 								{"laterRow", "INSERT INTO d VALUES('2000-02-29'),($1)"},
 							} {
 								t.Run(statement.name, func(t *testing.T) {
-									run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+									run := func(s referenceStep) { referenceDateRunStep(t, p.ctx, b.db, b.recorder, s) }
 									want := referenceDiagnostic{Code: "22008", Message: tc.message}
 									want.Context = "unnamed portal parameter $1 = '...'"
 									s := referenceImplicitError(statement.query, want, tc.input)
@@ -193,6 +126,93 @@ func TestReferenceDateTimeParameterRangeDiagnostics(t *testing.T) {
 					}
 				})
 			}
+		})
+	}
+}
+
+func TestReferenceDateDiagnosticsAndAtomicity(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
+		t.Run(b.name, func(t *testing.T) {
+			run := func(s referenceStep) { referenceDateRunStep(t, p.ctx, b.db, b.recorder, s) }
+			run(referenceExec("CREATE TABLE d(v DATE)", 0))
+			run(referenceSelect("SELECT v FROM d", []string{"v"}, []string{"DATE"}, nil))
+			run(referenceExec("CREATE TABLE empty_date(v DATE)", 0))
+			s := referenceImplicitError("SELECT DATE 'bad' FROM empty_date", referenceDiagnostic{Code: "22007", Message: `invalid input syntax for type date: "bad"`, Position: "13"})
+			s.prepared, s.selectRows, s.errorStage = true, true, "prepare"
+			run(s)
+			for _, tc := range []struct{ input, code, primary, hint string }{
+				{"bad", "22007", "invalid input syntax for type date", ""},
+				{"2001-02-29", "22008", "date/time field value out of range", ""},
+				{"0000-01-01", "22008", "date/time field value out of range", ""},
+				{"2001-13-01", "22008", "date/time field value out of range", "Perhaps you need a different \"DateStyle\" setting."},
+				{"4714-11-23 BC", "22008", "date out of range", ""},
+				{"5874898-01-01", "22008", "date out of range", ""},
+			} {
+				for _, prepared := range []bool{false, true} {
+					s := referenceImplicitError("INSERT INTO d VALUES('"+tc.input+"')", referenceDiagnostic{Code: tc.code, Message: tc.primary + `: "` + tc.input + `"`, Hint: tc.hint, Position: "22"})
+					s.prepared, s.errorStage = prepared, "execute"
+					if prepared {
+						s.errorStage = "prepare"
+					}
+					run(s)
+					run(referenceSelect("SELECT v FROM d", []string{"v"}, []string{"DATE"}, nil))
+				}
+			}
+			run(referenceExec("INSERT INTO d VALUES('2000-01-01')", 1))
+			var value any = "2000-01-01"
+			if b.pg {
+				value = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+			}
+			unchanged := referenceSelect("SELECT v FROM d", []string{"v"}, []string{"DATE"}, [][]any{{value}})
+			query := "INSERT INTO d VALUES($1)"
+			param, err := b.db.PrepareContext(p.ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := param.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			for _, tc := range dateReferenceBadInputs {
+				t.Run(tc.input, func(t *testing.T) {
+					want := referenceDiagnostic{Code: tc.code, Message: tc.primary + `: "` + tc.input + `"`, Hint: tc.hint, Position: "22"}
+					for _, prepared := range []bool{false, true} {
+						s := referenceImplicitError("INSERT INTO d VALUES('"+tc.input+"')", want)
+						s.prepared, s.errorStage = prepared, "execute"
+						if prepared {
+							s.errorStage = "prepare"
+						}
+						run(s)
+						run(unchanged)
+					}
+					want.Position, want.Context = "", "unnamed portal parameter $1 = '...'"
+					for _, held := range []bool{false, true} {
+						x := referenceExecutor(b.db)
+						if held {
+							x = referenceHeldStatement{referenceExecutor: b.db, statement: param, query: query}
+						}
+						s := referenceImplicitError(query, want, tc.input)
+						s.errorStage = "execute"
+						referenceDateRunStep(t, p.ctx, x, b.recorder, s)
+						run(unchanged)
+					}
+				})
+			}
+			for _, tc := range []struct {
+				query, position, context string
+				args                     []any
+			}{
+				{"/*é*/ INSERT INTO d VALUES('bad')", "28", "", nil},
+				{"INSERT INTO d VALUES('2000-02-29'),('bad')", "37", "", nil},
+				{"INSERT INTO d VALUES($1),($2)", "", "unnamed portal parameter $2 = '...'", []any{"2000-02-29", "bad"}},
+			} {
+				s := referenceImplicitError(tc.query, referenceDiagnostic{Code: "22007", Message: `invalid input syntax for type date: "bad"`, Position: tc.position, Context: tc.context}, tc.args...)
+				run(s)
+				run(unchanged)
+			}
+			run(referenceSelect("SELECT v FROM empty_date", []string{"v"}, []string{"DATE"}, nil))
 		})
 	}
 }
