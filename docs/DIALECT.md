@@ -1566,6 +1566,10 @@ publication authority. A failed drop leaves definitions and enforcement intact.
 CHECK alone never changes known Nullable metadata.
 
 Public smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
+CHECK interaction coverage uses the same untagged `reference/` definitions in
+native and enabled PostgreSQL modes; the [complete selector](DEVELOPMENT.md#dual-mode-check-constraint-interactions)
+excludes unchanged tagged oracle-only boundaries. No SQL surface is added by
+this test migration.
 
 ### ALTER COLUMN TYPE — change note
 

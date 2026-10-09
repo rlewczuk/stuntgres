@@ -146,6 +146,32 @@ The view migration's aggregate verification uses an external task-specific
 `timeout --signal=KILL 300s make test-all VERBOSE=0` bound for one full invocation;
 this does not change the shared Makefile's 900-second policy.
 
+### Dual-mode CHECK constraint interactions
+
+The 31 former root CHECK interaction tests are merged with their existing
+reference assertions into 38 untagged definitions. Select the complete migrated
+group without selecting untouched PostgreSQL-only ACL, system-column, unsupported
+expression or opposite-direction lock witnesses:
+
+```sh
+RUN='^TestReferenceCheck(AlterCandidates|AlterCandidateTransactions|AlterTransactionalPublication|AlterOwnedSequenceCandidate|AlterOwnedSequenceAutoConstraint|Controls|Lifecycle|LikeAndConstraintCollisions|ExplicitTransactionAndSavepoint|DefinitionDiagnostics|Names|OutputAndUTF8Names|UnicodePosition|MixedConstraintDiagnostics|PreparedExecutionOutputEnvironment|Review2OrderReverseMixed|Review2OrderMultipleOwners|Review2OrderLogicalRoundtrip|Review2SchemaPrivateDropCancellation|Review2SchemaPrivateDropOutcomes|ReviewDependencyRestrictComplete|ReviewDependencyPrivateDeletionNonwaiting|ReviewDependencyRestrictReversedDeclaration|ReviewReplayOwnedSequence|ReviewReplayHistory|ReviewReplayHistoryPublicRestore|ReviewScalarCommentDML|ReviewScalarCommentDMLRoutes|ReviewScalarNonNullMissingOID|ReviewScalarPrivateCommentBoundary|ScalarFamilies|ScalarConstants|VolatileEffects|VolatileSequenceDependency|SequenceDropTransactionalCandidates|CorePreparedFrames|CoreAtomicity|CompleteRowAndAtomicity)$'
+make test PACKAGES=./reference RUN="$RUN" VERBOSE=0
+make reference RUN="$RUN" VERBOSE=0
+```
+
+The same definitions assert completed-row/default inputs, TRUE/NULL/FALSE,
+statement atomicity, exact diagnostics, dependency order and held prepared frames.
+Raw native nullability and ScanType are checked before normalization. Native
+Dump/Reset/Restore phases retain cursors, atomic failed replacement, owner-bearing
+streams and repeated replay; PostgreSQL consumes unchanged replay SQL where
+applicable. Native CREATE waits/cancels behind private sequence DROP without
+publishing fragments; PostgreSQL CREATE can finish and retain an orphan after
+DROP commits. Transactional COMMENT remains rejected natively and is a real
+private-comment witness on PostgreSQL. These are independent backend outcomes,
+not parity exceptions or fabricated native successes.
+
+Root CHECK diagnostic helpers and tagged `referenceCheckBackends` remain for
+unmigrated DEPARSE/VISIBILITY callers. They are not migrated SQL test bodies.
 
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean

@@ -778,6 +778,10 @@ and VALIDATE are not supported. The shared row validator is available to later
 existing-data validation work; this change does not implement that traversal.
 
 Public feature smoke: `make smoke RUN='^TestCheckSmoke$' VERBOSE=0`.
+The 31 root CHECK interaction tests now live as 38 merged/split dual-mode
+definitions in `reference/`. See the [complete CHECK selector](DEVELOPMENT.md#dual-mode-check-constraint-interactions)
+for Docker-free native and pinned PostgreSQL runs, including held frames,
+dependency ordering, cancellation and actual native replay controls.
 
 
 ## Ordinary B-tree index maintenance
