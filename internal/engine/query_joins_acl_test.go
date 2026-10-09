@@ -25,6 +25,15 @@ func TestQueryJoinsEverySourceACL(t *testing.T) {
 			{"SELECT a.k FROM a CROSS JOIN b WHERE b.v=1", 2},
 			{"SELECT a.ak FROM a AS a(ak,av) CROSS JOIN b ORDER BY v", 2},
 			{"SELECT count(*) FROM a CROSS JOIN b GROUP BY b.v HAVING b.v=1", 2},
+			{"SELECT 1 FROM a LEFT JOIN b ON FALSE LIMIT 0", 0},
+			{"SELECT 1 FROM a RIGHT JOIN b ON FALSE LIMIT 0", 0},
+			{"SELECT 1 FROM a FULL JOIN b ON FALSE LIMIT 0", 0},
+			{"SELECT 1 FROM a LEFT JOIN b USING(k) LIMIT 0", 1},
+			{"SELECT 1 FROM a RIGHT JOIN b USING(k) LIMIT 0", 1},
+			{"SELECT 1 FROM a FULL JOIN b USING(k) LIMIT 0", 1},
+			{"SELECT a.k FROM a NATURAL LEFT JOIN b LIMIT 0", 2},
+			{"SELECT a.k FROM a NATURAL RIGHT JOIN b LIMIT 0", 2},
+			{"SELECT a.k FROM a NATURAL FULL JOIN b LIMIT 0", 2},
 		} {
 			t.Run(tc.query+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
 				e := New()

@@ -5,11 +5,14 @@ package engine
 // carries, not an earlier leaf capture, so an already completed local recheck
 // is not resurrected as a new replacement. Rank/cache identity remains separate.
 func appendQueryVersions(dst []rowVersion, source *querySource, index int, locks *queryLockContext) []rowVersion {
-	if width := len(source.occurrences); width > 0 && (index+1)*width <= len(source.versions) {
-		first := source.versions[index*width]
-		if first.row != 0 || first.values != nil {
-			return append(dst, source.versions[index*width:(index+1)*width]...)
+	if index == absentQueryIndex {
+		for range queryOccurrenceWidth(source) {
+			dst = append(dst, rowVersion{})
 		}
+		return dst
+	}
+	if width := len(source.occurrences); width > 0 && (index+1)*width <= len(source.versions) && (source.versionValid == nil || index < len(source.versionValid) && source.versionValid[index]) {
+		return append(dst, source.versions[index*width:(index+1)*width]...)
 	}
 	if source.input != nil {
 		return appendQueryVersions(dst, source.input, index, locks)
@@ -26,6 +29,10 @@ func appendQueryVersions(dst []rowVersion, source *querySource, index int, locks
 		for j, occurrence := range source.occurrences {
 			leaf := locks.leaves[occurrence].source
 			visible := source.provenance[index*width+j]
+			if visible == absentQueryIndex {
+				dst = append(dst, rowVersion{})
+				continue
+			}
 			if leaf.anonymous != nil {
 				dst = append(dst, rowVersion{values: leaf.row(visible)})
 			} else {
@@ -51,6 +58,11 @@ func setQueryLineage(source *querySource, index int) {
 	}
 	if lineage := source.lineage; lineage != nil {
 		lineage.currentIndex = index
+		if index == absentQueryIndex {
+			lineage.currentOrder = nil
+			setQueryLineage(lineage.stage, index)
+			return
+		}
 		if lineage.cacheWidth != 0 {
 			occurrence := index
 			if lineage.cacheOccurrences != nil {
@@ -65,6 +77,11 @@ func setQueryLineage(source *querySource, index int) {
 		return
 	}
 	if source.joinPairs != nil {
+		if index == absentQueryIndex {
+			setQueryLineage(source.joinLeft, index)
+			setQueryLineage(source.joinRight, index)
+			return
+		}
 		pair := source.joinPairs[index]
 		setQueryLineage(source.joinLeft, pair.left)
 		setQueryLineage(source.joinRight, pair.right)

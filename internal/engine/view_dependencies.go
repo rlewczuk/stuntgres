@@ -305,7 +305,7 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				}
 			}
 		case *joinNode:
-			if n.leftWidth != len(n.left.Schema()) || n.rightWidth != len(n.right.Schema()) || len(n.Schema()) != n.leftWidth+n.rightWidth+len(n.merges) {
+			if n.kind > parser.JoinFull || n.leftWidth != len(n.left.Schema()) || n.rightWidth != len(n.right.Schema()) || len(n.Schema()) != n.leftWidth+n.rightWidth+len(n.merges) {
 				return fmt.Errorf("stuntgres: invalid view join frame")
 			}
 			for i, merge := range n.merges {

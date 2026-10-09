@@ -447,8 +447,11 @@ therefore does not make the whole legacy suite quick. Other unmigrated families,
 richer tagged ordering/lock complements, the standalone PostgreSQL count
 column-ACL test and DML rules/triggers, privilege and exact blocker/server-
 cancellation edges remain tagged. Root `queryCoreRows`, `nullCountError`,
-`queryJoinsPublicFixture`, `compareOpsRows`, `compareNullRows` and
-`castExplicitMetadata` remain for unmigrated callers, not as SQL test bodies.
+`compareOpsRows`, `compareNullRows` and `castExplicitMetadata` remain for
+unmigrated callers, not as SQL test bodies. Join product/alias/prepared/held-row
+and physical view-provenance witnesses now live in untagged reference scenarios;
+`make test PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`
+and the same RUN with `make reference` exercise the migrated assertion union.
 Untagged migrated definitions use the mode-aware fixture; host Dump/Reset/Restore
 and raw native cursor phases use its unwrapped native pool, with independently
 specified SQL consumer phases on PostgreSQL.

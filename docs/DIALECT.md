@@ -57,20 +57,21 @@ and atomic publication. No interval arithmetic, date-time cross-family cast,
 justify/extract/make_interval, wire protocol or physical storage is added.
 Smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 
-FROM supports comma products, CROSS JOIN, JOIN/INNER JOIN ON or USING, and
-NATURAL [INNER] JOIN, chains and parentheses. Table/whole-join aliases with or
+FROM supports comma products, CROSS JOIN, INNER/LEFT/RIGHT/FULL JOIN ON or USING,
+optional OUTER for non-inner kinds, and NATURAL variants, chains and parentheses. Table/whole-join aliases with or
 without AS support positional column aliases; qualified columns and mixed stars
 resolve the visible namespace. USING's special AS alias exposes merged keys
 without hiding operands. USING key order and NATURAL left-common-column order,
-duplicate multiplicities and NULL nonmatch follow PostgreSQL18.0. Merged common
-types may retain either physical origin or a synthetic conversion origin.
+duplicate multiplicities and NULL nonmatch follow PostgreSQL18.0. Unmatched
+operands receive typed NULLs before WHERE. LEFT/RIGHT merged keys select their
+coerced preserved operand; FULL uses COALESCE with no physical output origin.
 Every source is authorized and captures one coherent selected statement view.
 Prepared execution rebinds all sources; eager results survive native Reset/Restore.
-Outer/LATERAL joins, derived SELECT, CTE and function FROM remain excluded;
+LATERAL joins, derived SELECT, CTE and function FROM remain excluded;
 parenthesized VALUES is a supported non-lateral FROM operand.
 See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
-Feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`;
-independent pinned reference: `make reference RUN='^TestReferenceQueryJoins' VERBOSE=0`.
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`;
+independent pinned reference: `make reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
 
 Persistent CREATE VIEW supports the current SELECT body, optional prefix output
 names, security_barrier/security_invoker Boolean options, nested ordinary reads
@@ -126,6 +127,15 @@ RowIDs eagerly before result exposure and recheck the same frozen candidate
 combinations after READ COMMITTED contention. Unmarked reads remain nonblocking.
 Marks stored in a view apply to ordinary reads of that subtree, not unrelated
 sources; overlapping clauses normalize KEY SHARE < SHARE < NO KEY UPDATE < UPDATE.
+Enclosing marks reaching an outer join's nullable side reject on Execute after
+successful Prepare, including empty/LIMIT0 queries. Local stored input marks
+remain legal on either side of an unmarked outer query and settle at real-source
+demand, never at absent extensions. FULL path-capability0A000 is also Execute-only:
+immutable Boolean constants or a usable opposite-side equality conjunct admit it;
+inequality alone or same-side equality does not. Native left-major demand is not
+PostgreSQL's hash-build lock order: empty-left LEFT skips right input marks,
+empty-right RIGHT scans left input marks. Selected/preserved physical marks and
+LIMIT0 guarantees remain independently tested across backends.
 An unmarked upper aggregate may consume a marked view: input locks precede
 grouping/HAVING, so an empty HAVING result does not release them. A FOR clause
 reaching GROUP BY/HAVING/aggregate output fails mode-specific0A000; sequences

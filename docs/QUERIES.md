@@ -311,7 +311,8 @@ Independent pinned18.0 reference: `make reference RUN='^TestReferenceQueryOrder'
 ## Inner and cross joins — change note
 
 SELECT and its shared INSERT SELECT producer accept comma-separated FROM items,
-CROSS JOIN, JOIN/INNER JOIN with ON or USING, and NATURAL [INNER] JOIN. Explicit
+CROSS JOIN, JOIN/INNER JOIN and LEFT/RIGHT/FULL [OUTER] JOIN with ON or USING,
+and NATURAL [INNER | LEFT [OUTER] | RIGHT [OUTER] | FULL [OUTER]] JOIN. Explicit
 joins bind tighter than commas and associate left; parentheses preserve operand
 boundaries. Every matching left/right occurrence emits a row: duplicate values
 are not deduplicated. ON keeps only TRUE; FALSE and SQL NULL reject the pair.
@@ -334,7 +335,7 @@ Keyword-category alias names include bare `values`, `values(k)`, explicit
 
 USING emits merged keys in list order, followed by remaining left then right
 columns. NATURAL derives common keys in left exposed-column order; no common
-names means a Cartesian product. Every key participates in equality, so NULL keys
+names means ON TRUE (a Cartesian product for inner joins). Every key participates in equality, so NULL keys
 do not match. Qualified operand stars/columns retain the original keys and types.
 `USING(q,k) AS u` exposes only the merged keys through `u.*`/`u.k`, without hiding
 the operands; this special alias has no column-alias list.
@@ -353,13 +354,16 @@ SELECT * FROM (a JOIN b USING(k)) AS j(kk,ll);
 The product has sixteen occurrences. USING(q,k) has schema `q,k,l,r` and the
 bag `(9,1,'a','x')` four times. NATURAL has schema `k,q,l,r` and four matching
 occurrences. A merged INT4/INT8 key uses INT8 while qualified originals keep their
-types. Direct merged keys preserve the selected physical origin (which may be
-the right input); converted merged keys have synthetic origin/typmod metadata.
+types. INNER selects a common-type operand where possible; LEFT selects the
+coerced left key and RIGHT the coerced right key. FULL merges with COALESCE.
+An unconverted/unrelabelled selected key retains its physical origin; conversions
+and FULL merged keys have no physical origin. Nullable subtree descriptors are
+copied outward without mutating source declaration proofs or child frames.
 
 ON uses only its two operands: `a CROSS JOIN b JOIN c ON a.k=c.k` can see a,
 but `a,b JOIN c ON a.k=c.k` cannot. WHERE, targets, grouping/HAVING and the
 ORDER expressions resolve the complete joined namespace.
-Outer/LATERAL joins, derived SELECT queries, CTEs and FROM functions remain excluded;
+LATERAL joins, derived SELECT queries, CTEs and FROM functions remain excluded;
 parenthesized VALUES is a supported non-lateral source. UPDATE FROM and DELETE
 USING are not enabled by query joins.
 
@@ -396,9 +400,65 @@ and retained direct/computed rows and metadata survive append and Reset/Restore.
 The ordinary single-source indexed/no-copy path remains separate from joined
 admitted-frame materialization; rejected pairs do not build a Cartesian buffer.
 
-Feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
+### Outer joins — change note
+
+LEFT preserves every unmatched left occurrence, RIGHT every unmatched right
+occurrence, and FULL both. Each missing entire operand frame receives typed
+NULLs, including descendant synthetic slots; missing child expressions are not
+evaluated. Equal NULL keys never match. ON match state is recorded before WHERE:
+discarding all matched output rows with WHERE does not invent an unmatched row.
+For a=(1,a) twice,(2,b),(NULL,n) and b=(1,x) twice,(3,y),(NULL,m),
+equality produces four matching pairs plus LEFT's two, RIGHT's two, or FULL's
+four labeled unmatched rows:6/6/8. `ON ... AND b.r='x'` keeps LEFT6, whereas
+the same restriction in WHERE leaves4.
+
+FULL execution requires a Boolean constant after immutable/imported-parameter
+simplification or a genuine conjunctive, supported opposite-input equality key.
+Computed/coerced keys are supported; bare cross-input inequality, same-input
+equality, volatile keys and an equality hidden in an unsimplified OR are not.
+These planning-only restrictions report0A000 on Execute, after successful
+Prepare, even for empty inputs/LIMIT0. Binding errors retain their earlier stages.
+Constant CASE selection can produce a Boolean constant even when analysis retains
+dead-arm column dependencies. FULL legality recognizes that constant without
+discarding those dependencies or changing predicate evaluation.
+Negated supported comparisons use their effective operator for FULL planning:
+`NOT (CAST(a.k AS BIGINT)<>b.k)` is an equality key, including reversed operands
+and the `!=` spelling. Common keys across OR branches require the same bound
+operand order; reversing a key in only one branch does not make it common.
+`NOT (a.k=b.k)` and bare `a.k<>b.k` remain nonkeys without another usable conjunct.
+At the join match boundary, equality OR NULL has the same TRUE matches as equality,
+so `NOT ((a.k<>b.k) AND NULL::boolean)` is also eligible. This planning summary
+does not rewrite the execution predicate, its UNKNOWN results, dependencies,
+types or volatility checks.
+Removing leading constant NULL arguments from `COALESCE(NULL::boolean,a.k=b.k)`
+does not remove the COALESCE wrapper: it is not a FULL equality key and reports
+the same Execute-stage0A000, including LIMIT0. Ordinary scalar COALESCE evaluation
+is unchanged. Same-type USING keys with differing typmods publish the common
+unconstrained typmod in both their synthetic recipe and output slot, including
+stored/replayed views.
+
+The producer retains SQL operand order and scans left-major for all kinds.
+RIGHT/FULL track demanded right occurrences, not distinct values or pair matrices,
+and emit their unmatched tail lazily. LIMIT0 opens no producing child and evaluates
+no predicate/merge/output, but preserves binding, ACL, legality and coercion checks.
+An early LIMIT1 match does not demand another pair or the unmatched-right tail.
+Sorting/grouping remain blockers; public Next still reads finalized results only.
+
+An enclosing FOR clause reaching the nullable side of an outer join reports
+mode-specific0A000 on Execute (not Prepare). An unmarked outer query can consume
+locally marked view inputs on preserved or nullable sides; each local mark locks
+demanded real source rows even if no outer output match uses them. An absent
+occurrence has no RowID and cannot lock or recheck a physical row. Native demand
+is not PostgreSQL's physical hash-build order: empty-left LEFT never demands a
+marked right input, whereas empty-right RIGHT scans a marked left input.
+PostgreSQL's observed plan locks the former input and not the latter. These
+backend-specific extra scanned locks are independently asserted; selected and
+preserved real marked rows lock, LIMIT0 locks none, and rollback releases grants.
+
+
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
 Independent pinned PostgreSQL behavior and full diagnostic coverage:
-`make reference RUN='^TestReferenceQueryJoins' VERBOSE=0`.
+`make reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
 
 ## Persistent view sources — change note
 
@@ -1994,9 +2054,10 @@ ROW SHARE relation locks. Prepare is row-lock-free and does not check executor
 UPDATE privileges; Execute refreshes candidates and authority. A clause reaching
 GROUP BY, HAVING or aggregate output produces `0A000`, `<clause> is not allowed
 with GROUP BY clause` / `HAVING clause` / `aggregate functions`, without Position.
-Native Describe rejects an expanded grouped-view mark during Prepare; PostgreSQL
-18 Describe does not plan that expansion and reports the same error at Bind/
-execution. Tests retain independently specified phase evidence for this boundary.
+Expanded GROUP BY/HAVING/aggregate view marks are checked at Execute after a
+successful Prepare, matching PostgreSQL18 planning. Their grouping diagnostic
+takes precedence over descending into a nullable outer-join input. Direct query
+grouping/rowmark bind restrictions remain unchanged.
 Sequences produce `42809`, `cannot lock rows in sequence "s"` at execution;
 ordinary sequence SELECT is unchanged. READ ONLY and REPEATABLE READ diagnostics
 and the four-by-four matrix are documented in

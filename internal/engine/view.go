@@ -393,6 +393,9 @@ func (v *viewDefinition) validateNamespaces() error {
 		case *parser.JoinReference:
 			root = viewJoinAt(viewFromRoot(v.query.Root), join)
 			join++
+			if bound, ok := root.(*joinNode); !ok || bound.kind != n.Kind || n.Kind > parser.JoinFull {
+				return nil, fmt.Errorf("stuntgres: inconsistent view join kind")
+			}
 			if _, err := visit(n.Left); err != nil {
 				return nil, err
 			}

@@ -336,6 +336,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			b.update, err = preflightUpdate(&evaluation, b.update)
 		} else if b.query != nil {
 			queryRoot, err = preflightQuery(&evaluation, b.query.Root)
+			if err == nil {
+				err = validateQueryJoinExecution(&evaluation, queryRoot, auth.catalog, 0)
+			}
 		} else if deleting {
 			if b.predicate != nil {
 				b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)

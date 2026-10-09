@@ -6,8 +6,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// View rowmarks share the enclosing query's frontier and physical occurrence
-// manifest. The admitted top-level StatementScope.querySources stays unchanged.
+// View rowmarks share the existing arbitration and expanded physical occurrence
+// manifest. Outer joins settle local input marks at source demand, before match
+// filtering. The admitted top-level StatementScope.querySources stays unchanged.
 type queryLockContext struct {
 	leaves []queryLockLeaf
 }
@@ -16,6 +17,7 @@ type queryLockLeaf struct {
 	source  *querySource
 	mode    relationLockMode
 	changed bool
+	absent  bool
 }
 type queryLockLineage struct {
 	root             LogicalNode
@@ -97,37 +99,6 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	}
 	return 0, nil
 }
-func validateQueryViewRowMarks(leaves []queryLeaf, mode relationLockMode, catalog CatalogRead) error {
-	if _, err := validateViewReadGraph(catalog, leaves); err != nil {
-		return err
-	}
-	var visit func(*relationDescriptor, relationLockMode) error
-	visit = func(d *relationDescriptor, inherited relationLockMode) error {
-		if d.view == nil {
-			return nil
-		}
-		inherited = viewRowMode(d.view, inherited)
-		if err := viewRowLockLegality(d.view, inherited); err != nil {
-			return err
-		}
-		for _, leaf := range d.view.sources {
-			child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-			if !ok || leaf.ref.owner != catalog.owner.owner || leaf.ref.Epoch != catalog.Epoch() {
-				return ErrCatalogReplaced
-			}
-			if err := visit(child, inherited); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	for _, leaf := range leaves {
-		if err := visit(leaf.relation, mode); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 func viewRowMode(d *viewDefinition, inherited relationLockMode) relationLockMode {
 	return strongerQueryRowMode(inherited, queryRootRowMode(d.query.Root))
 }
@@ -191,8 +162,8 @@ func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
 	return nil
 }
 
-// Called before any source expression is opened. Kind and authorization checks
-// remain Execute-only; Describe checks structural expanded-view grouping.
+// Called before any source expression is opened. Inherited rowmark legality,
+// kind and authorization checks remain Execute-only.
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) error {
 	inherited := queryRootRowMode(root)
 	marked, views := false, false
@@ -340,6 +311,9 @@ func queryLockSourceWidth(source *querySource) int {
 	return 0
 }
 func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int) ([]sqltype.Value, bool, error) {
+	if source.lineage != nil && source.lineage.currentIndex == absentQueryIndex {
+		return nil, true, nil
+	}
 	if source.input != nil {
 		row, ok, err := recheckLockedSource(source.input, rows, evaluation, scratch, offset)
 		if err != nil || !ok {
@@ -372,6 +346,9 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 	return rows[source.occurrence], true, nil
 }
 func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
+	if absentLockedQuery(node, inputs, evaluation.statementScope.queryLocks) {
+		return nil, true, nil
+	}
 	switch n := node.(type) {
 	case *valuesNode:
 		return frozen, true, nil
@@ -441,12 +418,28 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		}
 		frame := scratch[*offset : *offset+len(n.Schema())]
 		*offset += len(frame)
-		copy(frame, left)
-		copy(frame[n.leftWidth:], right)
+		leftAbsent := absentLockedQuery(n.left, inputs, evaluation.statementScope.queryLocks)
+		rightAbsent := absentLockedQuery(n.right, inputs, evaluation.statementScope.queryLocks)
+		if leftAbsent {
+			for i := range n.leftWidth {
+				frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
+			}
+		} else {
+			copy(frame, left)
+		}
+		if rightAbsent {
+			for i := n.leftWidth; i < n.leftWidth+n.rightWidth; i++ {
+				frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
+			}
+		} else {
+			copy(frame[n.leftWidth:], right)
+		}
 		evaluation.Row = frame
-		matches, err := updateMatches(evaluation, n.predicate)
-		if err != nil || !matches {
-			return nil, matches, err
+		if !leftAbsent && !rightAbsent {
+			matches, err := updateMatches(evaluation, n.predicate)
+			if err != nil || !matches {
+				return nil, matches, err
+			}
 		}
 		for i, expr := range n.merges {
 			value, err := expr.Eval(evaluation)
@@ -461,7 +454,8 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 }
 
 // Arbitrate the qualified physical input before projection or aggregation
-// consumes its provenance. Scalar view layers defer to their enclosing frontier.
+// consumes its provenance. Scalar view layers defer to their nearest owning
+// frontier, including an outer join's local input producer.
 func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode, child indexedStage) (indexedStage, error) {
 	locks, scope := state.source.locks, state.source.scope
 	due := make([]relationLockMode, len(locks.leaves))
@@ -500,6 +494,12 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 			for j, occurrence := range occurrences {
 				entry := locks.leaves[occurrence]
 				visible := provenance[j]
+				locks.leaves[occurrence].absent = visible == absentQueryIndex
+				if visible == absentQueryIndex {
+					currentRows[occurrence] = nil
+					locks.leaves[occurrence].changed = false
+					continue
+				}
 				mode := due[occurrence]
 				if mode == 0 {
 					currentRows[occurrence] = versions[j].values
@@ -546,10 +546,22 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 					copy(child.source.row(index), row)
 				}
 				width := len(occurrences)
-				if missing := (index+1)*width - len(source.versions); missing > 0 {
-					source.versions = append(source.versions, make([]rowVersion, missing)...)
+				if width > 0 {
+					if missing := (index+1)*width - len(source.versions); missing > 0 {
+						if source.versionValid == nil {
+							source.versionValid = make([]bool, len(source.versions)/width)
+							for i := range source.versionValid {
+								source.versionValid[i] = true
+							}
+						}
+						source.versionValid = append(source.versionValid, make([]bool, index+1-len(source.versionValid))...)
+						source.versions = append(source.versions, make([]rowVersion, missing)...)
+					}
+					copy(source.versions[index*width:(index+1)*width], versions)
+					if source.versionValid != nil {
+						source.versionValid[index] = true
+					}
 				}
-				copy(source.versions[index*width:(index+1)*width], versions)
 				out.selection = append(out.selection, index)
 			} else {
 				if changed || child.source.input != nil || child.source.final != nil && child.source.final.source != nil {

@@ -627,8 +627,9 @@ plus UPDATE on any live column of each marked base source. View descendant
 authority uses the current owner or original security_invoker, only at Execute.
 Sequences reject row marks with42809, `cannot lock rows in sequence "s"`.
 A clause reaching GROUP BY, HAVING or aggregate output rejects with mode-specific
-0A000 without a synthetic Position. Expanded grouped-view legality is structural
-at native Prepare; PostgreSQL18 reports it when Bind builds the plan.
+0A000 without a synthetic Position. Inherited expanded-view grouping legality
+is checked at Execute after successful Prepare, before nullable outer-join
+descendants; direct grouped-query bind restrictions remain unchanged.
 Native virtual catalogs fail0A000 `row locking is not supported for virtual
 catalog relations`, even beneath views or when empty. PostgreSQL physical
 catalog row locking is separately exercised, not claimed as native parity.

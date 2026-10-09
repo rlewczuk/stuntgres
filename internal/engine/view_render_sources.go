@@ -270,12 +270,21 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 			}
 		}
 		v.slots[bound] = from.slots
+		joinText := " JOIN "
+		switch bound.kind {
+		case parser.JoinLeft:
+			joinText = " LEFT JOIN "
+		case parser.JoinRight:
+			joinText = " RIGHT JOIN "
+		case parser.JoinFull:
+			joinText = " FULL JOIN "
+		}
 		if n.On != nil {
 			on, err := v.expressionSQL(ctx, catalog, n.On, viewLiteralPath{clause: viewJoinLiteral, target: ordinal})
 			if err != nil {
 				return viewRenderFrom{}, err
 			}
-			from.text = "(" + left.text + " JOIN " + right.text + " ON " + on + ")"
+			from.text = "(" + left.text + joinText + right.text + " ON " + on + ")"
 		} else if len(ns.keys) > 0 {
 			keys := make([]string, len(ns.keys))
 			for i, key := range ns.keys {
@@ -288,13 +297,17 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 					from.slots[c.slot] = quoteIdentifier(usingAlias) + "." + quoteIdentifier(key)
 				}
 			}
-			from.text = "(" + left.text + " JOIN " + right.text + " USING (" + strings.Join(keys, ", ") + ")"
+			from.text = "(" + left.text + joinText + right.text + " USING (" + strings.Join(keys, ", ") + ")"
 			if usingAlias != "" {
 				from.text += " AS " + quoteIdentifier(usingAlias)
 			}
 			from.text += ")"
 		} else {
-			from.text = "(" + left.text + " CROSS JOIN " + right.text + ")"
+			if bound.kind == parser.JoinInner {
+				from.text = "(" + left.text + " CROSS JOIN " + right.text + ")"
+			} else {
+				from.text = "(" + left.text + joinText + right.text + " ON TRUE)"
+			}
 		}
 		for _, columns := range [][]viewRenderColumn{left.columns, right.columns} {
 			for _, c := range columns {

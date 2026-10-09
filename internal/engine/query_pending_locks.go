@@ -1,6 +1,9 @@
 package engine
 
-import "context"
+import (
+	"context"
+	"stuntgres/internal/parser"
+)
 
 // Each manifest entry carries a requested mode for expanded physical occurrence
 // identities. Entries are immutable; frontier arbitration combines them in
@@ -24,6 +27,11 @@ func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPending
 	case *sourceNode:
 		return pendingSourceMarks(querySourceAt(inputs, n.occurrence), dst)
 	case *joinNode:
+		if n.kind != parser.JoinInner {
+			// Outer joins consume each local input mark before ON matching.
+			// Do not lift it back onto matched or NULL-extended output.
+			return dst
+		}
 		dst = pendingQueryMarks(n.left, inputs, dst)
 		return pendingQueryMarks(n.right, inputs, dst)
 	case *sortNode, *aggregateNode, *limitNode:

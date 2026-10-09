@@ -18,16 +18,7 @@ func TestReferenceRowLockViewDiagnostics(t *testing.T) {
 			for _, prepared := range []bool{false, true} {
 				failure := referenceImplicitError("SELECT * FROM "+tc.name+" "+clause, referenceDiagnostic{Code: "0A000", Message: clause + " is not allowed with " + tc.suffix})
 				failure.selectRows, failure.prepared, failure.errorStage = true, prepared, "execute"
-				// REL18 plans expanded views at Bind, not Describe Statement. Native common
-				// Describe already performs structural legality. Preserve both phase records:
-				// this is an explicitly specified protocol distinction, not blanket parity.
-				for _, backend := range p.backends() {
-					want := failure
-					if prepared && !backend.pg {
-						want.errorStage = "prepare"
-					}
-					referenceRunStep(t, p.ctx, backend.db, backend.recorder, want)
-				}
+				p.step(t, failure)
 			}
 		}
 	}

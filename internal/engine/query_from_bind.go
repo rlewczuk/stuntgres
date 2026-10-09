@@ -271,7 +271,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		join := &joinNode{querySchema: ns.frame, left: left, right: right, leftWidth: len(lns.frame), rightWidth: len(rns.frame)}
+		join := &joinNode{querySchema: ns.frame, kind: n.Kind, left: left, right: right, leftWidth: len(lns.frame), rightWidth: len(rns.frame)}
 		old := b.queryNamespace
 		b.queryNamespace = &ns
 		defer func() { b.queryNamespace = old }()
@@ -337,18 +337,47 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 					return nil, queryNamespace{}, err
 				}
 				column := l
-				if l.descriptor.Usage != usage {
-					if r.descriptor.Usage == usage {
-						column = r
-					} else {
-						plan, err := sqltype.PlanCoercion(le.ResultUsage(), usage, sqltype.Implicit)
+				if n.Kind == parser.JoinRight || n.Kind == parser.JoinInner && l.descriptor.Usage != usage && r.descriptor.Usage == usage {
+					column = r
+				}
+				chosen := le
+				if column.slot == r.slot {
+					chosen = re
+				}
+				if n.Kind == parser.JoinFull || column.descriptor.Usage != usage {
+					var value BoundExpr
+					if n.Kind == parser.JoinFull {
+						lv, err := b.coerceConditional(comparisonOperand{node: le}, usage, "JOIN/USING")
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1}
-						join.merges = append(join.merges, coercionExpression{b.info(usage, pos, coercionProperties(le, plan)), le, plan, sqltype.Implicit})
-						ns.frame = append(ns.frame, column.descriptor)
+						rv, err := b.coerceConditional(comparisonOperand{node: re}, usage, "JOIN/USING")
+						if err != nil {
+							return nil, queryNamespace{}, err
+						}
+						value = conditionalExpression{expressionInfo: b.info(usage, pos, ExprProperties{RowDependent: true}), kind: parser.Coalesce, args: []BoundExpr{lv, rv}}
+					} else {
+						value, err = b.coerceConditional(comparisonOperand{node: chosen}, usage, "JOIN/USING")
+						if err != nil {
+							return nil, queryNamespace{}, err
+						}
 					}
+					if value.ResultUsage() != usage {
+						// A same-type common key can still lose its typmod.
+						// Publish that relabel in the recipe as well as the slot.
+						plan, err := sqltype.PlanCoercion(value.ResultUsage(), usage, sqltype.Implicit)
+						if err != nil {
+							return nil, queryNamespace{}, err
+						}
+						info, err := collatedInfo(b.info(usage, pos, coercionProperties(value, plan)), value)
+						if err != nil {
+							return nil, queryNamespace{}, err
+						}
+						value = coercionExpression{info, value, plan, sqltype.Implicit}
+					}
+					column = queryColumn{descriptor: ColumnDescriptor{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1}
+					join.merges = append(join.merges, value)
+					ns.frame = append(ns.frame, column.descriptor)
 				}
 				column.descriptor.Name = key.Text
 				merged = append(merged, column)
@@ -375,6 +404,40 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 				}
 			}
 			ns.columns = merged
+		}
+		if n.Kind != parser.JoinInner {
+			// ON and USING bind against the original operands. Only the outward
+			// namespace acquires nullable proofs; child/catalog descriptors stay immutable.
+			nullable := func(slot int) bool {
+				return n.Kind == parser.JoinFull && slot < join.leftWidth+join.rightWidth ||
+					n.Kind == parser.JoinLeft && slot >= join.leftWidth && slot < join.leftWidth+join.rightWidth ||
+					n.Kind == parser.JoinRight && slot < join.leftWidth
+			}
+			for i := range ns.frame {
+				if nullable(i) {
+					ns.frame[i].Nullable, ns.frame[i].NullabilityKnown = true, true
+				}
+			}
+			for i := range ns.columns {
+				c := &ns.columns[i]
+				if nullable(c.slot) {
+					c.descriptor.Nullable, c.descriptor.NullabilityKnown = true, true
+				}
+			}
+			for i := range ns.qualifiers {
+				copied := false
+				for j, column := range ns.qualifiers[i].columns {
+					if !nullable(column.slot) {
+						continue
+					}
+					if !copied {
+						ns.qualifiers[i].columns = append([]queryColumn(nil), ns.qualifiers[i].columns...)
+						copied = true
+					}
+					c := &ns.qualifiers[i].columns[j]
+					c.descriptor.Nullable, c.descriptor.NullabilityKnown = true, true
+				}
+			}
 		}
 		join.querySchema = ns.frame
 		return join, ns, nil

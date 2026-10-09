@@ -16,8 +16,19 @@ type ValuesQuery struct {
 
 func (*ValuesQuery) fromItem() {}
 
+// JoinKind preserves SQL operand order; zero is the ordinary inner join.
+type JoinKind uint8
+
+const (
+	JoinInner JoinKind = iota
+	JoinLeft
+	JoinRight
+	JoinFull
+)
+
 type JoinReference struct {
 	Left, Right FromItem
+	Kind        JoinKind
 	On          Expr
 	Using       []Identifier
 	Natural     bool

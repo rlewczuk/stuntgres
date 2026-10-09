@@ -323,6 +323,7 @@ type querySource struct {
 	occurrences         []int
 	provenance          []int
 	versions            []rowVersion
+	versionValid        []bool // Nil: complete sequential cache; nonnil: sparse frontier.
 	joinLeft, joinRight *querySource
 	joinPairs           []queryPair
 }
@@ -359,6 +360,9 @@ func (s *querySource) count() int {
 	return len(s.committed) + len(s.own)
 }
 func (s *querySource) row(i int) []sqltype.Value {
+	if i == absentQueryIndex {
+		return nil
+	}
 	if s.materialized {
 		if s.anonymous != nil {
 			return s.anonymous[i]
@@ -402,12 +406,18 @@ func (s *querySource) row(i int) []sqltype.Value {
 	return s.versionAt(s.rawIndex(i)).values
 }
 func (s *querySource) rawIndex(i int) int {
+	if i == absentQueryIndex {
+		return i
+	}
 	if s.visible != nil {
 		return s.visible[i]
 	}
 	return i
 }
 func (s *querySource) versionAt(i int) rowVersion {
+	if i == absentQueryIndex {
+		return rowVersion{}
+	}
 	if i < len(s.committed) {
 		return s.committed[i]
 	}
@@ -434,6 +444,7 @@ func (s *querySource) close() {
 	s.occurrences = nil
 	s.provenance = nil
 	s.versions = nil
+	s.versionValid = nil
 	s.joinLeft, s.joinRight, s.joinPairs = nil, nil, nil
 	s.flatCount = 0
 	s.flatWidth = 0

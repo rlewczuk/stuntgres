@@ -3,11 +3,13 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type joinNode struct {
 	querySchema
+	kind                  parser.JoinKind
 	left, right           LogicalNode
 	predicate             BoundExpr
 	leftWidth, rightWidth int
@@ -86,6 +88,22 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		right.Close()
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid join frame width")
 	}
+	if n.kind != parser.JoinInner {
+		settledLeft, failure := settlePendingQueryMarks(ctx, state, n.left, left)
+		if failure != nil {
+			left.Close()
+			right.Close()
+			return indexedStage{}, failure
+		}
+		left = settledLeft
+		settledRight, failure := settlePendingQueryMarks(ctx, state, n.right, right)
+		if failure != nil {
+			left.Close()
+			right.Close()
+			return indexedStage{}, failure
+		}
+		right = settledRight
+	}
 	frame := make([]sqltype.Value, width)
 	source := &querySource{flatWidth: width, materialized: true}
 	locking := state.locking || state.source.locks != nil
@@ -112,38 +130,102 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	}
 	evaluation := EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, Row: frame, statementScope: state.source.scope, Input: state.input, Output: state.output}
 	leftOccurrence, rightOccurrence := -1, 0
+	leftMatched, tail := false, false
+	var rightMatched []bool
+	preserveLeft := n.kind == parser.JoinLeft || n.kind == parser.JoinFull
+	preserveRight := n.kind == parser.JoinRight || n.kind == parser.JoinFull
+	nullFrame := func(start, count int) {
+		for i := start; i < start+count; i++ {
+			frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
+		}
+	}
+	emit := func(ctx context.Context, out *indexedStage, li, ri int) (bool, error) {
+		evaluation.Context = ctx
+		for k, expr := range n.merges {
+			value, err := expr.Eval(&evaluation)
+			if err != nil {
+				return false, err
+			}
+			if err := validateProducedValue(value, n.Schema()[n.leftWidth+n.rightWidth+k].Usage); err != nil {
+				return false, err
+			}
+			frame[n.leftWidth+n.rightWidth+k] = value
+		}
+		maxInt := int(^uint(0) >> 1)
+		if source.flatCount == maxInt || len(source.flat) > maxInt-width {
+			return false, fmt.Errorf("stuntgres: join result is too large")
+		}
+		source.flat = append(source.flat, frame...)
+		if locking {
+			source.provenance = appendQueryProvenance(source.provenance, left.source, li)
+			source.provenance = appendQueryProvenance(source.provenance, right.source, ri)
+			if state.source.locks != nil {
+				source.versions = appendQueryVersions(source.versions, left.source, li, state.source.locks)
+				source.versions = appendQueryVersions(source.versions, right.source, ri, state.source.locks)
+				source.joinPairs = append(source.joinPairs, queryPair{left: li, right: ri})
+			}
+		}
+		out.selection = append(out.selection, source.flatCount)
+		source.flatCount++
+		return true, ctx.Err()
+	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		for {
 			if err := ctx.Err(); err != nil {
 				return false, err
 			}
-			if leftOccurrence < 0 {
+			if !tail && leftOccurrence < 0 {
 				i, present, err := left.nextOccurrence(ctx)
-				if err != nil || !present {
-					return present, err
+				if err != nil {
+					return false, err
 				}
-				leftOccurrence, rightOccurrence = i, 0
-				row := left.source.row(left.index(i))
-				if len(row) != n.leftWidth {
-					return false, fmt.Errorf("stuntgres: invalid left join frame")
+				if !present {
+					if !preserveRight {
+						return false, nil
+					}
+					tail, rightOccurrence = true, 0
+					nullFrame(0, n.leftWidth)
+				} else {
+					leftOccurrence, rightOccurrence, leftMatched = i, 0, false
+					row := left.source.row(left.index(i))
+					if len(row) != n.leftWidth {
+						return false, fmt.Errorf("stuntgres: invalid left join frame")
+					}
+					copy(frame, row)
 				}
-				copy(frame, row)
 			}
 			present, err := right.ensure(ctx, rightOccurrence)
 			if err != nil {
 				return false, err
 			}
 			if !present {
+				if tail {
+					return false, nil
+				}
+				li := left.index(leftOccurrence)
 				leftOccurrence = -1
+				if preserveLeft && !leftMatched {
+					nullFrame(n.leftWidth, n.rightWidth)
+					return emit(ctx, out, li, absentQueryIndex)
+				}
 				continue
 			}
 			j := rightOccurrence
 			rightOccurrence++
+			if preserveRight && j == len(rightMatched) {
+				rightMatched = append(rightMatched, false)
+			}
+			if tail && rightMatched[j] {
+				continue
+			}
 			row := right.source.row(right.index(j))
 			if len(row) != n.rightWidth {
 				return false, fmt.Errorf("stuntgres: invalid right join frame")
 			}
 			copy(frame[n.leftWidth:], row)
+			if tail {
+				return emit(ctx, out, absentQueryIndex, right.index(j))
+			}
 			evaluation.Context = ctx
 			if n.predicate != nil {
 				matches, err := updateMatches(&evaluation, n.predicate)
@@ -154,33 +236,11 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 					continue
 				}
 			}
-			for k, expr := range n.merges {
-				value, err := expr.Eval(&evaluation)
-				if err != nil {
-					return false, err
-				}
-				if err := validateProducedValue(value, n.Schema()[n.leftWidth+n.rightWidth+k].Usage); err != nil {
-					return false, err
-				}
-				frame[n.leftWidth+n.rightWidth+k] = value
+			leftMatched = true
+			if preserveRight {
+				rightMatched[j] = true
 			}
-			maxInt := int(^uint(0) >> 1)
-			if source.flatCount == maxInt || len(source.flat) > maxInt-width {
-				return false, fmt.Errorf("stuntgres: join result is too large")
-			}
-			source.flat = append(source.flat, frame...)
-			if locking {
-				source.provenance = appendQueryProvenance(source.provenance, left.source, left.index(leftOccurrence))
-				source.provenance = appendQueryProvenance(source.provenance, right.source, right.index(j))
-				if state.source.locks != nil {
-					source.versions = appendQueryVersions(source.versions, left.source, left.index(leftOccurrence), state.source.locks)
-					source.versions = appendQueryVersions(source.versions, right.source, right.index(j), state.source.locks)
-					source.joinPairs = append(source.joinPairs, queryPair{left: left.index(leftOccurrence), right: right.index(j)})
-				}
-			}
-			out.selection = append(out.selection, source.flatCount)
-			source.flatCount++
-			return true, ctx.Err()
+			return emit(ctx, out, left.index(leftOccurrence), right.index(j))
 		}
 	}
 	return out, nil

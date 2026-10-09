@@ -65,13 +65,15 @@ presentation. This does not add timezone catalog views, general INTERVAL arithme
 or the CURRENT_* producer family.
 Public feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
 
-SELECT and INSERT SELECT support comma products, CROSS JOIN and inner joins
-with ON, USING or NATURAL, including nested joins, FROM/column aliases and the
-special USING alias. Qualified columns and mixed qualified stars preserve
-duplicate occurrences; unordered results are bags, not a traversal-order promise.
+SELECT and INSERT SELECT support comma products, CROSS JOIN and inner or
+LEFT/RIGHT/FULL [OUTER] joins with ON, USING or NATURAL, including nested joins,
+FROM/column aliases and the special USING alias. Unmatched operands receive
+typed NULLs; ON determines matches before WHERE filters output. Duplicate
+occurrences survive (the documented fixture yields LEFT6/RIGHT6/FULL8).
 Prepared executions freshly bind every source, and eager results survive native
 Reset/Restore. See [join semantics and limits](docs/QUERIES.md#inner-and-cross-joins--change-note).
-Public feature smoke: `make smoke RUN='^TestQueryJoinsSmoke' VERBOSE=0`.
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|JoinsPreservation)' VERBOSE=0`;
+pinned reference: `make reference RUN='^TestReferenceQuery(OuterJoins|JoinsPreservation)' VERBOSE=0`.
 
 Alias diagnostic fidelity includes suggestions using exposed renamed columns,
 Unicode character positions, fuzzy-tie and distant-qualifier suppression.
@@ -352,6 +354,11 @@ SELECT sources) supports one trailing `FOR KEY SHARE`, `FOR SHARE`,
 `FOR NO KEY UPDATE` or `FOR UPDATE`. Locks belong to contributing physical base
 RowIDs, not view output values or the entire table. Stored view clauses also apply
 to otherwise ordinary reads; unmarked SELECT remains a nonblocking MVCC read.
+Enclosing rowmarks over an outer join reject on Execute, including LIMIT0;
+Prepare still describes a valid query. An unmarked outer query may consume locally
+marked views on either input. Native locks real source rows at its left-major
+demand frontier, never absent NULL extensions; PostgreSQL may scan extra rows
+through a different physical plan. LIMIT0 locks none.
 READ COMMITTED lockers recheck
 the current version after contention; REPEATABLE READ KEY SHARE retains snapshot
 values after compatible keyless updates, while stronger modes and deletions fail.

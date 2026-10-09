@@ -77,9 +77,10 @@ from_list := from_item [, from_item ...]
 from_item := [schema.]name [[AS] alias [(column [, ...])]]
            | (from_list) [[AS] alias [(column [, ...])]]
            | from_item CROSS JOIN from_item
-           | from_item [INNER] JOIN from_item ON logical_predicate
-           | from_item [INNER] JOIN from_item USING (column [, ...]) [AS merged_alias]
-           | from_item NATURAL [INNER] JOIN from_item
+           | from_item join_kind JOIN from_item ON logical_predicate
+           | from_item join_kind JOIN from_item USING (column [, ...]) [AS merged_alias]
+           | from_item NATURAL join_kind JOIN from_item
+join_kind := [INNER] | LEFT [OUTER] | RIGHT [OUTER] | FULL [OUTER]
 SELECT selected_call [, selected_call ...]
 type  := SMALLINT | INT2 | INTEGER | INT | INT4 | BIGINT | INT8 | TEXT | BOOLEAN | BOOL
        | REAL | FLOAT4 | DOUBLE PRECISION | FLOAT8 | FLOAT[(p)]
@@ -207,8 +208,10 @@ capability guard (`0A000` at a raw dot), rather than gaining a FROM namespace.
 Grouped scalar qualifiers retain their syntax boundary; existing selected
 singleton calls and zero-width INSERT SELECT admission are unchanged.
 USING emits list-order keys, then remaining left/right columns; NATURAL derives
-left-order common names, with no common name equivalent to CROSS JOIN. Results
-preserve all matching occurrences and promise no unordered traversal sequence.
+left-order common names. With no common name the condition is TRUE: inner joins
+are equivalent to CROSS JOIN, outer joins retain preservation. Results preserve
+all duplicate occurrences, extend missing operands with typed NULLs before WHERE,
+and promise no unordered traversal sequence.
 See [the join examples and ownership contract](QUERIES.md#inner-and-cross-joins--change-note).
 
 Conditional expressions compose with the existing scalar consumers, including
@@ -312,6 +315,15 @@ An outer clause combines using the strongest SQL mode; unrelated sources are
 not marked by a definition. Ordinary aggregation over a marked view is legal
 and locks qualifying input before grouping/HAVING, even if output is empty.
 A clause reaching a grouped/aggregate view is instead mode-specific0A000.
+An enclosing clause reaching a nullable outer-join input rejects with
+mode-specific0A000 on Execute after successful Prepare. Unmarked outer queries
+may consume locally marked stored inputs on either side: only demanded real
+source rows can lock; absence is explicit and never a physical RowID.
+Native preserves left-major demand rather than PostgreSQL's physical hash-build
+frontier, including independently tested extra scanned locks on empty inputs.
+FULL join capability likewise checks on Execute, before any producer opens,
+including LIMIT0/empty inputs; a simplified Boolean constant or supported
+opposite-input equality conjunct is required.
 Native retains its eager input frontier even for constant HAVING FALSE or an
 upper WHERE FALSE. PostgreSQL can gate those constants before consuming the
 marked child and therefore acquire no input grants. Runtime aggregate-dependent
@@ -397,8 +409,9 @@ relation identities with full positional alias lists mapping surviving attribute
 IDs to frozen namespace labels; unrelated compaction cannot retarget a prefix
 alias, and added attributes get noncolliding labels. Table/self-join and whole-join
 aliases retain their visibility boundaries. Explicit USING remains USING, and
-NATURAL becomes its creation-time explicit USING key list (or CROSS JOIN when
-empty), so current names cannot broaden the join. Merged values and implicit
+NATURAL becomes its creation-time explicit USING key list (or CROSS JOIN for
+empty inner keys, the same outer kind ON TRUE for empty outer keys), so current
+names cannot broaden the join. LEFT/RIGHT/FULL kinds, merged values and implicit
 common-type conversions are recreated by the ordinary USING binder, not explicit
 casts. Stored ORDER preserves frozen input-slot identity through qualified
 physical or merged namespaces, while output references are frozen separately
@@ -736,7 +749,7 @@ See [UPDATE RETURNING](QUERIES.md#update-returning--change-note).
 ## Unsupported surface
 
 Database-qualified relation names, temporary tables (TEMP sequences are supported),
-outer/LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
+LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults/CHECK/identity, ALTER ADD CHECK/VALIDATE,
 non-column serial type uses, default-containing ALTER lists, primary keys,

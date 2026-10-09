@@ -59,6 +59,7 @@ package parser
  sequence *CreateSequence
  alterSequence *AlterSequence
  integer int64
+ joinKind JoinKind
  persistence string
  identity *IdentityDefinition
  identityMode IdentityMode
@@ -91,7 +92,7 @@ package parser
 %token <tok> HAVING
 %token <tok> FOR
 %token <tok> LIMIT OFFSET FETCH
-%token <tok> CROSS INNER JOIN NATURAL USING VIEW
+%token <tok> CROSS INNER JOIN NATURAL USING VIEW LEFT RIGHT FULL OUTER
 %token <tok> DELETE
 %token <tok> RETURNING
 %token <tok> BETWEEN SYMMETRIC
@@ -155,7 +156,7 @@ package parser
 %nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %nonassoc STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD
 %nonassoc '('
-%nonassoc KW_T CROSS INNER JOIN NATURAL LIKE ILIKE WITH WITHOUT
+%nonassoc KW_T CROSS INNER JOIN NATURAL LEFT RIGHT FULL OUTER LIKE ILIKE WITH WITHOUT
 %nonassoc '='
 %left COLLATE
 %left ':'
@@ -229,7 +230,8 @@ package parser
 %type <fromItem> from_list joined_table from_atom from_base
 %type <identifiers> alias_columns using_columns
 %type <identifier> using_alias
-%type <desc> inner_join
+%type <joinKind> inner_join
+%type <desc> optional_outer
 %type <alterTarget> alter_target rename_target
 %type <lockTargets> lock_targets
 %type <lockMode> lock_mode optional_lock_mode
@@ -901,6 +903,10 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | INNER '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | JOIN '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | NATURAL '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | LEFT '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | RIGHT '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | FULL '(' { sqllex.(*lexer).call($1,$2); return 1 }
+ | OUTER '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | IS '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | LIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
  | ILIKE '(' { sqllex.(*lexer).call($1,$2); return 1 }
@@ -1016,10 +1022,14 @@ from_list: joined_table { $$=$1 }
  | from_list ',' joined_table { $$=&JoinReference{Left:$1,Right:$3,Pos:$2.pos} } ;
 joined_table: from_atom { $$=$1 }
  | joined_table CROSS JOIN from_atom { $$=&JoinReference{Left:$1,Right:$4,Pos:$2.pos} }
- | joined_table inner_join JOIN from_atom ON target_or { $$=&JoinReference{Left:$1,Right:$4,On:$6,Pos:$3.pos} }
- | joined_table inner_join JOIN from_atom USING '(' using_columns ')' using_alias { $$=&JoinReference{Left:$1,Right:$4,Using:$7,UsingAlias:$9,Pos:$3.pos} }
- | joined_table NATURAL inner_join JOIN from_atom { $$=&JoinReference{Left:$1,Right:$5,Natural:true,Pos:$2.pos} } ;
-inner_join: /* empty */ { $$=false } | INNER { $$=true } ;
+ | joined_table inner_join JOIN from_atom ON target_or { $$=&JoinReference{Left:$1,Right:$4,Kind:$2,On:$6,Pos:$3.pos} }
+ | joined_table inner_join JOIN from_atom USING '(' using_columns ')' using_alias { $$=&JoinReference{Left:$1,Right:$4,Kind:$2,Using:$7,UsingAlias:$9,Pos:$3.pos} }
+ | joined_table NATURAL inner_join JOIN from_atom { $$=&JoinReference{Left:$1,Right:$5,Kind:$3,Natural:true,Pos:$2.pos} } ;
+inner_join: /* empty */ { $$=JoinInner } | INNER { $$=JoinInner }
+ | LEFT optional_outer { $$=JoinLeft }
+ | RIGHT optional_outer { $$=JoinRight }
+ | FULL optional_outer { $$=JoinFull } ;
+optional_outer: /* empty */ { $$=false } | OUTER { $$=true } ;
 from_base: relation_name { $$=&TableReference{Name:$1} }
  | '(' from_list ')' {
     if alias,ok:=$2.(*AliasReference);ok {
@@ -1120,12 +1130,12 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
- | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY | ILIKE | ESCAPE
+ | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY | ILIKE | ESCAPE
  | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | OPERATOR | ILIKE | ESCAPE
+generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | string_word | LEADING | TRAILING | BOTH ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
@@ -1140,8 +1150,8 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
- | CROSS | INNER | JOIN | NATURAL | USING | CURRENT_CATALOG | SYSTEM_USER | CONCURRENTLY ;
-col_label: name | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | USING | ILIKE ;
+ | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CONCURRENTLY ;
+col_label: name | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

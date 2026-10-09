@@ -52,7 +52,7 @@ func TestQueryJoinsTreeAndPrecedence(t *testing.T) {
 	} {
 		keywordDiagnostic(t, tc.q, "42601", tc.msg, tc.pos)
 	}
-	for _, q := range []string{"SELECT * FROM a LEFT JOIN b ON TRUE", "SELECT * FROM a RIGHT JOIN b ON TRUE", "SELECT * FROM a FULL JOIN b ON TRUE", "SELECT * FROM a CROSS JOIN LATERAL b", "SELECT * FROM (SELECT * FROM a) x", "SELECT * FROM a AS x AS y"} {
+	for _, q := range []string{"SELECT * FROM a CROSS JOIN LATERAL b", "SELECT * FROM (SELECT * FROM a) x", "SELECT * FROM a AS x AS y"} {
 		if ss, err := Parse(q); err == nil || len(ss) != 0 {
 			t.Fatal("excluded FROM form escaped", q, ss, err)
 		}

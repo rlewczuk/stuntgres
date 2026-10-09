@@ -26,6 +26,25 @@ func queryRowMode(clause string) relationLockMode {
 	panic("invalid SELECT row lock mode")
 }
 
+// absentQueryIndex is an absent physical occurrence, never a real NULL-valued row.
+const absentQueryIndex = -1
+
+func queryOccurrenceWidth(source *querySource) int {
+	if source.input != nil {
+		return queryOccurrenceWidth(source.input)
+	}
+	if source.lineage != nil {
+		return queryOccurrenceWidth(source.lineage.stage)
+	}
+	if source.singleton {
+		return 0
+	}
+	if source.materialized {
+		return len(source.occurrences)
+	}
+	return 1
+}
+
 func appendQueryOccurrences(dst []int, source *querySource) []int {
 	if source.input != nil {
 		return appendQueryOccurrences(dst, source.input)
@@ -42,6 +61,13 @@ func appendQueryOccurrences(dst []int, source *querySource) []int {
 	return append(dst, source.occurrence)
 }
 func appendQueryProvenance(dst []int, source *querySource, index int) []int {
+	if index == absentQueryIndex {
+		setQueryLineage(source, index)
+		for range queryOccurrenceWidth(source) {
+			dst = append(dst, absentQueryIndex)
+		}
+		return dst
+	}
 	if source.input != nil {
 		return appendQueryProvenance(dst, source.input, index)
 	}

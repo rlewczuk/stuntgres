@@ -688,7 +688,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		return b, err
 	}
 	if b.query != nil && view == nil {
-		if err := validateQueryViewRowMarks(b.querySources, queryRootRowMode(b.query.Root), auth.catalog); err != nil {
+		if _, err := validateViewReadGraph(auth.catalog, b.querySources); err != nil {
 			return b, err
 		}
 	}
