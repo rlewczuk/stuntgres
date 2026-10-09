@@ -6,6 +6,12 @@ Read [README.md](README.md) for the consumer contract and [docs/DIALECT.md](docs
 for SQL support, limits and intentional compatibility differences before changing behavior.
 Design notes live in `docs/design/`; catalog-part workflow lives in `.cswd/`.
 
+**MANDATORY FOR TEST WORK:** Before adding, modifying or migrating any test, read
+and follow [docs/TESTING.md](docs/TESTING.md). It is the authoritative test-placement,
+dual-mode fixture and oracle-first implementation guide. Public SQL/API tests MUST
+be dual-mode tests in `reference/`, never in other directories. When working in an
+area with offending tests, migrate them immediately as instructed there.
+
 - Root `stuntgres`: public `database/sql` adapters, driver/connector, session settings, notices and native Reset/Dump/Restore APIs.
 - `internal/parser`: AST and parser entry points in `ast.go`/`parser.go`, lexer in `lexer.go`, keyword categories in `keywords.go`. Edit `grammar.y` for grammar changes, then `make generate`; never hand-edit `grammar_gen.go`.
 - `internal/engine`: catalog, authorization, binding/execution, transactions, relation locks, settings, snapshots and lifecycle publication.
@@ -13,9 +19,9 @@ Design notes live in `docs/design/`; catalog-part workflow lives in `.cswd/`.
 - Prepared sequence literals use a private description analysis cell, a distinct relation plan stamp and a physical-session effective namespace cache. Reanalyze the entire original literal group at Execute start after dependency/path changes; preserve immutable temporal/signature/result contracts. RX remains demand-driven after once-only argument evaluation; grant-time opening retains the in-flight OID, with no expression retarget/replay. Filtered/zero-row and strict NULL calls do not open their sequence. Generator state and descriptor revision are not plan invalidation tokens. Native replacement remains fenced except exact caller-owned live temporary provenance.
 - `internal/sqltype`: SQL type descriptors, input/output codecs, coercion and value comparison. Reuse these rather than adding adapter-local conversions.
 - `internal/sqlstate`: shared SQL errors; root `Error` aliases it. Assert the SQLState interface, not concrete `pq.Error`.
-- Root and internal `*_test.go`: public adapter and package-level behavioral regression tests.
-- `smoke/`: real public API scenarios, including native controls; included in the ordinary test suite.
-- `reference/`: build-tagged external tests against pinned PostgreSQL 18, using only public stuntgres APIs. Shared fixtures belong in `fixture_test.go`.
+- Root and internal `*_test.go`: non-SQL adapter and package-level unit tests only; public SQL/API witnesses belong in `reference/`. Migrate offending tests when touching their area, following [docs/TESTING.md](docs/TESTING.md).
+- `smoke/`: legacy public API scenarios included in the ordinary suite; do not add public SQL/API tests here. Migrate relevant existing witnesses to dual-mode `reference/` tests when working in their area.
+- `reference/`: public SQL/API behavioral tests using one shared body in Docker-free quick mode and real pinned PostgreSQL 18 mode. New tests are untagged; legacy tagged tests remain until migrated. Follow [docs/TESTING.md](docs/TESTING.md) for fixtures, helpers and implementation order.
 
 Production dependencies must be standard library or this module only. Keep internal packages
 independent of root adapters. goyacc is generation-only; pq, sqlmw and testcontainers are test-only.
@@ -24,7 +30,7 @@ Reuse existing package seams, binders and storage paths; do not introduce parall
 ## Development rules
 
 - Plan every change first: identify affected seams, compatibility evidence, invariants and verification. Keep scope explicit; do not silently widen the dialect.
-- Use TDD: write the failing behavioral test, observe the failure, implement the smallest correct change, then refactor with tests passing. Every discovered bug needs a unit regression before its fix; every compatibility bug also needs a reference regression.
+- Use TDD: write the failing behavioral regression, observe the failure, implement the smallest correct change, then refactor with tests passing. Every new PostgreSQL functionality and compatibility bug requires new or modified dual-mode reference coverage. Follow [docs/TESTING.md](docs/TESTING.md): real PostgreSQL first, record oracle expectations, quick mode second, then verify both modes. Internal unit regressions may supplement this coverage; never duplicate public SQL/API tests outside `reference/`.
 - Prefer clear, self-explanatory, maintainable code with separated concerns and testable boundaries. Keep functions focused and files short; split by responsibility, not arbitrary line counts. Grammar and generated files are exceptions. Reference functional test files have a hard 750-line limit; the cohesive shared fixture is exempt.
 - Test consumer-visible outcomes, boundaries, errors, atomicity and lifecycle transitions with independently specified expectations. Cover direct/prepared behavior and relevant metadata/cancellation paths. Do not test source text, wiring counts or mock echoes in place of real behavior.
 - Keep test output quiet: assertions report failures through the test runner, not printed success labels. Extra debug output requires an explicit verbosity flag, off by default (`VERBOSE=1` for make targets).
@@ -36,6 +42,10 @@ Reuse existing package seams, binders and storage paths; do not introduce parall
 - Update affected callers and documentation with behavior changes; remove obsolete paths instead of leaving compatibility shims. Regenerate checked-in parser output after grammar changes and verify it builds.
 
 ## PostgreSQL compatibility and reference tests
+
+**Read and obey [docs/TESTING.md](docs/TESTING.md) before implementing tests.**
+Its mandatory placement, migration and shared-body dual-mode workflow applies to
+all test work; existing tests in other directories are not a precedent.
 
 PostgreSQL 18 behavior grounds every change; reference tests are the golden standard.
 Resolve conflicting design requirements against real PostgreSQL behavior and encode the result
@@ -61,9 +71,9 @@ Always use make targets for standard actions:
 ```sh
 make generate   # regenerate the checked-in parser with pinned goyacc
 make build      # compile production packages
-make test       # uncached Docker-free unit and public smoke tests
-make smoke      # uncached public API scenarios only
-make reference  # uncached tests against real pinned PostgreSQL 18
+make test       # uncached Docker-free units, quick reference tests and legacy smoke
+make smoke      # existing legacy smoke package only; add SQL/API tests in reference/
+make reference  # shared reference scenarios on native and real pinned PostgreSQL 18
 make race       # Docker-free suite with the race detector
 make test-all   # all suites, including reference and race, within one 900s deadline
 make bench      # fresh-engine startup benchmark, five runs with allocation counts
