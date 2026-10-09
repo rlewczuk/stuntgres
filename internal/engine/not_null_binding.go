@@ -80,6 +80,7 @@ type createColumnDeclaration struct {
 	name          string
 	defaultExpr   parser.Expr
 	identity      *parser.IdentityDefinition
+	generation    *parser.GenerationDefinition
 	serial        bool
 }
 
@@ -92,7 +93,34 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 		if constraint.Check != nil || constraint.Unique != nil {
 			continue
 		}
+		if constraint.Generation != nil {
+			generation := constraint.Generation
+			if generation.Mode != parser.IdentityAlways {
+				return declaration, insertError("42601", "for a generated column, GENERATED ALWAYS must be specified", generation.ModePos)
+			}
+			conflict := ""
+			if declaration.generation != nil {
+				conflict = "multiple generation clauses"
+			}
+			if declaration.defaultExpr != nil || declaration.serial {
+				conflict = "both default and generation expression"
+			}
+			if declaration.identity != nil {
+				conflict = "both identity and generation expression"
+			}
+			if conflict != "" {
+				return declaration, insertError("42601", fmt.Sprintf(`%s specified for column "%s" of table "%s"`, conflict, column.Name, table), constraint.Pos)
+			}
+			if generation.Kind != "stored" {
+				return declaration, sqlError("0A000", "virtual generated columns are unsupported")
+			}
+			declaration.generation = generation
+			continue
+		}
 		if constraint.Identity != nil {
+			if declaration.generation != nil {
+				return declaration, insertError("42601", fmt.Sprintf(`both identity and generation expression specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
+			}
 			if declaration.identity != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`multiple identity specifications for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}
@@ -103,6 +131,9 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 			constraint.NotNull = true
 		}
 		if constraint.Default != nil {
+			if declaration.generation != nil {
+				return declaration, insertError("42601", fmt.Sprintf(`both default and generation expression specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
+			}
 			if declaration.identity != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`both default and identity specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}

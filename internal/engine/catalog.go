@@ -100,6 +100,7 @@ type relationDescriptor struct {
 	checkConstraints   []checkConstraint
 	uniqueConstraints  []uniqueConstraint
 	defaults           map[int32]columnDefault
+	generations        map[int32]columnGeneration
 	identities         map[int32]columnIdentity
 	relationKind       relationKind
 	sequence           *sequenceOptions
@@ -317,6 +318,32 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot || structuralNull(definition.expression) {
 			return fmt.Errorf("stuntgres: invalid column default expression")
 		}
+	}
+	for attribute, definition := range r.generations {
+		slot := -1
+		for i, live := range r.attributes {
+			if live == attribute {
+				slot = i
+				break
+			}
+		}
+		_, hasDefault := r.defaults[attribute]
+		_, hasIdentity := r.identities[attribute]
+		if definition.OID == 0 || slot < 0 || definition.expression == nil || definition.expression.ResultUsage() != r.columns[slot].Usage || definition.planned == nil || definition.planned.ResultUsage() != r.columns[slot].Usage || hasDefault || hasIdentity || !generationImmutable(definition.planned) {
+			return fmt.Errorf("stuntgres: invalid column generation destination")
+		}
+		if err := validateGenerationPlan(v, r, definition.planned); err != nil {
+			return err
+		}
+		var dependencies []ObjectRef
+		catalogSnapshot := false
+		_, err := (scalarRenderer{owner: r, dependencies: &dependencies, commentSnapshot: &catalogSnapshot}).sql(context.Background(), v, definition.expression)
+		if err != nil || !slices.Equal(dependencies, definition.dependencies) || catalogSnapshot != definition.catalogSnapshot {
+			return fmt.Errorf("stuntgres: invalid column generation expression")
+		}
+	}
+	if err := validateGenerationProviders(v, r); err != nil {
+		return err
 	}
 	for sub, text := range r.columnComments {
 		if !r.hasAttribute(sub) || text == "" {
@@ -854,6 +881,11 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 					return ChangeSet{}, err
 				}
 			}
+			if relation, ok := descriptor.(*relationDescriptor); ok && len(relation.generations) != 0 {
+				if err := validateGenerationProviders(CatalogRead{owner: e, state: next}, relation); err != nil {
+					return ChangeSet{}, err
+				}
+			}
 		}
 		e.mu.Lock()
 		if op != nil {
@@ -996,6 +1028,11 @@ func (e *Engine) validateObjectRefLocked(view CatalogRead, ref ObjectRef) error 
 	return nil
 }
 func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (ChangeSet, error) {
+	return e.replaceCatalog(ctx, replacement, nil)
+}
+
+// Restore retains its genuine private operation through owner-cell validation.
+func (e *Engine) replaceCatalog(ctx context.Context, replacement CatalogRead, restoreOp *Operation) (ChangeSet, error) {
 	var installed CatalogEpoch
 	defer func() {
 		if installed != 0 {
@@ -1069,7 +1106,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 		if sequenceErr != nil {
 			return ChangeSet{}, sequenceErr
 		}
-		if err := e.preserveTemporaryLocked(next, storage, sequences); err != nil {
+		if err := e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
 			return ChangeSet{}, err
 		}
 		nextRevision := e.nextRevision
@@ -1160,7 +1197,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, replacement CatalogRead) (C
 	if err != nil {
 		return ChangeSet{}, err
 	}
-	if err = e.preserveTemporaryLocked(next, storage, sequences); err != nil {
+	if err = e.preserveTemporaryLocked(ctx, next, storage, sequences, restoreOp); err != nil {
 		return ChangeSet{}, err
 	}
 	nextRevision := e.nextRevision

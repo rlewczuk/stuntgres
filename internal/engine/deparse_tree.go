@@ -51,6 +51,8 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 	}
 	var err error
 	switch n := node.(type) {
+	case tableOIDExpression:
+		fmt.Fprintf(out, "TableOID owner %d", n.owner.Address.ObjectID)
 	case literalExpression:
 		out.WriteString("Const")
 		if n.value.IsNull() {

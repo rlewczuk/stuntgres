@@ -332,6 +332,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 	case columnExpression:
 		return deparseAttribute(r.relation, n.origin.Address.SubID)
+	case tableOIDExpression:
+		return "tableoid", nil
 	case collationExpression:
 		text, err := child(n.child)
 		if err != nil {

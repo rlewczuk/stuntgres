@@ -537,6 +537,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 						continue
 					}
 					c := b.relation.columns[b.targets[j]]
+					if _, generated := b.relation.generations[b.relation.attributes[b.targets[j]]]; generated {
+						return b, generationWriteError(c.Name, false)
+					}
 					if identity, ok := b.relation.identities[b.relation.attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 						return b, identityInsertError(c.Name)
 					}
@@ -556,6 +559,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 					continue
 				}
 				c := b.relation.columns[b.targets[j]]
+				if _, generated := b.relation.generations[b.relation.attributes[b.targets[j]]]; generated {
+					return b, generationWriteError(c.Name, false)
+				}
 				if identity, ok := b.relation.identities[b.relation.attributes[b.targets[j]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 					return b, identityInsertError(c.Name)
 				}

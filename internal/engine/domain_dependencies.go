@@ -115,6 +115,14 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domain
 							}
 						}
 					}
+					if definition, generated := d.generations[column.SubID]; generated && target != (ObjectAddress{ClassID: TypeClassID, ObjectID: OID(c.Usage.Type.ID())}) {
+						for _, ref := range definition.dependencies {
+							if ref.Address == target {
+								direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + dependencyIdentifier(c.Name) + " of table " + name, relation: d, column: c.Name})
+								break
+							}
+						}
+					}
 				}
 				for _, check := range d.checkConstraints {
 					automatic := false

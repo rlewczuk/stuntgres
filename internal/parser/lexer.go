@@ -41,9 +41,16 @@ type lexer struct {
 	multipleModifiers   bool
 	// CHECK alone admits existing selected scalar calls as operand leaves.
 	// Depth changes only for tokens returned to yacc, never raw lookahead.
-	checkPending    bool
-	checkDepth      int
-	indexExpression bool
+	checkPending                                          bool
+	checkDepth                                            int
+	indexExpression                                       bool
+	generationPending                                     bool
+	generationDepth                                       int
+	generationModePos                                     Position
+	generationPrevious                                    lexeme
+	generationRestriction, generationCompletedRestriction *GenerationRestriction
+	generationWindowPending                               bool
+	generationWindowDepth                                 int
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.
@@ -780,7 +787,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || binaryScalarFunction(token.lexeme.text) || token.lexeme.text == "current_schemas") {
+	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || l.generationDepth > 0 || binaryScalarFunction(token.lexeme.text) || token.lexeme.text == "current_schemas") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {
@@ -802,6 +809,79 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = INDEX_SUBQUERY_OPEN
 		}
 	}
+	if l.generationDepth > 0 {
+		forbiddenCall := false
+		switch token.lexeme.text {
+		case "sum", "avg", "count", "min", "max", "array_agg", "string_agg", "grouping", "row_number", "rank", "dense_rank", "generate_series", "unnest":
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			forbiddenCall = next.code == int('(')
+		}
+		if forbiddenCall {
+			token.code = CHECK_FUNC
+			code, message := "", ""
+			switch token.lexeme.text {
+			case "sum", "avg", "count", "min", "max", "array_agg", "string_agg":
+				code, message = "42803", "aggregate functions are not allowed in column generation expressions"
+			case "grouping":
+				code, message = "42803", "grouping operations are not allowed in column generation expressions"
+			case "row_number", "rank", "dense_rank":
+				code, message = "42809", "window function "+token.lexeme.text+" requires an OVER clause"
+			case "generate_series", "unnest":
+				code, message = "0A000", "set-returning functions are not allowed in column generation expressions"
+			}
+			if l.generationRestriction == nil {
+				l.generationRestriction = &GenerationRestriction{code, message, token.lexeme.pos}
+			}
+		}
+		if token.lexeme.text == "over" && token.lexeme.keyword != nil && l.generationPrevious.raw == ")" {
+			token.code = GENERATION_OVER
+			l.generationWindowPending = true
+		}
+		if token.lexeme.text == "partition" && token.lexeme.keyword != nil && l.generationWindowDepth == l.generationDepth && l.generationPrevious.raw == "(" {
+			token.code = GENERATION_PARTITION
+		}
+		if token.code == int('(') {
+			next := l.nextRaw()
+			l.lookahead, l.hasLookahead = next, true
+			if next.code == SELECT {
+				token.code = GENERATION_SUBQUERY_OPEN
+				if l.generationRestriction == nil {
+					l.generationRestriction = &GenerationRestriction{"0A000", "cannot use subquery in column generation expression", token.lexeme.pos}
+				}
+			}
+			l.generationDepth++
+			if l.generationWindowPending {
+				l.generationWindowDepth = l.generationDepth
+				l.generationWindowPending = false
+			}
+		}
+		if token.code == int(')') {
+			l.generationDepth--
+			if l.generationDepth < l.generationWindowDepth {
+				l.generationWindowDepth = 0
+			}
+			if l.generationDepth == 0 {
+				l.generationCompletedRestriction = l.generationRestriction
+			}
+		}
+	} else if l.generationPending {
+		if token.code == ALWAYS || token.code == BY {
+			l.generationModePos = token.lexeme.pos
+		}
+		if token.code == int('(') && l.generationPrevious.text == "as" {
+			l.generationDepth = 1
+			l.generationPending = false
+			l.generationRestriction = nil
+		}
+		if token.code == IDENTITY {
+			l.generationPending = false
+		}
+	}
+	if token.code == GENERATED {
+		l.generationPending = true
+	}
+	l.generationPrevious = token.lexeme
 	if l.checkDepth > 0 {
 		switch token.code {
 		case int('('):

@@ -140,6 +140,12 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			name = "pg_get_constraintdef"
 		}
 		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
+	case tableOIDExpression:
+		if r.owner == nil || n.owner.owner != view.owner.owner || n.owner.Epoch != view.Epoch() || n.owner.Address != r.owner.address || u.Type.ID() != sqltype.Oid {
+			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")
+		}
+		r.record(n.owner)
+		return "tableoid", nil
 	case columnExpression:
 		if r.owner == nil || n.origin.owner != view.owner.owner || n.origin.Epoch != view.Epoch() || n.origin.Address.ClassID != r.owner.address.ClassID || n.origin.Address.ObjectID != r.owner.address.ObjectID || n.scope != 1 || n.frame != 1 || n.slot < 0 || n.slot >= len(r.owner.columns) || r.owner.attributes[n.slot] != n.origin.Address.SubID || u != r.owner.columns[n.slot].Usage {
 			return "", fmt.Errorf("stuntgres: invalid stored row origin")
@@ -809,6 +815,9 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 	}
 	var rebound BoundExpr
 	switch n := node.(type) {
+	case tableOIDExpression:
+		n.expressionInfo = info
+		rebound = n
 	case deparseExpression:
 		n.args = append([]BoundExpr(nil), n.args...)
 		for i := range n.args {

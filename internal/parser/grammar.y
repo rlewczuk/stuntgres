@@ -63,6 +63,7 @@ package parser
  joinKind JoinKind
  persistence string
  identity *IdentityDefinition
+ generation *GenerationDefinition
  identityMode IdentityMode
  override InsertOverride
  caseArms []CaseArm
@@ -121,6 +122,7 @@ package parser
 %token <tok> CHECK
 %token <tok> CHECK_FUNC
 %token <tok> INDEX_SUBQUERY_OPEN
+%token <tok> GENERATION_SUBQUERY_OPEN GENERATION_OVER GENERATION_PARTITION
 %token <tok> OVERLAY POSITION SUBSTRING PLACING
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
@@ -158,6 +160,7 @@ package parser
 %nonassoc IDENT DOMAIN SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING
+%nonassoc GENERATION_OVER
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
 %nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %nonassoc STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD
@@ -310,6 +313,8 @@ package parser
 %type <tok> sequence_name_word
 %type <identity> identity_definition identity_alter_options
 %type <identityMode> identity_mode
+%type <generation> generation_definition
+%type <tok> generation_kind
 %type <sequenceOptions> identity_options identity_option_list
 %type <sequenceOption> identity_option identity_set_option
 %type <override> insert_override
@@ -363,6 +368,8 @@ sequence_option: AS type { $$=SequenceOption{Name:"as",Type:$2,Pos:$1.pos} }
  | OWNED BY comment_column_name { $$=SequenceOption{Name:"owned",Owned:$3,Pos:$1.pos} } ;
 identity_mode: ALWAYS { $$=IdentityAlways } | BY DEFAULT { $$=IdentityByDefault } ;
 identity_definition: GENERATED identity_mode AS IDENTITY identity_options { $$=&IdentityDefinition{Mode:$2,Options:$5,Pos:$1.pos} } ;
+generation_definition: GENERATED identity_mode AS '(' scalar_projection ')' generation_kind { expression:=$5;if restriction:=sqllex.(*lexer).generationCompletedRestriction;restriction!=nil {expression=ForbiddenGenerationExpr{*restriction}};$$=&GenerationDefinition{Expression:expression,Mode:$2,Kind:$7.text,Pos:$1.pos,ModePos:sqllex.(*lexer).generationModePos} } ;
+generation_kind: /* empty */ { $$=lexeme{} } | KW_U { if $1.text!="stored" && $1.text!="virtual" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 identity_options: /* empty */ { $$=nil } | '(' identity_option_list ')' { $$=$2 } ;
 identity_option_list: /* empty */ { $$=nil } | identity_option_list identity_option { $$=append($1,$2) } ;
 identity_option: sequence_option { $$=$1 } | SEQUENCE name relation_name { if $2.text!="name" {sqllex.(*lexer).syntax($2);return 1}; $$=SequenceOption{Name:"name",Owned:$3,Pos:$1.pos} }
@@ -729,6 +736,8 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | column_unique { $$=ColumnConstraint{Unique:$1,Pos:$1.Pos} }
  | identity_definition { $$=ColumnConstraint{Identity:$1,Pos:$1.Pos} }
  | CONSTRAINT name identity_definition { $$=ColumnConstraint{Identity:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
+ | generation_definition { $$=ColumnConstraint{Generation:$1,Pos:$1.Pos} }
+ | CONSTRAINT name generation_definition { $$=ColumnConstraint{Generation:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.Pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
 nn_modifier: KW_U { if $1.text!="valid" && $1.text!="enforced" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 nn_inherit: KW_U { if $1.text!="inherit" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
@@ -740,6 +749,7 @@ update_alias: /* empty */ %prec '=' { $$=lexeme{} } | name { $$=$1 } | AS name {
 update_from: /* empty */ { $$=nil } | FROM from_list { $$=$2 } ;
 update_assignments: update_assignment { $$=[]UpdateAssignment{$1} } | update_assignments ',' update_assignment { $$=append($1,$3) } ;
 update_assignment: name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:$3} }
+ | name '=' DEFAULT { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Value:DefaultExpr{Pos:$3.pos}} }
  | name '.' name '=' scalar_projection { $$=UpdateAssignment{Target:Identifier{Text:$1.text,Pos:$1.pos},Indirection:[]Identifier{{Text:$3.text,Pos:$3.pos}},Value:$5} }
  | name '=' scalar_projection '+' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
  | name '=' scalar_projection '-' { sqllex.(*lexer).fail("0A000","expressions are unsupported");return 1 }
@@ -835,6 +845,7 @@ query_row: '(' query_cells ')' { $$=$2 } ;
 query_cells: query_cell { $$=[]Expr{$1} } | query_cells ',' query_cell { $$=append($1,$3) } ;
 query_cell: scalar_projection { $$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
 scalar: scalar_atom { $$=$1 }
+ | scalar GENERATION_OVER '(' generation_window_spec ')' { restriction:=GenerationRestriction{Code:"42P20",Message:"window functions are not allowed in column generation expressions",Pos:$1.SourcePosition()};l:=sqllex.(*lexer);if l.generationRestriction==nil {l.generationRestriction=&restriction} else {*l.generationRestriction=restriction};if l.generationDepth==0 {l.generationCompletedRestriction=l.generationRestriction};$$=ForbiddenGenerationExpr{restriction} }
  | '(' scalar ')' { $$=groupedQualification($2) }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
@@ -918,6 +929,8 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
  | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} }
  | CHECK_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
+ | GENERATION_SUBQUERY_OPEN SELECT projection ')' { $$=ForbiddenGenerationExpr{GenerationRestriction{Code:"0A000",Message:"cannot use subquery in column generation expression",Pos:$1.pos}} }
+ | GENERATION_SUBQUERY_OPEN SELECT projection FROM from_list where group having order query_tail ')' { $$=ForbiddenGenerationExpr{GenerationRestriction{Code:"0A000",Message:"cannot use subquery in column generation expression",Pos:$1.pos}} }
  | OVERLAY '(' scalar PLACING scalar FROM scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7}) }
  | OVERLAY '(' scalar PLACING scalar FROM scalar FOR scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7,$9}) }
  | OVERLAY '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"overlay",Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
@@ -939,6 +952,7 @@ case_arm: WHEN delete_or THEN conditional_value { $$=CaseArm{Condition:$2,Result
 case_else: /* empty */ { $$=nil } | ELSE conditional_value { $$=$2 } ;
 conditional_value: delete_or { $$=$1 } | function { $$=$1 } ;
 conditional_args: delete_or { $$=[]Expr{$1} } | conditional_args ',' delete_or { $$=append($1,$3) } ;
+generation_window_spec: /* empty */ {} | ORDER BY order_keys {} | GENERATION_PARTITION BY group_keys {} | GENERATION_PARTITION BY group_keys ORDER BY order_keys {} ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 /* Qualified calls and precision literals share their opener so a function-call
  * shift cannot consume the precision before the literal STRING continuation. */

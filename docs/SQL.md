@@ -765,7 +765,10 @@ Private USING/CHECK demand and scalar state publish atomically with rewritten
 rows, but physical-session currval/lastval and the caller's discarded AS cache
 tail survive statement failure or rollback. A post-TYPE savepoint does not rewind
 demand within that same private generator.
-Expression-generated columns and UPDATE DEFAULT remain unsupported.
+Stored expression-generated columns support `GENERATED ALWAYS AS (expression) STORED`.
+INSERT omission/DEFAULT and UPDATE base-column writes recompute stored values;
+UPDATE DEFAULT is admitted only for generated destinations. Ordinary/identity
+UPDATE DEFAULT remains unsupported. See [stored generated columns](TABLES.md#stored-generated-columns).
 
 
 UPDATE admits `RETURNING [WITH (OLD AS o, NEW AS n)] output [, ...]` using

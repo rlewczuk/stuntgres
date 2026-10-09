@@ -102,6 +102,9 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err != nil {
 		return err
 	}
+	if err := e.bindCreateGenerations(op, auth, d, b.createDeclarations, input); err != nil {
+		return err
+	}
 	if err := e.bindCreateChecks(op, auth, s, d, input); err != nil {
 		return err
 	}

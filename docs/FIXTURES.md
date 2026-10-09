@@ -117,6 +117,10 @@ database-local COMMENT bootstrap authority preserve independent schema/table own
 without grants or session identity changes. COMMENT's private marker covers lookup,
 lock resolution and mutation, is cleared after each statement, and never permits
 ROLE replay. Ordinary post-Restore SQL still enforces USAGE/CREATE and ownership.
+Trusted INSERT permission elevation does not replace identity snapshots:
+defaults and CHECK expressions observe the actual private session's
+`current_user` and `session_user` from named owner directives, both during
+ordinary replay and final owner-remap validation.
 The shared object allocator skips live namespace, relation, view-rule, CHECK,
 NOT NULL and default identities imported by Restore. Replacement does not rewind
 the destination's nonreuse counter. Definition collisions with retained native
@@ -246,4 +250,26 @@ and worker joins. Roll back borrowed transactions before returning connections,
 including failure exits; register schema/role teardown immediately after actual
 creation. Do not issue unsupported native cleanup SQL or hide cleanup errors.
 
+
+
+## Stored generated columns
+
+Dump serializes `GENERATED ALWAYS AS (...) STORED` structurally, without evaluating
+generation expressions. Every generated cell is emitted as DEFAULT, never as an
+explicit computed value or identity-override workaround. All-generated rows still
+produce one INSERT each. Restore uses ordinary CREATE/INSERT binding and stored
+computation, retaining generated NULL definitions and subsequent INSERT/UPDATE
+semantics. tableoid references retain their owner ObjectRef; under a retained
+TEMP identity collision, replacement recomputes only owner-dependent generated
+cells against the remapped final owner and validates completed values before
+publication/index installation. Source/TEMP vectors and held eager cursors stay
+immutable. Invalid definitions, explicit generated writes, arithmetic/constraint
+errors, context cancellation and I/O failures preserve the destination catalog
+and data. These are native logical controls, not a PostgreSQL backup/control API.
+Owner-remap validation uses a genuine isolated statement/session, preserving
+Restore's private owner directives and settings. Session, inquiry, random and
+sequence CHECK providers run without the target catalog mutex; their effects
+remain private until successful installation. Replacement admission stays held,
+and changed target catalog/role/TEMP authority fails without retry. A failed
+repair discards private sequence effects as well as repaired cells.
 

@@ -43,6 +43,17 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 			d.defaults[attr] = def
 		}
 	}
+	for _, attr := range d.attributes {
+		definition, exists := d.generations[attr]
+		if exists && definition.OID == 0 {
+			id, err := e.allocateOIDLocked()
+			if err != nil {
+				return err
+			}
+			definition.OID = id
+			d.generations[attr] = definition
+		}
+	}
 	for i := range d.checkConstraints {
 		if d.checkConstraints[i].OID == 0 {
 			id, err := e.allocateOIDLocked()
@@ -85,6 +96,11 @@ func definitionOIDUsed(d *relationDescriptor, id OID) bool {
 	}
 	for _, c := range d.defaults {
 		if c.OID == id {
+			return true
+		}
+	}
+	for _, definition := range d.generations {
+		if definition.OID == id {
 			return true
 		}
 	}
@@ -133,6 +149,11 @@ func validateDefinitionOIDs(view CatalogRead) error {
 				return err
 			}
 		}
+		for _, definition := range d.generations {
+			if err := claim(definition.OID); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -160,6 +181,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 			for _, c := range d.defaults {
 				reserved[c.OID] = true
+			}
+			for _, definition := range d.generations {
+				reserved[definition.OID] = true
 			}
 		}
 	}
@@ -193,7 +217,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 	}
 	for _, old := range relations {
-		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.defaults) == 0 {
+		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.defaults)+len(old.generations) == 0 {
 			continue
 		}
 		d := *old
@@ -269,6 +293,26 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 			}
 			def.OID = id
 			d.defaults[attr] = def
+			changed = true
+		}
+		generationCopied := false
+		for attr, definition := range old.generations {
+			id, err := remint(definition.OID)
+			if err != nil {
+				return err
+			}
+			if id == definition.OID {
+				continue
+			}
+			if !generationCopied {
+				d.generations = make(map[int32]columnGeneration, len(old.generations))
+				for key, value := range old.generations {
+					d.generations[key] = value
+				}
+				generationCopied = true
+			}
+			definition.OID = id
+			d.generations[attr] = definition
 			changed = true
 		}
 		if changed {

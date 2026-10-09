@@ -63,6 +63,9 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	}
 	for i, expr := range project.expressions {
 		target := out.relation.columns[out.targets[i]]
+		if _, generated := out.relation.generations[out.relation.attributes[out.targets[i]]]; generated {
+			return generationWriteError(target.Name, false)
+		}
 		if identity, ok := out.relation.identities[out.relation.attributes[out.targets[i]]]; ok && identity.mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 			return identityInsertError(target.Name)
 		}
@@ -376,6 +379,9 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 					return nil, err
 				}
 			}
+		}
+		if err := evaluateGenerations(ctx, b.relation, row, &evaluation); err != nil {
+			return nil, err
 		}
 		for j, c := range b.relation.columns {
 			if err := ctx.Err(); err != nil {

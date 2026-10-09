@@ -76,7 +76,17 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err := scope.captureIdentityLocked(auth); err != nil {
+	// Trusted Restore insertion elevates permissions, not session identity.
+	// Defaults and CHECK providers must observe the actual owner directive.
+	identityAuth := auth
+	if _, inserting := stmt.(*parser.Insert); inserting && op.restoreInsertAuthority {
+		identityAuth, err = e.authorizationLocked(op)
+		if err != nil {
+			e.mu.Unlock()
+			return Result{}, err
+		}
+	}
+	if err := scope.captureIdentityLocked(identityAuth); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -646,6 +656,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 // is demanded. This does not publish rows: the caller still stages one batch.
 func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema string, row []sqltype.Value, evaluation *EvalContext) error {
 	if err := evaluation.Context.Err(); err != nil {
+		return err
+	}
+	if err := evaluateGenerations(evaluation.Context, b.relation, row, evaluation); err != nil {
 		return err
 	}
 	for j, column := range b.relation.columns {

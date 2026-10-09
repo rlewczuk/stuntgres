@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -52,7 +53,7 @@ func copySequenceState(source *Engine, view CatalogRead) (map[ObjectAddress]*seq
 
 // Preserve session-owned temporary namespaces and generations during persistent
 // replacement. Imported identity collisions are remapped, never temp identities.
-func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator) error {
+func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalogState, storage map[ObjectAddress]*relationStorage, sequences map[ObjectAddress]*sequenceGenerator, restoreOp *Operation) error {
 	temporary := make(map[ObjectAddress]Descriptor)
 	for a, d := range e.state.descriptors {
 		if ns, ok := d.(*namespaceDescriptor); ok && ns.temporary != (SessionToken{}) {
@@ -211,7 +212,11 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			sequences[a] = g
 		}
 	}
+	next.epoch = e.state.epoch + 1
 	if err := e.remapCatalogExpressions(next, mapping); err != nil {
+		return err
+	}
+	if err := e.repairRemappedGenerationsLocked(ctx, next, storage, sequences, mapping, restoreOp); err != nil {
 		return err
 	}
 	for a, d := range temporary {
@@ -221,7 +226,6 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			sequences[a] = g
 		}
 	}
-	next.epoch = e.state.epoch + 1
 	if err := e.remapViewRuleOIDs(next); err != nil {
 		return err
 	}

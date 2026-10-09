@@ -37,7 +37,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		if old.columns[slot].Nullable {
 			return old, sqlError("55000", message+" must be declared NOT NULL before identity can be added")
 		}
-		if _, ok := old.defaults[attribute]; ok {
+		if _, ok := old.defaults[attribute]; ok || old.generations[attribute].expression != nil {
 			return old, sqlError("55000", message+" already has a default value")
 		}
 		return &next, nil

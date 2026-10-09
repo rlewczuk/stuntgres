@@ -57,6 +57,9 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 			}
 		}
 		next = n
+	case tableOIDExpression:
+		n.owner = ref(n.owner)
+		next = n
 	case columnExpression:
 		n.origin = ref(n.origin)
 		if slots != nil {
@@ -346,6 +349,37 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 					definition.dependencies[i] = ref(definition.dependencies[i])
 				}
 				copy.defaults[attribute] = definition
+			}
+			d = &copy
+			next.descriptors[address] = d
+		}
+		if len(d.generations) != 0 {
+			copy := *d
+			copy.generations = make(map[int32]columnGeneration, len(d.generations))
+			for attribute, definition := range d.generations {
+				node, _, err := retagBoundTypes(definition.expression, typ)
+				if err != nil {
+					return err
+				}
+				node, err = remapBoundExpression(node, ref, nil)
+				if err != nil {
+					return err
+				}
+				definition.expression = node
+				planned, _, err := retagBoundTypes(definition.planned, typ)
+				if err != nil {
+					return err
+				}
+				planned, err = remapBoundExpression(planned, ref, nil)
+				if err != nil {
+					return err
+				}
+				definition.planned = planned
+				definition.dependencies = append([]ObjectRef(nil), definition.dependencies...)
+				for i := range definition.dependencies {
+					definition.dependencies[i] = ref(definition.dependencies[i])
+				}
+				copy.generations[attribute] = definition
 			}
 			d = &copy
 			next.descriptors[address] = d

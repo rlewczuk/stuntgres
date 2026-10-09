@@ -108,6 +108,13 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog Catalog
 				}
 				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.address.ObjectID)), integer(2, int64(attribute)), tree})
 			}
+			for attribute, definition := range relation.generations {
+				tree, err := catalogTree(source.columns[3].Usage.Type, definition.expression)
+				if err != nil {
+					return nil, err
+				}
+				rows = append(rows, []sqltype.Value{oid(0, uint32(definition.OID)), oid(1, uint32(relation.address.ObjectID)), integer(2, int64(attribute)), tree})
+			}
 		case 1259:
 			kind := "r"
 			if relation.relationKind == sequenceRelation {

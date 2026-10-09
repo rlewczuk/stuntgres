@@ -121,6 +121,17 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		}
 	}
 	for i, a := range s.Assignments {
+		if slot, exists := b.relation.index[a.Target.Text]; exists {
+			if _, generated := b.relation.generations[b.relation.attributes[slot]]; generated {
+				if _, requested := a.Value.(parser.DefaultExpr); !requested {
+					return generationWriteError(a.Target.Text, true)
+				}
+				continue
+			}
+		}
+		if _, requested := a.Value.(parser.DefaultExpr); requested {
+			return expressionError("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
+		}
 		expected := sqltype.Usage{}
 		if slot, ok := b.relation.index[a.Target.Text]; ok {
 			expected = b.relation.columns[slot].Usage
@@ -155,6 +166,10 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
 		}
 		seen[slot] = true
+		if _, generated := b.relation.generations[b.relation.attributes[slot]]; generated {
+			b.targets = append(b.targets, slot)
+			continue
+		}
 		if identity, ok := b.relation.identities[b.relation.attributes[slot]]; ok && identity.mode == parser.IdentityAlways {
 			diagnostic := identityInsertError(a.Target.Text).(*sqlstate.Error)
 			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, a.Target.Text)
@@ -358,6 +373,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			// PostgreSQL projects SET for losing duplicate pairs too. Suppress
 			// only replacement/count/RETURNING, never eligible scalar demand.
 			for i, expr := range b.update.assignments {
+				if expr == nil {
+					continue
+				}
 				value, err := expr.Eval(&eval)
 				if err != nil {
 					return Result{}, err
@@ -371,6 +389,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		row := make([]sqltype.Value, len(old.values))
 		copy(row, old.values)
 		for i, expr := range b.update.assignments {
+			if expr == nil {
+				continue
+			}
 			if from != nil {
 				row[b.targets[i]] = assigned[i]
 			} else {
@@ -380,6 +401,10 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				}
 				row[b.targets[i]] = value
 			}
+		}
+		generationEval := eval
+		if err := evaluateGenerations(ctx, b.relation, row, &generationEval); err != nil {
+			return Result{}, err
 		}
 		for i, column := range b.relation.columns {
 			if !column.Nullable && row[i].IsNull() {

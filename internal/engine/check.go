@@ -223,6 +223,13 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 				}
 			}
 		}
+		for _, definition := range d.generations {
+			for _, ref := range definition.dependencies {
+				if err := add(ref, d); err != nil {
+					return err
+				}
+			}
+		}
 	}
 	slices.SortFunc(refs, func(a, b ObjectRef) int {
 		if a.Address.ObjectID < b.Address.ObjectID {

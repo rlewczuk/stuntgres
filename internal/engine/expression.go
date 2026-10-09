@@ -730,6 +730,7 @@ type expressionBinder struct {
 	defaultConsumer       bool
 	checkConsumer         bool
 	indexConsumer         bool
+	generatedOwner        *relationDescriptor
 	visibilitySnapshot    bool
 	sequenceConstants     []sequenceConstant
 	regclassConcat        bool
@@ -848,6 +849,39 @@ func (b *expressionBinder) finalizeProjection(node BoundExpr) (BoundExpr, error)
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
+	if b.generatedOwner != nil {
+		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
+		owner := b.generatedOwner
+		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.name || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.name && raw.Name.Parts[0].Text == b.queryNamespace.qualifiers[0].schema
+		if qualified {
+			if name == "tableoid" {
+				ref := b.querySources[0].ref
+				return tableOIDExpression{b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, ExprProperties{RowDependent: true}), ref}, nil
+			}
+			if isSystemColumn(name) {
+				return nil, expressionError("42P10", fmt.Sprintf(`cannot use system column "%s" in column generation expression`, name), raw.Pos)
+			}
+		}
+		node, err := b.queryColumn(raw)
+		if err != nil {
+			// A bare relation name is a whole-row reference only after ordinary
+			// column lookup has failed; a same-named attribute takes precedence.
+			if name == owner.name && len(raw.Name.Parts) == 1 {
+				diagnostic := expressionError("42P17", "cannot use whole-row variable in column generation expression", raw.Pos).(*sqlstate.Error)
+				diagnostic.Detail = "This would cause the generated column to depend on its own value."
+				return nil, diagnostic
+			}
+			return nil, err
+		}
+		if column, ok := node.(columnExpression); ok {
+			if _, generated := owner.generations[column.origin.Address.SubID]; generated {
+				diagnostic := expressionError("42P17", fmt.Sprintf(`cannot use generated column "%s" in column generation expression`, name), raw.Pos).(*sqlstate.Error)
+				diagnostic.Detail = "A generated column cannot reference another generated column."
+				return nil, diagnostic
+			}
+		}
+		return node, nil
+	}
 	if b.checkConsumer && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		switch name {
@@ -936,6 +970,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
+	case parser.ForbiddenGenerationExpr:
+		return nil, expressionError(r.Code, r.Message, r.Pos)
 	case parser.AggregateExpr:
 		if b.indexConsumer {
 			return nil, expressionError("42803", "aggregate functions are not allowed in index expressions", r.Pos)

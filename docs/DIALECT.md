@@ -57,7 +57,9 @@ The native catalog sources add exactly `pg_catalog.pg_constraint`
 They project existing CHECK (`c`), NOT NULL (`n`, NULL conbin) and explicit
 nontrivial defaults from real immutable descriptors. Attribute numbers are stable,
 not dense evaluation slots. These are not general constraint/catalog rollout:
-foreign keys, indexes, generated columns and bonus metadata remain absent.
+foreign keys and additional metadata catalogs remain absent. STORED generated
+definitions share existing pg_attrdef/pg_get_expr; no pg_attribute or
+information_schema rollout is implied.
 
 `pg_node_tree` is distinct type194 with PG_NODE_TREE metadata and native string
 ScanType. Non-NULL values are internal immutable structural carriers. Output uses
@@ -689,7 +691,7 @@ demanded. Identity mode, linked address, privileges and comments remain intact.
 Feature smokes: `make quickcheck PACKAGES=./smoke RUN='^TestAlterTypeIdentity(Smoke|ControlsSmoke)$' VERBOSE=0`.
 
 Native controls preserve definitions, actual sequence names/configuration/state and
-literal rows without allocating values. Generated expressions, UPDATE DEFAULT,
+literal identity rows without allocating values. Ordinary/identity UPDATE DEFAULT,
 LIKE INCLUDING IDENTITY, arbitrary table DDL in transactions and full identity
 catalog views remain excluded. Logical controls do not imply physical/WAL/wire support.
 
@@ -2774,4 +2776,34 @@ Matching participates in shared CHECK/view expression consumers, deparse/rebind
 and atomic public Dump/Reset/Restore. Regex/SIMILAR TO, additional locales and
 general no-FROM scalar SELECT are not included.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestLikeSmoke$' VERBOSE=0`.
+
+
+## Stored generated columns — change note (changelog)
+
+Explicit `GENERATED ALWAYS AS (expression) STORED` now uses the normal typed
+CREATE/INSERT/UPDATE, catalog/deparse and native-control authorities. Complete
+new-row computation precedes constraints/RETURNING; direct generated-value
+writes fail428C9 and DEFAULT is admitted on generated UPDATE destinations only.
+Original self/generated-column references remain illegal even in dead branches;
+immutability is checked on surviving planned providers. Existing current-row
+scalar operators/functions/casts and unconstrained domains compose without a
+second evaluator. tableoid is the sole generated-context system-column provider.
+Definition binding resolves a real column named like its table before the
+whole-row fallback; generated attributes still receive the generated-reference
+diagnostic. Surviving mixed TEXT concatenation checks the release-declared
+concrete output volatility: integer and BYTEA output (including domains) remain
+legal in either direction; DATE, TIMESTAMP, TIMESTAMPTZ, INTERVAL and REGCLASS
+output fails42P17 at definition. Explicit domain I/O casts check both source
+output and target input, so INTERVAL-domain-to-TEXT and TEXT-to-INTERVAL-domain
+casts also fail42P17. Native formatting's use of an environment does not override
+the release classification. Pruned dead volatile/I/O arms remain legal, and
+destination assignment remains separate from explicit expression coercion.
+Native Dump retains declarations and emits DEFAULT instead of computed literals;
+replacement remaps owner-dependent stored cells without changing held snapshots.
+Existing ALTER DEFAULT/TYPE and dependent DROP paths guard definition integrity.
+Virtual/omitted-kind generation, ADD generated, expression ALTER lifecycle and
+LIKE INCLUDING GENERATED remain unsupported; generated destination TYPE without
+USING remains an explicit native boundary rather than an implicit rewrite.
+Shared scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReferenceGeneratedStored' VERBOSE=0`,
+and the same command with `REFERENCE=1`.
 

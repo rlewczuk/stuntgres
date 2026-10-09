@@ -301,7 +301,8 @@ SET generation/options and RESTART affect future inserts. DROP IDENTITY removes
 only its internal sequence and preserves rows/NOT NULL. Direct sequence DROP and
 OWNED BY reassociation cannot bypass the link. Rename/schema/owner transitions
 preserve stable attribute ownership. Plain LIKE copies NOT NULL but not identity.
-Expression-generated columns remain unsupported.
+Stored expression-generated columns have a separate current-row expression,
+not an identity sequence or ordinary DEFAULT; see [stored generated columns](#stored-generated-columns).
 
 Identity ALTER diagnostic ordering follows PostgreSQL's utility phases. Repeated
 SET GENERATED clauses are syntactically valid but fail at execution with42601
@@ -951,4 +952,62 @@ moves indices with table/owned sequences as one collision-checked publication.
 DROP TABLE and schema CASCADE leave no index/root/name orphans. Dump captures
 actual options/current names; Restore and catalog replacement rebuild roots with
 destination identities. See [index design](design/PG18-INDEX-BTREE.md).
+
+
+## Stored generated columns
+
+```sql
+CREATE TABLE g(a INTEGER, b INTEGER GENERATED ALWAYS AS (a + 1) STORED);
+INSERT INTO g(a) VALUES(2); -- b = 3
+INSERT INTO g VALUES(4, DEFAULT); -- b = 5
+UPDATE g SET a=8 WHERE a=2; -- b = 9
+UPDATE g SET b=DEFAULT; -- recomputes from the completed new row
+```
+
+Only explicit STORED is supported. PostgreSQL18's omitted kind means VIRTUAL,
+not STORED; omitted/VIRTUAL declarations remain native unsupported boundaries.
+Expressions use the existing scalar binder, operators, functions and destination
+assignment coercion. They may reference plain current-row columns, including
+later-declared columns and qualified/quoted names. A plain column named like its
+table takes precedence over a bare whole-row reference. References to another
+generated column (including self or unreachable CASE arms) remain forbidden.
+Aggregate/grouping/window, subquery/set-returning, parameter and nonimmutable
+expressions are rejected. The volatility check considers surviving providers
+after constant planning.
+Mixed TEXT concatenation retains its concrete output provider's volatility:
+integer output is eligible, while timestamp/timestamptz and other session- or
+catalog-dependent output is not. Physically pruned volatile CASE arms do not
+make the surviving expression volatile.
+Constant arithmetic errors fail CREATE, while row-dependent arithmetic errors
+occur when a write consumes the expression. Existing unconstrained domains
+remain eligible; domain CHECK/NOT NULL declarations are not added here.
+
+The generated value is evaluated after all base/default/identity inputs and
+simultaneous UPDATE RHS assignments, before NOT NULL, CHECK, uniqueness and
+RETURNING. NULL input follows ordinary expression semantics. Any supplied
+non-DEFAULT generated value, including NULL, fails428C9 even with no source rows
+or no UPDATE matches. Identity OVERRIDING modes cannot bypass this guard.
+Errors/cancellation publish no partial statement rows. Reading a stored generated
+column does not evaluate its expression or add a SELECT privilege requirement
+on its input columns.
+
+Metadata remains physical declared-column metadata. Existing pg_attrdef and
+pg_get_expr expose stable definition/attribute ownership, including a generated
+NULL expression. Rename and unrelated DROP preserve stable identities and update
+deparse names/row slots. SET/DROP DEFAULT on a generated destination are rejected;
+changing a referenced base column's type is rejected. DROP base RESTRICT reports
+dependent generated columns; CASCADE removes those columns and their definitions.
+Generated destination TYPE USING is rejected; destination TYPE without USING
+remains a native unsupported boundary (PostgreSQL can widen it).
+
+tableoid alone is the admitted system-column reference in generation expressions.
+It retains owning relation identity rather than a cached numeric constant.
+Native Dump writes canonical generated declarations and DEFAULT for generated
+row cells, including all-generated tables. Restore recomputes normal generated
+values and remaps tableoid-dependent values to the final destination owner;
+held eager cursors retain original cells and metadata. Virtual columns, ADD
+generated, SET/DROP EXPRESSION and LIKE INCLUDING GENERATED remain outside scope.
+
+Feature smoke (also run with `REFERENCE=1` for the pinned PostgreSQL oracle):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceGeneratedStored(Smoke|ControlsSmoke)$' VERBOSE=0`.
 

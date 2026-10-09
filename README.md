@@ -462,7 +462,11 @@ existing sequence/session authorities. Identity is NOT NULL, not inherently uniq
 Existing CHECK calls can use the same declaration's identity sequence without
 definition-time allocation. Dump orders identity-sequence view/CHECK dependents
 after their owning table, including retained TEMP collision remaps.
-Expression-generated columns remain excluded.
+Stored expression-generated columns support `GENERATED ALWAYS AS (expression) STORED`
+through the normal typed INSERT/UPDATE path. Omission and explicit DEFAULT compute
+the stored value; other explicit generated-column writes fail428C9. See
+[stored generated columns](docs/TABLES.md#stored-generated-columns). Virtual columns
+and generated-expression ALTER lifecycle remain excluded.
 Feature smokes: `make quickcheck PACKAGES=./smoke RUN='^TestIdentity(Smoke|ControlsSmoke|CheckControlsSmoke)$' VERBOSE=0`.
 The ALTER lifecycle is shared reference coverage:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceAlterIdentity' VERBOSE=0`;

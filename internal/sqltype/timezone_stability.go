@@ -6,7 +6,9 @@ func (p CoercionPlan) SessionDependent() bool {
 		return source == Timestamptz || target == Timestamptz || target == Timetz
 	}
 	if p.method == viaIO {
-		return p.source.Type.OutputSessionDependent() || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz
+		// CoerceViaIO invokes both the source output and target input procedure.
+		// interval_in is stable even when the source is immutable TEXT.
+		return p.source.Type.OutputSessionDependent() || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz || target == Interval
 	}
 	return false
 }

@@ -40,6 +40,14 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, s.Column.Text, old.name)))
 	}
 	attr := old.attributes[slot]
+	if _, generated := old.generations[attr]; generated {
+		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is a generated column`, s.Column.Text, old.name)).(*sqlstate.Error)
+		diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... SET EXPRESSION instead."
+		if s.Action == parser.DropDefault {
+			diagnostic.Hint = "Use ALTER TABLE ... ALTER COLUMN ... DROP EXPRESSION instead."
+		}
+		return fail(diagnostic)
+	}
 	if _, ok := old.identities[attr]; ok {
 		diagnostic := sqlError("42601", fmt.Sprintf(`column "%s" of relation "%s" is an identity column`, s.Column.Text, old.name)).(*sqlstate.Error)
 		if s.Action == parser.DropDefault {

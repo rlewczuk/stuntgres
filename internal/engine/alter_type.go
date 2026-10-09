@@ -123,6 +123,27 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	if !ok {
 		return fail(sqlError("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Column.Text, next.name)))
 	}
+	if _, generated := next.generations[next.attributes[slot]]; generated {
+		if a.Using != nil {
+			diagnostic := expressionError("42611", "cannot specify USING when altering type of generated column", a.Column.Pos).(*sqlstate.Error)
+			diagnostic.Detail = fmt.Sprintf(`Column "%s" is a generated column.`, a.Column.Text)
+			return fail(diagnostic)
+		}
+		return fail(sqlError("0A000", "altering type of a generated column is unsupported"))
+	}
+	for _, attribute := range next.attributes {
+		definition, generated := next.generations[attribute]
+		if !generated {
+			continue
+		}
+		for _, dependency := range definition.dependencies {
+			if dependency.Address.ClassID == next.address.ClassID && dependency.Address.ObjectID == next.address.ObjectID && dependency.Address.SubID == next.attributes[slot] {
+				diagnostic := sqlError("0A000", "cannot alter type of a column used by a generated column").(*sqlstate.Error)
+				diagnostic.Detail = fmt.Sprintf(`Column "%s" is used by generated column "%s".`, a.Column.Text, next.columns[next.indexForAttribute(attribute)].Name)
+				return fail(diagnostic)
+			}
+		}
+	}
 	source := original.index[a.Column.Text]
 	oldUsage := original.columns[source].Usage
 	current := next.columns[slot].Usage

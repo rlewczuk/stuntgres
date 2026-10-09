@@ -354,6 +354,18 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 			}
 		}
+		for _, definition := range r.generations {
+			for _, dependency := range definition.dependencies {
+				predecessor, err := dumpPredecessor(catalog, dependency.Address, r.address)
+				if err != nil {
+					e.mu.Unlock()
+					return err
+				}
+				if predecessor != 0 && !slices.Contains(predecessors, predecessor) {
+					predecessors = append(predecessors, predecessor)
+				}
+			}
+		}
 		viewDependencies[oid] = predecessors
 		tableIndices[oid] = len(tables)
 		linked := make(map[ObjectAddress]dumpSequence, len(r.identities))
@@ -483,6 +495,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					return err
 				}
 				line.WriteString(" DEFAULT " + text)
+			}
+			if definition, exists := t.descriptor.generations[t.attributes[i]]; exists {
+				text, err := (scalarRenderer{owner: t.descriptor}).sql(ctx, catalog, definition.expression)
+				if err != nil {
+					return err
+				}
+				line.WriteString(" GENERATED ALWAYS AS (" + text + ") STORED")
 			}
 			if identity, exists := t.identities[t.attributes[i]]; exists {
 				mode := "ALWAYS"
@@ -726,7 +745,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		}
 	}
-	_, err = e.ReplaceCatalog(ctx, stage.CatalogRead())
+	_, err = e.replaceCatalog(ctx, stage.CatalogRead(), op)
 	return err
 }
 

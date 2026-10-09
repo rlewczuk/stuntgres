@@ -24,6 +24,36 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 	}
 	target := ref.Address
 	target.SubID = old.attributes[slot]
+	for _, attribute := range old.attributes {
+		definition, generated := old.generations[attribute]
+		if !generated || attribute == target.SubID {
+			continue
+		}
+		dependent := false
+		for _, dependency := range definition.dependencies {
+			if dependency.Address == target {
+				dependent = true
+				break
+			}
+		}
+		if !dependent {
+			continue
+		}
+		generatedSlot := old.indexForAttribute(attribute)
+		if a.Mode == parser.DropRestrict {
+			diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop column %s of table %s because other objects depend on it", a.Column.Text, old.name)).(*sqlstate.Error)
+			diagnostic.Detail = fmt.Sprintf("column %s of table %s depends on column %s of table %s", old.columns[generatedSlot].Name, old.name, a.Column.Text, old.name)
+			diagnostic.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
+			return nil, diagnostic
+		}
+		dependentAction := a
+		dependentAction.Column = parser.Identifier{Text: old.columns[generatedSlot].Name}
+		remaining, err := scope.dropColumnCandidate(stage, old, ref, dependentAction)
+		if err != nil {
+			return nil, err
+		}
+		return scope.dropColumnCandidate(stage, remaining, ref, a)
+	}
 	// Dependency passes must see preceding actions in this same ALTER list.
 	if err := stage.Replace(old); err != nil {
 		return nil, err
@@ -99,6 +129,30 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 					next.defaults[attribute] = definition
 				}
 			}
+		}
+	}
+	next.generations = nil
+	if len(old.generations) != 0 {
+		slots := make(map[int32]int, len(next.attributes))
+		for i, attribute := range next.attributes {
+			slots[attribute] = i
+		}
+		next.generations = make(map[int32]columnGeneration, len(old.generations))
+		for attribute, definition := range old.generations {
+			if attribute == target.SubID {
+				continue
+			}
+			planned, err := remapBoundExpression(definition.planned, func(ref ObjectRef) ObjectRef { return ref }, slots)
+			if err != nil {
+				return nil, err
+			}
+			definition.planned = planned
+			node, err := remapBoundExpression(definition.expression, func(ref ObjectRef) ObjectRef { return ref }, slots)
+			if err != nil {
+				return nil, err
+			}
+			definition.expression = node
+			next.generations[attribute] = definition
 		}
 	}
 	if _, exists := old.identities[old.attributes[slot]]; exists {

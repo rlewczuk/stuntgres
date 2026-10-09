@@ -71,6 +71,22 @@ type IdentityDefinition struct {
 	ConflictingModes bool
 }
 
+type GenerationDefinition struct {
+	Expression   Expr
+	Mode         IdentityMode
+	Kind         string
+	Pos, ModePos Position
+}
+
+type GenerationRestriction struct {
+	Code, Message string
+	Pos           Position
+}
+type ForbiddenGenerationExpr struct{ GenerationRestriction }
+
+func (ForbiddenGenerationExpr) expression()                {}
+func (e ForbiddenGenerationExpr) SourcePosition() Position { return e.Pos }
+
 type InsertOverride uint8
 
 const (
@@ -80,13 +96,14 @@ const (
 )
 
 type ColumnConstraint struct {
-	NotNull  bool
-	Default  Expr
-	Check    *CheckConstraint
-	Unique   *UniqueConstraint
-	Identity *IdentityDefinition
-	Name     Identifier
-	Pos      Position
+	NotNull    bool
+	Default    Expr
+	Check      *CheckConstraint
+	Unique     *UniqueConstraint
+	Identity   *IdentityDefinition
+	Generation *GenerationDefinition
+	Name       Identifier
+	Pos        Position
 }
 
 type NotNullConstraint struct {

@@ -68,6 +68,10 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalog CatalogRead, emit f
 			if i > 0 {
 				line.WriteString(", ")
 			}
+			if _, generated := t.descriptor.generations[t.attributes[i]]; generated {
+				line.WriteString("DEFAULT")
+				continue
+			}
 			literal, err := catalogLiteralSQL(ctx, catalog, literalExpression{expressionInfo: expressionInfo{usage: t.columns[i].Usage}, value: v})
 			if err != nil {
 				return err

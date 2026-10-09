@@ -76,6 +76,9 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if declaration.identity != nil {
 		return fail(insertError("0A000", "ADD COLUMN identity declarations are unsupported", declaration.identity.Pos))
 	}
+	if declaration.generation != nil {
+		return fail(insertError("0A000", "ADD COLUMN generated declarations are unsupported", declaration.generation.Pos))
+	}
 	attribute := old.attributeHighWater + 1
 	next := *old
 	next.attributeHighWater = attribute
