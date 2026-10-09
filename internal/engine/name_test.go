@@ -91,6 +91,7 @@ func TestNameCatalogRejectsForeignAndStale(t *testing.T) {
 		base := e.CatalogRead()
 		stage := e.BeginCatalogStage(base)
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 20000}, namespace: ObjectAddress{ClassID: NamespaceClassID, ObjectID: PublicNamespaceOID}, name: "invalid", revision: 1, columns: []ColumnDescriptor{{Name: "n", Usage: usage}}, index: map[string]int{"n": 0}, attributes: []int32{1}}
+		d.attributeHighWater = 1
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}

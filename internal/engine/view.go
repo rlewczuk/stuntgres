@@ -288,7 +288,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		copy(d.attributes, old.attributes)
 		d.index = make(map[string]int, len(d.columns))
 	}
-	var attribute int32
+	attribute := d.attributeHighWater
 	for _, id := range d.attributes {
 		if id > attribute {
 			attribute = id
@@ -303,6 +303,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		d.columns[i].OriginTable = uint32(oid)
 		d.columns[i].OriginAttribute = int16(d.attributes[i])
 	}
+	d.attributeHighWater = attribute
 	base := auth.catalog
 	stage := e.BeginCatalogStage(base)
 	stage.authSession, stage.authRevision, stage.roleRevision = op.session, auth.revision, auth.roles.state.revision

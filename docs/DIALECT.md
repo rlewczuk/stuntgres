@@ -625,10 +625,29 @@ are unchanged. Qualified/quoted targets, ONLY/ONLY(...) and trailing `*` are acc
 for standalone tables. Inheritance remains rejected: descendant recursion is a
 PostgreSQL-only reference contract. Action lists, IF EXISTS for these actions,
 UPDATE DEFAULT, unimplemented expression families and explicit-transaction SET/DROP DEFAULT
-remain excluded. Selected TYPE/nullability/DROP COLUMN lists support explicit
-transactions. Dump serializes current CREATE definitions and explicit rows; Restore's
+remain excluded. Selected ADD COLUMN/TYPE/nullability/DROP COLUMN lists support
+explicit transactions. Dump serializes current CREATE definitions and explicit rows; Restore's
 existing whitelist does not admit ALTER TABLE history.
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
+
+Change note: ADD [COLUMN] [IF NOT EXISTS] admits existing scalar types/typmods/
+collations and column NULL/NOT NULL, DEFAULT and CHECK declarations. Owner-only
+AX execution publishes schema and widened rows together. A no-default addition
+exposes typed NULL in old rows. Supported Immutable/Stable defaults are evaluated
+once during ADD, including on empty tables; the admitted fixed-nextval volatile
+default is evaluated for each effective live row. Definitions remain immutable
+and future omission/DEFAULT uses the original expression. Failed default/NN/CHECK
+validation changes no schema/data, but demanded sequence allocations persist.
+IF NOT EXISTS skips an ordinary collision before type/default/CHECK binding and
+emits42701 NOTICE; system-column names still fail42701. Complete syntax is required.
+DROP and TYPE passes precede ADD; generated CHECKs can see later-added columns.
+Mixed SET/DROP DEFAULT lists remain unsupported. ADD serial/identity/generated/
+unique/FK declarations and inheritance/partition propagation are not admitted.
+Stable attributes advance a retained per-relation ceiling across DROP/ADD;
+pg_class.relnatts reflects that ceiling. This does not introduce pg_attribute,
+physical tombstones, PostgreSQL missing-value tuple storage, wire/disk durability
+or a pg_dump process. Native logical Restore may remint live attributes.
+Feature smoke: `make reference RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$' VERBOSE=0`.
 
 Scalar comparisons admit `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=`; `!=` is the
 `<>` alias. Both operands may be existing scalar literals, parameters, columns

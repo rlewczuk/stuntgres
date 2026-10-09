@@ -295,19 +295,22 @@ const (
 	DropIdentity
 	SetIdentity
 	AlterColumnType
+	AddColumn
 )
 
 type AlterTableAction struct {
-	Column     Identifier
-	Constraint Identifier
-	Action     AlterTableActionKind
-	IfExists   bool
-	Mode       DropMode
-	Pos        Position
-	Identity   *IdentityDefinition
-	TypeName   TypeName
-	Collation  *ObjectName
-	Using      Expr
+	Column      Identifier
+	Constraint  Identifier
+	Action      AlterTableActionKind
+	IfExists    bool
+	IfNotExists bool
+	Definition  *Column
+	Mode        DropMode
+	Pos         Position
+	Identity    *IdentityDefinition
+	TypeName    TypeName
+	Collation   *ObjectName
+	Using       Expr
 }
 
 type AlterTable struct {

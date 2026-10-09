@@ -2,8 +2,11 @@ package engine
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
 )
 
 // AX protects the captured incarnation; candidates remain private until Finish.
@@ -43,6 +46,8 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			label = "ALTER COLUMN"
 		case parser.AlterColumnType:
 			label = "ALTER COLUMN ... TYPE"
+		case parser.AddColumn:
+			label = "ADD COLUMN"
 		default:
 			return fail(fmt.Errorf("stuntgres: invalid ALTER action"))
 		}
@@ -81,11 +86,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var transformations []columnTransformation
 	var pendingChecks []alterTypeCheck
 	var typeChecks []checkConstraint
-	// PostgreSQL runs DROP, TYPE, original SET, ADD NN, then identity ADD/SET.
-	for pass := range 6 {
+	var additions []addedColumn
+	// PostgreSQL orders DROP, TYPE, ADD columns, original SET, constraints,
+	// then identity ADD/SET. Added CHECKs bind against the completed ADD shape.
+	for pass := range 7 {
 		typeIndex := 0
 		for _, action := range s.Actions {
-			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.SetNotNull || pass == 3 && action.Action == parser.AddNotNull || pass == 4 && action.Action == parser.AddIdentity || pass == 5 && action.Action == parser.SetIdentity
+			selected := pass == 0 && (action.Action == parser.DropIdentity || action.Action == parser.DropNotNull || action.Action == parser.DropConstraint || action.Action == parser.DropColumn) || pass == 1 && action.Action == parser.AlterColumnType || pass == 2 && action.Action == parser.AddColumn || pass == 3 && action.Action == parser.SetNotNull || pass == 4 && action.Action == parser.AddNotNull || pass == 5 && action.Action == parser.AddIdentity || pass == 6 && action.Action == parser.SetIdentity
 			if !selected {
 				continue
 			}
@@ -102,6 +109,12 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 					stage = e.BeginCatalogStage(auth.catalog)
 				}
 				next, err = scope.dropColumnCandidate(stage, next, ref, action)
+			} else if action.Action == parser.AddColumn {
+				var added addedColumn
+				next, added, err = e.addColumnCandidate(scope, op, auth, next, action)
+				if err == nil && added.column != nil {
+					additions = append(additions, added)
+				}
 			} else if action.Action == parser.AlterColumnType {
 				var transformation columnTransformation
 				var captured *alterTypePreparation
@@ -124,6 +137,38 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			pendingChecks, err = captureAlterTypeChecks(op, auth.catalog, old, next, s.Actions)
 		} else if pass == 1 {
 			next, typeChecks, err = e.rebindAlterTypeChecks(scope, op, auth, ref, next, pendingChecks)
+		}
+		if err == nil && pass == 3 {
+			for _, added := range additions {
+				if added.declaration.columnNotNull {
+					next, err = notNullCandidate(op, auth.catalog, next, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.columnName}})
+					if err != nil {
+						break
+					}
+				}
+			}
+		}
+		if err == nil && pass == 4 {
+			var raw []*parser.CheckConstraint
+			for _, added := range additions {
+				for _, constraint := range added.column.Constraints {
+					if constraint.Check != nil {
+						raw = append(raw, constraint.Check)
+					}
+				}
+			}
+			before := make(map[int]bool, len(next.checkConstraints))
+			for _, check := range next.checkConstraints {
+				before[check.ordinal] = true
+			}
+			err = e.bindColumnChecks(op, auth, raw, next, scope.input, true)
+			if err == nil {
+				for _, check := range orderedChecks(next) {
+					if !before[check.ordinal] {
+						typeChecks = append(typeChecks, check)
+					}
+				}
+			}
 		}
 		if err != nil {
 			return Result{}, err
@@ -188,11 +233,53 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		rewrite = rewrite || transformation.rewrite
 	}
 	if next != old {
+		next.defaults = maps.Clone(next.defaults)
+		next.checkConstraints = slices.Clone(next.checkConstraints)
+		next.notNullConstraints = slices.Clone(next.notNullConstraints)
 		e.mu.Lock()
 		err = e.assignDefinitionOIDsLocked(next)
 		e.mu.Unlock()
 		if err != nil {
 			return Result{}, err
+		}
+	}
+	if stage == nil {
+		stage = e.BeginCatalogStage(auth.catalog)
+	}
+	if err := stage.Replace(next); err != nil {
+		return Result{}, err
+	}
+	if err := scope.acquireDefinitionProviders(stage); err != nil {
+		return Result{}, err
+	}
+	for _, added := range additions {
+		if next.defaults[added.attribute].catalogSnapshot {
+			e.mu.Lock()
+			err = e.captureCommentSnapshotLocked(scope)
+			e.mu.Unlock()
+			if err != nil {
+				return Result{}, err
+			}
+			break
+		}
+	}
+	fills, volatileAdd, err := planAddedColumns(scope, additions)
+	if err != nil {
+		return Result{}, err
+	}
+	rewrite = rewrite || volatileAdd
+	if len(fills) != 0 || len(shape.fills) != 0 {
+		shape.fills = maps.Clone(shape.fills)
+		if shape.fills == nil {
+			shape.fills = make(map[int32]sqltype.Value, len(fills))
+		}
+		for attribute, value := range fills {
+			shape.fills[attribute] = value
+		}
+		for attribute := range shape.fills {
+			if !next.hasAttribute(attribute) {
+				delete(shape.fills, attribute)
+			}
 		}
 	}
 	replacement := store
@@ -214,29 +301,37 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 	}
 	if rewrite {
-		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, old, next, store, frontier, transformations, validator)
+		replacement, projectedWrites, projectedDeletes, err = rewriteTypeRows(scope, op, old, next, store, frontier, transformations, additions, validator)
 		if err != nil {
 			return Result{}, err
 		}
 		versions, ends = replacement.versions, replacement.ends
 		shape.rewritten, shape.frontier = true, frontier
 		shape.snapshot, shape.hasSnapshot = nil, false
-	} else if len(old.columns) != len(next.columns) {
+	} else if !slices.Equal(old.attributes, next.attributes) {
 		if store.generation == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: storage generation exhausted")
 		}
-		versions, err = projectVersions(op.Context(), versions, old, next)
+		projection, projectionErr := newColumnProjection(old, next, shape.fills)
+		if projectionErr != nil {
+			return Result{}, projectionErr
+		}
+		versions, err = projection.versions(op.Context(), versions)
 		if err != nil {
 			return Result{}, err
 		}
 		replacement = &relationStorage{versions: versions, ends: ends, generation: store.generation + 1}
-		projectedWrites, err = projectVersions(op.Context(), projectedWrites, old, next)
+		projectedWrites, err = projection.versions(op.Context(), projectedWrites)
 		if err != nil {
 			return Result{}, err
 		}
 		projectedDeletes = projectDeletions(projectedDeletes, replacement)
 		if scope.owner.isolation == RepeatableRead && snapshotExists && !shape.rewritten {
-			shape.snapshot, err = projectVersions(op.Context(), snapshot.versions, snapshot.relation, next)
+			if slices.Equal(snapshot.relation.attributes, old.attributes) {
+				shape.snapshot, err = projection.versions(op.Context(), snapshot.versions)
+			} else {
+				shape.snapshot, err = projectVersions(op.Context(), snapshot.versions, snapshot.relation, next, shape.fills)
+			}
 			if err != nil {
 				return Result{}, err
 			}
@@ -245,8 +340,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	needsScan := !rewrite && len(typeChecks) != 0
 	if !rewrite {
-		for _, column := range next.columns {
-			if !column.Nullable && old.columns[old.index[column.Name]].Nullable {
+		for slot, column := range next.columns {
+			oldSlot := slices.Index(old.attributes, next.attributes[slot])
+			if !column.Nullable && (oldSlot < 0 || old.columns[oldSlot].Nullable) {
 				needsScan = true
 				break
 			}
@@ -287,18 +383,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
-	if stage == nil {
-		stage = e.BeginCatalogStage(auth.catalog)
-	}
-	if err := stage.Replace(next); err != nil {
-		return Result{}, err
-	}
-	if err := scope.acquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
-	}
 	var dependencyTargets []ObjectAddress
-	for i, attribute := range old.attributes {
-		if _, survives := next.index[old.columns[i].Name]; !survives {
+	for _, attribute := range old.attributes {
+		if !next.hasAttribute(attribute) {
 			target := ref.Address
 			target.SubID = attribute
 			dependencyTargets = append(dependencyTargets, target)

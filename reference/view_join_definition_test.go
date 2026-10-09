@@ -34,14 +34,12 @@ func TestReferenceViewJoinedDefinition(t *testing.T) {
 							}
 						}
 					}
-					if b.pg {
-						run(referenceExec("ALTER TABLE renamed_a ADD COLUMN y TEXT DEFAULT 'different'", 0))
-						referenceViewCopy(t, p, b, "natural_view", "frozen_keys")
-						s := referenceSelect("SELECT id,x,y FROM frozen_keys ORDER BY id", []string{"id", "x", "y"}, []string{"INT8", "TEXT", "TEXT"}, [][]any{{int64(1), "a", "u"}, {int64(1), "a", "v"}, {int64(3), "c", nil}})
-						s.bag = true
-						run(s)
-						run(referencePrepared(s))
-					}
+					run(referenceExec("ALTER TABLE renamed_a ADD COLUMN y TEXT DEFAULT 'different'", 0))
+					referenceViewCopy(t, p, b, "natural_view", "frozen_keys")
+					s := referenceSelect("SELECT id,x,y FROM frozen_keys ORDER BY id", []string{"id", "x", "y"}, []string{"INT8", "TEXT", "TEXT"}, [][]any{{int64(1), "a", "u"}, {int64(1), "a", "v"}, {int64(3), "c", nil}})
+					s.bag = true
+					run(s)
+					run(referencePrepared(s))
 				})
 			}
 		})

@@ -90,6 +90,7 @@ type relationDescriptor struct {
 	columns            []ColumnDescriptor
 	index              map[string]int
 	attributes         []int32
+	attributeHighWater int32
 	owner              PrincipalRef
 	acl                ACLValue
 	columnACL          map[int32]ACLValue
@@ -199,9 +200,12 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if len(found) != 1 || found[0] != r.address || len(r.columns) != len(r.attributes) || len(r.index) != len(r.columns) {
 		return fmt.Errorf("stuntgres: invalid relation identity")
 	}
+	if r.attributeHighWater < 0 {
+		return fmt.Errorf("stuntgres: invalid relation attribute high-water")
+	}
 	for i, c := range r.columns {
 		offset, exists := r.index[c.Name]
-		if r.attributes[i] <= 0 || i > 0 && r.attributes[i] <= r.attributes[i-1] || !exists || offset != i {
+		if r.attributes[i] <= 0 || r.attributes[i] > r.attributeHighWater || i > 0 && r.attributes[i] <= r.attributes[i-1] || !exists || offset != i {
 			return fmt.Errorf("stuntgres: invalid relation column identity")
 		}
 		if !c.Usage.Type.Concrete() {
@@ -460,7 +464,7 @@ func (s *CatalogStage) alterRelation(ctx context.Context, ref ObjectRef, d *rela
 		e.mu.Unlock()
 		return CatalogConflict{}
 	}
-	if original == replacement && len(d.columns) != len(old.columns) {
+	if original == replacement && !slices.Equal(d.attributes, old.attributes) {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid metadata-only row shape")
 	}

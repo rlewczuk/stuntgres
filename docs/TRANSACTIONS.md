@@ -11,8 +11,8 @@ override it. Go `ReadOnly: false` explicitly requests read-write access. SQL
 omitted modes inherit session defaults. INSERT (VALUES or SELECT), scalar UPDATE,
 SELECT, DELETE, settings and the single-target AX utility are supported, including
 prepared execution. CREATE tables before a block; sequence DDL, COMMENT ON
-SEQUENCE and selected ALTER TABLE nullability/named-NOT-NULL/DROP COLUMN/identity
-action lists are bounded transactional DDL exceptions. Successful private ALTER
+SEQUENCE and selected ALTER TABLE ADD COLUMN/TYPE/nullability/named-NOT-NULL/
+DROP COLUMN/identity action lists are bounded transactional DDL exceptions. Successful private ALTER
 definitions govern subsequent metadata and writes; savepoints restore catalog,
 projected row shapes and own writes together. Commit installs these and sequence
 changes atomically with DML. Successful statement authorization is retained
@@ -21,6 +21,10 @@ Native SET ROLE and transactional SESSION AUTHORIZATION remain excluded;
 the real PostgreSQL SET ROLE lifetime witness does not enable native SQL.
 Other transactional DDL, SERIALIZABLE/SSI and DEFERRABLE
 safe snapshots remain unsupported.
+ADD COLUMN jointly restores schema, high-water identities, captured nonvolatile
+old-row fills and own writes on rollback/savepoint recovery. Supported nextval
+backfill draws remain nontransactional. Standalone SET/DROP DEFAULT and unsupported
+mixed DEFAULT lists do not gain transaction eligibility from this exception.
 In read-write explicit blocks, role creation/removal and SET/RESET SESSION
 AUTHORIZATION retain native `0A000` capability boundaries, not PostgreSQL parity.
 Identity SELECT remains supported in both access modes.

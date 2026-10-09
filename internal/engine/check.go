@@ -40,6 +40,10 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 			}
 		}
 	}
+	return e.bindColumnChecks(op, auth, raw, d, input, false)
+}
+
+func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *relationDescriptor, input sqltype.InputEnvironment, altering bool) error {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -50,20 +54,47 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 	}
 	qualifier := queryQualifier{name: d.name, original: d.name, schema: auth.catalog.state.descriptors[d.namespace].Name(), ref: ref, columns: columns}
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.columns}
-	used := constraintNames(auth.catalog, d.namespace, nil)
-	installed := make(map[string]bool, len(d.notNullConstraints))
+	used := constraintNames(auth.catalog, d.namespace, d)
+	installed := make(map[string]bool, len(d.notNullConstraints)+len(d.checkConstraints))
+	start := 0
+	for _, c := range d.checkConstraints {
+		installed[c.Name] = true
+		if c.ordinal == int(^uint(0)>>1) {
+			return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
+		}
+		if c.ordinal >= start {
+			start = c.ordinal + 1
+		}
+	}
 	for _, c := range d.notNullConstraints {
 		installed[c.Name] = true
 	}
 	current := make(map[string]bool, len(raw))
-	for ordinal, c := range raw {
+	for offset, c := range raw {
+		if offset > int(^uint(0)>>1)-start {
+			return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
+		}
+		ordinal := start + offset
 		binder := newExpressionBinder(op.Context(), e, input, op, nil)
 		binder.checkConsumer, binder.noParameters = true, true
 		binder.queryAuth = &auth
 		binder.queryNamespace = &ns
 		binder.querySources = []queryLeaf{{ref: ref, relation: d}}
+		if altering {
+			e.mu.Lock()
+			if auth.catalog.Epoch() != e.state.epoch {
+				e.mu.Unlock()
+				return ErrCatalogReplaced
+			}
+		}
 		node, err := binder.bindBoolean(c.Expression, projectionContext, "CHECK")
+		if altering {
+			e.mu.Unlock()
+		}
 		if err != nil {
+			if altering {
+				err = alterCookingError(err)
+			}
 			return err
 		}
 		name := c.Name.Text
@@ -79,6 +110,9 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 			return sqlError("42710", `check constraint "`+name+`" already exists`)
 		}
 		if installed[name] {
+			if altering {
+				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.name))
+			}
 			const index = "pg_constraint_conrelid_contypid_conname_index"
 			diagnostic := sqlError("23505", `duplicate key value violates unique constraint "`+index+`"`).(*sqlstate.Error)
 			diagnostic.Detail = fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, %s) already exists.", d.address.ObjectID, name)

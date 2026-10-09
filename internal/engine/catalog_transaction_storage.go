@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"stuntgres/internal/sqltype"
 )
 
@@ -17,6 +18,7 @@ type catalogStorageChange struct {
 	hasSnapshot bool
 	rewritten   bool
 	frontier    CommitSeq
+	fills       map[int32]sqltype.Value
 }
 
 type catalogDependencyObservation struct {
@@ -64,33 +66,67 @@ func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ObjectAddr
 	return e.storage[a]
 }
 
-func projectVersions(ctx context.Context, rows []rowVersion, old, next *relationDescriptor) ([]rowVersion, error) {
+type columnProjection struct {
+	width int
+	slots []int
+	fills []sqltype.Value
+}
+
+func newColumnProjection(old, next *relationDescriptor, fills map[int32]sqltype.Value) (columnProjection, error) {
+	p := columnProjection{width: len(old.columns), slots: make([]int, len(next.attributes))}
+	source := 0
+	for j, attribute := range next.attributes {
+		for source < len(old.attributes) && old.attributes[source] < attribute {
+			source++
+		}
+		if source < len(old.attributes) && old.attributes[source] == attribute {
+			p.slots[j] = source
+			source++
+		} else {
+			value, ok := fills[attribute]
+			if !ok || value.Type() != next.columns[j].Usage.Type {
+				return columnProjection{}, fmt.Errorf("stuntgres: invalid added column projection")
+			}
+			p.slots[j] = -1
+			if p.fills == nil {
+				p.fills = make([]sqltype.Value, len(next.attributes))
+			}
+			p.fills[j] = value
+		}
+	}
+	return p, nil
+}
+
+func projectVersions(ctx context.Context, rows []rowVersion, old, next *relationDescriptor, fills map[int32]sqltype.Value) ([]rowVersion, error) {
+	if len(rows) == 0 {
+		return rows, nil
+	}
+	p, err := newColumnProjection(old, next, fills)
+	if err != nil {
+		return nil, err
+	}
+	return p.versions(ctx, rows)
+}
+
+func (p columnProjection) versions(ctx context.Context, rows []rowVersion) ([]rowVersion, error) {
 	if len(rows) == 0 {
 		return rows, nil
 	}
 	projected := make([]rowVersion, len(rows))
-	slots := make([]int, len(next.attributes))
-	source := 0
-	for j, attribute := range next.attributes {
-		for source < len(old.attributes) && old.attributes[source] != attribute {
-			source++
-		}
-		if source == len(old.attributes) {
-			return nil, fmt.Errorf("stuntgres: invalid column projection")
-		}
-		slots[j] = source
-		source++
-	}
 	for i, row := range rows {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if len(row.values) != len(old.columns) {
+		if len(row.values) != p.width {
 			return nil, fmt.Errorf("stuntgres: invalid original row width")
 		}
-		values := make([]sqltype.Value, len(slots))
-		for j, slot := range slots {
-			values[j] = row.values[slot]
+		values := make([]sqltype.Value, len(p.slots))
+		for j, slot := range p.slots {
+			if slot >= 0 {
+				values[j] = row.values[slot]
+			} else {
+				values[j] = p.fills[j]
+			}
 		}
 		row.values = values
 		projected[i] = row
@@ -116,13 +152,13 @@ func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, r
 	var next *catalogChanges
 	for address, shape := range catalog.storage {
 		root, exists := roots[address]
-		if !exists || shape.rewritten || shape.hasSnapshot || len(root.relation.columns) == len(shape.relation.columns) {
+		if !exists || shape.rewritten || shape.hasSnapshot || slices.Equal(root.relation.attributes, shape.relation.attributes) {
 			continue
 		}
 		versions := shape.replacement.versions
 		if root.storage != shape.original || root.ends != shape.ends || !sameVersionRoot(root.versions, shape.root) {
 			var err error
-			versions, err = projectVersions(ctx, root.versions, root.relation, shape.relation)
+			versions, err = projectVersions(ctx, root.versions, root.relation, shape.relation, shape.fills)
 			if err != nil {
 				return nil, err
 			}

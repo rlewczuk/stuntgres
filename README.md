@@ -235,9 +235,24 @@ Dump/Restore preserves the current definition, not ALTER history.
 Standalone `ONLY`, `ONLY(...)`, qualified/quoted targets and trailing `*` are
 supported; inheritance remains unsupported (release recursion is reference-only).
 Action lists and ALTER TABLE IF EXISTS for SET/DROP DEFAULT, UPDATE DEFAULT and
-explicit-transaction SET/DROP DEFAULT remain excluded. Selected TYPE/nullability/
-DROP COLUMN lists support explicit transactions. See [column defaults](docs/TABLES.md#column-defaults).
+explicit-transaction SET/DROP DEFAULT remain excluded. Selected ADD COLUMN/
+TYPE/nullability/DROP COLUMN lists support explicit transactions.
+See [column defaults](docs/TABLES.md#column-defaults).
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
+
+Change note: `ALTER TABLE target ADD [COLUMN] [IF NOT EXISTS] name type`
+atomically appends metadata and old-row values, with supported NULL/NOT NULL,
+DEFAULT and column CHECK declarations. Missing defaults backfill typed NULL;
+Immutable/Stable defaults evaluate once at ADD (even for an empty table), while
+the existing fixed-nextval default evaluates per live row. Future INSERTs use
+the retained expression, not the captured old-row value. Validation failure
+preserves schema/data; already demanded sequence draws are not rolled back.
+IF NOT EXISTS notices and skips before semantic declaration binding.
+Local standalone-table behavior only: no descendant propagation, serial/identity/
+generated ADD declarations, new default functions or mixed SET/DROP DEFAULT lists.
+Logical Dump/Restore preserves final definitions/data, not ADD history or physical
+PostgreSQL tuple storage. Feature smoke:
+`make test PACKAGES=./reference RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$' VERBOSE=0`.
 
 
 Persistent `CREATE VIEW` definitions use the ordinary typed SELECT pipeline,

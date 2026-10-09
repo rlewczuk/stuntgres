@@ -143,13 +143,56 @@ unsupported, so there are no supported descendants; PostgreSQL-only reference
 tests specify recursive SET/DROP and ONLY behavior without claiming native parity.
 Action lists and ALTER TABLE IF EXISTS for these actions remain unsupported.
 Native explicit transactions exclude standalone SET/DROP DEFAULT, not selected
-TYPE/nullability/DROP COLUMN lists; read-only ALTER of default actions fails 25006.
+ADD COLUMN/TYPE/nullability/DROP COLUMN lists; read-only ALTER fails25006 before lookup.
 Dump writes current defaults and explicit old rows. Defaults referencing inline
 identity providers order their owning tables first; legal default cycles instead
 emit ordinary sequence-reference SET DEFAULT statements after all definitions and
 before data. Restore admits these bounded deferred statements through the same
 default binder, not arbitrary ALTER scripts. UPDATE DEFAULT remains unsupported.
 Feature smoke: `make smoke RUN='^TestAlterDefaultSmoke$' VERBOSE=0`.
+
+### Adding a column
+
+`ALTER TABLE target ADD [COLUMN] [IF NOT EXISTS] name type` uses the existing
+column type/typmod/collation and NULL/NOT NULL/DEFAULT/CHECK declaration surface.
+Qualified/quoted names, ONLY/ONLY(...) and trailing `*` apply to standalone tables;
+inheritance/partition descendant propagation is outside this feature.
+ADD serial/identity/generated/unique/FK declarations remain excluded.
+
+Schema metadata and stored shapes change atomically under the existing owner-only
+AX grant. Old rows receive typed NULL without a default. Supported Immutable/Stable
+defaults are evaluated once at ADD, even when no old rows exist; fixed-nextval
+volatile defaults draw once per effective live row (never ended/deleted/replaced
+predecessors). Future INSERT omission/DEFAULT evaluates the retained original
+expression. A later standalone SET DEFAULT changes only future requests.
+Structural DEFAULT NULL creates no pg_attrdef definition.
+
+New NOT NULL and CHECK constraints validate completed rows; CHECK NULL passes.
+ALTER errors use contains-null / violated-by-some-row diagnostics, without INSERT's
+failing-row detail. Failed validation leaves the old schema/data intact. Sequence
+draws already demanded are nontransactional and are not promised to rewind.
+IF NOT EXISTS preserves the existing column and emits42701 NOTICE before semantic
+type/default/CHECK binding; system names conflict even with that modifier.
+Syntax still parses completely. DROP/TYPE precede ADD regardless of textual order;
+added CHECKs bind after all new columns exist. Mixed SET/DROP DEFAULT lists remain
+unsupported, and their standalone explicit-transaction exclusion is unchanged.
+
+Fresh direct/prepared results append labels/types/native nullability; held explicit
+survivor SELECTs and targeted INSERTs rebind, but changed-width held SELECT* fails
+0A000 cached-plan result-type validation. Stored view stars retain their old width.
+Private ADD shapes/defaults/CHECKs participate in joint Commit and savepoint rollback.
+Stable attributes never reuse dropped identities in the same relation; pg_class
+relnatts retains the attribute high-water, while pg_attrdef.adnum uses actual IDs.
+Logical Dump writes final CREATE and explicit data, not ADD/DROP history; Restore
+may remint live attribute numbers and subsequent ADD advances its restored ceiling.
+Native eager cursors retain old values/metadata across ADD/Reset/Restore.
+Native Control/context/I/O APIs are host mechanisms, not PostgreSQL control APIs;
+no physical tuple optimization, server/wire protocol, disk durability or pg_dump
+process is implemented. Existing ACL Dump limits remain unchanged.
+Feature smoke:
+`make test PACKAGES=./reference RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$' VERBOSE=0`
+and `make reference RUN='^TestReferenceAlterAddColumn(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
 
 Each INSERT row evaluates declared defaults for omitted columns or per-cell
 `DEFAULT`; absent declarations yield typed NULL. Explicit supplied values,

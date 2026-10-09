@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -174,7 +175,7 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 			return false
 		}
 		for address, shape := range t.catalog.storage {
-			if root, exists := roots[address]; exists && !shape.hasSnapshot && len(root.relation.columns) != len(shape.relation.columns) {
+			if root, exists := roots[address]; exists && !shape.hasSnapshot && !slices.Equal(root.relation.attributes, shape.relation.attributes) {
 				return true
 			}
 		}

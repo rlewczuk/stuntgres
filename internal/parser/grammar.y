@@ -573,7 +573,9 @@ alter_drop_column: ALTER TABLE alter_target alter_actions { $$=&AlterTable{Name:
  | alter_rename_single ',' { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$2.pos.Offset); return 1 }
  | ALTER TABLE rename_target alter_action { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$4.pos.Offset); return 1 } ;
 alter_actions: alter_selected_action { $$=[]AlterTableAction{$1} }
- | alter_actions ',' alter_selected_action { $$=append($1,$3) } ;
+ | alter_actions ',' alter_selected_action { $$=append($1,$3) }
+ | alter_actions ',' ALTER optional_column name SET DEFAULT target_or { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 }
+ | alter_actions ',' ALTER optional_column name DROP DEFAULT { sqllex.(*lexer).failAt("0A000","ALTER TABLE action lists are unsupported",$3.pos.Offset); return 1 } ;
 alter_selected_action: DROP optional_column drop_target drop_mode { $$=AlterTableAction{Column:$3.Name,IfExists:$3.IfExists,Mode:$4,Action:DropColumn,Pos:$1.pos} }
  | ALTER optional_column name SET NOT NULL { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetNotNull,Pos:$1.pos} }
  | ALTER optional_column name DROP NOT NULL { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropNotNull,Pos:$1.pos} }
@@ -583,8 +585,8 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=AlterTabl
  | ALTER optional_column name DROP IDENTITY { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,Pos:$1.pos} }
  | ALTER optional_column name DROP IDENTITY IF EXISTS { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:DropIdentity,IfExists:true,Pos:$1.pos} }
  | ALTER optional_column name identity_alter_options { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:SetIdentity,Identity:$4,Pos:$1.pos} }
- | ADD COLUMN { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
- | ADD name { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
+ | ADD optional_column column { c:=$3; $$=AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:&c,Action:AddColumn,Pos:$1.pos} }
+ | ADD optional_column IF NOT EXISTS column { c:=$6; $$=AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:&c,IfNotExists:true,Action:AddColumn,Pos:$1.pos} }
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} } ;
 alter_type_keyword: KW_U { if $1.text!="type" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }

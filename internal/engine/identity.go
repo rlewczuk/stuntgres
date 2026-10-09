@@ -138,6 +138,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			options.owned.SubID = table.attributes[slot]
 			options.identity = true
 			d := &relationDescriptor{address: address, namespace: namespace, name: name, revision: rev, sequencePlanStamp: rev, owner: table.owner, columns: e.sequenceColumnsLocked(), index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
+			d.attributeHighWater = 3
 			if err := stage.Create(d); err != nil {
 				return err
 			}

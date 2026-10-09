@@ -37,6 +37,20 @@ func tableKind(d *relationDescriptor, operation string) error {
 	if d.relationKind == tableRelation {
 		return nil
 	}
+	if operation == "ADD COLUMN" {
+		kind := ""
+		switch d.relationKind {
+		case viewRelation:
+			kind = "views"
+		case indexRelation:
+			kind = "indexes"
+		case sequenceRelation:
+			kind = "sequences"
+		}
+		if kind != "" {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`ALTER action ADD COLUMN cannot be performed on relation "%s"`, d.name), Detail: "This operation is not supported for " + kind + "."}
+		}
+	}
 	if d.relationKind == indexRelation {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot %s relation "%s"`, operation, d.name), Detail: "This operation is not supported for indexes."}
 	}
@@ -229,6 +243,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		columns := e.sequenceColumnsLocked()
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns.Address, name: name, revision: rev, sequencePlanStamp: rev, owner: auth.state.CurrentUser, columns: columns, index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, attributes: []int32{1, 2, 3}, relationKind: sequenceRelation, sequence: &options}
+		d.attributeHighWater = 3
 		for _, option := range s.Options {
 			if option.Name == "owned" {
 				options.owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)

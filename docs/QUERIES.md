@@ -500,8 +500,8 @@ renames and unrelated attribute compaction preserve both self-join sides and
 fixed output names/types. ON literals retain their original analyzed type/value.
 
 Reconstruction, native replay atomicity and dynamic feature consumers share
-mode-aware definitions. The ADD COLUMN/NATURAL-key freeze complement is explicitly
-PostgreSQL-only; host invalid/canceled Restore controls remain native-only:
+mode-aware definitions. The ADD COLUMN/NATURAL-key freeze complement now runs
+in both modes; host invalid/canceled Restore controls remain native-only:
 
 ```sh
 make test PACKAGES=./reference RUN='^TestReferenceView(JoinedDefinition|JoinedReplayAtomicityAndDynamicConsumers)$' VERBOSE=0

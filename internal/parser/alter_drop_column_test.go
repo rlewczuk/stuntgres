@@ -53,19 +53,6 @@ func TestAlterDropColumnDefaultMarker(t *testing.T) {
 	}
 }
 
-func TestAlterDropColumnCapabilityBoundaries(t *testing.T) {
-	for _, tc := range []struct{ q, message, position string }{
-		{"ALTER TABLE t ADD COLUMN c INT", "ALTER TABLE action is unsupported", "15"},
-	} {
-		_, err := Parse(tc.q)
-		var got *sqlstate.Error
-		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: tc.message, Position: tc.position}
-		if !errors.As(err, &got) || *got != want {
-			t.Fatal(got, err, want)
-		}
-	}
-}
-
 func TestAlterDropColumnCharacterPositions(t *testing.T) {
 	_, err := Parse("/*é*/ ALTER TABLE t DROP COLUMN )")
 	var got *sqlstate.Error

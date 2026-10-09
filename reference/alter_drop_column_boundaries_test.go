@@ -34,17 +34,12 @@ func TestReferenceAlterDropColumnParserBoundaries(t *testing.T) {
 	before := referenceDDLNativeDump(t, p)
 	for _, tc := range []struct {
 		q, code, message, position string
-		nativeOnly                 bool
 	}{
-		{"ALTER TABLE t ADD COLUMN c INT", "0A000", "ALTER TABLE action is unsupported", "15", true},
-		{"ALTER TABLE t DROP COLUMN )", "42601", `syntax error at or near ")"`, "27", false},
-		{`ALTER TABLE t DROP COLUMN "quo""te\\tail"`, "42703", `column "quo"te\\tail" of relation "t" does not exist`, "", false},
+		{"ALTER TABLE t DROP COLUMN )", "42601", `syntax error at or near ")"`, "27"},
+		{`ALTER TABLE t DROP COLUMN "quo""te\\tail"`, "42703", `column "quo"te\\tail" of relation "t" does not exist`, ""},
 	} {
 		for _, prepared := range []bool{false, true} {
 			for _, backend := range p.backends() {
-				if tc.nativeOnly && backend.pg {
-					continue
-				}
 				stage := "execute"
 				if prepared && tc.code != "42703" {
 					stage = "prepare"
@@ -55,11 +50,6 @@ func TestReferenceAlterDropColumnParserBoundaries(t *testing.T) {
 				}
 			}
 		}
-	}
-	if p.postgres != nil {
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("CREATE TABLE add_positive(a INT)", 0))
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(referenceExec("ALTER TABLE add_positive ADD COLUMN c INT", 0)))
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect("SELECT * FROM add_positive", []string{"a", "c"}, []string{"INT4", "INT4"}, nil))
 	}
 	for _, system := range []string{"ctid", "xmin", "cmin", "xmax", "cmax", "tableoid"} {
 		p.step(t, roleReferenceError("ALTER TABLE t DROP IF EXISTS "+system, "0A000", `cannot drop system column "`+system+`"`, "", false, "execute"))

@@ -376,6 +376,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			columns[i].OriginAttribute = int16(i + 1)
 		}
 		d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: parent.namespace, name: name, revision: revision, owner: parent.owner, columns: columns, attributes: attributes, index: lookup, relationKind: indexRelation, sqlIndex: definition}
+		d.attributeHighWater = int32(len(attributes))
 		base := auth.catalog
 		stage := e.BeginCatalogStage(base)
 		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.session, auth.revision, auth.roles.state.revision

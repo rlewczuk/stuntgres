@@ -436,6 +436,9 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 				}
 			}
 		}
+		if len(columns) > 1600 {
+			return b, sqlError("54011", "tables can have at most 1600 columns")
+		}
 		b.createColumns = columns
 		var err error
 		b.createNotNull, err = bindCreateNotNull(s, columns, declarations, inherited)

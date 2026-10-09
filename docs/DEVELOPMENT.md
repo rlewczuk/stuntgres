@@ -137,6 +137,27 @@ names and PostgreSQL schema-qualified names as complete separate records before
 any normalization. Catalog, INSERT-only authority and lock-freshness witnesses
 remain tagged; this is not a conversion of unrelated reference families.
 
+The untagged `TestReferenceAlterAddColumn*` family runs the same scenarios in
+native and pinned PostgreSQL modes. Its `Review*` complement combines existing
+TYPE transforms with NULL, constant and volatile ADD backfills; counts effective
+volatile demands through repeatable-read savepoints and prior own writes; restores
+marks before the first snapshot after sequential and equal-width shape changes;
+and asserts complete declaration/collision diagnostics, Unicode character positions,
+and explicit serial/identity and mixed SET/DROP DEFAULT-list capability boundaries.
+Select this complement with:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReferenceAlterAddColumnReview' VERBOSE=0
+make reference RUN='^TestReferenceAlterAddColumnReview' VERBOSE=0
+```
+
+Engine package units separately exercise real provider admission before DEFAULT/
+CHECK demand and unpublished candidate/backfill vetoes at provider validation and
+StatementScope.Finish. They retain original descriptor/storage/private-write roots,
+nontransactional sequence effects, authorization/replacement/storage fences, and
+hold/admission retirement. These units use existing authorities, not public
+SQL mocks or production test callbacks.
+
 The persistent-view migration adds 25 untagged, mode-aware definitions carrying
 the complete assertion union of 21 former root interaction tests and their owning
 reference cases. Select the exact migrated inventory, excluding unrelated tagged
@@ -162,9 +183,9 @@ Real held statements, zero-width occurrences, typed catalog identity scans,
 retained raw cells and eight joined concurrent consumers retain their metadata,
 owned consumed recordings and closure assertions. Native-only controls cover
 retained TEMP remapping, second-Dump topology, fresh-destination replay and
-invalid/canceled Restore atomicity. PostgreSQL independently executes consumer
-SQL, supports the simple updatable-view write branch and internal `"char"` table
-branch, and alone runs the guarded ADD COLUMN/NATURAL-key freeze complement;
+invalid/canceled Restore atomicity. Both backends execute the ADD COLUMN/NATURAL-key
+freeze complement. PostgreSQL independently executes consumer SQL and supports
+the simple updatable-view write branch and internal `"char"` table branch;
 it has no fictitious host Restore API.
 
 The unrelated `ViewOracle`, `FrozenRelativeLiteralOracle`,

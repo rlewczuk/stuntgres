@@ -77,6 +77,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		return err
 	}
 	d := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: oid}, namespace: ns, name: name, revision: rev, owner: owner, columns: b.createColumns, index: make(map[string]int, len(b.createColumns)), attributes: make([]int32, len(b.createColumns))}
+	d.attributeHighWater = int32(len(d.attributes))
 	for i, c := range d.columns {
 		d.index[c.Name] = i
 		d.attributes[i] = int32(i + 1)

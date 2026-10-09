@@ -254,13 +254,18 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 
 // Rewrite only effective live heads. Own updates become inserts into the private
 // replacement because their committed predecessors are intentionally omitted.
-func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDescriptor, store *relationStorage, frontier CommitSeq, transforms []columnTransformation, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
+func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDescriptor, store *relationStorage, frontier CommitSeq, transforms []columnTransformation, additions []addedColumn, validator alterRowValidator) (*relationStorage, []rowVersion, *privateDeletionRoot, error) {
 	if store.generation == ^uint64(0) {
 		return nil, nil, nil, fmt.Errorf("stuntgres: storage generation exhausted")
 	}
 	slots := make([]int, len(next.attributes))
 	destinations := make([]int, len(transforms))
+	addedSlots := make([]int, len(additions))
+	for i, added := range additions {
+		addedSlots[i] = next.index[added.column.Name]
+	}
 	for i, attribute := range next.attributes {
+		slots[i] = -1
 		for j, id := range old.attributes {
 			if id == attribute {
 				slots[i] = j
@@ -310,6 +315,17 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *relationDe
 					return nil, err
 				}
 				values[destinations[i]] = v
+			}
+			for i, added := range additions {
+				value := added.value
+				if added.expression != nil && added.expression.Properties().Volatility > Stable {
+					var err error
+					value, err = added.expression.Eval(&evaluation)
+					if err != nil {
+						return nil, err
+					}
+				}
+				values[addedSlots[i]] = value
 			}
 			if err := validator.validate(values, &evaluation); err != nil {
 				return nil, err
