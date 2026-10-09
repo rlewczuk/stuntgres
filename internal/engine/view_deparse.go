@@ -334,6 +334,8 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		op := spelling
 		if len(e.Name.Parts) == 2 {
 			op = "OPERATOR(" + quoteIdentifier(e.Name.Parts[0].Text) + "." + op + ")"
+		} else if op == "^@" {
+			op = "OPERATOR(pg_catalog.^@)"
 		}
 		precedence := 4
 		if pgOperatorPriority(spelling) != 0 || len(e.Args) == 1 {
@@ -521,7 +523,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		text, err := args(e.Args)
 		switch name {
-		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos":
+		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "strpos", "overlay", "replace", "translate", "starts_with":
 			return "pg_catalog." + name + "(" + text + ")", err
 		}
 		return objectNameText(e.Name) + "(" + text + ")", err

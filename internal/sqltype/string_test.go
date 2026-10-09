@@ -37,8 +37,8 @@ func TestStringCoreProviderScalars(t *testing.T) {
 		}
 		for reverse := range 2 {
 			args := []Usage{text, d.Usage()}
-			values := [2]Value{String(types[Text], "|"), scalar}
-			textual := [2]bool{true, StringTextInput(tc.id)}
+			values := [4]Value{String(types[Text], "|"), scalar}
+			textual := [4]bool{true, StringTextInput(tc.id)}
 			want := "|" + tc.output
 			if reverse == 1 {
 				args[0], args[1] = args[1], args[0]
@@ -98,11 +98,11 @@ func TestStringCoreProviderFunctions(t *testing.T) {
 		{"normalize", "é", "NFC", "é", false}, {"normalize", "ﬃ", "NFKD", "ffi", false},
 	} {
 		args := []Usage{text, text}
-		values := [2]Value{String(types[Text], tc.input), String(types[Text], tc.set)}
+		values := [4]Value{String(types[Text], tc.input), String(types[Text], tc.set)}
 		if tc.unary {
 			args = args[:1]
 		}
-		plan, err := BindString(tc.name, text, text, args, [2]bool{true, true}, false)
+		plan, err := BindString(tc.name, text, text, args, [4]bool{true, true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,16 +115,16 @@ func TestStringCoreProviderFunctions(t *testing.T) {
 			t.Fatal(tc, s)
 		}
 	}
-	plan, err := BindString("normalize", text, text, []Usage{text, text}, [2]bool{true, true}, false)
+	plan, err := BindString("normalize", text, text, []Usage{text, text}, [4]bool{true, true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = plan.Evaluate(ctx, [2]Value{String(types[Text], "x"), String(types[Text], "NFC ")}, InputEnvironment{}, OutputEnvironment{})
+	_, err = plan.Evaluate(ctx, [4]Value{String(types[Text], "x"), String(types[Text], "NFC ")}, InputEnvironment{}, OutputEnvironment{})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "invalid normalization form: NFC "}) {
 		t.Fatal("full runtime form diagnostic", err)
 	}
-	got, err := plan.Evaluate(ctx, [2]Value{Null(types[Text]), String(types[Text], "bad")}, InputEnvironment{}, OutputEnvironment{})
+	got, err := plan.Evaluate(ctx, [4]Value{Null(types[Text]), String(types[Text], "bad")}, InputEnvironment{}, OutputEnvironment{})
 	if err != nil || !got.IsNull() {
 		t.Fatal("strict NULL bypasses form body", got, err)
 	}
@@ -132,13 +132,13 @@ func TestStringCoreProviderFunctions(t *testing.T) {
 		name   string
 		result ID
 		args   []Usage
-		flags  [2]bool
+		flags  [4]bool
 	}{
-		{"unknown", Text, []Usage{text}, [2]bool{true, true}},
-		{"normalize", Bool, []Usage{text}, [2]bool{true, true}},
-		{"is_normalized", Text, []Usage{text}, [2]bool{true, true}},
-		{"btrim", Text, []Usage{types[Int4].Usage()}, [2]bool{true, true}},
-		{"||", Text, []Usage{text, types[NameArray].Usage()}, [2]bool{true, false}},
+		{"unknown", Text, []Usage{text}, [4]bool{true, true}},
+		{"normalize", Bool, []Usage{text}, [4]bool{true, true}},
+		{"is_normalized", Text, []Usage{text}, [4]bool{true, true}},
+		{"btrim", Text, []Usage{types[Int4].Usage()}, [4]bool{true, true}},
+		{"||", Text, []Usage{text, types[NameArray].Usage()}, [4]bool{true, false}},
 	} {
 		if _, err := BindString(tc.name, types[tc.result].Usage(), text, tc.args, tc.flags, false); err == nil {
 			t.Fatal("accepted invalid signature", tc)
@@ -146,16 +146,16 @@ func TestStringCoreProviderFunctions(t *testing.T) {
 	}
 	c, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := plan.Evaluate(c, [2]Value{}, InputEnvironment{}, OutputEnvironment{}); !errors.Is(err, context.Canceled) {
+	if _, err := plan.Evaluate(c, [4]Value{}, InputEnvironment{}, OutputEnvironment{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"btrim", "ltrim", "rtrim"} {
-		trim, err := BindString(name, text, text, []Usage{text}, [2]bool{true, true}, false)
+		trim, err := BindString(name, text, text, []Usage{text}, [4]bool{true, true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
 		allocations := testing.AllocsPerRun(100, func() {
-			_, err := trim.Evaluate(ctx, [2]Value{String(types[Text], " x ")}, InputEnvironment{}, OutputEnvironment{})
+			_, err := trim.Evaluate(ctx, [4]Value{String(types[Text], " x ")}, InputEnvironment{}, OutputEnvironment{})
 			if err != nil {
 				panic(err)
 			}
@@ -203,7 +203,7 @@ func TestStringPlanSpecializedOutputStability(t *testing.T) {
 		{Int2, false}, {Int4, false}, {Int8, false}, {Numeric, false}, {Float4, false}, {Float8, false}, {Bool, false}, {Bytea, false}, {Oid, false}, {UUID, false}, {Time, false}, {Timetz, false}, {Char, false}, {Name, false}, {Text, false}, {BPChar, false}, {VarChar, false}, {Void, false},
 		{Date, true}, {Timestamp, true}, {Timestamptz, true}, {Interval, true}, {Regclass, true},
 	} {
-		plan, err := BindString("||", text, text, []Usage{types[tc.id].Usage(), text}, [2]bool{false, true}, false)
+		plan, err := BindString("||", text, text, []Usage{types[tc.id].Usage(), text}, [4]bool{false, true}, false)
 		if err != nil {
 			t.Fatal(tc, err)
 		}

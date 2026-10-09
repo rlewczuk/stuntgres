@@ -11,7 +11,7 @@ type stringExpression struct {
 	expressionInfo
 	plan    sqltype.StringPlan
 	args    []BoundExpr
-	textual [2]bool
+	textual [4]bool
 	syntax  parser.StringSyntax
 }
 
@@ -24,7 +24,7 @@ func (e stringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 			return sqltype.Null(e.usage.Type), nil
 		}
 	}
-	var values [2]sqltype.Value
+	var values [4]sqltype.Value
 	for i, arg := range e.args {
 		v, err := arg.Eval(c)
 		if err != nil {
@@ -36,8 +36,8 @@ func (e stringExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	output.Regclass = c.statementScope
 	return e.plan.Evaluate(c.Context, values, c.Input, output)
 }
-func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []BoundExpr, textual [2]bool, syntax parser.StringSyntax) (BoundExpr, error) {
-	var usages [2]sqltype.Usage
+func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos parser.Position, args []BoundExpr, textual [4]bool, syntax parser.StringSyntax) (BoundExpr, error) {
+	var usages [4]sqltype.Usage
 	p := ExprProperties{Volatility: Immutable}
 	if name == "||" && (!textual[0] || !textual[1]) {
 		p.Volatility = Stable
@@ -55,8 +55,8 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	}
 	info := b.info(result, pos, p)
 	inputInfo := info
-	if name == "position" || name == "strpos" {
-		// Search demands its input collation even though INT4 is noncollatable.
+	if name == "position" || name == "strpos" || name == "starts_with" {
+		// Search/prefix demand input collation despite a noncollatable result.
 		inputInfo = b.info(b.typ(sqltype.Text).Usage(), pos, p)
 	}
 	inputInfo, err := collatedInfo(inputInfo, args...)
@@ -72,9 +72,33 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	}
 	return stringExpression{info, plan, args, textual, syntax}, nil
 }
+
+// COLLATE resolves before overload finalization. Contextualize only textual
+// roles, preserving each established parameter's input descriptor.
+func (b *expressionBinder) stringOperand(raw parser.Expr, textual bool) (comparisonOperand, error) {
+	policy := expressionPolicy{context: projectionContext}
+	if _, collated := raw.(parser.CollateExpr); collated && textual {
+		policy.expected = b.typ(sqltype.Text).Usage()
+		child := raw
+		for {
+			collation, ok := child.(parser.CollateExpr)
+			if !ok {
+				break
+			}
+			child = collation.Child
+		}
+		if parameter, ok := child.(parser.ParameterExpr); ok {
+			if established := b.parameters[parameter.Number]; established.Type != nil {
+				policy.expected = established
+			}
+		}
+	}
+	return b.comparisonOperandPolicy(raw, policy)
+}
+
 func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible bool) (BoundExpr, error) {
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	var small [2]comparisonOperand
+	var small [4]comparisonOperand
 	var operands []comparisonOperand
 	if len(raw.Args) <= len(small) {
 		operands = small[:len(raw.Args)]
@@ -82,27 +106,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		operands = make([]comparisonOperand, len(raw.Args))
 	}
 	for i, r := range raw.Args {
-		policy := expressionPolicy{context: projectionContext}
-		if _, collated := r.(parser.CollateExpr); collated {
-			// COLLATE resolves before overload finalization. Give an unknown
-			// input the string candidate's TEXT context before that lookup;
-			// already typed inputs retain their type and signature diagnostics.
-			policy.expected = b.typ(sqltype.Text).Usage()
-			child := r
-			for {
-				collation, ok := child.(parser.CollateExpr)
-				if !ok {
-					break
-				}
-				child = collation.Child
-			}
-			if parameter, ok := child.(parser.ParameterExpr); ok {
-				if established := b.parameters[parameter.Number]; established.Type != nil {
-					policy.expected = established
-				}
-			}
-		}
-		o, err := b.comparisonOperandPolicy(r, policy)
+		o, err := b.stringOperand(r, name != "overlay" || i < 2)
 		if err != nil {
 			return nil, err
 		}
@@ -115,6 +119,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	}
 	count := name == "length" || name == "char_length" || name == "character_length" || name == "octet_length" || name == "bit_length"
 	search := name == "position" || name == "strpos"
+	replacement := name == "replace" || name == "translate" || name == "starts_with" || name == "overlay"
 	// The real bytea/name overload remains an explicit capability boundary.
 	if visible && name == "length" && len(operands) == 2 {
 		source, encoding := operands[0].descriptor(), operands[1].descriptor()
@@ -131,38 +136,61 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 			}
 		}
 	}
-	// Shared TEXT/BYTEA names select from already-analyzed operands, never
-	// by retrying a raw binder. All-unknown operands prefer TEXT.
-	binary := visible && ((!raw.Variadic && len(operands) == 2 &&
-		(name == "btrim" || name == "ltrim" || name == "rtrim")) ||
+	// Shared names select from once-analyzed textual roles. Overlay's INT4
+	// positions do not participate in TEXT/BYTEA candidate selection.
+	binary := visible && ((!raw.Variadic && len(operands) == 2 && (name == "btrim" || name == "ltrim" || name == "rtrim")) ||
 		(!raw.Variadic && len(operands) == 1 && (name == "length" || name == "octet_length" || name == "bit_length")) ||
-		(len(operands) == 2 && name == "position"))
+		(len(operands) == 2 && name == "position") || (name == "overlay" && (len(operands) == 3 || len(operands) == 4)))
 	knownBinary := false
-	for _, o := range operands {
+	for i, o := range operands {
+		if name == "overlay" && i >= 2 {
+			continue
+		}
 		if d := o.descriptor(); d != nil {
 			binary = binary && d.BaseType().ID() == sqltype.Bytea
 			knownBinary = knownBinary || d.BaseType().ID() == sqltype.Bytea
 		}
 	}
 	if binary && knownBinary {
-		if b.defaultConsumer {
-			return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+		valid := true
+		for i, o := range operands {
+			if d := o.descriptor(); d != nil {
+				_, err := sqltype.PlanCoercion(o.node.ResultUsage(), b.typ(binaryArgumentID(name, i)).Usage(), sqltype.Implicit)
+				valid = valid && err == nil
+			}
 		}
-		syntax := raw.Syntax
-		if raw.StringSyntax == parser.TrimStringSyntax {
-			syntax = parser.SQLFunctionSyntax
+		if valid {
+			if b.defaultConsumer {
+				return nil, expressionError("0A000", "functions are unsupported", raw.Pos)
+			}
+			syntax := raw.Syntax
+			if raw.StringSyntax == parser.TrimStringSyntax {
+				syntax = parser.SQLFunctionSyntax
+			}
+			return b.finishBinary(name, raw.Pos, operands, syntax)
 		}
-		return b.finishBinary(name, raw.Pos, operands, syntax)
 	}
-	valid := visible && (!raw.Variadic || count || search) && len(operands) >= 1 && len(operands) <= 2
-	if count || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" {
-		valid = valid && len(operands) == 1
-	} else if search {
+	valid := visible && (!raw.Variadic || count || search || replacement)
+	switch {
+	case name == "overlay":
+		valid = valid && (len(operands) == 3 || len(operands) == 4)
+	case name == "replace" || name == "translate":
+		valid = valid && len(operands) == 3
+	case search || name == "starts_with":
 		valid = valid && len(operands) == 2
+	case count || name == "lower" || name == "upper" || name == "casefold" || name == "initcap":
+		valid = valid && len(operands) == 1
+	default:
+		valid = valid && len(operands) >= 1 && len(operands) <= 2
 	}
-	for _, o := range operands {
-		if d := o.descriptor(); d != nil && !sqltype.StringTextInput(d.BaseType().ID()) {
-			valid = false
+	for i, o := range operands {
+		if d := o.descriptor(); d != nil {
+			if name == "overlay" && i >= 2 {
+				_, err := sqltype.PlanCoercion(o.node.ResultUsage(), b.typ(sqltype.Int4).Usage(), sqltype.Implicit)
+				valid = valid && err == nil
+			} else {
+				valid = valid && sqltype.StringTextInput(d.BaseType().ID())
+			}
 		}
 	}
 	if !valid {
@@ -176,15 +204,29 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		return nil, functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 	}
 	args := make([]BoundExpr, len(operands))
+	var textual [4]bool
 	for i, o := range operands {
+		target := b.typ(sqltype.Text)
+		textual[i] = true
+		if name == "overlay" && i >= 2 {
+			target = b.typ(sqltype.Int4)
+			textual[i] = false
+		}
 		var err error
-		args[i], err = b.finalizeOperand(o, b.typ(sqltype.Text))
+		args[i], err = b.finalizeOperand(o, target)
 		if err != nil {
 			return nil, err
 		}
+		if !textual[i] && args[i].ResultUsage() != target.Usage() {
+			plan, err := sqltype.PlanCoercion(args[i].ResultUsage(), target.Usage(), sqltype.Implicit)
+			if err != nil {
+				return nil, err
+			}
+			args[i] = coercionExpression{b.info(target.Usage(), args[i].SourcePosition(), args[i].Properties()), args[i], plan, sqltype.Implicit}
+		}
 	}
 	result := b.typ(sqltype.Text).Usage()
-	if name == "is_normalized" {
+	if name == "is_normalized" || name == "starts_with" {
 		result = b.typ(sqltype.Bool).Usage()
 	}
 	if count || search {
@@ -193,7 +235,43 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	if name == "position" && raw.Syntax == parser.SQLFunctionSyntax {
 		raw.StringSyntax = parser.PositionStringSyntax
 	}
-	return b.stringNode(name, result, raw.Pos, args, [2]bool{true, true}, raw.StringSyntax)
+	if name == "overlay" && raw.Syntax == parser.SQLFunctionSyntax {
+		raw.StringSyntax = parser.OverlayStringSyntax
+	}
+	return b.stringNode(name, result, raw.Pos, args, textual, raw.StringSyntax)
+}
+
+func (b *expressionBinder) bindStringPrefix(raw parser.OperatorExpr) (BoundExpr, error) {
+	var operands [2]comparisonOperand
+	var types [2]*sqltype.Descriptor
+	for i, child := range raw.Args {
+		o, err := b.stringOperand(child, true)
+		if err != nil {
+			return nil, err
+		}
+		if i < len(operands) {
+			operands[i], types[i] = o, o.descriptor()
+		}
+	}
+	visible, err := b.builtinVisible(raw.Name, operatorLookup)
+	if err != nil {
+		return nil, err
+	}
+	valid := visible && len(raw.Args) == 2
+	for _, d := range types {
+		valid = valid && (d == nil || sqltype.StringTextInput(d.BaseType().ID()))
+	}
+	if !valid {
+		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), types[0], types[1], raw)
+	}
+	args := make([]BoundExpr, 2)
+	for i, o := range operands {
+		args[i], err = b.finalizeOperand(o, b.typ(sqltype.Text))
+		if err != nil {
+			return nil, err
+		}
+	}
+	return b.stringNode("starts_with", b.typ(sqltype.Bool).Usage(), raw.Pos, args, [4]bool{true, true}, parser.PrefixStringSyntax)
 }
 func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr, error) {
 	if len(raw.Args) != 2 {
@@ -307,12 +385,16 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 			args[i] = o.node
 		}
 	}
-	return b.stringNode("||", b.typ(sqltype.Text).Usage(), raw.Pos, args, textual, parser.OrdinaryStringSyntax)
+	return b.stringNode("||", b.typ(sqltype.Text).Usage(), raw.Pos, args, [4]bool{textual[0], textual[1]}, parser.OrdinaryStringSyntax)
 }
 
 // Both PostgreSQL presentation and native replay preserve special syntax, but
 // each renderer owns its child formatting and literal transport.
-func (n stringExpression) specialSQL(source, set string) (string, error) {
+func (n stringExpression) specialSQL(parts []string) (string, error) {
+	source, set := parts[0], ""
+	if len(parts) > 1 {
+		set = parts[1]
+	}
 	form := ""
 	if n.syntax == parser.NormalizeStringSyntax || n.syntax == parser.NormalizedStringSyntax {
 		if len(n.args) == 2 {
@@ -334,7 +416,14 @@ func (n stringExpression) specialSQL(source, set string) (string, error) {
 		if n.plan.Name() != "position" || len(n.args) != 2 {
 			return "", fmt.Errorf("stuntgres: invalid POSITION syntax provider")
 		}
-		return renderBinaryCall(n.plan.Name(), parser.SQLFunctionSyntax, []string{source, set}, n.plan.Name(), func(s string) (string, error) { return s, nil })
+		return renderBinaryCall(n.plan.Name(), parser.SQLFunctionSyntax, parts, n.plan.Name(), func(s string) (string, error) { return s, nil })
+	case parser.OverlayStringSyntax:
+		return renderBinaryCall(n.plan.Name(), parser.SQLFunctionSyntax, parts, n.plan.Name(), func(s string) (string, error) { return s, nil })
+	case parser.PrefixStringSyntax:
+		if n.plan.Name() != "starts_with" || len(parts) != 2 {
+			return "", fmt.Errorf("stuntgres: invalid prefix syntax provider")
+		}
+		return "(" + source + " OPERATOR(pg_catalog.^@) " + set + ")", nil
 	case parser.NormalizeStringSyntax:
 		if form != "" {
 			source += ", " + form

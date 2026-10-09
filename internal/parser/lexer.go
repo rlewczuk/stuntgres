@@ -675,8 +675,17 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
-	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
+	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
+	}
+	// REPLACE is also an unreserved keyword (CREATE OR REPLACE VIEW). Promote
+	// only its call spelling, leaving the bare keyword and labels unchanged.
+	if token.lexeme.keyword != nil && token.lexeme.text == "replace" {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = SELECTED_FUNC
+		}
 	}
 	switch token.lexeme.text {
 	case "btrim", "ltrim", "rtrim", "is_normalized", "lower", "upper", "casefold", "initcap":
@@ -1172,7 +1181,7 @@ func binaryScalarFunction(name string) bool {
 	case "bit_length", "octet_length", "length", "char_length", "character_length", "strpos", "btrim", "ltrim", "rtrim", "overlay", "position", "substring", "substr", "like_escape":
 		return true
 	}
-	return binaryHashFunction(name)
+	return binaryHashFunction(name) || stringReplacementFunction(name)
 }
 
 // Admission recognizes quoted hash spellings without normalizing the AST.
@@ -1188,4 +1197,9 @@ func binaryHashFunction(name string) bool {
 			strings.EqualFold(name, "sha256") || strings.EqualFold(name, "sha384") || strings.EqualFold(name, "sha512")
 	}
 	return false
+}
+
+// Admission preserves quoted case in the AST; routine resolution stays exact.
+func stringReplacementFunction(name string) bool {
+	return strings.EqualFold(name, "replace") || strings.EqualFold(name, "translate") || strings.EqualFold(name, "starts_with")
 }

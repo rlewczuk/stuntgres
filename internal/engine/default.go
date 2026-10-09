@@ -208,10 +208,10 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
 	case stringExpression:
-		if len(n.args) < 1 || len(n.args) > 2 {
+		if len(n.args) < 1 || len(n.args) > 4 {
 			return "", fmt.Errorf("stuntgres: invalid stored string arity")
 		}
-		var usages [2]sqltype.Usage
+		var usages [4]sqltype.Usage
 		for i, arg := range n.args {
 			if arg == nil {
 				return "", fmt.Errorf("stuntgres: missing string operand")
@@ -240,20 +240,6 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 			return "(" + left + " OPERATOR(pg_catalog.||) " + right + ")", nil
 		}
-		if n.syntax != parser.OrdinaryStringSyntax {
-			source, err := r.stringArgumentSQL(ctx, view, n.args[0])
-			if err != nil {
-				return "", err
-			}
-			set := ""
-			if (n.syntax == parser.TrimStringSyntax || n.syntax == parser.PositionStringSyntax) && len(n.args) == 2 {
-				set, err = r.stringArgumentSQL(ctx, view, n.args[1])
-				if err != nil {
-					return "", err
-				}
-			}
-			return n.specialSQL(source, set)
-		}
 		parts := make([]string, len(n.args))
 		for i, arg := range n.args {
 			text, err := r.stringArgumentSQL(ctx, view, arg)
@@ -261,6 +247,9 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "", err
 			}
 			parts[i] = text
+		}
+		if n.syntax != parser.OrdinaryStringSyntax {
+			return n.specialSQL(parts)
 		}
 		return "pg_catalog." + n.plan.Name() + "(" + strings.Join(parts, ", ") + ")", nil
 	case mathExpression:
@@ -878,7 +867,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		rebound = n
 	case stringExpression:
 		n.args = append([]BoundExpr(nil), n.args...)
-		var usages [2]sqltype.Usage
+		var usages [4]sqltype.Usage
 		for i := range n.args {
 			n.args[i] = child(n.args[i])
 			usages[i] = n.args[i].ResultUsage()

@@ -66,12 +66,12 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 			text = d
 		}
 	}
-	plan, err := sqltype.BindString("||", text.Usage(), text.Usage(), []sqltype.Usage{text.Usage(), text.Usage()}, [2]bool{true, true}, false)
+	plan, err := sqltype.BindString("||", text.Usage(), text.Usage(), []sqltype.Usage{text.Usage(), text.Usage()}, [4]bool{true, true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var order []int
-	node := stringExpression{expressionInfo: expressionInfo{usage: text.Usage()}, plan: plan, textual: [2]bool{true, true}, args: []BoundExpr{
+	node := stringExpression{expressionInfo: expressionInfo{usage: text.Usage()}, plan: plan, textual: [4]bool{true, true}, args: []BoundExpr{
 		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0},
 		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage()}, value: sqltype.String(text, "x"), order: &order, index: 1},
 	}}

@@ -26,13 +26,13 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 	for _, conflict := range []bool{false, true} {
 		usage := text.Usage()
 		usage.Collation.ID = 6411
-		plan, err := sqltype.BindString("upper", usage, text.Usage(), []sqltype.Usage{usage}, [2]bool{true}, conflict)
+		plan, err := sqltype.BindString("upper", usage, text.Usage(), []sqltype.Usage{usage}, [4]bool{true}, conflict)
 		if err != nil {
 			t.Fatal(err)
 		}
 		node := stringExpression{
 			expressionInfo: expressionInfo{usage: usage, collationConflict: conflict},
-			plan:           plan, textual: [2]bool{true}, syntax: parser.OrdinaryStringSyntax,
+			plan:           plan, textual: [4]bool{true}, syntax: parser.OrdinaryStringSyntax,
 			args: []BoundExpr{literalExpression{expressionInfo{usage: usage}, sqltype.String(text, "ß")}},
 		}
 		rebound, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
@@ -75,14 +75,14 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	}
 	usage := text.Usage()
 	usage.Collation.ID = 811
-	plan, err := sqltype.BindString("lower", usage, text.Usage(), []sqltype.Usage{usage}, [2]bool{true}, false)
+	plan, err := sqltype.BindString("lower", usage, text.Usage(), []sqltype.Usage{usage}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var order []int
 	node := stringExpression{
 		expressionInfo: expressionInfo{usage: usage, properties: ExprProperties{Volatility: Immutable, RowDependent: true}},
-		plan:           plan, textual: [2]bool{true}, syntax: parser.OrdinaryStringSyntax,
+		plan:           plan, textual: [4]bool{true}, syntax: parser.OrdinaryStringSyntax,
 		args: []BoundExpr{mathObservedArgument{expressionInfo: expressionInfo{usage: usage}, value: sqltype.String(text, "İ"), order: &order, index: 0}},
 	}
 	got, err := node.Eval(&EvalContext{Context: context.Background()})

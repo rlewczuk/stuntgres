@@ -114,17 +114,12 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	}
 	// PostgreSQL accepts VARIADIC spelling for these fixed scalar signatures;
 	// it does not introduce an array argument or a variadic execution plan.
-	selectedSlice := name == "overlay" || name == "substring" || name == "substr"
+	selectedSlice := name == "substring" || name == "substr"
 	if !visible || (raw.Variadic && !selectedSlice) {
 		return missing()
 	}
 	arity := 2
 	switch name {
-	case "overlay":
-		arity = 3
-		if len(operands) == 4 {
-			arity = 4
-		}
 	case "substring", "substr":
 		if len(operands) == 3 {
 			arity = 3

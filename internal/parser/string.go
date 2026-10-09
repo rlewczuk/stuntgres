@@ -67,7 +67,7 @@ func stringSingleton(expr Expr) (valid, found bool) {
 			return false, false
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
-		found = name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap"
+		found = name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap" || name == "overlay" || stringReplacementFunction(name)
 		if !found && !singletonArgument(e) {
 			return false, false
 		}
@@ -80,7 +80,7 @@ func stringSingleton(expr Expr) (valid, found bool) {
 		}
 		return true, found
 	case OperatorExpr:
-		found = len(e.Name.Parts) > 0 && e.Name.Parts[len(e.Name.Parts)-1].Text == "||"
+		found = len(e.Name.Parts) > 0 && (e.Name.Parts[len(e.Name.Parts)-1].Text == "||" || e.Name.Parts[len(e.Name.Parts)-1].Text == "^@")
 		for _, arg := range e.Args {
 			ok, has := stringSingleton(arg)
 			if !ok {

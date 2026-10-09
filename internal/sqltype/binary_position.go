@@ -52,28 +52,27 @@ func binaryMaximalSuffix(needle string, reverse bool, work *binarySearchWork) (i
 	return suffix, period, nil
 }
 
-// binaryPosition is the constant-space Two-Way string matcher. Critical
-// factorization and remembered periodic prefixes give O(haystack+needle) work,
-// including repetitive absent patterns, without a needle-sized scratch table.
-// It returns a zero-based index, or -1; SQL applies its one-based convention.
-func binaryPosition(ctx context.Context, haystack, needle string) (int, error) {
-	if err := ctx.Err(); err != nil {
-		return -1, err
+// binaryMatcher prepares one constant-space Two-Way factorization. Replacement
+// reuses it across every nonoverlapping match and both output passes.
+type binaryMatcher struct {
+	needle                            string
+	cut, period, rememberedAfterShift int
+}
+
+func prepareBinaryMatcher(needle string, work *binarySearchWork) (binaryMatcher, error) {
+	if err := work.ctx.Err(); err != nil {
+		return binaryMatcher{}, err
 	}
 	if len(needle) == 0 {
-		return 0, nil
+		return binaryMatcher{needle: needle}, nil
 	}
-	if len(needle) > len(haystack) {
-		return -1, nil
-	}
-	work := binarySearchWork{ctx: ctx, remaining: 4096}
-	left, period, err := binaryMaximalSuffix(needle, false, &work)
+	left, period, err := binaryMaximalSuffix(needle, false, work)
 	if err != nil {
-		return -1, err
+		return binaryMatcher{}, err
 	}
-	right, otherPeriod, err := binaryMaximalSuffix(needle, true, &work)
+	right, otherPeriod, err := binaryMaximalSuffix(needle, true, work)
 	if err != nil {
-		return -1, err
+		return binaryMatcher{}, err
 	}
 	if right > left {
 		left, period = right, otherPeriod
@@ -83,7 +82,7 @@ func binaryPosition(ctx context.Context, haystack, needle string) (int, error) {
 	if periodic {
 		for i := range cut {
 			if err := work.step(); err != nil {
-				return -1, err
+				return binaryMatcher{}, err
 			}
 			if needle[i] != needle[period+i] {
 				periodic = false
@@ -96,6 +95,19 @@ func binaryPosition(ctx context.Context, haystack, needle string) (int, error) {
 		rememberedAfterShift = len(needle) - period
 	} else {
 		period = max(left, len(needle)-left-1) + 1
+	}
+	return binaryMatcher{needle, cut, period, rememberedAfterShift}, work.ctx.Err()
+}
+
+// Position returns a zero-based byte index, or -1. Its execution work counter
+// includes comparisons across successive searches; no scratch survives a call.
+func (m binaryMatcher) position(haystack string, work *binarySearchWork) (int, error) {
+	if err := work.ctx.Err(); err != nil {
+		return -1, err
+	}
+	needle, cut, period := m.needle, m.cut, m.period
+	if len(needle) == 0 {
+		return 0, nil
 	}
 	memory := 0
 	for start := 0; start <= len(haystack)-len(needle); {
@@ -128,16 +140,35 @@ func binaryPosition(ctx context.Context, haystack, needle string) (int, error) {
 			i--
 		}
 		if i <= memory {
-			if err := ctx.Err(); err != nil {
+			if err := work.ctx.Err(); err != nil {
 				return -1, err
 			}
 			return start, nil
 		}
 		start += period
-		memory = rememberedAfterShift
+		memory = m.rememberedAfterShift
 	}
-	if err := ctx.Err(); err != nil {
+	if err := work.ctx.Err(); err != nil {
 		return -1, err
 	}
 	return -1, nil
+}
+
+// binaryPosition retains the raw provider's empty/long-needle shortcuts.
+func binaryPosition(ctx context.Context, haystack, needle string) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return -1, err
+	}
+	if len(needle) == 0 {
+		return 0, nil
+	}
+	if len(needle) > len(haystack) {
+		return -1, nil
+	}
+	work := binarySearchWork{ctx: ctx, remaining: 4096}
+	matcher, err := prepareBinaryMatcher(needle, &work)
+	if err != nil {
+		return -1, err
+	}
+	return matcher.position(haystack, &work)
 }

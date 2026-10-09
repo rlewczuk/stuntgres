@@ -1,7 +1,11 @@
 package parser
 
 func binarySQLCall(name string, pos Position, args []Expr) FunctionExpr {
-	return FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: "pg_catalog", Pos: pos}, {Text: name, Pos: pos}}}, Args: args, Pos: pos, Syntax: SQLFunctionSyntax}
+	call := FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: "pg_catalog", Pos: pos}, {Text: name, Pos: pos}}}, Args: args, Pos: pos, Syntax: SQLFunctionSyntax}
+	if name == "overlay" {
+		call.StringSyntax = OverlayStringSyntax
+	}
+	return call
 }
 
 func binarySubstringStart() Expr {

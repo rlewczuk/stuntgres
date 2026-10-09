@@ -26,7 +26,7 @@ func TestStringLengthCountProviders(t *testing.T) {
 	} {
 		for _, name := range []string{"length", "char_length", "character_length", "octet_length", "bit_length"} {
 			u := types[tc.id].Usage()
-			plan, err := BindString(name, types[Int4].Usage(), types[Text].Usage(), []Usage{u}, [2]bool{true, true}, false)
+			plan, err := BindString(name, types[Int4].Usage(), types[Text].Usage(), []Usage{u}, [4]bool{true, true}, false)
 			if err != nil {
 				t.Fatal(tc, name, err)
 			}
@@ -38,7 +38,7 @@ func TestStringLengthCountProviders(t *testing.T) {
 				t.Fatal("formal/result authority", tc, name, plan)
 			}
 			input := String(types[tc.id], tc.physical)
-			got, err := plan.Evaluate(ctx, [2]Value{input}, InputEnvironment{}, OutputEnvironment{})
+			got, err := plan.Evaluate(ctx, [4]Value{input}, InputEnvironment{}, OutputEnvironment{})
 			want := tc.chars
 			if name == "octet_length" {
 				want = tc.octets
@@ -54,7 +54,7 @@ func TestStringLengthCountProviders(t *testing.T) {
 			if physical != tc.physical {
 				t.Fatal("source mutation", physical)
 			}
-			got, err = plan.Evaluate(ctx, [2]Value{Null(types[tc.id])}, InputEnvironment{}, OutputEnvironment{})
+			got, err = plan.Evaluate(ctx, [4]Value{Null(types[tc.id])}, InputEnvironment{}, OutputEnvironment{})
 			if err != nil || !got.IsNull() || got.Type() != types[Int4] {
 				t.Fatal("strict typed NULL", name, got, err)
 			}
@@ -74,11 +74,11 @@ func TestStringLengthCountProviders(t *testing.T) {
 		name string
 		want int64
 	}{{"octet_length", 8}, {"length", 2}, {"bit_length", 48}} {
-		p, err := BindString(tc.name, types[Int4].Usage(), types[Text].Usage(), []Usage{domain.Usage()}, [2]bool{true, true}, false)
+		p, err := BindString(tc.name, types[Int4].Usage(), types[Text].Usage(), []Usage{domain.Usage()}, [4]bool{true, true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := p.Evaluate(ctx, [2]Value{v}, InputEnvironment{}, OutputEnvironment{})
+		got, err := p.Evaluate(ctx, [4]Value{v}, InputEnvironment{}, OutputEnvironment{})
 		n, _ := got.Integer()
 		if err != nil || n != tc.want {
 			t.Fatal(tc, got, err)
@@ -118,7 +118,7 @@ func TestStringLengthSearchOracle(t *testing.T) {
 		level = next
 	}
 	for _, name := range []string{"position", "strpos"} {
-		p, err := BindString(name, types[Int4].Usage(), text, []Usage{text, text}, [2]bool{true, true}, false)
+		p, err := BindString(name, types[Int4].Usage(), text, []Usage{text, text}, [4]bool{true, true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -127,7 +127,7 @@ func TestStringLengthSearchOracle(t *testing.T) {
 				if len([]rune(needle)) > 2 {
 					continue
 				}
-				got, err := p.Evaluate(context.Background(), [2]Value{String(types[Text], source), String(types[Text], needle)}, InputEnvironment{}, OutputEnvironment{})
+				got, err := p.Evaluate(context.Background(), [4]Value{String(types[Text], source), String(types[Text], needle)}, InputEnvironment{}, OutputEnvironment{})
 				n, _ := got.Integer()
 				want := naiveStringPosition(source, needle)
 				if err != nil || n != want {
@@ -135,11 +135,11 @@ func TestStringLengthSearchOracle(t *testing.T) {
 				}
 			}
 		}
-		conflict, err := BindString(name, types[Int4].Usage(), text, []Usage{text, text}, [2]bool{true, true}, true)
+		conflict, err := BindString(name, types[Int4].Usage(), text, []Usage{text, text}, [4]bool{true, true}, true)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, values := range [][2]Value{
+		for _, values := range [][4]Value{
 			{String(types[Text], "abc"), String(types[Text], "")},
 			{String(types[Text], ""), String(types[Text], "")},
 		} {
@@ -151,7 +151,7 @@ func TestStringLengthSearchOracle(t *testing.T) {
 			}
 		}
 		for _, index := range []int{0, 1} {
-			values := [2]Value{String(types[Text], ""), String(types[Text], "")}
+			values := [4]Value{String(types[Text], ""), String(types[Text], "")}
 			values[index] = Null(types[Text])
 			got, err := conflict.Evaluate(context.Background(), values, InputEnvironment{}, OutputEnvironment{})
 			if err != nil || !got.IsNull() || got.Type() != types[Int4] {
@@ -170,27 +170,27 @@ func TestStringLengthSignaturesAndOwners(t *testing.T) {
 			arity = 2
 		}
 		for _, args := range [][]Usage{nil, {text, text, text}, {types[Int4].Usage()}, {types[Bytea].Usage()}, {text, types[Bytea].Usage()}} {
-			if _, err := BindString(name, result, text, args, [2]bool{true, true}, false); err == nil {
+			if _, err := BindString(name, result, text, args, [4]bool{true, true}, false); err == nil {
 				t.Fatal("invalid signature", name, args)
 			}
 		}
 		args := []Usage{text, text}[:arity]
 		for _, wrong := range []Usage{types[Text].Usage(), types[Int8].Usage(), {Type: types[Int4], Typmod: 3}} {
-			if _, err := BindString(name, wrong, text, args, [2]bool{true, true}, false); err == nil {
+			if _, err := BindString(name, wrong, text, args, [4]bool{true, true}, false); err == nil {
 				t.Fatal("invalid result", name, wrong)
 			}
 		}
-		if _, err := BindString(name, result, text, args, [2]bool{}, false); err == nil {
+		if _, err := BindString(name, result, text, args, [4]bool{}, false); err == nil {
 			t.Fatal("mixed input", name)
 		}
-		if _, err := BindString(name, result, text, []Usage{foreign[Text].Usage(), text}[:arity], [2]bool{true, true}, false); err == nil {
+		if _, err := BindString(name, result, text, []Usage{foreign[Text].Usage(), text}[:arity], [4]bool{true, true}, false); err == nil {
 			t.Fatal("foreign TEXT formal", name)
 		}
-		p, err := BindString(name, result, text, args, [2]bool{true, true}, false)
+		p, err := BindString(name, result, text, args, [4]bool{true, true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := p.Evaluate(context.Background(), [2]Value{String(foreign[Text], "x"), String(types[Text], "x")}, InputEnvironment{}, OutputEnvironment{}); err == nil {
+		if _, err := p.Evaluate(context.Background(), [4]Value{String(foreign[Text], "x"), String(types[Text], "x")}, InputEnvironment{}, OutputEnvironment{}); err == nil {
 			t.Fatal("foreign execution owner", name)
 		}
 	}
@@ -236,12 +236,12 @@ func TestStringLengthOverflowCancellationAndAllocations(t *testing.T) {
 	}
 	for _, name := range []string{"length", "char_length", "character_length", "octet_length", "bit_length", "position", "strpos"} {
 		args := []Usage{types[BPChar].Usage()}
-		values := [2]Value{String(types[BPChar], long+"  ")}
+		values := [4]Value{String(types[BPChar], long+"  ")}
 		if name == "position" || name == "strpos" {
 			args = append(args, types[Text].Usage())
 			values[1] = String(types[Text], "🙂")
 		}
-		p, err := BindString(name, types[Int4].Usage(), types[Text].Usage(), args, [2]bool{true, true}, false)
+		p, err := BindString(name, types[Int4].Usage(), types[Text].Usage(), args, [4]bool{true, true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}

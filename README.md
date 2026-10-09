@@ -184,7 +184,7 @@ Trim removes endpoint members of a byte set, preserving interior NUL/high bytes.
 Known BYTEA operands infer unknown byte arguments; inferred Go binds remain raw
 octets. Selected functions share query/write/CHECK/view consumers and native
 replay, preserving SQL-syntax provenance in compact/pretty CHECK deparsing.
-TEXT/regex slicing, encoding-aware length, BYTEA DEFAULT functions and direct
+TEXT/regex substring, encoding-aware length, BYTEA DEFAULT functions and direct
 byteacat remain excluded; no new cast edges or byteapos alias are added.
 Core strings provide TEXT trim/concatenation siblings through the shared dispatch.
 `length`, `char_length`/`character_length`, `octet_length` and `bit_length`
@@ -194,6 +194,22 @@ Exact CHAR octet counts include padding; its bit counts and search operands use
 the trimmed TEXT conversion. Results are strict INT4, with zero for not found and
 one for an empty needle. Selected string functions compose in DEFAULT/CHECK/views
 and native replay. See [String length and search](docs/DIALECT.md#string-length-and-search--change-note).
+
+String replacement supports `overlay(text,text,int4[,int4])` and SQL OVERLAY,
+literal `replace` and codepoint-wise `translate`. Overlay counts characters,
+including combining marks separately: zero count inserts, negative count can
+duplicate a source interval, and a start beyond the end appends without padding.
+Omitted count is the trimmed replacement's character length. Empty replace
+search leaves the source unchanged; translation uses the first occurrence in
+its `from` set and deletes characters with no corresponding `to` character.
+`starts_with(text,text)` and `text ^@ text` are equivalent strict BOOL prefix
+operations. All textual arguments use the existing BPCHAR-to-TEXT trim, while
+TEXT/VARCHAR tails remain. These providers compose through queries, writes,
+DEFAULT/CHECK/views and native Dump/Restore, retaining TEXT/BOOL metadata.
+See [replacement and prefix rules](docs/DIALECT.md#string-replacement-and-prefix--change-note).
+Independent native/reference witnesses:
+`make quickcheck PACKAGES=./reference RUN='^(TestReferenceStringReplace(Overlay|Replace|Translate|Prefix|Signatures|Diagnostics|Collation|Metadata|Consumers|Atomicity|Stored|Controls|Cancellation)|TestReferenceBinarySliceCapabilityBoundaries)$' VERBOSE=0`;
+the pinned PostgreSQL counterpart uses the same command with `REFERENCE=1`.
 See [BYTEA](docs/TYPES.md#bytea). Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`; independent pinned reference:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.

@@ -18,15 +18,15 @@ func TestStringCaseProviderAuthority(t *testing.T) {
 			if !result.Valid() {
 				t.Fatal("case collation usage invalid", id)
 			}
-			plan, err := BindString(name, result, text, []Usage{result}, [2]bool{true}, true)
+			plan, err := BindString(name, result, text, []Usage{result}, [4]bool{true}, true)
 			if err != nil || plan.Result() != result || !plan.CollationIndeterminate() {
 				t.Fatal("retained authority", plan, err)
 			}
-			got, err := plan.Evaluate(context.Background(), [2]Value{Null(types[Text])}, InputEnvironment{}, OutputEnvironment{})
+			got, err := plan.Evaluate(context.Background(), [4]Value{Null(types[Text])}, InputEnvironment{}, OutputEnvironment{})
 			if err != nil || !got.IsNull() || got.Type() != types[Text] {
 				t.Fatal("strict typed NULL before classification", got, err)
 			}
-			_, err = plan.Evaluate(context.Background(), [2]Value{String(types[Text], "")}, InputEnvironment{}, OutputEnvironment{})
+			_, err = plan.Evaluate(context.Background(), [4]Value{String(types[Text], "")}, InputEnvironment{}, OutputEnvironment{})
 			messageName := name
 			if name == "casefold" {
 				messageName = "lower"
@@ -36,12 +36,12 @@ func TestStringCaseProviderAuthority(t *testing.T) {
 			if !errors.As(err, &diagnostic) || *diagnostic != want {
 				t.Fatal("full collation diagnostic", err)
 			}
-			if _, err := plan.Evaluate(context.Background(), [2]Value{Null(types[Int4])}, InputEnvironment{}, OutputEnvironment{}); err == nil {
+			if _, err := plan.Evaluate(context.Background(), [4]Value{Null(types[Int4])}, InputEnvironment{}, OutputEnvironment{}); err == nil {
 				t.Fatal("foreign typed NULL accepted")
 			}
 		}
 		for _, args := range [][]Usage{nil, {text, text}, {types[Int4].Usage()}, {types[Bool].Usage()}, {types[Bytea].Usage()}} {
-			if _, err := BindString(name, text, text, args, [2]bool{true, true}, false); err == nil {
+			if _, err := BindString(name, text, text, args, [4]bool{true, true}, false); err == nil {
 				t.Fatal("invalid case signature", name, args)
 			}
 		}
@@ -58,7 +58,7 @@ func TestStringCaseProviderCharacterConversion(t *testing.T) {
 		{Text, "AbC  ", "abc  "}, {VarChar, "AbC  ", "abc  "}, {BPChar, "AbC  ", "abc"}, {Name, "AbC", "abc"}, {Char, "A", "a"},
 	} {
 		arg := types[tc.id].Usage()
-		plan, err := BindString("lower", text, text, []Usage{arg}, [2]bool{true}, false)
+		plan, err := BindString("lower", text, text, []Usage{arg}, [4]bool{true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +66,7 @@ func TestStringCaseProviderCharacterConversion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := plan.Evaluate(context.Background(), [2]Value{input}, InputEnvironment{}, OutputEnvironment{})
+		got, err := plan.Evaluate(context.Background(), [4]Value{input}, InputEnvironment{}, OutputEnvironment{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,11 +79,11 @@ func TestStringCaseProviderCharacterConversion(t *testing.T) {
 	arg.Typmod = 5
 	result := text
 	result.Collation.ID = 6411
-	plan, err := BindString("upper", result, text, []Usage{arg}, [2]bool{true}, false)
+	plan, err := BindString("upper", result, text, []Usage{arg}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := plan.Evaluate(context.Background(), [2]Value{String(types[VarChar], "ß")}, InputEnvironment{}, OutputEnvironment{})
+	got, err := plan.Evaluate(context.Background(), [4]Value{String(types[VarChar], "ß")}, InputEnvironment{}, OutputEnvironment{})
 	s, textErr := got.Text()
 	if err != nil || textErr != nil || s != "SS" || plan.Result() != result {
 		t.Fatal("TEXT expansion without source width", s, err, textErr)
@@ -95,7 +95,7 @@ func TestStringCaseProviderReleaseSigmaPrefix(t *testing.T) {
 	full := text
 	full.Collation.ID = 6411
 	for _, op := range []string{"lower", "initcap"} {
-		plan, err := BindString(op, full, text, []Usage{full}, [2]bool{true}, false)
+		plan, err := BindString(op, full, text, []Usage{full}, [4]bool{true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -110,7 +110,7 @@ func TestStringCaseProviderReleaseSigmaPrefix(t *testing.T) {
 			if op == "initcap" {
 				want = tc.initcap
 			}
-			got, err := plan.Evaluate(context.Background(), [2]Value{String(text.Type, tc.input)}, InputEnvironment{}, OutputEnvironment{})
+			got, err := plan.Evaluate(context.Background(), [4]Value{String(text.Type, tc.input)}, InputEnvironment{}, OutputEnvironment{})
 			s, textErr := got.Text()
 			if err != nil || textErr != nil || s != want || got.Type() != text.Type {
 				t.Fatalf("%s original-input prefix %q: %q want %q errors=%v/%v", op, tc.input, s, want, err, textErr)
@@ -123,7 +123,7 @@ func TestStringCaseProviderImmutableExecutions(t *testing.T) {
 	text := mathTypes()[Text].Usage()
 	full := text
 	full.Collation.ID = 6411
-	plan, err := BindString("casefold", full, text, []Usage{text}, [2]bool{true}, false)
+	plan, err := BindString("casefold", full, text, []Usage{text}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestStringCaseProviderImmutableExecutions(t *testing.T) {
 	for range 8 {
 		workers.Go(func() {
 			for _, tc := range []struct{ input, want string }{{"Straße", "strasse"}, {"İ", "i\u0307"}, {"ΑΣ", "ασ"}, {"", ""}, {"ﬃ", "ffi"}} {
-				got, err := plan.Evaluate(context.Background(), [2]Value{String(text.Type, tc.input)}, InputEnvironment{}, OutputEnvironment{})
+				got, err := plan.Evaluate(context.Background(), [4]Value{String(text.Type, tc.input)}, InputEnvironment{}, OutputEnvironment{})
 				s, textErr := got.Text()
 				if err != nil || textErr != nil || s != tc.want {
 					t.Errorf("fresh execution %q: %q %v %v", tc.input, s, err, textErr)

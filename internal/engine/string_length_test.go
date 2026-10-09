@@ -22,7 +22,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		literalExpression{expressionInfo{usage: right}, sqltype.String(text, "")},
 	}
 	for _, name := range []string{"position", "strpos"} {
-		node, err := b.stringNode(name, integer.Usage(), parser.Position{Character: 8}, args, [2]bool{true, true}, parser.OrdinaryStringSyntax)
+		node, err := b.stringNode(name, integer.Usage(), parser.Position{Character: 8}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -37,7 +37,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		}
 		explicit := append([]BoundExpr(nil), args...)
 		explicit[0] = literalExpression{expressionInfo{usage: left, collationExplicit: parser.Position{Character: 20}}, sqltype.String(text, "abc")}
-		resolved, err := b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [2]bool{true, true}, parser.OrdinaryStringSyntax)
+		resolved, err := b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 		if err != nil || resolved.(stringExpression).plan.CollationIndeterminate() || resolved.ResultUsage() != integer.Usage() {
 			t.Fatal(resolved, err)
 		}
@@ -47,12 +47,12 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 			t.Fatal(value, err)
 		}
 		explicit[1] = literalExpression{expressionInfo{usage: right, collationExplicit: parser.Position{Character: 40}}, sqltype.Null(text)}
-		_, err = b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [2]bool{true, true}, parser.OrdinaryStringSyntax)
+		_, err = b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P21" || diagnostic.Position != "40" {
 			t.Fatal("explicit mismatch analysis", err)
 		}
 	}
-	count, err := b.stringNode("length", integer.Usage(), parser.Position{}, args[:1], [2]bool{true}, parser.OrdinaryStringSyntax)
+	count, err := b.stringNode("length", integer.Usage(), parser.Position{}, args[:1], [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil || count.ResultUsage() != integer.Usage() || count.CollationIndeterminate() {
 		t.Fatal("count result authority", count, err)
 	}
@@ -67,7 +67,7 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Stable, ParameterDependent: true}}, value: sqltype.Null(text), order: &order, index: 0},
 		mathObservedArgument{expressionInfo: expressionInfo{usage: text.Usage(), properties: ExprProperties{Volatility: Volatile, RowDependent: true}}, value: sqltype.String(text, "x"), order: &order, index: 1},
 	}
-	bound, err := b.stringNode("strpos", integer.Usage(), parser.Position{}, args, [2]bool{true, true}, parser.OrdinaryStringSyntax)
+	bound, err := b.stringNode("strpos", integer.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	bpchar := b.typ(sqltype.BPChar)
 	fixed := bpchar.Usage()
 	fixed.Typmod = 8
-	count, err := b.stringNode("octet_length", integer.Usage(), parser.Position{}, []BoundExpr{literalExpression{expressionInfo{usage: fixed}, sqltype.String(bpchar, "é🙂  ")}}, [2]bool{true}, parser.OrdinaryStringSyntax)
+	count, err := b.stringNode("octet_length", integer.Usage(), parser.Position{}, []BoundExpr{literalExpression{expressionInfo{usage: fixed}, sqltype.String(bpchar, "é🙂  ")}}, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}

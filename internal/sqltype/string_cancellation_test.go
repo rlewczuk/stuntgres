@@ -27,7 +27,7 @@ func TestStringCoreReviewTrimCancellation(t *testing.T) {
 	text := mathTypes()[Text]
 	for _, direction := range []string{"btrim", "ltrim", "rtrim"} {
 		t.Run(direction, func(t *testing.T) {
-			plan, err := BindString(direction, text.Usage(), text.Usage(), []Usage{text.Usage(), text.Usage()}, [2]bool{true, true}, false)
+			plan, err := BindString(direction, text.Usage(), text.Usage(), []Usage{text.Usage(), text.Usage()}, [4]bool{true, true}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -36,7 +36,7 @@ func TestStringCoreReviewTrimCancellation(t *testing.T) {
 			base, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &stringTrimCancellationContext{Context: base, cancel: cancel}
-			value, err := plan.Evaluate(probe, [2]Value{String(text, "é"), String(text, "é")}, InputEnvironment{}, OutputEnvironment{})
+			value, err := plan.Evaluate(probe, [4]Value{String(text, "é"), String(text, "é")}, InputEnvironment{}, OutputEnvironment{})
 			if got, e := value.Text(); err != nil || e != nil || got != "" {
 				t.Fatal("short trim", got, err, e)
 			}
@@ -49,7 +49,7 @@ func TestStringCoreReviewTrimCancellation(t *testing.T) {
 					ctx, stop := context.WithCancel(context.Background())
 					defer stop()
 					c := &stringTrimCancellationContext{Context: ctx, cancel: stop, cancelAt: probe.calls + 2}
-					_, err := plan.Evaluate(c, [2]Value{String(text, tc.source), String(text, tc.set)}, InputEnvironment{}, OutputEnvironment{})
+					_, err := plan.Evaluate(c, [4]Value{String(text, tc.source), String(text, tc.set)}, InputEnvironment{}, OutputEnvironment{})
 					if !errors.Is(err, context.Canceled) || c.calls < c.cancelAt {
 						t.Fatalf("trim failed to interrupt in-progress work: checkpoints=%d threshold=%d error=%v", c.calls, c.cancelAt, err)
 					}
@@ -84,11 +84,11 @@ func TestStringCoreReviewTrimAllocations(t *testing.T) {
 				if tc.unary {
 					args = args[:1]
 				}
-				plan, err := BindString(direction, text.Usage(), text.Usage(), args, [2]bool{true, true}, false)
+				plan, err := BindString(direction, text.Usage(), text.Usage(), args, [4]bool{true, true}, false)
 				if err != nil {
 					t.Fatal(err)
 				}
-				values := [2]Value{String(text, tc.source), String(text, tc.set)}
+				values := [4]Value{String(text, tc.source), String(text, tc.set)}
 				want := tc.both
 				if direction == "ltrim" {
 					want = tc.left

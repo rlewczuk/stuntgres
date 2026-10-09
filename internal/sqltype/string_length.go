@@ -52,7 +52,7 @@ func stringPosition(ctx context.Context, source, needle string) (int64, error) {
 	return prefix + 1, err
 }
 
-func (p StringPlan) evaluateLength(ctx context.Context, texts [2]string) (Value, error) {
+func (p StringPlan) evaluateLength(ctx context.Context, texts [4]string) (Value, error) {
 	if p.name == "position" || p.name == "strpos" {
 		if p.conflict {
 			return Value{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}

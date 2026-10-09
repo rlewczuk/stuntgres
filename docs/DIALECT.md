@@ -1053,9 +1053,87 @@ through the existing staged, failure-atomic control path.
 Codepoint, padding and match-prefix scans check cancellation at bounded work
 intervals; search reuses the constant-space raw matcher without rune arrays,
 normalization or payload-sized scratch allocation. BYTEA DEFAULT, encoding-aware
-length, bit types and adjacent TEXT/regex slicing remain excluded.
+length, bit types and adjacent TEXT/regex substring remain excluded.
 Independent scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReference(StringLength|BinaryBasic|BinarySlice)' VERBOSE=0`;
 pinned counterpart adds `REFERENCE=1` to that same command.
+
+### String replacement and prefix — change note
+
+`overlay(source,replacement,start[,count])` and
+`OVERLAY(source PLACING replacement FROM start [FOR count])` return unconstrained
+TEXT. Offsets and counts are INT4 **codepoints**, not bytes or graphemes; combining
+marks are separate characters. The default count is the replacement's character
+length after its TEXT conversion. Zero count inserts. Negative counts are valid:
+`overlay('abcdef','XY',3,-1)` is `abXYbcdef`. Beyond-end starts append without
+padding; large counts remove through the end. Nonpositive starts fail22011
+`negative substring length not allowed` before start+count overflow is checked;
+overflow fails22003 `integer out of range`. These runtime diagnostics have no
+fabricated query Position. Existing BYTEA overlay remains raw-byte indexed.
+
+`replace(source,search,replacement)` replaces nonoverlapping occurrences
+left-to-right, literally and without recursively searching emitted replacement
+text. Empty source or search returns the original source. It does not implement
+regexes, escape expansion, case folding or Unicode normalization.
+`translate(source,from,to)` maps each original codepoint by its first position in
+`from`; if that position has no corresponding `to` codepoint, it deletes the
+character. Extra `to` characters are ignored and duplicate `from` characters use
+the first occurrence. Emitted text is not remapped; empty `from` is identity.
+Both functions return unconstrained TEXT.
+
+`starts_with(source,prefix)` and `source ^@ prefix` produce the same BOOL/NULL
+result. Matching is exact and case-sensitive; an empty prefix matches even an
+empty source, while an overlong prefix does not. The prefix may end between
+codepoints of a combining sequence; there is no grapheme normalization.
+
+All five operations are strict after successful analysis. Unknown constants and
+binds infer TEXT in textual positions and INT4 in overlay's index/count positions.
+Every child and signature is analyzed even under NULL. Existing character, NAME,
+internal CHAR catalog values and character-domain inputs use their type-owned
+TEXT conversion; BPCHAR trims trailing U+0020 in every textual argument, while
+TEXT/VARCHAR preserve tails. Numeric/BOOL/BYTEA do not acquire implicit TEXT
+conversion. Overlay accepts existing implicit INT2-to-INT4 inputs, but does not
+implicitly narrow INT8/numeric/float or convert typed TEXT indices. Known BYTEA
+overlay peers retain their existing overload and contextualize unknown byte
+operands; all-unknown overlay prefers TEXT.
+Unquoted REPLACE remains an ordinary unreserved keyword outside call syntax,
+including CREATE OR REPLACE VIEW and relation/column/output names.
+
+Input collation is independent of BOOL result metadata. Prefix demands input
+collation before empty/length shortcuts; replace demands it after empty-source/
+search shortcuts, including when a nonempty search has no match. Indeterminate
+input collation fails42P22 `could not determine which collation to use for string
+comparison`, with the existing explicit-COLLATE hint. Strict NULL bypasses that
+runtime demand, not conflicting explicit-collation analysis42P21. Overlay and
+translate propagate TEXT result collation without runtime collation demand.
+
+These operations reuse scalar query/write, UPDATE/DELETE RETURNING, grouping/
+ordering, parenthesized DEFAULT, CHECK and view consumers. INSERT VALUES and
+INSERT SELECT consume the same providers; INSERT RETURNING retains its existing
+native0A000 suffix boundary. Immutable plans and generation-owned descriptors
+retain TEXT/BOOL metadata on empty/NULL rowsets.
+Late overlay failures publish no rows/result or partial writes. Stored SQL keeps
+special OVERLAY and prefix-operator spelling; ordinary overlay is quoted in
+PostgreSQL deparse, with resolved formal casts for ordinary character/index
+arguments. Pretty output omits redundant prefix-operator grouping under Boolean
+AND/OR/NOT; compact output retains grouping. Native replay and typed
+`String <provider>` carriers traverse every
+operand and preserve held rows/metadata through staged replacement.
+Prepared integer-input errors retain adapter diagnostics, including
+`unnamed portal parameter $3 = '...'` Context for invalid overlay start input.
+Parameter-free Restore admits the selected producers and recursively rejects
+parameters. Search factorization is reused across replacement matches; cuts,
+mapping, prefix comparisons, BPCHAR trim and output copies check cancellation
+without payload-sized scratch arrays or maps.
+
+Scalar VARIADIC spelling is accepted by the selected replace/translate/starts_with
+fixed signatures, not an array/variadic execution feature. Unqualified comma-form
+OVERLAY rejects VARIADIC with42601 at the keyword; quoted/qualified calls retain
+ordinary function syntax. General public internal CHAR cast admission, TEXT/regex
+substring, BYTEA DEFAULT functions and arbitrary/nondeterministic collations
+remain outside this part.
+Independent witness registry:
+`make quickcheck PACKAGES=./reference RUN='^(TestReferenceStringReplace(Overlay|Replace|Translate|Prefix|Signatures|Diagnostics|Collation|Metadata|Consumers|Atomicity|Stored|Controls|Cancellation)|TestReferenceBinarySliceCapabilityBoundaries)$' VERBOSE=0`;
+the same command with `REFERENCE=1` validates pinned PostgreSQL.
 
 ### Core string functions — change note
 
@@ -1460,7 +1538,7 @@ empty results remain nonnull empty. Known BYTEA operands contextualize unknown
 byte arguments, with INT4 index/count slots and raw Go binds. Results retain
 BYTEA/INT4 metadata even on empty rowsets. Scalar query/write/view/CHECK consumers
 and native replay share the providers; BYTEA DEFAULT functions remain excluded.
-TEXT/regex slicing and encoding-aware length remain truthful0A000 boundaries;
+TEXT/regex substring and encoding-aware length remain truthful0A000 boundaries;
 selected TEXT/BPCHAR length and search siblings are supported as documented above.
 The excluded `length(bytea,name)` candidate also recognizes unknown source/encoding
 arguments and existing implicit TEXT/VARCHAR/BPCHAR-to-NAME encoding conversions.

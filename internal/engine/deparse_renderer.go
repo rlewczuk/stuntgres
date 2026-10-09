@@ -178,6 +178,8 @@ type pgRenderParent struct {
 	operator   string
 	right      bool
 	unary      bool
+	// Function arguments need no grouping around COLLATE or a cast chain.
+	functionArgument bool
 }
 
 func pgOperatorPriority(op string) int {
@@ -193,7 +195,8 @@ func pgOperatorPriority(op string) int {
 }
 
 func pgOperatorGrouped(op string, binary bool, parent pgRenderParent) bool {
-	if parent.precedence == 0 {
+	// Every binary scalar operator binds more tightly than AND/OR/NOT.
+	if parent.precedence == 0 || binary && parent.precedence < 4 {
 		return false
 	}
 	if !binary || parent.unary {
@@ -340,7 +343,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if err != nil {
 			return "", err
 		}
-		return "(" + text + " COLLATE " + pgIdentifier(builtinCollationName(n.usage.Collation.ID)) + ")", nil
+		text += " COLLATE " + pgIdentifier(builtinCollationName(n.usage.Collation.ID))
+		if r.pretty && parent.functionArgument {
+			return text, nil
+		}
+		return "(" + text + ")", nil
 	case coercionExpression:
 		if literal, ok := n.child.(literalExpression); ok && n.mode == sqltype.Explicit &&
 			literal.usage.Type == n.usage.Type && n.usage.Typmod >= 0 {
@@ -366,7 +373,8 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		_, simpleColumn := n.child.(columnExpression)
 		_, simpleLiteral := n.child.(literalExpression)
-		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral)
+		_, castChild := n.child.(coercionExpression)
+		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral || r.pretty && parent.functionArgument && castChild)
 	case arithmeticExpression:
 		ops := [...]string{"+", "-", "*", "/", "%", "^"}
 		if int(n.operator) >= len(ops) {
@@ -491,10 +499,10 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if n.plan.Name() == "||" {
 			return binary(n.args[0], n.args[1], "||", 5, parent)
 		}
-		if n.syntax == parser.OrdinaryStringSyntax {
+		if n.syntax == parser.OrdinaryStringSyntax || n.syntax == parser.PrefixStringSyntax {
 			name := n.plan.Name()
-			if name == "normalize" {
-				name = `"normalize"`
+			if name == "normalize" || name == "overlay" {
+				name = quoteIdentifier(name)
 			} else if name == "position" {
 				name = pgIdentifier(name)
 			}
@@ -502,7 +510,11 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 			for i, arg := range n.args {
 				argRenderer := r
 				argRenderer.showImplicit = true
-				text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
+				argParent := pgRenderParent{functionArgument: true}
+				if n.syntax == parser.PrefixStringSyntax {
+					argParent = pgRenderParent{precedence: 5, operator: "^@", right: i == 1}
+				}
+				text, err := argRenderer.sql(ctx, arg, argParent)
 				if err != nil {
 					return "", err
 				}
@@ -522,22 +534,26 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 				}
 				parts[i] = text
 			}
+			if n.syntax == parser.PrefixStringSyntax {
+				text := parts[0] + " ^@ " + parts[1]
+				if !r.pretty || pgOperatorGrouped("^@", true, parent) {
+					text = "(" + text + ")"
+				}
+				return text, nil
+			}
 			return name + "(" + strings.Join(parts, ", ") + ")", nil
 		}
 		argRenderer := r
 		argRenderer.showImplicit = false
-		source, err := argRenderer.sql(ctx, n.args[0], pgRenderParent{})
-		if err != nil {
-			return "", err
-		}
-		set := ""
-		if (n.syntax == parser.TrimStringSyntax || n.syntax == parser.PositionStringSyntax) && len(n.args) == 2 {
-			set, err = argRenderer.sql(ctx, n.args[1], pgRenderParent{})
+		parts := make([]string, len(n.args))
+		for i, arg := range n.args {
+			text, err := argRenderer.sql(ctx, arg, pgRenderParent{})
 			if err != nil {
 				return "", err
 			}
+			parts[i] = text
 		}
-		return n.specialSQL(source, set)
+		return n.specialSQL(parts)
 	case binaryExpression:
 		if err := n.validateSyntax(); err != nil {
 			return "", err

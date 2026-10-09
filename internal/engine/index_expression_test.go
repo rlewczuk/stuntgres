@@ -13,11 +13,11 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	u := typ.Usage()
 	parent := &relationDescriptor{address: ObjectAddress{ClassID: RelationClassID, ObjectID: 9000}, attributes: []int32{1}, columns: []ColumnDescriptor{{Name: "v", Usage: u}}, index: map[string]int{"v": 0}}
 	column := columnExpression{expressionInfo: expressionInfo{usage: u, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
-	plan, err := sqltype.BindString("lower", u, u, []sqltype.Usage{u}, [2]bool{true}, false)
+	plan, err := sqltype.BindString("lower", u, u, []sqltype.Usage{u}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := stringExpression{expressionInfo: column.expressionInfo, plan: plan, args: []BoundExpr{column}, textual: [2]bool{true}}
+	node := stringExpression{expressionInfo: column.expressionInfo, plan: plan, args: []BoundExpr{column}, textual: [4]bool{true}}
 	d := &indexDefinition{parent: parent.address, keys: []indexKey{{derived: &derivedIndexKey{definition: node, execution: node}}}}
 	values := []sqltype.Value{sqltype.String(typ, "Alpha"), sqltype.String(typ, "ALPHA"), sqltype.String(typ, "Beta"), sqltype.Null(typ), sqltype.String(typ, "alpha")}
 	store := &relationStorage{}

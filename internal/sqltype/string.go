@@ -54,11 +54,11 @@ type StringPlan struct {
 	name        string
 	result      Usage
 	text        Usage
-	args        [2]Usage
-	formal      [2]Usage
+	args        [4]Usage
+	formal      [4]Usage
 	count       uint8
-	textual     [2]bool
-	conversions [2]CoercionPlan
+	textual     [4]bool
+	conversions [4]CoercionPlan
 	conflict    bool
 	caseOp      unicode16.CaseOperation
 }
@@ -86,9 +86,9 @@ func (p StringPlan) SessionDependent() bool {
 
 // Non-TEXT results also receive the generation's TEXT owner, avoiding global
 // descriptor lookup or per-evaluation descriptor allocation.
-func BindString(name string, result, text Usage, args []Usage, textual [2]bool, conflict bool) (StringPlan, error) {
+func BindString(name string, result, text Usage, args []Usage, textual [4]bool, conflict bool) (StringPlan, error) {
 	p := StringPlan{name: name, result: result, text: text, count: uint8(len(args)), textual: textual, conflict: conflict}
-	if !result.Valid() || !text.Valid() || text.Type.ID() != Text || len(args) < 1 || len(args) > 2 {
+	if !result.Valid() || !text.Valid() || text.Type.ID() != Text || len(args) < 1 || len(args) > 4 || result.Type.ID() == Text && result.Type != text.Type {
 		return p, fmt.Errorf("invalid string signature")
 	}
 	switch name {
@@ -97,7 +97,7 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 			return p, fmt.Errorf("invalid concatenation signature")
 		}
 	case "btrim", "ltrim", "rtrim", "normalize":
-		if result.Type.ID() != Text || !textual[0] || len(args) == 2 && !textual[1] {
+		if len(args) > 2 || result.Type.ID() != Text || !textual[0] || len(args) == 2 && !textual[1] {
 			return p, fmt.Errorf("invalid string function signature")
 		}
 	case "lower", "upper", "casefold", "initcap":
@@ -115,7 +115,7 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 			p.caseOp = unicode16.Initcap
 		}
 	case "is_normalized":
-		if result.Type.ID() != Bool || !textual[0] || len(args) == 2 && !textual[1] {
+		if len(args) > 2 || result.Type.ID() != Bool || !textual[0] || len(args) == 2 && !textual[1] {
 			return p, fmt.Errorf("invalid normalized predicate signature")
 		}
 	case "length", "char_length", "character_length", "octet_length", "bit_length":
@@ -126,6 +126,18 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 		if len(args) != 2 || result != result.Type.Usage() || result.Type.ID() != Int4 || !textual[0] || !textual[1] {
 			return p, fmt.Errorf("invalid string search signature")
 		}
+	case "overlay":
+		if (len(args) != 3 && len(args) != 4) || result.Type.ID() != Text || !textual[0] || !textual[1] || textual[2] || textual[3] {
+			return p, fmt.Errorf("invalid string overlay signature")
+		}
+	case "replace", "translate":
+		if len(args) != 3 || result.Type.ID() != Text || !textual[0] || !textual[1] || !textual[2] {
+			return p, fmt.Errorf("invalid string replacement signature")
+		}
+	case "starts_with":
+		if len(args) != 2 || result != result.Type.Usage() || result.Type.ID() != Bool || !textual[0] || !textual[1] {
+			return p, fmt.Errorf("invalid string prefix signature")
+		}
 	default:
 		return p, fmt.Errorf("invalid string provider name")
 	}
@@ -135,11 +147,18 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 		}
 		p.args[i] = u
 		target := text
+		if name == "overlay" && i >= 2 {
+			if u.Type.ID() != Int4 || u != u.Type.Usage() {
+				return p, fmt.Errorf("invalid string overlay integer input")
+			}
+			p.formal[i] = u
+			continue
+		}
 		if (name == "length" || name == "char_length" || name == "character_length" || name == "octet_length") && u.Type.BaseType().ID() == BPChar {
 			target = u.Type.BaseType().Usage()
 		}
 		p.formal[i] = target
-		if result.Type.ID() == Int4 && u.Type.BaseType().ID() == Text && u.Type.BaseType() != text.Type {
+		if u.Type.BaseType().ID() == Text && u.Type.BaseType() != text.Type {
 			return p, fmt.Errorf("foreign string text owner")
 		}
 		if textual[i] {
@@ -159,7 +178,7 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 	}
 	return p, nil
 }
-func (p StringPlan) Evaluate(ctx context.Context, values [2]Value, input InputEnvironment, output OutputEnvironment) (Value, error) {
+func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEnvironment, output OutputEnvironment) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
@@ -173,13 +192,16 @@ func (p StringPlan) Evaluate(ctx context.Context, values [2]Value, input InputEn
 			return Null(p.result.Type), nil
 		}
 	}
-	var texts [2]string
+	var texts [4]string
 	for i := range int(p.count) {
 		v := values[i]
+		if p.name == "overlay" && i >= 2 {
+			continue
+		}
 		var err error
 		// Selected BPCHAR-to-TEXT conversion uses the same type-owned edge,
 		// but bounds its potentially long ASCII-padding scan before Apply.
-		if p.result.Type.ID() == Int4 && v.Type().BaseType().ID() == BPChar && p.formal[i].Type.ID() == Text {
+		if v.Type().BaseType().ID() == BPChar && p.formal[i].Type.ID() == Text {
 			v.text, err = trimStringPadding(ctx, v.text)
 			if err != nil {
 				return Value{}, err
@@ -200,6 +222,9 @@ func (p StringPlan) Evaluate(ctx context.Context, values [2]Value, input InputEn
 	}
 	if p.result.Type.ID() == Int4 {
 		return p.evaluateLength(ctx, texts)
+	}
+	if p.name == "overlay" || p.name == "replace" || p.name == "translate" || p.name == "starts_with" {
+		return p.evaluateReplacement(ctx, texts, values)
 	}
 	if p.caseOp != 0 {
 		if p.conflict {

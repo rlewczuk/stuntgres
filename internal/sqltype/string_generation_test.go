@@ -28,7 +28,7 @@ func TestStringGenerationOutputDependence(t *testing.T) {
 			for _, scalar := range scalars {
 				for reverse := range 2 {
 					args := []Usage{text, scalar.Usage()}
-					textual := [2]bool{true, StringTextInput(tc.id)}
+					textual := [4]bool{true, StringTextInput(tc.id)}
 					if reverse == 1 {
 						args[0], args[1] = args[1], args[0]
 						textual[0], textual[1] = textual[1], textual[0]
