@@ -40,6 +40,10 @@ This is the authoritative test-placement and implementation workflow.
   worker completion order. Victim cleanup can wake a successful survivor before
   the victim reports its result. Join both workers under a bounded deadline and
   retain the exact victim, survivor and side-effect assertions.
+- Catalog discovery fixtures MUST use scenario-specific object names when
+  asserting a complete database-wide candidate bag. The shared PostgreSQL
+  fixture resets `public`, not every nonpublic schema; unrelated same-name
+  objects can legitimately remain outside the scenario's search path.
 
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control
