@@ -13,7 +13,12 @@ func TestOIDCastSyntax(t *testing.T) {
 			t.Fatal(q, stmts)
 		}
 	}
-	if _, err := Parse("SELECT '1'::oid"); err == nil {
-		t.Fatal("ordinary no-FROM cast admitted")
+	statements, err := Parse("SELECT '1'::oid")
+	if err != nil || len(statements) != 1 {
+		t.Fatal(statements, err)
+	}
+	selected := statements[0].(*Select)
+	if selected.IsSingleton() || !selected.IsTypeSingleton() {
+		t.Fatal("ordinary cast gained singleton authority")
 	}
 }

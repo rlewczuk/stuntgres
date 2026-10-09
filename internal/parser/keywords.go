@@ -502,7 +502,7 @@ var keywords = [...]keyword{
 	{"true", Reserved, true, TRUE},
 	{"truncate", Unreserved, true, 0},
 	{"trusted", Unreserved, true, 0},
-	{"type", Unreserved, true, 0},
+	{"type", Unreserved, true, TYPE},
 	{"types", Unreserved, true, 0},
 	{"uescape", Unreserved, true, 0},
 	{"unbounded", Unreserved, true, 0},

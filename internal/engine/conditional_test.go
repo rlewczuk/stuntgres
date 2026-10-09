@@ -325,6 +325,58 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 			}
 		}
 	}
+	mood, err := sqltype.Enum(45000, "mood", "public.mood", []string{"z", "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapped, err := sqltype.Domain(45001, "wrapped", "public.wrapped", mood.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := wrapped.Input(context.Background(), "z", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last, err := wrapped.Input(context.Background(), "a", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		expr string
+		want sqltype.Value
+	}{
+		{"GREATEST($1,$2,$3)", last},
+		{"LEAST($1,$2,$3)", first},
+	} {
+		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		for number := 1; number <= 3; number++ {
+			b.parameters[number] = wrapped.Usage()
+		}
+		raw := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select).Targets[0]
+		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		if err != nil {
+			t.Fatal(tc.expr, err)
+		}
+		if node.ResultUsage().Type != wrapped {
+			t.Fatal("enum extrema lost domain result descriptor", node.ResultUsage())
+		}
+		for _, parameters := range [][]sqltype.Value{
+			{first, sqltype.Null(wrapped), last},
+			{sqltype.Null(wrapped), sqltype.Null(wrapped), sqltype.Null(wrapped)},
+		} {
+			got, err := node.Eval(&EvalContext{Context: context.Background(), Parameters: parameters})
+			if err != nil {
+				t.Fatal(tc.expr, err)
+			}
+			want := tc.want
+			if parameters[0].IsNull() {
+				want = sqltype.Null(wrapped)
+			}
+			if got.Type() != wrapped || !reflect.DeepEqual(got, want) {
+				t.Fatal("enum extrema lost domain identity, declaration order or NULL", tc.expr, got, want)
+			}
+		}
+	}
 }
 
 func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
@@ -364,6 +416,134 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	_, changed, err = retagBoundTypes(retagged, retained)
 	if err != nil || changed {
 		t.Fatal("unchanged tree copied", changed, err)
+	}
+}
+
+func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
+	ctx := context.Background()
+	source, target := New(), New()
+	for _, e := range []*Engine{source, target} {
+		op, done := roleOperation(t, e, "postgres")
+		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('z','a')"))
+		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN wrapped AS mood"))
+		done()
+	}
+	oldEnum := domainUnitType(t, source.CatalogRead(), "mood").typ
+	oldDomain := domainUnitType(t, source.CatalogRead(), "wrapped").typ
+	newEnum := domainUnitType(t, target.CatalogRead(), "mood").typ
+	newDomain := domainUnitType(t, target.CatalogRead(), "wrapped").typ
+	if oldEnum == newEnum || oldDomain == newDomain {
+		t.Fatal("ownership fixture did not remint descriptors")
+	}
+	retained := func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		switch old {
+		case oldEnum:
+			return newEnum
+		case oldDomain:
+			return newDomain
+		default:
+			return old
+		}
+	}
+	bind := func(e *Engine, expression string) BoundExpr {
+		t.Helper()
+		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+		b.defaultConsumer = true
+		raw := statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
+		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return node
+	}
+	assertValue := func(node BoundExpr, domain *sqltype.Descriptor, label string, null bool) {
+		t.Helper()
+		got, err := node.Eval(&EvalContext{Context: ctx})
+		if err != nil || got.Type() != domain || got.IsNull() != null || node.ResultUsage().Type != domain {
+			t.Fatal("stored extrema identity/NULL", got, node.ResultUsage(), err)
+		}
+		if !null {
+			text, err := domain.Output(ctx, got)
+			if err != nil || text != label {
+				t.Fatal("stored extrema declaration order", text, label, err)
+			}
+		}
+	}
+	for _, tc := range []struct {
+		expression, label string
+		null              bool
+	}{
+		{"GREATEST('z'::wrapped,NULL::wrapped,'a'::wrapped)", "a", false},
+		{"LEAST('z'::wrapped,NULL::wrapped,'a'::wrapped)", "z", false},
+		{"GREATEST(NULL::wrapped,NULL::wrapped)", "", true},
+		{"LEAST(NULL::wrapped,NULL::wrapped)", "", true},
+	} {
+		t.Run(tc.expression, func(t *testing.T) {
+			node := bind(source, tc.expression)
+			before := boundExpressionInfo(node)
+			assertValue(node, oldDomain, tc.label, tc.null)
+			rendered, err := defaultSQL(ctx, source.CatalogRead(), node)
+			if err != nil {
+				t.Fatal("original stored rendering", err)
+			}
+			assertValue(bind(source, rendered), oldDomain, tc.label, tc.null)
+			next, changed, err := retagBoundTypes(node, retained)
+			if err != nil || !changed {
+				t.Fatal("stored extrema reownership", changed, err)
+			}
+			assertValue(next, newDomain, tc.label, tc.null)
+			original, reminted := node.(conditionalExpression), next.(conditionalExpression)
+			expectedInfo := before
+			expectedInfo.usage.Type = newDomain
+			if original.expressionInfo != before || reminted.expressionInfo != expectedInfo {
+				t.Fatal("reownership changed Usage fields, properties or positions")
+			}
+			oldProvider, err := sqltype.BindOrdering(oldDomain.Usage())
+			if err != nil {
+				t.Fatal(err)
+			}
+			newProvider, err := sqltype.BindOrdering(newDomain.Usage())
+			if err != nil || original.comparison != oldProvider || reminted.comparison != newProvider {
+				t.Fatal("stored extrema provider ownership", err)
+			}
+			if &original.args[0] == &reminted.args[0] {
+				t.Fatal("reownership retained mutable operand slice")
+			}
+			for i := range original.args {
+				if original.args[i].ResultUsage().Type != oldDomain || reminted.args[i].ResultUsage().Type != newDomain {
+					t.Fatal("reownership mutated original operands")
+				}
+				oldValue, err := original.args[i].Eval(&EvalContext{Context: ctx})
+				if err != nil || oldValue.Type() != oldDomain {
+					t.Fatal("original operand datum ownership", oldValue, err)
+				}
+				newValue, err := reminted.args[i].Eval(&EvalContext{Context: ctx})
+				if err != nil || newValue.Type() != newDomain || newValue.IsNull() != oldValue.IsNull() {
+					t.Fatal("reminted operand datum ownership", newValue, err)
+				}
+			}
+			rendered, err = defaultSQL(ctx, target.CatalogRead(), next)
+			if err != nil {
+				t.Fatal("reminted stored rendering", err)
+			}
+			assertValue(bind(target, rendered), newDomain, tc.label, tc.null)
+			assertValue(node, oldDomain, tc.label, tc.null)
+			if _, err := defaultSQL(ctx, source.CatalogRead(), node); err != nil {
+				t.Fatal("original stored ownership changed", err)
+			}
+			unchanged, changed, err := retagBoundTypes(next, retained)
+			if err != nil || changed {
+				t.Fatal("unchanged stored tree reminted", changed, err)
+			}
+			if &unchanged.(conditionalExpression).args[0] != &reminted.args[0] {
+				t.Fatal("unchanged stored tree copied operand slice")
+			}
+			invalid := reminted
+			invalid.comparison = oldProvider
+			if _, err := defaultSQL(ctx, target.CatalogRead(), invalid); err == nil {
+				t.Fatal("renderer accepted foreign comparison ownership")
+			}
+		})
 	}
 }
 

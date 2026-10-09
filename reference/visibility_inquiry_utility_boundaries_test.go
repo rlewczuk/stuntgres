@@ -31,6 +31,15 @@ func TestReferenceVisibilityInquiryUtilityBoundaries(t *testing.T) {
 				"CREATE MATERIALIZED VIEW mv AS SELECT id FROM sentinel",
 				"CREATE FOREIGN TABLE ft(id integer) SERVER unavailable",
 			} {
+				if strings.HasPrefix(q, "CREATE TYPE") {
+					run(referenceSelect(q, nil, nil, [][]any{}))
+					value := referenceSelect("SELECT 'x'::widget AS v", []string{"v"}, []string{""}, [][]any{{"x"}})
+					value.checkMetadata = enumReferenceMetadata(backend.pg, false)
+					enumReferenceRunStep(t, p.ctx, conn, backend.recorder, value)
+					run(referenceSelect("SELECT pg_collation_is_visible(950),pg_conversion_is_visible(4519)", []string{"pg_collation_is_visible", "pg_conversion_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+					run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+					continue
+				}
 				if backend.pg {
 					switch {
 					case strings.HasPrefix(q, "CREATE FOREIGN"):

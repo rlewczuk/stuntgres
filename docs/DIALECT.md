@@ -2467,7 +2467,7 @@ despite having no UTF8 side. Metadata does not enable conversion execution,
 general locale comparison, imported OS collations or broader catalogs/DDL.
 Comparison supports default/C/POSIX and pg_c_utf8/pg_unicode_fast. Ordinary B-tree indexes participate in
 relation visibility, including same-name cross-kind shadowing, and their
-definitions roundtrip through native Dump/Restore. CREATE TYPE/COLLATION/
+definitions roundtrip through native Dump/Restore. CREATE TYPE forms other than AS ENUM, CREATE COLLATION/
 CONVERSION, automatic row types, materialized/foreign tables and TEMP table
 creation retain their native exclusion boundaries; real PostgreSQL-only
 reference tests exercise those identities rather than fake native support.
@@ -2921,4 +2921,26 @@ LIKE INCLUDING GENERATED remain unsupported; generated destination TYPE without
 USING remains an explicit native boundary rather than an implicit rewrite.
 Shared scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReferenceGeneratedStored' VERBOSE=0`,
 and the same command with `REFERENCE=1`.
+
+## Enum declaration and ordered values — change note
+
+`CREATE TYPE [schema.]name AS ENUM ('sad','ok','happy')` is supported through
+direct/prepared Exec/Query, with quiet Prepare and atomic execution publication.
+The immutable scalar is distinct from TEXT and other enum declarations.
+Labels are exact and case/whitespace significant, including empty labels;
+empty lists are legal. The maximum declaration label size is 63 UTF8 bytes.
+All six comparisons and ORDER BY use declaration order. Cross-enum comparisons
+fail42883 with PostgreSQL English Hint/Position, including NULL and empty sources.
+Invalid labels fail22P02; duplicate/overlong declarations and unauthorized schema
+creation retain independent PostgreSQL diagnostics and never publish partial types.
+Typed TEXT requires an explicit cast; unknown strings, inferred binds and nil
+use contextual enum input. Explicit enum↔TEXT casts permit lexical comparison.
+Modifiers/collations are rejected. Native enum metadata intentionally uses empty
+DatabaseTypeName/string ScanType versus pinned pq empty/interface{}; native
+values are string versus pq raw bytes. Logical type identity remains exact.
+Qualified declarations/owners/ordered labels and stored dependent consumers
+roundtrip through native Dump/Restore and import remapping. Held eager rows
+survive replacement; old prepared logical contracts cannot retarget by name.
+ALTER/DROP TYPE, pg_enum catalogs, enum arrays and other CREATE TYPE forms
+remain excluded. See [types](TYPES.md#enums--change-note).
 

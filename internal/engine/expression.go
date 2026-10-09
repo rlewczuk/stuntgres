@@ -743,6 +743,7 @@ type expressionBinder struct {
 	queryNonLateral       bool
 	viewValuesCount       int
 	noParameters          bool
+	enumCasts             uint64
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
 	checkLiterals   []literalExpression
@@ -835,6 +836,12 @@ func (b *expressionBinder) finish() (ParameterInfo, error) {
 	info := ParameterInfo{Count: len(keys), Types: make([]sqltype.Usage, len(keys))}
 	for i, n := range keys {
 		info.Types[i] = b.parameters[n]
+		if info.Types[i].Type.BaseType().IsEnum() {
+			if info.DiagnosticNames == nil {
+				info.DiagnosticNames = make([]string, len(keys))
+			}
+			info.DiagnosticNames[i] = b.diagnosticTypeName(info.Types[i].Type.BaseType())
+		}
 	}
 	return info, nil
 }
@@ -1113,7 +1120,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			// identity/modifiers, but bind values/providers to this catalog generation.
 			if u.Type != nil {
 				current := b.typ(u.Type.ID())
-				if current == nil && u.Type.IsDomain() {
+				if current == nil && u.Type.IsUserDefined() {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				u.Type = current
@@ -1303,7 +1310,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			// Retain the resolved source for the assignment caller's diagnostic.
 			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && policy.column != "" {
 				copy := *d
-				copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", policy.column, policy.expected.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())
+				copy.Message = fmt.Sprintf("column \"%s\" is of type %s but expression is of type %s", policy.column, b.diagnosticTypeName(policy.expected.Type), b.diagnosticTypeName(node.ResultUsage().Type))
 				copy.Hint = "You will need to rewrite or cast the expression."
 				copy.Position = strconv.Itoa(parser.ExpressionStart(raw).Character)
 				return node, &copy
@@ -1373,6 +1380,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if err != nil {
 		return nil, err
 	}
+	if target.Type.IsEnum() {
+		b.enumCasts++
+	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.
 		return b.bind(raw.Child, outerPolicy)
@@ -1381,7 +1391,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		node, _, err := b.bindRegclass(raw.Child)
 		return node, err
 	}
-	if !target.Type.IsDomain() && !sqltype.StoredScalarCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray() {
+	if !target.Type.IsUserDefined() && !sqltype.StoredScalarCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray() {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	if target.Type.ContainsRegclass() {
@@ -1435,13 +1445,13 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	}
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {
 			return nil, functionCastError(raw, source.Type.DiagnosticName(), false)
 		}
-		return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", source.Type.DiagnosticName(), target.Type.DiagnosticName()), raw.Pos)
+		return nil, expressionError("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
 	}
 	if source == target {
 		return child, nil
@@ -1587,6 +1597,15 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			b.temporals[i] = temporalConstant{offset: pos.Offset, typmod: u.Typmod, typeID: u.Type.ID(), value: value}
 		}
 		return value, nil
+	}
+	if u.Type.IsEnum() {
+		value, err := u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
+		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "22P02" {
+			copy := *diagnostic
+			copy.Message = fmt.Sprintf("invalid input value for enum %s: \"%s\"", b.diagnosticTypeName(u.Type), text)
+			return sqltype.Value{}, &copy
+		}
+		return value, err
 	}
 	if u.Type.ID() != sqltype.Interval && u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
 		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
@@ -1820,18 +1839,25 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 		return nil, err
 	}
 	lt, rt := left.descriptor(), right.descriptor()
-	if lt != nil {
-		lt = lt.BaseType()
-	}
-	if rt != nil {
-		rt = rt.BaseType()
-	}
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {
 		return nil, err
 	}
 	if !visible {
-		return nil, operatorExpressionError(sqlError("42883", "operator does not exist"), lt, rt, raw)
+		return nil, b.comparisonError(sqlError("42883", "operator does not exist"), lt, rt, raw)
+	}
+	// Admit enum operators against the actual operands before conditional
+	// coercion erases domain identity. Unknown operands retain normal inference.
+	if lt != nil && rt != nil && (lt.BaseType().IsEnum() || rt.BaseType().IsEnum()) {
+		if _, err := sqltype.BindComparison(lt, rt); err != nil {
+			return nil, b.comparisonError(err, lt, rt, raw)
+		}
+	}
+	if lt != nil {
+		lt = lt.BaseType()
+	}
+	if rt != nil {
+		rt = rt.BaseType()
 	}
 	if lt == nil {
 		lt = rt
@@ -1856,7 +1882,7 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	}
 	predicate, err := sqltype.BindComparisonPredicate(operator, l.ResultUsage().Type, r.ResultUsage().Type, b.typ(sqltype.Bool))
 	if err != nil {
-		return nil, operatorExpressionError(err, left.descriptor(), right.descriptor(), raw)
+		return nil, b.comparisonError(err, left.descriptor(), right.descriptor(), raw)
 	}
 	p, rp := l.Properties(), r.Properties()
 	p.RowDependent = p.RowDependent || rp.RowDependent

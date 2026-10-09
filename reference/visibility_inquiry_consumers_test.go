@@ -32,6 +32,46 @@ func TestReferenceVisibilityInquiryBoundaries(t *testing.T) {
 					run(referenceExec("CREATE TABLE sentinel(id INT)", 0))
 					run(referenceExec("INSERT INTO sentinel VALUES(7)", 1))
 					for _, q := range []string{"CREATE TYPE widget AS ENUM ('x')", "CREATE DOMAIN d AS integer", "CREATE COLLATION c FROM pg_catalog.\"C\"", "CREATE CONVERSION c FOR 'UTF8' TO 'LATIN1' FROM pg_catalog.utf8_to_iso8859_1", "CREATE TEMP TABLE temp_t(id INT)", "CREATE MATERIALIZED VIEW mv AS SELECT id FROM sentinel", "CREATE FOREIGN TABLE ft(id integer) SERVER unavailable"} {
+						if strings.HasPrefix(q, "CREATE TYPE") {
+							run(referenceSelect(q, nil, nil, [][]any{}))
+							witness := referenceSelect("SELECT 'x'::widget AS v", []string{"v"}, []string{""}, [][]any{{"x"}})
+							witness.nonContext = source
+							witness.checkMetadata = enumReferenceMetadata(backend.pg, false)
+							enumReferenceRunStep(t, p.ctx, executor, backend.recorder, witness)
+							quiet := "CREATE TYPE enum_quiet_exec AS ENUM ('x')"
+							var held *sql.Stmt
+							var err error
+							if source {
+								held, err = backend.db.Prepare(quiet)
+							} else {
+								held, err = executor.PrepareContext(p.ctx, quiet)
+							}
+							if err != nil {
+								t.Fatal(err)
+							}
+							defer held.Close()
+							missing := referenceImplicitError("CREATE TABLE enum_quiet_exec_rows(v enum_quiet_exec)", referenceDiagnostic{Code: "42704", Message: `type "enum_quiet_exec" does not exist`, Position: "37"})
+							missing.selectRows, missing.errorStage = true, "execute"
+							run(missing)
+							if source {
+								result, err := held.Exec()
+								deleteReferenceCount(t, result, err, 0)
+							} else {
+								referenceRunStep(t, p.ctx, referenceHeldStatement{referenceExecutor: executor, statement: held, query: quiet}, backend.recorder, referenceExec(quiet, 0))
+							}
+							if err := held.Close(); err != nil {
+								t.Fatal(err)
+							}
+							for _, prepared := range []bool{false, true} {
+								value := referenceSelect("SELECT 'x'::enum_quiet_exec AS v", []string{"v"}, []string{""}, [][]any{{"x"}})
+								value.prepared, value.nonContext = prepared, source
+								value.checkMetadata = enumReferenceMetadata(backend.pg, false)
+								enumReferenceRunStep(t, p.ctx, executor, backend.recorder, value)
+							}
+							run(referenceSelect("SELECT pg_collation_is_visible(950),pg_conversion_is_visible(4519)", []string{"pg_collation_is_visible", "pg_conversion_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+							run(referenceSelect("SELECT id FROM sentinel", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+							continue
+						}
 						if q == "CREATE DOMAIN d AS integer" {
 							// The incoming domain implementation supersedes only this
 							// former rejection. Query still consumes the original SQL.

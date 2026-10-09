@@ -170,7 +170,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		if !ok {
 			switch t := d.(type) {
 			case *typeDescriptor:
-				if t.typ.IsDomain() {
+				if t.typ.IsUserDefined() {
 					domains = append(domains, t)
 				} else if t.typ.IsArray() {
 					if err := (typeProvider{}).Validate(catalog, t); err != nil {
@@ -670,7 +670,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	defer op.Done()
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
-		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateDomain:
+		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateEnum, *parser.CreateDomain:
 		case *parser.CreateView:
 		case *parser.CreateIndex:
 		case *parser.CreateSequence:

@@ -36,7 +36,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateDomain, *parser.DropDomain:
+	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateEnum, *parser.CreateDomain, *parser.DropDomain:
 		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true
@@ -611,7 +611,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return scope.executeDelete(b, view, canonical)
 	case *parser.Select:
-		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.IsSingleton())
+		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.IsSingleton() || s.IsTypeSingleton())
 		e.mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr

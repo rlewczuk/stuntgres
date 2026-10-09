@@ -277,13 +277,27 @@ See [case rules](docs/DIALECT.md#core-string-functions--change-note) and
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringCaseSmoke$' VERBOSE=0`;
 pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringCaseSmoke$' VERBOSE=0`.
 
+Change note: `CREATE TYPE [schema.]name AS ENUM ('sad','ok','happy')` creates
+an immutable, owner-controlled logical scalar. Exact case/whitespace-significant
+labels (at most 63 UTF8 bytes) compare and sort in declaration order; different
+enums remain different types even when labels coincide. Unknown strings and binds
+take contextual enum input; typed TEXT requires an explicit cast. NULL preserves
+enum metadata identity. Native export/ScanType is string, DatabaseTypeName is
+empty; pinned pq exports raw bytes with interface{} ScanType for enum OIDs.
+Dump emits enums before dependent domains/tables/stored consumers, preserving
+label order and owners. Fresh prepares after Reset/Restore use new identities;
+retained eager rows remain owned. ALTER/DROP TYPE, pg_enum and enum arrays are
+excluded. See [enum types](docs/TYPES.md#enums--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceEnumSmoke$' VERBOSE=0`;
+pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceEnumSmoke$' VERBOSE=0`.
+
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;
 bounded temporal explicit casts and same-type precision annotations are supported.
 `SELECT current_schemas(false)` returns a genuine NAME[] (`_NAME`)
 as a native string, or NULL for a NULL boolean argument, through the shared
-array storage/literal codec. CREATE TYPE/function/operator DDL remain excluded.
-TEMP remains sequence-only;
+array storage/literal codec. CREATE TYPE forms other than AS ENUM and
+function/operator DDL remain excluded. TEMP remains sequence-only;
 introspection does not allocate an absent temporary namespace.
 Native ORDER on NAME[] is explicitly unsupported at analysis, including empty
 sources; PostgreSQL's array comparator remains outside the bounded native surface.
@@ -412,7 +426,7 @@ support RETURNING. Discover backend-local numeric relation identities by project
 requiring exactly two distinct positive candidate OIDs, one visible candidate,
 and the same identity bag after reversal. No pg_namespace query source or
 explicit regclass-to-oid cast is needed.
-CREATE TYPE/COLLATION/CONVERSION, automatic row types and materialized/foreign
+CREATE TYPE forms other than AS ENUM, CREATE COLLATION/CONVERSION, automatic row types and materialized/foreign
 table creation remain excluded. See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
 Index identity/path/control witnesses:

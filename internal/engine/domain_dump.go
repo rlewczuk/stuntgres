@@ -51,7 +51,7 @@ func catalogTypeDeclaration(view CatalogRead, u sqltype.Usage) (string, error) {
 		}
 		return declaration + "[]", nil
 	}
-	if !u.Type.IsDomain() {
+	if !u.Type.IsUserDefined() {
 		return u.Declaration()
 	}
 	descriptor, ok := view.Descriptor(ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())})
@@ -75,12 +75,14 @@ func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead,
 		id := d.Address().ObjectID
 		descriptors[id] = d
 		dependencies[id] = nil
-		base := d.typ.DomainBase().Type
-		if base.IsArray() {
-			base = base.Element()
-		}
-		if base.IsDomain() {
-			dependencies[id] = []OID{OID(base.ID())}
+		if d.typ.IsDomain() {
+			base := d.typ.DomainBase().Type
+			if base.IsArray() {
+				base = base.Element()
+			}
+			if base.IsUserDefined() {
+				dependencies[id] = []OID{OID(base.ID())}
+			}
 		}
 	}
 	order, err := viewDumpOrder(ctx, dependencies)
@@ -93,6 +95,22 @@ func domainDumpStatements(ctx context.Context, view CatalogRead, roles RoleRead,
 			return nil, err
 		}
 		d := descriptors[id]
+		if d.typ.IsEnum() {
+			qualified, er := catalogTypeDeclaration(view, d.typ.Usage())
+			if er != nil {
+				return nil, er
+			}
+			owner, er := roles.Descriptor(d.owner)
+			if er != nil {
+				return nil, er
+			}
+			labels := d.typ.EnumLabels()
+			for i, label := range labels {
+				labels[i] = "'" + strings.ReplaceAll(label, "'", "''") + "'"
+			}
+			result = append(result, dumpDomain{owner.Name, "CREATE TYPE " + qualified + " AS ENUM (" + strings.Join(labels, ", ") + ");\n"})
+			continue
+		}
 		base := d.typ.DomainBase()
 		declaration, er := catalogTypeDeclaration(view, base)
 		if er != nil {
@@ -131,6 +149,17 @@ func catalogLiteralSQL(ctx context.Context, view CatalogRead, n literalExpressio
 	u := n.ResultUsage()
 	if n.value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
+	}
+	if u.Type.IsEnum() {
+		declaration, err := catalogTypeDeclaration(view, u)
+		if err != nil {
+			return "", err
+		}
+		literal, err := u.Type.SQLLiteral(ctx, n.value)
+		if err != nil {
+			return "", err
+		}
+		return "CAST(" + literal + " AS " + declaration + ")", nil
 	}
 	if u.Type.IsDomain() {
 		declaration, err := catalogTypeDeclaration(view, u)

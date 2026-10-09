@@ -50,7 +50,7 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	for addr, d := range state.descriptors {
 		switch d := d.(type) {
 		case *typeDescriptor:
-			if !d.typ.IsDomain() && !(d.typ.IsArray() && d.typ.Element().IsDomain()) {
+			if !d.typ.IsUserDefined() && !(d.typ.IsArray() && d.typ.Element().IsDomain()) {
 				continue
 			}
 			n := *d

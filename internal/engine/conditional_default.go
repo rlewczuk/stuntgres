@@ -105,7 +105,13 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view CatalogRead, no
 			if e.kind == parser.NullIf {
 				left, right = e.args[0].ResultUsage().Type, e.args[1].ResultUsage().Type
 			}
-			comparison, err := sqltype.BindEqualityComparison(left, right)
+			var comparison sqltype.Comparison
+			var err error
+			if e.kind == parser.Greatest || e.kind == parser.Least {
+				comparison, err = bindExtremaComparison(e.usage)
+			} else {
+				comparison, err = sqltype.BindEqualityComparison(left, right)
+			}
 			if err != nil || comparison != e.comparison {
 				return "", fmt.Errorf("stuntgres: invalid stored conditional comparison")
 			}

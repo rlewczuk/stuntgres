@@ -243,7 +243,7 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 			}
 		}
 	}
-	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsDomain() {
+	if typ, ok := d.(*typeDescriptor); ok && (typ.typ.IsUserDefined() || typ.typ.IsArray() && typ.typ.Element().IsDomain()) {
 		path, _ := auth.engine.referencePath(auth)
 		kind = "type "
 		name = typeDiagnosticNameAt(view, typ, path)

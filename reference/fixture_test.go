@@ -261,6 +261,11 @@ type referenceStep struct {
 	rawTypes []string
 	// checkMetadata inspects the actual cursor before iteration, including empty results.
 	checkMetadata func(t *testing.T, rows *sql.Rows)
+	// checkRaw independently validates each any-scan and middleware-owned value
+	// before normalization. Return true only for columns whose complete raw
+	// contract the callback checks; false preserves generic validation.
+	// SQL NULL is still checked by each stream's complete row comparison.
+	checkRaw func(t *testing.T, columnIndex, rowIndex int, value any) bool
 	// checkScan rescans the current row into specialized destinations, never SQL.
 	checkScan func(t *testing.T, rows *sql.Rows, rowIndex int)
 }
@@ -458,6 +463,22 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 	}
 }
 
+// Use the same raw contract for the actual scan and the independently owned
+// middleware stream. Neither path may validate only normalized representations.
+func referenceAssertStepRawValue(t *testing.T, recorder *referenceRecorder, s referenceStep, column, row int, value any) {
+	t.Helper()
+	if s.checkRaw != nil && s.checkRaw(t, column, row, value) {
+		return
+	}
+	if recorder.rawBackend != referenceRawLegacy {
+		sqlType := s.types[column]
+		if s.rawTypes != nil {
+			sqlType = s.rawTypes[column]
+		}
+		referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, sqlType, value)
+	}
+}
+
 type referenceExecutor interface {
 	PrepareContext(context.Context, string) (*sql.Stmt, error)
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
@@ -634,12 +655,8 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	if s.checkMetadata != nil {
 		s.checkMetadata(t, rows)
 	}
-	rawTypes := s.types
-	if s.rawTypes != nil {
-		if len(s.rawTypes) != len(s.types) {
-			t.Fatal("raw codec family count differs from column count")
-		}
-		rawTypes = s.rawTypes
+	if s.rawTypes != nil && len(s.rawTypes) != len(s.types) {
+		t.Fatal("raw codec family count differs from column count")
 	}
 	values := make([][]any, 0)
 	for rows.Next() {
@@ -652,9 +669,7 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 			t.Fatal(err)
 		}
 		for i, v := range row {
-			if recorder.rawBackend != referenceRawLegacy {
-				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, rawTypes[i], v)
-			}
+			referenceAssertStepRawValue(t, recorder, s, i, len(values), v)
 		}
 		if s.checkScan != nil {
 			s.checkScan(t, rows, len(values))
@@ -699,12 +714,10 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	closed, closeErr := recorded.Closed, recorded.CloseErr
 	recorder.mu.Unlock()
 	captured := make([][]any, 0, len(recordedRows))
-	for _, row := range recordedRows {
+	for rowIndex, row := range recordedRows {
 		converted := make([]any, len(row))
 		for i, v := range row {
-			if recorder.rawBackend != referenceRawLegacy {
-				referenceAssertRawValue(t, recorder.rawBackend == referenceRawPostgres, rawTypes[i], v)
-			}
+			referenceAssertStepRawValue(t, recorder, s, i, rowIndex, v)
 			converted[i] = referenceNormalize(v)
 		}
 		captured = append(captured, converted)

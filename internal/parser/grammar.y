@@ -81,6 +81,7 @@ package parser
  indexKey IndexKey
  createIndex *CreateIndex
  alterView *AlterView
+ enumLabels []EnumLabel
 }
 %token <tok> IDENT NUMBER STRING PARAM
 /* Parser-private numeric continuation for DATE literals, never a keyword. */
@@ -91,7 +92,7 @@ package parser
 %token <tok> OPERATOR
 %token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
-%token <tok> DOMAIN
+%token <tok> DOMAIN TYPE
 %token <tok> ARRAY
 %token <tok> HAVING
 %token <tok> UNIQUE
@@ -158,7 +159,7 @@ package parser
  * Preserve declaration grammar's deliberate type-tail shift rather than
  * leaving those decisions as implicit shift/reduce conflicts. Interval field
  * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
-%nonassoc IDENT DOMAIN SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
+%nonassoc IDENT DOMAIN TYPE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING
 %nonassoc GENERATION_OVER
@@ -176,7 +177,9 @@ package parser
 %nonassoc ')'
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> select_query
-%type <stmt> create_domain drop_domain
+%type <stmt> create_domain drop_domain create_enum
+%type <enumLabels> enum_labels enum_label_list
+%type <tok> enum_word
 %type <alterActions> alter_actions
 %type <alterAction> alter_selected_action
 %type <tok> alter_type_keyword
@@ -400,7 +403,7 @@ comment_column_name: name { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$
  | name '.' col_label '.' col_label { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}} } ;
 comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
-comment_excluded_word: IDENT | KW_U | KW_T | KW_R | UNIQUE | VIEW | INDEX ;
+comment_excluded_word: IDENT | KW_U | KW_T | KW_R | UNIQUE | VIEW | INDEX | TYPE ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
  | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
@@ -540,10 +543,23 @@ create: create_table { $$=$1 }
  | create_view { $$=$1 }
  | create_index { $$=$1 }
  | create_domain { $$=$1 }
+ | create_enum { $$=$1 }
  | create_table INHERITS '(' relation_names ')' { sqllex.(*lexer).deferUnsupported($2,"table inheritance is unsupported"); $$=nil }
  | CREATE TEMP TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
  | CREATE UNLOGGED TABLE { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 }
  | CREATE generic_word { if $2.keyword!=nil && $2.text=="unique" {sqllex.(*lexer).capability($2,unsupportedCreateObjects,"unique indexes are unsupported")} else {sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported")}; return 1 } ;
+/* Use a distinct unreserved head token, like DOMAIN, so generic-word
+ * reductions cannot steal another CREATE declaration's continuation. */
+create_enum: CREATE TYPE relation_name AS enum_word '(' enum_labels ')' {
+ $$=&CreateEnum{Name:$3,Labels:$7,Pos:$1.pos}
+} ;
+enum_word: generic_word {
+ if $1.keyword==nil || $1.text!="enum" {sqllex.(*lexer).failAt("0A000","CREATE TYPE syntax is unsupported",$1.pos.Offset);return 1}
+ $$=$1
+} ;
+enum_labels: /* empty */ {$$=nil} | enum_label_list {$$=$1} ;
+enum_label_list: STRING {$$=[]EnumLabel{{Text:$1.text,Pos:$1.pos}}}
+ | enum_label_list ',' STRING {$$=append($1,EnumLabel{Text:$3.text,Pos:$3.pos})} ;
 create_domain: CREATE DOMAIN relation_name domain_as type column_collation domain_constraints { $$=&CreateDomain{Name:$3,Base:$5,Collation:$6,Constraints:$7,Pos:$1.pos} } ;
 domain_as: /* empty */ | AS ;
 domain_constraints: /* empty */ {$$=nil}
@@ -636,8 +652,8 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=AlterTabl
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
  | ADD unique_constraint { sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=AlterTableAction{} }
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} } ;
-alter_type_keyword: KW_U { if $1.text!="type" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
- | SET KW_U KW_U { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};if $3.text!="type" {sqllex.(*lexer).syntax($3);return 1};$$=$1 } ;
+alter_type_keyword: TYPE { $$=$1 }
+ | SET KW_U TYPE { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};$$=$1 } ;
 column_collation: /* empty */ {$$=nil}
  | COLLATE relation_name {name:=$2;name.Parts[0].Pos=$1.pos;$$=&name} ;
 alter_using: /* empty */ {$$=nil} | USING scalar_projection {$$=$2} ;
@@ -989,7 +1005,7 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  * legacy single-table suffix capability boundary for otherwise excluded SQL. */
 select_query: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
  | SELECT FROM from_list where group having order query_tail { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8.Locking,Bounds:$8.Bounds,Pos:$1.pos} }
- | SELECT projection bounds { if !sqllex.(*lexer).indexExpression&&!sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; if sqllex.(*lexer).indexExpression||$2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
+ | SELECT projection bounds { if !sqllex.(*lexer).indexExpression&&!sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; if sqllex.(*lexer).indexExpression||$2.IsSingleton()||$2.IsTypeSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | SELECT projection FROM from_list where group having order suffix { if $9.keyword!=nil && $9.keyword.token==ON {if _,table:=$4.(*TableReference);!table {sqllex.(*lexer).syntax($9);return 1}};sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT projection FROM from_list where group having order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$9.pos.Offset); return 1 }
@@ -1198,7 +1214,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
- | DOMAIN
+ | DOMAIN | TYPE
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | ESCAPE
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
@@ -1212,14 +1228,14 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
- | DOMAIN
+ | DOMAIN | TYPE
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY | ILIKE | ESCAPE
  | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
- | DOMAIN | ARRAY
+ | DOMAIN | TYPE | ARRAY
  | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate

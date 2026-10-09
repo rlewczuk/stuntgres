@@ -967,7 +967,11 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 			if n.kind == parser.NullIf {
 				left, right = n.args[0].ResultUsage().Type, n.args[1].ResultUsage().Type
 			}
-			n.comparison, err = sqltype.BindEqualityComparison(left, right)
+			if n.kind == parser.Greatest || n.kind == parser.Least {
+				n.comparison, err = bindExtremaComparison(info.usage)
+			} else {
+				n.comparison, err = sqltype.BindEqualityComparison(left, right)
+			}
 		}
 		n.expressionInfo = info
 		rebound = n

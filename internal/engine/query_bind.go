@@ -50,6 +50,10 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	var projection []BoundExpr
 	var targetNames []string
 	var literalTargets []int
+	// Syntax-only cast candidates are admitted only by this coherent binder.
+	// INSERT producers and previously selected singleton families keep their
+	// existing rules; every new standalone target needs its own enum witness.
+	enumSingleton := !contextual && s.From == nil && !s.IsSingleton() && s.IsTypeSingleton()
 	for target, raw := range s.Targets {
 		if err := b.ctx.Err(); err != nil {
 			return nil, err
@@ -80,9 +84,13 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 				}
 			}
 		} else {
+			enumCasts := b.enumCasts
 			expr, err := b.bindOutput(raw, contextual)
 			if err != nil {
 				return nil, err
+			}
+			if enumSingleton && b.enumCasts == enumCasts {
+				return nil, expressionError("0A000", "SELECT without FROM is unsupported", s.Pos)
 			}
 			projection = append(projection, expr)
 			if b.noParameters {
@@ -319,7 +327,7 @@ func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor)
 	}
 	plan, err := sqltype.PlanCoercion(expr.ResultUsage(), target.Usage, sqltype.Assignment)
 	if err != nil {
-		d := expressionError("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, target.Usage.Type.DiagnosticName(), expr.ResultUsage().Type.DiagnosticName()), expr.SourcePosition())
+		d := expressionError("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(expr.ResultUsage().Type)), expr.SourcePosition())
 		d.(*sqlstate.Error).Hint = "You will need to rewrite or cast the expression."
 		return nil, d
 	}

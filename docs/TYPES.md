@@ -96,6 +96,71 @@ domain/schema dependency diagnostics. Stored defaults and constraints retain the
 actual definition-allocation chronology.
 Public TEMP-table creation is still unsupported; TEMP sequences are unchanged.
 
+## Enums — change note
+
+`CREATE TYPE [schema.]name AS ENUM ('sad','ok','happy')` publishes an immutable
+catalog-owned scalar with a distinct logical ID, namespace, owner and default
+PUBLIC USAGE. Prepare is quiet; only execution publishes the declaration.
+TYPE and ENUM remain unreserved identifiers; enum declaration parsing preserves
+the existing `CREATE DOMAIN` syntax, including domains over enum types, and
+the contextual `ALTER COLUMN TYPE` / `SET DATA TYPE` spellings. `COMMENT ON
+TYPE` retains its existing unsupported-object diagnostic rather than a syntax
+error. Domain storage in enum CHECK/view predicates can use an explicit cast
+to the base enum, as in `v::schema.mood >= 'ok'::schema.mood`.
+Enum comparison operators require actual enum operands of the same enum type.
+A domain over an enum is not a polymorphic enum operand, even when both
+operands have that same domain type; cast explicitly to the base enum.
+Domain-over-enum ORDER BY, GREATEST and LEAST still use the base enum's
+declaration order and retain the logical domain identity.
+The same GREATEST/LEAST ordering authority applies to stored table DEFAULTs,
+CHECK expressions and views, including after native Dump/Restore. NULL operands
+are ignored; an all-NULL extrema expression remains a typed domain NULL.
+For `mood AS ENUM ('z','a')` and `wrapped AS mood`, stored
+`GREATEST('z'::wrapped,'a'::wrapped)` yields `a`, while LEAST yields `z`;
+scalar comparison operators still require the explicit base-enum cast above.
+Labels preserve case, whitespace, quotes, backslashes and the empty string.
+The list may be empty (then only NULL is representable). Labels must fit 63 UTF8
+bytes; longer declarations fail42602. Duplicate labels fail23505 with the
+PostgreSQL pg_enum unique-constraint diagnostic; failed declarations publish nothing.
+
+Equality, all six ordinary comparisons and ORDER BY use declaration ordinals,
+not label spelling or insertion order. Different enum types fail42883 even with
+shared labels, NULL or empty sources. Cast both operands to TEXT for lexical
+comparison. Unknown literals and inferred string/byte binds use exact enum input;
+invalid labels fail22P02 with positioned literals or unnamed portal parameter
+Context for bound values. Typed TEXT cannot implicitly assign or compare as enum;
+explicit enum↔TEXT casts are supported. Modifiers and COLLATE are rejected.
+Domains over enum retain their immediate/physical enum authority.
+
+Standalone SELECT admits a bounded cast-derived enum scalar: literal or bound
+enum casts, their ordinary comparisons, Boolean predicates, and explicit TEXT
+output casts. Every target in this new exception must bind an actual enum cast;
+the syntax candidate alone never authorizes unrelated constant, builtin-only or
+domain-only no-FROM projections. Existing selected singleton families retain
+their own rules. Missing cast types/schemas and enum modifier errors keep normal
+binder diagnostics rather than a generic unsupported-query error.
+
+Native Go values and ScanType are string (nil for NULL); DatabaseTypeName is
+empty, Length/DecimalSize unknown. Stored nullable-column metadata is true/known.
+Pinned pq uses raw []byte/interface{} and unknown Nullable for user enum OIDs.
+These transport differences do not erase the logical engine enum ID.
+Held prepared parameters/results cannot retarget same-name types after native
+replacement; fresh prepares are required. Eager rows retain old values/metadata.
+Schema rename updates stored dependencies and rendering; an old explicitly
+qualified prepared source is freshly resolved and can fail3F000.
+
+Dump/Restore emits qualified enum declarations before dependent domains/tables,
+preserving label order, canonical escaping, owner remapping and stored defaults,
+CHECKs and views. Changed type ACLs are refused rather than silently discarded.
+Restore remains atomic on parse/input/owner/read/cancellation failures.
+ALTER TYPE, DROP TYPE, pg_enum queries, enum arrays and other CREATE TYPE forms
+remain excluded. Public verification:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceEnum.*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceEnum.*$' VERBOSE=0`.
+Focused stored-extrema verification uses
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceEnumStoredExtrema$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceEnumStoredExtrema$' VERBOSE=0`.
+
 ## Domains — change note
 
 Domains are immutable catalog-owned logical types, not aliases or per-value boxed

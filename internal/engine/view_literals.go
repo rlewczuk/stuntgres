@@ -142,7 +142,7 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return child(r.Child, n.child)
 		}
 	case parser.CastExpr:
-		if typ := bound.ResultUsage().Type; typ.IsDomain() || typ.IsArray() && typ.Element().IsDomain() {
+		if typ := bound.ResultUsage().Type; typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
 			if b.viewDomainCasts == nil {
 				b.viewDomainCasts = make(map[viewLiteralPath]sqltype.Usage)
 			}

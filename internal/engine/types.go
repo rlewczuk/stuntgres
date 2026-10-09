@@ -87,6 +87,11 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
 	}
+	if t.typ.IsUserDefined() || t.typ.IsArray() && t.typ.Element().IsDomain() {
+		if t.revision == 0 || relationTypeNameOccupied(view, t.Namespace(), t.Name()) {
+			return CatalogConflict{}
+		}
+	}
 	if t.typ.IsDomain() {
 		base := t.typ.DomainBase()
 		actual, exists := view.LookupType(base.Type.ID())
@@ -239,7 +244,7 @@ func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, u
 		u.Typmod = 5
 	}
 	if len(raw.Modifiers) > 0 {
-		if d.IsDomain() {
+		if d.IsUserDefined() {
 			return sqltype.Usage{}, typeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
 		}
 		if err := d.CheckModifierSupport(); err != nil {
@@ -319,6 +324,16 @@ func unsupportedColumnType(raw parser.TypeName) bool {
 	if !raw.Quoted {
 		switch raw.Name {
 		case "double", "precision":
+			return true
+		}
+	}
+	return false
+}
+
+// Tables reserve a corresponding type name without synthesizing a row type.
+func relationTypeNameOccupied(view CatalogRead, namespace ObjectAddress, name string) bool {
+	for _, address := range view.Lookup(NameKey{ClassID: RelationClassID, Namespace: namespace, Name: name}) {
+		if relation, ok := view.state.descriptors[address].(*relationDescriptor); ok && relation.relationKind == tableRelation {
 			return true
 		}
 	}

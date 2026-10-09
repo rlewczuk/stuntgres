@@ -130,7 +130,7 @@ func testExport(v sqltype.Value) driver.Value {
 	if v.IsNull() {
 		return nil
 	}
-	if v.Type().BaseType().IsArray() {
+	if v.Type().BaseType().IsArray() || v.Type().BaseType().IsEnum() {
 		s, err := v.Type().Output(context.Background(), v)
 		if err != nil {
 			panic(err)

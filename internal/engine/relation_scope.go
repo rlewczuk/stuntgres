@@ -79,7 +79,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		name, mode, ownerOnly = v.Name, accessExclusive, true
 		rename, ifExists, tableRename = true, v.IfExists, v.Action == "rename"
 	case *parser.Select:
-		if v.IsSingleton() {
+		if v.IsSingleton() || v.IsTypeSingleton() {
 			return nil
 		}
 		name = v.From.(*parser.TableReference).Name

@@ -16,6 +16,21 @@ describe types without drawing; each execution uses its current physical session
 No generator state is serialized into Dump. Feature smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
 
+## Enum values and prepared signatures
+
+Enums retain catalog-owned logical identity while native transport exports string
+values and string ScanType with empty DatabaseTypeName. Length and DecimalSize
+are unknown; NULL exports nil and stored nullable columns report true/known.
+Pinned pq independently exports raw []byte/interface{} ScanType and unknown
+Nullable for enum OIDs. Labels are not trimmed, folded or ordered lexically.
+Context-inferred parameters accept exact enum labels and nil; typed TEXT requires
+an explicit cast. Invalid bound input uses the existing unnamed portal parameter
+Context, whereas literal failures retain source character Position.
+Reset/Restore cannot retarget old enum parameter/result signatures by name.
+Current source lookup and argument arity still precede cached-contract guards;
+fresh prepares work and eager precontrol rows/metadata remain owned.
+See [enums](TYPES.md#enums--change-note).
+
 ## Domain values and prepared signatures
 
 Domain results retain a distinct logical engine identity but export their ultimate

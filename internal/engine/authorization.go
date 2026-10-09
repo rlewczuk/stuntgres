@@ -573,7 +573,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
 	switch t := d.(type) {
 	case *typeDescriptor:
-		if !t.typ.IsDomain() {
+		if !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsDomain()) {
 			return nil
 		}
 	case *collationDescriptor, *conversionDescriptor:
@@ -624,7 +624,7 @@ func validateACL(r RoleRead, d Descriptor) error {
 func descriptorReferences(d Descriptor) []PrincipalRef {
 	switch t := d.(type) {
 	case *typeDescriptor:
-		if !t.typ.IsDomain() {
+		if !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsDomain()) {
 			return nil
 		}
 	case *collationDescriptor, *conversionDescriptor:

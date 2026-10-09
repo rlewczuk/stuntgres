@@ -30,7 +30,8 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 	}
 	pos := raw.Parts[0].Pos
 	if u.Type.Usage().Collation.ID == 0 {
-		return sqltype.Usage{}, expressionError("42804", "collations are not supported by type "+u.Type.DiagnosticName(), pos)
+		binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+		return sqltype.Usage{}, expressionError("42804", "collations are not supported by type "+binder.diagnosticTypeName(u.Type), pos)
 	}
 	auth, err := e.authorizationLocked(op)
 	if err != nil {

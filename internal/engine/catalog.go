@@ -202,6 +202,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if len(found) != 1 || found[0] != r.address || len(r.columns) != len(r.attributes) || len(r.index) != len(r.columns) {
 		return fmt.Errorf("stuntgres: invalid relation identity")
 	}
+	if r.relationKind == tableRelation && len(v.Lookup(NameKey{ClassID: TypeClassID, Namespace: r.namespace, Name: r.name})) != 0 {
+		return CatalogConflict{}
+	}
 	if r.attributeHighWater < 0 {
 		return fmt.Errorf("stuntgres: invalid relation attribute high-water")
 	}
@@ -570,7 +573,7 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		}
 	case *typeDescriptor:
 		t := d.(*typeDescriptor)
-		if !t.typ.IsDomain() && !(t.typ.IsArray() && t.typ.Element().IsDomain()) {
+		if !t.typ.IsUserDefined() && !(t.typ.IsArray() && t.typ.Element().IsDomain()) {
 			return fmt.Errorf("stuntgres: builtin types cannot be removed")
 		}
 	default:
@@ -856,7 +859,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		}
 		domainChanged := len(s.domainTargets) != 0
 		for _, d := range s.descriptors {
-			if t, ok := d.(*typeDescriptor); ok && t.typ.IsDomain() {
+			if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() {
 				domainChanged = true
 				break
 			}

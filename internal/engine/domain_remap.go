@@ -22,6 +22,32 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 		if !ok {
 			return fmt.Errorf("stuntgres: missing domain base")
 		}
+		if d.typ.IsEnum() {
+			target, namespace := address, d.Namespace()
+			if destination, ok := mapping[address]; ok {
+				target = destination
+			}
+			if destination, ok := mapping[namespace]; ok {
+				namespace = destination
+			}
+			ns, ok := next.descriptors[d.Namespace()]
+			if !ok {
+				return fmt.Errorf("stuntgres: missing enum namespace")
+			}
+			declaration := dependencyIdentifier(ns.Name()) + "." + dependencyIdentifier(d.Name())
+			if target != address || namespace != d.Namespace() || declaration != d.typ.SQLName() {
+				typ, err := sqltype.Enum(sqltype.ID(target.ObjectID), d.Name(), declaration, d.typ.EnumLabels())
+				if err != nil {
+					return err
+				}
+				copy := *d
+				copy.typ, copy.namespace = typ, namespace
+				next.descriptors[address] = &copy
+				changed = true
+			}
+			visited[address] = true
+			return nil
+		}
 		if !d.typ.IsDomain() && !d.typ.IsArray() {
 			visited[address] = true
 			return nil
@@ -80,7 +106,7 @@ func reownDomainTypes(next *catalogState, mapping map[ObjectAddress]ObjectAddres
 		return nil
 	}
 	for address, d := range next.descriptors {
-		if t, ok := d.(*typeDescriptor); ok && (t.typ.IsDomain() || t.typ.IsArray()) {
+		if t, ok := d.(*typeDescriptor); ok && (t.typ.IsUserDefined() || t.typ.IsArray()) {
 			if err := visit(address); err != nil {
 				return false, err
 			}
@@ -95,21 +121,24 @@ func reownDomainDatum(value sqltype.Value, target *sqltype.Descriptor) (sqltype.
 	if value.Type().BaseType().IsArray() && target.BaseType().IsArray() {
 		return value.MapArray(target, reownDomainDatum)
 	}
-	if value.Type().ID() == target.ID() {
+	if value.Type().ID() == target.ID() && value.Type().BaseType().ID() == target.BaseType().ID() {
 		return value.Retag(target)
+	}
+	if value.Type().IsEnum() && target.IsEnum() {
+		return value.RemapEnum(target)
 	}
 	if !value.Type().IsDomain() || !target.IsDomain() {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported scalar identity")
 	}
 	from, to := value.Type().Usage().BaseUsage(), target.Usage().BaseUsage()
-	if from.Type.ID() != to.Type.ID() || from.Typmod != to.Typmod || from.Collation != to.Collation {
+	if (!from.Type.IsEnum() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported domain base")
 	}
 	physical, err := value.BaseValue()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	physical, err = physical.Retag(to.Type)
+	physical, err = reownDomainDatum(physical, to.Type)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

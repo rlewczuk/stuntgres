@@ -64,9 +64,23 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		}
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
+	if len(auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: ns, Name: name})) != 0 {
+		diagnostic := sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name)).(*sqlstate.Error)
+		diagnostic.Hint = "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."
+		return diagnostic
+	}
 	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, input, op, nil)
 	if err != nil {
 		return err
+	}
+	for _, column := range b.createColumns {
+		if typ := column.Usage.Type; typ.IsUserDefined() || typ.IsArray() && typ.Element().IsDomain() {
+			ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(column.Usage.Type.ID())}}
+			if err := auth.CanUse(ref); err != nil {
+				return err
+			}
+			stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
+		}
 	}
 	oid, err := e.allocateOIDLocked()
 	if err != nil {
@@ -250,6 +264,10 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return nil
 	}
 	switch s := stmt.(type) {
+	case *parser.CreateEnum:
+		if err = e.stageCreateEnumLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
 	case *parser.CreateDomain:
 		if err = e.stageCreateDomainLocked(op, auth, stage, s); err != nil {
 			return nil, err
@@ -390,7 +408,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 					continue
 				}
 				dependent = append(dependent, r)
-			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsDomain() {
+			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsUserDefined() {
 				domains = append(domains, t)
 			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsArray() && t.typ.Element().IsDomain() {
 				continue // removed automatically with its element domain

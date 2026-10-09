@@ -77,13 +77,14 @@ type Descriptor struct {
 	element             *Descriptor
 	associatedArray     ID
 	delimiter           byte
+	enum                *enumDefinition
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
 func (d *Descriptor) Name() string    { return d.name }
 func (d *Descriptor) SQLName() string { return d.sql }
 func (d *Descriptor) DiagnosticName() string {
-	if d.IsDomain() {
+	if d.IsUserDefined() {
 		return d.sql
 	}
 	if d.IsArray() {
@@ -203,6 +204,9 @@ func (v Value) IsNull() bool      { return v.null }
 func (v Value) Retag(d *Descriptor) (Value, error) {
 	if v.typ == nil || !v.typ.Concrete() || !d.Concrete() || v.typ.id != d.id || v.typ.IsDomain() != d.IsDomain() || v.typ.BaseType().id != d.BaseType().id {
 		return Value{}, fmt.Errorf("incompatible scalar type identity")
+	}
+	if !compatibleEnum(v.typ.BaseType(), d.BaseType()) {
+		return Value{}, fmt.Errorf("incompatible enum declaration")
 	}
 	if d.IsDomain() {
 		from, to := v.typ.Usage().BaseUsage(), d.Usage().BaseUsage()
@@ -378,6 +382,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		}
 	} else if !utf8.ValidString(text) || strings.IndexByte(text, 0) >= 0 {
 		return Value{}, failure("22P02", "invalid textual input")
+	}
+	if d.IsEnum() {
+		return d.enumInput(text)
 	}
 	switch d.id {
 	case Oid:
@@ -573,6 +580,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsArray() {
 		return d.arrayOutput(ctx, v, env)
 	}
+	if d.IsEnum() {
+		return d.enumOutput(v)
+	}
 	switch d.id {
 	case PgNodeTree:
 		if v.tree == nil {
@@ -643,8 +653,14 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		v.typ = d.BaseType()
 		return v.typ.SQLLiteral(ctx, v)
 	}
-	if d.IsArray() {
-		text, err := d.arrayOutput(ctx, v, OutputEnvironment{})
+	if d.IsArray() || d.IsEnum() {
+		var text string
+		var err error
+		if d.IsArray() {
+			text, err = d.arrayOutput(ctx, v, OutputEnvironment{})
+		} else {
+			text, err = d.enumOutput(v)
+		}
 		if err != nil {
 			return "", err
 		}
@@ -862,6 +878,20 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.IsEnum() || target.Type.IsEnum() {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
+			p.method = viaIO
+			return p, nil
+		}
+		if context == Assignment && source.Type.IsEnum() && IsCharacter(target.Type.id) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
 	if source.Type.IsArray() || target.Type.IsArray() {
 		if source.Type == target.Type {
 			return p, nil
@@ -1053,6 +1083,11 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if u.Type.BaseType().IsArray() {
 		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.BaseType().DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
 	}
+	if u.Type.BaseType().IsEnum() {
+		// Ordering uses the base enum provider, not polymorphic scalar operator
+		// eligibility. Retain the domain identity for Compare's datum checks.
+		return Comparison{u.Type, u.Type}, nil
+	}
 	switch u.Type.BaseType().id {
 	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass:
 	case Void:
@@ -1076,6 +1111,14 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 	p := Comparison{left, right}
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
+	}
+	// Enum operators are polymorphic over actual enum types. Domains are not
+	// enum inputs, even when both operands name the same domain over an enum.
+	if left.BaseType().IsEnum() || right.BaseType().IsEnum() {
+		if !left.IsEnum() || !right.IsEnum() || left != right {
+			return p, failure("42883", "incompatible comparison operands")
+		}
+		return p, nil
 	}
 	if left.IsDomain() || right.IsDomain() {
 		_, err := BindComparison(left.BaseType(), right.BaseType())
@@ -1113,6 +1156,21 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	}
 	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
 	p.left, p.right = a.typ, b.typ
+	if p.left.IsEnum() {
+		if _, err := p.left.enumOutput(a); err != nil {
+			return 0, err
+		}
+		if _, err := p.right.enumOutput(b); err != nil {
+			return 0, err
+		}
+		if a.integer < b.integer {
+			return -1, nil
+		}
+		if a.integer > b.integer {
+			return 1, nil
+		}
+		return 0, nil
+	}
 	if p.left.id != p.right.id && dateTimestampType(p.left.id) && dateTimestampType(p.right.id) {
 		return compareDatetime(a, b, input), nil
 	}

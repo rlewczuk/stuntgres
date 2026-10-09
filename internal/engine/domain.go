@@ -20,7 +20,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	if len(auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: name})) != 0 {
+	if len(auth.catalog.Lookup(NameKey{ClassID: TypeClassID, Namespace: ns.Address, Name: name})) != 0 || relationTypeNameOccupied(auth.catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	for _, c := range s.Constraints {
@@ -39,7 +39,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	if base.Type.IsDomain() || base.Type.IsArray() && base.Type.Element().IsDomain() {
+	if base.Type.IsUserDefined() || base.Type.IsArray() && base.Type.Element().IsDomain() {
 		ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(base.Type.ID())}}
 		stage.domainBases = append(stage.domainBases, auth.catalog.state.descriptors[ref.Address])
 		if err = auth.CanUse(ref); err != nil {

@@ -18,6 +18,18 @@ are rejected before output. Recreated public is an ordinary namespace with absen
 ACL, never silently granted PUBLIC rights. Unchanged bootstrap streams retain
 their exact legacy bytes.
 
+Enum declarations are emitted before dependent domains and relations, with exact
+declaration-order labels, qualified current schema names and owner directives.
+Dependent defaults/CHECKs/views render their captured logical type authority,
+including schema rename. Cross-driver Restore remaps enum owners, descriptors
+and inline ordinal values together, including dependent domains and collisions
+with retained TEMP sequences. Equal label lists never authorize ordinary
+cross-enum casts or prepared-name retargeting. Changed user-type ACLs are refused.
+Read/parse/label/owner/cancellation failures preserve destination catalog/data
+and held eager snapshots. Feature controls:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceEnum(Controls|RestoreAtomicity|OwnerAndTemporaryRemapping)$' VERBOSE=0`
+and the same command with `REFERENCE=1`.
+
 Persistent view definitions are dumped after their relation dependencies, with
 fixed output names, current bound relation identities, frozen column namespace labels, security options and
 owner directives. Views are not evaluated by Dump/Restore and their output is

@@ -15,6 +15,18 @@ type TypeName struct {
 	ArrayBounds []int32
 }
 
+type EnumLabel struct {
+	Text string
+	Pos  Position
+}
+type CreateEnum struct {
+	Name   ObjectName
+	Labels []EnumLabel
+	Pos    Position
+}
+
+func (*CreateEnum) statement() {}
+
 type CreateDomain struct {
 	Name        ObjectName
 	Base        TypeName

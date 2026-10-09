@@ -277,6 +277,16 @@ func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, po
 	comparison, err := sqltype.BindEqualityComparison(l.ResultUsage().Type, r.ResultUsage().Type)
 	return l, r, comparison, err
 }
+
+// Extrema use ordering, not scalar equality, for enum-based logical types.
+// Preserve the original Usage so domain datum ownership remains checked.
+func bindExtremaComparison(usage sqltype.Usage) (sqltype.Comparison, error) {
+	if usage.Type.BaseType().IsEnum() {
+		return sqltype.BindOrdering(usage)
+	}
+	return sqltype.BindComparison(usage.Type, usage.Type)
+}
+
 func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExpr, error) {
 	operands := make([]comparisonOperand, len(raw.Args))
 	for i, arg := range raw.Args {
@@ -308,7 +318,7 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (BoundExp
 			}
 		}
 		if raw.Kind != parser.Coalesce {
-			comparison, err = sqltype.BindComparison(usage.Type, usage.Type)
+			comparison, err = bindExtremaComparison(usage)
 			if err != nil {
 				return nil, err
 			}

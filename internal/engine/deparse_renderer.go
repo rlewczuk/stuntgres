@@ -55,7 +55,7 @@ func pgType(u sqltype.Usage) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if u.Type.IsDomain() {
+	if u.Type.IsUserDefined() {
 		return declaration, nil
 	}
 	switch u.Type.ID() {
@@ -87,7 +87,7 @@ func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
 		}
 		return typ + "[]", nil
 	}
-	if !u.Type.IsDomain() {
+	if !u.Type.IsUserDefined() {
 		return pgType(u)
 	}
 	d, ok := r.view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}].(*typeDescriptor)
@@ -141,7 +141,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if u.Type.IsArray() {
 		return quote(text) + "::" + typ, nil
 	}
-	if u.Type.IsDomain() {
+	if u.Type.IsUserDefined() {
 		if u.Type.BaseType().ID() == sqltype.Regclass {
 			id, err := strconv.ParseUint(text, 10, 32)
 			if err != nil {
