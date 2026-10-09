@@ -252,6 +252,7 @@ type StatementScope struct {
 	searchPathResults      [2]sqltype.Value
 	commentCatalog         CatalogRead
 	commentRoles           RoleRead
+	deparseAuth            AuthorizationView
 	visibilityCatalog      CatalogRead
 	visibilityDemand       bool
 	visibilityRelationPath []ObjectAddress

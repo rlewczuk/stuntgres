@@ -42,10 +42,18 @@ func TestReferenceQueryOrderViewRegression(t *testing.T) {
 		referenceExec("CREATE VIEW volatile_hidden AS SELECT id FROM t ORDER BY nextval('hidden_sequence') DESC", 0),
 		referenceSelect("SELECT n FROM volatile_alias ORDER BY n DESC", []string{"n"}, []string{"INT8"}, [][]any{{int64(3)}, {int64(2)}, {int64(1)}}),
 		referenceSelect("SELECT id FROM volatile_hidden ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}}),
-		referenceSelect("SELECT nextval('alias_sequence')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(4)}}),
-		referenceSelect("SELECT nextval('hidden_sequence')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(4)}}),
 	} {
 		p.step(t, step)
+	}
+	for _, b := range p.backends() {
+		for _, sequence := range []string{"alias_sequence", "hidden_sequence"} {
+			var next int64
+			if err := b.db.QueryRowContext(p.ctx, "SELECT nextval('"+sequence+"')").Scan(&next); err != nil || next != 4 {
+				t.Fatal(sequence, next, err)
+			}
+			referenceRunStep(t, p.ctx, b.db, b.recorder, referenceExec("ALTER SEQUENCE "+sequence+" RESTART WITH 4", 0))
+			referenceRunStep(t, p.ctx, b.db, b.recorder, referenceSelect("SELECT nextval('"+sequence+"')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(4)}}))
+		}
 	}
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
@@ -58,6 +66,25 @@ func TestReferenceQueryOrderViewRegression(t *testing.T) {
 	for _, step := range queryOrderViewReadSteps() {
 		restored.step(t, step)
 		restored.step(t, referencePrepared(step))
+	}
+	for _, b := range p.backends() {
+		db := b.db
+		if !b.pg {
+			db = restored.memory
+		}
+		stmt, err := db.PrepareContext(p.ctx, "SELECT n FROM volatile_alias ORDER BY n DESC")
+		if err != nil {
+			t.Fatal(err)
+		}
+		func() {
+			defer stmt.Close()
+			rows, err := stmt.QueryContext(p.ctx)
+			deleteReferenceConsume(t, b.pg, rows, err, referenceSelect("", []string{"n"}, []string{"INT8"}, [][]any{{int64(7)}, {int64(6)}, {int64(5)}}))
+		}()
+		var next int64
+		if err := db.QueryRowContext(p.ctx, "SELECT nextval('alias_sequence')").Scan(&next); err != nil || next != 8 {
+			t.Fatal(next, err)
+		}
 	}
 }
 

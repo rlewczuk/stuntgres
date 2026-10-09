@@ -62,7 +62,9 @@ type viewRenderer struct {
 	slots                       map[LogicalNode]map[int]string
 	reserved                    map[string]bool
 	namespace, occurrence, join int
-	values int
+	values                      int
+	presentation                viewPresentation
+	simple                      bool
 }
 type viewRenderColumn struct {
 	name string
@@ -208,7 +210,22 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 		for _, c := range ns.columns {
 			frozen[c.attribute] = c
 		}
+		if v.simple {
+			name := relationDiagnosticNameAt(catalog, d, v.presentation.path)
+			from := viewRenderFrom{text: name, root: root, slots: make(map[int]string)}
+			for i, attribute := range d.attributes {
+				if c, ok := frozen[attribute]; ok {
+					from.slots[c.slot] = pgIdentifier(d.columns[i].Name)
+					from.columns = append(from.columns, viewRenderColumn{name: d.columns[i].Name, slot: c.slot})
+				}
+			}
+			v.slots[root] = from.slots
+			return from, nil
+		}
 		from := viewRenderFrom{relation: quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name), root: root}
+		if v.presentation.deparse && v.presentation.pretty {
+			from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
+		}
 		for _, attribute := range d.attributes {
 			column := viewRenderColumn{slot: -1}
 			if c, ok := frozen[attribute]; ok {

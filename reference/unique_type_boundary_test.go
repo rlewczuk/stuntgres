@@ -37,13 +37,12 @@ func TestReferenceUniqueAlterTypeDependentBoundary(t *testing.T) {
 					if err := b.db.QueryRowContext(p.ctx, backingQuery, namespace).Scan(&retainedBacking); err != nil || retainedBacking != backingID {
 						t.Fatal("failed TYPE changed backing identity", backingID, retainedBacking, err)
 					}
-					// Extra catalog validation fields and index deparsing are outside
-					// the native surface; preserve these PostgreSQL-only controls.
+					// Additional catalog validation fields remain PostgreSQL-only.
 					if b.pg {
 						run(referenceSelect("SELECT convalidated FROM pg_constraint WHERE oid=$1", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}, constraintID))
 						run(referenceSelect("SELECT indisvalid FROM pg_index WHERE indexrelid='t_c_key'::regclass", []string{"indisvalid"}, []string{"BOOL"}, [][]any{{true}}))
-						run(referenceSelect("SELECT pg_get_indexdef('t_c_key'::regclass)", []string{"pg_get_indexdef"}, []string{"TEXT"}, [][]any{{"CREATE UNIQUE INDEX t_c_key ON public.t USING btree (c)"}}))
 					}
+					run(referenceSelect("SELECT pg_get_indexdef('t_c_key'::regclass)", []string{"pg_get_indexdef"}, []string{"TEXT"}, [][]any{{"CREATE UNIQUE INDEX t_c_key ON public.t USING btree (c)"}}))
 					run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
 					run(referenceSelect("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE oid=$1", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"UNIQUE (c)"}}, constraintID))
 					duplicate := referenceErrorDiagnostic("INSERT INTO t VALUES(1)", uniqueReferenceDuplicate("t", "t_c_key", "Key (c)=(1) already exists."))

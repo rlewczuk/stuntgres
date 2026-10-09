@@ -9,9 +9,21 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (string, error) {
+type viewPresentation struct {
+	deparse, pretty    bool
+	wrap               int64
+	path               []ObjectAddress
+	columns            []ColumnDescriptor
+	output             sqltype.OutputEnvironment
+	nonstandardStrings bool
+}
+
+func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, presentation viewPresentation) (string, error) {
 	s := v.syntax
 	renderer := newViewRenderer(v)
+	renderer.presentation = presentation
+	_, renderer.simple = s.From.(*parser.TableReference)
+	renderer.simple = renderer.simple && presentation.deparse
 	if s.Values != nil {
 		text, err := renderer.valuesSQL(ctx, catalog, s.Values, 0)
 		if err != nil {
@@ -20,10 +32,25 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 		labels := make([]string, len(v.query.Root.Schema()))
 		renamed := false
 		for i, column := range v.query.Root.Schema() {
-			labels[i] = quoteIdentifier(column.Name)
-			renamed = renamed || column.Name != fmt.Sprintf("column%d", i+1)
+			name := column.Name
+			if len(presentation.columns) > i {
+				name = presentation.columns[i].Name
+			}
+			labels[i] = quoteIdentifier(name)
+			renamed = renamed || name != fmt.Sprintf("column%d", i+1)
 		}
 		if renamed {
+			if presentation.deparse {
+				targets := make([]string, len(labels))
+				for i, column := range v.query.Root.Schema() {
+					name := column.Name
+					if len(presentation.columns) > i {
+						name = presentation.columns[i].Name
+					}
+					targets[i] = fmt.Sprintf("column%d AS %s", i+1, pgIdentifier(name))
+				}
+				return viewTargetsSQL(targets, presentation) + "\n   FROM (" + text + ") AS __view_values", nil
+			}
 			text = "SELECT * FROM (" + text + ") AS __view_values(" + strings.Join(labels, ", ") + ")"
 		}
 		return text, nil
@@ -55,18 +82,47 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 		targets = append(targets, text)
 	}
 	for i := range targets {
-		targets[i] += " AS " + quoteIdentifier(v.query.Root.Schema()[i].Name)
+		label := v.query.Root.Schema()[i].Name
+		if len(presentation.columns) > i {
+			label = presentation.columns[i].Name
+		}
+		natural := ""
+		if renderer.simple {
+			// Simple source slots carry current attribute names, not frozen
+			// aliases; omit AS only when it does not change the result label.
+			for _, name := range renderer.slots[viewFromRoot(v.query.Root)] {
+				if targets[i] == name {
+					natural = name
+					break
+				}
+			}
+		}
+		if !presentation.deparse || natural != pgIdentifier(label) {
+			identifier := quoteIdentifier
+			if presentation.deparse {
+				identifier = pgIdentifier
+			}
+			targets[i] += " AS " + identifier(label)
+		}
 	}
-	text := "SELECT " + strings.Join(targets, ", ")
+	text := viewTargetsSQL(targets, presentation)
+	clause := " "
+	if presentation.deparse {
+		clause = "\n  "
+	}
 	if s.From != nil {
-		text += " FROM " + from
+		if presentation.deparse {
+			text += "\n   FROM " + from
+		} else {
+			text += " FROM " + from
+		}
 	}
 	if s.Where != nil {
 		part, err := renderer.expressionSQL(ctx, catalog, s.Where, viewLiteralPath{clause: viewWhereLiteral})
 		if err != nil {
 			return "", err
 		}
-		text += " WHERE " + part
+		text += clause + "WHERE " + part
 	}
 	if len(s.GroupBy) > 0 {
 		var keys []string
@@ -77,14 +133,14 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 			}
 			keys = append(keys, part)
 		}
-		text += " GROUP BY " + strings.Join(keys, ", ")
+		text += clause + "GROUP BY " + strings.Join(keys, ", ")
 	}
 	if s.Having != nil {
 		part, err := renderer.expressionSQL(ctx, catalog, s.Having, viewLiteralPath{clause: viewHavingLiteral})
 		if err != nil {
 			return "", err
 		}
-		text += " HAVING " + part
+		text += clause + "HAVING " + part
 	}
 	if s.Order != nil {
 		keys := make([]string, len(s.Order.Keys))
@@ -105,7 +161,7 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 			}
 			keys[i] = name
 		}
-		text += " ORDER BY " + strings.Join(keys, ", ")
+		text += clause + "ORDER BY " + strings.Join(keys, ", ")
 	}
 	if s.Bounds != nil {
 		for _, bound := range []struct {
@@ -123,21 +179,45 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead) (st
 			if err != nil {
 				return "", err
 			}
-			text += " " + bound.name + " " + part
+			text += clause + bound.name + " " + part
 		}
 	}
 	if s.Locking != nil {
-		text += " " + s.Locking.Mode
+		text += clause + s.Locking.Mode
 	}
 	return text, nil
 }
 
-func (v *viewRenderer) expressionSQL(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath) (string, error) {
-	ordinal := 0
-	return v.expressionSQLAt(ctx, catalog, raw, path, &ordinal)
+// Measure complete target bytes, never split identifiers, literals or expressions.
+func viewTargetsSQL(targets []string, presentation viewPresentation) string {
+	if !presentation.deparse {
+		return "SELECT " + strings.Join(targets, ", ")
+	}
+	var layout strings.Builder
+	layout.WriteString(" SELECT ")
+	lineBytes := 8
+	for i, target := range targets {
+		if i > 0 {
+			if presentation.wrap >= 0 && (presentation.wrap == 0 || int64(lineBytes+2+len(target)) > presentation.wrap) {
+				layout.WriteString(",\n    ")
+				lineBytes = 4
+			} else {
+				layout.WriteString(", ")
+				lineBytes += 2
+			}
+		}
+		layout.WriteString(target)
+		lineBytes += len(target)
+	}
+	return layout.String()
 }
 
-func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal *int) (string, error) {
+func (v *viewRenderer) expressionSQL(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath) (string, error) {
+	ordinal := 0
+	return v.expressionSQLAt(ctx, catalog, raw, path, &ordinal, pgRenderParent{})
+}
+
+func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath, ordinal *int, parent pgRenderParent) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -146,10 +226,17 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	if literal, ok := v.literals[path]; ok {
 		_, identity := v.sequenceRefs[raw.SourcePosition().Offset]
 		if literal.ResultUsage().Type.BaseType().ID() != sqltype.Regclass || !identity {
+			if v.presentation.deparse {
+				r := pgRenderer{view: catalog, pretty: v.presentation.pretty, path: v.presentation.path, output: v.presentation.output, nonstandardStrings: v.presentation.nonstandardStrings}
+				return r.sql(ctx, literal, pgRenderParent{})
+			}
 			return catalogLiteralSQL(ctx, catalog, literal)
 		}
 	}
-	child := func(expr parser.Expr) (string, error) { return v.expressionSQLAt(ctx, catalog, expr, path, ordinal) }
+	operand := func(expr parser.Expr, parent pgRenderParent) (string, error) {
+		return v.expressionSQLAt(ctx, catalog, expr, path, ordinal, parent)
+	}
+	child := func(expr parser.Expr) (string, error) { return operand(expr, pgRenderParent{}) }
 	args := func(expressions []parser.Expr) (string, error) {
 		parts := make([]string, len(expressions))
 		for i, expr := range expressions {
@@ -188,6 +275,14 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		if path.clause == viewValuesOrderLiteral {
 			root = viewValuesAt(v.query.Root, path.source)
+		}
+		if v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral) {
+			source := catalog.state.descriptors[v.sources[0].ref.Address].(*relationDescriptor)
+			text, err := v.slotSQL(ctx, catalog, root, slot)
+			if err != nil {
+				return "", err
+			}
+			return pgIdentifier(source.name) + "." + text, nil
 		}
 		return v.slotSQL(ctx, catalog, root, slot)
 	case parser.TypedLiteralExpr:
@@ -235,54 +330,97 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		return "CAST(" + text + " AS " + declaration + ")", nil
 	case parser.OperatorExpr:
-		left, err := child(e.Args[0])
-		if err != nil {
-			return "", err
-		}
-		op := e.Name.Parts[len(e.Name.Parts)-1].Text
+		spelling := e.Name.Parts[len(e.Name.Parts)-1].Text
+		op := spelling
 		if len(e.Name.Parts) == 2 {
 			op = "OPERATOR(" + quoteIdentifier(e.Name.Parts[0].Text) + "." + op + ")"
 		}
+		precedence := 4
+		if pgOperatorPriority(spelling) != 0 || len(e.Args) == 1 {
+			precedence = 5
+		}
+		leftParent := pgRenderParent{precedence: precedence, operator: spelling}
+		if precedence == 4 {
+			// Comparisons are nonassociative; predicate-valued operands retain
+			// their grouping rather than becoming an unsupported comparison chain.
+			leftParent = pgRenderParent{precedence: 5}
+		}
+		if len(e.Name.Parts) == 2 {
+			// OPERATOR(schema.op) has generic SQL precedence, even for a
+			// familiar arithmetic spelling. Keep operand groups conservatively.
+			leftParent = pgRenderParent{precedence: 5}
+		}
+		leftParent.unary = len(e.Args) == 1
+		left, err := operand(e.Args[0], leftParent)
+		if err != nil {
+			return "", err
+		}
 		if len(e.Args) == 1 {
-			return "(" + op + " " + left + ")", nil
+			text := op + " " + left
+			if !v.presentation.pretty || pgOperatorGrouped(spelling, false, parent) {
+				text = "(" + text + ")"
+			}
+			return text, nil
 		}
-		right, err := child(e.Args[1])
+		rightParent := leftParent
+		rightParent.right = true
+		right, err := operand(e.Args[1], rightParent)
 		if err != nil {
 			return "", err
 		}
-		return "(" + left + " " + op + " " + right + ")", nil
+		text := left + " " + op + " " + right
+		grouped := !v.presentation.pretty || parent.precedence > precedence
+		if v.presentation.pretty && precedence == 5 {
+			grouped = pgOperatorGrouped(spelling, true, parent)
+		}
+		if v.presentation.pretty && len(e.Name.Parts) == 2 && parent.precedence != 0 {
+			grouped = true
+		}
+		if grouped {
+			text = "(" + text + ")"
+		}
+		return text, nil
 	case parser.LogicalExpr:
-		left, err := child(e.Left)
-		if err != nil {
-			return "", err
-		}
-		if e.Op == parser.LogicalNot {
-			return "(NOT " + left + ")", nil
-		}
-		right, err := child(e.Right)
-		if err != nil {
-			return "", err
-		}
-		op := "AND"
+		op, precedence := "AND", 2
 		if e.Op == parser.LogicalOr {
-			op = "OR"
+			op, precedence = "OR", 1
+		} else if e.Op == parser.LogicalNot {
+			op, precedence = "NOT", 3
 		}
-		return "(" + left + " " + op + " " + right + ")", nil
+		left, err := operand(e.Left, pgRenderParent{precedence: precedence, operator: op})
+		if err != nil {
+			return "", err
+		}
+		text := op + " " + left
+		if e.Op != parser.LogicalNot {
+			right, err := operand(e.Right, pgRenderParent{precedence: precedence, operator: op, right: true})
+			if err != nil {
+				return "", err
+			}
+			text = left + " " + op + " " + right
+		}
+		if !v.presentation.pretty || parent.precedence > precedence || e.Op == parser.LogicalNot && parent.operator == "NOT" {
+			text = "(" + text + ")"
+		}
+		return text, nil
 	case parser.PredicateExpr:
-		left, err := child(e.Left)
+		left, err := operand(e.Left, pgRenderParent{precedence: 5})
 		if err != nil {
 			return "", err
 		}
 		operators := []string{"IS NULL", "IS NOT NULL", "IS TRUE", "IS NOT TRUE", "IS FALSE", "IS NOT FALSE", "IS UNKNOWN", "IS NOT UNKNOWN", "IS DISTINCT FROM", "IS NOT DISTINCT FROM"}
-		text := "(" + left + " " + operators[e.Kind]
+		text := left + " " + operators[e.Kind]
 		if e.Right != nil {
-			right, err := child(e.Right)
+			right, err := operand(e.Right, pgRenderParent{precedence: 5})
 			if err != nil {
 				return "", err
 			}
 			text += " " + right
 		}
-		return text + ")", nil
+		if !v.presentation.pretty || parent.precedence > 4 {
+			text = "(" + text + ")"
+		}
+		return text, nil
 	case parser.AggregateExpr:
 		name := e.Name
 		if e.Schema != nil {

@@ -23,6 +23,7 @@ func TestReferenceDeparseConstraintsReviewCurrentSchemasConsumersSourceConsumerR
 					previous := s.checkMetadata
 					s.checkMetadata = func(t *testing.T, rows *sql.Rows) {
 						deparseReviewMetadata(t, b.pg, rows)
+						deparseReviewNullableColumns(t, b.pg, rows, "id", "b")
 						if previous != nil {
 							previous(t, rows)
 						}
@@ -70,12 +71,21 @@ func TestReferenceDeparseConstraintsReviewCurrentSchemasConsumersSourceConsumerR
 				if err != nil {
 					t.Fatal(err)
 				}
+				plain, err := db.Prepare("SELECT current_schemas(b) FROM public." + name + " WHERE id=$1")
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer plain.Close()
 				for _, path := range []struct{ setting, noCatalog, withCatalog string }{
 					{"dc_path1,dc_path2", "{dc_path1,dc_path2}", "{pg_catalog,dc_path1,dc_path2}"},
 					{"dc_path2,dc_path1", "{dc_path2,dc_path1}", "{pg_catalog,dc_path2,dc_path1}"},
 				} {
 					run(referenceExec("SET search_path TO "+path.setting, 0))
 					for id, want := range []string{path.withCatalog, path.noCatalog} {
+						var plainSchemas string
+						if err := plain.QueryRow(id + 1).Scan(&plainSchemas); err != nil || plainSchemas != want {
+							t.Fatal(plainSchemas, want, err)
+						}
 						rows, err := held.QueryContext(context.Background(), id+1)
 						if err != nil {
 							t.Fatal(err)
@@ -106,6 +116,7 @@ func TestReferenceDeparseConstraintsReviewCurrentSchemasConsumersSourceConsumerR
 					}
 				}
 				held.Close()
+				plain.Close()
 			}
 			for _, prepared := range []bool{false, true} {
 				step := referenceSelect("SELECT current_schemas($1) AS schemas", []string{"schemas"}, []string{"_NAME"}, [][]any{{nil}}, nil)

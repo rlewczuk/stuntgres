@@ -49,6 +49,32 @@ func TestReferenceQueryOrderViewUsingAliasNamespaces(t *testing.T) {
 				if _, err := db.ExecContext(p.ctx, "CREATE VIEW replay AS "+definition); err != nil {
 					t.Fatal(definition, err)
 				}
+				if tc.name == "nested" {
+					var own string
+					if err := db.QueryRowContext(p.ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname='collision'").Scan(&own); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := db.ExecContext(p.ctx, "CREATE VIEW own_export AS "+own); err != nil {
+						t.Fatal(own, err)
+					}
+					for _, prepared := range []bool{false, true} {
+						referenceRunStep(t, p.ctx, db, backend.recorder, referenceExec("ALTER SEQUENCE s RESTART WITH 1", 0))
+						want := [][]any{{int64(2), int64(1)}, {int64(1), int64(2)}}
+						if backend.pg {
+							// PG18's own export retargets hidden ORDER k to
+							// nextval output; retain its independently specified bug.
+							want = [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}}
+						}
+						step := referenceSelect("SELECT k,id FROM own_export ORDER BY id", []string{"k", "id"}, []string{"INT8", "INT4"}, want)
+						step.prepared = prepared
+						referenceRunStep(t, p.ctx, db, backend.recorder, step)
+						var next int64
+						if err := db.QueryRowContext(p.ctx, "SELECT nextval('s')").Scan(&next); err != nil || next != 3 {
+							t.Fatal(next, err)
+						}
+					}
+					referenceRunStep(t, p.ctx, db, backend.recorder, referenceExec("ALTER SEQUENCE s RESTART WITH 1", 0))
+				}
 			}
 			var dump bytes.Buffer
 			if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {

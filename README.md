@@ -21,6 +21,21 @@ See [floating arithmetic](docs/DIALECT.md#floating-arithmetic--change-note).
 Feature smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`.
 
+Change note: index/view introspection supports all seven PostgreSQL 18 signatures:
+`pg_get_indexdef(oid)` and `(oid, integer, boolean)`;
+`pg_get_viewdef(text)`, `(oid)`, `(text, boolean)`, `(oid, boolean)` and
+`(oid, integer)`. Results are strict nullable TEXT; omitted pretty means false,
+and integer view width selects pretty rendering. Reconstruction traverses current
+bound descriptors without evaluating views. Index column zero gives CREATE INDEX,
+other valid columns give only the key expression, and invalid columns give empty
+text. Text view arguments resolve relation names, not numeric OIDs. Ordinary
+views and existing simple, expression-key and UNIQUE backing indexes are covered.
+Materialized-view DDL, partial indexes and INCLUDE remain excluded; this part
+adds no index DDL capability.
+Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`.
+
 Change note: `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` declares a
 catalog-owned logical type over a supported scalar or bounded `NAME[]` base.
 Domain columns, direct/prepared input, inherited base typmods, operators/functions
@@ -78,7 +93,7 @@ state, session paths/zones and per-backend seeded random effects. Exact renderer
 strings or one successful insertion alone are not behavioral compatibility proof.
 Native tree output is not PostgreSQL's physical node serialization; non-NULL
 external tree input is rejected. See [deparsing](docs/QUERIES.md#constraint-and-expression-deparsing).
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseConstraints' VERBOSE=0`.
 
 Time-zone-aware `TIMESTAMPTZ` and `TIMETZ` values support per-physical-session
 TimeZone/DateStyle, named IANA zones, abbreviations, fixed offsets and
@@ -333,8 +348,8 @@ allows trailing outputs and rejects changed existing names/types/typmods/collati
 ALTER VIEW supports relation/column rename, owner/schema changes and security
 SET/RESET; grouped DROP VIEW supports RESTRICT/CASCADE. Cyclic replacement is
 allowed, while recursive reads and native cyclic Dump explicitly fail.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestViewSmoke$' VERBOSE=0`.
-Replacement smoke: `make quickcheck PACKAGES=./smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$' VERBOSE=0`.
+Replacement smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$' VERBOSE=0`.
 
 Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
 `pg_type_is_visible(oid)`, `pg_collation_is_visible(oid)` and

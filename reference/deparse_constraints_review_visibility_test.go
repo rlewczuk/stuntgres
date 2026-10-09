@@ -26,6 +26,10 @@ func TestReferenceDeparseConstraintsReviewProviderVisibility(t *testing.T) {
 			}
 			text := func(q, want string) {
 				s := referenceSelect(q, []string{"d"}, []string{"TEXT"}, [][]any{{want}})
+				var direct string
+				if err := conn.QueryRowContext(p.ctx, q).Scan(&direct); err != nil || direct != want {
+					t.Fatal(direct, want, err)
+				}
 				run(s)
 				run(referencePrepared(s))
 			}
@@ -66,20 +70,44 @@ func TestReferenceDeparseConstraintsReviewProviderVisibility(t *testing.T) {
 				}
 				text(fmt.Sprintf("SELECT pg_get_constraintdef(oid,%t) AS d FROM pg_catalog.pg_constraint WHERE conname='v'", i == 1), visible)
 				exec(fmt.Sprintf("CREATE TABLE copy%d(a INT,CONSTRAINT copied %s)", i, saved))
+				var called bool
+				if err := conn.QueryRowContext(p.ctx, "SELECT is_called FROM public.s").Scan(&called); err != nil || called {
+					t.Fatal(called, err)
+				}
 			}
-			number("SELECT nextval('public.s') AS n", 40)
-			number("SELECT nextval('shadow.s') AS n", 900)
-			exec("INSERT INTO original VALUES(1)")
 			exec("INSERT INTO copy0 VALUES(1)")
 			exec("INSERT INTO copy1 VALUES(1)")
+			var copyLast int64
+			var copyCalled bool
+			if err := conn.QueryRowContext(p.ctx, "SELECT last_value,is_called FROM public.s").Scan(&copyLast, &copyCalled); err != nil || copyLast != 41 || !copyCalled {
+				t.Fatal(copyLast, copyCalled, err)
+			}
+			if err := conn.QueryRowContext(p.ctx, "SELECT last_value,is_called FROM shadow.s").Scan(&copyLast, &copyCalled); err != nil || copyLast != 900 || copyCalled {
+				t.Fatal(copyLast, copyCalled, err)
+			}
+			number("SELECT nextval('public.s') AS n", 42)
+			number("SELECT nextval('shadow.s') AS n", 900)
+			exec("INSERT INTO original VALUES(1)")
 			number("SELECT currval('public.s') AS n", 43)
 			number("SELECT currval('shadow.s') AS n", 900)
+			var last int64
+			var called bool
+			if err := conn.QueryRowContext(p.ctx, "SELECT last_value,is_called FROM public.s").Scan(&last, &called); err != nil || last != 43 || !called {
+				t.Fatal(last, called, err)
+			}
+			if err := conn.QueryRowContext(p.ctx, "SELECT last_value,is_called FROM shadow.s").Scan(&last, &called); err != nil || last != 900 || !called {
+				t.Fatal(last, called, err)
+			}
 			exec("SET search_path TO public,shadow")
+			held(false, "CHECK ((nextval('s'::regclass) < 100))")
+			text("SELECT pg_get_constraintdef(oid,false) AS d FROM pg_catalog.pg_constraint WHERE conname='c'", "CHECK ((nextval('s'::regclass) < 100))")
+			text("SELECT pg_get_constraintdef(oid,true) AS d FROM pg_catalog.pg_constraint WHERE conname='c'", "CHECK (nextval('s'::regclass) < 100)")
 			held(true, "CHECK (nextval('s'::regclass) < 100)")
 			text("SELECT pg_get_constraintdef(oid,true) AS d FROM pg_catalog.pg_constraint WHERE conname='v'", "CHECK (nextval('shadow.s'::regclass) > 0)")
 			exec("SET search_path TO shadow,public")
 			exec(`ALTER SEQUENCE public.s RENAME TO "Renamed sequence"`)
 			held(true, `CHECK (nextval('"Renamed sequence"'::regclass) < 100)`)
+			text("SELECT pg_get_constraintdef(oid,true) AS d FROM pg_catalog.pg_constraint WHERE conname='c'", `CHECK (nextval('"Renamed sequence"'::regclass) < 100)`)
 			if saved != "CHECK (nextval('public.s'::regclass) < 100)" {
 				t.Fatal("held text mutated", saved)
 			}

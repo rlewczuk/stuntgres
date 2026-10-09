@@ -226,6 +226,11 @@ func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName
 	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
 		return namespaceSelection{}, err
 	}
+	return e.lookupNamespacesSnapshot(auth, name, kind)
+}
+
+// Immutable statement authority resolves names without consulting live epochs.
+func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
 	if len(name.Parts) == 1 {
 		path, err := e.lookupPath(auth, kind)
 		return namespaceSelection{path: path}, err

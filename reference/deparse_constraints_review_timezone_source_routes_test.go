@@ -1,11 +1,11 @@
 package reference_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Original public consumer routes run in fresh phases; the Context companions remain intact.
@@ -24,6 +24,7 @@ func TestReferenceDeparseConstraintsReviewTimezoneConsumersSourceConsumerRoutes(
 							previous := s.checkMetadata
 							s.checkMetadata = func(t *testing.T, rows *sql.Rows) {
 								deparseReviewMetadata(t, b.pg, rows)
+								deparseReviewNullableColumns(t, b.pg, rows, "id", "v")
 								if previous != nil {
 									previous(t, rows)
 								}
@@ -37,7 +38,11 @@ func TestReferenceDeparseConstraintsReviewTimezoneConsumersSourceConsumerRoutes(
 					for mode, expr := range []string{tc.compact, tc.pretty} {
 						q := fmt.Sprintf("SELECT pg_get_constraintdef(oid,%t) AS d,pg_get_expr(conbin,conrelid,%t) AS e FROM pg_catalog.pg_constraint WHERE conname='c'", mode == 1, mode == 1)
 						step := referenceSelect(q, []string{"d", "e"}, []string{"TEXT", "TEXT"}, [][]any{{"CHECK (" + expr + ")", expr}})
-						actual := run(step).rows[0][0].(string)
+						var actual string
+						if err := db.QueryRow(fmt.Sprintf("SELECT pg_get_constraintdef(oid,%t) FROM pg_catalog.pg_constraint WHERE conname='c'", mode == 1)).Scan(&actual); err != nil || actual != step.rows[0][0] {
+							t.Fatal(actual, step.rows, err)
+						}
+						run(step)
 						run(referencePrepared(step))
 						run(referenceExec(fmt.Sprintf("CREATE TABLE copy%d(id INT,v %s,CONSTRAINT c%d %s)", mode, tc.decl, mode, actual), 0))
 					}
@@ -46,7 +51,7 @@ func TestReferenceDeparseConstraintsReviewTimezoneConsumersSourceConsumerRoutes(
 						if i > 0 {
 							constraint = fmt.Sprintf("c%d", i-1)
 						}
-						held, err := db.PrepareContext(context.Background(), "INSERT INTO "+name+" VALUES($1,$2)")
+						held, err := db.Prepare("INSERT INTO " + name + " VALUES($1,$2)")
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -77,9 +82,19 @@ func TestReferenceDeparseConstraintsReviewTimezoneConsumersSourceConsumerRoutes(
 								run(step)
 								snapshot()
 							}
+							result, err := held.Exec(7, tc.good1)
+							if err != nil {
+								t.Fatal(err)
+							}
+							if n, err := result.RowsAffected(); err != nil || n != 1 {
+								t.Fatal(n, err)
+							}
+							// Use the independently valid UTC value before testing the changed-zone value.
+							// The SAME plain handle must observe both session states.
+							run(referenceExec("DELETE FROM "+name+" WHERE id=7", 1))
 							run(referenceExec("SET TIME ZONE 'UTC-2'", 0))
 							// A held prepared DML handle observes the new session, not its prepare-time zone.
-							_, err = held.ExecContext(context.Background(), 7, tc.changedInput)
+							_, err = held.Exec(7, tc.changedInput)
 							if tc.changedAccept {
 								if err != nil {
 									t.Fatal(err)
@@ -103,6 +118,16 @@ func TestReferenceDeparseConstraintsReviewTimezoneConsumersSourceConsumerRoutes(
 								changedResult = "12:00:00+02"
 							}
 							deparseReviewSourceTypedValue(t, db, postgres, "SELECT "+conversion+" AS v FROM "+name+" WHERE id=1", tc.resultDecl, changedResult)
+							if tc.resultDecl == "TIMESTAMPTZ" {
+								var instant time.Time
+								want, err := time.Parse("2006-01-02 15:04:05Z07", changedResult)
+								if err != nil {
+									t.Fatal(err)
+								}
+								if err := db.QueryRow("SELECT " + conversion + " FROM " + name + " WHERE id=1").Scan(&instant); err != nil || !instant.Equal(want) {
+									t.Fatal(instant, want, err)
+								}
+							}
 							if tc.name == "timetz_local" {
 								deparseReviewSourceTypedValue(t, db, postgres, "SELECT v AT LOCAL AS v FROM "+name+" WHERE id=1", "TIMETZ", "12:00:00+02")
 								run(referenceSelect("SELECT (v AT LOCAL)=TIMETZ '12:00:00+02' AS same FROM "+name+" WHERE id=1", []string{"same"}, []string{"BOOL"}, [][]any{{true}}))

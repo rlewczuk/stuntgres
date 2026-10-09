@@ -1,6 +1,9 @@
 package reference_test
 
-import "testing"
+import (
+	"database/sql"
+	"testing"
+)
 
 func TestReferenceViewRows(t *testing.T) {
 	p := newReferenceScenario(t)
@@ -24,6 +27,13 @@ func TestReferenceViewRows(t *testing.T) {
 				}
 				s := referenceSelect(held.query, []string{"k", "label"}, []string{"INT4", "TEXT"}, want, arg)
 				s.bag = true
+				s.checkScan = func(t *testing.T, rows *sql.Rows, _ int) {
+					var k int64
+					var label sql.NullString
+					if err := rows.Scan(&k, &label); err != nil || k != 3 || label.Valid {
+						t.Fatal(k, label, err)
+					}
+				}
 				referenceRunStep(t, p.ctx, held, b.recorder, s)
 			}
 			run(referenceExec("INSERT INTO t VALUES(4,'d',true)", 1))

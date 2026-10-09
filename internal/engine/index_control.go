@@ -6,14 +6,43 @@ import (
 	"strings"
 )
 
-func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relationDescriptor) (string, error) {
+type indexPresentation struct {
+	dump   bool
+	column int64
+	pretty bool
+	path   []ObjectAddress
+}
+
+func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relationDescriptor, presentation indexPresentation) (string, error) {
 	if err := validateIndexDefinition(catalog, index); err != nil {
 		return "", err
 	}
 	parent := catalog.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+	if presentation.column != 0 {
+		if presentation.column < 1 || presentation.column > int64(len(index.sqlIndex.keys)) {
+			return "", nil
+		}
+		key := index.sqlIndex.keys[presentation.column-1]
+		if key.derived != nil {
+			return (scalarRenderer{owner: parent}).sql(ctx, catalog, key.derived.definition)
+		}
+		return deparseAttribute(parent, key.attribute)
+	}
+	identifier := pgIdentifier
+	if presentation.dump {
+		identifier = quoteIdentifier
+	}
 	schema := catalog.state.descriptors[parent.namespace].Name()
+	parentName := identifier(schema) + "." + identifier(parent.name)
+	if presentation.pretty {
+		parentName = relationDiagnosticNameAt(catalog, parent, presentation.path)
+	}
 	var sql strings.Builder
-	sql.WriteString("CREATE INDEX " + quoteIdentifier(index.name) + " ON " + quoteIdentifier(schema) + "." + quoteIdentifier(parent.name) + " USING btree (")
+	sql.WriteString("CREATE ")
+	if index.sqlIndex.unique != nil {
+		sql.WriteString("UNIQUE ")
+	}
+	sql.WriteString("INDEX " + identifier(index.name) + " ON " + parentName + " USING btree (")
 	for i, key := range index.sqlIndex.keys {
 		if i > 0 {
 			sql.WriteString(", ")
@@ -35,19 +64,27 @@ func indexDefinitionSQL(ctx context.Context, catalog CatalogRead, index *relatio
 			if slot < 0 {
 				return "", fmt.Errorf("stuntgres: index attribute is missing")
 			}
-			sql.WriteString(quoteIdentifier(parent.columns[slot].Name))
+			sql.WriteString(identifier(parent.columns[slot].Name))
 		}
 		if key.desc {
 			sql.WriteString(" DESC")
-		} else {
+		} else if presentation.dump {
 			sql.WriteString(" ASC")
 		}
-		if key.nullsFirst {
-			sql.WriteString(" NULLS FIRST")
-		} else {
-			sql.WriteString(" NULLS LAST")
+		if presentation.dump || key.nullsFirst != key.desc {
+			if key.nullsFirst {
+				sql.WriteString(" NULLS FIRST")
+			} else {
+				sql.WriteString(" NULLS LAST")
+			}
 		}
 	}
-	sql.WriteString(");\n")
+	sql.WriteString(")")
+	if index.sqlIndex.unique != nil && index.sqlIndex.unique.NullsNotDistinct {
+		sql.WriteString(" NULLS NOT DISTINCT")
+	}
+	if presentation.dump {
+		sql.WriteString(";\n")
+	}
 	return sql.String(), nil
 }

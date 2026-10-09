@@ -67,7 +67,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	}
 	var kind nullCountKind
 	switch name {
-	case "pg_get_constraintdef", "pg_get_expr":
+	case "pg_get_constraintdef", "pg_get_expr", "pg_get_indexdef", "pg_get_viewdef":
 		return b.bindDeparse(raw, visible)
 	case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "lower", "upper", "casefold", "initcap", "bit_length", "char_length", "character_length", "length", "octet_length", "position", "strpos":
 		return b.bindStringFunction(raw, visible && name != "trim")

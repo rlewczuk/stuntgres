@@ -86,7 +86,7 @@ checks strict BOOL NULL, not path membership; path reversal is observed separate
 through public NAME[] output. NAME[] comparison/order and plain TIME AT are not
 added by reconstruction; admitted AT inputs are TIMESTAMP/TIMESTAMPTZ/TIMETZ.
 
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseConstraints' VERBOSE=0`.
 Dual-mode deparse assertion unions:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseConstraints[A-Za-z0-9_]*$' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseConstraints[A-Za-z0-9_]*$' VERBOSE=0`.
@@ -321,7 +321,7 @@ own definition replay have different sequence-to-row associations. Native defini
 compatibility does not assume PostgreSQL's own deparse fidelity in that case.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
-View persistence smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryOrderViewSmoke$' VERBOSE=0`.
+View persistence smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryOrderView' VERBOSE=0`.
 Independent pinned18.0 reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryOrder' VERBOSE=0`.
 
 ## Inner and cross joins — change note
@@ -475,6 +475,56 @@ preserved real marked rows lock, LIMIT0 locks none, and rollback releases grants
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
 Independent pinned PostgreSQL behavior and full diagnostic coverage:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
+
+## Index and view deparsing — change note
+
+All seven PostgreSQL 18 signatures return TEXT through the normal typed binder:
+`pg_get_indexdef(oid)` / `(oid, integer, boolean)` and
+`pg_get_viewdef(text)` / `(oid)` / `(text, boolean)` / `(oid, boolean)` /
+`(oid, integer)`. Omitted pretty equals false; integer width always enables pretty.
+Unknown literals and parameters are resolved before input decoding and strict
+NULL handling. TEXT is preferred for the single unknown view argument, whereas
+conflicting second-argument categories can produce42725 ambiguity. NULL cannot
+hide missing children, wrong arities/types or malformed nonnull argument input.
+Prepared executions recapture catalog, roles, path and output environment.
+Grouped deparse calls retain their real rewritten argument dependencies, including
+constant and strict-NULL projections; grouping does not change the TEXT contract.
+
+Index column zero reconstructs CREATE INDEX with no terminal semicolon.
+Individual keys use current stable attribute names, without direction/NULL
+decorations; invalid nonzero columns return empty text. Missing/nonindex OIDs
+return NULL. Full output retains supported UNIQUE and NULLS NOT DISTINCT flags,
+omits default ASC/NULL placement, qualifies compact parents and uses visible
+parents in pretty mode. No expression/partial/INCLUDE index DDL is added.
+
+View output ends in one semicolon. Ordinary SELECT definitions remain SELECT;
+plain top-level VALUES retains its VALUES form in every presentation mode.
+Renamed VALUES outputs use an explicit SELECT projection with current labels
+and the shared target layout. Missing/nonview OIDs yield NULL.
+TEXT uses normal qualified relation-name parsing and captured search_path:
+numeric-looking text is a name, absent names report42P01, absent namespaces
+3F000 and malformed names42602. No base SELECT privilege check is introduced.
+SELECT output still contains clause indentation in compact mode. Pretty reduces
+unnecessary expression parentheses recursively while preserving precedence,
+including binary arithmetic operands beneath unary signs such as `-(id + 1)`;
+wrap zero places subsequent SELECT targets on new lines, negative wrap disables
+width wrapping, and positive width measures complete target bytes.
+Tokens are never split and the first target may exceed the requested width.
+Plain top-level VALUES has no SELECT target list to wrap.
+Current output labels and bound source identities survive rename/replacement.
+
+The shared structural renderer preserves every admitted view construct, including
+duplicates/NULLs, frozen stars, VALUES, grouping, CASE, joins/USING and hidden
+ORDER identities. Complex frozen namespaces can require canonical synthetic
+aliases instead of PostgreSQL's private cosmetic choices. The documented nested
+USING/output-override fidelity exception above applies to these exports too.
+No definition is evaluated; dormant errors and sequence draws remain dormant.
+Materialized-view DDL remains outside the native dialect.
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0
+```
 
 ## Persistent view sources — change note
 

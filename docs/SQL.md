@@ -411,6 +411,18 @@ and Dump share identity-aware reconstruction after renames; PostgreSQL pretty
 printing byte equality is not promised. Unsupported columns, including
 `reloptions`, `ev_action` and `ev_qual`, give ordinary42703; no fake pg_node_tree.
 Built-in source output is derived, never persisted as table data.
+`pg_get_viewdef` accepts TEXT/OID alone, TEXT/OID plus BOOL, or OID plus INT4
+wrap width; all return strict nullable TEXT and terminate the command with a
+semicolon. Plain top-level VALUES remains VALUES regardless of pretty/width;
+renamed VALUES outputs use a current-label SELECT projection and target layout.
+TEXT is a relation name resolved against the current statement authority, never
+a numeric OID shortcut. Returned forms can create dynamic view copies without
+evaluating the original. Pretty/width affects presentation, not frozen identities,
+current output labels, duplicates or NULLs. `pg_get_indexdef(oid)` and
+`pg_get_indexdef(oid, integer, boolean)` reconstruct supported index descriptors;
+column zero gives CREATE INDEX without a terminator, valid columns give only keys,
+invalid nonzero columns give empty TEXT, and missing/wrong-kind OIDs give NULL.
+See [deparse contracts](QUERIES.md#index-and-view-deparsing--change-note).
 
 These native catalog rows are derived and have no durable physical row identity.
 Direct, nested, stored or empty marked reads fail0A000 `row locking is not
@@ -452,8 +464,8 @@ optimizer introspection remain unsupported. Setting check_option fails0A000
 `view check options are unsupported`; RESET of an absent check_option is harmless.
 Native ACL unit controls and PostgreSQL-only GRANT witnesses do not imply a
 public native ACL API.
-Smokes: `make quickcheck PACKAGES=./smoke RUN='^TestViewSmoke$' VERBOSE=0` and
-`make quickcheck PACKAGES=./smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`;
+Smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$' VERBOSE=0` and
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$' VERBOSE=0`;
 dual-mode replacement union: `make quickcheck PACKAGES=./reference RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$' VERBOSE=0`;
 same-definition oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$' VERBOSE=0`.
 The true selection includes separately retained PostgreSQL-required companions.

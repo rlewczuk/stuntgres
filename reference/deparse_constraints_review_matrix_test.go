@@ -84,6 +84,7 @@ var deparseReviewDefaults = []struct{ name, declaration, input, golden, value st
 	{"date_ninf", "DATE", "'-infinity'", "'-infinity'::date", "-infinity"},
 	{"time_v", "TIME", "'12:34:56'", "'12:34:56'::time without time zone", "12:34:56"},
 	{"time3", "TIME(3)", "'12:34:56.1234'", "'12:34:56.1234'::time without time zone", "12:34:56.123"},
+	{"time_literal3", "TIME", "TIME(3) '12:34:56.1234'", "'12:34:56.1234'::time(3) without time zone", "12:34:56.123"},
 	{"timetz_v", "TIMETZ", "'12:34:56+00'", "'12:34:56+00'::time with time zone", "12:34:56+00"},
 	{"timetz3", "TIMETZ(3)", "'12:34:56.1234+00'", "'12:34:56.1234+00'::time with time zone", "12:34:56.123+00"},
 	{"timestamp_v", "TIMESTAMP", "'2026-10-08 12:34:56'", "'2026-10-08 12:34:56'::timestamp without time zone", "2026-10-08 12:34:56"},

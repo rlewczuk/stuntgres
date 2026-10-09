@@ -182,7 +182,7 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node BoundExpr) 
 			err = pair(n.value, n.zone)
 		}
 	case deparseExpression:
-		fmt.Fprintf(out, "Deparse constraint %t", n.constraint)
+		fmt.Fprintf(out, "Deparse signature %d", n.signature)
 		err = args(n.args)
 	default:
 		return fmt.Errorf("stuntgres: unsupported structural node %T", node)

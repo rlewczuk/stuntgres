@@ -85,6 +85,20 @@ Native SYSTEM_USER remains typed NULL, but its nontrivial DEFAULT stays stored.
 These consumers do not change identity providers, authority or namespace resolution.
 See [query contracts](QUERIES.md#constraint-and-expression-deparsing).
 
+Index/view introspection has seven strict STABLE TEXT signatures:
+`pg_get_indexdef(oid)`, `pg_get_indexdef(oid, integer, boolean)`,
+`pg_get_viewdef(text)`, `pg_get_viewdef(oid)`,
+`pg_get_viewdef(text, boolean)`, `pg_get_viewdef(oid, boolean)` and
+`pg_get_viewdef(oid, integer)`. There are no optional single index-column
+arguments or text/width overloads. Unknown arguments resolve before strict NULL;
+ambiguous calls report42725, missing signatures42883. Names use normal captured
+relation lookup; missing OIDs/nonmatching kinds yield NULL, missing text names
+error. Invalid nonzero index columns yield nonnull empty TEXT. Pretty/width
+rendering is structural and executable, not original SQL or view evaluation.
+Existing ordinary views and simple/UNIQUE backing indexes are supported; this
+adds no materialized-view, expression/partial/INCLUDE index DDL or catalogs.
+
+
 
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
 
@@ -141,8 +155,8 @@ column defaults/type-changing ALTER, full catalogs/RLS/UDFs/optimizer facilities
 and explicit-transaction view DDL remain excluded.
 Native fixture controls serialize current definitions, not materialized results
 or alteration history.
-Feature smokes: `make quickcheck PACKAGES=./smoke RUN='^TestViewSmoke$' VERBOSE=0` and
-`make quickcheck PACKAGES=./smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`.
+Feature smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$' VERBOSE=0` and
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$' VERBOSE=0`.
 
 SELECT targets support `AS label` and eligible bare labels for view definitions
 and normal output metadata. ORDER resolves output labels and ordinals alongside

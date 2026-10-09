@@ -28,7 +28,7 @@ func TestReferenceDeparseConstraintsDefinitionIdentitiesSourceConsumerRoutes(t *
 				}
 				return referenceRunStep(t, p.ctx, db, b.recorder, s)
 			}
-			run(referenceExec("CREATE TABLE t(a INT,b BIGINT DEFAULT 7,CONSTRAINT ck CHECK(a::bigint>0))", 0))
+			run(referenceExec("CREATE TABLE t(a INT,b BIGINT DEFAULT 7 CONSTRAINT nn NOT NULL,CONSTRAINT ck CHECK(a::bigint>0))", 0))
 			cid := deparseSourceDefinitionID(t, db, "SELECT oid FROM pg_catalog.pg_constraint WHERE conname='ck'")
 			rid := deparseSourceDefinitionID(t, db, "SELECT conrelid FROM pg_catalog.pg_constraint WHERE conname='ck'")
 			did := deparseSourceDefinitionID(t, db, "SELECT oid FROM pg_catalog.pg_attrdef")
@@ -38,7 +38,23 @@ func TestReferenceDeparseConstraintsDefinitionIdentitiesSourceConsumerRoutes(t *
 			_, relation := deparseReviewTypedExpected(t, postgres, "OID", strconv.FormatInt(rid, 10))
 			run(referenceSelect("SELECT adrelid,adnum FROM pg_catalog.pg_attrdef", []string{"adrelid", "adnum"}, []string{"OID", "INT2"}, [][]any{{relation, int64(2)}}))
 			for _, prepared := range []bool{false, true} {
+				for _, tc := range []struct {
+					query string
+					want  any
+					args  []any
+				}{
+					{"SELECT pg_get_constraintdef($1)", "CHECK (((a)::bigint > 0))", []any{cid}},
+					{"SELECT pg_get_constraintdef($1,false)", "CHECK (((a)::bigint > 0))", []any{cid}},
+					{"SELECT pg_get_constraintdef($1,NULL)", nil, []any{cid}},
+				} {
+					step := referenceSelect(tc.query, []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{tc.want}}, tc.args...)
+					step.prepared = prepared
+					run(step)
+				}
 				step := referenceSelect("SELECT pg_get_constraintdef($1,$2)", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"CHECK (a::bigint > 0)"}}, cid, true)
+				step.prepared = prepared
+				run(step)
+				step = referenceSelect("SELECT pg_get_constraintdef(oid) FROM pg_catalog.pg_constraint WHERE conname='nn'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"NOT NULL b"}})
 				step.prepared = prepared
 				run(step)
 			}

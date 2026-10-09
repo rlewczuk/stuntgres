@@ -135,11 +135,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if r.commentSnapshot != nil {
 			*r.commentSnapshot = true
 		}
-		name := "pg_get_expr"
-		if n.constraint {
-			name = "pg_get_constraintdef"
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+name, n.args)
+		return r.functionSQL(ctx, view, "pg_catalog."+deparseSignatures[n.signature].name, n.args)
 	case tableOIDExpression:
 		if r.owner == nil || n.owner.owner != view.owner.owner || n.owner.Epoch != view.Epoch() || n.owner.Address != r.owner.address || u.Type.ID() != sqltype.Oid {
 			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")

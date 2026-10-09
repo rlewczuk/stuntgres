@@ -751,10 +751,14 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 // Utility lookup checks a qualified namespace before the relation and reports
 // namespace denial without the position attached by DML analysis.
 func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ObjectRef, error) {
-	view := auth.catalog
-	if err := e.validateCatalogViewLocked(view); err != nil {
+	if err := e.validateCatalogViewLocked(auth.catalog); err != nil {
 		return ObjectRef{}, err
 	}
+	return e.resolveRelationSnapshot(auth, name, utility)
+}
+
+func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, utility bool) (ObjectRef, error) {
+	view := auth.catalog
 	if len(name.Parts) < 1 || len(name.Parts) > 2 {
 		return ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
 	}
@@ -770,7 +774,7 @@ func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.Ob
 			return ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
 		}
 	}
-	path, err := e.lookupNamespaces(auth, name, relationLookup)
+	path, err := e.lookupNamespacesSnapshot(auth, name, relationLookup)
 	if err != nil {
 		if d, yes := err.(*sqlstate.Error); yes && utility {
 			copy := *d

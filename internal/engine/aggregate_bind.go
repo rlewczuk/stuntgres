@@ -158,7 +158,7 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return true
 	case deparseExpression:
 		o, ok := other.(deparseExpression)
-		if !ok || e.constraint != o.constraint || len(e.args) != len(o.args) {
+		if !ok || e.signature != o.signature || len(e.args) != len(o.args) {
 			return false
 		}
 		for i := range e.args {
@@ -352,10 +352,14 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 		expr = e
 	case deparseExpression:
 		e.args = append([]BoundExpr(nil), e.args...)
+		e.properties = ExprProperties{Volatility: Stable}
 		for i := range e.args {
 			e.args[i] = rewrite(e.args[i])
+			if err != nil {
+				return nil, err
+			}
+			e.properties = mergeExpressionProperties(e.properties, e.args[i].Properties())
 		}
-		stage(&e.expressionInfo)
 		expr = e
 	case visibilityInquiryExpression:
 		e.arg = rewrite(e.arg)

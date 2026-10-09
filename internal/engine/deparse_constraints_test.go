@@ -270,10 +270,14 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 		if constraint {
 			args = []BoundExpr{literal(zero), literal(sqltype.Boolean(boolType, false))}
 		}
+		signature := deparseExprPretty
+		if constraint {
+			signature = deparseConstraintPretty
+		}
 		for nullable := range args {
 			test := append([]BoundExpr(nil), args...)
 			test[nullable] = literal(sqltype.Null(test[nullable].ResultUsage().Type))
-			node := deparseExpression{expressionInfo: expressionInfo{usage: textType.Usage(), properties: ExprProperties{Volatility: Stable}}, constraint: constraint, args: test}
+			node := deparseExpression{expressionInfo: expressionInfo{usage: textType.Usage(), properties: ExprProperties{Volatility: Stable}}, signature: signature, args: test}
 			value, err := node.Eval(&EvalContext{Context: context.Background()})
 			if err != nil || !value.IsNull() || value.Type() != textType {
 				t.Fatal(constraint, nullable, value, err)

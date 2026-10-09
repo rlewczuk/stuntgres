@@ -231,7 +231,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if r.sqlIndex.unique != nil {
 				continue
 			}
-			sql, err := indexDefinitionSQL(ctx, catalog, r)
+			sql, err := indexDefinitionSQL(ctx, catalog, r, indexPresentation{dump: true})
 			if err != nil {
 				e.mu.Unlock()
 				return err
@@ -240,7 +240,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			continue
 		}
 		if r.view != nil {
-			body, err := r.view.selectSQL(ctx, CatalogRead{owner: e, state: e.state})
+			body, err := r.view.selectSQL(ctx, CatalogRead{owner: e, state: e.state}, viewPresentation{columns: r.columns})
 			if err != nil {
 				e.mu.Unlock()
 				return err

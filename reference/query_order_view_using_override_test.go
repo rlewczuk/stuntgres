@@ -14,8 +14,8 @@ func TestReferenceQueryOrderViewUsingOverrideRegression(t *testing.T) {
 		referenceExec("CREATE TABLE a(id INT,k VARCHAR(2))", 0),
 		referenceExec("CREATE TABLE b(k VARCHAR(3))", 0),
 		referenceExec("CREATE SEQUENCE s START WITH 1", 0),
-		referenceExec("CREATE VIEW collision(k,id) AS SELECT nextval('s') AS n,a.id FROM a JOIN b USING(k) ORDER BY k,a.id", 0),
-		referenceExec("CREATE VIEW merged_usage AS SELECT k,a.id FROM a JOIN b USING(k) ORDER BY k,a.id", 0),
+		referenceExec("CREATE VIEW collision(k,id) AS SELECT nextval('s') AS n,__view_using_0.id FROM a AS __view_using_0 JOIN b USING(k) ORDER BY k,__view_using_0.id", 0),
+		referenceExec("CREATE VIEW merged_usage AS SELECT k,__view_using_0.id FROM a AS __view_using_0 JOIN b USING(k) ORDER BY k,__view_using_0.id", 0),
 	} {
 		p.step(t, step)
 	}
@@ -59,7 +59,16 @@ func TestReferenceQueryOrderViewUsingOverrideRegression(t *testing.T) {
 				step := referenceSelect("SELECT k,id FROM "+name+" ORDER BY id", []string{"k", "id"}, []string{"INT8", "INT4"}, want)
 				step.prepared = prepared
 				p.step(t, step)
-				p.step(t, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{next}}))
+				for _, backend := range p.backends() {
+					// Preserve the original QueryRowContext sequence-effect route
+					// as well as the existing independently recorded stream.
+					var got int64
+					if err := backend.db.QueryRowContext(p.ctx, "SELECT nextval('s')").Scan(&got); err != nil || got != next {
+						t.Fatal(got, next, err)
+					}
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("ALTER SEQUENCE s RESTART WITH "+referencePosition(int(next)), 0))
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{next}}))
+				}
 			}
 		}
 		for _, backend := range p.backends() {
@@ -142,6 +151,11 @@ func queryOrderUsingRestored(t *testing.T, snapshot []byte, populated bool) {
 			step := referenceSelect("SELECT k,id FROM "+name+" ORDER BY id", []string{"k", "id"}, []string{"INT8", "INT4"}, want)
 			step.prepared = prepared
 			restored.step(t, step)
+			var got int64
+			if err := restored.memory.QueryRowContext(restored.ctx, "SELECT nextval('s')").Scan(&got); err != nil || got != next {
+				t.Fatal(got, next, err)
+			}
+			restored.step(t, referenceExec("ALTER SEQUENCE s RESTART WITH "+referencePosition(int(next)), 0))
 			restored.step(t, referenceSelect("SELECT nextval('s')", []string{"nextval"}, []string{"INT8"}, [][]any{{next}}))
 		}
 		queryOrderUsingMetadata(t, restored, restored.backends()[0], populated)

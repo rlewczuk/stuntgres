@@ -62,7 +62,7 @@ func TestReferenceDeparseConstraintsReviewNestedBehaviorSourceConsumerRoutes(t *
 							step.prepared = prepared
 							run(step)
 							retained = append(retained, []any{good, nil})
-							if tc.name != "null_count" && tc.name != "nonnull" {
+							if tc.name != "null_count" && tc.name != "nonnull" && tc.name != "nonnull_single" {
 								step = referenceExec("INSERT INTO "+name+" VALUES(NULL,NULL)", 1)
 								step.prepared = prepared
 								run(step)
@@ -80,7 +80,7 @@ func TestReferenceDeparseConstraintsReviewNestedBehaviorSourceConsumerRoutes(t *
 							}
 						}
 						count := int64(4)
-						if tc.name == "null_count" || tc.name == "nonnull" {
+						if tc.name == "null_count" || tc.name == "nonnull" || tc.name == "nonnull_single" {
 							count = 2
 						}
 						run(referenceSelect("SELECT COUNT(*) AS n FROM "+name, []string{"n"}, []string{"INT8"}, [][]any{{count}}))

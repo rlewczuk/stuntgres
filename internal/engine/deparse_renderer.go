@@ -172,11 +172,12 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 }
 
 // A zero parent is a top-level or syntax-separated expression. Operator parents
-// additionally distinguish operand side so pretty output preserves the tree.
+// additionally distinguish operand side and unary parents to preserve the tree.
 type pgRenderParent struct {
 	precedence int
 	operator   string
 	right      bool
+	unary      bool
 }
 
 func pgOperatorPriority(op string) int {
@@ -195,7 +196,7 @@ func pgOperatorGrouped(op string, binary bool, parent pgRenderParent) bool {
 	if parent.precedence == 0 {
 		return false
 	}
-	if !binary {
+	if !binary || parent.unary {
 		return true
 	}
 	parentPriority := pgOperatorPriority(parent.operator)
@@ -373,7 +374,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		op := operator(n.namespace, ops[n.operator])
 		if n.right == nil {
-			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 5, operator: op})
+			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 5, operator: op, unary: true})
 			text = op + " " + text
 			if !r.pretty || pgOperatorGrouped(op, false, parent) {
 				text = "(" + text + ")"
@@ -388,7 +389,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		op := operator(n.namespace, ops[n.operator])
 		if n.right == nil {
-			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 5, operator: op})
+			text, err := r.sql(ctx, n.left, pgRenderParent{precedence: 5, operator: op, unary: true})
 			text = op + " " + text
 			if !r.pretty || pgOperatorGrouped(op, false, parent) {
 				text = "(" + text + ")"
@@ -598,11 +599,10 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		}
 		return "(" + text + " AT TIME ZONE " + zone + ")", nil
 	case deparseExpression:
-		name := "pg_get_expr"
-		if n.constraint {
-			name = "pg_get_constraintdef"
+		if err := validateDeparseExpression(n); err != nil {
+			return "", err
 		}
-		return function(name, n.args, true)
+		return function(deparseSignatures[n.signature].name, n.args, true)
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse node %T", node)
 	}

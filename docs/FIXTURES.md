@@ -35,7 +35,7 @@ and dynamic reads. Dump refuses explicit relation/column ACLs rather than
 discarding privileges. Cyclic view definitions are legal catalog state, but
 Dump returns `stuntgres: cyclic view dump dependencies`; repair the definition
 before dumping. These refusals do not narrow ordinary replacement retention.
-Feature roundtrip smoke: `make quickcheck PACKAGES=./smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`.
+Feature roundtrip smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceViewReplaceSmokeCycleReplayControls$' VERBOSE=0`.
 Dump orders tables and views through their persistent provider topology.
 Views depend on table/view sources and expression providers; tables depend on
 their CHECK providers. An identity-sequence dependency waits for the owning table
@@ -175,6 +175,14 @@ standard_conforming_strings settings. Actual copied NUMERIC(2,-1) defaults retai
 149/995 before assignment: 149 rounds to 150; 995 overflows at Execute, with no
 partial row prefix. Native replay asserts the same stored structure and behavior.
 Derived pg_constraint/pg_attrdef rows and stateless deparse functions are not dumped.
+Index/view deparse functions likewise have no separate serialized state. Dump
+uses current bound descriptors and canonical replay presentation, not pretty
+strings or view result rows. Restore preserves index keys/unique flags and view
+identities through existing remapping; rediscover destination OIDs rather than
+assuming equality with the source allocator. Held function statements see fresh
+catalogs, while previously returned definition strings remain owned.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations(NativeControls|PreparedLifecycle|ReconstructionConsumers)$' VERBOSE=0`;
+oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseRelations(NativeControls|PreparedLifecycle|ReconstructionConsumers)$' VERBOSE=0`.
 Failed/canceled Restore leaves data/catalogs and held eager tree/result snapshots intact.
 
 Identity Dump emits current generation and actual sequence names inline, skips

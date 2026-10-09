@@ -22,6 +22,7 @@ func TestReferenceDeparseConstraintsRenameControlsSourceConsumerRoutes(t *testin
 					previous := s.checkMetadata
 					s.checkMetadata = func(t *testing.T, rows *sql.Rows) {
 						deparseReviewMetadata(t, b.pg, rows)
+						deparseReviewNullableColumns(t, b.pg, rows, "A renamed")
 						if previous != nil {
 							previous(t, rows)
 						}
@@ -29,7 +30,7 @@ func TestReferenceDeparseConstraintsRenameControlsSourceConsumerRoutes(t *testin
 				}
 				referenceRunStep(t, p.ctx, b.db, b.recorder, s)
 			}
-			run(referenceExec("CREATE TABLE t(a INT,CONSTRAINT ck CHECK(a::bigint>0))", 0))
+			run(referenceExec("CREATE TABLE t(a INT,b BIGINT DEFAULT 7,CONSTRAINT ck CHECK(a::bigint>0))", 0))
 			conn := b.db
 			b.db.SetMaxOpenConns(1)
 			id := deparseSourceDefinitionID(t, conn, "SELECT oid FROM pg_catalog.pg_constraint WHERE conname='ck'")
@@ -53,8 +54,9 @@ func TestReferenceDeparseConstraintsRenameControlsSourceConsumerRoutes(t *testin
 				}
 				name := fmt.Sprintf("copy_%t", pretty)
 				run(referenceExec(`CREATE TABLE `+name+`("A renamed" INT,CONSTRAINT copied `+suffix+`)`, 0))
-				run(referenceExec("INSERT INTO "+name+" VALUES(1),(NULL)", 2))
+				run(referencePrepared(referenceExec("INSERT INTO "+name+" VALUES(1),(NULL)", 2)))
 				run(referenceImplicitError("INSERT INTO "+name+" VALUES(1),(0),(1)", referenceCheckViolation(name, "copied", "0")))
+				run(referenceImplicitError("UPDATE "+name+` SET "A renamed"=0`, referenceCheckViolation(name, "copied", "0")))
 				run(referencePrepared(referenceImplicitError("UPDATE "+name+` SET "A renamed"=$1`, referenceCheckViolation(name, "copied", "-1"), -1)))
 				run(referenceSelect(`SELECT "A renamed" FROM `+name+` ORDER BY "A renamed" NULLS FIRST`, []string{"A renamed"}, []string{"INT4"}, [][]any{{nil}, {int64(1)}}))
 			}
@@ -70,7 +72,8 @@ func TestReferenceDeparseConstraintsRenameControlsSourceConsumerRoutes(t *testin
 				if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err)
 				}
-				run(referenceSelect("SELECT pg_get_constraintdef(oid,true) FROM pg_catalog.pg_constraint WHERE conname='ck'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{`CHECK ("A renamed"::bigint > 0)`}}))
+				run(referencePrepared(referenceSelect("SELECT pg_get_constraintdef(oid,true) FROM pg_catalog.pg_constraint WHERE conname='ck'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{`CHECK ("A renamed"::bigint > 0)`}})))
+				run(referenceSelect("SELECT pg_get_expr(adbin,0) FROM pg_catalog.pg_attrdef", []string{"pg_get_expr"}, []string{"TEXT"}, [][]any{{"7"}}))
 				for _, script := range []string{"CREATE TABLE bad(a INT CHECK(a))", "CREATE TABLE bad(a INT CONSTRAINT c CHECK(a>0));INSERT INTO bad VALUES(0)"} {
 					if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err == nil {
 						t.Fatal("bad restore succeeded")

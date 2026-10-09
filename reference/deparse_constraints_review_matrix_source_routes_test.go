@@ -104,6 +104,12 @@ func TestReferenceDeparseConstraintsReviewDefaultCopiesSourceConsumerRoutes(t *t
 					for _, name := range []string{"original", "copy0", "copy1"} {
 						run(referenceExec("INSERT INTO "+name+"(id) VALUES(1)", 1))
 						deparseReviewSourceTypedValue(t, db, postgres, "SELECT v FROM "+name, tc.declaration, tc.value)
+						if tc.name == "time_literal3" {
+							var text string
+							if err := db.QueryRow("SELECT v::text FROM " + name).Scan(&text); err != nil || text != "12:34:56.123" {
+								t.Fatal(text, err)
+							}
+						}
 					}
 				})
 			}

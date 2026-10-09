@@ -90,6 +90,7 @@ func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
 			return err
 		}
 		auth.catalog, auth.roles = scope.commentCatalog, scope.commentRoles
+		scope.deparseAuth = auth
 		scope.deparsePath, err = e.referencePath(auth)
 		return err
 	}

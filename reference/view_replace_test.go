@@ -21,7 +21,12 @@ func TestReferenceViewReplaceDefinition(t *testing.T) {
 		if err := db.QueryRowContext(p.ctx, "SELECT oid FROM pg_rewrite WHERE ev_class=$1", oid).Scan(&rule); err != nil {
 			t.Fatal(err)
 		}
-		r, err := db.ExecContext(p.ctx, "CREATE OR REPLACE VIEW v AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
+		retained, err := db.PrepareContext(p.ctx, "SELECT id FROM v")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { retained.Close() })
+		r, err := db.ExecContext(p.ctx, "CREATE OR REPLACE VIEW v WITH(security_barrier=true,security_invoker=true) AS SELECT id+10 AS id,txt,TRUE AS extra FROM u")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -34,6 +39,10 @@ func TestReferenceViewReplaceDefinition(t *testing.T) {
 		}
 		if err := db.QueryRowContext(p.ctx, "SELECT oid FROM pg_rewrite WHERE ev_class=$1", oid).Scan(&gotRule); err != nil || gotOID != oid || gotRule != rule {
 			t.Fatal(gotOID, gotRule, oid, rule, err)
+		}
+		var id int64
+		if err := retained.QueryRowContext(p.ctx).Scan(&id); err != nil || id != 12 {
+			t.Fatal(id, err)
 		}
 	}
 	for _, s := range []referenceStep{

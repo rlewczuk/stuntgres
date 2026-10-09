@@ -38,6 +38,7 @@ func TestReferenceDeparseConstraintsReviewNumericComparisonUsageSourceConsumerRo
 								previous := s.checkMetadata
 								s.checkMetadata = func(t *testing.T, rows *sql.Rows) {
 									deparseReviewMetadata(t, b.pg, rows)
+									deparseReviewNullableColumns(t, b.pg, rows, "n")
 									if previous != nil {
 										previous(t, rows)
 									}

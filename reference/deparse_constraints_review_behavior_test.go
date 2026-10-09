@@ -11,6 +11,7 @@ var deparseReviewBehavior = []struct{ name, input, good, bad string }{
 	{"false_endpoint", "FALSE BETWEEN (a<2) AND TRUE", "2", "1"},
 	{"compared_between", "a BETWEEN 1 AND 3 = TRUE", "2", "4"},
 	{"nonnull", "num_nonnulls(a,b,NULL)>0", "2", "NULL"},
+	{"nonnull_single", "num_nonnulls(a,NULL)>0", "2", "NULL"},
 	{"null_count", "num_nulls(a,b)=2", "NULL", "2"},
 	{"round_cast", "round(a::numeric,1)>0", "2", "0"},
 	{"bitwise", "(a & 3)=1", "1", "2"},
@@ -49,7 +50,7 @@ func TestReferenceDeparseConstraintsReviewNestedBehavior(t *testing.T) {
 						step.prepared = prepared
 						run(step)
 						retained = append(retained, []any{good, nil})
-						if tc.name != "null_count" && tc.name != "nonnull" {
+						if tc.name != "null_count" && tc.name != "nonnull" && tc.name != "nonnull_single" {
 							step = referenceExec("INSERT INTO "+name+" VALUES(NULL,NULL)", 1)
 							step.prepared = prepared
 							run(step)
@@ -67,7 +68,7 @@ func TestReferenceDeparseConstraintsReviewNestedBehavior(t *testing.T) {
 						}
 					}
 					count := int64(4)
-					if tc.name == "null_count" || tc.name == "nonnull" {
+					if tc.name == "null_count" || tc.name == "nonnull" || tc.name == "nonnull_single" {
 						count = 2
 					}
 					run(referenceSelect("SELECT COUNT(*) AS n FROM "+name, []string{"n"}, []string{"INT8"}, [][]any{{count}}))
@@ -84,6 +85,8 @@ func deparseReviewBehaviorGolden(name string) (string, string) {
 		return "CHECK ((((a >= 1) AND (a <= 3)) = true))", "CHECK ((a >= 1 AND a <= 3) = true)"
 	case "nonnull":
 		return "CHECK ((num_nonnulls(a, b, NULL::unknown) > 0))", "CHECK (num_nonnulls(a, b, NULL::unknown) > 0)"
+	case "nonnull_single":
+		return "CHECK ((num_nonnulls(a, NULL::unknown) > 0))", "CHECK (num_nonnulls(a, NULL::unknown) > 0)"
 	case "null_count":
 		return "CHECK ((num_nulls(a, b) = 2))", "CHECK (num_nulls(a, b) = 2)"
 	case "round_cast":
