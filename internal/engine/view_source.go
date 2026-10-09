@@ -20,7 +20,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 	}
 	switch d.relationKind {
 	case catalogRelation:
-		source, err := e.captureCatalogSourceLocked(ctx, e.privateCatalogLocked(scope.owner.catalog), ref, d)
+		catalog := e.privateCatalogLocked(scope.owner.catalog)
+		if d.address.ObjectID == 2609 {
+			catalog = scope.commentCatalog
+		}
+		source, err := e.captureCatalogSourceLocked(ctx, catalog, ref, d)
 		e.mu.Unlock()
 		return source, err
 	case sequenceRelation:

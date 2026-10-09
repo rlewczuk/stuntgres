@@ -42,7 +42,7 @@ NOT NULL/CHECK enforcement continue to use the ordinary typed executor.
 
 ## Object comments
 
-COMMENT stores one immutable UTF8 text per TABLE, COLUMN, SCHEMA or ROLE.
+COMMENT stores one immutable UTF8 text per TABLE, COLUMN, SCHEMA, SEQUENCE or ROLE.
 Another command replaces it; NULL and the empty string remove it, while
 whitespace remains text. It affects zero rows and returns no columns or
 parameters. Names and literals use the ordinary positioned parser, including
@@ -69,7 +69,11 @@ a waiting command to an object with the same name.
 CatalogRead.Comment exposes local metadata at stable class/object/SubID addresses;
 RoleRead exposes shared text through RoleDescriptor.Comment. SQL inquiries use
 the same immutable metadata; see [object comment inquiries](SQL.md#object-comment-inquiries--change-note).
-They do not add queryable `pg_description` or `pg_shdescription` projections.
+`pg_catalog.pg_description` now projects local descriptions at those same
+`(objoid,classoid,objsubid)` identities, with no empty/NULL description rows.
+Relation/column keys use class1259; schemas2615, types1247, collations3456 and
+conversions2607. Shared ROLE text remains excluded; no `pg_shdescription`
+projection is added. Reading a numeric identity requires no target privilege.
 Legacy whole-object collision results remain consistent within each statement,
 without promising a portable catalog ordering. Persisted inquiry views retain
 typed syntax even when strict constant-NULL inputs eliminate execution demand.
@@ -89,6 +93,16 @@ removals emit `COMMENT ON SCHEMA ... IS NULL`. Reset restores this fresh baselin
 not overrides or removals. Restore replaces local state atomically and replays
 those differences, including removals. Both retain role comments, which are
 deliberately excluded from database Dump and Restore.
+The readonly projection is derived, not dumped as INSERTs. Its163 fresh native
+rows cover2 namespace,26 scalar type,7 collation and128 conversion release seeds;
+unsupported objects and represented arrays do not acquire invented text.
+Live column comments retain their original attribute numbers through drop,
+rename, supported type changes and schema moves. Existing SCHEMA/SEQUENCE owner
+changes retain their description addresses/text; no TABLE OWNER TO syntax is
+added by this catalog. Canonical Dump names surviving columns;
+Restore reconstructs declarations and may remint a historical survivor3 as2
+after middle-column removal. Text and named object relationships round-trip,
+not old allocator OIDs or historical attribute gaps.
 
 
 ## Column defaults

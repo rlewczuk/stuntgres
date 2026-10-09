@@ -186,6 +186,18 @@ retaining row occurrences independently of output width.
 `pg_catalog.pg_class`, `pg_rewrite` and `pg_views` are real bounded normal query
 sources with OID/internal CHAR metadata; their exact supported columns and
 unsupported tree/array fields are listed in [the view contract](SQL.md#views).
+`pg_catalog.pg_description` is another readonly normal query source, relation2609,
+with exactly `objoid OID`, `classoid OID`, `objsubid INT4`, `description TEXT`.
+All four columns are NOT NULL; TEXT uses C950, and there is no row `oid`.
+The complete identity key is `(objoid,classoid,objsubid)`; whole objects use0,
+columns use live stable attribute numbers. Its PUBLIC SELECT does not require
+SELECT/schema USAGE on the described object. Supported TABLE/COLUMN/SCHEMA/
+SEQUENCE comments and exact seeds for already represented types/collations/
+conversions appear here; ROLE/DATABASE/TABLESPACE shared descriptions do not.
+No new COMMENT kinds, inquiry routing, catalog inventories or SQL predicate
+syntax are implied. Native mutation and row locking remain0A000 virtual-source
+boundaries, unlike PostgreSQL physical superuser catalogs.
+See [exact catalog contract and reference smoke](SQL.md#pg_description-catalog--change-note).
 CREATE OR REPLACE VIEW preserves view/rule/attribute identity, owner, ACLs,
 comments and dependents while replacing the definition and outgoing dependencies.
 Existing names/types/typmods/collations form a required prefix; trailing columns

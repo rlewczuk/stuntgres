@@ -34,6 +34,10 @@ func builtinTypeComment(id sqltype.ID) string {
 		return "variable-length string, no limit specified"
 	case 26:
 		return "object identifier(oid), maximum 4 billion"
+	case 114:
+		return "JSON stored as text"
+	case 194:
+		return "string representing an internal node tree"
 	case 700:
 		return "single-precision floating point number, 4-byte storage"
 	case 701:

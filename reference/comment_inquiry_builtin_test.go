@@ -36,6 +36,7 @@ func TestReferenceCommentInquiryBuiltins(t *testing.T) {
 				{20, "pg_type", "~18 digit integer, 8-byte storage"}, {21, "pg_type", "-32 thousand to 32 thousand, 2-byte storage"},
 				{23, "pg_type", "-2 billion to 2 billion integer, 4-byte storage"}, {25, "pg_type", "variable-length string, no limit specified"},
 				{26, "pg_type", "object identifier(oid), maximum 4 billion"}, {700, "pg_type", "single-precision floating point number, 4-byte storage"},
+				{114, "pg_type", "JSON stored as text"}, {194, "pg_type", "string representing an internal node tree"},
 				{701, "pg_type", "double-precision floating point number, 8-byte storage"}, {705, "pg_type", "pseudo-type representing an undetermined type"},
 				{1042, "pg_type", "'char(length)' blank-padded string, fixed storage length"}, {1043, "pg_type", "'varchar(length)' non-blank-padded string, variable storage length"},
 				{1082, "pg_type", "date"}, {1083, "pg_type", "time of day"}, {1114, "pg_type", "date and time"}, {1184, "pg_type", "date and time with time zone"},

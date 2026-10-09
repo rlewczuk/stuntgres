@@ -530,12 +530,14 @@ This does not create an implicit TEXT-to-OID or transitive TEXT-to-REGCLASS-to-O
 Native builtin descriptions are the exact PostgreSQL18.0 release descriptions
 for existing namespace `pg_catalog`11 and `public`2200, and existing types:
 bool16, bytea17, char18, name19, int8 20, int2 21, int4 23, text25, oid26,
-float4 700, float8 701, unknown705, bpchar1042, varchar1043, date1082, time1083,
+json114, pg_node_tree194, float4 700, float8 701, unknown705,
+bpchar1042, varchar1043, date1082, time1083,
 timestamp1114, timestamptz1184, interval1186, timetz1266, numeric1700,
 regclass2205, void2278 and uuid2950. Represented `_name`1003 has no description.
 No pg_toast namespace, routine descriptor inventory, database/tablespace shared
-model, COMMENT ON TYPE support or additional catalog projections are added.
-The bounded queryable catalog schema above is unchanged.
+model or COMMENT ON TYPE support is added. The separate readonly description
+projection below includes represented collation/conversion release seeds without
+widening the inquiry catalog strings or the legacy lookup candidate classes.
 
 Fresh-baseline Reset restores builtin namespace descriptions; Dump omits
 unchanged seeds but records overrides and explicit NULL/empty removals.
@@ -548,6 +550,74 @@ Dual-mode native union: `make quickcheck PACKAGES=./reference RUN='^TestReferenc
 pinned independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$' VERBOSE=0`.
 Captured old table/shared comments and fresh same-object inquiries preserve actual
 catalog identity, not a hardcoded PostgreSQL bootstrap roleOID.
+
+### pg_description catalog — change note
+
+`pg_catalog.pg_description` (relation OID2609, namespace11) uses the existing
+normal SELECT/direct/prepared/stored-view pipeline. Its four columns, in order:
+
+| Column | Type | Typmod | Collation | Native nullability |
+|---|---|---|---|---|
+| objoid | OID26 | -1 | 0 | known NOT NULL |
+| classoid | OID26 | -1 | 0 | known NOT NULL |
+| objsubid | INT4 23 | -1 | 0 | known NOT NULL |
+| description | TEXT25 | -1 | C950 | known NOT NULL |
+
+Column origins are relation2609/attributes1–4. pq exposes unknown nullability.
+Virtual-source NOT NULL is declared result metadata, not a fabricated physical
+constraint inventory. Descriptor validation retains type/identity/live-attribute
+and comment invariants; physical tables still require matching NOT NULL records.
+There is no row `oid`; selecting it gives42703 `column "oid" does not exist`.
+The identity key is `(objoid,classoid,objsubid)`: class1259 for tables/sequences
+and their supported columns,2615 schemas,1247 types,3456 collations,2607
+conversions. Whole objects use subid0; columns use stable live attribute IDs,
+not dense output positions. Empty/NULL COMMENT removes the row; whitespace is
+retained. Numeric OIDs may collide across classes. Unknown/wrong-class/subobject
+addresses produce empty results, not errors. Without ORDER BY results are bags.
+
+The fresh native catalog has163 exact PostgreSQL18.0 description seeds:
+2 namespaces,26 represented scalar types,7 collations and128 conversions.
+Collation identities100/950/951/962/963/811/6411 and conversion identities
+4402–4531 except4450/4451 use exact release `descr` literals, not generated names.
+Represented arrays, uncommented user types and unsupported objects have no
+invented descriptions. Real PostgreSQL contains many more objects;163 is a
+native represented-inventory count, not a whole-server reference expectation.
+The reference fixture recreates public, so its current namespaceOID is discovered
+rather than pinned to the fresh native bootstrap2200.
+
+PUBLIC SELECT exposes numeric descriptions without target SELECT/schema USAGE.
+Fresh private schemas/tables already deny PUBLIC USAGE/SELECT; the reference
+witness uses these defaults, not unsupported privilege-mutation setup.
+Shared ROLE/DATABASE/TABLESPACE descriptions are excluded; supported shared role
+inquiries remain unchanged. COMMENT target support is not expanded, nor are
+`obj_description` catalog routing and the legacy candidate inventory.
+Native catalog writes fail0A000 `catalog source mutation is unsupported`;
+row locking fails0A000 `row locking is not supported for virtual catalog relations`.
+These are explicit virtual-source limits, not claims about physical PostgreSQL
+superuser catalog operations.
+Invalid bound OID text reports22P02 with the full portal Context
+`unnamed portal parameter $1 = '...'` on both current adapters.
+
+Each statement shares its immutable comment frontier with inquiry expressions,
+including nested view providers. Already returned Rows retain captured text
+across comment replacement/drop/native controls; held prepared execution captures
+fresh metadata next time. Sequence transactional/private metadata uses the
+existing overlay. TEMP sequence name/access authority remains session-private,
+but numeric description metadata is visible to peers; catalog reading does not
+open the described sequence. Native Dump excludes TEMP objects and their comments.
+Dump emits owning COMMENT statements, never projected rows or unchanged seeds.
+Reset restores163 baseline descriptions; Restore replays named
+local comments atomically and preserves shared roles. After dropped columns,
+logical Restore reconstructs declarations and can remint survivor attribute3 as2;
+old allocator OIDs and historical attribute gaps are not promised round-trip.
+
+Feature smoke in both modes:
+`make quickcheck PACKAGES=./reference RUN='^TestReferencePGDescriptionFeatureSmoke$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferencePGDescriptionFeatureSmoke$' VERBOSE=0`.
+Complete changed reference selection:
+`RUN='^TestReference(PGDescription|CommentInquiryBuiltins)'` with `PACKAGES=./reference`,
+once in quick mode and once with `REFERENCE=1`, each under900 seconds.
+
 
 Catalog visibility's seven-DDL boundary corpus retains the original SQL while
 respecting incoming domain support: exact CREATE DOMAIN d AS integer succeeds

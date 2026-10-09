@@ -268,7 +268,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 		names[c.Name], attrs[c.Attribute] = true, true
 	}
 	for i, c := range r.columns {
-		if attrs[r.attributes[i]] != (c.NullabilityKnown && !c.Nullable) {
+		// Virtual sources declare result nullability without physical table
+		// constraint identities. Existing constraint records still validate above.
+		if r.relationKind != catalogRelation && attrs[r.attributes[i]] != (c.NullabilityKnown && !c.Nullable) {
 			return fmt.Errorf("stuntgres: inconsistent not-null projection")
 		}
 	}

@@ -16,6 +16,10 @@ func (e *Engine) initializeCatalogSources() error {
 			typ  sqltype.ID
 		}
 	}{
+		{2609, "pg_description", []struct {
+			name string
+			typ  sqltype.ID
+		}{{"objoid", sqltype.Oid}, {"classoid", sqltype.Oid}, {"objsubid", sqltype.Int4}, {"description", sqltype.Text}}},
 		{2606, "pg_constraint", []struct {
 			name string
 			typ  sqltype.ID
@@ -46,6 +50,12 @@ func (e *Engine) initializeCatalogSources() error {
 				return fmt.Errorf("stuntgres: missing catalog source type")
 			}
 			d.columns[i] = ColumnDescriptor{Name: column.name, Usage: typ.Usage(), Nullable: true, NullabilityKnown: true, OriginTable: uint32(spec.oid), OriginAttribute: int16(i + 1)}
+			if spec.oid == 2609 {
+				d.columns[i].Nullable = false
+				if column.typ == sqltype.Text {
+					d.columns[i].Usage.Collation.ID = 950
+				}
+			}
 			d.attributes[i] = int32(i + 1)
 			d.index[column.name] = i
 		}
@@ -56,6 +66,9 @@ func (e *Engine) initializeCatalogSources() error {
 }
 
 func (e *Engine) captureCatalogSourceLocked(ctx context.Context, catalog CatalogRead, ref ObjectRef, source *relationDescriptor) (*querySource, error) {
+	if source.address.ObjectID == 2609 {
+		return capturePGDescription(ctx, catalog, ref, source)
+	}
 	var relations []*relationDescriptor
 	for _, descriptor := range catalog.state.descriptors {
 		if relation, ok := descriptor.(*relationDescriptor); ok {

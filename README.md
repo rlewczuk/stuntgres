@@ -486,6 +486,20 @@ and explicit namespace removals round-trip through native controls.
 See [semantics and boundaries](docs/SQL.md#object-comment-inquiries--change-note).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
 
+**Catalog change note:** `pg_catalog.pg_description` is a readonly normal query
+source with exactly `objoid OID`, `classoid OID`, `objsubid INT4` and
+`description TEXT` (all NOT NULL; no row `oid`). Its key is object/catalog/stable
+attribute identity, not a name or a dense column position. Supported table,
+column, schema and sequence comments follow replacement and drop automatically;
+shared role descriptions remain excluded. Exact PostgreSQL18.0 seeds cover the
+represented26 scalar types (including JSON114 and PG_NODE_TREE194),7 collations,
+128 conversions and2 bootstrap namespaces. This does not expand COMMENT targets
+or the narrower inquiry catalog routing. Native Reset reseeds163 descriptions;
+logical Restore can remint surviving column numbers after a dropped column.
+See [catalog contract](docs/SQL.md#pg_description-catalog--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferencePGDescriptionFeatureSmoke$' VERBOSE=0`,
+and the same command with `REFERENCE=1` for pinned PostgreSQL.
+
 LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,
 keyword ESCAPE and symbolic `~~`/`!~~`/`~~*`/`!~~*` operators. TEXT wildcards
 advance UTF8 code points; existing BYTEA LIKE advances octets. BPCHAR left
