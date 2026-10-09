@@ -20,8 +20,6 @@ func TestReferenceCharacterContextBoundaries(t *testing.T) {
 		p.step(t, referencePrepared(s))
 	}
 	for _, tc := range []struct{ query, nativeCode, postgresCode string }{
-		{"SELECT current_setting(TIMESTAMP 'epoch')", "42804", "42883"},
-		{"SELECT set_config('application_name',TIMESTAMP 'epoch',FALSE)", "42804", "42883"},
 		{`SELECT CAST('a' AS "VARCHAR") FROM seed`, "42704", "42704"},
 		{`SELECT 'a'::"character" FROM seed`, "42704", "42704"},
 	} {

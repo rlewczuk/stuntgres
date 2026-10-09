@@ -1,21 +1,19 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 // Fixed full logical records, not expectations derived from native output or
 // backend parity. PostgreSQL C implementation-source fields alone are excluded
 // by the shared diagnostic fixture; every omitted logical field must be empty.
-func TestReferenceQueryAliasesDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
-	cases := []struct {
-		name, query string
-		want        referenceDiagnostic
-	}{
+type queryAliasesDiagnosticCase struct {
+	name, query string
+	want        referenceDiagnostic
+}
+
+func queryAliasesDiagnosticCases() []queryAliasesDiagnosticCase {
+	return []queryAliasesDiagnosticCase{
 		{"sibling_label", `SELECT id AS shown, shown+1 FROM t`, referenceDiagnostic{Code: "42703", Message: `column "shown" does not exist`, Position: "21"}},
 		{"where_label", `SELECT id AS shown FROM t WHERE shown=1`, referenceDiagnostic{Code: "42703", Message: `column "shown" does not exist`, Position: "33"}},
 		{"unicode_position", `SELECT /*é*/ id AS shown FROM t WHERE shown=1`, referenceDiagnostic{Code: "42703", Message: `column "shown" does not exist`, Position: "39"}},
@@ -50,13 +48,14 @@ func TestReferenceQueryAliasesDiagnostics(t *testing.T) {
 		{"hidden_duplicate_qualifier_penalty", `SELECT j.id FROM (t AS x(id,id) CROSS JOIN u AS v(k)) AS j(iid,a,b,k)`, referenceDiagnostic{Code: "42702", Message: `column reference "id" is ambiguous`, Position: "8"}},
 		{"hidden_duplicate_distant_qualifier", `SELECT extraordinarilylongname.id FROM (t AS x(id,id) CROSS JOIN u AS v(k)) AS extraordinarilylongname(iid,a,b,k)`, referenceDiagnostic{Code: "42702", Message: `column reference "id" is ambiguous`, Position: "8"}},
 	}
+}
+
+func TestReferenceQueryAliasesDiagnostics(t *testing.T) {
+	p := newReferenceScenario(t)
+	cases := queryAliasesDiagnosticCases()
 	// Setup and assertions are inside each backend subtest, so /postgres has
 	// no dependency on a native SQL assertion succeeding during the red phase.
-	for _, backend := range []struct {
-		name     string
-		db       *sql.DB
-		recorder *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			for _, s := range []referenceStep{
 				referenceExec("CREATE TABLE t(id INT NOT NULL,a INT,b INT)", 0),

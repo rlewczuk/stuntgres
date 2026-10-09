@@ -201,7 +201,7 @@ func TestReferenceAlterDefaultDeferred(t *testing.T) {
 				run(referenceExec("CREATE TABLE t(id INT,i "+tc.typ+")", 0))
 				run(referenceExec("INSERT INTO t VALUES(0,NULL)", 1))
 				run(referenceExec("ALTER TABLE t ALTER i SET DEFAULT "+tc.expr, 0))
-				defaultArithmeticReferenceRoundtrip(t, p, "t")
+				referenceArithmeticRoundtrip(t, p, "t")
 				run(referenceExec("INSERT INTO t VALUES(1,NULL)", 1))
 				typ := "INT4"
 				if tc.typ == "VARCHAR(2)" {

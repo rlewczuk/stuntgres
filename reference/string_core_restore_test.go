@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,14 +7,10 @@ import (
 
 // PostgreSQL has no native Restore API. These are independently expected public
 // SQL inputs; TestStringCoreReviewRestore exercises the actual native staging API.
-func stringCoreReviewRestoreSQLReference(t *testing.T, p *referencePair, oracle bool) {
+func stringCoreReviewRestoreSQLReference(t *testing.T, p *referencePair) {
 	run := func(t *testing.T, s referenceStep) {
 		t.Helper()
-		if oracle {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		p.step(t, s)
 	}
 	want := [][]any{
 		{int64(1), "X", true}, {int64(2), "xy ", true}, {int64(3), " xy", true},
@@ -59,8 +53,4 @@ func stringCoreReviewRestoreSQLReference(t *testing.T, p *referencePair, oracle 
 			run(t, referenceSelect("SELECT id,v,p FROM "+name+" ORDER BY id", []string{"id", "v", "p"}, []string{"INT4", "TEXT", "BOOL"}, want))
 		})
 	}
-}
-
-func TestReferenceStringCoreReviewRestoreSQL(t *testing.T) {
-	stringCoreReviewRestoreSQLReference(t, newReferencePair(t), false)
 }

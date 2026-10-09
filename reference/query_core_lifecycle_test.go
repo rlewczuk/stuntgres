@@ -14,12 +14,19 @@ import (
 )
 
 func TestReferenceQueryCoreCapturedOwnership(t *testing.T) {
-	for _, replacement := range []string{"reset", "restore"} {
+	for _, replacement := range []string{"reset", "restore", "reset-restore"} {
 		t.Run(replacement, func(t *testing.T) {
 			p := newReferenceScenario(t)
+			replacementValue := "99"
+			if replacement == "reset-restore" {
+				replacementValue = "after"
+			}
 			p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL)", 0))
 			p.step(t, referenceExec("INSERT INTO t VALUES(1),(2)", 2))
-			step := referenceSelect("SELECT id,$1 FROM t ORDER BY id", []string{"id", "?column?"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "before"}, {int64(2), "before"}}, []byte("before"))
+			original := referenceSelect("SELECT id,$1 FROM t ORDER BY id", []string{"id", "?column?"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "before"}, {int64(2), "before"}}, []byte("before"))
+			p.step(t, original)
+			p.step(t, referencePrepared(original))
+			step := referenceSelect("SELECT id,$1,NULL FROM t ORDER BY id", []string{"id", "?column?", "?column?"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(1), "before", nil}, {int64(2), "before", nil}}, []byte("before"))
 			p.step(t, step)
 			p.step(t, referencePrepared(step))
 			conn, err := p.native.Conn(p.ctx)
@@ -40,27 +47,52 @@ func TestReferenceQueryCoreCapturedOwnership(t *testing.T) {
 					return err
 				}
 				defer computed.Close()
+				originalComputed, err := query.QueryContext(p.ctx, original.query, []driver.NamedValue{{Ordinal: 1, Value: owned}})
+				if err != nil {
+					return err
+				}
+				defer originalComputed.Close()
 				owned[0] = 'X'
 				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("INSERT INTO t VALUES(3)", 1))
+				if replacement == "reset-restore" {
+					if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+						return err
+					}
+				}
 				if replacement == "reset" {
 					if err := stuntgres.Reset(p.ctx, p.native); err != nil {
 						return err
 					}
-				} else if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader("CREATE TABLE t(replacement TEXT); INSERT INTO t VALUES('99')")); err != nil {
+				} else if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader("CREATE TABLE t(replacement TEXT); INSERT INTO t VALUES('"+replacementValue+"')")); err != nil {
 					return err
 				}
-				for _, cursor := range []driver.Rows{direct, computed} {
+				for _, cursor := range []driver.Rows{direct, originalComputed, computed} {
 					names := cursor.Columns()
 					names[0] = "changed"
 					if cursor.Columns()[0] != "id" || cursor.(driver.RowsColumnTypeDatabaseTypeName).ColumnTypeDatabaseTypeName(0) != "INT4" {
 						t.Fatal("metadata replaced or borrowed")
+					}
+					wantNames, wantTypes := []string{"id"}, []string{"INT4"}
+					if cursor == computed {
+						wantNames, wantTypes = step.columns, step.types
+					}
+					if cursor == originalComputed {
+						wantNames, wantTypes = original.columns, original.types
+					}
+					if !reflect.DeepEqual(cursor.Columns(), wantNames) {
+						t.Fatal(cursor.Columns())
+					}
+					for i, name := range wantTypes {
+						if cursor.(driver.RowsColumnTypeDatabaseTypeName).ColumnTypeDatabaseTypeName(i) != name {
+							t.Fatal("metadata replaced")
+						}
 					}
 					dst := make([]driver.Value, len(cursor.Columns()))
 					for i := range 2 {
 						if err := cursor.Next(dst); err != nil || dst[0] != int64(i+1) {
 							t.Fatal(dst, err)
 						}
-						if len(dst) == 2 && dst[1] != "before" {
+						if len(dst) >= 2 && dst[1] != "before" || len(dst) == 3 && dst[2] != nil {
 							t.Fatal(dst)
 						}
 					}
@@ -71,8 +103,13 @@ func TestReferenceQueryCoreCapturedOwnership(t *testing.T) {
 						t.Fatal("EOF erased schema")
 					}
 				}
-				if replacement == "restore" {
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT replacement FROM t", []string{"replacement"}, []string{"TEXT"}, [][]any{{"99"}}))
+				if replacement != "reset" {
+					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT replacement FROM t", []string{"replacement"}, []string{"TEXT"}, [][]any{{replacementValue}}))
+					err := stuntgres.Restore(p.ctx, p.native, strings.NewReader("CREATE TABLE replacement(i INT); INSERT INTO replacement VALUES($1)"))
+					want := controlsReferenceDiagnostic("42P02", "parameters are not allowed in restore")
+					want.Position = "65"
+					referenceAssertDiagnostic(t, err, &want)
+					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT replacement FROM t", []string{"replacement"}, []string{"TEXT"}, [][]any{{replacementValue}}))
 				} else {
 					failure := referenceImplicitError("SELECT id FROM t", referenceDiagnostic{Code: "42P01", Message: `relation "t" does not exist`, Position: "16"})
 					failure.selectRows = true
@@ -82,6 +119,22 @@ func TestReferenceQueryCoreCapturedOwnership(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if p.postgres != nil {
+				owned := []byte("before")
+				rows, err := p.postgres.QueryContext(p.ctx, step.query, owned)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer rows.Close()
+				owned[0] = 'X'
+				run := func(s referenceStep) { scalarRunStep(t, p.ctx, p.postgres, p.postgresRecord, s) }
+				run(referenceExec("INSERT INTO t VALUES(3)", 1))
+				scalarRows(t, true, rows, step.columns, step.types, step.rows, false)
+				run(referenceExec("DROP TABLE t", 0))
+				run(referenceExec("CREATE TABLE t(replacement TEXT)", 0))
+				run(referenceExec("INSERT INTO t VALUES('after')", 1))
+				run(referenceSelect("SELECT replacement FROM t", []string{"replacement"}, []string{"TEXT"}, [][]any{{"after"}}))
 			}
 		})
 	}

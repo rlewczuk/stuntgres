@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -7,7 +5,7 @@ import (
 	"testing"
 )
 
-func stringCoreReferenceSyntax(t *testing.T, p *referencePair, oracle bool) {
+func stringCoreReferenceSyntax(t *testing.T, p *referencePair) {
 	steps := []referenceStep{}
 	for _, tc := range []stringCoreReferenceCase{
 		{"SELECT ltrim(NULL) AS v", nil, "TEXT"},
@@ -39,25 +37,26 @@ func stringCoreReferenceSyntax(t *testing.T, p *referencePair, oracle bool) {
 			if prepared {
 				next = referencePrepared(next)
 			}
-			if oracle {
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, next)
-			} else {
-				p.step(t, next)
-			}
+			p.step(t, next)
 		}
 	}
 }
-func stringCoreReferenceDiagnosticParameters(t *testing.T, p *referencePair, oracle bool) {
+func stringCoreReferenceDiagnosticParameters(t *testing.T, p *referencePair) {
 	for _, name := range []string{"btrim", "ltrim", "rtrim", "is_normalized", `"normalize"`} {
 		tc := stringCoreDiagnosticCase{"SELECT " + name + "(" + strings.Repeat("'x',", 100) + "'x')", referenceDiagnostic{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}, true}
 		for _, prepared := range []bool{false, true} {
 			s := stringCoreDiagnosticStep(tc, prepared)
-			if oracle {
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-			} else {
-				p.step(t, s)
-			}
+			p.step(t, s)
 		}
+	}
+	var held []referenceHeldStatement
+	for _, backend := range p.backends() {
+		statement, err := backend.db.PrepareContext(p.ctx, `SELECT "normalize"($1,$2)`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer statement.Close()
+		held = append(held, referenceHeldStatement{backend.db, statement, `SELECT "normalize"($1,$2)`})
 	}
 	for _, tc := range []struct {
 		q    string
@@ -69,17 +68,10 @@ func stringCoreReferenceDiagnosticParameters(t *testing.T, p *referencePair, ora
 		{`SELECT "normalize"($1,$2)`, []any{string([]byte{0}), "NFC"}, referenceDiagnostic{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": 0x00`, Context: "unnamed portal parameter $1"}},
 		{`SELECT "normalize"($1,$2)`, []any{string([]byte{255}), "NFC"}, referenceDiagnostic{Code: "22021", Message: `invalid byte sequence for encoding "UTF8": 0xff`, Context: "unnamed portal parameter $1"}},
 	} {
-		for _, prepared := range []bool{false, true} {
-			s := referenceImplicitError(tc.q, tc.want, tc.args...)
-			if prepared {
-				s = referencePrepared(s)
-				s.errorStage = "execute"
-			}
-			if oracle {
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-			} else {
-				p.step(t, s)
-			}
+		step := referenceImplicitError(tc.q, tc.want, tc.args...)
+		p.step(t, step)
+		for i, backend := range p.backends() {
+			referenceRunStep(t, p.ctx, held[i], backend.recorder, step)
 		}
 	}
 }

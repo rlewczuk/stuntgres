@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,7 +6,7 @@ import (
 )
 
 func TestReferenceBtreeIndexSnapshotCurrency(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	referenceBtreeStreams(t, p, func(t *testing.T, db *sql.DB, recorder *referenceRecorder) {
 		for _, step := range []referenceStep{referenceExec("CREATE TABLE t(n INT)", 0), referenceExec("INSERT INTO t VALUES(1)", 1), referenceExec("CREATE INDEX idx ON t(n)", 0)} {
 			referenceRunStep(t, p.ctx, db, recorder, step)

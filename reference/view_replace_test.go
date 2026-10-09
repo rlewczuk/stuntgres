@@ -1,21 +1,19 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"strings"
 	"testing"
 )
 
 func TestReferenceViewReplaceDefinition(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, s := range []referenceStep{
 		referenceExec("CREATE TABLE t(id INT,txt TEXT)", 0), referenceExec("CREATE TABLE u(id INT,txt TEXT)", 0), referenceExec("INSERT INTO t VALUES(1,'a')", 1), referenceExec("INSERT INTO u VALUES(2,'b')", 1), referenceExec("CREATE VIEW v AS SELECT id,txt FROM t", 0), referenceExec("CREATE VIEW w AS SELECT id FROM v", 0),
 	} {
 		p.step(t, s)
 	}
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		var oid, rule int64
 		if err := db.QueryRowContext(p.ctx, "SELECT oid FROM pg_class WHERE relname='v'").Scan(&oid); err != nil {
 			t.Fatal(err)
@@ -59,6 +57,7 @@ func TestReferenceViewReplaceDiagnostics(t *testing.T) {
 		{"CREATE VIEW cv AS SELECT txt COLLATE \"C\" AS x FROM t", "CREATE OR REPLACE VIEW cv AS SELECT txt COLLATE \"POSIX\" AS x FROM t", referenceDiagnostic{Code: "42P16", Message: "cannot change collation of view column \"x\" from \"C\" to \"POSIX\""}},
 		{"", "CREATE OR REPLACE VIEW t AS SELECT id FROM t", referenceDiagnostic{Code: "42809", Message: "\"t\" is not a view"}},
 		{"", "ALTER VIEW t RENAME TO other", referenceDiagnostic{Code: "42809", Message: "\"t\" is not a view"}},
+		{"", "DROP VIEW t", referenceDiagnostic{Code: "42809", Message: "\"t\" is not a view", Hint: "Use DROP TABLE to remove a table."}},
 		{"", "DROP VIEW IF EXISTS t", referenceDiagnostic{Code: "42809", Message: "\"t\" is not a view", Hint: "Use DROP TABLE to remove a table."}},
 		{"", "DROP TABLE v", referenceDiagnostic{Code: "42809", Message: "\"v\" is not a table", Hint: "Use DROP VIEW to remove a view."}},
 		{"", "ALTER VIEW v RENAME id TO txt", referenceDiagnostic{Code: "42701", Message: "column \"txt\" of relation \"v\" already exists"}},
@@ -77,7 +76,7 @@ func TestReferenceViewReplaceDiagnostics(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.query, func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			schemaReferenceCleanup(t, "s")
 			for _, s := range []referenceStep{referenceExec("CREATE TABLE t(id INT,txt TEXT)", 0), referenceExec("INSERT INTO t VALUES(1,'a')", 1), referenceExec("CREATE VIEW v AS SELECT id,txt FROM t", 0)} {
 				p.step(t, s)
@@ -88,7 +87,7 @@ func TestReferenceViewReplaceDiagnostics(t *testing.T) {
 				}
 			}
 			step := referenceImplicitError(tc.query, tc.want)
-			t.Run("postgres_first", func(t *testing.T) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step) })
+
 			t.Run("paired", func(t *testing.T) { p.step(t, step) })
 			p.step(t, referenceSelect("SELECT * FROM v", []string{"id", "txt"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}}))
 		})
@@ -96,11 +95,12 @@ func TestReferenceViewReplaceDiagnostics(t *testing.T) {
 }
 
 func TestReferenceViewReplacePrepared(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, s := range []referenceStep{referenceExec("CREATE TABLE t(id INT)", 0), referenceExec("INSERT INTO t VALUES(1)", 1), referenceExec("CREATE VIEW v AS SELECT id FROM t", 0)} {
 		p.step(t, s)
 	}
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		id, err := db.PrepareContext(p.ctx, "SELECT id FROM v")
 		if err != nil {
 			t.Fatal(err)
@@ -116,6 +116,8 @@ func TestReferenceViewReplacePrepared(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer ddl.Close()
+		initialRows, initialErr := id.QueryContext(p.ctx)
+		deleteReferenceConsume(t, backend.pg, initialRows, initialErr, referenceSelect("", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 		var before int64
 		if err := db.QueryRowContext(p.ctx, "SELECT id FROM v").Scan(&before); err != nil || before != 1 {
 			t.Fatal(before, err)
@@ -129,6 +131,8 @@ func TestReferenceViewReplacePrepared(t *testing.T) {
 				t.Fatal(n, err)
 			}
 		}
+		afterRows, afterErr := id.QueryContext(p.ctx)
+		deleteReferenceConsume(t, backend.pg, afterRows, afterErr, referenceSelect("", []string{"id"}, []string{"INT4"}, [][]any{{int64(11)}}))
 		var after int64
 		if err := id.QueryRowContext(p.ctx).Scan(&after); err != nil || after != 11 {
 			t.Fatal(after, err)
@@ -147,10 +151,10 @@ func TestReferenceViewReplacePrepared(t *testing.T) {
 }
 
 func TestReferenceViewReplaceAlterDrop(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	schemaReferenceCleanup(t, "s")
 	for _, s := range []referenceStep{
-		referenceExec("CREATE SCHEMA s", 0), referenceExec("CREATE TABLE t(id INT)", 0), referenceExec("INSERT INTO t VALUES(7)", 1), referenceExec("CREATE VIEW v AS SELECT id FROM t", 0), referenceExec("CREATE VIEW w AS SELECT id FROM v", 0), referenceExec("ALTER VIEW v RENAME COLUMN id TO key", 0), referenceExec("ALTER VIEW v RENAME TO renamed", 0), referenceExec("ALTER VIEW renamed SET SCHEMA s", 0), referenceExec("ALTER VIEW s.renamed OWNER TO CURRENT_USER", 0), referenceExec("CREATE VIEW v AS SELECT 99 AS id FROM t", 0), referenceSelect("SELECT id FROM w", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}), referenceImplicitError("DROP VIEW v,w,missing", referenceDiagnostic{Code: "42P01", Message: "view \"missing\" does not exist"}), referenceSelect("SELECT id FROM w", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}), referenceExec("DROP VIEW s.renamed,w RESTRICT", 0), referenceExec("DROP VIEW IF EXISTS absent,v", 0), referenceSelect("SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}),
+		referenceExec("CREATE SCHEMA s", 0), referenceExec("CREATE TABLE t(id INT)", 0), referenceExec("INSERT INTO t VALUES(7)", 1), referenceExec("CREATE VIEW v AS SELECT id FROM t", 0), referenceExec("CREATE VIEW w AS SELECT id FROM v", 0), referenceExec("ALTER VIEW v RENAME COLUMN id TO key", 0), referenceExec("ALTER VIEW v RENAME TO renamed", 0), referenceExec("ALTER VIEW renamed SET SCHEMA s", 0), referenceExec("ALTER VIEW s.renamed OWNER TO CURRENT_USER", 0), referenceExec("CREATE VIEW v AS SELECT 99 AS id FROM t", 0), referenceSelect("SELECT id FROM w", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}), referenceImplicitError("DROP VIEW s.renamed", referenceDiagnostic{Code: "2BP01", Message: "cannot drop view s.renamed because other objects depend on it", Detail: "view w depends on view s.renamed", Hint: "Use DROP ... CASCADE to drop the dependent objects too."}), referenceImplicitError("DROP VIEW v,w,missing", referenceDiagnostic{Code: "42P01", Message: "view \"missing\" does not exist"}), referenceSelect("SELECT id FROM w", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}), referenceExec("DROP VIEW s.renamed,w RESTRICT", 0), referenceExec("DROP VIEW IF EXISTS absent,v", 0), referenceSelect("SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}),
 		referenceExec("CREATE VIEW a AS SELECT id FROM t", 0), referenceExec("CREATE VIEW b AS SELECT id FROM a", 0), referenceExec("CREATE VIEW c AS SELECT id FROM b", 0), referenceExec("DROP VIEW a CASCADE", 0), referenceSelect("SELECT count(*) FROM pg_class WHERE relname='a' OR relname='b' OR relname='c'", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}),
 	} {
 		p.step(t, s)
@@ -158,7 +162,7 @@ func TestReferenceViewReplaceAlterDrop(t *testing.T) {
 }
 
 func TestReferenceViewReplaceCycles(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, s := range []referenceStep{referenceExec("CREATE TABLE t(id INT)", 0), referenceExec("INSERT INTO t VALUES(7)", 1), referenceExec("CREATE VIEW v AS SELECT id FROM t", 0), referenceExec("CREATE OR REPLACE VIEW v AS SELECT id FROM v", 0), referenceImplicitError("SELECT id FROM v", referenceDiagnostic{Code: "42P17", Message: "infinite recursion detected in rules for relation \"v\""}), referencePrepared(referenceImplicitError("SELECT id FROM v", referenceDiagnostic{Code: "42P17", Message: "infinite recursion detected in rules for relation \"v\""})), referenceImplicitError("SELECT id FROM v FOR UPDATE", referenceDiagnostic{Code: "42P17", Message: "infinite recursion detected in rules for relation \"v\""}), referenceExec("CREATE OR REPLACE VIEW v AS SELECT id FROM t", 0), referenceExec("CREATE VIEW w AS SELECT id FROM v", 0), referenceExec("CREATE OR REPLACE VIEW v AS SELECT id FROM w", 0), referenceImplicitError("SELECT id FROM v", referenceDiagnostic{Code: "42P17", Message: "infinite recursion detected in rules for relation \"v\""}), referenceExec("DROP VIEW v,w RESTRICT", 0), referenceSelect("SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}})} {
 		p.step(t, s)
 	}

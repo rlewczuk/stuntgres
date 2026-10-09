@@ -1,10 +1,8 @@
 package reference_test
 
 import (
-	"bytes"
 	"database/sql"
 	"fmt"
-	"stuntgres"
 	"testing"
 )
 
@@ -23,7 +21,7 @@ func TestReferenceDefaultArithmeticControls(t *testing.T) {
 				run(referenceExec("CREATE TABLE d(id INT,a INT DEFAULT +7,b INT DEFAULT -7,c INT DEFAULT 1+2*3,g INT DEFAULT (1+2)*3,s INT DEFAULT 9-4-2,q INT DEFAULT -7/3,r INT DEFAULT -7%3,w BIGINT DEFAULT 1+2147483648)", 0))
 				run(referenceSelect("SELECT * FROM d ORDER BY id", names, types, nil))
 				if db == p.memory {
-					defaultArithmeticReferenceRoundtrip(t, p, "d")
+					referenceArithmeticRoundtrip(t, p, "d")
 				}
 				run(referenceExec("INSERT INTO d(id) VALUES(1),(2)", 2))
 				run(referenceExec("INSERT INTO d VALUES(3,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT)", 1))
@@ -40,7 +38,7 @@ func TestReferenceDefaultArithmeticControls(t *testing.T) {
 				return
 			}
 			t.Run("native-controls-and-replay", func(t *testing.T) {
-				defaultArithmeticReferenceRoundtrip(t, p, "d")
+				referenceArithmeticRoundtrip(t, p, "d")
 				want[0][1] = int64(8)
 				run := func(s referenceStep) { s.prepared = prepared; defaultReferenceStep(t, p, s) }
 				run(referenceSelect("SELECT * FROM d ORDER BY id", names, types, want))
@@ -68,7 +66,7 @@ func TestReferenceDefaultArithmeticPlanningFailures(t *testing.T) {
 					run(referenceExec("CREATE TABLE d(id INT,v INT DEFAULT "+tc.expression+")", 0))
 					run(referenceExec("INSERT INTO d VALUES(0,9),(1,NULL)", 2))
 					if db == p.memory {
-						defaultArithmeticReferenceRoundtrip(t, p, "d", "src")
+						referenceArithmeticRoundtrip(t, p, "d", "src")
 					}
 					for _, q := range []string{"INSERT INTO d(id) VALUES(2),(3)", "INSERT INTO d VALUES(2,DEFAULT)", "INSERT INTO d (VALUES(2,DEFAULT))", "INSERT INTO d DEFAULT VALUES", "INSERT INTO d VALUES(2,9),(3,DEFAULT)", "INSERT INTO d(id) SELECT id FROM src"} {
 						s := referenceImplicitError(q, referenceDiagnostic{Code: tc.code, Message: tc.message})
@@ -106,7 +104,7 @@ func TestReferenceDefaultArithmeticPlanningDecisive(t *testing.T) {
 					run(referenceExec("CREATE TABLE d(id INT,b BOOL DEFAULT ("+tc.expression+"))", 0))
 					run(referenceExec("INSERT INTO d VALUES(0,NULL)", 1))
 					if db == p.memory {
-						defaultArithmeticReferenceRoundtrip(t, p, "d", "src")
+						referenceArithmeticRoundtrip(t, p, "d", "src")
 					}
 					want := [][]any{{int64(0), nil}}
 					for _, q := range []string{"INSERT INTO d(id) SELECT id FROM src", "INSERT INTO d(id) VALUES(1)", "INSERT INTO d VALUES(2,DEFAULT)"} {
@@ -150,7 +148,7 @@ func TestReferenceDefaultCharacterCastControls(t *testing.T) {
 				run(referenceExec("CREATE TABLE d(id INT,c CHAR(2) DEFAULT CAST('é🙂x' AS CHAR(2)),v VARCHAR(2) DEFAULT CAST('é🙂x' AS VARCHAR(2)),s TEXT DEFAULT CAST('a' AS CHAR(3)))", 0))
 				run(referenceSelect("SELECT * FROM d ORDER BY id", names, types, nil))
 				if db == p.memory {
-					defaultArithmeticReferenceRoundtrip(t, p, "d")
+					referenceArithmeticRoundtrip(t, p, "d")
 				}
 				run(referenceExec("INSERT INTO d(id) VALUES(1)", 1))
 				run(referenceExec("INSERT INTO d VALUES(2,DEFAULT,DEFAULT,DEFAULT)", 1))
@@ -164,7 +162,7 @@ func TestReferenceDefaultCharacterCastControls(t *testing.T) {
 				return
 			}
 			t.Run("native-controls-and-replay", func(t *testing.T) {
-				defaultArithmeticReferenceRoundtrip(t, p, "d")
+				referenceArithmeticRoundtrip(t, p, "d")
 				run := func(s referenceStep) {
 					s.prepared = prepared
 					if s.selectRows {
@@ -193,7 +191,7 @@ func TestReferenceDefaultCharacterCastDeferredAssignment(t *testing.T) {
 				run(referenceExec("CREATE TABLE d(id INT,v VARCHAR(2) DEFAULT CAST('long' AS TEXT))", 0))
 				run(referenceExec("INSERT INTO d VALUES(0,'ok'),(1,NULL)", 2))
 				if db == p.memory {
-					defaultArithmeticReferenceRoundtrip(t, p, "d", "src")
+					referenceArithmeticRoundtrip(t, p, "d", "src")
 				}
 				for _, q := range []string{"INSERT INTO d(id) VALUES(2)", "INSERT INTO d VALUES(2,DEFAULT)", "INSERT INTO d VALUES(2,'ok'),(3,DEFAULT)", "INSERT INTO d(id) SELECT id FROM src"} {
 					s := referenceImplicitError(q, referenceDiagnostic{Code: "22001", Message: "value too long for type character varying(2)"})
@@ -204,37 +202,5 @@ func TestReferenceDefaultCharacterCastDeferredAssignment(t *testing.T) {
 				run(referenceExec("INSERT INTO d(id,v) SELECT id,'ok' FROM src", 0))
 			})
 		})
-	}
-}
-
-func defaultArithmeticReferenceRoundtrip(t *testing.T, p *referencePair, tables ...string) {
-	t.Helper()
-	var dump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
-		t.Fatal(err)
-	}
-	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
-		t.Fatal(err)
-	}
-	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
-		t.Fatal("default restore", err)
-	}
-	var again bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &again); err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(dump.Bytes(), again.Bytes()) {
-		t.Fatal("non-deterministic default redump")
-	}
-	if p.postgres == nil {
-		return
-	}
-	for _, table := range tables {
-		if _, err := p.postgres.ExecContext(p.ctx, "DROP TABLE "+table); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal("PostgreSQL replay", err)
 	}
 }

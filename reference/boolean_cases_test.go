@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 // These expectations are literal fixtures, independent of the type-input formatter.

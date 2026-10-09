@@ -454,7 +454,16 @@ Native ACL unit controls and PostgreSQL-only GRANT witnesses do not imply a
 public native ACL API.
 Smokes: `make quickcheck PACKAGES=./smoke RUN='^TestViewSmoke$' VERBOSE=0` and
 `make quickcheck PACKAGES=./smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`;
-independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceView' VERBOSE=0`.
+dual-mode replacement union: `make quickcheck PACKAGES=./reference RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$' VERBOSE=0`;
+same-definition oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(ViewReplace[A-Za-z0-9_]*|DropViewIndexWrongKind[A-Za-z0-9_]*)$' VERBOSE=0`.
+The true selection includes separately retained PostgreSQL-required companions.
+The source union includes all18 original replacement functions and the
+non-prefix DROP VIEW/index-kind consumer. Actual setup, typed relation/rule IDs,
+direct/prepared/SAME held utilities, quiet absent-target Prepare and retained
+layout/dependency/control witnesses remain beside recorded companions.
+Read-only utility teardown rolls back before Conn.Close on failure as well as
+success; no PostgreSQL host Reset/Restore is invented.
+
 
 ## Object comment inquiries — change note
 
@@ -520,7 +529,19 @@ comments. See [comment mutation and native controls](TABLES.md#object-comments)
 for the remaining DDL/transaction boundaries.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
-Pinned independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry' VERBOSE=0`.
+Dual-mode native union: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$' VERBOSE=0`;
+pinned independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry[A-Za-z0-9_]*$' VERBOSE=0`.
+Captured old table/shared comments and fresh same-object inquiries preserve actual
+catalog identity, not a hardcoded PostgreSQL bootstrap roleOID.
+
+Catalog visibility's seven-DDL boundary corpus retains the original SQL while
+respecting incoming domain support: exact CREATE DOMAIN d AS integer succeeds
+through Query with an empty utility result, then DROP and quiet Prepare prove
+no early publication (missing type42704/Position12). SAME held Execute returns
+count0, and typed INT4/BOOL consumers read7/true. Both source and recorded phases
+retain all six other native DDL negatives and the default-function exclusion,
+with independent PostgreSQL outcomes. This witness adds no adjacent capability.
+
 
 
 ## Sequences

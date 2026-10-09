@@ -121,6 +121,7 @@ func TestReferenceTimestampSettingArgumentsUseScopeEnvironmentWithoutNewCasts(t 
 			ctx := context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder)
 			for _, tc := range []struct{ input, code, message string }{
 				{"nonsense", "22007", `invalid input syntax for type timestamp: "nonsense"`},
+				{"epoch", "42804", "incompatible source and destination types"},
 				{"now", "42804", "incompatible source and destination types"},
 			} {
 				for _, q := range []string{"SELECT current_setting(TIMESTAMP '" + tc.input + "')", "SELECT set_config('application_name',TIMESTAMP '" + tc.input + "',FALSE)"} {
@@ -128,7 +129,7 @@ func TestReferenceTimestampSettingArgumentsUseScopeEnvironmentWithoutNewCasts(t 
 					if tc.code == "22007" {
 						want.Position = strconv.Itoa(strings.LastIndex(q, "'"+tc.input+"'") + 1)
 					}
-					if backend.pg && tc.input == "now" {
+					if backend.pg && tc.code == "42804" {
 						want.Code, want.Position = "42883", "8"
 						want.Hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 						want.Message = "function current_setting(timestamp without time zone) does not exist"

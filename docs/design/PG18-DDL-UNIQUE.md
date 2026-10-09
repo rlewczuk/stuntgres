@@ -148,11 +148,14 @@ The owner TYPE-build disclosure family pairs PostgreSQL SQL REVOKE/GRANT control
 with native catalog ACL units; native SQL GRANT remains excluded. Shared terminal
 tests cover configured statement timeout and a two-key deadlock with exact
 diagnostics, survivor progress before victim rollback and continuing enforcement.
-The three remaining root B-tree SQL bodies now live in untagged
-`TestReferenceUniqueBtreeDiagnosticsAndNameBinding`,
-`TestReferenceUniqueBtreeUtilityBoundary` and
-`TestReferenceUniqueBtreeExcludedDefinitionsDiagnostics`, retaining direct/prepared
-diagnostics, name rebinding, native dump atomicity and independent PostgreSQL
-accepted-definition/transaction controls. Superseded root and tagged copies are
-removed; unrelated legacy B-tree reference maintenance/control tests are unchanged.
+The remaining root B-tree SQL assertions are consolidated in untagged canonical
+`TestReferenceBtreeIndexDiagnostics`, `TestReferenceBtreeIndexTransactionDistinction`
+and `TestReferenceBtreeIndexExcludedDefinitionsDiagnostics`. MaintenanceNonContext
+and TransactionNonContext retain actual original plain consumers beside recorded
+Context owners. The complete incoming regression/maintenance/lifecycle/control
+unions retain direct/prepared diagnostics, name rebinding, native dump atomicity
+and independent PostgreSQL accepted-definition/transaction witnesses.
+Superseded root/tagged and generic UniqueBtree-named duplicate hosts are removed,
+not kept as forwarding aliases. Constraint-backed UNIQUE tests are unaffected;
+standalone CREATE UNIQUE INDEX remains the native0A000 boundary above.
 Tests are verification inputs, not a claim that verification has been run.

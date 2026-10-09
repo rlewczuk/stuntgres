@@ -1,28 +1,28 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"stuntgres"
 	"testing"
 	"time"
 )
 
-func TestReferenceStringCoreRegclassOracle(t *testing.T) {
-	stringCoreReferenceRegclass(t, newReferencePair(t), true)
-}
 func TestReferenceStringCoreRegclassNamespaceOutput(t *testing.T) {
-	stringCoreReferenceRegclass(t, newReferencePair(t), false)
+	stringCoreReferenceRegclass(t, newReferenceScenario(t))
 }
 
 // Expected names are specified from SQL namespace visibility, never an OID
-// allocator or one server's output copied to the other. The oracle path executes
-// only the real PostgreSQL connection before native parity is claimed.
-func stringCoreReferenceRegclass(t *testing.T, p *referencePair, oracle bool) {
+// allocator or one server's output copied to the other. Each selected backend
+// executes the same direct, held and fresh-prepared consumers.
+func stringCoreReferenceRegclass(t *testing.T, p *referencePair) {
 	t.Helper()
 	// The shared fixture resets public only; this case owns these two namespaces.
 	t.Cleanup(func() {
+		if p.postgres == nil {
+			return
+		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		if _, err := p.postgres.ExecContext(ctx, "DROP SCHEMA IF EXISTS sgreg_a CASCADE; DROP SCHEMA IF EXISTS sgreg_b CASCADE"); err != nil {
@@ -31,11 +31,7 @@ func stringCoreReferenceRegclass(t *testing.T, p *referencePair, oracle bool) {
 	})
 	step := func(s referenceStep) {
 		t.Helper()
-		if oracle {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		p.step(t, s)
 	}
 	for _, q := range []string{"CREATE SCHEMA sgreg_a", "CREATE SCHEMA sgreg_b", `CREATE TABLE sgreg_a."Mixed Name"(id INT)`, `CREATE TABLE sgreg_b."Mixed Name"(id INT)`, "CREATE TABLE public.sgreg_sink(id INT,v TEXT)",
 		`CREATE TABLE public.sgreg_store(id INT,v TEXT DEFAULT btrim(' stored '::char(10)),CHECK(v IS NORMALIZED AND ('['::text||'sgreg_a."Mixed Name"'::regclass) IS NORMALIZED))`,
@@ -43,11 +39,8 @@ func stringCoreReferenceRegclass(t *testing.T, p *referencePair, oracle bool) {
 	} {
 		step(referenceExec(q, 0))
 	}
-	dbs := []*sql.DB{p.memory, p.postgres}
-	if oracle {
-		dbs = []*sql.DB{p.postgres}
-	}
-	for _, db := range dbs {
+	for _, backend := range p.backends() {
+		db := backend.db
 		db.SetMaxOpenConns(1)
 		c, err := db.Conn(p.ctx)
 		if err != nil {
@@ -91,6 +84,21 @@ func stringCoreReferenceRegclass(t *testing.T, p *referencePair, oracle bool) {
 						t.Fatalf("held regclass output got %q want %q err %v", got, held.want, err)
 					}
 				}
+				var recorder *referenceRecorder
+				for _, backend := range p.backends() {
+					if backend.db == db {
+						recorder = backend.recorder
+					}
+				}
+				for _, tc := range []struct{ q, want string }{
+					{`SELECT '['::text||'sgreg_a."Mixed Name"'::regclass AS v`, "[" + tc.spelling},
+					{`SELECT 'sgreg_a."Mixed Name"'::regclass||']'::text AS v`, tc.spelling + "]"},
+					{"SELECT v FROM public.sgreg_view", "[" + tc.spelling},
+				} {
+					step := referenceSelect(tc.q, []string{"v"}, []string{"TEXT"}, [][]any{{tc.want}})
+					referenceRunStep(t, p.ctx, c, recorder, step)
+					referenceRunStep(t, p.ctx, c, recorder, referencePrepared(step))
+				}
 				if _, err := insert.ExecContext(p.ctx, i+1); err != nil {
 					t.Fatal("default/CHECK namespace snapshot", err)
 				}
@@ -108,7 +116,7 @@ func stringCoreReferenceRegclass(t *testing.T, p *referencePair, oracle bool) {
 		{"SELECT '4294967294'::regclass||'x'::text AS v", "4294967294x", "TEXT"},
 		{"SELECT '['::text||'-'::regclass AS v", "[-", "TEXT"},
 		{"SELECT v FROM public.sgreg_view", `[sgreg_a."Mixed Name"`, "TEXT"},
-	}, oracle)
+	})
 	step(referenceSelect("SELECT id,v FROM public.sgreg_store ORDER BY id", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "stored"}, {int64(2), "stored"}}))
 	for _, s := range []referenceStep{
 		referenceExec(`INSERT INTO public.sgreg_sink VALUES(1,'['::text||'sgreg_a."Mixed Name"'::regclass)`, 1),
@@ -131,20 +139,24 @@ func stringCoreReferenceRegclass(t *testing.T, p *referencePair, oracle bool) {
 		step(action)
 		step(referenceSelect("SELECT v FROM public."+name, []string{"v"}, []string{"TEXT"}, [][]any{{`!sgreg_a."Mixed Name"`}}))
 	}
+	stringCoreRegclassRestore(t, p)
 }
 
-// PostgreSQL permits this DEFAULT; native deliberately retains its earlier
-// REGCLASS-default exclusion rather than widening an adjacent capability.
-func TestReferenceStringCoreRegclassDefaultOracle(t *testing.T) {
-	p := newReferencePair(t)
-	for _, s := range []referenceStep{
-		referenceExec("CREATE TABLE regclass_default_source(v INT)", 0),
-		referenceExec(`CREATE TABLE regclass_default_stored(v TEXT DEFAULT ('x'::text||'regclass_default_source'::regclass))`, 0),
-		referenceExec("INSERT INTO regclass_default_stored DEFAULT VALUES", 1),
-		referenceSelect("SELECT v FROM regclass_default_stored", []string{"v"}, []string{"TEXT"}, [][]any{{"xregclass_default_source"}}),
-		referencePrepared(referenceExec("INSERT INTO regclass_default_stored DEFAULT VALUES", 1)),
-		referenceSelect("SELECT v FROM regclass_default_stored", []string{"v"}, []string{"TEXT"}, [][]any{{"xregclass_default_source"}, {"xregclass_default_source"}}),
-	} {
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
+func stringCoreRegclassRestore(t *testing.T, p *referencePair) {
+	t.Helper()
+	step := func(s referenceStep) { p.step(t, s) }
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+		t.Fatal(err)
 	}
+	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	step(referenceExec("SET search_path=sgreg_b, public", 0))
+	step(referenceExec("INSERT INTO public.sgreg_store(id) VALUES(3)", 1))
+	step(referenceSelect("SELECT v FROM public.sgreg_store WHERE id=3", []string{"v"}, []string{"TEXT"}, [][]any{{"stored"}}))
+	step(referenceSelect("SELECT v FROM public.sgreg_view", []string{"v"}, []string{"TEXT"}, [][]any{{`[sgreg_a."Mixed Name"`}}))
 }

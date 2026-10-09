@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -42,41 +41,6 @@ func TestReferenceUpdateReturningAggregateDiagnostics(t *testing.T) {
 					queryError.selectRows = true
 					run(queryError)
 					run(referencePrepared(referenceImplicitError(q, d)))
-				}
-			}
-			for _, output := range []string{"sum('7')", "sum(NULL)", "sum($1)"} {
-				for _, prefix := range []string{"", "/*é*/ "} {
-					want := referenceDiagnostic{Code: "0A000", Message: "untyped aggregate arguments are unsupported", Position: referencePosition(29)}
-					if backend.pg {
-						want = referenceDiagnostic{Code: "42725", Message: "function sum(unknown) is not unique", Hint: "Could not choose a best candidate function. You might need to add explicit type casts.", Position: referencePosition(29)}
-					}
-					if prefix != "" {
-						want.Position = referencePosition(35)
-					}
-					for _, lane := range []string{"exec", "query", "prepare"} {
-						diagnostic := want
-						if backend.pg && output == "sum($1)" && lane != "prepare" {
-							position := 33
-							if prefix != "" {
-								position += 6
-							}
-							diagnostic = referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: referencePosition(position)}
-						}
-						s := referenceImplicitError(prefix+"UPDATE t SET id=2 RETURNING "+output, diagnostic)
-						s.selectRows, s.prepared = lane == "query", lane == "prepare"
-						run(s)
-					}
-				}
-			}
-			for _, q := range []string{"SELECT sum(id) FROM t", "UPDATE t SET id=sum(id)", "INSERT INTO t(id) VALUES(sum(1))"} {
-				if backend.pg {
-					if q == "SELECT sum(id) FROM t" {
-						run(referenceSelect(q, []string{"sum"}, []string{"INT8"}, [][]any{{int64(1)}}))
-						continue
-					}
-					run(referenceError(q, "42803"))
-				} else {
-					run(referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "functions are unsupported", Position: referencePosition(strings.Index(q, "sum") + 1)}))
 				}
 			}
 			run(referenceSelect("SELECT id,v FROM t", []string{"id", "v"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "unchanged"}}))

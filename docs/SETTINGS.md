@@ -178,8 +178,10 @@ and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
 Native Reset/Restore preserve live settings and use default-on parsing;
 Dump excludes settings. Retained SHOW/SELECT snapshots outlive session end.
 
-Run `make quickcheck PACKAGES=./smoke RUN='^TestSettingsSmoke$'` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettings' VERBOSE=1`.
+Run `make quickcheck PACKAGES=./smoke RUN='^TestSettingsSmoke$'`. Migrated settings SQL
+uses the same external definitions in both modes:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSettings[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettings[A-Za-z0-9_]*$' VERBOSE=0`.
 The reference suite separately executes real PostgreSQL numeric/enum settings,
 non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
 placeholders are never claimed to validate native typed registrations.
@@ -195,6 +197,34 @@ and bounds, SET/RESET/SHOW/SHOW ALL/current_setting/set_config behavior,
 prepare-time parser mode, healthy sessions after 57014 timeouts, 55P02/42501
 access failures, transactional local scope, retained settings on reuse,
 and replacement defaults with surviving data. Go test reports the result.
+
+The public1ms timeout corpus keeps direct Execute, actual Prepare and execution
+of statements held before arming, including all four original workload sizes.
+Implicit attempts keep the owner armed and prove committed sentinel7 through
+an independent peer after each attempt. The separate same-owner active-transaction
+phase uses public Go Rollback, restoring timeout0 and sentinel7; it does not
+issue SQL RESET/ROLLBACK through an already expired command deadline.
+Full diagnostics come from the actual timeout operation, not a generic fallback.
+PostgreSQL consumes the preexisting same-owner stream before further commands;
+native eager retained rows remain live. Focused commands:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceSettingsPublicTimeout(Stages|RollbackCleanup)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettingsPublicTimeout(Stages|RollbackCleanup)$' VERBOSE=0
+```
+
+TEXT metadata checks include empty results, string ScanType and unbounded
+Length=(MaxInt64,true). Native SHOW has known nonnullable metadata; native
+selected function/table results and pq unknown nullability retain their own
+complete descriptor expectations, rather than treating known length as fixed.
+Session/LOCAL source witnesses keep original QueryRowContext scalar and peer
+reads after EACH binding/sign/quoted vector, direct baseline and retained SET,
+physical identities, raw native ExecerContext reset setup, quiet held Prepare
+and direct aborted-transaction diagnostics/recovery. No Context recorder record
+is fabricated for plain methods. Existing1ms SQL workloads/deadlines remain
+unchanged by the task's external900second aggregate override.
+
+
 
 ## Temporal settings
 

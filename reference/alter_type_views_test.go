@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -14,14 +11,10 @@ func TestReferenceAlterTypeViewDependencies(t *testing.T) {
 		{"join", "SELECT t.b FROM t JOIN u ON t.a=u.c"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, b := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+			p := newReferenceScenario(t)
+			for _, b := range p.backends() {
 				t.Run(b.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
 					run(referenceExec("CREATE TABLE t(a INT,b INT)", 0))
 					run(referenceExec("INSERT INTO t VALUES(1,7)", 1))
 					run(referenceExec("CREATE TABLE u(c INT)", 0))
@@ -37,18 +30,15 @@ func TestReferenceAlterTypeViewDependencies(t *testing.T) {
 }
 
 func TestReferenceAlterTypeViewIdentityCollationAndCascade(t *testing.T) {
-	p := newReferencePair(t)
-	for _, b := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	schemaReferenceCleanup(t, "s")
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
-			run(referenceExec("DROP SCHEMA IF EXISTS s CASCADE", 0))
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
 			t.Cleanup(func() {
-				referenceRunStep(t, p.ctx, b.db, b.record, referenceExec("DROP SCHEMA IF EXISTS s CASCADE", 0))
+				referenceRunStep(t, p.ctx, b.db, b.recorder, referenceExec("DROP SCHEMA IF EXISTS s CASCADE", 0))
 			})
+			run(referenceExec("DROP SCHEMA IF EXISTS s CASCADE", 0))
 			run(referenceExec("CREATE SCHEMA s", 0))
 			run(referenceExec("CREATE TABLE t(c VARCHAR(5),discard INT,keep INT)", 0))
 			run(referenceExec("INSERT INTO t VALUES('seven',1,9)", 1))

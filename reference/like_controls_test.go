@@ -1,22 +1,49 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"strings"
 	"stuntgres"
 	"testing"
 )
 
 func TestReferenceLikeControls(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(id INTEGER,v TEXT,c CHAR(3),b BYTEA,p TEXT COLLATE \"C\",CHECK(v ILIKE 'a%' ESCAPE '!'))", 0))
+	p := newReferenceScenario(t)
+	p.step(t, referenceExec("CREATE TABLE t(id INTEGER,v TEXT,c CHAR(3),b BYTEA,p TEXT COLLATE \"C\",CONSTRAINT starts_a CHECK(v ILIKE 'a%' ESCAPE '!'))", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,'Ab','a','\\xc3a9','a%'),(2,NULL,NULL,NULL,NULL)", 2))
-	p.step(t, referenceExec("CREATE VIEW matched AS SELECT id,v ILIKE p ESCAPE '!' AS matched,c LIKE 'a__' AS padded,b LIKE '\\x5f5f' AS octets FROM t", 0))
+	p.step(t, referenceExec("CREATE VIEW matched AS SELECT id,v ILIKE p ESCAPE '!' AS matched,c OPERATOR(pg_catalog.~~) 'a__' AS padded,b LIKE '\\x5f5f' AS octets FROM t", 0))
 	s := referenceSelect("SELECT matched,padded,octets FROM matched ORDER BY id", []string{"matched", "padded", "octets"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}, {nil, nil, nil}})
+	s.checkMetadata = likeReferenceMetadata
 	p.step(t, s)
 	p.step(t, referencePrepared(s))
+	var held []referenceHeldStatement
+	for _, backend := range p.backends() {
+		statement, err := backend.db.PrepareContext(p.ctx, s.query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer statement.Close()
+		held = append(held, referenceHeldStatement{backend.db, statement, s.query})
+	}
+	p.step(t, referenceExec("ALTER TABLE t RENAME COLUMN v TO value", 0))
+	for i, backend := range p.backends() {
+		referenceRunStep(t, p.ctx, held[i], backend.recorder, s)
+	}
+	p.step(t, referenceError("INSERT INTO t VALUES(3,'ab','a','\\x61','a%'),(4,'b','b','\\x62','b%')", "23514"))
+	p.step(t, referenceError("UPDATE t SET value='b'", "23514"))
+	for _, backend := range p.backends() {
+		var count int
+		if err := backend.db.QueryRowContext(p.ctx, "SELECT COUNT(*) FROM t").Scan(&count); err != nil || count != 2 {
+			t.Fatal(count, err)
+		}
+	}
+	old, err := p.native.QueryContext(p.ctx, s.query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer old.Close()
 	// Replay depends on a proven populated native snapshot. Preserve failed
 	// paired assertions, but do not replace PostgreSQL with a failed setup dump.
 	if t.Failed() {
@@ -32,6 +59,8 @@ func TestReferenceLikeControls(t *testing.T) {
 	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
+	stringCoreRetainedRows(t, old, nil, s.columns, s.types, s.rows, false)
+	s.checkMetadata = likeReferenceMetadata
 	p.step(t, s)
 	var redump bytes.Buffer
 	if err := stuntgres.Dump(p.ctx, p.native, &redump); err != nil || !bytes.Equal(dump.Bytes(), redump.Bytes()) {
@@ -39,19 +68,39 @@ func TestReferenceLikeControls(t *testing.T) {
 	}
 	// Replay the public native stream on PostgreSQL, then assert the same
 	// independent physical and matching results, not pg_dump text identity.
-	if _, err := p.postgres.ExecContext(p.ctx, "DROP VIEW matched; DROP TABLE t"); err != nil {
-		t.Fatal(err)
+	if p.postgres != nil {
+		if _, err := p.postgres.ExecContext(p.ctx, "DROP VIEW matched; DROP TABLE t"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+			t.Fatal(err)
+		}
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
 	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal(err)
-	}
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
 	physical := referenceSelect("SELECT c,b FROM t ORDER BY id", []string{"c", "b"}, []string{"BPCHAR", "BYTEA"}, [][]any{{"a  ", "\xc3\xa9"}, {nil, nil}})
 	p.step(t, physical)
 	// A late replay failure must not publish the already-created replacement.
 	bad := dump.String() + "INSERT INTO t VALUES(3,'b','b','\\x62','b%');"
 	if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(bad)); err == nil {
 		t.Fatal("bad CHECK replay accepted")
+	}
+	canceled, cancel := context.WithCancel(p.ctx)
+	cancel()
+	if err := stuntgres.Restore(canceled, p.native, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	for _, backend := range p.backends() {
+		rows, err := backend.db.QueryContext(canceled, "SELECT value LIKE p FROM t")
+		if rows != nil {
+			rows.Close()
+			t.Fatal("canceled cursor")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		if _, err := backend.db.ExecContext(canceled, "UPDATE t SET value='ab'"); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
 	}
 	var retained bytes.Buffer
 	if err := stuntgres.Dump(p.ctx, p.native, &retained); err != nil || !bytes.Equal(redump.Bytes(), retained.Bytes()) {
@@ -75,19 +124,11 @@ func TestReferenceLikeCheckAtomicity(t *testing.T) {
 	})
 }
 
-func TestReferenceLikeOracleStoredDependencies(t *testing.T) {
-	likeReferenceStoredDependencies(t, true)
-}
-func TestReferenceLikeStoredDependencies(t *testing.T) { likeReferenceStoredDependencies(t, false) }
-
-func likeReferenceStoredDependencies(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+func TestReferenceLikeStoredDependencies(t *testing.T) {
+	p := newReferenceScenario(t)
 	run := func(t *testing.T, s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
 	run(t, referenceExec("CREATE TABLE t(id INT,p TEXT,e TEXT,CONSTRAINT pattern_only CHECK('ab' LIKE p),CONSTRAINT escape_only CHECK('a%b' LIKE 'a!%b' ESCAPE e))", 0))
 	run(t, referenceExec("INSERT INTO t VALUES(1,'a%','!'),(2,NULL,NULL)", 2))
@@ -96,16 +137,7 @@ func likeReferenceStoredDependencies(t *testing.T, oracleOnly bool) {
 	if t.Failed() {
 		t.FailNow()
 	}
-	backends := []struct {
-		db       referenceExecutor
-		recorder *referenceRecorder
-	}{{p.postgres, p.postgresRecord}}
-	if !oracleOnly {
-		backends = append(backends, struct {
-			db       referenceExecutor
-			recorder *referenceRecorder
-		}{p.memory, p.memoryRecord})
-	}
+	backends := p.backends()
 	var held []struct {
 		db       referenceHeldStatement
 		recorder *referenceRecorder
@@ -155,15 +187,29 @@ func likeReferenceStoredDependencies(t *testing.T, oracleOnly bool) {
 	}
 	views(t)
 	checks(t)
+	dump := func() []byte {
+		var out bytes.Buffer
+		if err := stuntgres.Dump(p.ctx, p.native, &out); err != nil {
+			t.Fatal(err)
+		}
+		return out.Bytes()
+	}
+	before := dump()
 	for _, tc := range []struct{ column, view string }{{"pattern", "pattern_view"}, {"escape_value", "escape_view"}} {
 		t.Run(tc.column, func(t *testing.T) {
 			q := "ALTER TABLE t DROP COLUMN " + tc.column + " RESTRICT"
 			s := referenceImplicitError(q, referenceDiagnostic{Code: "2BP01", Message: "cannot drop column " + tc.column + " of table t because other objects depend on it", Detail: "view " + tc.view + " depends on column " + tc.column + " of table t", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
 			s.errorStage = "execute"
 			run(t, s)
+			if !bytes.Equal(before, dump()) {
+				t.Fatal("failed direct DDL changed snapshot")
+			}
 			views(t)
 			checks(t)
 			run(t, referencePrepared(s))
+			if !bytes.Equal(before, dump()) {
+				t.Fatal("failed held DDL changed snapshot")
+			}
 			views(t)
 			checks(t)
 		})

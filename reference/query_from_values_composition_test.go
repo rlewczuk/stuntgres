@@ -13,7 +13,9 @@ func TestReferenceQueryFromValuesComposition(t *testing.T) {
 					referenceExec("INSERT INTO t VALUES(1,'t'),(2,'u')", 2),
 					referenceExec("CREATE TABLE empty(n INT)", 0),
 					referenceExec("CREATE TABLE dst(n BIGINT,s TEXT)", 0),
-				} { run(s) }
+				} {
+					run(s)
+				}
 				for _, s := range []referenceStep{
 					referenceSelect("SELECT l.n,r.n FROM (VALUES(1),(1)) l(n) CROSS JOIN (VALUES(2),(3)) r(n)", []string{"n", "n"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(2)}, {int64(1), int64(2)}, {int64(1), int64(3)}, {int64(1), int64(3)}}),
 					referenceSelect("SELECT t.n,v.s FROM t JOIN (VALUES(1,'a'),(1,'a'),(3,'c')) v(n,s) USING(n)", []string{"n", "s"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}, {int64(1), "a"}}),
@@ -43,9 +45,9 @@ func TestReferenceQueryFromValuesViews(t *testing.T) {
 	for _, backend := range p.backends() {
 		run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 		for _, tc := range []struct {
-			name, query string
+			name, query    string
 			columns, types []string
-			rows [][]any
+			rows           [][]any
 		}{
 			{"q", "SELECT * FROM (VALUES(1,'a'),(1,'a'),(2,NULL)) v(n,s)", []string{"n", "s"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}, {int64(1), "a"}, {int64(2), nil}}},
 			{"bare_values", "VALUES(1),(NULL)", []string{"column1"}, []string{"INT4"}, [][]any{{int64(1)}, {nil}}},
@@ -56,7 +58,9 @@ func TestReferenceQueryFromValuesViews(t *testing.T) {
 			s.bag = true
 			run(s)
 			var definition string
-			if err := backend.db.QueryRowContext(p.ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname=$1", tc.name).Scan(&definition); err != nil { t.Fatal(err) }
+			if err := backend.db.QueryRowContext(p.ctx, "SELECT definition FROM pg_catalog.pg_views WHERE viewname=$1", tc.name).Scan(&definition); err != nil {
+				t.Fatal(err)
+			}
 			// Native formatting may differ; both definitions must execute to
 			// the independently specified schema and occurrence bag below.
 			replay := referenceSelect(definition, tc.columns, tc.types, tc.rows)

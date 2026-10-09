@@ -3,10 +3,18 @@ package reference_test
 import "testing"
 
 func TestReferenceUpdateReturningAliases(t *testing.T) {
+	t.Run("target alias Exec", func(t *testing.T) {
+		p := newReferenceScenario(t)
+		p.step(t, referenceExec("CREATE TABLE t(id INT)", 0))
+		p.step(t, referenceExec("INSERT INTO t VALUES(1)", 1))
+		p.step(t, referenceExec("UPDATE t x SET id=2 RETURNING x.id", 1))
+		p.step(t, referenceSelect("SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
+	})
 	for _, tc := range []struct {
 		options, output string
 		want            []any
 	}{
+		{"", "*,old.*,new.*,t.*,public.t.*", []any{int64(1), int64(11), int64(1), int64(10), int64(1), int64(11), int64(1), int64(11), int64(1), int64(11)}},
 		{`WITH (NEW AS n,OLD AS "O")`, `"O".a,n.a`, []any{int64(10), int64(11)}},
 		{"WITH (OLD AS new)", "new.a,a", []any{int64(10), int64(11)}},
 		{"WITH (NEW AS old)", "old.a,a", []any{int64(11), int64(11)}},
@@ -18,16 +26,20 @@ func TestReferenceUpdateReturningAliases(t *testing.T) {
 			p := newReferenceScenario(t)
 			p.step(t, referenceExec("CREATE TABLE t(id INT NOT NULL,a INT)", 0))
 			p.step(t, referenceExec("INSERT INTO t VALUES(1,10)", 1))
+			names, types := []string{"a", "a"}, []string{"INT4", "INT4"}
+			if tc.options == "" {
+				names = []string{"id", "a", "id", "a", "id", "a", "id", "a", "id", "a"}
+				types = []string{"INT4", "INT4", "INT4", "INT4", "INT4", "INT4", "INT4", "INT4", "INT4", "INT4"}
+			}
 			for _, prepared := range []bool{false, true} {
 				p.step(t, referenceExec("UPDATE t SET a=10", 1))
-				s := referenceSelect("UPDATE t SET a=a+1 RETURNING "+tc.options+" "+tc.output, []string{"a", "a"}, []string{"INT4", "INT4"}, [][]any{tc.want})
+				s := referenceSelect("UPDATE t SET a=a+1 RETURNING "+tc.options+" "+tc.output, names, types, [][]any{tc.want})
 				s.prepared = prepared
 				p.step(t, s)
 			}
 		})
 	}
 }
-
 func TestReferenceUpdateReturningParameterOrder(t *testing.T) {
 	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(id INT,v TEXT)", 0))

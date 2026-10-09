@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -39,18 +37,14 @@ func schemaReferenceRow(t *testing.T, r *sql.Rows, label, typ string, want any) 
 	}
 }
 func TestReferenceSchemaPathsPrepared(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	schemaReferenceCleanup(t, "sp1", "sp2", "sp_shape", "sp_renamed", "path.dot", "path,comma", "path\"quote")
 	for _, q := range []string{"CREATE SCHEMA sp1 CREATE TABLE t(id INT)", "CREATE SCHEMA sp2 CREATE TABLE t(id INT)", "CREATE SCHEMA sp_shape CREATE TABLE t(id TEXT)", `CREATE SCHEMA "path.dot"`, `CREATE SCHEMA "path,comma"`, `CREATE SCHEMA "path""quote"`} {
 		p.step(t, referenceExec(q, 0))
 	}
 	p.step(t, referenceExec("INSERT INTO sp1.t VALUES(7)", 1))
 	p.step(t, referenceExec("INSERT INTO sp2.t VALUES(9)", 1))
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			a, err := backend.db.Conn(p.ctx)
 			if err != nil {
@@ -62,7 +56,7 @@ func TestReferenceSchemaPathsPrepared(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer b.Close()
-			run := func(c *sql.Conn, s referenceStep) { referenceRunStep(t, p.ctx, c, backend.record, s) }
+			run := func(c *sql.Conn, s referenceStep) { referenceRunStep(t, p.ctx, c, backend.recorder, s) }
 			run(a, referenceExec("SET search_path TO sp1,sp2", 0))
 			run(b, referenceExec("SET search_path TO sp2,sp1", 0))
 			held, err := a.PrepareContext(p.ctx, "SELECT id FROM t")
@@ -149,24 +143,25 @@ func TestReferenceSchemaPathsPrepared(t *testing.T) {
 			run(b, referenceExec("ALTER SCHEMA sp1 RENAME TO sp_renamed", 0))
 			schemaReferenceRow(t, retained, "id", "INT4", int64(7))
 			run(a, referenceSelect("SHOW search_path", []string{"search_path"}, []string{"TEXT"}, [][]any{{"sp1"}}))
+			for _, prepared := range []bool{false, true} {
+				s := schemaReferenceError("SELECT id FROM sp1.t", "42P01", `relation "sp1.t" does not exist`, "", prepared, "prepare", "16")
+				s.selectRows = true
+				run(a, s)
+			}
 			run(a, referenceExec("ALTER SCHEMA sp_renamed RENAME TO sp1", 0))
 		})
 	}
 }
 
 func TestReferenceSchemaSearchPath(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	schemaReferenceCleanup(t, "sp1", "sp2", "sp1,")
 	for _, q := range []string{"CREATE SCHEMA sp1 CREATE TABLE t(id INT)", "CREATE SCHEMA sp2 CREATE TABLE t(id INT)"} {
 		p.step(t, referenceExec(q, 0))
 	}
 	p.step(t, referenceExec("INSERT INTO sp1.t VALUES(7)", 1))
 	p.step(t, referenceExec("INSERT INTO sp2.t VALUES(9)", 1))
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			a, err := backend.db.Conn(p.ctx)
 			if err != nil {
@@ -178,7 +173,7 @@ func TestReferenceSchemaSearchPath(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer b.Close()
-			run := func(c *sql.Conn, s referenceStep) { referenceRunStep(t, p.ctx, c, backend.record, s) }
+			run := func(c *sql.Conn, s referenceStep) { referenceRunStep(t, p.ctx, c, backend.recorder, s) }
 			run(b, referenceExec("SET search_path TO sp1", 0))
 			for _, prepared := range []bool{false, true} {
 				s := referenceExec("SET search_path TO 'sp1,'", 0)
@@ -203,7 +198,7 @@ func TestReferenceSchemaSearchPath(t *testing.T) {
 						if prepared {
 							s = referencePrepared(s)
 						}
-						referenceRunStep(t, p.ctx, a, backend.record, s)
+						referenceRunStep(t, p.ctx, a, backend.recorder, s)
 					}
 					text := func(q, label, value string) {
 						step(referenceSelect(q, []string{label}, []string{"TEXT"}, [][]any{{value}}))
@@ -271,18 +266,14 @@ func TestReferenceSchemaSearchPath(t *testing.T) {
 
 func TestReferenceSchemaUserExpansion(t *testing.T) {
 	roleReferenceCleanup(t, []string{"spath_a", "spath_b"})
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	schemaReferenceCleanup(t, "spath_a", "spath_b")
 	for _, q := range []string{"CREATE USER spath_a", "CREATE USER spath_b", "CREATE SCHEMA spath_a AUTHORIZATION spath_a CREATE TABLE t(id INT)", "CREATE SCHEMA spath_b AUTHORIZATION spath_b CREATE TABLE t(id INT)"} {
 		p.step(t, referenceExec(q, 0))
 	}
 	p.step(t, referenceExec("INSERT INTO spath_a.t VALUES(7)", 1))
 	p.step(t, referenceExec("INSERT INTO spath_b.t VALUES(9)", 1))
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			a, err := backend.db.Conn(p.ctx)
 			if err != nil {
@@ -294,7 +285,7 @@ func TestReferenceSchemaUserExpansion(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer b.Close()
-			run := func(c *sql.Conn, s referenceStep) { referenceRunStep(t, p.ctx, c, backend.record, s) }
+			run := func(c *sql.Conn, s referenceStep) { referenceRunStep(t, p.ctx, c, backend.recorder, s) }
 			run(b, referenceExec("SET SESSION AUTHORIZATION spath_b", 0))
 			run(a, referenceExec("SET SESSION AUTHORIZATION spath_a", 0))
 			held, err := a.PrepareContext(p.ctx, "SELECT id FROM t")
@@ -321,7 +312,7 @@ func TestReferenceSchemaUserExpansion(t *testing.T) {
 			}
 			run(a, referenceExec("RESET SESSION AUTHORIZATION", 0))
 			authenticator := "postgres"
-			if backend.name == "postgres" {
+			if backend.pg {
 				authenticator = "stuntgres"
 			}
 			run(a, referenceSelect("SELECT current_user", []string{"current_user"}, []string{"NAME"}, [][]any{{authenticator}}))

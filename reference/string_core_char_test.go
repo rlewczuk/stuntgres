@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,7 +7,7 @@ import (
 
 // CHAR/string is ambiguous; CHAR/nonstring can resolve a unique mixed overload.
 // Expected fields and CHAR/nonstring results follow root's pinned18 oracle capture.
-func stringCoreReferenceChar(t *testing.T, p *referencePair, oracle bool) {
+func stringCoreReferenceChar(t *testing.T, p *referencePair) {
 	for _, v := range []any{"A", `\377`, `\200`, `\000`, nil} {
 		for _, tc := range []struct{ q, message, position string }{
 			{"SELECT '['::text||CASE WHEN false THEN relkind ELSE $1 END AS v FROM pg_catalog.pg_class WHERE relname='string_core_seed'", `operator is not unique: text || "char"`, "17"},
@@ -23,11 +21,7 @@ func stringCoreReferenceChar(t *testing.T, p *referencePair, oracle bool) {
 						s = referencePrepared(s)
 						s.errorStage = "prepare"
 					}
-					if oracle {
-						referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-					} else {
-						p.step(t, s)
-					}
+					p.step(t, s)
 				})
 			}
 		}
@@ -50,39 +44,15 @@ func stringCoreReferenceChar(t *testing.T, p *referencePair, oracle bool) {
 					if prepared {
 						s = referencePrepared(s)
 					}
-					if oracle {
-						referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-					} else {
-						p.step(t, s)
-					}
+					p.step(t, s)
 				})
 			}
 		}
 	}
 }
 
-func stringCoreOracleHangulBoundary(t *testing.T, p *referencePair) {
-	// REL_18_0 inclusive TBASE recomposition consumes U+11A7. Predicate quickcheck
-	// can return YES without recomposition; these are independent oracle probes,
-	// not a universal normalize(input)==input implementation assumption.
-	for _, tc := range []stringCoreReferenceCase{
-		{"SELECT normalize('가ᆧ',NFC) AS v", "가", "TEXT"},
-		{"SELECT normalize('가ᆧ',NFKC) AS v", "가", "TEXT"},
-		{"SELECT normalize('가ᆧ',NFD) AS v", "가ᆧ", "TEXT"},
-		{"SELECT normalize('가ᆧ',NFKD) AS v", "가ᆧ", "TEXT"},
-		{"SELECT '가ᆧ' IS NFC NORMALIZED AS v", true, "BOOL"},
-		{"SELECT '가ᆧ' IS NFKC NORMALIZED AS v", true, "BOOL"},
-		{"SELECT '가ᆧ' IS NFC NORMALIZED AS v", false, "BOOL"},
-		{"SELECT '가ᆧ' IS NFKC NORMALIZED AS v", false, "BOOL"},
-	} {
-		for _, prepared := range []bool{false, true} {
-			t.Run(fmt.Sprintf("hangul_boundary/%s/prepared=%t", tc.query, prepared), func(t *testing.T) {
-				s := stringCoreSelect(tc)
-				if prepared {
-					s = referencePrepared(s)
-				}
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-			})
-		}
-	}
+func TestReferenceStringCoreLexicalLabels(t *testing.T) {
+	p := newReferenceScenario(t)
+	p.step(t, referenceSelect("SELECT trim(' x ')", []string{"btrim"}, []string{"TEXT"}, [][]any{{"x"}}))
+	p.step(t, referenceImplicitError("/*é🙂*/ SELECT 1 || 2", referenceDiagnostic{Code: "42883", Message: "operator does not exist: integer || integer", Position: "17", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}))
 }

@@ -21,9 +21,9 @@ qualified declarations, chains, owners and data. Domain DEFAULT/CHECK/NOT NULL,
 ALTER DOMAIN, general arrays, type ACL-management SQL and transactional domain DDL
 remain excluded. See [domains](docs/TYPES.md#domains--change-note).
 Feature smokes:
-`make test PACKAGES=./reference RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$' VERBOSE=0`,
-`make test PACKAGES=./reference RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$' VERBOSE=0`,
-and pinned `make reference RUN='^TestReferenceDomain' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$' VERBOSE=0`,
+and pinned `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDomain' VERBOSE=0`.
 
 Session identity uses typed scalar expressions: `current_catalog`,
 `current_database()`, `current_role`, `current_user`, `session_user`, `user`
@@ -250,7 +250,8 @@ an optimizer promise; unordered SELECT has no new ordering guarantee. Dump/Resto
 serializes actual current index definitions and rebuilds entries. Native CREATE
 INDEX is excluded in explicit transactions, unlike PostgreSQL; standalone CREATE
 UNIQUE INDEX, expression, partial and concurrent indexes remain excluded.
-Shared smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUniqueBtree(Regression|Controls|Lifecycle)$'`.
+Shared smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBtreeIndex(Regression|Controls|Lifecycle)$'`;
+use the same RUN with `REFERENCE=1` for the independent pinned PostgreSQL oracle.
 
 Change note: CREATE TABLE column/table UNIQUE supports ordered simple keys and
 `NULLS DISTINCT` (default) or `NULLS NOT DISTINCT`. Each retained constraint owns
@@ -818,18 +819,32 @@ See the [development guide](docs/DEVELOPMENT.md#dual-mode-query-reads-and-legacy
 for the migrated families, temporal adapter differences and complete selection
 commands.
 
+Change note: the final driver/session/catalog cutover relocates all372 remaining
+root SQL scenarios into651 shared untagged reference definitions and44 separately
+selected companions:39 PostgreSQL-only and five PostgreSQL-required differential
+definitions. All131 obsolete helper dispositions are accounted for. Actual
+original DB/Tx/Stmt and pinned-Conn producers, typed/metadata/raw consumers,
+SAME held statements, native controls and failure-safe cleanup survive alongside
+the recorded Context assertion union.
+No root SQL helper/simulation remains;13 focused nonSQL units and the startup
+benchmark remain. This changes test placement, not production SQL behavior.
+See [whole-root cutover commands](docs/DEVELOPMENT.md#driver-session-and-catalog-whole-root-cutover).
+
 The `reference` build tag still includes untouched legacy PostgreSQL tests and
 retained PostgreSQL-only edges; it does not select runtime mode. A tagged
 selection restricted to mode-aware migrated tests with `-reference=false`
 remains Docker-free, but selecting a legacy test lazily starts the same pinned
-container even when the flag is absent or false. These migrations are not a
-whole-suite quick migration: unmigrated families and PostgreSQL-only ACL,
-inheritance, keyed-row, role-lifetime and DML server edges remain tagged, as does
-the cross-family `TestReferenceControlTransactionsDiagnostics` scenario.
+container even when the flag is absent or false. Whole-root cutover does not
+convert every PostgreSQL-only ACL, inheritance, keyed-row, role-lifetime or
+rules/trigger edge to native coverage. `TestReferenceControlTransactionsDiagnostics`
+is now an untagged dual-mode scenario, not a legacy Docker-only test.
 `make quickcheck REFERENCE=1 PACKAGES=./reference` enables the `reference` build tag
 and `-args -reference=true` only for `./reference`. After merge, `make fullcheck` runs
 generation/build, quick native tests, race-enabled native and real pinned PostgreSQL
-reference tests, bench and deps under one aggregate 1800-second deadline.
+reference tests, bench and deps under one aggregate 1800-second default deadline.
+This final-cutover task retains its user-authorized external900second bound:
+`timeout --signal=KILL 900s make fullcheck VERBOSE=0`; it does not change the
+incoming Makefile's1800second fullcheck or900second quickcheck defaults.
 
 
 Start with the [dialect contract](docs/DIALECT.md) and

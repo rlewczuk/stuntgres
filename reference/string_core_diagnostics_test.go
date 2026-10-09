@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -44,12 +42,12 @@ func stringCoreDiagnosticStep(tc stringCoreDiagnosticCase, prepared bool) refere
 	return s
 }
 func TestReferenceStringCoreDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, tc := range stringCoreDiagnosticCases() {
 		t.Run(tc.q, func(t *testing.T) {
 			p.step(t, stringCoreDiagnosticStep(tc, false))
 			p.step(t, stringCoreDiagnosticStep(tc, true))
 		})
 	}
-	stringCoreReferenceDiagnosticParameters(t, p, false)
+	stringCoreReferenceDiagnosticParameters(t, p)
 }

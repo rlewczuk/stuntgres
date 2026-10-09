@@ -1,11 +1,11 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 	"stuntgres"
 	"testing"
 )
@@ -86,36 +86,54 @@ func referenceVisibilityHeldPair(t *testing.T, conn *sql.Conn, a, b int64, paths
 			if err := held.QueryRowContext(ctx, obj.id).Scan(&got); err != nil || got != obj.want {
 				t.Fatal(path, obj, got, err)
 			}
+			rows, err := held.QueryContext(ctx, obj.id)
+			visibilityInquiryRows(t, rows, err, "pg_table_is_visible", []any{obj.want})
 		}
 	}
 }
 
 func TestReferenceVisibilityInquiryRestoredSameNameReversal(t *testing.T) {
-	p := newReferencePair(t)
-	for _, q := range []string{"CREATE SCHEMA pgv_restore_a", "CREATE SCHEMA pgv_restore_b", "CREATE TABLE pgv_restore_a.pgv_restored_pair(id INT)", "CREATE TABLE pgv_restore_b.pgv_restored_pair(id INT)"} {
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(q, 0))
-	}
-	var dump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
-		t.Fatal(err)
-	}
-	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
-		t.Fatal(err)
-	}
-	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal(err)
-	}
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
-		conn, err := db.Conn(p.ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		a, b := referenceVisibilityPair(t, conn, "pgv_restored_pair", "pgv_restore_a,pgv_restore_b", "pgv_restore_b,pgv_restore_a")
-		referenceVisibilityHeldPair(t, conn, a, b, []string{"pgv_restore_a,pgv_restore_b", "pgv_restore_b,pgv_restore_a", "public"})
-		conn.Close()
+	for _, source := range []bool{false, true} {
+		t.Run(fmt.Sprint(source), func(t *testing.T) {
+			p := newReferenceScenario(t)
+			if p.postgres != nil {
+				t.Cleanup(func() {
+					if _, err := p.postgres.ExecContext(context.Background(), "DROP SCHEMA IF EXISTS pgv_restore_a,pgv_restore_b CASCADE"); err != nil {
+						t.Error("restored visibility schema cleanup", err)
+					}
+				})
+			}
+			for _, q := range []string{"CREATE SCHEMA pgv_restore_a", "CREATE SCHEMA pgv_restore_b", "CREATE TABLE pgv_restore_a.pgv_restored_pair(id INT)", "CREATE TABLE pgv_restore_b.pgv_restored_pair(id INT)"} {
+				s := referenceExec(q, 0)
+				s.nonContext = source
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, s)
+			}
+			var dump bytes.Buffer
+			if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			if p.postgres != nil {
+				if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, backend := range p.backends() {
+				conn, err := backend.db.Conn(p.ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer conn.Close()
+				a, b := referenceVisibilityPair(t, conn, "pgv_restored_pair", "pgv_restore_a,pgv_restore_b", "pgv_restore_b,pgv_restore_a")
+				referenceVisibilityHeldPair(t, conn, a, b, []string{"pgv_restore_a,pgv_restore_b", "pgv_restore_b,pgv_restore_a", "public"})
+				conn.Close()
+			}
+		})
 	}
 }
 
@@ -131,16 +149,38 @@ func TestReferenceVisibilityInquiryTempPrecedence(t *testing.T) {
 }
 
 func TestReferenceVisibilityInquiryUserPathRefresh(t *testing.T) {
+	roleReferenceCleanup(t, []string{"pgv_user_a", "pgv_user_b"})
 	deparseReviewStreams(t, func(t *testing.T, conn *sql.Conn, postgres bool, run func(referenceStep) referenceObserved) {
-		defer func() {
-			for _, q := range []string{"RESET ROLE", "SET search_path=public", "DROP SCHEMA pgv_user_a CASCADE", "DROP SCHEMA pgv_user_b CASCADE", "DROP ROLE pgv_user_a", "DROP ROLE pgv_user_b"} {
-				if _, err := conn.ExecContext(context.Background(), q); err != nil {
+		roles := []string{"pgv_user_a", "pgv_user_b"}
+		var createdRoles []string
+		cleanup := func() {
+			exec := conn.ExecContext
+			if postgres {
+				exec = referenceAdmin.ExecContext
+			}
+			for _, q := range []string{"RESET ROLE", "SET search_path=public", "DROP SCHEMA IF EXISTS pgv_user_a CASCADE", "DROP SCHEMA IF EXISTS pgv_user_b CASCADE"} {
+				if _, err := exec(context.Background(), q); err != nil {
 					t.Error(q, err)
 				}
 			}
-		}()
-		for _, q := range []string{"CREATE ROLE pgv_user_a", "CREATE ROLE pgv_user_b", "CREATE SCHEMA pgv_user_a AUTHORIZATION pgv_user_a", "CREATE SCHEMA pgv_user_b AUTHORIZATION pgv_user_b", "CREATE TABLE pgv_user_a.pgv_user_pair(id INT)", "CREATE TABLE pgv_user_b.pgv_user_pair(id INT)"} {
+			if !postgres {
+				for _, role := range createdRoles {
+					if _, err := exec(context.Background(), "DROP ROLE "+role); err != nil {
+						t.Error("native user-path role cleanup", role, err)
+					}
+				}
+			}
+		}
+		if postgres {
+			t.Cleanup(cleanup)
+		} else {
+			defer cleanup()
+		}
+		for i, q := range []string{"CREATE ROLE pgv_user_a", "CREATE ROLE pgv_user_b", "CREATE SCHEMA pgv_user_a AUTHORIZATION pgv_user_a", "CREATE SCHEMA pgv_user_b AUTHORIZATION pgv_user_b", "CREATE TABLE pgv_user_a.pgv_user_pair(id INT)", "CREATE TABLE pgv_user_b.pgv_user_pair(id INT)"} {
 			run(referenceExec(q, 0))
+			if i < len(roles) {
+				createdRoles = append(createdRoles, roles[i])
+			}
 		}
 		a, b := referenceVisibilityPair(t, conn, "pgv_user_pair", "pgv_user_a,pgv_user_b", "pgv_user_b,pgv_user_a")
 		run(referenceExec(`SET search_path="$user",public`, 0))
@@ -169,23 +209,21 @@ func TestReferenceVisibilityInquiryUserPathRefresh(t *testing.T) {
 }
 
 func TestReferenceVisibilityInquiryForeignTemp(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db      *sql.DB
-		rec     *referenceRecorder
-		visible bool
-	}{{p.memory, p.memoryRecord, false}, {p.postgres, p.postgresRecord, true}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		backend.db.SetMaxOpenConns(2)
 		owner, err := backend.db.Conn(p.ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer owner.Close()
-		referenceRunStep(t, p.ctx, owner, backend.rec, referenceExec("CREATE TEMP SEQUENCE pgv_foreign_temp", 0))
+		referenceRunStep(t, p.ctx, owner, backend.recorder, referenceExec("CREATE TEMP SEQUENCE pgv_foreign_temp", 0))
 		var id int64
 		if err := owner.QueryRowContext(p.ctx, "SELECT oid FROM pg_catalog.pg_class WHERE relname='pgv_foreign_temp'").Scan(&id); err != nil || id <= 0 {
 			t.Fatal(id, err)
 		}
+		rows, err := owner.QueryContext(p.ctx, "SELECT pg_table_is_visible($1)", id)
+		visibilityInquiryRows(t, rows, err, "pg_table_is_visible", []any{true})
 		if _, err := owner.ExecContext(p.ctx, "SET search_path=pg_temp,public"); err != nil {
 			t.Fatal(err)
 		}
@@ -193,6 +231,25 @@ func TestReferenceVisibilityInquiryForeignTemp(t *testing.T) {
 		if err := owner.QueryRowContext(p.ctx, "SELECT current_schema").Scan(&namespace); err != nil {
 			t.Fatal(err)
 		}
+		if !strings.HasPrefix(namespace, "pg_temp_") {
+			t.Fatal("missing TEMP namespace identity", namespace)
+		}
+		var ownPath string
+		if err := owner.QueryRowContext(p.ctx, "SELECT current_schemas(true)").Scan(&ownPath); err != nil {
+			t.Fatal(err)
+		}
+		// pg_catalog is implicit and precedes the explicitly positioned TEMP
+		// namespace. current_schema instead selects the first explicit entry.
+		if want := "{pg_catalog," + namespace + ",public}"; ownPath != want {
+			t.Fatal("TEMP resolved path/namespace identity mismatch", ownPath, want)
+		}
+		var explicitPath string
+		if err := owner.QueryRowContext(p.ctx, "SELECT current_schemas(false)").Scan(&explicitPath); err != nil || explicitPath != "{"+namespace+",public}" {
+			t.Fatal("TEMP explicit path/namespace identity mismatch", explicitPath, namespace, err)
+		}
+		fixed := referenceSelect("SELECT pg_table_is_visible(1259) AS catalog_visible,pg_table_is_visible($1) AS temp_visible", []string{"catalog_visible", "temp_visible"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}, id)
+		fixed.checkMetadata = visibilityBoolMetadata
+		referenceRunStep(t, p.ctx, owner, backend.recorder, fixed)
 		peer, err := backend.db.Conn(p.ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -207,7 +264,13 @@ func TestReferenceVisibilityInquiryForeignTemp(t *testing.T) {
 		}
 		// Native paths intentionally exclude foreign TEMP; PostgreSQL searches
 		// an explicitly named peer namespace when schema USAGE permits it.
-		referenceRunStep(t, p.ctx, peer, backend.rec, referenceSelect("SELECT pg_table_is_visible($1)", []string{"pg_table_is_visible"}, []string{"BOOL"}, [][]any{{backend.visible}}, id))
+		selected := referenceSelect("SELECT pg_table_is_visible($1)", []string{"pg_table_is_visible"}, []string{"BOOL"}, [][]any{{backend.pg}}, id)
+		selected.checkMetadata = visibilityBoolMetadata
+		referenceRunStep(t, p.ctx, peer, backend.recorder, selected)
+		var visible bool
+		if err := peer.QueryRowContext(p.ctx, "SELECT pg_table_is_visible($1)", id).Scan(&visible); err != nil || visible != backend.pg {
+			t.Fatal("foreign TEMP scalar consumer", visible, err)
+		}
 		var after string
 		if err := peer.QueryRowContext(p.ctx, "SELECT current_schemas(true)").Scan(&after); err != nil {
 			t.Fatal(err)
@@ -221,62 +284,94 @@ func TestReferenceVisibilityInquiryForeignTemp(t *testing.T) {
 }
 
 func TestReferenceVisibilityInquiryIndexRelations(t *testing.T) {
-	p := newReferencePair(t)
-	p.memory.SetMaxOpenConns(1)
-	p.postgres.SetMaxOpenConns(1)
-	t.Cleanup(func() {
-		if _, err := p.postgres.ExecContext(p.ctx, "DROP SCHEMA IF EXISTS pgv_index_a,pgv_index_b CASCADE"); err != nil {
-			t.Error("index visibility schema cleanup", err)
-		}
-	})
-	for _, q := range []string{
-		"CREATE SCHEMA pgv_index_a", "CREATE SCHEMA pgv_index_b",
-		"CREATE TABLE pgv_index_a.index_parent(id INT)", "CREATE TABLE pgv_index_b.index_parent(id INT)",
-		"CREATE INDEX pgv_index_pair ON pgv_index_a.index_parent(id)", "CREATE INDEX pgv_index_pair ON pgv_index_b.index_parent(id)",
-		"CREATE INDEX pgv_index_table ON pgv_index_a.index_parent(id)", "CREATE TABLE pgv_index_b.pgv_index_table(id INT)",
-		"CREATE VIEW pgv_index_a.pgv_view_index AS SELECT id FROM pgv_index_a.index_parent", "CREATE INDEX pgv_view_index ON pgv_index_b.index_parent(id)",
-		"CREATE SEQUENCE pgv_index_a.pgv_sequence_index", "CREATE INDEX pgv_sequence_index ON pgv_index_b.index_parent(id)",
-	} {
-		p.step(t, referenceExec(q, 0))
-	}
-	p.step(t, referenceExec("INSERT INTO pgv_index_a.index_parent VALUES(7)", 1))
-	p.step(t, referenceExec("INSERT INTO pgv_index_b.index_parent VALUES(9)", 1))
-	check := func() {
-		t.Helper()
-		for _, name := range []string{"pgv_index_pair", "pgv_index_table", "pgv_view_index", "pgv_sequence_index"} {
-			for _, tc := range []struct {
-				path   string
-				av, bv bool
-			}{{"pgv_index_a,pgv_index_b", true, false}, {"pgv_index_b,pgv_index_a", false, true}, {"public", false, false}} {
-				p.step(t, referenceExec("SET search_path="+tc.path, 0))
-				q := "SELECT pg_table_is_visible('pgv_index_a." + name + "'::regclass),pg_table_is_visible('pgv_index_b." + name + "'::regclass)"
-				p.step(t, referenceSelect(q, []string{"pg_table_is_visible", "pg_table_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{tc.av, tc.bv}}))
+	for _, source := range []bool{false, true} {
+		t.Run(fmt.Sprint(source), func(t *testing.T) {
+			p := newReferenceScenario(t)
+			run := func(s referenceStep) { s.nonContext = source; p.step(t, s) }
+			for _, backend := range p.backends() {
+				backend.db.SetMaxOpenConns(1)
 			}
-			for _, db := range []*sql.DB{p.memory, p.postgres} {
-				conn, err := db.Conn(p.ctx)
-				if err != nil {
-					t.Fatal(err)
+			if p.postgres != nil {
+				t.Cleanup(func() {
+					if _, err := p.postgres.ExecContext(p.ctx, "DROP SCHEMA IF EXISTS pgv_index_a,pgv_index_b CASCADE"); err != nil {
+						t.Error("index visibility schema cleanup", err)
+					}
+				})
+			}
+			for _, q := range []string{
+				"CREATE SCHEMA pgv_index_a", "CREATE SCHEMA pgv_index_b",
+				"CREATE TABLE pgv_index_a.index_parent(id INT)", "CREATE TABLE pgv_index_b.index_parent(id INT)",
+				"CREATE INDEX pgv_index_pair ON pgv_index_a.index_parent(id)", "CREATE INDEX pgv_index_pair ON pgv_index_b.index_parent(id)",
+				"CREATE INDEX pgv_index_table ON pgv_index_a.index_parent(id)", "CREATE TABLE pgv_index_b.pgv_index_table(id INT)",
+				"CREATE VIEW pgv_index_a.pgv_view_index AS SELECT id FROM pgv_index_a.index_parent", "CREATE INDEX pgv_view_index ON pgv_index_b.index_parent(id)",
+				"CREATE SEQUENCE pgv_index_a.pgv_sequence_index", "CREATE INDEX pgv_sequence_index ON pgv_index_b.index_parent(id)",
+			} {
+				run(referenceExec(q, 0))
+			}
+			run(referenceExec("INSERT INTO pgv_index_a.index_parent VALUES(7)", 1))
+			run(referenceExec("INSERT INTO pgv_index_b.index_parent VALUES(9)", 1))
+			check := func() {
+				t.Helper()
+				for _, backend := range p.backends() {
+					conn, err := backend.db.Conn(p.ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					held, err := conn.PrepareContext(p.ctx, "SELECT pg_table_is_visible($1)")
+					if err != nil {
+						conn.Close()
+						t.Fatal(err)
+					}
+					func() {
+						defer conn.Close()
+						defer held.Close()
+						for _, name := range []string{"pgv_index_pair", "pgv_index_table", "pgv_view_index", "pgv_sequence_index"} {
+							a, b := referenceVisibilityPair(t, conn, name, "pgv_index_a,pgv_index_b", "pgv_index_b,pgv_index_a")
+							for _, tc := range []struct {
+								path   string
+								av, bv bool
+							}{{"pgv_index_a,pgv_index_b", true, false}, {"pgv_index_b,pgv_index_a", false, true}, {"public", false, false}} {
+								referenceRunStep(t, p.ctx, conn, backend.recorder, referenceExec("SET search_path="+tc.path, 0))
+								q := "SELECT pg_table_is_visible('pgv_index_a." + name + "'::regclass),pg_table_is_visible('pgv_index_b." + name + "'::regclass)"
+								s := referenceSelect(q, []string{"pg_table_is_visible", "pg_table_is_visible"}, []string{"BOOL", "BOOL"}, [][]any{{tc.av, tc.bv}})
+								s.checkMetadata = visibilityBoolMetadata
+								referenceRunStep(t, p.ctx, conn, backend.recorder, s)
+								var av, bv bool
+								if err := conn.QueryRowContext(p.ctx, q).Scan(&av, &bv); err != nil || av != tc.av || bv != tc.bv {
+									t.Fatal(name, tc.path, av, bv, err)
+								}
+								for _, obj := range []struct {
+									id   int64
+									want bool
+								}{{a, tc.av}, {b, tc.bv}} {
+									rows, err := held.QueryContext(p.ctx, obj.id)
+									visibilityInquiryRows(t, rows, err, "pg_table_is_visible", []any{obj.want})
+									var got bool
+									if err := held.QueryRowContext(p.ctx, obj.id).Scan(&got); err != nil || got != obj.want {
+										t.Fatal(got, obj.want, err)
+									}
+								}
+							}
+						}
+					}()
 				}
-				a, b := referenceVisibilityPair(t, conn, name, "pgv_index_a,pgv_index_b", "pgv_index_b,pgv_index_a")
-				referenceVisibilityHeldPair(t, conn, a, b, []string{"pgv_index_a,pgv_index_b", "pgv_index_b,pgv_index_a", "public"})
-				conn.Close()
 			}
-		}
+			check()
+			var dump bytes.Buffer
+			if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+				t.Fatal(err)
+			}
+			if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			// PostgreSQL retains its independently created objects. Compare native
+			// reconstructed identities with the same explicit expectations, not OIDs.
+			check()
+			run(referenceSelect("SELECT id FROM pgv_index_a.index_parent", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
+			run(referenceSelect("SELECT id FROM pgv_index_b.index_parent", []string{"id"}, []string{"INT4"}, [][]any{{int64(9)}}))
+		})
 	}
-	check()
-	var dump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
-		t.Fatal(err)
-	}
-	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
-		t.Fatal(err)
-	}
-	if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
-		t.Fatal(err)
-	}
-	// PostgreSQL retains its independently created objects. Compare native
-	// reconstructed identities with the same explicit expectations, not OIDs.
-	check()
-	p.step(t, referenceSelect("SELECT id FROM pgv_index_a.index_parent", []string{"id"}, []string{"INT4"}, [][]any{{int64(7)}}))
-	p.step(t, referenceSelect("SELECT id FROM pgv_index_b.index_parent", []string{"id"}, []string{"INT4"}, [][]any{{int64(9)}}))
 }

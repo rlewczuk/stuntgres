@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,16 +6,11 @@ import (
 	"testing"
 )
 
-func TestReferenceLikeOraclePrecedence(t *testing.T) { likeReferencePrecedence(t, true) }
-func TestReferenceLikePrecedence(t *testing.T)       { likeReferencePrecedence(t, false) }
-func likeReferencePrecedence(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+func TestReferenceLikePrecedence(t *testing.T) {
+	p := newReferenceScenario(t)
 	run := func(s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
 	run(referenceExec("CREATE TABLE t(a TEXT,b TEXT,c TEXT)", 0))
 	for _, symbol := range []string{"~~", "OPERATOR(pg_catalog.~~)"} {
@@ -37,17 +30,11 @@ func likeReferencePrecedence(t *testing.T, oracleOnly bool) {
 	}
 }
 
-func TestReferenceLikeOracleMixedPrecedence(t *testing.T) { likeReferenceMixedPrecedence(t, true) }
-func TestReferenceLikeMixedPrecedence(t *testing.T)       { likeReferenceMixedPrecedence(t, false) }
-
-func likeReferenceMixedPrecedence(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+func TestReferenceLikeMixedPrecedence(t *testing.T) {
+	p := newReferenceScenario(t)
 	run := func(t *testing.T, s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
 	run(t, referenceExec("CREATE TABLE t(id INT,v TEXT)", 0))
 	run(t, referenceExec("INSERT INTO t VALUES(1,'ab'),(2,'b'),(3,NULL)", 3))

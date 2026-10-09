@@ -1,10 +1,11 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"bytes"
+	"database/sql"
 	"fmt"
 	"strings"
+	"stuntgres"
 	"testing"
 )
 
@@ -73,14 +74,10 @@ func stringCoreReview2ByteaValue(name string) []byte {
 	return []byte("Y")
 }
 
-func stringCoreReview2Reference(t *testing.T, p *referencePair, oracle bool) {
+func stringCoreReview2Reference(t *testing.T, p *referencePair) {
 	run := func(t *testing.T, s referenceStep) {
 		t.Helper()
-		if oracle {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		p.step(t, s)
 	}
 	for _, tc := range stringCoreReview2Cases() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -114,6 +111,34 @@ func stringCoreReview2Reference(t *testing.T, p *referencePair, oracle bool) {
 			}
 		})
 	}
+	{
+		var dump bytes.Buffer
+		if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+			t.Fatal(err)
+		}
+		if err := stuntgres.Reset(p.ctx, p.native); err != nil {
+			t.Fatal(err)
+		}
+		if err := stuntgres.Restore(p.ctx, p.native, bytes.NewReader(dump.Bytes())); err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range stringCoreReview2Cases() {
+			for _, mode := range []struct{ suffix, want string }{{"", tc.compact}, {",false", tc.compact}, {",true", tc.pretty}} {
+				for _, prepared := range []bool{false, true} {
+					for _, consumer := range []struct{ q, want string }{
+						{"SELECT pg_get_expr(conbin,conrelid" + mode.suffix + ") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_" + tc.name + "'", mode.want},
+						{"SELECT pg_get_constraintdef(oid" + mode.suffix + ") AS d FROM pg_catalog.pg_constraint WHERE conname='sc2c_" + tc.name + "'", "CHECK (" + mode.want + ")"},
+					} {
+						step := referenceSelect(consumer.q, []string{"d"}, []string{"TEXT"}, [][]any{{consumer.want}})
+						if prepared {
+							step = referencePrepared(step)
+						}
+						run(t, step)
+					}
+				}
+			}
+		}
+	}
 	run(t, referenceExec("CREATE TABLE sc2_group(v BYTEA,s BYTEA)", 0))
 	run(t, referenceExec("INSERT INTO sc2_group VALUES($1,$2),(NULL,NULL)", 2, []byte("xxYxx"), []byte("x")))
 	for _, trim := range []struct{ name, dir string }{{"btrim", "BOTH"}, {"ltrim", "LEADING"}, {"rtrim", "TRAILING"}} {
@@ -121,6 +146,19 @@ func stringCoreReview2Reference(t *testing.T, p *referencePair, oracle bool) {
 		for _, pair := range [][2]string{{ordinary, special}, {special, ordinary}} {
 			for _, prepared := range []bool{false, true} {
 				s := referenceSelect("SELECT "+pair[0]+" AS value FROM sc2_group GROUP BY "+pair[1]+" ORDER BY 1", []string{"value"}, []string{"BYTEA"}, [][]any{{string(stringCoreReview2ByteaValue(trim.name))}, {nil}})
+				s.checkScan = func(t *testing.T, rows *sql.Rows, row int) {
+					var value []byte
+					if err := rows.Scan(&value); err != nil {
+						t.Fatal(err)
+					}
+					if row == 1 {
+						if value != nil {
+							t.Fatal("grouped NULL", value)
+						}
+					} else if !bytes.Equal(value, stringCoreReview2ByteaValue(trim.name)) {
+						t.Fatal("grouped owned bytes", value)
+					}
+				}
 				if prepared {
 					s = referencePrepared(s)
 				}
@@ -130,9 +168,6 @@ func stringCoreReview2Reference(t *testing.T, p *referencePair, oracle bool) {
 	}
 }
 
-func TestReferenceStringCoreReview2Oracle(t *testing.T) {
-	stringCoreReview2Reference(t, newReferencePair(t), true)
-}
 func TestReferenceStringCoreReview2Deparse(t *testing.T) {
-	stringCoreReview2Reference(t, newReferencePair(t), false)
+	stringCoreReview2Reference(t, newReferenceScenario(t))
 }

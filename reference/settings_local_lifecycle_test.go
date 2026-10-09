@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,8 +7,9 @@ import (
 )
 
 func TestReferenceSettingsLocalNoticeLifecycle(t *testing.T) {
-	p := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		postgres := backend.pg
 		for _, prepared := range []bool{false, true} {
 			for _, commit := range []bool{false, true} {
 				for _, baseline := range []string{"notice", "error"} {
@@ -53,15 +52,15 @@ func TestReferenceSettingsLocalNoticeLifecycle(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						run(c, localReferenceSelect("SHOW client_min_messages", "client_min_messages", baseline))
-						run(c, localReferenceSelect("SHOW application_name", "application_name", "b"))
+						run(c, localReferenceSelect(backend.pg, "SHOW client_min_messages", "client_min_messages", baseline))
+						run(c, localReferenceSelect(backend.pg, "SHOW application_name", "application_name", "b"))
 						before = len(notices)
 						run(c, step)
 						count = 1 - count
 						if len(notices) != before+count || (count == 1 && notices[before] != want) {
 							t.Fatal("restored notice filtering", notices)
 						}
-						run(c, localReferenceSelect("SHOW application_name", "application_name", "b"))
+						run(c, localReferenceSelect(backend.pg, "SHOW application_name", "application_name", "b"))
 					})
 				}
 			}
@@ -70,8 +69,9 @@ func TestReferenceSettingsLocalNoticeLifecycle(t *testing.T) {
 }
 
 func TestReferenceSettingsLocalResetAllBatch(t *testing.T) {
-	p := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		postgres := backend.pg
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("postgres=%v/prepared=%v", postgres, prepared), func(t *testing.T) {
 				var notices []referenceDiagnostic
@@ -94,7 +94,7 @@ func TestReferenceSettingsLocalResetAllBatch(t *testing.T) {
 					{"batch.placeholder", "original", "changed", ""},
 				}
 				for _, s := range settings[:4] {
-					run(c, localReferenceSelect("SHOW "+s.name, s.name, s.reset))
+					run(c, localReferenceSelect(backend.pg, "SHOW "+s.name, s.name, s.reset))
 				}
 				for _, s := range settings {
 					run(c, referenceExec("SET "+s.name+"='"+s.original+"'", 0))
@@ -106,17 +106,17 @@ func TestReferenceSettingsLocalResetAllBatch(t *testing.T) {
 				defer tx.Rollback()
 				for _, s := range settings {
 					run(tx, referenceExec("SET LOCAL "+s.name+"='"+s.changed+"'", 0))
-					run(tx, localReferenceSelect("SHOW "+s.name, s.name, s.changed))
+					run(tx, localReferenceSelect(backend.pg, "SHOW "+s.name, s.name, s.changed))
 				}
 				run(tx, referenceExec("RESET ALL", 0))
 				for _, s := range settings {
-					run(tx, localReferenceSelect("SHOW "+s.name, s.name, s.reset))
+					run(tx, localReferenceSelect(backend.pg, "SHOW "+s.name, s.name, s.reset))
 				}
 				if err = tx.Rollback(); err != nil {
 					t.Fatal(err)
 				}
 				for _, s := range settings {
-					run(c, localReferenceSelect("SHOW "+s.name, s.name, s.original))
+					run(c, localReferenceSelect(backend.pg, "SHOW "+s.name, s.name, s.original))
 				}
 				if len(notices) != 0 {
 					t.Fatal("explicit batch emitted notices", notices)
@@ -127,8 +127,9 @@ func TestReferenceSettingsLocalResetAllBatch(t *testing.T) {
 }
 
 func TestReferenceSettingsLocalSQLControls(t *testing.T) {
-	p := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		postgres := backend.pg
 		for _, prepared := range []bool{false, true} {
 			for _, end := range []string{"COMMIT", "END WORK", "ROLLBACK", "ABORT TRANSACTION"} {
 				for _, chain := range []bool{false, true} {
@@ -145,7 +146,7 @@ func TestReferenceSettingsLocalSQLControls(t *testing.T) {
 							defer c.ExecContext(p.ctx, "ROLLBACK")
 							run(referenceExec("SET application_name='s'", 0))
 							run(referenceExec("SET LOCAL application_name='l'", 0))
-							run(localReferenceSelect("SHOW application_name", "application_name", "l"))
+							run(localReferenceSelect(backend.pg, "SHOW application_name", "application_name", "l"))
 							if aborted {
 								run(settingsReferenceError("SET absent_setting='x'", "42704", `unrecognized configuration parameter "absent_setting"`, "", ""))
 								unreachable := settingsReferenceError("SET application_name='unreachable'", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "", "")
@@ -163,12 +164,31 @@ func TestReferenceSettingsLocalSQLControls(t *testing.T) {
 							if !aborted && (end == "COMMIT" || end == "END WORK") {
 								want = "s"
 							}
-							run(localReferenceSelect("SHOW application_name", "application_name", want))
+							run(localReferenceSelect(backend.pg, "SHOW application_name", "application_name", want))
 							if chain {
 								run(referenceExec("SET LOCAL application_name='n'", 0))
-								run(localReferenceSelect("SHOW application_name", "application_name", "n"))
+								run(localReferenceSelect(backend.pg, "SHOW application_name", "application_name", "n"))
 								run(referenceExec("ROLLBACK", 0))
-								run(localReferenceSelect("SHOW application_name", "application_name", want))
+								run(localReferenceSelect(backend.pg, "SHOW application_name", "application_name", want))
+							}
+							if prepared && aborted {
+								// The original aborted commands were direct even in the
+								// held-control matrix. Keep a fresh transaction so their
+								// 42704/25P02 stages cannot corrupt the recorded phase.
+								run(referenceExec("BEGIN", 0))
+								run(referenceExec("SET application_name='s'", 0))
+								run(referenceExec("SET LOCAL application_name='l'", 0))
+								run(localReferenceSelect(backend.pg, "SHOW application_name", "application_name", "l"))
+								referenceRunStep(t, p.ctx, c, record, settingsReferenceError("SET absent_setting='x'", "42704", `unrecognized configuration parameter "absent_setting"`, "", ""))
+								referenceRunStep(t, p.ctx, c, record, settingsReferenceError("SET application_name='unreachable'", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "", ""))
+								run(referenceExec(q, 0))
+								run(localReferenceSelect(backend.pg, "SHOW application_name", "application_name", want))
+								if chain {
+									run(referenceExec("SET LOCAL application_name='n'", 0))
+									run(localReferenceSelect(backend.pg, "SHOW application_name", "application_name", "n"))
+									run(referenceExec("ROLLBACK", 0))
+									run(localReferenceSelect(backend.pg, "SHOW application_name", "application_name", want))
+								}
 							}
 							if len(notices) != 0 {
 								t.Fatal("SQL settings lifecycle emitted notices", notices)

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -22,7 +20,7 @@ func TestReferenceDeparseConstraintsCore(t *testing.T) {
 					run(referenceSelect("SELECT pg_get_expr(conbin,conrelid"+tc.suffix+") AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", []string{"d"}, []string{"TEXT"}, [][]any{{tc.expr}}))
 				}
 				run(referenceSelect("SELECT pg_get_expr(d.adbin,0) AS d FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='t'", []string{"d"}, []string{"TEXT"}, [][]any{{"7"}}))
-				for _, q := range []string{"SELECT pg_get_constraintdef(0) AS d", "SELECT pg_get_constraintdef(NULL,true) AS d", "SELECT pg_get_constraintdef(0,NULL) AS d", "SELECT pg_get_constraintdef(4294967295::oid) AS d", "SELECT pg_get_expr(NULL,0) AS d", "SELECT pg_get_expr(NULL,NULL) AS d", "SELECT pg_get_expr(NULL,0,NULL) AS d", "SELECT pg_get_expr(NULL,0,true) AS d", "SELECT pg_get_expr(conbin,conrelid,NULL) AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", "SELECT pg_get_expr(d.adbin,4294967295::oid) AS d FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='t'"} {
+				for _, q := range []string{"SELECT pg_get_constraintdef(NULL) AS d", "SELECT pg_get_expr(conbin,NULL) AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", "SELECT pg_get_expr(conbin,4294967295::oid) AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", "SELECT pg_get_constraintdef(0) AS d", "SELECT pg_get_constraintdef(NULL,true) AS d", "SELECT pg_get_constraintdef(0,NULL) AS d", "SELECT pg_get_constraintdef(4294967295::oid) AS d", "SELECT pg_get_expr(NULL,0) AS d", "SELECT pg_get_expr(NULL,NULL) AS d", "SELECT pg_get_expr(NULL,0,NULL) AS d", "SELECT pg_get_expr(NULL,0,true) AS d", "SELECT pg_get_expr(conbin,conrelid,NULL) AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", "SELECT pg_get_expr(d.adbin,4294967295::oid) AS d FROM pg_catalog.pg_attrdef d JOIN pg_catalog.pg_class c ON d.adrelid=c.oid WHERE c.relname='t'"} {
 					run(referenceSelect(q, []string{"d"}, []string{"TEXT"}, [][]any{{nil}}))
 				}
 				run(referenceImplicitError("SELECT pg_get_expr(conbin,0) FROM pg_catalog.pg_constraint WHERE conname='ck'", referenceDiagnostic{Code: "22023", Message: "expression contains variables"}))
@@ -33,6 +31,7 @@ func TestReferenceDeparseConstraintsCore(t *testing.T) {
 				run(referenceSelect("SELECT pg_get_expr(conbin,conrelid,true) AS d FROM pg_catalog.pg_constraint WHERE conname='ck'", []string{"d"}, []string{"TEXT"}, [][]any{{`"A renamed"::bigint > 0`}}))
 				run(referenceExec("CREATE TABLE modifiers(a INTEGER CONSTRAINT nn NOT NULL,b INTEGER,CONSTRAINT ck_no CHECK(b>0) NO INHERIT)", 0))
 				run(referenceSelect("SELECT pg_get_constraintdef(oid) AS d FROM pg_catalog.pg_constraint WHERE conname='nn'", []string{"d"}, []string{"TEXT"}, [][]any{{"NOT NULL a"}}))
+				run(referenceSelect("SELECT pg_get_constraintdef(oid,false) AS d FROM pg_catalog.pg_constraint WHERE conname='ck_no'", []string{"d"}, []string{"TEXT"}, [][]any{{"CHECK ((b > 0)) NO INHERIT"}}))
 				run(referenceSelect("SELECT pg_get_constraintdef(oid,true) AS d FROM pg_catalog.pg_constraint WHERE conname='ck_no'", []string{"d"}, []string{"TEXT"}, [][]any{{"CHECK (b > 0) NO INHERIT"}}))
 				run(referenceSelect("SELECT pg_get_expr(conbin,conrelid) AS d FROM pg_catalog.pg_constraint WHERE conname='nn'", []string{"d"}, []string{"TEXT"}, [][]any{{nil}}))
 			})

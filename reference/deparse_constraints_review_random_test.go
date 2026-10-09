@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -126,85 +124,7 @@ func TestReferenceDeparseConstraintsReviewRandomConsumers(t *testing.T) {
 							rows.Close()
 						}
 						run(referenceExec("DELETE FROM "+name, 2))
-						// Fixed thresholds isolate statement atomicity and attempted-row effects.
-						good, bad := float64(-1), float64(2)
-						if tc.name != "uniform" {
-							good, bad = math.Inf(-1), math.Inf(1)
-						}
-						if tc.name == "normal_zero" {
-							good, bad = 4, 5
-						}
-						goodSQL, badSQL := strconv.FormatFloat(good, 'g', -1, 64), strconv.FormatFloat(bad, 'g', -1, 64)
-						if math.IsInf(good, -1) {
-							goodSQL = "'-Infinity'"
-							badSQL = "'Infinity'"
-						}
-						seed()
-						draw(tc.call)
-						draw(tc.call)
-						afterBatch := draw("random()")
-						seed()
-						query := "INSERT INTO " + name + " VALUES(4," + goodSQL + "),(5," + badSQL + "),(6," + goodSQL + ")"
-						var r sql.Result
-						var e error
-						if prepared {
-							s, err := conn.PrepareContext(context.Background(), query)
-							if err != nil {
-								t.Fatal(err)
-							}
-							r, e = s.ExecContext(context.Background())
-							s.Close()
-						} else {
-							r, e = conn.ExecContext(context.Background(), query)
-						}
-						if r != nil {
-							t.Fatal("batch exposed result")
-						}
-						err = e
-						detail := "5, " + strconv.FormatFloat(bad, 'g', -1, 64)
-						if math.IsInf(bad, 1) {
-							detail = "5, Infinity"
-						}
-						{
-							want := referenceCheckViolation(name, constraint, detail)
-							want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-							referenceAssertDiagnostic(t, err, &want)
-						}
-						if got := draw("random()"); got != afterBatch {
-							t.Fatal("failed batch effect frontier", got, afterBatch)
-						}
-						run(referenceSelect("SELECT id,p FROM "+name+" ORDER BY id", []string{"id", "p"}, []string{"INT4", "FLOAT8"}, [][]any{}))
-						seed()
-						run(referenceExec("INSERT INTO "+name+" VALUES(1,"+goodSQL+")", 1))
-						seed()
-						draw(tc.call)
-						afterUpdate := draw("random()")
-						seed()
-						query = "UPDATE " + name + " SET p=" + badSQL + " WHERE id=1"
-						if prepared {
-							s, e := conn.PrepareContext(context.Background(), query)
-							if e != nil {
-								t.Fatal(e)
-							}
-							_, err = s.ExecContext(context.Background())
-							s.Close()
-						} else {
-							_, err = conn.ExecContext(context.Background(), query)
-						}
-						detail = "1, " + strconv.FormatFloat(bad, 'g', -1, 64)
-						if math.IsInf(bad, 1) {
-							detail = "1, Infinity"
-						}
-						{
-							want := referenceCheckViolation(name, constraint, detail)
-							want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-							referenceAssertDiagnostic(t, err, &want)
-						}
-						if got := draw("random()"); got != afterUpdate {
-							t.Fatal("failed update effect frontier", got, afterUpdate)
-						}
-						run(referenceSelect("SELECT id,p FROM "+name+" ORDER BY id", []string{"id", "p"}, []string{"INT4", "FLOAT8"}, [][]any{{int64(1), good}}))
-						run(referenceExec("DELETE FROM "+name, 1))
+						deparseRandomAtomicity(t, conn, name, constraint, tc.name, tc.call, prepared, seed, draw, run)
 					}
 					held.Close()
 				}
@@ -261,4 +181,86 @@ func TestReferenceDeparseConstraintsReviewRandomPresenceConsumers(t *testing.T) 
 			})
 		})
 	}
+}
+
+func deparseRandomAtomicity(t *testing.T, conn *sql.Conn, name, constraint, kind, call string, prepared bool, seed func(), draw func(string) float64, run func(referenceStep) referenceObserved) {
+	// Fixed thresholds isolate statement atomicity and attempted-row effects.
+	good, bad := float64(-1), float64(2)
+	if kind != "uniform" {
+		good, bad = math.Inf(-1), math.Inf(1)
+	}
+	if kind == "normal_zero" {
+		good, bad = 4, 5
+	}
+	goodSQL, badSQL := strconv.FormatFloat(good, 'g', -1, 64), strconv.FormatFloat(bad, 'g', -1, 64)
+	if math.IsInf(good, -1) {
+		goodSQL = "'-Infinity'"
+		badSQL = "'Infinity'"
+	}
+	seed()
+	draw(call)
+	draw(call)
+	afterBatch := draw("random()")
+	seed()
+	query := "INSERT INTO " + name + " VALUES(4," + goodSQL + "),(5," + badSQL + "),(6," + goodSQL + ")"
+	var r sql.Result
+	var e error
+	if prepared {
+		s, err := conn.PrepareContext(context.Background(), query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, e = s.ExecContext(context.Background())
+		s.Close()
+	} else {
+		r, e = conn.ExecContext(context.Background(), query)
+	}
+	if r != nil {
+		t.Fatal("batch exposed result")
+	}
+	err := e
+	detail := "5, " + strconv.FormatFloat(bad, 'g', -1, 64)
+	if math.IsInf(bad, 1) {
+		detail = "5, Infinity"
+	}
+	{
+		want := referenceCheckViolation(name, constraint, detail)
+		want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+		referenceAssertDiagnostic(t, err, &want)
+	}
+	if got := draw("random()"); got != afterBatch {
+		t.Fatal("failed batch effect frontier", got, afterBatch)
+	}
+	run(referenceSelect("SELECT id,p FROM "+name+" ORDER BY id", []string{"id", "p"}, []string{"INT4", "FLOAT8"}, [][]any{}))
+	seed()
+	run(referenceExec("INSERT INTO "+name+" VALUES(1,"+goodSQL+")", 1))
+	seed()
+	draw(call)
+	afterUpdate := draw("random()")
+	seed()
+	query = "UPDATE " + name + " SET p=" + badSQL + " WHERE id=1"
+	if prepared {
+		s, e := conn.PrepareContext(context.Background(), query)
+		if e != nil {
+			t.Fatal(e)
+		}
+		_, err = s.ExecContext(context.Background())
+		s.Close()
+	} else {
+		_, err = conn.ExecContext(context.Background(), query)
+	}
+	detail = "1, " + strconv.FormatFloat(bad, 'g', -1, 64)
+	if math.IsInf(bad, 1) {
+		detail = "1, Infinity"
+	}
+	{
+		want := referenceCheckViolation(name, constraint, detail)
+		want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+		referenceAssertDiagnostic(t, err, &want)
+	}
+	if got := draw("random()"); got != afterUpdate {
+		t.Fatal("failed update effect frontier", got, afterUpdate)
+	}
+	run(referenceSelect("SELECT id,p FROM "+name+" ORDER BY id", []string{"id", "p"}, []string{"INT4", "FLOAT8"}, [][]any{{int64(1), good}}))
+	run(referenceExec("DELETE FROM "+name, 1))
 }

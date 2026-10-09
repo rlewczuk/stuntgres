@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// The tagged DROP-CONSTRAINT family's original remains until its owner deduplicates it.
 func TestReferenceNotNullDropSystemColumnDiagnostics(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {

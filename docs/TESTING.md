@@ -119,6 +119,41 @@ statements, then return connections before fixture/schema cleanup. Register
 cleanup immediately and cancel/join goroutines on all exits; use deterministic
 synchronization, not sleeps.
 
+The whole-root cutover is complete: root retains13 focused nonSQL units and its
+startup benchmark, with no public SQL test bodies or obsolete SQL helpers.
+The final driver/session/catalog ledger accounts for372 original sources and131
+helper dispositions, with651 shared untagged definitions,39 genuine PostgreSQL-only
+and five PostgreSQL-required differential companions.36 genuine-only and all five
+differential definitions remain tagged; three genuine-only callers are untagged.
+Use [family commands](DEVELOPMENT.md#driver-session-and-catalog-whole-root-cutover)
+for exploration and the catalog's identical exact651-name RUN for native,
+PostgreSQL and race acceptance. Select companions separately in real mode.
+
+Native eager retained cursors and detached Columns slices are separate contracts
+from pq streaming cursors and aliased Columns slices. Shared metadata callbacks
+run before iteration, including empty results; raw cells are asserted before
+normalization. Native precanceled/expired routes retain ordinary context errors.
+For pq user cancellation use observed server admission and joined completion,
+then check the SAME physical owner and preheld consumers. Do not assert a
+race-prone fast precanceled pq command must return nil outputs, or cancel its
+Go context during a notice callback and invent stable transport health.
+Original source methods are obligations, not interchangeable API labels.
+For proven DB/Tx plain calls, set referenceStep.nonContext=true on the existing
+runner: actual Exec/Query/Prepare and returned Stmt.Exec/Query retain complete
+count/error-stage/nil-output/cursor assertions. Metadata and specialized Scan
+hooks inspect the actual source cursor before the truthful return preceding
+Context-only recording. Keep a fresh recorded Context companion; never fabricate
+its recorder key for a plain call. *sql.Conn has no plain methods: original
+Conn.QueryContext and physical-owner adapters remain actual Conn routes.
+Explicit QueryRow/Begin/native raw calls and SAME held objects stay explicit.
+referencePrepared prepares anew; it does not prove quiet Prepare or held reuse.
+Consumers such as deleteReferenceConsume do not invoke step metadata/Scan
+callbacks, so preserve those original checks at the callsite. Cleanup follows
+rows, statements, rollback, borrowed connections, then fixture/schema/role reset;
+worker joins and registered failure exits are part of the assertion union.
+
+
+
 ### Common helper reference
 
 These helpers are package-local and directly available to `reference_test` files.
@@ -130,7 +165,7 @@ No additional helper imports or fixture setup are needed.
 | `p.step(t, s)` | Execute and independently assert the same step on available backends, then compare observations. |
 | `p.backends()` | Returns backend descriptors with `name`, `db` (`*sql.DB`), `recorder`, and `pg` (true only for PostgreSQL). Loop once over these and share the callback. |
 | `p.ctx`, `p.native`, `p.nativeConnector` | Bounded scenario context; unwrapped native control pool; fresh native connector for public connector controls. `p.memory` and `p.postgres` are the wrapped pools; `p.postgres` is nil in quick mode. |
-| `referenceExec(query, count, args...) referenceStep` | Exec success with exact `RowsAffected`; DDL generally expects zero. Arguments are bound normally. |
+| `referenceExec(query, count, args...) referenceStep` | Exec success with exact `RowsAffected` and unsupported `LastInsertId`; DDL generally expects zero. Arguments are bound normally. Error steps require nil published results. |
 | `referenceSelect(query, columns, types, rows, args...) referenceStep` | Query success with exact column names, `DatabaseTypeName` strings and normalized `[][]any` values. Supply metadata even for zero rows. |
 | `referencePrepared(s) referenceStep` | Return the same step with Prepare followed by statement execution. This prepares anew per step; it does not prove held-statement reuse. |
 | `referenceError(query, state, args...) referenceStep` | Exec failure with exact SQLSTATE, asserted through `SQLState() string`. Use structured diagnostics when testing message/field fidelity or failure stage. |
@@ -138,13 +173,14 @@ No additional helper imports or fixture setup are needed.
 | `referenceImplicitError(query, want, args...) referenceStep` | As above, filling both severity fields with `ERROR`. |
 | `referencePosition(n) string` | Decimal diagnostic character position; zero becomes the absent-field empty string. PostgreSQL positions are character-based, not byte offsets. |
 | `controlsReferenceDiagnostic(code, message) referenceDiagnostic` | Build a diagnostic with both severities `ERROR`, code and message; set any additional expected fields explicitly. |
-| `referenceRunStep(t, ctx, executor, recorder, s) referenceObserved` | Run the standard assertions on a chosen backend/session. Executor accepts `*sql.DB`, `*sql.Conn` or `*sql.Tx`; pass that backend's recorder. Returns observed state, diagnostic, count, columns, types, rows and error stage. Does not compare backends for you. |
+| `referenceRunStep(t, ctx, executor, recorder, s) referenceObserved` | Run standard independent assertions on a chosen backend/session. Context steps accept DB/Conn/Tx; proven `s.nonContext=true` requires actual DB/Tx plain methods and cannot use Conn or a fake forwarding adapter. Actual cursor callbacks remain checked before returning without Context-only recording. Does not compare backends for you. |
 | `referenceHeldStatement{referenceExecutor: conn, statement: stmt, query: q}` | Executor wrapper for an already prepared `*sql.Stmt`, usable with `referenceRunStep`; leave `s.prepared` false, use the matching query, and close the held statement yourself. Other queries route through the embedded executor. |
 | `referenceState(t, err, want) string` | Check SQLSTATE through the interface; empty `want` requires success. Useful for custom public API calls. |
 | `referenceExtractDiagnostic(t, err) referenceDiagnostic` | Extract structured public native/pq diagnostics; validates diagnostic shape and excludes native claims of PostgreSQL C source locations. Useful while discovering oracle data. |
 | `referenceAssertDiagnostic(t, err, &want) referenceDiagnostic` | Assert the complete structured diagnostic for custom calls. Does not accept a nil expectation. |
 | `referenceNormalize(value) any` | Converts `[]byte` to string and `time.Time` to UTC without monotonic/location identity; leaves other values unchanged. Standard steps apply this automatically. |
 | `noticeReferencePool(t, p, postgres, &records)` | Return a notice-enabled pool, pinned connection and recorder; append complete notice diagnostics to `records`. Select the backend using `backend.pg`; fixture registers cleanup. |
+| `referenceSessionCancel(t, parent, conn, prepared, queryMode...)` | Observe real PostgreSQL pg_sleep admission, cancel through the server, join the operation and assert full57014. Optional true queryMode selects Query with nil error cursor; otherwise Exec. The caller asserts SAME-owner continuation; this is not a native precancel substitute. |
 | `roleReferenceCleanup(t, names)` | Register cleanup for real PostgreSQL roles created by the test **before constructing the scenario**, so pool closure and schema reset happen before role removal. Public-schema resets do not remove cluster roles. |
 
 ### Step fields and expected data
@@ -154,6 +190,9 @@ No additional helper imports or fixture setup are needed.
 - Set `s.bag = true` for unordered results: order is ignored but duplicate
   occurrences must match. Otherwise add SQL `ORDER BY` when ordering is part of
   the expected result; never depend on traversal order.
+- Set `s.checkMetadata = func(t *testing.T, rows *sql.Rows) { ... }` for complete
+  raw descriptor contracts on the actual result, before iteration even when
+  empty. Retain independent backend ScanType/Nullable/Length/DecimalSize flags.
 - Set `s.checkScan = func(t *testing.T, rows *sql.Rows, rowIndex int) { ... }` to
   rescan the current row into specialized destinations. It must not issue SQL.
   Use a shared backend callback for metadata contracts beyond database type names.

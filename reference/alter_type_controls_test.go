@@ -1,16 +1,16 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"strings"
 	"stuntgres"
 	"testing"
 )
 
 func TestReferenceAlterTypeNativeRoundTrip(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, s := range []referenceStep{
 		referenceExec("CREATE TABLE t(id INT,c VARCHAR(5),n INT DEFAULT 7 CONSTRAINT nn NOT NULL)", 0),
 		referenceExec("INSERT INTO t VALUES(1,'abc',7),(2,'Z',8)", 2),
@@ -44,12 +44,31 @@ func TestReferenceAlterTypeNativeRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	metadata, err := rows.ColumnTypes()
-	rows.Close()
+	defer rows.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if precision, scale, ok := metadata[0].DecimalSize(); !ok || precision != 5 || scale != 2 {
 		t.Fatal(precision, scale, ok)
+	}
+	ctx, cancel := context.WithCancel(p.ctx)
+	defer cancel()
+	if err := stuntgres.Restore(ctx, p.native, &catalogControlCancelReader{cancel: cancel}); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM numeric_control", []string{"c"}, []string{"NUMERIC"}, [][]any{{"1.24"}}))
+	if !rows.Next() {
+		t.Fatal(rows.Err())
+	}
+	var retained string
+	if err := rows.Scan(&retained); err != nil || retained != "1.24" {
+		t.Fatal(retained, err)
+	}
+	if rows.Next() || rows.Err() != nil {
+		t.Fatal(rows.Err())
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
 	}
 	var again bytes.Buffer
 	if err := stuntgres.Dump(p.ctx, p.native, &again); err != nil || again.String() != dump.String() {

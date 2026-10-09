@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,13 +7,10 @@ import (
 )
 
 func TestReferenceVisibilityInquiryDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []string{"Oracle", "Native"} {
-		t.Run(backend, func(t *testing.T) {
-			db, rec := p.postgres, p.postgresRecord
-			if backend == "Native" {
-				db, rec = p.memory, p.memoryRecord
-			}
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db, rec := backend.db, backend.recorder
 			const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 			for _, fn := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible"} {
 				cases := []struct {
@@ -33,61 +28,77 @@ func TestReferenceVisibilityInquiryDiagnostics(t *testing.T) {
 					{"SELECT " + fn + "('4294967296')", referenceDiagnostic{Code: "22003", Message: `value "4294967296" is out of range for type oid`, Position: strconv.Itoa(9 + len(fn))}},
 				}
 				for _, tc := range cases {
-					s := referenceImplicitError(tc.q, tc.want)
-					s.selectRows = true
-					s.errorStage = "execute"
-					referenceRunStep(t, p.ctx, db, rec, s)
-					s.errorStage = "prepare"
-					referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
+					for _, source := range []bool{false, true} {
+						s := referenceImplicitError(tc.q, tc.want)
+						s.selectRows = true
+						s.nonContext = source
+						s.errorStage = "execute"
+						referenceRunStep(t, p.ctx, db, rec, s)
+						s.errorStage = "prepare"
+						referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
+					}
 				}
 				s := referenceImplicitError("SELECT "+fn+"($1)", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type oid: "bad"`, Context: "unnamed portal parameter $1 = '...'"}, "bad")
 				s.selectRows = true
 				s.errorStage = "execute"
 				referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
+				s.nonContext = true
+				referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
 				matched := referenceSelect("SELECT "+fn+"(VARIADIC NULL)", []string{fn}, []string{"BOOL"}, [][]any{{nil}})
 				referenceRunStep(t, p.ctx, db, rec, matched)
 				referenceRunStep(t, p.ctx, db, rec, referencePrepared(matched))
+				matched.nonContext = true
+				matched.checkMetadata = visibilityBoolMetadata
+				referenceRunStep(t, p.ctx, db, rec, matched)
 				args := strings.TrimSuffix(strings.Repeat("1,", 101), ",")
 				limit := referenceImplicitError("SELECT "+fn+"("+args+")", referenceDiagnostic{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"})
 				limit.selectRows = true
 				limit.errorStage = "execute"
 				referenceRunStep(t, p.ctx, db, rec, limit)
+				limit.nonContext = true
+				referenceRunStep(t, p.ctx, db, rec, limit)
+				limit.errorStage = "prepare"
+				referenceRunStep(t, p.ctx, db, rec, referencePrepared(limit))
 			}
 		})
 	}
 }
 
 func TestReferenceVisibilityInquiryDiagnosticOrdering(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []string{"Oracle", "Native"} {
-		t.Run(backend, func(t *testing.T) {
-			db, rec := p.postgres, p.postgresRecord
-			if backend == "Native" {
-				db, rec = p.memory, p.memoryRecord
-			}
-			referenceRunStep(t, p.ctx, db, rec, referenceExec("CREATE TABLE empty_ids(id OID)", 0))
-			for _, fn := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible"} {
-				t.Run(fn, func(t *testing.T) {
-					for _, tc := range []struct {
-						name string
-						args string
-						want referenceDiagnostic
-					}{
-						{"missing_child", "missing_column", referenceDiagnostic{Code: "42703", Message: `column "missing_column" does not exist`}},
-						{"argument_limit", strings.TrimSuffix(strings.Repeat("1,", 101), ","), referenceDiagnostic{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
-						{"over_limit_missing_child", strings.Repeat("1,", 100) + "missing_column", referenceDiagnostic{Code: "42703", Message: `column "missing_column" does not exist`}},
-					} {
-						t.Run(tc.name, func(t *testing.T) {
-							q := "SELECT missing_schema." + fn + "(" + tc.args + ") FROM empty_ids"
-							if tc.want.Code == "42703" {
-								tc.want.Position = strconv.Itoa(strings.Index(q, "missing_column") + 1)
+	for _, source := range []bool{false, true} {
+		t.Run(strconv.FormatBool(source), func(t *testing.T) {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					db, rec := backend.db, backend.recorder
+					setup := referenceExec("CREATE TABLE empty_ids(id OID)", 0)
+					setup.nonContext = source
+					referenceRunStep(t, p.ctx, db, rec, setup)
+					for _, fn := range []string{"pg_table_is_visible", "pg_type_is_visible", "pg_collation_is_visible", "pg_conversion_is_visible"} {
+						t.Run(fn, func(t *testing.T) {
+							for _, tc := range []struct {
+								name string
+								args string
+								want referenceDiagnostic
+							}{
+								{"missing_child", "missing_column", referenceDiagnostic{Code: "42703", Message: `column "missing_column" does not exist`}},
+								{"argument_limit", strings.TrimSuffix(strings.Repeat("1,", 101), ","), referenceDiagnostic{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
+								{"over_limit_missing_child", strings.Repeat("1,", 100) + "missing_column", referenceDiagnostic{Code: "42703", Message: `column "missing_column" does not exist`}},
+							} {
+								t.Run(tc.name, func(t *testing.T) {
+									q := "SELECT missing_schema." + fn + "(" + tc.args + ") FROM empty_ids"
+									if tc.want.Code == "42703" {
+										tc.want.Position = strconv.Itoa(strings.Index(q, "missing_column") + 1)
+									}
+									s := referenceImplicitError(q, tc.want)
+									s.selectRows = true
+									s.nonContext = source
+									s.errorStage = "execute"
+									referenceRunStep(t, p.ctx, db, rec, s)
+									s.errorStage = "prepare"
+									referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
+								})
 							}
-							s := referenceImplicitError(q, tc.want)
-							s.selectRows = true
-							s.errorStage = "execute"
-							referenceRunStep(t, p.ctx, db, rec, s)
-							s.errorStage = "prepare"
-							referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
 						})
 					}
 				})

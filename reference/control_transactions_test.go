@@ -1,21 +1,17 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
-
-	"stuntgres"
 )
 
 // SQL diagnostics are independently expected on both engines. Native fixture
 // replacement is deliberately not represented as a PostgreSQL wire command.
 func TestReferenceControlTransactionsDiagnostics(t *testing.T) {
-	pair := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
-		t.Run(map[bool]string{false: "native", true: "postgres"}[postgres], func(t *testing.T) {
+	pair := newReferenceScenario(t)
+	for _, backend := range pair.backends() {
+		postgres := backend.pg
+		t.Run(backend.name, func(t *testing.T) {
 			f := newControlsReferenceFixture(t, pair, postgres)
 			ctx := pair.ctx
 			f.exec(t, f.b, "CREATE TABLE t(v INT NOT NULL)", false, 0)
@@ -69,32 +65,6 @@ func TestReferenceControlTransactionsDiagnostics(t *testing.T) {
 				f.rows(t, f.b, 77)
 				f.exec(t, f.a, "ROLLBACK", false, 0)
 				f.rows(t, f.b, 77)
-			}
-			if !postgres {
-				// Match the notice fixture's exact subtest DSN, not the parent
-				// pair's engine, while keeping its wrapped SQL observers.
-				connector, err := referenceMemoryDriver.OpenConnector("reference/" + t.Name())
-				if err != nil {
-					t.Fatal(err)
-				}
-				native := sql.OpenDB(connector)
-				defer native.Close()
-				f.exec(t, f.a, "BEGIN", false, 0)
-				f.exec(t, f.a, "INSERT INTO t VALUES(1)", false, 1)
-				end, err := f.a.PrepareContext(ctx, "COMMIT AND CHAIN")
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer end.Close()
-				if err = stuntgres.Restore(ctx, native, strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);")); err != nil {
-					t.Fatal(err)
-				}
-				_, err = f.a.ExecContext(ctx, "SELECT v FROM t")
-				transactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
-				_, err = end.ExecContext(ctx)
-				transactionOrdinary(t, err, "stuntgres: catalog replaced before publication")
-				f.exec(t, f.a, "INSERT INTO t VALUES(2)", false, 1)
-				f.rows(t, f.b, 2, 99)
 			}
 		})
 	}

@@ -1,23 +1,18 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceCommentInquiryBuiltins(t *testing.T) {
-	for _, backend := range []string{"Oracle", "Native"} {
-		t.Run(backend, func(t *testing.T) {
-			p := newReferencePair(t)
-			db, rec := p.postgres, p.postgresRecord
-			if backend == "Native" {
-				db, rec = p.memory, p.memoryRecord
-			}
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			db := backend.db
 			// REL_18_0 pg_namespace.dat seeds public2200 with "standard public
 			// schema". The shared oracle fixture deliberately drops that namespace
 			// and creates an uncommented public with a new OID before every pair.
 			// Native Reset instead restores its seeded bootstrap namespace.
 			var publicWant any = "standard public schema"
-			if backend == "Oracle" {
+			if backend.pg {
 				publicWant = nil
 				var publicOID int64
 				if err := db.QueryRowContext(p.ctx, "SELECT oid FROM pg_namespace WHERE nspname='public'").Scan(&publicOID); err != nil {
@@ -27,8 +22,8 @@ func TestReferenceCommentInquiryBuiltins(t *testing.T) {
 					t.Fatal("oracle fixture did not recreate public")
 				}
 				s := referenceSelect("SELECT obj_description($1,'pg_namespace')", []string{"obj_description"}, []string{"TEXT"}, [][]any{{nil}}, publicOID)
-				referenceRunStep(t, p.ctx, db, rec, s)
-				referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
+				commentInquiryStep(t, p, backend, db, s)
+				commentInquiryStep(t, p, backend, db, referencePrepared(s))
 			}
 			for _, tc := range []struct {
 				oid     int
@@ -49,8 +44,8 @@ func TestReferenceCommentInquiryBuiltins(t *testing.T) {
 				{2278, "pg_type", "pseudo-type for the result of a function with no real result"}, {2950, "pg_type", "UUID"}, {1003, "pg_type", nil},
 			} {
 				s := referenceSelect("SELECT obj_description($1,$2)", []string{"obj_description"}, []string{"TEXT"}, [][]any{{tc.want}}, tc.oid, tc.catalog)
-				referenceRunStep(t, p.ctx, db, rec, s)
-				referenceRunStep(t, p.ctx, db, rec, referencePrepared(s))
+				commentInquiryStep(t, p, backend, db, s)
+				commentInquiryStep(t, p, backend, db, referencePrepared(s))
 			}
 		})
 	}

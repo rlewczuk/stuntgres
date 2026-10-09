@@ -5,7 +5,7 @@ import "testing"
 func TestReferenceQueryFromValuesNamespaceDiagnostics(t *testing.T) {
 	for _, tc := range []struct {
 		query string
-		want referenceDiagnostic
+		want  referenceDiagnostic
 	}{
 		{"SELECT v.nn FROM (VALUES(1)) v(n)", referenceDiagnostic{Code: "42703", Message: "column v.nn does not exist", Hint: `Perhaps you meant to reference the column "v.n".`, Position: "8"}},
 		{"SELECT * FROM (VALUES(1)) a(n), (VALUES(a.n)) b(n)", referenceDiagnostic{Code: "42P01", Message: `invalid reference to FROM-clause entry for table "a"`, Detail: `There is an entry for table "a", but it cannot be referenced from this part of the query.`, Hint: "To reference that table, you must mark this subquery with LATERAL.", Position: "41"}},
@@ -24,7 +24,9 @@ func TestReferenceQueryFromValuesNamespaceDiagnostics(t *testing.T) {
 					for _, queryRows := range []bool{false, true} {
 						s := referenceImplicitError(tc.query, tc.want)
 						s.prepared, s.selectRows, s.errorStage = prepared, queryRows, "execute"
-						if prepared { s.errorStage = "prepare" }
+						if prepared {
+							s.errorStage = "prepare"
+						}
 						run(s)
 						run(referenceSelect("SELECT n FROM t", []string{"n"}, []string{"INT4"}, [][]any{{int64(1)}}))
 					}

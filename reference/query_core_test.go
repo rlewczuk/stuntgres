@@ -83,6 +83,13 @@ func TestReferenceQueryCoreHiddenSortAndHeldFrames(t *testing.T) {
 					want = [][]any{}
 				}
 				step := referenceSelect("SELECT id FROM t WHERE v=$1 ORDER BY id", []string{"id"}, []string{"INT4"}, want, arg)
+				step.checkMetadata = func(t *testing.T, rows *sql.Rows) {
+					metadata, err := rows.ColumnTypes()
+					if err != nil {
+						t.Fatal(err)
+					}
+					scalarAssertMetadata(t, backend.pg, metadata)
+				}
 				referenceRunStep(t, p.ctx, referenceHeldStatement{db, stmt, step.query}, backend.recorder, step)
 			}
 			rows, err := stmt.QueryContext(p.ctx)
@@ -121,11 +128,17 @@ func TestReferenceQueryCoreDiagnosticsAndParameterBoundary(t *testing.T) {
 			{"SELECT /*é*/ missing FROM t", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "14"}},
 			{"SELECT id FROM t WHERE missing=1", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "24"}},
 			{"SELECT id FROM t WHERE 1", referenceDiagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "24"}},
+			{"SELECT id FROM t WHERE s", referenceDiagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type text", Position: "24"}},
+			{"SELECT $0 FROM t", referenceDiagnostic{Code: "42P02", Message: "there is no parameter $0", Position: "8"}},
 			{"SELECT id FROM t WHERE id=TRUE", referenceDiagnostic{Code: "42883", Message: "operator does not exist: integer = boolean", Position: "26", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}},
 			{"SELECT id FROM t WHERE 'truth'", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`, Position: "24"}},
 			{"SELECT id FROM t WHERE", referenceDiagnostic{Code: "42601", Message: "syntax error at end of input", Position: "23"}},
 			{"SELECT $1 FROM t WHERE id=$1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "integer versus text", Position: "8"}},
 			{"SELECT $1 FROM t WHERE f=$1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "boolean versus text", Position: "8"}},
+			{"SELECT $1 FROM t WHERE v=$1 ORDER BY id", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "integer versus text", Position: "8"}},
+			{"SELECT $1 FROM t WHERE id=$1 ORDER BY id", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "integer versus text", Position: "8"}},
+			{"SELECT $1 FROM t WHERE f=$1 ORDER BY id", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "boolean versus text", Position: "8"}},
+			{"SELECT $1 FROM t WHERE $1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "boolean versus text", Position: "8"}},
 		} {
 			step := referenceImplicitError(tc.q, tc.want)
 			step.selectRows = true

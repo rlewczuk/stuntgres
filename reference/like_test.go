@@ -1,25 +1,12 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
-func TestReferenceLikeOracleInference(t *testing.T) {
-	likeReferenceInference(t, true)
-}
-
 func TestReferenceLikeInference(t *testing.T) {
-	likeReferenceInference(t, false)
-}
-
-func likeReferenceInference(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	run := func(s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
 	run(referenceExec("CREATE TABLE t(n NAME,c CHAR(3),v VARCHAR(3),s TEXT,b BYTEA)", 0))
 	run(referenceExec("INSERT INTO t VALUES('a','a','a','a','\\x61')", 1))
@@ -61,52 +48,41 @@ func likeReferenceInference(t *testing.T, oracleOnly bool) {
 		s.errorStage = "prepare"
 		run(referencePrepared(s))
 	}
-	if oracleOnly {
-		// Named PREPARE exposes PostgreSQL's selected SQL parameter types;
-		// this is an oracle-only catalog witness, not native dialect expansion.
-		conn, err := p.postgres.Conn(p.ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer conn.Close()
-		for _, q := range []string{
-			"SELECT n LIKE $1 FROM t", "SELECT $1 LIKE n FROM t",
-			"SELECT c LIKE $1 FROM t", "SELECT $1 LIKE c FROM t",
-			"SELECT v LIKE $1 FROM t", "SELECT $1 LIKE v FROM t",
-			"SELECT $1,s LIKE $1 FROM t", "SELECT s LIKE $1,$1 FROM t",
-		} {
-			if _, err := conn.ExecContext(p.ctx, "PREPARE like_gate AS "+q); err != nil {
-				t.Fatal(q, err)
-			}
-			referenceRunStep(t, p.ctx, conn, p.postgresRecord, referenceSelect("SELECT parameter_types::text AS types FROM pg_prepared_statements WHERE name='like_gate'", []string{"types"}, []string{"TEXT"}, [][]any{{"{text}"}}))
-			if _, err := conn.ExecContext(p.ctx, "DEALLOCATE like_gate"); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-}
 
-func TestReferenceLikeOracleCollation(t *testing.T) {
-	likeReferenceCollation(t, true)
 }
 
 func TestReferenceLikeCollation(t *testing.T) {
-	likeReferenceCollation(t, false)
-}
-
-func likeReferenceCollation(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	run := func(s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
-	run(referenceExec("CREATE TABLE t(c TEXT COLLATE \"C\",p TEXT COLLATE \"POSIX\",e TEXT COLLATE \"POSIX\")", 0))
+	run(referenceExec("CREATE TABLE t(d TEXT,c TEXT COLLATE \"C\",p TEXT COLLATE \"POSIX\",e TEXT COLLATE \"POSIX\")", 0))
 	for _, populated := range []bool{false, true} {
 		if populated {
-			run(referenceExec("INSERT INTO t VALUES('a','a','!')", 1))
+			run(referenceExec("INSERT INTO t VALUES('Ab','Ab','Ab','!')", 1))
+		}
+		for _, lhs := range []string{"d", "c", "p"} {
+			for _, rhs := range []string{"d", "c", "p"} {
+				for _, op := range []string{"LIKE", "ILIKE", "NOT LIKE", "NOT ILIKE"} {
+					q := "SELECT " + lhs + " " + op + " " + rhs + " AS matched FROM t"
+					var want [][]any
+					if populated {
+						want = [][]any{{op == "LIKE" || op == "ILIKE"}}
+					}
+					step := referenceSelect(q, []string{"matched"}, []string{"BOOL"}, want)
+					if populated && (lhs == "c" && rhs == "p" || lhs == "p" && rhs == "c") {
+						operation := "LIKE"
+						if op == "ILIKE" || op == "NOT ILIKE" {
+							operation = "ILIKE"
+						}
+						step = referenceImplicitError(q, referenceDiagnostic{Code: "42P22", Message: "could not determine which collation to use for " + operation, Hint: "Use the COLLATE clause to set the collation explicitly."})
+						step.selectRows, step.errorStage = true, "execute"
+					}
+					run(step)
+					run(referencePrepared(step))
+				}
+			}
 		}
 		for _, op := range []string{"LIKE", "NOT LIKE", "ILIKE", "NOT ILIKE"} {
 			operation := "LIKE"
@@ -142,20 +118,11 @@ func likeReferenceCollation(t *testing.T, oracleOnly bool) {
 	}
 }
 
-func TestReferenceLikeOracleIntegratedExplicitCollation(t *testing.T) {
-	likeReferenceIntegratedExplicitCollation(t, true)
-}
 func TestReferenceLikeIntegratedExplicitCollation(t *testing.T) {
-	likeReferenceIntegratedExplicitCollation(t, false)
-}
-func likeReferenceIntegratedExplicitCollation(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	run := func(t *testing.T, s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
 	run(t, referenceExec(`CREATE TABLE t(c TEXT COLLATE "C",p TEXT COLLATE "POSIX",e TEXT COLLATE "POSIX")`, 0))
 	for _, state := range []string{"empty", "nonnull", "null"} {

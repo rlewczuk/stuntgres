@@ -91,6 +91,14 @@ For BYTEA domains, shared binary-buffer binds use `$1::bytea` before assignment:
 pq's inferred domain parameter can reject embedded NUL with22021, while native
 inferred BYTEA-domain []byte input follows its owned binary adapter.
 
+The catalog-visibility source boundary keeps exact CREATE DOMAIN d AS integer
+as a supported Query/empty-utility witness, then checks DROP, effect-free Prepare,
+missing-type42704/Position12 before SAME held Execute/count0 and typed7/true
+INT4/BOOL readback. Existing other DDL/default-function exclusions remain.
+This changes the historical boundary expectation under incoming domain support,
+not the bounded domain contract above or standalone UNIQUE-index exclusions.
+
+
 
 ## VOID selected function result
 
@@ -313,6 +321,22 @@ Dual-mode native witnesses: `make quickcheck PACKAGES=./reference RUN='^TestRefe
 local adapter ownership: `make quickcheck PACKAGES=. RUN='^TestByteaAdapterOwnership$' VERBOSE=0`;
 codec witnesses: `make quickcheck PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=0`.
 Pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
+Binary scalar/index and text-provider assertion unions additionally run through
+`make quickcheck PACKAGES=./reference RUN='^TestReference(BinaryBasic|BinarySlice|BtreeIndex|StringCore)[A-Za-z0-9_]*$' VERBOSE=0`
+and the same RUN with `make quickcheck REFERENCE=1 PACKAGES=./reference`. Full labels, raw nonnil/empty BYTEA,
+descriptor flags and real consumer/control phases remain independently asserted.
+Source-consumer companions retain actual original DB/Tx/Stmt and raw native
+producer methods, complete NULL/empty/owned binary-buffer behavior and descriptor
+flags beside recorded Context streams. Check specialized typed Scan, Length,
+Nullable and DecimalSize on the same actual cursor; a normalized row comparison
+alone does not establish those metadata or buffer-ownership assertions.
+
+The result-only PostgreSQL array-concatenation boundary is directional:
+`'x'::text||current_schemas(false)` returns `_TEXT` / `{x,public}`, while
+`current_schemas(false)||'x'::text` returns `_NAME` / `{public,x}`. Both use nonnil
+pq bytes and interface ScanType. Native rejects BOTH directions with its full
+42883 direct/Prepare diagnostic; only standalone current_schemas returns native
+`_NAME`. PostgreSQL-only array success adds no native concatenation capability.
 
 BYTEA checksums and hashes use these unary raw-byte signatures:
 
@@ -1240,7 +1264,7 @@ Timezone-aware types, DateStyle/TimeZone and selected temporal casts/conversions
 are described below. General temporal functions/arithmetic and ordinary no-FROM
 SELECT remain excluded; the default input order is MDY.
 Dual-mode migration: public timestamp-without-time-zone SQL scenarios now live
-in `reference/`; shared root helpers remain for unmigrated callers.
+in `reference/`; obsolete root row/diagnostic helpers are removed.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimestampSmoke$' VERBOSE=0`.
 Native acceptance: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimestamp[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
 Independent real PostgreSQL 18.0: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimestamp[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.

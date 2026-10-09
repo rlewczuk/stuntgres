@@ -43,6 +43,29 @@ Unicode escaped constants `U&'\0041'` and quoted identifiers `U&"\0041"` decode 
 U& malformed digits, invalid scalar/surrogate values and invalid UESCAPE arguments report `42601`; malformed digits include Hint `Unicode escapes must be \XXXX or \+XXXXXX.` This differs from malformed E-string Unicode's `22025`. Decoder positions follow PostgreSQL's dequoted/concatenated-body arithmetic, so doubled quotes or removed continuation separators can make the cursor precede the raw escape. Raw lookahead lexical failures and UESCAPE argument validation take precedence over body decoding.
 
 Run `make quickcheck PACKAGES=./smoke RUN='^TestUnicodeEscapesSmoke$'` for direct/prepared Unicode values/names, complete diagnostics, two-pool atomicity, cancellation and native-control round trips. Go test reports the result.
+
+The complete literal/diagnostic unions now live in untagged external scenarios:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(StringLiteral|NumericLiteral|BooleanDiagnostics|UnicodeEscapes)[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(StringLiteral|NumericLiteral|BooleanDiagnostics|UnicodeEscapes)[A-Za-z0-9_]*$' VERBOSE=0
+```
+
+Raw invalid SQL is separate from decoded literal/input bytes. Native raw ff/NUL
+Exec and Prepare retain positioned42601 preflight errors. Actual pinned pq
+raw ff returns22021; raw NUL returns08P01 with distinct Exec versus Prepare
+messages, nil outputs, healthy SAME-owner Ping and unchanged peer seed.
+Decoded invalid text, Unicode scalar/escape failures, dollar parameters and
+numeric inference retain their original full independent diagnostics and stages.
+Fresh source-consumer phases preserve actual DB.Exec/Query/Prepare and
+Stmt.Exec/Query, original accepted-table shapes and bound parameter slots,
+peer Ping, EACH error's unchanged-table readback and metadata-only queries.
+They reuse the complete literal corpora beside recorded Context companions;
+generic row consumption does not replace original typed/descriptor checks.
+The family selector includes the bounded Source definitions as well as their
+existing recorded owners.
+
+
 These ordinary-string defaults correspond to standard_conforming_strings=on.
 With the session setting off, ordinary strings use that same escape decoder;
 E strings always use it. Native Restore always uses the default-on parser.

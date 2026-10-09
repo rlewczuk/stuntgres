@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"bytes"
-	"database/sql"
 	"fmt"
 	"reflect"
 	"stuntgres"
@@ -14,16 +11,12 @@ import (
 func TestReferenceViewReplaceInheritedVisibility(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprintf("prepared=%v", prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"postgres_first", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					run := func(s referenceStep) {
 						s.prepared = prepared
-						referenceRunStep(t, p.ctx, backend.db, backend.record, s)
+						referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 					}
 					for _, q := range []string{"CREATE TABLE ids(id OID)", "CREATE VIEW v AS SELECT FALSE AS visible FROM ids", "CREATE VIEW w AS SELECT visible FROM v", "CREATE VIEW z AS SELECT visible FROM w", "CREATE TABLE destination(visible BOOL)", "CREATE TABLE checked(visible BOOL CONSTRAINT known CHECK(visible IS NOT NULL))"} {
 						run(referenceExec(q, 0))
@@ -51,7 +44,7 @@ func TestReferenceViewReplaceInheritedVisibility(t *testing.T) {
 						for _, view := range []string{"v", "w", "z"} {
 							run(referenceSelect("SELECT visible FROM "+view+" ORDER BY visible", []string{"visible"}, []string{"BOOL"}, want))
 						}
-						referenceRunStep(t, p.ctx, heldExecutor, backend.record, referenceSelect(query, []string{"visible"}, []string{"BOOL"}, want))
+						referenceRunStep(t, p.ctx, heldExecutor, backend.recorder, referenceSelect(query, []string{"visible"}, []string{"BOOL"}, want))
 						cleared := int64(0)
 						if phase != 0 {
 							cleared = 2
@@ -99,14 +92,10 @@ func TestReferenceDropViewIndexWrongKind(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		for _, query := range []string{"DROP VIEW ix", "DROP VIEW IF EXISTS ix", "DROP VIEW v,ix"} {
 			t.Run(fmt.Sprintf("%s/prepared=%v", query, prepared), func(t *testing.T) {
-				p := newReferencePair(t)
-				for _, backend := range []struct {
-					name   string
-					db     *sql.DB
-					record *referenceRecorder
-				}{{"postgres_first", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
 					t.Run(backend.name, func(t *testing.T) {
-						run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+						run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 						for _, q := range []string{"CREATE TABLE t(id INT)", "CREATE INDEX ix ON t(id)", "CREATE VIEW v AS SELECT id FROM t"} {
 							run(referenceExec(q, 0))
 						}
@@ -128,7 +117,7 @@ func TestReferenceDropViewIndexWrongKind(t *testing.T) {
 							t.Fatal(err)
 						}
 						var dump bytes.Buffer
-						if backend.name == "native" {
+						if !backend.pg {
 							if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 								t.Fatal(err)
 							}
@@ -148,7 +137,7 @@ func TestReferenceDropViewIndexWrongKind(t *testing.T) {
 						if err := backend.db.QueryRowContext(p.ctx, "SELECT definition FROM pg_views WHERE viewname='v'").Scan(&retainedDefinition); err != nil || retainedDefinition != viewDefinition {
 							t.Fatal(retainedDefinition, viewDefinition, err)
 						}
-						if backend.name == "native" {
+						if !backend.pg {
 							var after bytes.Buffer
 							if err := stuntgres.Dump(p.ctx, p.native, &after); err != nil {
 								t.Fatal(err)

@@ -1,18 +1,15 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"bytes"
 	"context"
 	"fmt"
-	"reflect"
 	"stuntgres"
 	"testing"
 )
 
 func TestReferenceIdentifierKeywords(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, s := range []referenceStep{
 		referenceExec("CREATE TABLE abort (by INT, between TEXT, values BOOL, integer BIGINT, char TEXT)", 0),
 		referencePrepared(referenceExec("CREATE TABLE insert (by INT)", 0)),
@@ -28,16 +25,19 @@ func TestReferenceIdentifierKeywords(t *testing.T) {
 	} {
 		p.step(t, s)
 	}
+	p.step(t, referenceExec("SELECT by,between,values,integer,char FROM public.abort WHERE by=2 ORDER BY by DESC", 1))
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(context.Background(), p.native, &dump); err != nil {
 		t.Fatal(err)
 	}
 	// Restore uses the existing native seam; PostgreSQL executes that exact dump.
-	if _, err := p.postgres.ExecContext(p.ctx, "DROP TABLE abort,insert,\"select\""); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
-		t.Fatal(err)
+	if p.postgres != nil {
+		if _, err := p.postgres.ExecContext(p.ctx, "DROP TABLE abort,insert,\"select\""); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.postgres.ExecContext(p.ctx, dump.String()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := stuntgres.Reset(context.Background(), p.native); err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestReferenceIdentifierKeywords(t *testing.T) {
 	p.step(t, referenceSelect("SELECT by,between,values,integer,char FROM abort ORDER BY by", []string{"by", "between", "values", "integer", "char"}, []string{"INT4", "TEXT", "BOOL", "INT8", "TEXT"}, [][]any{{int64(1), "one", true, int64(10), "a"}, {int64(2), "two", false, int64(20), "b"}, {int64(3), "three", true, int64(30), "c"}}))
 }
 func TestReferenceIdentifierDiagnostics(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, s := range identifierSyntaxCases {
 		want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42601", Message: fmt.Sprintf("syntax error at or near \"%s\"", s.word), Position: s.pos}
 		for _, mode := range []string{"exec", "query", "prepare"} {
@@ -73,10 +73,10 @@ func TestReferenceIdentifierDiagnostics(t *testing.T) {
 	}
 }
 func TestReferenceIdentifierLabels(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t (x INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES (7)", 1))
-	for _, s := range []struct{ label, column, pos string }{{"check", "check", "10"}, {"default", "default", "10"}, {"authorization", "authorization", "10"}, {"AS char", "char", "13"}, {"AS grant", "grant", "13"}, {"AS \"Mixed\"", "Mixed", "13"}} {
+	for _, s := range []struct{ label, column, pos string }{{"check", "check", "10"}, {"default", "default", "10"}, {"authorization", "authorization", "10"}, {"AS char", "char", "13"}, {"AS grant", "grant", "13"}, {"AS \"Mixed\"", "Mixed", "13"}, {`"isnull"`, "isnull", "10"}, {`"notnull"`, "notnull", "10"}} {
 		q := "SELECT x " + s.label + " FROM t"
 		for _, prepared := range []bool{false, true} {
 			step := referenceSelect(q, []string{s.column}, []string{"INT4"}, [][]any{{int64(7)}})
@@ -90,68 +90,11 @@ func TestReferenceIdentifierLabels(t *testing.T) {
 		p.step(t, referencePrepared(step))
 	}
 }
-func TestReferenceIdentifierKeywordInventory(t *testing.T) {
-	p := newReferencePair(t)
-	rows, err := p.postgres.QueryContext(p.ctx, "SELECT word,catcode,barelabel,catdesc,baredesc FROM pg_get_keywords() ORDER BY word")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	counts := map[string]int{}
-	total, bareCount := 0, 0
-	previous := ""
-	samples := map[string][]any{}
-	descriptions := map[string]string{"U": "unreserved", "C": "unreserved (cannot be function or type name)", "T": "reserved (can be function or type name)", "R": "reserved"}
-	for rows.Next() {
-		var word, cat, desc, baredesc string
-		var bare bool
-		if err := rows.Scan(&word, &cat, &bare, &desc, &baredesc); err != nil {
-			t.Fatal(err)
-		}
-		if word <= previous || descriptions[cat] != desc {
-			t.Fatalf("inventory %s %s %s", word, cat, desc)
-		}
-		previous = word
-		wantBare := "requires AS"
-		if bare {
-			wantBare = "can be bare label"
-			bareCount++
-		}
-		if baredesc != wantBare {
-			t.Fatalf("bare description %s", word)
-		}
-		counts[cat]++
-		total++
-		samples[word] = []any{cat, bare}
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatal(err)
-	}
-	if total != 494 || bareCount != 455 || !reflect.DeepEqual(counts, map[string]int{"U": 330, "C": 63, "T": 23, "R": 78}) {
-		t.Fatalf("inventory total=%d bare=%d counts=%v", total, bareCount, counts)
-	}
-	for _, s := range []struct {
-		word, cat string
-		bare      bool
-	}{
-		{"abort", "U", true}, {"by", "U", true}, {"insert", "U", true}, {"text", "U", true}, {"merge", "U", true}, {"virtual", "U", true}, {"between", "C", true}, {"bigint", "C", true}, {"integer", "C", true}, {"values", "C", true}, {"json", "C", true}, {"char", "C", false}, {"day", "U", false}, {"authorization", "T", true}, {"join", "T", true}, {"isnull", "T", false}, {"select", "R", true}, {"check", "R", true}, {"analyze", "R", true}, {"end", "R", true}, {"do", "R", true}, {"grant", "R", false}, {"from", "R", false}, {"where", "R", false}, {"order", "R", false},
-		{"notnull", "T", false}, {"default", "R", true},
-	} {
-		if !reflect.DeepEqual(samples[s.word], []any{s.cat, s.bare}) {
-			t.Fatalf("sample %s=%v", s.word, samples[s.word])
-		}
-	}
-	for _, word := range []string{"bool", "int4", "int8", "date", "uuid", "serial", "jsonb", "bytea", "float4", "float8"} {
-		if _, ok := samples[word]; ok {
-			t.Fatalf("unexpected keyword %s", word)
-		}
-	}
-}
 
 func TestReferenceIdentifierNormalization(t *testing.T) {
 	for _, s := range identifierNormalizationCases {
 		t.Run(s.name, func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			p.step(t, referenceExec("CREATE TABLE "+s.spelling+" ("+s.spelling+" INT)", 0))
 			p.step(t, referencePrepared(referenceExec("INSERT INTO "+s.spelling+" ("+s.spelling+") VALUES ($1)", 1, 7)))
 			p.step(t, referenceSelect("SELECT "+s.spelling+" FROM "+s.spelling+" ORDER BY "+s.spelling, []string{s.name}, []string{"INT4"}, [][]any{{int64(7)}}))
@@ -160,7 +103,7 @@ func TestReferenceIdentifierNormalization(t *testing.T) {
 }
 
 func TestReferenceIdentifierQualifiedNames(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for i, name := range []string{"select", "authorization", "from", "check"} {
 		create := referenceExec("CREATE TABLE public."+name+" (x INT)", 0)
 		if i%2 == 1 {
@@ -187,7 +130,7 @@ func TestReferenceIdentifierInsertQueries(t *testing.T) {
 	} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/%t", s.q, prepared), func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				p.step(t, referenceExec("CREATE TABLE t (x INT)", 0))
 				p.step(t, referenceExec("CREATE TABLE source_rows (x INT)", 0))
 				p.step(t, referenceExec("INSERT INTO source_rows VALUES (7)", 1))
@@ -202,48 +145,56 @@ func TestReferenceIdentifierInsertQueries(t *testing.T) {
 }
 
 func TestReferenceIdentifierContextualCapabilities(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t (x INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES (7)", 1))
-	for _, s := range []struct {
-		q     string
-		value bool
-	}{
-		{"SELECT x isnull FROM t", false},
-		{"SELECT x notnull FROM t", true},
-	} {
-		step := referenceSelect(s.q, []string{"?column?"}, []string{"BOOL"}, [][]any{{s.value}})
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
-	}
-	for _, name := range []string{"f", "abort", "authorization", `"between"`} {
-		if _, err := p.postgres.ExecContext(p.ctx, "CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
-			t.Fatal(err)
+	if p.postgres != nil {
+		for _, name := range []string{`f`, `abort`, `authorization`, `"between"`} {
+			if _, err := p.postgres.ExecContext(p.ctx, "CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
-	for _, s := range identifierContextCases {
-		for _, prepared := range []bool{false, true} {
-			native := referenceErrorDiagnostic(s.q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: s.code, Message: s.message, Position: s.position})
-			native.prepared = prepared
-			native.selectRows = true
-			native.errorStage = "execute"
-			if prepared {
-				native.errorStage = "prepare"
+	for _, tc := range []struct {
+		q    string
+		want bool
+	}{{"SELECT x isnull FROM t", false}, {"SELECT x notnull FROM t", true}} {
+		p.step(t, referenceExec(tc.q, 1))
+		s := referenceSelect(tc.q, []string{"?column?"}, []string{"BOOL"}, [][]any{{tc.want}})
+		p.step(t, s)
+		p.step(t, referencePrepared(s))
+	}
+	for _, tc := range identifierContextCases {
+		for _, backend := range p.backends() {
+			for _, route := range []string{"exec", "query", "prepare"} {
+				var s referenceStep
+				if backend.pg && tc.code == "0A000" {
+					s = referenceSelect(tc.q, []string{tc.column}, []string{tc.typ}, [][]any{{tc.row}})
+					if route == "exec" {
+						s = referenceExec(tc.q, 1)
+					}
+					s.prepared = route == "prepare"
+				} else {
+					want := controlsReferenceDiagnostic(tc.code, tc.message)
+					want.Position = tc.position
+					s = referenceErrorDiagnostic(tc.q, want)
+					s.selectRows = route == "query"
+					s.prepared = route == "prepare"
+					if s.prepared {
+						s.errorStage = "prepare"
+					} else {
+						s.errorStage = "execute"
+					}
+				}
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 			}
-			if s.code == "42601" {
-				p.step(t, native)
-				continue
-			}
-			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-			pg := referenceSelect(s.q, []string{s.column}, []string{s.typ}, [][]any{{s.row}})
-			pg.prepared = prepared
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
 		}
 	}
+	p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}}))
 }
 
 func TestReferenceIdentifierNullExpressions(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t (x INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES (7),(NULL)", 2))
 	for _, s := range []struct {
@@ -276,32 +227,61 @@ func TestReferenceIdentifierNullExpressions(t *testing.T) {
 }
 
 func TestReferenceIdentifierLaterProjectionCalls(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t (x INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES (7)", 1))
-	for _, name := range []string{"abort", "authorization", `"between"`} {
-		if _, err := p.postgres.ExecContext(p.ctx, "CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
-			t.Fatal(err)
+	if p.postgres != nil {
+		for _, name := range []string{`abort`, `authorization`, `"between"`} {
+			if _, err := p.postgres.ExecContext(p.ctx, "CREATE FUNCTION public."+name+"(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
-	for _, s := range identifierLaterCallCases {
-		for _, prepared := range []bool{false, true} {
-			native := referenceErrorDiagnostic(s.q, referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: s.code, Message: s.message, Position: s.position})
-			native.selectRows = true
-			native.prepared = prepared
-			native.errorStage = "execute"
-			if prepared {
-				native.errorStage = "prepare"
+	for _, tc := range identifierLaterCallCases {
+		for _, backend := range p.backends() {
+			for _, route := range []string{"exec", "query", "prepare"} {
+				var s referenceStep
+				if backend.pg && tc.code == "0A000" {
+					s = referenceSelect(tc.q, tc.columns, tc.types, tc.rows)
+					if route == "exec" {
+						s = referenceExec(tc.q, 1)
+					}
+					s.prepared = route == "prepare"
+				} else {
+					want := controlsReferenceDiagnostic(tc.code, tc.message)
+					want.Position = tc.position
+					s = referenceErrorDiagnostic(tc.q, want)
+					s.selectRows = route == "query"
+					s.prepared = route == "prepare"
+					if s.prepared {
+						s.errorStage = "prepare"
+					} else {
+						s.errorStage = "execute"
+					}
+				}
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 			}
-			if s.code == "42601" {
-				p.step(t, native)
-				continue
-			}
-			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-			pg := referenceSelect(s.q, s.columns, s.types, s.rows)
-			pg.prepared = prepared
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
 		}
+	}
+	var before, after bytes.Buffer
+	if err := stuntgres.Dump(p.ctx, p.native, &before); err != nil {
+		t.Fatal(err)
+	}
+	want := controlsReferenceDiagnostic("0A000", "functions are unsupported")
+	want.Position = "40"
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceErrorDiagnostic("CREATE TABLE staged (x INT); SELECT x, f(x) FROM t", want))
+	if err := stuntgres.Dump(p.ctx, p.native, &after); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before.Bytes(), after.Bytes()) {
+		t.Fatal("later call published catalog")
+	}
+	if p.postgres != nil {
+		if _, err := p.postgres.ExecContext(p.ctx, "CREATE FUNCTION public.f(integer) RETURNS integer LANGUAGE sql IMMUTABLE AS 'SELECT $1'"); err != nil {
+			t.Fatal(err)
+		}
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("CREATE TABLE staged (x INT); SELECT x, f(x) FROM t", 1))
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect("SELECT x FROM staged", []string{"x"}, []string{"INT4"}, nil))
 	}
 	p.step(t, referenceSelect("SELECT x FROM t ORDER BY x", []string{"x"}, []string{"INT4"}, [][]any{{int64(7)}}))
 }

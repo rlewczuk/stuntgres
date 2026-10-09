@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -57,131 +55,135 @@ func TestReferenceDeparseConstraintsReviewRandomBoundedConsumers(t *testing.T) {
 				if got := draw(); got != first {
 					t.Fatal("construction effect", got, first)
 				}
-				for i, name := range []string{"original", "copy0", "copy1"} {
-					constraint := "c"
-					if i > 0 {
-						constraint = fmt.Sprintf("c%d", i-1)
-					}
-					for _, prepared := range []bool{false, true} {
-						for _, item := range []struct {
-							id     int
-							value  string
-							reject bool
-						}{{1, "6", false}, {2, "7", true}, {3, "NULL", false}} {
-							seed()
-							query := fmt.Sprintf("INSERT INTO %s VALUES(%d,%s)", name, item.id, item.value)
-							var err error
-							if prepared {
-								s, e := conn.PrepareContext(context.Background(), query)
-								if e != nil {
-									t.Fatal(e)
-								}
-								_, err = s.ExecContext(context.Background())
-								s.Close()
-							} else {
-								_, err = conn.ExecContext(context.Background(), query)
-							}
-							if item.reject {
-								detail := "2, 7"
-								{
-									want := referenceCheckViolation(name, constraint, detail)
-									want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-									referenceAssertDiagnostic(t, err, &want)
-								}
-							} else if err != nil {
-								t.Fatal(err)
-							}
-							if got := draw(); got != after {
-								t.Fatal("bounded call effect", got, after)
-							}
-						}
-						{
-							value := any(int64(6))
-							typ := "INT4"
-							if tc.decl == "BIGINT" {
-								typ = "INT8"
-							}
-							if tc.decl == "NUMERIC" {
-								typ = "NUMERIC"
-								value = "6"
-							}
-							run(referenceSelect("SELECT id,a FROM "+name+" ORDER BY id", []string{"id", "a"}, []string{"INT4", typ}, [][]any{{int64(1), value}, {int64(3), nil}}))
-						}
-						seed()
-						control()
-						control()
-						afterBatch := draw()
-						seed()
-						query := "INSERT INTO " + name + " VALUES(4,6),(5,7),(6,6)"
-						var err error
-						if prepared {
-							s, e := conn.PrepareContext(context.Background(), query)
-							if e != nil {
-								t.Fatal(e)
-							}
-							_, err = s.ExecContext(context.Background())
-							s.Close()
-						} else {
-							_, err = conn.ExecContext(context.Background(), query)
-						}
-						detail := "5, 7"
-						{
-							want := referenceCheckViolation(name, constraint, detail)
-							want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-							referenceAssertDiagnostic(t, err, &want)
-						}
-						if got := draw(); got != afterBatch {
-							t.Fatal("failed batch calls", got, afterBatch)
-						}
-						{
-							value := any(int64(6))
-							typ := "INT4"
-							if tc.decl == "BIGINT" {
-								typ = "INT8"
-							}
-							if tc.decl == "NUMERIC" {
-								typ = "NUMERIC"
-								value = "6"
-							}
-							run(referenceSelect("SELECT id,a FROM "+name+" ORDER BY id", []string{"id", "a"}, []string{"INT4", typ}, [][]any{{int64(1), value}, {int64(3), nil}}))
-						}
-						seed()
-						query = "UPDATE " + name + " SET a=7 WHERE id=1"
-						if prepared {
-							s, e := conn.PrepareContext(context.Background(), query)
-							if e != nil {
-								t.Fatal(e)
-							}
-							_, err = s.ExecContext(context.Background())
-							s.Close()
-						} else {
-							_, err = conn.ExecContext(context.Background(), query)
-						}
-						detail = "1, 7"
-						{
-							want := referenceCheckViolation(name, constraint, detail)
-							want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-							referenceAssertDiagnostic(t, err, &want)
-						}
-						if got := draw(); got != after {
-							t.Fatal("failed update call", got, after)
-						}
-						{
-							value := any(int64(6))
-							typ := "INT4"
-							if tc.decl == "BIGINT" {
-								typ = "INT8"
-							}
-							if tc.decl == "NUMERIC" {
-								typ = "NUMERIC"
-								value = "6"
-							}
-							run(referenceSelect("SELECT id,a FROM "+name+" ORDER BY id", []string{"id", "a"}, []string{"INT4", typ}, [][]any{{int64(1), value}, {int64(3), nil}}))
-						}
-						run(referenceExec("DELETE FROM "+name, 2))
-					}
-				}
+				deparseBoundedConsumers(t, conn, tc, after, seed, draw, control, run)
 			})
 		})
+	}
+}
+
+func deparseBoundedConsumers(t *testing.T, conn *sql.Conn, tc struct{ name, decl, call, compact, pretty string }, after float64, seed func(), draw func() float64, control func(), run func(referenceStep) referenceObserved) {
+	for i, name := range []string{"original", "copy0", "copy1"} {
+		constraint := "c"
+		if i > 0 {
+			constraint = fmt.Sprintf("c%d", i-1)
+		}
+		for _, prepared := range []bool{false, true} {
+			for _, item := range []struct {
+				id     int
+				value  string
+				reject bool
+			}{{1, "6", false}, {2, "7", true}, {3, "NULL", false}} {
+				seed()
+				query := fmt.Sprintf("INSERT INTO %s VALUES(%d,%s)", name, item.id, item.value)
+				var err error
+				if prepared {
+					s, e := conn.PrepareContext(context.Background(), query)
+					if e != nil {
+						t.Fatal(e)
+					}
+					_, err = s.ExecContext(context.Background())
+					s.Close()
+				} else {
+					_, err = conn.ExecContext(context.Background(), query)
+				}
+				if item.reject {
+					detail := "2, 7"
+					{
+						want := referenceCheckViolation(name, constraint, detail)
+						want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+						referenceAssertDiagnostic(t, err, &want)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				if got := draw(); got != after {
+					t.Fatal("bounded call effect", got, after)
+				}
+			}
+			{
+				value := any(int64(6))
+				typ := "INT4"
+				if tc.decl == "BIGINT" {
+					typ = "INT8"
+				}
+				if tc.decl == "NUMERIC" {
+					typ = "NUMERIC"
+					value = "6"
+				}
+				run(referenceSelect("SELECT id,a FROM "+name+" ORDER BY id", []string{"id", "a"}, []string{"INT4", typ}, [][]any{{int64(1), value}, {int64(3), nil}}))
+			}
+			seed()
+			control()
+			control()
+			afterBatch := draw()
+			seed()
+			query := "INSERT INTO " + name + " VALUES(4,6),(5,7),(6,6)"
+			var err error
+			if prepared {
+				s, e := conn.PrepareContext(context.Background(), query)
+				if e != nil {
+					t.Fatal(e)
+				}
+				_, err = s.ExecContext(context.Background())
+				s.Close()
+			} else {
+				_, err = conn.ExecContext(context.Background(), query)
+			}
+			detail := "5, 7"
+			{
+				want := referenceCheckViolation(name, constraint, detail)
+				want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+				referenceAssertDiagnostic(t, err, &want)
+			}
+			if got := draw(); got != afterBatch {
+				t.Fatal("failed batch calls", got, afterBatch)
+			}
+			{
+				value := any(int64(6))
+				typ := "INT4"
+				if tc.decl == "BIGINT" {
+					typ = "INT8"
+				}
+				if tc.decl == "NUMERIC" {
+					typ = "NUMERIC"
+					value = "6"
+				}
+				run(referenceSelect("SELECT id,a FROM "+name+" ORDER BY id", []string{"id", "a"}, []string{"INT4", typ}, [][]any{{int64(1), value}, {int64(3), nil}}))
+			}
+			seed()
+			query = "UPDATE " + name + " SET a=7 WHERE id=1"
+			if prepared {
+				s, e := conn.PrepareContext(context.Background(), query)
+				if e != nil {
+					t.Fatal(e)
+				}
+				_, err = s.ExecContext(context.Background())
+				s.Close()
+			} else {
+				_, err = conn.ExecContext(context.Background(), query)
+			}
+			detail = "1, 7"
+			{
+				want := referenceCheckViolation(name, constraint, detail)
+				want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+				referenceAssertDiagnostic(t, err, &want)
+			}
+			if got := draw(); got != after {
+				t.Fatal("failed update call", got, after)
+			}
+			{
+				value := any(int64(6))
+				typ := "INT4"
+				if tc.decl == "BIGINT" {
+					typ = "INT8"
+				}
+				if tc.decl == "NUMERIC" {
+					typ = "NUMERIC"
+					value = "6"
+				}
+				run(referenceSelect("SELECT id,a FROM "+name+" ORDER BY id", []string{"id", "a"}, []string{"INT4", typ}, [][]any{{int64(1), value}, {int64(3), nil}}))
+			}
+			run(referenceExec("DELETE FROM "+name, 2))
+		}
 	}
 }

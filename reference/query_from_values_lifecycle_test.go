@@ -7,10 +7,15 @@ func TestReferenceQueryFromValuesPrepared(t *testing.T) {
 	for _, backend := range p.backends() {
 		q := "SELECT n FROM (VALUES($1),(2)) v(n) ORDER BY n"
 		stmt, err := backend.db.PrepareContext(p.ctx, q)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer stmt.Close()
 		x := referenceHeldStatement{backend.db, stmt, q}
-		for _, tc := range []struct { arg any; rows [][]any }{
+		for _, tc := range []struct {
+			arg  any
+			rows [][]any
+		}{
 			{int64(1), [][]any{{int64(1)}, {int64(2)}}},
 			{int64(3), [][]any{{int64(2)}, {int64(3)}}},
 			{nil, [][]any{{int64(2)}, {nil}}},
@@ -19,7 +24,9 @@ func TestReferenceQueryFromValuesPrepared(t *testing.T) {
 		}
 		q = "VALUES($1),($2)"
 		unknown, err := backend.db.PrepareContext(p.ctx, q)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer unknown.Close()
 		y := referenceHeldStatement{backend.db, unknown, q}
 		for _, args := range [][]any{{"a", "b"}, {nil, "x"}, {"z", nil}} {
@@ -32,10 +39,10 @@ func TestReferenceQueryFromValuesPrepared(t *testing.T) {
 
 func TestReferenceQueryFromValuesParameters(t *testing.T) {
 	for _, tc := range []struct {
-		query string
-		columns, types []string
-		args [][]any
-		rows [][][]any
+		query           string
+		columns, types  []string
+		args            [][]any
+		rows            [][][]any
 		missingPosition string
 	}{
 		{"VALUES($1),(2)", []string{"column1"}, []string{"INT4"}, [][]any{{int64(1)}, {nil}}, [][][]any{{{int64(1)}, {int64(2)}}, {{nil}, {int64(2)}}}, "8"},
@@ -49,17 +56,26 @@ func TestReferenceQueryFromValuesParameters(t *testing.T) {
 				// no-argument call uses simple protocol, native binds then checks
 				// Go argument arity. A held statement checks Go arity on both.
 				rows, err := backend.db.QueryContext(p.ctx, tc.query)
-				if rows != nil { rows.Close(); t.Fatal("missing arguments published rows") }
+				if rows != nil {
+					rows.Close()
+					t.Fatal("missing arguments published rows")
+				}
 				if backend.pg {
 					want := controlsReferenceDiagnostic("42P02", "there is no parameter $1")
 					want.Position = tc.missingPosition
 					referenceAssertDiagnostic(t, err, &want)
 				} else {
-					if err == nil { t.Fatal("missing Go arguments accepted") }
-					if _, ok := err.(interface{ SQLState() string }); ok { t.Fatal("ordinary argument error gained SQLSTATE", err) }
+					if err == nil {
+						t.Fatal("missing Go arguments accepted")
+					}
+					if _, ok := err.(interface{ SQLState() string }); ok {
+						t.Fatal("ordinary argument error gained SQLSTATE", err)
+					}
 				}
 				stmt, err := backend.db.PrepareContext(p.ctx, tc.query)
-				if err != nil { t.Fatal(err) }
+				if err != nil {
+					t.Fatal(err)
+				}
 				defer stmt.Close()
 				held := referenceHeldStatement{backend.db, stmt, tc.query}
 				for i, args := range tc.args {
@@ -70,9 +86,19 @@ func TestReferenceQueryFromValuesParameters(t *testing.T) {
 					}
 				}
 				rows, err = stmt.QueryContext(p.ctx)
-				if rows != nil { rows.Close(); stmt.Close(); t.Fatal("missing held arguments published rows") }
-				if err == nil { stmt.Close(); t.Fatal("missing held Go arguments accepted") }
-				if _, ok := err.(interface{ SQLState() string }); ok { stmt.Close(); t.Fatal("ordinary held argument error gained SQLSTATE", err) }
+				if rows != nil {
+					rows.Close()
+					stmt.Close()
+					t.Fatal("missing held arguments published rows")
+				}
+				if err == nil {
+					stmt.Close()
+					t.Fatal("missing held Go arguments accepted")
+				}
+				if _, ok := err.(interface{ SQLState() string }); ok {
+					stmt.Close()
+					t.Fatal("ordinary held argument error gained SQLSTATE", err)
+				}
 				if tc.query == "VALUES($1),(2)" {
 					for _, executor := range []referenceExecutor{backend.db, held} {
 						s := referenceImplicitError(tc.query, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`, Context: "unnamed portal parameter $1 = '...'"}, "bad")
@@ -80,7 +106,9 @@ func TestReferenceQueryFromValuesParameters(t *testing.T) {
 						referenceRunStep(t, p.ctx, executor, backend.recorder, s)
 					}
 				}
-				if err := stmt.Close(); err != nil { t.Fatal(err) }
+				if err := stmt.Close(); err != nil {
+					t.Fatal(err)
+				}
 			}
 		})
 	}
@@ -88,9 +116,9 @@ func TestReferenceQueryFromValuesParameters(t *testing.T) {
 
 func TestReferenceQueryFromValuesParameterDiagnostics(t *testing.T) {
 	for _, tc := range []struct {
-		query string
-		args []any
-		want referenceDiagnostic
+		query          string
+		args           []any
+		want           referenceDiagnostic
 		missingMessage string
 	}{
 		{"VALUES($2),(2)", []any{nil, int64(1)}, referenceDiagnostic{Code: "42P18", Message: "could not determine data type of parameter $1"}, "there is no parameter $2"},
@@ -101,14 +129,18 @@ func TestReferenceQueryFromValuesParameterDiagnostics(t *testing.T) {
 			p := newReferenceScenario(t)
 			for _, backend := range p.backends() {
 				plain := tc.want
-				if backend.pg { plain = referenceDiagnostic{Code: "42P02", Message: tc.missingMessage, Position: "8"} }
+				if backend.pg {
+					plain = referenceDiagnostic{Code: "42P02", Message: tc.missingMessage, Position: "8"}
+				}
 				s := referenceImplicitError(tc.query, plain)
 				s.selectRows, s.errorStage = true, "execute"
 				referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 				for _, prepared := range []bool{false, true} {
 					s := referenceImplicitError(tc.query, tc.want, tc.args...)
 					s.selectRows, s.prepared, s.errorStage = true, prepared, "execute"
-					if prepared { s.errorStage = "prepare" }
+					if prepared {
+						s.errorStage = "prepare"
+					}
 					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 				}
 			}

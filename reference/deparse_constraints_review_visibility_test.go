@@ -1,28 +1,22 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
 )
 
 func TestReferenceDeparseConstraintsReviewProviderVisibility(t *testing.T) {
-	p := newReferencePair(t)
-	for _, b := range []struct {
-		name string
-		db   *sql.DB
-		rec  *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"memory", p.memory, p.memoryRecord}} {
+	schemaReferenceCleanup(t, "shadow")
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
 			conn, err := b.db.Conn(p.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer conn.Close()
-			run := func(s referenceStep) referenceObserved { return referenceRunStep(t, p.ctx, conn, b.rec, s) }
+			run := func(s referenceStep) referenceObserved { return referenceRunStep(t, p.ctx, conn, b.recorder, s) }
 			exec := func(q string) {
 				n := int64(0)
 				if strings.HasPrefix(q, "INSERT ") {

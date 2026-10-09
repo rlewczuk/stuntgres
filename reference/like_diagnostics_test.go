@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -7,28 +5,18 @@ import "testing"
 // The oracle entry point runs the same permanent expectations on PostgreSQL
 // alone while LIKE is being implemented. The paired entry point retains them
 // as independent expectations before backend comparison.
-func TestReferenceLikeOraclePhases(t *testing.T) {
-	likeReferencePhases(t, true)
-}
 
 func TestReferenceLikePhases(t *testing.T) {
-	likeReferencePhases(t, false)
-}
-
-func likeReferencePhases(t *testing.T, oracleOnly bool) {
 	for _, populated := range []bool{false, true} {
 		name := "empty"
 		if populated {
 			name = "populated"
 		}
 		t.Run(name, func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			run := func(s referenceStep) {
-				if oracleOnly {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-				} else {
-					p.step(t, s)
-				}
+				s.checkMetadata = likeReferenceMetadata
+				p.step(t, s)
 			}
 			run(referenceExec("CREATE TABLE t(v TEXT,p TEXT,e TEXT,i INTEGER)", 0))
 			if populated {
@@ -79,11 +67,7 @@ func likeReferencePhases(t *testing.T, oracleOnly bool) {
 						s.errorStage = "execute"
 					}
 					for _, step := range []referenceStep{s, referencePrepared(s)} {
-						if oracleOnly {
-							referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
-						} else {
-							p.step(t, step)
-						}
+						p.step(t, step)
 					}
 				})
 			}
@@ -91,22 +75,11 @@ func likeReferencePhases(t *testing.T, oracleOnly bool) {
 	}
 }
 
-func TestReferenceLikeOracleLazyEscapes(t *testing.T) {
-	likeReferenceLazyEscapes(t, true)
-}
-
 func TestReferenceLikeLazyEscapes(t *testing.T) {
-	likeReferenceLazyEscapes(t, false)
-}
-
-func likeReferenceLazyEscapes(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	run := func(s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
 	run(referenceExec("CREATE TABLE seed(i INTEGER)", 0))
 	run(referenceExec("INSERT INTO seed VALUES(1)", 1))

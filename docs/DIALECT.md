@@ -29,6 +29,12 @@ including a domain whose name is also a builtin spelling.
 The default is typed NULL. Domain DEFAULT/CHECK/NOT NULL, ALTER DOMAIN, general
 arrays, GRANT/REVOKE TYPE/DOMAIN and explicit-transaction domain utilities remain
 unsupported, not successful no-ops.
+The migrated visibility boundary retains its exact CREATE DOMAIN d AS integer
+Query, empty utility result and typed7/true INT4/BOOL witness. DROP followed by
+quiet Prepare leaves the type absent until SAME held Execute; six other native
+DDL exclusions and the default-function negative remain. Original source and
+recorded Context consumers are separate phases, not new dialect support.
+
 
 `DROP DOMAIN [IF EXISTS] name [, ...] [RESTRICT | CASCADE]` requires ownership.
 RESTRICT retains all objects/data and reports actual dependent types, columns and
@@ -276,7 +282,7 @@ Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAgg
 real independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAggregate' VERBOSE=0`.
 Expression-count smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCountExpressionSmokeMigration$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCountExpression' VERBOSE=0`.
-Boolean smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBooleanAggregateMigrationLifecycle$' VERBOSE=0`;
+Boolean smoke: `make quickcheck PACKAGES=./reference RUN='^TestReference(BooleanAggregate[A-Za-z0-9_]*|AnyValueSourceACL)$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0`.
 Parameterless count() gives42809 and preserves a qualified call name in its message.
 Children are analyzed before the more-than-100-argument guard54023, then
@@ -2103,7 +2109,7 @@ recovers across epochs, including fresh current-epoch ROLLBACK AND CHAIN.
 End Prepare remains effect-free/eligible; retained handles are not deleted.
 
 
-Relation locking is transaction-owned AS for ordinary SELECT, ROW SHARE for locking SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for keyless UPDATE, SUE for COMMENT Execute, and owner-authorized AX for selected ALTER utilities. Explicit `LOCK [TABLE]` accepts ordered targets with ONLY/star, all eight table modes (default AX) and NOWAIT in an explicit SQL/driver block, including read-only blocks. Documented table-level ANY-rights privileges apply; ordinary views recurse with owner authority, security_invoker with the original invoker. Native table inheritance remains unsupported. The complete matrix and savepoint restoration contract are in [relation locks](TRANSACTIONS.md#relation-locks). Semantic data Prepare acquires automatic table modes and fixes characteristic/RR snapshot timing before waits; LOCK/COMMENT/ALTER Prepare remain metadata-only. Existing fair compatible cohorts, deadlock resolution, absolute deadlines, typed lock_timeout, caller-context identity, exact grant-time relation identity, replacement fences and publication-before-release are unchanged. UPDATE/DELETE preserve frozen candidate identities, RC/RU recheck and RR40001 behavior. Advisory locking/introspection remain excluded. Feature smokes: `make quickcheck PACKAGES=./smoke VERBOSE=0 RUN='^TestLockModesSmoke(Matrix|OrderViews|Savepoints)$$'`.
+Relation locking is transaction-owned AS for ordinary SELECT, ROW SHARE for locking SELECT, RX for INSERT/UPDATE/DELETE, row UPDATE for DELETE and NO KEY UPDATE for keyless UPDATE, SUE for COMMENT Execute, and owner-authorized AX for selected ALTER utilities. Explicit `LOCK [TABLE]` accepts ordered targets with ONLY/star, all eight table modes (default AX) and NOWAIT in an explicit SQL/driver block, including read-only blocks. Documented table-level ANY-rights privileges apply; ordinary views recurse with owner authority, security_invoker with the original invoker. Native table inheritance remains unsupported. The complete matrix and savepoint restoration contract are in [relation locks](TRANSACTIONS.md#relation-locks). Semantic data Prepare acquires automatic table modes and fixes characteristic/RR snapshot timing before waits; LOCK/COMMENT/ALTER Prepare remain metadata-only. Existing fair compatible cohorts, deadlock resolution, absolute deadlines, typed lock_timeout, caller-context identity, exact grant-time relation identity, replacement fences and publication-before-release are unchanged. UPDATE/DELETE preserve frozen candidate identities, RC/RU recheck and RR40001 behavior. Advisory locking/introspection remain excluded. Feature smokes: `make quickcheck PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLockModes(Matrix|Order|Views|Savepoints)$'`.
 Lock-timeout55P03 and deadlock40P01 during direct SELECT/INSERT/UPDATE/DELETE relation analysis or semantic Prepare carry the original ObjectName's first token character Position (schema token for qualified names). Cached Execute, SELECT/UPDATE/DELETE row waits and utility errors have no parse-analysis Position;57014 is excluded from this decoration. Do not put source-position policy into manager resources or fabricate Schema/Table fields.
 The canonical manager searches finite stable queue-order constraints to resolve soft cycles without aborting; unavoidable relation/row cycles fail an unspecified actual cycle member with ERROR40P01 `deadlock detected` and Hint `See server log for query details.` Native Detail describes exact logical transaction/session/epoch, mode, relation ObjectRef and optional RowID cycle edges, not physical PostgreSQL PID/XID/ctid identities or tuple Context. Without marks, mandatory Finish discards victim private effects and releases held locks, allowing survivors to proceed before explicit victim ROLLBACK. With recoverable marks it restores the newest mark's effects and held-mode checkpoint, releasing failed-level contributions while preserving ancestor holds. Explicit victims retain the existing25P02 recovery gate. SSI remains unsupported and is not a blocking dependency.
 Queued work binds the grant-time descriptor of the exact retained ObjectRef; a same-identity definition revision is valid, while epoch changes/removal/recreation remain fenced. Keep subsequent grant-time descriptor pinning and catalog/storage publication guards. Post-drop quoted expression errors use literal decoded identifiers and character positions. Positive qualified ordinary-owner controls use one ordinary schema/table owner; separate distinct-owner Restore/denial/replay witnesses retain the namespace-USAGE and explicit-ACL Dump boundaries without adding native GRANT.
@@ -2549,8 +2555,15 @@ Dump writes canonical real definitions/current names/options after parent data;
 Reset removes persistent indexes and Restore privately rebuilds destination
 membership. Supported table lifecycle commands preserve or remove indices
 atomically. Smokes:
-`go test -count=1 -run '^TestReferenceUniqueBtree(Regression|Controls|Lifecycle)$' ./reference`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceBtreeIndex(Regression|Controls|Lifecycle)$'`;
+the same RUN with `REFERENCE=1` includes the independent pinned PostgreSQL oracle.
 The independent reference family is `TestReferenceBtreeIndex...`.
+The consolidated source/reference union keeps actual plain maintenance and
+transaction consumers beside recorded Context owners. Standalone CREATE UNIQUE
+INDEX still fails with native0A000/Position8/nil publications and unchanged
+catalog/data/Dump; independent PostgreSQL supported direct/held witnesses do
+not turn that native exclusion into a success.
+
 
 ## LIKE and ILIKE — change note
 

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -7,14 +5,10 @@ import (
 	"testing"
 )
 
-func stringCoreKelvinReference(t *testing.T, p *referencePair, oracle bool) {
+func stringCoreKelvinReference(t *testing.T, p *referencePair) {
 	run := func(t *testing.T, s referenceStep) {
 		t.Helper()
-		if oracle {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		p.step(t, s)
 	}
 	for _, function := range []string{"pg_catalog.normalize", "pg_catalog.is_normalized"} {
 		for _, form := range []string{"NFKC", "NFKD"} {
@@ -69,15 +63,6 @@ func stringCoreKelvinReference(t *testing.T, p *referencePair, oracle bool) {
 	}
 }
 
-func TestReferenceStringCoreReviewOracle(t *testing.T) {
-	p := newReferencePair(t)
-	t.Run("forms", func(t *testing.T) { stringCoreKelvinReference(t, p, true) })
-	t.Run("deparse", func(t *testing.T) { stringCoreReviewDeparseReference(t, p, true) })
-	t.Run("resolution", func(t *testing.T) { stringCoreReviewResolutionReference(t, p, true) })
-	t.Run("binary_cutover", func(t *testing.T) { stringCoreReviewBinaryConsumptionReference(t, p, true) })
-	t.Run("RestoreSQL", func(t *testing.T) { stringCoreReviewRestoreSQLReference(t, p, true) })
-}
-
 func TestReferenceStringCoreReviewForms(t *testing.T) {
-	stringCoreKelvinReference(t, newReferencePair(t), false)
+	stringCoreKelvinReference(t, newReferenceScenario(t))
 }

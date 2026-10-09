@@ -11,12 +11,17 @@ func TestReferenceQueryFromValuesInsertDefaults(t *testing.T) {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
 			p := newReferenceScenario(t)
 			for _, backend := range p.backends() {
-				run := func(s referenceStep) { s.prepared = prepared; defaultReferenceRunStep(t, p, backend.db, backend.recorder, s) }
+				run := func(s referenceStep) {
+					s.prepared = prepared
+					defaultReferenceRunStep(t, p, backend.db, backend.recorder, s)
+				}
 				run(referenceExec(`CREATE TABLE d(id INT,s TEXT DEFAULT CAST(1 AS TEXT),i INT DEFAULT int4('42'::text),b BOOL DEFAULT (DATE '0001-01-01 BC' < DATE '0001-01-01'),d DATE DEFAULT DATE '2000-02-29',v BYTEA DEFAULT '\x0080ff5c27')`, 0))
 				run(referenceExec("INSERT INTO d(id) VALUES(5) ORDER BY 1", 1))
 				run(referenceExec("INSERT INTO d(id) SELECT * FROM (VALUES(6),(6)) v(id)", 2))
 				var date any = "2000-02-29"
-				if backend.pg { date = time.Date(2000, 2, 29, 0, 0, 0, 0, time.UTC) }
+				if backend.pg {
+					date = time.Date(2000, 2, 29, 0, 0, 0, 0, time.UTC)
+				}
 				row := func(id int64) []any { return []any{id, "1", int64(42), true, date, "\x00\x80\xff\\'"} }
 				run(referenceSelect("SELECT * FROM d ORDER BY id", []string{"id", "s", "i", "b", "d", "v"}, []string{"INT4", "TEXT", "INT4", "BOOL", "DATE", "BYTEA"}, [][]any{row(5), row(6), row(6)}))
 				run(referenceExec("CREATE TABLE narrow(n SMALLINT)", 0))
@@ -34,7 +39,9 @@ func TestReferenceQueryFromValuesInsertDefaults(t *testing.T) {
 				remaining.prepared = prepared
 				referenceTableDDLMetadata(t, p.ctx, backend.db, backend.pg, prepared, remaining.query, remaining.columns, remaining.types, []bool{true, true, false}, len(remaining.rows))
 				referenceRunStep(t, p.ctx, backend.db, backend.recorder, remaining)
-				for _, s := range []referenceStep{referenceExec("CREATE TABLE dst(n INT)", 0), referenceExec("INSERT INTO dst VALUES(7),(8),(9) OFFSET 1 FETCH FIRST ROW ONLY", 1), referenceSelect("SELECT * FROM dst", []string{"n"}, []string{"INT4"}, [][]any{{int64(8)}})} { run(s) }
+				for _, s := range []referenceStep{referenceExec("CREATE TABLE dst(n INT)", 0), referenceExec("INSERT INTO dst VALUES(7),(8),(9) OFFSET 1 FETCH FIRST ROW ONLY", 1), referenceSelect("SELECT * FROM dst", []string{"n"}, []string{"INT4"}, [][]any{{int64(8)}})} {
+					run(s)
+				}
 			}
 		})
 	}
@@ -49,7 +56,9 @@ func TestReferenceQueryFromValuesInsertTransactions(t *testing.T) {
 				run(referenceExec("CREATE TABLE t(n INT NOT NULL)", 0))
 				run(referenceExec("INSERT INTO t VALUES(1),(2)", 2))
 				tx, err := backend.db.BeginTx(p.ctx, nil)
-				if err != nil { t.Fatal(err) }
+				if err != nil {
+					t.Fatal(err)
+				}
 				defer tx.Rollback()
 				own := func(s referenceStep) { referenceRunStep(t, p.ctx, tx, backend.recorder, s) }
 				own(referencePrepared(referenceExec("INSERT INTO t SELECT t.n FROM t CROSS JOIN (VALUES(7),(7)) v(n)", 4)))
@@ -58,7 +67,9 @@ func TestReferenceQueryFromValuesInsertTransactions(t *testing.T) {
 				committed := [][]any{{int64(1)}, {int64(2)}}
 				run(referenceSelect("SELECT n FROM t ORDER BY n", []string{"n"}, []string{"INT4"}, committed))
 				if mode == "commit" {
-					if err := tx.Commit(); err != nil { t.Fatal(err) }
+					if err := tx.Commit(); err != nil {
+						t.Fatal(err)
+					}
 				} else {
 					if mode == "failure" {
 						failure := referenceImplicitError("INSERT INTO t SELECT * FROM (VALUES(NULL::integer)) v(n)", referenceDiagnostic{Code: "23502", Message: `null value in column "n" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "n"})
@@ -68,7 +79,9 @@ func TestReferenceQueryFromValuesInsertTransactions(t *testing.T) {
 						failure.errorStage = "execute"
 						own(failure)
 					}
-					if err := tx.Rollback(); err != nil { t.Fatal(err) }
+					if err := tx.Rollback(); err != nil {
+						t.Fatal(err)
+					}
 					want = committed
 				}
 				run(referenceSelect("SELECT n FROM t ORDER BY n", []string{"n"}, []string{"INT4"}, want))
@@ -86,7 +99,9 @@ func TestReferenceQueryFromValuesDecoratedCommandMetadata(t *testing.T) {
 		run(referenceExec("INSERT INTO order_keys VALUES(1),(2) ORDER BY +2", 2))
 		q := "INSERT INTO order_keys VALUES(3),(4) ORDER BY +1.5 DESC"
 		stmt, err := backend.db.PrepareContext(p.ctx, q)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		defer stmt.Close()
 		held := referenceHeldStatement{backend.db, stmt, q}
 		referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(q, 2))

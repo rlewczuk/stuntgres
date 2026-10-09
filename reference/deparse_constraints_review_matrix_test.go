@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -106,19 +104,26 @@ var deparseReviewDefaults = []struct{ name, declaration, input, golden, value st
 
 func deparseReviewStreams(t *testing.T, scenario func(*testing.T, *sql.Conn, bool, func(referenceStep) referenceObserved)) {
 	t.Helper()
-	p := newReferencePair(t)
-	for _, b := range []struct {
-		name string
-		db   *sql.DB
-		rec  *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"memory", p.memory, p.memoryRecord}} {
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
 			conn, err := b.db.Conn(p.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer conn.Close()
-			scenario(t, conn, b.name == "postgres", func(s referenceStep) referenceObserved { return referenceRunStep(t, p.ctx, conn, b.rec, s) })
+			scenario(t, conn, b.name == "postgres", func(s referenceStep) referenceObserved {
+				if s.selectRows && s.diagnostic == nil {
+					previous := s.checkMetadata
+					s.checkMetadata = func(t *testing.T, rows *sql.Rows) {
+						deparseReviewMetadata(t, b.pg, rows)
+						if previous != nil {
+							previous(t, rows)
+						}
+					}
+				}
+				return referenceRunStep(t, p.ctx, conn, b.recorder, s)
+			})
 		})
 	}
 }

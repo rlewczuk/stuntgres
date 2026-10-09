@@ -10,7 +10,7 @@ import (
 func TestReferenceQueryFromValuesDiagnostics(t *testing.T) {
 	cases := []struct {
 		query string
-		want referenceDiagnostic
+		want  referenceDiagnostic
 	}{
 		{"VALUES (1), (2,3)", referenceDiagnostic{Code: "42601", Message: "VALUES lists must all be the same length", Position: "14"}},
 		{"VALUES(1),(TRUE)", referenceDiagnostic{Code: "42804", Message: "VALUES types integer and boolean cannot be matched", Position: "12"}},
@@ -54,7 +54,9 @@ func TestReferenceQueryFromValuesDiagnostics(t *testing.T) {
 		tc.query = "/*é🙂*/ " + tc.query
 		if tc.want.Position != "" {
 			n, err := strconv.Atoi(tc.want.Position)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			tc.want.Position = strconv.Itoa(n + 7)
 		}
 		cases = append(cases, tc)
@@ -67,12 +69,16 @@ func TestReferenceQueryFromValuesDiagnostics(t *testing.T) {
 				for _, s := range []referenceStep{
 					referenceExec("CREATE TABLE t(n INT)", 0), referenceExec("INSERT INTO t VALUES(1),(2)", 2),
 					referenceExec("CREATE TABLE empty(n INT)", 0), referenceExec("CREATE TABLE integer_destination(n INT)", 0),
-				} { run(s) }
+				} {
+					run(s)
+				}
 				for _, prepared := range []bool{false, true} {
 					for _, queryRows := range []bool{false, true} {
 						s := referenceImplicitError(tc.query, tc.want)
 						s.prepared, s.selectRows, s.errorStage = prepared, queryRows, "execute"
-						if prepared { s.errorStage = "prepare" }
+						if prepared {
+							s.errorStage = "prepare"
+						}
 						run(s)
 						run(referenceSelect("SELECT n FROM t ORDER BY n", []string{"n"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}))
 						run(referenceSelect("SELECT n FROM integer_destination", []string{"n"}, []string{"INT4"}, [][]any{}))

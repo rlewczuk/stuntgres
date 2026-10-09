@@ -1,11 +1,10 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +59,7 @@ func TestReferenceVisibilityInquiryStoredChecks(t *testing.T) {
 				{"SELECT pg_get_constraintdef(oid) AS d FROM pg_catalog.pg_constraint WHERE conname='" + constraint + "'", "CHECK ((" + fn + "(id) IS NOT NULL))"},
 			} {
 				step := referenceSelect(item.query, []string{"d"}, []string{"TEXT"}, [][]any{{item.want}})
+				step.checkMetadata = sessionIdentityMetadata(postgres)
 				run(step)
 				run(referencePrepared(step))
 			}
@@ -73,7 +73,11 @@ func TestReferenceVisibilityInquiryStoredChecks(t *testing.T) {
 					{fmt.Sprintf("SELECT pg_get_constraintdef(oid,%t) AS d FROM pg_catalog.pg_constraint WHERE conname='%s'", pretty, constraint), "CHECK (" + expression + ")"},
 				} {
 					step := referenceSelect(item.query, []string{"d"}, []string{"TEXT"}, [][]any{{item.want}})
+					step.checkMetadata = sessionIdentityMetadata(postgres)
 					actual := run(step).rows[0][0].(string)
+					if err := conn.QueryRowContext(t.Context(), item.query).Scan(&actual); err != nil || actual != item.want {
+						t.Fatal(actual, item.want, err)
+					}
 					run(referencePrepared(step))
 					suffix := actual
 					if item.want == expression {
@@ -130,6 +134,9 @@ func TestReferenceVisibilityInquiryAlterCheckCapture(t *testing.T) {
 				if err := conn.QueryRowContext(context.Background(), "SELECT conbin FROM pg_catalog.pg_constraint WHERE conname='"+constraint+"'").Scan(&before); err != nil {
 					t.Fatal(err)
 				}
+				if !postgres && !strings.Contains(before, fmt.Sprintf("VisibilityInquiry %d", kind)) {
+					t.Fatal(before)
+				}
 				failure := referenceImplicitError("ALTER TABLE "+name+" ALTER COLUMN id TYPE INTEGER USING 0", referenceDiagnostic{Code: "23514", Message: fmt.Sprintf(`check constraint "%s" of relation "%s" is violated by some row`, constraint, name), Schema: "public", Table: name, Constraint: constraint})
 				failure.errorStage = "execute"
 				failure.prepared = prepared
@@ -153,6 +160,7 @@ func TestReferenceVisibilityInquiryAlterCheckCapture(t *testing.T) {
 						{fmt.Sprintf("SELECT pg_get_constraintdef(oid,%t) AS d FROM pg_catalog.pg_constraint WHERE conname='%s'", pretty, constraint), "CHECK (" + expr + ")"},
 					} {
 						step := referenceSelect(item.query, []string{"d"}, []string{"TEXT"}, [][]any{{item.want}})
+						step.checkMetadata = sessionIdentityMetadata(postgres)
 						run(step)
 						run(referencePrepared(step))
 					}

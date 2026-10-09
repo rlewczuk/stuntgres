@@ -41,10 +41,69 @@ Go test reports each test's pass or failure instead of standalone output labels.
 
 The explicitly enabled reference suite requires working Docker and image/module access. It uses one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
 
+### Driver, session and catalog whole-root cutover
+
+The final driver/session/catalog migration carries all 372 remaining root SQL
+scenarios into the complete original/reference assertion union:651 untagged
+shared definitions, including the incoming `TestReferenceAnyValueSourceACL`,
+and44 separately selected companions (39 PostgreSQL-only and five
+PostgreSQL-required differential scenarios).36 genuine PostgreSQL-only and all
+five differential definitions remain tagged; three genuine PostgreSQL-only
+definitions are untagged external-only callers. Earlier migrated families remain
+in `reference/` too. No root SQL scenarios or obsolete SQL row/diagnostic helpers
+remain. Root retains eight original nonSQL units, two transaction-terminal
+mechanics, three session-adapter mechanics and `BenchmarkOpenDatabase`.
+This is test relocation and assertion deduplication, not new production SQL.
+
+Use the same external definition in both modes; for example:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(DirectAndPreparedParameters|RowsMetadataAndCommandSemantics|QueryCoreCapturedOwnership|SettingsPublicTimeoutStages|SettingsPublicTimeoutRollbackCleanup)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(DirectAndPreparedParameters|RowsMetadataAndCommandSemantics|QueryCoreCapturedOwnership|SettingsPublicTimeoutStages|SettingsPublicTimeoutRollbackCleanup)$' VERBOSE=0
+```
+
+Domain guides give cohesive family selections, not an exact acceptance inventory.
+The catalog living plan records the complete-name shared and companion registries
+separately; do not select PostgreSQL-only legacy companions for a tagged
+Docker-free proof. Default/explicit false shared scenarios use real stuntgres and
+independent constants. Explicit true adds the pinned PostgreSQL18.0 backend to
+the same bodies. No flag changes the expected native capability boundaries.
+
+Raw metadata and cells are asserted before normalization, including empty
+results. Native eager cursors and detached Columns slices remain distinct from
+pq streaming cursors and aliased Columns slices. Drain and close a PostgreSQL
+cursor before another command on its physical connection; do not infer native
+snapshot guarantees for an unread PostgreSQL stream. Native controls use the
+scenario's actual unwrapped Driver/connector/DSN, never middleware forwarding.
+Native precanceled calls retain ordinary context errors and nil outputs;
+PostgreSQL cancellation uses observed server admission, full57014 diagnostics,
+joined workers and same-owner health witnesses rather than racing fast commands.
+
+All131 original helper dispositions are accounted for. Original public methods
+are preserved, not inferred from equivalent SQL: actual DB/Tx Exec/Query/Prepare,
+Stmt Exec/Query, typed QueryRow consumers, native raw acquisitions and the SAME
+held statements run beside fresh recorded Context phases. An original adapter
+whose Query delegates to a physical Conn.QueryContext retains that actual Conn;
+it is not a fictitious plain-DB alias. Quiet Prepare, original setup and every
+per-case sentinel, metadata flag, specialized Scan, owned buffer and failure
+cleanup remain producer-specific. Row helpers do not implicitly execute metadata
+callbacks. Cohesive guide selectors are examples; acceptance uses the same exact
+651-name RUN for native, real PostgreSQL and race, with39+5 companions separately.
+
+Before review, run complete quickcheck and the exact selective native/real
+PostgreSQL definitions; final fullcheck does not replace those required proofs.
+After integration, this task's complete aggregate command is
+`timeout --signal=KILL 900s make fullcheck VERBOSE=0`. The user authorized that
+external bound in place of the original300second bound; quickcheck remains
+900seconds and fullcheck remains1800seconds by default. The catalog utility
+does not run verification. This does not change SQL1ms timeout vectors.
+Commands describe required checks, not claims of final review, integration or
+post-integration fullcheck success.
+
 ### Dual-mode query reads and legacy transition
 
-The ordinary external `reference/` binary discovers 80 untagged query-read
-definitions migrated/merged from 67 original SQL-interaction tests. The families
+The query-read migration originally carried 67 SQL-interaction tests into 80
+untagged definitions; the final scalar/query assertion union consolidates overlaps. Families
 are `TestReferenceNullCount*`, `TestReferenceQueryAggregate*`,
 `TestReferenceCountExpression*`, `TestReferenceQueryCore*`,
 `TestReferenceQueryJoins*`, `TestReferenceQueryLimit*` and
@@ -197,8 +256,9 @@ it has no fictitious host Restore API.
 
 The unrelated `ViewOracle`, `FrozenRelativeLiteralOracle`,
 `ContextualDateStyleOracle`, `OriginalInvokerControls` and
-`SequenceCatalogPrivateVisibility` definitions remain tagged, as do view
-replacement families. Keep their Docker-requiring selection separate:
+`SequenceCatalogPrivateVisibility` definitions remain tagged. View replacement
+now has untagged dual-mode scenarios and separately retained tagged companions.
+Keep Docker-requiring legacy selections separate:
 
 ```sh
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceView(Oracle|FrozenRelativeLiteralOracle|ContextualDateStyleOracle|OriginalInvokerControls|SequenceCatalogPrivateVisibility)$' VERBOSE=0
@@ -206,7 +266,9 @@ make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceView(Oracle|
 
 The view migration's final aggregate verification uses
 `timeout --signal=KILL 1800s make fullcheck VERBOSE=0` after merge;
-commit any failure remedies separately.
+commit any failure remedies separately. This final-cutover task's explicit
+user900second override instead uses `timeout --signal=KILL 900s make fullcheck VERBOSE=0`.
+Prior task-specific300second commands remain historical migration gates.
 
 ### Dual-mode transactions, savepoints and locking
 
@@ -232,8 +294,9 @@ These are family selections, not an exact catalog inventory: the tagged
 `make quickcheck REFERENCE=1 PACKAGES=./reference` command additionally selects retained PostgreSQL-only controls
 within these prefixes. ACL/privilege, inheritance, primary-key row-lock and role
 lifetime controls remain tagged; the cross-family
-`TestReferenceControlTransactionsDiagnostics` is unchanged and outside this
-selector. Do not claim a tagged legacy selection is Docker-free merely because
+`TestReferenceControlTransactionsDiagnostics` is now untagged and dual-mode,
+outside this transaction-family selector.
+Do not claim a tagged legacy selection is Docker-free merely because
 `-reference=false` is supplied. In the ordinary binary, false/default executes
 the real native definitions without Docker; true starts actual pinned PostgreSQL
 and startup failure is visible and nonzero, even with a no-match RUN.
@@ -265,9 +328,11 @@ make quickcheck PACKAGES=. RUN='^TestTransaction(TerminalReasons|RawReuseState)$
 
 Terminal reasons preserve distinct CleanClose, Terminated and Abandoned mechanics;
 raw reuse preserves local active-state invariants. They are not substitutes for
-the migrated public rollback/publication witnesses. The final aggregate migration gate
-is `timeout --signal=KILL 1800s make fullcheck VERBOSE=0` after merge, covering
-generation/build, quick native and native/reference race tests, bench and deps.
+the migrated public rollback/publication witnesses. The incoming final aggregate
+gate is `timeout --signal=KILL 1800s make fullcheck VERBOSE=0` after merge,
+covering generation/build, quick native and native/reference race tests, bench
+and deps. This final-cutover task uses the explicit external900second command
+above without changing those incoming defaults.
 
 ### Dual-mode CHECK constraint interactions
 
@@ -293,8 +358,8 @@ DROP commits. Transactional COMMENT remains rejected natively and is a real
 private-comment witness on PostgreSQL. These are independent backend outcomes,
 not parity exceptions or fabricated native successes.
 
-Root CHECK diagnostic helpers and tagged `referenceCheckBackends` remain for
-unmigrated DEPARSE/VISIBILITY callers. They are not migrated SQL test bodies.
+Root CHECK diagnostic helpers have been removed after all callers migrated.
+The shared mode-aware `referenceCheckBackends` lives in `reference/`.
 
 Table DDL, defaults and nullability now contribute **134 untagged definitions**,
 merging the full assertion union of **120 former root tests in 44 files** with
@@ -319,12 +384,10 @@ An already-canceled native Conn execution is an ordinary Go error/no-effects
 witness, not a portable pq simple-protocol promise; real server cancellation
 remains independently covered by tagged PostgreSQL scenarios.
 
-Fresh notice pools reuse the scenario's native connector/Driver/DSN. Schema,
-character/time metadata and PostgreSQL lock helper declarations are untagged
-without converting their unrelated legacy scenarios. Root `tableCoreExec`,
-`tableCoreMetadata`, `notNullDiagnostic` and `alterDropMetadata` remain helper-only
-for unmigrated callers. The cross-family DROP-system assertion union also retains
-its tagged legacy owner until the catalog's final driver/session deduplication.
+Fresh notice pools reuse the scenario's native connector/Driver/DSN. Shared
+character/time metadata and PostgreSQL lock helpers live in `reference/`.
+Obsolete root table/nullability helper hosts are removed. The DROP-system union
+has one untagged owner, `TestReferenceNotNullDropSystemColumnDiagnostics`.
 
 Arithmetic, bitwise and mathematical migration adds 81 untagged definitions from
 61 former root interaction tests. Full original/reference assertion unions retain
@@ -349,12 +412,14 @@ asserted before fixture normalization. Native-excluded scalar-input and no-FROM
 spellings retain their errors alongside exact PostgreSQL results/diagnostics.
 For this migration's final aggregate proof after merge, use
 `timeout --signal=KILL 1800s make fullcheck VERBOSE=0`;
-commit any failure remedies separately.
+commit any failure remedies separately. For this final-cutover task, preserve
+the user-authorized external900second bound around the same complete fullcheck.
 
-The scalar-expression migration unions all 62 assigned root tests with existing
-reference assertions in 93 untagged definitions across BETWEEN, explicit casts,
-null/truth/distinct predicates, ordinary comparisons, conditional expressions,
-expression core and logical operators. The same definitions preserve complete
+The scalar-expression migration originally carried all62 assigned root tests
+into93 untagged definitions across BETWEEN, explicit casts, null/truth/distinct
+predicates, comparisons, conditionals, expression core and logical operators.
+The final cutover merges duplicate scalar/query aspects into QueryCore owners.
+The same definitions preserve complete
 raw rows and metadata, empty results, full diagnostics and execution stages,
 ordinary errors, LastInsertId, actual SAME-held reuse and concurrent frames.
 Comparison frames consume serial 7/NULL/7 before eight concurrent calls on that
@@ -366,8 +431,8 @@ PostgreSQL has independently specified real SQL consumer/state/cancellation
 phases, not fabricated fixture controls. Select the complete scalar family:
 
 ```sh
-make quickcheck PACKAGES=./reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
-make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|QueryCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|QueryCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
 ```
 
 Metadata expectations distinguish computed targets from stored/identity columns:
@@ -387,8 +452,8 @@ assigned root SQL-interaction definitions into untagged external scenarios.
 They retain the full original/reference assertion union, including duplicate
 input vectors, direct/prepared/actually-held routes, statement atomicity,
 transaction aborts, precision notices, raw ownership, concurrency, cancellation
-and metadata after EOF/Close. Small shared root row/diagnostic helpers remain
-for unmigrated callers; no production SQL semantics change.
+and metadata after EOF/Close. Shared row/diagnostic helpers now live only in
+`reference/`; obsolete root hosts are gone, without production semantics changes.
 
 The temporal route union includes one reused TIMESTAMP INSERT per backend
 across all twelve fractional vectors with text and `time.Time` argument frames,
@@ -452,29 +517,31 @@ selects true and includes every legacy tagged case. Final `make fullcheck` runs
 generation/build, quick native tests, race-enabled native and real pinned PostgreSQL
 reference tests, bench and deps under one shared 1800-second wall-clock bound.
 
-The scalar migration's original acceptance gate imposed a tighter, explicit single
-300-second aggregate deadline. For current final verification after merge, with
+The scalar migration's original acceptance gate imposed a tighter explicit
+300-second aggregate deadline, retained as historical evidence. Incoming
+fullcheck uses1800seconds by default and clears selection overrides. This
+final-cutover task retains its user-authorized external900second bound; with
 `RUN` and `PACKAGES` selection overrides unset, use:
 
 ```sh
-timeout --signal=KILL 1800s make fullcheck VERBOSE=0
+timeout --signal=KILL 900s make fullcheck VERBOSE=0
 ```
 
-The outer timeout covers the complete fullcheck together. Commit failure remedies
-separately. The original 300-second gate remains historical evidence, not the
-deadline for current fullcheck invocations.
+The outer timeout covers generation/build, quick native and both complete race
+suites, bench and deps together. Do not substitute selected tests for this full
+aggregate invocation. Commit any failure remedies separately; no incoming
+Makefile deadline or original SQL1ms timeout vector is changed.
 
 The tag retains untouched legacy PostgreSQL-only definitions. A tagged selection
 restricted to mode-aware migrated scenarios with `-reference=false` (flag after
 `-args`) is still Docker-free; selecting actual legacy cases lazily starts the
 same singleton even when the runtime flag is absent/false. The tag alone
-therefore does not make the whole legacy suite quick. Other unmigrated families,
-richer tagged ordering/lock complements, the standalone PostgreSQL count
-column-ACL test and DML rules/triggers, privilege and exact blocker/server-
-cancellation edges remain tagged. Root `queryCoreRows`, `nullCountError`,
-`compareOpsRows`, `compareNullRows` and `castExplicitMetadata` remain for
-unmigrated callers, not as SQL test bodies. Join product/alias/prepared/held-row
-and physical view-provenance witnesses now live in untagged reference scenarios;
+therefore does not make the whole legacy suite quick. Richer tagged
+ordering/lock complements, the standalone PostgreSQL count column-ACL test and
+DML rules/triggers, privilege and exact blocker/server-cancellation edges remain
+tagged. Obsolete root query/comparison/cast helpers are removed; their complete
+assertion union now lives in reference owners. Join product/alias/prepared/held-row
+and physical view-provenance witnesses live in untagged reference scenarios;
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`
 and the same RUN with `make quickcheck REFERENCE=1 PACKAGES=./reference` exercise the migrated assertion union.
 Untagged migrated definitions use the mode-aware fixture; host Dump/Reset/Restore
@@ -485,9 +552,8 @@ specified SQL consumer phases on PostgreSQL.
 
 The sequence/random migration carries all 58 former root interaction definitions
 and the prepared helper matrices into 132 untagged external definitions, merging
-the complete root and reference assertion unions. Root `sequenceConn`,
-`sequenceExec`, `sequenceValue`, `randomConnection`, `randomSeed` and `randomOne`
-remain only for callers in unmigrated families. Select the whole migrated family
+the complete root and reference assertion unions. Obsolete root sequence/random
+helper hosts are removed after their callers migrated. Select the whole family
 and its retained tagged oracle complements with the same anchored expression:
 
 ```sh
@@ -643,8 +709,9 @@ independent codec expectations. Transaction-clock cases use each selected
 backend's own captured instant rather than querying PostgreSQL in quick mode.
 Real server cancellation and schema-authority witnesses are guarded PostgreSQL
 phases, not fake native success. Native controls use the unwrapped fixture pool.
-Root `timezoneRows`/`timezoneExec` remain only for unmigrated temporal callers.
-This migration's original aggregate verification used an outer 300-second deadline.
-Current quickcheck invocations use 900 seconds; final fullcheck after merge uses 1800 seconds.
+Obsolete root timezone row/Exec helpers are removed after their callers migrated.
+This migration's original aggregate verification used an outer300second deadline.
+Incoming quickcheck uses900seconds and final fullcheck uses1800seconds by default;
+this final-cutover task uses the explicit external900second aggregate bound above.
 
 Authoritative references: [PostgreSQL 18 commands](https://www.postgresql.org/docs/18/sql-commands.html), [SQLSTATE codes](https://www.postgresql.org/docs/18/errcodes-appendix.html), [testcontainers PostgreSQL API](https://golang.testcontainers.org/modules/postgres/), and [pinned sqlmw APIs](https://github.com/ngrok/sqlmw/blob/97c9c04efc79/interceptor.go). Local PostgreSQL source is 20devel and useful for implementation research; the pinned PostgreSQL 18.0 runtime is the compatibility oracle.

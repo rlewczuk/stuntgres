@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -53,117 +51,121 @@ func TestReferenceDeparseConstraintsReviewRandomStrictConsumers(t *testing.T) {
 				if got := draw(); got != first {
 					t.Fatal("deparse/CREATE changed seed", got, first)
 				}
-				for i, name := range []string{"original", "copy0", "copy1"} {
-					constraint := "c"
-					if i > 0 {
-						constraint = fmt.Sprintf("c%d", i-1)
-					}
-					for _, prepared := range []bool{false, true} {
-						seed()
-						query := "INSERT INTO " + name + " VALUES(1," + tc.good + ")"
-						if prepared {
-							s, e := conn.PrepareContext(context.Background(), query)
-							if e != nil {
-								t.Fatal(e)
-							}
-							_, e = s.ExecContext(context.Background())
-							s.Close()
-							if e != nil {
-								t.Fatal(e)
-							}
-						} else if _, err := conn.ExecContext(context.Background(), query); err != nil {
-							t.Fatal(err)
-						}
-						if got := draw(); got != after {
-							t.Fatal("provider effect", got, after)
-						}
-						seed()
-						query = "INSERT INTO " + name + " VALUES(2,NULL,0)"
-						var err error
-						if prepared {
-							s, e := conn.PrepareContext(context.Background(), query)
-							if e != nil {
-								t.Fatal(e)
-							}
-							_, err = s.ExecContext(context.Background())
-							s.Close()
-						} else {
-							_, err = conn.ExecContext(context.Background(), query)
-						}
-						detail := "2, null, 0"
-						{
-							want := referenceCheckViolation(name, constraint, detail)
-							want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
-							referenceAssertDiagnostic(t, err, &want)
-						}
-						if got := draw(); got != first {
-							t.Fatal("strict NULL consumed/reseeded", got, first)
-						}
-						{
-							parts := strings.Split(tc.good, ",")
-							run(referenceSelect("SELECT id,a="+parts[0]+" AND b="+parts[1]+" AS same FROM "+name, []string{"id", "same"}, []string{"INT4", "BOOL"}, [][]any{{int64(1), true}}))
-						}
-						if tc.bad != "" {
-							for _, query := range []string{"INSERT INTO " + name + " VALUES(2," + tc.bad + ")", "UPDATE " + name + " SET a=" + strings.Split(tc.bad, ",")[0] + ",b=" + strings.Split(tc.bad, ",")[1] + " WHERE id=1"} {
-								seed()
-								var err error
-								if prepared {
-									s, e := conn.PrepareContext(context.Background(), query)
-									if e != nil {
-										t.Fatal(e)
-									}
-									_, err = s.ExecContext(context.Background())
-									s.Close()
-								} else {
-									_, err = conn.ExecContext(context.Background(), query)
-								}
-								{
-									want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.errorCode, Message: tc.errorMessage}
-									referenceAssertDiagnostic(t, err, &want)
-								}
-								if got := draw(); got != first {
-									t.Fatal("invalid provider changed stream", got, first)
-								}
-								{
-									parts := strings.Split(tc.good, ",")
-									run(referenceSelect("SELECT id,a="+parts[0]+" AND b="+parts[1]+" AS same FROM "+name, []string{"id", "same"}, []string{"INT4", "BOOL"}, [][]any{{int64(1), true}}))
-								}
-							}
-							// First accepted provider call remains visible after batch publication fails.
-							seed()
-							var ignored any
-							if err := conn.QueryRowContext(context.Background(), "SELECT "+tc.control).Scan(&ignored); err != nil {
-								t.Fatal(err)
-							}
-							want := draw()
-							seed()
-							query = "INSERT INTO " + name + " VALUES(3," + tc.good + "),(4," + tc.bad + "),(5," + tc.good + ")"
-							if prepared {
-								s, e := conn.PrepareContext(context.Background(), query)
-								if e != nil {
-									t.Fatal(e)
-								}
-								_, err = s.ExecContext(context.Background())
-								s.Close()
-							} else {
-								_, err = conn.ExecContext(context.Background(), query)
-							}
-							{
-								want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.errorCode, Message: tc.errorMessage}
-								referenceAssertDiagnostic(t, err, &want)
-							}
-							if got := draw(); got != want {
-								t.Fatal("failed batch provider frontier", got, want)
-							}
-							{
-								parts := strings.Split(tc.good, ",")
-								run(referenceSelect("SELECT id,a="+parts[0]+" AND b="+parts[1]+" AS same FROM "+name, []string{"id", "same"}, []string{"INT4", "BOOL"}, [][]any{{int64(1), true}}))
-							}
-						}
-						run(referenceExec("DELETE FROM "+name, 1))
-					}
-				}
+				deparseStrictConsumers(t, conn, tc, first, after, seed, draw, run)
 			})
 		})
+	}
+}
+
+func deparseStrictConsumers(t *testing.T, conn *sql.Conn, tc struct{ name, decl, input, compact, pretty, control, good, bad, errorCode, errorMessage string }, first, after float64, seed func(), draw func() float64, run func(referenceStep) referenceObserved) {
+	for i, name := range []string{"original", "copy0", "copy1"} {
+		constraint := "c"
+		if i > 0 {
+			constraint = fmt.Sprintf("c%d", i-1)
+		}
+		for _, prepared := range []bool{false, true} {
+			seed()
+			query := "INSERT INTO " + name + " VALUES(1," + tc.good + ")"
+			if prepared {
+				s, e := conn.PrepareContext(context.Background(), query)
+				if e != nil {
+					t.Fatal(e)
+				}
+				_, e = s.ExecContext(context.Background())
+				s.Close()
+				if e != nil {
+					t.Fatal(e)
+				}
+			} else if _, err := conn.ExecContext(context.Background(), query); err != nil {
+				t.Fatal(err)
+			}
+			if got := draw(); got != after {
+				t.Fatal("provider effect", got, after)
+			}
+			seed()
+			query = "INSERT INTO " + name + " VALUES(2,NULL,0)"
+			var err error
+			if prepared {
+				s, e := conn.PrepareContext(context.Background(), query)
+				if e != nil {
+					t.Fatal(e)
+				}
+				_, err = s.ExecContext(context.Background())
+				s.Close()
+			} else {
+				_, err = conn.ExecContext(context.Background(), query)
+			}
+			detail := "2, null, 0"
+			{
+				want := referenceCheckViolation(name, constraint, detail)
+				want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+				referenceAssertDiagnostic(t, err, &want)
+			}
+			if got := draw(); got != first {
+				t.Fatal("strict NULL consumed/reseeded", got, first)
+			}
+			{
+				parts := strings.Split(tc.good, ",")
+				run(referenceSelect("SELECT id,a="+parts[0]+" AND b="+parts[1]+" AS same FROM "+name, []string{"id", "same"}, []string{"INT4", "BOOL"}, [][]any{{int64(1), true}}))
+			}
+			if tc.bad != "" {
+				for _, query := range []string{"INSERT INTO " + name + " VALUES(2," + tc.bad + ")", "UPDATE " + name + " SET a=" + strings.Split(tc.bad, ",")[0] + ",b=" + strings.Split(tc.bad, ",")[1] + " WHERE id=1"} {
+					seed()
+					var err error
+					if prepared {
+						s, e := conn.PrepareContext(context.Background(), query)
+						if e != nil {
+							t.Fatal(e)
+						}
+						_, err = s.ExecContext(context.Background())
+						s.Close()
+					} else {
+						_, err = conn.ExecContext(context.Background(), query)
+					}
+					{
+						want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.errorCode, Message: tc.errorMessage}
+						referenceAssertDiagnostic(t, err, &want)
+					}
+					if got := draw(); got != first {
+						t.Fatal("invalid provider changed stream", got, first)
+					}
+					{
+						parts := strings.Split(tc.good, ",")
+						run(referenceSelect("SELECT id,a="+parts[0]+" AND b="+parts[1]+" AS same FROM "+name, []string{"id", "same"}, []string{"INT4", "BOOL"}, [][]any{{int64(1), true}}))
+					}
+				}
+				// First accepted provider call remains visible after batch publication fails.
+				seed()
+				var ignored any
+				if err := conn.QueryRowContext(context.Background(), "SELECT "+tc.control).Scan(&ignored); err != nil {
+					t.Fatal(err)
+				}
+				want := draw()
+				seed()
+				query = "INSERT INTO " + name + " VALUES(3," + tc.good + "),(4," + tc.bad + "),(5," + tc.good + ")"
+				if prepared {
+					s, e := conn.PrepareContext(context.Background(), query)
+					if e != nil {
+						t.Fatal(e)
+					}
+					_, err = s.ExecContext(context.Background())
+					s.Close()
+				} else {
+					_, err = conn.ExecContext(context.Background(), query)
+				}
+				{
+					want := referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.errorCode, Message: tc.errorMessage}
+					referenceAssertDiagnostic(t, err, &want)
+				}
+				if got := draw(); got != want {
+					t.Fatal("failed batch provider frontier", got, want)
+				}
+				{
+					parts := strings.Split(tc.good, ",")
+					run(referenceSelect("SELECT id,a="+parts[0]+" AND b="+parts[1]+" AS same FROM "+name, []string{"id", "same"}, []string{"INT4", "BOOL"}, [][]any{{int64(1), true}}))
+				}
+			}
+			run(referenceExec("DELETE FROM "+name, 1))
+		}
 	}
 }

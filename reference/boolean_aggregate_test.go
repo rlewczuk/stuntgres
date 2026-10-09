@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"reflect"
 	"testing"
@@ -66,91 +67,71 @@ func booleanAggregateRegressionSteps() []referenceStep {
 	return steps
 }
 
-// The portable RowDescription fields are checked by referenceRunStep. lib/pq
-// does not expose nullability; assert native nullability independently instead.
-func booleanAggregateReferenceMetadata(t *testing.T, p *referencePair, db *sql.DB, native, prepared bool, selected ...referenceStep) {
-	t.Helper()
-	step := referenceSelect("SELECT bool_and(b),bool_or(b),every(b),count(b) FROM nn", []string{"bool_and", "bool_or", "every", "count"}, []string{"BOOL", "BOOL", "BOOL", "INT8"}, nil)
-	if len(selected) != 0 {
-		step = selected[0]
-	}
-	query := step.query
-	var rows *sql.Rows
-	var err error
-	if prepared {
-		stmt, prepareErr := db.PrepareContext(p.ctx, query)
-		if prepareErr != nil {
-			t.Fatal(prepareErr)
-		}
-		defer stmt.Close()
-		rows, err = stmt.QueryContext(p.ctx, step.args...)
-	} else {
-		rows, err = db.QueryContext(p.ctx, query, step.args...)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	types, err := rows.ColumnTypes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(types) != len(step.types) {
-		t.Fatalf("column count = %d, want %d", len(types), len(step.types))
-	}
-	for i, typ := range types {
-		isBoolean := step.types[i] == "BOOL" && (step.columns[i] == "bool_and" || step.columns[i] == "bool_or" || step.columns[i] == "every")
-		if isBoolean && typ.ScanType() != reflect.TypeFor[bool]() {
-			t.Errorf("column %d ScanType = %v, want bool", i, typ.ScanType())
-		}
-		if native && (isBoolean || step.columns[i] == "count") {
-			if nullable, known := typ.Nullable(); !known || nullable != isBoolean {
-				t.Errorf("column %d Nullable=%v,%v, want %v,true", i, nullable, known, isBoolean)
-			}
-		}
-	}
-}
-
 func TestReferenceBooleanAggregateRegression(t *testing.T) {
-	p := newReferenceScenario(t)
-	for _, backend := range p.backends() {
-		t.Run(backend.name, func(t *testing.T) {
-			for _, step := range []referenceStep{
-				referenceExec("CREATE TABLE t(k TEXT,b BOOL,v INT,txt TEXT)", 0),
-				referenceExec("INSERT INTO t VALUES('T',TRUE,1,'true'),('T',TRUE,1,'true'),('T',NULL,1,'true'),('F',FALSE,1,'true'),('F',FALSE,1,'true'),('F',NULL,1,'true'),('M',TRUE,1,'true'),('M',FALSE,1,'true'),('M',NULL,1,'true'),('N',NULL,1,'true'),('N',NULL,1,'true')", 11),
-				referenceExec("CREATE TABLE empty(k TEXT,b BOOL,v INT,txt TEXT)", 0),
-				referenceExec("CREATE TABLE m(b BOOL)", 0),
-				referenceExec("INSERT INTO m VALUES(TRUE),(FALSE),(NULL)", 3),
-				referenceExec("CREATE TABLE nn(b BOOL NOT NULL)", 0),
-			} {
-				referenceRunStep(t, p.ctx, backend.db, backend.recorder, step)
+	for route, nonContext := range []bool{false, true} {
+		t.Run([]string{"context", "consumer"}[route], func(t *testing.T) {
+			p := newReferenceScenario(t)
+			run := func(t *testing.T, ctx context.Context, x referenceExecutor, r *referenceRecorder, s referenceStep) {
+				s.nonContext = nonContext
+				referenceRunStep(t, ctx, x, r, s)
 			}
-			steps := append(booleanAggregateRegressionSteps(),
-				referenceSelect("SELECT k FROM t GROUP BY k HAVING bool_or(b)", []string{"k"}, []string{"TEXT"}, [][]any{{"T"}, {"M"}}),
-				referenceSelect("SELECT k FROM t GROUP BY k HAVING every(b)", []string{"k"}, []string{"TEXT"}, [][]any{{"T"}}),
-				referenceSelect("SELECT COALESCE(bool_and(b),FALSE) AS answer FROM empty", []string{"answer"}, []string{"BOOL"}, [][]any{{false}}),
-				referenceSelect("SELECT pg_catalog.bool_and(b),\"bool_or\"(b),every(b IS NULL) FROM m", []string{"bool_and", "bool_or", "every"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{false, true, false}}),
-			)
-			for _, step := range steps {
-				t.Run(step.query, func(t *testing.T) {
-					for _, prepared := range []bool{false, true} {
-						s := step
-						s.prepared, s.bag = prepared, true
-						if s.diagnostic != nil {
-							s.errorStage = "execute"
-							if prepared {
-								s.errorStage = "prepare"
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					for _, step := range []referenceStep{
+						referenceExec("CREATE TABLE t(k TEXT,b BOOL,v INT,txt TEXT)", 0),
+						referenceExec("INSERT INTO t VALUES('T',TRUE,1,'true'),('T',TRUE,1,'true'),('T',NULL,1,'true'),('F',FALSE,1,'true'),('F',FALSE,1,'true'),('F',NULL,1,'true'),('M',TRUE,1,'true'),('M',FALSE,1,'true'),('M',NULL,1,'true'),('N',NULL,1,'true'),('N',NULL,1,'true')", 11),
+						referenceExec("CREATE TABLE empty(k TEXT,b BOOL,v INT,txt TEXT)", 0),
+						referenceExec("CREATE TABLE m(b BOOL)", 0),
+						referenceExec("INSERT INTO m VALUES(TRUE),(FALSE),(NULL)", 3),
+						referenceExec("CREATE TABLE nn(b BOOL NOT NULL)", 0),
+					} {
+						run(t, p.ctx, backend.db, backend.recorder, step)
+					}
+					steps := append(booleanAggregateRegressionSteps(),
+						referenceSelect("SELECT k FROM t GROUP BY k HAVING bool_or(b)", []string{"k"}, []string{"TEXT"}, [][]any{{"T"}, {"M"}}),
+						referenceSelect("SELECT k FROM t GROUP BY k HAVING every(b)", []string{"k"}, []string{"TEXT"}, [][]any{{"T"}}),
+						referenceSelect("SELECT COALESCE(bool_and(b),FALSE) AS answer FROM empty", []string{"answer"}, []string{"BOOL"}, [][]any{{false}}),
+						referenceSelect("SELECT pg_catalog.bool_and(b),\"bool_or\"(b),every(b IS NULL) FROM m", []string{"bool_and", "bool_or", "every"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{false, true, false}}),
+					)
+					for _, step := range steps {
+						t.Run(step.query, func(t *testing.T) {
+							if step.state == "" {
+								step.checkMetadata = func(t *testing.T, rows *sql.Rows) {
+									metadata, err := rows.ColumnTypes()
+									if err != nil || len(metadata) != len(step.types) {
+										t.Fatal(metadata, err)
+									}
+									for i, typ := range metadata {
+										isAggregate := step.types[i] == "BOOL" && (step.columns[i] == "bool_and" || step.columns[i] == "bool_or" || step.columns[i] == "every")
+										if step.types[i] == "BOOL" && typ.ScanType() != reflect.TypeFor[bool]() {
+											t.Fatal(i, typ)
+										}
+										nullable, known := typ.Nullable()
+										if backend.pg {
+											if nullable || known {
+												t.Fatal("pq nullable descriptor", i, nullable, known)
+											}
+										} else if isAggregate || step.columns[i] == "count" {
+											if !known || nullable != isAggregate {
+												t.Fatal("native aggregate nullable", i, nullable, known)
+											}
+										}
+									}
+								}
 							}
-						}
-						if s.state == "" {
-							booleanAggregateReferenceMetadata(t, p, backend.db, !backend.pg, prepared, s)
-						}
-						referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+							for _, prepared := range []bool{false, true} {
+								step.prepared, step.bag = prepared, true
+								if step.diagnostic != nil {
+									step.errorStage = "execute"
+									if prepared {
+										step.errorStage = "prepare"
+									}
+								}
+								run(t, p.ctx, backend.db, backend.recorder, step)
+							}
+						})
 					}
 				})
-			}
-			for _, prepared := range []bool{false, true} {
-				booleanAggregateReferenceMetadata(t, p, backend.db, !backend.pg, prepared)
 			}
 		})
 	}

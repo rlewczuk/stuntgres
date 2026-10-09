@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceIdentifierBaselineCastCalls(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(x INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(7)", 1))
 	for _, tc := range []struct {

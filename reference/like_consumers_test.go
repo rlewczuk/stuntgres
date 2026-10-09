@@ -1,20 +1,12 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
-func TestReferenceLikeOracleConsumers(t *testing.T) { likeReferenceConsumers(t, true) }
-func TestReferenceLikeConsumers(t *testing.T)       { likeReferenceConsumers(t, false) }
-
-func likeReferenceConsumers(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+func TestReferenceLikeConsumers(t *testing.T) {
+	p := newReferenceScenario(t)
 	run := func(s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
 	run(referenceExec("CREATE TABLE t(id INT,v TEXT,p TEXT,e TEXT)", 0))
 	run(referenceExec("INSERT INTO t VALUES(1,'ab','a%','!'),(2,'b','a%','!'),(3,NULL,NULL,NULL)", 3))

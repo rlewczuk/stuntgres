@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,7 +7,7 @@ import (
 )
 
 func TestReferenceBtreeIndexNaming(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	referenceBtreeStreams(t, p, func(t *testing.T, db *sql.DB, recorder *referenceRecorder) {
 		a, b, c := strings.Repeat("a", 40), strings.Repeat("b", 40), strings.Repeat("c", 40)
 		longTable := strings.Repeat("t", 40)
@@ -33,35 +31,49 @@ func TestReferenceBtreeIndexNaming(t *testing.T) {
 	})
 }
 func TestReferenceBtreeIndexLifecycle(t *testing.T) {
-	p := newReferencePair(t)
-	referenceBtreeStreams(t, p, func(t *testing.T, db *sql.DB, recorder *referenceRecorder) {
-		for _, step := range []referenceStep{
-			referenceExec("CREATE TABLE t(extra INT,n INT,s TEXT)", 0),
-			referenceExec("INSERT INTO t VALUES(0,1,'a'),(0,2,'b'),(0,10,'c')", 3),
-			referenceExec("CREATE INDEX ni ON t(n)", 0), referenceExec("CREATE INDEX si ON t(s)", 0),
-			referenceExec("ALTER TABLE t RENAME n TO key", 0), referenceExec("ALTER TABLE t RENAME TO renamed", 0),
-			referenceExec("ALTER TABLE renamed DROP extra", 0),
-			referenceExec("ALTER TABLE renamed ALTER key TYPE TEXT USING key::text", 0),
-			referenceSelect("SELECT key FROM renamed ORDER BY key", []string{"key"}, []string{"TEXT"}, [][]any{{"1"}, {"10"}, {"2"}}),
-			referenceExec("CREATE SCHEMA moved", 0), referenceExec("CREATE TABLE moved.ni(n INT)", 0),
-			referenceImplicitError("ALTER TABLE renamed SET SCHEMA moved", referenceDiagnostic{Code: "42P07", Message: `relation "ni" already exists in schema "moved"`}),
-			referenceSelect("SELECT key FROM renamed ORDER BY key", []string{"key"}, []string{"TEXT"}, [][]any{{"1"}, {"10"}, {"2"}}),
-			referenceExec("DROP TABLE moved.ni", 0), referenceExec("ALTER TABLE renamed SET SCHEMA moved", 0),
-			referenceExec("ALTER TABLE moved.renamed DROP s", 0),
-			referenceSelect("SELECT relname FROM pg_catalog.pg_class WHERE relname='si'", []string{"relname"}, []string{"NAME"}, nil),
-			referenceExec("DROP TABLE moved.renamed RESTRICT", 0),
-			referenceSelect("SELECT relname FROM pg_catalog.pg_class WHERE relname='ni'", []string{"relname"}, []string{"NAME"}, nil),
-			referenceExec("CREATE TABLE moved.ni(n INT)", 0),
-			referenceExec("DROP SCHEMA moved CASCADE", 0),
-			referenceExec("CREATE TABLE ni(n INT)", 0),
-		} {
-			referenceRunStep(t, p.ctx, db, recorder, step)
-		}
-	})
+	for _, mutate := range []bool{false, true} {
+		t.Run(map[bool]string{false: "original catalog", true: "incoming maintained rows"}[mutate], func(t *testing.T) {
+			schemaReferenceCleanup(t, "moved")
+			p := newReferenceScenario(t)
+			referenceBtreeStreams(t, p, func(t *testing.T, db *sql.DB, recorder *referenceRecorder) {
+				want := [][]any{{"1"}, {"10"}, {"2"}}
+				if mutate {
+					want = [][]any{{"10"}, {"3"}}
+				}
+				for _, step := range []referenceStep{
+					referenceExec("CREATE TABLE t(extra INT,n INT,s TEXT)", 0),
+					referenceExec("INSERT INTO t VALUES(0,1,'a'),(0,2,'b'),(0,10,'c')", 3),
+					referenceExec("CREATE INDEX ni ON t(n)", 0), referenceExec("CREATE INDEX si ON t(s)", 0),
+					referenceExec("ALTER TABLE t RENAME n TO key", 0), referenceExec("ALTER TABLE t RENAME TO renamed", 0),
+					referenceExec("ALTER TABLE renamed DROP extra", 0),
+					referenceExec("ALTER TABLE renamed ALTER key TYPE TEXT USING key::text", 0),
+					referenceSelect("SELECT key FROM renamed ORDER BY key", []string{"key"}, []string{"TEXT"}, want),
+					referenceExec("CREATE SCHEMA moved", 0), referenceExec("CREATE TABLE moved.ni(n INT)", 0),
+					referenceImplicitError("ALTER TABLE renamed SET SCHEMA moved", referenceDiagnostic{Code: "42P07", Message: `relation "ni" already exists in schema "moved"`}),
+					referenceSelect("SELECT key FROM renamed ORDER BY key", []string{"key"}, []string{"TEXT"}, want),
+					referenceExec("DROP TABLE moved.ni", 0), referenceExec("ALTER TABLE renamed SET SCHEMA moved", 0),
+					referenceSelect("SELECT key FROM moved.renamed ORDER BY key", []string{"key"}, []string{"TEXT"}, want),
+					referenceExec("ALTER TABLE moved.renamed DROP s", 0),
+					referenceSelect("SELECT relname FROM pg_catalog.pg_class WHERE relname='si'", []string{"relname"}, []string{"NAME"}, nil),
+					referenceExec("DROP TABLE moved.renamed RESTRICT", 0),
+					referenceSelect("SELECT relname FROM pg_catalog.pg_class WHERE relname='ni'", []string{"relname"}, []string{"NAME"}, nil),
+					referenceExec("CREATE TABLE moved.ni(n INT)", 0),
+					referenceExec("DROP SCHEMA moved CASCADE", 0),
+					referenceExec("CREATE TABLE ni(n INT)", 0),
+				} {
+					if mutate && step.query == "ALTER TABLE t RENAME n TO key" {
+						referenceRunStep(t, p.ctx, db, recorder, referenceExec("UPDATE t SET n=3 WHERE n=2", 1))
+						referenceRunStep(t, p.ctx, db, recorder, referenceExec("DELETE FROM t WHERE n=1", 1))
+					}
+					referenceRunStep(t, p.ctx, db, recorder, step)
+				}
+			})
+		})
+	}
 }
 
 func TestReferenceBtreeIndexUtf8AndRepeatedLabels(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	referenceBtreeStreams(t, p, func(t *testing.T, db *sql.DB, recorder *referenceRecorder) {
 		first, second := strings.Repeat("é", 30), strings.Repeat("b", 40)
 		for _, step := range []referenceStep{

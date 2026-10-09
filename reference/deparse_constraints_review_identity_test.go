@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"unicode/utf8"
 )
 
 type deparseIdentityCase struct{ input, leaf, kind string }
@@ -40,10 +39,12 @@ var deparseIdentityCases = []deparseIdentityCase{
 	{"COALESCE(SYSTEM_USER,'trusted')", "COALESCE(SYSTEM_USER, 'trusted'::text)", "fallback"},
 }
 
-func TestRefDeparseIdentity(t *testing.T) {
+func TestReferenceDeparseConstraintsReviewIdentityConsumers(t *testing.T) {
 	for i, tc := range deparseIdentityCases {
 		t.Run(fmt.Sprintf("%02d", i), func(t *testing.T) {
-			database := "reference/" + t.Name()
+			roleReferenceCleanup(t, []string{"dc_identity_role"})
+			schemaReferenceCleanup(t, "dc_identity_path_a", "dc_identity_path_b")
+			database := deparseIdentityCatalogDisplay("reference/" + t.Name())
 			deparseReviewStreams(t, func(t *testing.T, conn *sql.Conn, postgres bool, run func(referenceStep) referenceObserved) {
 				bootstrap := "postgres"
 				var system any
@@ -97,31 +98,11 @@ func deparseIdentityConsumer(t *testing.T, conn *sql.Conn, database, bootstrap s
 		expectedType = "TEXT"
 	}
 	value := func(current, session string, path any) any {
-		switch tc.kind {
-		case "catalog":
-			return database
-		case "current":
-			return current
-		case "session":
-			return session
-		case "system":
-			return system
-		case "fallback":
-			if system == nil {
-				return "trusted"
-			}
-			return system
-		case "schema":
-			return path
+		principal := current
+		if tc.kind == "session" {
+			principal = session
 		}
-		t.Fatal("invalid fixture kind", tc.kind)
-		return nil
-	}
-	detailValue := func(v any) string {
-		if v == nil {
-			return "null"
-		}
-		return v.(string)
+		return deparseIdentityControlExpected(t, database, system, tc, principal, path)
 	}
 	var cleanup []string
 	defer func() {
@@ -136,20 +117,43 @@ func deparseIdentityConsumer(t *testing.T, conn *sql.Conn, database, bootstrap s
 			}
 		}
 	}()
+	deparseIdentityDefinitions(t, conn, bootstrap, expectedType, tc, exec, text, &cleanup)
+	// Inquiry and preparation are symbolic: these rows remain empty and authority unchanged.
+	rows(false, "SELECT CURRENT_USER AS u", []string{"u"}, []string{"NAME"}, [][]any{{bootstrap}})
+	deparseIdentityFrames(t, conn, bootstrap, expectedType, tc, value, exec, rows, dml, violation)
+}
+
+func deparseIdentityRelation(t *testing.T, conn *sql.Conn, name string) int64 {
+	t.Helper()
+	var oid int64
+	if err := conn.QueryRowContext(context.Background(), "SELECT oid FROM pg_catalog.pg_class WHERE relname=$1", name).Scan(&oid); err != nil || oid <= 0 {
+		t.Fatal(name, oid, err)
+	}
+	return oid
+}
+
+func deparseIdentityDetail(value any) string {
+	if value == nil {
+		return "null"
+	}
+	return value.(string)
+}
+
+func deparseIdentityDefinitions(t *testing.T, conn *sql.Conn, bootstrap, expectedType string, tc deparseIdentityCase, exec func(string, int64), text func(string, string, ...any) string, cleanup *[]string) {
 	exec("CREATE ROLE dc_identity_role", 0)
-	cleanup = append(cleanup, "DROP ROLE dc_identity_role")
+	*cleanup = append(*cleanup, "DROP ROLE dc_identity_role")
+	*cleanup = append(*cleanup, "ALTER SCHEMA public OWNER TO "+bootstrap)
 	exec("ALTER SCHEMA public OWNER TO dc_identity_role", 0)
-	cleanup = append(cleanup, "ALTER SCHEMA public OWNER TO "+bootstrap)
 	for _, name := range []string{"dc_identity_path_a", "dc_identity_path_b"} {
+		*cleanup = append(*cleanup, "DROP SCHEMA IF EXISTS "+name+" CASCADE")
 		exec("CREATE SCHEMA "+name+" AUTHORIZATION dc_identity_role", 0)
-		cleanup = append(cleanup, "DROP SCHEMA "+name+" CASCADE")
 	}
 	exec("SET search_path TO public", 0)
 	exec("SET ROLE dc_identity_role", 0)
+	*cleanup = append(*cleanup, "DROP TABLE IF EXISTS public.original")
 	exec("CREATE TABLE public.original(id INT,s TEXT DEFAULT "+tc.input+",expected "+expectedType+",CONSTRAINT c CHECK("+tc.input+" IS NOT DISTINCT FROM expected))", 0)
-	cleanup = append(cleanup, "DROP TABLE public.original")
+	*cleanup = append(*cleanup, "DROP TABLE IF EXISTS public.null_original")
 	exec("CREATE TABLE public.null_original(id INT,CONSTRAINT n CHECK("+tc.input+" IS NULL))", 0)
-	cleanup = append(cleanup, "DROP TABLE public.null_original")
 	exec("RESET ROLE", 0)
 	originalRelation := deparseIdentityRelation(t, conn, "original")
 	nullRelation := deparseIdentityRelation(t, conn, "null_original")
@@ -167,15 +171,17 @@ func deparseIdentityConsumer(t *testing.T, conn *sql.Conn, database, bootstrap s
 		text(fmt.Sprintf("SELECT pg_get_expr(conbin,conrelid,%t) AS d FROM pg_catalog.pg_constraint WHERE conrelid=$1 AND conname='n'", pretty), nullExpr, nullRelation)
 		name := fmt.Sprintf("copy%d", mode)
 		exec("SET ROLE dc_identity_role", 0)
+		*cleanup = append(*cleanup, "DROP TABLE IF EXISTS public."+name)
 		exec("CREATE TABLE public."+name+"(id INT,s TEXT DEFAULT "+defaultSQL+",expected "+expectedType+",CONSTRAINT c "+suffix+")", 0)
-		cleanup = append(cleanup, "DROP TABLE public."+name)
 		nullName := fmt.Sprintf("null_copy%d", mode)
+		*cleanup = append(*cleanup, "DROP TABLE IF EXISTS public."+nullName)
 		exec("CREATE TABLE public."+nullName+"(id INT,CONSTRAINT n "+nullSuffix+")", 0)
-		cleanup = append(cleanup, "DROP TABLE public."+nullName)
 		exec("RESET ROLE", 0)
 	}
-	// Inquiry and preparation are symbolic: these rows remain empty and authority unchanged.
-	rows(false, "SELECT CURRENT_USER AS u", []string{"u"}, []string{"NAME"}, [][]any{{bootstrap}})
+}
+
+func deparseIdentityFrames(t *testing.T, conn *sql.Conn, bootstrap, expectedType string, tc deparseIdentityCase, value func(string, string, any) any, exec func(string, int64), rows func(bool, string, []string, []string, [][]any), dml func(bool, string, ...any) (sql.Result, error), violation func(error, string, string, string)) {
+	detailValue := deparseIdentityDetail
 	for _, name := range []string{"original", "copy0", "copy1"} {
 		relation := deparseIdentityRelation(t, conn, name)
 		held, err := conn.PrepareContext(context.Background(), "INSERT INTO public."+name+"(id,expected) VALUES($1,$2)")
@@ -296,11 +302,15 @@ func deparseIdentityConsumer(t *testing.T, conn *sql.Conn, database, bootstrap s
 	}
 }
 
-func deparseIdentityRelation(t *testing.T, conn *sql.Conn, name string) int64 {
-	t.Helper()
-	var oid int64
-	if err := conn.QueryRowContext(context.Background(), "SELECT oid FROM pg_catalog.pg_class WHERE relname=$1", name).Scan(&oid); err != nil || oid <= 0 {
-		t.Fatal(name, oid, err)
+// NAME-valued catalog inquiries expose a 63-byte, UTF8-safe display, not the
+// full native DSN routing key. Derive this expectation from the fixture input.
+func deparseIdentityCatalogDisplay(database string) string {
+	if len(database) <= 63 {
+		return database
 	}
-	return oid
+	end := 63
+	for !utf8.RuneStart(database[end]) {
+		end--
+	}
+	return database[:end]
 }

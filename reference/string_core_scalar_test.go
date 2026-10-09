@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -54,26 +52,22 @@ func stringCoreScalarNullCases() []stringCoreReferenceCase {
 		{"SELECT CASE WHEN false THEN 'abc '::char(5) ELSE NULL END||']'::text AS v", nil, "TEXT"},
 	}
 }
-func stringCoreReferenceAdditional(t *testing.T, p *referencePair, oracle bool) {
-	stringCoreReferenceValues(t, p, stringCoreScalarNullCases(), oracle)
+func stringCoreReferenceAdditional(t *testing.T, p *referencePair) {
+	stringCoreReferenceValues(t, p, stringCoreScalarNullCases())
 	for _, tc := range []stringCoreReferenceCase{
 		{"SELECT 'x'::text||setseed(NULL) AS v", nil, "TEXT"},
 		{"SELECT setseed(NULL)||'x'::text AS v", nil, "TEXT"},
 		{"SELECT normalize('A̅́') AS v", "A̅́", "TEXT"},
 		{"SELECT normalize('̀̕',NFD) AS v", "̀̕", "TEXT"},
 	} {
-		stringCoreReferenceValues(t, p, []stringCoreReferenceCase{tc}, oracle)
+		stringCoreReferenceValues(t, p, []stringCoreReferenceCase{tc})
 	}
 	for _, tc := range []stringCoreDiagnosticCase{
 		{"SELECT 'x'::text||setseed(2)", referenceDiagnostic{Code: "22023", Message: "setseed parameter 2 is out of allowed range [-1,1]"}, false},
 	} {
 		for _, prepared := range []bool{false, true} {
 			s := stringCoreDiagnosticStep(tc, prepared)
-			if oracle {
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-			} else {
-				p.step(t, s)
-			}
+			p.step(t, s)
 		}
 	}
 }

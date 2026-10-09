@@ -130,8 +130,8 @@ local20devel and the currently18.6 manual are research aids, not runtime evidenc
 Release18.0 missing-simple-key diagnostics have no Position. Public native,
 external reference, parser and engine tests independently prescribe results;
 engine units inspect actual roots to rule out metadata-only success. Feature
-smokes now share the dual-mode `TestReferenceUniqueBtreeRegression`,
-`TestReferenceUniqueBtreeControls` and `TestReferenceUniqueBtreeLifecycle` bodies.
+smokes now share the dual-mode `TestReferenceBtreeIndexRegression`,
+`TestReferenceBtreeIndexControls` and `TestReferenceBtreeIndexLifecycle` bodies.
 Verification and parser generation are root-owned;
 this design record itself does not claim exercised checks.
 

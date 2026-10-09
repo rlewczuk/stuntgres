@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -100,31 +98,66 @@ func deparseReviewTypedValue(t *testing.T, conn *sql.Conn, postgres bool, query,
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		types, err := rows.ColumnTypes()
-		if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != typ {
-			t.Fatal(types, typ, err)
+		deparseReviewTypedCursor(t, postgres, query, typ, want, rows)
+	}
+}
+
+func deparseReviewTypedCursor(t *testing.T, postgres bool, query, typ string, want any, rows *sql.Rows) {
+	t.Helper()
+	defer rows.Close()
+	types, err := rows.ColumnTypes()
+	if err != nil || len(types) != 1 || types[0].DatabaseTypeName() != typ {
+		t.Fatal(types, typ, err)
+	}
+	deparseReviewMetadata(t, postgres, rows)
+	if !rows.Next() {
+		t.Fatal("missing value", rows.Err())
+	}
+	var raw any
+	if err := rows.Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	referenceAssertRawValue(t, postgres, typ, raw)
+	got := referenceNormalize(raw)
+	matches := reflect.DeepEqual(got, want)
+	if number, ok := want.(float64); ok {
+		actual, ok := got.(float64)
+		matches = ok && (actual == number && math.Signbit(actual) == math.Signbit(number) || math.IsNaN(actual) && math.IsNaN(number))
+	}
+	if !matches {
+		t.Fatalf("%s postgres=%t got %T %#v want %T %#v", query, postgres, got, got, want, want)
+	}
+	if rows.Next() || rows.Err() != nil {
+		t.Fatal("extra value", rows.Err())
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Preserve the original DB.Prepare/Stmt.Query and DB.Query consumers alongside
+// the Context inquiry consumers, with the same typed-value comparator.
+func deparseReviewSourceTypedValue(t *testing.T, db *sql.DB, postgres bool, query, declaration, value string) {
+	t.Helper()
+	typ, want := deparseReviewTypedExpected(t, postgres, declaration, value)
+	for _, prepared := range []bool{false, true} {
+		var rows *sql.Rows
+		var stmt *sql.Stmt
+		var err error
+		if prepared {
+			stmt, err = db.Prepare(query)
+			if err == nil {
+				rows, err = stmt.Query()
+			}
+		} else {
+			rows, err = db.Query(query)
 		}
-		if !rows.Next() {
-			t.Fatal("missing value", rows.Err())
+		if stmt != nil {
+			defer stmt.Close()
 		}
-		var raw any
-		if err := rows.Scan(&raw); err != nil {
-			t.Fatal(err)
+		if err != nil {
+			t.Fatal(query, err)
 		}
-		got := referenceNormalize(raw)
-		matches := reflect.DeepEqual(got, want)
-		if number, ok := want.(float64); ok {
-			actual, ok := got.(float64)
-			matches = ok && (actual == number && math.Signbit(actual) == math.Signbit(number) || math.IsNaN(actual) && math.IsNaN(number))
-		}
-		if !matches {
-			t.Fatalf("%s postgres=%t got %T %#v want %T %#v", query, postgres, got, got, want, want)
-		}
-		if rows.Next() || rows.Err() != nil {
-			t.Fatal("extra value", rows.Err())
-		}
-		if err := rows.Close(); err != nil {
-			t.Fatal(err)
-		}
+		deparseReviewTypedCursor(t, postgres, query, typ, want, rows)
 	}
 }

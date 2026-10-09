@@ -216,9 +216,35 @@ It asserts role creation defaults, owner access versus 42501 rejection,
 owner restoration, legacy control acceptance, atomic failures and successful
 role cleanup. Go test reports the result.
 
-Focused checks: `make quickcheck PACKAGES=./... RUN='^Test(Role|Authorization)'`,
-`make quickcheck PACKAGES=./smoke RUN='^TestRoleSmoke$'`, and the genuine pinned suite
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRole' VERBOSE=1`.
+Focused nonSQL ACL/unit and public smoke checks retain
+`make quickcheck PACKAGES=./... RUN='^Test(Role|Authorization)'` and
+`make quickcheck PACKAGES=./smoke RUN='^TestRoleSmoke$'`.
+Focused role SQL checks use
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRole[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRole[A-Za-z0-9_]*$' VERBOSE=0`.
+The true-mode family also selects genuine tagged membership/authority companions.
+Native trusted connectors and PostgreSQL SQL authentication are independent
+public routes, not interchangeable login substitutes.
+Trusted connector admission/opaque-key isolation and same-pool physical
+replacement are cohesive separate definitions:
+`TestReferenceRoleTrustedConnectorAdmissionAndOpaqueIsolation` and
+`TestReferenceRoleTrustedConnectorIsolationAndReplacement`. Session identity
+authentication/forms and held freshness likewise remain selected together by
+`^TestReferenceSessionIdentity[A-Za-z0-9_]*$`, including
+`TestReferenceSessionIdentityFormsAndAuthentication` and
+`TestReferenceSessionIdentityFormsAndFreshness`. These splits retain the complete
+original assertion union rather than replacing lifecycle checks with setup.
+
+Source-consumer phases also retain original identifier DB.Exec/Query/Prepare
+and held statements, pinned prepared role setup, QueryRow identity/sentinel
+reads and Tx.Exec schema boundaries beside recorded Context companions.
+PostgreSQL setup grants the source role the required schema USAGE before testing
+input-versus-permission precedence; a missing relation is not an equivalent
+diagnostic. Register tracked native DROP ROLE only after successful CREATE ROLE;
+native DROP ROLE IF EXISTS remains unsupported. PostgreSQL role removal follows
+fixture/schema teardown. These are original route and cleanup witnesses, not
+new authentication or authority capabilities.
+
 
 ## Schemas and search path
 
@@ -313,8 +339,13 @@ normal USAGE/table ACL checks. No ACL grants are synthesized or retained.
 Unsupported explicit namespace,
 table or column ACLs fail Dump before any output. Invalid Restore leaves the
 target catalog untouched. Bootstrap-only public dump bytes remain unchanged.
-Feature witnesses: `make quickcheck PACKAGES=./smoke RUN='^TestSchemaSmoke$'` and
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSchema'`.
+Feature witnesses: `make quickcheck PACKAGES=./smoke RUN='^TestSchemaSmoke$'`,
+`make quickcheck PACKAGES=./reference RUN='^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Schema|SearchPath)[A-Za-z0-9_]*$' VERBOSE=0`.
+The migrated families retain resolved namespace/OID identities, NAME raw codecs,
+actual held consumers and owner-bearing native control replay. After dropping a
+peer's selected PostgreSQL role, the full invalid-role-OID record and SAME-peer
+authorization reset are distinct from native retained identity semantics.
 
 
 

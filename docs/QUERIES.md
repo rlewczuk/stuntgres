@@ -87,6 +87,18 @@ through public NAME[] output. NAME[] comparison/order and plain TIME AT are not
 added by reconstruction; admitted AT inputs are TIMESTAMP/TIMESTAMPTZ/TIMETZ.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
+Dual-mode deparse assertion unions:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseConstraints[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseConstraints[A-Za-z0-9_]*$' VERBOSE=0`.
+Returned SQL is consumed through actual direct/prepared callers, not just compared
+as text. Native public restore and PostgreSQL consumer phases remain independent.
+Source-consumer phases preserve original QueryRow typed/deparse reads, actual
+held statements through all failing bindings and SAME-statement recovery,
+post-rejected-write sentinels and numeric-sizing descriptors on original/copies.
+Original physical Conn.QueryContext adapters remain real pinned-Conn consumers,
+not replacements with pooled DB.Query. Metadata callbacks must inspect the
+actual cursor; generic row helpers alone do not prove typed Scan or sizing.
+
 
 
 ## LIMIT, OFFSET and FETCH — change note (changelog)
@@ -219,8 +231,12 @@ This is a diagnostic correction and focused alias coverage, not new DISTINCT
 or grouping support.
 
 Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
-Independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
-PG-only diagnostics: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAliasesDiagnostics$$/postgres' VERBOSE=0`.
+Dual-mode alias union:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAliases[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAliases[A-Za-z0-9_]*$' VERBOSE=0`.
+Both backends assert complete diagnostics; the separate PostgreSQL column-ACL
+companion is `TestReferenceQueryAliasesPostgresColumnACL`. A postgres subtest
+filter on a shared scenario is not a substitute for native coverage.
 
 ## Expression ordering — change note (changelog)
 
@@ -708,7 +724,7 @@ make quickcheck PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOS
 make quickcheck PACKAGES=./internal/engine RUN='^TestBooleanAggregate' VERBOSE=0
 make quickcheck PACKAGES=./internal/parser RUN='^TestBooleanAggregate' VERBOSE=0
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0
-make quickcheck PACKAGES=./reference RUN='^TestReferenceBooleanAggregateMigrationLifecycle$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(BooleanAggregate[A-Za-z0-9_]*|AnyValueSourceACL)$' VERBOSE=0
 make quickcheck PACKAGES=./internal/sqltype RUN='^TestGrouping' VERBOSE=0
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
 make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAggregateSmokeMigration$' VERBOSE=0
@@ -1172,10 +1188,18 @@ INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/CTE/inheritance
 remain excluded; no new evaluator, durability or retry path is introduced.
 
 Feature commands:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`,
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)$' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateReturning[A-Za-z0-9_]*$' VERBOSE=0`,
 `make quickcheck PACKAGES=./internal/engine RUN='^TestUpdateReturning' VERBOSE=0`,
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`.
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUpdateReturning[A-Za-z0-9_]*$' VERBOSE=0`.
+
+The complete RETURNING selector includes the bounded ConsumerRoutes owners:
+all seven alias-option and nine parameter-projection actual DB.Query vectors,
+full aggregate/count/diagnostic/atomicity unions, Begin/QueryRow sequence demand
+and SAME held parameters remain beside recorded Context/prepared companions.
+Default/source setup and EACH failure sentinel retain their actual public
+methods, full descriptors/raw cells and checked statement/cursor teardown.
+
 
 ## UPDATE FROM — change note
 
@@ -1618,11 +1642,12 @@ across appends, Reset and Restore; no row order is promised without ORDER BY.
 
 Run `go test -count=1 -v -run '^TestExpressionCoreSmoke$' ./smoke` for the public
 direct/prepared scalar, BOOL/NULL, diagnostic, retained-cursor/control and atomicity
-witness. Independent native/unit checks are
-`go test -count=1 -v -run '^TestExpressionCore.*$' .` and
-`go test -count=1 -v -run '^TestExpression.*$' ./internal/engine`;
-the real pinned reference is
-`go test -tags reference -count=1 -v -run '^TestReferenceExpressionCore.*$' ./reference`.
+witness. Migrated scalar/query assertion unions use
+`make quickcheck PACKAGES=./reference RUN='^TestReference(ExpressionCore|QueryCore)[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(ExpressionCore|QueryCore)[A-Za-z0-9_]*$' VERBOSE=0`;
+local engine units remain `go test -count=1 -run '^TestExpression.*$' ./internal/engine`.
+The QueryCore owners include retained captured projection/restore, empty-table
+analysis and held1/2/NULL frames formerly duplicated in ExpressionCore.
 Go test reports assertion failures or PASS; these commands require execution to
 establish verification.
 

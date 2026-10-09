@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,17 +7,11 @@ import (
 	"testing"
 )
 
-func TestReferenceLikeOracleReview(t *testing.T) { likeReferenceReview(t, true) }
-func TestReferenceLikeReview(t *testing.T)       { likeReferenceReview(t, false) }
-
-func likeReferenceReview(t *testing.T, oracleOnly bool) {
-	p := newReferencePair(t)
+func TestReferenceLikeReview(t *testing.T) {
+	p := newReferenceScenario(t)
 	run := func(t *testing.T, s referenceStep) {
-		if oracleOnly {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		} else {
-			p.step(t, s)
-		}
+		s.checkMetadata = likeReferenceMetadata
+		p.step(t, s)
 	}
 	run(t, referenceExec("CREATE TABLE seed(i INTEGER)", 0))
 	run(t, referenceExec("INSERT INTO seed VALUES(1)", 1))
@@ -90,7 +82,7 @@ func likeReferenceReview(t *testing.T, oracleOnly bool) {
 		run(t, s)
 		run(t, referencePrepared(s))
 	}
-	if oracleOnly || t.Failed() {
+	if t.Failed() {
 		return
 	}
 	var dump bytes.Buffer

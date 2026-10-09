@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,6 +9,7 @@ import (
 )
 
 func TestReferenceDeparseConstraintsReviewCurrentSchemasConsumers(t *testing.T) {
+	schemaReferenceCleanup(t, "dc_path1", "dc_path2")
 	deparseReviewStreams(t, func(t *testing.T, conn *sql.Conn, postgres bool, run func(referenceStep) referenceObserved) {
 		run(referenceExec("CREATE SCHEMA dc_path1", 0))
 		run(referenceExec("CREATE SCHEMA dc_path2", 0))

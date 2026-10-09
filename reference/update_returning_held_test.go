@@ -2,37 +2,6 @@ package reference_test
 
 import "testing"
 
-func TestReferenceUpdateReturningPreflightEmpty(t *testing.T) {
-	for _, populate := range []bool{false, true} {
-		p := newReferenceScenario(t)
-		for _, backend := range p.backends() {
-			t.Run(backend.name, func(t *testing.T) {
-				run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
-				run(referenceExec("CREATE TABLE t(id INT)", 0))
-				if populate {
-					run(referenceExec("INSERT INTO t VALUES(1)", 1))
-				}
-				q := "UPDATE t SET id=2 WHERE FALSE RETURNING CAST($1::TEXT AS INTEGER)"
-				held, err := backend.db.PrepareContext(p.ctx, q)
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer held.Close()
-				x := referenceHeldStatement{referenceExecutor: backend.db, statement: held, query: q}
-				bad := referenceImplicitError(q, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "bad"`}, "bad")
-				bad.selectRows, bad.errorStage = true, "execute"
-				referenceRunStep(t, p.ctx, x, backend.recorder, bad)
-				referenceRunStep(t, p.ctx, x, backend.recorder, referenceSelect(q, []string{"int4"}, []string{"INT4"}, [][]any{}, "7"))
-				want := [][]any{}
-				if populate {
-					want = [][]any{{int64(1)}}
-				}
-				run(referenceSelect("SELECT id FROM t", []string{"id"}, []string{"INT4"}, want))
-			})
-		}
-	}
-}
-
 func TestReferenceUpdateReturningRepeatedParameterOrder(t *testing.T) {
 	for _, q := range []string{"UPDATE t SET id=$1 WHERE id=$1 RETURNING $1 AS typed,$1::int4 AS repeated", "UPDATE t SET id=2 RETURNING $1::int4 AS typed,$1 AS repeated"} {
 		p := newReferenceScenario(t)

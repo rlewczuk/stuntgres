@@ -241,9 +241,12 @@ func referenceAssertDiagnostic(t *testing.T, err error, want *referenceDiagnosti
 }
 
 type referenceStep struct {
-	query              string
-	args               []any
-	prepared           bool
+	query    string
+	args     []any
+	prepared bool
+	// nonContext preserves original DB/Tx and statement consumer methods.
+	// The recorded Context companion remains a separate execution.
+	nonContext         bool
 	selectRows         bool
 	bag                bool
 	affected           int64
@@ -253,6 +256,8 @@ type referenceStep struct {
 	errorStage         string
 	columns, types     []string
 	rows               [][]any
+	// checkMetadata inspects the actual cursor before iteration, including empty results.
+	checkMetadata func(t *testing.T, rows *sql.Rows)
 	// checkScan rescans the current row into specialized destinations, never SQL.
 	checkScan func(t *testing.T, rows *sql.Rows, rowIndex int)
 }
@@ -434,6 +439,11 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 		}
 	case "BYTEA":
 		want = reflect.TypeFor[[]byte]()
+	case "_TEXT":
+		if !postgres {
+			t.Fatal("native TEXT[] is outside the supported type surface")
+		}
+		want = reflect.TypeFor[[]byte]()
 	default:
 		t.Fatalf("unspecified raw representation for SQL type %s", sqlType)
 	}
@@ -449,6 +459,13 @@ type referenceExecutor interface {
 	PrepareContext(context.Context, string) (*sql.Stmt, error)
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+// referenceNonContextExecutor is satisfied by sql.DB and sql.Tx, not sql.Conn.
+type referenceNonContextExecutor interface {
+	Prepare(string) (*sql.Stmt, error)
+	Exec(string, ...any) (sql.Result, error)
+	Query(string, ...any) (*sql.Rows, error)
 }
 
 // referenceHeldStatement routes fixture execution through an already prepared
@@ -475,11 +492,24 @@ func (s referenceHeldStatement) QueryContext(ctx context.Context, query string, 
 
 func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, recorder *referenceRecorder, s referenceStep) referenceObserved {
 	t.Helper()
-	ctx = context.WithValue(ctx, referenceRecorderKey{}, recorder)
+	var source referenceNonContextExecutor
+	if s.nonContext {
+		var ok bool
+		source, ok = db.(referenceNonContextExecutor)
+		if !ok {
+			t.Fatalf("non-Context source route requires DB or Tx methods, got %T", db)
+		}
+	} else {
+		ctx = context.WithValue(ctx, referenceRecorderKey{}, recorder)
+	}
 	var stmt *sql.Stmt
 	var err error
 	if s.prepared {
-		stmt, err = db.PrepareContext(ctx, s.query)
+		if s.nonContext {
+			stmt, err = source.Prepare(s.query)
+		} else {
+			stmt, err = db.PrepareContext(ctx, s.query)
+		}
 		if err != nil {
 			if stmt != nil {
 				stmt.Close()
@@ -498,7 +528,13 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	if !s.selectRows {
 		var result sql.Result
 		if stmt != nil {
-			result, err = stmt.ExecContext(ctx, s.args...)
+			if s.nonContext {
+				result, err = stmt.Exec(s.args...)
+			} else {
+				result, err = stmt.ExecContext(ctx, s.args...)
+			}
+		} else if s.nonContext {
+			result, err = source.Exec(s.query, s.args...)
 		} else {
 			result, err = db.ExecContext(ctx, s.query, s.args...)
 		}
@@ -518,11 +554,20 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 		if count != s.affected {
 			t.Fatalf("RowsAffected got %d want %d", count, s.affected)
 		}
+		if _, err := result.LastInsertId(); err == nil {
+			t.Fatal("LastInsertId unexpectedly supported")
+		}
 		return referenceObserved{affected: count}
 	}
 	var rows *sql.Rows
 	if stmt != nil {
-		rows, err = stmt.QueryContext(ctx, s.args...)
+		if s.nonContext {
+			rows, err = stmt.Query(s.args...)
+		} else {
+			rows, err = stmt.QueryContext(ctx, s.args...)
+		}
+	} else if s.nonContext {
+		rows, err = source.Query(s.query, s.args...)
 	} else {
 		rows, err = db.QueryContext(ctx, s.query, s.args...)
 	}
@@ -583,6 +628,9 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 	if !slices.Equal(types, s.types) {
 		t.Fatalf("types got %#v want %#v", types, s.types)
 	}
+	if s.checkMetadata != nil {
+		s.checkMetadata(t, rows)
+	}
 	values := make([][]any, 0)
 	for rows.Next() {
 		row := make([]any, len(columns))
@@ -617,6 +665,11 @@ func referenceRunStep(t *testing.T, ctx context.Context, db referenceExecutor, r
 		t.Fatalf("rows bag=%v got %#v want %#v", s.bag, values, s.rows)
 	}
 	values = compared
+	if s.nonContext {
+		// Plain methods cannot carry the Context recorder key. All actual
+		// cursor assertions above still apply; the companion covers recording.
+		return referenceObserved{columns: columns, types: types, rows: values}
+	}
 	// Compare recorded consumed values, not middleware call counts or fast-path choices.
 	recorder.mu.Lock()
 	var recorded *referenceOperation
@@ -676,15 +729,31 @@ func (d noticeReferenceDriver) OpenConnector(string) (driver.Connector, error) {
 func (d noticeReferenceDriver) Open(string) (driver.Conn, error) {
 	return d.connector.Connect(context.Background())
 }
-func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records *[]referenceDiagnostic) (*sql.DB, *sql.Conn, *referenceRecorder) {
+
+// The command owner supplies joined only for bounded callback workers. It is
+// evaluated by test cleanup, never by the failure-cleanup goroutine.
+type noticeReferenceOption struct {
+	handler func(referenceDiagnostic)
+	joined  func() bool
+}
+
+func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records *[]referenceDiagnostic, options ...noticeReferenceOption) (*sql.DB, *sql.Conn, *referenceRecorder) {
 	t.Helper()
+	deliver := func(diagnostic referenceDiagnostic) {
+		*records = append(*records, diagnostic)
+		for _, option := range options {
+			if option.handler != nil {
+				option.handler(diagnostic)
+			}
+		}
+	}
 	var connector driver.Connector
 	if postgres {
 		base, err := pq.NewConnector(referenceDSN)
 		if err != nil {
 			t.Fatal(err)
 		}
-		connector = pq.ConnectorWithNoticeHandler(base, func(n *pq.Error) { *records = append(*records, referenceExtractDiagnostic(t, n)) })
+		connector = pq.ConnectorWithNoticeHandler(base, func(n *pq.Error) { deliver(referenceExtractDiagnostic(t, n)) })
 	} else {
 		base := p.nativeConnector
 		if base == nil || p.memoryRecord.rawBackend == referenceRawLegacy {
@@ -694,7 +763,7 @@ func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records 
 			}
 			base = legacy.(*stuntgres.Connector)
 		}
-		connector = base.WithNoticeHandler(func(n stuntgres.Error) { *records = append(*records, referenceExtractDiagnostic(t, &n)) })
+		connector = base.WithNoticeHandler(func(n stuntgres.Error) { deliver(referenceExtractDiagnostic(t, &n)) })
 	}
 	wrapped := sqlmw.Driver(noticeReferenceDriver{connector}, referenceInterceptor{})
 	// sqlmw's DriverContext connector preserves direct and prepared recorder hooks.
@@ -703,12 +772,36 @@ func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records 
 		t.Fatal(err)
 	}
 	db := sql.OpenDB(configured)
-	t.Cleanup(func() { db.Close() })
-	c, err := db.Conn(p.ctx)
+	var c *sql.Conn
+	t.Cleanup(func() {
+		for _, option := range options {
+			if option.joined != nil && !option.joined() {
+				// Conn.Close waits for active operations. A suspected callback/
+				// lease deadlock must not defeat the worker's bounded diagnostic.
+				go func() {
+					if c != nil {
+						c.Close()
+					}
+					db.Close()
+				}()
+				return
+			}
+		}
+		if c != nil {
+			// A lifecycle witness may already have returned this borrower;
+			// ErrConnDone confirms its ownership ended, not a close failure.
+			if err := c.Close(); err != nil && err != sql.ErrConnDone {
+				t.Error("notice connection close", err)
+			}
+		}
+		if err := db.Close(); err != nil {
+			t.Error("notice pool close", err)
+		}
+	})
+	c, err = db.Conn(p.ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { c.Close() })
 	recorder := &referenceRecorder{rawBackend: p.memoryRecord.rawBackend}
 	if postgres {
 		recorder.rawBackend = p.postgresRecord.rawBackend
@@ -1163,7 +1256,7 @@ func referenceLockOperation(t *testing.T, ctx context.Context, call func(context
 // through a Go context can instead close the transport, and a fast SET can win
 // that race even with a pre-canceled context. Use server-side cancellation after
 // an observed admission barrier, not a timing assumption about either driver.
-func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn, prepared bool) {
+func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn, prepared bool, queryMode ...bool) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(parent, 15*time.Second)
 	defer cancel()
@@ -1182,9 +1275,21 @@ func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn
 		defer stmt.Close()
 	}
 	result := make(chan error, 1)
+	var exposedCursor bool
 	go func() {
 		var err error
-		if stmt != nil {
+		if len(queryMode) != 0 && queryMode[0] {
+			var rows *sql.Rows
+			if stmt != nil {
+				rows, err = stmt.QueryContext(ctx)
+			} else {
+				rows, err = conn.QueryContext(ctx, query)
+			}
+			if rows != nil {
+				exposedCursor = true
+				rows.Close()
+			}
+		} else if stmt != nil {
 			_, err = stmt.ExecContext(ctx)
 		} else {
 			_, err = conn.ExecContext(ctx, query)
@@ -1217,6 +1322,9 @@ func referenceSessionCancel(t *testing.T, parent context.Context, conn *sql.Conn
 		t.Fatalf("cancel backend: signaled=%t error=%v; statement: %v", signaled, err, statementErr)
 	}
 	err := <-result
+	if exposedCursor {
+		t.Fatal("canceled admitted Query exposed a cursor")
+	}
 	referenceAssertDiagnostic(t, err, &referenceDiagnostic{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014",
 		Message: "canceling statement due to user request",

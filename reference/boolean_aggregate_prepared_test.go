@@ -27,10 +27,10 @@ func TestReferenceBooleanAggregateHeldPrepared(t *testing.T) {
 			run(referenceExec("INSERT INTO t VALUES(FALSE)", 1))
 			check([][]any{{false, true, false}})
 			run(referenceExec("CREATE SEQUENCE s", 0))
-			s := referenceSelect("SELECT bool_and(nextval('s')>0),every(nextval('s')>0),bool_or(nextval('s')>0) FROM t", []string{"bool_and", "every", "bool_or"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}})
-			run(s)
+			step := referenceSelect("SELECT bool_and(nextval('s')>0),every(nextval('s')>0),bool_or(nextval('s')>0) FROM t", []string{"bool_and", "every", "bool_or"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}})
+			run(step)
 			run(referenceSelect("SELECT currval('s')", []string{"currval"}, []string{"INT8"}, [][]any{{int64(9)}}))
-			run(referencePrepared(s))
+			run(referencePrepared(step))
 			run(referenceSelect("SELECT currval('s')", []string{"currval"}, []string{"INT8"}, [][]any{{int64(18)}}))
 		})
 	}

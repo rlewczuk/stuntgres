@@ -5,7 +5,7 @@ import "testing"
 func TestReferenceQueryFromValuesTypes(t *testing.T) {
 	for _, tc := range []struct {
 		query, typ string
-		rows [][]any
+		rows       [][]any
 	}{
 		{"VALUES(NULL),(NULL),(1)", "INT4", [][]any{{nil}, {nil}, {int64(1)}}},
 		{"VALUES(NULL),(NULL)", "TEXT", [][]any{{nil}, {nil}}},
@@ -33,8 +33,8 @@ func TestReferenceQueryFromValuesTypes(t *testing.T) {
 func TestReferenceQueryFromValuesMetadata(t *testing.T) {
 	for _, tc := range []struct {
 		query, typ string
-		length int64
-		rows [][]any
+		length     int64
+		rows       [][]any
 	}{
 		{"VALUES('a'::char(2)),('b'::char(2))", "BPCHAR", 2, [][]any{{"a "}, {"b "}}},
 		{"VALUES('a'::varchar(2)),('b'::varchar(2))", "VARCHAR", 2, [][]any{{"a"}, {"b"}}},
@@ -74,7 +74,7 @@ func TestReferenceQueryFromValuesMetadata(t *testing.T) {
 func TestReferenceQueryFromValuesCollationDiagnostics(t *testing.T) {
 	for _, tc := range []struct {
 		query string
-		want referenceDiagnostic
+		want  referenceDiagnostic
 	}{
 		{`VALUES ('a' COLLATE "C"),('b' COLLATE "POSIX")`, referenceDiagnostic{Code: "42P21", Message: `collation mismatch between explicit collations "C" and "POSIX"`, Position: "31"}},
 		{`SELECT v.n FROM (VALUES('a' COLLATE "C"),('b' COLLATE "POSIX")) v(n) ORDER BY n`, referenceDiagnostic{Code: "42P21", Message: `collation mismatch between explicit collations "C" and "POSIX"`, Position: "47"}},
@@ -89,7 +89,9 @@ func TestReferenceQueryFromValuesCollationDiagnostics(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
 					s := referenceImplicitError(tc.query, tc.want)
 					s.selectRows, s.prepared, s.errorStage = true, prepared, "execute"
-					if prepared { s.errorStage = "prepare" }
+					if prepared {
+						s.errorStage = "prepare"
+					}
 					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 				}
 			}

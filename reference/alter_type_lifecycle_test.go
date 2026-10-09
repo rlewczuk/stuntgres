@@ -1,22 +1,15 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 	"time"
 )
 
 func TestReferenceAlterTypeModifiersAndDefaults(t *testing.T) {
-	p := newReferencePair(t)
-	for _, b := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
 			run(referenceExec("CREATE TABLE t(c TIMESTAMP(6))", 0))
 			run(referenceExec("INSERT INTO t VALUES('2024-01-01 00:00:00.123456')", 1))
 			run(referencePrepared(referenceExec("ALTER TABLE t ALTER c TYPE TIMESTAMP(2)", 0)))
@@ -44,9 +37,11 @@ func TestReferenceAlterTypeModifiersAndDefaults(t *testing.T) {
 }
 
 func TestReferenceAlterTypeNondefaultLocaleBoundary(t *testing.T) {
-	p := newReferencePair(t)
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("CREATE TABLE t(c TEXT)", 0))
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec(`ALTER TABLE t ALTER c TYPE TEXT COLLATE pg_catalog."C.utf8"`, 0))
+	p := newReferenceScenario(t)
+	if p.postgres != nil {
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("CREATE TABLE t(c TEXT)", 0))
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec(`ALTER TABLE t ALTER c TYPE TEXT COLLATE pg_catalog."C.utf8"`, 0))
+	}
 	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("CREATE TABLE t(c TEXT)", 0))
 	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceImplicitError(`ALTER TABLE t ALTER c TYPE TEXT COLLATE pg_catalog."C.utf8"`, referenceDiagnostic{Code: "0A000", Message: "collation is unsupported", Position: "33"}))
 }

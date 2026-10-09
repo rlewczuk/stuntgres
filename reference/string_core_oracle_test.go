@@ -8,45 +8,17 @@ import "testing"
 // This entrypoint executes PostgreSQL SQL only; native fixtures are not queried.
 func TestReferenceStringCoreOracle(t *testing.T) {
 	p := newReferencePair(t)
-	stringCoreReferenceSetup(t, p, true)
-	stringCoreReferenceChar(t, p, true)
-	stringCoreOracleHangulBoundary(t, p)
-	stringCoreReferenceValues(t, p, stringCoreTrimCases(), true)
-	stringCoreReferenceValues(t, p, stringCoreConcatCases(), true)
-	stringCoreReferenceValues(t, p, stringCoreNormalizationCases(), true)
-	stringCoreReferenceParameters(t, p, true)
-	stringCoreReferenceSettings(t, p, true)
-	stringCoreReferenceVoid(t, p, true)
-	stringCoreReferenceAdditional(t, p, true)
-	stringCoreReferenceSyntax(t, p, true)
-	stringCoreReferenceDiagnosticParameters(t, p, true)
 	stringCoreOracleParameterTypes(t, p)
-	for _, tc := range stringCoreDiagnosticCases() {
-		t.Run(tc.q, func(t *testing.T) {
-			for _, prepared := range []bool{false, true} {
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, stringCoreDiagnosticStep(tc, prepared))
-			}
-		})
-	}
 	for _, tc := range []stringCoreReferenceCase{
 		{`SELECT 'x'::text||('\377'::"char")::text AS v`, `x\377`, "TEXT"},
 		{`SELECT ('\200'::"char")::text||'x'::text AS v`, `\200x`, "TEXT"},
 		{`SELECT 'x'::text||('\000'::"char")::text AS v`, "x", "TEXT"},
-		{"SELECT trim(' x ')", "x", "TEXT"},
 	} {
-		if tc.query == "SELECT trim(' x ')" {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect(tc.query, []string{"btrim"}, []string{"TEXT"}, [][]any{{"x"}}))
-			continue
-		}
-		for _, prepared := range []bool{false, true} {
-			s := stringCoreSelect(tc)
-			if prepared {
-				s = referencePrepared(s)
-			}
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-		}
+		step := stringCoreSelect(tc)
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(step))
 	}
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceImplicitError("/*é🙂*/ SELECT 1 || 2", referenceDiagnostic{Code: "42883", Message: "operator does not exist: integer || integer", Position: "17", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}))
+
 	// Parameter inference is checked independently via PostgreSQL's logical type function.
 	for _, q := range []string{"SELECT pg_typeof($1||$2)::text AS v", "SELECT pg_typeof($1||42)::text AS v", "SELECT pg_typeof(42||$1)::text AS v"} {
 		args := []any{"x"}

@@ -223,3 +223,27 @@ type identities without mutating retained source catalogs or rows. Public Restor
 still rejects TEMP declarations rather than importing them.
 
 `make quickcheck PACKAGES=./smoke RUN='^TestCatalogOwnersPublicWitness$'` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.
+
+Whole-root control migration removes obsolete SQL helpers without changing these
+public APIs. Cohesive control/retention witnesses run in both modes:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(Control[A-Za-z0-9_]*|CatalogControlsReleaseLocksDuringIO|DumpRoundTrip|QueryCoreCapturedOwnership|ViewReplaceNativeControls)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Control[A-Za-z0-9_]*|CatalogControlsReleaseLocksDuringIO|DumpRoundTrip|QueryCoreCapturedOwnership|ViewReplaceNativeControls)$' VERBOSE=0
+```
+
+Native I/O/cancellation/reader/writer errors, repeated owner-bearing replay and
+retained eager cursors use the actual unwrapped public pool. PostgreSQL has no
+host Reset/Restore API: its independent SQL consumer/transaction/cancellation
+phases drain active streams before subsequent commands on the same connection.
+Captured metadata and data remain checked, not merely resource-readiness flags.
+
+Fresh source and recorded phases reuse the complete replay corpora. The source
+phase keeps actual setup/append DB.Exec and EACH failed script's DB.Query
+sentinel/absence check, while retained cursors are opened before replacement.
+Helper I/O gates preserve original reader/writer error identity, cancellation
+and worker joins. Roll back borrowed transactions before returning connections,
+including failure exits; register schema/role teardown immediately after actual
+creation. Do not issue unsupported native cleanup SQL or hide cleanup errors.
+
+

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -18,12 +16,8 @@ func TestReferenceSession(t *testing.T) {
 			name = "prepared"
 		}
 		t.Run(name, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"memory", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					a, err := backend.db.Conn(p.ctx)
 					if err != nil {
@@ -37,7 +31,7 @@ func TestReferenceSession(t *testing.T) {
 					defer b.Close()
 					run := func(c *sql.Conn, s referenceStep) {
 						s.prepared = prepared
-						referenceRunStep(t, p.ctx, c, backend.record, s)
+						referenceRunStep(t, p.ctx, c, backend.recorder, s)
 					}
 					show := func(c *sql.Conn, want string) {
 						run(c, referenceExec("SHOW application_name", 0))
@@ -76,10 +70,60 @@ func TestReferenceSession(t *testing.T) {
 					show(a, "quoted")
 					run(a, referenceSelect(`SHOW "APPLICATION_NAME"`, []string{"application_name"}, []string{"TEXT"}, [][]any{{"quoted"}}))
 					run(a, referenceExec("SET application_name TO retained", 0))
+				})
+			}
+		})
+	}
+}
+
+func TestReferenceSessionDiagnosticsAndPreparedLiveValue(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		name := "direct"
+		if prepared {
+			name = "prepared"
+		}
+		t.Run(name, func(t *testing.T) {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					a, err := backend.db.Conn(p.ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer a.Close()
+					b, err := backend.db.Conn(p.ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer b.Close()
+					run := func(c *sql.Conn, s referenceStep) {
+						s.prepared = prepared
+						referenceRunStep(t, p.ctx, c, backend.recorder, s)
+					}
+					show := func(c *sql.Conn, want string) {
+						run(c, referenceExec("SHOW application_name", 0))
+						run(c, referenceSelect("SHOW application_name", []string{"application_name"}, []string{"TEXT"}, [][]any{{want}}))
+					}
+					show(a, "")
+					show(b, "")
+					run(a, referenceExec("CREATE TABLE sentinel(v INT)", 0))
+					run(a, referenceExec(`CREATE TABLE set(show TEXT,session INT,"to" BOOL)`, 0))
+					run(a, referenceExec(`INSERT INTO set VALUES('named',7,true)`, 1))
+					run(b, referenceSelect(`SELECT show,session,"to" FROM set`, []string{"show", "session", "to"}, []string{"TEXT", "INT4", "BOOL"}, [][]any{{"named", int64(7), true}}))
+					run(a, referenceExec("INSERT INTO sentinel VALUES(7)", 1))
+					run(a, referenceExec("SET SESSION application_name TO 'session-a'", 0))
+					run(b, referenceExec("SET application_name = 'session-b'", 0))
+					show(a, "session-a")
+					show(b, "session-b")
+					if prepared {
+						referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec("SET application_name TO retained", 0))
+					}
+					run(a, referenceExec("SET application_name TO retained", 0))
 					for _, tc := range []struct {
 						query, code, message, position, stage string
 						queryRows                             bool
 					}{
+						{"SET absent_setting TO x", "42704", `unrecognized configuration parameter "absent_setting"`, "", "execute", false},
 						{"SET SESSION absent_setting TO x", "42704", `unrecognized configuration parameter "absent_setting"`, "", "execute", false},
 						{"SHOW absent_setting", "42704", `unrecognized configuration parameter "absent_setting"`, "", "prepare", true},
 						{`SET "a""b" TO x`, "42704", `unrecognized configuration parameter "a"b"`, "", "execute", false},
@@ -103,6 +147,10 @@ func TestReferenceSession(t *testing.T) {
 							step.errorStage = tc.stage
 						}
 						run(a, step)
+						if tc.queryRows {
+							step.selectRows = false
+							run(a, step)
+						}
 						show(a, "retained")
 						show(b, "session-b")
 						run(b, referenceSelect("SELECT v FROM sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
@@ -119,10 +167,12 @@ func TestReferenceSession(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer stmt.Close()
-						run(a, referenceExec("SET application_name TO changed", 0))
-						var value string
-						if err = stmt.QueryRowContext(p.ctx).Scan(&value); err != nil || value != "changed" {
-							t.Fatal(value, err)
+						for _, value := range []string{"first", "second"} {
+							run(a, referenceExec("SET application_name TO "+value, 0))
+							var observed string
+							if err = stmt.QueryRowContext(p.ctx).Scan(&observed); err != nil || observed != value {
+								t.Fatal(observed, err)
+							}
 						}
 					}
 					if backend.name == "memory" {
@@ -136,11 +186,56 @@ func TestReferenceSession(t *testing.T) {
 					}
 					value := "retained"
 					if prepared {
-						value = "changed"
+						value = "second"
 					}
 					show(a, value)
 					show(b, "session-b")
 					run(a, referenceSelect("SELECT v FROM sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+				})
+			}
+		})
+	}
+}
+
+func TestReferenceSessionPhysicalIsolationReuseAndReplacement(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		name := "direct"
+		if prepared {
+			name = "prepared"
+		}
+		t.Run(name, func(t *testing.T) {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
+					a, err := backend.db.Conn(p.ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer a.Close()
+					b, err := backend.db.Conn(p.ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer b.Close()
+					run := func(c *sql.Conn, s referenceStep) {
+						s.prepared = prepared
+						referenceRunStep(t, p.ctx, c, backend.recorder, s)
+					}
+					show := func(c *sql.Conn, want string) {
+						run(c, referenceExec("SHOW application_name", 0))
+						run(c, referenceSelect("SHOW application_name", []string{"application_name"}, []string{"TEXT"}, [][]any{{want}}))
+					}
+					show(a, "")
+					show(b, "")
+					run(a, referenceExec("CREATE TABLE sentinel(v INT)", 0))
+					run(a, referenceExec(`CREATE TABLE set(show TEXT,session INT,"to" BOOL)`, 0))
+					run(a, referenceExec(`INSERT INTO set VALUES('named',7,true)`, 1))
+					run(b, referenceSelect(`SELECT show,session,"to" FROM set`, []string{"show", "session", "to"}, []string{"TEXT", "INT4", "BOOL"}, [][]any{{"named", int64(7), true}}))
+					run(a, referenceExec("INSERT INTO sentinel VALUES(7)", 1))
+					run(a, referenceExec("SET SESSION application_name TO 'session-a'", 0))
+					run(b, referenceExec("SET application_name = 'session-b'", 0))
+					show(a, "session-a")
+					show(b, "session-b")
 					c, err := backend.db.Conn(p.ctx)
 					if err != nil {
 						t.Fatal(err)
@@ -186,6 +281,10 @@ func TestReferenceSession(t *testing.T) {
 					show(c, "")
 					show(b, "session-b")
 					run(c, referenceSelect("SELECT v FROM sentinel", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}}))
+					var sentinel int64
+					if err = c.QueryRowContext(p.ctx, "SELECT v FROM sentinel").Scan(&sentinel); err != nil || sentinel != 7 {
+						t.Fatal("replacement sentinel", sentinel, err)
+					}
 				})
 			}
 		})

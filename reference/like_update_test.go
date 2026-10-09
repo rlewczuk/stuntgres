@@ -10,10 +10,8 @@ func TestReferenceLikeUpdate(t *testing.T) {
 	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			db := backend.db
-			execute := func(q string) {
-				if _, err := db.ExecContext(p.ctx, q); err != nil {
-					t.Fatal(err)
-				}
+			execute := func(q string, affected int64) {
+				referenceRunStep(t, p.ctx, db, backend.recorder, referenceExec(q, affected))
 			}
 			check := func(rows *sql.Rows, err error, name string, want [][]any) {
 				if err != nil {
@@ -22,8 +20,8 @@ func TestReferenceLikeUpdate(t *testing.T) {
 				updateCoreRetained(t, backend.pg, rows, []string{name}, []string{"INT4"}, want, false)
 			}
 
-			execute("CREATE TABLE t(id INT,v TEXT,p TEXT,e TEXT,mark INT)")
-			execute("INSERT INTO t VALUES(1,'a%b','a!%b','!',0),(2,'Ab','a%','!',0),(3,NULL,NULL,NULL,0)")
+			execute("CREATE TABLE t(id INT,v TEXT,p TEXT,e TEXT,mark INT)", 0)
+			execute("INSERT INTO t VALUES(1,'a%b','a!%b','!',0),(2,'Ab','a%','!',0),(3,NULL,NULL,NULL,0)", 3)
 			for _, tc := range []struct {
 				predicate string
 				args      []any
@@ -45,12 +43,18 @@ func TestReferenceLikeUpdate(t *testing.T) {
 					}
 					defer stmt.Close()
 					for _, prepared := range []bool{false, true} {
-						execute("UPDATE t SET mark=0")
+						execute("UPDATE t SET mark=0", 3)
 						var count int64
 						if prepared {
 							r, err := stmt.Exec(tc.args...)
 							if err != nil {
 								t.Fatal(err)
+							}
+							if r == nil {
+								t.Fatal("successful held UPDATE exposed no result")
+							}
+							if _, err := r.LastInsertId(); err == nil {
+								t.Fatal("held UPDATE supported LastInsertId")
 							}
 							count, err = r.RowsAffected()
 							if err != nil {
@@ -60,6 +64,12 @@ func TestReferenceLikeUpdate(t *testing.T) {
 							r, err := db.Exec(q, tc.args...)
 							if err != nil {
 								t.Fatal(err)
+							}
+							if r == nil {
+								t.Fatal("successful direct UPDATE exposed no result")
+							}
+							if _, err := r.LastInsertId(); err == nil {
+								t.Fatal("direct UPDATE supported LastInsertId")
 							}
 							count, err = r.RowsAffected()
 							if err != nil {
@@ -71,38 +81,44 @@ func TestReferenceLikeUpdate(t *testing.T) {
 						}
 						rows, err := db.Query("SELECT mark FROM t ORDER BY id")
 						check(rows, err, "mark", tc.marks)
-					}
-					selected := make([][]any, 0)
-					for i, row := range tc.marks {
-						if row[0] == int64(1) {
-							selected = append(selected, []any{int64(i + 1)})
+						selected := make([][]any, 0)
+						for i, row := range tc.marks {
+							if row[0] == int64(1) {
+								selected = append(selected, []any{int64(i + 1)})
+							}
 						}
+						query := "SELECT id FROM t WHERE " + tc.predicate + " ORDER BY id"
+						rows, err = db.Query(query, tc.args...)
+						check(rows, err, "id", selected)
+						held, err := db.Prepare(query)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer held.Close()
+						rows, err = held.Query(tc.args...)
+						check(rows, err, "id", selected)
 					}
-					query := "SELECT id FROM t WHERE " + tc.predicate + " ORDER BY id"
-					rows, err := db.Query(query, tc.args...)
-					check(rows, err, "id", selected)
-					held, err := db.Prepare(query)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer held.Close()
-					rows, err = held.Query(tc.args...)
-					check(rows, err, "id", selected)
 				})
 			}
-			execute("UPDATE t SET mark=0")
-			execute("UPDATE t SET e='ab' WHERE id=2")
+			execute("UPDATE t SET mark=0", 3)
+			execute("UPDATE t SET e='ab' WHERE id=2", 1)
 			query := "UPDATE t SET mark=1 WHERE v ILIKE p ESCAPE e"
 			stmt, err := db.Prepare(query)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer stmt.Close()
-			_, err = db.Exec(query)
+			result, err := db.Exec(query)
+			if result != nil {
+				t.Fatal("failed direct UPDATE exposed a result")
+			}
 			referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22025", Message: "invalid escape string", Hint: "Escape string must be empty or one character."})
 			rows, err := db.Query("SELECT mark FROM t ORDER BY id")
 			check(rows, err, "mark", [][]any{{int64(0)}, {int64(0)}, {int64(0)}})
-			_, err = stmt.Exec()
+			result, err = stmt.Exec()
+			if result != nil {
+				t.Fatal("failed held UPDATE exposed a result")
+			}
 			referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22025", Message: "invalid escape string", Hint: "Escape string must be empty or one character."})
 			rows, err = db.Query("SELECT mark FROM t ORDER BY id")
 			check(rows, err, "mark", [][]any{{int64(0)}, {int64(0)}, {int64(0)}})

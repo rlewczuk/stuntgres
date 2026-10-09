@@ -8,19 +8,6 @@ import (
 	"testing"
 )
 
-func schemaReferenceError(query, code, message, detail string, prepared bool, phase, position string) referenceStep {
-	s := roleReferenceError(query, code, message, detail, prepared, phase)
-	s.diagnostic.Position = position
-	return s
-}
-
-// Creation destination diagnostics also preserve the AST target position on
-// both backends without a backend-specific position override.
-func schemaReferenceCreationError(query, code, message string, prepared bool, position string) referenceStep {
-	s := roleReferenceError(query, code, message, "", prepared, "execute")
-	s.diagnostic.Position = position
-	return s
-}
 func TestReferenceSchemaLifecycle(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {

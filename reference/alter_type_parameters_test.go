@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"fmt"
 	"testing"
 )
@@ -11,19 +8,15 @@ import (
 func TestReferenceAlterTypePreparedDML(t *testing.T) {
 	for _, narrow := range []bool{false, true} {
 		t.Run(fmt.Sprint(narrow), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, b := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+			p := newReferenceScenario(t)
+			for _, b := range p.backends() {
 				t.Run(b.name, func(t *testing.T) {
 					conn, err := b.db.Conn(p.ctx)
 					if err != nil {
 						t.Fatal(err)
 					}
 					defer conn.Close()
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, b.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, b.recorder, s) }
 					before, after := "INT", "BIGINT"
 					typ := "INT8"
 					if narrow {
@@ -41,6 +34,11 @@ func TestReferenceAlterTypePreparedDML(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer explicit.Close()
+					update, err := conn.PrepareContext(p.ctx, "UPDATE t SET c=$1")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer update.Close()
 					run(referenceExec("ALTER TABLE t ALTER c TYPE "+after, 0))
 					result, err := old.ExecContext(p.ctx, int64(7))
 					if err != nil {
@@ -63,8 +61,15 @@ func TestReferenceAlterTypePreparedDML(t *testing.T) {
 							t.Fatal(got, want)
 						}
 					}
+					run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{typ}, [][]any{{int64(7)}, {int64(7)}}))
 					run(referencePrepared(referenceExec("INSERT INTO t VALUES($1)", 1, int64(9))))
 					run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{typ}, [][]any{{int64(7)}, {int64(7)}, {int64(9)}}))
+					run(referenceExec("DELETE FROM t WHERE c=9", 1))
+
+					runUpdate := referenceHeldStatement{referenceExecutor: conn, statement: update, query: "UPDATE t SET c=$1"}
+					referenceRunStep(t, p.ctx, runUpdate, b.recorder, referenceExec("UPDATE t SET c=$1", 2, int64(8)))
+					run(referencePrepared(referenceExec("INSERT INTO t VALUES($1)", 1, int64(9))))
+					run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{typ}, [][]any{{int64(8)}, {int64(8)}, {int64(9)}}))
 				})
 			}
 		})

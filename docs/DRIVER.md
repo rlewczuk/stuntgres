@@ -96,9 +96,15 @@ filters, ownership, peer reentry and control round trips; Go test reports the re
 
 Run `make quickcheck PACKAGES=./smoke RUN='^TestSessionSmoke$'` for asserted isolation, preparation, physical
 reuse/replacement, data survival, diagnostics, cancellation and native controls.
-Scoped checks: `make quickcheck PACKAGES=./... RUN='^TestSession'`,
-`make quickcheck RACE=1 PACKAGES=./... RUN='^TestSession'`, and the real pinned PostgreSQL suite
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSession'`.
+Scoped SQL checks use external definitions:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSession[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSession[A-Za-z0-9_]*$' VERBOSE=0`.
+The true-mode family also selects retained tagged authority companions.
+Focused nonSQL root mechanics use
+`make quickcheck PACKAGES=. RUN='^TestSession(PhysicalIdentityMechanics|ResetMechanics|AdapterMechanics)$' VERBOSE=0`.
+Native race coverage uses the same external session-family RUN with
+`make quickcheck RACE=1 PACKAGES=./reference`; root mechanics can also use
+`make quickcheck RACE=1 PACKAGES=. RUN='^TestSession(PhysicalIdentityMechanics|ResetMechanics|AdapterMechanics)$'`.
 
 Session smoke asserts distinct session settings, prepared TEXT metadata and zero
 affected counts, preserved settings on pool reuse, restored defaults on physical
@@ -128,7 +134,7 @@ Invalid boolean strings retain the original decoded input in the PostgreSQL `22P
 
 Encoding-input failures (`22021`) carry only the actual parameter index, because decoded parameter text is unavailable. Codec errors on decoded empty text retain ` = ''`; other decoded text retains ` = '...'`.
 
-This bounded diagnostic change does not replace boolean parsing or native `database/sql` values: accepted aliases/unique prefixes, case/ASCII whitespace, TRUE/FALSE/NULL, bool/nil returns, and atomic INSERT and Dump/Reset/Restore behavior remain baseline regressions. Run `make quickcheck PACKAGES=./smoke RUN='^TestBooleanDiagnosticsSmoke$'` for complete native diagnostic, direct/prepared parameter, atomicity and control witnesses; Go test reports the result. The independent pinned-reference fixture is `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBooleanDiagnostics$' VERBOSE=1`.
+This bounded diagnostic change does not replace boolean parsing or native `database/sql` values: accepted aliases/unique prefixes, case/ASCII whitespace, TRUE/FALSE/NULL, bool/nil returns, and atomic INSERT and Dump/Reset/Restore behavior remain baseline regressions. Run `make quickcheck PACKAGES=./smoke RUN='^TestBooleanDiagnosticsSmoke$'` for complete native diagnostic, direct/prepared parameter, atomicity and control witnesses; Go test reports the result. The independent pinned-reference fixtures use `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBooleanDiagnostics[A-Za-z0-9_]*$' VERBOSE=0`; the same RUN with `make quickcheck PACKAGES=./reference` exercises native without Docker.
 
 Unterminated comments and quoted tokens report PostgreSQL-style English primary messages containing the raw input from the offending opener (`at or near "..."`), with a separate one-based character Position. Newline-separated string segments form one token, so an unterminated later segment points to the first literal opener and includes the continued raw suffix. A zero-length delimited identifier instead includes only its raw `""` token, not trailing SQL. Diagnostic text is not escaped as a Go string; multibyte characters do not turn Position into a byte offset.
 
@@ -138,7 +144,32 @@ Decoded E-string NUL/invalid UTF8 reports `22021` with no Position; malformed Un
 
 The focused public proof is `make quickcheck PACKAGES=./smoke RUN='^TestStringLiteralsSmoke$'`; it asserts direct/prepared escape and dollar values, parameter separation, exact diagnostics, statement atomicity, shared-pool Dump/Reset/Restore, retained cursors and the raw SQL boundary. Go test reports the result.
 
-Pinned real-reference feature fixtures are `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringLiterals$' VERBOSE=1` and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringLiteralDumpRoundTrip$' VERBOSE=1`.
+Pinned real-reference feature fixtures use `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringLiterals$' VERBOSE=0` and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringLiteralDumpRoundTrip$' VERBOSE=0`; the same RUN with `make quickcheck PACKAGES=./reference` exercises native without Docker.
+
+Driver and diagnostic assertion unions are now untagged external scenarios.
+Use the same definition in both modes, for example:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReference(DirectAndPreparedParameters|RowsMetadataAndCommandSemantics|ErrorFields[A-Za-z0-9_]*|DriverCanceledHandles|DriverRowsBoundary|NativeCursorEOFAndCancellation)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(DirectAndPreparedParameters|RowsMetadataAndCommandSemantics|ErrorFields[A-Za-z0-9_]*|DriverCanceledHandles|DriverRowsBoundary|NativeCursorEOFAndCancellation)$' VERBOSE=0
+```
+
+Zero-argument pq simple-query errors, prepared parameter inference and native
+ordinary argument errors retain independent records and nil-output checks.
+Native eager retained rows and detached Columns slices are not pq streaming or
+Columns-copy promises. Native precanceled calls and admitted PostgreSQL server
+cancellation are separate phases; full57014 and same-owner recovery remain
+asserted without timing retries or fabricated transport retirement.
+Original source consumers additionally run real DB.Exec/Query/Prepare and
+Stmt.Exec/Query, preserving complete diagnostic stages/nil publications, setup
+and every sentinel. SAME held replacement consumers and the eight joined
+concurrent-insert workers retain their original object/snapshot ownership.
+Recorded Context companions remain separate, not substitutes for plain calls.
+Notice reentry workers are joined before normal teardown; unjoined failures
+remain visibly failed with bounded cleanup. Normal cleanup accepts sql.ErrConnDone
+only for a borrower explicitly closed by the test, not other close failures.
+
+
 
 ## B-tree utility preparation and controls
 

@@ -1,20 +1,22 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"context"
 	"database/sql"
+	"errors"
+	"reflect"
 	"testing"
 )
 
-func TestReferenceQueryAliasesResolution(t *testing.T) {
-	p := newReferencePair(t)
+type queryAliasesResolutionCase struct {
+	query        string
+	names, types []string
+	want         [][]any
+}
+
+func queryAliasesResolutionCases() []queryAliasesResolutionCase {
 	all := [][]any{{int64(1), int64(2), int64(1)}, {int64(2), int64(1), int64(5)}, {int64(3), nil, int64(2)}, {int64(4), int64(2), int64(0)}}
-	cases := []struct {
-		query        string
-		names, types []string
-		want         [][]any
-	}{
+	return []queryAliasesResolutionCase{
 		{"SELECT x.iid AS shown,x.a,x.b FROM t AS x(iid) ORDER BY shown", []string{"shown", "a", "b"}, []string{"INT4", "INT4", "INT4"}, all},
 		{"SELECT x.iid AS shown,x.a,x.b FROM t x(iid) ORDER BY shown", []string{"shown", "a", "b"}, []string{"INT4", "INT4", "INT4"}, all},
 		{"SELECT x.* FROM t x(iid) ORDER BY x.iid", []string{"iid", "a", "b"}, []string{"INT4", "INT4", "INT4"}, all},
@@ -28,11 +30,12 @@ func TestReferenceQueryAliasesResolution(t *testing.T) {
 		{"SELECT a AS b,b FROM t ORDER BY id", []string{"b", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(1)}, {int64(1), int64(5)}, {nil, int64(2)}, {int64(2), int64(0)}}},
 		{"SELECT a AS x,a AS x FROM t ORDER BY x,id", []string{"x", "x"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}, {int64(2), int64(2)}, {nil, nil}}},
 	}
-	for _, backend := range []struct {
-		name     string
-		db       *sql.DB
-		recorder *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+}
+
+func TestReferenceQueryAliasesResolution(t *testing.T) {
+	p := newReferenceScenario(t)
+	cases := queryAliasesResolutionCases()
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE t(id INT NOT NULL,a INT,b INT)", 0))
 			for _, population := range []string{"empty", "populated"} {
@@ -62,12 +65,8 @@ func TestReferenceQueryAliasesResolution(t *testing.T) {
 }
 
 func TestReferenceQueryAliasesMetadataAndPreparedFreshness(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name     string
-		db       *sql.DB
-		recorder *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			for _, step := range []referenceStep{
 				referenceExec("CREATE TABLE t(id INT NOT NULL,a INT,b INT)", 0),
@@ -94,6 +93,62 @@ func TestReferenceQueryAliasesMetadataAndPreparedFreshness(t *testing.T) {
 				{[]any{10, nil}, [][]any{}},
 			} {
 				referenceRunStep(t, p.ctx, held, backend.recorder, referenceSelect(q, []string{"sum"}, []string{"INT4"}, tc.want, tc.args...))
+			}
+			for _, args := range [][]any{{10}, {struct{}{}, 1}} {
+				rows, err := stmt.QueryContext(p.ctx, args...)
+				if rows != nil {
+					rows.Close()
+					t.Fatal("invalid arguments exposed rows")
+				}
+				var state interface{ SQLState() string }
+				if err == nil || errors.As(err, &state) {
+					t.Fatal("argument failure must be ordinary", err)
+				}
+			}
+			for _, query := range []string{"SELECT x.iid AS shown,x.a,x.iid+1 AS computed FROM t x(iid)", "SELECT x.iid AS shown,x.a,x.iid+1 AS computed FROM t x(iid) WHERE FALSE"} {
+				rows, err := backend.db.QueryContext(p.ctx, query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				names, err := rows.Columns()
+				if err != nil || !reflect.DeepEqual(names, []string{"shown", "a", "computed"}) {
+					rows.Close()
+					t.Fatal("initial alias descriptors", names, err)
+				}
+				// Native owns detached descriptors; pq exposes its column-name slice.
+				wantNames := []string{"shown", "a", "computed"}
+				if backend.pg {
+					wantNames[0] = "mutated"
+				}
+				names[0] = "mutated"
+				next, err := rows.Columns()
+				if err != nil || !reflect.DeepEqual(next, wantNames) {
+					rows.Close()
+					t.Fatal(next, err)
+				}
+				metadata, err := rows.ColumnTypes()
+				if err != nil || len(metadata) != 3 {
+					rows.Close()
+					t.Fatal(metadata, err)
+				}
+				for i, typ := range metadata {
+					if typ.Name() != wantNames[i] {
+						rows.Close()
+						t.Fatal("alias metadata name", i, typ.Name(), wantNames[i])
+					}
+					nullable, known := typ.Nullable()
+					wantNullable, wantKnown := i == 1, i < 2
+					if backend.pg {
+						wantNullable, wantKnown = false, false
+					}
+					if nullable != wantNullable || known != wantKnown {
+						rows.Close()
+						t.Fatal("alias nullability", i, nullable, known)
+					}
+				}
+				if err := rows.Close(); err != nil {
+					t.Fatal(err)
+				}
 			}
 			for _, empty := range []bool{false, true} {
 				q := "SELECT x.word AS label,x.amount AS price FROM typed x(word,amount)"
@@ -141,12 +196,8 @@ func TestReferenceQueryAliasesMetadataAndPreparedFreshness(t *testing.T) {
 }
 
 func TestReferenceQueryAliasesFailure(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name     string
-		db       *sql.DB
-		recorder *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE t(id INT NOT NULL,a INT,b INT)", 0))
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("INSERT INTO t VALUES(1,2,1),(2,1,5),(3,NULL,2),(4,2,0)", 4))
@@ -161,6 +212,24 @@ func TestReferenceQueryAliasesFailure(t *testing.T) {
 			referenceRunStep(t, p.ctx, backend.db, backend.recorder, step)
 			held := referenceHeldStatement{referenceExecutor: backend.db, statement: stmt, query: q}
 			referenceRunStep(t, p.ctx, held, backend.recorder, step)
+			ctx, cancel := context.WithCancel(p.ctx)
+			cancel()
+			for _, prepared := range []bool{false, true} {
+				var rows *sql.Rows
+				if prepared {
+					rows, err = stmt.QueryContext(ctx)
+				} else {
+					rows, err = backend.db.QueryContext(ctx, q)
+				}
+				if rows != nil {
+					rows.Close()
+					t.Fatal("canceled query exposed rows")
+				}
+				var state interface{ SQLState() string }
+				if !errors.Is(err, context.Canceled) || errors.As(err, &state) {
+					t.Fatal("ordinary canceled query", err)
+				}
+			}
 		})
 	}
 }

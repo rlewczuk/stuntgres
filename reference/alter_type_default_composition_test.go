@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -13,7 +11,7 @@ import (
 func TestReferenceAlterTypeStandaloneDefaultComposition(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprintf("prepared=%v", prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			// The fixture asserts these exact outcomes on each backend before parity.
 			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
 			check := func(typ string, want [][]any) {

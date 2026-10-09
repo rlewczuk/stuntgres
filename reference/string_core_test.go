@@ -1,9 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"database/sql"
+	"math"
+	"reflect"
 	"testing"
 )
 
@@ -119,6 +119,13 @@ func stringCoreNormalizationCases() []stringCoreReferenceCase {
 		{"SELECT normalize('각') AS v", "각", "TEXT"},
 		{"SELECT normalize('각',NFD) AS v", "각", "TEXT"},
 		{"SELECT normalize('가ᆧ') AS v", "가", "TEXT"},
+		{"SELECT normalize('가ᆧ',NFKC) AS v", "가", "TEXT"},
+		{"SELECT normalize('가ᆧ',NFD) AS v", "가ᆧ", "TEXT"},
+		{"SELECT normalize('가ᆧ',NFKD) AS v", "가ᆧ", "TEXT"},
+		{"SELECT '가ᆧ' IS NFC NORMALIZED AS v", true, "BOOL"},
+		{"SELECT '가ᆧ' IS NFKC NORMALIZED AS v", true, "BOOL"},
+		{"SELECT '가ᆧ' IS NFC NORMALIZED AS v", false, "BOOL"},
+		{"SELECT '가ᆧ' IS NFKC NORMALIZED AS v", false, "BOOL"},
 		{"SELECT normalize('힣',NFD) AS v", "힣", "TEXT"},
 		{"SELECT normalize('𝔸',NFKC) AS v", "A", "TEXT"},
 		{"SELECT normalize('͸') AS v", "͸", "TEXT"},
@@ -153,16 +160,12 @@ func stringCoreNormalizationCases() []stringCoreReferenceCase {
 func stringCoreSelect(tc stringCoreReferenceCase, args ...any) referenceStep {
 	return referenceSelect(tc.query, []string{"v"}, []string{tc.typ}, [][]any{{tc.value}}, args...)
 }
-func stringCoreReferenceSetup(t *testing.T, p *referencePair, oracle bool) {
+func stringCoreReferenceSetup(t *testing.T, p *referencePair) {
 	for _, q := range []string{"CREATE TABLE string_core_seed(id INT)", "SET TimeZone='UTC'", "SET DateStyle='ISO, MDY'", "SET IntervalStyle='postgres'", "SET bytea_output='hex'"} {
-		if oracle {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec(q, 0))
-		} else {
-			p.step(t, referenceExec(q, 0))
-		}
+		p.step(t, referenceExec(q, 0))
 	}
 }
-func stringCoreReferenceValues(t *testing.T, p *referencePair, list []stringCoreReferenceCase, oracle bool) {
+func stringCoreReferenceValues(t *testing.T, p *referencePair, list []stringCoreReferenceCase) {
 	for _, tc := range list {
 		t.Run(tc.query, func(t *testing.T) {
 			for _, prepared := range []bool{false, true} {
@@ -170,35 +173,31 @@ func stringCoreReferenceValues(t *testing.T, p *referencePair, list []stringCore
 				if prepared {
 					s = referencePrepared(s)
 				}
-				if oracle {
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-				} else {
-					p.step(t, s)
-				}
+				p.step(t, s)
 			}
 		})
 	}
 }
 func TestReferenceStringCoreTrim(t *testing.T) {
-	p := newReferencePair(t)
-	stringCoreReferenceValues(t, p, stringCoreTrimCases(), false)
+	p := newReferenceScenario(t)
+	stringCoreReferenceValues(t, p, stringCoreTrimCases())
 }
 func TestReferenceStringCoreConcat(t *testing.T) {
-	p := newReferencePair(t)
-	stringCoreReferenceSetup(t, p, false)
-	stringCoreReferenceChar(t, p, false)
-	stringCoreReferenceValues(t, p, stringCoreConcatCases(), false)
-	stringCoreReferenceParameters(t, p, false)
-	stringCoreReferenceSettings(t, p, false)
-	stringCoreReferenceVoid(t, p, false)
-	stringCoreReferenceAdditional(t, p, false)
+	p := newReferenceScenario(t)
+	stringCoreReferenceSetup(t, p)
+	stringCoreReferenceChar(t, p)
+	stringCoreReferenceValues(t, p, stringCoreConcatCases())
+	stringCoreReferenceParameters(t, p)
+	stringCoreReferenceSettings(t, p)
+	stringCoreReferenceVoid(t, p)
+	stringCoreReferenceAdditional(t, p)
 }
 func TestReferenceStringCoreNormalization(t *testing.T) {
-	p := newReferencePair(t)
-	stringCoreReferenceValues(t, p, stringCoreNormalizationCases(), false)
-	stringCoreReferenceSyntax(t, p, false)
+	p := newReferenceScenario(t)
+	stringCoreReferenceValues(t, p, stringCoreNormalizationCases())
+	stringCoreReferenceSyntax(t, p)
 }
-func stringCoreReferenceParameters(t *testing.T, p *referencePair, oracle bool) {
+func stringCoreReferenceParameters(t *testing.T, p *referencePair) {
 	for _, tc := range []struct {
 		q    string
 		args []any
@@ -209,6 +208,7 @@ func stringCoreReferenceParameters(t *testing.T, p *referencePair, oracle bool) 
 		{"SELECT $1||42 AS v", []any{"Value: "}, "Value: 42"},
 		{"SELECT 42||$1 AS v", []any{"x"}, "42x"},
 		{"SELECT 'x'::text||$1 AS v", []any{"y"}, "xy"},
+		{"SELECT btrim($1,$2) AS v", []any{"é🙂X🙂é", "é🙂"}, "X"},
 		{"SELECT $1::char(3)||$2::varchar AS v", []any{"a ", "b "}, "ab "},
 		{`SELECT "normalize"($1,$2) AS v`, []any{"é", "NFC"}, "é"},
 		{`SELECT "normalize"($1,$2) AS v`, []any{nil, "bad"}, nil},
@@ -218,25 +218,29 @@ func stringCoreReferenceParameters(t *testing.T, p *referencePair, oracle bool) 
 			if prepared {
 				s = referencePrepared(s)
 			}
-			if oracle {
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s)
-			} else {
-				p.step(t, s)
-			}
+			p.step(t, s)
+		}
+	}
+	for _, backend := range p.backends() {
+		stmt, err := backend.db.PrepareContext(p.ctx, "SELECT $1||$2 AS v")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stmt.Close()
+		held := referenceHeldStatement{backend.db, stmt, "SELECT $1||$2 AS v"}
+		for _, tc := range []struct {
+			args []any
+			want any
+		}{{[]any{"a", "b"}, "ab"}, {[]any{nil, "b"}, nil}, {[]any{"c", "d"}, "cd"}} {
+			referenceRunStep(t, p.ctx, held, backend.recorder, referenceSelect(held.query, []string{"v"}, []string{"TEXT"}, [][]any{{tc.want}}, tc.args...))
 		}
 	}
 }
 
 // Held statements and a physical connection prove Stable output is not frozen at Prepare.
-func stringCoreReferenceSettings(t *testing.T, p *referencePair, oracle bool) {
-	dbs := []*sql.DB{p.memory, p.postgres}
-	if oracle {
-		dbs = []*sql.DB{p.postgres}
-	}
-	for _, db := range dbs {
-		if db == nil {
-			continue
-		}
+func stringCoreReferenceSettings(t *testing.T, p *referencePair) {
+	for _, backend := range p.backends() {
+		db := backend.db
 		t.Run("settings", func(t *testing.T) {
 			c, err := db.Conn(p.ctx)
 			if err != nil {
@@ -269,6 +273,21 @@ func stringCoreReferenceSettings(t *testing.T, p *referencePair, oracle bool) {
 				if err := stmt.QueryRowContext(p.ctx, arg).Scan(&got); err != nil || got != want {
 					t.Fatalf("got %q want %q error %v", got, want, err)
 				}
+				rows, err := stmt.QueryContext(p.ctx, arg)
+				if err != nil {
+					t.Fatal(err)
+				}
+				meta, err := rows.ColumnTypes()
+				if err != nil || len(meta) != 1 {
+					rows.Close()
+					t.Fatal(meta, err)
+				}
+				length, known := meta[0].Length()
+				if meta[0].DatabaseTypeName() != "TEXT" || meta[0].ScanType() != reflect.TypeFor[string]() || !known || length != math.MaxInt64 {
+					rows.Close()
+					t.Fatal(meta, length, known)
+				}
+				stringCoreRetainedRows(t, rows, nil, []string{"v"}, []string{"TEXT"}, [][]any{{want}}, false)
 			}
 			exec := func(q string) {
 				t.Helper()
@@ -293,21 +312,19 @@ func stringCoreReferenceSettings(t *testing.T, p *referencePair, oracle bool) {
 			check(i, "1 day 02:03:04", "x1 day 02:03:04")
 			exec("SET IntervalStyle='iso_8601'")
 			check(i, "1 day 02:03:04", "xP1DT2H3M4S")
+			var ordinary bool
+			if err := c.QueryRowContext(p.ctx, "SELECT true FROM pg_catalog.pg_class WHERE relname='pg_class'").Scan(&ordinary); err != nil || !ordinary {
+				t.Fatal(ordinary, err)
+			}
 			exec("SET bytea_output='hex'")
 			exec("SET TimeZone='UTC'")
 			exec("SET IntervalStyle='postgres'")
 		})
 	}
 }
-func stringCoreReferenceVoid(t *testing.T, p *referencePair, oracle bool) {
-	dbs := []*sql.DB{p.memory, p.postgres}
-	if oracle {
-		dbs = []*sql.DB{p.postgres}
-	}
-	for _, db := range dbs {
-		if db == nil {
-			continue
-		}
+func stringCoreReferenceVoid(t *testing.T, p *referencePair) {
+	for _, backend := range p.backends() {
+		db := backend.db
 		t.Run("void_effect", func(t *testing.T) {
 			c, err := db.Conn(p.ctx)
 			if err != nil {
@@ -316,8 +333,9 @@ func stringCoreReferenceVoid(t *testing.T, p *referencePair, oracle bool) {
 			defer c.Close()
 			seed := func() {
 				t.Helper()
-				if _, err := c.ExecContext(p.ctx, "SELECT setseed(0)"); err != nil {
-					t.Fatal(err)
+				var value any
+				if err := c.QueryRowContext(p.ctx, "SELECT setseed(0)").Scan(&value); err != nil || referenceNormalize(value) != "" {
+					t.Fatal("nonnull VOID seed", value, err)
 				}
 			}
 			random := func() float64 {
@@ -354,8 +372,9 @@ func stringCoreReferenceVoid(t *testing.T, p *referencePair, oracle bool) {
 			}
 			seed()
 			argument := random()
-			if _, err := c.ExecContext(p.ctx, "SELECT setseed($1)", argument); err != nil {
-				t.Fatal(err)
+			var seeded any
+			if err := c.QueryRowContext(p.ctx, "SELECT setseed($1)", argument).Scan(&seeded); err != nil || referenceNormalize(seeded) != "" {
+				t.Fatal("nonnull VOID seed", seeded, err)
 			}
 			wantNext := random()
 			for _, q := range []string{"SELECT 'x'::text||setseed(random())", "SELECT setseed(random())||'x'::text"} {
