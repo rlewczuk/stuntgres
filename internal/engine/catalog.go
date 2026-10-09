@@ -98,6 +98,7 @@ type relationDescriptor struct {
 	columnComments     map[int32]string
 	notNullConstraints []notNullConstraint
 	checkConstraints   []checkConstraint
+	uniqueConstraints  []uniqueConstraint
 	defaults           map[int32]columnDefault
 	identities         map[int32]columnIdentity
 	relationKind       relationKind
@@ -270,6 +271,9 @@ func (relationProvider) Validate(v CatalogRead, d Descriptor) error {
 	if err := validateChecks(v, r, names); err != nil {
 		return err
 	}
+	if err := validateUniques(v, r, names); err != nil {
+		return err
+	}
 	for attribute, identity := range r.identities {
 		slot := -1
 		for i, live := range r.attributes {
@@ -409,9 +413,14 @@ func (s *CatalogStage) Create(d Descriptor) error {
 		return CatalogConflict{}
 	}
 	k := NameKey{ClassID: a.ClassID, Namespace: d.Namespace(), Name: d.Name()}
-	s.touched[k] = ObjectAddress{}
-	if _, ok := s.base.state.names[k]; ok {
-		return CatalogConflict{}
+	if incumbent, ok := s.base.state.names[k]; ok {
+		removal, removed := s.removals[incumbent]
+		if !removed || removal.ref.owner != s.owner.owner || removal.ref.Epoch != s.base.Epoch() || removal.ref.Address != incumbent || removal.descriptor != s.base.state.descriptors[incumbent] {
+			return CatalogConflict{}
+		}
+		s.touched[k] = incumbent
+	} else {
+		s.touched[k] = ObjectAddress{}
 	}
 	if _, ok := s.names[k]; ok {
 		return CatalogConflict{}
@@ -766,17 +775,40 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			next.names[k] = a
 		}
 		buildStores := indexStores
+		candidateStores := false
 		var rebuildIndexes map[ObjectAddress]bool
 		if len(indexStores) > 0 && len(s.rowShapes) > 0 {
 			buildStores = make(map[ObjectAddress]*relationStorage, len(indexStores))
 			for a, store := range indexStores {
 				buildStores[a] = store
 			}
+			candidateStores = true
 			rebuildIndexes = make(map[ObjectAddress]bool, len(s.rowShapes))
 			for a, shape := range s.rowShapes {
 				buildStores[a] = shape.replacement
 				rebuildIndexes[a] = true
 			}
+		}
+		// New parents and their backing indices publish together. Build from
+		// the exact candidate store, but keep committed absence in the fence.
+		for _, d := range s.descriptors {
+			index, ok := d.(*relationDescriptor)
+			if !ok || index.sqlIndex == nil {
+				continue
+			}
+			a := index.sqlIndex.parent
+			parent, staged := s.descriptors[a].(*relationDescriptor)
+			if !staged || parent.relationKind != tableRelation || current.descriptors[a] != nil {
+				continue
+			}
+			if !candidateStores {
+				buildStores = make(map[ObjectAddress]*relationStorage, len(indexStores)+1)
+				for address, store := range indexStores {
+					buildStores[address] = store
+				}
+				candidateStores = true
+			}
+			buildStores[a] = storage[a]
 		}
 		indexRoots, indexErr := prepareIndexCatalog(p.ctx, current, next, buildStores, indexPredecessors, rebuildIndexes)
 		if indexErr != nil {
@@ -810,7 +842,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			e.mu.Unlock()
 			continue
 		}
-		if !indexStoresUnchanged(e.storage, indexStores, next, indexRoots, indexPredecessors) {
+		if !indexStoresUnchanged(e.storage, indexStores, current, next, indexRoots, indexPredecessors) {
 			if op != nil {
 				op.session.mu.Unlock()
 			}

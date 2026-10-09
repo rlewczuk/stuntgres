@@ -275,6 +275,12 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 					if err != nil {
 						return err
 					}
+					if index.sqlIndex.unique != nil {
+						namespace := indexCatalog.descriptors[p.relation.namespace].(*namespaceDescriptor)
+						if err := validateUniqueRoot(op.Context(), p.relation, index.sqlIndex, root, namespace.name, false); err != nil {
+							return err
+						}
+					}
 					indexRoots[a] = root
 				}
 			}
@@ -289,7 +295,7 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 		if err == nil && e.commitSeq == CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := e.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, indexCatalog, indexRoots, indexPredecessors)
+		changed := e.state != current || c != nil && e.commitSeq != frontier || !indexStoresUnchanged(e.storage, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
 				if e.storage[p.address] != p.original || p.store.generation != p.generation || p.store.ends != p.ends || len(p.store.versions) != len(p.root) {
@@ -347,6 +353,10 @@ func (e *Engine) publishRows(op *Operation, ref TxRef, writes map[ObjectAddress]
 					slot = p.singleSlot
 				}
 				row.born, row.base = e.commitSeq+1, 0
+				if row.pendingKeyChange {
+					row.keyChangedAt = row.born
+					row.pendingKeyChange = false
+				}
 				p.next[slot] = row
 			}
 			if p.nextEnds != nil {

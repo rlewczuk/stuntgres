@@ -616,9 +616,14 @@ wait, recheck, predicate or view production.
 Feature smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
 
 
-REPEATABLE READ KEY SHARE can lock a live chain after a committed keyless UPDATE:
-it retains the original snapshot values and predicates, rather than promoting to
-the latest values. SHARE, NO KEY UPDATE and UPDATE instead report `40001`,
+REPEATABLE READ KEY SHARE can lock a live chain only if no UNIQUE key datum
+changed after its retained snapshot. It retains the original snapshot values and
+predicates, rather than promoting to the latest values. A committed key change
+reports `40001`, even if the key was later restored or a subsequent UPDATE changed
+only payload. Numeric scale and signed-zero representation changes count as key
+changes; exact-datum no-ops, payload-only updates and rolled-back changes do not.
+Changes committed before the retained snapshot do not cause serialization errors.
+SHARE, NO KEY UPDATE and UPDATE instead report `40001`,
 `could not serialize access due to concurrent update`, for a newer committed
 replacement. Deletion (including replacement followed by deletion) reports that
 same error for all four modes. This does not change DELETE/UPDATE's existing
@@ -637,6 +642,17 @@ descendants; direct grouped-query bind restrictions remain unchanged.
 Native virtual catalogs fail0A000 `row locking is not supported for virtual
 catalog relations`, even beneath views or when empty. PostgreSQL physical
 catalog row locking is separately exercised, not claimed as native parity.
+
+Immediate UNIQUE enforcement uses transaction-owned typed key claims in the
+same relation/row lock manager. Claims serialize equal proposed keys against
+concurrent inserts and updates; deletes and key-changing updates claim vacated
+keys too. READ COMMITTED recaptures committed index roots after a wait, overlays
+private writes/deletes, and checks the accepted statement prefix before producing
+the next row. Claims survive successful statements in explicit blocks, and use
+the normal savepoint, timeout, cancellation, deadlock and catalog-epoch cleanup.
+Changing any UNIQUE key's datum upgrades UPDATE from NO KEY UPDATE to UPDATE,
+including numeric scale or signed-zero changes whose B-tree comparison is equal.
+Payload and exact-datum no-op updates remain compatible with KEY SHARE.
 
 Waits reuse the existing timeout/cancellation/deadlock authority and diagnostics;
 native context cancellation remains an ordinary Go error. PostgreSQL physical

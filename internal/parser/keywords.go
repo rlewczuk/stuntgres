@@ -510,7 +510,7 @@ var keywords = [...]keyword{
 	{"unconditional", Unreserved, true, 0},
 	{"unencrypted", Unreserved, true, 0},
 	{"union", Reserved, false, 0},
-	{"unique", Reserved, true, 0},
+	{"unique", Reserved, true, UNIQUE},
 	{"unknown", Unreserved, true, UNKNOWN},
 	{"unlisten", Unreserved, true, 0},
 	{"unlogged", Unreserved, true, UNLOGGED},

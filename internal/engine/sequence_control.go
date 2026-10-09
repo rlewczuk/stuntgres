@@ -226,12 +226,27 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 				if dest, ok := mapping[n.namespace]; ok {
 					n.namespace = dest
 				}
-				if r.sqlIndex != nil {
-					if parent, remapped := mapping[r.sqlIndex.parent]; remapped {
-						definition := *r.sqlIndex
-						definition.parent = parent
-						n.sqlIndex = &definition
+				if len(r.uniqueConstraints) != 0 {
+					n.uniqueConstraints = append([]uniqueConstraint(nil), r.uniqueConstraints...)
+					for i := range n.uniqueConstraints {
+						if dest, ok := mapping[n.uniqueConstraints[i].Index]; ok {
+							n.uniqueConstraints[i].Index = dest
+						}
 					}
+				}
+				if r.sqlIndex != nil {
+					definition := *r.sqlIndex
+					if parent, remapped := mapping[definition.parent]; remapped {
+						definition.parent = parent
+					}
+					if definition.unique != nil {
+						constraint := *definition.unique
+						if dest, remapped := mapping[constraint.Index]; remapped {
+							constraint.Index = dest
+						}
+						definition.unique = &constraint
+					}
+					n.sqlIndex = &definition
 				}
 				if r.sequence != nil {
 					o := *r.sequence

@@ -52,6 +52,19 @@ func (scope *StatementScope) dropColumnCandidate(stage *CatalogStage, old *relat
 			next.notNullConstraints = append(next.notNullConstraints, constraint)
 		}
 	}
+	next.uniqueConstraints = nil
+	for _, constraint := range old.uniqueConstraints {
+		dependent := false
+		for _, attribute := range constraint.Attributes {
+			if attribute == old.attributes[slot] {
+				dependent = true
+				break
+			}
+		}
+		if !dependent {
+			next.uniqueConstraints = append(next.uniqueConstraints, constraint)
+		}
+	}
 	next.checkConstraints = nil
 	if len(old.checkConstraints) != 0 {
 		slots := make(map[int32]int, len(next.attributes))

@@ -351,10 +351,13 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 			if element.Check != nil {
 				kinds++
 			}
+			if element.Unique != nil {
+				kinds++
+			}
 			if kinds != 1 {
 				return b, fmt.Errorf("stuntgres: invalid table element")
 			}
-			if element.NotNull != nil || element.Check != nil {
+			if element.NotNull != nil || element.Check != nil || element.Unique != nil {
 				continue
 			}
 			if c := element.Column; c != nil {

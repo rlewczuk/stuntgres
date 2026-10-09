@@ -156,6 +156,9 @@ func (m *relationLockManager) detectDeadlockSnapshot(newRequest *relationRequest
 		if r.ref.row != 0 {
 			fmt.Fprintf(&detail, " row %d", r.ref.row)
 		}
+		if r.ref.key != nil {
+			detail.WriteString(" unique key")
+		}
 		fmt.Fprintf(&detail, "; blocked by transaction %d (session %d, epoch %d).", blocker.ref.id, blocker.ref.session.id, blocker.ref.epoch)
 	}
 	diagnostic.Detail = detail.String()
@@ -331,6 +334,8 @@ func deadlockMode(mode relationLockMode) string {
 		return "ShareUpdateExclusiveLock"
 	case shareRowExclusive:
 		return "ShareRowExclusiveLock"
+	case uniqueClaim:
+		return "UniqueKey"
 	case rowUpdate:
 		return "Update"
 	case noKeyUpdate:

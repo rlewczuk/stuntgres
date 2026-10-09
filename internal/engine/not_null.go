@@ -383,6 +383,26 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 			return Result{}, err
 		}
 	}
+	var uniqueBaselines []*logicalIndexRoot
+	if len(transformations) != 0 {
+		// Recapture effective authority after provider waits and row rewriting.
+		// The immutable snapshot is used outside metadata locks for disclosure.
+		e.mu.Lock()
+		err = scope.validateLockedRelation(e)
+		var disclosure AuthorizationView
+		if err == nil {
+			disclosure, err = e.authorizationLocked(op)
+			disclosure.catalog = e.privateCatalogLocked(scope.owner.catalog)
+		}
+		e.mu.Unlock()
+		if err != nil {
+			return Result{}, err
+		}
+		uniqueBaselines, err = validateAlterUniques(op.Context(), disclosure, ref, next, replacement, projectedWrites, projectedDeletes, schema, scope.output, transformations)
+		if err != nil {
+			return Result{}, err
+		}
+	}
 	var dependencyTargets []ObjectAddress
 	for _, attribute := range old.attributes {
 		if !next.hasAttribute(attribute) {
@@ -411,6 +431,11 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if ref.Epoch != e.state.epoch {
 		e.mu.Unlock()
 		return Result{}, ErrCatalogReplaced
+	}
+	next, err = e.rebuildAlterUniquesLocked(stage, next, transformations)
+	if err != nil {
+		e.mu.Unlock()
+		return Result{}, err
 	}
 	if err := e.evolveStageIndexesLocked(stage); err != nil {
 		e.mu.Unlock()
@@ -448,6 +473,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	changes.storage[ref.Address] = shape
 	e.mu.Unlock()
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
+		return Result{}, err
+	}
+	if err := prepareAlterUniqueRoots(op.Context(), changes, next, replacement, uniqueBaselines); err != nil {
 		return Result{}, err
 	}
 	// A shape statement replaces prior own roots only on the successful merge.
@@ -505,6 +533,15 @@ func notNullCandidate(op *Operation, catalog CatalogRead, old *relationDescripto
 						next.checkConstraints = append(next.checkConstraints, constraint)
 					}
 				}
+				return &next, nil
+			}
+		}
+		for i, c := range old.uniqueConstraints {
+			if c.Name == a.Constraint.Text {
+				next := *old
+				next.uniqueConstraints = make([]uniqueConstraint, 0, len(old.uniqueConstraints)-1)
+				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[:i]...)
+				next.uniqueConstraints = append(next.uniqueConstraints, old.uniqueConstraints[i+1:]...)
 				return &next, nil
 			}
 		}

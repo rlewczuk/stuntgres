@@ -98,7 +98,7 @@ func (w *WriteStage) replace(ref ObjectRef, old []rowVersion, rows [][]sqltype.V
 			base = predecessor.version
 		}
 		e.nextVersion++
-		versions[i] = rowVersion{row: predecessor.row, version: VersionID(e.nextVersion), base: base, values: row}
+		versions[i] = rowVersion{row: predecessor.row, version: VersionID(e.nextVersion), base: base, values: row, keyChangedAt: predecessor.keyChangedAt, pendingKeyChange: predecessor.pendingKeyChange}
 	}
 	if len(versions) != 0 {
 		if w.rows == nil {

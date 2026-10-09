@@ -139,7 +139,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			}
 		}
 	}
-	return stage.Create(d)
+	return e.stageCreateUniques(stage, d, s)
 }
 func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
 	if count != 0 {

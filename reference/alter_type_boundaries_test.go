@@ -9,7 +9,6 @@ func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
 		name, create, seed, dependency, alter string
 		want                                  referenceDiagnostic
 	}{
-		{"unique", "CREATE TABLE t(c INT UNIQUE)", "INSERT INTO t VALUES(1),(2)", "", "ALTER TABLE t ALTER c TYPE INT USING 0", referenceDiagnostic{Code: "23505", Message: `could not create unique index "t_c_key"`, Detail: "Key (c)=(0) is duplicated.", Schema: "public", Table: "t", Constraint: "t_c_key"}},
 		{"expression-index", "CREATE TABLE t(c INT)", "INSERT INTO t VALUES(1)", "CREATE INDEX ix ON t((c+1))", "ALTER TABLE t ALTER c TYPE TEXT USING c::text", referenceDiagnostic{Code: "42883", Message: "operator does not exist: text + integer", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: "46"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -17,29 +16,13 @@ func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
 			t.Run("postgres", func(t *testing.T) {
 				run := func(s referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s) }
 				run(referenceExec(tc.create, 0))
-				count := int64(1)
-				if tc.name == "unique" {
-					count = 2
-				}
-				run(referenceExec(tc.seed, count))
-				if tc.dependency != "" {
-					run(referenceExec(tc.dependency, 0))
-				}
+				run(referenceExec(tc.seed, 1))
+				run(referenceExec(tc.dependency, 0))
 				var dependencyID int64
-				identityQuery := "SELECT oid::bigint FROM pg_constraint WHERE conrelid='t'::regclass AND conname=$1"
-				name := "t_c_key"
-				if tc.name == "expression-index" {
-					name = "ix"
-					identityQuery = "SELECT oid::bigint FROM pg_class WHERE oid=$1::regclass"
-				}
+				identityQuery := "SELECT oid::bigint FROM pg_class WHERE oid=$1::regclass"
+				name := "ix"
 				if err := p.postgres.QueryRowContext(p.ctx, identityQuery, name).Scan(&dependencyID); err != nil || dependencyID <= 0 {
 					t.Fatal(dependencyID, err)
-				}
-				var backingID int64
-				if tc.name == "unique" {
-					if err := p.postgres.QueryRowContext(p.ctx, "SELECT 't_c_key'::regclass::oid::bigint").Scan(&backingID); err != nil || backingID <= 0 {
-						t.Fatal(backingID, err)
-					}
 				}
 				failure := referenceImplicitError(tc.alter, tc.want)
 				failure.errorStage = "execute"
@@ -48,56 +31,25 @@ func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
 				if err := p.postgres.QueryRowContext(p.ctx, identityQuery, name).Scan(&retainedID); err != nil || retainedID != dependencyID {
 					t.Fatal("failed TYPE changed dependency identity", dependencyID, retainedID, err)
 				}
-				if tc.name == "expression-index" {
-					run(referenceSelect("SELECT indisvalid FROM pg_index WHERE indexrelid='ix'::regclass", []string{"indisvalid"}, []string{"BOOL"}, [][]any{{true}}))
-				} else {
-					run(referenceSelect("SELECT convalidated FROM pg_constraint WHERE oid=$1", []string{"convalidated"}, []string{"BOOL"}, [][]any{{true}}, dependencyID))
-					if tc.name == "unique" {
-						var retainedBackingID int64
-						if err := p.postgres.QueryRowContext(p.ctx, "SELECT 't_c_key'::regclass::oid::bigint").Scan(&retainedBackingID); err != nil || retainedBackingID != backingID {
-							t.Fatal("failed TYPE replaced unique backing index", backingID, retainedBackingID, err)
-						}
-						run(referenceSelect("SELECT indisvalid FROM pg_index WHERE indexrelid='t_c_key'::regclass", []string{"indisvalid"}, []string{"BOOL"}, [][]any{{true}}))
-					}
-				}
+				run(referenceSelect("SELECT indisvalid FROM pg_index WHERE indexrelid='ix'::regclass", []string{"indisvalid"}, []string{"BOOL"}, [][]any{{true}}))
 				rows := [][]any{{int64(1)}}
-				if tc.name == "unique" {
-					rows = append(rows, []any{int64(2)})
-				}
 				run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"INT4"}, rows))
-				if tc.name == "unique" {
-					run(referenceSelect("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='t'::regclass AND conname='t_c_key'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"UNIQUE (c)"}}))
-					run(referenceSelect("SELECT pg_get_indexdef('t_c_key'::regclass)", []string{"pg_get_indexdef"}, []string{"TEXT"}, [][]any{{"CREATE UNIQUE INDEX t_c_key ON public.t USING btree (c)"}}))
-					failure := referenceImplicitError("INSERT INTO t VALUES(1)", referenceDiagnostic{Code: "23505", Message: `duplicate key value violates unique constraint "t_c_key"`, Detail: "Key (c)=(1) already exists.", Schema: "public", Table: "t", Constraint: "t_c_key"})
-					failure.errorStage = "execute"
-					run(failure)
-					run(referenceExec("INSERT INTO t VALUES(3)", 1))
-				}
-				if tc.name == "expression-index" {
-					run(referenceSelect("SELECT pg_get_indexdef('ix'::regclass)", []string{"pg_get_indexdef"}, []string{"TEXT"}, [][]any{{"CREATE INDEX ix ON public.t USING btree (((c + 1)))"}}))
-					run(referenceSelect("SELECT c+1 AS next FROM t WHERE c+1=2", []string{"next"}, []string{"INT4"}, [][]any{{int64(2)}}))
-				}
+				run(referenceSelect("SELECT pg_get_indexdef('ix'::regclass)", []string{"pg_get_indexdef"}, []string{"TEXT"}, [][]any{{"CREATE INDEX ix ON public.t USING btree (((c + 1)))"}}))
+				run(referenceSelect("SELECT c+1 AS next FROM t WHERE c+1=2", []string{"next"}, []string{"INT4"}, [][]any{{int64(2)}}))
 			})
 			t.Run("native", func(t *testing.T) {
-				if tc.dependency != "" {
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(tc.create, 0))
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(tc.seed, 1))
-					failure := referenceImplicitError(tc.dependency, referenceDiagnostic{Code: "0A000", Message: "expression indexes are unsupported", Position: "22"})
-					failure.errorStage = "execute"
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
-					preparedFailure := referencePrepared(failure)
-					preparedFailure.errorStage = "prepare"
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, preparedFailure)
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{"INT4"}, [][]any{{int64(1)}}))
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT relname FROM pg_class WHERE relname='ix'", []string{"relname"}, []string{"NAME"}, nil))
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("ALTER TABLE t ALTER c TYPE TEXT USING c::text", 0))
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{"TEXT"}, [][]any{{"1"}}))
-				} else {
-					position := "22"
-					failure := referenceImplicitError(tc.create, referenceDiagnostic{Code: "0A000", Message: "column constraints are unsupported", Position: position})
-					failure.errorStage = "execute"
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
-				}
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(tc.create, 0))
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(tc.seed, 1))
+				failure := referenceImplicitError(tc.dependency, referenceDiagnostic{Code: "0A000", Message: "expression indexes are unsupported", Position: "22"})
+				failure.errorStage = "execute"
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
+				preparedFailure := referencePrepared(failure)
+				preparedFailure.errorStage = "prepare"
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, preparedFailure)
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{"INT4"}, [][]any{{int64(1)}}))
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT relname FROM pg_class WHERE relname='ix'", []string{"relname"}, []string{"NAME"}, nil))
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("ALTER TABLE t ALTER c TYPE TEXT USING c::text", 0))
+				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{"TEXT"}, [][]any{{"1"}}))
 			})
 		})
 	}

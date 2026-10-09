@@ -503,6 +503,67 @@ The independent reference recorder preserves genuine zero-column cursor
 metadata as an empty result, distinct from no query result; consumed rows and
 cursor closure are checked for both native and PostgreSQL executions.
 
+## UNIQUE constraints — change note
+
+CREATE TABLE supports `[CONSTRAINT name] UNIQUE [NULLS [NOT] DISTINCT]`
+on a column, and `[CONSTRAINT name] UNIQUE [NULLS [NOT] DISTINCT] (a, b, ...)`
+as a table element. Table elements can precede their columns. Keys are ordered
+lists of 1–32 distinct ordinary attributes. Missing/repeated attributes fail
+42703/42701 at the declaration token; an empty key list is a syntax error.
+Default and explicit NULLS DISTINCT allow any key containing NULL to repeat;
+NULLS NOT DISTINCT compares NULL components as equal.
+
+Equal ordered keys and equal NULL policy collapse into one retained definition.
+A later explicit name transfers onto an unnamed retained definition; otherwise
+the first explicit name wins. Reversed key order and a different NULL policy are
+separate constraints. Generated `table_columns_key` names use UTF8-safe 63-byte
+identifier clipping and numbered suffixes. Backing relations share the ordinary
+relation namespace; collisions with table or index names fail42P07, while
+collisions with existing CHECK/NOT NULL names on the table fail42710.
+Generated names see existing namespace objects and previously retained backing
+indices, not future explicit UNIQUE names. Consequently,
+`CREATE TABLE t(a INT UNIQUE,b INT CONSTRAINT t_a_key UNIQUE)` fails42P07
+atomically, while reversing those declarations selects `t_a_key1` for `a`.
+Redundancy/name transfer runs before this ordered generation.
+
+Each definition has a distinct generated constraint OID and owns a real logical
+B-tree index relation with ordered stable attributes, table owner and namespace.
+`pg_constraint` projects contype `u`, the parent OID and NULL conbin;
+`pg_class` projects the backing relation as relkind `i`. Both signatures of
+`pg_get_constraintdef` return the canonical suffix with current key names.
+Typed comparison, not output text, defines uniqueness: numeric scale, BPCHAR
+padding, NaN, signed zero and temporal equivalents follow the registered type
+providers. INSERT VALUES/defaults/query sources and UPDATE check each candidate
+after NOT NULL/CHECK and before accepting it. An error exposes no partial rows
+or RETURNING results. Immediate multirow swaps can therefore fail even when the
+desired final set would be unique.
+
+Renaming tables/columns and moving schemas preserve identities and backing
+names. SET SCHEMA preflights the complete closure, including backing names.
+Key TYPE rebuilds affected constraint/index identities, validates converted
+private and committed rows, and atomically rejects new duplicates. Unaffected
+constraints retain their identities. DROP CONSTRAINT or an included column
+removes its backing relation; dropping an unrelated column retains it.
+Transactions, savepoints and catalog replacement preserve the same descriptor/root
+closure, including remaps around retained TEMP sequences. TEMP tables remain
+outside the bounded native CREATE surface. Dump writes canonical named UNIQUE declarations once;
+Restore reconstructs and validates their backing B-trees in isolated staging.
+Duplicate-write diagnostics disclose key values only with table SELECT or SELECT
+on every key column. The same rule applies to TYPE-build failures even for the
+table owner: unreadable build keys yield `Duplicate keys exist.`, whereas unreadable
+runtime duplicates omit Detail. Ownership does not replace revoked SELECT rights.
+
+ALTER ADD UNIQUE, deferrability (including explicit NOT DEFERRABLE), standalone
+CREATE UNIQUE INDEX, RENAME CONSTRAINT and PK/FK remain unsupported. UNIQUE does
+not enable index-planner or physical PostgreSQL storage claims.
+The existing native CREATE TABLE exclusion in explicit transactions is unchanged;
+the corresponding PostgreSQL transaction/rollback control is independent.
+See [the design](design/PG18-DDL-UNIQUE.md) and
+[transaction locking](TRANSACTIONS.md#row-locks--change-note).
+Feature smoke: `go test -count=1 -run '^TestReferenceUniqueFeatureSmoke$' ./reference`.
+Full shared suite: `go test -count=1 -run '^TestReferenceUnique' ./reference`;
+the same selectors with `-tags reference` run the pinned PostgreSQL oracle.
+
 ## NOT NULL constraints
 
 Both column `a INT [CONSTRAINT nn] NOT NULL` and table-form

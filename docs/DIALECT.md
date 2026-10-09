@@ -144,11 +144,12 @@ fail42809 at Execute. Native virtual catalogs reject marks with0A000
 and nested view paths. PostgreSQL's physical catalog lockability is an independent
 reference control, not native parity. READ ONLY
 fails25006 at Execute. At RR, KEY SHARE preserves snapshot values after a
-compatible keyless UPDATE; stronger modes and all concurrent deletions fail40001
-with concurrent-update wording. Every table needs used-column SELECT plus
-UPDATE on any live column. `OF`, `NOWAIT`, `SKIP LOCKED` and repeated SELECT
-locking clauses remain excluded, as do unique keys/indexes and adjacent query syntax.
-Native UPDATE is keyless NO KEY UPDATE; DELETE is UPDATE. Matrix, lifetime,
+compatible update leaving UNIQUE keys unchanged; stronger modes and all concurrent
+deletions fail40001 with concurrent-update wording. Every table needs used-column
+SELECT plus UPDATE on any live column. `OF`, `NOWAIT`, `SKIP LOCKED` and repeated
+SELECT locking clauses remain excluded, as does adjacent query syntax.
+UPDATE uses NO KEY UPDATE for unchanged keys, UPDATE for changed UNIQUE key
+datums; DELETE uses UPDATE. Matrix, lifetime,
 savepoint contribution restoration and exact diagnostics:
 [row locks](TRANSACTIONS.md#row-locks--change-note).
 Smoke: `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`;
@@ -1701,10 +1702,10 @@ DROP NOT NULL on ctid/xmin/cmin/xmax/cmax/tableoid fails0A000 with
 DROP's default RESTRICT, explicit RESTRICT and CASCADE remove the selected
 NOT NULL identity equivalently: supported NOT NULL constraints have no inbound
 constraint dependents and own no SQL index. These modes do not implement a
-general constraint dependency closure. PK/UNIQUE/FK constraints and their backing
-indexes are unsupported engine capabilities, not external-only mechanisms; constraint-owned
-index deletion and referenced-key RESTRICT/CASCADE behavior require those
-capabilities first. Unrelated NOT NULL identities and sequences owned by the
+general constraint dependency closure. CREATE TABLE UNIQUE constraints own real
+B-tree relations; DROP CONSTRAINT or an included key column removes that backing
+relation atomically. PK/FK and referenced-key RESTRICT/CASCADE remain unsupported.
+Unrelated NOT NULL identities and sequences owned by the
 still-live table attribute survive even CASCADE.
 Stable attribute IDs, ACL/comments and original storage/backing survive ALTER;
 independently captured storage length fences a stale scan. DROP COLUMN removes
@@ -2511,7 +2512,7 @@ Dump writes canonical real definitions/current names/options after parent data;
 Reset removes persistent indexes and Restore privately rebuilds destination
 membership. Supported table lifecycle commands preserve or remove indices
 atomically. Smokes:
-`make smoke RUN='^TestBtreeIndex(Smoke|ControlsSmoke|LifecycleSmoke)$' VERBOSE=0`.
+`go test -count=1 -run '^TestReferenceUniqueBtree(Regression|Controls|Lifecycle)$' ./reference`.
 The independent reference family is `TestReferenceBtreeIndex...`.
 
 ## LIKE and ILIKE — change note

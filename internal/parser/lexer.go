@@ -603,6 +603,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = KW_U
 		}
 	}
+	if l.err == nil && token.code == NOT {
+		next := l.nextRaw()
+		if l.err != nil {
+			return 0
+		}
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == DEFERRABLE && next.lexeme.keyword != nil {
+			token.code = NOT_DEFERRABLE_LA
+		}
+	}
 	if l.err == nil && token.code == KW_U && token.lexeme.keyword != nil && token.lexeme.text == "nulls" {
 		// NULLS and Unicode filtering share one raw-token cache. Neither
 		// lookahead decodes Unicode bodies or changes keyword identity.
@@ -611,7 +621,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 		l.lookahead, l.hasLookahead = next, true
-		if next.lexeme.keyword != nil && (next.lexeme.text == "first" || next.lexeme.text == "last") {
+		if next.lexeme.keyword != nil && (next.lexeme.text == "first" || next.lexeme.text == "last" || next.lexeme.text == "distinct" || next.lexeme.text == "not") {
 			token.code = NULLS_LA
 		}
 	} else if token.unicode && l.err == nil {

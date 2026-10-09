@@ -13,6 +13,7 @@ func (e *Engine) prepareRemintedStorage(ctx context.Context, next *catalogState,
 			row := &relation.versions[i]
 			row.row, row.version = RowID(rowID), VersionID(versionID)
 			row.base, row.born = 0, e.commitSeq+1
+			row.keyChangedAt, row.pendingKeyChange = 0, false
 		}
 	}
 	roots, err := prepareIndexCatalog(ctx, &catalogState{}, next, storage, nil, nil)

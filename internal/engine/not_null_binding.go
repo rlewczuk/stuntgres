@@ -22,6 +22,9 @@ func constraintNames(read CatalogRead, namespace ObjectAddress, candidate *relat
 			for _, constraint := range relation.checkConstraints {
 				names[constraint.Name] = true
 			}
+			for _, constraint := range relation.uniqueConstraints {
+				names[constraint.Name] = true
+			}
 		}
 	}
 	return names
@@ -86,7 +89,7 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 	seen := declaration.serial
 	declaration.columnNotNull = declaration.serial
 	for _, constraint := range column.Constraints {
-		if constraint.Check != nil {
+		if constraint.Check != nil || constraint.Unique != nil {
 			continue
 		}
 		if constraint.Identity != nil {

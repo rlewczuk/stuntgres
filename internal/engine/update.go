@@ -195,9 +195,12 @@ func updateMatches(eval *EvalContext, predicate BoundExpr) (bool, error) {
 
 // SQL waits never retain replacement admission or state/manager mutexes.
 func (s *StatementScope) acquireUpdateRow(ref ObjectRef, row RowID) error {
+	return s.acquireUpdateRowMode(ref, row, noKeyUpdate)
+}
+func (s *StatementScope) acquireUpdateRowMode(ref ObjectRef, row RowID, mode relationLockMode) error {
 	e := s.op.session.Engine()
 	policy := relationLockPolicy{timeout: s.op.lockTimeout, statementDeadline: s.op.statementDeadline, source: s.op.sourceContext}
-	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, noKeyUpdate, policy)
+	request, err := e.locks.startAcquire(s.op.Context(), s.ticket, lockResource{ObjectRef: ref, row: row}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -392,6 +395,28 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				return Result{}, e.rowConstraintError(s, b, schema, "", constraint.Name, row)
 			}
 		}
+		keyChanged, err := s.uniqueKeyChanged(b.ref, old.values, row)
+		if err != nil {
+			return Result{}, err
+		}
+		if keyChanged {
+			if err := s.acquireUpdateRowMode(b.ref, old.row, rowUpdate); err != nil {
+				return Result{}, err
+			}
+			if _, live, err := e.latestUpdateRow(s, b.ref, candidate); err != nil {
+				return Result{}, err
+			} else if !live {
+				continue
+			}
+		}
+		if err := s.claimUniqueRow(b.ref, old.values); err != nil {
+			return Result{}, err
+		}
+		old.pendingKeyChange = old.pendingKeyChange || keyChanged
+		oldRows = append(oldRows, old)
+		if err := s.checkUniqueRow(b.ref, row, oldRows, rows); err != nil {
+			return Result{}, err
+		}
 		if output != nil {
 			eval.Row, eval.OldRow = row, old.values
 			if from != nil {
@@ -410,7 +435,6 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			}
 			output.count++
 		}
-		oldRows = append(oldRows, old)
 		rows = append(rows, row)
 		if from != nil {
 			updated[candidate.row] = true

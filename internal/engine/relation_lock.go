@@ -60,12 +60,14 @@ const (
 	relationRowShare
 	relationShare
 	relationExclusive
+	uniqueClaim
 )
 
 // Row zero is the relation resource; logical rows use their stable RowID.
 type lockResource struct {
 	ObjectRef
 	row RowID
+	key *uniqueLockKey
 }
 type relationTicket struct {
 	manager   *relationLockManager
@@ -90,14 +92,16 @@ type relationRequest struct {
 type relationEntry struct {
 	holders map[*relationTicket]relationLockMode
 	pending []*relationRequest
+	pins    int
 }
 type relationLockManager struct {
-	mu      sync.Mutex
-	engine  *Engine
-	catalog *catalogOwner
-	epoch   CatalogEpoch
-	owners  map[TxRef]*relationTicket
-	entries map[lockResource]*relationEntry
+	mu         sync.Mutex
+	engine     *Engine
+	catalog    *catalogOwner
+	epoch      CatalogEpoch
+	owners     map[TxRef]*relationTicket
+	entries    map[lockResource]*relationEntry
+	keyBuckets map[uniqueLockBucket]*uniqueLockBucketState
 }
 
 func newRelationLockManager(e *Engine) *relationLockManager {
@@ -120,6 +124,9 @@ func (m *relationLockManager) register(ref TxRef) (*relationTicket, error) {
 	return t, nil
 }
 func lockConflict(a, b relationLockMode) bool {
+	if a&uniqueClaim != 0 || b&uniqueClaim != 0 {
+		return a&uniqueClaim != 0 && b&uniqueClaim != 0
+	}
 	rowModes := keyShare | rowShare | noKeyUpdate | rowUpdate
 	if a&rowModes != 0 || b&rowModes != 0 {
 		return a&rowUpdate != 0 && b&rowModes != 0 || b&rowUpdate != 0 && a&rowModes != 0 ||
@@ -285,7 +292,7 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 		m.mu.Unlock()
 		return nil, ErrCatalogReplaced
 	}
-	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive) {
+	if ref.owner != m.catalog || ref.Epoch != t.ref.epoch || ref.Address.ClassID != RelationClassID || ref.Address.SubID != 0 || ref.Address.ObjectID == 0 || (ref.key != nil && (ref.row != 0 || mode != uniqueClaim || ref.key.bucket.ObjectRef != ref.ObjectRef)) || (ref.key == nil && ((ref.row != 0 && mode != rowUpdate && mode != noKeyUpdate && mode != keyShare && mode != rowShare) || (ref.row == 0 && mode != accessShare && mode != rowExclusive && mode != accessExclusive && mode != shareUpdateExclusive && mode != shareRowExclusive && mode != relationRowShare && mode != relationShare && mode != relationExclusive))) {
 		m.mu.Unlock()
 		return nil, errors.New("stuntgres: invalid relation lock request")
 	}
@@ -369,8 +376,11 @@ func (m *relationLockManager) startAcquire(ctx context.Context, t *relationTicke
 	return r, nil
 }
 func (m *relationLockManager) retire(ref lockResource, e *relationEntry) {
-	if len(e.holders) == 0 && len(e.pending) == 0 {
+	if len(e.holders) == 0 && len(e.pending) == 0 && e.pins == 0 {
 		delete(m.entries, ref)
+		if ref.key != nil {
+			m.retireUniqueKey(ref.key)
+		}
 	}
 }
 func (m *relationLockManager) end(t *relationTicket) {
@@ -423,6 +433,9 @@ func (m *relationLockManager) fence(epoch CatalogEpoch) {
 					}
 				}
 				delete(m.entries, ref)
+				if ref.key != nil {
+					m.retireUniqueKey(ref.key)
+				}
 			}
 		}
 	}

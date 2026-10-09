@@ -519,7 +519,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			if err := scope.Writes().Apply(b.ref, rows); err != nil {
+			if err := scope.Writes().applyValidated(b.ref, rows); err != nil {
 				return Result{}, err
 			}
 			return Result{Count: int64(len(rows))}, nil
@@ -540,6 +540,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				}
 				schema := auth.catalog.state.descriptors[b.relation.namespace].Name()
 				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
+					return Result{}, err
+				}
+				if err = scope.checkUniqueRow(b.ref, row, nil, rows[:i]); err != nil {
 					return Result{}, err
 				}
 				rows[i] = row
@@ -576,11 +579,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}
+			if err = scope.checkUniqueRow(b.ref, row, nil, rows[:i]); err != nil {
+				return Result{}, err
+			}
 			rows[i] = row
 		}
 		err = ctx.Err()
 		if err == nil {
-			err = scope.Writes().Apply(b.ref, rows)
+			err = scope.Writes().applyValidated(b.ref, rows)
 		}
 		if err != nil {
 			return Result{}, err

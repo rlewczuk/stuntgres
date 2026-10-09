@@ -56,6 +56,10 @@ type rowVersion struct {
 	row     RowID
 	version VersionID
 	born    CommitSeq
+	// The last committed key transition survives key restoration and payload
+	// replacements. Private successors accumulate transitions until commit.
+	keyChangedAt     CommitSeq
+	pendingKeyChange bool
 	// base is the committed predecessor for a private replacement; zero is an insert.
 	base   VersionID
 	values []sqltype.Value
@@ -237,6 +241,7 @@ type StatementScope struct {
 	command                CommandID
 	ownWrites              map[ObjectAddress][]rowVersion
 	ownDeletes             map[ObjectAddress]*privateDeletionRoot
+	uniqueBinding          *uniqueWriteBinding
 	Expected               *StatementDescription
 	implicit               bool
 	input                  sqltype.InputEnvironment
@@ -404,6 +409,21 @@ func (w *WriteStage) Apply(ref ObjectRef, rows [][]sqltype.Value) error {
 	if w == nil || w.self != w || w.scope == nil {
 		return errors.New("stuntgres: foreign or missing write stage")
 	}
+	s := w.scope
+	if err := s.active(); err != nil {
+		return err
+	}
+	for i, row := range rows {
+		if err := s.checkUniqueRow(ref, row, nil, rows[:i]); err != nil {
+			return err
+		}
+	}
+	return w.applyValidated(ref, rows)
+}
+
+// SQL producers validate each accepted prefix before demanding the next row;
+// only this canonical staging method transfers the completed immutable batch.
+func (w *WriteStage) applyValidated(ref ObjectRef, rows [][]sqltype.Value) error {
 	s := w.scope
 	if err := s.active(); err != nil {
 		return err
@@ -682,6 +702,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.stage.deletes = nil
 	s.ownDeletes = nil
 	s.ownWrites = nil
+	s.uniqueBinding = nil
 	s.ticket = nil
 	s.lockedDescriptor = nil
 	s.viewCreationNamespace = ObjectRef{}

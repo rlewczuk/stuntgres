@@ -759,7 +759,7 @@ See [UPDATE RETURNING](QUERIES.md#update-returning--change-note).
 Database-qualified relation names, temporary tables (TEMP sequences are supported),
 LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
-constraints beyond nullability/defaults/CHECK/identity, ALTER ADD CHECK/VALIDATE,
+constraints beyond nullability/defaults/CHECK/identity/UNIQUE, ALTER ADD CHECK/VALIDATE,
 non-column serial type uses, default-containing ALTER lists, primary keys,
 UPDATE row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
 INSERT RETURNING, whole-row RETURNING records/scalar subqueries,
@@ -806,9 +806,10 @@ canonical CREATE INDEX definitions.
 
 Writable explicit CREATE INDEX transactions are excluded natively (0A000),
 while PostgreSQL supports transactional creation/rollback. Read-only execution
-returns 25006 first. UNIQUE, expression/partial/concurrent indexes, non-btree
-methods, opclasses/collations, INCLUDE, storage parameters/tablespaces and
-DROP/ALTER INDEX remain excluded; no planner, index-only scan or physical tree
+returns 25006 first. Standalone CREATE UNIQUE INDEX, expression/partial/concurrent
+indexes, non-btree methods, opclasses/collations, INCLUDE, storage parameters/
+tablespaces and DROP/ALTER INDEX remain excluded; CREATE TABLE UNIQUE constraints
+are supported with owned backing B-trees. No planner, index-only scan or physical tree
 claim is made.
 
 ## Whole-string pattern predicates

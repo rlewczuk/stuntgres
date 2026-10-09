@@ -130,8 +130,9 @@ local20devel and the currently18.6 manual are research aids, not runtime evidenc
 Release18.0 missing-simple-key diagnostics have no Position. Public native,
 external reference, parser and engine tests independently prescribe results;
 engine units inspect actual roots to rule out metadata-only success. Feature
-smokes are `TestBtreeIndexSmoke`, `TestBtreeIndexControlsSmoke` and
-`TestBtreeIndexLifecycleSmoke`. Verification and parser generation are root-owned;
+smokes now share the dual-mode `TestReferenceUniqueBtreeRegression`,
+`TestReferenceUniqueBtreeControls` and `TestReferenceUniqueBtreeLifecycle` bodies.
+Verification and parser generation are root-owned;
 this design record itself does not claim exercised checks.
 
 Sources: [CREATE INDEX](https://www.postgresql.org/docs/18/sql-createindex.html),

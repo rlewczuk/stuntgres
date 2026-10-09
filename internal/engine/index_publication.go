@@ -11,6 +11,18 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 	if parent == nil {
 		return nil, nil
 	}
+	if index.sqlIndex.unique != nil {
+		found := false
+		for _, c := range parent.uniqueConstraints {
+			if c.Index == index.address && c.OID == index.sqlIndex.unique.OID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, nil
+		}
+	}
 	for _, key := range index.sqlIndex.keys {
 		if !parent.hasAttribute(key.attribute) {
 			return nil, nil
@@ -100,7 +112,7 @@ func captureIndexStores(storage map[ObjectAddress]*relationStorage, catalog *cat
 	}
 	return captured
 }
-func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, next *catalogState, prepared, previous map[ObjectAddress]*logicalIndexRoot) bool {
+func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, current, next *catalogState, prepared, previous map[ObjectAddress]*logicalIndexRoot) bool {
 	if len(prepared) == 0 {
 		return true
 	}
@@ -111,6 +123,12 @@ func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, 
 		}
 		a := index.sqlIndex.parent
 		live, old := storage[a], captured[a]
+		if current.descriptors[a] == nil {
+			if live != nil || old != nil {
+				return false
+			}
+			continue
+		}
 		if live == nil || old == nil || live.generation != old.generation || live.ends != old.ends || len(live.versions) != len(old.versions) {
 			return false
 		}
@@ -142,6 +160,12 @@ func prepareIndexCatalog(ctx context.Context, current, next *catalogState, stora
 			root, err = buildIndexRoot(ctx, parent, index.sqlIndex, storage[parent.address])
 			if err != nil {
 				return nil, err
+			}
+			if index.sqlIndex.unique != nil {
+				namespace := next.descriptors[parent.namespace].(*namespaceDescriptor)
+				if err := validateUniqueRoot(ctx, parent, index.sqlIndex, root, namespace.name, true); err != nil {
+					return nil, err
+				}
 			}
 		}
 		result[a] = root

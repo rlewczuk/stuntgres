@@ -90,6 +90,16 @@ Native SQL failures supply both severity fields as `ERROR`, including parser, mi
 
 Shared generic SQL diagnostics construct only severity, SQLSTATE and primary message; they never infer object identities. In particular, input/range conversion errors (`22P02`/`22003`) do not infer Schema, Table or Column from a destination or WHERE predicate. Condition-specific NOT NULL producers (`23502`) supply schema/table/column: INSERT includes complete failing-row Detail; UPDATE includes only modified targets and effectively SELECT-readable columns, in physical order. Without relation-level SELECT, UPDATE prints `(names) = (values)`, even when column grants cover every column; table SELECT, default owner authority and superuser retain the complete unlabelled row. Protected retained values are neither formatted nor disclosed, and retaining them does not require SELECT. Captured output settings and UTF8-safe field truncation are unchanged. SET/ADD existing-row validation has no Detail. Even a named constraint leaves the Constraint field empty. This distinction follows PostgreSQL's [conditional error fields](https://www.postgresql.org/docs/18/protocol-error-fields.html); clients must not infer the presence of one object field from another.
 
+Immediate UNIQUE failures (`23505`) supply Schema, Table and Constraint, with no
+synthetic Column or Position. Detail contains all key labels and typed values
+only when the current effective authority has table SELECT or SELECT on every
+key attribute; partial key readability suppresses runtime Detail. Protected
+values are not formatted. Index-build/type-rewrite duplicate errors use
+`could not create unique index "name"` and, for readable keys,
+`Key (...)=(...) is duplicated.` instead of the ordinary write primary and
+`already exists.` suffix. Unreadable build keys produce the generic Detail
+`Duplicate keys exist.` without disclosing key labels or values.
+
 Invalid boolean strings retain the original decoded input in the PostgreSQL `22P02` primary message (for example, `invalid input syntax for type boolean: "o"`). Boolean WHERE string-literal failures carry the one-based character Position of the source opener, including actual preparation and empty tables. Escapes and continued strings do not change that provenance. Typed parameter input failures have no query Position and carry `unnamed portal parameter $n = '...'` at the actual failing import index (`''` for empty text). Only failed SQL input diagnostics are copied and annotated; ordinary Go errors and later expression/preflight conversion errors remain unchanged. No destination object identities are inferred.
 
 Encoding-input failures (`22021`) carry only the actual parameter index, because decoded parameter text is unavailable. Codec errors on decoded empty text retain ` = ''`; other decoded text retains ` = '...'`.

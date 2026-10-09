@@ -20,6 +20,7 @@ type indexKey struct {
 type indexDefinition struct {
 	parent ObjectAddress
 	keys   []indexKey
+	unique *uniqueConstraint
 }
 type logicalIndexEntry struct {
 	keys    []sqltype.Value
@@ -72,6 +73,18 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	if !ok || parent.relationKind != tableRelation || parent.owner != index.owner || parent.namespace != index.namespace {
 		return fmt.Errorf("stuntgres: invalid index parent")
 	}
+	if d.unique != nil {
+		found := false
+		for _, c := range parent.uniqueConstraints {
+			if c.Index == index.address && c.OID == d.unique.OID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("stuntgres: orphan unique backing index")
+		}
+	}
 	o, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return err
@@ -83,7 +96,7 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 	}
 	return nil
 }
-func (o indexOrdering) compare(ctx context.Context, a, b logicalIndexEntry) (int, error) {
+func (o indexOrdering) compareKeys(ctx context.Context, a, b logicalIndexEntry) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -108,6 +121,13 @@ func (o indexOrdering) compare(ctx context.Context, a, b logicalIndexEntry) (int
 		if c != 0 {
 			return c, nil
 		}
+	}
+	return 0, nil
+}
+func (o indexOrdering) compare(ctx context.Context, a, b logicalIndexEntry) (int, error) {
+	c, err := o.compareKeys(ctx, a, b)
+	if err != nil || c != 0 {
+		return c, err
 	}
 	if a.row < b.row {
 		return -1, nil

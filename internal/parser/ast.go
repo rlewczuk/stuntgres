@@ -63,6 +63,7 @@ type ColumnConstraint struct {
 	NotNull  bool
 	Default  Expr
 	Check    *CheckConstraint
+	Unique   *UniqueConstraint
 	Identity *IdentityDefinition
 	Name     Identifier
 	Pos      Position
@@ -79,6 +80,13 @@ type CheckConstraint struct {
 	Expression Expr
 	NoInherit  bool
 	Pos        Position
+}
+
+type UniqueConstraint struct {
+	Name             Identifier
+	Columns          []Identifier
+	NullsNotDistinct bool
+	Pos              Position
 }
 type CreateTable struct {
 	Name        ObjectName
@@ -223,6 +231,7 @@ type TableElement struct {
 	Like    *TableLike
 	NotNull *NotNullConstraint
 	Check   *CheckConstraint
+	Unique  *UniqueConstraint
 	Pos     Position
 }
 

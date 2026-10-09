@@ -396,6 +396,14 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 				return nil, scope.op.session.token.owner.rowConstraintError(scope, b, schema, "", constraint.Name, row)
 			}
 		}
+		if len(b.relation.uniqueConstraints) != 0 {
+			if scope == nil {
+				return nil, fmt.Errorf("stuntgres: uniqueness requires statement authority")
+			}
+			if err := scope.checkUniqueRow(b.ref, row, nil, rows); err != nil {
+				return nil, err
+			}
+		}
 		rows = append(rows, row)
 	}
 	if err := ctx.Err(); err != nil {

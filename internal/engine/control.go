@@ -222,6 +222,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 		if r.sqlIndex != nil {
+			if r.sqlIndex.unique != nil {
+				continue
+			}
 			sql, err := indexDefinitionSQL(catalog, r)
 			if err != nil {
 				e.mu.Unlock()
@@ -492,6 +495,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if c.NoInherit {
 				line.WriteString(" NO INHERIT")
 			}
+		}
+		for _, c := range t.descriptor.uniqueConstraints {
+			text, err := uniqueConstraintSQL(t.descriptor, &c)
+			if err != nil {
+				return err
+			}
+			line.WriteString(", CONSTRAINT " + quoteIdentifier(c.Name) + " " + text)
 		}
 		line.WriteString(");\n")
 		if err := emit(line.String()); err != nil {

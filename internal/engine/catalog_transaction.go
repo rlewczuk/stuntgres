@@ -13,6 +13,7 @@ type catalogChanges struct {
 	names        map[NameKey]ObjectAddress
 	generators   map[ObjectAddress]*sequenceGenerator
 	storage      map[ObjectAddress]catalogStorageChange
+	uniqueRoots  map[ObjectAddress]*logicalIndexRoot
 	dependencies []catalogDependencyObservation
 	cachedBase   *catalogState
 	cached       CatalogRead
@@ -40,6 +41,12 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	}
 	for a, shape := range c.storage {
 		n.storage[a] = shape
+	}
+	if c.uniqueRoots != nil {
+		n.uniqueRoots = make(map[ObjectAddress]*logicalIndexRoot, len(c.uniqueRoots))
+		for a, root := range c.uniqueRoots {
+			n.uniqueRoots[a] = root
+		}
 	}
 	n.dependencies = append(n.dependencies, c.dependencies...)
 	return n
@@ -92,6 +99,9 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ObjectAddress, d Descr
 		}
 	}
 	c.descriptors[a] = d
+	if d == nil {
+		delete(c.uniqueRoots, a)
+	}
 	c.cachedBase = nil
 	c.cached = CatalogRead{}
 }

@@ -263,6 +263,9 @@ func (s *StatementScope) deleteSource(b binding, source *querySource, parameters
 				continue
 			}
 		}
+		if err := s.claimUniqueRow(b.ref, current.values); err != nil {
+			return Result{}, err
+		}
 		deleted, err := s.Writes().Delete(candidate)
 		if err != nil {
 			return Result{}, err

@@ -128,6 +128,16 @@ func (e deparseExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 					text += " NO INHERIT"
 				}
 			}
+			for _, def := range relation.uniqueConstraints {
+				if def.OID != OID(id) {
+					continue
+				}
+				found = true
+				text, err = uniqueConstraintSQL(relation, &def)
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+			}
 		}
 		if !found {
 			return sqltype.Null(e.usage.Type), nil

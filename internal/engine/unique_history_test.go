@@ -1,0 +1,156 @@
+package engine
+
+import (
+	"bytes"
+	"context"
+	"reflect"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func uniqueHistoryCopy(rows []rowVersion) []rowVersion {
+	copyRows := append([]rowVersion(nil), rows...)
+	for i := range copyRows {
+		copyRows[i].values = append([]sqltype.Value(nil), copyRows[i].values...)
+	}
+	return copyRows
+}
+
+func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	sessionSQL(t, s, "CREATE TABLE t(extra INT,k INT UNIQUE,v INT)")
+	sessionSQL(t, s, "INSERT INTO t VALUES(0,1,10)")
+	ref := roleTableRef(t, e, "t")
+	head := func() rowVersion { return e.storage[ref.Address].versions[0] }
+	initialPrefix := e.storage[ref.Address].versions
+	initialCopy := uniqueHistoryCopy(initialPrefix)
+	tx := transactionBegin(t, s)
+	sessionSQL(t, s, "UPDATE t SET k=2")
+	pendingPrefix := s.transactions.writes[ref.Address]
+	pendingCopy := uniqueHistoryCopy(pendingPrefix)
+	if len(pendingPrefix) != 1 || !pendingPrefix[0].pendingKeyChange || pendingPrefix[0].keyChangedAt != 0 {
+		t.Fatal("missing private transition", pendingPrefix)
+	}
+	sessionSQL(t, s, "SAVEPOINT history_mark")
+	sessionSQL(t, s, "UPDATE t SET k=1")
+	sessionSQL(t, s, "UPDATE t SET v=20")
+	if !s.transactions.writes[ref.Address][0].pendingKeyChange {
+		t.Fatal("restoration erased pending transition")
+	}
+	if !reflect.DeepEqual(pendingPrefix, pendingCopy) {
+		t.Fatal("replacement mutated saved private prefix")
+	}
+	sessionSQL(t, s, "ROLLBACK TO SAVEPOINT history_mark")
+	if !reflect.DeepEqual(s.transactions.writes[ref.Address], pendingCopy) {
+		t.Fatal("savepoint did not restore transition metadata")
+	}
+	transactionEnd(t, s, tx, false)
+	sessionSQL(t, s, "UPDATE t SET v=30")
+	if head().keyChangedAt != 0 || head().pendingKeyChange {
+		t.Fatal("rolled-back transition survived publication", head())
+	}
+	sessionSQL(t, s, "UPDATE t SET k=2")
+	changed := head()
+	if changed.keyChangedAt == 0 || changed.keyChangedAt != e.commitSeq || changed.pendingKeyChange {
+		t.Fatal("transition not stamped at final publication", changed, e.commitSeq)
+	}
+	changedPrefix := e.storage[ref.Address].versions
+	changedCopy := uniqueHistoryCopy(changedPrefix)
+	sessionSQL(t, s, "UPDATE t SET v=40")
+	if head().keyChangedAt != changed.keyChangedAt || head().born <= changed.born || head().pendingKeyChange {
+		t.Fatal("payload replacement erased committed transition", head())
+	}
+	tx = transactionBegin(t, s)
+	sessionSQL(t, s, "UPDATE t SET k=3")
+	sessionSQL(t, s, "UPDATE t SET k=2")
+	sessionSQL(t, s, "UPDATE t SET v=50")
+	transactionEnd(t, s, tx, true)
+	restored := head()
+	if restored.keyChangedAt != e.commitSeq || restored.keyChangedAt <= changed.keyChangedAt || restored.pendingKeyChange {
+		t.Fatal("changed-and-restored transaction lost history", restored)
+	}
+	sessionSQL(t, s, "ALTER TABLE t DROP extra")
+	sessionSQL(t, s, "ALTER TABLE t ALTER k TYPE BIGINT")
+	if head().keyChangedAt != restored.keyChangedAt || head().pendingKeyChange {
+		t.Fatal("stable projection lost row history", head())
+	}
+	if !reflect.DeepEqual(initialPrefix, initialCopy) || !reflect.DeepEqual(changedPrefix, changedCopy) {
+		t.Fatal("publication or projection mutated retained committed prefixes")
+	}
+	retained := e.storage[ref.Address].versions
+	retainedCopy := uniqueHistoryCopy(retained)
+	var dump bytes.Buffer
+	if err := e.Dump(context.Background(), &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+		t.Fatal(err)
+	}
+	importedRef := roleTableRef(t, e, "t")
+	for _, row := range e.storage[importedRef.Address].versions {
+		if row.keyChangedAt != 0 || row.pendingKeyChange || row.row == restored.row {
+			t.Fatal("reminted row inherited foreign transition history", row)
+		}
+	}
+	if !reflect.DeepEqual(retained, retainedCopy) {
+		t.Fatal("import mutated source prefix")
+	}
+	lockEmpty(t, e)
+}
+
+func TestUniqueKeyHistoryFailedBatchAndSavepoint(t *testing.T) {
+	e := New()
+	s := sessionStart(t, e, nil)
+	sessionSQL(t, s, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v INT)")
+	sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(2,20)")
+	ref := roleTableRef(t, e, "t")
+	committed := e.storage[ref.Address].versions
+	committedCopy := uniqueHistoryCopy(committed)
+	tx := transactionBegin(t, s)
+	sessionSQL(t, s, "UPDATE t SET k=3 WHERE k=1")
+	pending := s.transactions.writes[ref.Address]
+	pendingCopy := uniqueHistoryCopy(pending)
+	sessionSQL(t, s, "SAVEPOINT history_mark")
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := e.Execute(op, statement(t, "UPDATE t SET k=9"), 0, nil)
+	op.Done()
+	if result.Count != 0 || result.Rows != nil {
+		t.Fatal("failed batch returned partial result", result)
+	}
+	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(9) already exists.", Schema: "public", Table: "t", Constraint: "u"})
+	if !reflect.DeepEqual(pending, pendingCopy) || !reflect.DeepEqual(committed, committedCopy) {
+		t.Fatal("failed batch mutated retained history")
+	}
+	sessionSQL(t, s, "ROLLBACK TO SAVEPOINT history_mark")
+	if !reflect.DeepEqual(s.transactions.writes[ref.Address], pendingCopy) {
+		t.Fatal("failed batch polluted savepoint prefix")
+	}
+	sessionSQL(t, s, "UPDATE t SET v=30 WHERE k=3")
+	transactionEnd(t, s, tx, true)
+	changed := 0
+	for _, row := range e.storage[ref.Address].versions {
+		if row.pendingKeyChange {
+			t.Fatal("private transition leaked into committed root", row)
+		}
+		if row.keyChangedAt != 0 {
+			changed++
+			if row.keyChangedAt != e.commitSeq || row.row != pendingCopy[0].row {
+				t.Fatal("unaffected row acquired transition history", row)
+			}
+		}
+	}
+	if changed != 1 {
+		t.Fatal("committed transition count", changed)
+	}
+	if !reflect.DeepEqual(committed, committedCopy) {
+		t.Fatal("commit mutated retained pre-transaction prefix")
+	}
+	lockEmpty(t, e)
+}

@@ -41,6 +41,15 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 			d.checkConstraints[i].OID = id
 		}
 	}
+	for i := range d.uniqueConstraints {
+		if d.uniqueConstraints[i].OID == 0 {
+			id, err := e.allocateOIDLocked()
+			if err != nil {
+				return err
+			}
+			d.uniqueConstraints[i].OID = id
+		}
+	}
 	for attr, def := range d.defaults {
 		if def.OID == 0 {
 			id, err := e.allocateOIDLocked()
@@ -64,6 +73,11 @@ func definitionOIDUsed(d *relationDescriptor, id OID) bool {
 		}
 	}
 	for _, c := range d.checkConstraints {
+		if c.OID == id {
+			return true
+		}
+	}
+	for _, c := range d.uniqueConstraints {
 		if c.OID == id {
 			return true
 		}
@@ -108,6 +122,11 @@ func validateDefinitionOIDs(view CatalogRead) error {
 				return err
 			}
 		}
+		for _, c := range d.uniqueConstraints {
+			if err := claim(c.OID); err != nil {
+				return err
+			}
+		}
 		for _, c := range d.defaults {
 			if err := claim(c.OID); err != nil {
 				return err
@@ -133,6 +152,9 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				reserved[c.OID] = true
 			}
 			for _, c := range d.checkConstraints {
+				reserved[c.OID] = true
+			}
+			for _, c := range d.uniqueConstraints {
 				reserved[c.OID] = true
 			}
 			for _, c := range d.defaults {
@@ -170,7 +192,7 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 		}
 	}
 	for _, old := range relations {
-		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.defaults) == 0 {
+		if len(old.notNullConstraints)+len(old.checkConstraints)+len(old.uniqueConstraints)+len(old.defaults) == 0 {
 			continue
 		}
 		d := *old
@@ -203,6 +225,30 @@ func (e *Engine) remapDefinitionOIDsLocked(next *catalogState) error {
 				checkCopied = true
 			}
 			d.checkConstraints[i].OID = id
+			changed = true
+		}
+		for i, def := range old.uniqueConstraints {
+			id, err := remint(def.OID)
+			if err != nil {
+				return err
+			}
+			if id == def.OID {
+				continue
+			}
+			if d.uniqueConstraints == nil || &d.uniqueConstraints[0] == &old.uniqueConstraints[0] {
+				d.uniqueConstraints = append([]uniqueConstraint(nil), old.uniqueConstraints...)
+			}
+			d.uniqueConstraints[i].OID = id
+			index, ok := next.descriptors[def.Index].(*relationDescriptor)
+			if !ok || index.sqlIndex == nil {
+				return fmt.Errorf("stuntgres: invalid imported unique index")
+			}
+			clone := *index
+			definition := *index.sqlIndex
+			constraint := d.uniqueConstraints[i]
+			definition.unique = &constraint
+			clone.sqlIndex = &definition
+			next.descriptors[clone.address] = &clone
 			changed = true
 		}
 		for attr, def := range old.defaults {

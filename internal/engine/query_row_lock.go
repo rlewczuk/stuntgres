@@ -154,10 +154,10 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate rowVersion, hi
 			changed = changed || ok && end.version == current.version && end.end > s.owner.frontier
 		}
 		if changed {
-			// Native UPDATE is keyless NO KEY UPDATE. KEY SHARE protects the
-			// stable RowID's live chain without advancing RR's snapshot values.
-			// A deletion must still serialize, including replacement then delete.
-			if mode == keyShare && present && current.version != candidate.version {
+			// KEY SHARE retains RR values only across compatible replacements.
+			// A key transition after the frontier remains incompatible even if
+			// later updates restore the key or change only payload.
+			if mode == keyShare && present && current.version != candidate.version && current.keyChangedAt <= s.owner.frontier {
 				return candidate, true, nil
 			}
 			return rowVersion{}, false, sqlError("40001", "could not serialize access due to concurrent update")

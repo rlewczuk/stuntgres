@@ -16,6 +16,7 @@ package parser
  constraint ColumnConstraint
  notNull *NotNullConstraint
  check *CheckConstraint
+ unique *UniqueConstraint
  alterTarget alterTarget
  lockTargets []LockTarget
  lockMode TableLockMode
@@ -90,6 +91,8 @@ package parser
 %token <tok> '+' '-' '*' '/' '%' '[' ':' '(' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> HAVING
+%token <tok> UNIQUE
+%token <tok> NOT_DEFERRABLE_LA
 %token <tok> FOR
 %token <tok> LIMIT OFFSET FETCH
 %token <tok> CROSS INNER JOIN NATURAL USING VIEW LEFT RIGHT FULL OUTER
@@ -126,7 +129,7 @@ package parser
 %token <tok> CONCURRENTLY
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
-%nonassoc INTO KW_R CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
+%nonassoc INTO KW_R UNIQUE CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
 /* Predicate continuations reduce a completed cast type before consuming IS,
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
@@ -199,6 +202,8 @@ package parser
 %type <elements> elements optional_elements
 %type <element> element
 %type <check> check_constraint
+%type <unique> unique_constraint column_unique
+%type <desc> unique_nulls
 %type <likeOptions> like_options
 %type <likeOption> like_option
 %type <tok> like_option_name
@@ -380,7 +385,7 @@ comment_column_name: name { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$
  | name '.' col_label '.' col_label { $$=ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}} } ;
 comment_text: STRING { $$=Value{Kind:StringValue,Text:$1.text,Pos:$1.pos} }
  | NULL { $$=Value{Kind:NullValue,Pos:$1.pos} } ;
-comment_excluded_word: IDENT | KW_U | KW_T | KW_R | VIEW | INDEX ;
+comment_excluded_word: IDENT | KW_U | KW_T | KW_R | UNIQUE | VIEW | INDEX ;
 comment_excluded_kind: comment_excluded_word { if $1.keyword==nil || !unsupportedCommentKinds[$1.text] { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 } ;
 transaction_control: transaction_start { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos} }
  | transaction_start transaction_modes { $$=&TransactionControl{Kind:KindStart,Pos:$1.pos,Modes:$2} }
@@ -413,7 +418,7 @@ transaction_mode: ISOLATION LEVEL isolation_mode { $$=TransactionMode{Isolation:
  | READ ONLY { $$=TransactionMode{AccessSet:true,ReadOnly:true} }
  | READ mode_write { $$=TransactionMode{AccessSet:true} }
  | DEFERRABLE { $$=TransactionMode{Unsupported:true} }
- | NOT DEFERRABLE { $$=TransactionMode{Unsupported:true} } ;
+ | NOT_DEFERRABLE_LA DEFERRABLE { $$=TransactionMode{Unsupported:true} } ;
 isolation_mode: READ COMMITTED { $$=IsolationReadCommitted }
  | READ UNCOMMITTED { $$=IsolationReadUncommitted }
  | REPEATABLE READ { $$=IsolationRepeatableRead }
@@ -546,7 +551,8 @@ elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($
 element: column { c:=$1; $$=TableElement{Column:&c,Pos:c.Pos} }
  | LIKE relation_name like_options { $$=TableElement{Like:&TableLike{Name:$2,Options:$3},Pos:$1.pos} }
  | table_not_null { $$=TableElement{NotNull:$1,Pos:$1.Pos} }
- | check_constraint { $$=TableElement{Check:$1,Pos:$1.Pos} } ;
+ | check_constraint { $$=TableElement{Check:$1,Pos:$1.Pos} }
+ | unique_constraint { $$=TableElement{Unique:$1,Pos:$1.Pos} } ;
 table_not_null: NOT NULL name { $$=&NotNullConstraint{Column:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos} }
  | CONSTRAINT name NOT NULL name { $$=&NotNullConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Column:Identifier{Text:$5.text,Pos:$5.pos},Pos:$3.pos} }
  | table_not_null NOT nn_modifier { sqllex.(*lexer).deferUnsupported($2,"NOT NULL modifiers are unsupported"); $$=$1 }
@@ -557,6 +563,19 @@ check_constraint: CHECK '(' scalar_projection ')' %prec NAME_LIST { $$=&CheckCon
  | CONSTRAINT name CHECK '(' scalar_projection ')' %prec NAME_LIST { $$=&CheckConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Expression:$5,Pos:$3.pos} }
  | CHECK '(' scalar_projection ')' NO nn_inherit { $$=&CheckConstraint{Expression:$3,NoInherit:true,Pos:$1.pos} }
  | CONSTRAINT name CHECK '(' scalar_projection ')' NO nn_inherit { $$=&CheckConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Expression:$5,NoInherit:true,Pos:$3.pos} } ;
+unique_nulls: /* empty */ { $$=false }
+ | NULLS_LA DISTINCT { $$=false }
+ | NULLS_LA NOT DISTINCT { $$=true } ;
+column_unique: UNIQUE unique_nulls { $$=&UniqueConstraint{NullsNotDistinct:$2,Pos:$1.pos} }
+ | CONSTRAINT name UNIQUE unique_nulls { $$=&UniqueConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},NullsNotDistinct:$4,Pos:$1.pos} }
+ | column_unique DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
+ | column_unique NOT_DEFERRABLE_LA DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
+ | column_unique KW_R name { if $2.text!="initially" || $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 } ;
+unique_constraint: UNIQUE unique_nulls '(' view_names ')' { $$=&UniqueConstraint{Columns:$4,NullsNotDistinct:$2,Pos:$1.pos} }
+ | CONSTRAINT name UNIQUE unique_nulls '(' view_names ')' { $$=&UniqueConstraint{Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$6,NullsNotDistinct:$4,Pos:$1.pos} }
+ | unique_constraint DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
+ | unique_constraint NOT_DEFERRABLE_LA DEFERRABLE { sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 }
+ | unique_constraint KW_R name { if $2.text!="initially" || $3.keyword==nil || ($3.text!="deferred" && $3.text!="immediate") {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"UNIQUE deferrability is unsupported");$$=$1 } ;
 like_options: /* empty */ { $$=nil } | like_options like_option { $$=append($1,$2) } ;
 like_option: INCLUDING like_option_name { $$=LikeOption{Name:$2.text,Including:true,Pos:$1.pos} }
  | EXCLUDING like_option_name { $$=LikeOption{Name:$2.text,Pos:$1.pos} } ;
@@ -588,6 +607,7 @@ alter_selected_action: DROP optional_column drop_target drop_mode { $$=AlterTabl
  | ADD optional_column column { c:=$3; $$=AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:&c,Action:AddColumn,Pos:$1.pos} }
  | ADD optional_column IF NOT EXISTS column { c:=$6; $$=AlterTableAction{Column:Identifier{Text:c.Name,Pos:c.Pos},Definition:&c,IfNotExists:true,Action:AddColumn,Pos:$1.pos} }
  | ADD CONSTRAINT name column_suffix { sqllex.(*lexer).failAt("0A000","ALTER TABLE action is unsupported",$1.pos.Offset); return 1 }
+ | ADD unique_constraint { sqllex.(*lexer).deferUnsupported($1,"ALTER TABLE action is unsupported");$$=AlterTableAction{} }
  | ALTER optional_column name alter_type_keyword type column_collation alter_using { $$=AlterTableAction{Column:Identifier{Text:$3.text,Pos:$3.pos},Action:AlterColumnType,TypeName:$5,Collation:$6,Using:$7,Pos:$1.pos} } ;
 alter_type_keyword: KW_U { if $1.text!="type" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | SET KW_U KW_U { if $2.text!="data" {sqllex.(*lexer).syntax($2);return 1};if $3.text!="type" {sqllex.(*lexer).syntax($3);return 1};$$=$1 } ;
@@ -686,6 +706,7 @@ column_constraint: NULL { $$=ColumnConstraint{Pos:$1.pos} }
  | DEFAULT default_target { if token,_:=nonqueryQualification($2,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$2,Pos:$1.pos} }
  | CONSTRAINT name DEFAULT default_target { if token,_:=nonqueryQualification($4,false);token!=nil {sqllex.(*lexer).syntax(*token);return 1};$$=ColumnConstraint{Default:$4,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$3.pos} }
  | check_constraint { $$=ColumnConstraint{Check:$1,Pos:$1.Pos} }
+ | column_unique { $$=ColumnConstraint{Unique:$1,Pos:$1.Pos} }
  | identity_definition { $$=ColumnConstraint{Identity:$1,Pos:$1.Pos} }
  | CONSTRAINT name identity_definition { $$=ColumnConstraint{Identity:$3,Name:Identifier{Text:$2.text,Pos:$2.pos},Pos:$1.pos} }
  | CONSTRAINT name column_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"column constraints are unsupported"); return 1 } ;
@@ -1136,7 +1157,7 @@ generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
- | string_word | LEADING | TRAILING | BOTH ;
+ | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate
  * after an ordinary comparison. AS labels retain the full keyword surface. */
@@ -1145,15 +1166,16 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | COLUMN { $$=$1 }
  | KW_T { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
+ | UNIQUE { if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | BOTH | LEADING | TRAILING | PLACING
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CONCURRENTLY ;
-col_label: name | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE ;
+col_label: name | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE ;
 suffix: predicate_suffix | GROUP | HAVING ;
-predicate_suffix: KW_T | KW_R | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
+predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label %prec NAME_LIST { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }
@@ -1205,7 +1227,8 @@ schema_table: CREATE TABLE relation_name '(' optional_elements ')' { $$=&CreateT
  | CREATE TABLE IF NOT EXISTS relation_name '(' optional_elements ')' { $$=&CreateTable{Name:$6,Elements:$8,Pos:$1.pos,IfNotExists:true} }
  | CREATE generic_word { sqllex.(*lexer).capability($2,unsupportedCreateObjects,"CREATE syntax is unsupported"); return 1 } ;
 schema_tables: /* empty */ { $$=nil } | schema_tables schema_table { $$=append($1,$2) }
- | schema_tables KW_R { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 } ;
+ | schema_tables KW_R { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 }
+ | schema_tables UNIQUE { sqllex.(*lexer).capability($2,unsupportedCommands,"schema element is unsupported"); return 1 } ;
 create_schema: CREATE SCHEMA name schema_tables { $$=&CreateSchema{Name:$3.text,Tables:$4} }
  | CREATE SCHEMA name AUTHORIZATION schema_owner schema_tables { $$=&CreateSchema{Name:$3.text,Authorization:$5.text,AuthorizationIdentity:$5.keyword!=nil&&$5.keyword.category==Reserved,Tables:$6} }
  | CREATE SCHEMA AUTHORIZATION schema_owner schema_tables { $$=&CreateSchema{Authorization:$4.text,AuthorizationIdentity:$4.keyword!=nil&&$4.keyword.category==Reserved,Tables:$5} }

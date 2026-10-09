@@ -232,9 +232,21 @@ committed INSERT/UPDATE/DELETE batches and supported table lifecycle changes.
 Query correctness still uses the ordinary snapshot scan/filter/sort path, not
 an optimizer promise; unordered SELECT has no new ordering guarantee. Dump/Restore
 serializes actual current index definitions and rebuilds entries. Native CREATE
-INDEX is excluded in explicit transactions, unlike PostgreSQL; UNIQUE,
-expression, partial and concurrent indexes remain excluded.
-Smokes: `make smoke RUN='^TestBtreeIndex(Smoke|ControlsSmoke|LifecycleSmoke)$' VERBOSE=0`.
+INDEX is excluded in explicit transactions, unlike PostgreSQL; standalone CREATE
+UNIQUE INDEX, expression, partial and concurrent indexes remain excluded.
+Shared smokes: `go test -count=1 -run '^TestReferenceUniqueBtree(Regression|Controls|Lifecycle)$' ./reference`.
+
+Change note: CREATE TABLE column/table UNIQUE supports ordered simple keys and
+`NULLS DISTINCT` (default) or `NULLS NOT DISTINCT`. Each retained constraint owns
+a real immutable logical B-tree; INSERT and UPDATE enforce typed equality
+immediately, with atomic failures and transaction-owned key claims. Constraint
+and backing-index identities survive renames and schema moves, rebuild on key
+TYPE, and disappear on DROP CONSTRAINT/key column/table. Dump/Restore emits the
+constraint once and reconstructs its backing index. Deferrability, ALTER ADD
+UNIQUE and standalone CREATE UNIQUE INDEX remain excluded.
+See [UNIQUE constraints](docs/TABLES.md#unique-constraints--change-note) and
+[the design](docs/design/PG18-DDL-UNIQUE.md).
+Feature smoke: `go test -count=1 -run '^TestReferenceUniqueFeatureSmoke$' ./reference`.
 
 
 Change note: `ALTER TABLE target ALTER [COLUMN] name SET DEFAULT expression`
@@ -387,8 +399,10 @@ demand frontier, never absent NULL extensions; PostgreSQL may scan extra rows
 through a different physical plan. LIMIT0 locks none.
 READ COMMITTED lockers recheck
 the current version after contention; REPEATABLE READ KEY SHARE retains snapshot
-values after compatible keyless updates, while stronger modes and deletions fail.
-Native keyless UPDATE uses NO KEY UPDATE; DELETE uses UPDATE. See
+values only if no UNIQUE key datum changed since its snapshot. Restoring a key or
+later changing only payload does not erase a committed key transition. Stronger
+modes and deletions fail. UPDATE uses NO KEY UPDATE unless a UNIQUE key datum
+changes, when it uses UPDATE; DELETE uses UPDATE. See
 [row locking](docs/TRANSACTIONS.md#row-locks--change-note) for the compatibility
 matrix, privileges, eager execution and bounded syntax.
 Feature smoke: `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
