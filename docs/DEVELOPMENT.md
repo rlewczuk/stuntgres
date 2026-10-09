@@ -6,6 +6,8 @@
 make generate   # pinned goyacc; checked-in parser generation
 make build      # compile production packages
 make test       # uncached Docker-free tests, including smoke and dual-mode reference
+make quickcheck # ordinary units, smoke and quick-mode reference; no Docker
+make fullcheck  # generation/build, quick + real reference/race, bench and deps
 make reference  # real pinned PostgreSQL differential fixtures
 make smoke      # uncached public database/sql and controls smoke tests
 make race       # Docker-free tests with the race detector
@@ -18,6 +20,10 @@ Test targets enforce a fixed 900-second wall-clock deadline across all packages,
 including compilation, plus a per-package timeout. `make test-all` chains ordinary
 native/smoke/quick race tests and the full tagged reference race package under one
 outer deadline; slow or hanging tests must be fixed, not exempted.
+`make quickcheck` reuses `make test` for the iterative Docker-free gate.
+`make fullcheck` runs generation, build, quickcheck, test-all, the five-run startup
+benchmark and production dependency checks serially under one 900-second deadline;
+it requires Docker for pinned PostgreSQL and fails on external production dependencies.
 Output is quiet by default; use `VERBOSE=1` for test diagnostics, `RUN='^TestName$'`
 for selection, and `PACKAGES=./internal/parser` to scope ordinary/race tests.
 Read `Makefile` for non-standard actions. Only specialized, explicitly enabled

@@ -1,4 +1,4 @@
-.PHONY: generate build test reference smoke race test-all bench deps
+.PHONY: generate build test quickcheck fullcheck reference smoke race test-all bench deps
 
 # Test deadlines are fixed. GNU timeout bounds the whole invocation, including
 # compilation and all packages; Go's timeout supplies per-package diagnostics.
@@ -16,6 +16,13 @@ build:
 
 test:
 	@$(TEST_COMMAND) $(PACKAGES)
+
+# Ordinary units, legacy smoke and untagged reference scenarios, without Docker.
+quickcheck: test
+
+# All production gates share one deadline; real PostgreSQL is required here.
+fullcheck:
+	@timeout --signal=KILL 900s sh -c '$(MAKE) -j1 generate build quickcheck test-all bench deps && module=$$(go list -m) && dependencies=$$(go list -deps -f "{{if not .Standard}}{{.ImportPath}}{{end}}" ./...) && for dependency in $$dependencies; do case "$$dependency" in "$$module"|"$$module"/*) ;; *) printf "Non-standard production dependency: %s\n" "$$dependency" >&2; exit 1 ;; esac; done'
 
 reference:
 	@$(TEST_COMMAND) -tags reference $(if $(RUN),,-run TestReference) ./reference -args -reference=true
