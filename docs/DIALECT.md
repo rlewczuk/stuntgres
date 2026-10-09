@@ -102,6 +102,34 @@ adds no materialized-view, expression/partial/INCLUDE index DDL or catalogs.
 
 CREATE TABLE supports unqualified or schema-qualified names with SMALLINT/INT2, INTEGER/INT/INT4, BIGINT/INT8, NAME, TEXT, BOOLEAN/BOOL, NUMERIC/DECIMAL/DEC[(p[,s])], REAL/FLOAT4, DOUBLE PRECISION/FLOAT8, FLOAT[(p)] (1–24 real, 25–53 double; omitted p double), DATE, TIME[(0–6)] [WITH | WITHOUT TIME ZONE], TIMESTAMP[(0–6)] [WITH | WITHOUT TIME ZONE], TIMETZ[(p)], TIMESTAMPTZ[(p)], UUID, BYTEA and optional NULL/NOT NULL; INSERT VALUES supports optional target columns/multiple rows; SELECT supports mixed stars or scalar literal/query-column/parameter targets with FROM, scalar output labels, binary scalar comparison leaves and Boolean AND/OR/NOT with grouping in targets and WHERE, bare scalar WHERE in contextual BOOL, and expression/output-label/ordinal ORDER BY with multiple keys and per-key ASC/DESC/NULLS FIRST/LAST. FROM remains required outside identity/settings special forms and the selected null-count-only form. Values include exact decimal fractions/exponents, integer/radix literals inferred INT4/INT8/NUMERIC by signed range, quoted strings, TRUE/FALSE/NULL, 1-based `$n` and explicitly typed date/time/timestamp literals. Float4 stores binary32, Float8 binary64; both export float64, and all NaNs compare equal above non-NaNs. Temporal input/output uses captured TimeZone/DateStyle, BC/infinity and existing precision sizing; prepared constants freeze while parameters reread execution start. Finite public timestamps are time.Time, infinities owned bytes; time.Time parameters import civil fields for TIMESTAMP and preserve instants for TIMESTAMPTZ. Quoted identifiers, nested comments, doubled quotes/apostrophes and newline string concatenation follow README's C-locale UTF8 subset. Unresolved output parameter occurrences fall back to TEXT after filter analysis, retaining their initially known type: a target-first unknown occurrence conflicts with a later non-TEXT constraint (`42P08`), while TEXT target/filter reuse works. Same-context repeats work, unused gaps fail, mixed assignment destinations remain unsupported. Text/parameter inputs coerce through type input functions; INSERT assignment casts and comparison operator checks differ. WHERE keeps only TRUE. Defaults remain ASC NULLS LAST/DESC NULLS FIRST; explicit NULL placement overrides direction. See [expression ordering](QUERIES.md#expression-ordering--change-note-changelog).
 
+### JSON textual IO — change note
+
+JSON columns, direct/prepared insertion, bound text/bytes and typed literals
+retain exact whitespace, duplicate keys, order, numeric and escape spelling.
+SQL NULL differs from nonnull JSON `null`. Syntax-only validation accepts valid
+zero/lone-surrogate escapes; malformed escapes/syntax report22P02 with JSON
+Context and original SQL literal Position. Raw invalid UTF8/NUL is encoding22021.
+Physical EOF in a Unicode escape is an invalid token; an actual nonhex character
+retains the four-hexadecimal-digits Detail.
+Standard/postfix casts add JSON identity and explicit TEXT↔JSON only, with the
+existing per-target bounded no-FROM convention; no generalized SELECT cutover.
+JSON typed literals are candidates for that convention; unrelated DATE/TIME/
+TIMESTAMP typed literals retain their existing no-FROM exclusion.
+Generic JSON[] and domains reuse existing associations. JSON has no ordinary
+equality/order/group/hash or B-tree provider. GROUP BY denial retains the key's
+original SQL source Position. SELECT DISTINCT remains outside
+native syntax, and pg_type projections remain outside the catalog surface.
+Missing default B-tree classes report42704 with the existing Hint for both direct
+and expression keys, including atomic ALTER TYPE reconstruction. Explicit
+incompatible classes retain42804. JSON INCLUDE payloads require no comparator
+and support row maintenance and native dump replay under a supported ordered key.
+jsonb/jsonpath, JSON operators/functions and SQL/JSON `json(...)` construction
+are excluded. See [JSON storage and metadata](TYPES.md#json-textual-storage--change-note).
+Native Dump/Restore and stored defaults retain exact text/type identity.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`;
+pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`.
+
+
 ### Interval values — change note
 
 The supported type surface also includes INTERVAL with every permitted field

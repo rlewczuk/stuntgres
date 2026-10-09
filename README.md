@@ -10,6 +10,20 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: JSON scalar storage now validates syntax while retaining exact
+source whitespace, key order, duplicate keys, numbers and escape spelling.
+SQL NULL and JSON `null` remain distinct. Direct/prepared columns, bound values,
+typed literals, explicit TEXT↔JSON casts, metadata and native Dump/Restore use
+the existing typed seams, including generic JSON arrays and domains. JSON has
+no ordinary comparison/grouping/index-key provider, but supports INCLUDE payloads.
+Missing default classes report42704 even during atomic ALTER TYPE reconstruction.
+Unicode-escape physical EOF reports an invalid token, distinct from present nonhex
+digits. jsonb, JSON operators/functions and SQL/JSON constructor `json(...)` are excluded.
+See [JSON types](docs/TYPES.md#json-textual-storage--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`.
+
+
 Change note: floating `+`, unary `+`, `-`, unary `-`, `*`, `/` and `^`
 use PostgreSQL operand resolution and fixed REAL/DOUBLE PRECISION widths.
 Known integer/NUMERIC operands mixed with REAL widen to DOUBLE; unknown

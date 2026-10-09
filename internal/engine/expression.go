@@ -743,7 +743,7 @@ type expressionBinder struct {
 	queryNonLateral       bool
 	viewValuesCount       int
 	noParameters          bool
-	enumCasts             uint64
+	typeSingletons        uint64
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
 	checkLiterals   []literalExpression
@@ -1198,6 +1198,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
+		if u.Type.BaseType().ID() == sqltype.JSON {
+			b.typeSingletons++
+		}
 		if found {
 			u.Typmod = saved.typmod
 			if saved.typed {
@@ -1380,8 +1383,8 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if err != nil {
 		return nil, err
 	}
-	if target.Type.IsEnum() {
-		b.enumCasts++
+	if target.Type.IsEnum() || target.Type.BaseType().ID() == sqltype.JSON {
+		b.typeSingletons++
 	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.
@@ -1445,7 +1448,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	}
 	plan, err := sqltype.PlanCoercion(source, target, sqltype.Explicit)
 	if err != nil {
-		if !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 		}
 		if raw.Syntax == parser.FunctionCast {

@@ -2,10 +2,10 @@
 
 [README](../README.md) · [SQL dialect and limits](DIALECT.md) · [SQL reference](SQL.md)
 
-Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp with or without time zone, interval, uuid and bytea. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC and canonical UUID), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
+Types are int2/int4/int8/oid/name/text/bpchar/varchar/bool/float4/float8/numeric/date, time/timestamp with or without time zone, interval, uuid, bytea and json. Values returned to Go are `int64`, `string` (including NAME, character types, DATE, TIME, TIMETZ, INTERVAL, exact NUMERIC, canonical UUID and exact JSON source), `bool`, `float64`, finite TIMESTAMP/TIMESTAMPTZ `time.Time`, owned binary/infinity bytes, or nil. INSERT coerces unknown strings and supported bound values through PostgreSQL-style textual input, except raw BYTEA binds described below; typed integer/bool literals can assign to strings but not each other, and integers can assign to floats. WHERE typed comparisons do not use assignment-only casts. Parameters support nil, integer, floating point, string, bytes, bool and `time.Time` after standard `database/sql` conversion. NULL equality is never true. ASC uses NULLS LAST; DESC uses NULLS FIRST. String ordering uses C-locale bytewise comparison with BPCHAR's ASCII-tail semantics. INSERT is all-or-nothing, including multirow errors and cancellation before publication.
 
 The internal typed foundation uses catalog-owned immutable descriptors (BOOL OID 16,
-BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
+BYTEA 17, NAME 19, INT8 20, INT2 21, INT4 23, TEXT 25, OID 26, JSON114/array199, FLOAT4 700, FLOAT8 701, BPCHAR 1042, VARCHAR 1043, DATE 1082, TIME 1083, TIMESTAMP 1114, TIMESTAMPTZ 1184, INTERVAL 1186, TIMETZ 1266, NUMERIC 1700, UUID 2950; analysis-only UNKNOWN 705), concrete nullable values,
 and bound assignment/comparison providers. The parser retains raw type syntax;
 the engine resolves it and publishes parameter/result descriptions with column
 origins. Prepared types come from destination columns, never the Go argument
@@ -18,11 +18,59 @@ DATE/TIME/INTERVAL as canonical `string`, finite TIMESTAMP as `time.Time`, times
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
 
+## JSON textual storage — change note
+
+`JSON` is a distinct scalar (OID114, associated `JSON[]` OID199), exported as
+an exact source `string`. Input validates syntax without decoding a document:
+whitespace, key order, duplicate keys, numeric spelling and escape spelling all
+survive. Huge syntactically valid numbers have no native numeric-range limit.
+SQL NULL exports nil; JSON `null` is the nonnull text `null`, and `"null"` retains
+its quotation marks. Empty nonnil strings/bytes are invalid, while typed-nil
+`[]byte` bound to JSON is SQL NULL. Existing domains delegate to this base codec;
+generic JSON arrays distinguish whole NULL, NULL elements and JSON-null elements.
+
+Malformed syntax or Unicode escape syntax reports22P02 with PostgreSQL English
+Detail and `JSON data, line N: ...` Context. SQL literal Position denotes the
+original SQL character location, not a JSON offset; bound errors have no Position
+and append the redacted unnamed-portal parameter Context. Raw invalid UTF8/NUL
+reports encoding22021 with portal-only bound Context. Syntactically valid
+`\u0000`, lone/mispaired surrogates and mixed-case hex escapes are retained;
+these are textual JSON storage, not jsonb decoded-Unicode rules.
+Physical EOF inside a `\u` escape reports an invalid token; a present nonhex
+character instead reports that four hexadecimal digits are required.
+
+Standard CAST, postfix `::` and `json '...'`/`pg_catalog.json '...'` typed
+literals use the existing bounded no-FROM expression convention: each newly
+admitted target needs an actual JSON annotation (or existing enum witness).
+Only JSON identity and explicit TEXT↔JSON casts are added. Numeric/bool SQL
+casts do not construct JSON; numeric/bool *bound protocol values* use textual
+input instead. JSON is not a character/collatable/comparable/hashable type:
+ordinary equality/order/grouping and B-tree keys remain unavailable.
+Missing default B-tree classes report42704 with the operator-class Hint, including
+direct-column and expression-key reconstruction after ALTER TYPE; failed
+reconstruction leaves the column type, rows and index intact. Explicit incompatible
+classes retain42804. JSON may be an INCLUDE payload under an otherwise supported
+ordered key; payload maintenance and Dump/Restore need no JSON comparator.
+
+Before iteration, JSON metadata reports DatabaseTypeName `JSON`, no Length or
+DecimalSize; native ScanType is `string` and declaration nullability is known.
+pq exposes raw `[]byte`, ScanType `interface{}` and unknown nullability.
+Native Dump/Restore retains exact JSON bytes, typed stored expressions and
+captured cursor ownership; invalid late Restore leaves the live catalog intact.
+No jsonb/jsonpath, JSON operators/functions, SQL/JSON constructor `json(...)`,
+general SELECT DISTINCT or pg_type catalog projections are introduced.
+
+Feature smoke (each invocation has a 900-second deadline):
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceJSONFeatureSmoke$' VERBOSE=0`.
+All definitions: use the same commands with `RUN='^TestReferenceJSON'`.
+
+
 ## Arrays — change note
 
 Arrays are immutable catalog-owned values over the supported stored scalars:
 BOOL, BYTEA, NAME, INT2/INT4/INT8, TEXT/BPCHAR/VARCHAR, OID, FLOAT4/FLOAT8,
-NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL and UUID. Domains over
+NUMERIC, DATE/TIME/TIMESTAMP/TIMESTAMPTZ/TIMETZ/INTERVAL, UUID and JSON. Domains over
 supported scalars or arrays may also be elements; a REGCLASS domain is supported,
 while bare REGCLASS and REGCLASS[] table columns retain their existing exclusion.
 There is no added CHAR, BOX, UNKNOWN, VOID or PG_NODE_TREE array family.

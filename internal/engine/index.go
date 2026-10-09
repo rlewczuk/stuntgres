@@ -70,7 +70,11 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 			}
 			class := key.class
 			if class.Name == "" {
-				class, _ = sqltype.DefaultIndexClass(usage.Type)
+				var exists bool
+				class, exists = sqltype.DefaultIndexClass(usage.Type)
+				if !exists {
+					return o, indexDefaultClassError(usage.Type.DiagnosticName())
+				}
 			}
 			o.comparisons[i], err = sqltype.BindIndexOrdering(usage, class)
 			if err != nil {
@@ -94,7 +98,11 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 		usage := indexKeyCollation(parent.columns[slot].Usage, key)
 		class := key.class
 		if class.Name == "" {
-			class, _ = sqltype.DefaultIndexClass(usage.Type)
+			var exists bool
+			class, exists = sqltype.DefaultIndexClass(usage.Type)
+			if !exists {
+				return o, indexDefaultClassError(usage.Type.DiagnosticName())
+			}
 		}
 		comparison, err := sqltype.BindIndexOrdering(usage, class)
 		if err != nil {

@@ -52,8 +52,8 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	var literalTargets []int
 	// Syntax-only cast candidates are admitted only by this coherent binder.
 	// INSERT producers and previously selected singleton families keep their
-	// existing rules; every new standalone target needs its own enum witness.
-	enumSingleton := !contextual && s.From == nil && !s.IsSingleton() && s.IsTypeSingleton()
+	// existing rules; every new standalone target needs its own type witness.
+	typeSingleton := !contextual && s.From == nil && !s.IsSingleton() && s.IsTypeSingleton()
 	for target, raw := range s.Targets {
 		if err := b.ctx.Err(); err != nil {
 			return nil, err
@@ -84,12 +84,12 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 				}
 			}
 		} else {
-			enumCasts := b.enumCasts
+			typeWitnesses := b.typeSingletons
 			expr, err := b.bindOutput(raw, contextual)
 			if err != nil {
 				return nil, err
 			}
-			if enumSingleton && b.enumCasts == enumCasts {
+			if typeSingleton && b.typeSingletons == typeWitnesses {
 				return nil, expressionError("0A000", "SELECT without FROM is unsupported", s.Pos)
 			}
 			projection = append(projection, expr)
@@ -153,6 +153,13 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		}
 		comparisons[i], err = sqltype.BindGrouping(keys[i].ResultUsage())
 		if err != nil {
+			if diagnostic, ok := err.(*sqlstate.Error); ok && keys[i].ResultUsage().Type.BaseType().ID() == sqltype.JSON {
+				copy := *diagnostic
+				if pos := raw.SourcePosition(); pos.Character > 0 {
+					copy.Position = fmt.Sprint(pos.Character)
+				}
+				return nil, &copy
+			}
 			return nil, err
 		}
 	}

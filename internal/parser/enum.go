@@ -1,8 +1,8 @@
 package parser
 
 // IsTypeSingleton recognizes cast-derived scalar syntax, not type authority.
-// The engine must bind each target and require an enum cast before admission.
-// Missing types and enum modifiers consequently keep normal binder diagnostics.
+// The engine must bind each target and require an enum cast or JSON annotation.
+// Missing types and modifiers consequently keep normal binder diagnostics.
 func (s *Select) IsTypeSingleton() bool {
 	if s.Values != nil || s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
 		return false
@@ -20,6 +20,8 @@ func typeSingleton(raw Expr) (valid, cast bool) {
 	switch e := raw.(type) {
 	case LiteralExpr, ParameterExpr:
 		return true, false
+	case TypedLiteralExpr:
+		return e.TypeName.Name == "json", e.TypeName.Name == "json"
 	case CastExpr:
 		valid, _ := typeSingleton(e.Child)
 		return valid, true

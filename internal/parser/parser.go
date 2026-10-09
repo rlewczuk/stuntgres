@@ -482,6 +482,10 @@ func typeModifierHead(l sqlLexer, tok, open lexeme, qualified bool) (TypeName, b
 		l.(*lexer).multipleModifiers = true
 		return raw, true
 	}
+	if tok.keyword != nil && tok.text == "json" {
+		l.(*lexer).syntax(open)
+		return TypeName{}, false
+	}
 	if tok.keyword != nil && tok.text == "float" {
 		l.(*lexer).floatPrecision = true
 		return raw, true

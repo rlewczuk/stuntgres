@@ -19,6 +19,9 @@ func BindGrouping(usage Usage) (Grouping, error) {
 	if usage.Type == nil || !usage.Type.Concrete() {
 		return Grouping{}, fmt.Errorf("invalid grouping usage")
 	}
+	if usage.Type.BaseType().id == JSON {
+		return Grouping{}, failure("42883", "could not identify an equality operator for type json")
+	}
 	comparison, err := BindComparison(usage.Type, usage.Type)
 	if err != nil {
 		return Grouping{}, err

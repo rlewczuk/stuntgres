@@ -25,6 +25,7 @@ const (
 	Int4        ID = 23
 	Text        ID = 25
 	Oid         ID = 26
+	JSON        ID = 114
 	PgNodeTree  ID = 194
 	Float4      ID = 700
 	Float8      ID = 701
@@ -143,6 +144,7 @@ func Builtins() []*Descriptor {
 		{id: Int4, name: "int4", sql: "INTEGER", database: "INT4", associatedArray: 1007},
 		{id: Text, name: "text", sql: "TEXT", database: "TEXT", associatedArray: 1009},
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
+		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
 		{id: PgNodeTree, name: "pg_node_tree", sql: "PG_NODE_TREE", database: "PG_NODE_TREE"},
 		{id: BPChar, name: "bpchar", sql: "BPCHAR", database: "BPCHAR", associatedArray: 1014},
 		{id: VarChar, name: "varchar", sql: "VARCHAR", database: "VARCHAR", associatedArray: 1015},
@@ -376,7 +378,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsCharacter(d.id) || d.id == Name {
+	if IsCharacter(d.id) || d.id == Name || d.id == JSON {
 		if err := validateCharacterInput(text); err != nil {
 			return Value{}, err
 		}
@@ -387,6 +389,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return d.enumInput(text)
 	}
 	switch d.id {
+	case JSON:
+		return d.jsonInput(ctx, text)
 	case Oid:
 		return d.oidInput(text)
 	case Char:
@@ -629,7 +633,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return env.Regclass.FormatRegclass(uint32(n))
 		}
 		return v.text, nil
-	case Text, BPChar, VarChar, Name:
+	case Text, BPChar, VarChar, Name, JSON:
 		return v.text, nil
 	case Bool:
 		if v.boolean {
@@ -695,7 +699,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
-	case Text, BPChar, VarChar, Name, Regclass:
+	case Text, BPChar, VarChar, Name, Regclass, JSON:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case Oid, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
@@ -824,7 +828,7 @@ func BaselineCastType(id ID) bool {
 func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Bool, Int2, Int4, Int8, Oid, Text, Name, BPChar, VarChar, Bytea, UUID,
-		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval:
+		Numeric, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON:
 		return true
 	}
 	return false
@@ -893,6 +897,16 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, failure("42804", "incompatible source and destination types")
 	}
 	if source.Type.IsArray() || target.Type.IsArray() {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
+	}
+	if source.Type.id == JSON || target.Type.id == JSON {
 		if source.Type == target.Type {
 			return p, nil
 		}
@@ -1080,7 +1094,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.validCollation() {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
 	}
-	if u.Type.BaseType().IsArray() {
+	if u.Type.BaseType().IsArray() || u.Type.BaseType().id == JSON {
 		return Comparison{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "could not identify an ordering operator for type " + u.Type.BaseType().DiagnosticName(), Hint: "Use an explicit ordering operator or modify the query."}
 	}
 	if u.Type.BaseType().IsEnum() {
@@ -1124,7 +1138,7 @@ func BindComparison(left, right *Descriptor) (Comparison, error) {
 		_, err := BindComparison(left.BaseType(), right.BaseType())
 		return p, err
 	}
-	if left.IsArray() || right.IsArray() {
+	if left.IsArray() || right.IsArray() || left.id == JSON || right.id == JSON {
 		return p, failure("42883", "incompatible comparison operands")
 	}
 	if dateTimestampType(left.id) && dateTimestampType(right.id) {
