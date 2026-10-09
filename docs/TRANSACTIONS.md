@@ -129,12 +129,12 @@ ending newer work. This intentionally differs from pinned lib/pq: its old
 GoTx.Commit after SQL COMMIT AND CHAIN issues an unqualified end and publishes
 the newer block. Do not mix these lifetimes expecting pq's behavior.
 
-Run `make smoke RUN='^TestTransactionControlsSmoke$' VERBOSE=1`
+Run `make quickcheck PACKAGES=./smoke RUN='^TestTransactionControlsSmoke$' VERBOSE=1`
 for public direct/held-prepared peer visibility, recovery, aliases, chains and
 complete warning/error/count/INT4 assertions. The migrated SQL controls run
-without Docker through `make test PACKAGES=./reference RUN='^TestReferenceTransactionControls[A-Za-z0-9_]*$'`;
+without Docker through `make quickcheck PACKAGES=./reference RUN='^TestReferenceTransactionControls[A-Za-z0-9_]*$'`;
 independently enable real
-PostgreSQL with `make reference RUN='^TestReferenceTransactionControls[A-Za-z0-9_]*$'`.
+PostgreSQL with `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTransactionControls[A-Za-z0-9_]*$'`.
 
 ## Savepoints and recoverable errors
 
@@ -183,7 +183,7 @@ Successful Reset/Restore fences and discards stale private marks; rollback-to
 cannot resurrect an old catalog epoch. Full rollback remains recovery-eligible.
 Dump omits private writes; Restore does not accept transaction controls.
 
-Feature smoke: `make smoke VERBOSE=0 RUN='^TestSavepointsSmoke$'`.
+Feature smoke: `make quickcheck PACKAGES=./smoke VERBOSE=0 RUN='^TestSavepointsSmoke$'`.
 
 
 ## Relation locks
@@ -274,8 +274,8 @@ missing schemas use `3F000`. Denials use `42501`, `permission denied for table t
 or `permission denied for view v`. Direct sequences fail `42809`, `cannot lock
 relation "s"`, Detail `This operation is not supported for sequences.`, before ACL.
 Utility diagnostics have no Position or synthetic Schema/Table fields.
-Command feature checks: `make test VERBOSE=0 PACKAGES=./reference RUN='^TestReferenceLockModes'`
-and `make reference VERBOSE=0 RUN='^TestReferenceLockModes'`. See the
+Command feature checks: `make quickcheck VERBOSE=0 PACKAGES=./reference RUN='^TestReferenceLockModes'`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLockModes'`. See the
 [command change note](#lock-table-command--change-note) for discovery and coverage.
 Advisory locking and lock introspection
 remain unsupported. DELETE's row UPDATE and UPDATE's
@@ -402,7 +402,7 @@ views, baseline settings and prepared handles; transaction rollback still
 resolves SESSION/LOCAL setting actions. SQL authorization remains unchanged,
 even when an unprivileged pool is used for a native host control.
 
-Feature witness: `make smoke RUN='^TestControlTransactionsSmoke$' VERBOSE=1`.
+Feature witness: `make quickcheck PACKAGES=./smoke RUN='^TestControlTransactionsSmoke$' VERBOSE=1`.
 This exercises two-pool Reset/Restore, retained typed results, stale ordinary
 execution followed by COMMIT AND CHAIN, exact Driver/DSN isolation and canceled
 Restore reader I/O. Real PostgreSQL reference coverage independently checks SQL
@@ -465,18 +465,18 @@ publication. INSERT/UPDATE/SELECT use the existing binder and identity-keyed sto
 there is no parallel catalog/store, retrying SQL executor, or placeholder
 SSI/provider implementation.
 
-Run `go test -count=1 -run '^TestTransactionSmoke$' ./smoke` (also included in
-`make smoke` and `make test`). It asserts direct/prepared visibility,
+Run `make quickcheck PACKAGES=./smoke RUN='^TestTransactionSmoke$'` (also included in
+`make quickcheck PACKAGES=./smoke` and `make quickcheck`). It asserts direct/prepared visibility,
 rollback/commit, refreshed prepared reads, exact rows/types/counts, full
 23502/25P02 records, failed Commit/recovery, independent autocommit, cancellation
 and native replacement/preservation. Go test reports the result.
 
 Scoped migrated SQL witnesses:
-`make test PACKAGES=./reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`,
-`make race PACKAGES=./reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`, and
-`make reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`,
+`make quickcheck RACE=1 PACKAGES=./reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`, and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTransaction[A-Za-z0-9_]*$'`.
 Pure root mechanics remain selected separately by
-`make test PACKAGES=. RUN='^TestTransaction(TerminalReasons|RawReuseState)$'`.
+`make quickcheck PACKAGES=. RUN='^TestTransaction(TerminalReasons|RawReuseState)$'`.
 They distinguish CleanClose, Terminated and Abandoned without SQL; public
 rollback/publication remains in the migrated scenarios. Native raw Begin-context
 lifetime is substantive in both binary modes, not pq raw-context parity.
@@ -509,9 +509,9 @@ pending-resource observer phases remain explicitly separate capabilities.
 
 ```sh
 # Docker-free command contract, including held preparation and ordinary roles
-make test VERBOSE=0 PACKAGES=./reference RUN='^TestReferenceLockModes'
+make quickcheck VERBOSE=0 PACKAGES=./reference RUN='^TestReferenceLockModes'
 # Same completed consumers plus PostgreSQL-only capability controls
-make reference VERBOSE=0 RUN='^TestReferenceLockModes'
+make quickcheck REFERENCE=1 PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLockModes'
 ```
 
 ## Row locks — change note
@@ -613,7 +613,7 @@ Unmarked sibling aggregation never consumes another sibling's pending marks.
 Public results are still complete before exposure; public Next performs no lock
 wait, recheck, predicate or view production.
 
-Feature smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
 
 
 REPEATABLE READ KEY SHARE can lock a live chain only if no UNIQUE key datum
@@ -659,10 +659,10 @@ native context cancellation remains an ordinary Go error. PostgreSQL physical
 tuple wait Context is independently checked only by reference controls, never
 fabricated from native logical RowIDs.
 
-Feature checks: `make test PACKAGES=./internal/engine RUN='^TestRowLock' VERBOSE=0`,
-`make test PACKAGES=./reference RUN='^TestReferenceRowLock[A-Za-z0-9_]*$' VERBOSE=0`,
-`make reference RUN='^TestReferenceRowLock[A-Za-z0-9_]*$' VERBOSE=0`, and
-`make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
+Feature checks: `make quickcheck PACKAGES=./internal/engine RUN='^TestRowLock' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceRowLock[A-Za-z0-9_]*$' VERBOSE=0`,
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRowLock[A-Za-z0-9_]*$' VERBOSE=0`, and
+`make quickcheck PACKAGES=./smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
 The family selector includes the migrated ViewInsert union; tagged PostgreSQL
 ACL/keyed controls remain exclusive and are included only by the tagged command.
 Exact native queue witnesses live in engine tests; public native deadlines are

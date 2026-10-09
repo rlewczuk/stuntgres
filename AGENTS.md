@@ -34,7 +34,7 @@ Reuse existing package seams, binders and storage paths; do not introduce parall
 - Prefer clear, self-explanatory, maintainable code with separated concerns and testable boundaries. Keep functions focused and files short; split by responsibility, not arbitrary line counts. Grammar and generated files are exceptions. Reference functional test files have a hard 750-line limit; the cohesive shared fixture is exempt.
 - Test consumer-visible outcomes, boundaries, errors, atomicity and lifecycle transitions with independently specified expectations. Cover direct/prepared behavior and relevant metadata/cancellation paths. Do not test source text, wiring counts or mock echoes in place of real behavior.
 - Keep test output quiet: assertions report failures through the test runner, not printed success labels. Extra debug output requires an explicit verbosity flag, off by default (`VERBOSE=1` for make targets).
-- All tests together must finish within 900 seconds. `make test-all` enforces one wall-clock deadline across native, smoke, reference and race coverage; individual test targets are bounded too. Fix slow or hanging tests rather than increasing deadlines, dropping coverage or skipping failures. Only explicitly enabled specialized benchmarks may exceed this limit; never include them in default targets.
+- Each `make quickcheck` invocation must finish within 900 seconds. Final `make fullcheck` runs after merge under one 1800-second wall-clock deadline across generation/build, quick native tests, race-enabled native and real pinned PostgreSQL reference tests, benchmarks and dependency checks. Commit any failure remedies separately from the merged task. Fix slow or hanging tests rather than increasing deadlines, dropping coverage or skipping failures. Only explicitly enabled specialized benchmarks may exceed these limits; never include them in default targets.
 - Pay particular attention to mutexes, goroutines and cancellation. Document lock ownership/order, avoid recursive acquisition and callbacks/external I/O under locks, release resources on every exit, and preserve immutable published snapshots and atomic publication. Use deterministic synchronization rather than sleep-based ordering; exercise cancellation, contention and teardown with the race detector.
 - Transaction isolation uses one owner: RR retains all immutable relation/end roots before analysis waits; RC/RU execution views stay grant-time fresh. Never copy row values for snapshot retention, cache an owner on prepared statements, or add a second settings/lock authority. Current characteristic routes validate owner-first; healthy CHAIN preserves final modes, abort restores entry defaults before overrides, and aborted CHAIN carries restored modes. Every chain clears snapshot state.
 - Read-only utility execution rejects supported modifying tags before object resolution, authorization or relation locks; DML retains analysis-before-read-only diagnostics. Do not apply execution rejection to Prepare. Selected ALTER TABLE nullability/named-NOT-NULL/DROP COLUMN lists and sequence DDL are the bounded explicit-transaction exceptions; do not enable unrelated utilities. Independently assert SHOW ALL built-in descriptions against PostgreSQL 18.0 short_desc, including current/default transaction settings, and registered custom descriptions without empty-string exemptions.
@@ -71,18 +71,21 @@ Always use make targets for standard actions:
 ```sh
 make generate   # regenerate the checked-in parser with pinned goyacc
 make build      # compile production packages
-make test       # uncached Docker-free units, quick reference tests and legacy smoke
-make smoke      # existing legacy smoke package only; add SQL/API tests in reference/
-make reference  # shared reference scenarios on native and real pinned PostgreSQL 18
-make race       # Docker-free suite with the race detector
-make test-all   # all suites, including reference and race, within one 900s deadline
+make quickcheck # uncached Docker-free units, quick reference tests and legacy smoke
+make fullcheck  # after merge: generate/build, quick + native/reference race, bench/deps
 make bench      # fresh-engine startup benchmark, five runs with allocation counts
 make deps       # list non-standard production dependencies
 ```
 
 Read `Makefile` for non-standard actions. Use `RUN='^TestName$'` to select tests,
-`PACKAGES=./internal/parser` to scope ordinary/race tests, and `VERBOSE=1` for diagnostics.
-Do not replace full verification with selected tests. Before delivery, run relevant tests and
-exercise the changed public path; report only observed results and name any blocked checks.
+`PACKAGES=./internal/parser` to scope tests, `RACE=1` for the race detector,
+`REFERENCE=1 PACKAGES=./reference` for real pinned PostgreSQL, and `VERBOSE=1` for diagnostics.
+Every changed or new reference definition MUST pass selected native and real runs before
+review/integration: `make quickcheck PACKAGES=./reference RUN='...'` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='...'`. Real mode enables the
+`reference` build tag and `-args -reference=true`. This proof cannot wait for final fullcheck.
+Do not replace final verification with selected tests. After merge, run `make fullcheck`;
+commit any failure remedies separately. Exercise the changed public path before delivery;
+report only observed results and name any blocked checks.
 Dependency output may contain only this module's paths. Benchmark real fresh engines through
 Ping and Close, not lazy Open alone; report ns/op and allocations against the <1ms startup target.

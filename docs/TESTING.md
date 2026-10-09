@@ -27,10 +27,15 @@ This is the authoritative test-placement and implementation workflow.
   Mode selection changes backend availability, not the scenario.
 - Use only public stuntgres APIs in `reference/`; do not import internal packages
   or root-private test helpers. Name tests `TestReference<Feature><Behavior>` and
-  use untagged `*_test.go` files so ordinary `make test` discovers them.
+  use untagged `*_test.go` files so ordinary `make quickcheck` discovers them.
 - Assert behavior, boundaries, errors, atomicity and lifecycle transitions, not
   source text, wiring counts, mock echoes or parity alone. Keep functional files
   at most 750 lines; shared fixture code is exempt. Keep output quiet by default.
+- Every added, modified or migrated dual-mode reference test MUST be selectively
+  run in both real pinned PostgreSQL mode and Docker-free quick mode, using the
+  same completed test definitions and a `RUN` selector covering all affected tests.
+  Repeat both selective runs after changes to those tests or their implementation.
+  Fullcheck does not replace this pre-review requirement.
 
 Native Reset/Dump/Restore have no PostgreSQL API equivalent. Keep their witnesses
 in the same dual-mode reference scenario, with explicit native-only control
@@ -50,9 +55,11 @@ Do not invent a PostgreSQL control API or duplicate the main SQL test body.
 3. **Run quick mode in the second iteration.** Confirm the recorded contract
    exposes missing/incorrect stuntgres behavior. Observe the failing regression,
    implement the smallest fix, and rerun until it passes.
-4. **Finish by running both modes.** Run the same completed definitions in quick
-   and real PostgreSQL modes, confirming independent expectations and consistency.
-   Then run full applicable suites; selected tests do not replace full verification.
+4. **Finish by selectively running both modes.** Run the same completed definitions
+   in quick and real PostgreSQL modes, confirming independent expectations and
+   consistency for every added, changed or migrated scenario. Then run ordinary
+   `make quickcheck`; final `make fullcheck` runs after integration under the
+   catalog-part workflow. Selected tests do not replace full verification.
 
 ### Commands and oracle-first discovery
 
@@ -61,17 +68,19 @@ working Docker and image/module access.
 
 ```sh
 # First: real PostgreSQL discovery/validation.
-make reference RUN='^TestReferenceFeatureBehavior$' VERBOSE=1
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$' VERBOSE=1
 # Second: Docker-free validation of the recorded contract.
-make test PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
-# Final: both modes, using exactly the same completed test.
-make test PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
-make reference RUN='^TestReferenceFeatureBehavior$'
-# Full verification, including race coverage, under one 900-second deadline.
-make test-all
+make quickcheck PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
+# Before review: both modes, using exactly the same completed test.
+make quickcheck PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFeatureBehavior$'
+# Ordinary full Docker-free verification.
+make quickcheck
+# After integration: all final gates under one 30-minute deadline.
+make fullcheck
 ```
 
-`make reference` enables `-reference=true` and the `reference` build tag; it runs
+`make quickcheck REFERENCE=1 PACKAGES=./reference` enables `-reference=true` and the `reference` build tag; it runs
 both native and PostgreSQL backends, not PostgreSQL alone. The ordinary runner
 visits native first. During the initial oracle-discovery iteration, use the
 shared `p.backends()` loop and temporarily select only `backend.pg` (for example,
@@ -79,7 +88,7 @@ shared `p.backends()` loop and temporarily select only `backend.pg` (for example
 PostgreSQL observations. Remove that discovery filter before quick validation
 and final verification. Never commit a filter that bypasses either backend.
 
-There is no automatic golden-file recorder or PostgreSQL-only make target.
+There is no automatic golden-file recorder or PostgreSQL-only make mode.
 Use failure diagnostics or temporary verbose-only observation logging to inspect
 unknown PostgreSQL results, then encode those results as explicit expectations
 and remove discovery scaffolding. `p.step` validates expectations; it does not
@@ -221,9 +230,10 @@ SQLSTATE assertion is a separate failure witness. Standard steps also check
 owned middleware rows and closure; the fixture closes its pools after the
 borrowed connection is returned.
 
-Run `make reference RUN='^TestReferenceFeatureAnswer$' VERBOSE=1` first, then
-`make test PACKAGES=./reference RUN='^TestReferenceFeatureAnswer$'`. After any
-implementation changes, rerun both and the full applicable suites.
+Run `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFeatureAnswer$' VERBOSE=1` first, then
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceFeatureAnswer$'`. After any
+test or implementation changes, rerun both selectively before review, then run
+ordinary quickcheck and the post-integration fullcheck.
 
 ## Optional last-resort implementation materials
 

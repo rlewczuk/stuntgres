@@ -94,10 +94,10 @@ add reg* families, oidvector/arrays or OID arithmetic. Physical/binary wire
 receive/send, a network server, disk/WAL durability and external pg_dump
 process/archive support are non-engine mechanisms, not successful no-ops.
 
-Feature smoke: `make smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
-Native: `make test PACKAGES=./reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
-Providers: `make test PACKAGES=./internal/sqltype RUN='^TestOID.*$' VERBOSE=0`.
-Pinned reference: `make reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
+Native: `make quickcheck PACKAGES=./reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
+Providers: `make quickcheck PACKAGES=./internal/sqltype RUN='^TestOID.*$' VERBOSE=0`.
+Pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceOID.*$' VERBOSE=0`.
 
 ### View catalog supporting types — change note
 
@@ -186,10 +186,10 @@ than text input's clipping; native ordinary byte binds are textual, not binary.
 Native persistence here is public in-memory logical Dump/Restore, not disk/WAL
 durability or PostgreSQL backup tools.
 
-Feature smoke: `make smoke RUN='^TestNameSmoke$' VERBOSE=0`.
-Native coverage: `make test PACKAGES=./reference RUN='^TestReferenceName' VERBOSE=0`;
-codec coverage: `make test PACKAGES=./internal/sqltype RUN='^TestName' VERBOSE=0`;
-pinned reference: `make reference RUN='^TestReferenceName' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestNameSmoke$' VERBOSE=0`.
+Native coverage: `make quickcheck PACKAGES=./reference RUN='^TestReferenceName' VERBOSE=0`;
+codec coverage: `make quickcheck PACKAGES=./internal/sqltype RUN='^TestName' VERBOSE=0`;
+pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceName' VERBOSE=0`.
 
 
 ## BYTEA
@@ -232,11 +232,11 @@ default-on strings, preserves live settings and retained snapshots, and
 publishes no replacement on input/read/cancellation failure. BYTEA typed
 literals, modifiers, casts, arrays and wire serving are not added.
 
-Feature smoke: `make smoke RUN='^TestByteaSmoke$' VERBOSE=0`.
-Dual-mode native witnesses: `make test PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`;
-local adapter ownership: `make test PACKAGES=. RUN='^TestByteaAdapterOwnership$' VERBOSE=0`;
-codec witnesses: `make test PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=0`.
-Pinned reference: `make reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestByteaSmoke$' VERBOSE=0`.
+Dual-mode native witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`;
+local adapter ownership: `make quickcheck PACKAGES=. RUN='^TestByteaAdapterOwnership$' VERBOSE=0`;
+codec witnesses: `make quickcheck PACKAGES=./internal/sqltype RUN='^TestBytea.*$' VERBOSE=0`.
+Pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0`.
 
 BYTEA checksums and hashes use these unary raw-byte signatures:
 
@@ -264,8 +264,8 @@ SHA bytes. Every exported SHA buffer is independently owned. Providers check
 cancellation at bounded chunks and before result publication; hashing does not
 allocate scratch proportional to input size. Query/write/CHECK/view and native
 replay use the existing scalar provider; hash DEFAULT calls remain excluded.
-Hash feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;
-pinned reference: `make reference RUN='^TestReferenceBinaryHash' VERBOSE=0`.
+Hash feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBinaryHashSmoke$' VERBOSE=0`;
+pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinaryHash' VERBOSE=0`.
 
 Raw binary scalar signatures include `||(bytea,bytea)`, `length(bytea)`,
 `octet_length(bytea)`, `bit_length(bytea)`, `btrim/ltrim/rtrim(bytea,bytea)`,
@@ -312,8 +312,8 @@ Encoding-aware length exclusion recognizes its real BYTEA/NAME signature with
 unknown operands or implicit TEXT/VARCHAR/BPCHAR encoding-name inputs; it returns
 positioned 0A000 without adding encoding-aware evaluation. An integer encoding
 argument still has no such signature and returns the independent 42883 diagnostic.
-Binary slicing smoke: `make smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`;
-independent reference: `make reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
+Binary slicing smoke: `make quickcheck PACKAGES=./smoke RUN='^TestBinarySliceSmoke$' VERBOSE=0`;
+independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBinarySlice' VERBOSE=0`.
 
 
 ## UUID
@@ -344,8 +344,8 @@ Typed parameter input errors have no Position and carry
 `unnamed portal parameter $1 = '...'`. Later tuple/input/constraint failures publish
 no rows. UUID declarations and canonical quoted literals round-trip through the
 existing atomic native Dump/Reset/Restore controls, with retained UUID snapshots
-and metadata unchanged. Feature smoke: `make smoke RUN='^TestUUIDSmoke$'`;
-real reference coverage: `make reference RUN='^TestReferenceUUID.*$'`.
+and metadata unchanged. Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestUUIDSmoke$'`;
+real reference coverage: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUUID.*$'`.
 
 UUID typed literals, casts, arrays, generators, version/timestamp extraction
 functions and binary wire UUID APIs remain excluded. PostgreSQL disk storage,
@@ -431,13 +431,13 @@ SELECT-without-FROM expansion is introduced. Standard/postfix annotations reuse
 same-type scalar usages and existing directional numeric coercion edges;
 known-TEXT input conversion and function-cast boundaries remain unchanged.
 
-Feature smoke: `make smoke RUN='^TestNumericSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestNumericSmoke$' VERBOSE=0`.
 The same smoke includes signed integer carry failures beside successful extrema,
 plus direct/prepared REAL/FLOAT8 assignments of 1.5, -1.5 and zero with a tiny
 exponent. Populated float comparisons against 1.0 and 1e100 assert exact result
 types even when no rows match, in both direct and prepared modes.
 Real pinned PostgreSQL witnesses:
-`make reference RUN='^TestReferenceNumeric.*$' VERBOSE=0`.
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNumeric.*$' VERBOSE=0`.
 
 Native logical negative-scale metadata is asserted independently of lib/pq's
 unsigned decoding: NUMERIC(2,-3) reports `(2,-3,true)` natively and `(2,2045,true)`
@@ -497,10 +497,10 @@ type through native Dump/Restore, including narrow truncation when the
 destination is BIGINT and INTEGER shift counts. BIT/VARBIT, ordinary SMALLINT
 arithmetic, NUMERIC/float/OID bitwise overloads and ordinary SELECT without
 FROM remain excluded.
-Feature smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
 The arithmetic/bitwise/math reference definitions also run Docker-free through
-`make test PACKAGES=./reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0`.
-The identical definitions add pinned PostgreSQL18.0 under `make reference` with
+`make quickcheck PACKAGES=./reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0`.
+The identical definitions add pinned PostgreSQL18.0 under `make quickcheck REFERENCE=1 PACKAGES=./reference` with
 that selector; retained tagged oracle-only complements remain server-only.
 
 ## Binary floating point
@@ -558,11 +558,11 @@ has bits 0x15ae43fd, but narrowing pq's returned binary64 to binary32 produces
 Executable float acceptance (commands must run to establish verification):
 
 ```sh
-make test PACKAGES=./internal/sqltype RUN='^TestFloat.*$' VERBOSE=0
-make test PACKAGES=./reference RUN='^TestReferenceFloat.*$' VERBOSE=0
-make test PACKAGES=./internal/parser VERBOSE=0
-make reference RUN='^TestReferenceFloat.*$' VERBOSE=0
-make smoke RUN='^TestFloatSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^TestFloat.*$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceFloat.*$' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFloat.*$' VERBOSE=0
+make quickcheck PACKAGES=./smoke RUN='^TestFloatSmoke$' VERBOSE=0
 ```
 
 These assert exact release output/bit witnesses, precision/metadata, independently
@@ -618,9 +618,9 @@ Former signed literal inputs remain admitted, including signs around baseline
 casts of numeric literals. Casts keep their precedence, conversions and errors;
 they are not removed or reassociated through the sign.
 
-Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
-pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`;
-native coverage: `make test PACKAGES=./reference RUN='^TestReferenceCompareOps.*$' VERBOSE=1`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
+pinned PostgreSQL coverage: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCompareOps' VERBOSE=1`;
+native coverage: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCompareOps.*$' VERBOSE=1`.
 
 ## Character types
 
@@ -702,9 +702,9 @@ NULL and old reader snapshots; failed staged restores publish nothing.
 PostgreSQL wire serving, COPY, pg_dump/pg_restore processes and physical
 TOAST/disk storage remain external-only mechanisms.
 
-Focused checks: `make test PACKAGES=./reference RUN='^TestReferenceCharacter' VERBOSE=0`,
-`make reference RUN='^TestReferenceCharacter' VERBOSE=0` (real pinned PostgreSQL18.0),
-and `make smoke RUN='^TestCharacterSmoke$' VERBOSE=0`.
+Focused checks: `make quickcheck PACKAGES=./reference RUN='^TestReferenceCharacter' VERBOSE=0`,
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCharacter' VERBOSE=0` (real pinned PostgreSQL18.0),
+and `make quickcheck PACKAGES=./smoke RUN='^TestCharacterSmoke$' VERBOSE=0`.
 
 ## Unicode16 normalization data
 
@@ -851,10 +851,10 @@ canonical clocks and Restore preserves precisions, NULLs, endpoints and old curs
 See the timezone-aware section below for TIMETZ, session settings and conversions.
 General temporal arithmetic/functions and ordinary no-FROM SELECT remain excluded.
 
-Feature smoke: `make smoke RUN='^TestTimeSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimeSmoke$' VERBOSE=0`.
 Dual-mode migration: the public TIME SQL scenarios now live in `reference/`.
-Native coverage: `make test PACKAGES=./reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
-Real pinned reference: `make reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`;
+Native coverage: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Real pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTime[A-Z][A-Za-z0-9_]*$' VERBOSE=0`;
 the tagged optional-date complement remains real-oracle coverage only.
 
 ## Civil DATE
@@ -919,10 +919,10 @@ unchanged. Dump quotes canonical DATE values;
 Reset/Restore preserve retained snapshots and metadata. Unordered queries have
 no portable row-order guarantee.
 
-Feature smoke: `make smoke RUN='^TestDateSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDateSmoke$' VERBOSE=0`.
 Dual-mode migration: the public DATE SQL scenarios now live in `reference/`.
-Native coverage: `make test PACKAGES=./reference RUN='^TestReferenceDate[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
-Independent pinned oracle: `make reference RUN='^TestReferenceDate[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Native coverage: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDate[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Independent pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDate[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
 The tagged timestamp-comparison and transaction-relative complements remain
 real-oracle coverage. Pinned pq temporal descriptors report unknown nullability
 and unavailable Length/DecimalSize; native physical columns retain known
@@ -1074,10 +1074,10 @@ transaction start for the new incarnation; redundant BEGIN and control Prepare d
 reset it. Plain COMMIT/ROLLBACK clear it before the next implicit transaction.
 Independent public, codec/engine and pinned reference assertions retain both
 the floating-point and timestamp contracts after integration.
-Run `make smoke RUN='^TestTimestampSQLTransactionChainSmoke$' VERBOSE=0`
+Run `make quickcheck PACKAGES=./smoke RUN='^TestTimestampSQLTransactionChainSmoke$' VERBOSE=0`
 for literal/parameter clock stability, relative civil dates and fresh chain/end
-boundaries. `make test PACKAGES=./reference RUN='^TestReferenceTimestampSQLTransactionChainClock$' VERBOSE=0`
-and `make reference RUN='^TestReferenceTimestampSQLTransactionChainClock$' VERBOSE=0`
+boundaries. `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimestampSQLTransactionChainClock$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimestampSQLTransactionChainClock$' VERBOSE=0`
 assert these relationships separately on each selected backend, not absolute clock parity.
 Freezing belongs to each physical driver preparation, not to SQL text in a
 pool-wide cache. Reuse the same Conn-prepared handle to retain a constant;
@@ -1165,9 +1165,9 @@ are described below. General temporal functions/arithmetic and ordinary no-FROM
 SELECT remain excluded; the default input order is MDY.
 Dual-mode migration: public timestamp-without-time-zone SQL scenarios now live
 in `reference/`; shared root helpers remain for unmigrated callers.
-Feature smoke: `make smoke RUN='^TestTimestampSmoke$' VERBOSE=0`.
-Native acceptance: `make test PACKAGES=./reference RUN='^TestReferenceTimestamp[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
-Independent real PostgreSQL 18.0: `make reference RUN='^TestReferenceTimestamp[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimestampSmoke$' VERBOSE=0`.
+Native acceptance: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimestamp[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
+Independent real PostgreSQL 18.0: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimestamp[A-Z][A-Za-z0-9_]*$' VERBOSE=0`.
 Finite raw values must remain `time.Time` with offset zero before comparison;
 zero-offset fixed locations and UTC locations are not pointer-identical.
 Clock expectations retain microsecond instant and civil equality without
@@ -1176,8 +1176,8 @@ both stored columns and noisy typed-literal constants before normalization.
 Fractional text/`time.Time` frames and both displacement limits reuse their
 respective INSERT handles while retaining direct routes and exact row counts.
 Codec corner cases and allocation assertions can be selected with
-`make test PACKAGES=./internal/sqltype RUN='^TestTimestamp.*$' VERBOSE=0`;
-`make test PACKAGES=./internal/sqltype RUN='^TestTimestamp.*Allocations$' VERBOSE=0`
+`make quickcheck PACKAGES=./internal/sqltype RUN='^TestTimestamp.*$' VERBOSE=0`;
+`make quickcheck PACKAGES=./internal/sqltype RUN='^TestTimestamp.*Allocations$' VERBOSE=0`
 includes signed-whitespace and revised numeric/prefix/DST branches.
 
 ## Time-zone-aware values
@@ -1262,9 +1262,9 @@ offsets, independent of TimeZone/DateStyle, and Restore preserves live settings.
 No timezone catalog views, INTERVAL arithmetic, timezone(...)
 aliases or CURRENT_* producer-family expansion are delivered here.
 
-Feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
-Public/provider witnesses: `make test PACKAGES=./reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.
-Independent pinned oracle: `make reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
+Public/provider witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.
+Independent pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.
 
 
 Initial timestamptz input range checking and typmod rounding are distinct:
@@ -1376,11 +1376,11 @@ preserves the finite minimum time component through data, defaults and views;
 NULL/infinities retain their existing encoding. Interval arithmetic,
 timestamp+interval, justify/extract/make_interval and cross-family casts are not
 added. See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
-Feature smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 The interaction regressions are merged into untagged dual-mode `reference/`
 scenarios, with independent native string and pq byte-slice representations:
-`make test PACKAGES=./reference RUN='^TestReferenceInterval[A-Za-z0-9_]*$' VERBOSE=0`
-and `make reference RUN='^TestReferenceInterval[A-Za-z0-9_]*$' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceInterval[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInterval[A-Za-z0-9_]*$' VERBOSE=0`.
 
 ### Interval average
 
@@ -1399,8 +1399,8 @@ the mean of one month and 30 days is `30 days`; of one day and24hours, `24:00:00
 Finite component overflow, reserved infinity tuples, mixed infinity signs and
 division range errors report22008. Finite sums are checked even after infinity.
 General interval arithmetic and numeric AVG remain excluded. Public contracts:
-`make test PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
-and `make reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
 
 
 ## Pattern matching and physical character values

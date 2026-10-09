@@ -162,7 +162,7 @@ TYPE/nullability/DROP COLUMN lists. Generic moves of sequences or indexes,
 temporary/system destinations and automatic row types are not added. Simple
 B-tree indexes move with their table.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
-controls. Smoke: `make smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
+controls. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 The selected-call-only no-FROM form produces one singleton row; its arguments
 are literals, parameters, nested selected calls and previously admitted casts/
@@ -438,9 +438,9 @@ optimizer introspection remain unsupported. Setting check_option fails0A000
 `view check options are unsupported`; RESET of an absent check_option is harmless.
 Native ACL unit controls and PostgreSQL-only GRANT witnesses do not imply a
 public native ACL API.
-Smokes: `make smoke RUN='^TestViewSmoke$' VERBOSE=0` and
-`make smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`;
-independent oracle: `make reference RUN='^TestReferenceView' VERBOSE=0`.
+Smokes: `make quickcheck PACKAGES=./smoke RUN='^TestViewSmoke$' VERBOSE=0` and
+`make quickcheck PACKAGES=./smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`;
+independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceView' VERBOSE=0`.
 
 ## Object comment inquiries — change note
 
@@ -505,8 +505,8 @@ Restore replays those differences atomically while retaining target shared role
 comments. See [comment mutation and native controls](TABLES.md#object-comments)
 for the remaining DDL/transaction boundaries.
 
-Feature smoke: `make smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
-Pinned independent reference: `make reference RUN='^TestReferenceCommentInquiry' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCommentInquirySmoke$' VERBOSE=0`.
+Pinned independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCommentInquiry' VERBOSE=0`.
 
 
 ## Sequences
@@ -588,7 +588,7 @@ and comment-looking bytes belong to unquoted names: `s--suffix` and `s/*suffix*/
 never select the prefix `s`. Dots and ASCII whitespace separate components;
 quoted components preserve case and embedded dots, and doubled quotes decode
 to one quote. Names use ASCII folding and UTF8-safe 63-byte clipping.
-Input-boundary smoke: `make smoke RUN='^TestSequenceRegclassInputSmoke$' VERBOSE=0`.
+Input-boundary smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceRegclassInputSmoke$' VERBOSE=0`.
 
 Standalone selected regclass casts have column label `regclass` and export
 the visible relation name, or a schema-qualified name when shadowed/off-path,
@@ -657,7 +657,7 @@ creation authority before the move restriction.
 Temporary namespaces remain sequence-only. Ordinary CREATE TABLE into an
 initialized `pg_temp` search path or an actual own/peer temporary namespace
 rejects `0A000` before IF NOT EXISTS can skip a target, without creating storage.
-Smoke: `make smoke RUN='^TestSequenceTemporaryTableBoundarySmoke$' VERBOSE=0`.
+Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceTemporaryTableBoundarySmoke$' VERBOSE=0`.
 
 
 Reading a sequence returns one captured nonnull row with
@@ -682,17 +682,17 @@ the shared cast routing alongside the bounded int4/int8/text/bool and character
 explicit-cast matrix. Unsupported type pairs retain their documented positioned
 diagnostics; sequence support does not widen that matrix.
 
-Feature commands: `make smoke RUN='^TestSequenceSmoke$' VERBOSE=0`,
-`make test PACKAGES=./reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`,
-and `make reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`.
+Feature commands: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceSmoke$' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`,
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequence[A-Za-z0-9_]*$' VERBOSE=0`.
 The sequence families include an exact concurrent CACHE1 bag, CACHE7
 distinctness, CHAIN/failed-commit/physical-end/replacement cleanup, the full
 USAGE/SELECT/UPDATE matrix, operation-specific wrong-kind records, and
 control failure atomicity. The public smoke exercises physical-end TEMP
 cleanup as well as normal SQL and native-control round trips.
 Prepared regression commands:
-`make test PACKAGES=./reference RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$' VERBOSE=0`
-and `make reference RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSequencePrepared[A-Za-z0-9_]*$' VERBOSE=0`.
 These distinguish analyzed SQL from retained identity and exercise rename,
 schema/path/shadow/ACL/options, numeric drop/recreation, rollback and queued
 authority, coherent multi-literal groups and native temp-only replacement.

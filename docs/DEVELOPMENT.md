@@ -5,37 +5,38 @@
 ```sh
 make generate   # pinned goyacc; checked-in parser generation
 make build      # compile production packages
-make test       # uncached Docker-free tests, including smoke and dual-mode reference
 make quickcheck # ordinary units, smoke and quick-mode reference; no Docker
-make fullcheck  # generation/build, quick + real reference/race, bench and deps
-make reference  # real pinned PostgreSQL differential fixtures
-make smoke      # uncached public database/sql and controls smoke tests
-make race       # Docker-free tests with the race detector
-make test-all   # quick + full reference race suites under one aggregate deadline
+make fullcheck  # after merge: generate/build, quick + native/reference race, bench/deps
 make bench      # fresh engine + connector + pool + Ping + Close, five runs
 make deps       # list non-standard production dependencies
 ```
 
-Test targets enforce a fixed 900-second wall-clock deadline across all packages,
-including compilation, plus a per-package timeout. `make test-all` chains ordinary
-native/smoke/quick race tests and the full tagged reference race package under one
-outer deadline; slow or hanging tests must be fixed, not exempted.
-`make quickcheck` reuses `make test` for the iterative Docker-free gate.
-`make fullcheck` runs generation, build, quickcheck, test-all, the five-run startup
-benchmark and production dependency checks serially under one 900-second deadline;
-it requires Docker for pinned PostgreSQL and fails on external production dependencies.
+Each `make quickcheck` invocation enforces a fixed 900-second wall-clock deadline
+across all selected packages, including compilation, plus a per-package timeout.
+Use `RACE=1` for race-enabled tests and `REFERENCE=1 PACKAGES=./reference` for
+real pinned PostgreSQL validation (the `reference` build tag and `-args -reference=true`).
+Slow or hanging tests must be fixed, not exempted.
+Run final `make fullcheck` after merge. It runs generation, build, quick native
+tests, race-enabled native tests and real pinned PostgreSQL reference tests,
+the five-run startup benchmark and production dependency checks serially under
+one 1800-second total deadline. It requires Docker and fails on external production
+dependencies. Commit any failure remedies separately from the merged task.
+Every changed or new reference definition MUST first pass selected runs in both modes:
+`make quickcheck PACKAGES=./reference RUN='...'` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='...'`.
+Mandatory selective dual-mode proof cannot wait for final fullcheck.
 Output is quiet by default; use `VERBOSE=1` for test diagnostics, `RUN='^TestName$'`
-for selection, and `PACKAGES=./internal/parser` to scope ordinary/race tests.
+for selection, and `PACKAGES=./internal/parser` to scope tests.
 Read `Makefile` for non-standard actions. Only specialized, explicitly enabled
-benchmarks may exceed the test budget; the default startup benchmark is bounded too.
+benchmarks may exceed these deadlines; the default startup benchmark is bounded too.
 
 Every nonblank production dependency entry must be `stuntgres` or start with `stuntgres/`. goyacc is a generation tool, not a runtime dependency. lib/pq, sqlmw and testcontainers are test-only. Benchmark startup target is below 1,000,000 ns/op; report observed allocations and timings, not a timing-sensitive test assertion.
 
-The public smoke tests live in `smoke/*_test.go` and are also part of `make test`.
-`make smoke` runs the entire package, uncached and quiet unless `VERBOSE=1`.
+The public smoke tests live in `smoke/*_test.go` and are also part of `make quickcheck`.
+`make quickcheck PACKAGES=./smoke` runs the entire package, uncached and quiet unless `VERBOSE=1`.
 The baseline `TestSmoke` verifies rows, metadata, affected counts,
 Dump/Reset/Restore and a second already-open pool. Run the catalog witness with
-`make smoke RUN='^TestCatalogOwnersPublicWitness$'`.
+`make quickcheck PACKAGES=./smoke RUN='^TestCatalogOwnersPublicWitness$'`.
 Go test reports each test's pass or failure instead of standalone output labels.
 
 The explicitly enabled reference suite requires working Docker and image/module access. It uses one PostgreSQL 18.0 container pinned to `postgres:18.0-bookworm@sha256:3f55f8895c4ed50603e2fbdfc72fffeeaba3173321fee5cb825bbbeb30d9d854`, UTF8/C locale, serialized fixtures and public-schema resets. sqlmw records both direct and prepared paths; native memory handles remain available for controls. Fixtures assert independently specified outcomes in addition to parity. Reference startup failures are errors, not silent skips or mock fallbacks.
@@ -52,8 +53,8 @@ and lifecycle splits, plus the existing reference-only complements that belong
 to the migrated definitions. Select the complete query-read family in both modes:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReference(NullCount[A-Za-z0-9_]*|QueryAggregate[A-Za-z0-9_]*|CountExpression[A-Za-z0-9_]*|QueryCore[A-Za-z0-9_]*|QueryJoins[A-Za-z0-9_]*|QueryLimit[A-Za-z0-9_]*|QueryOrder[A-Za-z0-9_]*)$' VERBOSE=0
-make reference RUN='^TestReference(NullCount[A-Za-z0-9_]*|QueryAggregate[A-Za-z0-9_]*|CountExpression[A-Za-z0-9_]*|QueryCore[A-Za-z0-9_]*|QueryJoins[A-Za-z0-9_]*|QueryLimit[A-Za-z0-9_]*|QueryOrder[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(NullCount[A-Za-z0-9_]*|QueryAggregate[A-Za-z0-9_]*|CountExpression[A-Za-z0-9_]*|QueryCore[A-Za-z0-9_]*|QueryJoins[A-Za-z0-9_]*|QueryLimit[A-Za-z0-9_]*|QueryOrder[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(NullCount[A-Za-z0-9_]*|QueryAggregate[A-Za-z0-9_]*|CountExpression[A-Za-z0-9_]*|QueryCore[A-Za-z0-9_]*|QueryJoins[A-Za-z0-9_]*|QueryLimit[A-Za-z0-9_]*|QueryOrder[A-Za-z0-9_]*)$' VERBOSE=0
 ```
 
 The original query projection/bags/metadata and ORDER BY position pilots are
@@ -64,8 +65,8 @@ legacy reference and pilot assertions in 17 untagged `TestReferenceBytea*`
 definitions. Select every BYTEA definition in either mode:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0
-make reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBytea[A-Za-z0-9_]*$' VERBOSE=0
 ```
 
 It also discovers the migrated INSERT SELECT, UPDATE and DELETE/RETURNING
@@ -80,8 +81,8 @@ normalized complete rows and owned middleware recordings remain checked afterwar
 Select every resulting DML definition, including retained tagged oracle edges:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|UpdateCore[A-Za-z0-9_]*|DeleteCore[A-Za-z0-9_]*|DeleteReturning[A-Za-z0-9_]*)$' VERBOSE=0
-make reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|UpdateCore[A-Za-z0-9_]*|DeleteCore[A-Za-z0-9_]*|DeleteReturning[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|UpdateCore[A-Za-z0-9_]*|DeleteCore[A-Za-z0-9_]*|DeleteReturning[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(InsertSelect[A-Za-z0-9_]*|UpdateCore[A-Za-z0-9_]*|DeleteCore[A-Za-z0-9_]*|DeleteReturning[A-Za-z0-9_]*)$' VERBOSE=0
 ```
 
 Scalar-type migration merges all 63 assigned root interaction tests from 25 files
@@ -91,8 +92,8 @@ mode, is selected with:
 
 ```sh
 SCALAR='^TestReference(Character[A-Za-z0-9_]*|Float[A-Za-z0-9_]*|Name[A-Za-z0-9_]*|Numeric[A-Za-z0-9_]*|OID[A-Za-z0-9_]*|Smallint[A-Za-z0-9_]*|TypeCore[A-Za-z0-9_]*|UUID[A-Za-z0-9_]*)$'
-make test PACKAGES=./reference RUN="$SCALAR" VERBOSE=0
-make reference RUN="$SCALAR" VERBOSE=0
+make quickcheck PACKAGES=./reference RUN="$SCALAR" VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN="$SCALAR" VERBOSE=0
 ```
 
 Raw cells, empty-result descriptors and owned middleware recordings are checked
@@ -126,8 +127,8 @@ transaction/savepoint/session publication, own-sequence CHECK evaluation and
 native reconstruction. Select the entire family in both modes:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReferenceIdentity[A-Za-z0-9_]*$' VERBOSE=0
-make reference RUN='^TestReferenceIdentity[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceIdentity[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIdentity[A-Za-z0-9_]*$' VERBOSE=0
 ```
 
 The same definitions retain actual direct/prepared routes and reused held
@@ -153,8 +154,8 @@ and explicit serial/identity and mixed SET/DROP DEFAULT-list capability boundari
 Select this complement with:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReferenceAlterAddColumnReview' VERBOSE=0
-make reference RUN='^TestReferenceAlterAddColumnReview' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceAlterAddColumnReview' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAlterAddColumnReview' VERBOSE=0
 ```
 
 Engine package units separately exercise real provider admission before DEFAULT/
@@ -171,9 +172,9 @@ view oracles and replacement families:
 
 ```sh
 VIEWS_RUN='^TestReferenceView(ProjectedBackingSortGroupAndConcurrency|WriteCapabilityBoundary|InternalCHARStaysProviderBounded|CanonicalLabels|IntegratedOIDNativeRoundTrip|IntegratedBetweenDefinition|AnalyzedLiteralPersistence|LiteralOccurrencesBeforeGrouping|TemporalEndpointAndTypedNullPersistence|ContextualScalarLiteralNativeRoundTrip|CatalogCHARLiteralReconstruction|JoinedDefinition|JoinedReplayAtomicityAndDynamicConsumers|JoinedNamespaceReplay|JoinedSourcesAndFrozenLayouts|JoinedCompactLayouts|JoinedRepeatedOccurrences|NativeNestedSecondDumpAfterTemporaryRemap|Rows|Barrier|SourcesAndCatalogLinks|CatalogMetadata|CatalogInputs|NestedDependencies|IdentityDependenciesAndRestore)$'
-make test PACKAGES=./reference RUN="$VIEWS_RUN" VERBOSE=0
-make reference RUN="$VIEWS_RUN" VERBOSE=0
-make race PACKAGES=./reference RUN="$VIEWS_RUN" VERBOSE=0
+make quickcheck PACKAGES=./reference RUN="$VIEWS_RUN" VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN="$VIEWS_RUN" VERBOSE=0
+make quickcheck RACE=1 PACKAGES=./reference RUN="$VIEWS_RUN" VERBOSE=0
 ```
 
 View rows assert raw OID `int64` cells on native and nonnil byte payloads on pq;
@@ -200,12 +201,12 @@ The unrelated `ViewOracle`, `FrozenRelativeLiteralOracle`,
 replacement families. Keep their Docker-requiring selection separate:
 
 ```sh
-make reference RUN='^TestReferenceView(Oracle|FrozenRelativeLiteralOracle|ContextualDateStyleOracle|OriginalInvokerControls|SequenceCatalogPrivateVisibility)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceView(Oracle|FrozenRelativeLiteralOracle|ContextualDateStyleOracle|OriginalInvokerControls|SequenceCatalogPrivateVisibility)$' VERBOSE=0
 ```
 
-The view migration's aggregate verification uses an external task-specific
-`timeout --signal=KILL 300s make test-all VERBOSE=0` bound for one full invocation;
-this does not change the shared Makefile's 900-second policy.
+The view migration's final aggregate verification uses
+`timeout --signal=KILL 1800s make fullcheck VERBOSE=0` after merge;
+commit any failure remedies separately.
 
 ### Dual-mode transactions, savepoints and locking
 
@@ -222,14 +223,13 @@ Use this bounded family selector rather than former root SQL test names:
 
 ```sh
 LOCKS_RUN='^TestReference(LockModes|RelationDeadlock|RelationLock|RowLock|Savepoints|Transaction)[A-Za-z0-9_]*$'
-make test PACKAGES=./reference RUN="$LOCKS_RUN" VERBOSE=0
-go test -count=1 -run "$LOCKS_RUN" ./reference -args -reference=false
-make reference RUN="$LOCKS_RUN" VERBOSE=0
-make race PACKAGES=./reference RUN="$LOCKS_RUN" VERBOSE=0
+make quickcheck PACKAGES=./reference RUN="$LOCKS_RUN" VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN="$LOCKS_RUN" VERBOSE=0
+make quickcheck RACE=1 PACKAGES=./reference RUN="$LOCKS_RUN" VERBOSE=0
 ```
 
 These are family selections, not an exact catalog inventory: the tagged
-`make reference` command additionally selects retained PostgreSQL-only controls
+`make quickcheck REFERENCE=1 PACKAGES=./reference` command additionally selects retained PostgreSQL-only controls
 within these prefixes. ACL/privilege, inheritance, primary-key row-lock and role
 lifetime controls remain tagged; the cross-family
 `TestReferenceControlTransactionsDiagnostics` is unchanged and outside this
@@ -260,14 +260,14 @@ in engine tests. PostgreSQL phases observe actual waits, PIDs and object identit
 Two focused root units contain no SQL:
 
 ```sh
-make test PACKAGES=. RUN='^TestTransaction(TerminalReasons|RawReuseState)$' VERBOSE=0
+make quickcheck PACKAGES=. RUN='^TestTransaction(TerminalReasons|RawReuseState)$' VERBOSE=0
 ```
 
 Terminal reasons preserve distinct CleanClose, Terminated and Abandoned mechanics;
 raw reuse preserves local active-state invariants. They are not substitutes for
-the migrated public rollback/publication witnesses. The aggregate migration gate
-is `timeout --signal=KILL 300s make test-all VERBOSE=0`, covering native and full
-tagged PostgreSQL race suites once; shared Makefile deadlines remain unchanged.
+the migrated public rollback/publication witnesses. The final aggregate migration gate
+is `timeout --signal=KILL 1800s make fullcheck VERBOSE=0` after merge, covering
+generation/build, quick native and native/reference race tests, bench and deps.
 
 ### Dual-mode CHECK constraint interactions
 
@@ -278,8 +278,8 @@ expression or opposite-direction lock witnesses:
 
 ```sh
 RUN='^TestReferenceCheck(AlterCandidates|AlterCandidateTransactions|AlterTransactionalPublication|AlterOwnedSequenceCandidate|AlterOwnedSequenceAutoConstraint|Controls|Lifecycle|LikeAndConstraintCollisions|ExplicitTransactionAndSavepoint|DefinitionDiagnostics|Names|OutputAndUTF8Names|UnicodePosition|MixedConstraintDiagnostics|PreparedExecutionOutputEnvironment|Review2OrderReverseMixed|Review2OrderMultipleOwners|Review2OrderLogicalRoundtrip|Review2SchemaPrivateDropCancellation|Review2SchemaPrivateDropOutcomes|ReviewDependencyRestrictComplete|ReviewDependencyPrivateDeletionNonwaiting|ReviewDependencyRestrictReversedDeclaration|ReviewReplayOwnedSequence|ReviewReplayHistory|ReviewReplayHistoryPublicRestore|ReviewScalarCommentDML|ReviewScalarCommentDMLRoutes|ReviewScalarNonNullMissingOID|ReviewScalarPrivateCommentBoundary|ScalarFamilies|ScalarConstants|VolatileEffects|VolatileSequenceDependency|SequenceDropTransactionalCandidates|CorePreparedFrames|CoreAtomicity|CompleteRowAndAtomicity)$'
-make test PACKAGES=./reference RUN="$RUN" VERBOSE=0
-make reference RUN="$RUN" VERBOSE=0
+make quickcheck PACKAGES=./reference RUN="$RUN" VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN="$RUN" VERBOSE=0
 ```
 
 The same definitions assert completed-row/default inputs, TRUE/NULL/FALSE,
@@ -304,12 +304,12 @@ unrelated tagged inheritance, catalog, privilege and server-lock complements:
 
 ```sh
 RUN='^TestReference(AlterDefault(BooleanGrammar|Boundaries|Controls|Deferred|DeferredControls|Diagnostics|Eligibility|EmptyDemand|Lifecycle|Ownership)|AlterDropColumn(Comments|Controls|DistinctOwnerRestoreBoundary|NativeDependencyCapabilityBoundary|Notices|ParserBoundaries|PreparedLifetime|QuotedExpressionDiagnostics|Shape|ShapePositions|TransactionalDDL|WaitCancellationAndCommittedInsert|ZeroColumnControls)|AlterNullability(ActionLists|AuthorizationAndPhase|AuthorizationLifetime|ControlEpoch|Controls|DependencyAtomicity|FailingActionNotice|FreshValidation|FreshValidationAfterDelete|HeldValidation|Lifecycle|Names|OwnDeletesAndSequences|PreparedMetadata|ReviewActionMatrix|ReviewCascadeNotice|ReviewCombinedPeer|ReviewDependencyTransactions|ReviewFirstRRSnapshot|ReviewGeneratedCollision|ReviewProjectedUpdate|ReviewRemainingDependency|ReviewRenameWholeInput|ReviewRetainedPositiveDML|ReviewSnapshotTimelines|ReviewSuccessiveDependencies|TransactionBoundary|Transactions|Validation|WholeInput)|AlterRename(Controls|ControlsOwner|Diagnostics|LockTimeout|Prepared|Syntax|TableTargets|TransactionBoundary|Values)|AlterSchema(CollisionsAndSyntax|GenericAndTemporaryBoundaries|NativeControls|QuotedCollision|RetainedMetadata|SearchPathAndViews|TransactionBoundary|ValuesAndHeldPlans|ViewsAndFailedRestore)|Default(ArithmeticControls|ArithmeticPlanningDecisive|ArithmeticPlanningFailures|ByteaControls|CastControls|CastDeferredInputControls|CastParameterProhibitions|CharacterCastControls|CharacterCastDeferredAssignment|DateCompoundControls|DeclarationPrecedence|DecoratedValuesBoundary|DestinationTypes|DiagnosticPrecedence|DiagnosticsAndConversionTiming|ExistingTableSkipNotice|ExpressionsAndDescriptorLifecycle|NativeControls|ParameterUtilityArgumentBoundary|PredicateControls|PredicateOuterSyntax|PredicateProhibitions|QueryPlanningAnalysis|QueryPlanningDecisive|QueryPlanningRequiredBranches|QuerySourceAtomicityAndCancellation|QuerySourceControls|QuerySourceDeferredFailure|QuerySourceHeldPrepared|RegressionBeforeFix|SchemaAtomicity|TemporalEndpointControls|TransactionFailureAndExplicitBypass|ValuesPlanningDecisive|ValuesPlanningRequiredBranches|ValuesPlanningSelectiveColumns)|InsertDefault(MixedParameters)|NotNull(AbsenceAnalysisPhases|AlterNoticesAndOwnership|ColumnLocalDeclarations|Controls|ControlsExternalIOHasNoTargetLock|CreateSystemTarget|CurrentCommandNamesAndCompatibleReuse|DeclarationsAndNames|DropSystemColumnDiagnostics|ExternalTransactionalDDL|FormsAndAlter|InheritanceCompleteInputAndNoEffects|LikeConstraintProcessingOrder|OwnerControls|PublicExcludedSyntaxAndQuotedDiagnostics|RestoreAtomicity|RetainedParameterizedStatements|SystemColumnSetAddBoundaries)|TableCore(AuthorizationAndOwnershipCleanup|Diagnostics|HeldCursorAndPreparedRebinding|NativeControlRoundTrip|OrderedLikeShapeAndDrop|QuotedDuplicateRelation|QuotedTypeNamesAndBoundaries|SemanticSkipNotices))$'
-make test PACKAGES=./reference RUN="$RUN" VERBOSE=0
-make reference RUN="$RUN" VERBOSE=0
+make quickcheck PACKAGES=./reference RUN="$RUN" VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN="$RUN" VERBOSE=0
 ```
 
-The same selection with `go test -tags reference -run "$RUN" ./reference -args
--reference=false` is Docker-free. Native controls retain eager rows and live
+The same selection with `make quickcheck PACKAGES=./reference RUN="$RUN"` is
+Docker-free. Native controls retain eager rows and live
 metadata until after DDL/Reset/Restore; PostgreSQL portals close before conflicting
 DDL and consume the unchanged owner-bearing dump through genuine SQL phases.
 Public NOWAIT queue probes and external-writer channels establish native ordering
@@ -334,8 +334,8 @@ precision/scale, held parameter recovery, transactions and cancellation.
 Select the whole family in both modes:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0
-make reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Arithmetic|Bitwise|Math)[A-Za-z0-9_]*$' VERBOSE=0
 ```
 
 The tagged command also includes retained PostgreSQL-only family complements.
@@ -347,9 +347,9 @@ and derived NUMERIC DecimalSize differ: native computed NUMERIC has unknown typm
 whereas pq exposes unconstrained `(65535,65531,true)`. Both are independently
 asserted before fixture normalization. Native-excluded scalar-input and no-FROM
 spellings retain their errors alongside exact PostgreSQL results/diagnostics.
-For this migration's stricter aggregate proof, use
-`timeout --signal=KILL 300s make test-all VERBOSE=0`; the shared target's 900-second
-deadline is unchanged.
+For this migration's final aggregate proof after merge, use
+`timeout --signal=KILL 1800s make fullcheck VERBOSE=0`;
+commit any failure remedies separately.
 
 The scalar-expression migration unions all 62 assigned root tests with existing
 reference assertions in 93 untagged definitions across BETWEEN, explicit casts,
@@ -366,8 +366,8 @@ PostgreSQL has independently specified real SQL consumer/state/cancellation
 phases, not fabricated fixture controls. Select the complete scalar family:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
-make reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
 ```
 
 Metadata expectations distinguish computed targets from stored/identity columns:
@@ -429,8 +429,8 @@ retained tagged oracle complements):
 
 ```sh
 RUN='^TestReference(DateDocumentedInputsAndCivilBounds|DateBindingRawMetadataAndNull|DateHeldBindingsAndCancellation|DateOrderingAndOperators|DateGregorianOrdering|DateDecodedCivilInputs|DateRepeatedSeparatorsContextualAndBound|DateDiagnosticsAndAtomicity|DateFullDiagnosticsAtomicityAndBoundaries|DateTimeParameterRangeDiagnostics|DateDecodeDiagnosticsAndModifierPhases|DateModifierDiagnostics|DateNotNullTransaction|DateTypedAssignmentDiagnostics|DateModifierConversionPrecedence|DateDumpRestoreAndPostgresReplay|DateRetainedCursorsAndCancellation|DateConcurrentPreparedOwnership|DateCanceledStagedRestorePreservesSnapshot|DatePostgresTimestampComparisons|DateTransactionRelativeInputs|TimeValuesParametersAndMetadata|TimeDeclarationsAndRetainedMetadata|TimeAcceptedInputsPrecisionAndOrdering|TimeHeldParametersAndOwnership|TimeDiagnosticsAndAtomicity|TimeDiagnosticBoundariesAndTransaction|TimeModifierDiagnostics|TimeNoticePhases|TimeNumericPrecision|TimeReviewClockPrecedence|TimeReviewAssignmentIdentity|TimeClocksAndAtomicity|TimeContextualPreparedClocksAndCancellation|TimePreparedCancellationAndArgumentCount|TimeDumpRestoreAndPostgresReplay|TimeRetainedCursorsAndCancellation|TimeOptionalDateCompletion|TimestampDocumentedInputs|TimestampHeldCorpusComparisons|TimestampPrecisionAndCivilParameters|TimestampCivilParameterOwnership|TimestampDeclarationsOccurrenceSizingAndOwnership|TimestampPublicDescriptionAndPreparedRelatives|TimestampSettingArgumentsUseScopeEnvironmentWithoutNewCasts|TimestampInvalidDeclarationNeverPublishesAndAbortsTransaction|TimestampQuotedUnicodeTypesAndKeywordIdentifiers|TimestampOrdinalBoundaryOrdering|TimestampBranchErrorsAbortTransaction|TimestampBranchCanonicalControlsAndComparison|TimestampNoisyNowPhysicalPrepare|TimestampTimeFractionConversion|TimestampSQLTransactionChainClock|TimestampClockAndPreparedLifetime|TimestampContextualPreparedConstants|TimestampCoreSpecialZoneAdjacency|TimestampPrecisionNoticePhase|TimestampOrderingAndNativeDump|TimestampRetainedNativeCursorAndRoundTrip|TimestampRestoreDiagnosticsAndCancellation|TimestampDiagnosticsAndAtomicity|TimestampEmptyDiagnosticsAndNotNullTransaction|TimestampDiagnosticModifiersAndInference|TimestampTimeParameterRangeDiagnostics|TimestampTimeDisplacementBounds|TimestampNewInputErrorsAbortTransaction|TimestampGenericNumericPrecisionExecution|TimestampPrecisionScannerDiagnostics)$'
-make test PACKAGES=./reference RUN="$RUN" VERBOSE=0
-make reference RUN="$RUN" VERBOSE=0
+make quickcheck PACKAGES=./reference RUN="$RUN" VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN="$RUN" VERBOSE=0
 ```
 
 Their single definitions run the real public stuntgres `database/sql` adapter
@@ -438,33 +438,31 @@ against independently hardcoded expectations by default. The explicit boolean
 test-binary flag adds real PostgreSQL; the build tag is not the mode selector:
 
 ```sh
-go test ./reference
-go test ./reference -args -reference=false
-go test ./reference -args -reference=true
-go test -tags reference ./reference -args -reference=true
+make quickcheck PACKAGES=./reference
+make quickcheck REFERENCE=1 PACKAGES=./reference
 ```
 
 Absent/false quick mode does not contact Docker, fetch an image, open PostgreSQL
 or read server state. Explicit true starts the pinned oracle before test execution,
 even if selection matches no tests; startup/configuration errors fail visibly,
 never skip or fall back. Only `./reference` accepts this custom flag: do not pass
-it to unrelated package binaries. `make test` and `make race` discover migrated
-quick scenarios normally. `make reference` selects true and includes every
-legacy tagged case. `make test-all` first runs `go test -race ./...`, then
-`go test -race -tags reference ./reference -args -reference=true`, with uncached
-test flags and one shared 900-second wall-clock bound.
+it to unrelated package binaries. `make quickcheck` and `make quickcheck RACE=1`
+discover migrated quick scenarios normally. `make quickcheck REFERENCE=1 PACKAGES=./reference`
+selects true and includes every legacy tagged case. Final `make fullcheck` runs
+generation/build, quick native tests, race-enabled native and real pinned PostgreSQL
+reference tests, bench and deps under one shared 1800-second wall-clock bound.
 
-The scalar migration's acceptance gate imposes a tighter, explicit **single
-300-second aggregate deadline**, distinct from the repository's 900-second
-defaults. With `RUN` and `PACKAGES` selection overrides unset, use:
+The scalar migration's original acceptance gate imposed a tighter, explicit single
+300-second aggregate deadline. For current final verification after merge, with
+`RUN` and `PACKAGES` selection overrides unset, use:
 
 ```sh
-timeout --signal=KILL 300s make test-all VERBOSE=0 TEST_FLAGS='-count=1 -timeout=300s'
+timeout --signal=KILL 1800s make fullcheck VERBOSE=0
 ```
 
-The outer timeout covers compilation and both complete race suites together;
-the command-line Go timeout is also 300 seconds. A measured runtime below
-300 seconds alone is not evidence that this stricter bound was enforced.
+The outer timeout covers the complete fullcheck together. Commit failure remedies
+separately. The original 300-second gate remains historical evidence, not the
+deadline for current fullcheck invocations.
 
 The tag retains untouched legacy PostgreSQL-only definitions. A tagged selection
 restricted to mode-aware migrated scenarios with `-reference=false` (flag after
@@ -477,8 +475,8 @@ cancellation edges remain tagged. Root `queryCoreRows`, `nullCountError`,
 `compareOpsRows`, `compareNullRows` and `castExplicitMetadata` remain for
 unmigrated callers, not as SQL test bodies. Join product/alias/prepared/held-row
 and physical view-provenance witnesses now live in untagged reference scenarios;
-`make test PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`
-and the same RUN with `make reference` exercise the migrated assertion union.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`
+and the same RUN with `make quickcheck REFERENCE=1 PACKAGES=./reference` exercise the migrated assertion union.
 Untagged migrated definitions use the mode-aware fixture; host Dump/Reset/Restore
 and raw native cursor phases use its unwrapped native pool, with independently
 specified SQL consumer phases on PostgreSQL.
@@ -493,8 +491,8 @@ remain only for callers in unmigrated families. Select the whole migrated family
 and its retained tagged oracle complements with the same anchored expression:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReference(Sequence[A-Za-z0-9_]*|Random[A-Za-z0-9_]*)$' VERBOSE=0
-make reference RUN='^TestReference(Sequence[A-Za-z0-9_]*|Random[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(Sequence[A-Za-z0-9_]*|Random[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Sequence[A-Za-z0-9_]*|Random[A-Za-z0-9_]*)$' VERBOSE=0
 ```
 
 Each selected backend independently checks rows, metadata, complete logical
@@ -539,11 +537,11 @@ backend expectations, and the PostgreSQL pre-canceled seed witness uses the
 cancellation and unchanged-stream assertion.
 
 
-For example, these tagged legacy join diagnostics explicitly own a real pair
-even with the migrated runtime mode disabled. This command requires Docker:
+For example, these tagged legacy join diagnostics explicitly own a real pair.
+This command requires Docker:
 
 ```sh
-go test -tags reference -count=1 -run '^TestReferenceQueryJoins(Diagnostics|DiagnosticsOracle|ScopeDiagnostics|ScopeDiagnosticsOracle)$' ./reference -args -reference=false
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryJoins(Diagnostics|DiagnosticsOracle|ScopeDiagnostics|ScopeDiagnosticsOracle)$'
 ```
 
 Their shared SQL seed is reused without making migrated quick fixtures start
@@ -583,8 +581,8 @@ The focused byte-copy regression and existing row comparator remain unchanged.
 For a single migrated lifecycle definition, use the same exact name in both modes:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReferenceQueryJoinsExportAndSchemaOwnership$' VERBOSE=0
-make reference RUN='^TestReferenceQueryJoinsExportAndSchemaOwnership$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryJoinsExportAndSchemaOwnership$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryJoinsExportAndSchemaOwnership$' VERBOSE=0
 ```
 
 Mode-aware pools use a fresh native driver per fixture; wrapped and native control
@@ -621,7 +619,7 @@ silently remapped. Pooled administrative session state is discarded before
 schema resets. Sequence queue witnesses observe the captured local OID and
 actual blocker, not a hard-coded relation name or sleep-based timing.
 
-Reference tests live in the dedicated `reference/` external test package and use only the public stuntgres API. Shared setup and helpers belong in `reference/fixture_test.go`; functional groups belong in separate test files of at most 750 lines each. `make reference` runs these fixtures uncached, with `VERBOSE=1` available for diagnostics.
+Reference tests live in the dedicated `reference/` external test package and use only the public stuntgres API. Shared setup and helpers belong in `reference/fixture_test.go`; functional groups belong in separate test files of at most 750 lines each. `make quickcheck REFERENCE=1 PACKAGES=./reference` runs these fixtures uncached, with `VERBOSE=1` available for diagnostics.
 The cohesive common fixture is exempt from the 750-line limit; it keeps container lifecycle, diagnostic assertions, notice connections and middleware recording together.
 
 Implicit INSERT and UPDATE diagnostic fixtures independently specify preparation versus execution failure stages, not just backend agreement. Native engine tests also use test-owned contexts to deterministically cancel after row staging and immediately before publication, checking complete sentinel preservation and subsequent engine usability without sleeps or production hooks.
@@ -633,8 +631,8 @@ existing reference definitions into 80 untagged scenarios (48 timezone, 32
 INTERVAL), each at most 150 lines. Select the complete family in both modes:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReference(Interval[A-Za-z0-9_]*|Timezone[A-Za-z0-9_]*)$' VERBOSE=0
-make reference RUN='^TestReference(Interval[A-Za-z0-9_]*|Timezone[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReference(Interval[A-Za-z0-9_]*|Timezone[A-Za-z0-9_]*)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(Interval[A-Za-z0-9_]*|Timezone[A-Za-z0-9_]*)$' VERBOSE=0
 ```
 
 These preserve physical settings, captured defaults/views/cursors, DST and
@@ -646,7 +644,7 @@ backend's own captured instant rather than querying PostgreSQL in quick mode.
 Real server cancellation and schema-authority witnesses are guarded PostgreSQL
 phases, not fake native success. Native controls use the unwrapped fixture pool.
 Root `timezoneRows`/`timezoneExec` remain only for unmigrated temporal callers.
-This migration's aggregate verification uses an outer 300-second deadline;
-the shared Makefile's documented 900-second deadline is unchanged.
+This migration's original aggregate verification used an outer 300-second deadline.
+Current quickcheck invocations use 900 seconds; final fullcheck after merge uses 1800 seconds.
 
 Authoritative references: [PostgreSQL 18 commands](https://www.postgresql.org/docs/18/sql-commands.html), [SQLSTATE codes](https://www.postgresql.org/docs/18/errcodes-appendix.html), [testcontainers PostgreSQL API](https://golang.testcontainers.org/modules/postgres/), and [pinned sqlmw APIs](https://github.com/ngrok/sqlmw/blob/97c9c04efc79/interceptor.go). Local PostgreSQL source is 20devel and useful for implementation research; the pinned PostgreSQL 18.0 runtime is the compatibility oracle.

@@ -208,7 +208,7 @@ default-allow. The reference harness recreates public, so ordinary-owner
 fixtures explicitly run `GRANT USAGE, CREATE ON SCHEMA public TO PUBLIC` on
 the privileged PostgreSQL setup connection only.
 
-`go test -count=1 -run '^TestRoleSmoke$' ./smoke` checks direct/prepared aliases
+`make quickcheck PACKAGES=./smoke RUN='^TestRoleSmoke$'` checks direct/prepared aliases
 and diagnostics, NAME metadata, held prepared statements across switches,
 owner/nonowner isolation, genuinely distinct trusted authenticators,
 reuse/replacement, dependency failures and owner-preserving native controls.
@@ -216,9 +216,9 @@ It asserts role creation defaults, owner access versus 42501 rejection,
 owner restoration, legacy control acceptance, atomic failures and successful
 role cleanup. Go test reports the result.
 
-Focused checks: `go test -run '^Test(Role|Authorization)' ./...`,
-`go test -count=1 -run '^TestRoleSmoke$' ./smoke`, and the genuine pinned suite
-`go test -tags reference -run '^TestReferenceRole' -count=1 -v ./reference`.
+Focused checks: `make quickcheck PACKAGES=./... RUN='^Test(Role|Authorization)'`,
+`make quickcheck PACKAGES=./smoke RUN='^TestRoleSmoke$'`, and the genuine pinned suite
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRole' VERBOSE=1`.
 
 ## Schemas and search path
 
@@ -313,8 +313,8 @@ normal USAGE/table ACL checks. No ACL grants are synthesized or retained.
 Unsupported explicit namespace,
 table or column ACLs fail Dump before any output. Invalid Restore leaves the
 target catalog untouched. Bootstrap-only public dump bytes remain unchanged.
-Feature witnesses: `go test -count=1 -run '^TestSchemaSmoke$' ./smoke` and
-`go test -tags reference -count=1 -run '^TestReferenceSchema' ./reference`.
+Feature witnesses: `make quickcheck PACKAGES=./smoke RUN='^TestSchemaSmoke$'` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSchema'`.
 
 
 

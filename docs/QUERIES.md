@@ -86,7 +86,7 @@ checks strict BOOL NULL, not path membership; path reversal is observed separate
 through public NAME[] output. NAME[] comparison/order and plain TIME AT are not
 added by reconstruction; admitted AT inputs are TIMESTAMP/TIMESTAMPTZ/TIMETZ.
 
-Feature smoke: `make smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDeparseConstraintsSmoke$' VERBOSE=0`.
 
 
 ## LIMIT, OFFSET and FETCH — change note (changelog)
@@ -165,8 +165,8 @@ definitions/dependencies, survive renames and native Dump/Restore, and may
 canonicalize FETCH to LIMIT and ALL to NULL. Held public exports remain stable
 through later execution, Close and Reset/Restore.
 
-Feature smoke: `make smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
-Independent oracle: `make reference RUN='^TestReferenceQueryLimit' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
+Independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryLimit' VERBOSE=0`.
 
 ## Query labels and relation aliases — diagnostic fidelity change note
 
@@ -218,9 +218,9 @@ the existing native Dump/Restore path; finalized results survive replacement.
 This is a diagnostic correction and focused alias coverage, not new DISTINCT
 or grouping support.
 
-Public feature smoke: `make smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
-Independent reference: `make reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
-PG-only diagnostics: `make reference RUN='^TestReferenceQueryAliasesDiagnostics$$/postgres' VERBOSE=0`.
+Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryAliasesSmoke$' VERBOSE=0`.
+Independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
+PG-only diagnostics: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAliasesDiagnostics$$/postgres' VERBOSE=0`.
 
 ## Expression ordering — change note (changelog)
 
@@ -304,9 +304,9 @@ bare ORDER key for that nested output-override fixture: the original view and it
 own definition replay have different sequence-to-row associations. Native definition
 compatibility does not assume PostgreSQL's own deparse fidelity in that case.
 
-Feature smoke: `make smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
-View persistence smoke: `make smoke RUN='^TestQueryOrderViewSmoke$' VERBOSE=0`.
-Independent pinned18.0 reference: `make reference RUN='^TestReferenceQueryOrder' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryOrderSmoke$' VERBOSE=0`.
+View persistence smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryOrderViewSmoke$' VERBOSE=0`.
+Independent pinned18.0 reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryOrder' VERBOSE=0`.
 
 ## Inner and cross joins — change note
 
@@ -456,9 +456,9 @@ backend-specific extra scanned locks are independently asserted; selected and
 preserved real marked rows lock, LIMIT0 locks none, and rollback releases grants.
 
 
-Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
 Independent pinned PostgreSQL behavior and full diagnostic coverage:
-`make reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
 
 ## Persistent view sources — change note
 
@@ -481,9 +481,9 @@ mutate stored definitions, replace source identity pins or change owner/invoker
 authorization; timezone catalog-view population remains a separate capability.
 
 Temporal view regression smoke:
-`make test PACKAGES=./reference RUN='^TestReferenceTimezoneReviewView[A-Za-z0-9_]*$' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneReviewView[A-Za-z0-9_]*$' VERBOSE=0`.
 Independent pinned PostgreSQL18.0:
-`make reference RUN='^TestReferenceTimezoneReviewView[A-Za-z0-9_]*$' VERBOSE=0`.
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimezoneReviewView[A-Za-z0-9_]*$' VERBOSE=0`.
 
 Explicit SELECT target `AS label` and eligible bare labels supply frozen output
 metadata and preserve view labels during definition reconstruction. CREATE
@@ -504,8 +504,8 @@ mode-aware definitions. The ADD COLUMN/NATURAL-key freeze complement now runs
 in both modes; host invalid/canceled Restore controls remain native-only:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReferenceView(JoinedDefinition|JoinedReplayAtomicityAndDynamicConsumers)$' VERBOSE=0
-make reference RUN='^TestReferenceView(JoinedDefinition|JoinedReplayAtomicityAndDynamicConsumers)$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceView(JoinedDefinition|JoinedReplayAtomicityAndDynamicConsumers)$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceView(JoinedDefinition|JoinedReplayAtomicityAndDynamicConsumers)$' VERBOSE=0
 ```
 
 ## Grouping and count — change note
@@ -651,9 +651,9 @@ Existing native multi-statement and INSERT RETURNING parser boundaries remain
 eligibility does not add explicit casts to TEXT: use raw aggregate output and
 existing typed-column assignment or admitted typed parameter casts.
 
-Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceAnyValueSmoke$' VERBOSE=0`.
-Full shared contracts: `make test PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`
-and `make reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValueSmoke$' VERBOSE=0`.
+Full shared contracts: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
 Each backend asserts membership independently when multiple candidates exist.
 
 ### Interval average — change note
@@ -687,8 +687,8 @@ use the existing authority. Numeric AVG is valid PostgreSQL but native0A000.
 Native Dump/Restore preserves stored interval inputs/views, never aggregate state.
 
 Public feature smoke, using independently pinned PostgreSQL18.0 expectations:
-`make test PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
-and `make reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
 
 This does not admit standalone SELECT without FROM,
 aggregates other than count/bool_and/bool_or/every/avg(interval)/any_value, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
@@ -701,20 +701,20 @@ exceptions and INSERT-only producer rules remain separate and unchanged.
 Feature checks (repository root, quiet output):
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
-make test PACKAGES=./internal/engine RUN='^TestQueryAggregate' VERBOSE=0
-make test PACKAGES=./internal/parser RUN='^TestQueryAggregate' VERBOSE=0
-make test PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0
-make test PACKAGES=./internal/engine RUN='^TestBooleanAggregate' VERBOSE=0
-make test PACKAGES=./internal/parser RUN='^TestBooleanAggregate' VERBOSE=0
-make reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0
-make test PACKAGES=./reference RUN='^TestReferenceBooleanAggregateMigrationLifecycle$' VERBOSE=0
-make test PACKAGES=./internal/sqltype RUN='^TestGrouping' VERBOSE=0
-make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
-make test PACKAGES=./reference RUN='^TestReferenceQueryAggregateSmokeMigration$' VERBOSE=0
-make test PACKAGES=./reference RUN='^TestReferenceCountExpression' VERBOSE=0
-make reference RUN='^TestReferenceCountExpression' VERBOSE=0
-make test PACKAGES=./reference RUN='^TestReferenceCountExpressionSmokeMigration$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestQueryAggregate' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestQueryAggregate' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0
+make quickcheck PACKAGES=./internal/engine RUN='^TestBooleanAggregate' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestBooleanAggregate' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceBooleanAggregateMigrationLifecycle$' VERBOSE=0
+make quickcheck PACKAGES=./internal/sqltype RUN='^TestGrouping' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAggregateSmokeMigration$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceCountExpression' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCountExpression' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceCountExpressionSmokeMigration$' VERBOSE=0
 ```
 
 Query-read test migration carries the complete 67-test root assertion union into
@@ -803,11 +803,11 @@ pg_dump, disk durability or wire-server APIs.
 Feature checks (run from the repository root):
 
 ```sh
-make test PACKAGES=./internal/parser RUN='^TestInsertSelect' VERBOSE=1
-make test PACKAGES=./internal/engine RUN='^TestInsertSelect' VERBOSE=1
-make test PACKAGES=./reference RUN='^TestReferenceInsertSelect[A-Za-z0-9_]*$' VERBOSE=0
-make reference RUN='^TestReferenceInsertSelect[A-Za-z0-9_]*$' VERBOSE=0
-make smoke RUN='^TestInsertSelectSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./internal/parser RUN='^TestInsertSelect' VERBOSE=1
+make quickcheck PACKAGES=./internal/engine RUN='^TestInsertSelect' VERBOSE=1
+make quickcheck PACKAGES=./reference RUN='^TestReferenceInsertSelect[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceInsertSelect[A-Za-z0-9_]*$' VERBOSE=0
+make quickcheck PACKAGES=./smoke RUN='^TestInsertSelectSmoke$' VERBOSE=0
 ```
 
 ## DELETE rows
@@ -903,9 +903,9 @@ UPDATE (where NEW is the actual update replacement).
 Physical ctids/tuple error Context and PostgreSQL wire/C source fields are not
 fabricated by native diagnostics.
 
-Feature commands: `make smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`,
-`make test PACKAGES=./reference RUN='^TestReferenceDeleteReturning[A-Za-z0-9_]*$' VERBOSE=0`,
-and `make reference RUN='^TestReferenceDeleteReturning[A-Za-z0-9_]*$' VERBOSE=0`.
+Feature commands: `make quickcheck PACKAGES=./smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteReturning[A-Za-z0-9_]*$' VERBOSE=0`,
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteReturning[A-Za-z0-9_]*$' VERBOSE=0`.
 
 
 Immutable row identities/end roots preserve READ COMMITTED views, duplicates,
@@ -960,7 +960,7 @@ Held statements recheck at Execute. Ordinary (nonlocking) SELECT, settings,
 controls and supported ACCESS EXCLUSIVE LOCK remain allowed. Locking SELECT
 uses analysis-before-read-only execution diagnostics like DML. Failures
 abort/discard prior private work.
-Feature smoke: `make smoke RUN='^TestTransactionIsolationSmoke$$' VERBOSE=1`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTransactionIsolationSmoke$$' VERBOSE=1`.
 
 INSERT query sources use that same live view, including earlier own deletions:
 self-insert copies only captured survivors, never deleted history or its new batch.
@@ -973,11 +973,11 @@ NULL insertion retain genuine 23502 enforcement. DELETE cannot violate the only
 currently supported constraint, NOT NULL. The real PostgreSQL foreign-key rejection
 witness is explicitly oracle-only, not native FK support or a synthetic constraint hook.
 
-Feature commands: `make smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=0`,
-`make test PACKAGES=./reference RUN='^TestReferenceDeleteCore[A-Za-z0-9_]*$' VERBOSE=0`,
-and `make reference RUN='^TestReferenceDeleteCore[A-Za-z0-9_]*$' VERBOSE=0`.
+Feature commands: `make quickcheck PACKAGES=./smoke RUN='^TestDeleteCoreSmoke$' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceDeleteCore[A-Za-z0-9_]*$' VERBOSE=0`,
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeleteCore[A-Za-z0-9_]*$' VERBOSE=0`.
 Integrated-expression smoke:
-`make smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=0`.
+`make quickcheck PACKAGES=./smoke RUN='^TestDeleteCoreIntegratedExpressionsSmoke$' VERBOSE=0`.
 
 ### DELETE change log
 
@@ -1068,9 +1068,9 @@ arguments or WHERE. General functions, function qualification, casts outside the
 bounded baseline and character-family sets, arithmetic, DISTINCT, ORDER BY within
 calls, FILTER, OVER, star and named arguments remain outside the native surface.
 
-Feature smoke: `make smoke RUN='^TestNullCountSmoke$' VERBOSE=1`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestNullCountSmoke$' VERBOSE=1`.
 Independent pinned PostgreSQL witnesses:
-`make reference RUN='^TestReferenceNullCount' VERBOSE=1`.
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNullCount' VERBOSE=1`.
 
 ## Logical query results
 
@@ -1102,11 +1102,11 @@ Missing ORDER BY identifiers and analyzed relation names now retain their token'
 one-based **character** Position during Query and Prepare, including multibyte
 SQL and empty input. COMMENT/ALTER/LOCK utility records keep their own semantics.
 This migration adds no SQL syntax, binder, catalog, storage or routine-frame path.
-Run `make smoke RUN='^TestQueryCoreSmoke$' VERBOSE=1` for direct/prepared
+Run `make quickcheck PACKAGES=./smoke RUN='^TestQueryCoreSmoke$' VERBOSE=1` for direct/prepared
 projection/metadata, bags, NULL/empty/zero-width output, ordering, sticky raw
 cursor cancellation, byte ownership and retained native-control results.
 Independent PostgreSQL witnesses are
-`make reference RUN='^TestReferenceQueryCore' VERBOSE=1`; feature-local unordered
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryCore' VERBOSE=1`; feature-local unordered
 fixtures independently check cardinality and every occurrence in both consumed
 and recorder-captured rows before canonicalizing only for backend comparison.
 Duplicate, NULL and zero-width row counts remain significant; ordered rows and
@@ -1172,10 +1172,10 @@ INSERT RETURNING, DEFAULT/row assignments/CURRENT OF/CTE/inheritance
 remain excluded; no new evaluator, durability or retry path is introduced.
 
 Feature commands:
-`make test PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`,
-`make test PACKAGES=./reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`,
-`make test PACKAGES=./internal/engine RUN='^TestUpdateReturning' VERBOSE=0`,
-`make reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`,
+`make quickcheck PACKAGES=./internal/engine RUN='^TestUpdateReturning' VERBOSE=0`,
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUpdateReturning' VERBOSE=0`.
 
 ## UPDATE FROM — change note
 
@@ -1240,9 +1240,9 @@ committed live heads/catalog/sequence state, never source captures or output his
 LATERAL/derived SELECT/CTE/function FROM, row/subquery assignments, DEFAULT,
 CURRENT OF, whole-row records, INSERT RETURNING and DELETE USING remain excluded.
 No new SQL GRANT API, retry, sequence provider or optimizer is introduced.
-Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceUpdateFromSmoke$' VERBOSE=0`.
-Quick: `make test PACKAGES=./reference RUN='^TestReferenceUpdateFrom' VERBOSE=0`.
-Independent pinned PostgreSQL: `make reference RUN='^TestReferenceUpdateFrom' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateFromSmoke$' VERBOSE=0`.
+Quick: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateFrom' VERBOSE=0`.
+Independent pinned PostgreSQL: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUpdateFrom' VERBOSE=0`.
 
 ## Scalar UPDATE
 
@@ -1341,8 +1341,8 @@ execution still checking current authority. Reset/Restore and generic self/forei
 catalog replacement detach/remint only live heads; retained old results remain
 immutable. These are existing surfaces composed, not additional DELETE syntax.
 
-Mixed-DML witnesses: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`
-and `make reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`.
+Mixed-DML witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUpdateCoreDelete[A-Za-z0-9_]*$' VERBOSE=0`.
 They cover direct/prepared duplicate-preserving composition and commit/rollback,
 cross-mode latest-row counts and frozen candidates, mixed cancellation/resource
 reacquisition, immutable candidate slots, all-relation publication, live-only
@@ -1350,10 +1350,10 @@ control/import behavior and identity exhaustion. Native internal waits observe
 the actual manager; PostgreSQL waits observe transaction-ID locks and the exact
 blocker. Public native effect/deadline tests do not claim queue-observation proof.
 
-Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceUpdateCoreMigratedSmoke' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateCoreMigratedSmoke' VERBOSE=0`.
 Docker-free and independently pinned PostgreSQL witnesses:
-`make test PACKAGES=./reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`
-and `make reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUpdateCore[A-Za-z0-9_]*$' VERBOSE=0`.
 The diagnostic oracle distinguishes direct/Prepare/bind/runtime phases and
 asserts full portable fields, UTF8 character positions and atomic failures.
 The destination matrix covers TIME/TIMESTAMP precision, UUID input and NULL,
@@ -1422,13 +1422,13 @@ these keywords continue logical expressions, so these two incomplete expressions
 report `42601` at FROM. Reference tests assert both native failures and PostgreSQL
 positive results independently, not false syntax-error parity.
 
-Public feature witness: `make smoke RUN='^TestLogicalSmoke$' VERBOSE=1`.
+Public feature witness: `make quickcheck PACKAGES=./smoke RUN='^TestLogicalSmoke$' VERBOSE=1`.
 Independent pinned PostgreSQL witnesses:
-`make reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
 Docker-free scalar scenarios:
-`make test RUN='^TestReferenceLogical.*$' PACKAGES=./reference VERBOSE=1`.
+`make quickcheck RUN='^TestReferenceLogical.*$' PACKAGES=./reference VERBOSE=1`.
 Parser/engine units remain separate:
-`make test RUN='^TestLogical.*$' PACKAGES='./internal/parser ./internal/engine' VERBOSE=1`.
+`make quickcheck RUN='^TestLogical.*$' PACKAGES='./internal/parser ./internal/engine' VERBOSE=1`.
 
 
 
@@ -1506,8 +1506,8 @@ encoding6/exact-before-fallback inside each namespace; conversion shadowing uses
 name, not encoding pair. Inquiry-only identities do not expand comparison or
 encoding conversion execution, DDL or system catalog query sources.
 See [dialect details and boundaries](DIALECT.md#search-path-visibility-inquiries--change-note).
-Public smoke: `make smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
-Real PostgreSQL18.0 evidence: `make reference RUN='^TestReferenceVisibilityInquiry.*$' VERBOSE=0`.
+Public smoke: `make quickcheck PACKAGES=./smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
+Real PostgreSQL18.0 evidence: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceVisibilityInquiry.*$' VERBOSE=0`.
 
 ## Integer arithmetic
 
@@ -1521,7 +1521,7 @@ and late overflow/division failure publishes no deletion. DELETE aliases do
 not enable qualified arithmetic; qualified column atoms retain their existing
 comparison support. Arithmetic can coexist with existing DATE typed literals
 in projection without adding DATE arithmetic or new casts.
-Composition smoke: `make smoke RUN='^TestArithmeticDeleteCompositionSmoke$' VERBOSE=1`.
+Composition smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticDeleteCompositionSmoke$' VERBOSE=1`.
 
 Multiplication/division/remainder precede addition/subtraction; binary operators
 associate left, unary signs right. Division truncates toward zero and remainder
@@ -1549,7 +1549,7 @@ requires common source typing before destination assignment. Thus boolean and
 integer VALUES remain incompatible even when LIMIT would retain only the boolean
 row. The source smoke also executes `INSERT INTO good SELECT 1,7/2,-7%2`,
 asserting affected count 1 and persisted `(1,3,-1)` with INT4/INT4/INT8 destination
-metadata. Smoke: `make smoke RUN='^TestArithmeticInsertSourceContextualSmoke$' VERBOSE=1`.
+metadata. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticInsertSourceContextualSmoke$' VERBOSE=1`.
 
 Parameters obtain width from a known integer peer, in SQL occurrence order,
 not from the Go argument kind or assignment destination. Computed metadata is
@@ -1567,7 +1567,7 @@ visits arithmetic children even on empty or filtered input, preserving conversio
 errors without evaluating the arithmetic root early. Cast wrappers do not admit
 computed arithmetic arguments into the bounded null-count functions. Cast
 families and BYTEA capabilities remain unchanged.
-Composition smoke: `make smoke RUN='^TestArithmeticCastCompositionSmoke$' VERBOSE=1`.
+Composition smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticCastCompositionSmoke$' VERBOSE=1`.
 
 SMALLINT/NUMERIC/floating and other noninteger arithmetic remain explicitly
 unsupported, without changing their input/comparison/assignment capabilities.
@@ -1585,8 +1585,8 @@ Unknown-only arithmetic fails `0A000`, `integer arithmetic requires known intege
 or bigint operands`; unlike PostgreSQL it does not select FLOAT8 for unary unknown
 `+` or emulate ambiguous full-provider overloads. Settings signatures, casts,
 functions, aliases and general SELECT-without-FROM remain bounded as before.
-Feature smoke: `make smoke RUN='^TestArithmeticSmoke$' VERBOSE=1`;
-real pinned reference: `make reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticSmoke$' VERBOSE=1`;
+real pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
 
 Integral bitwise `& | # ~ << >>` additionally support SMALLINT, INTEGER and
 BIGINT in the same general scalar consumers, plus defaults and view replay.
@@ -1602,7 +1602,7 @@ See [integral widths, NULL and pinned shift counts](TYPES.md#integral-bitwise-op
 Computed bitwise expressions remain excluded from bounded null-count
 arguments and singleton SELECT admission. No NUMERIC/float explicit casts,
 BIT/VARBIT signatures or new no-FROM scalar consumer are implied.
-Feature smoke: `make smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestBitwiseSmoke$' VERBOSE=0`.
 
 
 Missing column and invalid SQL `$0` references fail during analysis with `42703`
@@ -1695,11 +1695,11 @@ a legal bare FROM alias, but numeric alias-column names are not legal.
 Executable acceptance (run these commands to establish verification):
 
 ```sh
-make smoke RUN='^TestCompareNullSmoke$' VERBOSE=1
-make test PACKAGES=./reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1
-make test PACKAGES=./internal/engine RUN='^TestExpressionCompareNull.*$' VERBOSE=1
-make test PACKAGES=./internal/parser VERBOSE=1
-make reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1
+make quickcheck PACKAGES=./smoke RUN='^TestCompareNullSmoke$' VERBOSE=1
+make quickcheck PACKAGES=./reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1
+make quickcheck PACKAGES=./internal/engine RUN='^TestExpressionCompareNull.*$' VERBOSE=1
+make quickcheck PACKAGES=./internal/parser VERBOSE=1
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1
 ```
 
 These exercise independent direct/prepared truth/null/distinct matrices,
@@ -1767,9 +1767,9 @@ defaults, including fresh DEFAULT inserts after replay. Predicate-valued
 comparison operands serialize directly with structural parentheses, without
 CASE identity bridges or evaluation of stored definitions.
 
-Executable feature evidence: `make smoke RUN='^TestBetweenSmoke$' VERBOSE=0`,
-`make test PACKAGES=./reference RUN='^TestReferenceBetween.*$' VERBOSE=0`,
-and `make reference RUN='^TestReferenceBetween' VERBOSE=0` against pinned18.0.
+Executable feature evidence: `make quickcheck PACKAGES=./smoke RUN='^TestBetweenSmoke$' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceBetween.*$' VERBOSE=0`,
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceBetween' VERBOSE=0` against pinned18.0.
 
 ## Explicit baseline casts
 
@@ -1837,10 +1837,10 @@ including raw-NULL rewrites, without folding the predicate or pruning its depend
 Errors from a cast inside equality keep their original diagnostic and Position;
 operator-resolution errors report the actual bound operand types.
 
-Public feature smoke: `make smoke RUN='^TestCastExplicitSmoke$' VERBOSE=1`.
-Review-regression smoke: `make smoke RUN='^TestCastExplicitReviewSmoke$' VERBOSE=1`.
-Parameter/ACL smoke: `make smoke RUN='^TestCastExplicitPreflightSmoke$' VERBOSE=1`.
-Pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCastExplicit.*$'`.
+Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCastExplicitSmoke$' VERBOSE=1`.
+Review-regression smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCastExplicitReviewSmoke$' VERBOSE=1`.
+Parameter/ACL smoke: `make quickcheck PACKAGES=./smoke RUN='^TestCastExplicitPreflightSmoke$' VERBOSE=1`.
+Pinned PostgreSQL coverage: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceCastExplicit.*$'`.
 
 Normalized integer parameters targeting INT2/INT4/INT8 and Boolean parameters targeting
 BOOL use checked scalar imports without successful-value formatting or reparsing.
@@ -1874,11 +1874,11 @@ All conversions precede statement publication; a bad later tuple publishes no
 rows. Dump emits canonical SMALLINT/INTEGER/BIGINT declarations and decimal
 values, and staged Restore preserves widths and retained cursor snapshots.
 
-`make smoke RUN='^TestSmallintSmoke$' VERBOSE=1` exercises the public direct and
+`make quickcheck PACKAGES=./smoke RUN='^TestSmallintSmoke$' VERBOSE=1` exercises the public direct and
 genuinely prepared smallint path, bounds/English diagnostics, INT2 metadata,
 NULL, atomicity/cancellation, mixed-width controls and authorization. Independent
-focused witnesses are `make test RUN='^TestSmallint' PACKAGES='./internal/sqltype ./internal/parser ./internal/engine .' VERBOSE=1`
-and `make reference RUN='^TestReferenceSmallint' VERBOSE=1` against the pinned
+focused witnesses are `make quickcheck RUN='^TestSmallint' PACKAGES='./internal/sqltype ./internal/parser ./internal/engine .' VERBOSE=1`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSmallint' VERBOSE=1` against the pinned
 PostgreSQL 18.0 oracle. These commands require execution to establish results.
 
 `go test -count=1 -run '^TestTypeCoreSmoke$' ./smoke` exercises public
@@ -1895,7 +1895,7 @@ their old values, types and column metadata.
 
 ## Omitted INSERT columns and defaults
 
-For an INSERT without a target list, uniform VALUES rows may supply any positive number of leading declaration-order columns up to the table width; omitted columns use their declared default or typed NULL. Every VALUES row must have the same width. Explicit target lists retain their stated order and must match row width. Targetless DEFAULT VALUES requests one all-default row. Conversion, arity, default evaluation and NOT NULL failures publish no rows from the statement. The public feature smoke is `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
+For an INSERT without a target list, uniform VALUES rows may supply any positive number of leading declaration-order columns up to the table width; omitted columns use their declared default or typed NULL. Every VALUES row must have the same width. Explicit target lists retain their stated order and must match row width. Targetless DEFAULT VALUES requests one all-default row. Conversion, arity, default evaluation and NOT NULL failures publish no rows from the statement. The public feature smoke is `make quickcheck PACKAGES=./smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
 
 Preparation checks assignment compatibility; typed integer literals assigned to INT4 are range-checked during execution, before NOT NULL checks. Thus preparing a short INSERT containing `2147483648` succeeds, but executing it fails with `22003` (`integer out of range`) without publishing rows. Unknown quoted numeric strings still run the destination input function during preparation and retain their input-specific diagnostic and cursor position.
 
@@ -2040,11 +2040,11 @@ replacement. Multirow INSERT/UPDATE/DELETE failures likewise publish no partial
 row mutation; sequence side effects retain their existing separate contract.
 
 Permanent public witnesses:
-`make smoke RUN='^TestConditionalSmoke$' VERBOSE=0`,
-`make test PACKAGES=./reference RUN='^TestReferenceConditionalAggregateComposition$' VERBOSE=0`,
-`make test RUN='^TestReferenceConditional.*$' PACKAGES=./reference VERBOSE=0`,
-`make test RUN='^TestConditional' PACKAGES='./internal/parser ./internal/sqltype ./internal/engine' VERBOSE=0`,
-and `make reference RUN='^TestReferenceConditional' VERBOSE=0` against the real
+`make quickcheck PACKAGES=./smoke RUN='^TestConditionalSmoke$' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceConditionalAggregateComposition$' VERBOSE=0`,
+`make quickcheck RUN='^TestReferenceConditional.*$' PACKAGES=./reference VERBOSE=0`,
+`make quickcheck RUN='^TestConditional' PACKAGES='./internal/parser ./internal/sqltype ./internal/engine' VERBOSE=0`,
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceConditional' VERBOSE=0` against the real
 pinned PostgreSQL 18.0 fixture. These commands must be executed to establish
 verification; expectations precede backend comparison.
 
@@ -2076,8 +2076,8 @@ renders these expressions with explicit grouping and replays their definitions,
 not previously computed results; restoration retains the target session settings.
 
 Stored-view timezone regressions:
-`make test PACKAGES=./reference RUN='^TestReferenceTimezoneReviewViewAt[A-Za-z0-9_]*$' VERBOSE=0` and
-`make reference RUN='^TestReferenceTimezoneReviewViewAt[A-Za-z0-9_]*$' VERBOSE=0`.
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezoneReviewViewAt[A-Za-z0-9_]*$' VERBOSE=0` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceTimezoneReviewViewAt[A-Za-z0-9_]*$' VERBOSE=0`.
 The latter independently asserts results against the pinned PostgreSQL 18.0
 fixture; native replay and catalog identity replacement are native controls.
 
@@ -2142,8 +2142,8 @@ PostgreSQL physical catalog lockers are separately labeled reference controls.
 SELECT OF/NOWAIT/SKIP LOCKED/repeated clauses remain whole-input rejected with no
 prefix effects. No outer/derived joins, keys/indexes, LIMIT/OFFSET,
 set operations or additional locking subsystem are introduced.
-Smoke: `make smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`;
-reference: `make reference RUN='^TestReferenceRowLock' VERBOSE=0`.
+Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`;
+reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRowLock' VERBOSE=0`.
 
 ## Standalone and FROM VALUES — change note (changelog)
 
@@ -2203,5 +2203,5 @@ This does not add derived SELECT, LATERAL, outer joins, CTEs, set operations or
 FROM functions. Ordinary destination-context INSERT VALUES and INSERT-only
 no-FROM SELECT remain separate contextual entry points.
 
-Independent coverage: `make reference RUN='^TestReferenceQueryFromValues' VERBOSE=0`.
+Independent coverage: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryFromValues' VERBOSE=0`.
 

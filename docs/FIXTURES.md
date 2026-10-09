@@ -35,7 +35,7 @@ and dynamic reads. Dump refuses explicit relation/column ACLs rather than
 discarding privileges. Cyclic view definitions are legal catalog state, but
 Dump returns `stuntgres: cyclic view dump dependencies`; repair the definition
 before dumping. These refusals do not narrow ordinary replacement retention.
-Feature roundtrip smoke: `make smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`.
+Feature roundtrip smoke: `make quickcheck PACKAGES=./smoke RUN='^TestViewReplaceSmoke$' VERBOSE=0`.
 Dump orders tables and views through their persistent provider topology.
 Views depend on table/view sources and expression providers; tables depend on
 their CHECK providers. An identity-sequence dependency waits for the owning table
@@ -48,8 +48,8 @@ The two-retained-sequence, second-Dump/Restore regression and independent
 PostgreSQL nested-view consumers run through the same mode-aware definition:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0
-make reference RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0
 ```
 
 Joined imports remap every source occurrence, both join children, predicates,
@@ -76,8 +76,8 @@ Dump/Restore, including NUMERIC display scale. Public direct/prepared coverage,
 including `numeric_scale`, runs in both modes:
 
 ```sh
-make test PACKAGES=./reference RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0
-make reference RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0
 ```
 
 Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
@@ -186,7 +186,7 @@ newly declared identity sequence. Restoring literal SYSTEM rows bypasses identit
 generation, but ordinary CHECK validation can still call nextval; final setval
 restores the captured sequence state. Owner-table collisions with retained TEMP
 sequences preserve this replay ordering through Dump/Restore/redump.
-Feature smoke: `make smoke RUN='^TestIdentityCheckControlsSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIdentityCheckControlsSmoke$' VERBOSE=0`.
 
 
 Timezone-aware declarations, precision, frozen defaults, NULLs, BC and infinities
@@ -222,4 +222,4 @@ and cache remain exact. Persistent metadata and detached values use coherent
 type identities without mutating retained source catalogs or rows. Public Restore
 still rejects TEMP declarations rather than importing them.
 
-`go test -count=1 -run '^TestCatalogOwnersPublicWitness$' ./smoke` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.
+`make quickcheck PACKAGES=./smoke RUN='^TestCatalogOwnersPublicWitness$'` additionally checks two opaque DSNs with two simultaneously open pools and held physical connections per instance. It verifies qualified/unqualified INT4 results, same-instance sharing, independent-instance isolation, another instance's Reset/Restore leaving a held cursor unchanged, same-Driver reconnect retention and independent-Driver isolation. Go test reports the result.

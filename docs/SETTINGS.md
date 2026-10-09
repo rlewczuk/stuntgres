@@ -178,8 +178,8 @@ and `SET SESSION local = value`, rather than silently becoming LOCAL scope.
 Native Reset/Restore preserve live settings and use default-on parsing;
 Dump excludes settings. Retained SHOW/SELECT snapshots outlive session end.
 
-Run `go test -count=1 -run '^TestSettingsSmoke$' ./smoke` and
-`go test -tags=reference -run '^TestReferenceSettings' -count=1 -v ./reference`.
+Run `make quickcheck PACKAGES=./smoke RUN='^TestSettingsSmoke$'` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceSettings' VERBOSE=1`.
 The reference suite separately executes real PostgreSQL numeric/enum settings,
 non-superuser privilege denial and pg_sleep timeout; arbitrary custom PG
 placeholders are never claimed to validate native typed registrations.
@@ -262,5 +262,5 @@ session setting lifecycle. Dump/Restore neither stores nor changes IntervalStyle
 
 Invalid input is22023 `invalid value for parameter "IntervalStyle": "invalid"`
 with hint `Available values: postgres, postgres_verbose, sql_standard, iso_8601.`
-Feature smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
 
