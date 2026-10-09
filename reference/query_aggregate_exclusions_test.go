@@ -6,11 +6,15 @@ func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
 	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(1),(1),(2)", 3))
+	for _, prepared := range []bool{false, true} {
+		step := referenceSelect("SELECT count(*)", []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}})
+		step.prepared = prepared
+		p.step(t, step)
+	}
 	for _, tc := range []struct {
 		q, name string
 		rows    [][]any
 	}{
-		{"SELECT count(*)", "count", [][]any{{int64(1)}}},
 		{"SELECT sum(v) FROM t", "sum", [][]any{{int64(4)}}},
 		{"SELECT count(*) FILTER (WHERE v>1) FROM t", "count", [][]any{{int64(1)}}},
 		{"SELECT count(DISTINCT v) FROM t", "count", [][]any{{int64(2)}}},
@@ -45,8 +49,16 @@ func TestReferenceCountExpressionCapabilityBoundaries(t *testing.T) {
 func TestReferenceQueryAggregateExclusionPrefixEffects(t *testing.T) {
 	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
+	// The LOCAL-unit aggregate is legal; a malformed suffix must still prevent
+	// the preceding INSERT from publishing, including through Prepare.
+	for _, prepared := range []bool{false, true} {
+		failure := referenceError("INSERT INTO t VALUES(1);SELECT count(*) WHERE", "42601")
+		failure.prepared = prepared
+		p.step(t, failure)
+		p.step(t, referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, nil))
+	}
 	for _, q := range []string{
-		"SELECT count(*)", "SELECT sum(v) FROM t",
+		"SELECT sum(v) FROM t",
 		"SELECT count(*) FILTER (WHERE TRUE) FROM t", "SELECT count(DISTINCT v) FROM t",
 		"SELECT count(* ORDER BY v) FROM t", "SELECT count(*) OVER () FROM t", "SELECT count(ALL v) FROM t",
 		"SELECT v FROM t GROUP BY ROLLUP(v)", "SELECT v FROM t GROUP BY CUBE(v)",

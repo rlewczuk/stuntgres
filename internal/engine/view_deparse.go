@@ -19,13 +19,32 @@ type viewPresentation struct {
 }
 
 func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, presentation viewPresentation) (string, error) {
-	s := v.syntax
 	renderer := newViewRenderer(v)
 	renderer.presentation = presentation
+	return renderer.selectQuerySQL(ctx, catalog, v.syntax, v.queries[v.syntax])
+}
+
+func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, catalog CatalogRead, s *parser.Select, project *projectNode) (string, error) {
+	if project == nil {
+		return "", fmt.Errorf("stuntgres: missing frozen query frame")
+	}
+	previous, previousFrame, previousSimple := renderer.query, renderer.frame, renderer.simple
+	renderer.query, renderer.frame = &BoundQuery{Root: project}, project.frame
+	defer func() { renderer.query, renderer.frame, renderer.simple = previous, previousFrame, previousSimple }()
+	presentation := renderer.presentation
+	if s != renderer.viewDefinition.syntax {
+		presentation.columns = nil
+	}
 	_, renderer.simple = s.From.(*parser.TableReference)
 	renderer.simple = renderer.simple && presentation.deparse
+	v := renderer
 	if s.Values != nil {
-		text, err := renderer.valuesSQL(ctx, catalog, s.Values, 0)
+		values, ok := viewFromRoot(project).(*valuesNode)
+		if !ok {
+			return "", fmt.Errorf("stuntgres: missing frozen VALUES query")
+		}
+		renderer.values = values.viewOrdinal + 1
+		text, err := renderer.valuesSQL(ctx, catalog, s.Values, values.viewOrdinal)
 		if err != nil {
 			return "", err
 		}
@@ -66,8 +85,12 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, pre
 	var targets []string
 	for i, expr := range s.Targets {
 		if _, star := expr.(parser.StarExpr); star {
-			for _, slot := range v.stars[i] {
-				text, err := renderer.slotSQL(ctx, catalog, viewFromRoot(v.query.Root), slot)
+			for _, column := range v.stars[viewLiteralPath{query: project.frame, clause: viewTargetLiteral, target: i}] {
+				owner := v.frames[column.frame]
+				if owner == nil {
+					return "", fmt.Errorf("stuntgres: missing frozen star frame")
+				}
+				text, err := renderer.slotSQL(ctx, catalog, viewFromRoot(owner), column.slot)
 				if err != nil {
 					return "", err
 				}
@@ -234,6 +257,7 @@ func viewTargetsSQL(targets []string, presentation viewPresentation, distinct bo
 }
 
 func (v *viewRenderer) expressionSQL(ctx context.Context, catalog CatalogRead, raw parser.Expr, path viewLiteralPath) (string, error) {
+	path.query = v.frame
 	ordinal := 0
 	return v.expressionSQLAt(ctx, catalog, raw, path, &ordinal, pgRenderParent{})
 }
@@ -270,6 +294,47 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		return strings.Join(parts, ", "), nil
 	}
 	switch e := raw.(type) {
+	case parser.RowExpr:
+		text, err := args(e.Fields)
+		if err != nil {
+			return "", err
+		}
+		if e.Explicit {
+			return "ROW(" + text + ")", nil
+		}
+		return "(" + text + ")", nil
+	case parser.SubqueryExpr:
+		left := ""
+		var err error
+		if e.Left != nil {
+			left, err = child(e.Left)
+			if err != nil {
+				return "", err
+			}
+		}
+		query, err := v.selectQuerySQL(ctx, catalog, e.Query, v.queries[e.Query])
+		if err != nil {
+			return "", err
+		}
+		if e.Kind == parser.SubqueryScalar {
+			return "(" + query + ")", nil
+		}
+		if e.Kind == parser.SubqueryExists {
+			return "EXISTS (" + query + ")", nil
+		}
+		op := e.Operator.Parts[len(e.Operator.Parts)-1].Text
+		if len(e.Operator.Parts) == 2 {
+			op = "OPERATOR(" + quoteIdentifier(e.Operator.Parts[0].Text) + "." + op + ")"
+		}
+		quantifier := "ANY"
+		if e.Kind == parser.SubqueryAll {
+			quantifier = "ALL"
+		}
+		text := "(" + left + " " + op + " " + quantifier + " (" + query + "))"
+		if e.Negate {
+			text = "(NOT " + text + ")"
+		}
+		return text, nil
 	case parser.IdentityExpr:
 		return e.Name, nil
 	case parser.CurrentDateTimeExpr:
@@ -295,26 +360,35 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		return "", fmt.Errorf("stuntgres: missing analyzed view literal")
 	case parser.ColumnExpr:
-		slot, ok := v.columns[path]
+		column, ok := v.columns[path]
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing view column occurrence")
 		}
-		root := viewFromRoot(v.query.Root)
-		if path.clause == viewJoinLiteral {
+		owner := v.frames[column.frame]
+		if owner == nil {
+			return "", fmt.Errorf("stuntgres: missing view column frame")
+		}
+		root := viewFromRoot(owner)
+		if path.clause == viewJoinLiteral && column.frame == path.query {
 			root = viewJoinAt(root, path.target)
 		}
-		if path.clause == viewValuesOrderLiteral {
+		if path.clause == viewValuesOrderLiteral && column.frame == path.query {
 			root = viewValuesAt(v.query.Root, path.source)
 		}
-		if v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral) {
-			source := catalog.state.descriptors[v.sources[0].ref.Address].(*relationDescriptor)
-			text, err := v.slotSQL(ctx, catalog, root, slot)
+		_, ownerSimple := owner.syntax.From.(*parser.TableReference)
+		if v.presentation.deparse && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral)) || (column.frame != path.query && ownerSimple)) {
+			source, ok := root.(*sourceNode)
+			if !ok {
+				return "", fmt.Errorf("stuntgres: missing simple view source")
+			}
+			relation := catalog.state.descriptors[source.ref.Address].(*relationDescriptor)
+			text, err := v.slotSQL(ctx, catalog, root, column.slot)
 			if err != nil {
 				return "", err
 			}
-			return pgIdentifier(source.name) + "." + text, nil
+			return pgIdentifier(relation.name) + "." + text, nil
 		}
-		return v.slotSQL(ctx, catalog, root, slot)
+		return v.slotSQL(ctx, catalog, root, column.slot)
 	case parser.TypedLiteralExpr:
 		return "", fmt.Errorf("stuntgres: missing analyzed typed view literal")
 	case parser.TimeZoneExpr:

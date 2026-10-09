@@ -8,11 +8,60 @@ func TestReferenceNullCountCapabilityBoundaries(t *testing.T) {
 	p.step(t, referenceExec("INSERT INTO t VALUES(1,2)", 1))
 	p.step(t, referenceSelect("SELECT num_nulls,num_nonnulls FROM t", []string{"num_nulls", "num_nonnulls"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(2)}}))
 	p.step(t, referenceSelect("SELECT abs(1) FROM t", []string{"abs"}, []string{"INT4"}, [][]any{{int64(1)}}))
+	for _, step := range []referenceStep{
+		referenceSelect("SELECT 1", []string{"?column?"}, []string{"INT4"}, [][]any{{int64(1)}}),
+		referenceSelect("SELECT num_nulls(NULL),1", []string{"num_nulls", "?column?"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}}),
+		referenceSelect("SELECT $1", []string{"?column?"}, []string{"TEXT"}, [][]any{{"unit"}}, "unit"),
+		referenceSelect("SELECT num_nulls(NULL) WHERE TRUE", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
+		referenceSelect("SELECT num_nulls(NULL) ORDER BY 1", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
+	} {
+		for _, prepared := range []bool{false, true} {
+			step.prepared = prepared
+			p.step(t, step)
+		}
+	}
+	nullCountReferenceError(t, p, "SELECT *", referenceDiagnostic{Code: "42601", Message: "SELECT * with no tables specified is not valid", Position: "8"})
+	// Replace obsolete no-FROM rejections with a genuine whole-input failure,
+	// retaining nil cursor/statement/result and no-prefix-effects obligations.
+	for _, prepared := range []bool{false, true} {
+		for _, queryRows := range []bool{false, true} {
+			failure := referenceError("INSERT INTO t VALUES(9,9);SELECT 1 WHERE", "42601")
+			failure.prepared, failure.selectRows = prepared, queryRows
+			p.step(t, failure)
+			p.step(t, referenceSelect("SELECT num_nulls,num_nonnulls FROM t", []string{"num_nulls", "num_nonnulls"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(2)}}))
+		}
+	}
+	for _, backend := range p.backends() {
+		rows, err := backend.db.QueryContext(p.ctx, "SELECT $1")
+		if rows != nil {
+			rows.Close()
+			t.Fatal("missing argument exposed cursor")
+		}
+		if err == nil {
+			t.Fatal("missing argument accepted")
+		}
+		if backend.pg {
+			referenceAssertDiagnostic(t, err, &referenceDiagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P02", Message: "there is no parameter $1", Position: "8"})
+		}
+		stmt, err := backend.db.PrepareContext(p.ctx, "SELECT $1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		func() {
+			defer stmt.Close()
+			rows, err := stmt.QueryContext(p.ctx)
+			if rows != nil {
+				rows.Close()
+				t.Fatal("missing prepared argument exposed cursor")
+			}
+			transactionOrdinary(t, err, "sql: expected 1 arguments, got 0")
+		}()
+	}
 	for _, q := range []string{
-		"SELECT 1", "SELECT num_nulls(NULL),1", "SELECT $1", "SELECT *",
-		"SELECT num_nulls(NULL) WHERE TRUE", "SELECT num_nulls(NULL) ORDER BY 1",
-		"INSERT INTO t VALUES(num_nulls(NULL),1)", "SELECT num_nulls FROM t WHERE num_nulls(NULL)",
-		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(ARRAY[1,NULL])", "SELECT num_nulls(VARIADIC ARRAY[1,NULL])",
+		"SELECT num_nulls(NULL)::int FROM t",
+		"SELECT num_nulls FROM t WHERE num_nulls(NULL)",
+		"INSERT INTO t VALUES(num_nulls(NULL),1)",
+		"SELECT num_nulls(ARRAY[1,NULL])", "SELECT num_nulls(VARIADIC ARRAY[1,NULL])",
 		"SELECT num_nulls(DISTINCT 1) FROM t", "SELECT num_nulls(1 ORDER BY 1) FROM t", "SELECT num_nulls(*) FROM t",
 		"SELECT num_nulls(1) FILTER (WHERE TRUE) FROM t", "SELECT num_nulls(1) OVER () FROM t",
 		"SELECT num_nulls(a => 1) FROM t", "SELECT current_setting(num_nulls(NULL))",
@@ -45,13 +94,8 @@ func nullCountPostgresBoundaries(t *testing.T, p *referencePair) {
 	t.Helper()
 	const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	steps := []referenceStep{
-		referenceSelect("SELECT 1", []string{"?column?"}, []string{"INT4"}, [][]any{{int64(1)}}),
-		referenceSelect("SELECT num_nulls(NULL),1", []string{"num_nulls", "?column?"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(1)}}),
-		referenceImplicitError("SELECT *", referenceDiagnostic{Code: "42601", Message: "SELECT * with no tables specified is not valid", Position: "8"}),
-		referenceSelect("SELECT num_nulls(NULL) WHERE TRUE", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
-		referenceSelect("SELECT num_nulls(NULL) ORDER BY 1", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
-		referenceImplicitError("SELECT num_nulls FROM t WHERE num_nulls(NULL)", referenceDiagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "31"}),
 		referenceSelect("SELECT num_nulls(NULL)::int FROM t", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
+		referenceImplicitError("SELECT num_nulls FROM t WHERE num_nulls(NULL)", referenceDiagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "31"}),
 		referenceSelect("SELECT num_nulls(ARRAY[1,NULL])", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(0)}}),
 		referenceSelect("SELECT num_nulls(VARIADIC ARRAY[1,NULL])", []string{"num_nulls"}, []string{"INT4"}, [][]any{{int64(1)}}),
 		referenceImplicitError("SELECT num_nulls(DISTINCT 1) FROM t", referenceDiagnostic{Code: "42809", Message: "DISTINCT specified, but num_nulls is not an aggregate function", Position: "8"}),
@@ -75,20 +119,6 @@ func nullCountPostgresBoundaries(t *testing.T, p *referencePair) {
 			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
 		}
 	}
-	gap := referenceImplicitError("SELECT $1", referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: "8"})
-	gap.selectRows, gap.errorStage = true, "execute"
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, gap)
-	stmt, err := p.postgres.PrepareContext(p.ctx, "SELECT $1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer stmt.Close()
-	rows, err := stmt.QueryContext(p.ctx)
-	if rows != nil {
-		rows.Close()
-		t.Fatal("missing argument exposed cursor")
-	}
-	transactionOrdinary(t, err, "sql: expected 1 arguments, got 0")
 	for _, prepared := range []bool{false, true} {
 		insert := referenceExec("INSERT INTO t VALUES(num_nulls(NULL),1)", 1)
 		insert.prepared = prepared

@@ -15,6 +15,9 @@ type queryPendingMark struct {
 
 func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPendingMark) []queryPendingMark {
 	switch n := node.(type) {
+	case *derivedNode:
+		// The derived projection frontier consumes its own child marks.
+		return dst
 	case *projectNode:
 		return pendingQueryMarks(n.child, inputs, dst)
 	case *filterNode:

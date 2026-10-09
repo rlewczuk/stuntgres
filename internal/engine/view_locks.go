@@ -33,12 +33,10 @@ func (s *StatementScope) acquireViewSources() error {
 			return ErrCatalogReplaced
 		}
 		admitted := ref == s.lockedRef
-		for _, leaf := range s.querySources {
-			admitted = admitted || ref == leaf.ref
-		}
 		admittedMode := relationLockMode(0)
 		for _, leaf := range s.querySources {
 			if leaf.ref == ref {
+				admitted = true
 				admittedMode = strongerQueryRowMode(admittedMode, leaf.mark.mode)
 			}
 		}
@@ -46,10 +44,8 @@ func (s *StatementScope) acquireViewSources() error {
 			refs = append(refs, ref)
 		}
 		if d.view != nil {
-			marks := queryRootRowMarks(d.view.query.Root)
 			for i, leaf := range d.view.sources {
-				mark := queryOccurrenceMark(marks, i, queryRowMark{mode: mode})
-				if err := visit(leaf.ref, mark.mode); err != nil {
+				if err := visit(leaf.ref, viewLeafRowMark(d.view, i, queryRowMark{mode: mode}).mode); err != nil {
 					return err
 				}
 			}

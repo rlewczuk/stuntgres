@@ -70,16 +70,15 @@ func TestTimestampPrecisionGrammarAndBoundaries(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"CREATE TABLE t(v TIMESTAMP WITH TIME ZONE)", "SELECT TIMESTAMP 'epoch'", "CREATE TABLE t(v TIMESTAMPTZ)"} {
-		_, e := Parse(q)
-		if q != "SELECT TIMESTAMP 'epoch'" {
-			if e != nil {
-				t.Fatal("type authority moved into parser", e)
-			}
-			continue
+		statements, e := Parse(q)
+		if e != nil || len(statements) != 1 {
+			t.Fatal("type authority moved into parser", q, statements, e)
 		}
-		var d *sqlstate.Error
-		if !errors.As(e, &d) || d.Code != "0A000" {
-			t.Fatal(q, e)
+		if q == "SELECT TIMESTAMP 'epoch'" {
+			s := statements[0].(*Select)
+			if literal, ok := s.Targets[0].(TypedLiteralExpr); !ok || literal.TypeName.Name != "timestamp" || s.From != nil {
+				t.Fatal(s)
+			}
 		}
 	}
 	stmts, e := Parse("INSERT INTO t VALUES(TIMESTAMP 'epoch'); SELECT TIMESTAMP(3) 'epoch' FROM t junk bad")

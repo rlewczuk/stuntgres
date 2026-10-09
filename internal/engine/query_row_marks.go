@@ -18,9 +18,13 @@ type queryRowMark struct {
 // Admission is execution-owned and keyed by the actual query syntax, never a
 // prepared description or session. Its semantic error waits for normal analysis.
 type queryLockAdmission struct {
-	selectQuery *parser.Select
-	marks       []queryRowMark
-	err         error
+	selectQuery  *parser.Select
+	marks        []queryRowMark
+	err          error
+	indices      map[*parser.TableReference]int
+	queries      map[*parser.Select]*queryLockAdmission
+	ordered      []*queryLockAdmission
+	tableQueries map[*parser.TableReference]*parser.Select
 }
 
 func mergeQueryRowMark(a, b queryRowMark) queryRowMark {
@@ -75,12 +79,14 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause) ([]q
 		return nil, nil
 	}
 	type target struct {
-		name       string
-		occurrence int
-		join       bool
+		name        string
+		occurrences []int
+		join        bool
 	}
+	indices := make(map[*parser.TableReference]int)
+	_ = parser.VisitQuerySources(&parser.Select{From: from}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
+	marks := make([]queryRowMark, len(indices))
 	var targets []target
-	occurrence := 0
 	var visit func(parser.FromItem, string)
 	visit = func(item parser.FromItem, alias string) {
 		switch n := item.(type) {
@@ -89,12 +95,23 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause) ([]q
 			if name == "" {
 				name = n.Name.Parts[len(n.Name.Parts)-1].Text
 			}
-			targets = append(targets, target{name: name, occurrence: occurrence})
-			occurrence++
+			targets = append(targets, target{name: name, occurrences: []int{indices[n]}})
 		case *parser.ValuesQuery:
 			if alias != "" {
-				targets = append(targets, target{name: alias, occurrence: -1})
+				targets = append(targets, target{name: alias})
 			}
+		case *parser.DerivedQuery:
+			var selected []int
+			childTargets, _ := queryLockTargets(n.Query.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}})
+			childIndex := 0
+			_ = parser.VisitQuerySources(n.Query, nil, func(table *parser.TableReference, _ *parser.Select) error {
+				if childIndex < len(childTargets) && childTargets[childIndex].mode != 0 {
+					selected = append(selected, indices[table])
+				}
+				childIndex++
+				return nil
+			})
+			targets = append(targets, target{name: alias, occurrences: selected})
 		case *parser.AliasReference:
 			if alias == "" {
 				alias = n.Name.Text
@@ -102,28 +119,29 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause) ([]q
 			visit(n.Input, alias)
 		case *parser.JoinReference:
 			if alias != "" {
-				targets = append(targets, target{name: alias, occurrence: -1, join: true})
+				targets = append(targets, target{name: alias, join: true})
 			}
 			if n.UsingAlias != nil {
-				targets = append(targets, target{name: n.UsingAlias.Text, occurrence: -1, join: true})
+				targets = append(targets, target{name: n.UsingAlias.Text, join: true})
 			}
 			visit(n.Left, "")
 			visit(n.Right, "")
 		}
 	}
 	visit(from, "")
-	marks := make([]queryRowMark, occurrence)
 	order := 0
 	for _, clause := range clauses {
 		mode := queryRowMode(clause.Mode)
 		mark := queryRowMark{mode: mode, wait: clause.Wait, diagnosticMode: mode}
 		if len(clause.Targets) == 0 {
-			for i := range marks {
-				if marks[i].mode == 0 {
-					order++
-					mark.order = order
+			for _, target := range targets {
+				for _, i := range target.occurrences {
+					if marks[i].mode == 0 {
+						order++
+						mark.order = order
+					}
+					marks[i] = mergeQueryRowMark(marks[i], mark)
 				}
-				marks[i] = mergeQueryRowMark(marks[i], mark)
 			}
 			continue
 		}
@@ -140,12 +158,12 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause) ([]q
 				if target.join {
 					return marks, expressionError("0A000", clause.Mode+" cannot be applied to a join", name.Parts[0].Pos)
 				}
-				if target.occurrence >= 0 {
-					if marks[target.occurrence].mode == 0 {
+				for _, occurrence := range target.occurrences {
+					if marks[occurrence].mode == 0 {
 						order++
 						mark.order = order
 					}
-					marks[target.occurrence] = mergeQueryRowMark(marks[target.occurrence], mark)
+					marks[occurrence] = mergeQueryRowMark(marks[occurrence], mark)
 				}
 				break
 			}

@@ -18,16 +18,14 @@ func TestStringCoreParser(t *testing.T) {
 			t.Fatal(query, err)
 		}
 		selected, ok := statements[0].(*Select)
-		if !ok || !selected.IsSingleton() {
-			t.Fatal("string singleton rejected", query)
+		if !ok || selected.From != nil || selected.Values != nil {
+			t.Fatal("string no-FROM syntax rejected", query)
 		}
 	}
 	for _, query := range []string{"SELECT 1", "SELECT true", "SELECT 1+1", "SELECT round(1+1)"} {
 		statements, err := Parse(query)
-		if err == nil && len(statements) == 1 {
-			if selected, ok := statements[0].(*Select); ok && selected.IsSingleton() {
-				t.Fatal("unrelated singleton widened", query)
-			}
+		if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil || len(statements[0].(*Select).Targets) != 1 {
+			t.Fatal("no-FROM expression syntax", query, statements, err)
 		}
 	}
 	for _, query := range []string{"SELECT normalize('x','NFC')", "SELECT normalize('x',$1)", "SELECT normalize('x',BAD)", "SELECT 'x' IS 'NFC' NORMALIZED"} {

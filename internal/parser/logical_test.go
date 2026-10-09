@@ -77,7 +77,6 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 		keywordDiagnostic(t, tc.q, "42601", tc.message, tc.position)
 	}
 	for _, q := range []string{
-		"SELECT TRUE AND FALSE",
 		"SELECT id=1=TRUE FROM t",
 		"INSERT INTO t VALUES(TRUE AND FALSE)", "INSERT INTO t VALUES(NOT TRUE)",
 		"INSERT INTO t SELECT TRUE AND FALSE FROM t RETURNING a", "SELECT current_setting(TRUE AND FALSE)", "SET application_name TO TRUE AND FALSE",
@@ -89,7 +88,7 @@ func TestLogicalSyntaxAndScopeBoundaries(t *testing.T) {
 			t.Fatal("scope expansion or executable prefix", q, stmts, err)
 		}
 	}
-	for _, q := range []string{"SELECT a AND b AS result FROM t", "SELECT t.a AND b FROM t"} {
+	for _, q := range []string{"SELECT TRUE AND FALSE", "SELECT a AND b AS result FROM t", "SELECT t.a AND b FROM t"} {
 		statements, err := Parse(q)
 		if err != nil || len(statements) != 1 {
 			t.Fatal("supported target label or qualification", q, statements, err)

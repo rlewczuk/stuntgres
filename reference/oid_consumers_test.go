@@ -48,7 +48,13 @@ func TestReferenceOIDConsumers(t *testing.T) {
 		failure.errorStage = "prepare"
 		p.step(t, referencePrepared(failure))
 	}
-	failure := referenceImplicitError("SELECT '1'::oid", referenceDiagnostic{Code: "0A000", Message: "SELECT without FROM is unsupported", Position: "1"})
-	failure.selectRows = true
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
+	for _, backend := range p.backends() {
+		cell := any(int64(1))
+		if backend.pg {
+			cell = "1"
+		} // pq owned decimal OID bytes normalize to string.
+		success := referenceSelect("SELECT '1'::oid", []string{"oid"}, []string{"OID"}, [][]any{{cell}})
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, success)
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(success))
+	}
 }

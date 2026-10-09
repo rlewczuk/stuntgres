@@ -9,19 +9,31 @@ import (
 // Producers append only demanded occurrence identities. Blocking stages drain
 // this same seam; the public boundary still publishes only finalized results.
 func (s *indexedStage) ensure(ctx context.Context, i int) (bool, error) {
+	if s.terminal != nil {
+		return false, s.terminal
+	}
+	if s.closed {
+		return false, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return false, s.fail(err)
+	}
 	for s.produce != nil && !s.done && i >= len(s.selection) {
 		if err := ctx.Err(); err != nil {
-			return false, err
+			return false, s.fail(err)
 		}
 		present, err := s.produce(ctx, s)
 		if err != nil {
-			return false, err
+			return false, s.fail(err)
 		}
 		if !present {
 			s.done = true
 		}
 	}
-	return i < s.count(), ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return false, s.fail(err)
+	}
+	return i < s.count(), nil
 }
 func (s *indexedStage) nextOccurrence(ctx context.Context) (int, bool, error) {
 	present, err := s.ensure(ctx, s.position)
@@ -33,15 +45,27 @@ func (s *indexedStage) nextOccurrence(ctx context.Context) (int, bool, error) {
 	return i, true, nil
 }
 func (s *indexedStage) drain(ctx context.Context) error {
+	if s.terminal != nil {
+		return s.terminal
+	}
+	if s.closed {
+		return nil
+	}
 	if s.produce == nil {
-		return ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return s.fail(err)
+		}
+		return nil
 	}
 	for !s.done {
 		if _, err := s.ensure(ctx, len(s.selection)); err != nil {
 			return err
 		}
 	}
-	return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return s.fail(err)
+	}
+	return nil
 }
 func retainOccurrence(out *indexedStage, child *indexedStage, i int) {
 	out.source = child.source
@@ -64,10 +88,13 @@ type evaluationNode struct {
 	base        int
 }
 
-func (b *expressionBinder) scheduleCountProjection(root LogicalNode, projection []BoundExpr) LogicalNode {
+func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection []BoundExpr, bounded bool) LogicalNode {
 	base := 0
 	var lateSlots []int
 	ordered, sorting := root.(*sortNode)
+	if !sorting && !bounded {
+		return root
+	}
 	if sorting {
 		base = ordered.cacheWidth
 	}
@@ -85,7 +112,7 @@ func (b *expressionBinder) scheduleCountProjection(root LogicalNode, projection 
 			ordered.outputs = append(ordered.outputs, expr)
 			ordered.cacheWidth++
 			projection[i] = cachedOrderExpression{expressionInfo: boundExpressionInfo(expr), slot: slot}
-		} else {
+		} else if bounded {
 			late = append(late, expr)
 			lateSlots = append(lateSlots, i)
 		}
@@ -110,7 +137,7 @@ func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNod
 	}
 	out := producingStage(&child, n.Schema())
 	out.cacheWidth = n.base + len(n.expressions)
-	evaluation := EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+	evaluation := state.evaluation(nil)
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		i, present, err := child.nextOccurrence(ctx)
 		if err != nil || !present {

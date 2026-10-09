@@ -50,7 +50,7 @@ func TestArithmeticGrammar(t *testing.T) {
 	}
 }
 
-func TestArithmeticSignedCastSingletonClassification(t *testing.T) {
+func TestArithmeticSignedCastNoFromSyntax(t *testing.T) {
 	for _, q := range []string{
 		"SELECT num_nulls(CAST(+1 AS int4),NULL),num_nonnulls(+1::int4,NULL)",
 		"SELECT num_nulls(+(1::int4),NULL)",
@@ -60,7 +60,7 @@ func TestArithmeticSignedCastSingletonClassification(t *testing.T) {
 		"SELECT num_nulls((-1)::int4,NULL)",
 	} {
 		statements, err := Parse(q)
-		if err != nil || len(statements) != 1 || !statements[0].(*Select).IsSingleton() {
+		if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil || statements[0].(*Select).Values != nil {
 			t.Fatal(q, statements, err)
 		}
 	}
@@ -73,8 +73,8 @@ func TestArithmeticSignedCastSingletonClassification(t *testing.T) {
 		"SELECT num_nulls(-CAST($1 AS int4),NULL)",
 	} {
 		statements, err := Parse(q)
-		if err == nil || statements != nil {
-			t.Fatal("signed cast admitted a nonliteral singleton argument", q, statements, err)
+		if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+			t.Fatal("lost ordinary signed cast query", q, statements, err)
 		}
 	}
 }

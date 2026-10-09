@@ -24,7 +24,11 @@ func TestIntervalAvgGrammar(t *testing.T) {
 }
 
 func TestIntervalAvgExclusions(t *testing.T) {
-	for _, q := range []string{"SELECT avg(INTERVAL '1 day')", "SELECT avg(v) OVER () FROM t", "SELECT avg(DISTINCT v) FROM t", "SELECT avg(ALL v) FROM t", "SELECT avg(v ORDER BY v) FROM t", "SELECT avg(v) FILTER (WHERE TRUE) FROM t"} {
+	statements, err := Parse("SELECT avg(INTERVAL '1 day')")
+	if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+		t.Fatal(statements, err)
+	}
+	for _, q := range []string{"SELECT avg(v) OVER () FROM t", "SELECT avg(DISTINCT v) FROM t", "SELECT avg(ALL v) FROM t", "SELECT avg(v ORDER BY v) FROM t", "SELECT avg(v) FILTER (WHERE TRUE) FROM t"} {
 		statements, err := Parse(q)
 		var d *sqlstate.Error
 		if len(statements) != 0 || !errors.As(err, &d) || d.Code != "0A000" {

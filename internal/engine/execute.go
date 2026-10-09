@@ -360,6 +360,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if err == nil && b.returning != nil {
 			b.returning, err = preflightReturning(&evaluation, b.returning)
 		}
+		if err == nil && b.subqueryDemand && (inserting || b.update != nil || deleting) {
+			err = validateMutationJoinExecution(&evaluation, &b, expressions, auth.catalog)
+		}
 		if err != nil {
 			return Result{}, err
 		}
@@ -414,8 +417,21 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	tag := modifyingTag(stmt)
+	// PostgreSQL reports the rewritten SELECT command for a marked view,
+	// including constant views without physical lock leaves. Physical table
+	// rowmarks retain their original SELECT FOR ... diagnostic.
+	if scope.owner.readOnly {
+		if _, selecting := stmt.(*parser.Select); selecting {
+			for _, leaf := range b.querySources {
+				if leaf.mark.mode != 0 && leaf.relation.view != nil {
+					tag = "SELECT"
+					break
+				}
+			}
+		}
+	}
 	if _, selecting := stmt.(*parser.Select); selecting && tag == "" && scope.owner.readOnly && b.query != nil {
-		mode, modeErr := e.firstQueryRowModeLocked(scope, queryRoot, b.querySources)
+		mode, modeErr := e.firstQueryRowModeLocked(scope, b.query.Root, b.querySources)
 		if modeErr != nil {
 			e.mu.Unlock()
 			return Result{}, modeErr
@@ -428,13 +444,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
-	if b.query != nil {
+	if b.query != nil || b.subqueryDemand || len(b.querySources) != 0 {
 		if err = e.initializeQueryLocksLocked(scope, queryRoot, b.querySources); err != nil {
-			e.mu.Unlock()
-			return Result{}, err
-		}
-	} else if b.update != nil && b.update.from != nil {
-		if err = e.initializeQueryLocksLocked(scope, b.update.from, b.querySources); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -474,7 +485,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		var view *VisibilityView
-		if b.update.from != nil {
+		if len(b.querySources) != 0 {
 			refs, collectErr := e.queryTableRefsLocked(auth.catalog, b.querySources, []ObjectRef{b.ref})
 			if collectErr != nil {
 				e.mu.Unlock()
@@ -494,7 +505,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		var from *querySource
-		if b.update.from != nil {
+		if b.update.from != nil || b.subqueryDemand {
 			from, err = e.captureQuerySourcesLocked(scope, b.querySources, false)
 			if err != nil {
 				source.close()
@@ -534,7 +545,23 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 			return Result{Count: int64(len(rows))}, nil
 		}
+		if b.subqueryDemand {
+			inputs, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, false)
+			if sourceErr != nil {
+				e.mu.Unlock()
+				return Result{}, sourceErr
+			}
+			defer inputs.close()
+			state := &queryState{source: inputs, parameters: canonical, input: scope.input, output: scope.output, locking: inputs.locks != nil}
+			evaluation.query = state
+			evaluation.Scope, evaluation.Frame = 1, 1
+		}
 		e.mu.Unlock()
+		if evaluation.query != nil {
+			if err := selectQuerySources(ctx, evaluation.query.source); err != nil {
+				return Result{}, err
+			}
+		}
 		rows := make([][]sqltype.Value, len(s.Rows))
 		for i, source := range s.Rows {
 			if err = ctx.Err(); err != nil {
@@ -603,17 +630,32 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		return Result{Count: int64(len(rows))}, nil
 	case *parser.Delete:
-		view, viewErr := scope.acquireDataViewLocked(e, b.ref)
-		if viewErr == nil && b.returning != nil {
+		var view *VisibilityView
+		var viewErr error
+		if len(b.querySources) != 0 {
+			refs, err := e.queryTableRefsLocked(auth.catalog, b.querySources, []ObjectRef{b.ref})
+			if err != nil {
+				e.mu.Unlock()
+				return Result{}, err
+			}
+			view, viewErr = scope.acquireDataViewsLocked(e, refs)
+		} else {
+			view, viewErr = scope.acquireDataViewLocked(e, b.ref)
+		}
+		var inputs *querySource
+		if viewErr == nil && b.subqueryDemand {
+			inputs, viewErr = e.captureQuerySourcesLocked(scope, b.querySources, false)
+		} else if viewErr == nil && b.returning != nil {
 			viewErr = e.captureCommentSnapshotLocked(scope)
 		}
 		e.mu.Unlock()
 		if viewErr != nil {
+			view.Release()
 			return Result{}, viewErr
 		}
-		return scope.executeDelete(b, view, canonical)
+		return scope.executeDelete(b, view, inputs, canonical)
 	case *parser.Select:
-		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.IsSingleton() || s.IsTypeSingleton())
+		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.From == nil && s.Values == nil)
 		e.mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr

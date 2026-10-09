@@ -258,18 +258,47 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 }
 
 func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
-	occurrence := 0
-	marked := false
-	var visit func(LogicalNode) error
-	visit = func(node LogicalNode) error {
+	seen := make([]*sourceNode, len(definition.sources))
+	projects := make(map[uint32]*projectNode, len(definition.frames))
+	marked := make(map[uint32]bool)
+	checkUsage := func(usage sqltype.Usage) error {
+		if !usage.Valid() {
+			return fmt.Errorf("stuntgres: invalid view query usage")
+		}
+		typ, ok := catalog.LookupType(usage.Type.ID())
+		if !ok || typ != usage.Type {
+			return fmt.Errorf("stuntgres: foreign view query type")
+		}
+		return nil
+	}
+	var visit func(LogicalNode, uint32) error
+	visit = func(node LogicalNode, frame uint32) error {
+		if node == nil {
+			return fmt.Errorf("stuntgres: missing stored query node")
+		}
 		for _, column := range node.Schema() {
-			if !column.Usage.Valid() {
-				return fmt.Errorf("stuntgres: invalid view query usage")
+			if err := checkUsage(column.Usage); err != nil {
+				return err
 			}
-			typ, ok := catalog.LookupType(column.Usage.Type.ID())
-			if !ok || typ != column.Usage.Type {
-				return fmt.Errorf("stuntgres: foreign view query type")
+		}
+		if project, ok := node.(*projectNode); ok && project.syntax != nil {
+			frame = project.frame
+			frozen := definition.frames[frame]
+			if frozen == nil || frozen.syntax != project.syntax {
+				return fmt.Errorf("stuntgres: invalid stored query frame")
 			}
+			if prior := projects[frame]; prior != nil {
+				if len(prior.Schema()) != len(project.Schema()) {
+					return fmt.Errorf("stuntgres: inconsistent shared query width")
+				}
+				for i, column := range prior.Schema() {
+					if column.Usage != project.Schema()[i].Usage {
+						return fmt.Errorf("stuntgres: inconsistent shared query usage")
+					}
+				}
+				return nil
+			}
+			projects[frame] = project
 		}
 		switch n := node.(type) {
 		case *valuesNode:
@@ -277,33 +306,31 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 				if len(row) != len(n.Schema()) {
 					return fmt.Errorf("stuntgres: invalid view VALUES width")
 				}
-				for i, expression := range row {
-					if expression == nil || expression.ResultUsage().Type != n.Schema()[i].Usage.Type || expression.Properties().RowDependent {
+				for i, expr := range row {
+					if expr == nil || expr.ResultUsage().Type != n.Schema()[i].Usage.Type || expressionUsesFrame(expr, frame) {
 						return fmt.Errorf("stuntgres: invalid view VALUES cell")
 					}
 				}
 			}
 		case *limitNode:
 			for _, expr := range []BoundExpr{n.offset, n.count} {
-				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expr.Properties().RowDependent || expr.Properties().StageDependent) {
+				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expressionUsesFrame(expr, frame)) {
 					return fmt.Errorf("stuntgres: invalid stored view bound")
 				}
 			}
-			return visit(n.child)
-		case *evaluationNode:
-			return visit(n.child)
 		case *sourceNode:
-			if occurrence >= len(definition.sources) || n.occurrence != occurrence {
+			if n.occurrence < 0 || n.occurrence >= len(seen) {
 				return fmt.Errorf("stuntgres: invalid view source occurrence")
 			}
-			leaf := definition.sources[occurrence]
-			occurrence++
+			if prior := seen[n.occurrence]; prior != nil && prior != n {
+				return fmt.Errorf("stuntgres: duplicate view source occurrence")
+			}
+			seen[n.occurrence] = n
+			leaf := definition.sources[n.occurrence]
 			source, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
 			if !ok || n.ref != leaf.ref || len(n.Schema()) != len(leaf.attributes) {
 				return fmt.Errorf("stuntgres: invalid view source layout")
 			}
-			// Full frozen source layouts retain unused slots for expression frame
-			// stability. Only read attributes are dependencies on source usages.
 			for _, attribute := range leaf.reads {
 				for slot, frozen := range leaf.attributes {
 					if frozen != attribute {
@@ -325,12 +352,9 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 					return fmt.Errorf("stuntgres: invalid view merged column usage")
 				}
 			}
-			if err := visit(n.left); err != nil {
-				return err
-			}
-			return visit(n.right)
 		case *rowLockNode:
-			if marked || len(definition.syntax.Locking) == 0 || queryRowClause(n.firstMode) != definition.syntax.Locking[0].Mode || len(n.marks) != len(definition.sources) {
+			project := definition.frames[frame]
+			if marked[frame] || project == nil || len(project.syntax.Locking) == 0 || queryRowClause(n.firstMode) != project.syntax.Locking[0].Mode || len(n.marks) > len(definition.sources) {
 				return fmt.Errorf("stuntgres: invalid stored view rowmark")
 			}
 			for _, mark := range n.marks {
@@ -338,32 +362,71 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 					return fmt.Errorf("stuntgres: invalid stored view rowmark")
 				}
 			}
-			marked = true
-			return visit(n.child)
-		case *filterNode:
-			return visit(n.child)
-		case *sortNode:
-			return visit(n.child)
-		case *projectNode:
-			return visit(n.child)
-		case *aggregateNode:
-			return visit(n.child)
-		case *distinctNode:
-			return visit(n.child)
-		case *singletonNode:
+			marked[frame] = true
+		case *derivedNode:
+			if n.query == nil || n.query.Root == nil || len(n.Schema()) != len(n.query.Root.Schema()) {
+				return fmt.Errorf("stuntgres: invalid stored derived frame")
+			}
+		case *projectNode, *evaluationNode, *filterNode, *sortNode, *aggregateNode, *distinctNode, *singletonNode:
 		default:
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)
 		}
+		var expressionError error
+		queryExpressions(node, func(expr BoundExpr) {
+			if expressionError != nil {
+				return
+			}
+			walkBoundExpression(expr, func(expr BoundExpr) {
+				if expressionError != nil {
+					return
+				}
+				if expressionError = checkUsage(expr.ResultUsage()); expressionError != nil {
+					return
+				}
+				if child, ok := expr.(subqueryExpression); ok {
+					if child.queryPlan == nil || child.queryPlan.Root == nil {
+						expressionError = fmt.Errorf("stuntgres: invalid stored subquery")
+						return
+					}
+					if child.kind != parser.SubqueryScalar && child.kind != parser.SubqueryExists && len(child.comparisons) != len(child.queryPlan.Root.Schema()) {
+						expressionError = fmt.Errorf("stuntgres: invalid stored comparison width")
+						return
+					}
+					expressionError = visit(child.queryPlan.Root, frame)
+				}
+			})
+		})
+		if expressionError != nil {
+			return expressionError
+		}
+		left, right := queryInputs(node)
+		if left != nil {
+			if err := visit(left, frame); err != nil {
+				return err
+			}
+		}
+		if right != nil {
+			if err := visit(right, frame); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
-	if err := visit(definition.query.Root); err != nil {
+	if err := visit(definition.query.Root, 0); err != nil {
 		return err
 	}
-	if occurrence != len(definition.sources) {
-		return fmt.Errorf("stuntgres: invalid view source manifest")
+	for _, source := range seen {
+		if source == nil {
+			return fmt.Errorf("stuntgres: invalid view source manifest")
+		}
 	}
-	if definition.syntax.Locking != nil && !marked {
-		return fmt.Errorf("stuntgres: missing stored view rowmark")
+	if len(projects) != len(definition.frames) {
+		return fmt.Errorf("stuntgres: invalid view query frame manifest")
+	}
+	for frame, project := range projects {
+		if project.syntax.Locking != nil && !marked[frame] {
+			return fmt.Errorf("stuntgres: missing stored view rowmark")
+		}
 	}
 	return nil
 }

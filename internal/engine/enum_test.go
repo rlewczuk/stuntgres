@@ -145,7 +145,7 @@ func TestEnumExplicitCatalogRemapping(t *testing.T) {
 	}
 }
 
-func TestEnumSingletonAdmission(t *testing.T) {
+func TestEnumNoFromAdmission(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TYPE mood AS ENUM ('sad','ok','happy')")
 	run(t, e, "CREATE TYPE happiness AS ENUM ('happy','ok','sad')")
@@ -181,8 +181,9 @@ func TestEnumSingletonAdmission(t *testing.T) {
 		"SELECT 'ok'::wrapped",
 		"SELECT 'ok'::mood, 1::integer",
 	} {
-		_, err := testDescribe(e, statement(t, query))
-		domainUnitDiagnostic(t, err, "0A000", "SELECT without FROM is unsupported")
+		if _, err := testDescribe(e, statement(t, query)); err != nil {
+			t.Fatal("ordinary no-FROM cast rejected", query, err)
+		}
 	}
 	for _, tc := range []struct {
 		query, code, message, position string

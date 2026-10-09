@@ -89,6 +89,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	renderer := newViewRenderer(&viewDefinition{literals: b.viewLiterals, castUsages: b.viewCastUsages})
+	renderer.frame = b.frameID()
 	stored, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
@@ -200,11 +201,11 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil || text != "b/a" {
 		t.Fatal(text, err)
 	}
-	column := columnExpression{expressionInfo: expressionInfo{usage: node.ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}}
+	column := columnExpression{expressionInfo: expressionInfo{usage: node.ResultUsage(), pos: parser.Position{Character: 99}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: b.frameID()}
 	node.variadic = false
 	node.args = []BoundExpr{node.args[0], column}
 	node.properties.RowDependent = true
-	if generationImmutable(node) || firstQueryBoundVariable(node).Character != 99 {
+	if generationImmutable(node) || firstQueryBoundFrameVariable(node, b.frameID()).Character != 99 {
 		t.Fatal("stable/variable descendants must remain visible")
 	}
 	rebound, err := b.rewriteGroup(node, []BoundExpr{column})

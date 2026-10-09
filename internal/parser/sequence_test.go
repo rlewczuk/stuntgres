@@ -65,8 +65,8 @@ func TestSequenceStandaloneRegclassProjection(t *testing.T) {
 		}
 	}
 	for _, query := range []string{"SELECT 1", "SELECT 's'", "SELECT $1", "SELECT TIMESTAMP 'epoch'"} {
-		if _, err := Parse(query); err == nil {
-			t.Fatal("arbitrary relationless scalar selector admitted", query)
+		if statements, err := Parse(query); err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+			t.Fatal("no-FROM scalar syntax", query, statements, err)
 		}
 	}
 }

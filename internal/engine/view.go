@@ -18,8 +18,10 @@ type viewDefinition struct {
 	sequenceRefs     map[int]ObjectRef
 	literals         map[viewLiteralPath]literalExpression
 	castUsages       map[viewLiteralPath]sqltype.Usage
-	columns          map[viewLiteralPath]int
-	stars            map[int][]int
+	columns          map[viewLiteralPath]viewColumn
+	stars            map[viewLiteralPath][]viewColumn
+	frames           map[uint32]*projectNode
+	queries          map[*parser.Select]*projectNode
 	namespaces       []viewNamespace
 	barrier, invoker bool
 	rule             OID
@@ -31,6 +33,12 @@ type viewLeaf struct {
 	ref        ObjectRef
 	attributes []int32
 	reads      []int32
+	mark       queryRowMark
+}
+
+type viewColumn struct {
+	frame uint32
+	slot  int
 }
 
 // Namespace labels and frame slots are immutable analysis metadata, not an
@@ -46,6 +54,9 @@ type viewNamespaceQualifier struct {
 	columns []viewNamespaceColumn
 }
 type viewNamespace struct {
+	frame      uint32
+	node       uint8
+	ordinal    int
 	columns    []viewNamespaceColumn
 	qualifiers []viewNamespaceQualifier
 	keys       []string
@@ -257,6 +268,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.literals = b.viewLiterals
 	definition.castUsages = b.viewCastUsages
 	definition.columns, definition.stars = b.viewColumns, b.viewStars
+	definition.frames, definition.queries = collectQueryFrames(b.query.Root)
 	definition.namespaces = b.viewNamespaces
 	definition.sequenceRefs = make(map[int]ObjectRef, len(b.sequenceConstants))
 	for _, constant := range b.sequenceConstants {
@@ -273,6 +285,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	for occurrence, source := range b.querySources {
 		leaf := &definition.sources[occurrence]
 		leaf.ref = source.ref
+		leaf.mark = source.mark
 		leaf.attributes = append([]int32(nil), source.relation.attributes...)
 		for _, slot := range source.uses {
 			leaf.reads = append(leaf.reads, source.relation.attributes[slot])
@@ -368,95 +381,111 @@ func checkViewPrefix(old, next []ColumnDescriptor) error {
 }
 
 func (v *viewDefinition) validateNamespaces() error {
-	ordinal, occurrence, join := 0, 0, 0
-	values := 0
-	var visit func(parser.FromItem) (LogicalNode, error)
-	visit = func(item parser.FromItem) (LogicalNode, error) {
+	expected := 0
+	var countFrom func(parser.FromItem)
+	countFrom = func(item parser.FromItem) {
 		if item == nil {
-			return nil, nil
+			return
 		}
-		if ordinal >= len(v.namespaces) {
-			return nil, fmt.Errorf("stuntgres: missing view namespace")
-		}
-		ns := v.namespaces[ordinal]
-		ordinal++
-		var root LogicalNode
+		expected++
 		switch n := item.(type) {
-		case *parser.ValuesQuery:
-			root = viewValuesAt(v.query.Root, values)
-			values++
-		case *parser.TableReference:
-			root = viewSourceAt(viewFromRoot(v.query.Root), occurrence)
-			occurrence++
 		case *parser.AliasReference:
-			child, err := visit(n.Input)
-			if err != nil {
-				return nil, err
-			}
-			root = child
+			countFrom(n.Input)
 		case *parser.JoinReference:
-			root = viewJoinAt(viewFromRoot(v.query.Root), join)
-			join++
-			if bound, ok := root.(*joinNode); !ok || bound.kind != n.Kind || n.Kind > parser.JoinFull {
-				return nil, fmt.Errorf("stuntgres: inconsistent view join kind")
-			}
-			if _, err := visit(n.Left); err != nil {
-				return nil, err
-			}
-			if _, err := visit(n.Right); err != nil {
-				return nil, err
-			}
-			if len(ns.keys) > len(ns.columns) {
-				return nil, fmt.Errorf("stuntgres: invalid view USING namespace")
-			}
-			for i, key := range ns.keys {
-				if ns.columns[i].name != key {
-					return nil, fmt.Errorf("stuntgres: invalid view USING key label")
-				}
+			countFrom(n.Left)
+			countFrom(n.Right)
+		}
+	}
+	for _, project := range v.frames {
+		countFrom(project.syntax.From)
+	}
+	if expected != len(v.namespaces) {
+		return fmt.Errorf("stuntgres: invalid view namespace count")
+	}
+	for _, ns := range v.namespaces {
+		project := v.frames[ns.frame]
+		if project == nil {
+			return fmt.Errorf("stuntgres: missing view namespace frame")
+		}
+		from := viewFromRoot(project)
+		var root LogicalNode
+		switch ns.node {
+		case viewSourceNamespace:
+			root = viewSourceAt(from, ns.ordinal)
+		case viewJoinNamespace:
+			root = viewJoinAt(from, ns.ordinal)
+		case viewValuesNamespace:
+			root = viewValuesAt(from, ns.ordinal)
+		case viewDerivedNamespace:
+			child := v.frames[uint32(ns.ordinal)]
+			if child != nil {
+				root = viewDerivedAt(from, child.syntax)
 			}
 		default:
-			return nil, fmt.Errorf("stuntgres: invalid view namespace syntax")
+			return fmt.Errorf("stuntgres: invalid view namespace kind")
 		}
 		if root == nil {
-			return nil, fmt.Errorf("stuntgres: missing view namespace frame")
+			return fmt.Errorf("stuntgres: missing view namespace node")
 		}
 		check := func(columns []viewNamespaceColumn) error {
-			for _, c := range columns {
-				if c.slot < 0 || c.slot >= len(root.Schema()) {
+			for _, column := range columns {
+				if column.slot < 0 || column.slot >= len(root.Schema()) {
 					return fmt.Errorf("stuntgres: invalid view namespace slot")
 				}
-				if c.leaf >= 0 {
-					if c.leaf >= len(v.sources) {
+				if column.leaf >= 0 {
+					if column.leaf >= len(v.sources) {
 						return fmt.Errorf("stuntgres: invalid view namespace occurrence")
 					}
 					found := false
-					for _, attribute := range v.sources[c.leaf].attributes {
-						found = found || attribute == c.attribute
+					for _, attribute := range v.sources[column.leaf].attributes {
+						found = found || attribute == column.attribute
 					}
 					if !found {
 						return fmt.Errorf("stuntgres: invalid view namespace attribute")
 					}
-				} else if c.attribute != 0 {
+				} else if column.attribute != 0 {
 					return fmt.Errorf("stuntgres: invalid computed view namespace identity")
 				}
 			}
 			return nil
 		}
 		if err := check(ns.columns); err != nil {
-			return nil, err
+			return err
 		}
 		for _, q := range ns.qualifiers {
 			if err := check(q.columns); err != nil {
-				return nil, err
+				return err
 			}
 		}
-		return root, nil
-	}
-	if _, err := visit(v.syntax.From); err != nil {
-		return err
-	}
-	if ordinal != len(v.namespaces) || occurrence != len(v.sources) {
-		return fmt.Errorf("stuntgres: extra view namespace")
+		if len(ns.keys) > len(ns.columns) {
+			return fmt.Errorf("stuntgres: invalid view USING namespace")
+		}
+		for i, key := range ns.keys {
+			if ns.columns[i].name != key {
+				return fmt.Errorf("stuntgres: invalid view USING key label")
+			}
+		}
 	}
 	return nil
+}
+
+const (
+	viewSourceNamespace uint8 = iota + 1
+	viewJoinNamespace
+	viewValuesNamespace
+	viewDerivedNamespace
+)
+
+func frozenNamespaceNode(root LogicalNode) (uint8, int) {
+	switch node := viewFromRoot(root).(type) {
+	case *sourceNode:
+		return viewSourceNamespace, node.occurrence
+	case *joinNode:
+		return viewJoinNamespace, node.viewOrdinal
+	case *valuesNode:
+		return viewValuesNamespace, node.viewOrdinal
+	case *derivedNode:
+		return viewDerivedNamespace, int(node.query.Root.(*projectNode).frame)
+	}
+	return 0, 0
 }

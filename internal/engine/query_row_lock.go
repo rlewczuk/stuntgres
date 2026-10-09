@@ -187,6 +187,9 @@ func openRowLockNode(ctx context.Context, state *queryState, n *rowLockNode) (in
 	if err != nil {
 		return indexedStage{}, err
 	}
+	if !queryHasPhysicalInput(n.child) {
+		return child, nil
+	}
 	if state.source.locks != nil {
 		child.pending = appendPendingRowMarks(child.pending, n.marks, state.source)
 	}

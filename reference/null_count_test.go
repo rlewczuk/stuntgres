@@ -80,6 +80,46 @@ func TestReferenceNullCountColumns(t *testing.T) {
 	nullCountReferenceStep(t, p, referencePrepared(step), 6)
 }
 
+// INSERT VALUES retains its original composed-function exclusion on native;
+// no-FROM SELECT admission does not widen this separate consumer.
+func TestReferenceNullCountInsertConsumerRoutes(t *testing.T) {
+	p := newReferenceScenario(t)
+	p.step(t, referenceExec("CREATE TABLE t(id INT,v INT,b BIGINT,s TEXT,f BOOL)", 0))
+	p.step(t, referenceExec("INSERT INTO t VALUES(1,1,2147483648,'x',TRUE),(2,NULL,2,'',NULL),(3,NULL,NULL,NULL,NULL)", 3))
+	const q = "INSERT INTO t VALUES(4,num_nulls(NULL),1,'x',TRUE)"
+	nullCountNativeExcluded(t, p, q)
+	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT id FROM t WHERE id=4", []string{"id"}, []string{"INT4"}, nil))
+	if p.postgres != nil {
+		for _, prepared := range []bool{false, true} {
+			step := referenceSelect(q, []string{}, []string{}, nil)
+			step.prepared = prepared
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceSelect("SELECT id,v,b,s,f FROM t WHERE id=4", []string{"id", "v", "b", "s", "f"}, []string{"INT4", "INT4", "INT8", "TEXT", "BOOL"}, [][]any{{int64(4), int64(1), int64(1), "x", true}}))
+			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referenceExec("DELETE FROM t WHERE id=4", 1))
+		}
+	}
+}
+
+func nullCountNativeExcluded(t *testing.T, p *referencePair, q string) {
+	t.Helper()
+	rows, err := p.memory.QueryContext(p.ctx, q)
+	if rows != nil {
+		rows.Close()
+		t.Fatal("excluded query exposed cursor", q)
+	}
+	if err == nil {
+		t.Fatal("excluded syntax accepted", q)
+	}
+	stmt, err := p.memory.PrepareContext(p.ctx, q)
+	if stmt != nil {
+		stmt.Close()
+		t.Fatal("excluded prepare exposed handle", q)
+	}
+	if err == nil {
+		t.Fatal("excluded prepare accepted", q)
+	}
+}
+
 func TestReferenceNullCountHeldPrepared(t *testing.T) {
 	p := nullCountReferenceSetup(t)
 	for _, backend := range p.backends() {
@@ -123,7 +163,7 @@ func nullCountReferenceError(t *testing.T, p *referencePair, q string, want refe
 
 func TestReferenceNullCountDiagnostics(t *testing.T) {
 	p := newReferenceScenario(t)
-	p.step(t, referenceExec("CREATE TABLE t(v INT)", 0))
+	p.step(t, referenceExec("CREATE TABLE t(id INT,v INT)", 0))
 	const hint = "No function matches the given name and argument types. You might need to add explicit type casts."
 	// Complete logical records are source-derived PG18 expectations; C locations
 	// are excluded by the established fixture, not fabricated on native errors.
@@ -147,6 +187,15 @@ func TestReferenceNullCountDiagnostics(t *testing.T) {
 		{"SELECT num_nulls(missing) FROM t", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "18"}},
 	} {
 		nullCountReferenceError(t, p, tc.q, tc.want)
+	}
+	const q = "SELECT id FROM t WHERE num_nulls(v)"
+	nullCountNativeExcluded(t, p, q)
+	if p.postgres != nil {
+		step := referenceImplicitError(q, referenceDiagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "24"})
+		step.selectRows, step.errorStage = true, "execute"
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
+		step.errorStage = "prepare"
+		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(step))
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 // VALUES ordinals follow structural source preorder, independent of physical
 // table occurrences and source offsets. Row/key indices are local to a source.
 func (b *expressionBinder) captureValuesViewLiteral(raw parser.Expr, bound BoundExpr, clause viewLiteralClause, source, row, column int) error {
-	path := viewLiteralPath{clause: clause, source: source, row: row, target: column}
+	path := viewLiteralPath{query: b.frameID(), clause: clause, source: source, row: row, target: column}
 	if clause == viewValuesOrderLiteral {
 		if integer, ok := raw.(parser.LiteralExpr); ok && integer.Value.Kind == parser.IntegerValue {
 			return nil
@@ -25,10 +25,9 @@ func viewValuesAt(node LogicalNode, ordinal int) *valuesNode {
 	visit = func(node LogicalNode) *valuesNode {
 		switch n := node.(type) {
 		case *valuesNode:
-			if ordinal == 0 {
+			if ordinal == n.viewOrdinal {
 				return n
 			}
-			ordinal--
 		case *joinNode:
 			if found := visit(n.left); found != nil {
 				return found
@@ -121,10 +120,10 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalog CatalogRead, sourc
 	return text, nil
 }
 
-func (v *viewDefinition) validateValuesLiterals(catalog CatalogRead, source *parser.ValuesQuery, occurrence int, count, columns *int) error {
+func (v *viewDefinition) validateValuesLiterals(catalog CatalogRead, source *parser.ValuesQuery, frame uint32, occurrence int, count, columns *int) error {
 	validate := func(raw parser.Expr, clause viewLiteralClause, row, column int) error {
 		ordinal := 0
-		return v.validateLiteralTree(catalog, raw, viewLiteralPath{clause: clause, source: occurrence, row: row, target: column}, &ordinal, count, columns)
+		return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, source: occurrence, row: row, target: column}, &ordinal, count, columns)
 	}
 	for i, row := range source.Rows {
 		for j, raw := range row {

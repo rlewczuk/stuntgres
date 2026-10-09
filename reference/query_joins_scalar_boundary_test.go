@@ -71,25 +71,22 @@ func TestReferenceQueryJoinsRetainsNoFromBoundaries(t *testing.T) {
 	const detail = `There is an entry for table "a", but it cannot be referenced from this part of the query.`
 	for _, backend := range p.backends() {
 		for _, tc := range []struct {
-			q, code, message, pos, pgMessage, pgPos string
-			invalid                                 bool
+			q, message, pos string
+			invalid         bool
 		}{
-			{"SELECT a.k", "0A000", "qualified column references are unsupported", "9", `missing FROM-clause entry for table "a"`, "8", false},
-			{"SELECT a.*", "0A000", "qualified column references are unsupported", "9", `missing FROM-clause entry for table "a"`, "8", false},
-			{"INSERT INTO a(k) SELECT a.k", "0A000", "qualified column references are unsupported", "26", `invalid reference to FROM-clause entry for table "a"`, "25", true},
-			{"INSERT INTO a(k) SELECT a.*", "0A000", "qualified column references are unsupported", "26", `invalid reference to FROM-clause entry for table "a"`, "25", true},
-			{"SELECT (a.k)", "42601", `syntax error at or near "."`, "10", `missing FROM-clause entry for table "a"`, "9", false},
-			{"INSERT INTO a(k) SELECT (a.k)", "42601", `syntax error at or near "."`, "27", `invalid reference to FROM-clause entry for table "a"`, "26", true},
-			{"SELECT num_nulls(a.k)", "42601", `syntax error at or near "."`, "19", `missing FROM-clause entry for table "a"`, "18", false},
-			{"SELECT COALESCE(a.k,1)", "0A000", "SELECT without FROM is unsupported", "1", `missing FROM-clause entry for table "a"`, "17", false},
-			{"INSERT INTO a(k) SELECT COALESCE(a.k,1)", "0A000", "qualified column references are unsupported", "34", `invalid reference to FROM-clause entry for table "a"`, "34", true},
+			{"SELECT a.k", `missing FROM-clause entry for table "a"`, "8", false},
+			{"SELECT a.*", `missing FROM-clause entry for table "a"`, "8", false},
+			{"INSERT INTO a(k) SELECT a.k", `invalid reference to FROM-clause entry for table "a"`, "25", true},
+			{"INSERT INTO a(k) SELECT a.*", `invalid reference to FROM-clause entry for table "a"`, "25", true},
+			{"SELECT (a.k)", `missing FROM-clause entry for table "a"`, "9", false},
+			{"INSERT INTO a(k) SELECT (a.k)", `invalid reference to FROM-clause entry for table "a"`, "26", true},
+			{"SELECT num_nulls(a.k)", `missing FROM-clause entry for table "a"`, "18", false},
+			{"SELECT COALESCE(a.k,1)", `missing FROM-clause entry for table "a"`, "17", false},
+			{"INSERT INTO a(k) SELECT COALESCE(a.k,1)", `invalid reference to FROM-clause entry for table "a"`, "34", true},
 		} {
-			want := referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.pos}
-			if backend.pg {
-				want = referenceDiagnostic{Code: "42P01", Message: tc.pgMessage, Position: tc.pgPos}
-				if tc.invalid {
-					want.Detail = detail
-				}
+			want := referenceDiagnostic{Code: "42P01", Message: tc.message, Position: tc.pos}
+			if tc.invalid {
+				want.Detail = detail
 			}
 			queryJoinsScalarFailure(t, p, backend, tc.q, want, false, false)
 			queryJoinsScalarFailure(t, p, backend, tc.q, want, true, false)

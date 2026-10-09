@@ -320,9 +320,9 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		{"(NOT f) IS DISTINCT FROM FALSE", [4]bool{false, true, true, false}, []int32{3}},
 		{"v<2 IS TRUE OR NOT f IS UNKNOWN AND v IS NOT NULL", [4]bool{true, false, true, true}, []int32{2, 3}},
 	} {
-		b, ref := describe("SELECT " + tc.expr + " FROM t WHERE " + tc.expr + " ORDER BY id")
+		b, ref := describe("SELECT " + tc.expr + " FROM t WHERE " + tc.expr)
 		project := b.query.Root.(*projectNode)
-		filter := project.child.(*sortNode).child.(*filterNode)
+		filter := project.child.(*filterNode)
 		if b.parameters.Count != 0 {
 			t.Fatal(b.parameters)
 		}

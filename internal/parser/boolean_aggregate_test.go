@@ -26,7 +26,13 @@ func TestBooleanAggregateGrammar(t *testing.T) {
 }
 
 func TestBooleanAggregateExclusions(t *testing.T) {
-	for _, q := range []string{"SELECT bool_and(TRUE)", "SELECT every(TRUE),nextval('s')", "SELECT bool_or(DISTINCT b) FROM t", "SELECT every(ALL b) FROM t", "SELECT bool_and(b ORDER BY b) FROM t", "SELECT bool_or(b) FILTER (WHERE FALSE) FROM t", "SELECT every(b) OVER () FROM t"} {
+	for _, q := range []string{"SELECT bool_and(TRUE)", "SELECT every(TRUE),nextval('s')"} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+			t.Fatal(q, statements, err)
+		}
+	}
+	for _, q := range []string{"SELECT bool_or(DISTINCT b) FROM t", "SELECT every(ALL b) FROM t", "SELECT bool_and(b ORDER BY b) FROM t", "SELECT bool_or(b) FILTER (WHERE FALSE) FROM t", "SELECT every(b) OVER () FROM t"} {
 		statements, err := Parse("INSERT INTO t VALUES(TRUE);" + q)
 		var d *sqlstate.Error
 		if len(statements) != 0 || !errors.As(err, &d) || d.Code != "0A000" {

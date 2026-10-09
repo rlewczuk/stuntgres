@@ -11,12 +11,16 @@ import (
 // slots, so ordering and INSERT assignment never reevaluate key expressions.
 type distinctNode struct {
 	querySchema
-	child       LogicalNode
-	expressions []BoundExpr
-	grouping    []sqltype.Grouping
+	child        LogicalNode
+	expressions  []BoundExpr
+	grouping     []sqltype.Grouping
+	presenceOnly bool // Retain analyzed targets while discarding eligible EXISTS demand.
 }
 
 func openDistinctNode(ctx context.Context, state *queryState, n *distinctNode) (out indexedStage, err error) {
+	if n.presenceOnly {
+		return openQueryNode(ctx, state, n.child)
+	}
 	child, err := openQueryNode(ctx, state, n.child)
 	if err != nil {
 		return indexedStage{}, err
@@ -37,7 +41,7 @@ func openDistinctNode(ctx context.Context, state *queryState, n *distinctNode) (
 	source := &querySource{flatWidth: width, materialized: true}
 	scratch := make([]sqltype.Value, width)
 	buckets := make(map[uint64][]int)
-	evaluation := EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+	evaluation := state.evaluation(nil)
 	for {
 		i, present, failure := child.nextOccurrence(ctx)
 		if failure != nil {
@@ -112,6 +116,18 @@ func findDistinctTuple(ctx context.Context, grouping []sqltype.Grouping, tuple, 
 }
 
 func preflightDistinct(c *EvalContext, n *distinctNode) (LogicalNode, error) {
+	if n.presenceOnly {
+		child, err := preflightQuery(c, n.child)
+		if err != nil {
+			return nil, err
+		}
+		if child == n.child {
+			return n, nil
+		}
+		copy := *n
+		copy.child = child
+		return &copy, nil
+	}
 	child, err := preflightQuery(c, n.child)
 	if err != nil {
 		return nil, err

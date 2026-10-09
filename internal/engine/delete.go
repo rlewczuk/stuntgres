@@ -191,21 +191,35 @@ func (w *WriteStage) Delete(candidate deleteCandidate) (bool, error) {
 	return true, nil
 }
 
-func (s *StatementScope) executeDelete(b binding, view *VisibilityView, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) executeDelete(b binding, view *VisibilityView, inputs *querySource, parameters []sqltype.Value) (Result, error) {
 	source, err := captureQuerySource(s.op.Context(), view, b.ref)
 	if err != nil {
+		if inputs != nil {
+			inputs.close()
+		}
+		view.Release()
 		return Result{}, err
 	}
 	defer source.close()
-	return s.deleteSource(b, source, parameters)
+	return s.deleteSource(b, source, inputs, parameters)
 }
 
-func (s *StatementScope) deleteSource(b binding, source *querySource, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, parameters []sqltype.Value) (Result, error) {
+	if inputs != nil {
+		defer inputs.close()
+	}
 	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.read().generationAt(b.ref.Address) {
 		return Result{}, ErrCatalogReplaced
 	}
 	ctx := s.op.Context()
 	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}
+	if inputs != nil {
+		if err := selectQuerySources(ctx, inputs); err != nil {
+			return Result{}, err
+		}
+		state := &queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
+		evaluation.query = state
+	}
 	var count int64
 	var rows *finalRows
 	keep := false

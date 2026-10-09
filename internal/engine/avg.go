@@ -67,9 +67,6 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 	if err != nil {
 		return nil, err
 	}
-	if inner := aggregateOccurrence(arg); inner != nil {
-		return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
-	}
 	call := aggregateCall{provider: provider, argument: arg, operation: operation}
 	slot := len(b.aggregates)
 	if arg.Properties().Volatility == Immutable {
@@ -85,5 +82,5 @@ func (b *expressionBinder) bindAvg(raw parser.AggregateExpr, name parser.ObjectN
 	}
 	p := arg.Properties()
 	properties := ExprProperties{StageDependent: true, ParameterDependent: p.ParameterDependent, Volatility: p.Volatility}
-	return aggregateExpression{b.info(provider.ResultUsage(), raw.Pos, properties), slot}, nil
+	return aggregateExpression{expressionInfo: b.info(provider.ResultUsage(), raw.Pos, properties), slot: slot, frame: b.frameID()}, nil
 }

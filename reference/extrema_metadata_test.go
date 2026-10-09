@@ -92,14 +92,14 @@ func TestReferenceExtremaBoundaries(t *testing.T) {
 			{"SELECT min(NULL::extrema_names),max(NULL::extrema_names) FROM extrema_boundary", "_NAME", "min for name[] is unsupported", "8", [][]any{{nil, nil}}},
 			{"SELECT min(NULL::pg_node_tree),max(NULL::pg_node_tree) FROM extrema_boundary", "TEXT", "min for pg_node_tree is unsupported", "8", [][]any{{nil, nil}}},
 			{"SELECT min(conbin),max(conbin) FROM pg_catalog.pg_constraint WHERE conrelid='extrema_boundary'::regclass", "TEXT", "min for pg_node_tree is unsupported", "8", [][]any{{tree, tree}}},
-			{"SELECT min(1),max(2)", "INT4", "SELECT without FROM is unsupported", "1", [][]any{{int64(1), int64(2)}}},
+			{"SELECT min(1),max(2)", "INT4", "", "", [][]any{{int64(1), int64(2)}}},
 			{"SELECT min(DISTINCT v),max(ALL v) FROM extrema_boundary", "INT4", "aggregate DISTINCT is unsupported", "8", [][]any{{int64(1), int64(2)}}},
 			{"SELECT min(v ORDER BY v),max(v ORDER BY v DESC) FROM extrema_boundary", "INT4", "aggregate ordering is unsupported", "8", [][]any{{int64(1), int64(2)}}},
 			{"SELECT min(v) FILTER(WHERE v>1),max(v) FILTER(WHERE v>1) FROM extrema_boundary", "INT4", "aggregate modifiers are unsupported", "15", [][]any{{int64(2), int64(2)}}},
 			{"SELECT min(v) OVER(),max(v) OVER() FROM extrema_boundary", "INT4", "aggregate modifiers are unsupported", "15", [][]any{{int64(1), int64(2)}, {int64(1), int64(2)}}},
 		} {
 			t.Run(tc.query, func(t *testing.T) {
-				if pg {
+				if pg || tc.message == "" {
 					extremaResult(t, p, conn, recorder, pg, tc.query, []string{"min", "max"}, []string{tc.typ, tc.typ}, tc.rows)
 				} else {
 					want := controlsReferenceDiagnostic("0A000", tc.message)

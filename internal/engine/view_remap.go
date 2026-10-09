@@ -9,6 +9,12 @@ import (
 // Replacement copies the closed bound tree; source and expression identities
 // are reminted together. Syntax and frozen layouts are immutable and shared.
 func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int) (BoundExpr, error) {
+	return remapBoundExpressionWithQuery(node, ref, slots, func(root LogicalNode) (LogicalNode, error) {
+		return remapViewQuery(root, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
+	})
+}
+
+func remapBoundExpressionWithQuery(node BoundExpr, ref func(ObjectRef) ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -18,7 +24,7 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 			return old
 		}
 		var next BoundExpr
-		next, err = remapBoundExpression(old, ref, slots)
+		next, err = remapBoundExpressionWithQuery(old, ref, slots, queryMapper)
 		return next
 	}
 	args := func(old []BoundExpr) []BoundExpr {
@@ -30,6 +36,25 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	}
 	var next BoundExpr
 	switch n := node.(type) {
+	case subqueryExpression:
+		if queryMapper != nil {
+			root, failure := queryMapper(n.queryPlan.Root)
+			if failure != nil {
+				return nil, failure
+			}
+			copy := *n.queryPlan
+			copy.Root = root
+			n.queryPlan = &copy
+		}
+		n.comparisons = append([]comparisonExpression(nil), n.comparisons...)
+		for i, c := range n.comparisons {
+			mapped := child(c)
+			if err != nil {
+				return nil, err
+			}
+			n.comparisons[i] = mapped.(comparisonExpression)
+		}
+		next = n
 	case identityExpression, currentDateTimeExpression:
 		next = n
 	case literalExpression:
@@ -162,6 +187,36 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 }
 
 func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor) (LogicalNode, error) {
+	return (&viewQueryRemapper{ref: ref, typ: typ}).query(node)
+}
+
+type viewQueryRemapper struct {
+	ref    func(ObjectRef) ObjectRef
+	typ    func(*sqltype.Descriptor) *sqltype.Descriptor
+	frames map[uint32]LogicalNode
+}
+
+func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
+	project, ok := node.(*projectNode)
+	if !ok {
+		return nil, fmt.Errorf("stuntgres: missing remapped query frame")
+	}
+	if root := m.frames[project.frame]; root != nil {
+		return root, nil
+	}
+	root, err := m.query(node)
+	if err != nil {
+		return nil, err
+	}
+	if m.frames == nil {
+		m.frames = make(map[uint32]LogicalNode)
+	}
+	m.frames[project.frame] = root
+	return root, nil
+}
+
+func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
+	ref, typ := m.ref, m.typ
 	schema := append(querySchema(nil), node.Schema()...)
 	for i := range schema {
 		schema[i].Usage.Type = typ(schema[i].Usage.Type)
@@ -176,19 +231,19 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 			return old
 		}
 		var next LogicalNode
-		next, err = remapViewQuery(old, ref, typ)
+		next, err = m.query(old)
 		return next
 	}
 	expression := func(old BoundExpr) BoundExpr {
 		if err != nil {
 			return old
 		}
-		next, _, failure := retagBoundTypes(old, typ)
+		next, _, failure := retagBoundTypesWithQuery(old, typ, nil)
 		if failure != nil {
 			err = failure
 			return old
 		}
-		next, err = remapBoundExpression(next, ref, nil)
+		next, err = remapBoundExpressionWithQuery(next, ref, nil, m.nested)
 		return next
 	}
 	expressions := func(old []BoundExpr) []BoundExpr {
@@ -205,7 +260,7 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 		for i, row := range n.rows {
 			rows[i] = expressions(row)
 		}
-		next = &valuesNode{querySchema: schema, rows: rows}
+		next = &valuesNode{querySchema: schema, rows: rows, viewOrdinal: n.viewOrdinal, identityOrderDemand: append([]bool(nil), n.identityOrderDemand...)}
 	case *limitNode:
 		next = &limitNode{querySchema: schema, child: child(n.child), offset: expression(n.offset), count: expression(n.count)}
 	case *evaluationNode:
@@ -215,11 +270,15 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 	case *sourceNode:
 		next = &sourceNode{querySchema: schema, ref: ref(n.ref), occurrence: n.occurrence}
 	case *joinNode:
-		next = &joinNode{querySchema: schema, kind: n.kind, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges)}
+		next = &joinNode{querySchema: schema, kind: n.kind, left: child(n.left), right: child(n.right), predicate: expression(n.predicate), leftWidth: n.leftWidth, rightWidth: n.rightWidth, merges: expressions(n.merges), viewOrdinal: n.viewOrdinal}
 	case *singletonNode:
 		next = &singletonNode{querySchema: schema}
+	case *derivedNode:
+		query := *n.query
+		query.Root, err = m.nested(query.Root)
+		next = &derivedNode{querySchema: schema, query: &query}
 	case *projectNode:
-		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), frozenValues: n.frozenValues}
+		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), frozenValues: n.frozenValues, frame: n.frame, syntax: n.syntax}
 	case *distinctNode:
 		copy := *n
 		copy.querySchema = schema
@@ -507,6 +566,7 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 		query := *definition.query
 		query.Root = root
 		definition.query = &query
+		definition.frames, definition.queries = collectQueryFrames(root)
 		copy := *d
 		copy.view = &definition
 		next.descriptors[address] = &copy

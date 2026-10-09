@@ -67,7 +67,7 @@ func TestReferenceUpdateReturningExternalMechanisms(t *testing.T) {
 			if !backend.pg {
 				run(referenceExec("CREATE TABLE triggered(a INT)", 0))
 				run(referenceExec("INSERT INTO triggered VALUES(10)", 1))
-				for _, q := range []string{"CREATE TRIGGER change BEFORE UPDATE ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_update()", "UPDATE triggered SET a=2 RETURNING old", "UPDATE triggered SET a=2 RETURNING (old).*", "INSERT INTO triggered VALUES(2) RETURNING a", "UPDATE triggered SET a=2 RETURNING (SELECT 7)"} {
+				for _, q := range []string{"CREATE TRIGGER change BEFORE UPDATE ON triggered FOR EACH ROW EXECUTE FUNCTION adjust_update()", "UPDATE triggered SET a=2 RETURNING old", "UPDATE triggered SET a=2 RETURNING (old).*", "INSERT INTO triggered VALUES(2) RETURNING a"} {
 					result, err := db.ExecContext(p.ctx, q)
 					if result != nil || err == nil {
 						t.Fatal("unsupported mechanism", q, result, err)

@@ -49,6 +49,4 @@ func TestQueryDistinctGrammarBoundaries(t *testing.T) {
 			t.Fatal(diagnostic)
 		}
 	}
-	// DISTINCT does not expand the ordinary relationless scalar boundary.
-	keywordDiagnostic(t, "SELECT DISTINCT 1", "0A000", "SELECT without FROM is unsupported", "1")
 }

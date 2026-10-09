@@ -14,6 +14,8 @@ func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []in
 		return dst
 	case *joinNode:
 		return queryTreeOccurrences(n.right, inputs, queryTreeOccurrences(n.left, inputs, dst))
+	case *derivedNode:
+		return queryTreeOccurrences(n.query.Root, inputs, dst)
 	case *projectNode:
 		return queryTreeOccurrences(n.child, inputs, dst)
 	case *filterNode:
@@ -77,6 +79,7 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 			source.nestedStage = &inner
 			if source.lineage != nil {
 				source.lineage.stage = inner.source
+				source.lineage.state = innerState
 			}
 		}
 		inner := source.nestedStage

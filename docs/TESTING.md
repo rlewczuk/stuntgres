@@ -205,6 +205,15 @@ expired-owner reset, or suppress its diagnostic to make fixture cleanup pass.
 The superseded `TestSettingsSmoke` is removed; its typed registry, numeric,
 metadata, notice/reentry, parser capture, access and connection-lifecycle
 obligations remain in the existing shared `TestReferenceSettings*` consumers.
+The superseded `TestNullCountSmoke` is removed. Its literal/table counts, raw
+INT4 metadata and argument-count sums, nested calls, held parameter reuse and
+empty-result metadata, Exec counts and complete diagnostic/nil-output contracts
+remain in the shared `TestReferenceNullCount*` families. Former no-FROM rejection
+cases now assert shared success; `TestReferenceNullCountInsertConsumerRoutes`
+retains the original INSERT Query/Prepare routes and exact resulting state.
+Malformed suffixes retain whole-input/no-prefix-effects rejection coverage,
+while actual unsupported array/function-provider forms remain boundaries.
+
 
 Original source methods are obligations, not interchangeable API labels.
 For proven DB/Tx plain calls, set referenceStep.nonContext=true on the existing
@@ -364,3 +373,29 @@ fixture behavior is not covered above, optionally consult:
 - `Makefile`: non-standard command details.
 
 These are last-resort implementation references, not prerequisites for each test.
+
+## Subquery regression and instrumentation coverage
+
+`reference/query_subquery_*_test.go` contains the shared direct/prepared,
+held-handle, mutation, metadata, admission, locking and stored-view scenarios.
+Both backends execute the same callback without a discovery-only backend filter:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySubquery'
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySubquery'
+```
+
+The integration handoff additionally supplies the exact selector for migrated
+consumer/no-FROM families; those families are not replaced by the new prefix.
+Each selective invocation uses a900-second deadline, in both modes before review.
+
+Internal `TestQuerySubquery*` cases instrument actual bound plans, typed
+comparison providers, lexical frame lookup, admission manifests and borrowed
+stage cleanup. Sentinels prove ignored EXISTS targets versus required ORDER
+keys/derived projections and normal target demand. They are not duplicate
+public SQL feature fixtures and do not use fake database APIs. Parser
+`TestQuerySubqueryAST` / `TestQuerySubquerySourceWalk` check structural syntax,
+positions, source occurrence order and child-specific rowmark ownership.
+Run those private units with
+`make quickcheck PACKAGES='./internal/parser ./internal/engine' RUN='^TestQuery(Subquery|DerivedSubquerySyntax)'`.
+

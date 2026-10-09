@@ -87,10 +87,12 @@ func TestTimePrecisionScannerAndBoundaries(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"SELECT TIME '24:00'"} {
-		_, err := Parse(q)
-		var got *sqlstate.Error
-		if !errors.As(err, &got) || got.Code != "0A000" {
-			t.Fatal(q, err)
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+			t.Fatal(q, statements, err)
+		}
+		if literal, ok := statements[0].(*Select).Targets[0].(TypedLiteralExpr); !ok || literal.TypeName.Name != "time" {
+			t.Fatal(q, statements)
 		}
 	}
 	for _, q := range []string{"CREATE TABLE t(v TIME WITH TIME ZONE)", "CREATE TABLE t(v TIME(3) WITH TIME ZONE)"} {

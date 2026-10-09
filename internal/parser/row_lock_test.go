@@ -22,7 +22,7 @@ func TestRowLockGrammar(t *testing.T) {
 			default:
 				t.Fatal(s)
 			}
-			if len(selectStmt.Locking) != 1 || selectStmt.Locking[0].Mode != clause || selectStmt.Locking[0].Pos.Offset != strings.Index(q, clause) || selectStmt.IsSingleton() {
+			if len(selectStmt.Locking) != 1 || selectStmt.Locking[0].Mode != clause || selectStmt.Locking[0].Pos.Offset != strings.Index(q, clause) || selectStmt.From == nil {
 				t.Fatal(q, selectStmt.Locking)
 			}
 		}
@@ -107,5 +107,110 @@ func TestRowLockDistinctOnStatementFrontier(t *testing.T) {
 		if _, err := Parse(q + " junk"); err == nil {
 			t.Fatal("malformed locking shape accepted", q)
 		}
+	}
+}
+
+func TestRowLockSubqueryClauses(t *testing.T) {
+	q := "SELECT (SELECT x FROM scalar_source FOR SHARE OF scalar_source NOWAIT) FROM outer_source,(SELECT x FROM derived_source FOR KEY SHARE OF derived_source SKIP LOCKED) d WHERE EXISTS(SELECT FROM predicate_source FOR UPDATE OF predicate_source) FOR NO KEY UPDATE OF outer_source"
+	statements, err := Parse(q)
+	if err != nil || len(statements) != 1 {
+		t.Fatal(q, statements, err)
+	}
+	outer := statements[0].(*Select)
+	scalar := outer.Targets[0].(SubqueryExpr).Query
+	derived := outer.From.(*JoinReference).Right.(*AliasReference).Input.(*DerivedQuery).Query
+	predicate := outer.Where.(SubqueryExpr).Query
+	for _, tc := range []struct {
+		query  *Select
+		mode   string
+		target string
+		wait   RowLockWait
+	}{
+		{outer, "FOR NO KEY UPDATE", "outer_source", RowLockBlock},
+		{scalar, "FOR SHARE", "scalar_source", RowLockNowait},
+		{derived, "FOR KEY SHARE", "derived_source", RowLockSkip},
+		{predicate, "FOR UPDATE", "predicate_source", RowLockBlock},
+	} {
+		if len(tc.query.Locking) != 1 {
+			t.Fatal(tc.query.Locking)
+		}
+		clause := tc.query.Locking[0]
+		if clause.Mode != tc.mode || clause.Wait != tc.wait || len(clause.Targets) != 1 || clause.Targets[0].Parts[0].Text != tc.target || clause.Pos.Offset != strings.Index(q, tc.mode+" OF "+tc.target) {
+			t.Fatal(tc, clause)
+		}
+	}
+	wantQueries := []*Select{outer, derived, scalar, predicate}
+	wantSources := []string{"outer_source", "derived_source", "scalar_source", "predicate_source"}
+	index := 0
+	err = VisitQuerySources(outer, nil, func(table *TableReference, query *Select) error {
+		if index >= len(wantQueries) || query != wantQueries[index] || table.Name.Parts[0].Text != wantSources[index] {
+			t.Fatal("lexical source identity/order lost", index, table, query)
+		}
+		index++
+		return nil
+	})
+	if err != nil || index != len(wantQueries) {
+		t.Fatal(index, err)
+	}
+}
+
+func TestRowLockSourceManifestQueryEntries(t *testing.T) {
+	table := &TableReference{Name: ObjectName{Parts: []Identifier{{Text: "t"}}}}
+	leaf := &Select{From: table}
+	child := &Select{From: &AliasReference{Input: &DerivedQuery{Query: leaf}, Name: Identifier{Text: "d"}}, Locking: []RowLockClause{{Mode: "FOR UPDATE", Targets: []ObjectName{{Parts: []Identifier{{Text: "d"}}}}}}}
+	empty := &Select{}
+	outer := &Select{Targets: []Expr{SubqueryExpr{Query: child}, SubqueryExpr{Query: empty}}}
+	want := []*Select{outer, child, leaf, empty}
+	index, sources := 0, 0
+	err := VisitQuerySources(outer, func(query *Select) error {
+		if index >= len(want) || query != want[index] {
+			t.Fatal("query entry identity/order lost", index, query)
+		}
+		index++
+		return nil
+	}, func(source *TableReference, query *Select) error {
+		if index != 3 || source != table || query != leaf {
+			t.Fatal("source visited outside its lexical entry", index, source, query)
+		}
+		sources++
+		return nil
+	})
+	if err != nil || index != len(want) || sources != 1 {
+		t.Fatal(index, sources, err)
+	}
+}
+
+func TestRowLockParenthesizedQueryCategories(t *testing.T) {
+	q := "SELECT (((SELECT id FROM t FOR UPDATE OF t NOWAIT))) FROM (((SELECT id FROM u FOR SHARE OF u SKIP LOCKED))) d"
+	statements, err := Parse(q)
+	if err != nil || len(statements) != 1 {
+		t.Fatal(q, statements, err)
+	}
+	outer := statements[0].(*Select)
+	scalar := outer.Targets[0].(SubqueryExpr)
+	derived := outer.From.(*AliasReference).Input.(*DerivedQuery)
+	if scalar.Kind != SubqueryScalar || scalar.Pos.Offset != strings.Index(q, "(((") || derived.Pos.Offset != strings.LastIndex(q, "(((") {
+		t.Fatal("parenthesis wrapper positions lost", scalar, derived)
+	}
+	for _, tc := range []struct {
+		query  *Select
+		source string
+		mode   string
+		wait   RowLockWait
+	}{
+		{scalar.Query, "t", "FOR UPDATE", RowLockNowait},
+		{derived.Query, "u", "FOR SHARE", RowLockSkip},
+	} {
+		table, ok := tc.query.From.(*TableReference)
+		if !ok || table.Name.Parts[0].Text != tc.source || tc.query.Parenthesized || len(tc.query.Locking) != 1 {
+			t.Fatal("query category or local source lost", tc.query)
+		}
+		clause := tc.query.Locking[0]
+		if clause.Mode != tc.mode || clause.Wait != tc.wait || len(clause.Targets) != 1 || clause.Targets[0].Parts[0].Text != tc.source || clause.Pos.Offset != strings.Index(q, tc.mode) {
+			t.Fatal("parenthesized rowmark lost", clause)
+		}
+	}
+	if _, err := Parse(q + " junk"); err == nil {
+		t.Fatal("trailing input accepted")
 	}
 }

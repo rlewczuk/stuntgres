@@ -13,23 +13,69 @@ type queryLeaf struct {
 	storage  *relationStorage
 	uses     []int
 	mark     queryRowMark
+	query    *parser.Select
+	table    *parser.TableReference
 }
 
-func (s *StatementScope) acquireQueryRelations(sel *parser.Select, authorityStmt parser.Statement, execute bool) error {
-	marks, markErr := queryLockTargets(sel.From, sel.Locking)
-	s.queryLockAdmission = queryLockAdmission{selectQuery: sel, marks: marks, err: markErr}
-	for i, table := range parser.FromTables(sel.From) {
-		// OF semantic errors are reported by binding after column/ORDER analysis.
+func newQueryLockAdmission(statement parser.Statement) (queryLockAdmission, []*parser.TableReference, []*parser.Select, error) {
+	admissions := make(map[*parser.Select]*queryLockAdmission)
+	var ordered []*queryLockAdmission
+	tableQueries := make(map[*parser.TableReference]*parser.Select)
+	admit := func(query *parser.Select) *queryLockAdmission {
+		if prior := admissions[query]; prior != nil {
+			return prior
+		}
+		marks, err := queryLockTargets(query.From, query.Locking)
+		indices := make(map[*parser.TableReference]int)
+		_ = parser.VisitQuerySources(query, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
+		admission := &queryLockAdmission{selectQuery: query, marks: marks, err: err, indices: indices}
+		admissions[query] = admission
+		ordered = append(ordered, admission)
+		return admission
+	}
+	var tables []*parser.TableReference
+	var queries []*parser.Select
+	if err := parser.VisitQuerySources(statement, func(query *parser.Select) error { admit(query); return nil }, func(table *parser.TableReference, query *parser.Select) error {
+		admit(query)
+		tableQueries[table] = query
+		tables = append(tables, table)
+		queries = append(queries, query)
+		return nil
+	}); err != nil {
+		return queryLockAdmission{}, nil, nil, err
+	}
+	return queryLockAdmission{queries: admissions, ordered: ordered, tableQueries: tableQueries}, tables, queries, nil
+}
+
+func (a *queryLockAdmission) tableMark(table *parser.TableReference) queryRowMark {
+	mark := queryRowMark{}
+	if a != nil {
+		for _, admission := range a.ordered {
+			if index, ok := admission.indices[table]; ok && index < len(admission.marks) {
+				mark = mergeQueryRowMark(mark, admission.marks[index])
+			}
+		}
+	}
+	return mark
+}
+
+func (s *StatementScope) acquireQueryRelations(statement parser.Statement, authorityStmt parser.Statement, execute bool) error {
+	admission, tables, queries, err := newQueryLockAdmission(statement)
+	if err != nil {
+		return err
+	}
+	s.queryLockAdmission = admission
+	for i, table := range tables {
+		mark := admission.tableMark(table)
 		selection := &parser.Select{From: table}
-		if i < len(marks) && marks[i].mode != 0 {
-			selection.Locking = sel.Locking
+		if mark.mode != 0 {
+			selection.Locking = []parser.RowLockClause{{Mode: queryRowClause(mark.mode), Wait: mark.wait}}
 		}
 		if err := s.acquireRelationTarget(selection, authorityStmt, execute, true); err != nil {
 			return err
 		}
-		if i < len(marks) {
-			s.querySources[len(s.querySources)-1].mark = marks[i]
-		}
+		leaf := &s.querySources[len(s.querySources)-1]
+		leaf.mark, leaf.query, leaf.table = mark, queries[i], table
 	}
 	return nil
 }
@@ -59,7 +105,7 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 	}
 	for i, leaf := range leaves {
 		grant := s.querySources[i]
-		if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage {
+		if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark {
 			return ErrCatalogReplaced
 		}
 	}

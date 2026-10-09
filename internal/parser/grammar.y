@@ -34,6 +34,7 @@ package parser
  call FunctionExpr
  predicate PredicateKind
  selectStmt *Select
+ parenthesizedQuery parenthesizedQuery
  insertSource *InsertSource
  valuesQuery *ValuesQuery
  order *Order
@@ -102,7 +103,7 @@ package parser
 %token <tok> ARRAY
 %token <tok> HAVING
 %token <tok> UNIQUE
-%token <tok> NOT_DEFERRABLE_LA
+%token <tok> NOT_DEFERRABLE_LA NOT_IN_LA
 %token <tok> FOR
 %token <tok> LIMIT OFFSET FETCH
 %token <tok> OF NOWAIT SKIP LOCKED UNION INTERSECT EXCEPT
@@ -119,6 +120,7 @@ package parser
 %token <tok> STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD LEADING TRAILING BOTH
 %token <tok> CASE WHEN THEN ELSE COALESCE NULLIF GREATEST LEAST
 %token <tok> IF EXISTS
+%token <tok> ANY SOME ROW
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
 %token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
 %token <tok> CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP LOCALTIME LOCALTIMESTAMP
@@ -133,7 +135,7 @@ package parser
 %token <tok> CHECK
 %token <tok> CHECK_FUNC
 %token <tok> INDEX_SUBQUERY_OPEN
-%token <tok> GENERATION_SUBQUERY_OPEN GENERATION_OVER GENERATION_PARTITION
+%token <tok> GENERATION_OVER GENERATION_PARTITION
 %token <tok> OVERLAY POSITION SUBSTRING PLACING
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
@@ -149,7 +151,7 @@ package parser
 /* Predicate continuations reduce a completed cast type before consuming IS,
  * ISNULL or NOTNULL. Keep their shared nonassociativity below comparisons. */
 %nonassoc IS ISNULL NOTNULL
-%nonassoc BETWEEN NOT
+%nonassoc BETWEEN NOT NOT_IN_LA
 /* ESCAPE shifts after a complete pattern, but cannot become a cast type tail. */
 %nonassoc ESCAPE
 %left SYMBOLIC_OPERATOR OPERATOR
@@ -165,6 +167,8 @@ package parser
  * rather than extending an arbitrary two-word type spelling. */
 %nonassoc START NO INCREMENT MINVALUE MAXVALUE CACHE CYCLE OWNED RESTART GENERATED
 %nonassoc TYPE_NAME
+/* Retain contextual type-tail shifts instead of relying on yacc defaults. */
+%nonassoc INDEX CONCURRENTLY
 /* Postfix casts put projection labels in the follow set of type names.
  * Preserve declaration grammar's deliberate type-tail shift rather than
  * leaving those decisions as implicit shift/reduce conflicts. Interval field
@@ -173,7 +177,7 @@ package parser
  * it to a utility token. INDEX/CONCURRENTLY retain their existing decisions. */
 %nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND REINDEX '.'
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
-%nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING
+%nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING ROW
 %nonassoc GENERATION_OVER
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
 %nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC CURRENT_DATETIME_FUNC CURRENT_DATETIME_KEYWORD_FUNC
@@ -190,6 +194,7 @@ package parser
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
 %type <stmt> select_query
 %type <selectStmt> query_select query_set query_intersection select_core select_operand select_projection
+%type <parenthesizedQuery> select_with_parens
 %type <desc> set_modifier
 %type <stmt> create_domain drop_domain create_enum
 %type <enumLabels> enum_labels enum_label_list
@@ -226,8 +231,11 @@ package parser
 %type <viewOptions> view_options view_option_list
 %type <viewOption> view_option
 %type <tok> view_option_value
-%type <expr> delete_where delete_operand delete_base delete_lower delete_between delete_between_predicate delete_comparison delete_target delete_not delete_and delete_or
+%type <expr> delete_where
 %type <expr> scalar_projection
+%type <fromItem> optional_from
+%type <row> row_fields
+%type <tok> quantifier
 %type <valuesQuery> query_values parenthesized_values
 %type <rows> query_rows
 %type <row> query_row query_cells
@@ -256,7 +264,7 @@ package parser
 %type <tok> nn_modifier nn_inherit
 %type <tok> column_suffix
 %type <tok> name non_between_name setting_word setting_word_without_between role_name role_option_word type_name bare_label col_label generic_word generic_word_without_with generic_word_without_exists generic_word_base suffix nulls_keyword nulls_position
-%type <tok> predicate_suffix
+%type <tok> predicate_suffix where_predicate_suffix
 %type <tok> excluded_role_target excluded_role_assignment
 %type <tok> cast_function
 %type <expr> string_function
@@ -289,7 +297,7 @@ package parser
 %type <value> value
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument insert_value
 %type <tok> like_operator
-%type <expr> target_escape delete_escape
+%type <expr> target_escape
 %type <expr> conditional conditional_call case_test case_else conditional_value
 %type <caseArms> case_arms
 %type <caseArm> case_arm
@@ -478,16 +486,15 @@ lock_targets: alter_target { $$=[]LockTarget{{Name:$1.Name,Only:$1.Only}} }
 optional_lock_mode: /* empty */ { $$=LockAccessExclusive }
  | IN lock_mode MODE { $$=$2 } ;
 lock_mode: ACCESS lock_share { $$=LockAccessShare }
- | lock_row lock_share { $$=LockRowShare }
- | lock_row EXCLUSIVE { $$=LockRowExclusive }
+ | ROW lock_share { $$=LockRowShare }
+ | ROW EXCLUSIVE { $$=LockRowExclusive }
  | lock_share UPDATE EXCLUSIVE { $$=LockShareUpdateExclusive }
  | lock_share { $$=LockShare }
- | lock_share lock_row EXCLUSIVE { $$=LockShareRowExclusive }
+ | lock_share ROW EXCLUSIVE { $$=LockShareRowExclusive }
  | EXCLUSIVE { $$=LockExclusive }
  | ACCESS EXCLUSIVE { $$=LockAccessExclusive } ;
 optional_lock_nowait: /* empty */ { $$=false } | lock_nowait { $$=true } ;
 lock_share: KW_U { if $1.text!="share" { sqllex.(*lexer).syntax($1); return 1 } } ;
-lock_row: KW_C { if $1.text!="row" { sqllex.(*lexer).syntax($1); return 1 } } ;
 lock_nowait: NOWAIT ;
 set: SET set_name setting_assignment setting_values { $$=parsedSet($2.identifier(),$4,$1.pos) }
  | SET set_name setting_assignment DEFAULT { $$=&Set{Name:$2.identifier(),Default:true,Pos:$1.pos} }
@@ -877,53 +884,18 @@ returning_option: name AS name {
    if $1.keyword==nil || ($1.text!="old" && $1.text!="new") { sqllex.(*lexer).syntax($1);return 1 }
    $$=ReturningAlias{New:$1.text=="new",Alias:Identifier{Text:$3.text,Pos:$3.pos},Pos:$1.pos}
  } ;
-delete_where: /* empty */ { $$=nil } | WHERE delete_or { $$=$2 }
+delete_where: /* empty */ { $$=nil } | WHERE target_or { $$=$2 }
  | WHERE KW_U OF name {
    if $2.keyword==nil || $2.text!="current" { sqllex.(*lexer).syntax($3); return 1 }
    sqllex.(*lexer).deferUnsupported($2,"DELETE CURRENT OF is unsupported"); $$=nil
  } ;
-delete_operand: operand { $$=$1 } ;
-delete_base: delete_operand { $$=$1 }
- | '(' delete_or ')' { $$=$2 } ;
-delete_lower: delete_base { $$=$1 }
- | delete_base comparison_operator delete_base { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
- | delete_lower IS DISTINCT FROM delete_lower %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
- | delete_lower IS NOT DISTINCT FROM delete_lower %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
-delete_between: delete_base %prec IS { $$=$1 }
- | delete_between_predicate { $$=$1 }
- | delete_base like_operator delete_base delete_escape %prec BETWEEN { $$=likeExpr($1,$3,$4,$2,false,$2.pos) }
- | delete_base NOT like_operator delete_base delete_escape %prec BETWEEN { $$=likeExpr($1,$4,$5,$3,true,$2.pos) } ;
-delete_between_predicate: delete_base BETWEEN delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$3,$5,$2.pos,false,false) }
- | delete_base NOT BETWEEN delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,true,false) }
- | delete_base BETWEEN SYMMETRIC delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$4,$6,$2.pos,false,true) }
- | delete_base NOT BETWEEN SYMMETRIC delete_lower AND delete_base %prec BETWEEN { $$=betweenExpr($1,$5,$7,$2.pos,true,true) } ;
 like_operator: LIKE | ILIKE ;
-delete_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE delete_base { $$=$2 } ;
 target_escape: /* empty */ %prec BETWEEN { $$=nil } | ESCAPE target_base { $$=$2 } ;
-/* Match the ordinary bounded comparison consumer: grouped predicates can be
- * operands, but comparison chains and arithmetic remain nonassociative/scalar. */
-delete_comparison: delete_between { $$=$1 }
- | delete_between comparison_operator delete_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} } ;
-delete_target: delete_comparison { $$=$1 }
- | delete_target IS NULL %prec IS { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
- | delete_target IS NOT NULL %prec IS { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
- | delete_target ISNULL { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
- | delete_target NOTNULL { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
- | delete_target IS truth_kind %prec IS { $$=PredicateExpr{Kind:$3,Left:$1,Pos:$2.pos} }
- | delete_target IS DISTINCT FROM delete_target %prec IS { $$=PredicateExpr{Kind:IsDistinct,Left:$1,Right:$5,Pos:$2.pos} }
- | delete_target IS normalized_form NORMALIZED %prec IS { $$=normalizedExpr($1,$3,$2.pos,false) }
- | delete_target IS NOT normalized_form NORMALIZED %prec IS { $$=normalizedExpr($1,$4,$2.pos,true) }
- | delete_target IS NOT DISTINCT FROM delete_target %prec IS { $$=PredicateExpr{Kind:IsNotDistinct,Left:$1,Right:$6,Pos:$2.pos} } ;
-delete_not: delete_target { $$=$1 } | NOT delete_not { $$=LogicalExpr{Op:LogicalNot,Left:$2,Pos:$1.pos} } ;
-delete_and: delete_not { $$=$1 } | delete_and AND delete_not { $$=LogicalExpr{Op:LogicalAnd,Left:$1,Right:$3,Pos:$2.pos} } ;
-delete_or: delete_and { $$=$1 } | delete_or OR delete_and { $$=LogicalExpr{Op:LogicalOr,Left:$1,Right:$3,Pos:$2.pos} } ;
 insert_targets: name { $$ = []InsertTarget{{Name:$1.text, Pos:$1.pos}} } | insert_targets ',' name { $$ = append($1, InsertTarget{Name:$3.text, Pos:$3.pos}) } ;
 insert_input: VALUES rows order bounds { $$=&InsertSource{Values:&ValuesQuery{Rows:$2,Order:$3,Bounds:$4,Pos:$1.pos}} }
  | insert_select { $$=&InsertSource{Select:$1} }
  | '(' insert_input ')' { $$=$2 } ;
-insert_select: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);if $1.Set==nil && $1.From==nil && !sqllex.(*lexer).nonqueryProjection($1.Targets) {return 1};$$=$1 }
- | SELECT %prec NAME_LIST { $$=&Select{Pos:$1.pos} }
- | SELECT nonempty_bounds %prec NAME_LIST { $$=&Select{Bounds:$2,Pos:$1.pos} } ;
+insert_select: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 } ;
 names: name %prec NAME_LIST { $$ = []string{$1.text} } | names ',' name %prec NAME_LIST { $$ = append($1,$3.text) } ;
 rows: row { $$ = [][]Expr{$1} } | rows ',' row { $$ = append($1,$3) } ;
 row: '(' insert_values ')' { $$ = $2 } ;
@@ -939,14 +911,19 @@ query_cells: query_cell { $$=[]Expr{$1} } | query_cells ',' query_cell { $$=appe
 query_cell: scalar_projection { $$=$1 } | DEFAULT { $$=DefaultExpr{Pos:$1.pos} } ;
 scalar: scalar_atom { $$=$1 }
  | scalar GENERATION_OVER '(' generation_window_spec ')' { restriction:=GenerationRestriction{Code:"42P20",Message:"window functions are not allowed in column generation expressions",Pos:$1.SourcePosition()};l:=sqllex.(*lexer);if l.generationRestriction==nil {l.generationRestriction=&restriction} else {*l.generationRestriction=restriction};if l.generationDepth==0 {l.generationCompletedRestriction=l.generationRestriction};$$=ForbiddenGenerationExpr{restriction} }
+ | select_with_parens %prec NAME_LIST { $$=SubqueryExpr{Kind:SubqueryScalar,Query:$1.Query,Pos:$1.Pos} }
+ | EXISTS select_with_parens %prec NAME_LIST { $$=SubqueryExpr{Kind:SubqueryExists,Query:$2.Query,Pos:$1.pos} }
+ | ROW '(' ')' { $$=RowExpr{Explicit:true,Pos:$1.pos} }
+ | ROW '(' row_fields ')' { $$=RowExpr{Fields:$3,Explicit:true,Pos:$1.pos} }
+ | '(' scalar_projection ',' row_fields ')' { $$=RowExpr{Fields:append([]Expr{$2},$4...),Pos:$1.pos} }
  | '(' scalar ')' { $$=groupedQualification($2) }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
  | scalar ':' type %prec ':' { if $2.text!="::" { sqllex.(*lexer).syntax($2); return 1 }; if $3.Name=="regclass" && $3.Schema==nil && len($3.Modifiers)==0 && len($3.ArrayBounds)==0 { $$=RegclassExpr{Child:$1,Pos:$2.pos} } else { $$=CastExpr{Child:$1,TypeName:$3,Syntax:PostfixCast,Pos:$2.pos} } }
  | scalar COLLATE relation_name %prec COLLATE { $$=CollateExpr{Child:$1,Name:$3,Pos:$2.pos} }
- | cast_function delete_or ')' { if ordinaryAggregate($1.text) {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.text=="sum" {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}}} }
- | qualified_call_head delete_or ')' { if ordinaryAggregate($1.Name) {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.Name=="sum" {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}}} }
- | cast_function delete_or ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
- | qualified_call_head delete_or ',' count_values ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
+ | cast_function target_or ')' { if ordinaryAggregate($1.text) {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.text=="sum" {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}}} }
+ | qualified_call_head target_or ')' { if ordinaryAggregate($1.Name) {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.Name=="sum" {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}}} }
+ | cast_function target_or ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
+ | qualified_call_head target_or ',' count_values ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
  | cast_function function ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos} }
  | qualified_call_head function ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos} }
  | cast_function function ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
@@ -961,10 +938,10 @@ scalar: scalar_atom { $$=$1 }
  | qualified_call_head ALL count_values order ')' { sqllex.(*lexer).failAt("0A000","aggregate ALL is unsupported",$1.Pos.Offset);return 1 }
  | cast_function '*' ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Star:true,Order:$5,Pos:$1.pos} }
  | qualified_call_head '*' ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Order:$5,Pos:$1.Pos} }
- | cast_function delete_or ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
- | qualified_call_head delete_or ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
- | cast_function delete_or ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
- | qualified_call_head delete_or ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
+ | cast_function target_or ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
+ | qualified_call_head target_or ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
+ | cast_function target_or ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
+ | qualified_call_head target_or ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
  | cast_function function ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
  | qualified_call_head function ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
  | cast_function function ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
@@ -988,6 +965,7 @@ scalar: scalar_atom { $$=$1 }
  | scalar SYMBOLIC_OPERATOR function { if $2.text!="||" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
  | function SYMBOLIC_OPERATOR scalar { if $2.text!="||" {sqllex.(*lexer).syntax($2);return 1};$$=arithmeticExpr($2,$1,$3) }
  | scalar qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$2,Args:[]Expr{$1,$3},Pos:$2.Parts[0].Pos} }
+ | scalar qualified_operator quantifier select_with_parens %prec OPERATOR {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,$2,kind,$4.Query,false,$2.Parts[0].Pos)}
  | qualified_operator scalar %prec OPERATOR { $$=OperatorExpr{Name:$1,Args:[]Expr{$2},Pos:$1.Parts[0].Pos} } ;
 scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | string_function { $$=$1 }
@@ -1030,13 +1008,10 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | name '.' col_label STRING {raw,ok:=qualifiedTypedLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} }
  | conditional { $$=$1 }
- | INDEX_SUBQUERY_OPEN select_query ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }
  | INDEX_SUBQUERY_OPEN query_values ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
  | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} }
  | check_function_head function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$2.Args,Variadic:$2.Variadic,ResolutionOnly:$1.resolutionOnly,Pos:$1.pos} }
- | GENERATION_SUBQUERY_OPEN SELECT projection ')' { $$=ForbiddenGenerationExpr{GenerationRestriction{Code:"0A000",Message:"cannot use subquery in column generation expression",Pos:$1.pos}} }
- | GENERATION_SUBQUERY_OPEN SELECT projection FROM from_list where group having order query_tail ')' { $$=ForbiddenGenerationExpr{GenerationRestriction{Code:"0A000",Message:"cannot use subquery in column generation expression",Pos:$1.pos}} }
  | OVERLAY '(' scalar PLACING scalar FROM scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7}) }
  | OVERLAY '(' scalar PLACING scalar FROM scalar FOR scalar ')' { $$=binarySQLCall("overlay",$1.pos,[]Expr{$3,$5,$7,$9}) }
  | OVERLAY '(' function_values ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"overlay",Pos:$1.pos}}},Args:$3,Pos:$1.pos} }
@@ -1055,13 +1030,13 @@ conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$
 conditional_call: COALESCE '(' conditional_args ')' { $$=ConditionalExpr{Kind:Coalesce,Args:$3,Pos:$1.pos} }
  | GREATEST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Greatest,Args:$3,Pos:$1.pos} }
  | LEAST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Least,Args:$3,Pos:$1.pos} }
- | NULLIF '(' delete_or ',' delete_or ')' { $$=ConditionalExpr{Kind:NullIf,Args:[]Expr{$3,$5},Pos:$1.pos} } ;
-case_test: /* empty */ { $$=nil } | delete_or { $$=$1 } ;
+ | NULLIF '(' target_or ',' target_or ')' { $$=ConditionalExpr{Kind:NullIf,Args:[]Expr{$3,$5},Pos:$1.pos} } ;
+case_test: /* empty */ { $$=nil } | target_or { $$=$1 } ;
 case_arms: case_arm { $$=[]CaseArm{$1} } | case_arms case_arm { $$=append($1,$2) } ;
-case_arm: WHEN delete_or THEN conditional_value { $$=CaseArm{Condition:$2,Result:$4,Pos:$1.pos} } ;
+case_arm: WHEN target_or THEN conditional_value { $$=CaseArm{Condition:$2,Result:$4,Pos:$1.pos} } ;
 case_else: /* empty */ { $$=nil } | ELSE conditional_value { $$=$2 } ;
-conditional_value: delete_or { $$=$1 } | function { $$=$1 } ;
-conditional_args: delete_or { $$=[]Expr{$1} } | conditional_args ',' delete_or { $$=append($1,$3) } ;
+conditional_value: target_or { $$=$1 } | function { $$=$1 } ;
+conditional_args: target_or { $$=[]Expr{$1} } | conditional_args ',' target_or { $$=append($1,$3) } ;
 generation_window_spec: /* empty */ {} | ORDER BY order_keys {} | GENERATION_PARTITION BY group_keys {} | GENERATION_PARTITION BY group_keys ORDER BY order_keys {} ;
 cast_function: name '(' { if !sqllex.(*lexer).castFunction($1,$2) { return 1 }; $$=$1 } ;
 /* Qualified calls and precision literals share their opener so a function-call
@@ -1099,10 +1074,13 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
 select_projection: projection { $$=$1 }
  | DISTINCT projection { $2.Distinct=&DistinctClause{Pos:$1.pos};$$=$2 }
  | DISTINCT ON '(' group_keys ')' projection { $6.Distinct=&DistinctClause{On:$4,Pos:$1.pos};$$=$6 } ;
-select_core: SELECT select_projection FROM from_list where group having { $2.From=$4;$2.Where=$5;$2.GroupBy=$6;$2.Having=$7;$2.Pos=$1.pos;$$=$2 }
- | SELECT FROM from_list where group having { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Pos:$1.pos} }
- | SELECT select_projection { $2.Pos=$1.pos;$$=$2 } ;
-select_operand: select_core { $$=$1 } | '(' query_select ')' { $2.Parenthesized=true;$$=$2 } ;
+select_core: SELECT select_projection optional_from where group having { $2.From=$3;$2.Where=$4;$2.GroupBy=$5;$2.Having=$6;$2.Pos=$1.pos;$$=$2 }
+ | SELECT optional_from where group having %prec NAME_LIST { $$=&Select{From:$2,Where:$3,GroupBy:$4,Having:$5,Pos:$1.pos} } ;
+/* Absorb consecutive parentheses before selecting the scalar, FROM or set-arm
+ * category; these category reductions stay below ')' shift precedence. */
+select_with_parens: '(' query_select ')' { $$=parenthesizedQuery{Query:$2,Pos:$1.pos} }
+ | '(' select_with_parens ')' { $2.Pos=$1.pos;$$=$2 } ;
+select_operand: select_core { $$=$1 } | select_with_parens %prec NAME_LIST { $1.Query.Parenthesized=true;$$=$1.Query } ;
 set_modifier: /* empty */ { $$=false } | ALL { $$=true } | DISTINCT { $$=false } ;
 query_set: query_intersection { $$=$1 }
  | query_set UNION set_modifier query_intersection { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} }
@@ -1110,16 +1088,7 @@ query_set: query_intersection { $$=$1 }
 query_intersection: select_operand { $$=$1 }
  | query_intersection INTERSECT set_modifier select_operand { $$=&Select{Set:&SetQuery{Left:$1,Right:$4,Operator:$2.text,All:$3,Pos:$2.pos},Pos:$1.Pos} } ;
 query_select: query_set order query_tail { if $2!=nil {$1.Order=$2};if $3.Bounds!=nil {$1.Bounds=$3.Bounds};if $3.Locking!=nil {$1.Locking=$3.Locking};$$=$1 } ;
-select_query: query_select {
-    l:=sqllex.(*lexer)
-    deferDistinctOnBoundary(l,$1)
-    if $1.Set==nil && $1.From==nil && ($1.Distinct==nil || len($1.Distinct.On)==0 && $1.Locking==nil) {
-       if !l.indexExpression && !l.nonqueryProjection($1.Targets) {return 1}
-       if !l.indexExpression && !$1.IsSingleton() && !$1.IsTypeSingleton() {
-          l.deferUnsupported(lexeme{pos:$1.Pos},"SELECT without FROM is unsupported");$$=nil
-       } else {$$=$1}
-    } else {$$=$1}
-   }
+select_query: query_select { deferDistinctOnBoundary(sqllex.(*lexer),$1);$$=$1 }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | query_set order suffix { if $3.keyword!=nil && $3.keyword.token==ON {if _,table:=$1.From.(*TableReference);!table {sqllex.(*lexer).syntax($3);return 1}};sqllex.(*lexer).capability($3,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | query_set order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$3.pos.Offset); return 1 }
@@ -1128,6 +1097,9 @@ select_query: query_select {
 select: select_query { $$=$1 }
  | query_values locking { $$=&Select{Values:$1,Locking:$2,Pos:$1.Pos} }
  | parenthesized_values locking { $$=&Select{Values:$1,Locking:$2,Pos:$1.Pos} } ;
+optional_from: /* empty */ %prec NAME_LIST { $$=nil } | FROM from_list { $$=$2 } ;
+row_fields: scalar_projection { $$=[]Expr{$1} } | row_fields ',' scalar_projection { $$=append($1,$3) } ;
+quantifier: ANY | SOME | ALL ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;
 sequence_args: /* empty */ { $$=nil } | sequence_values { $$=$1 } ;
 sequence_values: operand { $$=[]Expr{$1} }
@@ -1159,8 +1131,11 @@ target_between_predicate: target_base BETWEEN default_target AND target_base %pr
  | target_base NOT BETWEEN SYMMETRIC default_target AND target_base %prec BETWEEN { $$=betweenExpr($1,$5,$7,$2.pos,true,true) } ;
 /* Comparison operands may be grouped predicates; the nonrecursive layer keeps
  * ungrouped comparison chains nonassociative. Arithmetic remains scalar-only. */
-target_comparison: target_between { $$=$1 }
- | target_between comparison_operator target_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} } ;
+target_comparison: target_between %prec NAME_LIST { $$=$1 }
+ | target_between comparison_operator target_between { $$=OperatorExpr{Name:ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},Args:[]Expr{$1,$3},Pos:$2.pos} }
+ | target_between IN select_with_parens %prec NAME_LIST { $$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:"=",Pos:$2.pos}}},SubqueryAny,$3.Query,false,$2.pos) }
+ | target_between NOT_IN_LA IN select_with_parens %prec NAME_LIST { $$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:"=",Pos:$2.pos}}},SubqueryAny,$4.Query,true,$2.pos) }
+ | target_between comparison_operator quantifier select_with_parens %prec NAME_LIST {kind:=SubqueryAny;if $3.text=="all" {kind=SubqueryAll};$$=quantifiedQuery($1,ObjectName{Parts:[]Identifier{{Text:$2.text,Pos:$2.pos}}},kind,$4.Query,false,$2.pos)} ;
 target: target_comparison { $$=$1 }
  | target IS NULL %prec IS { $$=PredicateExpr{Kind:IsNull,Left:$1,Pos:$2.pos} }
  | target IS NOT NULL %prec IS { $$=PredicateExpr{Kind:IsNotNull,Left:$1,Pos:$2.pos} }
@@ -1213,12 +1188,13 @@ truth_kind: TRUE { $$=IsTrue } | NOT TRUE { $$=IsNotTrue }
  * following name continues the annotation; a clause boundary ends a bare label. */
 projection_item: projection_target %prec NAME_LIST { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{}}} }
  | scalar COLLATE { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
+ | target_between IN %prec NAME_LIST { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
  | scalar_projection bare_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} }
  | scalar_projection AS col_label { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$3.text,Pos:$3.pos}}} }
 /* A keyword after a complete projection base can be a bare label when no
  * pattern operand follows. Factor here so predicate-starter lookahead retains
  * LIKE/ILIKE matching, without relaxing WHERE or lexical keyword identity. */
- | target_base like_operator { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} } ;
+ | target_base like_operator %prec NAME_LIST { $$=&Select{Targets:[]Expr{$1},Labels:[]Identifier{{Text:$2.text,Pos:$2.pos}}} } ;
 projection: projection_item { $$=$1 }
  | projection ',' projection_item { $1.Targets=append($1.Targets,$3.Targets...);$1.Labels=append($1.Labels,$3.Labels...);$$=$1 } ;
 from_list: joined_table { $$=$1 }
@@ -1234,13 +1210,14 @@ inner_join: /* empty */ { $$=JoinInner } | INNER { $$=JoinInner }
  | FULL optional_outer { $$=JoinFull } ;
 optional_outer: /* empty */ { $$=false } | OUTER { $$=true } ;
 from_base: relation_name { $$=&TableReference{Name:$1} }
+ | select_with_parens %prec NAME_LIST { $$=&DerivedQuery{Query:$1.Query,Pos:$1.Pos} }
  | '(' from_list ')' {
     if alias,ok:=$2.(*AliasReference);ok {
        if _,values:=alias.Input.(*ValuesQuery);values {sqllex.(*lexer).syntax($<tok>3);return 1}
     }
     $$=$2
    }
- | parenthesized_values { $$=$1 } ;
+ | parenthesized_values %prec NAME_LIST { $$=$1 } ;
 from_atom: from_base { $$=$1 }
  | from_base AS from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$3.text,Pos:$3.pos},Columns:$4} }
  | from_base from_alias alias_columns { $$=&AliasReference{Input:$1,Name:Identifier{Text:$2.text,Pos:$2.pos},Columns:$3} } ;
@@ -1251,7 +1228,7 @@ using_columns: name { $$=[]Identifier{{Text:$1.text,Pos:$1.pos}} }
 using_alias: /* empty */ { $$=nil } | AS from_alias { $$=&Identifier{Text:$2.text,Pos:$2.pos} } ;
 where: /* empty */ { $$ = nil }
  | WHERE target_or { $$=$2 }
- | WHERE name predicate_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 }
+ | WHERE name where_predicate_suffix { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 }
  | WHERE name KW_C { sqllex.(*lexer).capability($3,unsupportedSuffixes,"predicate syntax is unsupported"); return 1 } ;
 /* GROUP/HAVING are admitted clause openers and retained suffix guards. Prefer
  * their real clauses over reducing the optional clause to reach a guard. */
@@ -1298,30 +1275,30 @@ limit_clause: LIMIT limit_value { $$=&QueryBounds{Count:$2} }
 limit_value: scalar_projection { $$=$1 } | ALL { $$=LiteralExpr{Value:Value{Kind:NullValue,Pos:$1.pos}} } ;
 offset_clause: OFFSET scalar_projection optional_count_rows { $$=&QueryBounds{Offset:$2} } ;
 fetch_direction: KW_U { if $1.text!="first" && $1.text!="next" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
-count_rows: KW_C { if $1.text!="row" {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
+count_rows: ROW { $$=$1 }
  | KW_U { if $1.text!="rows" {sqllex.(*lexer).syntax($1);return 1};$$=$1 } ;
 optional_count_rows: /* empty */ { $$=false } | count_rows { $$=true } ;
 count_values: conditional_value { $$=[]Expr{$1} } | count_values ',' conditional_value { $$=append($1,$3) } ;
 fetch_count: scalar_atom { $$=$1 }
  | CAST '(' scalar AS type ')' { if $5.Name=="regclass" && $5.Schema==nil && len($5.Modifiers)==0 && len($5.ArrayBounds)==0 { $$=RegclassExpr{Child:$3,Pos:$1.pos} } else { $$=CastExpr{Child:$3,TypeName:$5,Syntax:StandardCast,Pos:$1.pos} } }
- | cast_function delete_or ')' { if ordinaryAggregate($1.text) {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.text=="sum" {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}}} }
- | qualified_call_head delete_or ')' { if ordinaryAggregate($1.Name) {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.Name=="sum" {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}}} }
+ | cast_function target_or ')' { if ordinaryAggregate($1.text) {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.text=="sum" {$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos}} else {$$=CastExpr{Child:$2,TypeName:columnType($1),Syntax:FunctionCast,Callee:$1.text,Pos:$1.pos}}} }
+ | qualified_call_head target_or ')' { if ordinaryAggregate($1.Name) {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {if !scalarCastArgument($2) {sqllex.(*lexer).failAt("42601","syntax error",$2.SourcePosition().Offset);return 1};if $1.Name=="sum" {$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos}} else {$$=CastExpr{Child:$2,TypeName:$1,Syntax:FunctionCast,Callee:$1.Name,Pos:$1.Pos}}} }
  | cast_function ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Pos:$1.pos} }
  | qualified_call_head ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","zero-argument call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Pos:$1.Pos} }
- | cast_function delete_or ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
- | qualified_call_head delete_or ',' count_values ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
+ | cast_function target_or ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
+ | qualified_call_head target_or ',' count_values ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
  | cast_function function ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Pos:$1.pos} }
  | qualified_call_head function ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Pos:$1.Pos} }
  | cast_function function ',' count_values ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Pos:$1.pos} }
  | qualified_call_head function ',' count_values ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","function arguments are unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Pos:$1.Pos} }
  | cast_function '*' ')' { if !ordinaryAggregate($1.text) {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Star:true,Pos:$1.pos} }
  | qualified_call_head '*' ')' { if !ordinaryAggregate($1.Name) {sqllex.(*lexer).failAt("0A000","aggregate call is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Star:true,Pos:$1.Pos} }
- | cast_function delete_or ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
- | qualified_call_head delete_or ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
+ | cast_function target_or ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
+ | qualified_call_head target_or ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
  | cast_function function ',' count_values ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.pos} }
  | qualified_call_head function ',' count_values ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:append([]Expr{$2},$4...),Order:$7,Pos:$1.Pos} }
- | cast_function delete_or ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
- | qualified_call_head delete_or ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
+ | cast_function target_or ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
+ | qualified_call_head target_or ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
  | cast_function function ORDER BY order_keys ')' { if $1.text!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.pos.Offset);return 1};$$=AggregateExpr{Name:$1.text,Args:[]Expr{$2},Order:$5,Pos:$1.pos} }
  | qualified_call_head function ORDER BY order_keys ')' { if $1.Name!="string_agg" {sqllex.(*lexer).failAt("0A000","aggregate ordering is unsupported",$1.Pos.Offset);return 1};$$=AggregateExpr{Name:$1.Name,Schema:$1.Schema,Args:[]Expr{$2},Order:$5,Pos:$1.Pos} }
  | function { $$=$1 }
@@ -1336,7 +1313,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
  | OF | NOWAIT | SKIP | LOCKED
- | DOMAIN | TYPE | INCLUDE | TABLESPACE
+ | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW %prec NAME_LIST
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | ESCAPE
  | CURRENT_DATETIME_FUNC %prec NAME_LIST
@@ -1352,14 +1329,14 @@ transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
  | OF | NOWAIT | SKIP | LOCKED
- | DOMAIN | TYPE | INCLUDE | TABLESPACE
+ | DOMAIN | TYPE | INCLUDE | TABLESPACE | ROW
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | REINDEX | CONCURRENTLY | ILIKE | ESCAPE
  | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
- | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE
+ | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE | ROW %prec NAME_LIST | ANY | SOME
  | OF | NOWAIT | SKIP | LOCKED | UNION | INTERSECT | EXCEPT
  | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
@@ -1372,15 +1349,17 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | KW_R { if !$1.keyword.label() { sqllex.(*lexer).syntax($1); return 1 }; $$=$1 }
  | UNIQUE { if !$1.keyword.label() {sqllex.(*lexer).syntax($1);return 1};$$=$1 }
  | BOTH | LEADING | TRAILING | PLACING
+ | ANY | SOME
  | IN { $$=$1 }
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
  | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
-col_label: name | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
+col_label: name | ANY | SOME | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE
  | UNION | INTERSECT | EXCEPT ;
 suffix: predicate_suffix | GROUP | HAVING ;
-predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
+predicate_suffix: where_predicate_suffix | IN ;
+where_predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }
  | name '.' col_label %prec NAME_LIST { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos},{Text:$3.text, Pos:$3.pos}}} }
  | name '.' error { sqllex.(*lexer).fail("42601","incomplete relation name"); return 1 }

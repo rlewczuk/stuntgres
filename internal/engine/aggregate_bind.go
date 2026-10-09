@@ -17,6 +17,17 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	}
 	same := b.sameGroupExpression
 	switch e := a.(type) {
+	case subqueryExpression:
+		o, ok := other.(subqueryExpression)
+		if !ok || e.kind != o.kind || e.operator != o.operator || e.negate != o.negate || e.queryPlan.Root.(*projectNode).frame != o.queryPlan.Root.(*projectNode).frame || len(e.comparisons) != len(o.comparisons) {
+			return false
+		}
+		for i, c := range e.comparisons {
+			if !same(c.left, o.comparisons[i].left) {
+				return false
+			}
+		}
+		return true
 	case identityExpression:
 		o, ok := other.(identityExpression)
 		return ok && e.kind == o.kind
@@ -25,10 +36,10 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return ok && e.kind == o.kind && e.hasPrecision == o.hasPrecision
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
-		return ok && e.slot == o.slot
+		return ok && e.slot == o.slot && e.frame == o.frame
 	case groupExpression:
 		o, ok := other.(groupExpression)
-		return ok && e.slot == o.slot
+		return ok && e.slot == o.slot && e.frame == o.frame
 	case currentSchemasExpression:
 		o, ok := other.(currentSchemasExpression)
 		return ok && same(e.arg, o.arg)
@@ -70,7 +81,7 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 		return ok && e.predicate == o.predicate && e.operator == o.operator && same(e.left, o.left) && same(e.right, o.right)
 	case logicalExpression:
 		o, ok := other.(logicalExpression)
-		return ok && e.op == o.op && same(e.left, o.left) && same(e.right, o.right)
+		return ok && e.op == o.op && e.queryRight == o.queryRight && same(e.left, o.left) && same(e.right, o.right)
 	case nullTestExpression:
 		o, ok := other.(nullTestExpression)
 		return ok && e.not == o.not && same(e.child, o.child)
@@ -234,7 +245,7 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			properties.StageDependent = true
 			info := boundExpressionInfo(expr)
 			info.properties = properties
-			return groupExpression{info, i}, nil
+			return groupExpression{expressionInfo: info, slot: i, frame: b.frameID()}, nil
 		}
 	}
 	var err error
@@ -248,13 +259,46 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 	}
 	stage := func(info *expressionInfo) { info.properties.StageDependent = true }
 	switch e := expr.(type) {
+	case subqueryExpression:
+		old := b.groupSubquery
+		b.groupSubquery = true
+		root, failure := rewriteQueryExpressions(e.queryPlan.Root, func(child BoundExpr) (BoundExpr, bool, error) {
+			if !expressionUsesFrame(child, b.frameID()) {
+				return child, false, nil
+			}
+			next, err := b.rewriteGroup(child, keys)
+			return next, true, err
+		})
+		b.groupSubquery = old
+		if failure != nil {
+			return nil, failure
+		}
+		if root != e.queryPlan.Root {
+			query := *e.queryPlan
+			query.Root = root
+			e.queryPlan = &query
+		}
+		if len(e.comparisons) != 0 {
+			comparisons := append([]comparisonExpression(nil), e.comparisons...)
+			for i := range comparisons {
+				comparisons[i].left = rewrite(comparisons[i].left)
+			}
+			e.comparisons = comparisons
+		}
+		expr = e
 	case currentSchemasExpression:
 		e.arg = rewrite(e.arg)
 		stage(&e.expressionInfo)
 		expr = e
 	case aggregateExpression:
-		return groupExpression{e.expressionInfo, len(keys) + e.slot}, nil
+		if e.frame != 0 && e.frame != b.frameID() {
+			return e, nil
+		}
+		return groupExpression{expressionInfo: e.expressionInfo, slot: len(keys) + e.slot, frame: b.frameID()}, nil
 	case columnExpression:
+		if e.frame != b.frameID() {
+			return e, nil
+		}
 		name := b.queryNamespace.frame[e.slot].Name
 		for _, q := range b.queryNamespace.qualifiers {
 			found := false
@@ -268,6 +312,9 @@ func (b *expressionBinder) rewriteGroup(expr BoundExpr, keys []BoundExpr) (Bound
 			if found {
 				break
 			}
+		}
+		if b.groupSubquery {
+			return nil, expressionError("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.pos)
 		}
 		return nil, expressionError("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.pos)
 	case collationExpression:

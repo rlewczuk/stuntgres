@@ -183,10 +183,10 @@ indexes, including expression definitions, move with their table.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
 controls. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
-The selected-call-only no-FROM form produces one singleton row; its arguments
-are literals, parameters, nested selected calls and previously admitted casts/
-conditionals, without columns or extra clauses. Random calls also use existing
-table-backed SELECT and INSERT SELECT projection paths. Bounded random resolves
+No-FROM projections use the ordinary local one-row input and existing scalar
+argument rules, without a selected-call witness or an implicit relation namespace.
+Random calls also use existing table-backed SELECT and INSERT SELECT projection
+paths. Bounded random resolves
 INTEGER, BIGINT or NUMERIC, not floating-point bounds; normal and seed arguments
 coerce implicitly to DOUBLE PRECISION. Numeric literals and typed table columns,
 plus target-context bindings, supply these types without expanding the existing
@@ -194,9 +194,9 @@ typed-literal or general explicit-cast boundaries.
 Random calls are excluded from DEFAULT, INSERT VALUES, WHERE and settings.
 See [random behavior and diagnostics](DIALECT.md#random-functions--change-note).
 
-Selected string expressions also form a bounded singleton exception, with
-existing scalar children and nested selected calls. This does not admit ordinary
-`SELECT 1`, arbitrary mathematical expression singletons or new function families.
+Selected string expressions use ordinary table and no-FROM queries with
+existing scalar children and nested selected calls. The local input also admits
+`SELECT 1` and existing arithmetic, but adds no function families.
 Unquoted `normalize` uses a form keyword; qualified or quoted ordinary calls
 accept a TEXT form value. SQL TRIM lowers to btrim/ltrim/rtrim, not a `trim()`
 function alias. See [core strings](DIALECT.md#core-string-functions--change-note).
@@ -222,10 +222,9 @@ retain their consumer diagnostics, including metadata-only utility Prepare
 followed by DEFAULT validation at execution. ORDER keys use the shared
 expression/output-reference syntax above; qualified and compound expressions
 resolve through the input namespace, while bare output labels take priority.
-No-FROM SELECT/INSERT SELECT retain their prior projection qualification
-capability guard (`0A000` at a raw dot), rather than gaining a FROM namespace.
-Grouped scalar qualifiers retain their syntax boundary; existing selected
-singleton calls and zero-width INSERT SELECT admission are unchanged.
+No-FROM SELECT has no same-level relation namespace. Qualified references must
+resolve a legal enclosing query frame or retain ordinary missing-entry diagnostics;
+an INSERT target is not part of its SELECT source namespace.
 USING emits list-order keys, then remaining left/right columns; NATURAL derives
 left-order common names. With no common name the condition is TRUE: inner joins
 are equivalent to CROSS JOIN, outer joins retain preservation. Results preserve
@@ -471,7 +470,7 @@ native DateStyle and TimeZone settings are supported. Canonical replay remains
 independent of presentation settings.
 
 CREATE RECURSIVE/TEMP syntax, view writes/check options, ALTER VIEW column
-defaults, type-changing ALTER actions, subqueries, public GRANT, RLS, UDFs and
+defaults, type-changing ALTER actions, public GRANT, RLS, UDFs and
 optimizer introspection remain unsupported. Setting check_option fails0A000
 `view check options are unsupported`; RESET of an absent check_option is harmless.
 Native ACL unit controls and PostgreSQL-only GRANT witnesses do not imply a
@@ -889,12 +888,12 @@ See [UPDATE RETURNING](QUERIES.md#update-returning--change-note).
 ## Unsupported surface
 
 Database-qualified relation names, temporary tables (TEMP sequences are supported),
-LATERAL joins, derived/subquery/CTE/function FROM, generic expressions/functions,
+LATERAL joins, CTE/function FROM, generic expressions/functions,
 casts outside the bounded baseline/character-family/selected regclass/datetime sets,
 constraints beyond nullability/defaults/CHECK/identity/UNIQUE, ALTER ADD CHECK/VALIDATE,
 non-column serial type uses, default-containing ALTER lists, primary keys,
-UPDATE row-subqueries/CURRENT OF, DELETE USING/CURRENT OF,
-INSERT RETURNING, whole-row RETURNING records/scalar subqueries,
+UPDATE row assignments/CURRENT OF, DELETE USING/CURRENT OF,
+INSERT RETURNING and whole-row RETURNING records,
 general COLLATE, two-phase commit, transactional table DDL outside selected
 TYPE/nullability/identity/DROP COLUMN/constraint lists, transactional schema/view DDL,
 non-sequence COMMENT/role mutation, SERIALIZABLE/SSI, DEFERRABLE safe snapshots,

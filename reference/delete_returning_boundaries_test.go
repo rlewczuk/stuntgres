@@ -6,8 +6,8 @@ import "testing"
 
 func TestReferenceDeleteReturningBoundaries(t *testing.T) {
 	p := newReferencePair(t)
-	// These are PostgreSQL controls only; records, scalar subqueries, SRFs,
-	// window execution, triggers, FKs and rewriting are not native providers.
+	// PostgreSQL-only controls combine records with otherwise shared scalar
+	// subqueries, or require SRFs, windows, triggers, FKs and rewriting.
 	t.Run("postgres", func(t *testing.T) {
 		db, r := p.postgres, p.postgresRecord
 		referenceLockExec(t, p.ctx, db, "CREATE TABLE t(id INT PRIMARY KEY)", 0)

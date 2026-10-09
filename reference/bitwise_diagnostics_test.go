@@ -35,12 +35,8 @@ func TestReferenceBitwiseDiagnostics(t *testing.T) {
 		query string
 		value int64
 	}{{"SELECT 1&1", 1}, {"SELECT ~1", -2}, {"SELECT 1<<1", 2}} {
-		failure := referenceImplicitError(tc.query, referenceDiagnostic{Code: "0A000", Message: "SELECT without FROM is unsupported", Position: "1"})
-		failure.selectRows, failure.errorStage = true, "execute"
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
-		if p.postgres != nil {
-			success := referenceSelect(tc.query, []string{"?column?"}, []string{"INT4"}, [][]any{{tc.value}})
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, success)
-		}
+		success := referenceSelect(tc.query, []string{"?column?"}, []string{"INT4"}, [][]any{{tc.value}})
+		p.step(t, success)
+		p.step(t, referencePrepared(success))
 	}
 }

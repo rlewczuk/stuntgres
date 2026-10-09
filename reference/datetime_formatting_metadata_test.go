@@ -3,8 +3,6 @@ package reference_test
 import (
 	"database/sql"
 	"reflect"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 )
@@ -35,25 +33,7 @@ func TestReferenceDatetimeFormattingMetadata(t *testing.T) {
 						rows = [][]any{{nil}}
 					}
 					if shape == "empty" {
-						// Preserve the original singleton-WHERE capability
-						// route; verify empty metadata using an existing source.
-						original := q + " WHERE false"
-						boundary := referenceSelect(original, []string{"result"}, []string{types[i]}, nil)
-						if !b.pg {
-							d := datetimeFormattingDiagnostic("42601", `syntax error at or near "WHERE"`, "", "")
-							d.Position = strconv.Itoa(strings.Index(original, "WHERE") + 1)
-							boundary = referenceErrorDiagnostic(original, *d)
-							boundary.selectRows = true
-							boundary.errorStage = "execute"
-							if prepared {
-								boundary.errorStage = "prepare"
-							}
-						}
-						if prepared {
-							boundary = referencePrepared(boundary)
-						}
-						referenceRunStep(t, p.ctx, conn, b.recorder, boundary)
-						q += " FROM (VALUES (1)) AS dt_metadata_seed(x) WHERE false"
+						q += " WHERE false"
 						rows = nil
 					}
 					s := referenceSelect(q, []string{"result"}, []string{types[i]}, rows)

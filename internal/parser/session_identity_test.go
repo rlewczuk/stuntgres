@@ -24,10 +24,9 @@ func TestSessionIdentityScalarForms(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"SELECT 1", "SELECT 1+1", "SELECT x", "SELECT current_user,x"} {
-		_, err := Parse(q)
-		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != "0A000" {
-			t.Fatal(q, err)
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+			t.Fatal(q, statements, err)
 		}
 	}
 	for _, name := range []string{"current_catalog", "current_role", "current_user", "session_user", "user", "system_user"} {

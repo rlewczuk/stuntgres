@@ -23,6 +23,18 @@ func TestStringAggregateGrammar(t *testing.T) {
 			t.Fatal(q, statements, err)
 		}
 	}
+	for _, q := range []string{
+		"SELECT string_agg('x',',')",
+		"SELECT COALESCE(string_agg('x',','),nextval('s')::text)",
+	} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		if _, ok := statements[0].(*Select); !ok {
+			t.Fatal("aggregate did not use shared SELECT", statements)
+		}
+	}
 	statements, err := Parse("SELECT /*é*/ pg_catalog.string_agg(v,d ORDER BY k DESC NULLS LAST,id ASC NULLS FIRST) FROM t")
 	if err != nil {
 		t.Fatal(err)
@@ -40,8 +52,6 @@ func TestStringAggregateCapabilityGuards(t *testing.T) {
 		"SELECT string_agg(v,d ORDER BY id) FILTER (WHERE FALSE) FROM t",
 		"SELECT string_agg(v,d) OVER () FROM t",
 		"SELECT count(v ORDER BY id) FROM t",
-		"SELECT string_agg('x',',')",
-		"SELECT COALESCE(string_agg('x',','),nextval('s')::text)",
 	} {
 		statements, err := Parse("INSERT INTO t VALUES('unpublished');" + q)
 		var d *sqlstate.Error
@@ -61,7 +71,8 @@ func TestStringAggregateOrderedKeyVisitors(t *testing.T) {
 	if !marked.Order[0].Expr.(ColumnExpr).QualificationGrouped {
 		t.Fatal("ordered key grouping not retained")
 	}
-	if !containsAggregate(CastExpr{Child: call}) {
-		t.Fatal("recursive no-FROM aggregate guard lost")
+	markedCast := groupedQualification(CastExpr{Child: call}).(CastExpr)
+	if !markedCast.Child.(AggregateExpr).Order[0].Expr.(ColumnExpr).QualificationGrouped {
+		t.Fatal("ordered key grouping through cast not retained")
 	}
 }

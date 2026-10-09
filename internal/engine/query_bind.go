@@ -30,6 +30,18 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (BoundEx
 // bindSelect is shared by public SELECT and the internal INSERT producer.
 // Only the latter defers output unknowns to destination assignment.
 func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*BoundQuery, error) {
+	return b.bindSelectScoped(s, contextual, false)
+}
+func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disallowParent bool) (*BoundQuery, error) {
+	if b.queryLockAdmission == nil || b.queryLockAdmission.queries == nil {
+		admission, _, _, err := newQueryLockAdmission(s)
+		if err != nil {
+			return nil, err
+		}
+		b.queryLockAdmission = &admission
+	}
+	restore := b.enterQuery(disallowParent)
+	defer restore()
 	plainDistinct := s.Distinct != nil && len(s.Distinct.On) == 0
 	if s.Set != nil {
 		if mode := firstSetRowClause(s); mode != "" {
@@ -37,76 +49,95 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		}
 		return nil, sqlError("0A000", "set operations are unsupported")
 	}
-	if s.Parenthesized && !contextual {
-		return nil, sqlError("0A000", "parenthesized SELECT is unsupported")
+	if len(s.Locking) != 0 {
+		b.queryRowDiagnosticMode = queryRowMode(s.Locking[0].Mode)
+	}
+	if disallowParent {
+		selected, _ := queryLockTargets(s.From, []parser.RowLockClause{{Mode: "FOR KEY SHARE"}})
+		index := 0
+		_ = parser.VisitQuerySources(s, nil, func(table *parser.TableReference, _ *parser.Select) error {
+			if index < len(selected) && selected[index].mode != 0 {
+				b.queryRowDiagnosticMode = strongerQueryRowMode(b.queryRowDiagnosticMode, queryRowDiagnostic(b.queryLockAdmission.tableMark(table)))
+			}
+			index++
+			return nil
+		})
 	}
 	if s.Values != nil {
 		if s.Locking != nil {
 			return nil, sqlError("0A000", s.Locking[0].Mode+" cannot be applied to VALUES")
 		}
-		return b.bindValues(s.Values, false)
+		query, err := b.bindValues(s.Values, false)
+		if err == nil {
+			project := query.Root.(*projectNode)
+			project.frame, project.syntax = b.frameID(), s
+		}
+		return query, err
 	}
-	oldClause, oldAggregates := b.aggregateClause, b.aggregates
-	defer func() { b.aggregateClause, b.aggregates = oldClause, oldAggregates }()
 	root, namespace, err := b.bindFrom(s.From)
 	if err != nil {
 		return nil, err
 	}
-	b.queryNamespace = nil
-	if s.From != nil {
-		b.queryNamespace = &namespace
-	}
+	b.queryNamespace = &namespace
 	b.aggregateClause, b.aggregates = "SELECT", nil
 	var projection []BoundExpr
 	var targetNames []string
 	var literalTargets []int
-	// Syntax-only cast candidates are admitted only by this coherent binder.
-	// INSERT producers and previously selected singleton families keep their
-	// existing rules; every new standalone target needs its own type witness.
-	typeSingleton := !contextual && s.From == nil && !s.IsSingleton() && s.IsTypeSingleton()
 	for target, raw := range s.Targets {
 		if err := b.ctx.Err(); err != nil {
 			return nil, err
 		}
 		if star, ok := raw.(parser.StarExpr); ok {
 			columns := namespace.columns
+			frame := b.frameID()
+			starPath := viewLiteralPath{query: frame, clause: viewTargetLiteral, target: target}
+			var returningScope *queryBindingScope
+			newValues := false
 			if len(star.Qualifier.Parts) != 0 {
-				q, err := b.queryQualifier(star.Qualifier, star.Pos)
-				if err != nil {
-					return nil, err
+				returningScope, newValues = b.outerReturningScope(star.Qualifier)
+				if returningScope != nil {
+					columns = returningScope.namespace.columns[:len(returningScope.relation.columns)]
+					frame = returningScope.frame
+				} else {
+					q, err := b.queryQualifier(star.Qualifier, star.Pos)
+					if err != nil {
+						return nil, err
+					}
+					columns, frame = q.columns, b.resolvedQueryFrame
 				}
-				columns = q.columns
 			} else if s.From == nil {
 				return nil, expressionError("42601", "SELECT * with no tables specified is not valid", star.Pos)
 			}
 			if b.noParameters {
 				if b.viewStars == nil {
-					b.viewStars = make(map[int][]int)
+					b.viewStars = make(map[viewLiteralPath][]viewColumn)
 				}
-				b.viewStars[target] = nil
+				b.viewStars[starPath] = nil
 			}
 			for _, c := range columns {
-				projection = append(projection, b.queryColumnAt(c, star.Pos))
+				var expr BoundExpr
+				if returningScope != nil {
+					expr = b.outerReturningColumnAt(returningScope, c.physical, star.Pos, newValues)
+				} else {
+					expr = b.queryColumnInFrame(c, star.Pos, frame)
+				}
+				projection = append(projection, expr)
 				targetNames = append(targetNames, c.descriptor.Name)
 				if b.noParameters {
-					b.viewStars[target] = append(b.viewStars[target], c.slot)
+					b.viewStars[starPath] = append(b.viewStars[starPath], viewColumn{frame: frame, slot: c.slot})
 					literalTargets = append(literalTargets, -1)
 				}
 			}
 		} else {
-			typeWitnesses := b.typeSingletons
 			expr, err := b.bindOutput(raw, contextual)
 			if err != nil {
 				return nil, err
-			}
-			if typeSingleton && b.typeSingletons == typeWitnesses {
-				return nil, expressionError("0A000", "SELECT without FROM is unsupported", s.Pos)
 			}
 			projection = append(projection, expr)
 			if b.noParameters {
 				literalTargets = append(literalTargets, target)
 			}
-			name, _ := expressionName(raw, expr.ResultUsage())
+			name, _ := expressionName(raw, expr.ResultUsage(), expr)
 			if target < len(s.Labels) && s.Labels[target].Text != "" {
 				name = s.Labels[target].Text
 			}
@@ -149,7 +180,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 				return nil, err
 			}
 		}
-		if call := aggregateOccurrence(keys[i]); call != nil {
+		if call := aggregateOccurrence(keys[i]); call != nil && (call.frame == 0 || call.frame == b.frameID()) {
 			return nil, expressionError("42803", "aggregate functions are not allowed in GROUP BY", call.pos)
 		}
 		keys[i], err = b.finalizeProjection(keys[i])
@@ -292,11 +323,11 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		result := ColumnDescriptor{Name: "?column?", Usage: expr.ResultUsage()}
 		regclassOutput = regclassOutput || result.Usage.Type.ContainsRegclass()
 		result.Name = targetNames[i]
-		if c, ok := expr.(columnExpression); ok {
+		if c, ok := expr.(columnExpression); ok && c.frame == b.frameID() {
 			result = namespace.frame[c.slot]
 			result.Name = targetNames[i]
 		}
-		if aggregate, ok := expr.(aggregateExpression); ok {
+		if aggregate, ok := expr.(aggregateExpression); ok && aggregate.frame == b.frameID() {
 			result.NullabilityKnown = true
 			result.Nullable = b.aggregates[aggregate.slot].operation != aggregateCount
 		}
@@ -328,7 +359,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		}
 	}
 	grouped := len(keys) > 0 || len(b.aggregates) > 0 || having != nil
-	if s.Locking != nil {
+	if b.queryRowDiagnosticMode != 0 {
 		suffix := ""
 		switch {
 		case s.Distinct != nil:
@@ -341,7 +372,11 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			suffix = "aggregate functions"
 		}
 		if suffix != "" {
-			return nil, sqlError("0A000", s.Locking[0].Mode+" is not allowed with "+suffix)
+			mode := queryRowClause(b.queryRowDiagnosticMode)
+			if len(s.Locking) != 0 {
+				mode = s.Locking[0].Mode
+			}
+			return nil, sqlError("0A000", mode+" is not allowed with "+suffix)
 		}
 	}
 	if s.Distinct != nil && len(s.Distinct.On) != 0 {
@@ -382,7 +417,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		root = &distinctNode{querySchema: results, child: root, expressions: projection, grouping: distinctFamilies}
 		slots := make([]BoundExpr, len(projection))
 		for i, expression := range projection {
-			slots[i] = columnExpression{expressionInfo: boundExpressionInfo(expression), scope: 1, frame: 1, slot: i}
+			slots[i] = columnExpression{expressionInfo: boundExpressionInfo(expression), scope: 1, frame: b.frameID(), slot: i}
 		}
 		for i := range order {
 			order[i].expression = slots[distinctOrder[i]]
@@ -393,22 +428,26 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	if err != nil {
 		return nil, err
 	}
-	if bounds != nil {
-		root = b.scheduleCountProjection(root, projection)
-	}
-	if s.Locking != nil {
-		var marks []queryRowMark
+	root = b.scheduleQueryProjection(root, projection, bounds != nil)
+	if len(s.Locking) != 0 {
+		admission := b.queryLockAdmission.queries[s]
+		var local []queryRowMark
 		var err error
-		if admission := b.queryLockAdmission; admission != nil && admission.selectQuery == s {
-			marks, err = admission.marks, admission.err
+		if admission != nil {
+			local, err = admission.marks, admission.err
 		} else {
-			marks, err = queryLockTargets(s.From, s.Locking)
+			local, err = queryLockTargets(s.From, s.Locking)
 		}
 		if err != nil {
 			return nil, err
 		}
-		for i, mark := range marks {
-			b.querySources[i].mark = mark
+		indices := make(map[*parser.TableReference]int)
+		_ = parser.VisitQuerySources(s, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
+		marks := make([]queryRowMark, len(b.querySources))
+		for i, source := range b.querySources {
+			if index, ok := indices[source.table]; ok && index < len(local) {
+				marks[i] = local[index]
+			}
 		}
 		root = &rowLockNode{querySchema: root.Schema(), child: root, marks: marks, firstMode: queryRowMode(s.Locking[0].Mode)}
 	}
@@ -421,7 +460,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		// source-typed descriptors retained by DISTINCT and its ordering/bounds.
 		results = append([]ColumnDescriptor(nil), results...)
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, frame: b.frameID(), syntax: s}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(expr BoundExpr, target ColumnDescriptor) (BoundExpr, error) {

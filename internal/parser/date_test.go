@@ -32,7 +32,14 @@ func TestDateNamesLiteralsAndModifiers(t *testing.T) {
 	if len(raw.TypeName.Modifiers) != 1 || raw.TypeName.Pos.Character != 8 || raw.Pos.Character != 16 {
 		t.Fatal(raw)
 	}
-	for _, q := range []string{"SELECT DATE 'epoch'", "SELECT DATE 'epoch' FROM date; SELECT date FROM", "SELECT UUID 'bad' FROM date", "SELECT date(3) FROM date", "SELECT date('epoch') FROM date", "SELECT date($1) FROM date", "SELECT date((3)) 'epoch' FROM date"} {
+	stmts, err = Parse("SELECT DATE 'epoch'")
+	if err != nil || len(stmts) != 1 || stmts[0].(*Select).From != nil {
+		t.Fatal(stmts, err)
+	}
+	if literal, ok := stmts[0].(*Select).Targets[0].(TypedLiteralExpr); !ok || literal.TypeName.Name != "date" {
+		t.Fatal(stmts)
+	}
+	for _, q := range []string{"SELECT DATE 'epoch' FROM date; SELECT date FROM", "SELECT UUID 'bad' FROM date", "SELECT date(3) FROM date", "SELECT date('epoch') FROM date", "SELECT date($1) FROM date", "SELECT date((3)) 'epoch' FROM date"} {
 		stmts, err := Parse(q)
 		if err == nil || stmts != nil {
 			t.Fatal("excluded syntax accepted", q, stmts, err)

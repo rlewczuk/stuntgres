@@ -40,7 +40,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	}
 	if err == nil {
-		err = e.initializeQueryLocksLocked(scope, b.update.from, b.querySources)
+		err = e.initializeQueryLocksLocked(scope, nil, b.querySources)
 	}
 	if err == nil {
 		err = e.captureCommentSnapshotLocked(scope)

@@ -45,13 +45,10 @@ func ContainsStringExpression(expr Expr) bool {
 	return valid && found
 }
 
-// String expressions form a bounded no-FROM exception. Their children use the
-// existing scalar repertoire; this does not admit arbitrary singleton queries.
+// This tree detector is only assignment-family classification. Relationless
+// query admission is structural and independent of selected function families.
 func stringSingleton(expr Expr) (valid, found bool) { return stringSingletonFamily(expr, false) }
 
-// The datetime family admits scalar siblings only when a selected datetime
-// call occurs somewhere in the bounded projection. Existing string admission
-// retains its per-target family requirement.
 func stringSingletonFamily(expr Expr, datetimeOnly bool) (valid, found bool) {
 	switch e := expr.(type) {
 	case LiteralExpr, TypedLiteralExpr, ParameterExpr, IdentityExpr, CurrentDateTimeExpr:

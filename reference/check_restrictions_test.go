@@ -4,11 +4,9 @@ package reference_test
 
 import "testing"
 
-// These are PostgreSQL-only semantic controls. Native does not acquire new
-// subquery, window or SRF syntax merely to reproduce their semantic producer.
+// These remaining PostgreSQL-only controls require window or SRF execution.
 func TestReferenceCheckExcludedExpressionControlsPostgres(t *testing.T) {
 	for _, tc := range []struct{ query, code, message string }{
-		{"CREATE TABLE t(a INT CHECK(EXISTS(SELECT 1)))", "0A000", "cannot use subquery in check constraint"},
 		{"CREATE TABLE t(a INT CHECK(row_number() OVER ()>0))", "42P20", "window functions are not allowed in check constraints"},
 		{"CREATE TABLE t(a INT CHECK(generate_series(1,2)>0))", "0A000", "set-returning functions are not allowed in check constraints"},
 	} {

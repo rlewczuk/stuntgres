@@ -63,7 +63,7 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) BoundExpr {
 	var origin ObjectRef
 	if c.leaf == queryTargetLeaf {
-		origin = b.useColumn(c.physical)
+		origin = b.useColumnOf(b.queryTargetRelation(), c.physical)
 	} else if c.leaf >= 0 {
 		leaf := &b.querySources[c.leaf]
 		origin = leaf.ref
@@ -80,7 +80,7 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) Bou
 			leaf.uses = append(leaf.uses, c.physical)
 		}
 	}
-	return columnExpression{expressionInfo: b.info(c.descriptor.Usage, pos, ExprProperties{RowDependent: true}), origin: origin, scope: 1, frame: 1, slot: c.slot}
+	return columnExpression{expressionInfo: b.info(c.descriptor.Usage, pos, ExprProperties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
 }
 
 func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Position) (*queryQualifier, error) {
@@ -97,9 +97,31 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		match = q
 	}
 	if match != nil {
+		b.resolvedQueryFrame = b.frameID()
 		return match, nil
 	}
-	for _, q := range b.queryHidden {
+	for i := len(b.queryScopes) - 1; i >= 0; i-- {
+		scope := &b.queryScopes[i]
+		if !scope.allowed || scope.namespace == nil {
+			continue
+		}
+		for j := range scope.namespace.qualifiers {
+			q := &scope.namespace.qualifiers[j]
+			if q.name != label || len(name.Parts) == 2 && (q.alias != "" || q.schema != name.Parts[0].Text) {
+				continue
+			}
+			if match != nil {
+				return nil, expressionError("42P09", fmt.Sprintf(`table reference "%s" is ambiguous`, label), pos)
+			}
+			match = q
+		}
+		if match != nil {
+			b.resolvedQueryFrame = scope.frame
+			return match, nil
+		}
+	}
+	hidden := append(append([]queryQualifier(nil), b.queryHidden...), b.outerQualifiers()...)
+	for _, q := range hidden {
 		if q.original != label && q.name != label {
 			continue
 		}
@@ -109,18 +131,13 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		err := expressionError("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
 		visibleAlias := false
 		if q.original == label && q.alias != "" && q.alias != label {
-			for _, visible := range b.queryNamespace.qualifiers {
-				if visible.name == q.alias && visible.ref == q.ref {
-					visibleAlias = true
-					break
-				}
-			}
+			visibleAlias = b.queryAliasVisible(q.alias, q.ref)
 		}
 		if visibleAlias {
 			err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, q.alias)
 		} else {
 			err.Detail = fmt.Sprintf(`There is an entry for table "%s", but it cannot be referenced from this part of the query.`, q.name)
-			if b.queryNonLateral && !q.excludeColumnDiagnostics && !q.lateralForbidden {
+			if b.queryQualifierNeedsLateral(q) && !q.excludeColumnDiagnostics && !q.lateralForbidden && (q.ref != (ObjectRef{}) || q.alias != "") {
 				err.Hint = "To reference that table, you must mark this subquery with LATERAL."
 			}
 		}
@@ -133,14 +150,26 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 	if len(parts) == 0 || len(parts) > 3 {
 		return nil, fmt.Errorf("stuntgres: invalid query column name")
 	}
+	if len(parts) == 2 {
+		if scope, newValues := b.outerReturningScope(parser.ObjectName{Parts: parts[:1]}); scope != nil {
+			relation := scope.relation
+			slot, ok := relation.index[parts[1].Text]
+			if !ok {
+				return nil, expressionError("42703", fmt.Sprintf("column %s.%s does not exist", parts[0].Text, parts[1].Text), raw.Pos)
+			}
+			return b.outerReturningColumnAt(scope, slot, raw.Pos, newValues), nil
+		}
+	}
 	name := parts[len(parts)-1].Text
 	columns := b.queryNamespace.columns
+	frame := b.frameID()
 	if len(parts) > 1 {
 		q, err := b.queryQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
 		if err != nil {
 			return nil, err
 		}
 		columns = q.columns
+		frame = b.resolvedQueryFrame
 	}
 	var match *queryColumn
 	for i := range columns {
@@ -156,7 +185,28 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 		if demand := b.queryNamespace.identityValuesOrderDemand; len(demand) != 0 {
 			demand[match.slot] = true
 		}
-		return b.queryColumnAt(*match, raw.Pos), nil
+		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
+	}
+	if len(parts) == 1 {
+		for i := len(b.queryScopes) - 1; i >= 0; i-- {
+			scope := &b.queryScopes[i]
+			if !scope.allowed || scope.namespace == nil {
+				continue
+			}
+			for j := range scope.namespace.columns {
+				c := &scope.namespace.columns[j]
+				if c.descriptor.Name != name {
+					continue
+				}
+				if match != nil {
+					return nil, expressionError("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
+				}
+				match = c
+			}
+			if match != nil {
+				return b.queryColumnInFrame(*match, raw.Pos, scope.frame), nil
+			}
+		}
 	}
 	if b.queryNamespace.values && len(parts) == 1 {
 		return nil, valuesOrderColumnError(b.queryNamespace.frame, name, raw.Pos)
@@ -165,7 +215,8 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (BoundExpr, error)
 	if len(parts) > 1 {
 		qualifier = parts[len(parts)-2].Text
 	}
-	detail, hint, err := queryColumnDiagnostic(b.queryHidden, qualifier, name, raw.Pos, b.queryNonLateral)
+	hidden := append(append([]queryQualifier(nil), b.queryHidden...), b.outerQualifiers()...)
+	detail, hint, err := queryColumnDiagnostic(hidden, qualifier, name, raw.Pos, b.queryNonLateral)
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +240,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		b.viewNamespaces = append(b.viewNamespaces, viewNamespace{})
 		defer func() {
 			if failure == nil {
+				b.viewNamespaces[ordinal].frame = b.frameID()
+				b.viewNamespaces[ordinal].node, b.viewNamespaces[ordinal].ordinal = frozenNamespaceNode(root)
 				b.viewNamespaces[ordinal].columns = b.freezeViewColumns(namespace.columns)
 				for _, q := range namespace.qualifiers {
 					b.viewNamespaces[ordinal].qualifiers = append(b.viewNamespaces[ordinal].qualifiers, viewNamespaceQualifier{q.name, b.freezeViewColumns(q.columns)})
@@ -202,6 +255,18 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 	switch n := item.(type) {
 	case nil:
 		return &singletonNode{}, queryNamespace{}, nil
+	case *parser.DerivedQuery:
+		query, err := b.bindSelectScoped(n.Query, false, true)
+		if err != nil {
+			return nil, queryNamespace{}, err
+		}
+		schema := query.Root.Schema()
+		columns := make([]queryColumn, len(schema))
+		for i, column := range schema {
+			columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1}
+		}
+		b.queryHidden = append(b.queryHidden, queryQualifier{name: "unnamed_subquery", columns: columns})
+		return &derivedNode{querySchema: schema, query: query}, queryNamespace{columns: columns, frame: schema}, nil
 	case *parser.ValuesQuery:
 		query, err := b.bindValues(n, false)
 		if err != nil {
@@ -224,7 +289,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.name))
 		}
 		leaf := len(b.querySources)
-		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address)})
+		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n]})
 		columns := make([]queryColumn, len(relation.columns))
 		for i, c := range relation.columns {
 			columns[i] = queryColumn{c, i, leaf, i}
@@ -240,7 +305,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if len(n.Columns) > len(ns.columns) {
 			kind := "join expression"
 			switch n.Input.(type) {
-			case *parser.TableReference, *parser.ValuesQuery:
+			case *parser.TableReference, *parser.ValuesQuery, *parser.DerivedQuery:
 				kind = "table"
 			}
 			return nil, queryNamespace{}, sqlError("42P10", fmt.Sprintf(`%s "%s" has %d columns available but %d columns specified`, kind, n.Name.Text, len(ns.columns), len(n.Columns)))
@@ -254,6 +319,8 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 			q.ref, q.schema, q.original = ns.qualifiers[0].ref, ns.qualifiers[0].schema, ns.qualifiers[0].original
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else if _, values := n.Input.(*parser.ValuesQuery); values {
+			b.queryHidden[len(b.queryHidden)-1] = q
+		} else if _, derived := n.Input.(*parser.DerivedQuery); derived {
 			b.queryHidden[len(b.queryHidden)-1] = q
 		} else {
 			q.excludeColumnDiagnostics = true
@@ -277,7 +344,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		join := &joinNode{querySchema: ns.frame, kind: n.Kind, left: left, right: right, leftWidth: len(lns.frame), rightWidth: len(rns.frame)}
+		join := &joinNode{querySchema: ns.frame, kind: n.Kind, left: left, right: right, leftWidth: len(lns.frame), rightWidth: len(rns.frame), viewOrdinal: joinOrdinal}
 		old := b.queryNamespace
 		b.queryNamespace = &ns
 		defer func() { b.queryNamespace = old }()
@@ -335,7 +402,7 @@ func (b *expressionBinder) bindFrom(item parser.FromItem) (root LogicalNode, nam
 				if join.predicate == nil {
 					join.predicate = eq
 				} else {
-					join.predicate = logicalExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, ExprProperties{RowDependent: true}), parser.LogicalAnd, join.predicate, eq}
+					join.predicate = logicalExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), pos, ExprProperties{RowDependent: true}), op: parser.LogicalAnd, left: join.predicate, right: eq}
 				}
 				operands := []comparisonOperand{{node: le}, {node: re}}
 				usage, err := commonExpressionUsage(operands, b.typ(sqltype.Text).Usage(), "JOIN/USING")
@@ -467,4 +534,48 @@ func usingQueryColumn(columns []queryColumn, name, side string) (queryColumn, er
 		return result, sqlError("42702", fmt.Sprintf(`common column name "%s" appears more than once in %s table`, name, side))
 	}
 	return result, nil
+}
+
+func (b *expressionBinder) queryAliasVisible(name string, ref ObjectRef) bool {
+	if b.queryNamespace != nil {
+		for _, q := range b.queryNamespace.qualifiers {
+			if q.name == name && q.ref == ref {
+				return true
+			}
+		}
+	}
+	for i := len(b.queryScopes) - 1; i >= 0; i-- {
+		scope := &b.queryScopes[i]
+		if !scope.allowed || scope.namespace == nil {
+			continue
+		}
+		for _, q := range scope.namespace.qualifiers {
+			if q.name == name && q.ref == ref {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (b *expressionBinder) queryQualifierNeedsLateral(q queryQualifier) bool {
+	if b.queryNonLateral {
+		return true
+	}
+	for i := len(b.queryScopes) - 1; i >= 0; i-- {
+		scope := &b.queryScopes[i]
+		if scope.allowed && !scope.nonLateral {
+			continue
+		}
+		qualifiers := scope.hidden
+		if len(qualifiers) == 0 && scope.namespace != nil {
+			qualifiers = scope.namespace.qualifiers
+		}
+		for _, candidate := range qualifiers {
+			if candidate.name == q.name && candidate.ref == q.ref {
+				return true
+			}
+		}
+	}
+	return false
 }

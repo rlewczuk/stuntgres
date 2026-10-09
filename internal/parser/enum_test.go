@@ -91,7 +91,7 @@ CREATE DOMAIN type enum_saved.wrapped`)
 	}
 }
 
-func TestEnumSingletonSyntaxCandidate(t *testing.T) {
+func TestEnumNoFromCastSyntax(t *testing.T) {
 	for _, query := range []string{
 		"SELECT 'ok'::mood",
 		"SELECT $1::mood",
@@ -102,7 +102,7 @@ func TestEnumSingletonSyntaxCandidate(t *testing.T) {
 		"SELECT 'ok'::mood::text = 'ok'::happiness::text",
 		"SELECT NULL::mood IS NULL",
 		"SELECT 'ok'::mood, $1::mood",
-		// Syntax has no catalog: these candidates must fail the engine gate.
+		// Catalog resolution remains an engine responsibility.
 		"SELECT 1::integer",
 		"SELECT 'ok'::wrapped",
 	} {
@@ -111,8 +111,8 @@ func TestEnumSingletonSyntaxCandidate(t *testing.T) {
 			t.Fatal(query, statements, err)
 		}
 		selected := statements[0].(*Select)
-		if !selected.IsTypeSingleton() || selected.IsSingleton() {
-			t.Fatal("cast candidate changed existing singleton authority", query)
+		if selected.From != nil || len(selected.Targets) == 0 {
+			t.Fatal("no-FROM cast lost its targets", query)
 		}
 	}
 	for _, query := range []string{
@@ -124,8 +124,8 @@ func TestEnumSingletonSyntaxCandidate(t *testing.T) {
 		"SELECT 'ok'::mood ORDER BY 1",
 	} {
 		statements, err := Parse(query)
-		if err == nil && len(statements) == 1 && statements[0].(*Select).IsTypeSingleton() {
-			t.Fatal("unrelated singleton admitted", query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal("ordinary no-FROM expression rejected", query, err)
 		}
 	}
 }

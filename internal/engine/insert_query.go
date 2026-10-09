@@ -35,6 +35,14 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	var err error
 	if sel := s.Source.Select; sel != nil {
 		binder.queryAuth = &auth
+		// INSERT's target is an error namespace entry, not a correlation
+		// source. Keep it hidden when entering the shared SELECT binder.
+		columns := make([]queryColumn, len(out.relation.columns))
+		for i, descriptor := range out.relation.columns {
+			columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
+		}
+		target := queryQualifier{name: out.relation.name, original: out.relation.name, ref: out.ref, columns: columns, schema: auth.catalog.state.descriptors[out.relation.namespace].Name(), lateralForbidden: true}
+		binder.queryHidden = append(binder.queryHidden, target)
 		query, err = binder.bindSelect(sel, true)
 		out.querySources = binder.querySources
 	} else {
@@ -155,6 +163,14 @@ func commonValuesUsage(nodes [][]BoundExpr, raw [][]parser.Expr, column int, tex
 	}, text, "VALUES")
 }
 func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscard bool) (*BoundQuery, error) {
+	oldFrame := b.queryFrame
+	if oldFrame == 0 {
+		b.queryFrame = 1
+		if b.nextQueryFrame == 0 {
+			b.nextQueryFrame = 1
+		}
+	}
+	defer func() { b.queryFrame = oldFrame }()
 	oldNamespace, oldRelation, oldClause, oldNonLateral := b.queryNamespace, b.relation, b.aggregateClause, b.queryNonLateral
 	b.queryNamespace, b.relation = &queryNamespace{}, nil
 	b.aggregateClause, b.queryNonLateral = "VALUES", true
@@ -207,9 +223,9 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 		common = info.usage
 		schema[j] = ColumnDescriptor{Name: fmt.Sprintf("column%d", j+1), Usage: common}
-		projection[j] = columnExpression{expressionInfo: info, scope: 1, frame: 1, slot: j}
+		projection[j] = columnExpression{expressionInfo: info, scope: 1, frame: b.frameID(), slot: j}
 	}
-	values := &valuesNode{querySchema: schema, rows: nodes}
+	values := &valuesNode{querySchema: schema, rows: nodes, viewOrdinal: occurrence}
 	if identityDiscard && len(nodes) == 1 {
 		values.identityOrderDemand = make([]bool, width)
 	}
@@ -257,7 +273,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
 	results := append([]ColumnDescriptor(nil), schema...)
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, frozenValues: true}}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, frozenValues: true, frame: b.frameID()}}, nil
 }
 
 // VALUES exposes generated ASCII column names in one synthetic namespace.

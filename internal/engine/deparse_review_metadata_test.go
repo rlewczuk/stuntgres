@@ -274,7 +274,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
 	view := e.CatalogRead().state.descriptors[roleTableRef(t, e, "v").Address].(*relationDescriptor).view
-	literal, ok := view.literals[viewLiteralPath{clause: viewTargetLiteral, target: 0, node: 0}]
+	literal, ok := view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).frame, clause: viewTargetLiteral, target: 0, node: 0}]
 	if !ok || literal.usage.Type.ID() != sqltype.Time || literal.usage.Typmod != 3 {
 		t.Fatal(view.literals)
 	}
@@ -282,7 +282,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	if err != nil || raw != 14706123500 {
 		t.Fatal(raw, err)
 	}
-	literal, ok = view.literals[viewLiteralPath{clause: viewTargetLiteral, target: 1, node: 1}]
+	literal, ok = view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).frame, clause: viewTargetLiteral, target: 1, node: 1}]
 	if !ok || literal.usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(view.literals)
 	}

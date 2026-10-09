@@ -515,6 +515,12 @@ type Select struct {
 
 func (*Select) statement() {}
 
+// parenthesizedQuery retains the syntax wrapper's position independently of SELECT.
+type parenthesizedQuery struct {
+	Query *Select
+	Pos   Position
+}
+
 // RowLockClause is one positioned trailing locking clause.
 type RowLockClause struct {
 	Mode    string
@@ -552,76 +558,6 @@ type QueryBounds struct {
 type queryTail struct {
 	Bounds  *QueryBounds
 	Locking []RowLockClause
-}
-
-// IsSingleton admits selected-call and session-value-derived projections without FROM.
-func (s *Select) IsSingleton() bool {
-	if s.Set != nil || s.Distinct != nil && len(s.Distinct.On) != 0 || s.Parenthesized || s.Values != nil || s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
-		return false
-	}
-	for _, target := range s.Targets {
-		if _, star := target.(StarExpr); star {
-			return false
-		}
-		if containsAggregate(target) {
-			return false
-		}
-	}
-	if sequenceProjection(s) {
-		return true
-	}
-	sessionOrString := true
-	for _, target := range s.Targets {
-		valid, found := identitySingleton(target)
-		if valid && found {
-			continue
-		}
-		valid, found = stringSingleton(target)
-		sessionOrString = sessionOrString && valid && found
-	}
-	if sessionOrString {
-		return true
-	}
-	datetimeValid, datetimeFound := true, false
-	for _, target := range s.Targets {
-		valid, found := stringSingletonFamily(target, true)
-		datetimeValid = datetimeValid && valid
-		datetimeFound = datetimeFound || found
-	}
-	if datetimeValid && datetimeFound {
-		return true
-	}
-	// A format ANY occurrence must reach normal shared parameter analysis even
-	// when a sibling target is the same bare parameter. Keep other bare targets
-	// and every existing clause/aggregate boundary outside singleton admission.
-	formatParameters, hasFormat, hasParameter := true, false, false
-	for _, target := range s.Targets {
-		if _, ok := target.(ParameterExpr); ok {
-			hasParameter = true
-			continue
-		}
-		call, ok := target.(FunctionExpr)
-		if !ok || len(call.Name.Parts) == 0 || !strings.EqualFold(call.Name.Parts[len(call.Name.Parts)-1].Text, "format") {
-			formatParameters = false
-			continue
-		}
-		valid, found := stringSingleton(call)
-		formatParameters = formatParameters && valid && found
-		hasFormat = true
-	}
-	if hasFormat && hasParameter && formatParameters {
-		return true
-	}
-	for _, target := range s.Targets {
-		if cast, ok := target.(CastExpr); ok && cast.TypeName.Name == "pg_node_tree" && singletonArgument(cast.Child) {
-			continue
-		}
-		call, ok := target.(FunctionExpr)
-		if !ok || !singletonArgument(call) {
-			return false
-		}
-	}
-	return true
 }
 
 func singletonArgument(expr Expr) bool {
@@ -1035,59 +971,6 @@ type AggregateExpr struct {
 
 func (AggregateExpr) expression()                {}
 func (e AggregateExpr) SourcePosition() Position { return e.Pos }
-
-func containsAggregate(expr Expr) bool {
-	switch e := expr.(type) {
-	case AggregateExpr:
-		return true
-	case CaseExpr:
-		if containsAggregate(e.Test) || containsAggregate(e.Else) {
-			return true
-		}
-		for _, arm := range e.Arms {
-			if containsAggregate(arm.Condition) || containsAggregate(arm.Result) {
-				return true
-			}
-		}
-	case ConditionalExpr:
-		for _, arg := range e.Args {
-			if containsAggregate(arg) {
-				return true
-			}
-		}
-	case CastExpr:
-		return containsAggregate(e.Child)
-	case CollateExpr:
-		return containsAggregate(e.Child)
-	case TimeZoneExpr:
-		return containsAggregate(e.Value) || !e.Local && containsAggregate(e.Zone)
-	case RegclassExpr:
-		return containsAggregate(e.Child)
-	case FunctionExpr:
-		for _, arg := range e.Args {
-			if containsAggregate(arg) {
-				return true
-			}
-		}
-	case CallExpr:
-		for _, arg := range e.Args {
-			if containsAggregate(arg) {
-				return true
-			}
-		}
-	case OperatorExpr:
-		for _, arg := range e.Args {
-			if containsAggregate(arg) {
-				return true
-			}
-		}
-	case PredicateExpr:
-		return containsAggregate(e.Left) || containsAggregate(e.Right)
-	case LogicalExpr:
-		return containsAggregate(e.Left) || containsAggregate(e.Right)
-	}
-	return false
-}
 
 type CastSyntax uint8
 

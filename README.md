@@ -498,6 +498,19 @@ allowed, while recursive reads and native cyclic Dump explicitly fail.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceView(Rows|Barrier|SmokeCatalogReplayControls)$' VERBOSE=0`.
 Replacement smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceViewReplace(Definition|Diagnostics|Prepared|SmokeCycleReplayControls)$' VERBOSE=0`.
 
+Change note: scalar/EXISTS, IN/NOT IN, ANY/SOME/ALL and row comparison
+subqueries now use the shared typed query pipeline, with legal lexical
+correlation and non-lateral derived SELECT. Ordinary no-FROM SELECT uses a
+local one-row input. Full child binding/admission remains independent of
+runtime demand; eligible EXISTS may discard target-only output (see the linked
+eligibility contract). Scalar cardinality,
+NULL/empty reductions, coherent mutation consumers and stored-view dependencies
+retain their PostgreSQL contracts. LATERAL, CTE and function FROM remain excluded.
+See [subqueries](docs/QUERIES.md#subqueries-and-derived-select--change-note-changelog).
+Shared verification commands:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceQuerySubquery'` and
+`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuerySubquery'`.
+
 Change note: search-path visibility inquiries `pg_table_is_visible(oid)`,
 `pg_type_is_visible(oid)`, `pg_collation_is_visible(oid)` and
 `pg_conversion_is_visible(oid)` return strict nullable BOOL. Missing identities
@@ -581,8 +594,8 @@ supported queries. Optional relation/column aliases expose computed `columnN`
 outputs with independent common typing (unknown-only becomes TEXT). Duplicate
 bags, local ordering/counts, inner/cross joins, INSERT SELECT and stored views
 share existing binding, execution, metadata and native replay paths. VALUES
-cells are non-lateral and reject DEFAULT and aggregates; derived SELECT and
-LATERAL remain excluded. Ordinary INSERT VALUES retains destination-context
+cells are non-lateral and reject DEFAULT and aggregates; LATERAL remains
+excluded. Derived SELECT uses the same source pipeline. Ordinary INSERT VALUES retains destination-context
 typing. See [VALUES contracts and change note](docs/QUERIES.md#standalone-and-from-values--change-note-changelog).
 Independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryFromValues' VERBOSE=0`.
 
@@ -981,7 +994,7 @@ Empty/all-NULL global input returns typed NULL. Use call-local
 ordering only orders result groups. Each call can use different source-key order.
 Direct/prepared queries, held statements, INSERT SELECT and persistent views/native
 Dump/Restore use the same eager pipeline. DISTINCT/FILTER/ALL/OVER, ordered sibling
-aggregates, no-FROM aggregates and array_agg remain excluded.
+aggregates and array_agg remain excluded. Admitted aggregates also use the ordinary no-FROM input.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
 pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
 Equal typed keys, including NULL keys, form one group; empty global count returns one row

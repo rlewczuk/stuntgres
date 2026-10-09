@@ -58,8 +58,8 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		}
 		expr = coercionExpression{b.info(usage, expr.SourcePosition(), coercionProperties(expr, plan)), expr, plan, sqltype.Assignment}
 	}
-	if expr.Properties().RowDependent || expr.Properties().StageDependent {
-		pos := firstQueryBoundVariable(expr)
+	if expressionUsesFrame(expr, b.frameID()) {
+		pos := firstQueryBoundFrameVariable(expr, b.frameID())
 		return nil, expressionError("42P10", "argument of "+clause+" must not contain variables", pos)
 	}
 	if b.noParameters && captureLiterals {
@@ -70,102 +70,51 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 	return expr, nil
 }
 
-func firstQueryBoundVariable(expr BoundExpr) parser.Position {
-	if expr == nil {
-		return parser.Position{}
-	}
-	switch e := expr.(type) {
-	case columnExpression, groupExpression, aggregateExpression:
-		return expr.SourcePosition()
-	case indexPropertyExpression:
-		return firstQueryBoundArgs(e.children())
-	case deparseExpression:
-		return firstQueryBoundArgs(e.args)
-	case visibilityInquiryExpression:
-		return firstQueryBoundVariable(e.arg)
-	case currentSchemasExpression:
-		return firstQueryBoundVariable(e.arg)
-	case collationExpression:
-		return firstQueryBoundVariable(e.child)
-	case coercionExpression:
-		return firstQueryBoundVariable(e.child)
-	case nullTestExpression:
-		return firstQueryBoundVariable(e.child)
-	case truthTestExpression:
-		return firstQueryBoundVariable(e.child)
-	case timeZoneExpression:
-		if e.value.Properties().RowDependent {
-			return firstQueryBoundVariable(e.value)
-		}
-		return firstQueryBoundVariable(e.zone)
-	case bitwiseExpression:
-		return firstQueryBoundPair(e.left, e.right)
-	case arithmeticExpression:
-		return firstQueryBoundPair(e.left, e.right)
-	case likeExpression:
-		return firstQueryBoundPair(e.left, e.right)
-	case likeEscapeExpression:
-		return firstQueryBoundPair(e.pattern, e.escape)
-	case comparisonExpression:
-		return firstQueryBoundPair(e.left, e.right)
-	case logicalExpression:
-		return firstQueryBoundPair(e.left, e.right)
-	case distinctExpression:
-		return firstQueryBoundPair(e.left, e.right)
-	case caseExpression:
-		if e.test != nil && e.test.Properties().RowDependent {
-			return firstQueryBoundVariable(e.test)
-		}
-		for _, arm := range e.arms {
-			if arm.condition.Properties().RowDependent {
-				return firstQueryBoundVariable(arm.condition)
+func firstQueryBoundFrameVariable(expr BoundExpr, frame uint32) parser.Position {
+	var position parser.Position
+	found := false
+	var query func(LogicalNode)
+	var expression func(BoundExpr)
+	expression = func(expr BoundExpr) {
+		walkBoundExpression(expr, func(expr BoundExpr) {
+			matched := false
+			switch e := expr.(type) {
+			case columnExpression:
+				matched = e.frame == frame
+			case groupExpression:
+				matched = e.frame == frame
+			case aggregateExpression:
+				matched = e.frame == frame
+			case subqueryExpression:
+				query(e.queryPlan.Root)
 			}
-			if arm.result.Properties().RowDependent {
-				return firstQueryBoundVariable(arm.result)
+			if matched {
+				p := expr.SourcePosition()
+				if !found || p.Character < position.Character {
+					position = p
+					found = true
+				}
 			}
+		})
+	}
+	query = func(node LogicalNode) {
+		if node == nil {
+			return
 		}
-		return firstQueryBoundVariable(e.otherwise)
-	case conditionalExpression:
-		return firstQueryBoundArgs(e.args)
-	case sequenceCallExpression:
-		return firstQueryBoundArgs(e.args)
-	case binaryExpression:
-		return firstQueryBoundArgs(e.args)
-	case datetimeFormattingExpression:
-		return firstQueryBoundArgs(e.args[:])
-	case stringExpression:
-		return firstQueryBoundArgs(e.args)
-	case mathExpression:
-		return firstQueryBoundArgs(e.args)
-	case randomExpression:
-		return firstQueryBoundArgs(e.args)
-	case nullCountExpression:
-		return firstQueryBoundArgs(e.args)
-	case formatExpression:
-		return firstQueryBoundArgs(e.args)
+		queryExpressions(node, expression)
+		left, right := queryInputs(node)
+		query(left)
+		query(right)
 	}
-	return expr.SourcePosition()
-}
-func firstQueryBoundPair(left, right BoundExpr) parser.Position {
-	if left != nil && (left.Properties().RowDependent || left.Properties().StageDependent) {
-		return firstQueryBoundVariable(left)
-	}
-	return firstQueryBoundVariable(right)
-}
-func firstQueryBoundArgs(args []BoundExpr) parser.Position {
-	for _, arg := range args {
-		if arg.Properties().RowDependent || arg.Properties().StageDependent {
-			return firstQueryBoundVariable(arg)
-		}
-	}
-	return parser.Position{}
+	expression(expr)
+	return position
 }
 
 func queryBoundValue(ctx context.Context, state *queryState, expr BoundExpr, clause string) (int64, bool, error) {
 	if expr == nil {
 		return 0, false, nil
 	}
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+	evaluation := state.evaluation(ctx)
 	value, err := expr.Eval(&evaluation)
 	if err != nil {
 		return 0, false, err

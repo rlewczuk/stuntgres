@@ -19,7 +19,7 @@ func TestBinaryHashCallAST(t *testing.T) {
 					t.Fatal(q, statements, err)
 				}
 				s, ok := statements[0].(*Select)
-				if !ok || !s.IsSingleton() || len(s.Targets) != 1 {
+				if !ok || s.From != nil || s.Values != nil || len(s.Targets) != 1 {
 					t.Fatal(q, statements)
 				}
 				call, ok := s.Targets[0].(FunctionExpr)

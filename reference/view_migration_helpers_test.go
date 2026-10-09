@@ -11,9 +11,14 @@ import (
 // Retrieve the actual deparser output through the recorded consumer, then use it.
 func referenceViewCopy(t *testing.T, p *referencePair, b referenceBackend, name, copyName string) {
 	t.Helper()
-	query := "SELECT definition FROM pg_catalog.pg_views WHERE viewname=$1"
+	referenceViewCopySQL(t, p, b, copyName, "SELECT definition FROM pg_catalog.pg_views WHERE viewname=$1", name)
+}
+
+// Presentation variants share the same recorded body and semantic replay path.
+func referenceViewCopySQL(t *testing.T, p *referencePair, b referenceBackend, copyName, query string, args ...any) {
+	t.Helper()
 	ctx := context.WithValue(p.ctx, referenceRecorderKey{}, b.recorder)
-	rows, err := b.db.QueryContext(ctx, query, name)
+	rows, err := b.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		t.Fatal(err)
 	}

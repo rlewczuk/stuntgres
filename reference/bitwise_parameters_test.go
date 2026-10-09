@@ -44,7 +44,7 @@ func TestReferenceBitwiseParameterResolution(t *testing.T) {
 	p.step(t, referencePrepared(step))
 	for _, tc := range []struct{ query, message, position string }{
 		{"SELECT num_nulls(s & 1) FROM t", "arithmetic in null-count arguments is unsupported", "20"},
-		{"SELECT num_nulls(~1)", "SELECT without FROM is unsupported", "1"},
+		{"SELECT num_nulls(~1)", "arithmetic in null-count arguments is unsupported", "18"},
 	} {
 		failure := referenceImplicitError(tc.query, referenceDiagnostic{Code: "0A000", Message: tc.message, Position: tc.position})
 		failure.selectRows, failure.errorStage = true, "execute"

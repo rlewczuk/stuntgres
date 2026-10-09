@@ -14,6 +14,7 @@ import (
 
 func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySource) {
 	t.Helper()
+	ast := statement(t, q)
 	e := New()
 	for _, sql := range []string{"CREATE TABLE a(l TEXT,k INT,q INT)", "CREATE TABLE b(r TEXT,q INT,k INT)", "CREATE TABLE c(k INT,c TEXT)", "CREATE TABLE wide(k BIGINT)", "CREATE TABLE chars(k VARCHAR(3))", "CREATE TABLE longer(k VARCHAR(5))", "CREATE TABLE same(k VARCHAR(3))", "CREATE TABLE unused(v INT)", "INSERT INTO a VALUES('a',1,9),('a',1,9),('n',NULL,9),('z',2,8)", "INSERT INTO b VALUES('x',9,1),('x',9,1),('y',8,3),('n',9,NULL)", "INSERT INTO c VALUES(1,'c'),(1,'c')", "INSERT INTO wide VALUES(1)", "INSERT INTO chars VALUES('x')", "INSERT INTO longer VALUES('x')", "INSERT INTO same VALUES('x')"} {
 		run(t, e, sql)
@@ -27,7 +28,6 @@ func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySour
 	if err != nil {
 		t.Fatal(err)
 	}
-	ast := statement(t, q)
 	if _, err = scope.Describe(ast); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)

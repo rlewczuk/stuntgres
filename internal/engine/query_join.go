@@ -8,6 +8,7 @@ import (
 )
 
 type joinNode struct {
+	viewOrdinal int
 	querySchema
 	kind                  parser.JoinKind
 	left, right           LogicalNode
@@ -62,7 +63,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 	// children must validate their row-independent coercions even when the
 	// other operand yields no candidate; this does not produce either child.
 	if n.predicate != nil {
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+		evaluation := state.evaluation(ctx)
 		predicate, changed, err := preflightCoercions(&evaluation, n.predicate)
 		if err != nil {
 			return indexedStage{}, err
@@ -128,7 +129,8 @@ func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedS
 		}
 		return other
 	}
-	evaluation := EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, Row: frame, statementScope: state.source.scope, Input: state.input, Output: state.output}
+	evaluation := state.evaluation(nil)
+	evaluation.Row = frame
 	leftOccurrence, rightOccurrence := -1, 0
 	leftMatched, tail := false, false
 	var rightMatched []bool

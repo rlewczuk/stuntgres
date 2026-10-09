@@ -14,9 +14,6 @@ func TestReferenceQueryAggregateReviewRegression(t *testing.T) {
 	control := referenceSelect("SELECT v=1.0,count(*) FROM t GROUP BY v=1.0", []string{"?column?", "count"}, []string{"BOOL", "INT8"}, [][]any{{true, int64(1)}, {false, int64(1)}})
 	control.bag = true
 	pgSibling := referenceSelect("SELECT count(*),CAST('0' AS regclass)", []string{"count", "regclass"}, []string{"INT8", "REGCLASS"}, [][]any{{int64(1), "-"}})
-	nativeSibling := referenceImplicitError(pgSibling.query, referenceDiagnostic{Code: "0A000", Message: "SELECT without FROM is unsupported", Position: "1"})
-	nativeSibling.selectRows = true
-	nativeSibling.errorStage = "execute"
 
 	if p.postgres != nil {
 		t.Run("postgres", func(t *testing.T) {
@@ -30,7 +27,7 @@ func TestReferenceQueryAggregateReviewRegression(t *testing.T) {
 		})
 	}
 	t.Run("native", func(t *testing.T) {
-		for _, step := range []referenceStep{invalid, control, nativeSibling} {
+		for _, step := range []referenceStep{invalid, control} {
 			t.Run(step.query, func(t *testing.T) {
 				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
 				if step.diagnostic != nil {
@@ -40,10 +37,12 @@ func TestReferenceQueryAggregateReviewRegression(t *testing.T) {
 			})
 		}
 		t.Run("no prefix effects", func(t *testing.T) {
-			failure := referenceError("INSERT INTO t VALUES(3);"+pgSibling.query, "0A000")
+			failure := referenceError("INSERT INTO t VALUES(3);SELECT count(*) WHERE", "42601")
 			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
 			queryAggregatePrepareRejection(t, p, failure.query, failure.state)
 			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT count(*) FROM t", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}))
 		})
 	})
+	p.step(t, pgSibling)
+	p.step(t, referencePrepared(pgSibling))
 }

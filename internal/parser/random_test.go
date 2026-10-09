@@ -1,6 +1,9 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestRandomRawCalls(t *testing.T) {
 	for _, tc := range []struct {
@@ -25,8 +28,8 @@ func TestRandomRawCalls(t *testing.T) {
 			if !ok || call.Name.Parts[0].Text != tc.name || len(call.Args) != tc.arity || call.Pos.Character != 8 {
 				t.Fatalf("call: %#v", s.Targets[0])
 			}
-			if s.IsSingleton() != (s.From == nil) {
-				t.Fatal("selected singleton admission")
+			if (s.From != nil) != strings.HasSuffix(tc.sql, " FROM t") {
+				t.Fatal("source syntax", s)
 			}
 		})
 	}

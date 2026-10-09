@@ -3,7 +3,7 @@ package reference_test
 import "testing"
 
 func TestReferenceUpdateReturningExcludedMechanisms(t *testing.T) {
-	for _, query := range []string{"UPDATE t SET id=2 RETURNING (SELECT 7)", "UPDATE t SET id=2 RETURNING old", "UPDATE t SET id=2 RETURNING (old).*", "UPDATE t SET id=2 FROM t RETURNING id", "INSERT INTO t VALUES(2) RETURNING id", "CREATE TRIGGER change BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION adjust_update()"} {
+	for _, query := range []string{"UPDATE t SET id=2 RETURNING old", "UPDATE t SET id=2 RETURNING (old).*", "UPDATE t SET id=2 FROM t RETURNING id", "INSERT INTO t VALUES(2) RETURNING id", "CREATE TRIGGER change BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION adjust_update()"} {
 		t.Run(query, func(t *testing.T) {
 			p := newReferenceScenario(t)
 			for _, backend := range p.backends() {

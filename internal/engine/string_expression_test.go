@@ -115,10 +115,10 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	}
 	nested := node
 	nested.args = append([]BoundExpr(nil), node.args...)
-	nested.args[1] = columnExpression{expressionInfo: expressionInfo{usage: text.Usage(), pos: parser.Position{Character: 17}, properties: ExprProperties{RowDependent: true}}}
+	nested.args[1] = columnExpression{expressionInfo: expressionInfo{usage: text.Usage(), pos: parser.Position{Character: 17}, properties: ExprProperties{RowDependent: true}}, scope: 1, frame: 1}
 	nested.pos = parser.Position{Character: 8}
 	nested.properties.RowDependent = true
-	if position := firstQueryBoundVariable(nested); position.Character != 17 {
+	if position := firstQueryBoundFrameVariable(nested, 1); position.Character != 17 {
 		t.Fatal("nested string query-bound variable", position)
 	}
 }

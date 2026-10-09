@@ -45,9 +45,6 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 	call := aggregateCall{provider: countProvider{b.typ(sqltype.Int8).Usage()}, operation: aggregateCount}
 	properties := ExprProperties{StageDependent: true}
 	if len(args) == 1 {
-		if inner := aggregateOccurrence(args[0]); inner != nil {
-			return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
-		}
 		call.argument = args[0]
 		p := args[0].Properties()
 		properties.ParameterDependent, properties.Volatility = p.ParameterDependent, p.Volatility
@@ -68,5 +65,5 @@ func (b *expressionBinder) bindCount(raw parser.AggregateExpr, name parser.Objec
 	if slot == len(b.aggregates) {
 		b.aggregates = append(b.aggregates, call)
 	}
-	return aggregateExpression{b.info(call.provider.ResultUsage(), raw.Pos, properties), slot}, nil
+	return aggregateExpression{expressionInfo: b.info(call.provider.ResultUsage(), raw.Pos, properties), slot: slot, frame: b.frameID()}, nil
 }

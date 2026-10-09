@@ -54,15 +54,9 @@ func TestReferenceExtremaRecursiveNoFromBoundary(t *testing.T) {
 		run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, recorder, s) }
 		run(referenceExec("CREATE SEQUENCE extrema_no_from", 0))
 		const q = "SELECT nextval('extrema_no_from'),min(1)+max(2)"
-		if pg {
-			run(referenceSelect(q, []string{"nextval", "?column?"}, []string{"INT8", "INT4"}, [][]any{{int64(1), int64(3)}}))
-		} else {
-			run(referenceError(q, "0A000"))
-		}
-		want := int64(1)
-		if pg {
-			want = 2
-		}
-		run(referenceSelect("SELECT nextval('extrema_no_from')", []string{"nextval"}, []string{"INT8"}, [][]any{{want}}))
+		run(referenceSelect(q, []string{"nextval", "?column?"}, []string{"INT8", "INT4"}, [][]any{{int64(1), int64(3)}}))
+		run(referenceSelect("SELECT nextval('extrema_no_from')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(2)}}))
+		run(referencePrepared(referenceSelect(q, []string{"nextval", "?column?"}, []string{"INT8", "INT4"}, [][]any{{int64(3), int64(3)}})))
+		run(referenceSelect("SELECT nextval('extrema_no_from')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(4)}}))
 	})
 }

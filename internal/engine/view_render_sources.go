@@ -44,10 +44,9 @@ func viewJoinAt(root LogicalNode, ordinal int) *joinNode {
 		if !ok {
 			return nil
 		}
-		if ordinal == 0 {
+		if ordinal == n.viewOrdinal {
 			return n
 		}
-		ordinal--
 		if found := visit(n.left); found != nil {
 			return found
 		}
@@ -61,6 +60,8 @@ func viewJoinAt(root LogicalNode, ordinal int) *joinNode {
 // No SQL is rebound and no persistent execution layout is changed.
 type viewRenderer struct {
 	*viewDefinition
+	query                       *BoundQuery
+	frame                       uint32
 	slots                       map[LogicalNode]map[int]string
 	reserved                    map[string]bool
 	namespace, occurrence, join int
@@ -84,9 +85,7 @@ type viewRenderFrom struct {
 }
 
 func newViewRenderer(v *viewDefinition) *viewRenderer {
-	r := &viewRenderer{viewDefinition: v, slots: make(map[LogicalNode]map[int]string), reserved: make(map[string]bool)}
-	// Expression-only rendering supplies frozen literals/casts without SELECT
-	// syntax. OF names belong only to complete marked SELECT definitions.
+	r := &viewRenderer{viewDefinition: v, query: v.query, slots: make(map[LogicalNode]map[int]string), reserved: make(map[string]bool)}
 	if v.syntax != nil && len(v.syntax.Locking) != 0 {
 		r.rowTargets = make(map[string]string)
 	}
@@ -151,6 +150,16 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 	for _, c := range ns.columns {
 		labels[c.slot] = c.name
 	}
+	// Private bridge labels identify positions, not user-visible output names.
+	// Reserve every original label before allocating replacements so a later
+	// user column cannot collide with an earlier duplicate's generated label.
+	for _, c := range from.columns {
+		v.reserved[c.name] = true
+	}
+	for _, label := range labels {
+		v.reserved[label] = true
+	}
+	used := make(map[string]bool, len(from.columns))
 	aliases := make([]string, len(from.columns))
 	from.slots = make(map[int]string, len(from.columns))
 	for i := range from.columns {
@@ -158,6 +167,10 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 		if label, ok := labels[c.slot]; ok {
 			c.name = label
 		}
+		if used[c.name] {
+			c.name = v.freshLabel(v.namespace, int32(i+1))
+		}
+		used[c.name] = true
 		aliases[i] = quoteIdentifier(c.name)
 		if c.slot >= 0 {
 			from.slots[c.slot] = quoteIdentifier(name) + "." + quoteIdentifier(c.name)
@@ -196,6 +209,22 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, i
 	ns := v.namespaces[v.namespace]
 	v.namespace++
 	switch n := item.(type) {
+	case *parser.DerivedQuery:
+		root := viewDerivedAt(viewFromRoot(v.query.Root), n.Query)
+		if root == nil {
+			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen derived query")
+		}
+		text, err := v.selectQuerySQL(ctx, catalog, n.Query, v.queries[n.Query])
+		if err != nil {
+			return viewRenderFrom{}, err
+		}
+		from := viewRenderFrom{text: text, root: root}
+		for i, column := range root.Schema() {
+			from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
+		}
+		aliased := v.aliasFrom(from, ns, v.sourceAlias(len(v.sources)+v.namespace-1))
+		aliased.relation = "(" + text + ")"
+		return aliased, nil
 	case *parser.ValuesQuery:
 		ordinal := v.values
 		v.values++
@@ -394,4 +423,20 @@ func viewSourceAt(node LogicalNode, occurrence int) *sourceNode {
 		return viewSourceAt(n.right, occurrence)
 	}
 	return nil
+}
+
+func viewDerivedAt(node LogicalNode, syntax *parser.Select) *derivedNode {
+	if node == nil {
+		return nil
+	}
+	if derived, ok := node.(*derivedNode); ok {
+		if project, ok := derived.query.Root.(*projectNode); ok && project.syntax == syntax {
+			return derived
+		}
+	}
+	left, right := queryInputs(node)
+	if found := viewDerivedAt(left, syntax); found != nil {
+		return found
+	}
+	return viewDerivedAt(right, syntax)
 }

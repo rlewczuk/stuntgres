@@ -628,6 +628,10 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.lookahead, l.hasLookahead = next, true
 		if next.code == DEFERRABLE && next.lexeme.keyword != nil {
 			token.code = NOT_DEFERRABLE_LA
+		} else if next.code == IN {
+			// Distinguish the comparison continuation from NOT LIKE/BETWEEN
+			// before the grammar reduces the shared comparison operand.
+			token.code = NOT_IN_LA
 		}
 	}
 	if l.err == nil && token.code == KW_U && token.lexeme.keyword != nil && token.lexeme.text == "nulls" {
@@ -835,15 +839,15 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.lexeme.resolutionOnly = true
 		}
 	}
-	// Distinguish forbidden index subqueries from ordinary grouping/VALUES
-	// before yacc, retaining the real opening parenthesis diagnostic location.
+	// VALUES remains a forbidden stored-expression wrapper. SELECT subqueries
+	// use the shared query AST and consumer binder diagnostics.
 	if l.indexExpression && token.code == int('(') {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {
 			return 0
 		}
-		if next.code == SELECT || next.code == VALUES {
+		if next.code == VALUES {
 			token.code = INDEX_SUBQUERY_OPEN
 		}
 	}
@@ -880,14 +884,6 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			token.code = GENERATION_PARTITION
 		}
 		if token.code == int('(') {
-			next := l.nextRaw()
-			l.lookahead, l.hasLookahead = next, true
-			if next.code == SELECT {
-				token.code = GENERATION_SUBQUERY_OPEN
-				if l.generationRestriction == nil {
-					l.generationRestriction = &GenerationRestriction{"0A000", "cannot use subquery in column generation expression", token.lexeme.pos}
-				}
-			}
 			l.generationDepth++
 			if l.generationWindowPending {
 				l.generationWindowDepth = l.generationDepth

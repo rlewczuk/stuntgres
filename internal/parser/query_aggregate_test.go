@@ -28,13 +28,12 @@ func TestQueryAggregateGrammar(t *testing.T) {
 	}
 	s := statements[0].(*Select)
 	call := s.Targets[0].(AggregateExpr)
-	if !call.Star || call.Name != "count" || call.Pos.Character != 14 || len(s.GroupBy) != 1 || s.Having == nil || s.IsSingleton() {
+	if !call.Star || call.Name != "count" || call.Pos.Character != 14 || len(s.GroupBy) != 1 || s.Having == nil || s.From == nil {
 		t.Fatal(s, call)
 	}
 }
 func TestQueryAggregateExclusions(t *testing.T) {
 	for _, q := range []string{
-		"SELECT count(*)",
 		"SELECT count(*) FILTER (WHERE TRUE) FROM t", "SELECT count(DISTINCT v) FROM t",
 		"SELECT count(ALL v) FROM t",
 		"SELECT count(* ORDER BY v) FROM t", "SELECT count(*) OVER () FROM t",
@@ -60,39 +59,18 @@ func TestQueryAggregateExclusions(t *testing.T) {
 	}
 }
 
-func TestQueryAggregateSingletonRejectsEveryAggregateSubtree(t *testing.T) {
-	aggregate := AggregateExpr{Name: "count", Star: true}
-	regclass := RegclassExpr{Child: LiteralExpr{Value: Value{Kind: StringValue, Text: "0"}}}
-	for _, target := range []Expr{
-		aggregate,
-		CastExpr{Child: aggregate},
-		RegclassExpr{Child: aggregate},
-		FunctionExpr{Args: []Expr{aggregate}},
-		CallExpr{Args: []Expr{aggregate}},
-		OperatorExpr{Args: []Expr{aggregate}},
-		PredicateExpr{Left: aggregate},
-		LogicalExpr{Right: aggregate},
-	} {
-		selectStmt := &Select{Targets: []Expr{regclass, target}}
-		if selectStmt.IsSingleton() {
-			t.Fatalf("aggregate bypassed singleton admission: %T", target)
-		}
-	}
-	if !(&Select{Targets: []Expr{regclass, LiteralExpr{Value: Value{Kind: IntegerValue, Integer: 7}}}}).IsSingleton() {
-		t.Fatal("aggregate-free selected regclass exception changed")
-	}
+func TestQueryAggregateNoFromSyntax(t *testing.T) {
 	for _, query := range []string{
 		"SELECT count(*)+1,CAST('0' AS regclass)",
 		"SELECT CAST(count(*) AS BIGINT),CAST('0' AS regclass)",
 		"SELECT num_nulls(count(*)),CAST('0' AS regclass)",
 	} {
-		_, err := Parse(query)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
-			t.Fatal(query, err)
+		statements, err := Parse(query)
+		if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil || len(statements[0].(*Select).Targets) != 2 {
+			t.Fatal(query, statements, err)
 		}
 	}
-	// INSERT owns a separate no-FROM producer rule; it does not use IsSingleton.
+	// INSERT and SELECT share the same no-FROM query syntax.
 	statements, err := Parse("INSERT INTO out SELECT count(*)")
 	if err != nil || len(statements) != 1 || statements[0].(*Insert).Source.Select == nil {
 		t.Fatal(statements, err)

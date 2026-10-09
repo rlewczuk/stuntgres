@@ -84,7 +84,7 @@ func TestReferenceIntervalAvgDiagnostics(t *testing.T) {
 			intervalAvgBoth(t, p, conn, recorder, referenceSelect(q, []string{"avg"}, []string{typ}, [][]any{{value}}))
 		}
 		for _, q := range []string{"SELECT avg(DISTINCT v) FROM t", "SELECT avg(ALL v) FROM t", "SELECT avg(v ORDER BY v) FROM t", "SELECT avg(v) FILTER (WHERE TRUE) FROM t", "SELECT avg(v) OVER () FROM t", "SELECT avg(INTERVAL '2 days')"} {
-			if pg {
+			if pg || q == "SELECT avg(INTERVAL '2 days')" {
 				rows := [][]any{{"2 days"}}
 				if strings.Contains(q, "OVER") {
 					rows = [][]any{{"2 days"}, {"2 days"}}

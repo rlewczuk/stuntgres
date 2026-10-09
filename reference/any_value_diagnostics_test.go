@@ -101,7 +101,7 @@ func TestReferenceAnyValueBoundaries(t *testing.T) {
 					if strings.Contains(tc.q, "COALESCE") {
 						s.columns = []string{"coalesce"}
 					}
-					if !backend.pg {
+					if !backend.pg && strings.Contains(tc.q, "FILTER") {
 						s = referenceError(tc.q, "0A000")
 						s.selectRows = true
 					}
@@ -162,14 +162,7 @@ func TestReferenceAnyValueBoundaries(t *testing.T) {
 					{"SELECT any_value(1),nextval('av_boundary_sequence')", []string{"any_value", "nextval"}, []string{"INT4", "INT8"}, []any{int64(1), int64(1)}},
 				} {
 					s := referenceSelect(tc.q, tc.columns, tc.types, [][]any{tc.row})
-					if !backend.pg {
-						s = referenceImplicitError(tc.q, referenceDiagnostic{Code: "0A000", Message: "SELECT without FROM is unsupported", Position: "1"})
-						s.selectRows = true
-						s.errorStage = "execute"
-						if prepared {
-							s.errorStage = "prepare"
-						}
-					} else if prepared && tc.types[1] == "INT8" {
+					if prepared && tc.types[1] == "INT8" {
 						s.rows = [][]any{{int64(1), int64(2)}}
 					}
 					s.prepared = prepared

@@ -29,37 +29,4 @@ func TestDatetimeFormattingParserAdmission(t *testing.T) {
 	if len(target.Name.Parts) != 1 || target.Name.Parts[0].Text != "TO_DATE" {
 		t.Fatal("quoted spelling canonicalized", target.Name)
 	}
-	for _, query := range []string{"SELECT 1", "SELECT 1+1"} {
-		statements, err := Parse(query)
-		if err == nil && len(statements) == 1 {
-			if selected, ok := statements[0].(*Select); ok && selected.IsSingleton() {
-				t.Fatal("unrelated singleton widened", query)
-			}
-		}
-	}
-}
-
-func TestDatetimeFormattingSingletonCompanions(t *testing.T) {
-	for _, query := range []string{
-		"SELECT '雪',to_date('2000')",
-		"SELECT to_date($1,'YYYY'),$1::integer",
-		"SELECT $1::integer,to_date($1,'YYYY')",
-		"SELECT 1,lower(to_char(TIMESTAMP '2006-10-19','YYYY'))",
-	} {
-		statements, err := Parse(query)
-		if err != nil || len(statements) != 1 {
-			t.Fatal(query, err)
-		}
-		if selected, ok := statements[0].(*Select); !ok || !selected.IsSingleton() {
-			t.Fatal("selected companion admission", query)
-		}
-	}
-	for _, query := range []string{"SELECT 1,2", "SELECT lower('x'),1", "SELECT to_date('2000','YYYY') WHERE false"} {
-		statements, err := Parse(query)
-		if err == nil && len(statements) == 1 {
-			if selected, ok := statements[0].(*Select); ok && selected.IsSingleton() {
-				t.Fatal("adjacent singleton surface widened", query)
-			}
-		}
-	}
 }

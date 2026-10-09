@@ -108,11 +108,8 @@ func TestAlterTypeCheckQuotedOwnerParse(t *testing.T) {
 	if result.Rows.Schema()[0].Usage.Type.ID() != 20 || !reflect.DeepEqual(tuples(result), [][]driver.Value{{int64(1)}}) {
 		t.Fatal("quoted owner CHECK reparse lost its final usage")
 	}
-	_, err := parser.Parse("SELECT c")
-	var diagnostic *sqlstate.Error
-	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "SELECT without FROM is unsupported", Position: "1"}
-	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
-		t.Fatal("TYPE CHECK reparse changed ordinary no-FROM admission", diagnostic, err)
+	if _, err := parser.Parse("SELECT c"); err != nil {
+		t.Fatal("TYPE CHECK reparse changed ordinary no-FROM parsing", err)
 	}
 }
 

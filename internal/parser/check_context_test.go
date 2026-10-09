@@ -121,9 +121,12 @@ func TestCheckQualifiedColumnAST(t *testing.T) {
 }
 
 func TestCheckQualificationConsumerBoundaries(t *testing.T) {
+	statements, err := Parse("SELECT public.t.a")
+	if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+		t.Fatal("lost no-FROM qualification", statements, err)
+	}
 	for _, query := range []string{
 		"CREATE TABLE t(a INT DEFAULT public.t.a)",
-		"SELECT public.t.a",
 		"DELETE FROM t WHERE public.t.a=1",
 	} {
 		statements, err := Parse(query)
@@ -131,7 +134,7 @@ func TestCheckQualificationConsumerBoundaries(t *testing.T) {
 			t.Fatal("CHECK widened ordinary qualification boundary", query, statements, err)
 		}
 	}
-	statements, err := Parse("UPDATE t SET a=public.t.a")
+	statements, err = Parse("UPDATE t SET a=public.t.a")
 	if err != nil || len(statements) != 1 {
 		t.Fatal("UPDATE namespace lost schema qualification", statements, err)
 	}

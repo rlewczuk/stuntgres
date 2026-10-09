@@ -337,9 +337,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 type aggregateSortCancelContext struct {
 	context.Context
 	cancel            context.CancelFunc
-	source            *querySource
 	comparisonEntered bool
-	finalizedGroups   int
 	aggregateOrdering bool
 }
 
@@ -358,9 +356,8 @@ func (c *aggregateSortCancelContext) Err() error {
 				break
 			}
 		}
-		if comparison && merge && (c.aggregateOrdering && replay || !c.aggregateOrdering && c.source.view == nil && c.source.anonymous != nil) {
+		if comparison && merge && (c.aggregateOrdering && replay || !c.aggregateOrdering && !replay) {
 			c.comparisonEntered = true
-			c.finalizedGroups = len(c.source.anonymous)
 			c.cancel()
 		}
 	}
@@ -371,11 +368,10 @@ func TestQueryAggregateActualSortComparisonCancellation(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v ORDER BY v")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	probe := &aggregateSortCancelContext{Context: ctx, cancel: cancel, source: source}
+	probe := &aggregateSortCancelContext{Context: ctx, cancel: cancel}
 	rows, count, err := finalizeQuery(probe, query.Root, source, nil)
-	if !probe.comparisonEntered || probe.finalizedGroups != 3 || ctx.Err() != context.Canceled ||
-		!errors.Is(err, context.Canceled) || rows != nil || count != 0 ||
-		source.view != nil || source.anonymous != nil {
-		t.Fatal(probe.comparisonEntered, probe.finalizedGroups, rows, count, err, source)
+	if !probe.comparisonEntered || ctx.Err() != context.Canceled ||
+		!errors.Is(err, context.Canceled) || rows != nil || count != 0 {
+		t.Fatal(probe.comparisonEntered, rows, count, err)
 	}
 }

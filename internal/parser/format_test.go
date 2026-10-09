@@ -55,25 +55,6 @@ func TestFormatIdentifierCanonicalContext(t *testing.T) {
 	}
 }
 
-func TestFormatParameterProjectionAdmissionBoundary(t *testing.T) {
-	for _, query := range []string{"SELECT format('%s',$1),$1", "SELECT $1,format('%s',$1)"} {
-		statements, err := Parse(query)
-		if err != nil || !statements[0].(*Select).IsSingleton() {
-			t.Fatal(query, err)
-		}
-	}
-	for _, query := range []string{
-		"SELECT $1", "SELECT 1,format('%s',1)",
-		"SELECT CAST($1 AS text),format('%s',$1)",
-		"SELECT format('%s',$1),lower('x'),$1",
-		"SELECT format('%s',$1),$1 WHERE false",
-	} {
-		if _, err := Parse(query); err == nil {
-			t.Fatalf("unsupported singleton projection widened: %s", query)
-		}
-	}
-}
-
 func TestFormatMissingChildAdmissionScope(t *testing.T) {
 	for _, query := range []string{
 		"SELECT format(NULL,missing_format_child())",

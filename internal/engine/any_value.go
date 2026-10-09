@@ -84,9 +84,6 @@ func (b *expressionBinder) bindAnyValue(raw parser.AggregateExpr, name parser.Ob
 		return nil, sqlError("42804", "could not determine polymorphic type because input has type unknown")
 	}
 	arg := operand.node
-	if inner := aggregateOccurrence(arg); inner != nil {
-		return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
-	}
 	usage := arg.ResultUsage()
 	usage.Typmod = -1
 	call := aggregateCall{provider: anyValueProvider{usage}, argument: arg, operation: aggregateAnyValue}
@@ -105,5 +102,5 @@ func (b *expressionBinder) bindAnyValue(raw parser.AggregateExpr, name parser.Ob
 	properties := arg.Properties()
 	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
 	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
-	return aggregateExpression{info, slot}, nil
+	return aggregateExpression{expressionInfo: info, slot: slot, frame: b.frameID()}, nil
 }

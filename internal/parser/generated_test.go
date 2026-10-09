@@ -34,7 +34,7 @@ func TestGeneratedStoredGrammar(t *testing.T) {
 }
 
 func TestGeneratedRestrictionsRemainPositionedSyntax(t *testing.T) {
-	for _, expression := range []string{"sum(a)", "grouping(a)", "row_number() OVER ()", "sum(a) OVER (PARTITION BY a ORDER BY a)", "generate_series(1,a)", "(SELECT a)", "(SELECT a FROM g)"} {
+	for _, expression := range []string{"sum(a)", "grouping(a)", "row_number() OVER ()", "sum(a) OVER (PARTITION BY a ORDER BY a)", "generate_series(1,a)"} {
 		statements, err := Parse(`CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(` + expression + `) STORED)`)
 		if err != nil {
 			t.Fatal(expression, err)
@@ -42,6 +42,16 @@ func TestGeneratedRestrictionsRemainPositionedSyntax(t *testing.T) {
 		definition := statements[0].(*CreateTable).Elements[1].Column.Constraints[0].Generation
 		if _, ok := definition.Expression.(ForbiddenGenerationExpr); !ok {
 			t.Fatal("restriction lost", expression, definition)
+		}
+	}
+	for _, expression := range []string{"(SELECT a)", "(SELECT a FROM g)", "EXISTS(SELECT missing FROM absent)", "1 = ANY(SELECT a)"} {
+		statements, err := Parse(`CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(` + expression + `) STORED)`)
+		if err != nil {
+			t.Fatal(expression, err)
+		}
+		definition := statements[0].(*CreateTable).Elements[1].Column.Constraints[0].Generation
+		if _, ok := definition.Expression.(SubqueryExpr); !ok {
+			t.Fatal("subquery did not use shared AST", expression, definition)
 		}
 	}
 	if _, err := Parse(`CREATE TABLE g(a INT,b INT GENERATED ALWAYS AS(row_number() OVER (garbage nonsense)) STORED)`); err == nil {

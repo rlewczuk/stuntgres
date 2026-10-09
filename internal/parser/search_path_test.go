@@ -28,12 +28,12 @@ func TestSearchPathQualifiedSyntax(t *testing.T) {
 		t.Fatal(statements, err)
 	}
 	selected := statements[0].(*Select)
-	if selected.IsSingleton() || !selected.IsTypeSingleton() {
-		t.Fatal("qualified cast gained singleton authority")
+	if selected.From != nil || len(selected.Targets) != 1 {
+		t.Fatal("qualified no-FROM cast lost its target")
 	}
 	for _, q := range []string{"SELECT 1 OPERATOR(pg_catalog.+) 2"} {
-		if statements, err := Parse(q); err == nil || len(statements) != 0 {
-			t.Fatal("admitted excluded syntax", q, statements, err)
+		if statements, err := Parse(q); err != nil || len(statements) != 1 {
+			t.Fatal("ordinary no-FROM operator rejected", q, statements, err)
 		}
 	}
 	statements, err = Parse("SELECT id OPERATOR(pg_catalog.-) 2 + 3 FROM s.t")

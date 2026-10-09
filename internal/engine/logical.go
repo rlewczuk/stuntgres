@@ -43,6 +43,7 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 	}
 	var right BoundExpr
 	properties := left.Properties()
+	queryFrame := b.nextQueryFrame
 	if raw.Right != nil {
 		right, err = b.bindBoolean(raw.Right, context, construct)
 		if err != nil {
@@ -67,13 +68,16 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 			}
 		}
 	}
-	return logicalExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, properties), raw.Op, left, right}, nil
+	return logicalExpression{expressionInfo: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), op: raw.Op, left: left, right: right, queryRight: b.nextQueryFrame != queryFrame}, nil
 }
 
 type logicalExpression struct {
 	expressionInfo
 	op          parser.LogicalOperator
 	left, right BoundExpr
+	// A newly allocated child frame identifies a query-containing right operand.
+	// This does not enable ordinary native Boolean/cast branch optimization.
+	queryRight bool
 }
 
 func (e logicalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -83,6 +87,17 @@ func (e logicalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if e.usage.Type == nil || e.usage.Type.ID() != sqltype.Bool || e.left == nil ||
 		(e.op == parser.LogicalNot) != (e.right == nil) || e.op > parser.LogicalNot {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid logical expression")
+	}
+	if e.queryRight {
+		// Match planning demand for a query-owned decisive left literal.
+		// Both children retain analysis, capture and ordinary coercion preflight.
+		_, decisive, err := decisiveLogicalValue(&e)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if decisive {
+			return sqltype.Boolean(e.usage.Type, e.op == parser.LogicalOr), nil
+		}
 	}
 	v, err := e.left.Eval(c)
 	if err != nil {
@@ -98,8 +113,7 @@ func (e logicalExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 		}
 		return sqltype.Boolean(e.usage.Type, a == False), nil
 	}
-	// Evaluation order is private. Both children are analyzed and evaluated;
-	// consumers must not rely on short-circuiting or a left-before-right promise.
+	// Evaluation order for nondecisive operands remains private.
 	v, err = e.right.Eval(c)
 	if err != nil {
 		return sqltype.Value{}, err

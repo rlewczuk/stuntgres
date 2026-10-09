@@ -26,7 +26,7 @@ func TestReferenceStringAggCapabilityBoundaries(t *testing.T) {
 					for _, prepared := range []bool{false, true} {
 						t.Run(map[bool]string{false: "direct", true: "prepared"}[prepared], func(t *testing.T) {
 							s := referenceSelect(tc.q, []string{tc.label}, []string{tc.typ}, tc.rows)
-							if !backend.pg {
+							if !backend.pg && tc.name != "no-from" {
 								message, position := "aggregate modifiers are unsupported", ""
 								switch tc.name {
 								case "distinct-tuples":
@@ -37,8 +37,6 @@ func TestReferenceStringAggCapabilityBoundaries(t *testing.T) {
 									position = stringAggPosition(tc.q, "OVER", false)
 								case "sibling-order":
 									message, position = "aggregate ordering is unsupported", "8"
-								case "no-from":
-									message, position = "SELECT without FROM is unsupported", "1"
 								default:
 									position = stringAggPosition(tc.q, "FILTER", false)
 								}

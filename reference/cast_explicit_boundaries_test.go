@@ -10,11 +10,15 @@ import (
 
 func TestReferenceCastExplicitBoundaries(t *testing.T) {
 	p := castReferenceSetup(t)
+	for _, prepared := range []bool{false, true} {
+		step := referenceSelect("SELECT 1::int4", []string{"int4"}, []string{"INT4"}, [][]any{{int64(1)}})
+		step.prepared = prepared
+		p.step(t, step)
+	}
 	for _, tc := range []struct {
 		q  string
 		pg referenceStep
 	}{
-		{"SELECT 1::int4", referenceSelect("SELECT 1::int4", []string{"int4"}, []string{"INT4"}, [][]any{{int64(1)}})},
 		{"SELECT i:: FROM t", referenceImplicitError("SELECT i:: FROM t", referenceDiagnostic{Code: "42601", Message: `syntax error at or near "FROM"`, Position: "12"})},
 		{"SELECT CAST(i AS) FROM t", referenceImplicitError("SELECT CAST(i AS) FROM t", referenceDiagnostic{Code: "42601", Message: `syntax error at or near ")"`, Position: "17"})},
 		{"INSERT INTO t(i) VALUES(CAST(i AS int4))", referenceImplicitError("INSERT INTO t(i) VALUES(CAST(i AS int4))", referenceDiagnostic{Code: "42703", Message: `column "i" does not exist`, Detail: `There is a column named "i" in table "t", but it cannot be referenced from this part of the query.`, Position: "30"})},

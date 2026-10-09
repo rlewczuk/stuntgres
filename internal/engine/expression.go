@@ -47,6 +47,8 @@ type EvalContext struct {
 	statementScope *StatementScope
 	Input          sqltype.InputEnvironment
 	Output         sqltype.OutputEnvironment
+	Outer          *EvalContext
+	query          *queryState
 }
 type expressionInfo struct {
 	usage                         sqltype.Usage
@@ -108,7 +110,10 @@ func (e columnExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.Scope != e.scope || c.Frame != e.frame || e.slot < 0 || e.slot >= len(c.Row) {
+	for c != nil && (c.Scope != e.scope || c.Frame != e.frame) {
+		c = c.Outer
+	}
+	if c == nil || e.slot < 0 || e.slot >= len(c.Row) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid expression row frame")
 	}
 	v := c.Row[e.slot]
@@ -458,17 +463,14 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression BoundExpr, decisive
 		}
 		var leftConstant bool
 		if decisiveDefaults {
-			literal, constant := left.(literalExpression)
-			leftConstant = constant
-			if constant && literal.value.Type() != nil && literal.value.Type().Concrete() &&
-				literal.value.Type().ID() == sqltype.Bool && !literal.value.IsNull() {
-				truth, err := TruthOf(literal.value)
-				if err != nil {
-					return nil, false, err
-				}
-				if (e.op == parser.LogicalOr && truth == True) || (e.op == parser.LogicalAnd && truth == False) {
-					return preflightValue(c, e.expressionInfo, literal.value, nil)
-				}
+			_, leftConstant = left.(literalExpression)
+			e.left = left
+			value, decisive, err := decisiveLogicalValue(&e)
+			if err != nil {
+				return nil, false, err
+			}
+			if decisive {
+				return preflightValue(c, e.expressionInfo, value, nil)
 			}
 		}
 		var right BoundExpr
@@ -768,49 +770,54 @@ type expressionDependency struct {
 	revision DefinitionRevision
 }
 type expressionBinder struct {
-	engine                *Engine
-	ctx                   context.Context
-	relation              *relationDescriptor
-	ref                   ObjectRef
-	parameters            map[int]sqltype.Usage
-	updateParameters      bool
-	updateInputParameters map[int]sqltype.Usage
-	uses                  []int
-	dependencies          []expressionDependency
-	input                 sqltype.InputEnvironment
-	op                    *Operation
-	expected              *StatementDescription
-	temporals             []temporalConstant
-	anyParameters         []parameterExpression
-	deleteTarget          bool
-	targetName            string
-	targetAlias           string
-	returningAliases      *returningAliases
-	defaultConsumer       bool
-	checkConsumer         bool
-	indexConsumer         bool
-	generatedOwner        *relationDescriptor
-	visibilitySnapshot    bool
-	sequenceConstants     []sequenceConstant
-	regclassConcat        bool
-	aggregateClause       string
-	aggregates            []aggregateCall
-	queryAuth             *AuthorizationView
-	querySources          []queryLeaf
-	queryLockAdmission    *queryLockAdmission
-	queryNamespace        *queryNamespace
-	queryHidden           []queryQualifier
-	queryNonLateral       bool
-	viewValuesCount       int
-	noParameters          bool
-	typeSingletons        uint64
+	engine                     *Engine
+	ctx                        context.Context
+	relation                   *relationDescriptor
+	ref                        ObjectRef
+	parameters                 map[int]sqltype.Usage
+	updateParameters           bool
+	updateInputParameters      map[int]sqltype.Usage
+	uses                       []int
+	dependencies               []expressionDependency
+	input                      sqltype.InputEnvironment
+	op                         *Operation
+	expected                   *StatementDescription
+	temporals                  []temporalConstant
+	anyParameters              []parameterExpression
+	deleteTarget               bool
+	targetName                 string
+	targetAlias                string
+	returningAliases           *returningAliases
+	defaultConsumer            bool
+	checkConsumer              bool
+	indexConsumer              bool
+	generatedOwner             *relationDescriptor
+	visibilitySnapshot         bool
+	sequenceConstants          []sequenceConstant
+	regclassConcat             bool
+	aggregateClause            string
+	aggregates                 []aggregateCall
+	queryAuth                  *AuthorizationView
+	querySources               []queryLeaf
+	queryLockAdmission         *queryLockAdmission
+	queryNamespace             *queryNamespace
+	queryHidden                []queryQualifier
+	queryNonLateral            bool
+	queryFrame, nextQueryFrame uint32
+	queryScopes                []queryBindingScope
+	resolvedQueryFrame         uint32
+	queryRowDiagnosticMode     relationLockMode // Clause diagnostics only; tuple authority is queryRowMark.
+	subqueryDemand             bool
+	groupSubquery              bool
+	viewValuesCount            int
+	noParameters               bool
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
 	checkLiterals  []literalExpression
 	viewLiterals   map[viewLiteralPath]literalExpression
 	viewCastUsages map[viewLiteralPath]sqltype.Usage
-	viewColumns    map[viewLiteralPath]int
-	viewStars      map[int][]int
+	viewColumns    map[viewLiteralPath]viewColumn
+	viewStars      map[viewLiteralPath][]viewColumn
 	viewJoinCount  int
 	viewNamespaces []viewNamespace
 }
@@ -997,9 +1004,13 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (BoundExpr, error) {
 	return b.columnAt(i, raw.Pos), nil
 }
 func (b *expressionBinder) useColumn(i int) ObjectRef {
+	return b.useColumnOf(b.relation, i)
+}
+
+func (b *expressionBinder) useColumnOf(relation *relationDescriptor, i int) ObjectRef {
 	ref := b.ref
-	ref.Address.SubID = b.relation.attributes[i]
-	b.dependency(ref, b.relation.revision)
+	ref.Address.SubID = relation.attributes[i]
+	b.dependency(ref, relation.revision)
 	used := false
 	for _, slot := range b.uses {
 		if slot == i {
@@ -1010,12 +1021,16 @@ func (b *expressionBinder) useColumn(i int) ObjectRef {
 	if !used {
 		b.uses = append(b.uses, i)
 	}
-	b.info(b.relation.columns[i].Usage, parser.Position{Offset: -1}, ExprProperties{})
+	b.info(relation.columns[i].Usage, parser.Position{Offset: -1}, ExprProperties{})
 	return ref
 }
 func (b *expressionBinder) columnAt(i int, pos parser.Position) BoundExpr {
-	ref := b.useColumn(i)
-	return columnExpression{expressionInfo: expressionInfo{usage: b.relation.columns[i].Usage, pos: pos, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
+	return b.columnAtOf(b.relation, i, pos)
+}
+
+func (b *expressionBinder) columnAtOf(relation *relationDescriptor, i int, pos parser.Position) BoundExpr {
+	ref := b.useColumnOf(relation, i)
+	return columnExpression{expressionInfo: expressionInfo{usage: relation.columns[i].Usage, pos: pos, properties: ExprProperties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
 }
 func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (BoundExpr, error) {
 	if policy.context == filterContext && !policy.operand && policy.booleanConstruct == "" {
@@ -1031,6 +1046,14 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	switch r := raw.(type) {
 	case parser.IndexSubqueryExpr:
 		return nil, expressionError("0A000", "cannot use subquery in index expression", r.Pos)
+	case parser.SubqueryExpr:
+		var err error
+		node, err = b.bindSubquery(r)
+		if err != nil {
+			return nil, err
+		}
+	case parser.RowExpr:
+		return nil, expressionError("0A000", "record values are unsupported", r.Pos)
 	case parser.IdentityExpr:
 		var err error
 		node, err = b.bindIdentity(r.Name, r.Pos)
@@ -1090,12 +1113,6 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if b.checkConsumer {
 			return nil, expressionError("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 		}
-		if b.aggregateClause != "RETURNING" && b.aggregateClause != "SELECT" && b.aggregateClause != "HAVING" && b.aggregateClause != "ORDER BY" {
-			if b.aggregateClause == "WHERE" || b.aggregateClause == "GROUP BY" || b.aggregateClause == "JOIN conditions" || b.aggregateClause == "LIMIT" || b.aggregateClause == "OFFSET" {
-				return nil, expressionError("42803", "aggregate functions are not allowed in "+b.aggregateClause, r.Pos)
-			}
-			return nil, expressionError("0A000", "aggregate calls outside SELECT are unsupported", r.Pos)
-		}
 		name := parser.ObjectName{Parts: []parser.Identifier{{Text: r.Name, Pos: r.Pos}}}
 		if r.Schema != nil {
 			name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
@@ -1117,8 +1134,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
-		if b.aggregateClause == "RETURNING" {
-			return nil, expressionError("42803", "aggregate functions are not allowed in RETURNING", r.Pos)
+		node, err = b.ownAggregate(node)
+		if err != nil {
+			return nil, err
 		}
 	case parser.CaseExpr:
 		var err error
@@ -1264,9 +1282,6 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
-		if u.Type.BaseType().ID() == sqltype.JSON {
-			b.typeSingletons++
-		}
 		if found {
 			u.Typmod = saved.typmod
 			if saved.typed {
@@ -1341,7 +1356,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 	case parser.OperatorExpr:
 		var err error
-		if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
+		if subquery, ok := rowSubqueryComparison(r); ok {
+			node, err = b.bindSubquery(subquery)
+		} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "||" {
 			node, err = b.bindStringConcat(r)
 		} else if len(r.Name.Parts) > 0 && r.Name.Parts[len(r.Name.Parts)-1].Text == "^@" {
 			node, err = b.bindStringPrefix(r)
@@ -1454,9 +1471,6 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if err != nil {
 		return nil, err
 	}
-	if target.Type.IsEnum() || target.Type.BaseType().ID() == sqltype.JSON {
-		b.typeSingletons++
-	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.
 		return b.bind(raw.Child, outerPolicy)
@@ -1542,8 +1556,26 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 }
 
 // Strong column/function names survive standard casts; weak literal names do not.
-func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
+func expressionName(raw parser.Expr, usage sqltype.Usage, bound BoundExpr) (string, bool) {
+	for {
+		coercion, ok := bound.(coercionExpression)
+		if !ok {
+			break
+		}
+		bound = coercion.child
+	}
 	switch r := raw.(type) {
+	case parser.SubqueryExpr:
+		if r.Kind == parser.SubqueryExists {
+			return "exists", true
+		}
+		if r.Kind == parser.SubqueryScalar {
+			if child, ok := bound.(subqueryExpression); ok && len(child.queryPlan.Root.Schema()) == 1 {
+				name := child.queryPlan.Root.Schema()[0].Name
+				return name, name != "?column?" || len(r.Query.Labels) > 0 && r.Query.Labels[0].Text != ""
+			}
+		}
+		return "?column?", false
 	case parser.IdentityExpr:
 		return r.Name, true
 	case parser.CurrentDateTimeExpr:
@@ -1554,7 +1586,11 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 		return conditionalName(r), true
 	case parser.CaseExpr:
 		if r.Else != nil {
-			if name, strong := expressionName(r.Else, usage); strong {
+			var otherwise BoundExpr
+			if expr, ok := bound.(caseExpression); ok {
+				otherwise = expr.otherwise
+			}
+			if name, strong := expressionName(r.Else, usage, otherwise); strong {
 				return name, true
 			}
 		}
@@ -1570,12 +1606,15 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 	case parser.TimeZoneExpr:
 		return "timezone", true
 	case parser.CollateExpr:
-		return expressionName(r.Child, usage)
+		if expr, ok := bound.(collationExpression); ok {
+			bound = expr.child
+		}
+		return expressionName(r.Child, usage, bound)
 	case parser.CastExpr:
 		if r.Syntax == parser.FunctionCast {
 			return r.Callee, true
 		}
-		if name, strong := expressionName(r.Child, usage); strong {
+		if name, strong := expressionName(r.Child, usage, bound); strong {
 			return name, true
 		}
 		return usage.Type.Name(), false
@@ -1822,7 +1861,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
-	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr:
+	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr, parser.SubqueryExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}
@@ -1914,6 +1953,10 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	if err != nil {
 		return nil, err
 	}
+	return b.bindComparisonOperands(raw, operator, left, right)
+}
+
+func (b *expressionBinder) bindComparisonOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right comparisonOperand) (BoundExpr, error) {
 	lt, rt := left.descriptor(), right.descriptor()
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {

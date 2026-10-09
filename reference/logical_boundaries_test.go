@@ -9,6 +9,11 @@ import (
 func TestReferenceLogicalOperandBoundaries(t *testing.T) {
 	p := newReferenceScenario(t)
 	scalarStep(t, p, referenceExec("CREATE TABLE t(id INT,a BOOL,s TEXT,n NUMERIC,tm TIME)", 0))
+	for _, prepared := range []bool{false, true} {
+		step := referenceSelect("SELECT TRUE AND FALSE", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}})
+		step.prepared = prepared
+		scalarStep(t, p, step)
+	}
 	for _, tc := range []struct {
 		q    string
 		want referenceDiagnostic
@@ -34,7 +39,6 @@ func TestReferenceLogicalOperandBoundaries(t *testing.T) {
 		q  string
 		pg referenceStep
 	}{
-		{"SELECT TRUE AND FALSE", referenceSelect("SELECT TRUE AND FALSE", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}})},
 		{"SELECT id=1=TRUE FROM t", referenceImplicitError("SELECT id=1=TRUE FROM t", referenceDiagnostic{Code: "42601", Message: `syntax error at or near "="`, Position: "12"})},
 		{"INSERT INTO t(id) VALUES(TRUE AND FALSE)", referenceImplicitError("INSERT INTO t(id) VALUES(TRUE AND FALSE)", referenceDiagnostic{Code: "42804", Message: `column "id" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: "26"})},
 		{"INSERT INTO t(id) VALUES(NOT TRUE)", referenceImplicitError("INSERT INTO t(id) VALUES(NOT TRUE)", referenceDiagnostic{Code: "42804", Message: `column "id" is of type integer but expression is of type boolean`, Hint: "You will need to rewrite or cast the expression.", Position: "26"})},
@@ -64,9 +68,7 @@ func TestReferenceLogicalOperandBoundaries(t *testing.T) {
 				step.selectRows = true
 				step.errorStage = "execute"
 				scalarRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
-				if step.diagnostic != nil {
-					step.errorStage = "prepare"
-				}
+				step.errorStage = "prepare"
 				scalarRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(step))
 			}
 		})

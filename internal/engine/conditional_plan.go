@@ -5,6 +5,24 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// A physical non-NULL BOOL left operand decides AND/OR without its right
+// operand. Coercion preflight and planning demand share this literal policy.
+func decisiveLogicalValue(e *logicalExpression) (sqltype.Value, bool, error) {
+	literal, ok := e.left.(literalExpression)
+	if !ok || literal.value.Type() == nil || !literal.value.Type().Concrete() ||
+		literal.value.Type().ID() != sqltype.Bool || literal.value.IsNull() {
+		return sqltype.Value{}, false, nil
+	}
+	truth, err := TruthOf(literal.value)
+	if err != nil {
+		return sqltype.Value{}, false, err
+	}
+	if (e.op == parser.LogicalOr && truth == True) || (e.op == parser.LogicalAnd && truth == False) {
+		return literal.value, true, nil
+	}
+	return sqltype.Value{}, false, nil
+}
+
 // simplifyConditional folds only immutable SQL constants. Imported parameters
 // remain runtime-owned even when the surrounding expression is row-independent.
 func simplifyConditional(c *EvalContext, expression BoundExpr, decisiveDefaults bool) (BoundExpr, bool, error) {

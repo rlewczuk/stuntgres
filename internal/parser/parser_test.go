@@ -106,7 +106,6 @@ func TestParserErrorBoundaries(t *testing.T) {
 		{"CREATE TABLE t (x INT PRIMARY KEY)", "0A000"},
 		{"INSERT INTO t VALUES (1) RETURNING x", "0A000"},
 		{"SELECT f(x) FROM t", "0A000"},
-		{"SELECT 1", "0A000"},
 		{"SELECT * FROM a.b.c", "0A000"}, {"SELECT * FROM public.", "42601"},
 		{"DELETE FROM t USING u", "0A000"},
 		{"CREATE TABLE \"\" (x INT)", "42601"}, {"SELECT * FROM \"unterminated", "42601"},
@@ -787,16 +786,14 @@ func TestExpressionCoreRawOccurrences(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"SELECT 1"} {
-		if statements, err := Parse(q); err == nil || len(statements) != 0 {
-			t.Fatal("expanded scalar boundary", q, statements, err)
+		if statements, err := Parse(q); err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+			t.Fatal("no-FROM scalar syntax", q, statements, err)
 		}
 	}
 }
 
 func TestExpressionCoreNoFromFailurePrecedence(t *testing.T) {
 	for _, tc := range []struct{ query, code string }{
-		{"SELECT 1", "0A000"},
-		{"SELECT 1;", "0A000"},
 		{"SELECT * t", "42601"},
 		{"SELECT 1; )", "42601"},
 		{"CREATE TABLE staged(id INT); SELECT 1; )", "42601"},

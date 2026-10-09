@@ -31,7 +31,7 @@ func TestStringReplacementParserProvenance(t *testing.T) {
 				t.Fatal(err)
 			}
 			selected, ok := statements[0].(*Select)
-			if !ok || !selected.IsSingleton() {
+			if !ok || selected.From != nil {
 				t.Fatal("selected admission", statements)
 			}
 			call, ok := selected.Targets[0].(FunctionExpr)
@@ -53,7 +53,7 @@ func TestStringReplacementParserProvenance(t *testing.T) {
 		}
 		selected := statements[0].(*Select)
 		op, ok := selected.Targets[0].(OperatorExpr)
-		if !ok || !selected.IsSingleton() || len(op.Args) != 2 || op.Name.Parts[len(op.Name.Parts)-1].Text != "^@" || op.Pos.Character != 14 {
+		if !ok || selected.From != nil || len(op.Args) != 2 || op.Name.Parts[len(op.Name.Parts)-1].Text != "^@" || op.Pos.Character != 14 {
 			t.Fatal(query, op)
 		}
 	}

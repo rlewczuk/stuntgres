@@ -10,10 +10,7 @@ func TestReferenceConditionalAggregateBoundary(t *testing.T) {
 	p := newReferenceScenario(t)
 	q := "SELECT COALESCE(count(*),nextval('s'))"
 	for _, backend := range p.backends() {
-		d := referenceDiagnostic{Code: "0A000", Message: "SELECT without FROM is unsupported", Position: "1"}
-		if backend.pg {
-			d = referenceDiagnostic{Code: "42P01", Message: `relation "s" does not exist`, Position: "34"}
-		}
+		d := referenceDiagnostic{Code: "42P01", Message: `relation "s" does not exist`, Position: "34"}
 		step := referenceImplicitError(q, d)
 		step.selectRows = true
 		step.errorStage = "execute"

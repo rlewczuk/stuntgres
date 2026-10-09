@@ -18,6 +18,8 @@ func absentLockedQuery(node LogicalNode, inputs *querySource, locks *queryLockCo
 	switch n := node.(type) {
 	case *distinctNode, *aggregateNode:
 		return false // Materialized tuples no longer carry physical absence.
+	case *derivedNode:
+		return absentLockedQuery(n.query.Root, inputs, locks)
 	case *sourceNode:
 		return absentLockedSource(querySourceAt(inputs, n.occurrence), locks)
 	case *joinNode:

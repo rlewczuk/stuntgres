@@ -111,7 +111,7 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 	for _, column := range []bool{false, true} {
 		bad := *definition
 		if column {
-			bad.columns = make(map[viewLiteralPath]int, len(definition.columns))
+			bad.columns = make(map[viewLiteralPath]viewColumn, len(definition.columns))
 			for path, slot := range definition.columns {
 				bad.columns[path] = slot
 			}

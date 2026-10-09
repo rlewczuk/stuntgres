@@ -270,17 +270,22 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ObjectRef, candidate upd
 
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *querySource, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.close()
-	eval := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, statementScope: s, Input: s.input, Output: s.output}
-	var stage indexedStage
-	var frame, assigned []sqltype.Value
-	var updated map[RowID]bool
-	sourceCount := 1
+	source.scope = s
+	inputs := source
 	if from != nil {
 		defer from.close()
 		if err := selectQuerySources(ctx, from); err != nil {
 			return Result{}, err
 		}
-		state := queryState{source: from, parameters: parameters, input: s.input, output: s.output, locking: from.locks != nil}
+		inputs = from
+	}
+	state := queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
+	eval := state.evaluation(ctx)
+	var stage indexedStage
+	var frame, assigned []sqltype.Value
+	var updated map[RowID]bool
+	sourceCount := 1
+	if b.update.from != nil {
 		var err error
 		stage, err = openQueryNode(ctx, &state, b.update.from)
 		if err != nil {
@@ -322,7 +327,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				return Result{}, err
 			}
 			eval.Row = old.values
-			if from != nil {
+			if b.update.from != nil {
 				copy(frame, old.values)
 				copy(frame[len(old.values):], stage.source.row(stage.index(j)))
 				eval.Row = frame
@@ -355,7 +360,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		eval.Row = old.values
 		eval.OldRow = nil
-		if from != nil {
+		if b.update.from != nil {
 			copy(frame, old.values)
 			copy(frame[len(old.values):], stage.source.row(stage.index(candidate.sourceIndex)))
 			eval.Row = frame
@@ -369,7 +374,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				continue
 			}
 		}
-		if from != nil {
+		if b.update.from != nil {
 			// PostgreSQL projects SET for losing duplicate pairs too. Suppress
 			// only replacement/count/RETURNING, never eligible scalar demand.
 			for i, expr := range b.update.assignments {
@@ -392,7 +397,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			if expr == nil {
 				continue
 			}
-			if from != nil {
+			if b.update.from != nil {
 				row[b.targets[i]] = assigned[i]
 			} else {
 				value, err := expr.Eval(&eval)
@@ -444,7 +449,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		if output != nil {
 			eval.Row, eval.OldRow = row, old.values
-			if from != nil {
+			if b.update.from != nil {
 				copy(frame, row)
 				eval.Row = frame
 			}
@@ -461,7 +466,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			output.count++
 		}
 		rows = append(rows, row)
-		if from != nil {
+		if b.update.from != nil {
 			updated[candidate.row] = true
 		}
 	}

@@ -40,8 +40,8 @@ Physical EOF inside a `\u` escape reports an invalid token; a present nonhex
 character instead reports that four hexadecimal digits are required.
 
 Standard CAST, postfix `::` and `json '...'`/`pg_catalog.json '...'` typed
-literals use the existing bounded no-FROM expression convention: each newly
-admitted target needs an actual JSON annotation (or existing enum witness).
+literals use the shared expression binder in table and ordinary no-FROM SELECT.
+No per-target JSON or enum witness is required for the local no-FROM unit.
 Only JSON identity and explicit TEXT↔JSON casts are added. Numeric/bool SQL
 casts do not construct JSON; numeric/bool *bound protocol values* use textual
 input instead. JSON is not a character/collatable/comparable/hashable type:
@@ -192,13 +192,11 @@ elements and domains over those arrays. Native enum-array column storage remains
 excluded; projected literal/annotation codecs are not storage admission, and
 ordinary array comparison/ordering and polymorphic enum operators are unchanged.
 
-Standalone SELECT admits a bounded cast-derived enum scalar: literal or bound
-enum casts, their ordinary comparisons, Boolean predicates, and explicit TEXT
-output casts. Every target in this new exception must bind an actual enum cast;
-the syntax candidate alone never authorizes unrelated constant, builtin-only or
-domain-only no-FROM projections. Existing selected singleton families retain
-their own rules. Missing cast types/schemas and enum modifier errors keep normal
-binder diagnostics rather than a generic unsupported-query error.
+Standalone SELECT uses the ordinary local input for enum casts, their admitted
+comparisons, Boolean predicates and explicit TEXT output casts. Other scalar
+targets do not require an enum witness; type/provider rules remain independent
+of source admission. Missing cast types/schemas and enum modifier errors keep
+normal binder diagnostics rather than a generic unsupported-query error.
 
 Native Go values and ScanType are string (nil for NULL); DatabaseTypeName is
 empty, Length/DecimalSize unknown. Stored nullable-column metadata is true/known.
@@ -343,8 +341,8 @@ appears verbatim in the primary message.
 | OID→TEXT | assignment | Canonical output through the existing I/O convention |
 
 CAST, postfix `::`, OID identity and bounded `oid(...)` use the existing
-cast binder. Unrelated cast families and standalone SELECT without FROM
-remain excluded. Run scalar witnesses FROM a real one-row table.
+cast binder in ordinary table and no-FROM SELECT. The local input does not add
+unrelated cast families.
 Typed INT8 -1 fails, unlike text `'-1'` or an OID-inferred Go int64(-1) bind.
 String/textual bytes/Valuer/nil use the existing owned parameter path.
 Native Go uint64 above MaxInt64 remains an ordinary adapter conversion error;
@@ -1177,7 +1175,7 @@ zone field, unlike TIMESTAMP `now`; `allballs` does. Malformed fields, modifiers
 later tuples and staged Restore failures never publish partial state. Dump quotes
 canonical clocks and Restore preserves precisions, NULLs, endpoints and old cursors.
 See the timezone-aware section below for TIMETZ, session settings and conversions.
-Other temporal arithmetic/functions and general no-FROM SELECT remain excluded;
+General temporal arithmetic/functions remain excluded;
 the selected datetime formatting functions are documented below.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimeSmoke$' VERBOSE=0`.
@@ -1244,8 +1242,9 @@ preserves `0001-02-29 BC`; textual BC input avoids that pq encoding limitation.
 `now`, `today`, `yesterday` and `tomorrow` use session-local transaction start;
 prepared typed/contextual constants freeze at analysis, while parameters read
 execution start. DateStyle affects input/output as described below. CURRENT_DATE
-reads transaction start dynamically even when prepared; general temporal arithmetic,
-arrays and ordinary no-FROM SELECT remain excluded by this DATE type contract.
+reads transaction start dynamically even when prepared; general temporal arithmetic
+and arrays remain excluded by this DATE type contract. Ordinary no-FROM SELECT
+uses the shared query path.
 
 Malformed input is `22007`; invalid calendar fields and finite-range failures
 are `22008`, preserving original input and English diagnostics.
@@ -1516,9 +1515,9 @@ replacement. Retained cursors keep original values, precision and origin metadat
 across append/Reset/Restore; exported infinity buffers cannot mutate stored values.
 
 Timezone-aware types, DateStyle/TimeZone and selected temporal casts/conversions
-are described below. Other temporal functions/arithmetic and general no-FROM
-SELECT remain excluded; the default ordinary input order is MDY. Selected
-datetime formatting uses its explicit template instead.
+are described below. Other temporal functions/arithmetic remain excluded;
+ordinary no-FROM SELECT uses the shared query pipeline. The default ordinary
+input order is MDY; selected datetime formatting uses its explicit template instead.
 Dual-mode migration: public timestamp-without-time-zone SQL scenarios now live
 in `reference/`; obsolete root row/diagnostic helpers are removed.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimestampSmoke$' VERBOSE=0`.

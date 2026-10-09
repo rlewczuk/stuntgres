@@ -25,7 +25,13 @@ func TestAnyValueGrammar(t *testing.T) {
 }
 
 func TestAnyValueExclusions(t *testing.T) {
-	for _, q := range []string{"SELECT any_value(1)", "SELECT COALESCE(any_value(1),0)", "SELECT any_value(1),nextval('s')", "SELECT any_value(1),current_schema()", "SELECT any_value(DISTINCT v) FROM t", "SELECT any_value(ALL v) FROM t", "SELECT any_value(v ORDER BY v) FROM t", "SELECT any_value(v) FILTER (WHERE FALSE) FROM t", "SELECT any_value(v) OVER () FROM t"} {
+	for _, q := range []string{"SELECT any_value(1)", "SELECT COALESCE(any_value(1),0)", "SELECT any_value(1),nextval('s')", "SELECT any_value(1),current_schema()"} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+			t.Fatal(q, statements, err)
+		}
+	}
+	for _, q := range []string{"SELECT any_value(DISTINCT v) FROM t", "SELECT any_value(ALL v) FROM t", "SELECT any_value(v ORDER BY v) FROM t", "SELECT any_value(v) FILTER (WHERE FALSE) FROM t", "SELECT any_value(v) OVER () FROM t"} {
 		statements, err := Parse("INSERT INTO t VALUES(1);" + q)
 		var diagnostic *sqlstate.Error
 		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {

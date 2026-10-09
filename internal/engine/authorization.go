@@ -650,8 +650,8 @@ func descriptorReferences(d Descriptor) []PrincipalRef {
 	return refs
 }
 func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
-	if sel, query := stmt.(*parser.Select); query {
-		return v.checkSelectSources(b.querySources, sel)
+	if _, query := stmt.(*parser.Select); query {
+		return v.checkQuerySources(b.querySources)
 	}
 	if b.relation == nil {
 		return nil
@@ -661,19 +661,17 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		if err := v.checkColumns(b, InsertPrivilege, b.targets); err != nil {
 			return err
 		}
-		insert := stmt.(*parser.Insert)
-		if insert.Source != nil && insert.Source.Select != nil {
-			return v.checkSelectSources(b.querySources, insert.Source.Select)
-		}
 		return v.checkQuerySources(b.querySources)
 	case *parser.Delete:
 		if err := v.Check(AccessRequirement{Object: b.ref, Privileges: DeletePrivilege}); err != nil {
 			return err
 		}
-		if len(b.usedColumns) == 0 {
-			return nil
+		if len(b.usedColumns) != 0 {
+			if err := v.checkColumns(b, SelectPrivilege, b.usedColumns); err != nil {
+				return err
+			}
 		}
-		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
+		return v.checkQuerySources(b.querySources)
 	case *parser.Update:
 		if err := v.checkColumns(b, UpdatePrivilege, b.targets); err != nil {
 			return err
@@ -683,15 +681,17 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 				return err
 			}
 		}
-		return v.checkSelectSources(b.querySources, &parser.Select{})
+		return v.checkQuerySources(b.querySources)
 	default:
 		return v.checkColumns(b, SelectPrivilege, b.usedColumns)
 	}
 }
 
-func (v AuthorizationView) checkSelectSources(sources []queryLeaf, sel *parser.Select) error {
-	if err := v.checkQuerySources(sources); err != nil {
-		return err
+func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
+	for _, source := range sources {
+		if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, SelectPrivilege, source.uses); err != nil {
+			return err
+		}
 	}
 	for _, source := range sources {
 		if source.mark.mode != 0 {
@@ -703,14 +703,6 @@ func (v AuthorizationView) checkSelectSources(sources []queryLeaf, sel *parser.S
 			if err := v.checkViewRowMarks(source.relation, source.mark, v.state.CurrentUser); err != nil {
 				return err
 			}
-		}
-	}
-	return nil
-}
-func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
-	for _, source := range sources {
-		if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, SelectPrivilege, source.uses); err != nil {
-			return err
 		}
 	}
 	return nil

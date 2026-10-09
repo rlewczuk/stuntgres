@@ -143,9 +143,6 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 			return nil, err
 		}
 	}
-	if inner := aggregateOccurrence(arg); inner != nil {
-		return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
-	}
 	usage := arg.ResultUsage()
 	usage.Typmod = -1
 	comparison, err := sqltype.BindComparison(selected, selected)
@@ -173,5 +170,5 @@ func (b *expressionBinder) bindExtrema(raw parser.AggregateExpr, name parser.Obj
 	properties := arg.Properties()
 	info := b.info(usage, raw.Pos, ExprProperties{StageDependent: true, ParameterDependent: properties.ParameterDependent, Volatility: properties.Volatility})
 	info.collationConflict, info.collationExplicit = arg.CollationIndeterminate(), arg.ExplicitCollation()
-	return aggregateExpression{info, slot}, nil
+	return aggregateExpression{expressionInfo: info, slot: slot, frame: b.frameID()}, nil
 }

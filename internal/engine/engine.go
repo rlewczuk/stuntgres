@@ -58,10 +58,11 @@ type binding struct {
 	query              *BoundQuery
 	querySources       []queryLeaf
 	visibilitySnapshot bool
+	subqueryDemand     bool
 	viewLiterals       map[viewLiteralPath]literalExpression
 	viewCastUsages     map[viewLiteralPath]sqltype.Usage
-	viewColumns        map[viewLiteralPath]int
-	viewStars          map[int][]int
+	viewColumns        map[viewLiteralPath]viewColumn
+	viewStars          map[viewLiteralPath][]viewColumn
 	viewNamespaces     []viewNamespace
 	commandQuery       bool
 	update             *boundUpdate
@@ -329,6 +330,14 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
 	binder.queryLockAdmission = admission
+	binder.queryAuth = &auth
+	if admission == nil || admission.queries == nil {
+		manifest, _, _, err := newQueryLockAdmission(stmt)
+		if err != nil {
+			return b, err
+		}
+		binder.queryLockAdmission = &manifest
+	}
 	var view *parser.CreateView
 	if s, ok := stmt.(*parser.CreateView); ok {
 		view = s
@@ -688,9 +697,6 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		b.querySources = binder.querySources
 	case *parser.Select:
 		var err error
-		if s.Set == nil && s.Distinct == nil && s.Values == nil && s.From == nil && !s.IsSingleton() && !s.IsTypeSingleton() {
-			return b, sqlError("0A000", "SELECT without FROM is unsupported")
-		}
 		binder.queryAuth = &auth
 		b.query, err = binder.bindSelect(s, false)
 		if err != nil {
@@ -705,18 +711,20 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}
+	b.querySources = binder.querySources
 	var err error
 	b.parameters, err = binder.finish()
 	if err != nil {
 		return b, err
 	}
-	if b.query != nil && view == nil || b.update != nil && b.update.from != nil {
+	if len(b.querySources) != 0 && view == nil {
 		if _, err := validateViewReadGraph(auth.catalog, b.querySources); err != nil {
 			return b, err
 		}
 	}
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
 	b.visibilitySnapshot = binder.visibilitySnapshot
+	b.subqueryDemand = binder.subqueryDemand
 	b.sequenceConstants = binder.sequenceConstants
 	b.regclassConcat = binder.regclassConcat
 	b.regclassInput = binder.input.Regclass

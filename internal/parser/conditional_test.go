@@ -40,7 +40,11 @@ func TestConditionalGrammar(t *testing.T) {
 	} {
 		keywordDiagnostic(t, tc.q, "42601", tc.message, tc.pos)
 	}
-	for _, q := range []string{"INSERT INTO t VALUES(COALESCE(NULL,v))", "INSERT INTO t VALUES(CASE WHEN TRUE THEN 1 ELSE v END)", "SELECT CASE WHEN TRUE THEN 1 END", "SELECT COALESCE(VARIADIC v) FROM t"} {
+	statements, err = Parse("SELECT CASE WHEN TRUE THEN 1 END")
+	if err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+		t.Fatal(statements, err)
+	}
+	for _, q := range []string{"INSERT INTO t VALUES(COALESCE(NULL,v))", "INSERT INTO t VALUES(CASE WHEN TRUE THEN 1 ELSE v END)", "SELECT COALESCE(VARIADIC v) FROM t"} {
 		if _, err := Parse(q); err == nil {
 			t.Fatal("invalid admission", q)
 		}

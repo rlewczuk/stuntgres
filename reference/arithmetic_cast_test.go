@@ -171,7 +171,7 @@ func TestReferenceArithmeticCastDiagnosticComposition(t *testing.T) {
 			query, message, position string
 			rows                     [][]any
 		}{
-			{"SELECT num_nulls(CAST(1+2 AS int4))", "SELECT without FROM is unsupported", "1", [][]any{{int64(0)}}},
+			{"SELECT num_nulls(CAST(1+2 AS int4))", "arithmetic in null-count arguments is unsupported", "24", [][]any{{int64(0)}}},
 			{"SELECT num_nulls(CAST(1+2 AS int4)) FROM t", "arithmetic in null-count arguments is unsupported", "24", [][]any{{int64(0)}, {int64(0)}}},
 			{"SELECT num_nulls((1+2)::int4) FROM t", "arithmetic in null-count arguments is unsupported", "20", [][]any{{int64(0)}, {int64(0)}}},
 		} {
@@ -282,7 +282,7 @@ func TestReferenceArithmeticSignedCastLiteralComposition(t *testing.T) {
 			for _, from := range []bool{false, true} {
 				query := "SELECT num_nulls(" + sign + child + ",NULL)"
 				want := [][]any{{int64(1)}}
-				message, position := "SELECT without FROM is unsupported", "1"
+				message, position := "arithmetic in null-count arguments is unsupported", "18"
 				if from {
 					query += " FROM t ORDER BY id"
 					want = [][]any{{int64(1)}, {int64(1)}}

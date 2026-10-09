@@ -84,9 +84,6 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 	if err != nil {
 		return nil, err
 	}
-	if inner := aggregateOccurrence(arg); inner != nil {
-		return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
-	}
 	operation := aggregateAnd
 	if raw.Name == "bool_or" {
 		operation = aggregateOr
@@ -106,5 +103,5 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 	}
 	p := arg.Properties()
 	properties := ExprProperties{StageDependent: true, ParameterDependent: p.ParameterDependent, Volatility: p.Volatility}
-	return aggregateExpression{b.info(typ.Usage(), raw.Pos, properties), slot}, nil
+	return aggregateExpression{expressionInfo: b.info(typ.Usage(), raw.Pos, properties), slot: slot, frame: b.frameID()}, nil
 }

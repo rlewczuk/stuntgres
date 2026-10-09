@@ -39,7 +39,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 	if sel, ok := stmt.(*parser.Select); ok {
 		return s.acquireQueryRelations(sel, stmt, execute)
 	}
-	if insert, ok := stmt.(*parser.Insert); ok && insert.Source != nil && insert.Source.Select != nil && insert.Source.Select.From != nil {
+	if insert, ok := stmt.(*parser.Insert); ok {
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
 		}
@@ -48,13 +48,14 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		if err := bindInsertTargets(s.lockedDescriptor.(*relationDescriptor), insert.Targets, nil); err != nil {
 			return err
 		}
-		return s.acquireQueryRelations(insert.Source.Select, insert.Source.Select, execute)
+		return s.acquireQueryRelations(stmt, stmt, execute)
 	}
-	if update, ok := stmt.(*parser.Update); ok && update.From != nil {
+	switch stmt.(type) {
+	case *parser.Update, *parser.Delete:
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
 		}
-		return s.acquireQueryRelations(&parser.Select{From: update.From}, stmt, execute)
+		return s.acquireQueryRelations(stmt, stmt, execute)
 	}
 	return s.acquireRelationTarget(stmt, stmt, execute, false)
 }
@@ -86,7 +87,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		name, mode, ownerOnly = v.Name, accessExclusive, true
 		rename, ifExists, tableRename = true, v.IfExists, v.Action == "rename"
 	case *parser.Select:
-		if v.IsSingleton() || v.IsTypeSingleton() {
+		if v.From == nil {
 			return nil
 		}
 		name = v.From.(*parser.TableReference).Name

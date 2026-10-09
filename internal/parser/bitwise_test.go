@@ -43,7 +43,11 @@ func TestBitwiseGrammarAndLexicalBoundaries(t *testing.T) {
 	if op.Pos.Character != 15 {
 		t.Fatal(op.Pos)
 	}
-	for _, q := range []string{"SELECT 1& FROM t", "SELECT ~ FROM t", "SELECT 1&1 FROM t trailing garbage", "SELECT num_nulls(1&1)"} {
+	ss, err = Parse("SELECT num_nulls(1&1)")
+	if err != nil || len(ss) != 1 || ss[0].(*Select).From != nil {
+		t.Fatal(ss, err)
+	}
+	for _, q := range []string{"SELECT 1& FROM t", "SELECT ~ FROM t", "SELECT 1&1 FROM t trailing garbage"} {
 		if _, err := Parse(q); err == nil {
 			t.Fatal("malformed/excluded expression admitted", q)
 		}

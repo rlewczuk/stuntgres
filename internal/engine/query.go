@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -43,6 +44,7 @@ type sourceNode struct {
 type singletonNode struct{ querySchema }
 type valuesNode struct {
 	querySchema
+	viewOrdinal         int
 	rows                [][]BoundExpr
 	identityOrderDemand []bool // Only singleton USER identity VALUES need pruning.
 }
@@ -62,16 +64,39 @@ type sortKey struct {
 }
 type sortNode struct {
 	querySchema
-	child      LogicalNode
-	keys       []sortKey
-	cacheWidth int
-	outputs    []BoundExpr // Cheap immutable targets required by the sort input.
+	child        LogicalNode
+	keys         []sortKey
+	cacheWidth   int
+	outputs      []BoundExpr // Nonvolatile targets required by the sort input.
+	presenceOnly bool        // Ignored EXISTS order graphs remain available to capture.
 }
 type projectNode struct {
 	querySchema
 	child        LogicalNode
 	expressions  []BoundExpr
 	frozenValues bool // Synthetic FROM VALUES slots are already produced.
+	frame        uint32
+	syntax       *parser.Select
+}
+
+// A physical literal or this execution's imported BOOL parameter can prove a
+// dead WHERE input for join planning. Never evaluate rows, stages or subqueries.
+func queryPredicateRejectsAll(c *EvalContext, expr BoundExpr) (bool, error) {
+	var value sqltype.Value
+	switch expression := expr.(type) {
+	case literalExpression:
+		value = expression.value
+	case parameterExpression:
+		var err error
+		value, err = expression.Eval(c)
+		if err != nil {
+			return false, err
+		}
+	default:
+		return false, nil
+	}
+	truth, err := TruthOf(value)
+	return err == nil && truth != True, err
 }
 
 // preflightQuery retains schemas and source identity from analysis. Only paths
@@ -83,6 +108,10 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 	switch n := node.(type) {
 	case *distinctNode:
 		return preflightDistinct(c, n)
+	case *derivedNode:
+		// Child projections are demanded by the derived stage, not by an
+		// enclosing expression's constant-coercion preflight.
+		return n, nil
 	case *limitNode:
 		child, err := preflightQuery(c, n.child)
 		if err != nil {
@@ -167,6 +196,18 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			return &copy, nil
 		}
 	case *aggregateNode:
+		if n.presenceOnly {
+			child, err := preflightQuery(c, n.child)
+			if err != nil {
+				return nil, err
+			}
+			if child == n.child {
+				return n, nil
+			}
+			copy := *n
+			copy.child = child
+			return &copy, nil
+		}
 		var keys []BoundExpr
 		for i, key := range n.keys {
 			folded, replacement, err := preflightCoercions(c, key)
@@ -251,6 +292,18 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			return &copy, nil
 		}
 	case *sortNode:
+		if n.presenceOnly {
+			child, err := preflightQuery(c, n.child)
+			if err != nil {
+				return nil, err
+			}
+			if child == n.child {
+				return n, nil
+			}
+			copy := *n
+			copy.child = child
+			return &copy, nil
+		}
 		var keys []sortKey
 		for i, key := range n.keys {
 			folded, changed, err := preflightCoercions(c, key.expression)
@@ -519,6 +572,9 @@ type queryState struct {
 	output     sqltype.OutputEnvironment
 	locking    bool
 	inherited  queryRowMark
+	frame      uint32
+	outer      *EvalContext
+	derived    map[*derivedNode]*querySource
 }
 type indexedStage struct {
 	source           *querySource
@@ -556,18 +612,30 @@ func (s indexedStage) index(i int) int {
 }
 func (s *indexedStage) Schema() []ColumnDescriptor { return s.schema }
 func (s *indexedStage) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
-	if s.closed {
-		return false, nil
-	}
 	if s.terminal != nil {
 		return false, s.terminal
 	}
-	fail := func(err error) (bool, error) { s.terminal = err; s.release(); return false, err }
-	if err := ctx.Err(); err != nil {
-		return fail(err)
+	if s.closed {
+		return false, nil
 	}
 	if len(dst) != len(s.schema) {
-		return fail(fmt.Errorf("stuntgres: invalid stage destination width"))
+		return false, s.fail(fmt.Errorf("stuntgres: invalid stage destination width"))
+	}
+	return s.nextProjected(ctx, dst)
+}
+
+// A nil destination discards values, not projection demand. Retained EXISTS
+// shares this evaluator/validation seam without allocating an output tuple.
+func (s *indexedStage) nextProjected(ctx context.Context, dst []sqltype.Value) (bool, error) {
+	if s.terminal != nil {
+		return false, s.terminal
+	}
+	if s.closed {
+		return false, nil
+	}
+	fail := func(err error) (bool, error) { return false, s.fail(err) }
+	if err := ctx.Err(); err != nil {
+		return fail(err)
 	}
 	present, err := s.ensure(ctx, s.position)
 	if err != nil {
@@ -575,13 +643,15 @@ func (s *indexedStage) Next(ctx context.Context, dst []sqltype.Value) (bool, err
 	}
 	if !present {
 		if err := s.Close(); err != nil {
-			return false, err
+			return fail(err)
 		}
 		return false, nil
 	}
 	row := s.source.row(s.index(s.position))
 	if s.expressions == nil {
-		copy(dst, row)
+		if dst != nil {
+			copy(dst, row)
+		}
 	} else {
 		s.evaluation.Context, s.evaluation.Row = ctx, row
 		if s.cacheWidth != 0 {
@@ -595,7 +665,9 @@ func (s *indexedStage) Next(ctx context.Context, dst []sqltype.Value) (bool, err
 			if value.Type() == nil || !value.Type().Concrete() || value.Type() != s.schema[i].Usage.Type {
 				return fail(fmt.Errorf("stuntgres: invalid finalized query value"))
 			}
-			dst[i] = value
+			if dst != nil {
+				dst[i] = value
+			}
 		}
 	}
 	s.position++
@@ -614,6 +686,7 @@ func (s *indexedStage) release() {
 }
 func (s *indexedStage) Close() error {
 	if s.closed {
+		s.terminal = nil
 		return nil
 	}
 	var err error
@@ -626,6 +699,12 @@ func (s *indexedStage) Close() error {
 	s.release()
 	s.closed = true
 	s.terminal = nil
+	return err
+}
+
+func (s *indexedStage) fail(err error) error {
+	_ = s.Close()
+	s.terminal = err
 	return err
 }
 func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (indexedStage, error) {
@@ -643,6 +722,8 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		return openJoinNode(ctx, state, n)
 	case *distinctNode:
 		return openDistinctNode(ctx, state, n)
+	case *derivedNode:
+		return openDerivedNode(ctx, state, n)
 	case *aggregateNode:
 		return openAggregateNode(ctx, state, n)
 	case *valuesNode:
@@ -651,7 +732,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		source := &querySource{flatWidth: len(n.Schema()), materialized: true}
 		out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
-		evaluation := EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+		evaluation := state.evaluation(nil)
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			i := source.flatCount
 			if i == len(n.rows) {
@@ -674,10 +755,11 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		return out, nil
 	case *singletonNode:
-		if state.source == nil || !state.source.singleton || state.source.view != nil || state.source.ref != (ObjectRef{}) || len(state.source.committed) != 0 || len(state.source.own) != 0 || state.source.visible != nil {
-			return indexedStage{}, fmt.Errorf("stuntgres: invalid singleton query source")
+		if state.source == nil {
+			return indexedStage{}, fmt.Errorf("stuntgres: missing singleton statement source")
 		}
-		return indexedStage{source: state.source, schema: n.Schema()}, nil
+		source := &querySource{singleton: true, scope: state.source.scope, locks: state.source.locks}
+		return indexedStage{source: source, schema: n.Schema()}, nil
 	case *sourceNode:
 		source := state.source
 		if source != nil && source.sources != nil {
@@ -708,7 +790,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			return indexedStage{}, err
 		}
 		out := producingStage(&child, n.Schema())
-		evaluation := EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+		evaluation := state.evaluation(nil)
 		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			for {
 				i, present, err := child.nextOccurrence(ctx)
@@ -732,6 +814,9 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		}
 		return out, nil
 	case *sortNode:
+		if n.presenceOnly {
+			return openQueryNode(ctx, state, n.child)
+		}
 		child, err := openQueryNode(ctx, state, n.child)
 		if err != nil {
 			return indexedStage{}, err
@@ -755,7 +840,7 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 			child.cacheOccurrences = nil
 			child.orderValues = make([]sqltype.Value, child.count()*n.cacheWidth)
 			child.permutation = make([]int, child.count())
-			evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+			evaluation := state.evaluation(ctx)
 			for i := range child.count() {
 				child.permutation[i] = i
 				evaluation.Row = child.source.row(child.selection[i])
@@ -836,13 +921,16 @@ func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (in
 		})
 		return child, err
 	case *projectNode:
+		if n.frame != 0 {
+			state.frame = n.frame
+		}
 		child, err := openQueryNode(ctx, state, n.child)
 		if err != nil {
 			return indexedStage{}, err
 		}
 		child.schema = n.Schema()
 		child.expressions = n.expressions
-		child.evaluation = EvalContext{Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+		child.evaluation = state.evaluation(nil)
 		return child, nil
 	default:
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid logical query node")
@@ -1011,7 +1099,12 @@ func openQueryProjectStage(ctx context.Context, state *queryState, project *proj
 	if err != nil {
 		return indexedStage{}, err
 	}
-	return settlePendingQueryMarks(ctx, state, project.child, child)
+	settled, err := settlePendingQueryMarks(ctx, state, project.child, child)
+	if err != nil {
+		_ = child.Close()
+		return indexedStage{}, err
+	}
+	return settled, nil
 }
 
 func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
@@ -1041,13 +1134,17 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	r.output = state.output
 	var slots []int
 	direct := true
+	frame := project.frame
+	if frame == 0 {
+		frame = 1
+	}
 	for _, expr := range project.expressions {
 		column, ok := expr.(columnExpression)
 		if !ok {
 			direct = false
 			break
 		}
-		if column.scope != 1 || column.frame != 1 || column.slot < 0 || column.slot >= len(project.child.Schema()) {
+		if column.scope != 1 || column.frame != frame || column.slot < 0 || column.slot >= len(project.child.Schema()) {
 			return nil, 0, fmt.Errorf("stuntgres: invalid query projection frame")
 		}
 	}
@@ -1063,7 +1160,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		for i, expr := range project.expressions {
 			slots[i] = expr.(columnExpression).slot
 		}
-		evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: parameters, Input: state.input, Output: state.output}
+		evaluation := state.evaluation(ctx)
 		for i := range r.count {
 			if err := ctx.Err(); err != nil {
 				return nil, 0, err

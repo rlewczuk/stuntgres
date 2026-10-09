@@ -26,6 +26,7 @@ const (
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
 // the same source position independently to different types in its two branches.
 type viewLiteralPath struct {
+	query       uint32
 	clause      viewLiteralClause
 	target      int
 	node        int
@@ -33,7 +34,7 @@ type viewLiteralPath struct {
 }
 
 func (b *expressionBinder) captureViewLiterals(raw parser.Expr, bound BoundExpr, clause viewLiteralClause, target int) error {
-	path := viewLiteralPath{clause: clause, target: target}
+	path := viewLiteralPath{query: b.frameID(), clause: clause, target: target}
 	ordinal := 0
 	return b.captureViewLiteralTree(raw, bound, path, &ordinal)
 }
@@ -66,6 +67,10 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.SubqueryExpr:
+		if n, ok := bound.(subqueryExpression); ok {
+			return b.captureSubqueryLeft(r.Left, n, path, ordinal)
+		}
 	case parser.IdentityExpr:
 		if _, ok := bound.(identityExpression); ok {
 			return nil
@@ -96,9 +101,9 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 	case parser.ColumnExpr:
 		if column, ok := bound.(columnExpression); ok {
 			if b.viewColumns == nil {
-				b.viewColumns = make(map[viewLiteralPath]int)
+				b.viewColumns = make(map[viewLiteralPath]viewColumn)
 			}
-			b.viewColumns[path] = column.slot
+			b.viewColumns[path] = viewColumn{frame: column.frame, slot: column.slot}
 			return nil
 		}
 	case parser.AggregateExpr:
@@ -106,8 +111,7 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			if r.Star {
 				return nil
 			}
-			if n.slot >= 0 && n.slot < len(b.aggregates) {
-				call := b.aggregates[n.slot]
+			if call, ok := b.aggregateCallAt(n); ok {
 				for i, arg := range r.Args {
 					expression := call.argument
 					if i == 1 {
@@ -158,6 +162,14 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		return child(r.Child, bound)
 	case parser.OperatorExpr:
 		switch n := bound.(type) {
+		case subqueryExpression:
+			if len(r.Args) != 2 {
+				return fmt.Errorf("stuntgres: mismatched row subquery syntax")
+			}
+			if err := b.captureSubqueryLeft(r.Args[0], n, path, ordinal); err != nil {
+				return err
+			}
+			return child(r.Args[1], n)
 		case binaryExpression:
 			return children(r.Args, n.args)
 		case literalExpression:
@@ -325,84 +337,98 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 }
 
 func (v *viewDefinition) validateLiterals(catalog CatalogRead) error {
-	count := 0
-	columnCount, starCount := 0, 0
-	validate := func(raw parser.Expr, clause viewLiteralClause, target int) error {
-		ordinal := 0
-		return v.validateLiteralTree(catalog, raw, viewLiteralPath{clause: clause, target: target}, &ordinal, &count, &columnCount)
-	}
-	for i, raw := range v.syntax.Targets {
-		if _, star := raw.(parser.StarExpr); star {
-			starCount++
-			for _, slot := range v.stars[i] {
-				root := viewFromRoot(v.query.Root)
-				if slot < 0 || slot >= len(root.Schema()) {
-					return fmt.Errorf("stuntgres: invalid frozen view star slot")
+	count, columnCount, starCount := 0, 0, 0
+	for frame, project := range v.frames {
+		s := project.syntax
+		if s == nil {
+			return fmt.Errorf("stuntgres: missing stored query syntax")
+		}
+		validate := func(raw parser.Expr, clause viewLiteralClause, target int) error {
+			ordinal := 0
+			return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, target: target}, &ordinal, &count, &columnCount)
+		}
+		for i, raw := range s.Targets {
+			if _, star := raw.(parser.StarExpr); star {
+				starCount++
+				path := viewLiteralPath{query: frame, clause: viewTargetLiteral, target: i}
+				columns, ok := v.stars[path]
+				if !ok {
+					return fmt.Errorf("stuntgres: missing frozen view star")
+				}
+				for _, column := range columns {
+					owner := v.frames[column.frame]
+					if owner == nil {
+						return fmt.Errorf("stuntgres: missing frozen star frame")
+					}
+					root := viewFromRoot(owner)
+					if column.slot < 0 || column.slot >= len(root.Schema()) {
+						return fmt.Errorf("stuntgres: invalid frozen view star slot")
+					}
+				}
+			}
+			if err := validate(raw, viewTargetLiteral, i); err != nil {
+				return err
+			}
+		}
+		if err := validate(s.Where, viewWhereLiteral, 0); err != nil {
+			return err
+		}
+		for i, raw := range s.GroupBy {
+			if err := validate(raw, viewGroupLiteral, i); err != nil {
+				return err
+			}
+		}
+		if err := validate(s.Having, viewHavingLiteral, 0); err != nil {
+			return err
+		}
+		if s.Order != nil {
+			for i, key := range s.Order.Keys {
+				if err := validate(key.Expr, viewOrderLiteral, i); err != nil {
+					return err
 				}
 			}
 		}
-		if err := validate(raw, viewTargetLiteral, i); err != nil {
-			return err
-		}
-	}
-	if err := validate(v.syntax.Where, viewWhereLiteral, 0); err != nil {
-		return err
-	}
-	for i, raw := range v.syntax.GroupBy {
-		if err := validate(raw, viewGroupLiteral, i); err != nil {
-			return err
-		}
-	}
-	if err := validate(v.syntax.Having, viewHavingLiteral, 0); err != nil {
-		return err
-	}
-	if v.syntax.Order != nil {
-		for i, key := range v.syntax.Order.Keys {
-			if err := validate(key.Expr, viewOrderLiteral, i); err != nil {
+		if s.Bounds != nil {
+			if err := validate(s.Bounds.Offset, viewOffsetLiteral, 0); err != nil {
+				return err
+			}
+			if err := validate(s.Bounds.Count, viewLimitLiteral, 0); err != nil {
 				return err
 			}
 		}
-	}
-	if v.syntax.Bounds != nil {
-		if err := validate(v.syntax.Bounds.Offset, viewOffsetLiteral, 0); err != nil {
-			return err
+		var from func(parser.FromItem, LogicalNode) error
+		from = func(item parser.FromItem, node LogicalNode) error {
+			switch raw := item.(type) {
+			case *parser.AliasReference:
+				return from(raw.Input, node)
+			case *parser.JoinReference:
+				join, ok := node.(*joinNode)
+				if !ok {
+					return fmt.Errorf("stuntgres: invalid stored join frame")
+				}
+				if err := validate(raw.On, viewJoinLiteral, join.viewOrdinal); err != nil {
+					return err
+				}
+				if err := from(raw.Left, join.left); err != nil {
+					return err
+				}
+				return from(raw.Right, join.right)
+			case *parser.ValuesQuery:
+				values, ok := viewFromRoot(node).(*valuesNode)
+				if !ok {
+					return fmt.Errorf("stuntgres: invalid stored VALUES frame")
+				}
+				return v.validateValuesLiterals(catalog, raw, frame, values.viewOrdinal, &count, &columnCount)
+			}
+			return nil
 		}
-		if err := validate(v.syntax.Bounds.Count, viewLimitLiteral, 0); err != nil {
-			return err
-		}
-	}
-	join := 0
-	values := 0
-	if v.syntax.Values != nil {
-		if err := v.validateValuesLiterals(catalog, v.syntax.Values, values, &count, &columnCount); err != nil {
-			return err
-		}
-		values++
-	}
-	var validateFrom func(parser.FromItem) error
-	validateFrom = func(item parser.FromItem) error {
-		switch n := item.(type) {
-		case *parser.ValuesQuery:
-			ordinal := values
-			values++
-			return v.validateValuesLiterals(catalog, n, ordinal, &count, &columnCount)
-		case *parser.AliasReference:
-			return validateFrom(n.Input)
-		case *parser.JoinReference:
-			ordinal := join
-			join++
-			if err := validate(n.On, viewJoinLiteral, ordinal); err != nil {
+		if s.Values != nil {
+			if err := from(s.Values, viewFromRoot(project)); err != nil {
 				return err
 			}
-			if err := validateFrom(n.Left); err != nil {
-				return err
-			}
-			return validateFrom(n.Right)
+		} else if err := from(s.From, viewFromRoot(project)); err != nil {
+			return err
 		}
-		return nil
-	}
-	if err := validateFrom(v.syntax.From); err != nil {
-		return err
 	}
 	if count != len(v.literals) || columnCount != len(v.columns) || starCount != len(v.stars) {
 		return fmt.Errorf("stuntgres: invalid view literal occurrence path")
@@ -428,6 +454,13 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		return nil
 	}
 	switch r := raw.(type) {
+	case parser.SubqueryExpr:
+		if v.queries[r.Query] == nil {
+			return fmt.Errorf("stuntgres: missing frozen subquery syntax")
+		}
+		return child(r.Left)
+	case parser.RowExpr:
+		return args(r.Fields)
 	case parser.IdentityExpr:
 		return nil
 	case parser.CurrentDateTimeExpr:
@@ -446,7 +479,7 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 			return nil
 		}
 		if integer, ok := raw.(parser.LiteralExpr); ok && path.clause == viewValuesOrderLiteral && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
-			root := viewValuesAt(v.query.Root, path.source)
+			root := viewValuesAt(v.frames[path.query], path.source)
 			if root == nil {
 				return fmt.Errorf("stuntgres: missing VALUES order frame")
 			}
@@ -455,23 +488,27 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		}
 		if integer, ok := raw.(parser.LiteralExpr); ok && (path.clause == viewGroupLiteral || path.clause == viewOrderLiteral) && path.node == 0 && integer.Value.Kind == parser.IntegerValue {
 			if path.clause == viewOrderLiteral {
-				_, _, err := orderOrdinal(raw, len(v.query.Root.Schema()))
+				_, _, err := orderOrdinal(raw, len(v.frames[path.query].Schema()))
 				return err
 			}
-			_, _, err := groupOrdinal(raw, len(v.query.Root.Schema()))
+			_, _, err := groupOrdinal(raw, len(v.frames[path.query].Schema()))
 			return err
 		}
 		return fmt.Errorf("stuntgres: missing view literal occurrence")
 	case parser.ColumnExpr:
-		slot, ok := v.columns[path]
-		root := viewFromRoot(v.query.Root)
-		if path.clause == viewJoinLiteral {
+		column, ok := v.columns[path]
+		owner := v.frames[column.frame]
+		if !ok || owner == nil {
+			return fmt.Errorf("stuntgres: invalid view column frame")
+		}
+		root := viewFromRoot(owner)
+		if path.clause == viewJoinLiteral && column.frame == path.query {
 			root = viewJoinAt(root, path.target)
 		}
-		if path.clause == viewValuesOrderLiteral {
-			root = viewValuesAt(v.query.Root, path.source)
+		if path.clause == viewValuesOrderLiteral && column.frame == path.query {
+			root = viewValuesAt(owner, path.source)
 		}
-		if !ok || root == nil || slot < 0 || slot >= len(root.Schema()) {
+		if root == nil || column.slot < 0 || column.slot >= len(root.Schema()) {
 			return fmt.Errorf("stuntgres: invalid view column occurrence")
 		}
 		(*columnCount)++
@@ -537,4 +574,26 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 		return args(r.Args)
 	}
 	return fmt.Errorf("stuntgres: invalid view literal syntax %T", raw)
+}
+
+func (b *expressionBinder) captureSubqueryLeft(raw parser.Expr, n subqueryExpression, path viewLiteralPath, ordinal *int) error {
+	if raw == nil {
+		return nil
+	}
+	if row, ok := raw.(parser.RowExpr); ok {
+		(*ordinal)++
+		if len(row.Fields) != len(n.comparisons) {
+			return fmt.Errorf("stuntgres: mismatched frozen row comparison")
+		}
+		for i, field := range row.Fields {
+			if err := b.captureViewLiteralTree(field, n.comparisons[i].left, path, ordinal); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if len(n.comparisons) != 1 {
+		return fmt.Errorf("stuntgres: mismatched frozen scalar comparison")
+	}
+	return b.captureViewLiteralTree(raw, n.comparisons[0].left, path, ordinal)
 }

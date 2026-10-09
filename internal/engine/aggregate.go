@@ -38,6 +38,17 @@ type aggregateCall struct {
 	order     []sortKey
 	operation aggregateOperation
 }
+
+// Every analyzed aggregate expression participates in ownership, dependence,
+// preflight and immutable query rewrites, not just the first value argument.
+func (call aggregateCall) expressions(visit func(BoundExpr)) {
+	visit(call.argument)
+	visit(call.separator)
+	for _, key := range call.order {
+		visit(key.expression)
+	}
+}
+
 type countProvider struct{ usage sqltype.Usage }
 type countState struct{ count int64 }
 
@@ -75,7 +86,8 @@ func (p countProvider) Finalize(ctx context.Context, state any) (sqltype.Value, 
 
 type aggregateExpression struct {
 	expressionInfo
-	slot int
+	slot  int
+	frame uint32
 }
 
 func (e aggregateExpression) Eval(c *EvalContext) (sqltype.Value, error) {
@@ -86,14 +98,22 @@ func (e aggregateExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 // by bindSelect, never inferred from this private row layout.
 type groupExpression struct {
 	expressionInfo
-	slot int
+	slot  int
+	frame uint32
 }
 
 func (e groupExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.Scope != 1 || c.Frame != 1 || e.slot < 0 || e.slot >= len(c.Row) || c.Row[e.slot].Type() != e.usage.Type {
+	frame := e.frame
+	if frame == 0 {
+		frame = 1
+	}
+	for c != nil && (c.Scope != 1 || c.Frame != frame) {
+		c = c.Outer
+	}
+	if c == nil || e.slot < 0 || e.slot >= len(c.Row) || c.Row[e.slot].Type() != e.usage.Type {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid group row frame")
 	}
 	return c.Row[e.slot], nil

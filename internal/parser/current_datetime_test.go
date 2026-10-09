@@ -23,7 +23,7 @@ func TestCurrentDateTimeGrammar(t *testing.T) {
 				t.Fatal(source, statements, err)
 			}
 			selectAST, ok := statements[0].(*Select)
-			if !ok || !selectAST.IsSingleton() {
+			if !ok {
 				t.Fatal(statements)
 			}
 			leaf, ok := selectAST.Targets[0].(CurrentDateTimeExpr)
@@ -41,13 +41,6 @@ func TestCurrentDateTimeGrammar(t *testing.T) {
 		`SELECT "current_timestamp"() FROM t`, `SELECT pg_catalog."current_timestamp"() FROM t`,
 	} {
 		if _, err := Parse(q); err != nil {
-			t.Fatal(q, err)
-		}
-	}
-	for _, q := range []string{"SELECT 1", "SELECT TIMESTAMP 'now'", "SELECT CURRENT_DATE,x"} {
-		_, err := Parse(q)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal(q, err)
 		}
 	}
@@ -118,7 +111,7 @@ func TestCurrentDateTimeOrdinaryNames(t *testing.T) {
 	}
 }
 
-func TestCurrentDateTimeStringSingleton(t *testing.T) {
+func TestCurrentDateTimeStringExpressions(t *testing.T) {
 	for _, kind := range []CurrentDateTimeKind{CurrentDate, CurrentTime, CurrentTimestamp, LocalTime, LocalTimestamp} {
 		valid, found := stringSingleton(CurrentDateTimeExpr{Kind: kind})
 		if !valid || found {
@@ -133,7 +126,7 @@ func TestCurrentDateTimeStringSingleton(t *testing.T) {
 				t.Fatal(query, statements, err)
 			}
 			selected, ok := statements[0].(*Select)
-			if !ok || !selected.IsSingleton() || !ContainsStringExpression(selected.Targets[0]) {
+			if !ok || !ContainsStringExpression(selected.Targets[0]) {
 				t.Fatal("existing string consumer rejected current leaf", query, statements)
 			}
 		}
@@ -144,17 +137,7 @@ func TestCurrentDateTimeStringSingleton(t *testing.T) {
 		t.Fatal(query, statements, err)
 	}
 	selected, ok := statements[0].(*Select)
-	if !ok || !selected.IsSingleton() || len(selected.Targets) != 3 || ContainsStringExpression(selected.Targets[0]) || !ContainsStringExpression(selected.Targets[1]) || !ContainsStringExpression(selected.Targets[2]) {
-		t.Fatal("mixed current/string singleton classification", query, statements)
-	}
-	for _, query := range []string{
-		"SELECT 1", "SELECT true", "SELECT 1+1", "SELECT round(1+1)",
-		"SELECT normalize(x::TEXT)", "SELECT normalize(CURRENT_DATE::TEXT),x",
-	} {
-		_, err := Parse(query)
-		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
-			t.Fatal("unrelated singleton boundary changed", query, err)
-		}
+	if !ok || len(selected.Targets) != 3 || ContainsStringExpression(selected.Targets[0]) || !ContainsStringExpression(selected.Targets[1]) || !ContainsStringExpression(selected.Targets[2]) {
+		t.Fatal("mixed current/string expression classification", query, statements)
 	}
 }

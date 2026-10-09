@@ -10,7 +10,7 @@ import (
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
 func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog CatalogRead, inherited relationLockMode) error {
-	return validateMarkedQueryJoin(c, node, catalog, nil, queryRowMark{mode: inherited})
+	return validateMarkedQueryJoin(c, node, catalog, nil, queryRowMark{mode: inherited}, false, nil)
 }
 
 func firstNullableQueryMark(a, b queryRowMark) queryRowMark {
@@ -27,6 +27,8 @@ func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited quer
 	switch n := node.(type) {
 	case *sourceNode:
 		return queryOccurrenceMark(marks, n.occurrence, inherited)
+	case *derivedNode:
+		return nullableQueryRowMark(n.query.Root, marks, inherited)
 	case *joinNode:
 		return firstNullableQueryMark(nullableQueryRowMark(n.left, marks, inherited), nullableQueryRowMark(n.right, marks, inherited))
 	case *rowLockNode:
@@ -47,7 +49,104 @@ func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited quer
 	return queryRowMark{}
 }
 
-func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRead, marks []queryRowMark, inherited queryRowMark) error {
+// Mutation targets and RETURNING are planned even when their input selects no
+// rows. Walk only the execution-owned expressions that the binding consumes.
+func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]BoundExpr, catalog CatalogRead) error {
+	owner := *c
+	owner.Scope, owner.Frame = 1, 1
+	if b.update != nil {
+		for _, expression := range b.update.assignments {
+			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
+				return err
+			}
+		}
+		if err := validateExpressionJoinExecution(&owner, b.update.predicate, catalog); err != nil {
+			return err
+		}
+	} else if err := validateExpressionJoinExecution(&owner, b.predicate, catalog); err != nil {
+		return err
+	}
+	for _, row := range expressions {
+		for j, expression := range row {
+			if len(expressions) == 1 && len(b.identityDiscard) != 0 && b.identityDiscard[b.targets[j]] {
+				continue
+			}
+			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
+				return err
+			}
+		}
+	}
+	if b.returning != nil {
+		for _, expression := range b.returning.expressions {
+			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateExpressionJoinExecution(c *EvalContext, expression BoundExpr, catalog CatalogRead) error {
+	if expression == nil {
+		return nil
+	}
+	if err := c.Context.Err(); err != nil {
+		return err
+	}
+	if subquery, ok := expression.(subqueryExpression); ok {
+		project := subquery.queryPlan.Root.(*projectNode)
+		child := *c
+		child.Scope, child.Frame = 1, project.frame
+		child.Row, child.orderValues, child.Outer = nil, nil, c
+		var ignored *projectNode
+		if subquery.presenceOnly {
+			ignored = project
+		}
+		if err := validateMarkedQueryJoin(&child, project, catalog, nil, queryRowMark{}, false, ignored); err != nil {
+			return err
+		}
+	}
+	if logical, ok := expression.(logicalExpression); ok {
+		if err := validateExpressionJoinExecution(c, logical.left, catalog); err != nil {
+			return err
+		}
+		if logical.queryRight {
+			_, decisive, err := decisiveLogicalValue(&logical)
+			if err != nil || decisive {
+				return err
+			}
+		}
+		return validateExpressionJoinExecution(c, logical.right, catalog)
+	}
+	var failure error
+	boundExpressionChildren(expression, func(child BoundExpr) {
+		if failure == nil {
+			failure = validateExpressionJoinExecution(c, child, catalog)
+		}
+	})
+	return failure
+}
+func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRead, marks []queryRowMark, inherited queryRowMark, emptyInput bool, ignoredProject *projectNode) error {
+
+	if node == nil {
+		return nil
+	}
+	if err := c.Context.Err(); err != nil {
+		return err
+	}
+	// Target subplans are planned even when their enclosing input is empty.
+	// Eligible EXISTS retains their graph, but does not plan ignored output.
+	if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
+		var failure error
+		queryExpressions(node, func(expression BoundExpr) {
+			if failure == nil {
+				failure = validateExpressionJoinExecution(c, expression, catalog)
+			}
+		})
+		if failure != nil {
+			return failure
+		}
+	}
 	switch n := node.(type) {
 	case *sourceNode:
 		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
@@ -59,8 +158,22 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 			if err != nil {
 				return err
 			}
-			return validateMarkedQueryJoin(c, root, catalog, nil, mark)
+			return validateMarkedQueryJoin(c, root, catalog, nil, mark, emptyInput, nil)
 		}
+		return nil
+	case *derivedNode:
+		project, ok := n.query.Root.(*projectNode)
+		if !ok {
+			return fmt.Errorf("stuntgres: missing derived query frame")
+		}
+		child := *c
+		child.Scope, child.Frame = 1, project.frame
+		child.Row, child.orderValues, child.Outer = nil, nil, c.Outer
+		root, err := preflightQuery(&child, project)
+		if err != nil {
+			return err
+		}
+		return validateMarkedQueryJoin(&child, root, catalog, marks, inherited, emptyInput, nil)
 	case *joinNode:
 		mark := queryRowMark{}
 		if n.kind == parser.JoinLeft || n.kind == parser.JoinFull {
@@ -72,7 +185,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 		if mark.mode != 0 {
 			return sqlError("0A000", queryRowClause(mark.mode)+" cannot be applied to the nullable side of an outer join")
 		}
-		if n.kind == parser.JoinFull {
+		if n.kind == parser.JoinFull && !emptyInput {
 			facts, err := fullJoinCondition(c, n, n.predicate, false)
 			if err != nil {
 				return err
@@ -81,31 +194,41 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRe
 				return sqlError("0A000", "FULL JOIN is only supported with merge-joinable or hash-joinable join conditions")
 			}
 		}
-		if err := validateMarkedQueryJoin(c, n.left, catalog, marks, inherited); err != nil {
-			return err
-		}
-		return validateMarkedQueryJoin(c, n.right, catalog, marks, inherited)
 	case *rowLockNode:
-		return validateMarkedQueryJoin(c, n.child, catalog, n.marks, inherited)
-	case *limitNode:
-		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
-	case *evaluationNode:
-		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
+		if len(marks) == 0 {
+			marks = n.marks
+		} else {
+			width := len(n.marks)
+			if len(marks) > width {
+				width = len(marks)
+			}
+			local := make([]queryRowMark, width)
+			copy(local, marks)
+			for i, mark := range n.marks {
+				local[i] = mergeQueryRowMark(local[i], mark)
+			}
+			marks = local
+		}
 	case *filterNode:
-		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
-	case *projectNode:
-		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
-	case *sortNode:
-		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
-	case *aggregateNode:
-		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
+		// Prune only this input's proven dead FROM path, using this execution's
+		// parameter frame. Nullable rowmark legality still applies.
+		if !emptyInput {
+			rejects, err := queryPredicateRejectsAll(c, n.predicate)
+			if err != nil {
+				return err
+			}
+			emptyInput = rejects
+		}
 	case *distinctNode:
 		if inherited.mode != 0 {
 			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
 		}
-		return validateMarkedQueryJoin(c, n.child, catalog, nil, queryRowMark{})
 	}
-	return nil
+	left, right := queryInputs(node)
+	if err := validateMarkedQueryJoin(c, left, catalog, marks, inherited, emptyInput, ignoredProject); err != nil {
+		return err
+	}
+	return validateMarkedQueryJoin(c, right, catalog, marks, inherited, emptyInput, ignoredProject)
 }
 
 // Every key is an effective equality. Keep only its ordered, bound operands:

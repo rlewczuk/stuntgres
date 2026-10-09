@@ -39,8 +39,8 @@ func TestReferenceArithmeticSelectedFunctionComposition(t *testing.T) {
 		query, column, message, position string
 		rows                             [][]any
 	}{
-		{"SELECT num_nulls(1+2)", "num_nulls", "SELECT without FROM is unsupported", "1", [][]any{{int64(0)}}},
-		{"SELECT num_nonnulls(1+2)", "num_nonnulls", "SELECT without FROM is unsupported", "1", [][]any{{int64(1)}}},
+		{"SELECT num_nulls(1+2)", "num_nulls", "arithmetic in null-count arguments is unsupported", "19", [][]any{{int64(0)}}},
+		{"SELECT num_nonnulls(1+2)", "num_nonnulls", "arithmetic in null-count arguments is unsupported", "22", [][]any{{int64(1)}}},
 		{"SELECT num_nulls(i+1) FROM t ORDER BY id", "num_nulls", "arithmetic in null-count arguments is unsupported", "19", [][]any{{int64(0)}, {int64(1)}}},
 		{"SELECT num_nonnulls(i+1) FROM t ORDER BY id", "num_nonnulls", "arithmetic in null-count arguments is unsupported", "22", [][]any{{int64(1)}, {int64(0)}}},
 	} {
@@ -76,9 +76,6 @@ func TestReferenceArithmeticSelectedFunctionArgumentBoundary(t *testing.T) {
 		{"SELECT num_nulls(+ +1)", "+", nil},
 	} {
 		want := referenceDiagnostic{Code: "0A000", Message: "arithmetic in null-count arguments is unsupported", Position: strconv.Itoa(strings.Index(tc.query, tc.operator) + 1)}
-		if !strings.Contains(tc.query, " FROM ") {
-			want.Message, want.Position = "SELECT without FROM is unsupported", "1"
-		}
 		failure := referenceImplicitError(tc.query, want, tc.args...)
 		failure.selectRows, failure.errorStage = true, "execute"
 		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)

@@ -2,7 +2,6 @@ package parser
 
 import (
 	"errors"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -30,8 +29,8 @@ func TestNullCountRawCalls(t *testing.T) {
 		if call.Args[0].(LiteralExpr).Value.Integer != 1 || call.Args[1].(LiteralExpr).Value.Kind != NullValue || call.Args[2].(LiteralExpr).Value.Text != "x" {
 			t.Fatal(call.Args)
 		}
-		if selectStmt.IsSingleton() != (selectStmt.From == nil) {
-			t.Fatal("singleton admission", selectStmt)
+		if (selectStmt.From != nil) != strings.HasSuffix(q, " FROM t") {
+			t.Fatal("source syntax", selectStmt)
 		}
 	}
 	statements, err := Parse("SELECT /*é*/ num_nulls(num_nonnulls(v),NULL,$1) FROM t")
@@ -52,7 +51,7 @@ func TestNullCountRawCalls(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := statements[0].(*Select).Targets[0].(FunctionExpr)
-		if len(call.Args) != 0 || !statements[0].(*Select).IsSingleton() {
+		if len(call.Args) != 0 || statements[0].(*Select).From != nil {
 			t.Fatal(call)
 		}
 	}
@@ -98,8 +97,7 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 		}
 	}
 	for _, q := range []string{
-		"SELECT 1", "SELECT num_nulls(NULL),1", "SELECT num_nulls(v)", "SELECT num_nulls(NULL) WHERE TRUE",
-		"SELECT num_nulls(NULL) ORDER BY 1", "SELECT num_nulls(VARIADIC ARRAY[1,NULL])",
+		"SELECT num_nulls(VARIADIC ARRAY[1,NULL])",
 		"SELECT id FROM t WHERE num_nulls(v)", "INSERT INTO t VALUES(num_nulls(NULL))",
 		"SELECT current_setting(num_nulls(NULL))", "SELECT f(1) FROM t",
 		"SELECT num_nulls(NULL)::int FROM t", "SELECT num_nulls(DISTINCT 1) FROM t",
@@ -120,22 +118,22 @@ func TestNullCountSyntaxAndBoundaries(t *testing.T) {
 	if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "42601" {
 		t.Fatal(statements, err)
 	}
-	selectStmt := &Select{Targets: []Expr{nullCountParserCall(ColumnExpr{Name: ObjectName{Parts: []Identifier{{Text: "v"}}}})}}
-	if selectStmt.IsSingleton() {
-		t.Fatal("column argument admitted to singleton")
+	for _, q := range []string{"SELECT num_nulls(v)", "SELECT num_nulls(NULL)", "SELECT num_nulls(v) FROM t"} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		s := statements[0].(*Select)
+		call, ok := s.Targets[0].(FunctionExpr)
+		if !ok || len(call.Args) != 1 || (s.From != nil) != strings.HasSuffix(q, " FROM t") {
+			t.Fatal(q, s)
+		}
 	}
-	selectStmt.Targets = []Expr{nullCountParserCall(LiteralExpr{Value: Value{Kind: NullValue}})}
-	if !selectStmt.IsSingleton() {
-		t.Fatal(selectStmt)
+	for _, q := range []string{"SELECT 1", "SELECT num_nulls(NULL),1", "SELECT num_nulls(v)", "SELECT num_nulls(NULL) WHERE TRUE", "SELECT num_nulls(NULL) ORDER BY 1"} {
+		if statements, err := Parse(q); err != nil || len(statements) != 1 || statements[0].(*Select).From != nil {
+			t.Fatal(q, statements, err)
+		}
 	}
-	selectStmt.From = &TableReference{Name: ObjectName{Parts: []Identifier{{Text: "t"}}}}
-	if selectStmt.IsSingleton() || !reflect.DeepEqual(selectStmt.From.(*TableReference).Name.Parts, []Identifier{{Text: "t"}}) {
-		t.Fatal(selectStmt)
-	}
-}
-
-func nullCountParserCall(arg Expr) FunctionExpr {
-	return FunctionExpr{Name: ObjectName{Parts: []Identifier{{Text: "num_nulls"}}}, Args: []Expr{arg}}
 }
 
 func TestNullCountVariadicKeywordContexts(t *testing.T) {

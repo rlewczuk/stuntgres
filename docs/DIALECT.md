@@ -42,11 +42,11 @@ for computed producers; native stored/view columns retain declared metadata.
 Quote keyword-labelled view columns (for example `"current_time"`) to read them;
 bare `current_time` is a new SQL value function, not a column reference.
 
-This bounded singleton support admits current-derived scalar expressions,
-including existing `normalize(CURRENT_DATE::TEXT)` and
-`CURRENT_DATE::TEXT IS NORMALIZED` consumers, not
-general no-FROM SELECT or adjacent now/clock_timestamp/statement_timestamp/
-transaction_timestamp functions, datetime arithmetic or additional catalogs.
+These current-derived scalar expressions, including
+`normalize(CURRENT_DATE::TEXT)` and `CURRENT_DATE::TEXT IS NORMALIZED`,
+use the ordinary query pipeline and its no-FROM local input. This does not add
+adjacent now/clock_timestamp/statement_timestamp/transaction_timestamp functions,
+datetime arithmetic or additional catalogs.
 Full shared scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeCurrent' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeCurrent' VERBOSE=0`.
 Feature smoke uses the same commands with `RUN='^TestReferenceDatetimeCurrentFeatureSmoke$'`.
@@ -156,10 +156,10 @@ zero/lone-surrogate escapes; malformed escapes/syntax report22P02 with JSON
 Context and original SQL literal Position. Raw invalid UTF8/NUL is encoding22021.
 Physical EOF in a Unicode escape is an invalid token; an actual nonhex character
 retains the four-hexadecimal-digits Detail.
-Standard/postfix casts add JSON identity and explicit TEXT↔JSON only, with the
-existing per-target bounded no-FROM convention; no generalized SELECT cutover.
-JSON typed literals are candidates for that convention; unrelated DATE/TIME/
-TIMESTAMP typed literals retain their existing no-FROM exclusion.
+Standard/postfix casts add JSON identity and explicit TEXT↔JSON only, through
+the shared expression binder. JSON typed literals compose in table and ordinary
+no-FROM SELECT without a syntax-only per-target witness. The local no-FROM unit
+does not broaden any type's cast or operator providers.
 Generic JSON[] and domains reuse existing associations. JSON has no ordinary
 equality/order/group/hash or B-tree provider. GROUP BY denial retains the key's
 original SQL source Position. Ordinary SELECT DISTINCT is supported, but JSON
@@ -197,8 +197,8 @@ The selected strict STABLE signatures are `to_char(timestamp,text) -> text`,
 `to_date(text,text) -> date` and `to_timestamp(text,text) -> timestamptz`.
 Ordinary and `pg_catalog`-qualified calls share scalar binding and compose in
 the existing query, DML, DEFAULT, CHECK, view and introspection consumers.
-Selected datetime no-FROM projections permit existing scalar siblings, but do
-not admit general no-FROM SELECT or singleton WHERE. INSERT expressions use the
+Datetime formatting uses ordinary no-FROM SELECT, including existing scalar
+siblings and WHERE. INSERT expressions use the
 existing INSERT surface; INSERT RETURNING remains an unsupported suffix, while
 UPDATE/DELETE RETURNING consume formatting expressions.
 Their STABLE classification excludes stored generated columns and expression
@@ -269,8 +269,8 @@ operands receive typed NULLs before WHERE. LEFT/RIGHT merged keys select their
 coerced preserved operand; FULL uses COALESCE with no physical output origin.
 Every source is authorized and captures one coherent selected statement view.
 Prepared execution rebinds all sources; eager results survive native Reset/Restore.
-LATERAL joins, derived SELECT, CTE and function FROM remain excluded;
-parenthesized VALUES is a supported non-lateral FROM operand.
+LATERAL joins, CTE and function FROM remain excluded; derived SELECT and
+parenthesized VALUES are supported non-lateral FROM operands.
 See [join contracts](QUERIES.md#inner-and-cross-joins--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`;
 independent pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQuery(OuterJoins|Joins)' VERBOSE=0`.
@@ -403,15 +403,15 @@ Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestOIDSmoke$' VERBOSE=0`.
 
 ### LIMIT, OFFSET and FETCH — change note
 
-Table SELECT, standalone/FROM VALUES, shared INSERT SELECT/decorated VALUES,
-stored scalar views and already-admitted singleton calls accept LIMIT/ALL, OFFSET [ROW/ROWS] and FETCH
+Table and ordinary no-FROM SELECT, standalone/FROM VALUES, shared INSERT
+SELECT/decorated VALUES and stored views accept LIMIT/ALL, OFFSET [ROW/ROWS] and FETCH
 FIRST/NEXT [count] ROW/ROWS ONLY. OFFSET and LIMIT/FETCH accept either order;
 FETCH defaults to1. Bounds use BIGINT assignment conversion and evaluate once,
 OFFSET first. NULL OFFSET is0, NULL LIMIT/ALL unlimited; negative bounds give
 2201X/2201W. LIMIT0 skips producing children but retains full analysis, source/
 destination authorization, metadata and bound diagnostics. Nonblocking predicates/
 views/joins are demand-driven; Sort/aggregate and local count are effect/lock
-frontiers. WITH TIES, comma LIMIT and ordinary no-FROM SELECT remain excluded.
+frontiers. WITH TIES and comma LIMIT remain excluded.
 See [demand and persistence](QUERIES.md#limit-offset-and-fetch--change-note-changelog).
 Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
 
@@ -526,12 +526,10 @@ independent native0A000 suffix boundary rather than aggregate-clause parity.
 Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAggSmoke$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
 
-Grouping does not admit standalone SELECT without FROM,
+Grouping uses the ordinary no-FROM local input. It does not add
 aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg/min/max,
 FILTER/DISTINCT/ALL/OVER, in-call ordering of sibling aggregates, DISTINCT/ALL grouping,
-grouping sets/ROLLUP/CUBE/empty grouping sets.
-No-FROM aggregate exclusion applies recursively across all targets, including
-siblings of selected sequence/REGCLASS singleton expressions. Group-expression
+grouping sets/ROLLUP/CUBE/empty grouping sets. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
 from runtime typed grouping equality.
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAggregateSmokeMigration$' VERBOSE=0`;
@@ -587,16 +585,15 @@ Existing native join/view predicate boundaries also retain operand demand where
 PostgreSQL may avoid an already-rejected operand. Physical row replacement and
 predicate requalification remain supported; this adds no expression replay.
 Stored views deparse and round-trip through native controls with owned metadata
-and results. No derived SELECT, LATERAL or new locking syntax is added.
+and results. LATERAL and additional locking syntax remain excluded.
 See [VALUES contracts](QUERIES.md#standalone-and-from-values--change-note-changelog).
 Independent pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryFromValues' VERBOSE=0`.
 
 
 INSERT additionally accepts SELECT sources with the existing projection/filter/
-expression-ordering surface, parenthesized sources and INSERT-only no-FROM literal/
+expression-ordering surface, parenthesized sources and ordinary no-FROM literal/
 parameter/scalar projections. Empty `(SELECT)` is one zero-width occurrence;
-`SELECT FROM source` retains table occurrence/filter semantics. These INSERT-only
-forms do not expand standalone SELECT. Explicit targets match source
+`SELECT FROM source` retains table occurrence/filter semantics. Explicit targets match source
 schema width; implicit targets map first N live columns. Omitted columns use
 declared defaults or typed NULL and enforce NOT NULL. SERIAL uses ordinary
 width-checked defaults, distinct from identity overrides. The minimum fixed
@@ -738,7 +735,7 @@ cancellation discard transactional deletes atomically, not sequence draws.
 Postpublication consumer cancellation does not undo deletion.
 Dump/Restore persists committed survivors/objects and sequence state, not
 RETURNING cursors/history; its mutation-script whitelist is not widened.
-Whole-row records, scalar subqueries, absent windows/SRFs, triggers/FKs,
+Whole-row records, absent windows/SRFs, triggers/FKs,
 view writes/rewrite-to-UPDATE and physical tuple/C/wire metadata remain
 PostgreSQL-only boundaries. See [output details](QUERIES.md#delete-returning--change-note).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestDeleteReturning(Smoke|ControlsSmoke)$' VERBOSE=0`;
@@ -756,7 +753,7 @@ signature. Output/constraint/cancellation failure publishes no partial replaceme
 or output, following existing abort/savepoint rules; sequence draws are not undone.
 Dump/Restore persists committed live data/catalog/sequence state, not output/history;
 its script whitelist is unchanged. Triggers, whole-row records/record expansion,
-scalar subqueries, view writes/rewrites/rules/partition movement and physical/C/wire
+view writes/rewrites/rules/partition movement and physical/C/wire
 tuple metadata are genuine PostgreSQL-only mechanisms, not native no-ops.
 See [UPDATE output details](QUERIES.md#update-returning--change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`; pinned mode: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceUpdateReturning(MigratedSmoke|ControlsSmoke)' VERBOSE=0`.
@@ -1000,7 +997,7 @@ UPDATE supports schema-qualified/quoted target relations, AS/bare target aliases
 ordered scalar SET assignments, supported inner/outer FROM trees and optional Boolean WHERE.
 SET destinations remain bare physical target columns; qualification applies to
 RHS/WHERE and RETURNING. FROM reuses table/view aliases, ON/USING/NATURAL and joins.
-Row/subquery assignment, CURRENT OF and DEFAULT remain excluded. Existing scalar
+Row assignment, CURRENT OF and DEFAULT remain excluded. Scalar subquery assignments and existing scalar
 casts/functions and RETURNING are admitted through the same expression binder.
 Arithmetic retains its operand/type boundaries, NULL propagation and division/overflow errors, with no new provider.
 Assignments are simultaneous against one old row, preserve unassigned fields,
@@ -1109,10 +1106,10 @@ common-type conversion. They are immutable, nonstrict and return nonnull INT4
 Explicit NULL positions count; zero, false and empty strings are nonnull.
 Their decoded counts sum to the ordinary argument count.
 
-The only added FROM-less form has every target rooted in a selected call, with
-literal/parameter/nested-call arguments, no column references and no extra clauses.
-It feeds a singleton through the existing binder/project/finalization pipeline,
-returning one row and Exec RowsAffected1; table calls retain input multiplicity,
+No-FROM projections use the ordinary local one-row input and the existing
+binder/project/finalization pipeline, without a selected-call witness or
+an implicit relation namespace. Function argument restrictions remain unchanged.
+One demanded local occurrence returns one row and Exec RowsAffected1; table calls retain input multiplicity,
 actual-used-column authorization and empty-result metadata.
 Direct and prepared calls share this path. ANY does not infer a parameter type:
 standalone `num_nulls($1)`/`num_nonnulls($1)` fail42P18 regardless of supplied Go
@@ -1135,20 +1132,18 @@ DISTINCT, in-call ORDER BY, FILTER, OVER, star/named arguments
 remain exclusions rather than PostgreSQL diagnostic-parity claims.
 Computed arithmetic in table-backed selected null-count arguments fails native0A000
 `arithmetic in null-count arguments is unsupported` at the operator, including
-nested calls. Computed arguments in the singleton no-FROM form instead fail
-the existing admission check with0A000 `SELECT without FROM is unsupported`
-at SELECT (character1), before function binding. Former signed numeric literal
-inputs remain admitted; arithmetic does not broaden this selected call surface.
-Character casts are also ordinary call operands; the selected-call singleton
-argument rules admit literal/parameter/nested-call casts without columns.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestNullCountSmoke$' VERBOSE=1`;
-independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNullCount' VERBOSE=1`.
+nested calls. The same binder diagnostic applies without FROM; the local
+unit does not bypass selected argument restrictions. Former signed numeric
+literal inputs remain admitted; arithmetic does not broaden this call surface.
+Character casts remain ordinary call operands.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceNullCount' VERBOSE=0`;
+independent reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceNullCount' VERBOSE=0`.
 
 ### Random functions — change note
 
 Selected projection/nested-argument calls now include PostgreSQL18 `random`,
 `random_normal` and `setseed`, through the existing direct/prepared expression
-pipeline and selected-call-only singleton exception:
+pipeline and ordinary no-FROM local input:
 
 | Call | Result | Behavior |
 |---|---|---|
@@ -1177,9 +1172,9 @@ All selected random calls are volatile and strict. Preparing/describing them
 does not invoke them. Literal NULL can eliminate a call and its volatile sibling
 arguments after type analysis; runtime NULL still evaluates all sibling arguments
 before suppressing the provider. Each evaluated row receives its own draw.
-Table-backed arguments may use existing integer arithmetic/conditional/group
-expressions; this does not widen the singleton arithmetic admission rule or add
-general functions/casts, WHERE, DEFAULT, INSERT VALUES or settings-call support.
+Arguments may use existing integer arithmetic/conditional/group expressions
+through the ordinary query pipeline. This does not add general functions/casts
+or random-call support in WHERE, DEFAULT, INSERT VALUES or settings.
 
 One lazy physical-session generator is shared by all overloads and normal calls.
 Repeated valid seed repeats that session's subsequent mixed series. Pool return,
@@ -1531,14 +1526,13 @@ PostgreSQL LATIN1 control rejects nonNULL casefold, including empty text, with
 documented native0A000 boundary, not silently ASCII matching; plain LIKE works.
 Case expressions use existing queries/writes/RETURNING/defaults/CHECKs/views,
 stored deparsing and native replay. Parenthesized DEFAULT forms retain current
-grammar limits; no arbitrary singleton expression or bare DEFAULT-call admission.
+grammar limits; no new bare DEFAULT-call admission.
 Compact/pretty stored expression and CHECK presentation quotes collation
 identifiers only when required: `pg_unicode_fast` remains unquoted, while
 `"C"` and `"POSIX"` retain their case-preserving quotes. Returned SQL is executable.
 Qualified and unqualified case calls use the existing selected-string scalar
-grammar, including its bounded no-FROM exception. Plain LIKE/ILIKE projections
-without a selected-string expression still require FROM; activating Unicode
-collations does not broaden standalone SELECT admission.
+grammar within ordinary table and no-FROM queries. Plain LIKE/ILIKE projections
+use the same local input, subject to their existing provider/collation restrictions.
 
 Normalization uses pinned Unicode16 canonical/compatibility data, recursive
 decomposition, stable canonical ordering, exclusions, blocking and algorithmic
@@ -1550,8 +1544,8 @@ with a separate release-boundary regression. Normalization performs no case
 folding, locale conversion, stream-safe CGJ insertion or truncation.
 
 These expressions compose in existing queries, writes/RETURNING, grouping,
-defaults/checks, views and native Dump/Restore. Bounded selected-string no-FROM
-SELECT is supported, not arbitrary scalar singletons. Native text stays UTF8;
+defaults/checks, views and native Dump/Restore, including ordinary no-FROM
+SELECT with existing scalar siblings. Native text stays UTF8;
 there is no server-encoding configuration. The independent LATIN1 PostgreSQL
 oracle records nonnull normalization's encoding restriction; strict NULL still
 bypasses it. Input UTF8/NUL validation remains at existing textual boundaries.
@@ -2220,7 +2214,7 @@ closed Rows. Native DATE/TIME comparisons reject42883. DATE/TIMESTAMP
 comparisons are supported with the same PostgreSQL semantics, including midnight
 equality, civil-day ordering, infinities and SQL NULL propagation.
 Selected datetime casts and TimeZone/DateStyle are supported as documented in
-[temporal types](TYPES.md#time-zone-aware-values); arithmetic and ordinary no-FROM SELECT remain excluded. CURRENT_DATE is supported as a bounded SQL value function. Smoke:
+[temporal types](TYPES.md#time-zone-aware-values); temporal arithmetic remains excluded. CURRENT_DATE is supported as a bounded SQL value function. Ordinary no-FROM SELECT uses the shared query path. Smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestDateSmoke$' VERBOSE=1`; independent pinned reference:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDate' VERBOSE=1`.
 
@@ -2358,8 +2352,8 @@ the ordinary typed binder/providers. Definition binding and Dump do not invoke
 providers. Parameters, aggregates and outside-row references are forbidden.
 ctid/xmin/cmin/xmax/cmax report CHECK-specific42P10; tableoid is PostgreSQL's
 exception but remains undefined in the native ordinary system-column surface.
-Subquery/window/SRF grammar, other CHECK modifiers, inheritance and ALTER
-ADD CHECK/VALIDATE are not added.
+Subqueries retain the CHECK-specific semantic exclusion; window/SRF grammar,
+other CHECK modifiers, inheritance and ALTER ADD CHECK/VALIDATE are not added.
 
 After defaults/coercions and NOT NULL, the shared completed-row validator admits
 TRUE/NULL and rejects FALSE with23514, actual Schema/Table/Constraint and
@@ -3336,4 +3330,27 @@ storage behavior is added.
 See [the design](design/PG18-INDEX-MAINTENANCE.md).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexMaintenance(Smoke|ControlsSmoke|DecoratedLifecycle|EnumProviders)' VERBOSE=0`;
 repeat with `REFERENCE=1` for the independent pinned oracle.
+
+## Subqueries and derived SELECT — change note
+
+Scalar, EXISTS, IN/NOT IN, comparison ANY/SOME/ALL and row/single-row comparison
+subqueries share typed binding and demand execution with ordinary SELECT.
+Scalar output requires one column; no row yields typed NULL and a second row
+raises21000. Quantified reductions retain SQL NULL/empty-input semantics.
+FROM derived SELECT supports optional aliases/column aliases, without LATERAL.
+Nearest visible query frames provide legal correlation; same-level derived
+siblings remain inaccessible. Ordinary no-FROM SELECT uses a local one-row
+input rather than a selected-function whitelist.
+
+All nested sources are admitted and authorized before execution, including
+ignored EXISTS targets. Eligible EXISTS may discard root target-only output,
+plain GROUP BY, ordinary DISTINCT and ORDER work; actual aggregates, HAVING,
+OFFSET (even zero), rowmarks and nonremovable LIMIT retain ordinary demand.
+Required predicates and derived projections remain demanded; see the linked
+eligibility contract. Source captures share the enclosing statement snapshot.
+UPDATE/DELETE/INSERT consumers and
+RETURNING use the same analyzer; DEFAULT/CHECK exclusions remain. Stored views
+retain nested frames, source identities and dependencies across rename,
+deparse, catalog remap and native Dump/Restore.
+See [the full contract](QUERIES.md#subqueries-and-derived-select--change-note-changelog).
 

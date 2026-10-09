@@ -61,12 +61,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ObjectRef, 
 		}
 		catalog := e.privateCatalogLocked(scope.owner.catalog)
 		leaves := make([]queryLeaf, len(definition.sources))
-		marks := queryRootRowMarks(definition.query.Root)
 		for i, leaf := range definition.sources {
 			relation := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
-			leaves[i] = queryLeaf{ref: leaf.ref, relation: relation, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: queryOccurrenceMark(marks, i, queryRowMark{})}
+			leaves[i] = queryLeaf{ref: leaf.ref, relation: relation, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark)}
 		}
-		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, mark, locks)
+		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, queryRowMark{}, locks)
 		e.mu.Unlock()
 		if err != nil {
 			return nil, err

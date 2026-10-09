@@ -35,8 +35,8 @@ func TestReferenceUpdateFromBoundaries(t *testing.T) {
 						run(referenceExec("INSERT INTO r VALUES(3,30)", 1))
 					}
 					expected := [][]any{{int64(1), int64(10)}, {int64(2), int64(20)}, {int64(3), int64(30)}}
-					outer := tc.name == "left" || tc.name == "right" || tc.name == "full"
-					if b.pg || outer {
+					shared := tc.name == "left" || tc.name == "right" || tc.name == "full" || tc.name == "scalar_correlation" || tc.name == "target_derived"
+					if b.pg || shared {
 						if tc.code != "" {
 							want := controlsReferenceDiagnostic(tc.code, tc.message)
 							want.Position = updateFromPosition(tc.q, tc.token)
@@ -64,7 +64,7 @@ func TestReferenceUpdateFromBoundaries(t *testing.T) {
 							_, err = c.ExecContext(p.ctx, tc.q)
 						}
 						if err == nil {
-							t.Fatal("excluded LATERAL/subquery mechanism succeeded")
+							t.Fatal("excluded LATERAL mechanism succeeded")
 						}
 					}
 					run(referenceSelect("SELECT id,v FROM t ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, expected))

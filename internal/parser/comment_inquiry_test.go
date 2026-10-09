@@ -12,7 +12,7 @@ func TestCommentInquiryRawCalls(t *testing.T) {
 			}
 			s := ss[0].(*Select)
 			f, ok := s.Targets[0].(FunctionExpr)
-			if !ok || f.Name.Parts[1].Text != name || f.Pos.Character != 14 || !s.IsSingleton() {
+			if !ok || f.Name.Parts[1].Text != name || f.Pos.Character != 14 || s.From != nil || s.Values != nil {
 				t.Fatal(q, f, s)
 			}
 		}

@@ -14,16 +14,14 @@ func TestMathSignatures(t *testing.T) {
 			t.Fatal(query, err)
 		}
 		selectStatement, ok := s[0].(*Select)
-		if !ok || !selectStatement.IsSingleton() {
+		if !ok || selectStatement.From != nil || selectStatement.Values != nil {
 			t.Fatal(query, s)
 		}
 	}
 	for _, query := range []string{"SELECT round(1+1)", "SELECT 1"} {
 		s, err := Parse(query)
-		if err == nil && len(s) == 1 {
-			if selected, ok := s[0].(*Select); ok && selected.IsSingleton() {
-				t.Fatal("broadened singleton", query)
-			}
+		if err != nil || len(s) != 1 || s[0].(*Select).From != nil || len(s[0].(*Select).Targets) != 1 {
+			t.Fatal("no-FROM expression syntax", query, s, err)
 		}
 	}
 	for _, query := range []string{"CREATE TABLE m(round INT,scale INT)", "SELECT round,scale FROM m"} {

@@ -36,11 +36,18 @@ func (e deleteNewExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 type updateOldExpression struct{ columnExpression }
 
 func (e updateOldExpression) Eval(c *EvalContext) (sqltype.Value, error) {
-	if c == nil {
+	if err := evaluationContext(c); err != nil {
+		return sqltype.Value{}, err
+	}
+	parent := c
+	for parent != nil && (parent.Scope != e.scope || parent.Frame != e.frame) {
+		parent = parent.Outer
+	}
+	if parent == nil {
 		return e.columnExpression.Eval(c)
 	}
-	old := *c
-	old.Row = c.OldRow
+	old := *parent
+	old.Context, old.Row = c.Context, parent.OldRow
 	return e.columnExpression.Eval(&old)
 }
 
@@ -164,7 +171,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, update bool) (*b
 			if err != nil {
 				return nil, err
 			}
-			name, _ := expressionName(expression, expr.ResultUsage())
+			name, _ := expressionName(expression, expr.ResultUsage(), expr)
 			if target < len(raw.Labels) && raw.Labels[target].Text != "" {
 				name = raw.Labels[target].Text
 			}
@@ -293,4 +300,56 @@ func preflightReturning(c *EvalContext, output *boundReturning) (*boundReturning
 	private := *output
 	private.expressions = expressions
 	return &private, nil
+}
+
+// Pseudo namespaces participate at their actual lexical RETURNING scope.
+// Ordinary nearer FROM aliases shadow them; a child query never changes the
+// statement's target relation or OLD/NEW row ownership.
+func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBindingScope, bool) {
+	if len(name.Parts) != 1 {
+		return nil, false
+	}
+	label := name.Parts[0].Text
+	if b.queryNamespace != nil {
+		for _, q := range b.queryNamespace.qualifiers {
+			if q.name == label {
+				return nil, false
+			}
+		}
+	}
+	for i := len(b.queryScopes) - 1; i >= 0; i-- {
+		scope := &b.queryScopes[i]
+		if !scope.allowed {
+			continue
+		}
+		if scope.namespace != nil {
+			for _, q := range scope.namespace.qualifiers {
+				if q.name == label {
+					return nil, false
+				}
+			}
+		}
+		if scope.returning == nil {
+			continue
+		}
+		if scope.returning.old != "" && label == scope.returning.old {
+			return scope, false
+		}
+		if scope.returning.new != "" && label == scope.returning.new {
+			return scope, true
+		}
+	}
+	return nil, false
+}
+
+func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot int, pos parser.Position, newValues bool) BoundExpr {
+	column := b.columnAtOf(scope.relation, slot, pos).(columnExpression)
+	column.frame = scope.frame
+	if scope.returning.update && !newValues {
+		return updateOldExpression{column}
+	}
+	if !scope.returning.update && newValues {
+		return deleteNewExpression{column}
+	}
+	return column
 }

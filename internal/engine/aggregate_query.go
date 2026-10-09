@@ -8,10 +8,11 @@ import (
 
 type aggregateNode struct {
 	querySchema
-	child    LogicalNode
-	keys     []BoundExpr
-	grouping []sqltype.Grouping
-	calls    []aggregateCall
+	child        LogicalNode
+	keys         []BoundExpr
+	grouping     []sqltype.Grouping
+	calls        []aggregateCall
+	presenceOnly bool // Retain analyzed grouping while discarding eligible EXISTS demand.
 }
 type queryGroup struct {
 	keys    []sqltype.Value
@@ -20,6 +21,9 @@ type queryGroup struct {
 }
 
 func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode) (indexedStage, error) {
+	if n.presenceOnly {
+		return openQueryNode(ctx, state, n.child)
+	}
 	child, err := openQueryNode(ctx, state, n.child)
 	if err != nil {
 		return indexedStage{}, err
@@ -72,7 +76,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 			return indexedStage{}, err
 		}
 	}
-	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1, Parameters: state.parameters, statementScope: state.source.scope, Input: state.input, Output: state.output}
+	evaluation := state.evaluation(ctx)
 	for i := range child.count() {
 		if err := ctx.Err(); err != nil {
 			return indexedStage{}, err
@@ -193,15 +197,12 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 		}
 		rows[i] = row
 	}
-	// Transfer this execution owner's layout only after every group finalizes.
-	// The original immutable relation pin is no longer needed by downstream work.
-	source := child.source
+	// A nested aggregate borrows the captured input occurrence. Its grouped
+	// layout must not replace or close that shared source (or an outer frame).
+	source := &querySource{anonymous: rows, materialized: true, flatCount: len(rows), scope: child.source.scope, locks: child.source.locks}
 	if err := child.Close(); err != nil {
 		return indexedStage{}, err
 	}
-	source.close()
-	source.anonymous = rows
-	source.materialized, source.flatCount = true, len(rows)
 	return indexedStage{source: source, schema: n.Schema()}, nil
 }
 

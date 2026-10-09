@@ -13,14 +13,36 @@ func TestJSONTypedLiteralSyntax(t *testing.T) {
 			t.Fatal(q, err)
 		}
 		selected := statements[0].(*Select)
-		if !selected.IsTypeSingleton() {
-			t.Fatal("missing bounded syntax candidate", q)
+		if selected.From != nil || len(selected.Targets) != 1 {
+			t.Fatal("no-FROM JSON expression lost its target", q)
 		}
 	}
 	for _, q := range []string{`SELECT json 'null' WHERE TRUE`, `SELECT json 'null' ORDER BY 1`, `SELECT json 'null' GROUP BY 1`, `SELECT json 'null' FOR UPDATE`} {
 		statements, err := Parse(q)
-		if err == nil && statements[0].(*Select).IsTypeSingleton() {
-			t.Fatal("unbounded candidate", q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+		selected := statements[0].(*Select)
+		if selected.From != nil || len(selected.Targets) != 1 {
+			t.Fatal("ordinary no-FROM JSON expression lost its target", q)
+		}
+		switch q {
+		case `SELECT json 'null' WHERE TRUE`:
+			if selected.Where == nil {
+				t.Fatal("missing WHERE", q)
+			}
+		case `SELECT json 'null' ORDER BY 1`:
+			if selected.Order == nil {
+				t.Fatal("missing ORDER BY", q)
+			}
+		case `SELECT json 'null' GROUP BY 1`:
+			if len(selected.GroupBy) != 1 {
+				t.Fatal("missing GROUP BY", q)
+			}
+		case `SELECT json 'null' FOR UPDATE`:
+			if selected.Locking == nil {
+				t.Fatal("missing row mark", q)
+			}
 		}
 	}
 	_, err := Parse("CREATE TABLE m(v json(2))")

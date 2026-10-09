@@ -71,7 +71,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 				}
 				return sqltype.Boolean(boolean, true), nil
 			})
-			result, err := scope.deleteSource(b, source, nil)
+			result, err := scope.deleteSource(b, source, nil, nil)
 			want := sentinel
 			if phase != "late_predicate" {
 				want = context.Canceled
@@ -167,7 +167,7 @@ func TestDeleteCoreExplicitFailure(t *testing.T) {
 		}
 		return sqltype.Boolean(boolean, true), nil
 	})
-	_, err := scope.deleteSource(binding, source, nil)
+	_, err := scope.deleteSource(binding, source, nil, nil)
 	if err = scope.Finish(err); err != sentinel {
 		t.Fatal(err)
 	}

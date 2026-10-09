@@ -141,11 +141,6 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 	if err != nil {
 		return nil, err
 	}
-	for _, arg := range [2]BoundExpr{value, separator} {
-		if inner := aggregateOccurrence(arg); inner != nil {
-			return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
-		}
-	}
 	properties := mergeExpressionProperties(value.Properties(), separator.Properties())
 	properties.StageDependent = true
 	keys := make([]sortKey, len(raw.Order))
@@ -157,9 +152,6 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 		expression, err = b.finalizeProjection(expression)
 		if err != nil {
 			return nil, err
-		}
-		if inner := aggregateOccurrence(expression); inner != nil {
-			return nil, expressionError("42803", "aggregate function calls cannot be nested", inner.pos)
 		}
 		if expression.CollationIndeterminate() {
 			left, right, position := expression.ImplicitCollationConflict()
@@ -196,7 +188,7 @@ func (b *expressionBinder) bindStringAggregate(raw parser.AggregateExpr, name pa
 	if slot == len(b.aggregates) {
 		b.aggregates = append(b.aggregates, call)
 	}
-	return aggregateExpression{info, slot}, nil
+	return aggregateExpression{expressionInfo: info, slot: slot, frame: b.frameID()}, nil
 }
 func (b *expressionBinder) sameStringAggregate(a, other aggregateCall) bool {
 	if other.operation != aggregateString || a.provider.ResultUsage() != other.provider.ResultUsage() || len(a.order) != len(other.order) || !b.sameGroupExpression(a.argument, other.argument) || !b.sameGroupExpression(a.separator, other.separator) {

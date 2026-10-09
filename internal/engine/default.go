@@ -825,6 +825,15 @@ func (r scalarRenderer) record(ref ObjectRef) {
 // scalar trees to those types without evaluating them or changing captured
 // values, positions or expression properties.
 func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor) (BoundExpr, bool, error) {
+	return retagBoundTypesWithQuery(node, retainedType, func(root LogicalNode) (LogicalNode, error) {
+		if !queryDescriptorsChanged(root, retainedType) {
+			return root, nil
+		}
+		return remapViewQuery(root, func(ref ObjectRef) ObjectRef { return ref }, retainedType)
+	})
+}
+
+func retagBoundTypesWithQuery(node BoundExpr, retainedType func(*sqltype.Descriptor) *sqltype.Descriptor, queryMapper func(LogicalNode) (LogicalNode, error)) (BoundExpr, bool, error) {
 	if node == nil {
 		return nil, false, nil
 	}
@@ -839,7 +848,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		}
 		var next BoundExpr
 		var replaced bool
-		next, replaced, err = retagBoundTypes(old, retainedType)
+		next, replaced, err = retagBoundTypesWithQuery(old, retainedType, queryMapper)
 		changed = changed || replaced
 		return next
 	}
@@ -863,6 +872,49 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 				return nil, false, err
 			}
 		}
+		rebound = n
+	case subqueryExpression:
+		if queryMapper != nil {
+			root, failure := queryMapper(n.queryPlan.Root)
+			if failure != nil {
+				return nil, false, failure
+			}
+			if root != n.queryPlan.Root {
+				copy := *n.queryPlan
+				copy.Root = root
+				n.queryPlan = &copy
+				changed = true
+			}
+		}
+		var comparisons []comparisonExpression
+		for i, old := range n.comparisons {
+			next := child(old)
+			if err != nil {
+				return nil, false, err
+			}
+			if changed && comparisons == nil {
+				comparisons = append([]comparisonExpression(nil), n.comparisons...)
+			}
+			if comparisons != nil {
+				comparisons[i] = next.(comparisonExpression)
+			}
+		}
+		if !changed {
+			return node, false, nil
+		}
+		if comparisons != nil {
+			n.comparisons = comparisons
+		}
+		if len(n.ordering) != 0 {
+			n.ordering = make([]sqltype.Comparison, len(n.comparisons))
+			for i, c := range n.comparisons {
+				n.ordering[i], err = sqltype.BindComparison(c.left.ResultUsage().Type, c.right.ResultUsage().Type)
+				if err != nil {
+					return nil, false, err
+				}
+			}
+		}
+		n.expressionInfo = info
 		rebound = n
 	case deparseExpression:
 		n.args = append([]BoundExpr(nil), n.args...)

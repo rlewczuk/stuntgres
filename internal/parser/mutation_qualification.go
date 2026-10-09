@@ -35,6 +35,10 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 	var children []Expr
 	hideQualification := false
 	switch e := expr.(type) {
+	case SubqueryExpr:
+		absorb(e.Left) // Child queries own their qualification policy.
+	case RowExpr:
+		children = e.Fields
 	case AggregateExpr:
 		inCast = true
 		for _, arg := range e.Args {
@@ -124,12 +128,16 @@ func scanDeleteQualification(expr Expr, inCast bool) deleteQualificationResult {
 }
 
 // Nonquery scalar entry points retain their raw dot/cast boundary. Direct
-// UPDATE assignments and no-FROM projections used capability errors at the dot.
+// UPDATE assignments used capability errors at the dot.
 // Conditional arguments used DELETE operand grammar, retaining their later
 // consumer diagnostic instead of a blanket qualification rejection.
 func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	var children []Expr
 	switch e := expr.(type) {
+	case SubqueryExpr:
+		return nonqueryQualification(e.Left, assignment)
+	case RowExpr:
+		children = e.Fields
 	case AggregateExpr:
 		for _, arg := range e.Args {
 			if token, reject := nonqueryQualification(arg, assignment); token != nil {
@@ -200,31 +208,6 @@ func nonqueryQualification(expr Expr, assignment bool) (*lexeme, bool) {
 	return nil, false
 }
 
-func (l *lexer) nonqueryProjection(targets []Expr) bool {
-	for _, target := range targets {
-		var token *lexeme
-		var capability bool
-		if star, ok := target.(StarExpr); ok {
-			if len(star.Qualifier.Parts) > 0 {
-				token = &lexeme{raw: ".", pos: star.QualificationPos}
-				capability = true
-			}
-		} else {
-			token, capability = nonqueryQualification(target, true)
-		}
-		if token == nil {
-			continue
-		}
-		if capability {
-			l.failAt("0A000", "qualified column references are unsupported", token.pos.Offset)
-		} else {
-			l.syntax(*token)
-		}
-		return false
-	}
-	return true
-}
-
 // Preserve grouping provenance only for raw qualifiers newly parsed by the
 // shared scalar grammar. Conditional arguments already admitted qualification;
 // their DELETE-operand policy remains authoritative and ignores this marker.
@@ -235,6 +218,16 @@ func groupedQualification(expr Expr) Expr {
 
 func markGroupedQualification(expr Expr) (Expr, bool) {
 	switch e := expr.(type) {
+	case SubqueryExpr:
+		left, changed := markGroupedQualification(e.Left)
+		if changed {
+			e.Left = left
+			return e, true
+		}
+	case RowExpr:
+		for i, field := range e.Fields {
+			e.Fields[i], _ = markGroupedQualification(field)
+		}
 	case AggregateExpr:
 		for i, child := range e.Args {
 			e.Args[i], _ = markGroupedQualification(child)
