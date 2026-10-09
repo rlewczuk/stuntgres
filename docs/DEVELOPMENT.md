@@ -5,19 +5,19 @@
 ```sh
 make generate   # pinned goyacc; checked-in parser generation
 make build      # compile production packages
-make quickcheck # ordinary units, smoke and quick-mode reference; no Docker
-make fullcheck  # after merge: generate/build, quick + native/reference race, bench/deps
+make quickcheck # generate, then ordinary units, smoke and quick-mode reference; no Docker
+make fullcheck  # after merge: build, quickcheck + native/reference race, bench/deps
 make bench      # fresh engine + connector + pool + Ping + Close, five runs
 make deps       # list non-standard production dependencies
 ```
 
 Each `make quickcheck` invocation enforces a fixed 900-second wall-clock deadline
-across all selected packages, including compilation, plus a per-package timeout.
+across parser generation and all selected packages, including compilation, plus a per-package timeout.
 Use `RACE=1` for race-enabled tests and `REFERENCE=1 PACKAGES=./reference` for
 real pinned PostgreSQL validation (the `reference` build tag and `-args -reference=true`).
 Slow or hanging tests must be fixed, not exempted.
-Run final `make fullcheck` after merge. It runs generation, build, quick native
-tests, race-enabled native tests and real pinned PostgreSQL reference tests,
+Run final `make fullcheck` after merge. It runs build, quick native tests,
+race-enabled native tests and real pinned PostgreSQL reference tests (each test run regenerates the parser),
 the five-run startup benchmark and production dependency checks serially under
 one 1800-second total deadline. It requires Docker and fails on external production
 dependencies. Commit any failure remedies separately from the merged task.
