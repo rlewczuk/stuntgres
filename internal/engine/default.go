@@ -541,11 +541,15 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		return "(" + left + " " + operator + " " + right + ")", nil
 	case arithmeticExpression:
-		if !integerArithmeticType(u.Type) || u != u.Type.Usage() || n.left == nil || n.left.ResultUsage() != u || n.right != nil && n.right.ResultUsage() != u {
+		if u != u.Type.Usage() || n.left == nil {
 			return "", fmt.Errorf("stuntgres: invalid default arithmetic operands")
 		}
-		provider, err := sqltype.BindArithmetic(n.operator, u.Type, n.right == nil)
-		if err != nil || provider != n.provider {
+		var rightType *sqltype.Descriptor
+		if n.right != nil {
+			rightType = n.right.ResultUsage().Type
+		}
+		provider, err := sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType)
+		if err != nil || provider != n.provider || provider.ResultType() != u.Type {
 			return "", fmt.Errorf("stuntgres: invalid default arithmetic binding")
 		}
 		var operator string
@@ -560,6 +564,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			operator = "/"
 		case sqltype.ArithmeticRemainder:
 			operator = "%"
+		case sqltype.ArithmeticPower:
+			operator = "^"
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default arithmetic operator")
 		}
@@ -571,10 +577,10 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			if err != nil {
 				return "", err
 			}
-			// A known BIGINT or typed NULL leaf must not become an INT4 or
-			// unknown operand on replay, changing width or unary resolution.
-			if literal, ok := child.(literalExpression); ok && (u.Type.ID() == sqltype.Int8 || literal.value.IsNull()) {
-				declaration, err := catalogTypeDeclaration(view, u)
+			// Preserve each leaf's own width, not its parent's result width.
+			cu := child.ResultUsage()
+			if literal, ok := child.(literalExpression); ok && (cu.Type.ID() != sqltype.Int4 || literal.value.IsNull()) {
+				declaration, err := catalogTypeDeclaration(view, cu)
 				if err != nil {
 					return "", err
 				}
@@ -1028,8 +1034,12 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		if !changed {
 			return node, false, err
 		}
-		if changed && err == nil {
-			n.provider, err = sqltype.BindArithmetic(n.operator, typ, n.right == nil)
+		if err == nil {
+			var rightType *sqltype.Descriptor
+			if n.right != nil {
+				rightType = n.right.ResultUsage().Type
+			}
+			n.provider, err = sqltype.BindArithmetic(n.operator, n.left.ResultUsage().Type, rightType)
 		}
 		n.expressionInfo = info
 		rebound = n

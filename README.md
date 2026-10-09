@@ -10,6 +10,17 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: floating `+`, unary `+`, `-`, unary `-`, `*`, `/` and `^`
+use PostgreSQL operand resolution and fixed REAL/DOUBLE PRECISION widths.
+Known integer/NUMERIC operands mixed with REAL widen to DOUBLE; unknown
+inputs retain REAL. Power is left-associative (`2^3^2=64`) and FLOAT8-selected
+integer power is supported. IEEE specials, checked range/domain diagnostics,
+stored expressions and native replacement use the existing execution seams.
+Exact NUMERIC-only arithmetic and floating `%` remain unavailable.
+See [floating arithmetic](docs/DIALECT.md#floating-arithmetic--change-note).
+Feature smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`.
+
 Change note: `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` declares a
 catalog-owned logical type over a supported scalar or bounded `NAME[]` base.
 Domain columns, direct/prepared input, inherited base typmods, operators/functions

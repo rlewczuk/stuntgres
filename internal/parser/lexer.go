@@ -558,7 +558,7 @@ func (l *lexer) scan(v *sqlSymType) int {
 			case "=>":
 				// Named arguments are not generic binary operators.
 				token = EQUALS_GREATER
-			case "+", "-", "*", "/", "%", "<", ">", "=":
+			case "+", "-", "*", "/", "%", "^", "<", ">", "=":
 				token = int(c)
 			default:
 				token = SYMBOLIC_OPERATOR

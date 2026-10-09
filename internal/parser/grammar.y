@@ -88,7 +88,7 @@ package parser
 %token <tok> LESS_EQUAL GREATER_EQUAL NOT_EQUAL EQUALS_GREATER
 %token <tok> SYMBOLIC_OPERATOR
 %token <tok> OPERATOR
-%token <tok> '+' '-' '*' '/' '%' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
+%token <tok> '+' '-' '*' '/' '%' '^' '[' ']' ':' '(' ')' '=' '<' '>' ',' '.'
 %token <tok> CREATE TABLE INSERT UPDATE INTO VALUES SELECT FROM WHERE ORDER BY ASC DESC NOT NULL TRUE FALSE OR
 %token <tok> DOMAIN
 %token <tok> HAVING
@@ -141,6 +141,7 @@ package parser
 %left SYMBOLIC_OPERATOR OPERATOR
 %left '+' '-'
 %left '*' '/' '%'
+%left '^'
 %left AT
 %right UNARY
 /* KW_T, LIKE and WITH also start suffixes. Shift an adjacent type tail before
@@ -876,6 +877,7 @@ scalar: scalar_atom { $$=$1 }
  | scalar '*' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar '/' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar '%' scalar { $$=arithmeticExpr($2,$1,$3) }
+ | scalar '^' scalar { $$=arithmeticExpr($2,$1,$3) }
  | scalar AT TIME ZONE scalar %prec AT { $$=TimeZoneExpr{Value:$1,Zone:$5,Pos:$2.pos} }
  | scalar AT LOCAL %prec AT { $$=TimeZoneExpr{Value:$1,Local:true,Pos:$2.pos} }
  | scalar SYMBOLIC_OPERATOR scalar { $$=arithmeticExpr($2,$1,$3) }
@@ -985,7 +987,7 @@ sequence_values: operand { $$=[]Expr{$1} }
 operand: scalar %prec NAME_LIST { $$=$1 } ;
 comparison_operator: '=' | '<' | '>' | LESS_EQUAL | GREATER_EQUAL | NOT_EQUAL ;
 qualified_operator: OPERATOR '(' name '.' operator_symbol ')' { $$=ObjectName{Parts:[]Identifier{{Text:$3.text,Pos:$1.pos},{Text:$5.text,Pos:$5.pos}}} } ;
-operator_symbol: '+' | '-' | '*' | '/' | '%' | SYMBOLIC_OPERATOR | comparison_operator ;
+operator_symbol: '+' | '-' | '*' | '/' | '%' | '^' | SYMBOLIC_OPERATOR | comparison_operator ;
 /* CREATE DEFAULT follows restricted b_expr; parenthesized targets retain the
  * ordinary predicate/logical surface without changing SELECT admission. */
 default_target: target_base %prec NAME_LIST { $$=$1 }

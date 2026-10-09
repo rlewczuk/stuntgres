@@ -78,3 +78,40 @@ func TestArithmeticSignedCastSingletonClassification(t *testing.T) {
 		}
 	}
 }
+
+func TestFloatingPowerGrammar(t *testing.T) {
+	for _, tc := range []struct {
+		query, outer, inner string
+		side                int
+	}{
+		{"SELECT 2^3^2 FROM t", "^", "^", 0},
+		{"SELECT 2^(3^2) FROM t", "^", "^", 1},
+		{"SELECT 2*3^2 FROM t", "*", "^", 1},
+		{"SELECT 2^3*2 FROM t", "*", "^", 0},
+		{"SELECT -(i^2) FROM t", "-", "^", 0},
+		{"SELECT -i^2 FROM t", "^", "-", 0},
+		{"SELECT 2 ^ -i FROM t", "^", "-", 1},
+		{"SELECT 2 OPERATOR(pg_catalog.^) 3 * 2 FROM t", "pg_catalog", "*", 1},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil {
+			t.Fatal(tc.query, err)
+		}
+		outer, ok := statements[0].(*Select).Targets[0].(OperatorExpr)
+		if !ok || outer.Name.Parts[0].Text != tc.outer {
+			t.Fatal(tc, outer)
+		}
+		inner, ok := outer.Args[tc.side].(OperatorExpr)
+		if !ok || inner.Name.Parts[0].Text != tc.inner {
+			t.Fatal(tc, inner)
+		}
+	}
+	statements, err := Parse("SELECT 2^-3 FROM t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	operator := statements[0].(*Select).Targets[0].(OperatorExpr)
+	if operator.Name.Parts[0].Text != "^-" || len(operator.Args) != 2 || operator.Pos.Character != 9 {
+		t.Fatal("maximal munch lost", operator)
+	}
+}

@@ -46,19 +46,11 @@ func TestReferenceArithmeticRemainingAcceptance(t *testing.T) {
 	p.step(t, referenceExec("INSERT INTO f VALUES(7,7)", 1))
 	for _, tc := range []struct{ expr, typ string }{{"r%r", "real"}, {"d%d", "double precision"}} {
 		q := "SELECT " + tc.expr + " FROM f"
-		pg := referenceImplicitError(q, referenceDiagnostic{Code: "42883", Message: "operator does not exist: " + tc.typ + " % " + tc.typ, Position: "9", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})
-		pg.selectRows = true
-		native := referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "arithmetic for " + tc.typ + " operands is unsupported", Position: "9"})
-		native.selectRows = true
-		pg.errorStage, native.errorStage = "execute", "execute"
-		if p.postgres != nil {
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, pg)
-			pg.errorStage = "prepare"
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(pg))
-		}
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-		native.errorStage = "prepare"
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referencePrepared(native))
+		step := referenceImplicitError(q, referenceDiagnostic{Code: "42883", Message: "operator does not exist: " + tc.typ + " % " + tc.typ, Position: "9", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})
+		step.selectRows, step.errorStage = true, "execute"
+		p.step(t, step)
+		step.errorStage = "prepare"
+		p.step(t, referencePrepared(step))
 	}
 	p.step(t, referenceExec("CREATE TABLE flags(f BOOL)", 0))
 	step := referenceImplicitError("INSERT INTO flags VALUES(+0x8000000000000000)", referenceDiagnostic{Code: "42804", Message: `column "f" is of type boolean but expression is of type numeric`, Position: "26", Hint: "You will need to rewrite or cast the expression."})

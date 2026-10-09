@@ -1647,7 +1647,7 @@ and late overflow/division failure publishes no deletion. DELETE aliases do
 not enable qualified arithmetic; qualified column atoms retain their existing
 comparison support. Arithmetic can coexist with existing DATE typed literals
 in projection without adding DATE arithmetic or new casts.
-Composition smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticDeleteCompositionSmoke$' VERBOSE=1`.
+Composition smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedDeleteSmoke$' VERBOSE=0`.
 
 Multiplication/division/remainder precede addition/subtraction; binary operators
 associate left, unary signs right. Division truncates toward zero and remainder
@@ -1675,7 +1675,7 @@ requires common source typing before destination assignment. Thus boolean and
 integer VALUES remain incompatible even when LIMIT would retain only the boolean
 row. The source smoke also executes `INSERT INTO good SELECT 1,7/2,-7%2`,
 asserting affected count 1 and persisted `(1,3,-1)` with INT4/INT4/INT8 destination
-metadata. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticInsertSourceContextualSmoke$' VERBOSE=1`.
+metadata. Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedInsertSourceSmoke$' VERBOSE=0`.
 
 Parameters obtain width from a known integer peer, in SQL occurrence order,
 not from the Go argument kind or assignment destination. Computed metadata is
@@ -1693,10 +1693,11 @@ visits arithmetic children even on empty or filtered input, preserving conversio
 errors without evaluating the arithmetic root early. Cast wrappers do not admit
 computed arithmetic arguments into the bounded null-count functions. Cast
 families and BYTEA capabilities remain unchanged.
-Composition smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticCastCompositionSmoke$' VERBOSE=1`.
+Composition smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedCastSmoke$' VERBOSE=0`.
 
-SMALLINT/NUMERIC/floating and other noninteger arithmetic remain explicitly
-unsupported, without changing their input/comparison/assignment capabilities.
+SMALLINT-only, exact NUMERIC-only and other nonnumeric arithmetic remain
+unsupported. Floating operators use fixed REAL/DOUBLE widths and PostgreSQL
+mixed numeric resolution; see [floating arithmetic](DIALECT.md#floating-arithmetic--change-note).
 Previously supported signed NUMERIC literal input, such as `+1.5`, remains a
 literal identity operation, not a NUMERIC arithmetic provider.
 Selected mathematical `mod` functions separately support SMALLINT, INTEGER,
@@ -1707,12 +1708,13 @@ ordinal, UPDATE and INSERT SELECT. They may wrap existing CASE scalar arms and
 count-star aggregates, but do not add selected function CASE result leaves or
 general GROUP BY call syntax.
 See [the bounded signature note](DIALECT.md#scale-and-rounding-functions--change-note).
-Unknown-only arithmetic fails `0A000`, `integer arithmetic requires known integer
-or bigint operands`; unlike PostgreSQL it does not select FLOAT8 for unary unknown
-`+` or emulate ambiguous full-provider overloads. Settings signatures, casts,
-functions, aliases and general SELECT-without-FROM remain bounded as before.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticSmoke$' VERBOSE=1`;
-real pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
+Unary unknown `+` and unknown power select FLOAT8; unary unknown minus and
+unknown-only binary +/- are ambiguous with PostgreSQL's `42725` diagnostic.
+Power associates left and binds above */%, below unary signs; floating `%`
+has no signature. Settings, functions and general SELECT-without-FROM
+remain bounded as before.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedSmoke$' VERBOSE=0`;
+real pinned reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(FloatingArithmetic|Arithmetic)' VERBOSE=0`.
 
 Integral bitwise `& | # ~ << >>` additionally support SMALLINT, INTEGER and
 BIGINT in the same general scalar consumers, plus defaults and view replay.

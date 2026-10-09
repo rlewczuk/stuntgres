@@ -1584,7 +1584,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 }
 func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw parser.OperatorExpr) error {
 	d, ok := err.(*sqlstate.Error)
-	if !ok || d.Code != "42883" {
+	if !ok || d.Code != "42883" && d.Code != "42725" {
 		return err
 	}
 	copy := *d
@@ -1600,6 +1600,10 @@ func operatorExpressionError(err error, left, right *sqltype.Descriptor, raw par
 	} else {
 		copy.Message = fmt.Sprintf("operator does not exist: %s %s %s", name(left), objectNameText(raw.Name), name(right))
 		copy.Hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
+	}
+	if copy.Code == "42725" {
+		copy.Message = strings.Replace(copy.Message, "operator does not exist:", "operator is not unique:", 1)
+		copy.Hint = "Could not choose a best candidate operator. You might need to add explicit type casts."
 	}
 	copy.Position = strconv.Itoa(raw.Pos.Character)
 	return &copy
@@ -1807,21 +1811,18 @@ func (e arithmeticExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	return e.provider.Binary(c.Context, a, v)
 }
 func arithmeticName(name string) bool {
-	return name == "+" || name == "-" || name == "*" || name == "/" || name == "%"
+	return name == "+" || name == "-" || name == "*" || name == "/" || name == "%" || name == "^"
 }
 func symbolicArithmeticName(name string) bool {
 	if len(name) < 2 {
 		return false
 	}
 	for _, c := range name {
-		if c != '+' && c != '-' && c != '*' && c != '/' && c != '%' {
+		if c != '+' && c != '-' && c != '*' && c != '/' && c != '%' && c != '^' {
 			return false
 		}
 	}
 	return true
-}
-func integerArithmeticType(t *sqltype.Descriptor) bool {
-	return t != nil && (t.BaseType().ID() == sqltype.Int4 || t.BaseType().ID() == sqltype.Int8)
 }
 func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
@@ -1863,6 +1864,8 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		operator = sqltype.ArithmeticDivide
 	case "%":
 		operator = sqltype.ArithmeticRemainder
+	case "^":
+		operator = sqltype.ArithmeticPower
 	}
 	left, err := b.comparisonOperand(raw.Args[0])
 	if err != nil {
@@ -1892,60 +1895,59 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 	if symbolicArithmeticName(name) {
 		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
 	}
-	// NAME has no arithmetic overloads. BOOL/TEXT with an integer (or unary
-	// BOOL/TEXT) likewise has a genuinely missing signature, not a native
-	// capability gap for an existing PostgreSQL arithmetic provider.
-	badSignature := func(t *sqltype.Descriptor) bool {
-		return t != nil && (t.ID() == sqltype.Bool || t.ID() == sqltype.Text)
+	signature, err := sqltype.ResolveArithmetic(operator, lt, rt, len(raw.Args) == 1)
+	if err != nil {
+		return nil, operatorExpressionError(err, lt, rt, raw)
 	}
-	if (lt != nil && lt.ID() == sqltype.Name) || (rt != nil && rt.ID() == sqltype.Name) || (len(raw.Args) == 1 && badSignature(lt)) || (integerArithmeticType(lt) && badSignature(rt)) || (badSignature(lt) && integerArithmeticType(rt)) {
-		return nil, operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "operator does not exist"}, lt, rt, raw)
+	typ := b.typ(signature.Result)
+	if signature.Result == sqltype.Numeric || signature.Result == sqltype.Int2 {
+		return nil, expressionError("0A000", fmt.Sprintf("arithmetic for %s operands is unsupported", typ.DiagnosticName()), raw.Pos)
 	}
-	for _, t := range []*sqltype.Descriptor{lt, rt} {
-		if t != nil && !integerArithmeticType(t) {
-			return nil, expressionError("0A000", fmt.Sprintf("arithmetic for %s operands is unsupported", t.DiagnosticName()), raw.Pos)
+	if signature.Result != sqltype.Float4 && signature.Result != sqltype.Float8 {
+		for _, source := range [...]*sqltype.Descriptor{lt, rt} {
+			if source != nil && source.ID() == sqltype.Int2 {
+				return nil, expressionError("0A000", "arithmetic for smallint operands is unsupported", raw.Pos)
+			}
 		}
+		// Existing integer providers evaluate mixed widths at their result width.
+		signature.Left = signature.Result
+		signature.Right = signature.Result
 	}
-	typ := lt
-	if typ == nil {
-		typ = rt
+	leftType := b.typ(signature.Left)
+	var rightType *sqltype.Descriptor
+	if len(raw.Args) == 2 {
+		rightType = b.typ(signature.Right)
 	}
-	if typ == nil {
-		return nil, expressionError("0A000", "integer arithmetic requires known integer or bigint operands", raw.Pos)
-	}
-	if rt != nil && rt.ID() == sqltype.Int8 {
-		typ = rt
-	}
-	provider, err := sqltype.BindArithmetic(operator, typ, len(raw.Args) == 1)
+	provider, err := sqltype.BindArithmetic(operator, leftType, rightType)
 	if err != nil {
 		return nil, err
 	}
-	finish := func(o comparisonOperand) (BoundExpr, error) {
+	finish := func(o comparisonOperand, target *sqltype.Descriptor) (BoundExpr, error) {
 		source := o.descriptor()
 		if source == nil {
-			source = typ
+			source = target
 		}
 		n, err := b.finalizeOperand(o, source)
 		if err != nil {
 			return nil, err
 		}
-		if source != typ {
-			plan, err := sqltype.PlanCoercion(n.ResultUsage(), typ.Usage(), sqltype.Implicit)
+		if source != target {
+			plan, err := sqltype.PlanCoercion(n.ResultUsage(), target.Usage(), sqltype.Implicit)
 			if err != nil {
 				return nil, err
 			}
-			n = coercionExpression{b.info(typ.Usage(), n.SourcePosition(), coercionProperties(n, plan)), n, plan, sqltype.Implicit}
+			n = coercionExpression{b.info(target.Usage(), n.SourcePosition(), coercionProperties(n, plan)), n, plan, sqltype.Implicit}
 		}
 		return n, nil
 	}
-	l, err := finish(left)
+	l, err := finish(left, leftType)
 	if err != nil {
 		return nil, err
 	}
 	var r BoundExpr
 	p := l.Properties()
 	if len(raw.Args) == 2 {
-		r, err = finish(right)
+		r, err = finish(right, rightType)
 		if err != nil {
 			return nil, err
 		}

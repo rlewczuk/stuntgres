@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -104,7 +102,7 @@ func referenceScalarFloatQuery(t *testing.T, ctx context.Context, db *sql.DB, re
 }
 
 func TestReferenceMathScalarFloatingOverloads(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE abs_float(id INT,r REAL,d DOUBLE PRECISION)", 0))
 	p.step(t, referenceExec("INSERT INTO abs_float VALUES(1,'-17.5','-17.5'),(2,'-0','-0'),(3,'0','0'),(4,'NaN','NaN'),(5,'Infinity','Infinity'),(6,'-Infinity','-Infinity'),(7,'17.5','17.5')", 7))
 	p.step(t, referenceExec("CREATE TABLE round_float(id INT,d DOUBLE PRECISION)", 0))
@@ -154,13 +152,7 @@ func TestReferenceMathScalarFloatingOverloads(t *testing.T) {
 	} {
 		cases = append(cases, referenceScalarFloatCase{"exp_" + tc.name, "SELECT exp('" + tc.input + "') AS result", "FLOAT8", tc.want, tc.ulps})
 	}
-	for _, backend := range []struct {
-		name     string
-		db       *sql.DB
-		recorder *referenceRecorder
-	}{
-		{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord},
-	} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

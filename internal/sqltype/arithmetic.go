@@ -14,30 +14,52 @@ const (
 	ArithmeticMultiply
 	ArithmeticDivide
 	ArithmeticRemainder
+	ArithmeticPower
 )
 
-// Arithmetic is an immutable, concrete-width integer provider.
+// Arithmetic binds actual input widths independently from the result width.
 type Arithmetic struct {
-	operator ArithmeticOperator
-	operand  *Descriptor
-	unary    bool
+	operator            ArithmeticOperator
+	left, right, result *Descriptor
 }
 
-func BindArithmetic(operator ArithmeticOperator, operand *Descriptor, unary bool) (Arithmetic, error) {
-	if operand == nil || (operand.id != Int4 && operand.id != Int8) || operator > ArithmeticRemainder || (unary && operator > ArithmeticSubtract) {
+func BindArithmetic(operator ArithmeticOperator, left, right *Descriptor) (Arithmetic, error) {
+	if left == nil || operator > ArithmeticPower || right == nil && operator > ArithmeticSubtract {
+		return Arithmetic{}, fmt.Errorf("invalid arithmetic signature")
+	}
+	result := left
+	if isFloat(left.id) {
+		if right != nil {
+			if !isFloat(right.id) || operator == ArithmeticRemainder || operator == ArithmeticPower && (left.id != Float8 || right.id != Float8) {
+				return Arithmetic{}, fmt.Errorf("invalid floating arithmetic signature")
+			}
+			if right.id == Float8 {
+				result = right
+			}
+		}
+	} else if (left.id != Int4 && left.id != Int8) || right != nil && (right != left || operator == ArithmeticPower) {
 		return Arithmetic{}, fmt.Errorf("invalid integer arithmetic signature")
 	}
-	return Arithmetic{operator, operand, unary}, nil
+	return Arithmetic{operator, left, right, result}, nil
 }
+
+func (p Arithmetic) ResultType() *Descriptor { return p.result }
 func (p Arithmetic) Unary(ctx context.Context, a Value) (Value, error) {
-	if !p.unary || p.operand == nil || a.typ != p.operand {
+	if p.right != nil || p.left == nil || a.typ != p.left {
 		return Value{}, fmt.Errorf("invalid unary arithmetic values")
 	}
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
 	if a.null {
-		return Null(p.operand), nil
+		return Null(p.result), nil
+	}
+	if isFloat(p.left.id) {
+		n := a.floating
+		if p.operator == ArithmeticSubtract {
+			n = -n
+		}
+		return Value{typ: p.result, floating: n}, nil
 	}
 	n := a.integer
 	if p.operator == ArithmeticSubtract {
@@ -46,17 +68,20 @@ func (p Arithmetic) Unary(ctx context.Context, a Value) (Value, error) {
 		}
 		n = -n
 	}
-	return Integer(p.operand, n)
+	return Integer(p.result, n)
 }
 func (p Arithmetic) Binary(ctx context.Context, a, b Value) (Value, error) {
-	if p.unary || p.operand == nil || a.typ != p.operand || b.typ != p.operand {
+	if p.right == nil || p.left == nil || a.typ != p.left || b.typ != p.right {
 		return Value{}, fmt.Errorf("invalid binary arithmetic values")
 	}
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
 	if a.null || b.null {
-		return Null(p.operand), nil
+		return Null(p.result), nil
+	}
+	if isFloat(p.result.id) {
+		return p.floatingBinary(a.floating, b.floating)
 	}
 	x, y := a.integer, b.integer
 	var n int64
@@ -112,10 +137,10 @@ func (p Arithmetic) Binary(ctx context.Context, a, b Value) (Value, error) {
 	}
 	if overflow {
 		message := "bigint out of range"
-		if p.operand.id == Int4 {
+		if p.result.id == Int4 {
 			message = "integer out of range"
 		}
 		return Value{}, failure("22003", message)
 	}
-	return Integer(p.operand, n)
+	return Integer(p.result, n)
 }

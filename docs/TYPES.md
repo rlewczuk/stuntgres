@@ -664,7 +664,7 @@ make quickcheck PACKAGES=./internal/sqltype RUN='^TestFloat.*$' VERBOSE=0
 make quickcheck PACKAGES=./reference RUN='^TestReferenceFloat.*$' VERBOSE=0
 make quickcheck PACKAGES=./internal/parser VERBOSE=0
 make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFloat.*$' VERBOSE=0
-make quickcheck PACKAGES=./smoke RUN='^TestFloatSmoke$' VERBOSE=0
+make quickcheck PACKAGES=./reference RUN='^TestReferenceFloatMigratedSmoke$' VERBOSE=0
 ```
 
 These assert exact release output/bit witnesses, precision/metadata, independently
@@ -709,7 +709,7 @@ incompatible known operands fail eagerly in Query/Prepare at the operator,
 even on empty tables, with the canonical operator spelling in diagnostics.
 FROM is still required outside identity/settings special forms and the
 selected-call-only form (including random functions). These scalar comparisons also form Boolean leaves above
-NOT, AND and OR in SELECT targets and WHERE. Bounded integer arithmetic and
+NOT, AND and OR in SELECT targets and WHERE. Bounded integer and floating arithmetic and
 baseline and character-family explicit casts are scalar operands. Comparison
 chaining, SELECT aliases/qualified column references, general functions, casts
 outside the bounded baseline and character-family sets and comparison

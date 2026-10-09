@@ -545,7 +545,7 @@ Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceUpdateRe
 
 
 Column DEFAULT declarations admit outer scalar/typed temporal/existing cast/
-INT4/INT8 unary and binary arithmetic, integral bitwise operations, comparison
+INT4/INT8 and floating unary/binary arithmetic (including FLOAT8-selected power), integral bitwise operations, comparison
 and IS [NOT] DISTINCT FROM syntax.
 CAST and postfix casts reuse existing baseline, character-family, bounded OID/
 temporal conversions, same-type stored scalar usages and directional numeric
@@ -1577,10 +1577,10 @@ remainder. Arithmetic punctuation maximal munch preserves comment boundaries
 and PostgreSQL trailing-sign stripping. Contextual errors use the expression
 start/resolved type, while missing-operator errors point at the operator.
 Computed results expose `?column?` and INT4/INT8 metadata, including empty results.
-Parameter width follows the first known integer peer in SQL order. Unknown-only
-arithmetic and concrete non-INT4/INT8 arithmetic are explicit native `0A000`
-boundaries, not PostgreSQL preferred-type resolution (unary unknown plus is
-FLOAT8 there). Existing noninteger providers are unchanged.
+Parameter widths follow SQL signature resolution, never Go argument kinds.
+Unary unknown plus and unknown power select FLOAT8; unknown-only binary +/-
+and unary minus are ambiguous (`42725`). SMALLINT-only and exact NUMERIC-only
+arithmetic remain native capability exclusions; floating `%` is missing (`42883`).
 Existing baseline scalar casts compose with arithmetic without adding cast
 families. Postfix `::` binds before unary signs; operand casts can widen arithmetic,
 but result casts cannot prevent narrower overflow. Frame-only cast conversions
@@ -1596,14 +1596,57 @@ Composition smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSequenceArithmeti
 Arithmetic INSERT and parameter-free Restore use existing staged publication;
 Dump emits canonical stored values, and failed/canceled replacement preserves
 old state and retained computed cursors. No external pg_dump, physical storage
-or wire-protocol parity is implied. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticSmoke$'
-VERBOSE=1`; reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArithmetic' VERBOSE=1`.
+or wire-protocol parity is implied. Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedSmoke$' VERBOSE=0`;
+reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceArithmetic' VERBOSE=0`.
 
 DELETE arithmetic keeps existing actual-used-column SELECT authorization,
 affected-row counts and atomic deletion staging. Qualified arithmetic remains
 excluded without changing qualified atom predicates. Mixed arithmetic/DATE
 typed-literal projections preserve the existing codecs, not a DATE arithmetic
-provider. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestArithmeticDeleteCompositionSmoke$' VERBOSE=1`.
+provider. Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceArithmeticMigratedDeleteSmoke$' VERBOSE=0`.
+
+### Floating arithmetic — change note
+
+Unary signs preserve REAL/FLOAT4 or DOUBLE PRECISION/FLOAT8. For each of
+`+ - * /`, REAL/REAL yields REAL; DOUBLE/DOUBLE and mixed REAL/DOUBLE yield
+DOUBLE. REAL operations execute at binary32 width before export. A known
+SMALLINT/INTEGER/BIGINT/NUMERIC peer selects a cross-width DOUBLE operation;
+an unknown quoted value or parameter with REAL selects REAL/REAL instead.
+Prepared signatures and computed metadata remain fixed across bindings,
+including empty/NULL results; destination conversion cannot rescue REAL overflow.
+Native REAL exports exact widened binary32 values as float64; pq parses the
+server's shortest REAL text as float64 and advertises float32 ScanType.
+
+Power selects DOUBLE/DOUBLE, including integer-only inputs and REAL with
+NUMERIC. Exact NUMERIC-selected power remains unsupported, not silently
+converted to approximate floating arithmetic. `^` associates left and binds
+above multiplication/division but below unary signs: `2^3^2=64`,
+`2^(3^2)=512`, `-2^2=4`. Qualified `OPERATOR(pg_catalog.^)` retains generic
+operator precedence. Adjacent `^-` is a single unavailable operator.
+
+Finite overflow/zero-rounded underflow report `22003` with
+`value out of range: overflow` / `value out of range: underflow`.
+Addition/subtraction cancellation and nonzero subnormals succeed.
+Division by either signed zero is `22012`, except NaN/zero remains NaN.
+Infinity combinations preserve IEEE NaN/infinity and signed zero.
+Power handles NaN before domain checks (`NaN^0=1`, `1^NaN=1`).
+Zero to a negative power is `2201F`, `zero raised to a negative power is undefined`;
+negative/noninteger power is `2201F`,
+`a negative number raised to a non-integer power yields a complex result`.
+Runtime failures have no fabricated Position. Ordinary power accuracy permits
+explicit small ULP tolerances against the pinned host library; diagnostics and
+success/error classification are exact, never tolerance-based.
+
+There is no floating modulo overload: even NULL/empty-source `%` fails at
+analysis/Prepare with `42883`, full signature, cast Hint and operator Position.
+Floating DEFAULT/CHECK/view replay preserves each typed input leaf and power
+grouping. Query finalization, DML Finish and isolated Restore installation
+retain existing atomic failure/cancellation and held-snapshot contracts.
+No new power() function, exact NUMERIC arithmetic, general no-FROM SELECT,
+types, cast families or storage mechanisms are introduced.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic(Smoke|ControlsSmoke)$' VERBOSE=0`;
+pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceFloatingArithmetic' VERBOSE=0`.
+
 
 Character declarations add CHAR/CHARACTER/BPCHAR(n) and VARCHAR/CHARACTER
 VARYING(n), length1..10485760 counted in UTF8 code points. Unmodified
@@ -2351,6 +2394,7 @@ Trusted Restore INSERT and database-local COMMENT use local validated captured-b
 Restore's initialized private catalog accepts CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported defaults/identity, CREATE SEQUENCE, INSERT with supported parameter-free scalar/default-request forms (including integer arithmetic and SYSTEM identity override), database-local COMMENT, generated sequence OWNED BY associations, numeric/persistence configuration of internally owned identity sequences, SELECT setval(name,value,is_called), and named SET SESSION AUTHORIZATION only. Nested parameters remain rejected recursively. Dump reconstructs bootstrap identity/name/owner changes before user objects; retained canonical builtin ACLs transform owner grantor/grantee, recreated public has absent ACL, and unchanged bootstrap retains legacy bytes. Local schema comments follow schema creation, table/column comments follow CREATE before INSERT under owner groups. Arbitrary explicit ACL serialization stays unsupported. Held INSERT rebinding INT4→TEXT rejects native 0A000 before importer/write; pinned PostgreSQL retains INT4 parameters and assignment-coerces to TEXT, an explicitly asserted difference.
 
 The parameter-free scalar inventory includes the selected string functions,
+floating arithmetic and power with typed leaves and preserved grouping,
 LIKE escape normalization and `crc32`, `crc32c`, `md5(bytea)`, `sha224`,
 `sha256`, `sha384`, `sha512`. Hash operands use normal signature/inference
 validation, recursively reject parameters and preserve Restore atomicity;

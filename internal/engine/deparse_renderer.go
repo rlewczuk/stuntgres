@@ -185,6 +185,8 @@ func pgOperatorPriority(op string) int {
 		return 1
 	case "*", "/", "%":
 		return 2
+	case "^":
+		return 3
 	}
 	return 0
 }
@@ -363,7 +365,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		_, simpleLiteral := n.child.(literalExpression)
 		return r.cast(text, n.ResultUsage(), simpleColumn || simpleLiteral)
 	case arithmeticExpression:
-		ops := [...]string{"+", "-", "*", "/", "%"}
+		ops := [...]string{"+", "-", "*", "/", "%", "^"}
 		if int(n.operator) >= len(ops) {
 			return "", fmt.Errorf("stuntgres: invalid deparse arithmetic operator")
 		}
