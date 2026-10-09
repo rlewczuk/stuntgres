@@ -2,8 +2,10 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 type alterTypeIndex struct {
@@ -40,6 +42,9 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 					}
 				}
 			}
+		}
+		for _, attribute := range index.sqlIndex.include {
+			dropped = dropped || !survivor.hasAttribute(attribute)
 		}
 		if dropped {
 			continue
@@ -82,7 +87,7 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 					if err != nil {
 						return nil, err
 					}
-					if indexFunctionExpression(key.derived.definition) {
+					if pgIndexFunctionExpression(key.derived.definition) {
 						sql.WriteString(text)
 					} else {
 						sql.WriteString("(" + text + ")")
@@ -95,6 +100,19 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 						}
 					}
 				}
+				var usage sqltype.Usage
+				if key.derived != nil {
+					usage = key.derived.definition.ResultUsage()
+				} else {
+					usage = original.columns[slices.Index(original.attributes, key.attribute)].Usage
+				}
+				reconstructed := reconstructIndexKey(key, usage, usage)
+				if reconstructed.collation != 0 {
+					sql.WriteString(" COLLATE " + pgIdentifier(builtinCollationName(reconstructed.collation)))
+				}
+				if reconstructed.explicitClass {
+					sql.WriteString(" " + pgIdentifier(reconstructed.class.Name))
+				}
 				if key.desc {
 					sql.WriteString(" DESC")
 				}
@@ -105,6 +123,16 @@ func captureAlterTypeIndexes(scope *StatementScope, catalog CatalogRead, origina
 				}
 			}
 			sql.WriteByte(')')
+			if len(index.sqlIndex.include) != 0 {
+				sql.WriteString(" INCLUDE (")
+				for i, attribute := range index.sqlIndex.include {
+					if i > 0 {
+						sql.WriteString(", ")
+					}
+					sql.WriteString(pgIdentifier(original.columns[slices.Index(original.attributes, attribute)].Name))
+				}
+				sql.WriteByte(')')
+			}
 			pending.sql = sql.String()
 			queue = append(queue, pending)
 		}
@@ -131,7 +159,21 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 			}
 			definition.keys[slot].derived = derived
 		}
-		next, err := evolveIndex(&copy, parent)
+		oldParent := stage.base.state.descriptors[parent.address].(*relationDescriptor)
+		for i, key := range definition.keys {
+			oldUsage, err := indexKeyBaseUsage(oldParent, pending.index.sqlIndex.keys[i])
+			if err != nil {
+				return err
+			}
+			newUsage, err := indexKeyBaseUsage(parent, key)
+			if err != nil {
+				return err
+			}
+			definition.keys[i] = reconstructIndexKey(key, oldUsage, newUsage)
+		}
+		// The captured TYPE queue already normalized every key against its
+		// original Usage while retaining the newly rebound expression trees.
+		next, err := evolveIndex(&copy, oldParent, parent, nil)
 		if err != nil {
 			return err
 		}
@@ -148,15 +190,4 @@ func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth Authorizatio
 		}
 	}
 	return nil
-}
-
-func indexFunctionExpression(node BoundExpr) bool {
-	switch n := node.(type) {
-	case stringExpression:
-		return n.plan.Name() != "||"
-	case mathExpression, binaryExpression, randomExpression, nullCountExpression, sequenceCallExpression, currentSchemasExpression, visibilityInquiryExpression, commentInquiryExpression, deparseExpression:
-		return true
-	default:
-		return false
-	}
 }

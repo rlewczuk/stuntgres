@@ -460,7 +460,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err := e.evolveStageIndexesLocked(stage); err != nil {
+	if err := e.evolveStageIndexesLocked(stage, ref.Address, transformations); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}

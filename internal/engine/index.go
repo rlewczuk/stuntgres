@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"stuntgres/internal/parser"
@@ -17,11 +18,15 @@ type indexKey struct {
 	attribute        int32
 	desc, nullsFirst bool
 	derived          *derivedIndexKey
+	collation        uint32
+	class            sqltype.IndexClass
+	explicitClass    bool
 }
 type indexDefinition struct {
-	parent ObjectAddress
-	keys   []indexKey
-	unique *uniqueConstraint
+	parent  ObjectAddress
+	keys    []indexKey
+	include []int32
+	unique  *uniqueConstraint
 }
 type logicalIndexEntry struct {
 	keys    []sqltype.Value
@@ -31,7 +36,7 @@ type logicalIndexEntry struct {
 type logicalIndexRoot struct{ entries []logicalIndexEntry }
 type indexOrdering struct {
 	slots       []int
-	comparisons []sqltype.Comparison
+	comparisons []sqltype.IndexComparison
 	keys        []indexKey
 	derived     []BoundExpr
 }
@@ -46,7 +51,7 @@ func indexColumnLabel(name string, suffix int) string {
 }
 
 func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) (indexOrdering, error) {
-	o := indexOrdering{slots: make([]int, len(definition.keys)), comparisons: make([]sqltype.Comparison, len(definition.keys)), keys: definition.keys}
+	o := indexOrdering{slots: make([]int, len(definition.keys)), comparisons: make([]sqltype.IndexComparison, len(definition.keys)), keys: definition.keys}
 	for i, key := range definition.keys {
 		if key.derived != nil {
 			if definition.unique != nil {
@@ -59,8 +64,15 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 				o.derived = make([]BoundExpr, len(definition.keys))
 			}
 			o.slots[i], o.derived[i] = -1, key.derived.execution
-			var err error
-			o.comparisons[i], err = sqltype.BindOrdering(key.derived.execution.ResultUsage())
+			usage, err := indexKeyUsage(parent, key)
+			if err != nil {
+				return o, err
+			}
+			class := key.class
+			if class.Name == "" {
+				class, _ = sqltype.DefaultIndexClass(usage.Type)
+			}
+			o.comparisons[i], err = sqltype.BindIndexOrdering(usage, class)
 			if err != nil {
 				return o, err
 			}
@@ -76,7 +88,15 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 		if slot < 0 {
 			return o, fmt.Errorf("stuntgres: index attribute is missing")
 		}
-		comparison, err := sqltype.BindOrdering(parent.columns[slot].Usage)
+		if key.collation != 0 && parent.columns[slot].Usage.Type.Usage().Collation.ID == 0 {
+			return o, sqlError("42804", "collations are not supported by type "+parent.columns[slot].Usage.Type.DiagnosticName())
+		}
+		usage := indexKeyCollation(parent.columns[slot].Usage, key)
+		class := key.class
+		if class.Name == "" {
+			class, _ = sqltype.DefaultIndexClass(usage.Type)
+		}
+		comparison, err := sqltype.BindIndexOrdering(usage, class)
 		if err != nil {
 			return o, err
 		}
@@ -86,7 +106,7 @@ func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) 
 }
 func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error {
 	d := index.sqlIndex
-	if d == nil || len(d.keys) == 0 || len(d.keys) > 32 || len(index.columns) != len(d.keys) || d.parent.SubID != 0 || index.sequence != nil || index.view != nil {
+	if d == nil || len(d.keys) == 0 || len(d.keys)+len(d.include) > 32 || len(index.columns) != len(d.keys)+len(d.include) || d.parent.SubID != 0 || index.sequence != nil || index.view != nil {
 		return fmt.Errorf("stuntgres: invalid index definition")
 	}
 	parent, ok := view.state.descriptors[d.parent].(*relationDescriptor)
@@ -125,6 +145,12 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 		}
 		if index.columns[i].Usage != usage {
 			return fmt.Errorf("stuntgres: invalid index key usage")
+		}
+	}
+	for i, attribute := range d.include {
+		slot := slices.Index(parent.attributes, attribute)
+		if slot < 0 || index.columns[len(d.keys)+i].Usage != parent.columns[slot].Usage {
+			return fmt.Errorf("stuntgres: invalid included attribute usage")
 		}
 	}
 	return nil
@@ -357,6 +383,9 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return fail(fmt.Errorf("stuntgres: invalid trusted restore index authority"))
 			}
 		}
+		if len(s.Keys)+len(s.Include) > 32 {
+			return fail(sqlError("54011", "cannot use more than 32 columns in an index"))
+		}
 		if parent.relationKind != tableRelation {
 			if parent.relationKind == indexRelation {
 				return fail(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`cannot open relation "%s"`, parent.name), Detail: "This operation is not supported for indexes."})
@@ -370,60 +399,11 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return fail(err)
 			}
 		}
-		if len(s.Keys) > 32 {
-			return fail(sqlError("54011", "cannot use more than 32 columns in an index"))
+		if err = validateIndexMethod(s); err != nil {
+			return fail(err)
 		}
-		switch s.Method {
-		case "btree":
-		case "hash", "gin", "gist", "spgist", "brin":
-			return fail(sqlError("0A000", "non-btree indexes are unsupported"))
-		default:
-			return fail(sqlError("42704", fmt.Sprintf(`access method "%s" does not exist`, s.Method)))
-		}
-		definition := &indexDefinition{parent: parent.address, keys: make([]indexKey, len(s.Keys))}
-		columns := make([]ColumnDescriptor, len(s.Keys))
-		attributes := make([]int32, len(s.Keys))
-		lookup := make(map[string]int, len(s.Keys))
-		for i, key := range s.Keys {
-			label := key.Column.Text
-			bound := indexKey{desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc}
-			if key.Expression != nil {
-				derived, name, err := e.bindIndexExpression(scope.op, scope.input, auth, parent, key.Expression, nil)
-				if err != nil {
-					return fail(err)
-				}
-				label = name
-				if column, ok := derived.definition.(columnExpression); ok {
-					bound.attribute = column.origin.Address.SubID
-					columns[i] = parent.columns[column.slot]
-				} else {
-					bound.derived = derived
-					columns[i].Usage = derived.execution.ResultUsage()
-				}
-			} else {
-				if isSystemColumn(key.Column.Text) {
-					return fail(sqlError("0A000", "index creation on system columns is not supported"))
-				}
-				slot, exists := parent.index[key.Column.Text]
-				if !exists {
-					return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, key.Column.Text)))
-				}
-				bound.attribute = parent.attributes[slot]
-				columns[i] = parent.columns[slot]
-			}
-			definition.keys[i] = bound
-			baseLabel := label
-			for suffix := 1; ; suffix++ {
-				if _, exists := lookup[label]; !exists {
-					break
-				}
-				label = indexColumnLabel(baseLabel, suffix)
-			}
-			columns[i].Name = label
-			lookup[label] = i
-			attributes[i] = int32(i + 1)
-		}
-		if _, err = bindIndexOrdering(parent, definition); err != nil {
+		definition, columns, attributes, lookup, err := e.bindIndexAttributes(scope.op, scope.input, auth, parent, s)
+		if err != nil {
 			return fail(err)
 		}
 		name := s.Name.Text
@@ -452,6 +432,12 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 				return Result{}, nil
 			}
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
+		}
+		// The released provider-options phase follows catalog name admission.
+		for i, raw := range s.Keys {
+			if len(raw.Options) != 0 {
+				return fail(sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.keys[i].class.Name)))
+			}
 		}
 		oid, err := e.allocateOIDLocked()
 		if err != nil {

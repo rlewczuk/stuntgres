@@ -96,6 +96,21 @@ learn or update them. Do not weaken assertions to accommodate native failures.
 Docker/image failures in an explicitly enabled real run MUST fail visibly, not
 be skipped or mocked. Fix slow/hanging tests rather than increasing deadlines.
 
+The index-clause feature smoke exercises mixed keys, an existing scalar expression
+key with explicit owned collation/class and INCLUDE, prepared uppercase projection,
+payload/derived-key maintenance, the total 32/33 boundary and native controls with
+PostgreSQL replay of the actual emitted native SQL. Compact `pg_get_indexdef`
+assertions cover default/provider spelling, the INCLUDE ordinal boundary and
+post-TYPE state without changing canonical Dump/replay authority:
+
+```sh
+make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0
+make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0
+```
+
+This smoke does not replace the complete identical dual-mode family selection
+documented in [the index-clause design](design/PG18-INDEX-CLAUSES.md).
+
 ## How the dual-mode fixture works
 
 `newReferenceScenario(t)` creates a fresh native engine, a middleware-wrapped

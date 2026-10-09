@@ -1,8 +1,12 @@
 package reference_test
 
 import (
+	"bytes"
 	"database/sql"
+	"strings"
 	"testing"
+
+	"stuntgres"
 )
 
 func TestReferenceDeparseRelationsPreparedLifecycle(t *testing.T) {
@@ -119,5 +123,55 @@ func TestReferenceDeparseRelationsPreparedLifecycle(t *testing.T) {
 		failure := referenceErrorDiagnostic(viewQ, missing, "v")
 		failure.selectRows = true
 		referenceRunStep(t, p.ctx, referenceHeldStatement{referenceExecutor: c, statement: view, query: viewQ}, b.recorder, failure)
+	})
+	t.Run("clauses-held-type", func(t *testing.T) {
+		deparseRelationsScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, c *sql.Conn) {
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, b.recorder, s) }
+			run(referenceExec("CREATE TABLE t(n INT,s TEXT,p TEXT)", 0))
+			run(referenceExec("INSERT INTO t VALUES(-1,'a ','space'),(1,'a','plain')", 2))
+			run(referenceExec(`CREATE INDEX cover ON t(n int4_ops,s COLLATE "default" text_ops,lower(s) COLLATE "POSIX" bpchar_ops DESC NULLS LAST) INCLUDE(p)`, 0))
+			q := "SELECT pg_get_indexdef($1,$2,false) AS definition"
+			held, err := c.PrepareContext(p.ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer held.Close()
+			check := func(payload string) {
+				// TYPE and Restore may replace logical identity: reacquire the actual
+				// current OID while retaining the SAME prepared inquiry consumer.
+				var oid int64
+				if err := c.QueryRowContext(p.ctx, "SELECT oid FROM pg_class WHERE relname='cover'").Scan(&oid); err != nil {
+					t.Fatal(err)
+				}
+				full := `CREATE INDEX cover ON public.t USING btree (n, s, lower(s) COLLATE "POSIX" bpchar_ops DESC NULLS LAST) INCLUDE (` + payload + `)`
+				for _, tc := range []struct {
+					ordinal int64
+					want    string
+				}{{0, full}, {4, payload}, {5, ""}} {
+					s := deparseRelationsTextStep(t, b, q, tc.want, oid, tc.ordinal)
+					referenceRunStep(t, p.ctx, referenceHeldStatement{referenceExecutor: c, statement: held, query: q}, b.recorder, s)
+				}
+			}
+			check("p")
+			run(referenceExec("ALTER TABLE t ALTER p TYPE TEXT USING p", 0))
+			check("p")
+			run(referenceExec("ALTER TABLE t RENAME p TO payload", 0))
+			check("payload")
+			if !b.pg {
+				var dump bytes.Buffer
+				if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
+					t.Fatal(err)
+				}
+				want := `CREATE INDEX "cover" ON "public"."t" USING btree ("n" ASC NULLS LAST, "s" ASC NULLS LAST, (pg_catalog.lower("s")) COLLATE "pg_catalog"."POSIX" "pg_catalog"."bpchar_ops" DESC NULLS LAST) INCLUDE ("payload");`
+				if !strings.Contains(dump.String(), want) {
+					t.Fatalf("held inquiry hid failed whole-index TYPE normalization: %s", dump.String())
+				}
+				if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(dump.String())); err != nil {
+					t.Fatal(err)
+				}
+				check("payload")
+			}
+			run(referencePrepared(referenceSelect("SELECT n,s,payload FROM t ORDER BY n", []string{"n", "s", "payload"}, []string{"INT4", "TEXT", "TEXT"}, [][]any{{int64(-1), "a ", "space"}, {int64(1), "a", "plain"}})))
+		})
 	})
 }

@@ -27,11 +27,12 @@ Change note: index/view introspection supports all seven PostgreSQL 18 signature
 `(oid, integer)`. Results are strict nullable TEXT; omitted pretty means false,
 and integer view width selects pretty rendering. Reconstruction traverses current
 bound descriptors without evaluating views. Index column zero gives CREATE INDEX,
-other valid columns give only the key expression, and invalid columns give empty
-text. Text view arguments resolve relation names, not numeric OIDs. Ordinary
-views and existing simple, expression-key and UNIQUE backing indexes are covered.
-Materialized-view DDL, partial indexes and INCLUDE remain excluded; this part
-adds no index DDL capability.
+other valid columns give only the key expression or included column name, and
+invalid columns give empty text. Text view arguments resolve relation names, not
+numeric OIDs. Ordinary views and existing simple, expression-key and UNIQUE
+backing indexes are covered, including ordinary indexes with INCLUDE payload.
+Materialized-view DDL and partial indexes remain excluded; the introspection
+change itself adds no index DDL capability.
 Feature smoke:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDeparseRelations' VERBOSE=0`.
@@ -332,21 +333,31 @@ Explicit-transaction SET SCHEMA, generic standalone sequence/index moves,
 TEMP/system destinations and automatic row types remain bounded native exclusions.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
-Change note: ordinary `CREATE INDEX [name] ON [schema.]table [USING btree]
-(key [ASC|DESC] [NULLS FIRST|LAST], ...)` supports 1–32 simple or same-table scalar
-expression keys, including `lower(text_column)` and parenthesized operators,
-including duplicates and NULLs on already populated tables. Definitions share the
-relation namespace; immutable sorted logical entries stay current through all
-committed INSERT/UPDATE/DELETE batches and supported table lifecycle changes.
-Query correctness still uses the ordinary snapshot scan/filter/sort path, not
-an optimizer promise; unordered SELECT has no new ordering guarantee. Dump/Restore
-serializes actual current index definitions and rebuilds entries. Native CREATE
-INDEX is excluded in explicit transactions, unlike PostgreSQL; standalone CREATE
-UNIQUE INDEX, partial and concurrent indexes remain excluded. Expression keys
-use the shared binder/evaluator and must be immutable after constant branch
-simplification; aggregate/subquery keys fail at Execute after quiet Prepare.
+Change note: ordinary `CREATE INDEX [name] ON [schema.]table [USING btree]`
+supports multicolumn simple or same-table scalar expression keys with ASC/DESC,
+NULLS FIRST/LAST, owned built-in COLLATE/operator classes and optional
+`INCLUDE (column, ...)`. The 32-attribute limit counts keys plus included columns,
+including repeats. INCLUDE is projectable table payload, never a search/comparison
+or uniqueness key; it needs no ordering provider. Explicit classes select actual
+owned semantics, including unsigned `oid_ops` on INTEGER and trailing-space-
+insensitive `bpchar_ops` on TEXT. Expression keys, including `lower(text_column)`
+and parenthesized operators, reuse the shared binder/evaluator and must be
+immutable after constant branch simplification. Aggregate/subquery keys fail
+at Execute after quiet Prepare.
+Definitions share the relation namespace; immutable sorted logical key entries
+stay current through committed batches and supported table lifecycle changes.
+Query correctness still uses ordinary snapshot scan/filter/sort, not an optimizer
+or physical index-only promise; unordered SELECT has no new ordering guarantee.
+Dump/Restore serializes actual current definitions and rebuilds entries. TYPE
+reconstruction, including same-type key/payload TYPE with or without USING,
+reselects old-default classes and revalidates retained nondefaults.
+Native CREATE INDEX remains excluded in explicit transactions; standalone CREATE
+UNIQUE INDEX, partial and concurrent indexes remain excluded.
+See [clause design](docs/design/PG18-INDEX-CLAUSES.md).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0`;
+use the identical RUN with `REFERENCE=1` for the pinned PostgreSQL oracle.
 Shared smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBtreeIndex(Regression|Controls|Lifecycle)$'`;
-use the same RUN with `REFERENCE=1` for the independent pinned PostgreSQL oracle.
+use the same RUN with `REFERENCE=1` for independent PostgreSQL18.0 outcomes.
 Expression regression family: `make quickcheck PACKAGES=./reference RUN='^TestReferenceExpressionIndex'`;
 use the same RUN with `REFERENCE=1` for independently expected PostgreSQL18.0 outcomes.
 

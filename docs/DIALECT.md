@@ -2781,13 +2781,16 @@ without publishing replacement data or changing retained results.
 
 ## Ordinary B-tree indexes — change note
 
-Native CREATE INDEX supports default/USING btree over 1–32 simple or same-table
-scalar expression keys, including `lower(v)`, parenthesized operators, mixed
-keys and repeated expressions, ASC/DESC and NULLS FIRST/LAST. It builds actual
-sorted live-row identity/key vectors and maintains them through common row and
-catalog publication. It is not metadata-only success. Scan/filter/sort remains
-the query semantic authority; no optimizer, index-only scan, disk algorithm or
-unordered-result ordering promise is added.
+Native CREATE INDEX supports default/USING btree with simple or same-table scalar
+expression keys, including `lower(v)`, parenthesized operators and repeated
+expressions, ASC/DESC, NULLS FIRST/LAST, owned COLLATE/operator classes and INCLUDE.
+The limit counts 32 total key plus included attributes. INCLUDE is projectable
+noncomparison payload and needs no ordering provider; it neither guides search
+nor affects uniqueness. Roots retain only sorted key vectors and live row/version
+identities and are maintained through common row/catalog publication, not
+metadata-only success. Explicit classes use their actual owned semantics, not
+spelling-only admission. Scan/filter/sort remains query authority; no optimizer,
+physical index-only scan, disk algorithm or unordered-result ordering promise is added.
 
 Ordinary build uses Share, checks owner before waiting, accepts compatible
 same-incarnation grant-time revisions and revalidates namespace/role authority.
@@ -2803,9 +2806,11 @@ are 42P01/42703. PostgreSQL18.0 missing simple-key diagnostics have no Position,
 unlike newer development-source behavior. Binding precedes duplicate-name
 checking, including IF NOT EXISTS. Semantic prepared errors occur at Execute;
 syntax diagnostics retain one-based character positions. Non-btree/
-partial/concurrent/unique definitions and custom index decorations are bounded
-capability exclusions, not ignored clauses. No DROP/ALTER INDEX or broad index
-inquiry catalog family is added.
+partial/concurrent/standalone-unique definitions and unowned providers are bounded
+capability exclusions, not ignored clauses. Invalid INCLUDE decorations get
+42P17; expressions in INCLUDE get 0A000; excess total attributes get 54011.
+Class parameter validation follows duplicate-name/IF NOT EXISTS handling.
+No DROP/ALTER INDEX, unique attachment or broad index inquiry catalogs are added.
 
 Expression keys use the existing scalar binder, type/collation providers,
 constant simplifier and evaluator, not an index-specific interpreter. Admission
@@ -2830,13 +2835,19 @@ Expression indexes do not enable standalone UNIQUE indexes or change the
 simple-slot contract of constraint backing indexes. UPDATE/DELETE acceptance
 remains with those DML parts; existing publication callers share maintenance.
 
-Dump writes canonical real definitions/current names/options after parent data;
-Reset removes persistent indexes and Restore privately rebuilds destination
-membership. Supported table lifecycle commands preserve or remove indices
-atomically. Smokes:
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceBtreeIndex(Regression|Controls|Lifecycle)$'`;
-the same RUN with `REFERENCE=1` includes the independent pinned PostgreSQL oracle.
-The independent reference family is `TestReferenceBtreeIndex...`.
+Dump writes actual definitions/current names, canonical explicit provider identities
+and INCLUDE after parent data. Reset removes persistent indexes; Restore privately
+rebuilds destination membership. TYPE reconstructs the whole dependent definition:
+old-default classes become new defaults; genuinely nondefault classes/collation
+overrides are retained and revalidated. Original expression definitions rebind
+against the final shape. Dropping a key dependency or payload removes its index.
+See [clause design](design/PG18-INDEX-CLAUSES.md). Feature smoke:
+`make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexClausesFeatureSmoke$' VERBOSE=0`;
+the identical RUN with `REFERENCE=1` adds the independent pinned PostgreSQL oracle.
+Shared smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBtreeIndex(Regression|Controls|Lifecycle)$'`;
+use the same RUN with `REFERENCE=1` for independent PostgreSQL18.0 outcomes.
+Reference families are `TestReferenceBtreeIndex...`, `TestReferenceExpressionIndex...`
+and `TestReferenceIndexClauses...`.
 The consolidated source/reference union keeps actual plain maintenance and
 transaction consumers beside recorded Context owners. Standalone CREATE UNIQUE
 INDEX still fails with native0A000/Position8/nil publications and unchanged

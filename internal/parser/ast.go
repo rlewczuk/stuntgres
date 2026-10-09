@@ -147,16 +147,22 @@ type CreateTable struct {
 func (*CreateTable) statement() {}
 
 type IndexKey struct {
-	Column     Identifier
-	Expression Expr
-	Desc       bool
-	Nulls      NullPlacement
+	Column            Identifier
+	Expression        Expr
+	Collation         *ObjectName
+	Opclass           *ObjectName
+	Options           []ViewOption
+	Desc              bool
+	DirectionExplicit bool
+	Nulls             NullPlacement
+	Pos               Position
 }
 type CreateIndex struct {
 	Name        Identifier
 	Table       ObjectName
 	Method      string
 	Keys        []IndexKey
+	Include     []IndexKey
 	IfNotExists bool
 	Pos         Position
 }

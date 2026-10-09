@@ -933,6 +933,11 @@ CREATE INDEX builds actual immutable sorted logical entries from committed live
 rows under Share admission. INSERT VALUES/SELECT/default/identity/CHECK writes,
 UPDATE and DELETE maintain entries at the same Finish/commit boundary as rows.
 Duplicate keys keep distinct RowID/VersionID membership; NULL keys are included.
+INCLUDE attributes are stable parent IDs in metadata, separate from logical keys.
+The total key+INCLUDE limit is 32, repetitions count, and included types need storage
+but no ordering provider. Payload-only updates never introduce payload comparisons
+or change uniqueness equality. Explicit ordering queries retain table/query Usage,
+not an index's collation/class comparator or an unordered traversal guarantee.
 Failed multirow statements, rollback and savepoint recovery publish no partial
 index effects. Current-only roots are not substitutes for historical/own-write
 query visibility.
@@ -945,13 +950,17 @@ Failed evaluation leaves predecessor roots and parent rows intact. Query matchin
 expressions still use ordinary snapshots, not current-only index membership.
 UNIQUE backing indexes remain simple-slot keys.
 
-Renames preserve stable key attributes and expression dependencies. TYPE reparses
-original expression definitions against the final shape and rebuilds entries;
-DROP COLUMN automatically removes involved indexes, and SET SCHEMA
-moves indices with table/owned sequences as one collision-checked publication.
-DROP TABLE and schema CASCADE leave no index/root/name orphans. Dump captures
-actual options/current names; Restore and catalog replacement rebuild roots with
-destination identities. See [index design](design/PG18-INDEX-BTREE.md).
+Renames preserve stable key/included attributes and expression dependencies.
+Dependent TYPE reconstructs the whole definition using old parent defaults:
+old-default classes are rebound for the new type; nondefault classes and actual
+collation overrides must remain compatible. Original expression definitions
+reparse against the final shape and rebuild entries. Included TYPE requires only
+storage validity. Unrelated DROP remaps slots; dropping a key dependency or payload
+removes its index. SET SCHEMA moves indexes with table/owned sequences as one
+collision-checked publication. DROP TABLE/schema CASCADE leave no index/root/name
+orphans. Dump captures actual options/current names; Restore/replacement rebuild
+key-only roots with destination identities.
+See [B-tree design](design/PG18-INDEX-BTREE.md) and [clause design](design/PG18-INDEX-CLAUSES.md).
 
 
 ## Stored generated columns

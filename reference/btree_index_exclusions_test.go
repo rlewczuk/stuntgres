@@ -18,9 +18,6 @@ func TestReferenceBtreeIndexExcludedDefinitionsDiagnostics(t *testing.T) {
 				{"unique", "CREATE UNIQUE INDEX i ON t(n)", "unique indexes are unsupported", "8", "i", false},
 				{"concurrent", "CREATE INDEX CONCURRENTLY i ON t(n)", "concurrent indexes are unsupported", "14", "i", false},
 				{"partial", "CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24", "i", false},
-				{"collation", "CREATE INDEX i ON t(s COLLATE \"C\")", "index collations are unsupported", "23", "i", false},
-				{"opclass", "CREATE INDEX i ON t(n int4_ops)", "index operator classes are unsupported", "23", "i", false},
-				{"include", "CREATE INDEX i ON t(n) INCLUDE(s)", "included index columns are unsupported", "24", "i", false},
 				{"storage", "CREATE INDEX i ON t(n) WITH(fillfactor=80)", "index storage parameters are unsupported", "24", "i", false},
 				{"tablespace", "CREATE INDEX i ON t(n) TABLESPACE pg_default", "index tablespaces are unsupported", "24", "i", false},
 				{"method", "CREATE INDEX i ON t USING hash(n)", "non-btree indexes are unsupported", "", "i", true},
@@ -58,7 +55,7 @@ func TestReferenceBtreeIndexExcludedDefinitionsDiagnostics(t *testing.T) {
 							run(referenceExec("ALTER TABLE t ALTER c TYPE TEXT USING c::text", 0))
 							run(referenceSelect("SELECT c FROM t", []string{"c"}, []string{"TEXT"}, [][]any{{"1"}}))
 						} else {
-							// Provider-valid real SQL: COLLATE C is on TEXT; int4_ops is on INT.
+							// These definitions remain PostgreSQL-valid native capability boundaries.
 							run(referenceExec(tc.query, 0))
 							run(referenceSelect("SELECT relname FROM pg_class WHERE relname=$1", []string{"relname"}, []string{"NAME"}, [][]any{{tc.index}}, tc.index))
 							run(referenceSelect("SELECT relname,relkind FROM pg_class WHERE relname=$1", []string{"relname", "relkind"}, []string{"NAME", "CHAR"}, [][]any{{tc.index, "i"}}, tc.index))

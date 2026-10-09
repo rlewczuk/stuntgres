@@ -626,7 +626,7 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 		return nil, err
 	}
 	e.mu.Lock()
-	if err := e.evolveStageIndexesLocked(s); err != nil {
+	if err := e.evolveStageIndexesLocked(s, ObjectAddress{}, nil); err != nil {
 		e.mu.Unlock()
 		return nil, err
 	}

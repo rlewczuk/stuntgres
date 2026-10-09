@@ -102,7 +102,7 @@ func TestReferenceBtreeIndexRestoreRetainedTemporaryCollision(t *testing.T) {
 						}
 					}
 					next(1)
-					const stream = `CREATE SCHEMA portable; CREATE TABLE portable.owner_table(v INT); INSERT INTO portable.owner_table VALUES(7); CREATE INDEX owner_idx ON portable.owner_table(v);`
+					const stream = `CREATE SCHEMA portable; CREATE TABLE portable.owner_table(v INT,p TEXT); INSERT INTO portable.owner_table VALUES(7,'old'); CREATE INDEX owner_idx ON portable.owner_table(v int4_ops) INCLUDE(p); CREATE INDEX payload_idx ON portable.owner_table(p COLLATE pg_catalog."POSIX" pg_catalog.text_pattern_ops) INCLUDE(v);`
 					if backend.pg {
 						if nonContext {
 							if _, err := backend.db.ExecContext(p.ctx, stream); err != nil {
@@ -111,9 +111,10 @@ func TestReferenceBtreeIndexRestoreRetainedTemporaryCollision(t *testing.T) {
 						} else {
 							for _, step := range []referenceStep{
 								referenceExec("CREATE SCHEMA portable", 0),
-								referenceExec("CREATE TABLE portable.owner_table(v INT)", 0),
-								referenceExec("INSERT INTO portable.owner_table VALUES(7)", 1),
-								referenceExec("CREATE INDEX owner_idx ON portable.owner_table(v)", 0),
+								referenceExec("CREATE TABLE portable.owner_table(v INT,p TEXT)", 0),
+								referenceExec("INSERT INTO portable.owner_table VALUES(7,'old')", 1),
+								referenceExec("CREATE INDEX owner_idx ON portable.owner_table(v int4_ops) INCLUDE(p)", 0),
+								referenceExec(`CREATE INDEX payload_idx ON portable.owner_table(p COLLATE pg_catalog."POSIX" pg_catalog.text_pattern_ops) INCLUDE(v)`, 0),
 							} {
 								run(step)
 							}
@@ -123,20 +124,24 @@ func TestReferenceBtreeIndexRestoreRetainedTemporaryCollision(t *testing.T) {
 					}
 					defer backend.db.ExecContext(p.ctx, "DROP SCHEMA IF EXISTS portable CASCADE")
 					next(2)
-					run(referenceExec("INSERT INTO portable.owner_table VALUES(8)", 1))
+					run(referenceExec("INSERT INTO portable.owner_table VALUES(8,'new')", 1))
 					run(referenceSelect("SELECT v FROM portable.owner_table ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(8)}}))
+					run(referenceSelect("SELECT v,p FROM portable.owner_table ORDER BY v", []string{"v", "p"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "old"}, {int64(8), "new"}}))
+					run(referenceSelect("SELECT relnatts FROM pg_class WHERE relname='owner_idx' OR relname='payload_idx' ORDER BY relname", []string{"relnatts"}, []string{"INT2"}, [][]any{{int64(2)}, {int64(2)}}))
 					if !backend.pg {
 						var dump bytes.Buffer
 						if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 							t.Fatal(err)
 						}
-						const definition = `CREATE INDEX "owner_idx" ON "portable"."owner_table" USING btree ("v" ASC NULLS LAST);`
-						if !strings.Contains(dump.String(), definition) || strings.Contains(dump.String(), `CREATE TEMP`) {
+						const definition = `CREATE INDEX "owner_idx" ON "portable"."owner_table" USING btree ("v" "pg_catalog"."int4_ops" ASC NULLS LAST) INCLUDE ("p");`
+						const payload = `CREATE INDEX "payload_idx" ON "portable"."owner_table" USING btree ("p" COLLATE "pg_catalog"."POSIX" "pg_catalog"."text_pattern_ops" ASC NULLS LAST) INCLUDE ("v");`
+						if !strings.Contains(dump.String(), definition) || !strings.Contains(dump.String(), payload) || strings.Contains(dump.String(), `CREATE TEMP`) {
 							t.Fatal("wrong remapped definition/TEMP serialization", dump.String())
 						}
 					}
 					run(referenceExec("DROP TABLE portable.owner_table", 0))
 					run(referenceSelect("SELECT relname FROM pg_class WHERE relname='owner_idx'", []string{"relname"}, []string{"NAME"}, nil))
+					run(referenceSelect("SELECT relname FROM pg_class WHERE relname='payload_idx'", []string{"relname"}, []string{"NAME"}, nil))
 					next(3)
 					run(referenceExec("DROP SCHEMA portable", 0))
 				})

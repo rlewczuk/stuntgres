@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/sqltype"
 )
 
-// Return a detached descriptor when an existing parent changes key usages or
-// schema/owner. A missing parent/key automatically removes the dependent index.
-func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relationDescriptor, error) {
+// Return a detached descriptor when a dependent attribute TYPE or schema/owner
+// changes. TYPE reconstructs the whole definition using OLD type defaults,
+// matching PostgreSQL's captured pg_get_indexdef rather than original spelling.
+func evolveIndex(index, oldParent, parent *relationDescriptor, transformations []columnTransformation) (*relationDescriptor, error) {
 	if parent == nil {
 		return nil, nil
 	}
@@ -24,10 +26,23 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 			return nil, nil
 		}
 	}
-	var definition *indexDefinition
+	definition := index.sqlIndex
+	reconstruct := false
+	dependentAttribute := func(attribute int32) bool {
+		if !parent.hasAttribute(attribute) {
+			return false
+		}
+		for _, transformation := range transformations {
+			if transformation.attribute == attribute {
+				reconstruct = true
+				break
+			}
+		}
+		return true
+	}
 	for i, key := range index.sqlIndex.keys {
 		if key.derived == nil {
-			if !parent.hasAttribute(key.attribute) {
+			if !dependentAttribute(key.attribute) {
 				return nil, nil
 			}
 			continue
@@ -36,7 +51,7 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 		for _, dependency := range key.derived.dependencies {
 			a := dependency.Address
 			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 {
-				if !parent.hasAttribute(a.SubID) {
+				if !dependentAttribute(a.SubID) {
 					return nil, nil
 				}
 				if !slices.Equal(key.derived.attributes, parent.attributes) && slots == nil {
@@ -59,8 +74,8 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 		if err != nil {
 			return nil, err
 		}
-		if definition == nil {
-			copy := *index.sqlIndex
+		if definition == index.sqlIndex {
+			copy := *definition
 			copy.keys = append([]indexKey(nil), copy.keys...)
 			definition = &copy
 		}
@@ -69,12 +84,33 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 		derived.attributes = parent.attributes
 		definition.keys[i].derived = &derived
 	}
-	_, err := bindIndexOrdering(parent, index.sqlIndex)
-	if err != nil {
+	for _, attribute := range definition.include {
+		if !dependentAttribute(attribute) {
+			return nil, nil
+		}
+	}
+	if reconstruct {
+		if definition == index.sqlIndex {
+			next := *definition
+			next.keys = append([]indexKey(nil), definition.keys...)
+			definition = &next
+		}
+		for i, key := range definition.keys {
+			var oldUsage, newUsage sqltype.Usage
+			if key.derived != nil {
+				oldUsage, newUsage = key.derived.definition.ResultUsage(), key.derived.execution.ResultUsage()
+			} else {
+				oldUsage = oldParent.columns[slices.Index(oldParent.attributes, key.attribute)].Usage
+				newUsage = parent.columns[slices.Index(parent.attributes, key.attribute)].Usage
+			}
+			definition.keys[i] = reconstructIndexKey(key, oldUsage, newUsage)
+		}
+	}
+	if _, err := bindIndexOrdering(parent, definition); err != nil {
 		return nil, err
 	}
-	changed := definition != nil || index.namespace != parent.namespace || index.owner != parent.owner
-	for i, key := range index.sqlIndex.keys {
+	changed := definition != index.sqlIndex || index.namespace != parent.namespace || index.owner != parent.owner
+	for i, key := range definition.keys {
 		usage, err := indexKeyUsage(parent, key)
 		if err != nil {
 			return nil, err
@@ -86,16 +122,18 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 	}
 	clone := *index
 	clone.namespace, clone.owner = parent.namespace, parent.owner
+	clone.sqlIndex = definition
 	clone.columns = append([]ColumnDescriptor(nil), index.columns...)
-	if definition != nil {
-		clone.sqlIndex = definition
-	}
-	for i, key := range clone.sqlIndex.keys {
+	for i, key := range definition.keys {
 		usage, err := indexKeyUsage(parent, key)
 		if err != nil {
 			return nil, err
 		}
 		clone.columns[i].Usage = usage
+	}
+	for i, attribute := range definition.include {
+		slot := slices.Index(parent.attributes, attribute)
+		clone.columns[len(definition.keys)+i].Usage = parent.columns[slot].Usage
 	}
 	clone.revision++
 	if clone.revision == 0 {
@@ -103,7 +141,7 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 	}
 	return &clone, nil
 }
-func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage) error {
+func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ObjectAddress, transformations []columnTransformation) error {
 	for a, d := range stage.base.state.descriptors {
 		index, ok := d.(*relationDescriptor)
 		if !ok || index.sqlIndex == nil {
@@ -124,7 +162,12 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage) error {
 			continue
 		}
 		relation, _ := parent.(*relationDescriptor)
-		next, err := evolveIndex(index, relation)
+		oldParent := stage.base.state.descriptors[index.sqlIndex.parent].(*relationDescriptor)
+		var dependentTypes []columnTransformation
+		if index.sqlIndex.parent == typeParent {
+			dependentTypes = transformations
+		}
+		next, err := evolveIndex(index, oldParent, relation, dependentTypes)
 		if err != nil {
 			return err
 		}

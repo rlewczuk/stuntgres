@@ -133,6 +133,7 @@ package parser
 %token <tok> GENERATED ALWAYS IDENTITY OVERRIDING SYSTEM VALUE
 %token <tok> INDEX
 %token <tok> CONCURRENTLY
+%token <tok> INCLUDE TABLESPACE
 /* Contextual command continuations remain below arithmetic precedence. */
 %nonassoc NAME_LIST
 %nonassoc INTO KW_R UNIQUE CONSTRAINT COLUMN ALL DEFAULT ON USER GROUP HAVING IN AND SAVEPOINT
@@ -159,7 +160,7 @@ package parser
  * Preserve declaration grammar's deliberate type-tail shift rather than
  * leaving those decisions as implicit shift/reduce conflicts. Interval field
  * keywords also shift qualifier tails after INTERVAL and INTERVAL STRING. */
-%nonassoc IDENT DOMAIN TYPE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
+%nonassoc IDENT DOMAIN TYPE INCLUDE TABLESPACE SELECTED_FUNC UNKNOWN INSERT UPDATE DELETE VALUES BY KW_U KW_C ZONE SET SHOW RESET SESSION LOCAL SETTING_FUNC IF EXISTS ROLE DROP AUTHORIZATION LOCK ACCESS EXCLUSIVE MODE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA COMMENT ADD INHERITS BEGIN COMMIT ROLLBACK ABORT WORK TRANSACTION CHAIN ISOLATION LEVEL READ RELEASE PREPARE PREPARED COMMITTED UNCOMMITTED REPEATABLE SERIALIZABLE SEQUENCE TEMP UNLOGGED LOGGED SEQUENCE_FUNC ALWAYS IDENTITY OVERRIDING SYSTEM VALUE YEAR MONTH DAY HOUR MINUTE SECOND '.'
 /* Preserve the existing generic type-tail shift for contextual call terminals. */
 %nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING
 %nonassoc GENERATION_OVER
@@ -194,10 +195,13 @@ package parser
 %type <alterView> view_alter_head
 %type <tok> replace_word
 %type <stmt> create_index
-%type <createIndex> index_head
-%type <tok> index_method
-%type <indexKeys> index_keys
-%type <indexKey> index_key
+%type <createIndex> index_head index_definition
+%type <tok> index_method index_direction
+%type <indexKeys> index_keys index_include
+%type <indexKey> index_key index_atom index_class
+%type <viewOptions> index_options index_option_list
+%type <viewOption> index_option
+%type <tok> index_option_value
 %type <identifiers> view_columns view_names
 %type <viewOptions> view_options view_option_list
 %type <viewOption> view_option
@@ -266,7 +270,7 @@ package parser
 %type <expr> scalar scalar_atom operand target_base target_between target_between_predicate target_comparison target default_target where target_not target_and target_or projection_target function function_argument insert_value
 %type <tok> like_operator
 %type <expr> target_escape delete_escape
-%type <expr> conditional case_test case_else conditional_value
+%type <expr> conditional conditional_call case_test case_else conditional_value
 %type <caseArms> case_arms
 %type <caseArm> case_arm
 %type <row> conditional_args count_values
@@ -575,20 +579,37 @@ index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos}
  | CREATE INDEX CONCURRENTLY name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$6,Pos:$1.pos} }
  | CREATE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$9,Pos:$1.pos} } ;
 index_method: /* empty */ { sqllex.(*lexer).indexExpression=true; $$=lexeme{text:"btree"} } | USING name { sqllex.(*lexer).indexExpression=true; $$=$2 } ;
-create_index: index_head index_method '(' index_keys ')' { sqllex.(*lexer).indexExpression=false; $1.Method=$2.text;$1.Keys=$4;$$=$1 }
+index_definition: index_head index_method '(' index_keys ')' index_include {
+ sqllex.(*lexer).indexExpression=false;$1.Method=$2.text;$1.Keys=$4;$1.Include=$6;$$=$1
+} ;
+create_index: index_definition {$$=$1}
  | create_index WHERE target_or { sqllex.(*lexer).deferUnsupported($2,"partial indexes are unsupported");$$=$1 }
  | create_index WITH '(' view_option_list ')' { sqllex.(*lexer).deferUnsupported($2,"index storage parameters are unsupported");$$=$1 }
- | create_index name '(' view_names ')' { if $2.text!="include" {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"included index columns are unsupported");$$=$1 }
- | create_index name name { if $2.text!="tablespace" {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"index tablespaces are unsupported");$$=$1 } ;
+ | create_index TABLESPACE name { sqllex.(*lexer).deferUnsupported($2,"index tablespaces are unsupported");$$=$1 } ;
+index_include: /* empty */ {$$=nil} | INCLUDE '(' index_keys ')' {$$=$3} ;
 index_keys: index_key { $$=[]IndexKey{$1} } | index_keys ',' index_key { $$=append($1,$3) } ;
-index_key: name direction nulls { $$=IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Desc:$2,Nulls:$3} }
- | '(' scalar_projection ')' direction nulls { $$=IndexKey{Expression:$2,Desc:$4,Nulls:$5} }
- | name COLLATE relation_name direction nulls { sqllex.(*lexer).deferUnsupported($2,"index collations are unsupported");$$=IndexKey{} }
- | name name direction nulls { sqllex.(*lexer).deferUnsupported($2,"index operator classes are unsupported");$$=IndexKey{} }
- | function direction nulls { $$=IndexKey{Expression:$1,Desc:$2,Nulls:$3} }
- | CHECK_FUNC '(' function_args ')' direction nulls { $$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos},Desc:$5,Nulls:$6} }
- | name '.' CHECK_FUNC '(' function_args ')' direction nulls { $$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos},Desc:$7,Nulls:$8} }
- | string_function direction nulls { $$=IndexKey{Expression:$1,Desc:$2,Nulls:$3} } ;
+index_key: index_atom column_collation index_class index_direction nulls {
+ $$=$1;$$.Collation=$2;$$.Opclass=$3.Opclass;$$.Options=$3.Options
+ $$.Desc=$4.text=="desc";$$.DirectionExplicit=$4.text!="";$$.Nulls=$5
+} ;
+index_atom: name {$$=IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Pos:$1.pos}}
+ | '(' scalar_projection ')' {$$=IndexKey{Expression:$2,Pos:$1.pos}}
+ | function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
+ | conditional_call {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
+ | CHECK_FUNC '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos},Pos:$1.pos}}
+ | name '.' CHECK_FUNC '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos},Pos:$1.pos}}
+ | string_function {$$=IndexKey{Expression:$1,Pos:$1.SourcePosition()}}
+ | name '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos},Pos:$1.pos}}
+ | name '.' col_label '(' function_args ')' {$$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos},Pos:$1.pos}} ;
+index_class: /* empty */ {$$=IndexKey{}}
+ | relation_name index_options {name:=$1;$$=IndexKey{Opclass:&name,Options:$2}} ;
+index_options: /* empty */ {$$=nil} | '(' index_option_list ')' {$$=$2} ;
+index_option_list: index_option {$$=[]ViewOption{$1}} | index_option_list ',' index_option {$$=append($1,$3)} ;
+index_option: col_label {$$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:"true"}}
+ | col_label '=' index_option_value {$$=ViewOption{Name:Identifier{Text:$1.text,Pos:$1.pos},Value:$3.text,HasValue:true}} ;
+index_option_value: view_option_value | '+' NUMBER {$$=$2;$$.text="+"+$2.text}
+ | '-' NUMBER {$$=$2;$$.text="-"+$2.text} ;
+index_direction: /* empty */ {$$=lexeme{}} | ASC {$$=$1} | DESC {$$=$1} ;
 optional_elements: /* empty */ { $$=nil } | elements { $$=$1 } ;
 elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($1,$3) } ;
 element: column { c:=$1; $$=TableElement{Column:&c,Pos:c.Pos} }
@@ -962,7 +983,8 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | SUBSTRING '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:"substring",Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' CHECK_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} } ;
 conditional: CASE case_test case_arms case_else END { $$=CaseExpr{Test:$2,Arms:$3,Else:$4,Pos:$1.pos} }
- | COALESCE '(' conditional_args ')' { $$=ConditionalExpr{Kind:Coalesce,Args:$3,Pos:$1.pos} }
+ | conditional_call { $$=$1 } ;
+conditional_call: COALESCE '(' conditional_args ')' { $$=ConditionalExpr{Kind:Coalesce,Args:$3,Pos:$1.pos} }
  | GREATEST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Greatest,Args:$3,Pos:$1.pos} }
  | LEAST '(' conditional_args ')' { $$=ConditionalExpr{Kind:Least,Args:$3,Pos:$1.pos} }
  | NULLIF '(' delete_or ',' delete_or ')' { $$=ConditionalExpr{Kind:NullIf,Args:[]Expr{$3,$5},Pos:$1.pos} } ;
@@ -1214,7 +1236,7 @@ string_word: STRING_FUNC | NORMALIZE | NORMALIZED | TRIM | NFC | NFD | NFKC | NF
 /* Keep ROLE/LOCAL command disambiguation while preserving ordinary names. */
 setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIST | KW_U | KW_C | INTEGER | BIGINT | TEXT | BOOLEAN | TIMESTAMP %prec NAME_LIST | WITHOUT | TIME %prec NAME_LIST | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | SETTING_FUNC %prec NAME_LIST | IF | EXISTS | DROP | LOCK | ACCESS | EXCLUSIVE | MODE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | COMMENT | ADD | INHERITS | transaction_name
  | string_word
- | DOMAIN | TYPE
+ | DOMAIN | TYPE | INCLUDE | TABLESPACE
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | ESCAPE
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
@@ -1228,14 +1250,14 @@ name: non_between_name | BETWEEN ;
 transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION | NO | CHAIN | ISOLATION | LEVEL | READ | SAVEPOINT | RELEASE | PREPARE | PREPARED | COMMITTED | UNCOMMITTED | REPEATABLE | SERIALIZABLE ;
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
- | DOMAIN | TYPE
+ | DOMAIN | TYPE | INCLUDE | TABLESPACE
  | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY | ILIKE | ESCAPE
  | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
 generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
- | DOMAIN | TYPE | ARRAY
+ | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE
  | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
  * particular NOT/BETWEEN must not compete with a real RHS BETWEEN predicate

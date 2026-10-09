@@ -111,21 +111,24 @@ engine mutex. A permanent zero-allocation evolution witness covers this path.
 
 ## Exclusions and evidence
 
-Standalone UNIQUE, partial/concurrent indexes, non-btree methods, custom
-collations/opclasses, INCLUDE, storage parameters/tablespaces, index-only scans,
-DROP/ALTER INDEX and broad pg_index/pg_indexes/pg_get_indexdef catalogs remain
-excluded. Valid excluded syntax fails explicitly rather than silently dropping
-meaning. Unknown methods instead report PostgreSQL 42704 at execution.
-Excluded-definition contracts prescribe full ERROR/0A000 diagnostics, including
-feature-specific English messages, character-based Position where applicable
-and absent unrelated logical fields. UNIQUE reports "unique indexes are
-unsupported"; non-btree methods remain an Execute-only, position-free exclusion.
+Standalone UNIQUE/PK/FK, partial/concurrent indexes, non-btree methods, unowned
+collations/opclasses, storage parameters/tablespaces, physical index-only scans,
+DROP/ALTER INDEX and broad pg_index/pg_indexes catalogs remain excluded.
+The existing pg_get_indexdef inquiry is supported. Table UNIQUE backing indexes
+are independently supported; standalone
+unique attachment is not admitted. [PG18-INDEX-CLAUSES](PG18-INDEX-CLAUSES.md)
+supersedes this part's historical COLLATE/class/INCLUDE exclusions: owned providers
+and simple INCLUDE payload are now admitted, with the 32 limit counting both roles.
 Expression support supersedes the original expression exclusion: the shared
 expression-index reference family retains spaced/Unicode syntax and quiet
 prepared admission, full semantic diagnostics and atomic no-leakage witnesses.
-Independent PostgreSQL streams
-execute valid excluded definitions, using TEXT COLLATE "C" and INT int4_ops
-rather than relying on errors from invalid provider combinations.
+Valid remaining excluded syntax fails explicitly instead of dropping meaning;
+unknown methods report 42704 at execution. Exclusion contracts retain full
+diagnostics, character positions where applicable, prepared admission and no
+descriptor/data/Dump leakage. Valid unowned PostgreSQL definitions have successful
+PostgreSQL controls beside truthful native capability failures, not fictitious
+shared rejection. Semantic clause errors follow PostgreSQL18.0 absence fields;
+the later class-option phase respects duplicate-name/IF NOT EXISTS precedence.
 
 The release oracle is PostgreSQL18.0 UTF8/C from the pinned external fixture;
 local20devel and the currently18.6 manual are research aids, not runtime evidence.

@@ -16,6 +16,7 @@ func TestReferenceDeparseRelationsNativeControls(t *testing.T) {
 		run(referenceExec("CREATE TABLE u(c INT UNIQUE NULLS NOT DISTINCT)", 0))
 		run(referenceExec("INSERT INTO u VALUES(1),(NULL)", 2))
 		run(referenceExec("CREATE VIEW stored AS SELECT pg_get_viewdef('v'::text) AS definition FROM t WHERE id=1", 0))
+		run(referenceExec(`CREATE INDEX clause_cover ON t(id int4_ops,txt COLLATE "POSIX" text_pattern_ops DESC NULLS LAST) INCLUDE(visible)`, 0))
 		// SQL expectation shared with the PostgreSQL control phase; controls have no PG API.
 		check := func(db *sql.DB, pg bool, extra bool) {
 			r, err := db.QueryContext(p.ctx, "SELECT k,label FROM v")
@@ -26,6 +27,17 @@ func TestReferenceDeparseRelationsNativeControls(t *testing.T) {
 			deleteReferenceConsume(t, pg, r, err, referenceSelect("", []string{"definition"}, []string{"TEXT"}, [][]any{{"CREATE UNIQUE INDEX u_c_key ON public.u USING btree (c) NULLS NOT DISTINCT"}}))
 			r, err = db.QueryContext(p.ctx, "SELECT definition IS NOT NULL AS present FROM stored")
 			deleteReferenceConsume(t, pg, r, err, referenceSelect("", []string{"present"}, []string{"BOOL"}, [][]any{{true}}))
+			for _, tc := range []struct{ call, want string }{
+				{"pg_get_indexdef('clause_cover'::regclass)", `CREATE INDEX clause_cover ON public.t USING btree (id, txt COLLATE "POSIX" text_pattern_ops DESC NULLS LAST) INCLUDE (visible)`},
+				{"pg_get_indexdef('clause_cover'::regclass,3,false)", "visible"},
+			} {
+				r, err := db.QueryContext(p.ctx, "SELECT "+tc.call+" AS definition")
+				if err != nil {
+					t.Fatal(err)
+				}
+				deparseRelationsMetadata(t, pg, r)
+				deleteReferenceConsume(t, pg, r, err, referenceSelect("", []string{"definition"}, []string{"TEXT"}, [][]any{{tc.want}}))
+			}
 		}
 		check(b.db, b.pg, false)
 		if b.pg {

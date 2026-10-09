@@ -33,13 +33,24 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 		binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		return sqltype.Usage{}, expressionError("42804", "collations are not supported by type "+binder.diagnosticTypeName(u.Type), pos)
 	}
-	auth, err := e.authorizationLocked(op)
+	id, err := e.lookupCollation(*raw, op)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	path, err := e.lookupNamespaces(auth, *raw, collationLookup)
+	u.Collation = sqltype.CollationRef{ID: id, Derivation: sqltype.Default}
+	return u, nil
+}
+
+// Name lookup is shared; callers own type precedence and error attribution.
+func (e *Engine) lookupCollation(raw parser.ObjectName, op *Operation) (uint32, error) {
+	pos := raw.Parts[0].Pos
+	auth, err := e.authorizationLocked(op)
 	if err != nil {
-		return sqltype.Usage{}, err
+		return 0, err
+	}
+	path, err := e.lookupNamespaces(auth, raw, collationLookup)
+	if err != nil {
+		return 0, err
 	}
 	name := raw.Parts[len(raw.Parts)-1].Text
 	for i := range path.count() {
@@ -59,12 +70,11 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 		case "pg_unicode_fast":
 			id = 6411
 		case "C.utf8", "C.UTF-8", "ucs_basic", "unicode":
-			return sqltype.Usage{}, expressionError("0A000", "collation is unsupported", pos)
+			return 0, expressionError("0A000", "collation is unsupported", pos)
 		}
 		if id != 0 {
-			u.Collation = sqltype.CollationRef{ID: id, Derivation: sqltype.Default}
-			return u, nil
+			return id, nil
 		}
 	}
-	return sqltype.Usage{}, expressionError("42704", fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, objectNameText(*raw)), pos)
+	return 0, expressionError("42704", fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, objectNameText(raw)), pos)
 }

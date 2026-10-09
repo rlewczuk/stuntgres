@@ -14,6 +14,8 @@ type derivedIndexKey struct {
 
 // Caller holds engine.mu and supplies the same final catalog/parent authority
 // used by the enclosing CREATE or TYPE owner.
+// Ordering admission belongs to the caller's final selected class/collation,
+// not an expression-only default comparator.
 func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, raw parser.Expr, literals []literalExpression) (*derivedIndexKey, string, error) {
 	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: parent.address}
 	columns := make([]queryColumn, len(parent.columns))
@@ -42,9 +44,6 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if _, err = (scalarRenderer{owner: parent, dependencies: &key.dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
 		return nil, "", err
 	}
-	if _, err = sqltype.BindOrdering(execution.ResultUsage()); err != nil {
-		return nil, "", err
-	}
 	label := "expr"
 	switch r := raw.(type) {
 	case parser.ColumnExpr:
@@ -58,6 +57,14 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 }
 
 func indexKeyUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage, error) {
+	usage, err := indexKeyBaseUsage(parent, key)
+	if err != nil {
+		return sqltype.Usage{}, err
+	}
+	return indexKeyCollation(usage, key), nil
+}
+
+func indexKeyBaseUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage, error) {
 	if key.derived != nil {
 		return key.derived.execution.ResultUsage(), nil
 	}

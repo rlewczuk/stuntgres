@@ -193,16 +193,21 @@ only for a borrower explicitly closed by the test, not other close failures.
 
 Direct Exec and database/sql prepared Execute support ordinary CREATE INDEX;
 Prepare retains syntax and empty utility description, not target/row/owner
-visibility. Each Execute binds current target, role, search_path and keys.
-Utilities return zero affected rows. Missing objects/keys and duplicate names
-fail at Execute with full PostgreSQL18.0 diagnostic records (missing key has no
-Position); lexical/syntax failures still occur at Prepare.
+visibility. Each Execute binds current target, role, search_path, keys, included
+attributes and provider identities. Utilities return zero affected rows.
+Semantic clause errors occur at Execute with full PostgreSQL18.0 diagnostic
+records and absent Position; lexical/syntax failures retain character locations
+and occur at Prepare. Class-option validation follows name admission, so a
+duplicate name wins over unsupported class parameters and IF NOT EXISTS notices.
 
-Native Dump records actual canonical CREATE INDEX definitions with direction
-and NULL options/current parent/key names. Restore uses isolated replay and one
-atomic replacement, rebuilding keys with destination identities. A bad late
-index definition leaves destination rows/definitions unchanged. These controls
-require the unwrapped native DB, not a foreign or sqlmw-wrapped pool.
+Native Dump records actual canonical CREATE INDEX definitions with direction,
+NULL policies, explicit `"pg_catalog"."collation"`/`"pg_catalog"."opclass"`
+identities and current parent/key/INCLUDE names. Restore uses isolated replay and
+one atomic replacement, rebuilding key-only roots with destination identities.
+A bad late included column/expression/provider leaves destination rows and
+definitions unchanged. TYPE reconstruction rebinds old-default classes and
+revalidates retained nondefaults rather than freezing obsolete explicit defaults.
+These controls require the unwrapped native DB, not a foreign or sqlmw-wrapped pool.
 The same emitted SQL can be replayed against PostgreSQL.
 Writable explicit CREATE INDEX transactions remain a native 0A000 boundary,
 independently of read-only 25006 utility rejection.

@@ -46,9 +46,11 @@ CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
 CREATE VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
 CREATE INDEX [name] ON [schema.]table [USING btree]
-  (key [ASC|DESC] [NULLS FIRST|LAST] [, ...])
+  (key [COLLATE [schema.]collation] [[schema.]opclass]
+    [ASC|DESC] [NULLS FIRST|LAST] [, ...]) [INCLUDE (column [, ...])]
 CREATE INDEX IF NOT EXISTS name ON [schema.]table [USING btree]
-  (key [ASC|DESC] [NULLS FIRST|LAST] [, ...])
+  (key [COLLATE [schema.]collation] [[schema.]opclass]
+    [ASC|DESC] [NULLS FIRST|LAST] [, ...]) [INCLUDE (column [, ...])]
 element := column type [COLLATE [schema.]name] [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression | check_constraint]...
          | [CONSTRAINT name] NOT NULL column | check_constraint | LIKE [schema.]source
 check_constraint := [CONSTRAINT name] CHECK (scalar_expression) [NO INHERIT]
@@ -839,14 +841,19 @@ No timezone(...) alias, CURRENT_* expansion or timezone catalog views are added.
 
 ## Ordinary B-tree indexes
 
-CREATE INDEX builds on populated ordinary tables, with 1–32 simple column or
-same-table scalar expression keys (repeated keys are legal), default/explicit btree, per-key direction
-and NULL placement. Names are unqualified and belong to the target table's
-schema, not the first creation schema in search_path. Omitted names use
-PostgreSQL-compatible generated names; IF NOT EXISTS emits a duplicate-relation
-NOTICE without changing an existing object, but does not bypass bad-key binding.
-Prepare is syntax/description-only; semantic diagnostics occur at Execute.
-The command returns zero affected rows and no result columns.
+CREATE INDEX builds on populated ordinary tables with at least one simple or
+same-table scalar expression key. The limit is 32 total key plus INCLUDE
+attributes; repeated keys/payload are legal. Default/explicit btree supports
+per-key direction, NULL placement, owned built-in collation overrides and operator
+classes. INCLUDE has storage/projection semantics only, is not compared and does
+not affect uniqueness. Its type needs no ordering provider. Names are unqualified
+and belong to the target table's schema, not the first creation schema in
+search_path. Omitted names derive from all key/payload labels. IF NOT EXISTS
+emits a duplicate-relation NOTICE without changing an existing object, but does
+not bypass bad column/expression/collation/class/INCLUDE binding. Class-parameter
+provider validation is later than duplicate-name/IF NOT EXISTS handling. Prepare
+is syntax-only; semantic diagnostics occur at Execute, with zero affected rows
+and no result columns.
 Keys may use function-call syntax such as `lower(v)` or parenthesized scalar
 syntax such as `(n+1)`. The shared binder/type providers/evaluator compute stored
 derived keys; functions/operators must be immutable after constant branch
@@ -854,21 +861,28 @@ simplification. Aggregates/subqueries are prohibited with positioned 42803/
 0A000; surviving stable/volatile expressions fail unpositioned 42P17.
 All original branches are bound before pruning. Failed builds or row-key
 evaluation publish no partial descriptor, root or rows.
+Included expressions, including schema-qualified or quoted qualified function
+calls, fail semantically with 0A000 without binding their arguments.
 
 Equality/range/IS NULL and explicit ORDER BY use the ordinary query pipeline,
 independently of index choice. Unordered results remain bags. Actual sorted
 logical keys, including duplicates/NULLs, are maintained by common committed
-row publication. See [the design](design/PG18-INDEX-BTREE.md) for representation,
-publication and lifecycle invariants. Native Dump/Restore includes current
-canonical CREATE INDEX definitions.
+row publication. See [B-tree design](design/PG18-INDEX-BTREE.md) and
+[clause/provider design](design/PG18-INDEX-CLAUSES.md). Native Dump/Restore includes
+actual canonical definitions with current names, explicit providers and INCLUDE.
+TYPE of a dependent key or included column reconstructs the whole definition,
+even for the same type with or without USING. Old-default classes and
+inherited-equivalent collations become implicit; genuine overrides remain.
 
 Writable explicit CREATE INDEX transactions are excluded natively (0A000),
 while PostgreSQL supports transactional creation/rollback. Read-only execution
 returns 25006 first. Standalone CREATE UNIQUE INDEX, partial/concurrent
-indexes, non-btree methods, opclasses/collations, INCLUDE, storage parameters/
-tablespaces and DROP/ALTER INDEX remain excluded; CREATE TABLE UNIQUE constraints
-are supported with owned backing B-trees. No planner, index-only scan or physical tree
-claim is made.
+indexes, non-btree methods, unowned collations/classes, class parameters, storage
+parameters/tablespaces and DROP/ALTER INDEX remain excluded; CREATE TABLE UNIQUE
+constraints are supported with owned backing B-trees. No unique-index attachment,
+planner, physical index-only scan or physical tree claim is made. Admitted
+collations are default, C, POSIX, pg_c_utf8 and pg_unicode_fast; class/provider
+inventory and directional binary compatibility are documented in the clause design.
 
 ## Whole-string pattern predicates
 
