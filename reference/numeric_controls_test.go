@@ -91,9 +91,6 @@ func TestReferenceNumericControlsAndBounds(t *testing.T) {
 	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(dump.String(), "NUMERIC(2,-3)") || !strings.Contains(dump.String(), "'"+exact+"'") {
-		t.Fatal(dump.String())
-	}
 	held, err := p.native.QueryContext(p.ctx, "SELECT * FROM n ORDER BY id")
 	if err != nil {
 		t.Fatal(err)

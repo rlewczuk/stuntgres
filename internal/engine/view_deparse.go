@@ -145,8 +145,8 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	(*ordinal)++
 	if literal, ok := v.literals[path]; ok {
 		_, identity := v.sequenceRefs[raw.SourcePosition().Offset]
-		if literal.ResultUsage().Type.ID() != sqltype.Regclass || !identity {
-			return literalSQL(ctx, literal)
+		if literal.ResultUsage().Type.BaseType().ID() != sqltype.Regclass || !identity {
+			return catalogLiteralSQL(ctx, catalog, literal)
 		}
 	}
 	child := func(expr parser.Expr) (string, error) { return v.expressionSQLAt(ctx, catalog, expr, path, ordinal) }
@@ -226,7 +226,14 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 				return text, nil
 			}
 		}
-		return "CAST(" + text + " AS " + syntaxTypeSQL(e.TypeName) + ")", nil
+		declaration := syntaxTypeSQL(e.TypeName)
+		if usage, ok := v.domainCasts[path]; ok {
+			declaration, err = catalogTypeDeclaration(catalog, usage)
+			if err != nil {
+				return "", err
+			}
+		}
+		return "CAST(" + text + " AS " + declaration + ")", nil
 	case parser.OperatorExpr:
 		left, err := child(e.Args[0])
 		if err != nil {
@@ -382,6 +389,13 @@ func syntaxTypeSQL(t parser.TypeName) string {
 			}
 		}
 		name += "(" + strings.Join(parts, ",") + ")"
+	}
+	for _, bound := range t.ArrayBounds {
+		name += "["
+		if bound >= 0 {
+			name += strconv.FormatInt(int64(bound), 10)
+		}
+		name += "]"
 	}
 	return name
 }

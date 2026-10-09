@@ -410,10 +410,15 @@ func descriptorACL(d Descriptor) (PrincipalRef, ACLValue, map[int32]ACLValue) {
 		return d.owner, d.acl, nil
 	case *relationDescriptor:
 		return d.owner, d.acl, d.columnACL
+	case *typeDescriptor:
+		return d.owner, d.acl, nil
 	}
 	return PrincipalRef{}, ACLValue{}, nil
 }
 func classPrivileges(d Descriptor) Privileges {
+	if d.Kind() == TypeObject {
+		return UsagePrivilege
+	}
 	if d.Kind() == NamespaceObject {
 		return UsagePrivilege | CreatePrivilege
 	}
@@ -511,6 +516,10 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 			}
 		}
 		kind := "table"
+		if t, ok := d.(*typeDescriptor); ok {
+			path, _ := v.engine.referencePath(v)
+			return sqlError("42501", "must be owner of type "+typeDiagnosticNameAt(v.catalog, t, path))
+		}
 		if d.Kind() == NamespaceObject {
 			kind = "schema"
 		} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
@@ -539,6 +548,10 @@ func (v AuthorizationView) Check(req AccessRequirement) error {
 		return nil
 	}
 	kind := "table"
+	if t, ok := d.(*typeDescriptor); ok {
+		path, _ := v.engine.referencePath(v)
+		return sqlError("42501", "permission denied for type "+typeDiagnosticNameAt(v.catalog, t, path))
+	}
 	if d.Kind() == NamespaceObject {
 		kind = "schema"
 	} else if r, ok := d.(*relationDescriptor); ok && r.relationKind == sequenceRelation {
@@ -554,8 +567,12 @@ func (v AuthorizationView) CheckCreate(ref ObjectRef) error {
 }
 func validateACL(r RoleRead, d Descriptor) error {
 	// Immutable builtin identities have no principal or role-owned ACL.
-	switch d.(type) {
-	case *typeDescriptor, *collationDescriptor, *conversionDescriptor:
+	switch t := d.(type) {
+	case *typeDescriptor:
+		if !t.typ.IsDomain() {
+			return nil
+		}
+	case *collationDescriptor, *conversionDescriptor:
 		return nil
 	}
 	owner, acl, cols := descriptorACL(d)
@@ -601,8 +618,12 @@ func validateACL(r RoleRead, d Descriptor) error {
 	return nil
 }
 func descriptorReferences(d Descriptor) []PrincipalRef {
-	switch d.(type) {
-	case *typeDescriptor, *collationDescriptor, *conversionDescriptor:
+	switch t := d.(type) {
+	case *typeDescriptor:
+		if !t.typ.IsDomain() {
+			return nil
+		}
+	case *collationDescriptor, *conversionDescriptor:
 		return nil
 	}
 	owner, acl, cols := descriptorACL(d)

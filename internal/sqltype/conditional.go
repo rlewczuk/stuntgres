@@ -49,10 +49,10 @@ func equalityImplicit(from, to ID) bool {
 func ResolveEquality(left, right *Descriptor) (EqualitySignature, error) {
 	var l, r ID
 	if left != nil {
-		l = left.ID()
+		l = left.BaseType().ID()
 	}
 	if right != nil {
-		r = right.ID()
+		r = right.BaseType().ID()
 	}
 	for _, s := range equalitySignatures {
 		if left != nil && right != nil && s.Left == l && s.Right == r || left == nil && right != nil && s.Left == r && s.Right == r || right == nil && left != nil && s.Left == l && s.Right == l {

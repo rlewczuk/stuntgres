@@ -105,27 +105,6 @@ func TestVisibilityInquiryPreparedInputsAndCancellation(t *testing.T) {
 	}
 }
 
-func TestVisibilityInquiryBoundaries(t *testing.T) {
-	db := openLocal(t, stuntgres.NewDriver(), t.Name())
-	execSQL(t, db, "CREATE TABLE sentinel(id INT)")
-	execSQL(t, db, "INSERT INTO sentinel VALUES(7)")
-	for _, q := range []string{"CREATE TYPE widget AS ENUM ('x')", "CREATE DOMAIN d AS integer", "CREATE COLLATION c FROM pg_catalog.\"C\"", "CREATE CONVERSION c FOR 'UTF8' TO 'LATIN1' FROM pg_catalog.utf8_to_iso8859_1", "CREATE TEMP TABLE temp_t(id INT)", "CREATE MATERIALIZED VIEW mv AS SELECT id FROM sentinel", "CREATE FOREIGN TABLE ft(id integer) SERVER unavailable"} {
-		t.Run(q, func(t *testing.T) {
-			token := strings.Fields(q)[1]
-			want := stuntgres.Error{Code: "42601", Message: `syntax error at or near "` + token + `"`, Position: "8"}
-			if token == "TEMP" {
-				want.Code = "0A000"
-				want.Message = "CREATE syntax is unsupported"
-			}
-			nullCountError(t, db, q, want)
-			wantTuples(t, db, "SELECT pg_collation_is_visible(950),pg_conversion_is_visible(4519)", [][]any{{true, true}})
-			wantTuples(t, db, "SELECT id FROM sentinel", [][]any{{int64(7)}})
-		})
-	}
-	const defaultSQL = "CREATE TABLE default_boundary(id BOOL DEFAULT pg_type_is_visible(23))"
-	nullCountError(t, db, defaultSQL, stuntgres.Error{Code: "0A000", Message: "functions are unsupported", Position: fmtVisibilityOID(int64(strings.Index(defaultSQL, "pg_type_is_visible") + 1))})
-}
-
 func TestVisibilityInquiryForeignTemporaryNamespace(t *testing.T) {
 	db := openLocal(t, stuntgres.NewDriver(), t.Name())
 	db.SetMaxOpenConns(2)

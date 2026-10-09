@@ -44,7 +44,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	}
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
-		if name == "||" && !textual[i] && usages[i].Type.ID() == sqltype.Regclass {
+		if name == "||" && !textual[i] && usages[i].Type.BaseType().ID() == sqltype.Regclass {
 			b.regclassConcat = true
 		}
 		child := arg.Properties()
@@ -111,8 +111,8 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 	knownBinary := false
 	for _, o := range operands {
 		if d := o.descriptor(); d != nil {
-			binary = binary && d.ID() == sqltype.Bytea
-			knownBinary = knownBinary || d.ID() == sqltype.Bytea
+			binary = binary && d.BaseType().ID() == sqltype.Bytea
+			knownBinary = knownBinary || d.BaseType().ID() == sqltype.Bytea
 		}
 	}
 	if binary && knownBinary {
@@ -130,7 +130,7 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		valid = valid && len(operands) == 1
 	}
 	for _, o := range operands {
-		if d := o.descriptor(); d != nil && !sqltype.StringTextInput(d.ID()) {
+		if d := o.descriptor(); d != nil && !sqltype.StringTextInput(d.BaseType().ID()) {
 			valid = false
 		}
 	}
@@ -178,8 +178,8 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 	}
 	// Exact BYTEA/BYTEA (including one unknown assumed from its known peer)
 	// wins before the polymorphic text siblings. UNKNOWN/UNKNOWN prefers TEXT.
-	if visible && ((types[0] != nil && types[0].ID() == sqltype.Bytea && (types[1] == nil || types[1].ID() == sqltype.Bytea)) ||
-		(types[1] != nil && types[1].ID() == sqltype.Bytea && types[0] == nil)) {
+	if visible && ((types[0] != nil && types[0].BaseType().ID() == sqltype.Bytea && (types[1] == nil || types[1].BaseType().ID() == sqltype.Bytea)) ||
+		(types[1] != nil && types[1].BaseType().ID() == sqltype.Bytea && types[0] == nil)) {
 		return b.finishBinary("||", raw.Pos, operands[:], parser.OrdinaryFunctionSyntax)
 	}
 	// A=TEXT/TEXT, B=TEXT/ANYNONARRAY, C=ANYNONARRAY/TEXT. A
@@ -196,7 +196,7 @@ func (b *expressionBinder) bindStringConcat(raw parser.OperatorExpr) (BoundExpr,
 				if t == nil {
 					continue
 				}
-				id := t.ID()
+				id := t.BaseType().ID()
 				if s[i] {
 					if !sqltype.StringTextInput(id) {
 						viable = false

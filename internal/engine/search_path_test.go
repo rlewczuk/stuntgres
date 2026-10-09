@@ -44,36 +44,69 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, q := range []string{"CREATE USER reader", "CREATE SCHEMA hidden", "CREATE SCHEMA visible"} {
-		roleExecute(t, e, op, q)
+	for _, q := range []string{"CREATE SCHEMA hidden", "CREATE SCHEMA visible"} {
+		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
-	reader, _ := e.Roles().Lookup("reader")
-	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader.Ref}, Privileges: UsagePrivilege}}}); err != nil {
+	e.mu.Lock()
+	reader := PrincipalRef{e, e.nextPrincipal}
+	e.nextPrincipal++
+	roles := cloneRoles(e.roles)
+	roles.names["reader"] = reader
+	roles.roles[reader] = RoleDescriptor{Ref: reader, Name: "reader", Login: true}
+	e.roles = roles
+	e.mu.Unlock()
+	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), ACLValue{Explicit: true, Entries: []ACLEntry{{Grantor: e.roles.names["postgres"], Grantee: ACLGrantee{Role: reader}, Privileges: UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	roleExecute(t, e, op, "SET search_path TO hidden,missing,visible,visible,public")
-	got := tuples(roleExecute(t, e, op, "SELECT current_schemas(false)"))
-	if len(got) != 1 || len(got[0]) != 1 || got[0][0] != "{visible,public}" {
-		t.Fatal(got)
-	}
-	d, err := e.Describe(op, statement(t, "SELECT current_schemas(false)"))
+	table := domainUnitTable(t, e, op, "CREATE TABLE public.bounded(id pg_catalog._name)")
+	setting, err := e.settingsDefinitions["search_path"].parse("hidden,missing,visible,visible,public")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Results) != 1 {
-		t.Fatal(d)
+	readerOp, readerDone := roleOperation(t, e, "reader")
+	defer readerDone()
+	readerOp.session.settings.mu.Lock()
+	readerOp.session.settings.typed["search_path"] = setting
+	readerOp.session.settings.mu.Unlock()
+	scope, err := e.StartStatement(readerOp)
+	if err != nil {
+		t.Fatal(err)
 	}
-	c := d.Results[0]
-	if c.Usage.Type.ID() != sqltype.NameArray || c.Usage.Type.Name() != "_name" || c.Usage.Type.DatabaseName() != "_NAME" || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 950 || c.OriginTable != 0 || c.OriginAttribute != 0 {
-		t.Fatal(c)
+	defer func() {
+		if err := scope.Finish(nil); err != nil {
+			t.Error(err)
+		}
+	}()
+	if err = scope.gate(statement(t, "SELECT current_schemas(false)")); err != nil {
+		t.Fatal(err)
 	}
-	roleErrorPosition(t, e, op, "CREATE TABLE no_fallback(id INT)", "42501", "permission denied for schema visible", "", "14")
-	roleErrorPosition(t, e, op, "SELECT id FROM hidden.t", "42501", "permission denied for schema hidden", "", "16")
-	schemaFail(t, e, op, "CREATE TABLE public.bad(id pg_catalog._name)", "0A000")
+	query := domainUnitBindSelect(t, e, readerOp, "SELECT current_schemas(false)")
+	if len(query.Root.Schema()) != 1 {
+		t.Fatal(query.Root.Schema())
+	}
+	c := query.Root.Schema()[0]
+	if c.Usage.Type.ID() != sqltype.NameArray || c.Usage.Type.Name() != "_name" || c.Usage.Type.DatabaseName() != "_NAME" || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 950 || c.OriginTable != 0 || c.OriginAttribute != 0 || table.columns[0].Usage != c.Usage {
+		t.Fatal(c, table.columns)
+	}
+	value, err := query.Root.(*projectNode).expressions[0].Eval(&EvalContext{Context: context.Background(), statementScope: scope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := sqltype.PlanCoercion(c.Usage, table.columns[0].Usage, sqltype.Assignment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err = plan.Apply(context.Background(), value, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	if err != nil || value.Type() != table.columns[0].Usage.Type {
+		t.Fatal(value, err)
+	}
+	text, err := value.Type().Output(context.Background(), value)
+	if err != nil || text != "{visible,public}" {
+		t.Fatal(text, err)
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.authorizationLocked(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,6 +121,11 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if !reflect.DeepEqual(names, []string{"visible", "public"}) {
 		t.Fatal(names)
 	}
+	target, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "no_fallback"}}})
+	if err != nil || target.Address != path[0] {
+		t.Fatal("creation fell back from first usable namespace", target, err)
+	}
+	domainUnitDiagnostic(t, auth.CheckCreate(target), "42501", "permission denied for schema visible")
 	_, err = e.lookupNamespaces(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "hidden"}, {Text: "int4"}}}, typeLookup)
 	state(t, err, "42501")
 }

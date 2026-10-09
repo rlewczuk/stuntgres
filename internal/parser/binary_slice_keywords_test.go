@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"errors"
-	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
@@ -46,10 +44,9 @@ func TestBinarySliceFunctionKeywordNames(t *testing.T) {
 			"CREATE TABLE t(v " + word + "(3))",
 			"CREATE TABLE t(v public." + word + "(3))",
 		} {
-			_, err := Parse(query)
-			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "type modifiers are unsupported" {
-				t.Fatal(query, err)
+			statements, err := Parse(query)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(query, statements, err)
 			}
 		}
 	}

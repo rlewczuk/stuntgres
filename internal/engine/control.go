@@ -67,6 +67,8 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	}
 	tables := make([]dumpRelation, 0)
 	catalog := CatalogRead{owner: e, state: e.state}
+	domainRoles := RoleRead{e, e.roles}
+	var domains []*typeDescriptor
 	type dumpSchema struct{ name, owner string }
 	var schemas []dumpSchema
 	var sequences []dumpSequence
@@ -166,9 +168,13 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	for a, d := range e.state.descriptors {
 		r, ok := d.(*relationDescriptor)
 		if !ok {
-			switch d.(type) {
-			case *typeDescriptor, *collationDescriptor, *conversionDescriptor:
-				// Immutable builtin identities rebuild through bootstrap.
+			switch t := d.(type) {
+			case *typeDescriptor:
+				if t.typ.IsDomain() {
+					domains = append(domains, t)
+				}
+				continue
+			case *collationDescriptor, *conversionDescriptor:
 				continue
 			}
 			if d.Kind() == NamespaceObject {
@@ -358,6 +364,10 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		tables = append(tables, dumpRelation{owner: principal.Name, schema: ns.name, name: r.name, columns: r.columns, attributes: r.attributes, versions: storage.versions, ends: storage.ends, frontier: e.commitSeq, comment: r.comment, columnComments: r.columnComments, notNullConstraints: r.notNullConstraints, defaults: r.defaults, descriptor: r, identities: r.identities, identitySequences: linked})
 	}
 	e.mu.Unlock()
+	domainStatements, err := domainDumpStatements(ctx, catalog, domainRoles, domains)
+	if err != nil {
+		return err
+	}
 	viewOrder, err := viewDumpOrder(ctx, viewDependencies)
 	deferDefaults := false
 	if err != nil && ctx.Err() == nil && len(defaultPredecessors) != 0 {
@@ -406,15 +416,27 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			return err
 		}
 	}
+	currentOwner := ""
+	for _, domain := range domainStatements {
+		if domain.owner != currentOwner {
+			if err := emit("SET SESSION AUTHORIZATION '" + strings.ReplaceAll(domain.owner, "'", "''") + "';\n"); err != nil {
+				return err
+			}
+			currentOwner = domain.owner
+		}
+		if err := emit(domain.sql); err != nil {
+			return err
+		}
+	}
 	sequenceCreation, sequenceCompletion := sequenceDumpStatements(sequences)
 	for _, line := range sequenceCreation {
 		if err := emit(line); err != nil {
 			return err
 		}
 	}
+	currentOwner = ""
 	// The interpreter need not be logged in as the native bootstrap owner.
 	// Establish even the first group's owner before creating dependent objects.
-	currentOwner := ""
 	for _, oid := range viewOrder {
 		if index, isView := viewIndices[oid]; isView {
 			view := views[index]
@@ -443,7 +465,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if i > 0 {
 				line.WriteString(", ")
 			}
-			declaration, err := c.Usage.Declaration()
+			declaration, err := catalogTypeDeclaration(catalog, c.Usage)
 			if err != nil {
 				return err
 			}
@@ -550,7 +572,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			}
 			currentOwner = t.owner
 		}
-		if err := t.emitRows(ctx, emit); err != nil {
+		if err := t.emitRows(ctx, catalog, emit); err != nil {
 			return err
 		}
 	}
@@ -621,7 +643,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	defer op.Done()
 	for _, stmt := range statements {
 		switch s := stmt.(type) {
-		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
+		case *parser.CreateTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateDomain:
 		case *parser.CreateView:
 		case *parser.CreateIndex:
 		case *parser.CreateSequence:

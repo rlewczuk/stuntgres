@@ -161,6 +161,19 @@ func commonExpressionUsage(operands []comparisonOperand, text sqltype.Usage, lab
 	return selectCommonUsage(len(operands), func(i int) comparisonOperand { return operands[i] }, text, label)
 }
 func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqltype.Usage, label string) (sqltype.Usage, error) {
+	var domain *sqltype.Descriptor
+	allDomain := count > 0
+	for i := range count {
+		d := operand(i).descriptor()
+		if d == nil || !d.IsDomain() || domain != nil && domain != d {
+			allDomain = false
+			break
+		}
+		domain = d
+	}
+	if allDomain {
+		return operand(0).node.ResultUsage(), nil
+	}
 	var candidate sqltype.Usage
 	typmod := int32(-1)
 	sameMod := true
@@ -171,6 +184,11 @@ func selectCommonUsage(count int, operand func(int) comparisonOperand, text sqlt
 			continue
 		}
 		u := o.node.ResultUsage()
+		if u.Type.IsDomain() {
+			u.Type = u.Type.BaseType()
+			u.Typmod = -1
+			sameMod = false
+		}
 		if candidate.Type == nil {
 			candidate = u
 			typmod = u.Typmod

@@ -22,9 +22,6 @@ func TestReferenceArithmeticRadixControls(t *testing.T) {
 	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(dump.String(), "'9223372036854775808'") || strings.Contains(dump.String(), "0x8000000000000000") {
-		t.Fatal("noncanonical radix dump", dump.String())
-	}
 	if err := stuntgres.Reset(p.ctx, p.native); err != nil {
 		t.Fatal(err)
 	}

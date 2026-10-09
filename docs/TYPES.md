@@ -18,7 +18,81 @@ DATE/TIME/INTERVAL as canonical `string`, finite TIMESTAMP as `time.Time`, times
 `[]byte("infinity")` / `[]byte("-infinity")`, BYTEA as fresh owned `[]byte`, and typed NULL as nil.
 NULL still retains its concrete metadata identity.
 
-### VOID selected function result
+## Domains — change note
+
+Domains are immutable catalog-owned logical types, not aliases or per-value boxed
+objects. `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` accepts supported
+stored scalar bases, another domain, and bounded NAME[]. Immediate-base identity,
+inherited typmod/collation, namespace, owner and distinct type ID remain represented.
+VOID, UNKNOWN and RECORD are not valid bases. Domain DEFAULT/CHECK/NOT NULL and
+ALTER DOMAIN are excluded; omitted values and bound nil remain typed NULL.
+Table-only UNIQUE clauses, including named and NULLS variants, fail at execution
+with42601, `unique constraints not possible for domains`, at the constraint
+opening token. Preparing the declaration still succeeds; failed creation publishes
+no domain and never silently discards the clause. Ordinary table UNIQUE and
+explicit domain NULL declarations remain supported.
+
+Assignment/input validates the ultimate base typmod: numeric(5,2) `12.345` becomes
+`12.35`; varchar(3) rejects assignment `abcd` with22001, while an explicit domain
+cast truncates to `abc`. Modifiers on a domain name itself fail42601.
+Unknown string literals are parsed at the unsized physical base during binding;
+destination sizing is enforced by execution coercion rather than eager domain
+input. INTERVAL is field-sensitive: literal casts and inferred bound parameters
+retain the effective base field mask and precision during input, including domain
+chains. Bare `1` means one day for INTERVAL DAY, one hour for INTERVAL HOUR and
+one month for INTERVAL MONTH, not one second followed by field truncation.
+Qualified domain names retain their catalog identity even when the last
+identifier is a builtin spelling.
+Supported operators/functions receive base values and return their ordinary
+builtin result types. Explicit cast/assignment-back restores domain identity.
+All known same-domain conditional/common-type inputs retain their logical type;
+mixed builtin/distinct-domain inputs flatten. Type dependencies survive that
+downcast, including stored defaults/checks/views.
+
+Driver values and DatabaseTypeName/ScanType/Length/DecimalSize describe the ultimate
+base, including empty/all-NULL results. Integer-domain rows use native int64;
+numeric(5,2) uses string and precision5/scale2; varchar(3) uses string and length3;
+NAME[] uses `_NAME`/string. Pinned lib/pq independently uses int32 ScanType for INT4
+and interface{} ScanType/raw []byte for NUMERIC/_NAME. Native nullable declarations
+are known true, unlike pq's unavailable Nullable metadata.
+REGCLASS-domain result spelling is captured from current catalog authority before
+returning rows, for source-backed projections and materialized outputs alike;
+row export does not fall back to a later live catalog.
+
+NAME[] text input supports whole NULL versus NULL elements versus quoted `\"NULL\"`,
+empty arrays/elements, quoted escapes, rectangular nested dimensions, explicit
+lower bounds and 63-byte UTF8 NAME clipping. Declaration dimensions/sizes do not
+restrict actual shape. Canonical examples are `{NULL,\"NULL\",\"\",alpha}`,
+`{{a,b},{c,NULL}}`, and `[0:1]={a,b}`. Malformed/ragged arrays fail22P02 with the
+base Detail; no ARRAY constructors, subscripts, equality/order or other general
+array families are introduced.
+An unquoted backslash-escaped NULL spelling, such as `{\NULL}` or `{N\ULL}`,
+is a nonnull NAME element and canonically prints `{"NULL"}`; only unquoted,
+unescaped NULL tokens denote null elements. Assignment, casts and native logical
+Dump/Restore preserve that distinction.
+Descending explicit bounds fail2202E, `upper bound cannot be less than lower bound`;
+literal input diagnostics retain the quote's source character position.
+The existing `current_schemas(false)` NAME[] producer can be assigned to a NAME[]
+domain through ordinary scalar INSERT input; it does not introduce general
+array constructors or arbitrary scalar function admission.
+Custom schema USAGE-only ACL SQL probes are explicit PostgreSQL controls: there
+is no native public schema-ACL mutation fixture. Native private catalog units
+exercise actual ACL filtering and first-usable-schema CREATE denial without
+inventing a public GRANT path; ordinary paths and NAME[] storage remain dual-mode.
+
+Native Dump/Restore preserves qualified declarations, chains, base sizing, owners,
+arrays, NULL and dependent persistent expressions. Changed domain ACLs are rejected
+by Dump rather than silently discarded; native type ACL-management SQL is excluded.
+Fresh prepared reads rebind restored authority; old prepared logical parameter or
+result signatures are immutable and may reject reminted identities with0A000.
+Retained eager rows keep their owned values and analyzed metadata. This does not
+remap stale parameter IDs by name or promise PostgreSQL's old-OID cache diagnostics.
+For BYTEA domains, shared binary-buffer binds use `$1::bytea` before assignment:
+pq's inferred domain parameter can reject embedded NUL with22021, while native
+inferred BYTEA-domain []byte input follows its owned binary adapter.
+
+
+## VOID selected function result
 
 `setseed` returns the true builtin VOID descriptor (OID2278, typmod-1, no
 collation). Nonnull VOID exports an empty native string; strict `setseed(NULL)`
@@ -179,8 +253,10 @@ and empty results still retain NAME metadata. Dump/Reset/Restore preserve NAME
 declarations, visible values, NULL and empty tables; retained cursors keep their
 original descriptor/data, and failed staged Restore does not replace the target.
 
-PostgreSQL's physical64-byte padded representation, arrays (OID1003), binary
+PostgreSQL's physical64-byte padded representation, binary
 `namerecv`/`namesend`, non-C collations and wire serving are external-only.
+Bounded NAME[] textual input/storage is described in the domain section above;
+general array operations are not implied.
 Binary NAME receive rejects64 bytes with42622 `identifier too long`, rather
 than text input's clipping; native ordinary byte binds are textual, not binary.
 Native persistence here is public in-memory logical Dump/Restore, not disk/WAL

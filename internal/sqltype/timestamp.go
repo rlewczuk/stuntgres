@@ -53,6 +53,11 @@ func (u Usage) Valid() bool {
 }
 
 func (u Usage) validCollation() bool {
+	if u.Type.IsDomain() {
+		base := u.BaseUsage()
+		base.Collation = u.Collation
+		return base.validCollation()
+	}
 	if IsCharacter(u.Type.ID()) || u.Type.ID() == Name {
 		return u.Collation.Derivation == Default && (u.Collation.ID == 100 || u.Collation.ID == 950 || u.Collation.ID == 951 || u.Collation.ID == 811 || u.Collation.ID == 6411)
 	}
@@ -62,6 +67,9 @@ func (u Usage) validCollation() bool {
 // CheckModifierSupport rejects absent type-modifier providers before the
 // statement owner interprets raw modifier expressions.
 func (d *Descriptor) CheckModifierSupport() error {
+	if d.IsDomain() {
+		return failure("42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, d.DiagnosticName()))
+	}
 	switch d.id {
 	case Numeric, Timestamp, Time, Timestamptz, Timetz, Interval, BPChar, VarChar:
 		return nil

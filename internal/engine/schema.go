@@ -152,6 +152,18 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 		return Result{}, err
 	}
 	defer e.DiscardCatalogStage(stage)
+	domainMode := parser.DropCascade
+	cascade := false
+	switch s := stmt.(type) {
+	case *parser.DropDomain:
+		domainMode = s.Mode
+		cascade = s.Mode == parser.DropCascade
+	case *parser.DropSchema:
+		cascade = s.Cascade
+	}
+	if err = scope.stageDomainDependents(stage, domainMode); err != nil {
+		return Result{}, err
+	}
 	var removedRelations []ObjectAddress
 	for address, removal := range stage.removals {
 		if _, ok := removal.descriptor.(*relationDescriptor); ok {
@@ -180,7 +192,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	_, err = e.publishCatalogOperation(op, prepared, PublicationToken{Epoch: stage.base.Epoch()})
 	if err == nil {
-		if s, ok := stmt.(*parser.DropSchema); ok && s.Cascade {
+		if cascade {
 			details := stage.schemaCascadeNames
 			if len(details) > 0 {
 				message := details[0]
@@ -235,6 +247,14 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return nil
 	}
 	switch s := stmt.(type) {
+	case *parser.CreateDomain:
+		if err = e.stageCreateDomainLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropDomain:
+		if err = e.stageDropDomainLocked(op, auth, stage, s); err != nil {
+			return nil, err
+		}
 	case *parser.CreateSchema:
 		owner, err := schemaOwner(auth, s.Authorization, s.AuthorizationIdentity)
 		if err != nil {
@@ -357,6 +377,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 			schemas = append(schemas, d)
 		}
 		var dependent []*relationDescriptor
+		var domains []*typeDescriptor
 		for _, d := range auth.catalog.state.descriptors {
 			if !seen[d.Namespace()] {
 				continue
@@ -366,9 +387,17 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 					continue
 				}
 				dependent = append(dependent, r)
+			} else if t, ok := d.(*typeDescriptor); ok && t.typ.IsDomain() {
+				domains = append(domains, t)
 			} else {
 				return nil, sqlError("0A000", "dropping schemas with unsupported object dependencies is unsupported")
 			}
+		}
+		if len(domains) != 0 {
+			if err = e.stageSchemaDomainsLocked(op, auth, stage, schemas, dependent, domains, s.Cascade); err != nil {
+				return nil, err
+			}
+			break
 		}
 		sort.Slice(dependent, func(i, j int) bool { return dependent[i].address.ObjectID < dependent[j].address.ObjectID })
 		if len(dependent) > 0 && !s.Cascade {

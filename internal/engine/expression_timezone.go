@@ -43,6 +43,12 @@ func (b *expressionBinder) bindTimeZone(raw parser.TimeZoneExpr, policy expressi
 	if err != nil {
 		return nil, err
 	}
+	if value.ResultUsage().Type.IsDomain() {
+		value, err = b.coerceConditional(comparisonOperand{node: value}, value.ResultUsage().Type.BaseType().Usage(), "AT TIME ZONE")
+		if err != nil {
+			return nil, err
+		}
+	}
 	id := value.ResultUsage().Type.ID()
 	var result sqltype.ID
 	switch id {
@@ -61,6 +67,12 @@ func (b *expressionBinder) bindTimeZone(raw parser.TimeZoneExpr, policy expressi
 		zone, err = b.bind(raw.Zone, expressionPolicy{context: policy.context, operand: true, expected: b.typ(sqltype.Text).Usage(), mode: sqltype.Implicit})
 		if err != nil {
 			return nil, err
+		}
+		if zone.ResultUsage().Type.IsDomain() {
+			zone, err = b.coerceConditional(comparisonOperand{node: zone}, zone.ResultUsage().Type.BaseType().Usage(), "AT TIME ZONE")
+			if err != nil {
+				return nil, err
+			}
 		}
 		properties = mergeExpressionProperties(properties, zone.Properties())
 	}

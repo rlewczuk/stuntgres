@@ -37,7 +37,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			scope.completed = true
 		}
 		return result, err
-	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema:
+	case *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateDomain, *parser.DropDomain:
 		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
 		if err == nil {
 			scope.completed = true
@@ -276,7 +276,15 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				e.mu.Unlock()
 				return Result{}, fmt.Errorf("stuntgres: invalid parameter frame")
 			}
-			if !v.IsNull() && v.Type().ID() == sqltype.Regclass {
+			if !v.IsNull() && v.Type().BaseType().ID() == sqltype.Regclass {
+				logical := v.Type()
+				if logical.IsDomain() {
+					v, err = v.BaseValue()
+					if err != nil {
+						e.mu.Unlock()
+						return Result{}, err
+					}
+				}
 				text, inputErr := v.Text()
 				if inputErr != nil {
 					e.mu.Unlock()
@@ -288,6 +296,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					return Result{}, sequenceInputError(inputErr, parser.Position{}, "", i+1)
 				}
 				canonical[i] = sqltype.String(v.Type(), strconv.FormatUint(uint64(ref.Address.ObjectID), 10))
+				if logical.IsDomain() {
+					canonical[i], err = logical.Wrap(canonical[i])
+					if err != nil {
+						e.mu.Unlock()
+						return Result{}, err
+					}
+				}
 			}
 		}
 	}

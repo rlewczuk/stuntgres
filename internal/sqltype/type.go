@@ -73,12 +73,16 @@ type Codec interface {
 type Descriptor struct {
 	id                  ID
 	name, sql, database string
+	base                Usage
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
 func (d *Descriptor) Name() string    { return d.name }
 func (d *Descriptor) SQLName() string { return d.sql }
 func (d *Descriptor) DiagnosticName() string {
+	if d.IsDomain() {
+		return d.sql
+	}
 	if d.id == Timestamp {
 		return "timestamp without time zone"
 	}
@@ -102,6 +106,9 @@ func (d *Descriptor) DiagnosticName() string {
 func (d *Descriptor) DatabaseName() string { return d.database }
 func (d *Descriptor) Concrete() bool       { return d != nil && d.id != 0 && d.id != Unknown }
 func (d *Descriptor) Usage() Usage {
+	if d.IsDomain() {
+		return Usage{Type: d, Typmod: -1, Collation: d.base.Collation}
+	}
 	u := Usage{Type: d, Typmod: -1}
 	if IsCharacter(d.id) {
 		u.Collation = CollationRef{ID: 100, Derivation: Default}
@@ -114,32 +121,32 @@ func (d *Descriptor) Usage() Usage {
 // Builtins returns a new immutable generation, not a shared mutable registry.
 func Builtins() []*Descriptor {
 	return []*Descriptor{
-		{Bool, "bool", "BOOLEAN", "BOOL"},
-		{Bytea, "bytea", "BYTEA", "BYTEA"},
-		{Char, "char", "\"char\"", "CHAR"},
-		{Name, "name", "NAME", "NAME"},
-		{NameArray, "_name", "NAME[]", "_NAME"},
-		{Int8, "int8", "BIGINT", "INT8"},
-		{Int2, "int2", "SMALLINT", "INT2"},
-		{Int4, "int4", "INTEGER", "INT4"},
-		{Text, "text", "TEXT", "TEXT"},
-		{Oid, "oid", "OID", "OID"},
-		{PgNodeTree, "pg_node_tree", "PG_NODE_TREE", "PG_NODE_TREE"},
-		{BPChar, "bpchar", "BPCHAR", "BPCHAR"},
-		{VarChar, "varchar", "VARCHAR", "VARCHAR"},
-		{Float4, "float4", "REAL", "FLOAT4"},
-		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8"},
-		{Date, "date", "DATE", "DATE"},
-		{Time, "time", "TIME", "TIME"},
-		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP"},
-		{Timestamptz, "timestamptz", "TIMESTAMP WITH TIME ZONE", "TIMESTAMPTZ"},
-		{Interval, "interval", "INTERVAL", "INTERVAL"},
-		{Timetz, "timetz", "TIME WITH TIME ZONE", "TIMETZ"},
-		{Numeric, "numeric", "NUMERIC", "NUMERIC"},
-		{UUID, "uuid", "UUID", "UUID"},
-		{Regclass, "regclass", "REGCLASS", "REGCLASS"},
-		{Void, "void", "VOID", "VOID"},
-		{Unknown, "unknown", "", ""},
+		{Bool, "bool", "BOOLEAN", "BOOL", Usage{}},
+		{Bytea, "bytea", "BYTEA", "BYTEA", Usage{}},
+		{Char, "char", "\"char\"", "CHAR", Usage{}},
+		{Name, "name", "NAME", "NAME", Usage{}},
+		{NameArray, "_name", "NAME[]", "_NAME", Usage{}},
+		{Int8, "int8", "BIGINT", "INT8", Usage{}},
+		{Int2, "int2", "SMALLINT", "INT2", Usage{}},
+		{Int4, "int4", "INTEGER", "INT4", Usage{}},
+		{Text, "text", "TEXT", "TEXT", Usage{}},
+		{Oid, "oid", "OID", "OID", Usage{}},
+		{PgNodeTree, "pg_node_tree", "PG_NODE_TREE", "PG_NODE_TREE", Usage{}},
+		{BPChar, "bpchar", "BPCHAR", "BPCHAR", Usage{}},
+		{VarChar, "varchar", "VARCHAR", "VARCHAR", Usage{}},
+		{Float4, "float4", "REAL", "FLOAT4", Usage{}},
+		{Float8, "float8", "DOUBLE PRECISION", "FLOAT8", Usage{}},
+		{Date, "date", "DATE", "DATE", Usage{}},
+		{Time, "time", "TIME", "TIME", Usage{}},
+		{Timestamp, "timestamp", "TIMESTAMP", "TIMESTAMP", Usage{}},
+		{Timestamptz, "timestamptz", "TIMESTAMP WITH TIME ZONE", "TIMESTAMPTZ", Usage{}},
+		{Interval, "interval", "INTERVAL", "INTERVAL", Usage{}},
+		{Timetz, "timetz", "TIME WITH TIME ZONE", "TIMETZ", Usage{}},
+		{Numeric, "numeric", "NUMERIC", "NUMERIC", Usage{}},
+		{UUID, "uuid", "UUID", "UUID", Usage{}},
+		{Regclass, "regclass", "REGCLASS", "REGCLASS", Usage{}},
+		{Void, "void", "VOID", "VOID", Usage{}},
+		{Unknown, "unknown", "", "", Usage{}},
 	}
 }
 
@@ -166,10 +173,16 @@ func (v Value) Type() *Descriptor { return v.typ }
 func (v Value) IsNull() bool      { return v.null }
 
 // Retag remints descriptor ownership without changing a concrete scalar datum.
-// It is not a conversion: the builtin type identity must remain identical.
+// It preserves logical identity and physical base constraints, not just payload shape.
 func (v Value) Retag(d *Descriptor) (Value, error) {
-	if v.typ == nil || !v.typ.Concrete() || !d.Concrete() || v.typ.id != d.id {
+	if v.typ == nil || !v.typ.Concrete() || !d.Concrete() || v.typ.id != d.id || v.typ.IsDomain() != d.IsDomain() || v.typ.BaseType().id != d.BaseType().id {
 		return Value{}, fmt.Errorf("incompatible scalar type identity")
+	}
+	if d.IsDomain() {
+		from, to := v.typ.Usage().BaseUsage(), d.Usage().BaseUsage()
+		if from.Typmod != to.Typmod || from.Collation != to.Collation {
+			return Value{}, fmt.Errorf("incompatible domain base constraints")
+		}
 	}
 	v.typ = d
 	return v, nil
@@ -248,19 +261,7 @@ func Names(d *Descriptor, names []string) (Value, error) {
 		if i != 0 {
 			out.WriteByte(',')
 		}
-		quoted := name == "" || strings.EqualFold(name, "NULL") || strings.ContainsAny(name, " ,{}\"\\\t\n\r\f\v")
-		if quoted {
-			out.WriteByte('"')
-		}
-		for _, c := range name {
-			if c == '"' || c == '\\' {
-				out.WriteByte('\\')
-			}
-			out.WriteRune(c)
-		}
-		if quoted {
-			out.WriteByte('"')
-		}
+		writeNameArrayElement(&out, name)
 	}
 	out.WriteByte('}')
 	return Value{typ: d, text: out.String()}, nil
@@ -315,13 +316,24 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
+	if d.IsDomain() {
+		if typmod != -1 {
+			return Value{}, fmt.Errorf("invalid domain input modifier")
+		}
+		base := d.Usage().BaseUsage()
+		value, err := base.Type.InputWithEnvironment(ctx, text, base.Typmod, env)
+		if err != nil {
+			return Value{}, err
+		}
+		return d.Wrap(value)
+	}
 	if !d.Concrete() || !d.validTypmod(typmod) {
 		return Value{}, fmt.Errorf("invalid input usage")
 	}
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsCharacter(d.id) || d.id == Name {
+	if IsCharacter(d.id) || d.id == Name || d.id == NameArray {
 		if err := validateCharacterInput(text); err != nil {
 			return Value{}, err
 		}
@@ -345,6 +357,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return String(d, text), nil
 	case Name:
 		return String(d, clipName(text)), nil
+	case NameArray:
+		return d.nameArrayInput(ctx, text)
 	case Bytea:
 		return d.byteaInput(text)
 	case UUID:
@@ -504,6 +518,10 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d == nil || v.typ != d || v.null {
 		return "", fmt.Errorf("invalid output value")
 	}
+	if d.IsDomain() {
+		v.typ = d.BaseType()
+		return v.typ.OutputWithEnvironment(ctx, v, env)
+	}
 	switch d.id {
 	case PgNodeTree:
 		if v.tree == nil {
@@ -541,7 +559,16 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return fmt.Sprintf("\\%03o", v.text[0]), nil
 		}
 		return v.text, nil
-	case Text, BPChar, VarChar, Name, Regclass, NameArray:
+	case Regclass:
+		if env.Regclass != nil {
+			n, err := strconv.ParseUint(v.text, 10, 32)
+			if err != nil {
+				return "", err
+			}
+			return env.Regclass.FormatRegclass(uint32(n))
+		}
+		return v.text, nil
+	case Text, BPChar, VarChar, Name, NameArray:
 		return v.text, nil
 	case Bool:
 		if v.boolean {
@@ -560,6 +587,10 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	}
 	if v.null {
 		return "NULL", nil
+	}
+	if d.IsDomain() {
+		v.typ = d.BaseType()
+		return v.typ.SQLLiteral(ctx, v)
 	}
 	switch d.id {
 	case Bytea:
@@ -590,7 +621,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
-	case Text, BPChar, VarChar, Name, Regclass:
+	case Text, BPChar, VarChar, Name, Regclass, NameArray:
 		return "'" + strings.ReplaceAll(v.text, "'", "''") + "'", nil
 	case Oid, Float4, Float8, Numeric:
 		text, err := d.Output(ctx, v)
@@ -637,9 +668,10 @@ const (
 )
 
 type CoercionPlan struct {
-	source, target Usage
-	method         coercionMethod
-	context        CoercionContext
+	source, target               Usage
+	method                       coercionMethod
+	context                      CoercionContext
+	logicalSource, logicalTarget *Descriptor
 }
 
 type castSpec struct {
@@ -757,9 +789,29 @@ func OIDCastPair(source, target ID) bool {
 
 // PlanCoercion admits only bounded directional edges, never transitive casts.
 func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, error) {
-	p := CoercionPlan{source: source, target: target, context: context}
 	if !source.Valid() || !target.Valid() {
-		return p, fmt.Errorf("invalid coercion usage")
+		return CoercionPlan{}, fmt.Errorf("invalid coercion usage")
+	}
+	if source.Type.IsDomain() || target.Type.IsDomain() {
+		from, to := source.BaseUsage(), target.BaseUsage()
+		p, err := PlanCoercion(from, to, context)
+		if err != nil && context == Explicit && (source.Type.IsDomain() && to.Type.id == Text || target.Type.IsDomain() && from.Type.id == Text) {
+			p = CoercionPlan{source: from, target: to, context: context, method: viaIO}
+			err = nil
+		}
+		p.logicalSource, p.logicalTarget = source.Type, target.Type
+		return p, err
+	}
+	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.id == NameArray || target.Type.id == NameArray {
+		if source.Type == target.Type {
+			return p, nil
+		}
+		if context == Explicit && (source.Type.id == Text || target.Type.id == Text) {
+			p.method = viaIO
+			return p, nil
+		}
+		return p, failure("42804", "incompatible source and destination types")
 	}
 	if source.Type.id == PgNodeTree || target.Type.id == PgNodeTree {
 		if source.Type.id == target.Type.id {
@@ -821,7 +873,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	}
 	return p, failure("42804", "incompatible source and destination types")
 }
-func (p CoercionPlan) Apply(ctx context.Context, v Value, input InputEnvironment, output OutputEnvironment) (Value, error) {
+func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnvironment, output OutputEnvironment) (Value, error) {
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
@@ -930,11 +982,11 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.validCollation() {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
 	}
-	switch u.Type.id {
+	switch u.Type.BaseType().id {
 	case Bool, Bytea, Char, Name, Int2, Int4, Int8, Text, Oid, BPChar, VarChar, Float4, Float8, Date, Time, Timestamp, Timestamptz, Timetz, Interval, Numeric, UUID, Regclass:
 	case Void, NameArray:
 		message := "could not identify an ordering operator for type void"
-		if u.Type.id == NameArray {
+		if u.Type.BaseType().id == NameArray {
 			message = "could not identify an ordering operator for type name[]"
 		}
 		return Comparison{}, &sqlstate.Error{
@@ -949,13 +1001,20 @@ func BindOrdering(u Usage) (Comparison, error) {
 }
 
 func (p Comparison) SessionDependent() bool {
-	return p.left != nil && p.right != nil && p.left.id != p.right.id && (p.left.id == Timestamptz || p.right.id == Timestamptz)
+	return p.left != nil && p.right != nil && p.left.BaseType().id != p.right.BaseType().id && (p.left.BaseType().id == Timestamptz || p.right.BaseType().id == Timestamptz)
 }
 
 func BindComparison(left, right *Descriptor) (Comparison, error) {
 	p := Comparison{left, right}
 	if !left.Concrete() || !right.Concrete() {
 		return p, fmt.Errorf("invalid comparison usage")
+	}
+	if left.IsDomain() || right.IsDomain() {
+		_, err := BindComparison(left.BaseType(), right.BaseType())
+		return p, err
+	}
+	if left.id == NameArray || right.id == NameArray {
+		return p, failure("42883", "incompatible comparison operands")
 	}
 	if dateTimestampType(left.id) && dateTimestampType(right.id) {
 		return p, nil
@@ -984,6 +1043,8 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 	if a.typ != p.left || b.typ != p.right || a.null || b.null || !p.left.Concrete() {
 		return 0, fmt.Errorf("invalid comparison values")
 	}
+	a.typ, b.typ = p.left.BaseType(), p.right.BaseType()
+	p.left, p.right = a.typ, b.typ
 	if p.left.id != p.right.id && dateTimestampType(p.left.id) && dateTimestampType(p.right.id) {
 		return compareDatetime(a, b, input), nil
 	}

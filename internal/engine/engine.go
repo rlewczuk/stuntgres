@@ -56,6 +56,7 @@ type binding struct {
 	querySources       []queryLeaf
 	visibilitySnapshot bool
 	viewLiterals       map[viewLiteralPath]literalExpression
+	viewDomainCasts    map[viewLiteralPath]sqltype.Usage
 	viewColumns        map[viewLiteralPath]int
 	viewStars          map[int][]int
 	viewNamespaces     []viewNamespace
@@ -236,6 +237,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	}
 	switch s := stmt.(type) {
 	case *parser.CreateIndex, *parser.AlterView, *parser.DropView:
+		return StatementDescription{}, nil
+	case *parser.CreateDomain, *parser.DropDomain:
 		return StatementDescription{}, nil
 	case *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.AlterTable, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
 		return StatementDescription{}, nil
@@ -705,6 +708,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 	b.sequenceConstants = binder.sequenceConstants
 	b.regclassConcat = binder.regclassConcat
 	b.viewLiterals = binder.viewLiterals
+	b.viewDomainCasts = binder.viewDomainCasts
 	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars
 	b.viewNamespaces = binder.viewNamespaces
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })

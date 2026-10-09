@@ -210,3 +210,50 @@ func TestSmallintScalarOverflow(t *testing.T) {
 		}
 	}
 }
+
+func TestDomainIntervalParameterInputFieldsAndIdentity(t *testing.T) {
+	ctx := context.Background()
+	e := engine.New()
+	interval, ok := e.CatalogRead().LookupType(sqltype.Interval)
+	if !ok {
+		t.Fatal("missing interval")
+	}
+	for i, tc := range []struct {
+		mask, precision int32
+		input, output   string
+	}{
+		{sqltype.IntervalDay, sqltype.IntervalFullPrecision, "1", "1 day"},
+		{sqltype.IntervalHour, sqltype.IntervalFullPrecision, "1", "01:00:00"},
+		{sqltype.IntervalMonth, sqltype.IntervalFullPrecision, "1", "1 mon"},
+		{sqltype.IntervalMinute | sqltype.IntervalSecond, 2, "1:30.126", "00:01:30.13"},
+	} {
+		base := interval.Usage()
+		base.Typmod = tc.mask<<16 | tc.precision
+		domain, err := sqltype.Domain(sqltype.ID(20000+i), "fields", "public.fields", base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		chain, err := sqltype.Domain(sqltype.ID(30000+i), "chain", "public.chain", domain.Usage())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, target := range []sqltype.Usage{base, domain.Usage(), chain.Usage()} {
+			value, err := importParameter(ctx, tc.input, target, sqltype.InputEnvironment{})
+			if err != nil || value.Type() != target.Type {
+				t.Fatal(target, value, err)
+			}
+			text, err := target.Type.Output(ctx, value)
+			if err != nil || text != tc.output {
+				t.Fatal(target, text, err)
+			}
+			physical, err := value.BaseValue()
+			if err != nil || physical.Type() != interval {
+				t.Fatal("physical interval authority", physical, err)
+			}
+			null, err := importParameter(ctx, nil, target, sqltype.InputEnvironment{})
+			if err != nil || !null.IsNull() || null.Type() != target.Type {
+				t.Fatal("typed NULL", target, null, err)
+			}
+		}
+	}
+}

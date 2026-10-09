@@ -182,7 +182,7 @@ var keywords = [...]keyword{
 	{"distinct", Reserved, true, DISTINCT},
 	{"do", Reserved, true, 0},
 	{"document", Unreserved, true, 0},
-	{"domain", Unreserved, true, 0},
+	{"domain", Unreserved, true, DOMAIN},
 	{"double", Unreserved, true, 0},
 	{"drop", Unreserved, true, DROP},
 	{"each", Unreserved, true, 0},

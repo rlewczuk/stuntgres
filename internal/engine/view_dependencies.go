@@ -86,6 +86,9 @@ func viewDependencyClosure(catalog CatalogRead, targets []ObjectAddress, stage *
 func dependencyObject(catalog CatalogRead, target ObjectAddress, path []ObjectAddress) string {
 	base := target
 	base.SubID = 0
+	if t, ok := catalog.state.descriptors[base].(*typeDescriptor); ok {
+		return "type " + typeDiagnosticNameAt(catalog, t, path)
+	}
 	d := catalog.state.descriptors[base].(*relationDescriptor)
 	object := relationDiagnosticKind(d) + " " + dependencyRelationName(catalog, d, path)
 	if target.SubID != 0 {
@@ -192,6 +195,15 @@ func validateViewDefinition(v CatalogRead, d *relationDescriptor) error {
 	definition := d.view
 	if definition == nil || definition.syntax == nil || definition.query == nil || definition.query.Root == nil || definition.rule == 0 || len(definition.query.Root.Schema()) != len(d.columns) {
 		return fmt.Errorf("stuntgres: invalid view definition")
+	}
+	for _, usage := range definition.domainCasts {
+		if usage.Type == nil {
+			return fmt.Errorf("stuntgres: missing view domain cast type")
+		}
+		actual, ok := v.LookupType(usage.Type.ID())
+		if !ok || actual != usage.Type || !usage.Valid() || !usage.Type.IsDomain() {
+			return fmt.Errorf("stuntgres: invalid view domain cast authority")
+		}
 	}
 	if err := definition.validateLiterals(v); err != nil {
 		return err

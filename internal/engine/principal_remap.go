@@ -49,7 +49,22 @@ func (e *Engine) remapPreparedCatalog(state *catalogState, source, targetSnapsho
 	}
 	for addr, d := range state.descriptors {
 		switch d := d.(type) {
-		case *typeDescriptor, *collationDescriptor, *conversionDescriptor:
+		case *typeDescriptor:
+			if !d.typ.IsDomain() {
+				continue
+			}
+			n := *d
+			var err error
+			n.owner, err = remap(d.owner)
+			if err != nil {
+				return nil, err
+			}
+			n.acl, err = acl(d.acl)
+			if err != nil {
+				return nil, err
+			}
+			state.descriptors[addr] = &n
+		case *collationDescriptor, *conversionDescriptor:
 			// Immutable builtin identities have no principal references to remap.
 		case *namespaceDescriptor:
 			n := *d

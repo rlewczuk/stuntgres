@@ -469,8 +469,14 @@ func intervalPrecision(l sqlLexer, mask int32, tok, open lexeme) (TypeName, bool
 	field.Modifiers = append(field.Modifiers, raw.Modifiers...)
 	return field, true
 }
-func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
+func typeModifierHead(l sqlLexer, tok, open lexeme, qualified bool) (TypeName, bool) {
 	raw := columnType(tok)
+	if qualified {
+		// Only catalog resolution can distinguish a builtin-spelled user domain.
+		l.(*lexer).genericModifier = true
+		l.(*lexer).multipleModifiers = true
+		return raw, true
+	}
 	if tok.keyword != nil && tok.text == "float" {
 		l.(*lexer).floatPrecision = true
 		return raw, true
@@ -496,12 +502,13 @@ func typeModifierHead(l sqlLexer, tok, open lexeme) (TypeName, bool) {
 		l.(*lexer).multipleModifiers = true
 		return raw, true
 	}
-	if raw.Name != "interval" && raw.Name != "bytea" && raw.Name != "date" && raw.Name != "numeric" && (raw.Quoted || raw.Name != "decimal" && raw.Name != "dec") && (!raw.Quoted || raw.Name != "timestamp" && raw.Name != "time") {
+	switch raw.Name {
+	case "smallint", "integer", "bigint", "int2", "int4", "int8", "boolean", "bool", "real", "float4", "float8", "double precision", "uuid", "oid", "regclass", "pg_node_tree", "void", "unknown", "_name", "char", "character", "character varying":
 		l.(*lexer).failAt("0A000", "type modifiers are unsupported", open.pos.Offset)
 		return TypeName{}, false
 	}
 	l.(*lexer).genericModifier = true
-	l.(*lexer).multipleModifiers = raw.Name == "interval" || raw.Name == "numeric" || !raw.Quoted && (raw.Name == "decimal" || raw.Name == "dec")
+	l.(*lexer).multipleModifiers = raw.Name != "bytea" && raw.Name != "date" && raw.Name != "timestamp" && raw.Name != "time"
 	return raw, true
 }
 

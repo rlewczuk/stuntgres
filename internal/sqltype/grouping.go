@@ -29,7 +29,7 @@ func (g Grouping) check(v Value) error {
 	if g.usage.Type == nil || v.typ != g.usage.Type {
 		return fmt.Errorf("invalid grouping value")
 	}
-	if !v.null && v.typ.id == Regclass {
+	if !v.null && v.typ.BaseType().id == Regclass {
 		if len(v.text) == 0 || len(v.text) > 1 && v.text[0] == '0' {
 			return fmt.Errorf("invalid canonical regclass grouping value")
 		}
@@ -57,7 +57,7 @@ func (g Grouping) Equal(ctx context.Context, a, b Value) (bool, error) {
 	if a.null || b.null {
 		return a.null == b.null, ctx.Err()
 	}
-	if a.typ.id == Regclass {
+	if a.typ.BaseType().id == Regclass {
 		return a.text == b.text, ctx.Err()
 	}
 	n, err := g.comparison.Compare(ctx, a, b, InputEnvironment{})
@@ -73,6 +73,7 @@ func (g Grouping) Hash(ctx context.Context, v Value) (uint64, error) {
 	if err := g.check(v); err != nil {
 		return 0, err
 	}
+	v.typ = v.typ.BaseType()
 	h := uint64(14695981039346656037)
 	byteHash := func(b byte) { h = (h ^ uint64(b)) * 1099511628211 }
 	integerHash := func(n uint64) {

@@ -115,7 +115,7 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 			if unknown[i] {
 				continue
 			}
-			id := arg.ResultUsage().Type.ID()
+			id := arg.ResultUsage().Type.BaseType().ID()
 			if _, err := sqltype.PlanCoercion(arg.ResultUsage(), b.typ(s.args[i]).Usage(), sqltype.Implicit); err != nil {
 				viable = false
 				break
@@ -165,7 +165,7 @@ func (b *expressionBinder) bindMath(raw parser.FunctionExpr, visible bool) (Boun
 			if unknown[i] {
 				continue
 			}
-			id := arg.ResultUsage().Type.ID()
+			id := arg.ResultUsage().Type.BaseType().ID()
 			if known != 0 && known != id {
 				homogeneous = false
 			}

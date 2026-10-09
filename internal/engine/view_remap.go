@@ -34,8 +34,12 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	case identityExpression:
 		next = n
 	case literalExpression:
-		if n.usage.Type.ID() == sqltype.Regclass && !n.value.IsNull() {
-			text, failure := n.value.Text()
+		if n.usage.Type.BaseType().ID() == sqltype.Regclass && !n.value.IsNull() {
+			physical, failure := n.value.BaseValue()
+			if failure != nil {
+				return nil, failure
+			}
+			text, failure := physical.Text()
 			if failure != nil {
 				return nil, failure
 			}
@@ -44,7 +48,13 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 				return nil, failure
 			}
 			target := ref(ObjectRef{Address: ObjectAddress{ClassID: RelationClassID, ObjectID: OID(oid)}})
-			n.value = sqltype.String(n.usage.Type, strconv.FormatUint(uint64(target.Address.ObjectID), 10))
+			n.value = sqltype.String(physical.Type(), strconv.FormatUint(uint64(target.Address.ObjectID), 10))
+			if n.usage.Type.IsDomain() {
+				n.value, failure = n.usage.Type.Wrap(n.value)
+				if failure != nil {
+					return nil, failure
+				}
+			}
 		}
 		next = n
 	case columnExpression:
@@ -283,7 +293,11 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 		if old == nil {
 			return nil
 		}
-		if d, ok := next.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(old.ID())}].(*typeDescriptor); ok {
+		address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(old.ID())}
+		if target, ok := mapping[address]; ok {
+			address = target
+		}
+		if d, ok := next.descriptors[address].(*typeDescriptor); ok {
 			return d.typ
 		}
 		return old
@@ -360,6 +374,13 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 					return err
 				}
 				definition.literals[path] = node.(literalExpression)
+			}
+		}
+		if len(d.view.domainCasts) != 0 {
+			definition.domainCasts = make(map[viewLiteralPath]sqltype.Usage, len(d.view.domainCasts))
+			for path, usage := range d.view.domainCasts {
+				usage.Type = typ(usage.Type)
+				definition.domainCasts[path] = usage
 			}
 		}
 		definition.sequenceRefs = make(map[int]ObjectRef, len(d.view.sequenceRefs))

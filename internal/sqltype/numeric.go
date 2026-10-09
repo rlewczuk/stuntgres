@@ -28,6 +28,7 @@ func numericTypmodValid(p int32) bool {
 	return precision >= 1 && precision <= 1000 && scale >= -1000 && scale <= 1000 && p == ((precision<<16)|(scale&2047))+4
 }
 func (u Usage) DecimalSize() (int64, int64, bool) {
+	u = u.BaseUsage()
 	if u.Type == nil || u.Type.id != Numeric || u.Typmod < 0 {
 		return 0, 0, false
 	}

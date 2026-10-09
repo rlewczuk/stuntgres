@@ -32,6 +32,17 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 			d.notNullConstraints[i].OID = id
 		}
 	}
+	for _, attr := range d.attributes {
+		def, ok := d.defaults[attr]
+		if ok && def.OID == 0 {
+			id, err := e.allocateOIDLocked()
+			if err != nil {
+				return err
+			}
+			def.OID = id
+			d.defaults[attr] = def
+		}
+	}
 	for i := range d.checkConstraints {
 		if d.checkConstraints[i].OID == 0 {
 			id, err := e.allocateOIDLocked()
@@ -48,16 +59,6 @@ func (e *Engine) assignDefinitionOIDsLocked(d *relationDescriptor) error {
 				return err
 			}
 			d.uniqueConstraints[i].OID = id
-		}
-	}
-	for attr, def := range d.defaults {
-		if def.OID == 0 {
-			id, err := e.allocateOIDLocked()
-			if err != nil {
-				return err
-			}
-			def.OID = id
-			d.defaults[attr] = def
 		}
 	}
 	return nil

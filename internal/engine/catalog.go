@@ -381,6 +381,8 @@ type CatalogStage struct {
 	schemaCascadeNames   []string
 	viewCascadeNames     []string
 	dependencyPath       []ObjectAddress
+	domainTargets        []ObjectAddress
+	domainBases          []Descriptor
 }
 type PreparedCatalogPublication struct {
 	stage *CatalogStage
@@ -539,6 +541,10 @@ func (s *CatalogStage) removeObjectLocked(ref ObjectRef, namespace bool) error {
 		if !namespace || ref.Address.ClassID != NamespaceClassID {
 			return fmt.Errorf("stuntgres: only user relations can be removed")
 		}
+	case *typeDescriptor:
+		if !d.(*typeDescriptor).typ.IsDomain() {
+			return fmt.Errorf("stuntgres: builtin types cannot be removed")
+		}
 	default:
 		return fmt.Errorf("stuntgres: only user relations can be removed")
 	}
@@ -671,6 +677,12 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		if p.epoch != current.epoch || token.Epoch != current.epoch {
 			e.mu.Unlock()
 			return ChangeSet{}, ErrCatalogReplaced
+		}
+		for _, base := range s.domainBases {
+			if current.descriptors[base.Address()] != base {
+				e.mu.Unlock()
+				return ChangeSet{}, CatalogConflict{}
+			}
 		}
 		for _, d := range s.descriptors {
 			ns := d.Namespace()
@@ -814,7 +826,19 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}
+		domainChanged := len(s.domainTargets) != 0
+		for _, d := range s.descriptors {
+			if t, ok := d.(*typeDescriptor); ok && t.typ.IsDomain() {
+				domainChanged = true
+				break
+			}
+		}
 		for _, descriptor := range next.descriptors {
+			if domainChanged || s.descriptors[descriptor.Address()] != nil {
+				if err := validateTypeProviders(CatalogRead{owner: e, state: next}, descriptor); err != nil {
+					return ChangeSet{}, err
+				}
+			}
 			if view, ok := descriptor.(*relationDescriptor); ok && view.view != nil {
 				if err := validateViewDefinition(CatalogRead{owner: e, state: next}, view); err != nil {
 					return ChangeSet{}, err

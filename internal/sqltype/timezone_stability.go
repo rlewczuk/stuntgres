@@ -6,7 +6,7 @@ func (p CoercionPlan) SessionDependent() bool {
 		return source == Timestamptz || target == Timestamptz || target == Timetz
 	}
 	if p.method == viaIO {
-		return source == Date || source == Timestamp || source == Timestamptz || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz
+		return source == Regclass || source == Date || source == Timestamp || source == Timestamptz || target == Date || target == Time || target == Timestamp || target == Timestamptz || target == Timetz
 	}
 	return false
 }

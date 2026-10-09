@@ -40,7 +40,7 @@ func bitwiseConstantNull(node BoundExpr) bool {
 }
 
 func integralBitwiseType(t *sqltype.Descriptor) bool {
-	return t != nil && (t.ID() == sqltype.Int2 || t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8)
+	return t != nil && (t.BaseType().ID() == sqltype.Int2 || t.BaseType().ID() == sqltype.Int4 || t.BaseType().ID() == sqltype.Int8)
 }
 func bitwiseName(name string) bool {
 	for _, c := range name {
@@ -81,6 +81,12 @@ func (b *expressionBinder) bindBitwise(raw parser.OperatorExpr) (BoundExpr, erro
 		}
 	}
 	lt, rt := left.descriptor(), right.descriptor()
+	if lt != nil {
+		lt = lt.BaseType()
+	}
+	if rt != nil {
+		rt = rt.BaseType()
+	}
 	missing := func() error {
 		return operatorExpressionError(&sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883"}, lt, rt, raw)
 	}

@@ -168,6 +168,12 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 	}
 	operator := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	lt, rt := left.descriptor(), right.descriptor()
+	if lt != nil {
+		lt = lt.BaseType()
+	}
+	if rt != nil {
+		rt = rt.BaseType()
+	}
 	lhs, rhs := b.typ(sqltype.Text), b.typ(sqltype.Text)
 	if lt != nil && lt.ID() == sqltype.Bytea || lt == nil && rt != nil && rt.ID() == sqltype.Bytea {
 		if operator == "~~*" || operator == "!~~*" {
@@ -240,16 +246,16 @@ func (b *expressionBinder) bindLikeEscape(raw parser.FunctionExpr, visible bool)
 	}
 	target := b.typ(sqltype.Text)
 	for _, o := range operands {
-		if d := o.descriptor(); d != nil && d.ID() == sqltype.Bytea {
+		if d := o.descriptor(); d != nil && d.BaseType().ID() == sqltype.Bytea {
 			target = b.typ(sqltype.Bytea)
 		}
 	}
 	for _, o := range operands {
 		if d := o.descriptor(); d != nil {
-			if target.ID() == sqltype.Bytea && d.ID() != sqltype.Bytea {
+			if target.ID() == sqltype.Bytea && d.BaseType().ID() != sqltype.Bytea {
 				return missing()
 			}
-			if target.ID() == sqltype.Text && d.ID() != sqltype.Text && d.ID() != sqltype.VarChar && d.ID() != sqltype.BPChar && d.ID() != sqltype.Name {
+			if target.ID() == sqltype.Text && d.BaseType().ID() != sqltype.Text && d.BaseType().ID() != sqltype.VarChar && d.BaseType().ID() != sqltype.BPChar && d.BaseType().ID() != sqltype.Name {
 				return missing()
 			}
 		}

@@ -49,14 +49,14 @@ type EvalContext struct {
 	Output         sqltype.OutputEnvironment
 }
 type expressionInfo struct {
-	usage             sqltype.Usage
-	pos               parser.Position
-	properties        ExprProperties
-	unknownNull       bool
-	collationConflict bool
-	collationExplicit parser.Position
+	usage                         sqltype.Usage
+	pos                           parser.Position
+	properties                    ExprProperties
+	unknownNull                   bool
+	collationConflict             bool
+	collationExplicit             parser.Position
 	collationLeft, collationRight sqltype.CollationRef
-	collationConflictPos parser.Position
+	collationConflictPos          parser.Position
 }
 
 func (expressionInfo) boundExpression()                     {}
@@ -159,7 +159,9 @@ func (e coercionExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.plan.Apply(c.Context, v, c.Input, c.Output)
+	output := c.Output
+	output.Regclass = c.statementScope
+	return e.plan.Apply(c.Context, v, c.Input, output)
 }
 func coercionProperties(child BoundExpr, plan sqltype.CoercionPlan) ExprProperties {
 	properties := child.Properties()
@@ -659,6 +661,13 @@ const (
 )
 
 func TruthOf(v sqltype.Value) (Truth, error) {
+	if v.Type() != nil && v.Type().IsDomain() {
+		var err error
+		v, err = v.BaseValue()
+		if err != nil {
+			return False, err
+		}
+	}
 	if v.Type() == nil || v.Type().ID() != sqltype.Bool {
 		return False, fmt.Errorf("stuntgres: predicate is not typed boolean")
 	}
@@ -734,12 +743,13 @@ type expressionBinder struct {
 	noParameters          bool
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
-	checkLiterals  []literalExpression
-	viewLiterals   map[viewLiteralPath]literalExpression
-	viewColumns    map[viewLiteralPath]int
-	viewStars      map[int][]int
-	viewJoinCount  int
-	viewNamespaces []viewNamespace
+	checkLiterals   []literalExpression
+	viewLiterals    map[viewLiteralPath]literalExpression
+	viewDomainCasts map[viewLiteralPath]sqltype.Usage
+	viewColumns     map[viewLiteralPath]int
+	viewStars       map[int][]int
+	viewJoinCount   int
+	viewNamespaces  []viewNamespace
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -767,7 +777,16 @@ func (b *expressionBinder) dependency(ref ObjectRef, revision DefinitionRevision
 	b.dependencies = append(b.dependencies, expressionDependency{ref, revision})
 }
 func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p ExprProperties) expressionInfo {
-	b.dependency(ObjectRef{owner: b.engine.owner, Epoch: b.engine.state.epoch, Address: ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}}, 1)
+	view := CatalogRead{owner: b.engine, state: b.engine.state}
+	if b.queryAuth != nil {
+		view = b.queryAuth.catalog
+	}
+	address := ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}
+	revision := DefinitionRevision(1)
+	if descriptor, ok := view.Descriptor(address); ok {
+		revision = descriptor.Revision()
+	}
+	b.dependency(ObjectRef{owner: b.engine.owner, Epoch: view.Epoch(), Address: address}, revision)
 	return expressionInfo{usage: u, pos: pos, properties: p}
 }
 func expressionError(code, message string, pos parser.Position) error {
@@ -1047,7 +1066,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			// Native replacement remints builtin descriptors. Keep the SQL input
 			// identity/modifiers, but bind values/providers to this catalog generation.
 			if u.Type != nil {
-				u.Type = b.typ(u.Type.ID())
+				current := b.typ(u.Type.ID())
+				if current == nil && u.Type.IsDomain() {
+					return nil, sqlError("0A000", "cached plan must not change parameter type")
+				}
+				u.Type = current
 			}
 		}
 		if u.Type == nil {
@@ -1081,6 +1104,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			if u.Type.ID() == sqltype.Interval {
 				inputUsage = u
 			}
+			if u.Type.IsDomain() {
+				inputUsage = u.BaseUsage()
+				if inputUsage.Type.ID() != sqltype.Interval {
+					inputUsage = inputUsage.Type.Usage()
+				}
+			}
 			value, err = b.inputConstant(v.Text, inputUsage, v.Pos)
 		case parser.NumericValue:
 			value, err = b.inputConstant(v.Text, b.typ(sqltype.Numeric).Usage(), v.Pos)
@@ -1099,8 +1128,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, literalInputError(err, r)
 		}
 		literalUsage := value.Type().Usage()
-		if v.Kind == parser.StringValue && u.Type.ID() == sqltype.Interval {
-			literalUsage = u
+		if v.Kind == parser.StringValue && u.Type.BaseType().ID() == sqltype.Interval {
+			literalUsage = u.BaseUsage()
 		}
 		node = literalExpression{b.info(literalUsage, v.Pos, ExprProperties{}), value}
 	case parser.TypedLiteralExpr:
@@ -1122,9 +1151,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 				u.Typmod = saved.typedTypmod
 			}
 		}
-		inputUsage := u
-		if u.Type.ID() != sqltype.Interval {
-			inputUsage = u.Type.Usage()
+		inputUsage := u.BaseUsage()
+		if inputUsage.Type.ID() != sqltype.Interval {
+			inputUsage = inputUsage.Type.Usage()
 		}
 		value, err := b.inputConstant(r.Text, inputUsage, r.Pos)
 		if err != nil {
@@ -1209,6 +1238,13 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		}
 	default:
 		return nil, fmt.Errorf("stuntgres: unsupported scalar node")
+	}
+	if policy.booleanConstruct != "" && node.ResultUsage().Type.IsDomain() && node.ResultUsage().Type.BaseType().ID() == sqltype.Bool {
+		var err error
+		node, err = b.coerceConditional(comparisonOperand{node: node}, b.typ(sqltype.Bool).Usage(), policy.booleanConstruct)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if policy.booleanConstruct != "" && node.ResultUsage().Type.ID() != sqltype.Bool {
 		return nil, expressionError("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", policy.booleanConstruct, node.ResultUsage().Type.DiagnosticName()), parser.ExpressionStart(raw))
@@ -1297,7 +1333,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		node, _, err := b.bindRegclass(raw.Child)
 		return node, err
 	}
-	if !sqltype.StoredScalarCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree {
+	if !target.Type.IsDomain() && !sqltype.StoredScalarCastType(target.Type.ID()) && target.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.NameArray {
 		return nil, expressionError("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	policy := expressionPolicy{context: projectionContext}
@@ -1305,6 +1341,12 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	case parser.LiteralExpr:
 		if child.Value.Kind == parser.StringValue || child.Value.Kind == parser.NullValue {
 			policy.expected = target
+			if target.Type.IsDomain() {
+				policy.expected = target.Type.BaseType().Usage()
+				if policy.expected.Type.ID() == sqltype.Interval {
+					policy.expected = target.BaseUsage()
+				}
+			}
 		}
 	case parser.CastExpr:
 		if unknownNullSyntax(child) {
@@ -1332,6 +1374,9 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, err
 	}
 	source := child.ResultUsage()
+	if source.Type.BaseType().ID() == sqltype.Regclass && target.Type.BaseType().ID() == sqltype.Text {
+		b.regclassConcat = true
+	}
 	if target.Collation.ID != 0 && source.Collation.ID != 0 {
 		target.Collation = source.Collation
 	}
@@ -1402,7 +1447,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 	}
 }
 func inputErrorAt(err error, pos parser.Position) error {
-	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "0A000" || d.Code == "22P02" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
+	if d, ok := err.(*sqlstate.Error); ok && (d.Code == "0A000" || d.Code == "22P02" || d.Code == "2202E" || d.Code == "22003" || d.Code == "22007" || d.Code == "22008" || d.Code == "22009" || d.Code == "22015" || d.Code == "22023" || d.Code == "42601") {
 		copy := *d
 		if pos.Character > 0 {
 			copy.Position = strconv.Itoa(pos.Character)
@@ -1453,6 +1498,13 @@ func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalCo
 	return temporalConstant{}, false, nil
 }
 func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
+	if u.Type.ID() == sqltype.Regclass {
+		node, _, err := b.bindRegclass(parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: text, Pos: pos}})
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		return node.(literalExpression).value, nil
+	}
 	if u.Type.ID() != sqltype.Interval && u.Type.ID() != sqltype.Timestamp && u.Type.ID() != sqltype.Time && u.Type.ID() != sqltype.Date && u.Type.ID() != sqltype.Timestamptz && u.Type.ID() != sqltype.Timetz {
 		return u.Type.InputWithEnvironment(b.ctx, text, -1, b.input)
 	}
@@ -1669,6 +1721,12 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 		return nil, err
 	}
 	lt, rt := left.descriptor(), right.descriptor()
+	if lt != nil {
+		lt = lt.BaseType()
+	}
+	if rt != nil {
+		rt = rt.BaseType()
+	}
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {
 		return nil, err
@@ -1685,11 +1743,11 @@ func (b *expressionBinder) bindComparison(raw parser.OperatorExpr) (BoundExpr, e
 	if lt == nil {
 		lt, rt = b.typ(sqltype.Text), b.typ(sqltype.Text)
 	}
-	l, err := b.finalizeOperand(left, lt)
+	l, err := b.coerceConditional(left, lt.Usage(), raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	if err != nil {
 		return nil, err
 	}
-	r, err := b.finalizeOperand(right, rt)
+	r, err := b.coerceConditional(right, rt.Usage(), raw.Name.Parts[len(raw.Name.Parts)-1].Text)
 	if err != nil {
 		return nil, err
 	}
@@ -1755,7 +1813,7 @@ func symbolicArithmeticName(name string) bool {
 	return true
 }
 func integerArithmeticType(t *sqltype.Descriptor) bool {
-	return t != nil && (t.ID() == sqltype.Int4 || t.ID() == sqltype.Int8)
+	return t != nil && (t.BaseType().ID() == sqltype.Int4 || t.BaseType().ID() == sqltype.Int8)
 }
 func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, error) {
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 || len(raw.Args) < 1 || len(raw.Args) > 2 {
@@ -1810,6 +1868,12 @@ func (b *expressionBinder) bindArithmetic(raw parser.OperatorExpr) (BoundExpr, e
 		}
 	}
 	lt, rt := left.descriptor(), right.descriptor()
+	if lt != nil {
+		lt = lt.BaseType()
+	}
+	if rt != nil {
+		rt = rt.BaseType()
+	}
 	visible, err := b.builtinVisible(raw.Name, operatorLookup)
 	if err != nil {
 		return nil, err

@@ -7,12 +7,32 @@ type Statement interface{ statement() }
 
 // TypeName is syntax, not a resolved catalog type.
 type TypeName struct {
-	Name      string
-	Pos       Position
-	Quoted    bool
-	Schema    *Identifier
-	Modifiers []TypeModifier
+	Name        string
+	Pos         Position
+	Quoted      bool
+	Schema      *Identifier
+	Modifiers   []TypeModifier
+	ArrayBounds []int32
 }
+
+type CreateDomain struct {
+	Name        ObjectName
+	Base        TypeName
+	Collation   *ObjectName
+	Constraints []ColumnConstraint
+	Pos         Position
+}
+
+func (*CreateDomain) statement() {}
+
+type DropDomain struct {
+	Names    []ObjectName
+	IfExists bool
+	Mode     DropMode
+	Pos      Position
+}
+
+func (*DropDomain) statement() {}
 
 // TypeModifier retains constant syntax until descriptor-owned resolution.
 type TypeModifier struct {

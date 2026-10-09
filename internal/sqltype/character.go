@@ -50,6 +50,7 @@ func sizeCharacter(v Value, typmod int32, explicit bool) (Value, error) {
 }
 
 func (u Usage) Length() (int64, bool) {
+	u = u.BaseUsage()
 	if u.Type == nil || !IsCharacter(u.Type.id) {
 		return 0, false
 	}

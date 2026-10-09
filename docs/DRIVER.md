@@ -16,6 +16,30 @@ describe types without drawing; each execution uses its current physical session
 No generator state is serialized into Dump. Feature smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestRandomSmoke$$' VERBOSE=0`.
 
+## Domain values and prepared signatures
+
+Domain results retain a distinct logical engine identity but export their ultimate
+base values and metadata, including inherited numeric precision/scale or character
+length on empty/all-NULL results. Native NAME[] domain values/ScanType are strings
+with DatabaseTypeName `_NAME`; pinned lib/pq instead exposes raw []byte and
+interface{} ScanType. Native domain columns declare nullable true; pq does not
+provide Nullable metadata. Ordinary base-owned conversion/input errors are not
+suppressed or normalized between adapters.
+
+For BYTEA-domain binary-buffer parity, bind through `$1::bytea` before assignment.
+Native inferred BYTEA-domain []byte input is owned binary data; pq's inferred
+domain parameter may be textual and reject embedded NUL with22021.
+Execution freshly resolves current objects/arity before validating retained
+logical parameter and result contracts. A dropped old domain parameter identity
+fails native0A000 `cached plan must not change parameter type`; same-name recreation
+does not remap that ID. Result-type changes retain the existing0A000 result guard.
+Missing targets/columns and arity errors preserve their earlier diagnostics.
+After native Restore, use fresh prepared descriptions; retained eager rows still
+own their old values and metadata. PostgreSQL old-OID cache failures are independent
+oracle controls, not a promised native cache implementation.
+See [domains](TYPES.md#domains--change-note).
+
+
 ## Notices and warnings
 
 ```go

@@ -87,7 +87,13 @@ func (r *rows) Next(dst []driver.Value) error {
 	for i, v := range r.scratch {
 		var value driver.Value
 		var err error
-		if !v.IsNull() && v.Type().ID() == sqltype.Regclass {
+		if !v.IsNull() && v.Type().BaseType().ID() == sqltype.Regclass {
+			if v.Type().IsDomain() {
+				v, err = v.BaseValue()
+				if err != nil {
+					return r.fail(err)
+				}
+			}
 			value, err = r.cursor.RegclassText(v)
 		} else {
 			value, err = exportValue(r.ctx, v, r.cursor.OutputEnvironment())

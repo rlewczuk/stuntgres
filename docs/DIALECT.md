@@ -6,6 +6,43 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### Domains — change note
+
+`CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]`
+supports the existing stored scalar families, domain chains and bounded NAME[].
+The target schema requires CREATE; a domain base requires its represented USAGE
+authority. Domains have distinct catalog IDs, owners, namespaces and immediate
+bases. Their nullable values use the ultimate base codec/typmod/collation.
+Known same-domain CASE/COALESCE/VALUES inputs retain logical identity; mixed
+base/distinct-domain inputs flatten through existing common-type rules. Supported
+operators/functions, ordering, grouping, COUNT and BOOL_AND/BOOL_OR use
+base signatures; assigning or explicitly casting back restores the domain tag.
+
+Duplicate names fail42710 before resolving the proposed base. Missing types fail
+42704; void/unknown/record are invalid domain bases (42804). Domain use-site
+modifiers fail42601. Literal input preserves source character positions and base
+SQLSTATE/messages; parameter input retains existing adapter diagnostics.
+Contextual literals read the unmodified physical base first: lexical errors stay
+eager, while assignment typmod enforcement and explicit truncation use the normal
+execution coercion. Qualified modifier syntax resolves the actual catalog type,
+including a domain whose name is also a builtin spelling.
+The default is typed NULL. Domain DEFAULT/CHECK/NOT NULL, ALTER DOMAIN, general
+arrays, GRANT/REVOKE TYPE/DOMAIN and explicit-transaction domain utilities remain
+unsupported, not successful no-ops.
+
+`DROP DOMAIN [IF EXISTS] name [, ...] [RESTRICT | CASCADE]` requires ownership.
+RESTRICT retains all objects/data and reports actual dependent types, columns and
+stored expressions. CASCADE removes the transitive closure, preserving unrelated
+columns/tables, stable surviving attributes and row identities; schema removal
+includes external dependents. Missing IF EXISTS emits a normal NOTICE.
+Native logical Dump/Restore orders domains before dependent persistent objects
+and reowns logical/base pointers, owners, payloads and dependencies atomically.
+It is not PostgreSQL wire storage or external pg_dump support. Native pg_type
+projections, pg_typeof and general array operators are not added.
+See [type/driver contracts](TYPES.md#domains--change-note) and the domain feature
+smokes in [README](../README.md).
+
+
 ### Constraint/expression introspection — change note
 
 The native catalog sources add exactly `pg_catalog.pg_constraint`
@@ -14,7 +51,7 @@ The native catalog sources add exactly `pg_catalog.pg_constraint`
 They project existing CHECK (`c`), NOT NULL (`n`, NULL conbin) and explicit
 nontrivial defaults from real immutable descriptors. Attribute numbers are stable,
 not dense evaluation slots. These are not general constraint/catalog rollout:
-foreign keys, domains, indexes, generated columns and bonus metadata remain absent.
+foreign keys, indexes, generated columns and bonus metadata remain absent.
 
 `pg_node_tree` is distinct type194 with PG_NODE_TREE metadata and native string
 ScanType. Non-NULL values are internal immutable structural carriers. Output uses
@@ -941,7 +978,7 @@ visibility without changing its internal OID or retaining a live formatter.
 Volatile VOID children execute normally even though their text output is empty.
 Internal CHAR preserves PostgreSQL category-aware ambiguity with string/unknown
 peers (42725); CHAR/integer is a successful mixed overload with printable octal
-high-byte output. Arrays (including result-only NAME[]), `concat()` and new
+General array operators (including NAME[] comparison), `concat()` and new
 cast/type families are not added. Existing BYTEA/BYTEA concatenation is preserved;
 known BYTEA/unknown selects it, while unknown/unknown prefers TEXT.
 
@@ -1743,7 +1780,7 @@ Successful statement authorization is retained through Commit despite later
 role-catalog revisions or internal actor changes, without reauthorizing table
 ownership. Autocommit SET/RESET ROLE is supported; transactional ROLE and SESSION
 AUTHORIZATION remain excluded. PostgreSQL transactional lifetime is an independent control.
-PK/domains and unrelated ALTER actions/transactional DDL remain excluded,
+PK and unrelated ALTER actions/transactional DDL remain excluded,
 never successful no-ops. CHECK CREATE/enforcement and DROP CONSTRAINT are
 supported; ALTER ADD CHECK/VALIDATE remains excluded.
 Post-drop Dump/Restore captures nullable declarations, remaining NOT NULL
@@ -2114,8 +2151,8 @@ queries, rather than the view's creation-time path.
 NAME[] has OID1003, catalog name _name, public
 DatabaseTypeName `_NAME`, typmod-1, no origin and NAME-element collation950.
 Native ScanType/export are string; PostgreSQL/libpq reports interface{} and
-raw []byte instead. This is a result-only descriptor, not TEXT or general array
-input/storage/casts/comparison/DDL. Array output quotes and escapes special names.
+raw []byte instead. The selected bounded domain-base path adds textual array
+input/storage/casts, not general array operations. Output quotes and escapes names.
 NAME[] may be projected alongside scalar ordering, but native ORDER on NAME[]
 itself returns positioned42883 at analysis, even for empty/all-NULL sources.
 PostgreSQL supports array ordering; that external comparator is not native parity
@@ -2177,7 +2214,7 @@ despite having no UTF8 side. Metadata does not enable conversion execution,
 general locale comparison, imported OS collations or broader catalogs/DDL.
 Comparison supports default/C/POSIX and pg_c_utf8/pg_unicode_fast. Ordinary B-tree indexes participate in
 relation visibility, including same-name cross-kind shadowing, and their
-definitions roundtrip through native Dump/Restore. CREATE TYPE/DOMAIN/COLLATION/
+definitions roundtrip through native Dump/Restore. CREATE TYPE/COLLATION/
 CONVERSION, automatic row types, materialized/foreign tables and TEMP table
 creation retain their native exclusion boundaries; real PostgreSQL-only
 reference tests exercise those identities rather than fake native support.

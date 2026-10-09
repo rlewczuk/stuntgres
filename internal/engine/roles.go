@@ -243,6 +243,11 @@ func dependencyDescription(auth AuthorizationView, dep roleDependency) string {
 			}
 		}
 	}
+	if typ, ok := d.(*typeDescriptor); ok && typ.typ.IsDomain() {
+		path, _ := auth.engine.referencePath(auth)
+		kind = "type "
+		name = typeDiagnosticNameAt(view, typ, path)
+	}
 	prefix := "privileges for "
 	if dep.kind == 'o' {
 		prefix = "owner of "

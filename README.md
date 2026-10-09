@@ -10,6 +10,21 @@ There is no network service, filesystem storage, or durability; data disappears
 when the process exits. Use real PostgreSQL for integration tests that depend on
 features outside the [supported dialect](docs/DIALECT.md).
 
+Change note: `CREATE DOMAIN [schema.]name [AS] base_type [NULL]` declares a
+catalog-owned logical type over a supported scalar or bounded `NAME[]` base.
+Domain columns, direct/prepared input, inherited base typmods, operators/functions
+and explicit assignment/cast-back retain the distinction between logical identity
+and physical codecs. `DROP DOMAIN [IF EXISTS] ... [RESTRICT | CASCADE]` follows
+real type/column/stored-expression dependencies: CASCADE removes dependent columns
+and views, not unrelated tables or surviving rows. Native Dump/Restore preserves
+qualified declarations, chains, owners and data. Domain DEFAULT/CHECK/NOT NULL,
+ALTER DOMAIN, general arrays, type ACL-management SQL and transactional domain DDL
+remain excluded. See [domains](docs/TYPES.md#domains--change-note).
+Feature smokes:
+`make test PACKAGES=./reference RUN='^TestReferenceDomain(BaseValues|Expressions|Metadata|Arrays)$' VERBOSE=0`,
+`make test PACKAGES=./reference RUN='^TestReferenceDomain(Diagnostics|Dependencies|PreparedLifecycle|NativeControls)$' VERBOSE=0`,
+and pinned `make reference RUN='^TestReferenceDomain' VERBOSE=0`.
+
 Session identity uses typed scalar expressions: `current_catalog`,
 `current_database()`, `current_role`, `current_user`, `session_user`, `user`
 return NAME; embedded trust-style `system_user` returns TEXT SQL NULL. Initially
@@ -201,12 +216,13 @@ pinned oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestRefer
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;
 bounded temporal explicit casts and same-type precision annotations are supported.
-`SELECT current_schemas(false)` returns a genuine result-only NAME[] (`_NAME`)
-as a native string, or NULL for a NULL boolean argument. General arrays and
-SQL type/function/operator DDL remain excluded. TEMP remains sequence-only;
+`SELECT current_schemas(false)` returns a genuine bounded NAME[] (`_NAME`)
+as a native string, or NULL for a NULL boolean argument. Its codec also supports
+the selected domain-base input/storage/cast path; general arrays and
+CREATE TYPE/function/operator DDL remain excluded. TEMP remains sequence-only;
 introspection does not allocate an absent temporary namespace.
 Native ORDER on NAME[] is explicitly unsupported at analysis, including empty
-sources; PostgreSQL's array comparator is outside this result-only surface.
+sources; PostgreSQL's array comparator remains outside the bounded native surface.
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestSearchPathSmoke$' VERBOSE=0`.
 
 Change note: standalone `ALTER TABLE [IF EXISTS] target SET SCHEMA destination`
@@ -326,7 +342,7 @@ support RETURNING. Discover backend-local numeric relation identities by project
 requiring exactly two distinct positive candidate OIDs, one visible candidate,
 and the same identity bag after reversal. No pg_namespace query source or
 explicit regclass-to-oid cast is needed.
-Type/domain/collation/conversion DDL, automatic row types and materialized/foreign
+CREATE TYPE/COLLATION/CONVERSION, automatic row types and materialized/foreign
 table creation remain excluded. See [visibility inquiries](docs/QUERIES.md#search-path-visibility-inquiries).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestVisibilityInquirySmoke$' VERBOSE=0`.
 Index identity/path/control witnesses:

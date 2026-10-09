@@ -47,6 +47,24 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
+	if target.Type.IsDomain() {
+		base := target.BaseUsage()
+		value, err := importParameter(ctx, raw, base, input)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if base.Typmod != -1 && !value.IsNull() {
+			plan, er := sqltype.PlanCoercion(base.Type.Usage(), base, sqltype.Assignment)
+			if er != nil {
+				return sqltype.Value{}, er
+			}
+			value, err = plan.Apply(ctx, value, input, sqltype.OutputEnvironment{})
+			if err != nil {
+				return sqltype.Value{}, err
+			}
+		}
+		return target.Type.Wrap(value)
+	}
 	if raw == nil {
 		return sqltype.Null(target.Type), ctx.Err()
 	}
@@ -98,7 +116,11 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 	default:
 		return sqltype.Value{}, &Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "unsupported parameter value"}
 	}
-	return target.Type.InputWithEnvironment(ctx, text, -1, input)
+	typmod := int32(-1)
+	if target.Type.ID() == sqltype.Interval {
+		typmod = target.Typmod
+	}
+	return target.Type.InputWithEnvironment(ctx, text, typmod, input)
 }
 
 // Keep TIMETZ on its checked textual codec, including optional-date validation
@@ -164,6 +186,13 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 	if v.IsNull() {
 		return nil, nil
 	}
+	if v.Type().IsDomain() {
+		var err error
+		v, err = v.BaseValue()
+		if err != nil {
+			return nil, err
+		}
+	}
 	switch v.Type().ID() {
 	case sqltype.NameArray:
 		return v.NamesOutput()
@@ -211,7 +240,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 }
 
 func scanType(d *sqltype.Descriptor) reflect.Type {
-	switch d.ID() {
+	switch d.BaseType().ID() {
 	case sqltype.Bytea:
 		return reflect.TypeFor[[]byte]()
 	case sqltype.Timestamp, sqltype.Timestamptz:

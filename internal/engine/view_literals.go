@@ -121,6 +121,12 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 			return child(r.Child, n.child)
 		}
 	case parser.CastExpr:
+		if bound.ResultUsage().Type.IsDomain() {
+			if b.viewDomainCasts == nil {
+				b.viewDomainCasts = make(map[viewLiteralPath]sqltype.Usage)
+			}
+			b.viewDomainCasts[path] = bound.ResultUsage()
+		}
 		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
 			bound = coercion.child
 		}

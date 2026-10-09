@@ -779,7 +779,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || binaryScalarFunction(token.lexeme.text)) {
+	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || binaryScalarFunction(token.lexeme.text) || token.lexeme.text == "current_schemas") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {

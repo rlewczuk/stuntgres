@@ -122,7 +122,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 }
 
 func typeCategory(t *sqltype.Descriptor) byte {
-	switch t.ID() {
+	switch t.BaseType().ID() {
 	case sqltype.Bool:
 		return 'B'
 	case sqltype.Oid, sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
@@ -139,6 +139,7 @@ func typeCategory(t *sqltype.Descriptor) byte {
 	return 0
 }
 func preferredType(t *sqltype.Descriptor) bool {
+	t = t.BaseType()
 	return t.ID() == sqltype.Oid || t.ID() == sqltype.Text || t.ID() == sqltype.Float8 || t.ID() == sqltype.Bool
 }
 func commonValuesUsage(nodes [][]BoundExpr, raw [][]parser.Expr, column int, text sqltype.Usage) (sqltype.Usage, error) {

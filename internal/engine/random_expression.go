@@ -185,7 +185,7 @@ func (b *expressionBinder) bindRandom(raw parser.FunctionExpr, visible bool) (Bo
 				if unknown[i] {
 					continue
 				}
-				if arg.ResultUsage().Type.ID() == candidate {
+				if arg.ResultUsage().Type.BaseType().ID() == candidate {
 					score++
 				}
 				if _, err := sqltype.PlanCoercion(arg.ResultUsage(), b.typ(candidate).Usage(), sqltype.Implicit); err != nil {

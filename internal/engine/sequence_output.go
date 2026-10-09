@@ -22,26 +22,60 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 		return err
 	}
 	for _, value := range rows.values {
-		if value.IsNull() || value.Type().ID() != sqltype.Regclass {
-			continue
-		}
-		key, err := value.Text()
-		if err != nil {
+		if err := captureRegclassOutputValue(rows, auth.catalog, path, value); err != nil {
 			return err
 		}
-		if _, exists := rows.regclassOutput[key]; exists {
-			continue
-		}
-		n, err := strconv.ParseUint(key, 10, 32)
-		if err != nil {
-			return err
-		}
-		text := regclassSpelling(auth.catalog, path, OID(n))
-		if rows.regclassOutput == nil {
-			rows.regclassOutput = make(map[string]string)
-		}
-		rows.regclassOutput[key] = text
 	}
+	for _, row := range rows.anonymous {
+		for _, value := range row {
+			if err := captureRegclassOutputValue(rows, auth.catalog, path, value); err != nil {
+				return err
+			}
+		}
+	}
+	if rows.source != nil {
+		for i := 0; i < rows.count; i++ {
+			index := i
+			if rows.selection != nil {
+				index = rows.selection[i]
+			}
+			row := rows.source.row(index)
+			for _, slot := range rows.slots {
+				if err := captureRegclassOutputValue(rows, auth.catalog, path, row[slot]); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func captureRegclassOutputValue(rows *finalRows, catalog CatalogRead, path []ObjectAddress, value sqltype.Value) error {
+	if value.IsNull() || value.Type().BaseType().ID() != sqltype.Regclass {
+		return nil
+	}
+	if value.Type().IsDomain() {
+		var err error
+		value, err = value.BaseValue()
+		if err != nil {
+			return err
+		}
+	}
+	key, err := value.Text()
+	if err != nil {
+		return err
+	}
+	if _, exists := rows.regclassOutput[key]; exists {
+		return nil
+	}
+	n, err := strconv.ParseUint(key, 10, 32)
+	if err != nil {
+		return err
+	}
+	if rows.regclassOutput == nil {
+		rows.regclassOutput = make(map[string]string)
+	}
+	rows.regclassOutput[key] = regclassSpelling(catalog, path, OID(n))
 	return nil
 }
 

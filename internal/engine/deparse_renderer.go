@@ -55,6 +55,9 @@ func pgType(u sqltype.Usage) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if u.Type.IsDomain() {
+		return declaration, nil
+	}
 	switch u.Type.ID() {
 	case sqltype.Text:
 		return "text", nil
@@ -74,8 +77,19 @@ func pgType(u sqltype.Usage) (string, error) {
 	return strings.ToLower(declaration), nil
 }
 
+func (r pgRenderer) typeSQL(u sqltype.Usage) (string, error) {
+	if !u.Type.IsDomain() {
+		return pgType(u)
+	}
+	d, ok := r.view.state.descriptors[ObjectAddress{ClassID: TypeClassID, ObjectID: OID(u.Type.ID())}].(*typeDescriptor)
+	if !ok || d.typ != u.Type {
+		return "", fmt.Errorf("stuntgres: invalid deparse domain authority")
+	}
+	return typeDiagnosticNameAt(r.view, d, r.path), nil
+}
+
 func (r pgRenderer) cast(child string, usage sqltype.Usage, simple bool) (string, error) {
-	typ, err := pgType(usage)
+	typ, err := r.typeSQL(usage)
 	if err != nil {
 		return "", err
 	}
@@ -91,7 +105,7 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 	if n.unknownNull && (!v.IsNull() || u.Type == nil || u.Type.ID() != sqltype.Text) {
 		return "", fmt.Errorf("stuntgres: invalid unknown NULL provenance")
 	}
-	typ, err := pgType(u)
+	typ, err := r.typeSQL(u)
 	if err != nil {
 		return "", err
 	}
@@ -110,6 +124,16 @@ func (r pgRenderer) literal(ctx context.Context, n literalExpression) (string, e
 			s = strings.ReplaceAll(s, "\\", "\\\\")
 		}
 		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+	}
+	if u.Type.IsDomain() {
+		if u.Type.BaseType().ID() == sqltype.Regclass {
+			id, err := strconv.ParseUint(text, 10, 32)
+			if err != nil {
+				return "", err
+			}
+			text = regclassSpelling(r.view, r.path, OID(id))
+		}
+		return quote(text) + "::" + typ, nil
 	}
 	switch u.Type.ID() {
 	case sqltype.Bool:

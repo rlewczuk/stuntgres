@@ -17,6 +17,18 @@ Detailed contracts are grouped by topic:
 
 The grammar summary below is an overview; the topic guides and [dialect limits](DIALECT.md) describe feature-specific support and exclusions.
 
+Domain declarations use represented scalar/domain bases and the bounded NAME[]
+codec. NULL is the default; explicit NULL is accepted. DEFAULT/CHECK/NOT NULL,
+ALTER DOMAIN, general arrays, native type ACL-management SQL and explicit-transaction
+domain DDL remain excluded. Duplicate domain names are diagnosed before the proposed
+base type. Namespace CREATE, represented base USAGE and owner-only DROP use current
+authority. RESTRICT reports actual type/column/stored-expression dependencies;
+CASCADE removes dependent columns/types/expressions while preserving unrelated
+tables, surviving attributes and row data. DROP SCHEMA includes domain closure.
+Native Dump/Restore replays qualified domain declarations before dependents.
+See [logical/base identities and metadata](TYPES.md#domains--change-note).
+
+
 Explicit table locking: `LOCK [TABLE] target [, target ...]
 [IN lockmode MODE] [NOWAIT]`, with target `name`, `name *`, `ONLY name` or
 `ONLY(name)`. Modes are ACCESS SHARE, ROW SHARE, ROW EXCLUSIVE, SHARE UPDATE
@@ -27,6 +39,8 @@ standalone table markers do not add unsupported inheritance. Prepare is
 metadata-only. See [privileges, conflict matrix and savepoint lifetime](TRANSACTIONS.md#relation-locks).
 
 ```text
+CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]
+DROP DOMAIN [IF EXISTS] [schema.]name [, ...] [RESTRICT | CASCADE]
 CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
 CREATE VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...

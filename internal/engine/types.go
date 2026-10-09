@@ -42,15 +42,28 @@ type temporalConstant struct {
 // Catalog wrappers retain the existing class/namespace/revision/epoch ownership
 // seam. A sqltype ID is a projection, not an authorization token.
 type typeDescriptor struct {
-	typ     *sqltype.Descriptor
-	comment string
+	typ        *sqltype.Descriptor
+	comment    string
+	namespace  ObjectAddress
+	revision   DefinitionRevision
+	owner      PrincipalRef
+	acl        ACLValue
+	dimensions int32
 }
 
 func (d *typeDescriptor) Address() ObjectAddress {
 	return ObjectAddress{ClassID: TypeClassID, ObjectID: OID(d.typ.ID())}
 }
-func (*typeDescriptor) Revision() DefinitionRevision { return 1 }
-func (*typeDescriptor) Namespace() ObjectAddress {
+func (d *typeDescriptor) Revision() DefinitionRevision {
+	if d.revision == 0 {
+		return 1
+	}
+	return d.revision
+}
+func (d *typeDescriptor) Namespace() ObjectAddress {
+	if d.namespace != (ObjectAddress{}) {
+		return d.namespace
+	}
 	return ObjectAddress{ClassID: NamespaceClassID, ObjectID: PGCatalogNamespaceOID}
 }
 func (d *typeDescriptor) Name() string   { return d.typ.Name() }
@@ -71,6 +84,13 @@ func (typeProvider) Validate(view CatalogRead, descriptor Descriptor) error {
 	found := view.Lookup(NameKey{ClassID: TypeClassID, Namespace: descriptor.Namespace(), Name: descriptor.Name()})
 	if len(found) != 1 || found[0] != descriptor.Address() {
 		return fmt.Errorf("stuntgres: invalid type identity")
+	}
+	if t.typ.IsDomain() {
+		base := t.typ.DomainBase()
+		actual, exists := view.LookupType(base.Type.ID())
+		if !exists || actual != base.Type || !base.Valid() || t.revision == 0 || t.dimensions < 0 {
+			return fmt.Errorf("stuntgres: invalid domain base generation")
+		}
 	}
 	return nil
 }
@@ -93,6 +113,10 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 }
 
 func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unknownNull bool) (sqltype.Usage, error) {
+	return e.resolveAnnotationTypeMode(raw, op, unknownNull, false)
+}
+
+func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
 		switch name {
@@ -116,6 +140,12 @@ func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unkno
 			name = "varchar"
 		}
 	}
+	if len(raw.ArrayBounds) > 0 {
+		if name != "name" {
+			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "array types are unsupported")
+		}
+		name = "_name"
+	}
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		return sqltype.Usage{}, err
@@ -137,16 +167,22 @@ func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unkno
 		}
 	}
 	if len(found) != 1 {
+		if domainBase && raw.Name == "record" && (raw.Schema == nil || raw.Schema.Text == "pg_catalog") {
+			return sqltype.Usage{}, typeDiagnostic(raw, "42804", `"record" is not a valid base type for a domain`)
+		}
 		if raw.Schema == nil && unsupportedColumnType(raw) {
 			return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 		}
 		return sqltype.Usage{}, typeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
 	}
 	d, _ := view.LookupType(sqltype.ID(found[0].ObjectID))
+	if domainBase && (!d.Concrete() || d.ID() == sqltype.Void) {
+		return sqltype.Usage{}, typeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))
+	}
 	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
 	}
-	if !d.Concrete() || d.ID() == sqltype.Char || d.ID() == sqltype.Void || d.ID() == sqltype.NameArray {
+	if !d.Concrete() || d.ID() == sqltype.Char || d.ID() == sqltype.Void {
 		return sqltype.Usage{}, typeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
@@ -154,6 +190,9 @@ func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unkno
 		u.Typmod = 5
 	}
 	if len(raw.Modifiers) > 0 {
+		if d.IsDomain() {
+			return sqltype.Usage{}, typeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
+		}
 		if err := d.CheckModifierSupport(); err != nil {
 			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
 		}

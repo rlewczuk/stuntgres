@@ -60,7 +60,7 @@ func binaryTextType(d *sqltype.Descriptor) bool {
 	if d == nil {
 		return true
 	}
-	switch d.ID() {
+	switch d.BaseType().ID() {
 	case sqltype.Text, sqltype.VarChar, sqltype.BPChar, sqltype.Name, sqltype.Char:
 		return true
 	}
@@ -134,7 +134,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	}
 	if name == "length" && len(operands) == 2 {
 		source, encoding := operands[0].descriptor(), operands[1].descriptor()
-		if source == nil || source.ID() == sqltype.Bytea {
+		if source == nil || source.BaseType().ID() == sqltype.Bytea {
 			// Recognize only the real excluded bytea/name candidate, including
 			// unknown inputs and the existing implicit character-to-NAME edges.
 			var conversionErr error
@@ -150,7 +150,7 @@ func (b *expressionBinder) bindBinaryFunction(raw parser.FunctionExpr, visible b
 	for i, o := range operands {
 		if binaryArgumentID(name, i) == sqltype.Int4 {
 			d := o.descriptor()
-			text = text && (d == nil || d.ID() == sqltype.Int2 || d.ID() == sqltype.Int4)
+			text = text && (d == nil || d.BaseType().ID() == sqltype.Int2 || d.BaseType().ID() == sqltype.Int4)
 		} else {
 			text = text && binaryTextType(o.descriptor())
 		}

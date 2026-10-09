@@ -21,6 +21,10 @@ func (d *Descriptor) ConcatOutput(ctx context.Context, v Value, env OutputEnviro
 	if d == nil || v.Type() != d || v.IsNull() {
 		return "", fmt.Errorf("invalid concat output value")
 	}
+	if d.IsDomain() {
+		v.typ = d.BaseType()
+		return v.typ.ConcatOutput(ctx, v, env)
+	}
 	if d.id == Bool {
 		if err := ctx.Err(); err != nil {
 			return "", err
@@ -106,7 +110,7 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 		}
 		p.args[i] = u
 		if textual[i] {
-			if !StringTextInput(u.Type.ID()) {
+			if !StringTextInput(u.Type.BaseType().ID()) {
 				return p, fmt.Errorf("invalid string text input")
 			}
 			if u.Type.ID() != Char {
@@ -116,7 +120,7 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool, 
 					return p, err
 				}
 			}
-		} else if !StringScalar(u.Type.ID()) {
+		} else if !StringScalar(u.Type.BaseType().ID()) {
 			return p, fmt.Errorf("invalid mixed string input")
 		}
 	}

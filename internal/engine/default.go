@@ -222,7 +222,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		}
 		if r.commentSnapshot != nil {
 			for i, arg := range n.args {
-				if !n.textual[i] && arg.ResultUsage().Type.ID() == sqltype.Regclass {
+				if !n.textual[i] && arg.ResultUsage().Type.BaseType().ID() == sqltype.Regclass {
 					*r.commentSnapshot = true
 				}
 			}
@@ -437,7 +437,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 				return "'" + strconv.FormatFloat(value, 'g', -1, 64) + "'", nil
 			}
 		}
-		return literalSQL(ctx, n)
+		return catalogLiteralSQL(ctx, view, n)
 	case timeZoneExpression:
 		value, err := r.sql(ctx, view, n.value)
 		if err != nil {
@@ -482,14 +482,14 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 		if n.child.ResultUsage().Type.ID() == sqltype.Text {
 			inner, explicit := n.child.(coercionExpression)
 			if !explicit || inner.mode != sqltype.Explicit {
-				declaration, err := n.child.ResultUsage().Declaration()
+				declaration, err := catalogTypeDeclaration(view, n.child.ResultUsage())
 				if err != nil {
 					return "", err
 				}
 				child = "CAST(" + child + " AS " + declaration + ")"
 			}
 		}
-		declaration, err := u.Declaration()
+		declaration, err := catalogTypeDeclaration(view, u)
 		if err != nil {
 			return "", err
 		}
@@ -520,7 +520,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 			cu := child.ResultUsage()
 			if literal, ok := child.(literalExpression); ok && (cu.Type.ID() != sqltype.Int4 || literal.value.IsNull()) {
-				declaration, err := cu.Declaration()
+				declaration, err := catalogTypeDeclaration(view, cu)
 				if err != nil {
 					return "", err
 				}
@@ -574,7 +574,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			// A known BIGINT or typed NULL leaf must not become an INT4 or
 			// unknown operand on replay, changing width or unary resolution.
 			if literal, ok := child.(literalExpression); ok && (u.Type.ID() == sqltype.Int8 || literal.value.IsNull()) {
-				declaration, err := u.Declaration()
+				declaration, err := catalogTypeDeclaration(view, u)
 				if err != nil {
 					return "", err
 				}
@@ -979,7 +979,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		if !changed {
 			return node, false, nil
 		}
-		n.value, err = n.value.Retag(typ)
+		n.value, err = reownDomainDatum(n.value, typ)
 		n.expressionInfo = info
 		rebound = n
 	case timeZoneExpression:

@@ -77,10 +77,10 @@ func (b *expressionBinder) bindBooleanAggregate(raw parser.AggregateExpr, name p
 		return nil, err
 	}
 	typ := b.typ(sqltype.Bool)
-	if !visible || raw.Star || len(operands) != 1 || (operands[0].descriptor() != nil && operands[0].descriptor() != typ) {
+	if !visible || raw.Star || len(operands) != 1 || (operands[0].descriptor() != nil && operands[0].descriptor().BaseType() != typ) {
 		return nil, functionSignatureErrorForTypes(name, raw.Pos, types)
 	}
-	arg, err := b.finalizeOperand(operands[0], typ)
+	arg, err := b.coerceConditional(operands[0], typ.Usage(), raw.Name)
 	if err != nil {
 		return nil, err
 	}

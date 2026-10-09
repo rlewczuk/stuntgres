@@ -85,97 +85,6 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			typesChanged = true
 		}
 	}
-	if typesChanged {
-		retainedType := func(typ *sqltype.Descriptor) *sqltype.Descriptor {
-			if typ.ID() == sqltype.Int8 && retainedInt8 != nil {
-				return retainedInt8
-			}
-			if typ.ID() == sqltype.Bool && retainedBool != nil {
-				return retainedBool
-			}
-			return typ
-		}
-		for address, d := range next.descriptors {
-			r, ok := d.(*relationDescriptor)
-			if !ok {
-				continue
-			}
-			var columns []ColumnDescriptor
-			for i, column := range r.columns {
-				typ := retainedType(column.Usage.Type)
-				if typ != column.Usage.Type {
-					if columns == nil {
-						columns = append([]ColumnDescriptor(nil), r.columns...)
-					}
-					columns[i].Usage.Type = typ
-				}
-			}
-			var defaults map[int32]columnDefault
-			for attribute, definition := range r.defaults {
-				expression, changed, err := retagBoundTypes(definition.expression, retainedType)
-				if err != nil {
-					return err
-				}
-				if changed {
-					if defaults == nil {
-						defaults = make(map[int32]columnDefault, len(r.defaults))
-						for key, original := range r.defaults {
-							defaults[key] = original
-						}
-					}
-					definition.expression = expression
-					defaults[attribute] = definition
-				}
-			}
-			if columns != nil || defaults != nil {
-				n := *r
-				if columns != nil {
-					n.columns = columns
-				}
-				if defaults != nil {
-					n.defaults = defaults
-				}
-				next.descriptors[address] = &n
-			}
-		}
-		for _, relation := range storage {
-			for i, row := range relation.versions {
-				var values []sqltype.Value
-				for j, value := range row.values {
-					typ := retainedType(value.Type())
-					if typ == value.Type() {
-						continue
-					}
-					var rebound sqltype.Value
-					if value.IsNull() {
-						rebound = sqltype.Null(typ)
-					} else if typ.ID() == sqltype.Int8 {
-						number, err := value.Integer()
-						if err != nil {
-							return err
-						}
-						rebound, err = sqltype.Integer(typ, number)
-						if err != nil {
-							return err
-						}
-					} else {
-						flag, err := value.Boolean()
-						if err != nil {
-							return err
-						}
-						rebound = sqltype.Boolean(typ, flag)
-					}
-					if values == nil {
-						values = append([]sqltype.Value(nil), row.values...)
-					}
-					values[j] = rebound
-				}
-				if values != nil {
-					relation.versions[i].values = values
-				}
-			}
-		}
-	}
 	mapping := make(map[ObjectAddress]ObjectAddress)
 	for a := range temporary {
 		if next.descriptors[a] != nil {
@@ -195,8 +104,14 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			mapping[a] = dest
 		}
 	}
-	if err := e.remapCatalogExpressions(next, mapping); err != nil {
+	domainsChanged, err := reownDomainTypes(next, mapping)
+	if err != nil {
 		return err
+	}
+	if typesChanged || domainsChanged || len(mapping) != 0 {
+		if err := reownCatalogScalarTypes(next, storage, mapping); err != nil {
+			return err
+		}
 	}
 	if len(mapping) != 0 {
 		originals := next.descriptors
@@ -295,6 +210,9 @@ func (e *Engine) preserveTemporaryLocked(next *catalogState, storage map[ObjectA
 			}
 			sequences[a] = g
 		}
+	}
+	if err := e.remapCatalogExpressions(next, mapping); err != nil {
+		return err
 	}
 	for a, d := range temporary {
 		next.descriptors[a] = d
