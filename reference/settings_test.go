@@ -2,6 +2,8 @@ package reference_test
 
 import (
 	"database/sql"
+	"database/sql/driver"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -41,10 +43,37 @@ func TestReferenceSettingsSQL(t *testing.T) {
 					}
 					run(settingsReferenceError("SET client_min_messages TO bogus", "22023", `invalid value for parameter "client_min_messages": "bogus"`, "Available values: debug5, debug4, debug3, debug2, debug1, log, notice, warning, error.", ""))
 					run(referenceExec("RESET client_min_messages", 0))
-					for _, tc := range []struct{ input, want string }{{"1000", "1s"}, {"1500ms", "1500ms"}, {"1.5s", "1500ms"}, {"1000us", "1ms"}, {"0.5ms", "0"}, {"1min", "1min"}, {"0", "0"}} {
+					for _, tc := range []struct{ input, want string }{{"1000", "1s"}, {"1500ms", "1500ms"}, {"1.5s", "1500ms"}, {"0.5ms", "0"}, {"1min", "1min"}, {"0", "0"}} {
 						run(referenceExec("SET statement_timeout TO '"+tc.input+"'", 0))
 						run(referenceSelect("SHOW statement_timeout", []string{"statement_timeout"}, []string{"TEXT"}, [][]any{{tc.want}}))
 						run(referenceSelect("SELECT set_config($1,$2,$3)", []string{"set_config"}, []string{"TEXT"}, [][]any{{tc.want}}, "statement_timeout", tc.input, false))
+					}
+					// Observe 1ms on the arming command, whose budget starts at 0.
+					// Subsequent SHOW or reset SQL could legitimately time out, so
+					// each route retires its physical owner without another command.
+					for _, step := range []referenceStep{
+						referenceExec("SET statement_timeout TO '1000us'", 0),
+						referenceSelect("SELECT set_config($1,$2,$3)", []string{"set_config"}, []string{"TEXT"}, [][]any{{"1ms"}}, "statement_timeout", "1000us", false),
+					} {
+						func() {
+							owner, err := backend.db.Conn(p.ctx)
+							if err != nil {
+								t.Fatal(err)
+							}
+							defer func() {
+								if err := owner.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(err, driver.ErrBadConn) {
+									t.Error("retiring armed settings owner", err)
+								}
+								if err := owner.Close(); !errors.Is(err, sql.ErrConnDone) {
+									t.Error("closing retired settings owner", err)
+								}
+							}()
+							baseline := referenceSelect("SHOW statement_timeout", []string{"statement_timeout"}, []string{"TEXT"}, [][]any{{"0"}})
+							baseline.prepared = prepared
+							referenceRunStep(t, p.ctx, owner, backend.recorder, baseline)
+							step.prepared = prepared
+							referenceRunStep(t, p.ctx, owner, backend.recorder, step)
+						}()
 					}
 					for _, tc := range []struct{ input, want string }{{"t", "on"}, {"TRUE", "on"}, {"yes", "on"}, {"1", "on"}, {"f", "off"}, {"NO", "off"}, {"0", "off"}, {"off", "off"}} {
 						run(referenceExec("SET standard_conforming_strings TO '"+tc.input+"'", 0))
