@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,23 +6,24 @@ import (
 	"time"
 )
 
+var timezoneParameterOffsetCases = []struct {
+	name                 string
+	east                 int
+	text, truncated, utc string
+}{
+	{"positive_seconds", 30, "05:34:17.123456+00:00:30", "05:34:17.123456+00", "05:33:47.123456+00"},
+	{"negative_seconds", -30, "05:34:17.123456-00:00:30", "05:34:17.123456+00", "05:34:47.123456+00"},
+	{"positive_components", 7384, "05:34:17.123456+02:03:04", "05:34:17.123456+02:03", "03:31:13.123456+00"},
+	{"negative_components", -7384, "05:34:17.123456-02:03:04", "05:34:17.123456-02:03", "07:37:21.123456+00"},
+}
+
 func TestReferenceTimezoneReviewParameterOffset(t *testing.T) {
 	p := timezoneReferencePair(t)
 	p.step(t, referenceExec("CREATE TABLE tz_parameter_import(id INTEGER,q TIMETZ(6))", 0))
 	// Independent constants retain the civil clock and subtract the complete
 	// east offset for UTC conversion, never an offset derived by a backend.
-	cases := []struct {
-		name                 string
-		east                 int
-		text, truncated, utc string
-	}{
-		{"positive_seconds", 30, "05:34:17.123456+00:00:30", "05:34:17.123456+00", "05:33:47.123456+00"},
-		{"negative_seconds", -30, "05:34:17.123456-00:00:30", "05:34:17.123456+00", "05:34:47.123456+00"},
-		{"positive_components", 7384, "05:34:17.123456+02:03:04", "05:34:17.123456+02:03", "03:31:13.123456+00"},
-		{"negative_components", -7384, "05:34:17.123456-02:03:04", "05:34:17.123456-02:03", "07:37:21.123456+00"},
-	}
 	query := "SELECT ($1::TIMETZ)::TEXT AS q,($1::TIMETZ AT TIME ZONE 'UTC')::TEXT AS utc,$1::TIMETZ=$2::TIMETZ AS equal,$1::TIMETZ<$2::TIMETZ AS less,$1::TIMETZ=$3::TIMETZ AS exact FROM tz_witness WHERE id=1"
-	for i, tc := range cases {
+	for i, tc := range timezoneParameterOffsetCases {
 		t.Run(tc.name, func(t *testing.T) {
 			value := time.Date(2004, 7, 1, 5, 34, 17, 123456000, time.FixedZone("source", tc.east))
 			s := referenceSelect(query, []string{"q", "utc", "equal", "less", "exact"}, []string{"TEXT", "TEXT", "BOOL", "BOOL", "BOOL"}, [][]any{{tc.text, tc.utc, false, tc.east > 0, true}}, value, tc.truncated, tc.text)
@@ -35,18 +34,14 @@ func TestReferenceTimezoneReviewParameterOffset(t *testing.T) {
 				// appends abs(offset%60). Its -30s bind becomes +00:00:30.
 				// Assert this adapter discrepancy; do not corrupt native values
 				// to mimic it or attribute it to the PostgreSQL server.
-				for _, backend := range []struct {
-					name   string
-					db     *sql.DB
-					record *referenceRecorder
-				}{{"native", p.memory, p.memoryRecord}, {"pq", p.postgres, p.postgresRecord}} {
+				for _, backend := range p.backends() {
 					t.Run(backend.name, func(t *testing.T) {
 						step := s
-						if backend.name == "pq" {
+						if backend.pg {
 							step.rows = [][]any{{"05:34:17.123456+00:00:30", "05:33:47.123456+00", false, true, false}}
 						}
-						referenceRunStep(t, p.ctx, backend.db, backend.record, step)
-						referenceRunStep(t, p.ctx, backend.db, backend.record, referencePrepared(step))
+						referenceRunStep(t, p.ctx, backend.db, backend.recorder, step)
+						referenceRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(step))
 					})
 				}
 				// Text bypasses pq's encoder and proves PostgreSQL itself accepts
@@ -57,12 +52,7 @@ func TestReferenceTimezoneReviewParameterOffset(t *testing.T) {
 				id := int64(10 + 2*i + mode)
 				insert := referenceExec("INSERT INTO tz_parameter_import VALUES($1,$2)", 1, id, value)
 				insert.prepared = mode == 1
-				if tc.east != -30 {
-					p.step(t, insert)
-				} else {
-					referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, insert)
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, insert)
-				}
+				p.step(t, insert)
 			}
 			stored := referenceSelect("SELECT q::TEXT AS q,(q AT TIME ZONE 'UTC')::TEXT AS utc FROM tz_parameter_import WHERE id>=$1 AND id<=$2 ORDER BY id", []string{"q", "utc"}, []string{"TEXT", "TEXT"}, [][]any{{tc.text, tc.utc}, {tc.text, tc.utc}}, int64(10+2*i), int64(11+2*i))
 			if tc.east != -30 {
@@ -70,10 +60,15 @@ func TestReferenceTimezoneReviewParameterOffset(t *testing.T) {
 			} else {
 				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, stored)
 				stored.rows = [][]any{{"05:34:17.123456+00:00:30", "05:33:47.123456+00"}, {"05:34:17.123456+00:00:30", "05:33:47.123456+00"}}
-				referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, stored)
+				if p.postgres != nil {
+					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, stored)
+				}
 			}
 			// Raw pq results are time.Time rather than native strings. Check
 			// their civil fields and full offset independently of text parity.
+			if p.postgres == nil {
+				return
+			}
 			for _, prepared := range []bool{false, true} {
 				t.Run(map[bool]string{false: "pq_raw_direct", true: "pq_raw_prepared"}[prepared], func(t *testing.T) {
 					var rows *sql.Rows

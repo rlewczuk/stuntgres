@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"math/big"
 	"strconv"
 	"strings"
@@ -57,16 +54,12 @@ func TestReferenceIntervalISOUnderflow(t *testing.T) {
 			{"time_alternative_minute", "PT1:", ":1", "01:00:01"}, {"time_alternative_second", "PT1:1:", "", "01:01:00"},
 		} {
 			t.Run(tc.name+"/"+place.name, func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				input := place.prefix + tc.number + place.suffix
 				out := place.out
-				for _, backend := range []struct {
-					name   string
-					db     *sql.DB
-					record *referenceRecorder
-				}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+				for _, backend := range p.backends() {
 					t.Run(backend.name, func(t *testing.T) {
-						run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+						run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 						run(referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
 						run(referenceExec("INSERT INTO iv VALUES('1 second')", 1))
 						sentinel := func() {
@@ -129,13 +122,10 @@ func TestReferenceIntervalISOUnderflow(t *testing.T) {
 }
 
 func TestReferenceIntervalISOUnderflowSessionIsolation(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("INSERT INTO iv VALUES('1 second')", 1))
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("INSERT INTO iv VALUES('1 second')", 1))
 		a, err := backend.db.Conn(p.ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -146,8 +136,8 @@ func TestReferenceIntervalISOUnderflowSessionIsolation(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer b.Close()
-		referenceRunStep(t, p.ctx, a, backend.record, referenceExec("SET IntervalStyle=sql_standard", 0))
-		referenceRunStep(t, p.ctx, b, backend.record, referenceExec("SET IntervalStyle=iso_8601", 0))
+		referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec("SET IntervalStyle=sql_standard", 0))
+		referenceRunStep(t, p.ctx, b, backend.recorder, referenceExec("SET IntervalStyle=iso_8601", 0))
 		for _, tc := range []struct{ input, code, primary string }{
 			{"P1DT1e-400S", "22007", "invalid input syntax for type interval"},
 			{"P1DT0x1pS", "22007", "invalid input syntax for type interval"},
@@ -166,11 +156,11 @@ func TestReferenceIntervalISOUnderflowSessionIsolation(t *testing.T) {
 				pg := *s.diagnostic
 				pg.Context = "unnamed portal parameter $2 = '...'"
 				s.diagnostic = &pg
-				referenceRunStep(t, p.ctx, a, backend.record, s)
-				referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
-				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
-				referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"0:00:01"}}))
-				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
+				referenceRunStep(t, p.ctx, a, backend.recorder, s)
+				referenceRunStep(t, p.ctx, a, backend.recorder, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
+				referenceRunStep(t, p.ctx, b, backend.recorder, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
+				referenceRunStep(t, p.ctx, a, backend.recorder, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"0:00:01"}}))
+				referenceRunStep(t, p.ctx, b, backend.recorder, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
 			}
 		}
 	}
@@ -199,14 +189,10 @@ func TestReferenceIntervalISOHexadecimal(t *testing.T) {
 		{"PT1:0x1p0:1", "01:01:01"}, {"PT1:1:0x1p0", "01:01:01"},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
 					var previous int64
 					for _, prepared := range []bool{false, true} {
@@ -220,6 +206,7 @@ func TestReferenceIntervalISOHexadecimal(t *testing.T) {
 							run(s)
 							previous = 1
 							run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
+							intervalReferenceMetadata(t, p, backend, "SELECT v FROM iv", 0)
 							s = referenceSelect("SELECT INTERVAL '"+tc.input+"' AS v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}})
 							s.prepared = prepared
 							run(s)
@@ -254,10 +241,10 @@ func TestReferenceIntervalISONonfinite(t *testing.T) {
 		{"PT0xS", "22007", "invalid input syntax for type interval"},
 		{"PT0x.p0S", "22007", "invalid input syntax for type interval"},
 		{"PT+0x1p0S", "22007", "invalid input syntax for type interval"},
+		{"P1DT+0x1p0S", "22007", "invalid input syntax for type interval"},
 		{"P1DT0x1p+S", "22007", "invalid input syntax for type interval"},
 		{"P1DT0xS", "22007", "invalid input syntax for type interval"},
 		{"P1DT0x.p0S", "22007", "invalid input syntax for type interval"},
-		{"P1DT+0x1p0S", "22007", "invalid input syntax for type interval"},
 		{"PT0x1p1024S", "22007", "invalid input syntax for type interval"},
 		{"P1DT0x1p1024S", "22007", "invalid input syntax for type interval"},
 		{"PT0x1p-1075S", "22007", "invalid input syntax for type interval"},
@@ -272,14 +259,10 @@ func TestReferenceIntervalISONonfinite(t *testing.T) {
 		{"P1DT1000000000000001e+S", "22015", "interval field value out of range"},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
 					run(referenceExec("INSERT INTO iv VALUES('1 second')", 1))
 					base := referenceDiagnostic{Code: tc.code, Message: tc.primary + ": \"" + tc.input + "\""}

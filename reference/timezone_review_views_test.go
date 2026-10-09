@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -22,10 +19,7 @@ func TestReferenceTimezoneReviewViewsSessionCapture(t *testing.T) {
 	} {
 		p.step(t, s)
 	}
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"native", p.memory}, {"postgres", p.postgres}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			c, err := backend.db.Conn(p.ctx)
 			if err != nil {
@@ -51,32 +45,9 @@ func TestReferenceTimezoneReviewViewsSessionCapture(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					for _, prepared := range []bool{false, true} {
-						var rows *sql.Rows
-						if prepared {
-							rows, err = stmt.QueryContext(p.ctx)
-						} else {
-							rows, err = c.QueryContext(p.ctx, q)
-						}
-						if err != nil {
-							t.Fatal(err)
-						}
-						var same bool
-						var rendered string
-						if !rows.Next() {
-							rows.Close()
-							t.Fatal("missing view row", rows.Err())
-						}
-						if err := rows.Scan(&same, &rendered); err != nil {
-							rows.Close()
-							t.Fatal(err)
-						}
-						if same != tc.want || rendered != tc.text || rows.Next() || rows.Err() != nil {
-							rows.Close()
-							t.Fatalf("%s prepared=%t zone=%s: %t %q want %t %q", name, prepared, tc.zone, same, rendered, tc.want, tc.text)
-						}
-						rows.Close()
-					}
+					s := referenceSelect(q, []string{"same", "rendered"}, []string{"BOOL", "TEXT"}, [][]any{{tc.want, tc.text}})
+					referenceRunStep(t, p.ctx, c, backend.recorder, s)
+					referenceRunStep(t, p.ctx, referenceHeldStatement{referenceExecutor: c, statement: stmt, query: q}, backend.recorder, s)
 				}
 				stmt.Close()
 			}

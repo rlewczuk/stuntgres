@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -48,6 +46,7 @@ func TestReferenceTimezoneReviewIntervalDiagnosticsAndAtomicity(t *testing.T) {
 			s.prepared, s.selectRows, s.errorStage = prepared, true, "execute"
 			p.step(t, s)
 			timezoneBoth(t, p, unchanged)
+			timezoneBoth(t, p, typed)
 		}
 	}
 	for _, input := range []string{"0 seconds", "@ 0 seconds", "@ 0 seconds ago"} {

@@ -421,9 +421,9 @@ mutate stored definitions, replace source identity pins or change owner/invoker
 authorization; timezone catalog-view population remains a separate capability.
 
 Temporal view regression smoke:
-`make test RUN='^TestTimezoneReviewView' VERBOSE=0`.
+`make test PACKAGES=./reference RUN='^TestReferenceTimezoneReviewView[A-Za-z0-9_]*$' VERBOSE=0`.
 Independent pinned PostgreSQL18.0:
-`make reference RUN='^TestReferenceTimezoneReviewViews' VERBOSE=0`.
+`make reference RUN='^TestReferenceTimezoneReviewView[A-Za-z0-9_]*$' VERBOSE=0`.
 
 Explicit SELECT target `AS label` and eligible bare labels supply frozen output
 metadata and preserve view labels during definition reconstruction. CREATE
@@ -1852,8 +1852,8 @@ renders these expressions with explicit grouping and replays their definitions,
 not previously computed results; restoration retains the target session settings.
 
 Stored-view timezone regressions:
-`make test RUN='^TestTimezoneReviewViewAt' VERBOSE=0` and
-`make reference RUN='^TestReferenceTimezoneReviewViewAt$' VERBOSE=0`.
+`make test PACKAGES=./reference RUN='^TestReferenceTimezoneReviewViewAt[A-Za-z0-9_]*$' VERBOSE=0` and
+`make reference RUN='^TestReferenceTimezoneReviewViewAt[A-Za-z0-9_]*$' VERBOSE=0`.
 The latter independently asserts results against the pinned PostgreSQL 18.0
 fixture; native replay and catalog identity replacement are native controls.
 

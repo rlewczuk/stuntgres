@@ -349,4 +349,27 @@ The cohesive common fixture is exempt from the 750-line limit; it keeps containe
 
 Implicit INSERT and UPDATE diagnostic fixtures independently specify preparation versus execution failure stages, not just backend agreement. Native engine tests also use test-owned contexts to deterministically cancel after row staging and immediately before publication, checking complete sentinel preservation and subsequent engine usability without sleeps or production hooks.
 
+### Dual-mode timezone and INTERVAL migration
+
+The timezone/INTERVAL family merges 58 former root interaction tests with 48
+existing reference definitions into 80 untagged scenarios (48 timezone, 32
+INTERVAL), each at most 150 lines. Select the complete family in both modes:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReference(Interval[A-Za-z0-9_]*|Timezone[A-Za-z0-9_]*)$' VERBOSE=0
+make reference RUN='^TestReference(Interval[A-Za-z0-9_]*|Timezone[A-Za-z0-9_]*)$' VERBOSE=0
+```
+
+These preserve physical settings, captured defaults/views/cursors, DST and
+offset boundaries, interval representation versus comparison, full diagnostics,
+and native Dump/Reset/Restore. Raw native INTERVAL strings and pq byte slices
+are asserted before normalization; temporal civil clocks and full offsets have
+independent codec expectations. Transaction-clock cases use each selected
+backend's own captured instant rather than querying PostgreSQL in quick mode.
+Real server cancellation and schema-authority witnesses are guarded PostgreSQL
+phases, not fake native success. Native controls use the unwrapped fixture pool.
+Root `timezoneRows`/`timezoneExec` remain only for unmigrated temporal callers.
+This migration's aggregate verification uses an outer 300-second deadline;
+the shared Makefile's documented 900-second deadline is unchanged.
+
 Authoritative references: [PostgreSQL 18 commands](https://www.postgresql.org/docs/18/sql-commands.html), [SQLSTATE codes](https://www.postgresql.org/docs/18/errcodes-appendix.html), [testcontainers PostgreSQL API](https://golang.testcontainers.org/modules/postgres/), and [pinned sqlmw APIs](https://github.com/ngrok/sqlmw/blob/97c9c04efc79/interceptor.go). Local PostgreSQL source is 20devel and useful for implementation research; the pinned PostgreSQL 18.0 runtime is the compatibility oracle.

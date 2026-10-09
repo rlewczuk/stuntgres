@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 )
@@ -18,6 +15,9 @@ func TestReferenceTimezoneDSTAndHistoricalRules(t *testing.T) {
 		{"2018-11-04 01:30 EDT", "2018-11-04 05:30:00+00"},
 		{"2018-10-07 02:15 Australia/Lord_Howe", "2018-10-06 15:45:00+00"},
 		{"2018-04-01 01:45 Australia/Lord_Howe", "2018-03-31 15:15:00+00"},
+		{"2020-10-04 02:15 Australia/Lord_Howe", "2020-10-03 15:45:00+00"},
+		{"2021-04-04 01:45 Australia/Lord_Howe", "2021-04-03 15:15:00+00"},
+		{"2004-01-01 12:00-05:30:15", "2004-01-01 17:30:15+00"},
 		{"1800-01-01 12:00 Europe/Amsterdam", "1800-01-01 11:40:28+00"},
 		{"2010-07-01 12:00 MSK", "2010-07-01 09:00:00+00"},
 		{"2010-07-01 12:00 Europe/Moscow", "2010-07-01 08:00:00+00"},
@@ -59,55 +59,57 @@ func TestReferenceTimezoneATAndTimetz(t *testing.T) {
 	p.step(t, referenceExec("SET TIME ZONE 'America/New_York'", 0))
 	timezoneBoth(t, p, timezoneTextStep("TIMESTAMP '2004-07-01 12:00' AT LOCAL", "2004-07-01 12:00:00-04"))
 	timezoneBoth(t, p, timezoneTextStep("TIMETZ '05:34:17-05'", "05:34:17-05"))
-	// Only the oracle supplies clock evidence; expected NY DST is calculated from
-	// US transition dates, never from host zone data or the conversion under test.
-	for _, prepared := range []bool{false, true} {
-		pg, err := p.postgres.BeginTx(p.ctx, nil)
+}
+
+func TestReferenceTimezoneTimetzTransactionDestinationClock(t *testing.T) {
+	p := timezoneReferencePair(t)
+	p.step(t, referenceExec("INSERT INTO tz_witness(id) VALUES(2)", 1))
+	p.step(t, referenceExec("SET TIME ZONE 'America/New_York'", 0))
+	for _, backend := range p.backends() {
+		tx, err := backend.db.BeginTx(p.ctx, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var clock time.Time
-		if err := pg.QueryRowContext(p.ctx, "SELECT transaction_timestamp()").Scan(&clock); err != nil {
-			pg.Rollback()
-			t.Fatal(err)
-		}
-		native, err := p.memory.BeginTx(p.ctx, nil)
-		if err != nil {
-			pg.Rollback()
-			t.Fatal(err)
-		}
-		year := clock.UTC().Year()
-		sunday := func(month time.Month, n int) time.Time {
-			first := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
+		defer tx.Rollback()
+		clock := timezoneTransactionClock(t, p, tx, backend.recorder)
+		sunday := func(month time.Month, n, hour int) time.Time {
+			first := time.Date(clock.UTC().Year(), month, 1, hour, 0, 0, 0, time.UTC)
 			return first.AddDate(0, 0, (7-int(first.Weekday()))%7+7*(n-1))
 		}
-		start := sunday(time.March, 2).Add(7 * time.Hour)
-		end := sunday(time.November, 1).Add(6 * time.Hour)
-		offset := -5
-		if !clock.Before(start) && clock.Before(end) {
-			offset = -4
+		want := "05:34:17-05"
+		if !clock.Before(sunday(time.March, 2, 7)) && clock.Before(sunday(time.November, 1, 6)) {
+			want = "06:34:17-04"
 		}
-		// Transactions cannot share an injected public clock. Refuse to claim a
-		// season witness when their start instants straddle the actual transition.
-		now := time.Now().UTC()
-		if (clock.Before(start) != now.Before(start)) || (clock.Before(end) != now.Before(end)) {
-			native.Rollback()
-			pg.Rollback()
-			t.Fatal("transaction starts straddle NY DST transition")
+		for _, prepared := range []bool{false, true} {
+			var raw any = want
+			if backend.pg {
+				raw = time.Date(0, 1, 1, 10, 34, 17, 0, time.UTC)
+			}
+			rawStep := referenceSelect("SELECT TIMETZ '05:34:17-05' AT TIME ZONE 'America/New_York' AS q FROM tz_witness ORDER BY id", []string{"q"}, []string{"TIMETZ"}, [][]any{{raw}, {raw}})
+			rawStep.prepared = prepared
+			referenceRunStep(t, p.ctx, tx, backend.recorder, rawStep)
+			for _, expr := range []string{
+				"TIMETZ '05:34:17-05' AT TIME ZONE 'America/New_York'",
+				"TIMETZ '2004-01-01 05:34:17-05' AT TIME ZONE 'America/New_York'",
+				"TIMETZ '2004-07-01 05:34:17-05' AT LOCAL",
+			} {
+				s := referenceSelect("SELECT ("+expr+")::TEXT AS q FROM tz_witness ORDER BY id", []string{"q"}, []string{"TEXT"}, [][]any{{want}, {want}})
+				s.prepared = prepared
+				referenceRunStep(t, p.ctx, tx, backend.recorder, s)
+			}
+			s := referenceSelect("SELECT (TIMETZ '2004-07-01 12:00 America/New_York')::TEXT AS summer,(TIMETZ '2004-01-01 12:00 America/New_York')::TEXT AS winter FROM tz_witness WHERE id=1", []string{"summer", "winter"}, []string{"TEXT", "TEXT"}, [][]any{{"12:00:00-04", "12:00:00-05"}})
+			s.prepared = prepared
+			referenceRunStep(t, p.ctx, tx, backend.recorder, s)
+			var summer, winter any = "12:00:00-04", "12:00:00-05"
+			if backend.pg {
+				summer = time.Date(0, 1, 1, 16, 0, 0, 0, time.UTC)
+				winter = time.Date(0, 1, 1, 17, 0, 0, 0, time.UTC)
+			}
+			rawDates := referenceSelect("SELECT TIMETZ '2004-07-01 12:00 America/New_York' AS summer,TIMETZ '2004-01-01 12:00 America/New_York' AS winter FROM tz_witness WHERE id=1", []string{"summer", "winter"}, []string{"TIMETZ", "TIMETZ"}, [][]any{{summer, winter}})
+			rawDates.prepared = prepared
+			referenceRunStep(t, p.ctx, tx, backend.recorder, rawDates)
 		}
-		want := fmt.Sprintf("%02d:34:17-%02d", 10+offset, -offset)
-		s := timezoneTextStep("TIMETZ '2004-01-01 05:34:17-05' AT TIME ZONE 'America/New_York'", want)
-		s.prepared = prepared
-		referenceRunStep(t, p.ctx, native, p.memoryRecord, s)
-		referenceRunStep(t, p.ctx, pg, p.postgresRecord, s)
-		s = timezoneTextStep("TIMETZ '2004-07-01 05:34:17-05' AT LOCAL", want)
-		s.prepared = prepared
-		referenceRunStep(t, p.ctx, native, p.memoryRecord, s)
-		referenceRunStep(t, p.ctx, pg, p.postgresRecord, s)
-		if err := native.Rollback(); err != nil {
-			t.Fatal(err)
-		}
-		if err := pg.Rollback(); err != nil {
+		if err := tx.Rollback(); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -1,66 +1,30 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
-	"stuntgres"
 	"testing"
 )
 
 func TestReferenceIntervalGenericTypmodNativeRoundTrip(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	cases := []struct {
 		mask int
 		out  string
 	}{{4, "1 year"}, {2, "1 year 1 mon"}, {8, "1 year 1 mon 2 days"}, {1024, "1 year 1 mon 2 days 03:00:00"}, {2048, "1 year 1 mon 2 days 03:04:00"}, {6, "1 year 1 mon"}, {1032, "1 year 1 mon 2 days 03:00:00"}, {3080, "1 year 1 mon 2 days 03:04:00"}, {3072, "1 year 1 mon 2 days 03:04:00"}}
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
+	for _, backend := range p.backends() {
 		for i, tc := range cases {
-			referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec(fmt.Sprintf(`CREATE TABLE g%d(v "interval"(%d,2))`, i, tc.mask), 0))
-			referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec(fmt.Sprintf("INSERT INTO g%d VALUES('13 months 2 days 3:04:05.6789')", i), 1))
-			referenceRunStep(t, p.ctx, backend.db, backend.record, referenceSelect(fmt.Sprintf("SELECT v FROM g%d", i), []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec(fmt.Sprintf(`CREATE TABLE g%d(v "interval"(%d,2))`, i, tc.mask), 0))
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec(fmt.Sprintf("INSERT INTO g%d VALUES('13 months 2 days 3:04:05.6789')", i), 1))
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect(fmt.Sprintf("SELECT v FROM g%d", i), []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
 		}
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec(`CREATE TABLE ivdefault(id INTEGER,v "interval"(4,2) DEFAULT '13 months')`, 0))
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("INSERT INTO ivdefault(id) VALUES(1)", 1))
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec(`CREATE VIEW ivgenericview AS SELECT v FROM g0`, 0))
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec(`CREATE TABLE ivdefault(id INTEGER,v "interval"(4,2) DEFAULT '13 months')`, 0))
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("INSERT INTO ivdefault(id) VALUES(1)", 1))
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec(`CREATE VIEW ivgenericview AS SELECT v FROM g0`, 0))
 		for _, q := range []string{"SELECT v FROM ivdefault", "SELECT v FROM ivgenericview"} {
-			referenceRunStep(t, p.ctx, backend.db, backend.record, referenceSelect(q, []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 year"}}))
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect(q, []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 year"}}))
 		}
 	}
-	var dump bytes.Buffer
-	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
-		t.Fatal(err)
-	}
-	connector, err := referenceMemoryDriver.OpenConnector("reference/" + t.Name() + "/restore")
-	if err != nil {
-		t.Fatal(err)
-	}
-	dest := sql.OpenDB(connector)
-	defer dest.Close()
-	if err = stuntgres.Restore(p.ctx, dest, bytes.NewReader(dump.Bytes())); err != nil {
-		t.Fatal(err, dump.String())
-	}
-	var redump bytes.Buffer
-	if err = stuntgres.Dump(p.ctx, dest, &redump); err != nil || redump.String() != dump.String() {
-		t.Fatal(err, "generic typmods changed")
-	}
-	recorded, err := sql.Open("stuntgres_reference_memory", "reference/"+t.Name()+"/restore")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer recorded.Close()
-	recorder := &referenceRecorder{}
-	for i, tc := range cases {
-		referenceRunStep(t, p.ctx, recorded, recorder, referenceSelect(fmt.Sprintf("SELECT v FROM g%d", i), []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
-	}
-	for _, q := range []string{"SELECT v FROM ivdefault", "SELECT v FROM ivgenericview"} {
-		referenceRunStep(t, p.ctx, recorded, recorder, referenceSelect(q, []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 year"}}))
-	}
+
 }
 
 func TestReferenceIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
@@ -96,14 +60,10 @@ func TestReferenceIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 		{"clock_unsigned_overflow", "2562047788:00:54.775808", "INTERVAL", "22015", "interval field value out of range", "00:00:01"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE iv(v "+tc.usage+")", 0))
 					run(referenceExec("INSERT INTO iv VALUES('1 second')", 1))
 					message := tc.primary
@@ -174,27 +134,24 @@ func TestReferenceIntervalBoundaryDiagnosticsAndAtomicity(t *testing.T) {
 }
 
 func TestReferenceIntervalISOAlternativeExponentWidth(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
 		var populated bool
 		for _, tc := range []struct{ input, out string }{{"P00021015e0", "2 years 10 mons 15 days"}, {"P00021015.0e0", "2 years 10 mons 15 days"}, {"PT001020e0", "00:10:20"}, {"PT001020.0e0", "00:10:20"}} {
 			for _, prepared := range []bool{false, true} {
 				for _, parameterized := range []bool{false, true} {
 					if populated {
-						referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("DELETE FROM iv", 1))
+						referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("DELETE FROM iv", 1))
 					}
 					s := referenceExec("INSERT INTO iv VALUES('"+tc.input+"')", 1)
 					if parameterized {
 						s = referenceExec("INSERT INTO iv VALUES($1)", 1, tc.input)
 					}
 					s.prepared = prepared
-					referenceRunStep(t, p.ctx, backend.db, backend.record, s)
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
 					populated = true
-					referenceRunStep(t, p.ctx, backend.db, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
+					referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
 				}
 			}
 		}
@@ -208,13 +165,10 @@ func TestReferenceIntervalPrecisionOverflowSessionIsolation(t *testing.T) {
 		{"offset_negative", "INTERVAL SECOND(5)", "-9223372036854775804 microseconds"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				db     *sql.DB
-				record *referenceRecorder
-			}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-				referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("CREATE TABLE iv(v "+tc.usage+")", 0))
-				referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("INSERT INTO iv VALUES('1 second')", 1))
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE iv(v "+tc.usage+")", 0))
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("INSERT INTO iv VALUES('1 second')", 1))
 				a, err := backend.db.Conn(p.ctx)
 				if err != nil {
 					t.Fatal(err)
@@ -225,17 +179,17 @@ func TestReferenceIntervalPrecisionOverflowSessionIsolation(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer b.Close()
-				referenceRunStep(t, p.ctx, a, backend.record, referenceExec("SET IntervalStyle=sql_standard", 0))
-				referenceRunStep(t, p.ctx, b, backend.record, referenceExec("SET IntervalStyle=iso_8601", 0))
+				referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec("SET IntervalStyle=sql_standard", 0))
+				referenceRunStep(t, p.ctx, b, backend.recorder, referenceExec("SET IntervalStyle=iso_8601", 0))
 				for _, prepared := range []bool{false, true} {
 					s := referenceImplicitError("INSERT INTO iv VALUES($1),($2)", referenceDiagnostic{Code: "22008", Message: "interval out of range"}, "1 day", tc.input)
 					s.prepared = prepared
 					s.errorStage = "execute"
-					referenceRunStep(t, p.ctx, a, backend.record, s)
-					referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
-					referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
-					referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"0:00:01"}}))
-					referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
+					referenceRunStep(t, p.ctx, a, backend.recorder, s)
+					referenceRunStep(t, p.ctx, a, backend.recorder, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"sql_standard"}}))
+					referenceRunStep(t, p.ctx, b, backend.recorder, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
+					referenceRunStep(t, p.ctx, a, backend.recorder, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"0:00:01"}}))
+					referenceRunStep(t, p.ctx, b, backend.recorder, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
 				}
 			}
 		})
@@ -267,16 +221,10 @@ func TestReferenceIntervalOriginalBoundaryAndPrecisionControls(t *testing.T) {
 		{"precision_negative_infinity", "-infinity", "INTERVAL SECOND(5)", " SECOND(5)", "-infinity"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{
-				{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord},
-			} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE iv(v "+tc.usage+")", 0))
 					var previous int64
 					for _, prepared := range []bool{false, true} {

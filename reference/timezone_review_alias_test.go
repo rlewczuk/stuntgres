@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,9 +9,7 @@ import (
 // offsets. The fixture pins PostgreSQL 18.0 UTF8/C.
 func TestReferenceTimezoneReviewAliasSettings(t *testing.T) {
 	p := timezoneReferencePair(t)
-	if _, err := p.postgres.ExecContext(p.ctx, "SET IntervalStyle='postgres'"); err != nil {
-		t.Fatal(err)
-	}
+	p.step(t, referenceExec("SET IntervalStyle='postgres'", 0))
 	for _, tc := range []struct{ number, aliases string }{
 		{"1", "h hr hrs hour hours HRS"},
 		{"60", "m min mins minute minutes"},

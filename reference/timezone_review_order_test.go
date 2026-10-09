@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceTimezoneReviewOrderComposition(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("SET TIME ZONE 'UTC'", 0))
 	p.step(t, referenceExec("CREATE TABLE tz_order(id INT,c TIMESTAMP)", 0))
 	p.step(t, referenceExec("INSERT INTO tz_order VALUES(1,'2004-07-01 12:00'),(2,'2004-07-02 12:00'),(3,'2004-07-01 12:00'),(4,NULL)", 4))

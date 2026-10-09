@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -21,18 +19,18 @@ func TestReferenceTimezoneReviewViewAt(t *testing.T) {
 	}
 	p.step(t, referenceSelect("SELECT explicit,local_value FROM tz_at WHERE id=2", []string{"explicit", "local_value"}, []string{"TIMESTAMPTZ", "TIMESTAMPTZ"}, [][]any{{nil, nil}}))
 	p.step(t, referencePrepared(referenceSelect("SELECT explicit,local_value FROM tz_at WHERE id=2", []string{"explicit", "local_value"}, []string{"TIMESTAMPTZ", "TIMESTAMPTZ"}, [][]any{{nil, nil}})))
-	for _, tc := range []struct{ zone, local, whole string }{
-		{"UTC", "2004-07-01 12:00:00.123", "2004-07-01 12:00:00"},
-		{"America/New_York", "2004-07-01 16:00:00.123", "2004-07-01 16:00:00"},
-		{"Asia/Tokyo", "2004-07-01 03:00:00.123", "2004-07-01 03:00:00"},
-	} {
-		p.step(t, referenceExec("SET TIME ZONE '"+tc.zone+"'", 0))
-		for _, prepared := range []bool{false, true} {
-			s := referenceSelect("SELECT id,(explicit AT TIME ZONE 'UTC')::TEXT AS explicit,(local_value AT TIME ZONE 'UTC')::TEXT AS local_value,(frozen AT TIME ZONE 'UTC')::TEXT AS frozen FROM tz_at_nested ORDER BY id", []string{"id", "explicit", "local_value", "frozen"}, []string{"INT4", "TEXT", "TEXT", "TEXT"}, [][]any{{int64(1), "2004-07-01 16:00:00.123", tc.local, "2004-07-01 12:00:00.123"}, {int64(2), nil, nil, "2004-07-01 12:00:00.123"}, {int64(3), nil, tc.whole, "2004-07-01 12:00:00.123"}})
-			if prepared {
-				s = referencePrepared(s)
-			}
-			p.step(t, s)
+	for _, backend := range p.backends() {
+		query := timezoneReviewViewAtQuery
+		held := timezoneHeld(t, p, backend.db, query)
+		for _, tc := range []struct{ zone, local, whole string }{
+			{"UTC", "2004-07-01 12:00:00.123", "2004-07-01 12:00:00"},
+			{"America/New_York", "2004-07-01 16:00:00.123", "2004-07-01 16:00:00"},
+			{"Asia/Tokyo", "2004-07-01 03:00:00.123", "2004-07-01 03:00:00"},
+		} {
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("SET TIME ZONE '"+tc.zone+"'", 0))
+			s := referenceSelect(query, []string{"id", "explicit", "local_value", "frozen"}, []string{"INT4", "TEXT", "TEXT", "TEXT"}, [][]any{{int64(1), "2004-07-01 16:00:00.123", tc.local, "2004-07-01 12:00:00.123"}, {int64(2), nil, nil, "2004-07-01 12:00:00.123"}, {int64(3), nil, tc.whole, "2004-07-01 12:00:00.123"}})
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+			referenceRunStep(t, p.ctx, held, backend.recorder, s)
 		}
 	}
 }

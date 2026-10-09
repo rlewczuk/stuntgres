@@ -1,22 +1,15 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"fmt"
 	"testing"
 )
 
 func TestReferenceIntervalFractionAliasesAndComparisonBounds(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			run(referenceExec("CREATE TABLE iv(id INTEGER,v INTERVAL)", 0))
 			fixtures := []struct{ s, out string }{{"0.125 years", "2 mons"}, {"0.375 years", "4 mons"}, {"-1.75 months", "-1 mons -22 days -12:00:00"}, {"-1.5 weeks", "-10 days -12:00:00"}, {"@ 1 day ago", "-1 days"}, {"1day", "1 day"}, {"- 1 day", "-1 days"}, {"00:00:60", "00:01:00"}, {"PT1e2S", "00:01:40"}, {"PT10", "10:00:00"}, {"P2-10-15", "2 years 10 mons 15 days"}, {"1 c", "100 years"}, {"1 decs", "10 years"}, {"1 mils", "1000 years"}, {"1 mseconds", "00:00:00.001"}, {"1 useconds", "00:00:00.000001"}, {"4:00 1.75 months", "1 mon 22 days 04:00:00"}, {"1.75 months 4:00", "1 mon 22 days 16:00:00"}}
 			var want [][]any
@@ -36,12 +29,7 @@ func TestReferenceIntervalFractionAliasesAndComparisonBounds(t *testing.T) {
 			run(referenceExec("INSERT INTO infin VALUES('infinity'),('1 day'),('-infinity'),(NULL)", 4))
 			run(referenceSelect("SELECT v FROM infin ORDER BY v", []string{"v"}, []string{"INTERVAL"}, [][]any{{"-infinity"}, {"1 day"}, {"infinity"}, {nil}}))
 			run(referenceSelect("SELECT GREATEST(v,INTERVAL '1 mon'),LEAST(v,INTERVAL '1 mon') FROM infin WHERE v=INTERVAL '1 day'", []string{"greatest", "least"}, []string{"INTERVAL", "INTERVAL"}, [][]any{{"1 mon", "1 day"}}))
-			run(referenceExec("CREATE TABLE repeated(v INTERVAL,d INTERVAL DAY)", 0))
-			run(referencePrepared(referenceExec("INSERT INTO repeated VALUES($1,$1)", 1, "13 months 2 days 3:04:05.6789")))
-			run(referenceSelect("SELECT v,d FROM repeated", []string{"v", "d"}, []string{"INTERVAL", "INTERVAL"}, [][]any{{"1 year 1 mon 2 days 03:04:05.6789", "1 year 1 mon 2 days"}}))
-			run(referenceExec("CREATE TABLE dst(v INTERVAL YEAR)", 0))
-			run(referenceExec("INSERT INTO dst SELECT v FROM repeated", 1))
-			run(referenceSelect("SELECT v FROM dst", []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 year"}}))
+
 		})
 	}
 }

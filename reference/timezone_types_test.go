@@ -1,8 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"reflect"
@@ -14,10 +13,10 @@ import (
 // fixture before backend parity. Each route owns a single physical session.
 func timezoneReferencePair(t *testing.T) *referencePair {
 	t.Helper()
-	p := newReferencePair(t)
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
-		db.SetMaxOpenConns(1)
-		db.SetMaxIdleConns(1)
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		backend.db.SetMaxOpenConns(1)
+		backend.db.SetMaxIdleConns(1)
 	}
 	p.step(t, referenceExec("SET TIME ZONE 'UTC'", 0))
 	p.step(t, referenceExec("SET DateStyle='ISO, MDY'", 0))
@@ -72,6 +71,7 @@ func TestReferenceTimezoneInputPrecisionAndBounds(t *testing.T) {
 		{"TIMESTAMPTZ '2004-07-01 12:00 EST'", "2004-07-01 17:00:00+00"},
 		{"TIMESTAMPTZ '2004-07-01 12:00 EDT'", "2004-07-01 16:00:00+00"},
 		{"TIMESTAMPTZ '2004-07-01 12:00 aMeRiCa/NeW_yOrK'", "2004-07-01 16:00:00+00"},
+		{"TIMESTAMPTZ '2004-07-01 12:00 aMeRiCa/NeW_YoRk'", "2004-07-01 16:00:00+00"},
 		{"TIMESTAMPTZ '2004-07-01 12:00 US/Eastern'", "2004-07-01 16:00:00+00"},
 		{"TIMESTAMPTZ '2004-01-01 00:00-05:30:15'", "2004-01-01 05:30:15+00"},
 		{"TIMESTAMPTZ '2004-01-02 00:00+15:59:59'", "2004-01-01 08:00:01+00"},
@@ -92,6 +92,7 @@ func TestReferenceTimezoneInputPrecisionAndBounds(t *testing.T) {
 	} {
 		t.Run(tc.expression, func(t *testing.T) { timezoneBoth(t, p, timezoneTextStep(tc.expression, tc.want)) })
 	}
+	timezoneBoth(t, p, referenceSelect("SELECT TIMESTAMPTZ(3) '2004-01-01 00:00:00.9995+00'::TEXT AS z,TIMESTAMP '2004-01-01 12:00+02'::TEXT AS c FROM tz_witness", []string{"z", "c"}, []string{"TEXT", "TEXT"}, [][]any{{"2004-01-01 00:00:01+00", "2004-01-01 12:00:00"}}))
 	p.step(t, referenceExec("SET TIME ZONE 'America/New_York'", 0))
 	timezoneBoth(t, p, timezoneTextStep("TIMESTAMPTZ '2004-07-01 12:00' AT TIME ZONE 'UTC'", "2004-07-01 16:00:00"))
 }
@@ -106,42 +107,22 @@ func TestReferenceTimezoneMetadataParametersAndFreeze(t *testing.T) {
 	}
 	timezoneBoth(t, p, referenceSelect("SELECT z,q::TEXT AS q FROM tz_witness ORDER BY id", []string{"z", "q"}, []string{"TIMESTAMPTZ", "TEXT"}, [][]any{{nil, nil}, {instant.UTC().Truncate(time.Millisecond), "05:34:17.124-05"}, {instant.UTC().Truncate(time.Millisecond), "05:34:17.124-05"}}))
 	timezoneBoth(t, p, referenceSelect("SELECT $1::TIMESTAMPTZ AS z,$2::TIMETZ AS q FROM tz_witness WHERE id=1", []string{"z", "q"}, []string{"TIMESTAMPTZ", "TIMETZ"}, [][]any{{nil, nil}}, nil, nil))
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			run(referenceExec("SET TIME ZONE 'America/New_York'", 0))
-			frozen, err := backend.db.PrepareContext(p.ctx, "SELECT TIMESTAMPTZ '2004-07-01 12:00' AS z,(TIMETZ '05:34:17-05')::TEXT AS q FROM tz_witness WHERE id=1")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer frozen.Close()
-			dynamic, err := backend.db.PrepareContext(p.ctx, "SELECT ($1::TIMESTAMPTZ)::TEXT AS v FROM tz_witness WHERE id=1")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer dynamic.Close()
+			frozenQuery := "SELECT TIMESTAMPTZ '2004-07-01 12:00' AS z,(TIMETZ '05:34:17-05')::TEXT AS q FROM tz_witness WHERE id=1"
+			frozen := timezoneHeld(t, p, backend.db, frozenQuery)
+			dynamicQuery := "SELECT ($1::TIMESTAMPTZ)::TEXT AS v FROM tz_witness WHERE id=1"
+			dynamic := timezoneHeld(t, p, backend.db, dynamicQuery)
 			run(referenceExec("SET TIME ZONE 'UTC'", 0))
-			var z time.Time
-			var q string
-			if err := frozen.QueryRowContext(p.ctx).Scan(&z, &q); err != nil {
-				t.Fatal(err)
-			}
-			if !z.Equal(time.Date(2004, 7, 1, 16, 0, 0, 0, time.UTC)) || q != "05:34:17-05" {
-				t.Fatal(z, q)
-			}
+			referenceRunStep(t, p.ctx, frozen, backend.recorder, referenceSelect(frozenQuery, []string{"z", "q"}, []string{"TIMESTAMPTZ", "TEXT"}, [][]any{{time.Date(2004, 7, 1, 16, 0, 0, 0, time.UTC), "05:34:17-05"}}))
 			for _, tc := range []struct{ zone, want string }{{"UTC", "2004-07-01 12:00:00+00"}, {"America/New_York", "2004-07-01 12:00:00-04"}} {
 				run(referenceExec("SET TIME ZONE '"+tc.zone+"'", 0))
-				var text string
-				if err := dynamic.QueryRowContext(p.ctx, "2004-07-01 12:00").Scan(&text); err != nil || text != tc.want {
-					t.Fatal(text, tc.want, err)
-				}
+				referenceRunStep(t, p.ctx, dynamic, backend.recorder, referenceSelect(dynamicQuery, []string{"v"}, []string{"TEXT"}, [][]any{{tc.want}}, "2004-07-01 12:00"))
 			}
 			run(referenceExec("SET TIME ZONE 'UTC'", 0))
-			rows, err := backend.db.QueryContext(p.ctx, "SELECT z,q FROM tz_witness WHERE id=1")
+			rows, err := backend.db.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), "SELECT z,q FROM tz_witness WHERE id=1")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -153,7 +134,7 @@ func TestReferenceTimezoneMetadataParametersAndFreeze(t *testing.T) {
 			if len(types) != 2 || types[0].DatabaseTypeName() != "TIMESTAMPTZ" || types[1].DatabaseTypeName() != "TIMETZ" {
 				t.Fatal(types)
 			}
-			if backend.name == "native" {
+			if !backend.pg {
 				if types[0].ScanType() != reflect.TypeOf(time.Time{}) || types[1].ScanType() != reflect.TypeOf("") {
 					t.Fatal(types)
 				}
@@ -168,18 +149,8 @@ func TestReferenceTimezoneMetadataParametersAndFreeze(t *testing.T) {
 					}
 				}
 			}
-			if !rows.Next() {
-				t.Fatal("missing NULL row", rows.Err())
-			}
-			var a, b any
-			if err := rows.Scan(&a, &b); err != nil || a != nil || b != nil {
-				t.Fatal(a, b, err)
-			}
-			if rows.Next() || rows.Err() != nil {
-				t.Fatal("extra row", rows.Err())
-			}
-			rows.Close()
-			if backend.name == "postgres" {
+			referenceRunStep(t, p.ctx, timezoneAdmittedRows{referenceExecutor: backend.db, rows: rows}, backend.recorder, referenceSelect("SELECT z,q FROM tz_witness WHERE id=1", []string{"z", "q"}, []string{"TIMESTAMPTZ", "TIMETZ"}, [][]any{{nil, nil}}))
+			if backend.pg {
 				// Native exposes SQL type/scan metadata above, not pg_type or
 				// a public OID API. Assert the fixed release OIDs on PostgreSQL.
 				for _, tc := range []struct {
@@ -211,6 +182,8 @@ func TestReferenceTimezoneDefaultFreezeAndNativeOwnership(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		var rows *sql.Rows
 		var err error
+		record := &referenceRecorder{rawBackend: referenceRawNative}
+		ctx := context.WithValue(p.ctx, referenceRecorderKey{}, record)
 		query := "SELECT z FROM tz_witness WHERE z IS NOT NULL ORDER BY id"
 		if prepared {
 			stmt, e := p.memory.PrepareContext(p.ctx, query)
@@ -218,12 +191,17 @@ func TestReferenceTimezoneDefaultFreezeAndNativeOwnership(t *testing.T) {
 				t.Fatal(e)
 			}
 			defer stmt.Close()
-			rows, err = stmt.QueryContext(p.ctx)
+			rows, err = stmt.QueryContext(ctx)
 		} else {
-			rows, err = p.memory.QueryContext(p.ctx, query)
+			rows, err = p.memory.QueryContext(ctx, query)
 		}
 		if err != nil {
 			t.Fatal(err)
+		}
+		defer rows.Close()
+		meta, err := rows.ColumnTypes()
+		if err != nil || len(meta) != 1 || meta[0].DatabaseTypeName() != "TIMESTAMPTZ" || meta[0].ScanType() != reflect.TypeFor[time.Time]() {
+			t.Fatal("infinity metadata", meta, err)
 		}
 		if !rows.Next() {
 			rows.Close()
@@ -258,6 +236,26 @@ func TestReferenceTimezoneDefaultFreezeAndNativeOwnership(t *testing.T) {
 			rows.Close()
 			t.Fatal("infinity cardinality", rows.Err())
 		}
-		rows.Close()
+		if err := rows.Close(); err != nil {
+			t.Fatal(err)
+		}
+		record.mu.Lock()
+		if len(record.operations) != 1 {
+			record.mu.Unlock()
+			t.Fatal("infinity query recording", len(record.operations))
+		}
+		op := record.operations[0]
+		record.mu.Unlock()
+		if !op.Closed || op.CloseErr != nil || !reflect.DeepEqual(op.Columns, []string{"z"}) || len(op.Rows) != 2 {
+			t.Fatal("infinity consumed output/closure", op)
+		}
+		for _, row := range op.Rows {
+			referenceAssertRawValue(t, false, "TIMESTAMPTZ", row[0])
+			if referenceNormalize(row[0]) != "infinity" {
+				t.Fatal("recorded infinity aliased exported bytes", row)
+			}
+		}
+		// Mutating an exported infinity must not alter the stored value.
+		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT z::TEXT AS z FROM tz_witness WHERE id=2", []string{"z"}, []string{"TEXT"}, [][]any{{"infinity"}}))
 	}
 }

@@ -1,19 +1,13 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 func TestReferenceIntervalClockEndpointControls(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 		run(referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
 		for _, tc := range []struct{ input, out string }{
 			{"-2562047788:00:54.775807", "-2562047788:00:54.775807"},
@@ -30,7 +24,9 @@ func TestReferenceIntervalClockEndpointControls(t *testing.T) {
 					}
 					s.prepared = prepared
 					run(s)
-					run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
+					s = referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}})
+					s.prepared = prepared
+					run(s)
 					s = referenceSelect("SELECT INTERVAL '"+tc.input+"' FROM iv", []string{"interval"}, []string{"INTERVAL"}, [][]any{{tc.out}})
 					s.prepared = prepared
 					run(s)
@@ -42,13 +38,10 @@ func TestReferenceIntervalClockEndpointControls(t *testing.T) {
 }
 
 func TestReferenceIntervalClockEndpointSessionAtomicity(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("INSERT INTO iv VALUES('1 second')", 1))
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("INSERT INTO iv VALUES('1 second')", 1))
 		a, err := backend.db.Conn(p.ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -65,8 +58,8 @@ func TestReferenceIntervalClockEndpointSessionAtomicity(t *testing.T) {
 			{"sql_standard", "0:00:01"},
 			{"iso_8601", "PT1S"},
 		} {
-			referenceRunStep(t, p.ctx, a, backend.record, referenceExec("SET IntervalStyle="+own.name, 0))
-			referenceRunStep(t, p.ctx, b, backend.record, referenceExec("SET IntervalStyle=iso_8601", 0))
+			referenceRunStep(t, p.ctx, a, backend.recorder, referenceExec("SET IntervalStyle="+own.name, 0))
+			referenceRunStep(t, p.ctx, b, backend.recorder, referenceExec("SET IntervalStyle=iso_8601", 0))
 			for _, prepared := range []bool{false, true} {
 				s := referenceImplicitError("INSERT INTO iv VALUES($1),($2)", referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type interval: \"-2562047788:00:54.775808\""}, "1 second", "-2562047788:00:54.775808")
 				s.prepared = prepared
@@ -74,23 +67,20 @@ func TestReferenceIntervalClockEndpointSessionAtomicity(t *testing.T) {
 				pg := *s.diagnostic
 				pg.Context = "unnamed portal parameter $2 = '...'"
 				s.diagnostic = &pg
-				referenceRunStep(t, p.ctx, a, backend.record, s)
-				referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{own.name}}))
-				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
-				referenceRunStep(t, p.ctx, a, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{own.out}}))
-				referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
+				referenceRunStep(t, p.ctx, a, backend.recorder, s)
+				referenceRunStep(t, p.ctx, a, backend.recorder, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{own.name}}))
+				referenceRunStep(t, p.ctx, b, backend.recorder, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
+				referenceRunStep(t, p.ctx, a, backend.recorder, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{own.out}}))
+				referenceRunStep(t, p.ctx, b, backend.recorder, referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"PT1S"}}))
 			}
 		}
 	}
 }
 
 func TestReferenceIntervalMinimumTimeDefaultsViews(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 		run(referenceExec("CREATE TABLE iv(id INTEGER,v INTERVAL DEFAULT INTERVAL '-9223372036854775808 microseconds')", 0))
 		run(referenceExec("INSERT INTO iv(id) VALUES(1)", 1))
 		run(referenceExec("CREATE VIEW ivview AS SELECT INTERVAL '-9223372036854775808 microseconds' AS v FROM iv WHERE id=1", 0))

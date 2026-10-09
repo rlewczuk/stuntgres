@@ -1,24 +1,16 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
-	"fmt"
+	"context"
 	"reflect"
 	"testing"
 )
 
 func TestReferenceIntervalValuesDeclarationsAndComparison(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name     string
-		postgres bool
-		db       *sql.DB
-		record   *referenceRecorder
-	}{{"native", false, p.memory, p.memoryRecord}, {"postgres", true, p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			query := func(q string, names, types []string, rows [][]any) {
 				s := referenceSelect(q, names, types, rows)
 				run(s)
@@ -43,36 +35,36 @@ func TestReferenceIntervalValuesDeclarationsAndComparison(t *testing.T) {
 				t.Fatal(e)
 			}
 			meta, e := rows.ColumnTypes()
-			rows.Close()
+			if closeErr := rows.Close(); closeErr != nil {
+				t.Fatal(closeErr)
+			}
 			if e != nil {
 				t.Fatal(e)
 			}
 			scan := reflect.TypeFor[string]()
-			if backend.postgres {
+			if backend.pg {
 				scan = reflect.TypeFor[any]()
 			}
 			if meta[0].DatabaseTypeName() != "INTERVAL" || meta[0].ScanType() != scan {
 				t.Fatal(meta[0], scan)
 			}
+			if _, ok := meta[0].Length(); ok {
+				t.Fatal("interval length metadata")
+			}
 			if _, _, ok := meta[0].DecimalSize(); ok {
 				t.Fatal("interval numeric metadata")
 			}
-			for i, tc := range []struct{ decl, out string }{{"INTERVAL YEAR", "1 year"}, {"INTERVAL MONTH", "1 year 1 mon"}, {"INTERVAL DAY", "1 year 1 mon 2 days"}, {"INTERVAL HOUR", "1 year 1 mon 2 days 03:00:00"}, {"INTERVAL MINUTE", "1 year 1 mon 2 days 03:04:00"}, {"INTERVAL SECOND", "1 year 1 mon 2 days 03:04:05.6789"}, {"INTERVAL YEAR TO MONTH", "1 year 1 mon"}, {"INTERVAL DAY TO HOUR", "1 year 1 mon 2 days 03:00:00"}, {"INTERVAL DAY TO MINUTE", "1 year 1 mon 2 days 03:04:00"}, {"INTERVAL DAY TO SECOND(2)", "1 year 1 mon 2 days 03:04:05.68"}, {"INTERVAL HOUR TO MINUTE", "1 year 1 mon 2 days 03:04:00"}, {"INTERVAL HOUR TO SECOND(2)", "1 year 1 mon 2 days 03:04:05.68"}, {"INTERVAL MINUTE TO SECOND(2)", "1 year 1 mon 2 days 03:04:05.68"}} {
-				table := fmt.Sprintf("iv%d", i)
-				run(referenceExec("CREATE TABLE "+table+"(v "+tc.decl+")", 0))
-				run(referencePrepared(referenceExec("INSERT INTO "+table+" VALUES('13 months 2 days 3:04:05.6789')", 1)))
-				query("SELECT v FROM "+table, []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}})
-			}
-			for p, out := range []string{"00:00:01", "00:00:01.2", "00:00:01.23", "00:00:01.235", "00:00:01.2346", "00:00:01.23457", "00:00:01.234567"} {
-				table := fmt.Sprintf("prec%d", p)
-				run(referenceExec(fmt.Sprintf("CREATE TABLE %s(v INTERVAL(%d))", table, p), 0))
-				run(referenceExec("INSERT INTO "+table+" VALUES('1.234567 seconds')", 1))
-				query("SELECT v FROM "+table, []string{"v"}, []string{"INTERVAL"}, [][]any{{out}})
-			}
 			run(referenceExec("CREATE TABLE ivtm(id INTEGER,y INTERVAL YEAR,m INTERVAL MINUTE TO SECOND(2))", 0))
 			run(referenceExec("INSERT INTO ivtm VALUES(1,'1','1:02.345')", 1))
-			run(referencePrepared(referenceExec("INSERT INTO ivtm VALUES($1,$2,$3)", 1, 2, "1", []byte("1:02.345"))))
-			query("SELECT id,y,m FROM ivtm ORDER BY id", []string{"id", "y", "m"}, []string{"INT4", "INTERVAL", "INTERVAL"}, [][]any{{int64(1), "1 year", "00:01:02.35"}, {int64(2), "00:00:00", "00:01:02.35"}})
+			statement, err := backend.db.PrepareContext(p.ctx, "INSERT INTO ivtm VALUES($1,$2,$3)")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer statement.Close()
+			held := referenceHeldStatement{backend.db, statement, "INSERT INTO ivtm VALUES($1,$2,$3)"}
+			referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(held.query, 1, 2, "1", []byte("1:02.345")))
+			referenceRunStep(t, p.ctx, held, backend.recorder, referenceExec(held.query, 1, 3, nil, nil))
+			query("SELECT id,y,m FROM ivtm ORDER BY id", []string{"id", "y", "m"}, []string{"INT4", "INTERVAL", "INTERVAL"}, [][]any{{int64(1), "1 year", "00:01:02.35"}, {int64(2), "00:00:00", "00:01:02.35"}, {int64(3), nil, nil}})
 			run(referenceExec("CREATE TABLE eq(id INTEGER,v INTERVAL)", 0))
 			run(referenceExec("INSERT INTO eq VALUES(1,'1 mon'),(2,'30 days'),(3,'720 hours'),(4,'1 day'),(5,'24 hours'),(6,NULL)", 6))
 			query("SELECT id FROM eq WHERE v=INTERVAL '1 mon' ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(3)}})
@@ -86,12 +78,8 @@ func TestReferenceIntervalValuesDeclarationsAndComparison(t *testing.T) {
 }
 
 func TestReferenceIntervalStylesPreparedCaptureAndSessionIsolation(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			a, e := backend.db.Conn(p.ctx)
 			if e != nil {
@@ -103,7 +91,7 @@ func TestReferenceIntervalStylesPreparedCaptureAndSessionIsolation(t *testing.T)
 				t.Fatal(e)
 			}
 			defer b.Close()
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, backend.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, backend.recorder, s) }
 			run(referenceExec("CREATE TABLE ivstyle(id INTEGER,v INTERVAL)", 0))
 			literal, e := a.PrepareContext(p.ctx, "INSERT INTO ivstyle VALUES(1,INTERVAL '-1 2:03:04')")
 			if e != nil {
@@ -115,19 +103,18 @@ func TestReferenceIntervalStylesPreparedCaptureAndSessionIsolation(t *testing.T)
 				t.Fatal(e)
 			}
 			defer unknown.Close()
-			run(referenceExec("SET IntervalStyle=sql_standard", 0))
-			for _, stmt := range []*sql.Stmt{literal, unknown} {
-				r, e := stmt.ExecContext(p.ctx)
-				if e != nil {
-					t.Fatal(e)
-				}
-				if n, e := r.RowsAffected(); e != nil || n != 1 {
-					t.Fatal(n, e)
-				}
+			param, e := a.PrepareContext(p.ctx, "INSERT INTO ivstyle VALUES(3,$1)")
+			if e != nil {
+				t.Fatal(e)
 			}
-			run(referencePrepared(referenceExec("INSERT INTO ivstyle VALUES(3,$1)", 1, "-1 2:03:04")))
+			defer param.Close()
+			run(referenceExec("SET IntervalStyle=sql_standard", 0))
+			referenceRunStep(t, p.ctx, referenceHeldStatement{a, literal, "INSERT INTO ivstyle VALUES(1,INTERVAL '-1 2:03:04')"}, backend.recorder, referenceExec("INSERT INTO ivstyle VALUES(1,INTERVAL '-1 2:03:04')", 1))
+			referenceRunStep(t, p.ctx, referenceHeldStatement{a, unknown, "INSERT INTO ivstyle VALUES(2,'-1 2:03:04')"}, backend.recorder, referenceExec("INSERT INTO ivstyle VALUES(2,'-1 2:03:04')", 1))
+			referenceRunStep(t, p.ctx, referenceHeldStatement{a, param, "INSERT INTO ivstyle VALUES(3,$1)"}, backend.recorder, referenceExec("INSERT INTO ivstyle VALUES(3,$1)", 1, "-1 2:03:04"))
 			run(referenceSelect("SELECT id,v FROM ivstyle ORDER BY id", []string{"id", "v"}, []string{"INT4", "INTERVAL"}, [][]any{{int64(1), "+0-0 -1 +2:03:04"}, {int64(2), "+0-0 -1 +2:03:04"}, {int64(3), "-1 2:03:04"}}))
-			referenceRunStep(t, p.ctx, b, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"postgres"}}))
+			referenceRunStep(t, p.ctx, b, backend.recorder, referenceSelect("SELECT id,v FROM ivstyle ORDER BY id", []string{"id", "v"}, []string{"INT4", "INTERVAL"}, [][]any{{int64(1), "-1 days +02:03:04"}, {int64(2), "-1 days +02:03:04"}, {int64(3), "-1 days -02:03:04"}}))
+			referenceRunStep(t, p.ctx, b, backend.recorder, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"postgres"}}))
 			outputs := []struct{ style, out, zero string }{{"postgres", "-1 years -2 mons +3 days -04:05:06", "00:00:00"}, {"postgres_verbose", "@ 1 year 2 mons -3 days 4 hours 5 mins 6 secs ago", "@ 0"}, {"sql_standard", "-1-2 +3 -4:05:06", "0"}, {"iso_8601", "P-1Y-2M3DT-4H-5M-6S", "PT0S"}}
 			prepared, e := a.PrepareContext(p.ctx, "SELECT v FROM ivstyle WHERE id=4")
 			if e != nil {
@@ -138,10 +125,7 @@ func TestReferenceIntervalStylesPreparedCaptureAndSessionIsolation(t *testing.T)
 			for _, tc := range outputs {
 				run(referenceExec("SET IntervalStyle="+tc.style, 0))
 				run(referenceSelect("SELECT v FROM ivstyle WHERE id=4", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
-				var v string
-				if e = prepared.QueryRowContext(p.ctx).Scan(&v); e != nil || v != tc.out {
-					t.Fatal(tc.style, v, e)
-				}
+				referenceRunStep(t, p.ctx, referenceHeldStatement{a, prepared, "SELECT v FROM ivstyle WHERE id=4"}, backend.recorder, referenceSelect("SELECT v FROM ivstyle WHERE id=4", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.out}}))
 				run(referenceSelect("SELECT v FROM ivstyle WHERE id=5", []string{"v"}, []string{"INTERVAL"}, [][]any{{tc.zero}}))
 			}
 			run(referenceExec("RESET IntervalStyle", 0))
@@ -151,17 +135,25 @@ func TestReferenceIntervalStylesPreparedCaptureAndSessionIsolation(t *testing.T)
 }
 
 func TestReferenceIntervalGroupComparisonClasses(t *testing.T) {
-	p := newReferencePair(t)
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
-		for _, q := range []string{"CREATE TABLE iv(v INTERVAL)", "INSERT INTO iv VALUES('1 mon'),('30 days'),('720 hours'),('1 day'),('24 hours'),(NULL)"} {
-			if _, err := db.ExecContext(p.ctx, q); err != nil {
-				t.Fatal(err)
-			}
-		}
-		rows, err := db.QueryContext(p.ctx, "SELECT v FROM iv GROUP BY v")
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		db := backend.db
+		referenceRunStep(t, p.ctx, db, backend.recorder, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
+		referenceRunStep(t, p.ctx, db, backend.recorder, referenceExec("INSERT INTO iv VALUES('1 mon'),('30 days'),('720 hours'),('1 day'),('24 hours'),(NULL)", 6))
+		rows, err := db.QueryContext(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder), "SELECT v FROM iv GROUP BY v")
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer rows.Close()
+		names, err := rows.Columns()
+		if err != nil || !reflect.DeepEqual(names, []string{"v"}) {
+			t.Fatal(names, err)
+		}
+		meta, err := rows.ColumnTypes()
+		if err != nil || len(meta) != 1 || meta[0].DatabaseTypeName() != "INTERVAL" {
+			t.Fatal(meta, err)
+		}
+		var consumed [][]any
 		classes := make(map[int]bool)
 		for rows.Next() {
 			var value any
@@ -169,6 +161,7 @@ func TestReferenceIntervalGroupComparisonClasses(t *testing.T) {
 				rows.Close()
 				t.Fatal(err)
 			}
+			referenceAssertRawValue(t, backend.pg, "INTERVAL", value)
 			if text, ok := value.([]byte); ok {
 				value = string(text)
 			}
@@ -186,11 +179,32 @@ func TestReferenceIntervalGroupComparisonClasses(t *testing.T) {
 				t.Fatal(value, classes)
 			}
 			classes[rank] = true
+			consumed = append(consumed, []any{value})
 		}
 		err = rows.Err()
-		rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
 		if err != nil || len(classes) != 3 {
 			t.Fatal(classes, err)
+		}
+		backend.recorder.mu.Lock()
+		var op *referenceOperation
+		for _, candidate := range backend.recorder.operations {
+			if candidate.SQL == "SELECT v FROM iv GROUP BY v" && candidate.Columns != nil {
+				op = candidate
+			}
+		}
+		backend.recorder.mu.Unlock()
+		if op == nil || !op.Closed || op.CloseErr != nil {
+			t.Fatal("group cursor not recorded/closed", op)
+		}
+		captured := make([][]any, len(op.Rows))
+		for i, row := range op.Rows {
+			captured[i] = []any{referenceNormalize(row[0])}
+		}
+		if !reflect.DeepEqual(captured, consumed) || !reflect.DeepEqual(op.Columns, names) {
+			t.Fatal(captured, consumed, op.Columns)
 		}
 	}
 }

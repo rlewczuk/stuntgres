@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strconv"
 	"strings"
@@ -40,10 +37,7 @@ func TestReferenceTimezoneRangeAndUpdateAtomicity(t *testing.T) {
 	s.errorStage = "prepare"
 	p.step(t, referencePrepared(s))
 	timezoneBoth(t, p, sentinel)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
+	for _, backend := range p.backends() {
 		// Context canceled after query creation must not invent an SQL diagnostic.
 		// pq may already have buffered a complete wire result; only the native
 		// lazy cursor promises cancellation before its next exported row.
@@ -66,7 +60,7 @@ func TestReferenceTimezoneRangeAndUpdateAtomicity(t *testing.T) {
 			t.Fatal("iteration cancellation", rows.Err())
 		}
 		rows.Close()
-		referenceRunStep(t, p.ctx, backend.db, backend.record, sentinel)
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, sentinel)
 	}
 }
 
@@ -85,49 +79,37 @@ func TestReferenceTimezoneRelativeInputAndDeclarations(t *testing.T) {
 		timezoneBoth(t, p, referenceExec("UPDATE "+table+" SET a='2004-01-01 00:00:00.1236+00',b='10:00:00.1236-05',c='2004-01-01 00:00:00.1236+00',d='10:00:00.1236-05'", 1))
 		timezoneBoth(t, p, referenceSelect("SELECT a::TEXT AS a,b::TEXT AS b,c::TEXT AS c,d::TEXT AS d FROM "+table, []string{"a", "b", "c", "d"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"2004-01-01 00:00:00.124+00", "10:00:00.124-05", "2004-01-01 00:00:00.1236+00", "10:00:00.1236-05"}}))
 	}
-	for _, zone := range []struct {
-		name    string
-		seconds int
-	}{{"UTC", 0}, {"UTC-2", 7200}} {
-		p.step(t, referenceExec("SET TIME ZONE '"+zone.name+"'", 0))
-		pg, err := p.postgres.BeginTx(p.ctx, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var clock time.Time
-		if err := pg.QueryRowContext(p.ctx, "SELECT transaction_timestamp()").Scan(&clock); err != nil {
-			pg.Rollback()
-			t.Fatal(err)
-		}
-		native, err := p.memory.BeginTx(p.ctx, nil)
-		if err != nil {
-			pg.Rollback()
-			t.Fatal(err)
-		}
-		local := clock.UTC().Add(time.Duration(zone.seconds) * time.Second)
-		now := time.Now().UTC().Add(time.Duration(zone.seconds) * time.Second)
-		if local.Format("2006-01-02") != now.Format("2006-01-02") {
-			native.Rollback()
-			pg.Rollback()
-			t.Fatal("transaction starts straddle local midnight")
-		}
-		for _, tc := range []struct {
-			keyword string
-			days    int
-		}{{"yesterday", -1}, {"today", 0}, {"tomorrow", 1}} {
-			want := local.AddDate(0, 0, tc.days).Format("2006-01-02") + " 00:00:00"
-			for _, prepared := range []bool{false, true} {
-				s := timezoneTextStep("TIMESTAMPTZ '"+tc.keyword+"' AT LOCAL", want)
-				s.prepared = prepared
-				referenceRunStep(t, p.ctx, native, p.memoryRecord, s)
-				referenceRunStep(t, p.ctx, pg, p.postgresRecord, s)
+}
+
+func TestReferenceTimezoneRelativeInputClocks(t *testing.T) {
+	p := timezoneReferencePair(t)
+	for _, backend := range p.backends() {
+		for _, zone := range []struct {
+			name    string
+			seconds int
+		}{{"UTC", 0}, {"UTC-2", 7200}} {
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("SET TIME ZONE '"+zone.name+"'", 0))
+			tx, err := backend.db.BeginTx(p.ctx, nil)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-		if err := native.Rollback(); err != nil {
-			t.Fatal(err)
-		}
-		if err := pg.Rollback(); err != nil {
-			t.Fatal(err)
+			defer tx.Rollback()
+			clock := timezoneTransactionClock(t, p, tx, backend.recorder)
+			local := clock.UTC().Add(time.Duration(zone.seconds) * time.Second)
+			for _, tc := range []struct {
+				keyword string
+				days    int
+			}{{"yesterday", -1}, {"today", 0}, {"tomorrow", 1}} {
+				want := local.AddDate(0, 0, tc.days).Format("2006-01-02") + " 00:00:00"
+				for _, prepared := range []bool{false, true} {
+					s := timezoneTextStep("TIMESTAMPTZ '"+tc.keyword+"' AT LOCAL", want)
+					s.prepared = prepared
+					referenceRunStep(t, p.ctx, tx, backend.recorder, s)
+				}
+			}
+			if err := tx.Rollback(); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 }

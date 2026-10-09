@@ -1,10 +1,11 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceTimezoneReviewQualifiedLiteralNamespace(t *testing.T) {
+	if *referenceMode {
+		roleReferenceCleanup(t, []string{"tz_literal_schema_reader"})
+	}
 	p := timezoneReferencePair(t)
 	for _, s := range []referenceStep{referenceExec("CREATE TABLE tz_literal_anchor(id INT)", 0), referenceExec("INSERT INTO tz_literal_anchor VALUES(1)", 1), referenceExec("SET TIME ZONE 'UTC'", 0), referenceExec("SET search_path TO missing,public", 0)} {
 		p.step(t, s)
@@ -21,8 +22,10 @@ func TestReferenceTimezoneReviewQualifiedLiteralNamespace(t *testing.T) {
 			p.step(t, s)
 		}
 	}
-	// Native SQL GRANT remains outside the dialect. The engine unit counterpart
-	// uses the existing native ACL authority; PostgreSQL independently grounds it.
+	// GRANT/REVOKE is an actual PostgreSQL-only authority witness.
+	if p.postgres == nil {
+		return
+	}
 	defer func() {
 		if _, err := p.postgres.ExecContext(p.ctx, "RESET ROLE"); err != nil {
 			t.Error(err)

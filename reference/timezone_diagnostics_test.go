@@ -1,10 +1,7 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"reflect"
 	"strconv"
@@ -36,8 +33,10 @@ func TestReferenceTimezoneDiagnosticsAndAtomicity(t *testing.T) {
 			s.selectRows = true
 			s.errorStage = "execute"
 			p.step(t, s)
+			timezoneBoth(t, p, sentinel)
 			s.errorStage = "prepare"
 			p.step(t, referencePrepared(s))
+			timezoneBoth(t, p, sentinel)
 			column := "z"
 			if tc.typ == "TIMETZ" {
 				column = "q"
@@ -50,6 +49,7 @@ func TestReferenceTimezoneDiagnosticsAndAtomicity(t *testing.T) {
 			s = referenceImplicitError(q, referenceDiagnostic{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: pos})
 			s.errorStage = "execute"
 			p.step(t, s)
+			timezoneBoth(t, p, sentinel)
 			s.errorStage = "prepare"
 			p.step(t, referencePrepared(s))
 			timezoneBoth(t, p, sentinel)
@@ -59,7 +59,9 @@ func TestReferenceTimezoneDiagnosticsAndAtomicity(t *testing.T) {
 			pg.Context = "unnamed portal parameter $1 = '...'"
 			s.diagnostic = &pg
 			s.errorStage = "execute"
-			timezoneBoth(t, p, s)
+			p.step(t, s)
+			timezoneBoth(t, p, sentinel)
+			p.step(t, referencePrepared(s))
 			timezoneBoth(t, p, sentinel)
 		})
 	}
@@ -85,60 +87,68 @@ func TestReferenceTimezoneDiagnosticsAndAtomicity(t *testing.T) {
 		t.Run(tc.query, func(t *testing.T) {
 			// Oracle normalization is explicit; this does not ask stuntgres to expose
 			// the unrelated general IntervalStyle setting/type feature.
-			if _, err := p.postgres.ExecContext(p.ctx, "SET IntervalStyle='postgres'"); err != nil {
-				t.Fatal(err)
-			}
+			p.step(t, referenceExec("SET IntervalStyle='postgres'", 0))
 			s := referenceImplicitError(tc.query, referenceDiagnostic{Code: tc.code, Message: tc.message, Detail: tc.detail, Position: tc.position})
-			s.errorStage = "execute"
-			p.step(t, s)
-			if tc.parse {
-				s.errorStage = "prepare"
+			for _, prepared := range []bool{false, true} {
+				s.prepared = prepared
+				s.errorStage = "execute"
+				if prepared && tc.parse {
+					s.errorStage = "prepare"
+				}
+				p.step(t, s)
+				timezoneBoth(t, p, referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"UTC"}}))
+				timezoneBoth(t, p, referenceSelect("SHOW DateStyle", []string{"DateStyle"}, []string{"TEXT"}, [][]any{{"ISO, MDY"}}))
+				timezoneBoth(t, p, sentinel)
 			}
-			p.step(t, referencePrepared(s))
-			timezoneBoth(t, p, referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"UTC"}}))
-			timezoneBoth(t, p, referenceSelect("SHOW DateStyle", []string{"DateStyle"}, []string{"TEXT"}, [][]any{{"ISO, MDY"}}))
-			timezoneBoth(t, p, sentinel)
 		})
 	}
 	q := "SELECT TIMESTAMP '2004-10-19 10:00' AT TIME ZONE 'No/Such_Zone' FROM tz_witness"
 	s := referenceImplicitError(q, referenceDiagnostic{Code: "22023", Message: `time zone "No/Such_Zone" not recognized`})
 	s.selectRows = true
 	s.errorStage = "execute"
-	timezoneBoth(t, p, s)
+	p.step(t, s)
+	timezoneBoth(t, p, sentinel)
+	p.step(t, referencePrepared(s))
+	timezoneBoth(t, p, sentinel)
 	s = referenceImplicitError("UPDATE tz_witness SET z=$1::TEXT::TIMESTAMPTZ WHERE id=1", referenceDiagnostic{Code: "22007", Message: `invalid input syntax for type timestamp with time zone: "nonsense"`}, "nonsense")
 	s.errorStage = "execute"
-	timezoneBoth(t, p, s)
+	p.step(t, s)
 	timezoneBoth(t, p, sentinel)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
+	p.step(t, referencePrepared(s))
+	timezoneBoth(t, p, sentinel)
+	for _, backend := range p.backends() {
 		tx, err := backend.db.BeginTx(p.ctx, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		referenceRunStep(t, p.ctx, tx, backend.record, referenceExec("SET LOCAL TIME ZONE 'America/New_York'", 0))
+		referenceRunStep(t, p.ctx, tx, backend.recorder, referenceExec("SET LOCAL TIME ZONE 'America/New_York'", 0))
 		s = referenceImplicitError("SET DateStyle='ISO,SQL'", referenceDiagnostic{Code: "22023", Message: `invalid value for parameter "DateStyle": "ISO,SQL"`, Detail: `Conflicting "DateStyle" specifications.`})
 		s.errorStage = "execute"
-		referenceRunStep(t, p.ctx, tx, backend.record, s)
+		referenceRunStep(t, p.ctx, tx, backend.recorder, s)
 		if err := tx.Rollback(); err != nil {
 			t.Fatal(err)
 		}
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"UTC"}}))
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"UTC"}}))
 		ctx, cancel := context.WithCancel(p.ctx)
 		cancel()
 		if _, err := backend.db.ExecContext(ctx, "UPDATE tz_witness SET z='infinity'"); !errors.Is(err, context.Canceled) {
 			t.Fatal("cancel must remain ordinary", err)
 		}
-		referenceRunStep(t, p.ctx, backend.db, backend.record, sentinel)
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, sentinel)
 	}
 }
 
 func TestReferenceTimezonePrecisionAndLocalNotices(t *testing.T) {
-	p := newReferencePair(t)
-	for _, postgres := range []bool{false, true} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		var notices []referenceDiagnostic
-		_, conn, record := noticeReferencePool(t, p, postgres, &notices)
+		_, conn, record := noticeReferencePool(t, p, backend.pg, &notices)
+		record.rawBackend = referenceRawNative
+		if backend.pg {
+			record.rawBackend = referenceRawPostgres
+		}
+		referenceRunStep(t, p.ctx, conn, record, referenceExec("CREATE TABLE tz_notice(id INTEGER)", 0))
+		referenceRunStep(t, p.ctx, conn, record, referenceExec("INSERT INTO tz_notice VALUES(1)", 1))
 		for _, prepared := range []bool{false, true} {
 			s := referenceExec("SET TIME ZONE INTERVAL (7) '1 second'", 0)
 			s.prepared = prepared
@@ -157,7 +167,9 @@ func TestReferenceTimezonePrecisionAndLocalNotices(t *testing.T) {
 			}
 			notices = nil
 			referenceRunStep(t, p.ctx, conn, record, referenceSelect("SHOW TIME ZONE", []string{"TimeZone"}, []string{"TEXT"}, [][]any{{"<+00:00:01>-00:00:01"}}))
+			referenceRunStep(t, p.ctx, conn, record, referenceSelect("SELECT TIMESTAMPTZ '2004-01-01 12:00+00'::TEXT AS z FROM tz_notice", []string{"z"}, []string{"TEXT"}, [][]any{{"2004-01-01 12:00:01+00:00:01"}}))
 		}
+		referenceRunStep(t, p.ctx, conn, record, referenceExec("DROP TABLE tz_notice", 0))
 		conn.Close()
 	}
 }

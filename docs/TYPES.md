@@ -1174,8 +1174,8 @@ No timezone catalog views, INTERVAL arithmetic, timezone(...)
 aliases or CURRENT_* producer-family expansion are delivered here.
 
 Feature smoke: `make smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
-Public/provider witnesses: `make test RUN='^TestTimezone' VERBOSE=0`.
-Independent pinned oracle: `make reference RUN='^TestReferenceTimezone' VERBOSE=0`.
+Public/provider witnesses: `make test PACKAGES=./reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.
+Independent pinned oracle: `make reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.
 
 
 Initial timestamptz input range checking and typmod rounding are distinct:
@@ -1288,6 +1288,10 @@ NULL/infinities retain their existing encoding. Interval arithmetic,
 timestamp+interval, justify/extract/make_interval and cross-family casts are not
 added. See [IntervalStyle](SETTINGS.md#intervalstyle--change-note).
 Feature smoke: `make smoke RUN='^TestIntervalSmoke$' VERBOSE=0`.
+The interaction regressions are merged into untagged dual-mode `reference/`
+scenarios, with independent native string and pq byte-slice representations:
+`make test PACKAGES=./reference RUN='^TestReferenceInterval[A-Za-z0-9_]*$' VERBOSE=0`
+and `make reference RUN='^TestReferenceInterval[A-Za-z0-9_]*$' VERBOSE=0`.
 
 
 ## Pattern matching and physical character values

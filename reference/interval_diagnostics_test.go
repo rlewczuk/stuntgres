@@ -1,21 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
 func TestReferenceIntervalDiagnosticsAtomicityAndSyntax(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"native", p.memory, p.memoryRecord}, {"postgres", p.postgres, p.postgresRecord}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			run(referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
 			run(referenceExec("INSERT INTO iv VALUES('1 day')", 1))
 			for _, tc := range []struct{ input, code, primary string }{{"invalid", "22007", "invalid input syntax for type interval"}, {"1 second 2 seconds", "22007", "invalid input syntax for type interval"}, {"5.5 seconds 3 milliseconds", "22007", "invalid input syntax for type interval"}, {"@ 30 eons ago", "22007", "invalid input syntax for type interval"}, {"P", "22007", "invalid input syntax for type interval"}, {"PT1Y", "22007", "invalid input syntax for type interval"}, {"2147483648 days", "22015", "interval field value out of range"}, {"2147483648 months", "22015", "interval field value out of range"}, {"9223372036854775808 microseconds", "22015", "interval field value out of range"}, {"2147483647 years", "22008", "interval out of range"}} {
@@ -31,6 +24,14 @@ func TestReferenceIntervalDiagnosticsAtomicityAndSyntax(t *testing.T) {
 						s.errorStage = "prepare"
 					}
 					run(s)
+					run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 day"}}))
+					late := referenceImplicitError("INSERT INTO iv VALUES('1 mon'),('"+tc.input+"')", referenceDiagnostic{Code: tc.code, Message: message, Position: "33"})
+					late.prepared, late.errorStage = prepared, "execute"
+					if prepared {
+						late.errorStage = "prepare"
+					}
+					run(late)
+					run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 day"}}))
 					s = referenceImplicitError("INSERT INTO iv VALUES($1),($2)", referenceDiagnostic{Code: tc.code, Message: message}, "1 mon", tc.input)
 					s.prepared = prepared
 					s.errorStage = "execute"
@@ -38,6 +39,7 @@ func TestReferenceIntervalDiagnosticsAtomicityAndSyntax(t *testing.T) {
 					pg.Context = "unnamed portal parameter $2 = '...'"
 					s.diagnostic = &pg
 					run(s)
+					run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 day"}}))
 				}
 				run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 day"}}))
 			}
@@ -50,6 +52,7 @@ func TestReferenceIntervalDiagnosticsAtomicityAndSyntax(t *testing.T) {
 						s.errorStage = "prepare"
 					}
 					run(s)
+					run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 day"}}))
 				}
 			}
 			run(referenceExec("CREATE TABLE ivbad(v INTERVAL)", 0))
@@ -58,6 +61,7 @@ func TestReferenceIntervalDiagnosticsAtomicityAndSyntax(t *testing.T) {
 				s.prepared = prepared
 				s.errorStage = "execute"
 				run(s)
+				run(referenceSelect("SELECT v FROM iv", []string{"v"}, []string{"INTERVAL"}, [][]any{{"1 day"}}))
 			}
 			run(referenceExec("CREATE TABLE nn(v INTERVAL NOT NULL)", 0))
 			run(referenceImplicitError("INSERT INTO nn VALUES('1 day'),(NULL)", referenceDiagnostic{Code: "23502", Message: "null value in column \"v\" of relation \"nn\" violates not-null constraint", Detail: "Failing row contains (null).", Schema: "public", Table: "nn", Column: "v"}))
@@ -66,10 +70,10 @@ func TestReferenceIntervalDiagnosticsAtomicityAndSyntax(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			referenceRunStep(t, p.ctx, tx, backend.record, referenceExec("SET LOCAL IntervalStyle=iso_8601", 0))
-			referenceRunStep(t, p.ctx, tx, backend.record, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
-			referenceRunStep(t, p.ctx, tx, backend.record, referenceImplicitError("INSERT INTO iv VALUES('invalid')", referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type interval: \"invalid\"", Position: "23"}))
-			referenceRunStep(t, p.ctx, tx, backend.record, referenceImplicitError("INSERT INTO iv VALUES('1 day')", referenceDiagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
+			referenceRunStep(t, p.ctx, tx, backend.recorder, referenceExec("SET LOCAL IntervalStyle=iso_8601", 0))
+			referenceRunStep(t, p.ctx, tx, backend.recorder, referenceSelect("SHOW IntervalStyle", []string{"IntervalStyle"}, []string{"TEXT"}, [][]any{{"iso_8601"}}))
+			referenceRunStep(t, p.ctx, tx, backend.recorder, referenceImplicitError("INSERT INTO iv VALUES('invalid')", referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type interval: \"invalid\"", Position: "23"}))
+			referenceRunStep(t, p.ctx, tx, backend.recorder, referenceImplicitError("INSERT INTO iv VALUES('1 day')", referenceDiagnostic{Code: "25P02", Message: "current transaction is aborted, commands ignored until end of transaction block"}))
 			if e = tx.Rollback(); e != nil {
 				t.Fatal(e)
 			}
@@ -79,12 +83,9 @@ func TestReferenceIntervalDiagnosticsAtomicityAndSyntax(t *testing.T) {
 }
 
 func TestReferenceIntervalMalformedYearMonth(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		referenceRunStep(t, p.ctx, backend.db, backend.record, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		referenceRunStep(t, p.ctx, backend.db, backend.recorder, referenceExec("CREATE TABLE iv(v INTERVAL)", 0))
 		for _, prepared := range []bool{false, true} {
 			step := referenceImplicitError("SELECT INTERVAL '1-foo' FROM iv", referenceDiagnostic{Code: "22007", Message: "invalid input syntax for type interval: \"1-foo\"", Position: "17"})
 			step.prepared = prepared
@@ -92,7 +93,7 @@ func TestReferenceIntervalMalformedYearMonth(t *testing.T) {
 			if prepared {
 				step.errorStage = "prepare"
 			}
-			referenceRunStep(t, p.ctx, backend.db, backend.record, step)
+			referenceRunStep(t, p.ctx, backend.db, backend.recorder, step)
 		}
 	}
 }
