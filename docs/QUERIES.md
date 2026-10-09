@@ -722,6 +722,55 @@ Full shared contracts: `make quickcheck PACKAGES=./reference RUN='^TestReference
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
 Each backend asserts membership independently when multiple candidates exist.
 
+### Minimum and maximum — change note
+
+`min(value)` and `max(value)` ignore NULL and retain the smallest/largest datum
+using the selected type's shared comparison hook. Empty global input returns one
+typed NULL pair; empty keyed input has no rows but retains the complete schema.
+Result labels are `min`/`max` unless aliased. Native metadata is known nullable,
+without source-column origin or source typmod (`-1`), even for NOT NULL input.
+The chosen payload is not rounded, repadded, serialized or converted into a
+sorting key. Each group keeps one datum per call, not a collected/sorted list.
+
+```sql
+SELECT min(v),max(v),count(v) FROM grouped_rows;
+SELECT k,min(v),max(v) FROM grouped_rows GROUP BY k HAVING max(v)>3 ORDER BY min(v);
+INSERT INTO extrema_output(lo,hi) SELECT min(v),max(v) FROM grouped_rows;
+SELECT min($1),max($2::integer) FROM grouped_rows; -- TEXT and INT4
+```
+
+The supported scalar overloads and aliases are listed in [TYPES.md](TYPES.md).
+Domains resolve to base overloads; VARCHAR/NAME/internal CHAR produce TEXT,
+REGCLASS produces OID. Bare NULL/string/untyped parameters select preferred TEXT.
+BOOL/UUID have no overload (42883), despite their ordinary comparison support.
+NAME[] and private PG_NODE_TREE have explicit native0A000 capability diagnostics;
+this does not add general arrays, tree ordering or public casts to TEXT.
+
+Calls work through aliases, joins, views, scalar wrappers, hidden HAVING/ORDER,
+and mixed aggregates. Direct/prepared/held statements execute afresh after writes
+and rights changes. All input arguments evaluate even after a winner is retained;
+late argument/comparator errors and cancellation publish no cursor or INSERT
+batch. INSERT SELECT affects the number of output groups (empty global1/keyed0).
+Late TEXT-to-INTEGER failures are exercised by SELECT Query and INSERT SELECT
+Exec, direct and prepared, with full22P02 diagnostics and no inserted rows.
+INSERT SELECT RETURNING remains the independent native0A000 suffix exclusion;
+it does not reach the extrema reducer. Plain consumer methods keep actual cursor
+assertions but cannot carry the Context-only middleware recorder: separate
+QueryContext executions of the same held statement prove recorded row ownership
+and closure, rather than attributing companion records to plain Query.
+Public Next performs no aggregate evaluation. Native Reset/Dump/Restore remaps
+view descriptors/comparators while already owned rows retain their original data.
+Conflicting implicit string collations fail42P22 only when two eligible candidates
+need comparison; zero/one/all-NULL inputs succeed. A final COLLATE resolves it.
+Runtime diagnostics retain their original fields and have no invented Position.
+
+FILTER/DISTINCT/ALL/OVER, min/max in-call ORDER and no-FROM aggregate calls remain
+excluded. Ordinary namespace, arity, 100-argument, nested-call and clause guards
+retain full SQLSTATE/English diagnostic/character-location contracts.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceExtremaSmoke$' VERBOSE=0`.
+Complete dual-mode contracts: `make quickcheck PACKAGES=./reference RUN='^TestReferenceExtrema' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExtrema' VERBOSE=0`.
+
 ### Text and binary concatenation — change note
 
 `string_agg(value,delimiter)` has exactly two overloads: TEXT→TEXT and
@@ -858,7 +907,7 @@ and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^(TestReferenceNumeri
 Use `RUN='^TestReferenceNumericAvgSmoke$'` in both commands for the focused smoke.
 
 This does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg/min/max,
 FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER on sibling
 aggregates, OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
 optimizer/spill/parallel machinery.

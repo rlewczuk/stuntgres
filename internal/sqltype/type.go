@@ -665,6 +665,7 @@ const (
 	dateTimestampConversion
 	oidConversion
 	datetimeConversion
+	charTextConversion
 )
 
 type CoercionPlan struct {
@@ -884,6 +885,12 @@ func (p CoercionPlan) applyBase(ctx context.Context, v Value, input InputEnviron
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case charTextConversion:
+		text, err := p.source.Type.ConcatOutput(ctx, v, output)
+		if err != nil {
+			return Value{}, err
+		}
+		return String(p.target.Type, text), nil
 	case oidConversion:
 		return oidCoercion(v, p.target.Type)
 	case datetimeConversion:

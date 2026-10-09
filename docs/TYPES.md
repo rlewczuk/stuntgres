@@ -203,13 +203,45 @@ CHAR/integer and integer/CHAR have unique mixed overloads. Their successful
 high-byte output remains four printable ASCII bytes, and zero contributes empty
 TEXT. NAME/TEXT/VARCHAR/BPCHAR are categoryS and prefer the TEXT/TEXT overload.
 
-
 Stored view literal annotations retain the analyzed scalar and complete type usage,
 not just the source spelling. Canonical temporal introducers preserve precision;
 contextually resolved NAME, UUID, BYTEA and NUMERIC values use their existing
 type-owned literal serializers and supported surrounding expression contexts.
 Native generation remapping retags an immutable datum only to the same concrete
 builtin type identity, preserving typed NULLs, numeric display scale and sentinels.
+
+### Minimum and maximum overloads — change note
+
+min/max have exact scalar overloads for INT2, INT4, INT8, OID, FLOAT4, FLOAT8,
+NUMERIC, TEXT, BPCHAR, BYTEA, DATE, TIME, TIMETZ, TIMESTAMP, TIMESTAMPTZ and
+INTERVAL. Result type is the selected overload, not necessarily the original
+logical input: VARCHAR/NAME/internal CHAR select TEXT; REGCLASS selects OID;
+domains flatten through their base signatures. Unknown strings, NULL and untyped
+parameters select TEXT. Internal CHAR uses the existing type-owned printable
+TEXT conversion (zero→empty, high bytes→octal), without a public cast edge.
+
+The aggregate retains a datum directly and reuses ordinary Comparison semantics:
+exact NUMERIC arithmetic, unsigned OID, raw BYTEA lexicographic bytes, BPCHAR
+ASCII-space trimming, floating NaN above infinity, datetime sentinels, TIMETZ
+UTC-clock/zone tiebreak and INTERVAL physical-duration comparison. NULL never
+enters the comparator. Empty/all-NULL input yields typed NULL. Comparison begins
+with the second non-NULL candidate, including demand-time42P22 on indeterminate
+string collation; default TEXT collation applies to converted internal CHAR.
+Result typmod is unrestricted, but the selected datum retains input-applied
+precision/scale/padding and its resolved collation. Native nullable metadata is
+known true with no physical origin; native NUMERIC DecimalSize is unavailable,
+and unrestricted character Length follows its existing contract. lib/pq's own
+ScanType/Length/DecimalSize quirks are independently asserted, not imposed on native.
+
+BOOL and UUID have ordinary comparison but no min/max overload (42883).
+PostgreSQL accepts NAME[] and PG_NODE_TREE through its array/TEXT signatures;
+native explicitly rejects both with positioned0A000 because array ordering is
+not implemented and node trees use private serialization. No general cast or
+array/tree comparison is introduced. In particular existing unsupported explicit
+casts to TEXT remain excluded; raw successful min/max output is independently
+covered instead of using those cast failures as extrema witnesses.
+
+
 
 ## NAME
 
@@ -1343,7 +1375,8 @@ Prepared capture, comparison, conversion and native replay retain that identity.
 Timestamptz equality/order uses the instant. Timetz compares non-modular UTC-clock
 keys and then seconds-west offset: `09:00+01` sorts before, and is unequal to,
 `08:00+00`. Grouping, ordering and conditional/distinct predicates share these semantics.
-SELECT DISTINCT and min/max aggregates remain outside the supported query surface.
+SELECT DISTINCT remains outside the supported query surface; min/max reuse these
+same temporal comparison semantics.
 
 Selected datetime casts interpret civil DATE/TIMESTAMP in session TimeZone when
 converting/comparing with an instant; reverse casts use local civil fields.

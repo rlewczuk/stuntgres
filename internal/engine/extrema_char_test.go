@@ -1,0 +1,67 @@
+package engine
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/sqltype"
+)
+
+func TestExtremaCharConversionAndRemap(t *testing.T) {
+	ctx := context.Background()
+	old, next := map[sqltype.ID]*sqltype.Descriptor{}, map[sqltype.ID]*sqltype.Descriptor{}
+	for _, d := range sqltype.Builtins() {
+		old[d.ID()] = d
+	}
+	for _, d := range sqltype.Builtins() {
+		next[d.ID()] = d
+	}
+	char, text := old[sqltype.Char], old[sqltype.Text]
+	for _, tc := range []struct{ input, want string }{{"", ""}, {"r", "r"}, {`\303`, `\303`}} {
+		value, err := char.Input(ctx, tc.input, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, null := range []bool{false, true} {
+			v := value
+			if null {
+				v = sqltype.Null(char)
+			}
+			child := literalExpression{expressionInfo: expressionInfo{usage: char.Usage()}, value: v}
+			plan, err := sqltype.PlanExtremaCharText(char.Usage(), text.Usage())
+			if err != nil {
+				t.Fatal(err)
+			}
+			node := coercionExpression{expressionInfo{usage: text.Usage()}, child, plan, sqltype.Implicit}
+			check := func(expression BoundExpr, owner *sqltype.Descriptor) {
+				got, err := expression.Eval(&EvalContext{Context: ctx})
+				if err != nil || got.Type() != owner || got.IsNull() != null {
+					t.Fatal(got, err)
+				}
+				if !null {
+					s, err := got.Text()
+					if err != nil || s != tc.want {
+						t.Fatal(s, tc.want, err)
+					}
+				}
+				if expression.ResultUsage().Collation != owner.Usage().Collation {
+					t.Fatal("default TEXT collation lost")
+				}
+			}
+			check(node, text)
+			remapped, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return next[d.ID()] })
+			if err != nil || !changed {
+				t.Fatal(changed, err)
+			}
+			check(remapped, next[sqltype.Text])
+			// Old bound plans and values retain their original generation.
+			check(node, text)
+		}
+	}
+	if _, err := sqltype.PlanCoercion(char.Usage(), text.Usage(), sqltype.Implicit); err == nil {
+		t.Fatal("extrema broadened public implicit CHAR cast")
+	}
+	if _, err := sqltype.PlanCoercion(char.Usage(), text.Usage(), sqltype.Explicit); err == nil {
+		t.Fatal("extrema broadened public explicit CHAR cast")
+	}
+}

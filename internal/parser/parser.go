@@ -292,7 +292,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 		l.genericModifier = true
 		l.dateLiteralModifier = true
 		return true
-	case "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg":
+	case "oid", "int4", "int8", "text", "bool", "count", "sum", "avg", "bool_and", "bool_or", "every", "any_value", "string_agg", "min", "max":
 		return true
 	case "integer", "bigint", "boolean", "int":
 		if callee.keyword == nil {
@@ -304,7 +304,7 @@ func (l *lexer) castFunction(callee, opener lexeme) bool {
 }
 
 func ordinaryAggregate(name string) bool {
-	return name == "count" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg"
+	return name == "count" || name == "avg" || name == "bool_and" || name == "bool_or" || name == "every" || name == "any_value" || name == "string_agg" || name == "min" || name == "max"
 }
 
 func (l *lexer) scalarInput(expr Expr) bool {

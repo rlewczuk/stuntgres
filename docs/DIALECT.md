@@ -301,6 +301,29 @@ HAVING/ORDER and INSERT SELECT share the ordinary aggregate pipeline.
 Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValueSmoke$' VERBOSE=0`;
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
 
+`min(value)`/`max(value)` select a same-type scalar overload for INT2/INT4/INT8,
+OID, FLOAT4/FLOAT8, NUMERIC, TEXT, BPCHAR, BYTEA, DATE, TIME, TIMETZ, TIMESTAMP,
+TIMESTAMPTZ and INTERVAL. VARCHAR/NAME/internal CHAR implicitly select TEXT;
+REGCLASS selects OID; domains lose logical identity in overload resolution.
+Unknown string/NULL/parameter arguments infer TEXT. NULL candidates are ignored;
+empty/all-NULL global input yields one typed NULL, empty keyed input no rows.
+Results retain the chosen datum representation and resolved collation, not source
+typmod or physical origin; native metadata is known nullable. Equal candidates
+may have different representations: BPCHAR retains prior padding, whereas exact
+NUMERIC scale, INTERVAL fields and floating signed zero follow the incoming
+equal datum. Unordered SQL does not promise a universal stable tie order.
+String comparison is demand-time: conflicting implicit collations permit zero
+or one eligible value, then fail42P22 on the second, with the COLLATE hint and
+no fabricated runtime Position. Explicit final COLLATE resolves the conflict.
+Missing signatures (including BOOL/UUID and zero/star/multiple arguments) use
+42883 with the ordinary function hint and character Position; child errors,
+namespace visibility and nesting retain aggregate diagnostic precedence.
+NAME[] and native private PG_NODE_TREE are deliberate positioned0A000 boundaries
+(`min for name[] is unsupported`, for example), not PostgreSQL absent overloads.
+No public cast, array ordering or tree textual ordering is added.
+Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceExtremaSmoke$' VERBOSE=0`;
+independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExtrema' VERBOSE=0`.
+
 `string_agg(TEXT,TEXT)` and `string_agg(BYTEA,BYTEA)` return the corresponding
 nullable base type with unrestricted typmod and no physical origin. BYTEA retains
 raw octets, not encoded text. NULL values are ignored; NULL delimiters add no
@@ -324,7 +347,7 @@ Public smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceStringAgg
 independent oracle: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceStringAgg' VERBOSE=0`.
 
 Grouping does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg,
+aggregates other than count/bool_and/bool_or/every/avg(interval or numeric inputs)/any_value/string_agg/min/max,
 FILTER/DISTINCT/ALL/OVER, in-call ordering of sibling aggregates, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets.
 No-FROM aggregate exclusion applies recursively across all targets, including
@@ -1340,7 +1363,7 @@ Dump/Restore stores exact results and replays supported view syntax, not private
 function state.
 Selected calls remain projection/nested-call roots, not new CASE result leaves
 or general GROUP BY expressions. Math around an existing CASE with scalar arms
-and `round(count(*),1)` are admitted; unsupported `min` aggregates are not added.
+and `round(count(*),1)` are admitted; min/max use the ordinary aggregate stage.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestMathSmoke$' VERBOSE=0`.
 Independent reference:

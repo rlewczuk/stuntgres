@@ -271,6 +271,12 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 			case anyValueProvider:
 				p.usage.Type = typ(p.usage.Type)
 				copy.calls[i].provider = p
+			case extremaProvider:
+				p.usage.Type = typ(p.usage.Type)
+				if err == nil {
+					p.comparison, err = sqltype.BindComparison(p.usage.Type, p.usage.Type)
+				}
+				copy.calls[i].provider = p
 			case stringAggregateProvider:
 				p.usage.Type = typ(p.usage.Type)
 				copy.calls[i].provider = p

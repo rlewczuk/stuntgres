@@ -1005,7 +1005,11 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 			return node, false, err
 		}
 		if changed && err == nil {
-			n.plan, err = sqltype.PlanCoercion(n.child.ResultUsage(), info.usage, n.mode)
+			if n.mode == sqltype.Implicit && n.child.ResultUsage().Type.BaseType().ID() == sqltype.Char && info.usage.Type.ID() == sqltype.Text {
+				n.plan, err = sqltype.PlanExtremaCharText(n.child.ResultUsage(), info.usage)
+			} else {
+				n.plan, err = sqltype.PlanCoercion(n.child.ResultUsage(), info.usage, n.mode)
+			}
 		}
 		n.expressionInfo = info
 		rebound = n

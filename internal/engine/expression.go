@@ -1034,6 +1034,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			node, err = b.bindAvg(r, name)
 		} else if r.Name == "any_value" {
 			node, err = b.bindAnyValue(r, name)
+		} else if r.Name == "min" || r.Name == "max" {
+			node, err = b.bindExtrema(r, name)
 		} else if r.Name == "string_agg" {
 			node, err = b.bindStringAggregate(r, name)
 		} else {

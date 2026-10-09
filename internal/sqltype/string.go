@@ -13,7 +13,20 @@ import (
 // Internal CHAR's release edge does not broaden public general cast admission.
 func StringTextInput(id ID) bool { return IsCharacter(id) || id == Name || id == Char }
 func StringCategory(id ID) bool  { return IsCharacter(id) || id == Name }
-func StringScalar(id ID) bool    { return id != Unknown && id != NameArray && id != 0 }
+
+// PlanExtremaCharText is the family-local internal CHAR input conversion for
+// min/max's TEXT overload. It deliberately does not add a general cast edge.
+func PlanExtremaCharText(source, target Usage) (CoercionPlan, error) {
+	if !source.Valid() || !target.Valid() || source.Type.BaseType().ID() != Char || target.Type.ID() != Text || target.Typmod != -1 {
+		return CoercionPlan{}, fmt.Errorf("invalid extrema CHAR conversion")
+	}
+	p := CoercionPlan{source: source.BaseUsage(), target: target, context: Implicit, method: charTextConversion}
+	if source.Type.IsDomain() {
+		p.logicalSource, p.logicalTarget = source.Type, target.Type
+	}
+	return p, nil
+}
+func StringScalar(id ID) bool { return id != Unknown && id != NameArray && id != 0 }
 
 // ConcatOutput is the release mixed wrapper's explicit-to-text output, not the
 // driver export representation or a new public cast edge.

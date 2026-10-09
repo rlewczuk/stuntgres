@@ -27,6 +27,8 @@ const (
 	aggregateFloatAvg
 	aggregateAnyValue
 	aggregateString
+	aggregateMin
+	aggregateMax
 )
 
 type aggregateCall struct {

@@ -792,6 +792,21 @@ veto all output after a candidate is retained. Public direct/prepared, view,
 HAVING/ORDER and INSERT SELECT witnesses share one independent contract:
 `make quickcheck PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`
 and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
+Change note: `min(value)` and `max(value)` ignore NULL and return the smallest
+or largest eligible datum, or typed NULL for empty/all-NULL global input.
+Supported overloads cover integers, OID, floating/exact numeric, TEXT/BPCHAR,
+BYTEA and the implemented date/time/interval types. VARCHAR, NAME and internal
+CHAR select TEXT; REGCLASS selects OID; domains resolve through their base type.
+Unknown strings, NULL and untyped parameters infer TEXT. Results have unrestricted
+typmod, nullable metadata and no physical origin; the selected datum is not
+rounded or reconstructed. `SELECT min(v),max(v) FROM grouped_rows` uses the same
+eager pipeline as grouped/HAVING/ORDER queries, views and INSERT SELECT.
+Conflicting implicit string collations fail only when a second eligible value
+requires comparison (`42P22`); use a final explicit COLLATE to resolve them.
+BOOL/UUID have no overload (`42883`); NAME[] and private PG_NODE_TREE remain
+explicit native capability boundaries, without adding arrays or general casts.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceExtremaSmoke$' VERBOSE=0`;
+independent contracts: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceExtrema' VERBOSE=0`.
 Change note: `string_agg(text,text)` and `string_agg(bytea,bytea)` return nullable
 TEXT/Go string and BYTEA/raw Go []byte. NULL values are ignored; a NULL delimiter
 adds no separator. Each later surviving value uses its own row's delimiter;
