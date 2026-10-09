@@ -44,8 +44,14 @@ self-edge; ordinary standalone sequences remain in the earlier creation prefix.
 Creation addresses break ties between ready objects. Retained TEMP collision
 remapping may move a source OID above its dependent; topology then wins so replay
 remains executable, without promising allocator-relative diagnostic-order parity.
-The two-retained-sequence, second-Dump/Restore regression is executable with
-`make test PACKAGES=. RUN='^TestViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0`.
+The two-retained-sequence, second-Dump/Restore regression and independent
+PostgreSQL nested-view consumers run through the same mode-aware definition:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0
+make reference RUN='^TestReferenceViewNativeNestedSecondDumpAfterTemporaryRemap$' VERBOSE=0
+```
+
 Joined imports remap every source occurrence, both join children, predicates,
 merged-value coercions and all frame schemas into the destination generation.
 Frozen per-leaf attribute layouts and analyzed ON literals remain attached to
@@ -66,8 +72,13 @@ Native remapping replaces concrete catalog type identities without reparsing or
 coercing the captured datum; retained TEMP objects do not alias the old generation.
 Contextual NAME, UUID, BYTEA and NUMERIC literals likewise retain their analyzed
 values and distinct result types through definition reconstruction and native
-Dump/Restore, including NUMERIC display scale. Public direct/prepared roundtrip
-coverage: `make test PACKAGES=. RUN='^TestViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0`.
+Dump/Restore, including NUMERIC display scale. Public direct/prepared coverage,
+including `numeric_scale`, runs in both modes:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0
+make reference RUN='^TestReferenceViewContextualScalarLiteralNativeRoundTrip$' VERBOSE=0
+```
 
 Restore accepts supported CREATE/ALTER/DROP SCHEMA, CREATE TABLE with supported
 defaults and identity definitions, CREATE SEQUENCE, supported parameter-free

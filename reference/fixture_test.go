@@ -390,6 +390,11 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 	switch sqlType {
 	case "INT2", "INT4", "INT8":
 		want = reflect.TypeFor[int64]()
+	case "OID":
+		want = reflect.TypeFor[int64]()
+		if postgres {
+			want = reflect.TypeFor[[]byte]()
+		}
 	case "FLOAT4", "FLOAT8":
 		want = reflect.TypeFor[float64]()
 	case "BOOL":
@@ -401,7 +406,15 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 		if postgres {
 			want = reflect.TypeFor[[]byte]()
 		}
-	case "DATE", "TIME", "TIMETZ":
+	case "DATE":
+		want = reflect.TypeFor[string]()
+		if postgres {
+			want = reflect.TypeFor[time.Time]()
+			if encoded, ok := value.([]byte); ok && (string(encoded) == "infinity" || string(encoded) == "-infinity") {
+				want = reflect.TypeFor[[]byte]()
+			}
+		}
+	case "TIME", "TIMETZ":
 		want = reflect.TypeFor[string]()
 		if postgres {
 			want = reflect.TypeFor[time.Time]()

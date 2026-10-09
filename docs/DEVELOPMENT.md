@@ -103,6 +103,50 @@ names and PostgreSQL schema-qualified names as complete separate records before
 any normalization. Catalog, INSERT-only authority and lock-freshness witnesses
 remain tagged; this is not a conversion of unrelated reference families.
 
+The persistent-view migration adds 25 untagged, mode-aware definitions carrying
+the complete assertion union of 21 former root interaction tests and their owning
+reference cases. Select the exact migrated inventory, excluding unrelated tagged
+view oracles and replacement families:
+
+```sh
+VIEWS_RUN='^TestReferenceView(ProjectedBackingSortGroupAndConcurrency|WriteCapabilityBoundary|InternalCHARStaysProviderBounded|CanonicalLabels|IntegratedOIDNativeRoundTrip|IntegratedBetweenDefinition|AnalyzedLiteralPersistence|LiteralOccurrencesBeforeGrouping|TemporalEndpointAndTypedNullPersistence|ContextualScalarLiteralNativeRoundTrip|CatalogCHARLiteralReconstruction|JoinedDefinition|JoinedReplayAtomicityAndDynamicConsumers|JoinedNamespaceReplay|JoinedSourcesAndFrozenLayouts|JoinedCompactLayouts|JoinedRepeatedOccurrences|NativeNestedSecondDumpAfterTemporaryRemap|Rows|Barrier|SourcesAndCatalogLinks|CatalogMetadata|CatalogInputs|NestedDependencies|IdentityDependenciesAndRestore)$'
+make test PACKAGES=./reference RUN="$VIEWS_RUN" VERBOSE=0
+make reference RUN="$VIEWS_RUN" VERBOSE=0
+make race PACKAGES=./reference RUN="$VIEWS_RUN" VERBOSE=0
+```
+
+View rows assert raw OID `int64` cells on native and nonnil byte payloads on pq;
+their normalized expectations remain native integers versus PostgreSQL decimal
+strings. Finite PostgreSQL DATE cells remain `time.Time`; only exact `infinity`
+and `-infinity` DATE payloads admit bytes. Native DATE/TIME values remain strings,
+while PostgreSQL TIME uses `time.Time`, including the next-day 24:00 endpoint.
+The nested replay probes preserve exact native INT4 ScanType `int64` and known
+Nullable `(true,true)`, versus pq ScanType `int32` and unknown Nullable
+`(false,false)`; actual raw INT4 cells are `int64` on both.
+
+Real held statements, zero-width occurrences, typed catalog identity scans,
+retained raw cells and eight joined concurrent consumers retain their metadata,
+owned consumed recordings and closure assertions. Native-only controls cover
+retained TEMP remapping, second-Dump topology, fresh-destination replay and
+invalid/canceled Restore atomicity. PostgreSQL independently executes consumer
+SQL, supports the simple updatable-view write branch and internal `"char"` table
+branch, and alone runs the guarded ADD COLUMN/NATURAL-key freeze complement;
+it has no fictitious host Restore API.
+
+The unrelated `ViewOracle`, `FrozenRelativeLiteralOracle`,
+`ContextualDateStyleOracle`, `OriginalInvokerControls` and
+`SequenceCatalogPrivateVisibility` definitions remain tagged, as do view
+replacement families. Keep their Docker-requiring selection separate:
+
+```sh
+make reference RUN='^TestReferenceView(Oracle|FrozenRelativeLiteralOracle|ContextualDateStyleOracle|OriginalInvokerControls|SequenceCatalogPrivateVisibility)$' VERBOSE=0
+```
+
+The view migration's aggregate verification uses an external task-specific
+`timeout --signal=KILL 300s make test-all VERBOSE=0` bound for one full invocation;
+this does not change the shared Makefile's 900-second policy.
+
+
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean
 test-binary flag adds real PostgreSQL; the build tag is not the mode selector:

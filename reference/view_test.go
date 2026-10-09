@@ -4,30 +4,6 @@ package reference_test
 
 import "testing"
 
-func TestReferenceViewRows(t *testing.T) {
-	p := newReferencePair(t)
-	for _, step := range []referenceStep{
-		referenceExec("CREATE TABLE t(id INT,txt TEXT,visible BOOL)", 0),
-		referenceExec("INSERT INTO t VALUES(1,'a',true),(2,'b',false),(3,NULL,true),(3,NULL,true)", 4),
-		referenceExec("CREATE VIEW v(k,label) AS SELECT id,txt FROM t WHERE visible", 0),
-		referenceExec("CREATE VIEW w AS SELECT k,label FROM v WHERE k>1", 0),
-		referenceExec("CREATE VIEW z AS SELECT FROM t", 0),
-		referenceSelect("SELECT k,label FROM v ORDER BY k", []string{"k", "label"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "a"}, {int64(3), nil}, {int64(3), nil}}),
-		referenceSelect("SELECT count(*) FROM w", []string{"count"}, []string{"INT8"}, [][]any{{int64(2)}}),
-		referenceSelect("SELECT count(*) FROM z", []string{"count"}, []string{"INT8"}, [][]any{{int64(4)}}),
-		referencePrepared(referenceSelect("SELECT k,label FROM w WHERE k=$1 ORDER BY k", []string{"k", "label"}, []string{"INT4", "TEXT"}, [][]any{{int64(3), nil}, {int64(3), nil}}, 3)),
-		referencePrepared(referenceSelect("SELECT k,label FROM w WHERE k=$1", []string{"k", "label"}, []string{"INT4", "TEXT"}, nil, nil)),
-		referenceExec("CREATE VIEW prefix(a) AS SELECT id,txt FROM t", 0),
-		referenceExec("CREATE VIEW duplicate(a,b) AS SELECT id,id FROM t", 0),
-		referenceExec("CREATE TABLE b(txt TEXT,visible BOOL)", 0),
-		referenceExec("INSERT INTO b VALUES('1',true),('oops',false)", 2),
-		referenceExec("CREATE VIEW safe WITH(security_barrier=true) AS SELECT txt FROM b WHERE visible", 0),
-		referenceSelect("SELECT CAST(txt AS INT) FROM safe WHERE CAST(txt AS INT)=1", []string{"txt"}, []string{"INT4"}, [][]any{{int64(1)}}),
-	} {
-		p.step(t, step)
-	}
-}
-
 func TestReferenceViewOracle(t *testing.T) {
 	p := newReferencePair(t)
 	setup := referenceExec("CREATE TABLE t(id INT,txt TEXT)", 0)
