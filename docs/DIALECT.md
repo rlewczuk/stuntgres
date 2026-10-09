@@ -2613,8 +2613,9 @@ without publishing replacement data or changing retained results.
 
 ## Ordinary B-tree indexes — change note
 
-Native CREATE INDEX supports default/USING btree over 1–32 simple keys, including
-multikey and repeated columns, ASC/DESC and NULLS FIRST/LAST. It builds actual
+Native CREATE INDEX supports default/USING btree over 1–32 simple or same-table
+scalar expression keys, including `lower(v)`, parenthesized operators, mixed
+keys and repeated expressions, ASC/DESC and NULLS FIRST/LAST. It builds actual
 sorted live-row identity/key vectors and maintains them through common row and
 catalog publication. It is not metadata-only success. Scan/filter/sort remains
 the query semantic authority; no optimizer, index-only scan, disk algorithm or
@@ -2633,10 +2634,33 @@ Duplicate names are 42P07 in the shared relation namespace; missing target/key
 are 42P01/42703. PostgreSQL18.0 missing simple-key diagnostics have no Position,
 unlike newer development-source behavior. Binding precedes duplicate-name
 checking, including IF NOT EXISTS. Semantic prepared errors occur at Execute;
-syntax diagnostics retain one-based character positions. Non-btree/expression/
+syntax diagnostics retain one-based character positions. Non-btree/
 partial/concurrent/unique definitions and custom index decorations are bounded
 capability exclusions, not ignored clauses. No DROP/ALTER INDEX or broad index
 inquiry catalog family is added.
+
+Expression keys use the existing scalar binder, type/collation providers,
+constant simplifier and evaluator, not an index-specific interpreter. Admission
+checks immutability on surviving branches: eliminated random() CASE/COALESCE
+branches do not reject an otherwise immutable key, but surviving stable/volatile
+providers fail 42P17 without Position in PostgreSQL18.0. Binding still checks all
+original branches. Aggregates fail 42803 and subqueries fail 0A000 at their call/
+SubLink character positions; unknown expression columns fail positioned 42703.
+Prepare is syntax-only and these utility diagnostics occur at Execute.
+Mixed concatenation uses the concrete output provider after PostgreSQL's SQL
+wrapper specialization: `integer_column || 'x'` is immutable, while DATE,
+TIMESTAMP, TIMESTAMPTZ, INTERVAL and REGCLASS output retains stable dependence.
+TIME/TIMETZ and BYTEA follow their declared immutable output procedures, not
+an inferred classification from environment access. Domain output follows its
+base provider. Original conservative expression metadata remains unchanged;
+the surviving-tree check separately includes intrinsic planned dependence.
+Build and common row publication evaluate derived keys before atomic install;
+evaluation failures leave rows, descriptors and predecessor roots unchanged.
+Definitions retain original analyzed trees/dependencies for current-name
+rendering and TYPE rebinding; dump contents never serialize derived root history.
+Expression indexes do not enable standalone UNIQUE indexes or change the
+simple-slot contract of constraint backing indexes. UPDATE/DELETE acceptance
+remains with those DML parts; existing publication callers share maintenance.
 
 Dump writes canonical real definitions/current names/options after parent data;
 Reset removes persistent indexes and Restore privately rebuilds destination

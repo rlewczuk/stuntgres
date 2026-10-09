@@ -231,7 +231,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 			if r.sqlIndex.unique != nil {
 				continue
 			}
-			sql, err := indexDefinitionSQL(catalog, r)
+			sql, err := indexDefinitionSQL(ctx, catalog, r)
 			if err != nil {
 				e.mu.Unlock()
 				return err

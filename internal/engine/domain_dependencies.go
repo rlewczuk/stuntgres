@@ -73,6 +73,21 @@ func domainDependencyClosure(ctx context.Context, stage *CatalogStage) ([]domain
 				if replacement, ok := stage.descriptors[a].(*relationDescriptor); ok {
 					d = replacement
 				}
+				if d.sqlIndex != nil {
+					depends, automatic := false, false
+					for _, key := range d.sqlIndex.keys {
+						if key.derived != nil {
+							for _, dep := range key.derived.dependencies {
+								depends = depends || dep.Address == target
+								automatic = automatic || droppedColumns[dep.Address]
+							}
+						}
+					}
+					if depends && !automatic {
+						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "index " + dependencyRelationName(stage.base, d, stage.dependencyPath), relation: d})
+					}
+					continue
+				}
 				if d.view != nil {
 					if viewDepends(d, target) {
 						direct = append(direct, domainDependency{address: a, target: target, root: root, oid: a.ObjectID, label: "view " + dependencyRelationName(stage.base, d, stage.dependencyPath), relation: d})
@@ -169,7 +184,7 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 	var relations []*relationDescriptor
 	seen := make(map[ObjectAddress]bool)
 	for _, edge := range edges {
-		if edge.address.ClassID == TypeClassID || edge.column != "" {
+		if edge.address.ClassID == TypeClassID || edge.column != "" || edge.relation != nil && edge.relation.sqlIndex != nil {
 			targets = append(targets, edge.address)
 		}
 		if edge.column != "" && !seen[edge.relation.address] {
@@ -229,7 +244,7 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 	}
 	e.mu.Lock()
 	for _, target := range targets {
-		if target.ClassID == TypeClassID {
+		if target.ClassID == TypeClassID || target.ClassID == RelationClassID && target.SubID == 0 {
 			if err = stage.removeObjectLocked(ObjectRef{owner: e.owner, Epoch: stage.base.Epoch(), Address: target}, false); err != nil {
 				break
 			}

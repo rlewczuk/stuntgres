@@ -729,6 +729,7 @@ type expressionBinder struct {
 	returningAliases      *returningAliases
 	defaultConsumer       bool
 	checkConsumer         bool
+	indexConsumer         bool
 	visibilitySnapshot    bool
 	sequenceConstants     []sequenceConstant
 	regclassConcat        bool
@@ -927,6 +928,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 	}
 	var node BoundExpr
 	switch r := raw.(type) {
+	case parser.IndexSubqueryExpr:
+		return nil, expressionError("0A000", "cannot use subquery in index expression", r.Pos)
 	case parser.IdentityExpr:
 		var err error
 		node, err = b.bindIdentity(r.Name, r.Pos)
@@ -934,6 +937,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			return nil, err
 		}
 	case parser.AggregateExpr:
+		if b.indexConsumer {
+			return nil, expressionError("42803", "aggregate functions are not allowed in index expressions", r.Pos)
+		}
 		if b.aggregateClause == "VALUES" || b.aggregateClause == "INSERT VALUES" && r.Name == "string_agg" {
 			return nil, expressionError("42803", "aggregate functions are not allowed in VALUES", r.Pos)
 		}
@@ -1630,7 +1636,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
-	case parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr:
+	case parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

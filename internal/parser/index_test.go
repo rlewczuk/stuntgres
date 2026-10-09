@@ -49,10 +49,6 @@ func TestBtreeIndexExcludedDefinitions(t *testing.T) {
 	for _, tc := range []struct{ query, message, position string }{
 		{"CREATE UNIQUE INDEX i ON t(n)", "unique indexes are unsupported", "8"},
 		{"CREATE INDEX CONCURRENTLY i ON t(n)", "concurrent indexes are unsupported", "14"},
-		{"CREATE INDEX i ON t((n+1))", "expression indexes are unsupported", "21"},
-		{"CREATE INDEX ix ON t((c+1))", "expression indexes are unsupported", "22"},
-		{"CREATE INDEX ix ON t ((c+1))", "expression indexes are unsupported", "23"},
-		{"/*é*/ CREATE INDEX ix ON t((c+1))", "expression indexes are unsupported", "28"},
 		{"CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24"},
 		{"CREATE INDEX i ON t(s COLLATE \"C\")", "index collations are unsupported", "23"},
 		{"CREATE INDEX i ON t(n int4_ops)", "index operator classes are unsupported", "23"},
@@ -65,6 +61,19 @@ func TestBtreeIndexExcludedDefinitions(t *testing.T) {
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: tc.message, Position: tc.position}
 		if !errors.As(err, &got) || !reflect.DeepEqual(*got, want) {
 			t.Fatalf("%s: got %#v want %#v: %v", tc.query, got, want, err)
+		}
+	}
+}
+
+func TestExpressionIndexSyntax(t *testing.T) {
+	for _, q := range []string{"CREATE INDEX ix ON t(lower(v))", "CREATE INDEX ix ON t(pg_catalog.lower(v))", "CREATE INDEX ix ON t(pg_catalog.random())", "CREATE INDEX ix ON t((n+1))", "CREATE INDEX ix ON t((count(*)))", "CREATE INDEX ix ON t(((SELECT n FROM t)))", "CREATE INDEX ix ON t((1+(SELECT n FROM t)))", "CREATE INDEX ix ON t(((VALUES (1))))"} {
+		statements, err := Parse(q)
+		if err != nil {
+			t.Fatal(q, err)
+		}
+		key := statements[0].(*CreateIndex).Keys[0]
+		if key.Expression == nil || key.Column.Text != "" {
+			t.Fatal(q, key)
 		}
 	}
 }

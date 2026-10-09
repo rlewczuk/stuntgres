@@ -120,6 +120,7 @@ package parser
 %token <tok> CONSTRAINT ADD INHERITS
 %token <tok> CHECK
 %token <tok> CHECK_FUNC
+%token <tok> INDEX_SUBQUERY_OPEN
 %token <tok> OVERLAY POSITION SUBSTRING PLACING
 %token <tok> BEGIN START COMMIT END ROLLBACK ABORT WORK TRANSACTION AND NO CHAIN
 %token <tok> ISOLATION LEVEL READ ONLY DEFERRABLE SAVEPOINT RELEASE PREPARE PREPARED
@@ -169,6 +170,7 @@ package parser
  * target_or only when a logical/comparison continuation requires it. */
 %nonassoc ')'
 %type <stmt> statement create create_table drop_table alter_drop_column alter_default_single alter_rename_single alter_schema_single insert select set show reset create_role drop_role session_authorization excluded_role lock_table create_schema alter_schema drop_schema transaction_control
+%type <stmt> select_query
 %type <stmt> create_domain drop_domain
 %type <alterActions> alter_actions
 %type <alterAction> alter_selected_action
@@ -547,18 +549,21 @@ index_head: CREATE INDEX ON relation_name { $$=&CreateIndex{Table:$4,Pos:$1.pos}
  | CREATE INDEX CONCURRENTLY ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$5,Pos:$1.pos} }
  | CREATE INDEX CONCURRENTLY name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$6,Pos:$1.pos} }
  | CREATE INDEX CONCURRENTLY IF NOT EXISTS name ON relation_name { sqllex.(*lexer).deferUnsupported($3,"concurrent indexes are unsupported");$$=&CreateIndex{Table:$9,Pos:$1.pos} } ;
-index_method: /* empty */ { $$=lexeme{text:"btree"} } | USING name { $$=$2 } ;
-create_index: index_head index_method '(' index_keys ')' { $1.Method=$2.text;$1.Keys=$4;$$=$1 }
+index_method: /* empty */ { sqllex.(*lexer).indexExpression=true; $$=lexeme{text:"btree"} } | USING name { sqllex.(*lexer).indexExpression=true; $$=$2 } ;
+create_index: index_head index_method '(' index_keys ')' { sqllex.(*lexer).indexExpression=false; $1.Method=$2.text;$1.Keys=$4;$$=$1 }
  | create_index WHERE target_or { sqllex.(*lexer).deferUnsupported($2,"partial indexes are unsupported");$$=$1 }
  | create_index WITH '(' view_option_list ')' { sqllex.(*lexer).deferUnsupported($2,"index storage parameters are unsupported");$$=$1 }
  | create_index name '(' view_names ')' { if $2.text!="include" {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"included index columns are unsupported");$$=$1 }
  | create_index name name { if $2.text!="tablespace" {sqllex.(*lexer).syntax($2);return 1};sqllex.(*lexer).deferUnsupported($2,"index tablespaces are unsupported");$$=$1 } ;
 index_keys: index_key { $$=[]IndexKey{$1} } | index_keys ',' index_key { $$=append($1,$3) } ;
 index_key: name direction nulls { $$=IndexKey{Column:Identifier{Text:$1.text,Pos:$1.pos},Desc:$2,Nulls:$3} }
- | '(' scalar_projection ')' direction nulls { sqllex.(*lexer).deferUnsupported($1,"expression indexes are unsupported");$$=IndexKey{} }
+ | '(' scalar_projection ')' direction nulls { $$=IndexKey{Expression:$2,Desc:$4,Nulls:$5} }
  | name COLLATE relation_name direction nulls { sqllex.(*lexer).deferUnsupported($2,"index collations are unsupported");$$=IndexKey{} }
  | name name direction nulls { sqllex.(*lexer).deferUnsupported($2,"index operator classes are unsupported");$$=IndexKey{} }
- | name '(' values ')' direction nulls { sqllex.(*lexer).deferUnsupported($1,"expression indexes are unsupported");$$=IndexKey{} } ;
+ | function direction nulls { $$=IndexKey{Expression:$1,Desc:$2,Nulls:$3} }
+ | CHECK_FUNC '(' function_args ')' direction nulls { $$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos},Desc:$5,Nulls:$6} }
+ | name '.' CHECK_FUNC '(' function_args ')' direction nulls { $$=IndexKey{Expression:FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos},Desc:$7,Nulls:$8} }
+ | string_function direction nulls { $$=IndexKey{Expression:$1,Desc:$2,Nulls:$3} } ;
 optional_elements: /* empty */ { $$=nil } | elements { $$=$1 } ;
 elements: element { $$=[]TableElement{$1} } | elements ',' element { $$=append($1,$3) } ;
 element: column { c:=$1; $$=TableElement{Column:&c,Pos:c.Pos} }
@@ -906,6 +911,8 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | name '.' col_label STRING {raw,ok:=qualifiedTimezoneLiteral(sqllex,$1,$3);if !ok{return 1};$$=TypedLiteralExpr{TypeName:raw,Text:$4.text,Pos:$4.pos}}
  | name '.' col_label '.' col_label { $$=ColumnExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos},{Text:$5.text,Pos:$5.pos}}},Pos:$1.pos,QualificationPos:$2.pos,ExtraQualificationPos:$4.pos} }
  | conditional { $$=$1 }
+ | INDEX_SUBQUERY_OPEN select_query ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }
+ | INDEX_SUBQUERY_OPEN query_values ')' { $$=IndexSubqueryExpr{Pos:$1.pos} }
  | SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3} }
  | name '.' SEQUENCE_FUNC '(' sequence_args ')' { $$=CallExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5} }
  | CHECK_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
@@ -960,14 +967,15 @@ value: NULL { $$ = Value{Kind:NullValue, Pos:$1.pos} }
  | NOTNULL '(' { sqllex.(*lexer).call($1,$2); return 1 } ;
 /* Newly admitted FROM trees diagnose a misplaced ON as syntax. Preserve the
  * legacy single-table suffix capability boundary for otherwise excluded SQL. */
-select: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
+select_query: SELECT projection FROM from_list where group having order query_tail { $2.From=$4; $2.Where=$5; $2.GroupBy=$6; $2.Having=$7; $2.Order=$8; $2.Locking=$9.Locking; $2.Bounds=$9.Bounds; $2.Pos=$1.pos; $$=$2 }
  | SELECT FROM from_list where group having order query_tail { $$=&Select{From:$3,Where:$4,GroupBy:$5,Having:$6,Order:$7,Locking:$8.Locking,Bounds:$8.Bounds,Pos:$1.pos} }
- | SELECT projection bounds { if !sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; if $2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
+ | SELECT projection bounds { if !sqllex.(*lexer).indexExpression&&!sqllex.(*lexer).nonqueryProjection($2.Targets) {return 1};$2.Bounds=$3;$2.Pos=$1.pos; if sqllex.(*lexer).indexExpression||$2.IsSingleton() { $$=$2 } else { sqllex.(*lexer).deferUnsupported($1,"SELECT without FROM is unsupported"); $$=nil } }
  | SELECT projection INTO { sqllex.(*lexer).failAt("0A000","SELECT INTO is unsupported",$3.pos.Offset); return 1 }
  | SELECT projection FROM from_list where group having order suffix { if $9.keyword!=nil && $9.keyword.token==ON {if _,table:=$4.(*TableReference);!table {sqllex.(*lexer).syntax($9);return 1}};sqllex.(*lexer).capability($9,unsupportedSuffixes,"SELECT suffix is unsupported"); return 1 }
  | SELECT projection FROM from_list where group having order RETURNING { sqllex.(*lexer).failAt("0A000","SELECT suffix is unsupported",$9.pos.Offset); return 1 }
  | SELECT SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$2,$4); if !ok { return 1 } }
- | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos }
+ | SELECT name '.' SETTING_FUNC '(' call_args ')' { var ok bool; $$,ok=settingCall(sqllex,$4,$6); if !ok { return 1 };$$.(*SettingCall).Schema=&Identifier{Text:$2.text,Pos:$2.pos};$$.(*SettingCall).Pos=$2.pos } ;
+select: select_query { $$=$1 }
  | query_values locking { $$=&Select{Values:$1,Locking:$2,Pos:$1.Pos} }
  | parenthesized_values locking { $$=&Select{Values:$1,Locking:$2,Pos:$1.Pos} } ;
 call_args: /* empty */ { $$=nil } | values { $$=$1 } ;

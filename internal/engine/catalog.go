@@ -822,7 +822,7 @@ func (e *Engine) publishCatalog(op *Operation, p *PreparedCatalogPublication, to
 			}
 			buildStores[a] = storage[a]
 		}
-		indexRoots, indexErr := prepareIndexCatalog(p.ctx, current, next, buildStores, indexPredecessors, rebuildIndexes)
+		indexRoots, indexErr := e.prepareIndexCatalog(p.ctx, current, next, buildStores, indexPredecessors, rebuildIndexes)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}

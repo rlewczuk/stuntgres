@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"slices"
 )
 
 // Return a detached descriptor when an existing parent changes key usages or
@@ -23,18 +24,62 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 			return nil, nil
 		}
 	}
-	for _, key := range index.sqlIndex.keys {
-		if !parent.hasAttribute(key.attribute) {
-			return nil, nil
+	var definition *indexDefinition
+	for i, key := range index.sqlIndex.keys {
+		if key.derived == nil {
+			if !parent.hasAttribute(key.attribute) {
+				return nil, nil
+			}
+			continue
 		}
+		var slots map[int32]int
+		for _, dependency := range key.derived.dependencies {
+			a := dependency.Address
+			if a.ClassID == parent.address.ClassID && a.ObjectID == parent.address.ObjectID && a.SubID != 0 {
+				if !parent.hasAttribute(a.SubID) {
+					return nil, nil
+				}
+				if !slices.Equal(key.derived.attributes, parent.attributes) && slots == nil {
+					slots = make(map[int32]int, len(parent.attributes))
+					for slot, id := range parent.attributes {
+						slots[id] = slot
+					}
+				}
+			}
+		}
+		if slots == nil {
+			continue
+		}
+		remap := func(ref ObjectRef) ObjectRef { return ref }
+		node, err := remapBoundExpression(key.derived.definition, remap, slots)
+		if err != nil {
+			return nil, err
+		}
+		execution, err := remapBoundExpression(key.derived.execution, remap, slots)
+		if err != nil {
+			return nil, err
+		}
+		if definition == nil {
+			copy := *index.sqlIndex
+			copy.keys = append([]indexKey(nil), copy.keys...)
+			definition = &copy
+		}
+		derived := *key.derived
+		derived.definition, derived.execution = node, execution
+		derived.attributes = parent.attributes
+		definition.keys[i].derived = &derived
 	}
-	o, err := bindIndexOrdering(parent, index.sqlIndex)
+	_, err := bindIndexOrdering(parent, index.sqlIndex)
 	if err != nil {
 		return nil, err
 	}
-	changed := index.namespace != parent.namespace || index.owner != parent.owner
-	for i, slot := range o.slots {
-		changed = changed || index.columns[i].Usage != parent.columns[slot].Usage
+	changed := definition != nil || index.namespace != parent.namespace || index.owner != parent.owner
+	for i, key := range index.sqlIndex.keys {
+		usage, err := indexKeyUsage(parent, key)
+		if err != nil {
+			return nil, err
+		}
+		changed = changed || index.columns[i].Usage != usage
 	}
 	if !changed {
 		return index, nil
@@ -42,8 +87,15 @@ func evolveIndex(index *relationDescriptor, parent *relationDescriptor) (*relati
 	clone := *index
 	clone.namespace, clone.owner = parent.namespace, parent.owner
 	clone.columns = append([]ColumnDescriptor(nil), index.columns...)
-	for i, slot := range o.slots {
-		clone.columns[i].Usage = parent.columns[slot].Usage
+	if definition != nil {
+		clone.sqlIndex = definition
+	}
+	for i, key := range clone.sqlIndex.keys {
+		usage, err := indexKeyUsage(parent, key)
+		if err != nil {
+			return nil, err
+		}
+		clone.columns[i].Usage = usage
 	}
 	clone.revision++
 	if clone.revision == 0 {
@@ -139,7 +191,7 @@ func indexStoresUnchanged(storage, captured map[ObjectAddress]*relationStorage, 
 // Constructors poll cancellation while doing index work; the publication owner
 // performs the final veto. An empty/unchanged set must not add an Err callback
 // between the owner's established successful observation and installation.
-func prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuild map[ObjectAddress]bool) (map[ObjectAddress]*logicalIndexRoot, error) {
+func (e *Engine) prepareIndexCatalog(ctx context.Context, current, next *catalogState, storage map[ObjectAddress]*relationStorage, roots map[ObjectAddress]*logicalIndexRoot, rebuild map[ObjectAddress]bool) (map[ObjectAddress]*logicalIndexRoot, error) {
 	var result map[ObjectAddress]*logicalIndexRoot
 	for a, d := range next.descriptors {
 		index, ok := d.(*relationDescriptor)
@@ -152,7 +204,7 @@ func prepareIndexCatalog(ctx context.Context, current, next *catalogState, stora
 		root := roots[a]
 		old, _ := current.descriptors[a].(*relationDescriptor)
 		if root == nil || old == nil || old.sqlIndex != index.sqlIndex || rebuild[index.sqlIndex.parent] {
-			if err := validateIndexDefinition(CatalogRead{state: next}, index); err != nil {
+			if err := validateIndexDefinition(CatalogRead{owner: e, state: next}, index); err != nil {
 				return nil, err
 			}
 			parent := next.descriptors[index.sqlIndex.parent].(*relationDescriptor)
@@ -181,4 +233,50 @@ func preserveUnchangedIndexRoots(prepared, previous, live map[ObjectAddress]*log
 			prepared[address] = live[address]
 		}
 	}
+}
+
+// Explicit statements must discover derived-key errors before installing private
+// rows, not defer them to COMMIT. Admission owns these rows; the captured catalog
+// and execution trees are immutable. Finish retains its final publication veto.
+func (s *StatementScope) validatePrivateIndexExpressions(catalog *catalogChanges, deletes map[ObjectAddress]*privateDeletionRoot) error {
+	if len(s.stage.rows) == 0 {
+		return nil
+	}
+	e := s.op.session.Engine()
+	e.mu.Lock()
+	if s.txRef.epoch != e.state.epoch {
+		e.mu.Unlock()
+		return ErrCatalogReplaced
+	}
+	view := e.privateCatalogLocked(catalog)
+	e.mu.Unlock()
+	evaluation := EvalContext{Context: s.op.Context(), Scope: 1, Frame: 1}
+	for _, descriptor := range view.state.descriptors {
+		index, ok := descriptor.(*relationDescriptor)
+		if !ok || index.sqlIndex == nil {
+			continue
+		}
+		rows := s.stage.rows[index.sqlIndex.parent]
+		if len(rows) == 0 {
+			continue
+		}
+		for _, key := range index.sqlIndex.keys {
+			if key.derived == nil {
+				continue
+			}
+			for _, row := range rows {
+				if !liveVersion(row, CommitSeq(^uint64(0)), nil, deletes[index.sqlIndex.parent]) {
+					continue
+				}
+				if err := evaluation.Context.Err(); err != nil {
+					return err
+				}
+				evaluation.Row = row.values
+				if _, err := key.derived.execution.Eval(&evaluation); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }

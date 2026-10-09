@@ -16,6 +16,7 @@ import (
 type indexKey struct {
 	attribute        int32
 	desc, nullsFirst bool
+	derived          *derivedIndexKey
 }
 type indexDefinition struct {
 	parent ObjectAddress
@@ -32,6 +33,7 @@ type indexOrdering struct {
 	slots       []int
 	comparisons []sqltype.Comparison
 	keys        []indexKey
+	derived     []BoundExpr
 }
 
 func indexColumnLabel(name string, suffix int) string {
@@ -46,6 +48,24 @@ func indexColumnLabel(name string, suffix int) string {
 func bindIndexOrdering(parent *relationDescriptor, definition *indexDefinition) (indexOrdering, error) {
 	o := indexOrdering{slots: make([]int, len(definition.keys)), comparisons: make([]sqltype.Comparison, len(definition.keys)), keys: definition.keys}
 	for i, key := range definition.keys {
+		if key.derived != nil {
+			if definition.unique != nil {
+				return o, fmt.Errorf("stuntgres: derived UNIQUE backing key")
+			}
+			if key.derived.definition == nil || key.derived.execution == nil {
+				return o, fmt.Errorf("stuntgres: missing derived index expression")
+			}
+			if o.derived == nil {
+				o.derived = make([]BoundExpr, len(definition.keys))
+			}
+			o.slots[i], o.derived[i] = -1, key.derived.execution
+			var err error
+			o.comparisons[i], err = sqltype.BindOrdering(key.derived.execution.ResultUsage())
+			if err != nil {
+				return o, err
+			}
+			continue
+		}
 		slot := -1
 		for j, attribute := range parent.attributes {
 			if attribute == key.attribute {
@@ -85,12 +105,25 @@ func validateIndexDefinition(view CatalogRead, index *relationDescriptor) error 
 			return fmt.Errorf("stuntgres: orphan unique backing index")
 		}
 	}
-	o, err := bindIndexOrdering(parent, d)
+	_, err := bindIndexOrdering(parent, d)
 	if err != nil {
 		return err
 	}
-	for i, slot := range o.slots {
-		if index.columns[i].Usage != parent.columns[slot].Usage {
+	for i, key := range d.keys {
+		if key.derived != nil {
+			derived := key.derived
+			if key.attribute != 0 || derived.definition == nil || derived.execution == nil || derived.definition.ResultUsage() != derived.execution.ResultUsage() || plannedVolatility(derived.execution) != Immutable {
+				return fmt.Errorf("stuntgres: invalid derived index key")
+			}
+			if _, err := (scalarRenderer{owner: parent}).sql(context.Background(), view, derived.definition); err != nil {
+				return err
+			}
+		}
+		usage, err := indexKeyUsage(parent, key)
+		if err != nil {
+			return err
+		}
+		if index.columns[i].Usage != usage {
 			return fmt.Errorf("stuntgres: invalid index key usage")
 		}
 	}
@@ -143,12 +176,21 @@ func (o indexOrdering) compare(ctx context.Context, a, b logicalIndexEntry) (int
 	}
 	return 0, nil
 }
-func (o indexOrdering) entry(row rowVersion) logicalIndexEntry {
+func (o indexOrdering) entry(row rowVersion, evaluation *EvalContext) (logicalIndexEntry, error) {
 	keys := make([]sqltype.Value, len(o.slots))
 	for i, slot := range o.slots {
-		keys[i] = row.values[slot]
+		if slot >= 0 {
+			keys[i] = row.values[slot]
+			continue
+		}
+		evaluation.Row = row.values
+		value, err := o.derived[i].Eval(evaluation)
+		if err != nil {
+			return logicalIndexEntry{}, err
+		}
+		keys[i] = value
 	}
-	return logicalIndexEntry{keys: keys, row: row.row, version: row.version}
+	return logicalIndexEntry{keys: keys, row: row.row, version: row.version}, nil
 }
 
 // Bottom-up merge sort propagates comparison/cancellation failures. No callback
@@ -201,12 +243,17 @@ func buildIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDef
 		return nil, fmt.Errorf("stuntgres: index parent storage is missing")
 	}
 	entries := make([]logicalIndexEntry, 0, len(store.versions))
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
 	for _, row := range store.versions {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if liveVersion(row, CommitSeq(^uint64(0)), store.ends, nil) {
-			entries = append(entries, o.entry(row))
+			entry, err := o.entry(row, &evaluation)
+			if err != nil {
+				return nil, err
+			}
+			entries = append(entries, entry)
 		}
 	}
 	if err := o.sort(ctx, entries); err != nil {
@@ -228,6 +275,7 @@ func mergeIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDef
 	}
 	ended := make(map[RowID]VersionID, endedCount)
 	added := make([]logicalIndexEntry, 0, len(p.writes))
+	evaluation := EvalContext{Context: ctx, Scope: 1, Frame: 1}
 	for _, row := range p.writes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -240,7 +288,11 @@ func mergeIndexRoot(ctx context.Context, parent *relationDescriptor, d *indexDef
 				continue
 			}
 		}
-		added = append(added, o.entry(row))
+		entry, err := o.entry(row, &evaluation)
+		if err != nil {
+			return nil, err
+		}
+		added = append(added, entry)
 	}
 	if p.deletion != nil {
 		for id, end := range p.deletion.rows {
@@ -333,21 +385,39 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		attributes := make([]int32, len(s.Keys))
 		lookup := make(map[string]int, len(s.Keys))
 		for i, key := range s.Keys {
-			if isSystemColumn(key.Column.Text) {
-				return fail(sqlError("0A000", "index creation on system columns is not supported"))
-			}
-			slot, exists := parent.index[key.Column.Text]
-			if !exists {
-				return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, key.Column.Text)))
-			}
-			definition.keys[i] = indexKey{attribute: parent.attributes[slot], desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc}
-			columns[i] = parent.columns[slot]
 			label := key.Column.Text
+			bound := indexKey{desc: key.Desc, nullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc}
+			if key.Expression != nil {
+				derived, name, err := e.bindIndexExpression(scope.op, scope.input, auth, parent, key.Expression, nil)
+				if err != nil {
+					return fail(err)
+				}
+				label = name
+				if column, ok := derived.definition.(columnExpression); ok {
+					bound.attribute = column.origin.Address.SubID
+					columns[i] = parent.columns[column.slot]
+				} else {
+					bound.derived = derived
+					columns[i].Usage = derived.execution.ResultUsage()
+				}
+			} else {
+				if isSystemColumn(key.Column.Text) {
+					return fail(sqlError("0A000", "index creation on system columns is not supported"))
+				}
+				slot, exists := parent.index[key.Column.Text]
+				if !exists {
+					return fail(sqlError("42703", fmt.Sprintf(`column "%s" does not exist`, key.Column.Text)))
+				}
+				bound.attribute = parent.attributes[slot]
+				columns[i] = parent.columns[slot]
+			}
+			definition.keys[i] = bound
+			baseLabel := label
 			for suffix := 1; ; suffix++ {
 				if _, exists := lookup[label]; !exists {
 					break
 				}
-				label = indexColumnLabel(key.Column.Text, suffix)
+				label = indexColumnLabel(baseLabel, suffix)
 			}
 			columns[i].Name = label
 			lookup[label] = i

@@ -1,0 +1,70 @@
+package engine
+
+import (
+	"fmt"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+type derivedIndexKey struct {
+	definition, execution BoundExpr
+	dependencies          []ObjectRef
+	attributes            []int32 // Immutable parent layout used by both bound row frames.
+}
+
+// Caller holds engine.mu and supplies the same final catalog/parent authority
+// used by the enclosing CREATE or TYPE owner.
+func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *relationDescriptor, raw parser.Expr, literals []literalExpression) (*derivedIndexKey, string, error) {
+	ref := ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: parent.address}
+	columns := make([]queryColumn, len(parent.columns))
+	for i, c := range parent.columns {
+		columns[i] = queryColumn{c, i, 0, i}
+	}
+	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.name, original: parent.name, schema: auth.catalog.state.descriptors[parent.namespace].Name(), ref: ref, columns: columns}}, frame: parent.columns}
+	binder := newExpressionBinder(op.Context(), e, input, op, nil)
+	binder.indexConsumer, binder.noParameters, binder.queryAuth = true, true, &auth
+	binder.queryNamespace = &namespace
+	binder.querySources = []queryLeaf{{ref: ref, relation: parent}}
+	binder.checkLiterals = literals
+	definition, err := binder.bind(raw, expressionPolicy{context: projectionContext})
+	if err != nil {
+		return nil, "", err
+	}
+	evaluation := EvalContext{Context: op.Context(), Scope: 1, Frame: 1, Input: input}
+	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
+	if err != nil {
+		return nil, "", err
+	}
+	if plannedVolatility(execution) != Immutable {
+		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
+	}
+	key := &derivedIndexKey{definition: definition, execution: execution, attributes: parent.attributes}
+	if _, err = (scalarRenderer{owner: parent, dependencies: &key.dependencies}).sql(op.Context(), auth.catalog, definition); err != nil {
+		return nil, "", err
+	}
+	if _, err = sqltype.BindOrdering(execution.ResultUsage()); err != nil {
+		return nil, "", err
+	}
+	label := "expr"
+	switch r := raw.(type) {
+	case parser.ColumnExpr:
+		label = r.Name.Parts[len(r.Name.Parts)-1].Text
+	case parser.FunctionExpr:
+		label = r.Name.Parts[len(r.Name.Parts)-1].Text
+	case parser.CallExpr:
+		label = r.Name.Parts[len(r.Name.Parts)-1].Text
+	}
+	return key, label, nil
+}
+
+func indexKeyUsage(parent *relationDescriptor, key indexKey) (sqltype.Usage, error) {
+	if key.derived != nil {
+		return key.derived.execution.ResultUsage(), nil
+	}
+	for i, a := range parent.attributes {
+		if a == key.attribute {
+			return parent.columns[i].Usage, nil
+		}
+	}
+	return sqltype.Usage{}, fmt.Errorf("stuntgres: index attribute is missing")
+}

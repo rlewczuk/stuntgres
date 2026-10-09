@@ -192,3 +192,26 @@ func TestStringCoreRegclassOutputRequiresSnapshot(t *testing.T) {
 		t.Fatal("output rewrote the canonical OID", canonical, err)
 	}
 }
+
+func TestStringPlanSpecializedOutputStability(t *testing.T) {
+	types := mathTypes()
+	text := types[Text].Usage()
+	for _, tc := range []struct {
+		id     ID
+		stable bool
+	}{
+		{Int2, false}, {Int4, false}, {Int8, false}, {Numeric, false}, {Float4, false}, {Float8, false}, {Bool, false}, {Bytea, false}, {Oid, false}, {UUID, false}, {Time, false}, {Timetz, false}, {Char, false}, {Name, false}, {Text, false}, {BPChar, false}, {VarChar, false}, {Void, false},
+		{Date, true}, {Timestamp, true}, {Timestamptz, true}, {Interval, true}, {Regclass, true},
+	} {
+		plan, err := BindString("||", text, text, []Usage{types[tc.id].Usage(), text}, [2]bool{false, true}, false)
+		if err != nil {
+			t.Fatal(tc, err)
+		}
+		if plan.SessionDependent() != tc.stable {
+			t.Fatal("wrong specialized output stability", tc, plan.SessionDependent())
+		}
+	}
+	if !types[NameArray].OutputSessionDependent() {
+		t.Fatal("array output declaration must remain stable")
+	}
+}

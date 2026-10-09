@@ -11,6 +11,15 @@ type timeZoneExpression struct {
 	local       bool
 }
 
+// The explicit timestamp overloads and the interval-zone timetz overload are
+// immutable. Local zones and text-zone timetz depend on session/date context.
+func (e timeZoneExpression) intrinsicVolatility() Volatility {
+	if e.local || (e.value.ResultUsage().Type.BaseType().ID() == sqltype.Timetz && e.zone.ResultUsage().Type.BaseType().ID() != sqltype.Interval) {
+		return Stable
+	}
+	return Immutable
+}
+
 func (e timeZoneExpression) Eval(c *EvalContext) (sqltype.Value, error) {
 	value, err := e.value.Eval(c)
 	if err != nil {

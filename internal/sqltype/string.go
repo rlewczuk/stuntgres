@@ -69,6 +69,21 @@ func (p StringPlan) TextUsage() Usage              { return p.text }
 func (p StringPlan) ArgumentUsage(index int) Usage { return p.formal[index] }
 func (p StringPlan) CollationIndeterminate() bool  { return p.conflict }
 
+// SessionDependent describes the concrete conversions after the release's SQL
+// concatenation wrapper specialization, independently of child dependence.
+func (p StringPlan) SessionDependent() bool {
+	for i := range int(p.count) {
+		if p.textual[i] {
+			if p.args[i].Type.ID() != Char && p.conversions[i].SessionDependent() {
+				return true
+			}
+		} else if p.args[i].Type.OutputSessionDependent() {
+			return true
+		}
+	}
+	return false
+}
+
 // Non-TEXT results also receive the generation's TEXT owner, avoiding global
 // descriptor lookup or per-evaluation descriptor allocation.
 func BindString(name string, result, text Usage, args []Usage, textual [2]bool, conflict bool) (StringPlan, error) {

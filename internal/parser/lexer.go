@@ -41,8 +41,9 @@ type lexer struct {
 	multipleModifiers   bool
 	// CHECK alone admits existing selected scalar calls as operand leaves.
 	// Depth changes only for tokens returned to yacc, never raw lookahead.
-	checkPending bool
-	checkDepth   int
+	checkPending    bool
+	checkDepth      int
+	indexExpression bool
 }
 
 // rawToken retains scanner evidence independently of the parser-facing token.
@@ -779,7 +780,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			return 0
 		}
 	}
-	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || binaryScalarFunction(token.lexeme.text) || token.lexeme.text == "current_schemas") {
+	if token.code == SELECTED_FUNC && (l.checkDepth > 0 || l.indexExpression || binaryScalarFunction(token.lexeme.text) || token.lexeme.text == "current_schemas") {
 		next := l.nextRaw()
 		l.lookahead, l.hasLookahead = next, true
 		if l.err != nil {
@@ -787,6 +788,18 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		}
 		if next.code == int('(') {
 			token.code = CHECK_FUNC
+		}
+	}
+	// Distinguish forbidden index subqueries from ordinary grouping/VALUES
+	// before yacc, retaining the real opening parenthesis diagnostic location.
+	if l.indexExpression && token.code == int('(') {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if l.err != nil {
+			return 0
+		}
+		if next.code == SELECT || next.code == VALUES {
+			token.code = INDEX_SUBQUERY_OPEN
 		}
 	}
 	if l.checkDepth > 0 {

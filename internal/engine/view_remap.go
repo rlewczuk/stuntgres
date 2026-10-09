@@ -372,6 +372,43 @@ func (e *Engine) remapCatalogExpressions(next *catalogState, mapping map[ObjectA
 			d = &copy
 			next.descriptors[address] = d
 		}
+		if d.sqlIndex != nil {
+			copy := *d
+			definition := *d.sqlIndex
+			definition.keys = append([]indexKey(nil), definition.keys...)
+			for i, key := range definition.keys {
+				if key.derived == nil {
+					continue
+				}
+				derived := *key.derived
+				node, _, err := retagBoundTypes(derived.definition, typ)
+				if err != nil {
+					return err
+				}
+				node, err = remapBoundExpression(node, ref, nil)
+				if err != nil {
+					return err
+				}
+				derived.definition = node
+				node, _, err = retagBoundTypes(derived.execution, typ)
+				if err != nil {
+					return err
+				}
+				node, err = remapBoundExpression(node, ref, nil)
+				if err != nil {
+					return err
+				}
+				derived.execution = node
+				derived.dependencies = append([]ObjectRef(nil), derived.dependencies...)
+				for j := range derived.dependencies {
+					derived.dependencies[j] = ref(derived.dependencies[j])
+				}
+				definition.keys[i].derived = &derived
+			}
+			copy.sqlIndex = &definition
+			d = &copy
+			next.descriptors[address] = d
+		}
 		if d.view == nil {
 			continue
 		}

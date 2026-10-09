@@ -4,57 +4,6 @@ package reference_test
 
 import "testing"
 
-func TestReferenceAlterTypeDependentCapabilityBoundaries(t *testing.T) {
-	for _, tc := range []struct {
-		name, create, seed, dependency, alter string
-		want                                  referenceDiagnostic
-	}{
-		{"expression-index", "CREATE TABLE t(c INT)", "INSERT INTO t VALUES(1)", "CREATE INDEX ix ON t((c+1))", "ALTER TABLE t ALTER c TYPE TEXT USING c::text", referenceDiagnostic{Code: "42883", Message: "operator does not exist: text + integer", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts.", Position: "46"}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			p := newReferencePair(t)
-			t.Run("postgres", func(t *testing.T) {
-				run := func(s referenceStep) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, s) }
-				run(referenceExec(tc.create, 0))
-				run(referenceExec(tc.seed, 1))
-				run(referenceExec(tc.dependency, 0))
-				var dependencyID int64
-				identityQuery := "SELECT oid::bigint FROM pg_class WHERE oid=$1::regclass"
-				name := "ix"
-				if err := p.postgres.QueryRowContext(p.ctx, identityQuery, name).Scan(&dependencyID); err != nil || dependencyID <= 0 {
-					t.Fatal(dependencyID, err)
-				}
-				failure := referenceImplicitError(tc.alter, tc.want)
-				failure.errorStage = "execute"
-				run(failure)
-				var retainedID int64
-				if err := p.postgres.QueryRowContext(p.ctx, identityQuery, name).Scan(&retainedID); err != nil || retainedID != dependencyID {
-					t.Fatal("failed TYPE changed dependency identity", dependencyID, retainedID, err)
-				}
-				run(referenceSelect("SELECT indisvalid FROM pg_index WHERE indexrelid='ix'::regclass", []string{"indisvalid"}, []string{"BOOL"}, [][]any{{true}}))
-				rows := [][]any{{int64(1)}}
-				run(referenceSelect("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"INT4"}, rows))
-				run(referenceSelect("SELECT pg_get_indexdef('ix'::regclass)", []string{"pg_get_indexdef"}, []string{"TEXT"}, [][]any{{"CREATE INDEX ix ON public.t USING btree (((c + 1)))"}}))
-				run(referenceSelect("SELECT c+1 AS next FROM t WHERE c+1=2", []string{"next"}, []string{"INT4"}, [][]any{{int64(2)}}))
-			})
-			t.Run("native", func(t *testing.T) {
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(tc.create, 0))
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec(tc.seed, 1))
-				failure := referenceImplicitError(tc.dependency, referenceDiagnostic{Code: "0A000", Message: "expression indexes are unsupported", Position: "22"})
-				failure.errorStage = "execute"
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, failure)
-				preparedFailure := referencePrepared(failure)
-				preparedFailure.errorStage = "prepare"
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, preparedFailure)
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{"INT4"}, [][]any{{int64(1)}}))
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT relname FROM pg_class WHERE relname='ix'", []string{"relname"}, []string{"NAME"}, nil))
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("ALTER TABLE t ALTER c TYPE TEXT USING c::text", 0))
-				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT c FROM t", []string{"c"}, []string{"TEXT"}, [][]any{{"1"}}))
-			})
-		})
-	}
-}
-
 func TestReferenceAlterTypeForeignKeyBoundary(t *testing.T) {
 	p := newReferencePair(t)
 	t.Run("postgres", func(t *testing.T) {

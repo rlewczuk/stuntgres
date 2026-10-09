@@ -629,33 +629,38 @@ func (s *StatementScope) Finish(err error) error {
 				writes, deletes = s.stage.rows, s.stage.deletes
 			} else {
 				deletes = mergeDeletions(t.deletes, s.stage.deletes)
-				writes = prepareOwnWrites(t.writes, s.stage.rows, s.stage.replacing)
 			}
-			session := s.op.session
-			e.mu.Lock()
-			session.mu.Lock()
-			err = publicationOperationLocked(e, s.op)
-			if err == nil && t.ref.epoch != e.state.epoch {
-				err = ErrCatalogReplaced
-			}
-			if err == nil && s.catalog != nil {
-				err = e.catalogPreflightLocked(catalog)
-			}
+			err = s.validatePrivateIndexExpressions(catalog, deletes)
 			if err == nil {
-				err = e.catalogAuthorityPreflightLocked(s.catalogAuthority)
-			}
-			if err == nil {
-				for a, rows := range s.stage.rows {
-					if !s.stage.replacing && len(t.writes[a]) != 0 {
-						copy(writes[a][len(t.writes[a]):], rows)
-					}
+				if !s.projectedRoots {
+					writes = prepareOwnWrites(t.writes, s.stage.rows, s.stage.replacing)
 				}
-				t.writes = writes
-				t.deletes = deletes
-				t.catalog = catalog
+				session := s.op.session
+				e.mu.Lock()
+				session.mu.Lock()
+				err = publicationOperationLocked(e, s.op)
+				if err == nil && t.ref.epoch != e.state.epoch {
+					err = ErrCatalogReplaced
+				}
+				if err == nil && s.catalog != nil {
+					err = e.catalogPreflightLocked(catalog)
+				}
+				if err == nil {
+					err = e.catalogAuthorityPreflightLocked(s.catalogAuthority)
+				}
+				if err == nil {
+					for a, rows := range s.stage.rows {
+						if !s.stage.replacing && len(t.writes[a]) != 0 {
+							copy(writes[a][len(t.writes[a]):], rows)
+						}
+					}
+					t.writes = writes
+					t.deletes = deletes
+					t.catalog = catalog
+				}
+				session.mu.Unlock()
+				e.mu.Unlock()
 			}
-			session.mu.Unlock()
-			e.mu.Unlock()
 		}
 		if err == nil {
 			t.command++

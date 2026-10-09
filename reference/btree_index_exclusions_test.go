@@ -17,9 +17,6 @@ func TestReferenceBtreeIndexExcludedDefinitionsDiagnostics(t *testing.T) {
 			}{
 				{"unique", "CREATE UNIQUE INDEX i ON t(n)", "unique indexes are unsupported", "8", "i", false},
 				{"concurrent", "CREATE INDEX CONCURRENTLY i ON t(n)", "concurrent indexes are unsupported", "14", "i", false},
-				{"expression", "CREATE INDEX ix ON t((c+1))", "expression indexes are unsupported", "22", "ix", false},
-				{"spaced-expression", "CREATE INDEX ix ON t ((c+1))", "expression indexes are unsupported", "23", "ix", false},
-				{"unicode-expression", "/*é*/ CREATE INDEX ix ON t((c+1))", "expression indexes are unsupported", "28", "ix", false},
 				{"partial", "CREATE INDEX i ON t(n) WHERE n>0", "partial indexes are unsupported", "24", "i", false},
 				{"collation", "CREATE INDEX i ON t(s COLLATE \"C\")", "index collations are unsupported", "23", "i", false},
 				{"opclass", "CREATE INDEX i ON t(n int4_ops)", "index operator classes are unsupported", "23", "i", false},

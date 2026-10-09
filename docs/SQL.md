@@ -45,9 +45,9 @@ CREATE TABLE [IF NOT EXISTS] [schema.]name ([element [, ...]])
 CREATE VIEW [schema.]name [(column [, ...])]
   [WITH (security_barrier [= boolean] [, security_invoker [= boolean]])] AS SELECT ...
 CREATE INDEX [name] ON [schema.]table [USING btree]
-  (column [ASC|DESC] [NULLS FIRST|LAST] [, ...])
+  (key [ASC|DESC] [NULLS FIRST|LAST] [, ...])
 CREATE INDEX IF NOT EXISTS name ON [schema.]table [USING btree]
-  (column [ASC|DESC] [NULLS FIRST|LAST] [, ...])
+  (key [ASC|DESC] [NULLS FIRST|LAST] [, ...])
 element := column type [COLLATE [schema.]name] [[CONSTRAINT name] NULL | [CONSTRAINT name] NOT NULL | [CONSTRAINT name] DEFAULT default_expression | check_constraint]...
          | [CONSTRAINT name] NOT NULL column | check_constraint | LIKE [schema.]source
 check_constraint := [CONSTRAINT name] CHECK (scalar_expression) [NO INHERIT]
@@ -173,8 +173,8 @@ through search_path. Stored views retain dependencies and deparse current names.
 Dump/Restore preserves current persistent definitions/data rather than ALTER history.
 Explicit transactions exclude this standalone SET SCHEMA utility, not the supported
 TYPE/nullability/DROP COLUMN lists. Generic moves of sequences or indexes,
-temporary/system destinations and automatic row types are not added. Simple
-B-tree indexes move with their table.
+temporary/system destinations and automatic row types are not added. B-tree
+indexes, including expression definitions, move with their table.
 See the [dialect boundaries](DIALECT.md) for independently tested PostgreSQL-only
 controls. Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
@@ -821,16 +821,23 @@ timezone-setting atom, not general INTERVAL expressions.
 No timezone(...) alias, CURRENT_* expansion or timezone catalog views are added.
 
 
-## Ordinary simple-key B-tree indexes
+## Ordinary B-tree indexes
 
-CREATE INDEX builds on populated ordinary tables, with 1–32 unqualified simple
-column keys (repeated keys are legal), default/explicit btree, per-key direction
+CREATE INDEX builds on populated ordinary tables, with 1–32 simple column or
+same-table scalar expression keys (repeated keys are legal), default/explicit btree, per-key direction
 and NULL placement. Names are unqualified and belong to the target table's
 schema, not the first creation schema in search_path. Omitted names use
 PostgreSQL-compatible generated names; IF NOT EXISTS emits a duplicate-relation
 NOTICE without changing an existing object, but does not bypass bad-key binding.
 Prepare is syntax/description-only; semantic diagnostics occur at Execute.
 The command returns zero affected rows and no result columns.
+Keys may use function-call syntax such as `lower(v)` or parenthesized scalar
+syntax such as `(n+1)`. The shared binder/type providers/evaluator compute stored
+derived keys; functions/operators must be immutable after constant branch
+simplification. Aggregates/subqueries are prohibited with positioned 42803/
+0A000; surviving stable/volatile expressions fail unpositioned 42P17.
+All original branches are bound before pruning. Failed builds or row-key
+evaluation publish no partial descriptor, root or rows.
 
 Equality/range/IS NULL and explicit ORDER BY use the ordinary query pipeline,
 independently of index choice. Unordered results remain bags. Actual sorted
@@ -841,7 +848,7 @@ canonical CREATE INDEX definitions.
 
 Writable explicit CREATE INDEX transactions are excluded natively (0A000),
 while PostgreSQL supports transactional creation/rollback. Read-only execution
-returns 25006 first. Standalone CREATE UNIQUE INDEX, expression/partial/concurrent
+returns 25006 first. Standalone CREATE UNIQUE INDEX, partial/concurrent
 indexes, non-btree methods, opclasses/collations, INCLUDE, storage parameters/
 tablespaces and DROP/ALTER INDEX remain excluded; CREATE TABLE UNIQUE constraints
 are supported with owned backing B-trees. No planner, index-only scan or physical tree

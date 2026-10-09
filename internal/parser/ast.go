@@ -118,9 +118,10 @@ type CreateTable struct {
 func (*CreateTable) statement() {}
 
 type IndexKey struct {
-	Column Identifier
-	Desc   bool
-	Nulls  NullPlacement
+	Column     Identifier
+	Expression Expr
+	Desc       bool
+	Nulls      NullPlacement
 }
 type CreateIndex struct {
 	Name        Identifier
@@ -132,6 +133,12 @@ type CreateIndex struct {
 }
 
 func (*CreateIndex) statement() {}
+
+// IndexSubqueryExpr consumes forbidden syntax without introducing query execution.
+type IndexSubqueryExpr struct{ Pos Position }
+
+func (IndexSubqueryExpr) expression()                {}
+func (e IndexSubqueryExpr) SourcePosition() Position { return e.Pos }
 
 type ViewOption struct {
 	Name     Identifier

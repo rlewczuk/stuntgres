@@ -482,7 +482,7 @@ skipping`, or `schema "name" does not exist, skipping`). DROP requires table
 owner, schema owner or superuser authority, not ordinary table privileges, and
 preserves current schema lookup/USAGE authorization.
 
-The supported dependency set includes stored views, owned sequences and simple B-tree indexes.
+The supported dependency set includes stored views, owned sequences and B-tree indexes.
 Both modes remove the selected tables and their contained columns, storage and
 relation/column ACL records; dependent views retain the RESTRICT/CASCADE policy
 described below. Namespace,
@@ -490,7 +490,7 @@ builtin types, owner roles and unrelated tables survive. Real DROP ROLE ownershi
 and ACL blockers disappear with the removed definitions. LIKE clones, prepared
 statements and held cursors are not persistent dependents; held cursors retain old
 rows/metadata, while prepared executions rebind (absent table `42P01`,
-incompatible recreation `42703`). Simple B-tree indexes and column-owned
+incompatible recreation `42703`). B-tree indexes and column-owned
 sequences disappear automatically with their parent; views retain their existing
 RESTRICT/CASCADE dependency policy. Foreign keys remain excluded.
 Explicit-transaction CREATE/DROP TABLE remains unsupported.
@@ -639,8 +639,8 @@ either CREATE TABLE form, including qualified/quoted/multiple parents, and
 rejects it at INHERITS. IF NOT EXISTS cannot bypass that boundary. Empty,
 unclosed, malformed or repeated clauses and extra tails are `42601`; complete
 input rejection prevents earlier statements in the same script taking effect.
-Primary/unique/foreign keys, non-btree/expression/partial/concurrent indexes, domains and unrelated ALTER
-actions remain excluded engine capabilities, not external-only mechanisms.
+Primary/foreign keys, standalone CREATE UNIQUE INDEX, non-btree/partial/concurrent
+indexes and unrelated ALTER actions remain excluded engine capabilities.
 Selected ALTER COLUMN TYPE/SET/DROP NOT NULL, ADD NOT NULL, DROP CONSTRAINT and
 DROP COLUMN compose atomic comma-separated lists in implicit and explicit
 transactions. PostgreSQL pass order is DROP, TYPE, original SET, transformed
@@ -764,7 +764,7 @@ dense evaluation slots. Independent columns/tables and plain LIKE clones survive
 Supported inbound view dependencies retain the existing RESTRICT/CASCADE policy.
 Canonical Dump renders current names and survivor metadata; Reset/Restore
 preserves definitions/data even though replay allocates fresh attribute IDs.
-Simple B-tree indexes mentioning a dropped attribute are removed automatically,
+B-tree indexes mentioning a dropped attribute, including expression dependencies, are removed automatically,
 even with RESTRICT; unaffected indexes survive dense-slot compaction. FK,
 inheritance and partition dependencies remain unsupported.
 
@@ -935,9 +935,18 @@ Duplicate keys keep distinct RowID/VersionID membership; NULL keys are included.
 Failed multirow statements, rollback and savepoint recovery publish no partial
 index effects. Current-only roots are not substitutes for historical/own-write
 query visibility.
+Expression keys retain both original analyzed definitions for dependencies and
+shared simplified execution trees for computation. INSERT evaluates new derived
+keys before installing either committed rows or explicit-transaction private
+rows: a late failing batch fails at Execute, not COMMIT. Savepoint rollback can
+recover the transaction without retaining any rows from the failed statement.
+Failed evaluation leaves predecessor roots and parent rows intact. Query matching
+expressions still use ordinary snapshots, not current-only index membership.
+UNIQUE backing indexes remain simple-slot keys.
 
-Renames preserve stable key attributes. TYPE rebuilds entries with the final
-typed shape, DROP COLUMN automatically removes involved indexes, and SET SCHEMA
+Renames preserve stable key attributes and expression dependencies. TYPE reparses
+original expression definitions against the final shape and rebuilds entries;
+DROP COLUMN automatically removes involved indexes, and SET SCHEMA
 moves indices with table/owned sequences as one collision-checked publication.
 DROP TABLE and schema CASCADE leave no index/root/name orphans. Dump captures
 actual options/current names; Restore and catalog replacement rebuild roots with

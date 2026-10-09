@@ -248,7 +248,8 @@ TEMP/system destinations and automatic row types remain bounded native exclusion
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestAlterSchemaSmoke$' VERBOSE=0`.
 
 Change note: ordinary `CREATE INDEX [name] ON [schema.]table [USING btree]
-(column [ASC|DESC] [NULLS FIRST|LAST], ...)` supports 1–32 simple keys,
+(key [ASC|DESC] [NULLS FIRST|LAST], ...)` supports 1–32 simple or same-table scalar
+expression keys, including `lower(text_column)` and parenthesized operators,
 including duplicates and NULLs on already populated tables. Definitions share the
 relation namespace; immutable sorted logical entries stay current through all
 committed INSERT/UPDATE/DELETE batches and supported table lifecycle changes.
@@ -256,9 +257,13 @@ Query correctness still uses the ordinary snapshot scan/filter/sort path, not
 an optimizer promise; unordered SELECT has no new ordering guarantee. Dump/Restore
 serializes actual current index definitions and rebuilds entries. Native CREATE
 INDEX is excluded in explicit transactions, unlike PostgreSQL; standalone CREATE
-UNIQUE INDEX, expression, partial and concurrent indexes remain excluded.
+UNIQUE INDEX, partial and concurrent indexes remain excluded. Expression keys
+use the shared binder/evaluator and must be immutable after constant branch
+simplification; aggregate/subquery keys fail at Execute after quiet Prepare.
 Shared smokes: `make quickcheck PACKAGES=./reference RUN='^TestReferenceBtreeIndex(Regression|Controls|Lifecycle)$'`;
 use the same RUN with `REFERENCE=1` for the independent pinned PostgreSQL oracle.
+Expression regression family: `make quickcheck PACKAGES=./reference RUN='^TestReferenceExpressionIndex'`;
+use the same RUN with `REFERENCE=1` for independently expected PostgreSQL18.0 outcomes.
 
 Change note: CREATE TABLE column/table UNIQUE supports ordered simple keys and
 `NULLS DISTINCT` (default) or `NULLS NOT DISTINCT`. Each retained constraint owns

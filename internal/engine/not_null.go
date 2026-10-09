@@ -85,6 +85,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	next := old
 	var transformations []columnTransformation
 	var pendingChecks []alterTypeCheck
+	var pendingIndexes []alterTypeIndex
 	var typeChecks []checkConstraint
 	var additions []addedColumn
 	// PostgreSQL orders DROP, TYPE, ADD columns, original SET, constraints,
@@ -135,8 +136,17 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		}
 		if pass == 0 {
 			pendingChecks, err = captureAlterTypeChecks(op, auth.catalog, old, next, s.Actions)
+			if err == nil {
+				pendingIndexes, err = captureAlterTypeIndexes(scope, auth.catalog, old, next, s.Actions)
+			}
 		} else if pass == 1 {
 			next, typeChecks, err = e.rebindAlterTypeChecks(scope, op, auth, ref, next, pendingChecks)
+			if err == nil && len(pendingIndexes) > 0 {
+				if stage == nil {
+					stage = e.BeginCatalogStage(auth.catalog)
+				}
+				err = e.rebindAlterTypeIndexes(scope, auth, next, stage, pendingIndexes)
+			}
 		}
 		if err == nil && pass == 3 {
 			for _, added := range additions {

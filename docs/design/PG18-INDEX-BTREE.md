@@ -1,11 +1,12 @@
-# Ordinary simple-key B-tree indexes
+# Ordinary B-tree indexes
 
 ## Bounded SQL and authority
 
 Support ordinary nonunique `CREATE INDEX [name] ON [schema.]table [USING btree]
 (column [ASC|DESC] [NULLS FIRST|LAST], ...)`, including `IF NOT EXISTS name`,
-1–32 simple keys and repeated columns. Defaults are ASC NULLS LAST and DESC
-NULLS FIRST. INDEX retains its unreserved keyword category. An index is a real
+1–32 simple or scalar expression keys and repeated keys. Expression syntax and
+immutability are described below. Defaults are ASC NULLS LAST and DESC NULLS
+FIRST. INDEX retains its unreserved keyword category. An index is a real
 `pg_class` relation of kind `i`, in the parent schema with the parent owner and
 real key count; it shares the table/sequence/view relation-name namespace.
 
@@ -110,7 +111,7 @@ engine mutex. A permanent zero-allocation evolution witness covers this path.
 
 ## Exclusions and evidence
 
-UNIQUE/PK/FK, expression/partial/concurrent indexes, non-btree methods, custom
+Standalone UNIQUE, partial/concurrent indexes, non-btree methods, custom
 collations/opclasses, INCLUDE, storage parameters/tablespaces, index-only scans,
 DROP/ALTER INDEX and broad pg_index/pg_indexes/pg_get_indexdef catalogs remain
 excluded. Valid excluded syntax fails explicitly rather than silently dropping
@@ -119,9 +120,10 @@ Excluded-definition contracts prescribe full ERROR/0A000 diagnostics, including
 feature-specific English messages, character-based Position where applicable
 and absent unrelated logical fields. UNIQUE reports "unique indexes are
 unsupported"; non-btree methods remain an Execute-only, position-free exclusion.
-The public/parser/reference matrices include spaced and Unicode-prefixed
-expression positions, actual prepared admission, no descriptor/data/dump
-leakage and successful subsequent native DDL. Independent PostgreSQL streams
+Expression support supersedes the original expression exclusion: the shared
+expression-index reference family retains spaced/Unicode syntax and quiet
+prepared admission, full semantic diagnostics and atomic no-leakage witnesses.
+Independent PostgreSQL streams
 execute valid excluded definitions, using TEXT COLLATE "C" and INT int4_ops
 rather than relying on errors from invalid provider combinations.
 
@@ -163,3 +165,47 @@ marker is validated. It stamps the index with its actual parent's owner and
 namespace, never with the temporary bootstrap lookup actor. Ordinary commands
 retain schema USAGE/CREATE and parent-owner checks; replay does not manufacture
 grants or change target session identity.
+
+## Expression keys — change note
+
+Ordinary nonunique indexes accept parenthesized shared scalar expressions and
+bare supported function calls alongside simple columns. Binding exposes only
+the parent relation, with existing authorization, scalar providers and result
+usage/orderability checks. Aggregates and subqueries fail semantically at Execute;
+syntax-only utility Prepare remains quiet. UNIQUE backing keys remain valid
+simple slots; expression sentinels never enter UNIQUE grouping or claim paths.
+
+Each derived key retains its original analyzed definition and dependencies plus
+the shared simplified execution tree. Immutability is checked after simplification,
+including concrete coercion/output-provider dependence and surviving children;
+dead CASE/COALESCE branches do not contribute volatility. Explicit timestamp and
+timestamptz AT TIME ZONE text/interval overloads, and interval-zone timetz, are
+immutable. AT LOCAL and text-zone timetz remain stable. Planned inspection uses
+the retained node's concrete provider classification and surviving children, not
+a separate index function allowlist. Original analyzed metadata stays conservative
+(Stable) for existing consumers, including DEFAULT; simplification does not rewrite
+that metadata.
+
+Build and batch maintenance evaluate those execution trees before publishing new
+logical tuples. Explicit-transaction statement Finish also evaluates completed
+candidate live derived rows before private installation, outside the engine mutex;
+it neither allocates full tuples nor sorts/rebuilds roots. The existing operation,
+catalog/authority, epoch and cancellation preflights still gate installation.
+Late evaluation errors fail the statement, abort private work and permit existing
+savepoint recovery rather than waiting for COMMIT.
+
+DROP remaps surviving dense slots in both trees while retaining stable attribute
+dependencies. TYPE captures the full pre-change PostgreSQL-style CREATE INDEX
+buffer through pgRenderer, including all earlier keys, quoted/Unicode identifiers
+and nondefault direction/NULL options. Rebinding that exact saved buffer against
+the final parent preserves generated diagnostic Position. Dump renders current
+original expressions; Restore/replacement remaps dependencies and rebuilds fresh
+destination tuples without mutating source trees, rows or roots.
+
+The shared ExplicitInsertAtomicity, TimeZoneVolatility and TypeReparsePositions
+reference definitions prescribe transaction phases, concrete timezone results
+and mixed/quoted/Unicode TYPE diagnostics independently. Engine SQLLifecycleRoots
+and SQLErrorAndForeignReplacementRoots witnesses inspect all tuple components,
+real live row/version membership, DROP compaction, TYPE usages, retained roots and
+a proven retained TEMP address collision. Root-owned dual-mode checks and feature
+smoke remain the verification authority; this document does not claim checks.
