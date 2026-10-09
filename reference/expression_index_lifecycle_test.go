@@ -2,8 +2,10 @@ package reference_test
 
 import (
 	"bytes"
+	"context"
 	"stuntgres"
 	"testing"
+	"time"
 )
 
 func TestReferenceExpressionIndexAlterTypeDependency(t *testing.T) {
@@ -57,6 +59,15 @@ func TestReferenceExpressionIndexLifecycle(t *testing.T) {
 	p := newReferenceScenario(t)
 	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
+			// The shared fixture resets public only; own this custom schema even
+			// when a lifecycle assertion fails or the scenario context expires.
+			t.Cleanup(func() {
+				cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if _, err := backend.db.ExecContext(cleanup, "DROP SCHEMA IF EXISTS moved CASCADE"); err != nil {
+					t.Error("expression index lifecycle schema cleanup", err)
+				}
+			})
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			for _, s := range []referenceStep{
 				referenceExec("CREATE TABLE t(unused INT,n INT,v TEXT)", 0), referenceExec("INSERT INTO t VALUES(9,1,'Alpha')", 1), referenceExec("CREATE INDEX ix ON t(lower(v),(n+1))", 0),
