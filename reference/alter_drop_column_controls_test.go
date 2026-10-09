@@ -1,11 +1,8 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"strings"
 	"stuntgres"
 	"testing"
@@ -13,11 +10,12 @@ import (
 
 func TestReferenceAlterDropColumnControls(t *testing.T) {
 	roleReferenceCleanup(t, []string{"drop_table_owner"})
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	schemaReferenceCleanup(t, "S")
 	p.step(t, referenceExec("CREATE USER drop_table_owner", 0))
 	p.step(t, referenceExec(`CREATE SCHEMA "S" AUTHORIZATION drop_table_owner`, 0))
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		conn, err := db.Conn(p.ctx)
 		if err != nil {
 			t.Fatal(err)
@@ -25,7 +23,7 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 		func() {
 			defer conn.Close()
 			defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-			record := &referenceRecorder{}
+			record := backend.recorder
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, record, s) }
 			run(referenceExec("SET SESSION AUTHORIZATION drop_table_owner", 0))
 			run(referenceExec(`CREATE TABLE "S"."T"(a INT NOT NULL,b TEXT,s TEXT,c BIGINT,second_drop TEXT)`, 0))
@@ -41,7 +39,7 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 	if err := stuntgres.Dump(p.ctx, p.native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(dump.String(), "sentinel") || strings.Contains(dump.String(), "VALUES ()") || strings.Count(dump.String(), `INSERT INTO "public"."z" DEFAULT VALUES;`) != 2 || !strings.Contains(dump.String(), `CREATE TABLE "S"."T" ("a" INTEGER CONSTRAINT "T_a_not_null" NOT NULL, "s" TEXT, "c" BIGINT);`) {
+	if strings.Contains(dump.String(), "sentinel") || strings.Contains(dump.String(), "ALTER TABLE") || strings.Contains(dump.String(), "VALUES ()") || strings.Count(dump.String(), `INSERT INTO "public"."z" DEFAULT VALUES;`) != 2 || !strings.Contains(dump.String(), `CREATE TABLE "S"."T" ("a" INTEGER CONSTRAINT "T_a_not_null" NOT NULL, "s" TEXT, "c" BIGINT);`) {
 		t.Fatal(dump.String())
 	}
 	schemaDirective := strings.Index(dump.String(), `CREATE SCHEMA "S" AUTHORIZATION "drop_table_owner";`)
@@ -50,32 +48,34 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 	if schemaDirective < 0 || ownerDirective <= schemaDirective || tableDirective <= ownerDirective {
 		t.Fatal(dump.String())
 	}
-	oracle, err := p.postgres.Conn(p.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	func() {
-		defer oracle.Close()
-		defer oracle.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-		if _, err = oracle.ExecContext(p.ctx, `DROP SCHEMA "S" CASCADE; DROP TABLE z`); err != nil {
+	if p.postgres != nil {
+		oracle, err := p.postgres.Conn(p.ctx)
+		if err != nil {
 			t.Fatal(err)
 		}
-		// The shared fixture supplies postgres independently of the stuntgres
-		// authenticator. Replay the canonical owner-bearing bytes unchanged.
-		if _, err = oracle.ExecContext(p.ctx, dump.String()); err != nil {
-			t.Fatal("real PostgreSQL rejected same owner-bearing live dump", err)
+		func() {
+			defer oracle.Close()
+			defer oracle.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
+			if _, err = oracle.ExecContext(p.ctx, `DROP SCHEMA "S" CASCADE; DROP TABLE z`); err != nil {
+				t.Fatal(err)
+			}
+			// The shared fixture supplies postgres independently of the stuntgres
+			// authenticator. Replay the canonical owner-bearing bytes unchanged.
+			if _, err = oracle.ExecContext(p.ctx, dump.String()); err != nil {
+				t.Fatal("real PostgreSQL rejected same owner-bearing live dump", err)
+			}
+		}()
+		var schemaOwner, tableOwner string
+		if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_namespace n JOIN pg_roles r ON r.oid=n.nspowner WHERE n.nspname='S'`).Scan(&schemaOwner); err != nil || schemaOwner != "drop_table_owner" {
+			t.Fatal(schemaOwner, err)
 		}
-	}()
-	var schemaOwner, tableOwner string
-	if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_namespace n JOIN pg_roles r ON r.oid=n.nspowner WHERE n.nspname='S'`).Scan(&schemaOwner); err != nil || schemaOwner != "drop_table_owner" {
-		t.Fatal(schemaOwner, err)
-	}
-	if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='S' AND c.relname='T'`).Scan(&tableOwner); err != nil || tableOwner != "drop_table_owner" {
-		t.Fatal(tableOwner, err)
-	}
-	var bootstrapTableOwner string
-	if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='public' AND c.relname='z'`).Scan(&bootstrapTableOwner); err != nil || bootstrapTableOwner != "postgres" {
-		t.Fatal(bootstrapTableOwner, err)
+		if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='S' AND c.relname='T'`).Scan(&tableOwner); err != nil || tableOwner != "drop_table_owner" {
+			t.Fatal(tableOwner, err)
+		}
+		var bootstrapTableOwner string
+		if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='public' AND c.relname='z'`).Scan(&bootstrapTableOwner); err != nil || bootstrapTableOwner != "postgres" {
+			t.Fatal(bootstrapTableOwner, err)
+		}
 	}
 	for range 2 {
 		if err := stuntgres.Reset(p.ctx, p.native); err != nil {
@@ -87,7 +87,8 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 		expected := referenceSelect(`SELECT * FROM "S"."T" ORDER BY a`, []string{"a", "s", "c"}, []string{"INT4", "TEXT", "INT8"}, [][]any{{int64(1), "O'Brien\n\\tail", int64(9223372036854775807)}, {int64(2), nil, nil}})
 		p.step(t, expected)
 		p.step(t, referencePrepared(expected))
-		for _, db := range []*sql.DB{p.memory, p.postgres} {
+		for _, backend := range p.backends() {
+			db := backend.db
 			conn, err := db.Conn(p.ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -95,11 +96,14 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 			func() {
 				defer conn.Close()
 				defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-				record := &referenceRecorder{}
+				record := backend.recorder
 				run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, record, s) }
 				run(referenceExec("SET SESSION AUTHORIZATION drop_table_owner", 0))
 				run(expected)
 				run(referencePrepared(expected))
+				for _, prepared := range []bool{false, true} {
+					referenceTableDDLMetadata(t, p.ctx, conn, backend.pg, prepared, expected.query, []string{"a", "s", "c"}, []string{"INT4", "TEXT", "INT8"}, []bool{false, true, true}, 2)
+				}
 				run(referenceExec(`ALTER TABLE "S"."T" DROP COLUMN IF EXISTS b`, 0))
 				run(referencePrepared(referenceExec(`ALTER TABLE "S"."T" DROP COLUMN IF EXISTS b`, 0)))
 			}()
@@ -112,17 +116,11 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 			t.Fatal(err, again.String())
 		}
 	}
-	for _, script := range []string{"CREATE TABLE bad(v INT NOT NULL); INSERT INTO bad DEFAULT VALUES;", "CREATE TABLE bad(); INSERT INTO bad(v) DEFAULT VALUES;", "CREATE TABLE bad(); ALTER TABLE bad DROP v;"} {
-		if err := stuntgres.Restore(p.ctx, p.native, strings.NewReader(script)); err == nil {
-			t.Fatal("invalid private control accepted", script)
-		}
-		p.step(t, referenceSelect("SELECT * FROM z", []string{}, []string{}, [][]any{{}, {}}))
-	}
 }
 
 func TestReferenceAlterDropColumnDistinctOwnerRestoreBoundary(t *testing.T) {
 	roleReferenceCleanup(t, []string{"drop_schema_owner", "drop_table_owner"})
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	schemaReferenceCleanup(t, "S")
 	p.step(t, referenceExec("CREATE USER drop_schema_owner", 0))
 	p.step(t, referenceExec("CREATE USER drop_table_owner", 0))
@@ -140,35 +138,38 @@ func TestReferenceAlterDropColumnDistinctOwnerRestoreBoundary(t *testing.T) {
 	if !strings.Contains(dump.String(), `CREATE SCHEMA "S" AUTHORIZATION "drop_schema_owner";`) || !strings.Contains(dump.String(), `SET SESSION AUTHORIZATION 'drop_table_owner';`) {
 		t.Fatal(dump.String())
 	}
-	oracle, err := referenceAdmin.Conn(p.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	func() {
-		defer oracle.Close()
-		defer oracle.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-		// Independent PG fixture privileges bridge its real destination authority;
-		// native Dump still rejects explicit ACLs and has no public GRANT support.
-		for _, line := range strings.Split(dump.String(), "\n") {
-			if line == "" {
-				continue
-			}
-			if strings.HasPrefix(line, "SET SESSION AUTHORIZATION") {
-				if _, err = oracle.ExecContext(p.ctx, `GRANT USAGE,CREATE ON SCHEMA "S" TO drop_table_owner`); err != nil {
-					t.Fatal(err)
+	var err error
+	if p.postgres != nil {
+		oracle, err := referenceAdmin.Conn(p.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		func() {
+			defer oracle.Close()
+			defer oracle.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
+			// Independent PG fixture privileges bridge its real destination authority;
+			// native Dump still rejects explicit ACLs and has no public GRANT support.
+			for _, line := range strings.Split(dump.String(), "\n") {
+				if line == "" {
+					continue
+				}
+				if strings.HasPrefix(line, "SET SESSION AUTHORIZATION") {
+					if _, err = oracle.ExecContext(p.ctx, `GRANT USAGE,CREATE ON SCHEMA "S" TO drop_table_owner`); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err = oracle.ExecContext(p.ctx, line); err != nil {
+					t.Fatal(line, err)
 				}
 			}
-			if _, err = oracle.ExecContext(p.ctx, line); err != nil {
-				t.Fatal(line, err)
-			}
+		}()
+		var schemaOwner, tableOwner string
+		if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_namespace n JOIN pg_roles r ON r.oid=n.nspowner WHERE n.nspname='S'`).Scan(&schemaOwner); err != nil || schemaOwner != "drop_schema_owner" {
+			t.Fatal(schemaOwner, err)
 		}
-	}()
-	var schemaOwner, tableOwner string
-	if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_namespace n JOIN pg_roles r ON r.oid=n.nspowner WHERE n.nspname='S'`).Scan(&schemaOwner); err != nil || schemaOwner != "drop_schema_owner" {
-		t.Fatal(schemaOwner, err)
-	}
-	if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='S' AND c.relname='T'`).Scan(&tableOwner); err != nil || tableOwner != "drop_table_owner" {
-		t.Fatal(tableOwner, err)
+		if err = referenceAdmin.QueryRowContext(p.ctx, `SELECT r.rolname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_roles r ON r.oid=c.relowner WHERE n.nspname='S' AND c.relname='T'`).Scan(&tableOwner); err != nil || tableOwner != "drop_table_owner" {
+			t.Fatal(tableOwner, err)
+		}
 	}
 	for range 2 {
 		if err = stuntgres.Reset(p.ctx, p.native); err != nil {
@@ -178,7 +179,8 @@ func TestReferenceAlterDropColumnDistinctOwnerRestoreBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 		p.step(t, referenceSelect(`SELECT * FROM "S"."T"`, []string{"a", "c"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(9)}}))
-		for _, db := range []*sql.DB{p.memory, p.postgres} {
+		for _, backend := range p.backends() {
+			db := backend.db
 			conn, err := db.Conn(p.ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -186,7 +188,7 @@ func TestReferenceAlterDropColumnDistinctOwnerRestoreBoundary(t *testing.T) {
 			func() {
 				defer conn.Close()
 				defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-				record := &referenceRecorder{}
+				record := backend.recorder
 				referenceRunStep(t, p.ctx, conn, record, referenceExec("SET SESSION AUTHORIZATION drop_schema_owner", 0))
 				for _, prepared := range []bool{false, true} {
 					failure := referenceImplicitError(`ALTER TABLE "S"."T" DROP IF EXISTS missing`, referenceDiagnostic{Code: "42501", Message: "must be owner of table T"})
@@ -196,6 +198,7 @@ func TestReferenceAlterDropColumnDistinctOwnerRestoreBoundary(t *testing.T) {
 				}
 			}()
 		}
+		p.step(t, referenceSelect(`SELECT * FROM "S"."T"`, []string{"a", "c"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(9)}}))
 		var again bytes.Buffer
 		if err = stuntgres.Dump(p.ctx, p.native, &again); err != nil || again.String() != dump.String() {
 			t.Fatal(err, again.String())

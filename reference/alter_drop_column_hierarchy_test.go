@@ -3,7 +3,6 @@
 package reference_test
 
 import (
-	"database/sql"
 	"testing"
 )
 
@@ -51,25 +50,4 @@ func TestReferenceAlterDropColumnExternalHierarchy(t *testing.T) {
 	run(referenceSelect("SELECT * FROM partitioned", []string{"k", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "keep"}}))
 	run(referenceExec("ALTER TABLE partitioned DROP b", 0))
 	run(referenceSelect("SELECT * FROM part", []string{"k"}, []string{"INT4"}, [][]any{{int64(1)}}))
-}
-
-func TestReferenceAlterDropColumnTransactionalDDL(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(a INT,b TEXT)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1,'keep')", 1))
-	for _, backend := range []struct {
-		db     *sql.DB
-		record *referenceRecorder
-	}{{p.memory, p.memoryRecord}, {p.postgres, p.postgresRecord}} {
-		conn, err := backend.db.Conn(p.ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		referenceRunStep(t, p.ctx, conn, backend.record, referenceExec("BEGIN", 0))
-		referenceRunStep(t, p.ctx, conn, backend.record, referenceExec("ALTER TABLE t DROP b", 0))
-		referenceRunStep(t, p.ctx, conn, backend.record, referenceSelect("SELECT * FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
-		referenceRunStep(t, p.ctx, conn, backend.record, referenceExec("ROLLBACK", 0))
-		conn.Close()
-	}
-	p.step(t, referenceSelect("SELECT * FROM t", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "keep"}}))
 }

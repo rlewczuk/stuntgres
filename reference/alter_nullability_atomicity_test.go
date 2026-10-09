@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,13 +7,17 @@ import (
 )
 
 func TestReferenceAlterNullabilityWholeInput(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(a INT,b INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(7,9)", 1))
 	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL,", "CREATE TABLE prefix(v INT);INSERT INTO prefix VALUES(1);ALTER TABLE t ALTER a SET NOT NULL,"} {
 		for _, prepared := range []bool{false, true} {
 			s := referenceImplicitError(q, referenceDiagnostic{Code: "42601", Message: "syntax error at end of input", Position: strconv.Itoa(utf8.RuneCountInString(q) + 1)})
 			s.prepared = prepared
+			s.errorStage = "execute"
+			if prepared {
+				s.errorStage = "prepare"
+			}
 			p.step(t, s)
 		}
 	}
@@ -24,7 +26,7 @@ func TestReferenceAlterNullabilityWholeInput(t *testing.T) {
 }
 
 func TestReferenceAlterNullabilityDependencyAtomicity(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE t(a INT,b INT)", 0))
 	p.step(t, referenceExec("INSERT INTO t VALUES(7,9)", 1))
 	p.step(t, referenceExec("CREATE VIEW v AS SELECT b FROM t", 0))

@@ -75,60 +75,6 @@ func TestReferenceAlterSchemaPostgresLaterCollisions(t *testing.T) {
 	}
 }
 
-func TestReferenceAlterSchemaGenericAndTemporaryBoundaries(t *testing.T) {
-	for _, postgres := range []bool{true, false} {
-		t.Run(map[bool]string{true: "postgres", false: "native"}[postgres], func(t *testing.T) {
-			p := newReferencePair(t)
-			schemaReferenceCleanup(t, "s1", "s2")
-			db := p.memory
-			if postgres {
-				db = p.postgres
-			}
-			c, err := db.Conn(p.ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer c.Close()
-			r := &referenceRecorder{}
-			referenceAlterSchemaSetup(t, p, c, r)
-			for _, object := range []string{"free", "v"} {
-				source := "s1.free"
-				if object == "v" {
-					source = "public.v"
-				}
-				q := "ALTER TABLE " + source + " SET SCHEMA s2"
-				if postgres || object == "v" {
-					referenceRunStep(t, p.ctx, c, r, referencePrepared(referenceExec(q, 0)))
-				} else {
-					s := referencePrepared(referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: "ALTER TABLE SET SCHEMA supports ordinary tables only"}))
-					s.errorStage = "execute"
-					referenceRunStep(t, p.ctx, c, r, s)
-				}
-			}
-			view, sequence := "s2.v", "s1.free"
-			if postgres {
-				sequence = "s2.free"
-			}
-			referenceRunStep(t, p.ctx, c, r, referenceAlterSchemaRows("SELECT id,note FROM "+view+" ORDER BY id"))
-			sequenceProbeValue(t, p.ctx, c, "SELECT nextval('"+sequence+"')", 1000)
-			message := "temporary schema creation is unsupported"
-			if postgres {
-				message = "cannot move objects into or out of temporary schemas"
-			}
-			s := referencePrepared(referenceImplicitError("ALTER TABLE s1.t SET SCHEMA pg_temp", referenceDiagnostic{Code: "0A000", Message: message}))
-			s.errorStage = "execute"
-			referenceRunStep(t, p.ctx, c, r, s)
-			referenceRunStep(t, p.ctx, c, r, referenceAlterSchemaRows("SELECT id,note FROM s1.t ORDER BY id"))
-			if postgres {
-				referenceRunStep(t, p.ctx, c, r, referenceExec("CREATE INDEX ix ON s1.t(id)", 0))
-				s := referencePrepared(referenceImplicitError("ALTER TABLE s1.ix SET SCHEMA s2", referenceDiagnostic{Code: "42809", Message: `cannot change schema of index "ix"`, Hint: "Change the schema of the table instead."}))
-				s.errorStage = "execute"
-				referenceRunStep(t, p.ctx, c, r, s)
-			}
-		})
-	}
-}
-
 func TestReferenceAlterSchemaPostgresTransactionRollback(t *testing.T) {
 	p := newReferencePair(t)
 	schemaReferenceCleanup(t, "s1", "s2")

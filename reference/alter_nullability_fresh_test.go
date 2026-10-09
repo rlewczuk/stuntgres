@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -8,14 +6,10 @@ import (
 )
 
 func TestReferenceAlterNullabilityFreshValidationAfterDelete(t *testing.T) {
-	p := newReferencePair(t)
-	for _, b := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
 			run(referenceExec("CREATE TABLE t(a INT)", 0))
 			run(referenceExec("CREATE TABLE u(a INT)", 0))
 			run(referenceExec("INSERT INTO t VALUES(NULL),(7)", 2))
@@ -25,7 +19,7 @@ func TestReferenceAlterNullabilityFreshValidationAfterDelete(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer tx.Rollback()
-			tr := func(s referenceStep) { referenceRunStep(t, p.ctx, tx, b.record, s) }
+			tr := func(s referenceStep) { referenceRunStep(t, p.ctx, tx, b.recorder, s) }
 			tr(referenceSelect("SELECT a FROM u", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
 			run(referenceExec("DELETE FROM t WHERE a IS NULL", 1))
 			run(referenceExec("INSERT INTO u VALUES(2)", 1))
@@ -34,6 +28,7 @@ func TestReferenceAlterNullabilityFreshValidationAfterDelete(t *testing.T) {
 			if err = tx.Commit(); err != nil {
 				t.Fatal(err)
 			}
+			referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, false, "SELECT * FROM t", []string{"a"}, []string{"INT4"}, []bool{false}, 1)
 			run(referenceSelect("SELECT * FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		})
 	}

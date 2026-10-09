@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,7 +9,7 @@ import (
 func TestReferenceTableCoreOrderedLikeShapeAndDrop(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
 			run(referenceExec("CREATE TABLE source(i INTEGER NOT NULL,s TEXT,f BOOLEAN)", 0))
 			run(referenceExec("INSERT INTO source VALUES($1,$2,$3)", 1, 7, "O'Brien", true))
@@ -19,12 +17,30 @@ func TestReferenceTableCoreOrderedLikeShapeAndDrop(t *testing.T) {
 			names := []string{"lead", "i", "s", "f", "tail"}
 			types := []string{"INT8", "INT4", "TEXT", "BOOL", "TEXT"}
 			run(referenceSelect("SELECT * FROM clone", names, types, nil))
+			for _, b := range p.backends() {
+				referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM clone", names, types, []bool{true, false, true, true, true}, 0)
+			}
 			run(referenceExec("INSERT INTO clone VALUES($1,$2,$3,$4,$5)", 1, int64(9223372036854775807), 7, "O'Brien", true, "tail"))
 			expected := [][]any{{int64(9223372036854775807), int64(7), "O'Brien", true, "tail"}}
 			run(referenceSelect("SELECT * FROM clone", names, types, expected))
 			failure := referenceImplicitError("INSERT INTO clone(i) VALUES(NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "i" of relation "clone" violates not-null constraint`, Detail: "Failing row contains (null, null, null, null, null).", Schema: "public", Table: "clone", Column: "i"})
 			failure.errorStage = "execute"
 			run(failure)
+			run(referenceSelect("SELECT * FROM clone", names, types, expected))
+			for _, tc := range []struct {
+				q    string
+				want referenceDiagnostic
+			}{
+				{"CREATE TABLE missingclone (LIKE missing)", referenceDiagnostic{Code: "42P01", Message: `relation "missing" does not exist`, Position: "33"}},
+				{"CREATE TABLE bad(LIKE source,i TEXT)", referenceDiagnostic{Code: "42701", Message: `column "i" specified more than once`}},
+				{"CREATE TABLE bad(ctid INT)", referenceDiagnostic{Code: "42701", Message: `column name "ctid" conflicts with a system column name`}},
+				{"DROP TABLE source,missing,clone", referenceDiagnostic{Code: "42P01", Message: `table "missing" does not exist`}},
+			} {
+				s := referenceImplicitError(tc.q, tc.want)
+				s.errorStage = "execute"
+				run(s)
+			}
+			run(referenceSelect("SELECT * FROM source", []string{"i", "s", "f"}, []string{"INT4", "TEXT", "BOOL"}, [][]any{{int64(7), "O'Brien", true}}))
 			run(referenceSelect("SELECT * FROM clone", names, types, expected))
 			run(referenceExec("CREATE TABLE one(a INT4 NOT NULL)", 0))
 			run(referenceExec("CREATE TABLE two(b TEXT)", 0))
@@ -43,6 +59,9 @@ func TestReferenceTableCoreOrderedLikeShapeAndDrop(t *testing.T) {
 			run(referenceExec("CREATE TABLE zl(LIKE z)", 0))
 			for _, n := range []string{"z", "zl"} {
 				run(referenceSelect("SELECT * FROM "+n, []string{}, []string{}, nil))
+				for _, b := range p.backends() {
+					referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM "+n, []string{}, []string{}, []bool{}, 0)
+				}
 			}
 			for _, mode := range []string{"", " RESTRICT", " CASCADE"} {
 				run(referenceExec("CREATE TABLE a(id INT)", 0))
@@ -69,21 +88,23 @@ func TestReferenceTableCoreOrderedLikeShapeAndDrop(t *testing.T) {
 			}
 			run(referenceExec(`CREATE TABLE "odd.dot"("Case" INT)`, 0))
 			run(referenceExec(`DROP TABLE public."odd.dot",z,zl CASCADE`, 0))
+			run(referenceExec("DROP TABLE clone,public.clone CASCADE", 0))
 		})
 	}
 }
 func TestReferenceTableCoreSemanticSkipNotices(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, postgres := range []bool{false, true} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				postgres := backend.pg
 				t.Run(fmt.Sprint(postgres), func(t *testing.T) {
 					var notices []referenceDiagnostic
 					_, conn, record := noticeReferencePool(t, p, postgres, &notices)
 					run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, conn, record, s) }
 					run(referenceExec("CREATE TABLE t(id INT)", 0))
 					run(referenceExec("INSERT INTO t VALUES(11)", 1))
-					for _, q := range []string{"CREATE TABLE IF NOT EXISTS t(id no_such_type)", "CREATE TABLE IF NOT EXISTS t(id SMALLINT)", "CREATE TABLE IF NOT EXISTS t(id NAME)", "CREATE TABLE IF NOT EXISTS t(id INT,id TEXT)", "CREATE TABLE IF NOT EXISTS t(LIKE missing)", "CREATE TABLE IF NOT EXISTS t(LIKE missing INCLUDING ALL)"} {
+					for _, q := range []string{"CREATE TABLE IF NOT EXISTS t(id no_such_type)", "CREATE TABLE IF NOT EXISTS t(id SMALLINT)", "CREATE TABLE IF NOT EXISTS t(id NAME)", "CREATE TABLE IF NOT EXISTS t(id INT,id TEXT)", "CREATE TABLE IF NOT EXISTS t(LIKE missing)", "CREATE TABLE IF NOT EXISTS t(LIKE missing INCLUDING ALL)", "CREATE TABLE IF NOT EXISTS t(LIKE missing EXCLUDING CONSTRAINTS)"} {
 						notices = nil
 						run(referenceExec(q, 0))
 						want := []referenceDiagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: `relation "t" already exists, skipping`}}
@@ -92,6 +113,19 @@ func TestReferenceTableCoreSemanticSkipNotices(t *testing.T) {
 						}
 						run(referenceSelect("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(11)}}))
 					}
+					notices = nil
+					malformedQuery := "CREATE TABLE IF NOT EXISTS t(id no_such_type,)"
+					malformed := referenceImplicitError(malformedQuery, referenceDiagnostic{Code: "42601", Message: `syntax error at or near ")"`, Position: referencePosition(len(malformedQuery))})
+					if prepared {
+						malformed.errorStage = "prepare"
+					} else {
+						malformed.errorStage = "execute"
+					}
+					run(malformed)
+					if len(notices) != 0 {
+						t.Fatal("malformed skip emitted notice", notices)
+					}
+					run(referenceSelect("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(11)}}))
 					notices = nil
 					run(referenceExec("DROP TABLE IF EXISTS missing,absent_schema.t", 0))
 					want := []referenceDiagnostic{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `table "missing" does not exist, skipping`}, {Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `schema "absent_schema" does not exist, skipping`}}
@@ -105,6 +139,17 @@ func TestReferenceTableCoreSemanticSkipNotices(t *testing.T) {
 					if len(notices) != 0 {
 						t.Fatal(notices)
 					}
+					referenceRunStep(t, p.ctx, conn, record, referencePrepared(referenceExec("CREATE TABLE IF NOT EXISTS t(id unknown_type)", 0)))
+					if len(notices) != 0 {
+						t.Fatal("prepared suppressed skip emitted notice", notices)
+					}
+					run(referenceExec("RESET client_min_messages", 0))
+					notices = nil
+					referenceRunStep(t, p.ctx, conn, record, referencePrepared(referenceExec("DROP TABLE IF EXISTS missing,absent_schema.t", 0)))
+					if !reflect.DeepEqual(notices, want) {
+						t.Fatal("reset did not restore ordered notices", notices, want)
+					}
+					run(referenceSelect("SELECT * FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(11)}}))
 				})
 			}
 		})

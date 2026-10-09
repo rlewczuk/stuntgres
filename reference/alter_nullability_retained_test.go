@@ -1,24 +1,16 @@
-//go:build reference
-
 package reference_test
 
 import (
 	"database/sql"
 	"fmt"
-	"reflect"
 	"testing"
 )
 
 func TestReferenceAlterNullabilityReviewRetainedPositiveDML(t *testing.T) {
-	p := newReferencePair(t)
-	for _, backend := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-		native bool
-	}{{"postgres", p.postgres, p.postgresRecord, false}, {"native", p.memory, p.memoryRecord, true}} {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 			run(referenceExec("CREATE TABLE t(a INT,b INT,c INT,d INT)", 0))
 			run(referenceExec("INSERT INTO t VALUES(7,9,11,13)", 1))
 			originalUpdate, err := backend.db.PrepareContext(p.ctx, "UPDATE t SET c=$1 WHERE c=$2")
@@ -42,49 +34,13 @@ func TestReferenceAlterNullabilityReviewRetainedPositiveDML(t *testing.T) {
 			defer selected.Close()
 			change := func(next, previous int64, nullable bool) {
 				t.Helper()
-				r, e := update.ExecContext(p.ctx, next, previous)
-				if e != nil {
-					t.Fatal(e)
-				}
-				count, e := r.RowsAffected()
-				if e != nil || count != 1 {
-					t.Fatal(count, e)
-				}
-				rows, e := selected.QueryContext(p.ctx)
-				if e != nil {
-					t.Fatal(e)
-				}
-				defer rows.Close()
-				names, e := rows.Columns()
-				if e != nil || !reflect.DeepEqual(names, []string{"c"}) {
-					t.Fatal(names, e)
-				}
-				metadata, e := rows.ColumnTypes()
-				if e != nil || len(metadata) != 1 {
-					t.Fatal(metadata, e)
-				}
-				scan := reflect.TypeFor[int32]()
-				wantNullable := false
-				if backend.native {
-					scan = reflect.TypeFor[int64]()
-					wantNullable = nullable
-				}
-				n, k := metadata[0].Nullable()
-				if metadata[0].DatabaseTypeName() != "INT4" || metadata[0].ScanType() != scan || k != backend.native || n != wantNullable {
-					t.Fatal(metadata[0], n, k)
-				}
-				var got int64
-				if !rows.Next() {
-					t.Fatal(rows.Err())
-				}
-				if e = rows.Scan(&got); e != nil || got != next {
-					t.Fatal(got, e)
-				}
-				if rows.Next() || rows.Err() != nil {
-					t.Fatal("unexpected retained result cardinality", rows.Err())
-				}
+				heldUpdate := referenceHeldStatement{referenceExecutor: tx, statement: update, query: "UPDATE t SET c=$1 WHERE c=$2"}
+				heldSelect := referenceHeldStatement{referenceExecutor: tx, statement: selected, query: "SELECT c FROM t"}
+				referenceRunStep(t, p.ctx, heldUpdate, backend.recorder, referenceExec(heldUpdate.query, 1, next, previous))
+				referenceTableDDLMetadata(t, p.ctx, heldSelect, backend.pg, false, heldSelect.query, []string{"c"}, []string{"INT4"}, []bool{nullable}, 1)
+				referenceRunStep(t, p.ctx, heldSelect, backend.recorder, referenceSelect(heldSelect.query, []string{"c"}, []string{"INT4"}, [][]any{{next}}))
 			}
-			tr := func(q string) { referenceRunStep(t, p.ctx, tx, backend.record, referenceExec(q, 0)) }
+			tr := func(q string) { referenceRunStep(t, p.ctx, tx, backend.recorder, referenceExec(q, 0)) }
 			tr("SAVEPOINT original_shape")
 			tr("ALTER TABLE t DROP b, ALTER c SET NOT NULL")
 			change(14, 11, false)
@@ -109,14 +65,10 @@ func TestReferenceAlterNullabilityReviewSnapshotTimelines(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		for _, timeline := range []string{"middle", "multiple-before", "own-before"} {
 			t.Run(fmt.Sprint(prepared)+timeline, func(t *testing.T) {
-				p := newReferencePair(t)
-				for _, backend := range []struct {
-					name   string
-					db     *sql.DB
-					record *referenceRecorder
-				}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+				p := newReferenceScenario(t)
+				for _, backend := range p.backends() {
 					t.Run(backend.name, func(t *testing.T) {
-						run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+						run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 						run(referenceExec("CREATE TABLE t(a INT,b TEXT,c INT,d TEXT)", 0))
 						run(referenceExec("INSERT INTO t VALUES(7,'nine',11,'thirteen')", 1))
 						tx, err := backend.db.BeginTx(p.ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
@@ -124,7 +76,17 @@ func TestReferenceAlterNullabilityReviewSnapshotTimelines(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer tx.Rollback()
-						tr := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, tx, backend.record, s) }
+						tr := func(s referenceStep) {
+							s.prepared = prepared
+							if s.selectRows {
+								nullable := make([]bool, len(s.columns))
+								for i, name := range s.columns {
+									nullable[i] = len(s.columns) == 4 || name != "d"
+								}
+								referenceTableDDLMetadata(t, p.ctx, tx, backend.pg, prepared, s.query, s.columns, s.types, nullable, len(s.rows))
+							}
+							referenceRunStep(t, p.ctx, tx, backend.recorder, s)
+						}
 						tr(referenceExec("SAVEPOINT original_shape", 0))
 						if timeline == "own-before" {
 							tr(referenceExec("INSERT INTO t VALUES(8,'own',12,'ownlast')", 1))

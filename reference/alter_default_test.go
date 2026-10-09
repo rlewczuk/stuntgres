@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,14 +9,11 @@ import (
 func TestReferenceAlterDefaultLifecycle(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name string
-				db   *sql.DB
-			}{{"native", p.memory}, {"postgres", p.postgres}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					record := &referenceRecorder{}
-					run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, backend.db, record, s) }
+					record := backend.recorder
+					run := func(s referenceStep) { s.prepared = prepared; defaultReferenceRunStep(t, p, backend.db, record, s) }
 					run(referenceExec("CREATE TABLE d(id INT,i INT DEFAULT 11,b BOOL DEFAULT FALSE)", 0))
 					run(referenceExec("INSERT INTO d(id) VALUES(0)", 1))
 					held, err := backend.db.PrepareContext(p.ctx, "INSERT INTO d(id) VALUES($1)")
@@ -32,8 +27,8 @@ func TestReferenceAlterDefaultLifecycle(t *testing.T) {
 					}
 					defer defaults.Close()
 					run(referenceExec("ALTER TABLE d ALTER COLUMN i SET DEFAULT 7", 0))
-					for _, s := range []*sql.Stmt{held, defaults} {
-						r, err := s.ExecContext(p.ctx, 1)
+					for index, s := range []*sql.Stmt{held, defaults} {
+						r, err := s.ExecContext(p.ctx, index+1)
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -41,9 +36,11 @@ func TestReferenceAlterDefaultLifecycle(t *testing.T) {
 							t.Fatal(n, e)
 						}
 					}
-					run(referenceExec("INSERT INTO d VALUES(2,DEFAULT,DEFAULT),(3,99,TRUE),(4,NULL,NULL)", 3))
+					run(referenceExec("INSERT INTO d(id) VALUES(3)", 1))
+					run(referenceExec("INSERT INTO d VALUES(4,DEFAULT,DEFAULT),(5,99,TRUE),(6,NULL,NULL)", 3))
+					run(referenceExec("INSERT INTO d(id) VALUES(1)", 1))
 					run(referenceExec("ALTER TABLE ONLY(d) ALTER i SET DEFAULT 9", 0))
-					r, err := held.ExecContext(p.ctx, 5)
+					r, err := held.ExecContext(p.ctx, 7)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -52,13 +49,19 @@ func TestReferenceAlterDefaultLifecycle(t *testing.T) {
 					}
 					run(referenceExec("ALTER TABLE d* ALTER i DROP DEFAULT", 0))
 					run(referenceExec("ALTER TABLE ONLY d ALTER i DROP DEFAULT", 0))
-					run(referenceExec("INSERT INTO d VALUES(6,DEFAULT,DEFAULT)", 1))
-					run(referenceSelect("SELECT * FROM d ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "BOOL"}, [][]any{{int64(0), int64(11), false}, {int64(1), int64(7), false}, {int64(1), int64(7), false}, {int64(2), int64(7), false}, {int64(3), int64(99), true}, {int64(4), nil, nil}, {int64(5), int64(9), false}, {int64(6), nil, false}}))
+					r, err = defaults.ExecContext(p.ctx, 8)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if n, e := r.RowsAffected(); e != nil || n != 1 {
+						t.Fatal(n, e)
+					}
+					run(referenceSelect("SELECT * FROM d ORDER BY id", []string{"id", "i", "b"}, []string{"INT4", "INT4", "BOOL"}, [][]any{{int64(0), int64(11), false}, {int64(1), int64(7), false}, {int64(1), int64(7), false}, {int64(2), int64(7), false}, {int64(3), int64(7), false}, {int64(4), int64(7), false}, {int64(5), int64(99), true}, {int64(6), nil, nil}, {int64(7), int64(9), false}, {int64(8), nil, false}}))
 					for _, expr := range []string{"TRUE OR FALSE", "NOT FALSE", "NULL IS NULL"} {
 						run(referenceExec("ALTER TABLE d ALTER b SET DEFAULT "+expr, 0))
-						run(referenceExec("INSERT INTO d VALUES(7,NULL,DEFAULT)", 1))
-						run(referenceSelect("SELECT b FROM d WHERE id=7", []string{"b"}, []string{"BOOL"}, [][]any{{true}}))
-						run(referenceExec("DELETE FROM d WHERE id=7", 1))
+						run(referenceExec("INSERT INTO d VALUES(9,NULL,DEFAULT)", 1))
+						run(referenceSelect("SELECT b FROM d WHERE id=9", []string{"b"}, []string{"BOOL"}, [][]any{{true}}))
+						run(referenceExec("DELETE FROM d WHERE id=9", 1))
 					}
 					run(referenceExec("CREATE TABLE q(i INT DEFAULT 1)", 0))
 					run(referenceExec("ALTER TABLE public.q ALTER i SET DEFAULT 7", 0))
@@ -82,11 +85,8 @@ func TestReferenceAlterDefaultOwnership(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
 			roleReferenceCleanup(t, []string{"alter_default_owner", "alter_default_reader"})
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name string
-				db   *sql.DB
-			}{{"native", p.memory}, {"postgres", p.postgres}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					conn, err := backend.db.Conn(p.ctx)
 					if err != nil {
@@ -94,7 +94,7 @@ func TestReferenceAlterDefaultOwnership(t *testing.T) {
 					}
 					defer conn.Close()
 					defer conn.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION")
-					record := &referenceRecorder{}
+					record := backend.recorder
 					run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, conn, record, s) }
 					run(referenceExec("CREATE USER alter_default_owner", 0))
 					run(referenceExec("CREATE USER alter_default_reader", 0))
@@ -139,7 +139,7 @@ func TestReferenceAlterDefaultOwnership(t *testing.T) {
 func TestReferenceAlterDefaultDiagnostics(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
 			run(referenceExec("CREATE TABLE t(id INT,i INT DEFAULT 7,b BOOL DEFAULT FALSE,v VARCHAR(2))", 0))
 			run(referenceExec("INSERT INTO t VALUES(0,11,FALSE,'ok')", 1))
@@ -196,24 +196,27 @@ func TestReferenceAlterDefaultDeferred(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		for _, tc := range []struct{ typ, expr, code, message string }{{"INT", "2147483648", "22003", "integer out of range"}, {"INT", "1/0", "22012", "division by zero"}, {"VARCHAR(2)", "'long'::text", "22001", "value too long for type character varying(2)"}} {
 			t.Run(fmt.Sprint(prepared)+tc.expr, func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
 				run(referenceExec("CREATE TABLE t(id INT,i "+tc.typ+")", 0))
 				run(referenceExec("INSERT INTO t VALUES(0,NULL)", 1))
 				run(referenceExec("ALTER TABLE t ALTER i SET DEFAULT "+tc.expr, 0))
+				defaultArithmeticReferenceRoundtrip(t, p, "t")
 				run(referenceExec("INSERT INTO t VALUES(1,NULL)", 1))
 				typ := "INT4"
 				if tc.typ == "VARCHAR(2)" {
 					typ = "VARCHAR"
 				}
 				for _, q := range []string{"INSERT INTO t(id) VALUES(2)", "INSERT INTO t VALUES(2,NULL),(3,DEFAULT)"} {
-					run(referenceImplicitError(q, referenceDiagnostic{Code: tc.code, Message: tc.message}))
+					s := referenceImplicitError(q, referenceDiagnostic{Code: tc.code, Message: tc.message})
+					s.errorStage = "execute"
+					run(s)
 					run(referenceSelect("SELECT * FROM t ORDER BY id", []string{"id", "i"}, []string{"INT4", typ}, [][]any{{int64(0), nil}, {int64(1), nil}}))
 				}
 			})
 		}
 	}
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	p.step(t, referenceExec("CREATE TABLE nn(id INT,i INT NOT NULL DEFAULT 7)", 0))
 	p.step(t, referenceExec("INSERT INTO nn VALUES(0,7)", 1))
 	for _, action := range []string{"SET DEFAULT NULL", "DROP DEFAULT"} {

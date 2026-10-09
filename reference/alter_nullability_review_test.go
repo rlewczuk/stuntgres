@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,14 +9,10 @@ import (
 func TestReferenceAlterNullabilityReviewProjectedUpdate(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE t(a INT,b INT,c INT)", 0))
 					run(referenceExec("INSERT INTO t VALUES(7,9,11)", 1))
 					tx, err := backend.db.BeginTx(p.ctx, nil)
@@ -26,7 +20,7 @@ func TestReferenceAlterNullabilityReviewProjectedUpdate(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer tx.Rollback()
-					tr := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, tx, backend.record, s) }
+					tr := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, tx, backend.recorder, s) }
 					retained, err := tx.PrepareContext(p.ctx, "UPDATE t SET c=$1")
 					if err != nil {
 						t.Fatal(err)
@@ -34,17 +28,12 @@ func TestReferenceAlterNullabilityReviewProjectedUpdate(t *testing.T) {
 					defer retained.Close()
 					update := func(n int) {
 						t.Helper()
+						step := referenceExec("UPDATE t SET c=$1", 1, n)
 						if prepared {
-							r, e := retained.ExecContext(p.ctx, n)
-							if e != nil {
-								t.Fatal(e)
-							}
-							count, e := r.RowsAffected()
-							if e != nil || count != 1 {
-								t.Fatal(count, e)
-							}
+							held := referenceHeldStatement{referenceExecutor: tx, statement: retained, query: step.query}
+							referenceRunStep(t, p.ctx, held, backend.recorder, step)
 						} else {
-							tr(referenceExec("UPDATE t SET c=$1", 1, n))
+							tr(step)
 						}
 					}
 					tr(referenceExec("SAVEPOINT before_shape", 0))
@@ -73,14 +62,10 @@ func TestReferenceAlterNullabilityReviewProjectedUpdate(t *testing.T) {
 func TestReferenceAlterNullabilityReviewSuccessiveDependencies(t *testing.T) {
 	for _, reverse := range []bool{false, true} {
 		t.Run(fmt.Sprint(reverse), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE t(a INT,b INT,c INT)", 0))
 					run(referenceExec("INSERT INTO t VALUES(7,9,11)", 1))
 					run(referenceExec("CREATE SEQUENCE owned OWNED BY t.b", 0))
@@ -102,14 +87,10 @@ func TestReferenceAlterNullabilityReviewSuccessiveDependencies(t *testing.T) {
 func TestReferenceAlterNullabilityReviewFirstRRSnapshot(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-			}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE t(a INT,b TEXT,c INT)", 0))
 					run(referenceExec("INSERT INTO t VALUES(7,'keep',9)", 1))
 					tx, err := backend.db.BeginTx(p.ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
@@ -117,7 +98,7 @@ func TestReferenceAlterNullabilityReviewFirstRRSnapshot(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer tx.Rollback()
-					tr := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, tx, backend.record, s) }
+					tr := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, tx, backend.recorder, s) }
 					tr(referenceExec("SAVEPOINT before_shape", 0))
 					tr(referenceExec("ALTER TABLE t DROP a, ALTER c SET NOT NULL", 0))
 					tr(referenceSelect("SELECT b,c FROM t", []string{"b", "c"}, []string{"TEXT", "INT4"}, [][]any{{"keep", int64(9)}}))

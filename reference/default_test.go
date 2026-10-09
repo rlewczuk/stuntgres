@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,20 +9,16 @@ import (
 func TestReferenceDefaultRegressionBeforeFix(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			// Separate backend subtests ensure the independent PostgreSQL witness
-			// runs even while the native CREATE boundary still fails.
-			for _, backend := range []struct {
-				name string
-				db   *sql.DB
-			}{{"native", p.memory}, {"postgres", p.postgres}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					record := &referenceRecorder{}
+					record := backend.recorder
 					run := func(s referenceStep) {
 						s.prepared = prepared
 						referenceRunStep(t, p.ctx, backend.db, record, s)
 					}
 					run(referenceExec(`CREATE TABLE d(id integer, i integer DEFAULT 7, s text DEFAULT 'O''Brien', b boolean DEFAULT TRUE, n integer)`, 0))
+					referenceTableDDLMetadata(t, p.ctx, backend.db, backend.pg, prepared, `SELECT * FROM d`, []string{"id", "i", "s", "b", "n"}, []string{"INT4", "INT4", "TEXT", "BOOL", "INT4"}, []bool{true, true, true, true, true}, 0)
 					run(referenceExec(`INSERT INTO d(id) VALUES(1),(2)`, 2))
 					run(referenceExec(`INSERT INTO d VALUES(3,DEFAULT,DEFAULT,DEFAULT,DEFAULT)`, 1))
 					run(referenceExec(`INSERT INTO d(id,i) VALUES(4,NULL)`, 1))
@@ -75,13 +69,10 @@ func TestReferenceDefaultRegressionBeforeFix(t *testing.T) {
 func TestReferenceInsertDefaultMixedParameters(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name string
-				db   *sql.DB
-			}{{"native", p.memory}, {"postgres", p.postgres}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
-					record := &referenceRecorder{}
+					record := backend.recorder
 					run := func(s referenceStep) {
 						s.prepared = prepared
 						referenceRunStep(t, p.ctx, backend.db, record, s)
@@ -90,6 +81,7 @@ func TestReferenceInsertDefaultMixedParameters(t *testing.T) {
 					names := []string{"id", "v", "s", "n"}
 					types := []string{"INT4", "INT4", "TEXT", "INT4"}
 					run(referenceSelect(`SELECT * FROM d`, names, types, nil))
+					referenceTableDDLMetadata(t, p.ctx, backend.db, backend.pg, prepared, `SELECT * FROM d`, names, types, []bool{true, true, true, true}, 0)
 					const insert = `INSERT INTO d(s,id,v) VALUES($1,$2,DEFAULT),(DEFAULT,$3,$4)`
 					var stmt *sql.Stmt
 					if prepared {
@@ -121,6 +113,7 @@ func TestReferenceInsertDefaultMixedParameters(t *testing.T) {
 						{int64(3), int64(7), "again", nil},
 						{int64(4), nil, "fallback", nil},
 					}))
+					referenceTableDDLMetadata(t, p.ctx, backend.db, backend.pg, prepared, `SELECT * FROM d ORDER BY id`, names, types, []bool{true, true, true, true}, 4)
 				})
 			}
 		})

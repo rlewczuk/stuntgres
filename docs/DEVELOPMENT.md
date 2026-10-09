@@ -173,6 +173,37 @@ not parity exceptions or fabricated native successes.
 Root CHECK diagnostic helpers and tagged `referenceCheckBackends` remain for
 unmigrated DEPARSE/VISIBILITY callers. They are not migrated SQL test bodies.
 
+Table DDL, defaults and nullability now contribute **134 untagged definitions**,
+merging the full assertion union of **120 former root tests in 44 files** with
+their owning reference scenarios. Tests remain at most 150 lines; functional
+reference files remain at most 750 lines. The complete migrated selection excludes
+unrelated tagged inheritance, catalog, privilege and server-lock complements:
+
+```sh
+RUN='^TestReference(AlterDefault(BooleanGrammar|Boundaries|Controls|Deferred|DeferredControls|Diagnostics|Eligibility|EmptyDemand|Lifecycle|Ownership)|AlterDropColumn(Comments|Controls|DistinctOwnerRestoreBoundary|NativeDependencyCapabilityBoundary|Notices|ParserBoundaries|PreparedLifetime|QuotedExpressionDiagnostics|Shape|ShapePositions|TransactionalDDL|WaitCancellationAndCommittedInsert|ZeroColumnControls)|AlterNullability(ActionLists|AuthorizationAndPhase|AuthorizationLifetime|ControlEpoch|Controls|DependencyAtomicity|FailingActionNotice|FreshValidation|FreshValidationAfterDelete|HeldValidation|Lifecycle|Names|OwnDeletesAndSequences|PreparedMetadata|ReviewActionMatrix|ReviewCascadeNotice|ReviewCombinedPeer|ReviewDependencyTransactions|ReviewFirstRRSnapshot|ReviewGeneratedCollision|ReviewProjectedUpdate|ReviewRemainingDependency|ReviewRenameWholeInput|ReviewRetainedPositiveDML|ReviewSnapshotTimelines|ReviewSuccessiveDependencies|TransactionBoundary|Transactions|Validation|WholeInput)|AlterRename(Controls|ControlsOwner|Diagnostics|LockTimeout|Prepared|Syntax|TableTargets|TransactionBoundary|Values)|AlterSchema(CollisionsAndSyntax|GenericAndTemporaryBoundaries|NativeControls|QuotedCollision|RetainedMetadata|SearchPathAndViews|TransactionBoundary|ValuesAndHeldPlans|ViewsAndFailedRestore)|Default(ArithmeticControls|ArithmeticPlanningDecisive|ArithmeticPlanningFailures|ByteaControls|CastControls|CastDeferredInputControls|CastParameterProhibitions|CharacterCastControls|CharacterCastDeferredAssignment|DateCompoundControls|DeclarationPrecedence|DecoratedValuesBoundary|DestinationTypes|DiagnosticPrecedence|DiagnosticsAndConversionTiming|ExistingTableSkipNotice|ExpressionsAndDescriptorLifecycle|NativeControls|ParameterUtilityArgumentBoundary|PredicateControls|PredicateOuterSyntax|PredicateProhibitions|QueryPlanningAnalysis|QueryPlanningDecisive|QueryPlanningRequiredBranches|QuerySourceAtomicityAndCancellation|QuerySourceControls|QuerySourceDeferredFailure|QuerySourceHeldPrepared|RegressionBeforeFix|SchemaAtomicity|TemporalEndpointControls|TransactionFailureAndExplicitBypass|ValuesPlanningDecisive|ValuesPlanningRequiredBranches|ValuesPlanningSelectiveColumns)|InsertDefault(MixedParameters)|NotNull(AbsenceAnalysisPhases|AlterNoticesAndOwnership|ColumnLocalDeclarations|Controls|ControlsExternalIOHasNoTargetLock|CreateSystemTarget|CurrentCommandNamesAndCompatibleReuse|DeclarationsAndNames|DropSystemColumnDiagnostics|ExternalTransactionalDDL|FormsAndAlter|InheritanceCompleteInputAndNoEffects|LikeConstraintProcessingOrder|OwnerControls|PublicExcludedSyntaxAndQuotedDiagnostics|RestoreAtomicity|RetainedParameterizedStatements|SystemColumnSetAddBoundaries)|TableCore(AuthorizationAndOwnershipCleanup|Diagnostics|HeldCursorAndPreparedRebinding|NativeControlRoundTrip|OrderedLikeShapeAndDrop|QuotedDuplicateRelation|QuotedTypeNamesAndBoundaries|SemanticSkipNotices))$'
+make test PACKAGES=./reference RUN="$RUN" VERBOSE=0
+make reference RUN="$RUN" VERBOSE=0
+```
+
+The same selection with `go test -tags reference -run "$RUN" ./reference -args
+-reference=false` is Docker-free. Native controls retain eager rows and live
+metadata until after DDL/Reset/Restore; PostgreSQL portals close before conflicting
+DDL and consume the unchanged owner-bearing dump through genuine SQL phases.
+Public NOWAIT queue probes and external-writer channels establish native ordering
+without sleeps. Native physical nullability is known; pq reports it unknown.
+BPCHAR cells are strings on both backends despite different ScanType descriptors.
+An already-canceled native Conn execution is an ordinary Go error/no-effects
+witness, not a portable pq simple-protocol promise; real server cancellation
+remains independently covered by tagged PostgreSQL scenarios.
+
+Fresh notice pools reuse the scenario's native connector/Driver/DSN. Schema,
+character/time metadata and PostgreSQL lock helper declarations are untagged
+without converting their unrelated legacy scenarios. Root `tableCoreExec`,
+`tableCoreMetadata`, `notNullDiagnostic` and `alterDropMetadata` remain helper-only
+for unmigrated callers. The cross-family DROP-system assertion union also retains
+its tagged legacy owner until the catalog's final driver/session deduplication.
+
+
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean
 test-binary flag adds real PostgreSQL; the build tag is not the mode selector:

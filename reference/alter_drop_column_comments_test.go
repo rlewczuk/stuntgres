@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -15,7 +13,7 @@ import (
 func TestReferenceAlterDropColumnComments(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			step := func(q string, n int64) { s := referenceExec(q, n); s.prepared = prepared; p.step(t, s) }
 			step("CREATE TABLE t(a INT,b TEXT,c BIGINT)", 0)
 			step("INSERT INTO t VALUES(1,'removed',9)", 1)
@@ -32,6 +30,9 @@ func TestReferenceAlterDropColumnComments(t *testing.T) {
 			}
 			oracle := func(b, c string) {
 				t.Helper()
+				if p.postgres == nil {
+					return
+				}
 				for _, probe := range []struct{ q, want string }{{"SELECT obj_description('t'::regclass,'pg_class')", "table keep"}, {"SELECT col_description('t'::regclass,2)", b}, {"SELECT col_description('t'::regclass,3)", c}} {
 					var got sql.NullString
 					if err := p.postgres.QueryRowContext(p.ctx, probe.q).Scan(&got); err != nil || got.Valid != (probe.want != "") || got.String != probe.want {
@@ -52,12 +53,14 @@ func TestReferenceAlterDropColumnComments(t *testing.T) {
 			oracle("removed comment", "survivor comment")
 			step("ALTER TABLE t DROP b", 0)
 			oracle("", "survivor comment")
-			var droppedAndLive bool
-			if err := p.postgres.QueryRowContext(p.ctx, `SELECT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='t'::regclass AND attnum=2 AND attisdropped) AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='t'::regclass AND attname='c' AND attnum=3 AND NOT attisdropped)`).Scan(&droppedAndLive); err != nil || !droppedAndLive {
-				t.Fatal("oracle stable attribute lifecycle", droppedAndLive, err)
+			if p.postgres != nil {
+				var droppedAndLive bool
+				if err := p.postgres.QueryRowContext(p.ctx, `SELECT EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='t'::regclass AND attnum=2 AND attisdropped) AND EXISTS(SELECT 1 FROM pg_attribute WHERE attrelid='t'::regclass AND attname='c' AND attnum=3 AND NOT attisdropped)`).Scan(&droppedAndLive); err != nil || !droppedAndLive {
+					t.Fatal("oracle stable attribute lifecycle", droppedAndLive, err)
+				}
 			}
 			canonical := dump()
-			if strings.Contains(canonical, "removed comment") || !strings.Contains(canonical, `COMMENT ON COLUMN "public"."t"."c" IS E'survivor comment';`) || !strings.Contains(canonical, `COMMENT ON TABLE "public"."t" IS E'table keep';`) {
+			if strings.Contains(canonical, "removed comment") || strings.Contains(canonical, `COMMENT ON COLUMN "public"."t"."b"`) || !strings.Contains(canonical, `COMMENT ON COLUMN "public"."t"."c" IS E'survivor comment';`) || !strings.Contains(canonical, `COMMENT ON TABLE "public"."t" IS E'table keep';`) {
 				t.Fatal(canonical)
 			}
 			step("COMMENT ON COLUMN t.c IS 'updated survivor'", 0)
@@ -79,6 +82,9 @@ func TestReferenceAlterDropColumnComments(t *testing.T) {
 				}
 				referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT * FROM t", []string{"a", "c"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(9)}}))
 				oracle("", "updated survivor")
+			}
+			if p.postgres == nil {
+				return
 			}
 			replay, err := p.postgres.Conn(p.ctx)
 			if err != nil {

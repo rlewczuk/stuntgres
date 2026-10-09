@@ -77,6 +77,7 @@ type referencePair struct {
 	memory, postgres, native     *sql.DB
 	memoryRecord, postgresRecord *referenceRecorder
 	ctx                          context.Context
+	nativeConnector              *stuntgres.Connector
 }
 
 func newReferencePair(t *testing.T) *referencePair {
@@ -141,6 +142,7 @@ func newReferenceFixture(t *testing.T, withPostgres, freshNative bool) *referenc
 	}
 	p.native = sql.OpenDB(connector)
 	if freshNative {
+		p.nativeConnector = connector.(*stuntgres.Connector)
 		wrapped := sqlmw.Driver(noticeReferenceDriver{connector}, referenceInterceptor{})
 		configured, err := wrapped.(driver.DriverContext).OpenConnector("")
 		if err != nil {
@@ -399,7 +401,8 @@ func referenceAssertRawValue(t *testing.T, postgres bool, sqlType string, value 
 		want = reflect.TypeFor[float64]()
 	case "BOOL":
 		want = reflect.TypeFor[bool]()
-	case "TEXT", "CHAR", "VARCHAR":
+	case "TEXT", "CHAR", "BPCHAR", "VARCHAR":
+		// pq textDecode returns BPCHAR as string despite its any ScanType.
 		want = reflect.TypeFor[string]()
 	case "NUMERIC", "UUID", "NAME":
 		want = reflect.TypeFor[string]()
@@ -653,11 +656,15 @@ func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records 
 		}
 		connector = pq.ConnectorWithNoticeHandler(base, func(n *pq.Error) { *records = append(*records, referenceExtractDiagnostic(t, n)) })
 	} else {
-		base, err := referenceMemoryDriver.OpenConnector("reference/" + t.Name())
-		if err != nil {
-			t.Fatal(err)
+		base := p.nativeConnector
+		if base == nil {
+			legacy, err := referenceMemoryDriver.OpenConnector("reference/" + t.Name())
+			if err != nil {
+				t.Fatal(err)
+			}
+			base = legacy.(*stuntgres.Connector)
 		}
-		connector = base.(*stuntgres.Connector).WithNoticeHandler(func(n stuntgres.Error) { *records = append(*records, referenceExtractDiagnostic(t, &n)) })
+		connector = base.WithNoticeHandler(func(n stuntgres.Error) { *records = append(*records, referenceExtractDiagnostic(t, &n)) })
 	}
 	wrapped := sqlmw.Driver(noticeReferenceDriver{connector}, referenceInterceptor{})
 	// sqlmw's DriverContext connector preserves direct and prepared recorder hooks.
@@ -672,7 +679,15 @@ func noticeReferencePool(t *testing.T, p *referencePair, postgres bool, records 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { c.Close() })
-	return db, c, &referenceRecorder{}
+	record := &referenceRecorder{}
+	if p.nativeConnector != nil {
+		if postgres {
+			record.rawBackend = referenceRawPostgres
+		} else {
+			record.rawBackend = referenceRawNative
+		}
+	}
+	return db, c, record
 }
 
 func roleReferenceCleanup(t *testing.T, names []string) {

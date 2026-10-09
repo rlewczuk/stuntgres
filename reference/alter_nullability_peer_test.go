@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -7,75 +5,33 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 )
 
-func referenceAlterNullabilityPeerRows(t *testing.T, rows *sql.Rows, native, commit bool) {
-	t.Helper()
-	defer rows.Close()
-	names := []string{"a"}
-	want := [][]int64{{7}, {8}}
-	if !commit {
-		names = []string{"a", "b"}
-		want = [][]int64{{7, 9}}
-	}
-	gotNames, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(gotNames, names) {
-		t.Fatal(gotNames, err)
-	}
-	metadata, err := rows.ColumnTypes()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, column := range metadata {
-		scan := reflect.TypeFor[int32]()
-		nullable := false
-		if native {
-			scan = reflect.TypeFor[int64]()
-			nullable = !commit
-		}
-		n, k := column.Nullable()
-		if column.DatabaseTypeName() != "INT4" || column.ScanType() != scan || k != native || n != nullable {
-			t.Fatal(column, n, k)
-		}
-	}
-	got := make([][]int64, 0)
-	for rows.Next() {
-		row := make([]int64, len(names))
-		dest := make([]any, len(names))
-		for i := range row {
-			dest[i] = &row[i]
-		}
-		if err = rows.Scan(dest...); err != nil {
-			t.Fatal(err)
-		}
-		got = append(got, row)
-	}
-	if err = rows.Err(); err != nil || !reflect.DeepEqual(got, want) {
-		t.Fatal(got, want, err)
-	}
+// referenceNullabilityCursor preserves the already queued query's actual cursor.
+type referenceNullabilityCursor struct {
+	referenceExecutor
+	rows *sql.Rows
+}
+
+func (c referenceNullabilityCursor) QueryContext(context.Context, string, ...any) (*sql.Rows, error) {
+	return c.rows, nil
 }
 
 func TestReferenceAlterNullabilityReviewCombinedPeer(t *testing.T) {
 	for _, commit := range []bool{false, true} {
 		t.Run(fmt.Sprint(commit), func(t *testing.T) {
-			p := newReferencePair(t)
-			for _, backend := range []struct {
-				name   string
-				db     *sql.DB
-				record *referenceRecorder
-				native bool
-			}{{"postgres", p.postgres, p.postgresRecord, false}, {"native", p.memory, p.memoryRecord, true}} {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
 				t.Run(backend.name, func(t *testing.T) {
 					a, b := referenceLockConnections(t, p.ctx, backend.db)
-					run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, backend.record, s) }
+					run := func(s referenceStep) { referenceRunStep(t, p.ctx, a, backend.recorder, s) }
 					run(referenceExec("CREATE TABLE t(a INT,b INT)", 0))
 					run(referenceExec("INSERT INTO t VALUES(7,9)", 1))
 					holder, waiter := 0, 0
 					var oid int64
-					if !backend.native {
+					if backend.pg {
 						holder = referenceLockPID(t, p.ctx, a)
 						waiter = referenceLockPID(t, p.ctx, b)
 						oid = referenceLockOID(t, p.ctx, "public.t")
@@ -85,26 +41,40 @@ func TestReferenceAlterNullabilityReviewCombinedPeer(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer tx.Rollback()
-					referenceRunStep(t, p.ctx, tx, backend.record, referenceExec("ALTER TABLE t DROP b, ALTER a SET NOT NULL", 0))
-					referenceRunStep(t, p.ctx, tx, backend.record, referenceExec("INSERT INTO t VALUES(8)", 1))
+					referenceRunStep(t, p.ctx, tx, backend.recorder, referenceExec("ALTER TABLE t DROP b, ALTER a SET NOT NULL", 0))
+					referenceRunStep(t, p.ctx, tx, backend.recorder, referenceExec("INSERT INTO t VALUES(8)", 1))
 					q := "SELECT * FROM t ORDER BY a"
+					ctx, cancelQuery := context.WithCancel(context.WithValue(p.ctx, referenceRecorderKey{}, backend.recorder))
+					defer cancelQuery()
 					type observation struct {
 						rows *sql.Rows
 						err  error
 					}
 					done := make(chan observation, 1)
-					if backend.native {
-						blocked, cancel := context.WithTimeout(p.ctx, 50*time.Millisecond)
+					joined := false
+					if !backend.pg {
+						blocked, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
 						rows, e := b.QueryContext(blocked, q)
 						cancel()
 						if rows != nil {
 							rows.Close()
+							t.Fatal("failed native deadline query exposed a cursor")
 						}
 						if !errors.Is(e, context.DeadlineExceeded) {
 							t.Fatal("native peer was not blocked", e)
 						}
 					} else {
-						go func() { rows, e := b.QueryContext(p.ctx, q); done <- observation{rows, e} }()
+						go func() { rows, e := b.QueryContext(ctx, q); done <- observation{rows, e} }()
+						defer func() {
+							cancelQuery()
+							tx.Rollback()
+							if !joined {
+								pending := <-done
+								if pending.rows != nil {
+									pending.rows.Close()
+								}
+							}
+						}()
 						referenceLockWaitBehind(t, p.ctx, waiter, holder, oid, "AccessShareLock")
 						var pending string
 						if err = referenceAdmin.QueryRowContext(p.ctx, "SELECT query FROM pg_stat_activity WHERE pid=$1", waiter).Scan(&pending); err != nil || pending != q {
@@ -120,11 +90,12 @@ func TestReferenceAlterNullabilityReviewCombinedPeer(t *testing.T) {
 						t.Fatal(err)
 					}
 					var observed observation
-					if backend.native {
-						observed.rows, observed.err = b.QueryContext(p.ctx, q)
+					if !backend.pg {
+						observed.rows, observed.err = b.QueryContext(ctx, q)
 					} else {
 						select {
 						case observed = <-done:
+							joined = true
 						case <-p.ctx.Done():
 							t.Fatal(p.ctx.Err())
 						}
@@ -132,7 +103,20 @@ func TestReferenceAlterNullabilityReviewCombinedPeer(t *testing.T) {
 					if observed.err != nil {
 						t.Fatal(observed.err)
 					}
-					referenceAlterNullabilityPeerRows(t, observed.rows, backend.native, commit)
+					defer observed.rows.Close()
+					columns, err := observed.rows.ColumnTypes()
+					if err != nil {
+						t.Fatal(err)
+					}
+					names, types, nullable := []string{"a"}, []string{"INT4"}, []bool{false}
+					want := [][]any{{int64(7)}, {int64(8)}}
+					if !commit {
+						names, types, nullable = []string{"a", "b"}, []string{"INT4", "INT4"}, []bool{true, true}
+						want = [][]any{{int64(7), int64(9)}}
+					}
+					referenceTableDDLColumnTypes(t, backend.pg, columns, names, types, nullable)
+					cursor := referenceNullabilityCursor{referenceExecutor: b, rows: observed.rows}
+					referenceRunStep(t, ctx, cursor, backend.recorder, referenceSelect(q, names, types, want))
 				})
 			}
 		})

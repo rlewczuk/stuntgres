@@ -3,29 +3,11 @@
 package reference_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
-	"github.com/lib/pq"
 	"testing"
-	"time"
 )
 
-func schemaReferenceCleanup(t *testing.T, names ...string) {
-	t.Helper()
-	t.Cleanup(func() {
-		if !referenceStarted {
-			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		for _, name := range names {
-			if _, err := referenceAdmin.ExecContext(ctx, "DROP SCHEMA IF EXISTS "+pq.QuoteIdentifier(name)+" CASCADE"); err != nil {
-				t.Errorf("schema cleanup %s: %v", name, err)
-			}
-		}
-	})
-}
 func schemaReferenceError(query, code, message, detail string, prepared bool, phase, position string) referenceStep {
 	s := roleReferenceError(query, code, message, detail, prepared, phase)
 	s.diagnostic.Position = position

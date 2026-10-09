@@ -222,8 +222,9 @@ introducers, including BC comparisons whose civil ordering differs from TEXT.
 BYTEA defaults reuse the existing canonical hex codec and return raw octets;
 same-type BYTEA annotations add no known-TEXT-to-BYTEA conversion provider.
 
-Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=1`.
-Independent pinned PostgreSQL witnesses: `make reference RUN='^TestReferenceDefault' VERBOSE=1`.
+Feature smoke: `make smoke RUN='^TestDefaultSmoke$' VERBOSE=0`.
+Dual-mode defaults: `make test PACKAGES=./reference RUN='^TestReference(Default.*|InsertDefaultMixedParameters|AlterDefault.*)$' VERBOSE=0`.
+Pinned PostgreSQL witnesses: `make reference RUN='^TestReference(Default.*|InsertDefaultMixedParameters|AlterDefault.*)$' VERBOSE=0`.
 General sequence/volatile composition remains unsupported in declared DEFAULT;
 fixed nextval leaves support SERIAL and native replay. Identity instead uses an
 internally owned sequence. PostgreSQL disk/WAL
@@ -535,8 +536,10 @@ and UPDATE enforcement are shared native/reference witnesses.
 Public feature smokes:
 
 ```sh
-make smoke RUN='^TestNotNullSmoke$' VERBOSE=1
-make smoke RUN='^TestNotNullControlsSmoke$' VERBOSE=1
+make smoke RUN='^TestNotNullSmoke$' VERBOSE=0
+make smoke RUN='^TestNotNullControlsSmoke$' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReference(NotNull.*|AlterNullability.*)$' VERBOSE=0
+make reference RUN='^TestReference(NotNull.*|AlterNullability.*)$' VERBOSE=0
 ```
 
 ## Identity-preserving table and column renames
@@ -584,7 +587,9 @@ automatic row types, inheritance and broader transactional DDL remain excluded.
 Native explicit-transaction table/column RENAME and RENAME CONSTRAINT remain unsupported.
 
 ```sh
-make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=1
+make smoke RUN='^TestAlterRenameSmoke$' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceAlterRename.*$' VERBOSE=0
+make reference RUN='^TestReferenceAlterRename.*$' VERBOSE=0
 ```
 
 ## Column removal and selected action lists
@@ -660,9 +665,9 @@ destination authority for replaying the distinct-owner dump.
 Executable public feature witnesses (Go test reports actual pass/failure):
 
 ```sh
-go test -count=1 -v -run '^TestAlterDropColumnSmoke$' ./smoke
-go test -count=1 -v -run '^TestAlterDropColumnZeroColumnControlsSmoke$' ./smoke
-go test -tags reference -count=1 -v -run '^TestReferenceAlterDropColumn' ./reference
+make smoke RUN='^TestAlterDropColumn(Smoke|ZeroColumnControlsSmoke)$' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceAlterDropColumn.*$' VERBOSE=0
+make reference RUN='^TestReferenceAlterDropColumn.*$' VERBOSE=0
 ```
 
 Duplicate-relation `42P07` errors preserve decoded names inside literal outer
@@ -673,11 +678,19 @@ and rows; utility preparation succeeds before the execution-time failure.
 Executable feature proof (Go test reports actual assertions):
 
 ```sh
-go test -count=1 -v -run '^TestTableCore' ./internal/parser ./internal/engine .
-go test -count=1 -v -run '^TestCatalogDrop' ./internal/engine
-go test -tags reference -count=1 -v -run '^TestReferenceTableCore' ./reference
-go test -count=1 -v -run '^TestTableCoreSmoke$' ./smoke
+make test PACKAGES='./internal/parser ./internal/engine' RUN='^TestTableCore' VERBOSE=0
+make test PACKAGES=./internal/engine RUN='^TestCatalogDrop' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceTableCore.*$' VERBOSE=0
+make reference RUN='^TestReferenceTableCore.*$' VERBOSE=0
+make smoke RUN='^TestTableCoreSmoke$' VERBOSE=0
 ```
+
+The former root SQL-interaction definitions now live in the external dual-mode
+reference package. See [the complete migrated selection](DEVELOPMENT.md#dual-mode-query-reads-and-legacy-transition)
+for all table/default/nullability definitions, including held cursors, native
+controls and explicit backend boundaries. Broad family reference selections above
+also retain genuine tagged oracle-only complements; use the exact development
+selector for a tagged Docker-free `-reference=false` run.
 
 ## CHECK constraints — change note
 

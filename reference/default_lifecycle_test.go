@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -10,8 +8,17 @@ import (
 func TestReferenceDefaultExpressionsAndDescriptorLifecycle(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+			p := newReferenceScenario(t)
+			run := func(s referenceStep) {
+				s.prepared = prepared
+				if s.state == "42601" {
+					s.errorStage = "execute"
+					if prepared {
+						s.errorStage = "prepare"
+					}
+				}
+				p.step(t, s)
+			}
 			schemaReferenceCleanup(t, "nested")
 			for _, token := range []string{"AND", "OR"} {
 				run(referenceImplicitError(`CREATE TABLE bad(b BOOL DEFAULT TRUE `+token+` FALSE)`, referenceDiagnostic{Code: "42601", Message: `syntax error at or near "` + token + `"`, Position: "38"}))
@@ -36,6 +43,29 @@ func TestReferenceDefaultExpressionsAndDescriptorLifecycle(t *testing.T) {
 			run(referenceExec(`CREATE SCHEMA nested CREATE TABLE d(i INT DEFAULT 17)`, 0))
 			run(referenceExec(`INSERT INTO nested.d DEFAULT VALUES`, 1))
 			run(referenceSelect(`SELECT * FROM nested.d`, []string{"i"}, []string{"INT4"}, [][]any{{int64(17)}}))
+		})
+	}
+}
+
+func TestReferenceDefaultSchemaAtomicity(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
+			p := newReferenceScenario(t)
+			schemaReferenceCleanup(t, "rejected")
+			for _, backend := range p.backends() {
+				_, err := backend.db.ExecContext(p.ctx, `CREATE SCHEMA rejected CREATE TABLE good(i INT DEFAULT 1) CREATE TABLE bad(i INT DEFAULT 'oops')`)
+				if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "22P02" {
+					t.Fatalf("compound schema failure: %T %v", err, err)
+				}
+				rows, err := backend.db.QueryContext(p.ctx, `SELECT * FROM rejected.good`)
+				if rows != nil {
+					rows.Close()
+					t.Fatal("failed schema published a cursor")
+				}
+				if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42P01" {
+					t.Fatalf("failed schema table absence: %T %v", err, err)
+				}
+			}
 		})
 	}
 }

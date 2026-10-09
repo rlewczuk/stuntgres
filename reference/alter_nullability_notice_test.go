@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,16 +7,13 @@ import (
 )
 
 func TestReferenceAlterNullabilityReviewCascadeNotice(t *testing.T) {
-	for _, backend := range []struct {
-		name     string
-		postgres bool
-	}{{"postgres", true}, {"native", false}} {
-		t.Run(backend.name, func(t *testing.T) {
-			for _, prepared := range []bool{false, true} {
-				t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-					p := newReferencePair(t)
+	for _, prepared := range []bool{false, true} {
+		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
+			p := newReferenceScenario(t)
+			for _, backend := range p.backends() {
+				t.Run(backend.name, func(t *testing.T) {
 					var notices []referenceDiagnostic
-					_, conn, recorder := noticeReferencePool(t, p, backend.postgres, &notices)
+					_, conn, recorder := noticeReferencePool(t, p, backend.pg, &notices)
 					run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, recorder, s) }
 					run(referenceExec("CREATE TABLE t(a INT,b INT,c INT)", 0))
 					run(referenceExec("INSERT INTO t VALUES(7,9,11)", 1))

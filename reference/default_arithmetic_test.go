@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -13,7 +11,7 @@ import (
 func TestReferenceDefaultArithmeticControls(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			names := []string{"id", "a", "b", "c", "g", "s", "q", "r", "w"}
 			types := []string{"INT4", "INT4", "INT4", "INT4", "INT4", "INT4", "INT4", "INT4", "INT8"}
 			// Independently calculated: precedence, left associativity, signed
@@ -21,9 +19,12 @@ func TestReferenceDefaultArithmeticControls(t *testing.T) {
 			want := [][]any{{int64(1), int64(7), int64(-7), int64(7), int64(9), int64(3), int64(-2), int64(-1), int64(2147483649)}, {int64(2), int64(7), int64(-7), int64(7), int64(9), int64(3), int64(-2), int64(-1), int64(2147483649)}, {int64(3), int64(7), int64(-7), int64(7), int64(9), int64(3), int64(-2), int64(-1), int64(2147483649)}, {int64(4), nil, int64(-7), int64(7), int64(9), int64(3), int64(-2), int64(-1), int64(2147483649)}}
 			nativeComplete := false
 			defaultConsumerReferenceEach(t, p, func(t *testing.T, db *sql.DB, r *referenceRecorder) {
-				run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, db, r, s) }
+				run := func(s referenceStep) { s.prepared = prepared; defaultReferenceRunStep(t, p, db, r, s) }
 				run(referenceExec("CREATE TABLE d(id INT,a INT DEFAULT +7,b INT DEFAULT -7,c INT DEFAULT 1+2*3,g INT DEFAULT (1+2)*3,s INT DEFAULT 9-4-2,q INT DEFAULT -7/3,r INT DEFAULT -7%3,w BIGINT DEFAULT 1+2147483648)", 0))
 				run(referenceSelect("SELECT * FROM d ORDER BY id", names, types, nil))
+				if db == p.memory {
+					defaultArithmeticReferenceRoundtrip(t, p, "d")
+				}
 				run(referenceExec("INSERT INTO d(id) VALUES(1),(2)", 2))
 				run(referenceExec("INSERT INTO d VALUES(3,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT,DEFAULT)", 1))
 				run(referenceExec("INSERT INTO d(id,a) VALUES(4,NULL)", 1))
@@ -41,7 +42,7 @@ func TestReferenceDefaultArithmeticControls(t *testing.T) {
 			t.Run("native-controls-and-replay", func(t *testing.T) {
 				defaultArithmeticReferenceRoundtrip(t, p, "d")
 				want[0][1] = int64(8)
-				run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+				run := func(s referenceStep) { s.prepared = prepared; defaultReferenceStep(t, p, s) }
 				run(referenceSelect("SELECT * FROM d ORDER BY id", names, types, want))
 				run(referenceExec("INSERT INTO d(id) SELECT 5", 1))
 				want = append(want, []any{int64(5), int64(7), int64(-7), int64(7), int64(9), int64(3), int64(-2), int64(-1), int64(2147483649)})
@@ -60,9 +61,9 @@ func TestReferenceDefaultArithmeticPlanningFailures(t *testing.T) {
 	} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/prepared=%v", tc.expression, prepared), func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				defaultConsumerReferenceEach(t, p, func(t *testing.T, db *sql.DB, r *referenceRecorder) {
-					run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, db, r, s) }
+					run := func(s referenceStep) { s.prepared = prepared; defaultReferenceRunStep(t, p, db, r, s) }
 					run(referenceExec("CREATE TABLE src(id INT)", 0))
 					run(referenceExec("CREATE TABLE d(id INT,v INT DEFAULT "+tc.expression+")", 0))
 					run(referenceExec("INSERT INTO d VALUES(0,9),(1,NULL)", 2))
@@ -76,6 +77,7 @@ func TestReferenceDefaultArithmeticPlanningFailures(t *testing.T) {
 						run(referenceSelect("SELECT * FROM d ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(0), int64(9)}, {int64(1), nil}}))
 					}
 					run(referenceExec("INSERT INTO d(id,v) SELECT id,9 FROM src", 0))
+					run(referenceSelect("SELECT * FROM d ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(0), int64(9)}, {int64(1), nil}}))
 				})
 			})
 		}
@@ -97,9 +99,9 @@ func TestReferenceDefaultArithmeticPlanningDecisive(t *testing.T) {
 	} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/prepared=%v", tc.expression, prepared), func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				defaultConsumerReferenceEach(t, p, func(t *testing.T, db *sql.DB, r *referenceRecorder) {
-					run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, db, r, s) }
+					run := func(s referenceStep) { s.prepared = prepared; defaultReferenceRunStep(t, p, db, r, s) }
 					run(referenceExec("CREATE TABLE src(id INT)", 0))
 					run(referenceExec("CREATE TABLE d(id INT,b BOOL DEFAULT ("+tc.expression+"))", 0))
 					run(referenceExec("INSERT INTO d VALUES(0,NULL)", 1))
@@ -133,14 +135,23 @@ func TestReferenceDefaultArithmeticPlanningDecisive(t *testing.T) {
 func TestReferenceDefaultCharacterCastControls(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			want := [][]any{{int64(1), "é🙂", "é🙂", "a"}, {int64(2), "é🙂", "é🙂", "a"}, {int64(3), nil, nil, nil}}
 			names, types := []string{"id", "c", "v", "s"}, []string{"INT4", "BPCHAR", "VARCHAR", "TEXT"}
 			nativeComplete := false
 			defaultConsumerReferenceEach(t, p, func(t *testing.T, db *sql.DB, r *referenceRecorder) {
-				run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, db, r, s) }
+				run := func(s referenceStep) {
+					s.prepared = prepared
+					if s.selectRows {
+						referenceCharacterMetadata(t, p, db, "SELECT c,v,s FROM d", prepared, db != p.postgres, []string{"c", "v", "s"}, []string{"BPCHAR", "VARCHAR", "TEXT"}, []int64{2, 2, -1}, []referenceCharacterNullability{{true, true}, {true, true}, {true, true}})
+					}
+					referenceRunStep(t, p.ctx, db, r, s)
+				}
 				run(referenceExec("CREATE TABLE d(id INT,c CHAR(2) DEFAULT CAST('é🙂x' AS CHAR(2)),v VARCHAR(2) DEFAULT CAST('é🙂x' AS VARCHAR(2)),s TEXT DEFAULT CAST('a' AS CHAR(3)))", 0))
 				run(referenceSelect("SELECT * FROM d ORDER BY id", names, types, nil))
+				if db == p.memory {
+					defaultArithmeticReferenceRoundtrip(t, p, "d")
+				}
 				run(referenceExec("INSERT INTO d(id) VALUES(1)", 1))
 				run(referenceExec("INSERT INTO d VALUES(2,DEFAULT,DEFAULT,DEFAULT)", 1))
 				run(referenceExec("INSERT INTO d VALUES(3,NULL,NULL,NULL)", 1))
@@ -154,7 +165,15 @@ func TestReferenceDefaultCharacterCastControls(t *testing.T) {
 			}
 			t.Run("native-controls-and-replay", func(t *testing.T) {
 				defaultArithmeticReferenceRoundtrip(t, p, "d")
-				run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+				run := func(s referenceStep) {
+					s.prepared = prepared
+					if s.selectRows {
+						for _, backend := range p.backends() {
+							referenceCharacterMetadata(t, p, backend.db, "SELECT c,v,s FROM d", prepared, !backend.pg, []string{"c", "v", "s"}, []string{"BPCHAR", "VARCHAR", "TEXT"}, []int64{2, 2, -1}, []referenceCharacterNullability{{true, true}, {true, true}, {true, true}})
+						}
+					}
+					p.step(t, s)
+				}
 				run(referenceSelect("SELECT * FROM d ORDER BY id", names, types, want))
 				run(referenceExec("INSERT INTO d(id) SELECT 4", 1))
 				want = append(want, []any{int64(4), "é🙂", "é🙂", "a"})
@@ -167,7 +186,7 @@ func TestReferenceDefaultCharacterCastControls(t *testing.T) {
 func TestReferenceDefaultCharacterCastDeferredAssignment(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			defaultConsumerReferenceEach(t, p, func(t *testing.T, db *sql.DB, r *referenceRecorder) {
 				run := func(s referenceStep) { s.prepared = prepared; referenceRunStep(t, p.ctx, db, r, s) }
 				run(referenceExec("CREATE TABLE src(id INT)", 0))
@@ -206,6 +225,9 @@ func defaultArithmeticReferenceRoundtrip(t *testing.T, p *referencePair, tables 
 	}
 	if !bytes.Equal(dump.Bytes(), again.Bytes()) {
 		t.Fatal("non-deterministic default redump")
+	}
+	if p.postgres == nil {
+		return
 	}
 	for _, table := range tables {
 		if _, err := p.postgres.ExecContext(p.ctx, "DROP TABLE "+table); err != nil {

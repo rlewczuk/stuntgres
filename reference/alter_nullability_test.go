@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -28,15 +26,11 @@ func TestReferenceAlterNullabilityActionLists(t *testing.T) {
 			{name: "set-before-transformed-add", seed: "7,9", actions: "ADD CONSTRAINT requested NOT NULL a, ALTER a SET NOT NULL"},
 		} {
 			t.Run(tc.name+fmt.Sprint(prepared), func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				// Separate backend subtests allow the pinned oracle to run even while native fails.
-				for _, b := range []struct {
-					name   string
-					db     *sql.DB
-					record *referenceRecorder
-				}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+				for _, b := range p.backends() {
 					t.Run(b.name, func(t *testing.T) {
-						run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+						run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
 						run(referenceExec("CREATE TABLE t(a INT,b INT)", 0))
 						run(referenceExec("INSERT INTO t VALUES("+tc.seed+")", 1))
 						q := "ALTER TABLE t " + tc.actions
@@ -64,6 +58,11 @@ func TestReferenceAlterNullabilityActionLists(t *testing.T) {
 							}
 						}
 						run(referenceSelect("SELECT * FROM t", columns, types, rows))
+						nullable := []bool{tc.want.Code != ""}
+						if len(columns) == 2 {
+							nullable = append(nullable, true)
+						}
+						referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM t", columns, types, nullable, 1)
 						if tc.want.Code == "" && tc.name != "projection" {
 							if tc.name == "set-before-transformed-add" {
 								run(referenceImplicitError("ALTER TABLE t DROP CONSTRAINT requested", referenceDiagnostic{Code: "42704", Message: `constraint "requested" of relation "t" does not exist`}))
@@ -78,11 +77,11 @@ func TestReferenceAlterNullabilityActionLists(t *testing.T) {
 }
 
 func TestReferenceAlterNullabilityFailingActionNotice(t *testing.T) {
-	p := newReferencePair(t)
-	for _, postgres := range []bool{true, false} {
-		t.Run(fmt.Sprint(postgres), func(t *testing.T) {
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
 			var notices []referenceDiagnostic
-			_, conn, record := noticeReferencePool(t, p, postgres, &notices)
+			_, conn, record := noticeReferencePool(t, p, backend.pg, &notices)
 			run := func(s referenceStep) { referenceRunStep(t, p.ctx, conn, record, s) }
 			run(referenceExec("CREATE TABLE t(a INT)", 0))
 			run(referenceExec("INSERT INTO t VALUES(NULL)", 1))
@@ -97,14 +96,10 @@ func TestReferenceAlterNullabilityFailingActionNotice(t *testing.T) {
 }
 
 func TestReferenceAlterNullabilityTransactions(t *testing.T) {
-	p := newReferencePair(t)
-	for _, b := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
 			run(referenceExec("CREATE TABLE t(a INT,b INT)", 0))
 			run(referenceExec("INSERT INTO t VALUES(NULL,9)", 1))
 			tx, err := b.db.BeginTx(p.ctx, nil)
@@ -112,7 +107,7 @@ func TestReferenceAlterNullabilityTransactions(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer tx.Rollback()
-			tr := func(s referenceStep) { referenceRunStep(t, p.ctx, tx, b.record, s) }
+			tr := func(s referenceStep) { referenceRunStep(t, p.ctx, tx, b.recorder, s) }
 			tr(referenceExec("UPDATE t SET a=7", 1))
 			tr(referenceExec("SAVEPOINT s", 0))
 			tr(referenceExec("ALTER TABLE t DROP COLUMN b, ALTER a SET NOT NULL", 0))
@@ -134,14 +129,10 @@ func TestReferenceAlterNullabilityTransactions(t *testing.T) {
 }
 
 func TestReferenceAlterNullabilityFreshValidation(t *testing.T) {
-	p := newReferencePair(t)
-	for _, b := range []struct {
-		name   string
-		db     *sql.DB
-		record *referenceRecorder
-	}{{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord}} {
+	p := newReferenceScenario(t)
+	for _, b := range p.backends() {
 		t.Run(b.name, func(t *testing.T) {
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.record, s) }
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, b.db, b.recorder, s) }
 			run(referenceExec("CREATE TABLE t(a INT)", 0))
 			run(referenceExec("CREATE TABLE u(a INT)", 0))
 			run(referenceExec("INSERT INTO t VALUES(7)", 1))
@@ -151,9 +142,9 @@ func TestReferenceAlterNullabilityFreshValidation(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer tx.Rollback()
-			referenceRunStep(t, p.ctx, tx, b.record, referenceSelect("SELECT a FROM u", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
+			referenceRunStep(t, p.ctx, tx, b.recorder, referenceSelect("SELECT a FROM u", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}}))
 			run(referenceExec("INSERT INTO t VALUES(NULL)", 1))
-			referenceRunStep(t, p.ctx, tx, b.record, referenceImplicitError("ALTER TABLE t ALTER a SET NOT NULL", referenceDiagnostic{Code: "23502", Message: `column "a" of relation "t" contains null values`, Schema: "public", Table: "t", Column: "a"}))
+			referenceRunStep(t, p.ctx, tx, b.recorder, referenceImplicitError("ALTER TABLE t ALTER a SET NOT NULL", referenceDiagnostic{Code: "23502", Message: `column "a" of relation "t" contains null values`, Schema: "public", Table: "t", Column: "a"}))
 			if err := tx.Rollback(); err != nil {
 				t.Fatal(err)
 			}

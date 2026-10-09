@@ -1,24 +1,33 @@
-//go:build reference
-
 package reference_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
+	"stuntgres"
 	"testing"
 )
 
 func TestReferenceNotNullFormsAndAlter(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
-			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+			p := newReferenceScenario(t)
+			run := func(s referenceStep) {
+				s.prepared = prepared
+				if s.diagnostic != nil && !s.selectRows {
+					s.errorStage = "execute"
+				}
+				p.step(t, s)
+			}
 			run(referenceExec("CREATE TABLE t(CONSTRAINT nn NOT NULL a,a INT,b TEXT CONSTRAINT ignored NULL)", 0))
-			run(referenceExec("INSERT INTO t VALUES($1,$2)", 1, 7, nil))
+			p.step(t, referencePrepared(referenceExec("INSERT INTO t VALUES($1,$2)", 1, 7, nil)))
+			for _, b := range p.backends() {
+				referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, true, "SELECT * FROM t", []string{"a", "b"}, []string{"INT4", "TEXT"}, []bool{false, true}, 1)
+			}
 			run(referenceSelect("SELECT * FROM t", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), nil}}))
 			insert := referenceDiagnostic{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null, bad).", Schema: "public", Table: "t", Column: "a"}
 			for _, q := range []string{"INSERT INTO t VALUES(NULL,'bad')", "INSERT INTO t(b) VALUES('bad')", "INSERT INTO t VALUES(8,'valid'),(NULL,'bad')"} {
@@ -30,13 +39,47 @@ func TestReferenceNotNullFormsAndAlter(t *testing.T) {
 			run(referenceExec("CREATE TABLE clone(LIKE t)", 0))
 			run(referenceExec("ALTER TABLE ONLY(t) DROP CONSTRAINT nn", 0))
 			run(referenceExec("INSERT INTO t VALUES(NULL,'keep')", 1))
+			var before bytes.Buffer
+			if err := stuntgres.Dump(p.ctx, p.native, &before); err != nil {
+				t.Fatal(err)
+			}
 			for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ADD CONSTRAINT nn NOT NULL a"} {
 				run(referenceImplicitError(q, referenceDiagnostic{Code: "23502", Message: `column "a" of relation "t" contains null values`, Schema: "public", Table: "t", Column: "a"}))
+				var after bytes.Buffer
+				if err := stuntgres.Dump(p.ctx, p.native, &after); err != nil || before.String() != after.String() {
+					t.Fatal("failed ALTER changed canonical target", err)
+				}
 			}
 			run(referenceExec("ALTER TABLE clone DROP CONSTRAINT nn", 0))
 			run(referenceExec("INSERT INTO clone VALUES(NULL,NULL)", 1))
 			run(referenceExec("CREATE TABLE valid(a INT,b TEXT)", 0))
 			run(referenceExec("INSERT INTO valid VALUES(1,'keep')", 1))
+			for _, b := range p.backends() {
+				ctx := context.WithValue(p.ctx, referenceRecorderKey{}, b.recorder)
+				stmt, err := b.db.PrepareContext(ctx, "SELECT * FROM valid")
+				if err != nil {
+					t.Fatal(err)
+				}
+				func() {
+					defer stmt.Close()
+					s := referenceExec("ALTER TABLE valid ALTER COLUMN a SET NOT NULL", 0)
+					s.prepared = prepared
+					referenceRunStep(t, ctx, b.db, b.recorder, s)
+					rows, err := stmt.QueryContext(ctx)
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer rows.Close()
+					columns, err := rows.ColumnTypes()
+					if err != nil {
+						t.Fatal(err)
+					}
+					referenceTableDDLColumnTypes(t, b.pg, columns, []string{"a", "b"}, []string{"INT4", "TEXT"}, []bool{false, true})
+					if err := rows.Close(); err != nil {
+						t.Fatal(err)
+					}
+				}()
+			}
 			run(referenceExec("ALTER TABLE valid ALTER COLUMN a SET NOT NULL", 0))
 			run(referenceExec("ALTER TABLE valid ALTER COLUMN a SET NOT NULL", 0))
 			run(referenceExec("ALTER TABLE valid DROP CONSTRAINT valid_a_not_null", 0))
@@ -49,7 +92,7 @@ func TestReferenceNotNullFormsAndAlter(t *testing.T) {
 }
 
 func TestReferenceNotNullDeclarationsAndNames(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	schemaReferenceCleanup(t, "nested")
 	for _, tc := range []struct{ q, code, message, position string }{
 		{"CREATE TABLE t (a INT NULL NOT NULL)", "42601", `conflicting NULL/NOT NULL declarations for column "a" of table "t"`, "28"},
@@ -60,15 +103,26 @@ func TestReferenceNotNullDeclarationsAndNames(t *testing.T) {
 		{"CREATE TABLE t(a INT,b INT,CONSTRAINT nn NOT NULL a,CONSTRAINT nn NOT NULL b)", "42710", `constraint "nn" for relation "t" already exists`, ""},
 		{"CREATE TABLE t(a INT,NOT NULL missing)", "42703", `column "missing" of relation "t" does not exist`, ""},
 	} {
-		p.step(t, referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.position}))
+		s := referenceImplicitError(tc.q, referenceDiagnostic{Code: tc.code, Message: tc.message, Position: tc.position})
+		s.errorStage = "execute"
+		p.step(t, s)
 	}
+	p.step(t, referenceExec("CREATE TABLE t(a INT)", 0))
+	p.step(t, referenceExec("INSERT INTO t VALUES(NULL)", 1))
+	p.step(t, referenceSelect("SELECT * FROM t", []string{"a"}, []string{"INT4"}, [][]any{{nil}}))
+	p.step(t, referenceExec("DROP TABLE t", 0))
 	for _, q := range []string{"CREATE TABLE t(a INT NULL NULL)", "DROP TABLE t", "CREATE TABLE t(a INT NOT NULL NOT NULL)", "ALTER TABLE t DROP CONSTRAINT t_a_not_null", "DROP TABLE t", "CREATE TABLE t(a INT NOT NULL CONSTRAINT nn NOT NULL)", "ALTER TABLE t DROP CONSTRAINT nn", "DROP TABLE t"} {
 		p.step(t, referenceExec(q, 0))
 	}
 	p.step(t, referenceExec("CREATE TABLE occupied(x INT CONSTRAINT t_a_not_null NOT NULL)", 0))
 	p.step(t, referenceExec("CREATE TABLE t(a INT NOT NULL,b INT CONSTRAINT survivor NOT NULL)", 0))
+	p.step(t, referenceExec("CREATE TABLE clone(LIKE t)", 0))
 	p.step(t, referenceExec("ALTER TABLE t DROP a", 0))
 	p.step(t, referenceExec("ALTER TABLE t DROP CONSTRAINT survivor", 0))
+	p.step(t, referenceExec("ALTER TABLE clone DROP CONSTRAINT t_a_not_null1", 0))
+	p.step(t, referenceExec("INSERT INTO clone VALUES(NULL,2)", 1))
+	p.step(t, referenceSelect("SELECT * FROM clone", []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{nil, int64(2)}}))
+	p.step(t, referenceExec("ALTER TABLE clone DROP CONSTRAINT survivor", 0))
 	p.step(t, referenceExec("DROP TABLE occupied", 0))
 	p.step(t, referenceExec("ALTER TABLE t ALTER b SET NOT NULL", 0))
 	p.step(t, referenceExec("ALTER TABLE t DROP CONSTRAINT t_b_not_null", 0))
@@ -93,24 +147,42 @@ func TestReferenceNotNullColumnLocalDeclarations(t *testing.T) {
 			{"CREATE TABLE t(CONSTRAINT nn NOT NULL a,a INT CONSTRAINT ignored NULL)", "nn"},
 		} {
 			t.Run(tc.q+fmt.Sprint(prepared), func(t *testing.T) {
-				p := newReferencePair(t)
-				run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
+				p := newReferenceScenario(t)
+				run := func(s referenceStep) {
+					s.prepared = prepared
+					if s.diagnostic != nil && !s.selectRows {
+						s.errorStage = "execute"
+					}
+					p.step(t, s)
+				}
 				run(referenceExec(tc.q, 0))
+				for _, b := range p.backends() {
+					referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM t", []string{"a"}, []string{"INT4"}, []bool{false}, 0)
+				}
 				s := referenceImplicitError("INSERT INTO t VALUES(NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "a" of relation "t" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "t", Column: "a"})
 				run(s)
 				run(referenceSelect("SELECT * FROM t", []string{"a"}, []string{"INT4"}, nil))
 				run(referenceExec("INSERT INTO t VALUES($1)", 1, 7))
+				for _, b := range p.backends() {
+					referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM t", []string{"a"}, []string{"INT4"}, []bool{false}, 1)
+				}
 				run(referenceExec("ALTER TABLE t DROP CONSTRAINT "+tc.name, 0))
 				run(referenceExec("INSERT INTO t VALUES($1)", 1, nil))
+				for _, b := range p.backends() {
+					referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM t", []string{"a"}, []string{"INT4"}, []bool{true}, 2)
+				}
 				run(referenceSelect("SELECT * FROM t ORDER BY a", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}, {nil}}))
 			})
 		}
 		t.Run(fmt.Sprint("conflict", prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			s := referenceImplicitError("CREATE TABLE t(CONSTRAINT x NOT NULL a,a INT CONSTRAINT x NOT NULL CONSTRAINT y NOT NULL)", referenceDiagnostic{Code: "XX000", Message: `conflicting not-null constraint names "x" and "y"`})
 			s.prepared = prepared
 			s.errorStage = "execute"
 			p.step(t, s)
+			absent := referenceImplicitError("SELECT * FROM t", referenceDiagnostic{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"})
+			absent.selectRows = true
+			p.step(t, absent)
 		})
 	}
 }
@@ -119,7 +191,7 @@ func TestReferenceNotNullCreateSystemTarget(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		for _, q := range []string{"CREATE TABLE t(a INT,NOT NULL ctid)", "CREATE TABLE t(a INT,CONSTRAINT nn NOT NULL ctid)"} {
 			t.Run(q+fmt.Sprint(prepared), func(t *testing.T) {
-				p := newReferencePair(t)
+				p := newReferenceScenario(t)
 				p.step(t, referenceExec("CREATE TABLE keeper(v INT)", 0))
 				p.step(t, referenceExec("INSERT INTO keeper VALUES(91)", 1))
 				s := referenceImplicitError(q, referenceDiagnostic{Code: "0A000", Message: `cannot add not-null constraint on system column "ctid"`})
@@ -127,6 +199,7 @@ func TestReferenceNotNullCreateSystemTarget(t *testing.T) {
 				s.errorStage = "execute"
 				p.step(t, s)
 				s = referenceImplicitError("SELECT * FROM t", referenceDiagnostic{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"})
+				s.selectRows = true
 				p.step(t, s)
 				p.step(t, referenceSelect("SELECT * FROM keeper", []string{"v"}, []string{"INT4"}, [][]any{{int64(91)}}))
 			})
@@ -137,7 +210,7 @@ func TestReferenceNotNullCreateSystemTarget(t *testing.T) {
 func TestReferenceNotNullCurrentCommandNamesAndCompatibleReuse(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			schemaReferenceCleanup(t, "s", "renamed")
 			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
 			for _, tc := range []struct{ q, name string }{
@@ -146,11 +219,18 @@ func TestReferenceNotNullCurrentCommandNamesAndCompatibleReuse(t *testing.T) {
 				{"CREATE TABLE t(a INT,b INT,NOT NULL a,CONSTRAINT t_a_not_null NOT NULL b)", "t_a_not_null"},
 				{`CREATE TABLE "t""é\\x"(a INT NOT NULL,b INT CONSTRAINT "t""é\\x_a_not_null" NOT NULL)`, `t"é\\x_a_not_null`},
 			} {
-				referenceNotNullNameCollision(t, context.WithValue(p.ctx, referenceRecorderKey{}, p.memoryRecord), p.memory, prepared, tc.q, tc.name)
-				referenceNotNullNameCollision(t, context.WithValue(p.ctx, referenceRecorderKey{}, p.postgresRecord), p.postgres, prepared, tc.q, tc.name)
+				for _, b := range p.backends() {
+					referenceNotNullNameCollision(t, context.WithValue(p.ctx, referenceRecorderKey{}, b.recorder), b.db, prepared, tc.q, tc.name)
+				}
 			}
 			for _, tc := range []struct{ q, name string }{{"SELECT * FROM t", "t"}, {`SELECT * FROM "t""é\\x"`, `t"é\\x`}} {
 				s := referenceImplicitError(tc.q, referenceDiagnostic{Code: "42P01", Message: `relation "` + tc.name + `" does not exist`, Position: "15"})
+				s.selectRows = true
+				if prepared {
+					s.errorStage = "prepare"
+				} else {
+					s.errorStage = "execute"
+				}
 				run(s)
 			}
 			for _, q := range []string{
@@ -181,13 +261,14 @@ func TestReferenceNotNullCurrentCommandNamesAndCompatibleReuse(t *testing.T) {
 func TestReferenceNotNullLikeConstraintProcessingOrder(t *testing.T) {
 	for _, prepared := range []bool{false, true} {
 		t.Run(fmt.Sprint(prepared), func(t *testing.T) {
-			p := newReferencePair(t)
+			p := newReferenceScenario(t)
 			schemaReferenceCleanup(t, "src")
 			run := func(s referenceStep) { s.prepared = prepared; p.step(t, s) }
 			run(referenceExec("CREATE SCHEMA src CREATE TABLE source(z INT CONSTRAINT clone_a_not_null NOT NULL)", 0))
 			q := "CREATE TABLE clone(a INT NOT NULL,LIKE src.source)"
-			referenceNotNullNameCollision(t, context.WithValue(p.ctx, referenceRecorderKey{}, p.memoryRecord), p.memory, prepared, q, "clone_a_not_null")
-			referenceNotNullNameCollision(t, context.WithValue(p.ctx, referenceRecorderKey{}, p.postgresRecord), p.postgres, prepared, q, "clone_a_not_null")
+			for _, b := range p.backends() {
+				referenceNotNullNameCollision(t, context.WithValue(p.ctx, referenceRecorderKey{}, b.recorder), b.db, prepared, q, "clone_a_not_null")
+			}
 			for _, q := range []string{
 				"CREATE TABLE clone(LIKE src.source,a INT NOT NULL)",
 				"ALTER TABLE clone DROP CONSTRAINT clone_a_not_null1", "ALTER TABLE clone DROP CONSTRAINT clone_a_not_null", "DROP TABLE clone",
@@ -200,9 +281,19 @@ func TestReferenceNotNullLikeConstraintProcessingOrder(t *testing.T) {
 			s.errorStage = "execute"
 			run(s)
 			s = referenceImplicitError("SELECT * FROM clone", referenceDiagnostic{Code: "42P01", Message: `relation "clone" does not exist`, Position: "15"})
+			s.selectRows = true
+			if prepared {
+				s.errorStage = "prepare"
+			} else {
+				s.errorStage = "execute"
+			}
 			run(s)
 			run(referenceSelect("SELECT * FROM src.left_source", []string{"z", "a"}, []string{"INT4", "INT4"}, nil))
 			run(referenceSelect("SELECT * FROM src.right_source", []string{"w", "y"}, []string{"INT4", "INT4"}, nil))
+			for _, b := range p.backends() {
+				referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM src.left_source", []string{"z", "a"}, []string{"INT4", "INT4"}, []bool{false, false}, 0)
+				referenceTableDDLMetadata(t, p.ctx, b.db, b.pg, prepared, "SELECT * FROM src.right_source", []string{"w", "y"}, []string{"INT4", "INT4"}, []bool{false, false}, 0)
+			}
 		})
 	}
 }
@@ -220,6 +311,11 @@ func referenceNotNullNameCollision(t *testing.T, ctx context.Context, db *sql.DB
 	} else {
 		_, err = db.ExecContext(ctx, q)
 	}
+	referenceNotNullNameCollisionDiagnostic(t, err, name)
+}
+
+func referenceNotNullNameCollisionDiagnostic(t *testing.T, err error, name string) {
+	t.Helper()
 	got := referenceExtractDiagnostic(t, err)
 	const prefix = "Key (conrelid, contypid, conname)=("
 	suffix := ", 0, " + name + ") already exists."
@@ -247,7 +343,7 @@ func referenceNotNullNameCollision(t *testing.T, ctx context.Context, db *sql.DB
 }
 
 func TestReferenceNotNullAbsenceAnalysisPhases(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, prepared := range []bool{false, true} {
 		for _, queryRows := range []bool{false, true} {
 			s := referenceImplicitError("SELECT * FROM t", referenceDiagnostic{Code: "42P01", Message: `relation "t" does not exist`, Position: "15"})
