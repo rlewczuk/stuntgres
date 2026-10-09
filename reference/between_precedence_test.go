@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -13,8 +11,8 @@ func TestReferenceBetweenComparisonPrecedence(t *testing.T) {
 		step := referenceImplicitError(tc.query, referenceDiagnostic{Code: "42883", Message: "operator does not exist: boolean <= integer", Position: tc.position, Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."})
 		step.selectRows = true
 		step.errorStage = "execute"
-		p.step(t, step)
+		scalarStep(t, p, step)
 		step.errorStage = "prepare"
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, referencePrepared(step))
 	}
 }

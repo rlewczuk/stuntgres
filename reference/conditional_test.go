@@ -1,13 +1,11 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func conditionalReferenceSetup(t *testing.T) *referencePair {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(id INTEGER,v INTEGER,b BOOLEAN,s TEXT)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1,0,TRUE,'x'),(2,2,FALSE,NULL),(3,NULL,NULL,'y')", 3))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE t(id INTEGER,v INTEGER,b BOOLEAN,s TEXT)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO t VALUES(1,0,TRUE,'x'),(2,2,FALSE,NULL),(3,NULL,NULL,'y')", 3))
 	return p
 }
 func TestReferenceConditionalResults(t *testing.T) {
@@ -25,8 +23,8 @@ func TestReferenceConditionalResults(t *testing.T) {
 		referenceSelect("SELECT GREATEST(FALSE,TRUE,NULL),LEAST(FALSE,TRUE,NULL),COALESCE(1),GREATEST(2),LEAST(3),NULLIF(1,1) FROM t WHERE id=1", []string{"greatest", "least", "coalesce", "greatest", "least", "nullif"}, []string{"BOOL", "BOOL", "INT4", "INT4", "INT4", "INT4"}, [][]any{{true, false, int64(1), int64(2), int64(3), nil}}),
 	}
 	for _, step := range cases {
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
 }
 func TestReferenceConditionalParameters(t *testing.T) {
@@ -48,8 +46,8 @@ func TestReferenceConditionalParameters(t *testing.T) {
 		{"COALESCE($1,NULL)", "TEXT", "coalesce", nil, nil},
 	} {
 		step := referenceSelect("SELECT "+tc.q+" FROM t WHERE id=1", []string{tc.name}, []string{tc.typ}, [][]any{{tc.want}}, tc.arg)
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
 	for _, arg := range []any{"x", nil} {
 		want := int64(2)
@@ -57,8 +55,8 @@ func TestReferenceConditionalParameters(t *testing.T) {
 			want = 1
 		}
 		step := referenceSelect("SELECT CASE $1 WHEN 'x' THEN 1 ELSE 2 END FROM t WHERE id=1", []string{"case"}, []string{"INT4"}, [][]any{{want}}, arg)
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
 	for _, tc := range []struct {
 		q string
@@ -71,19 +69,18 @@ func TestReferenceConditionalParameters(t *testing.T) {
 		step := referenceImplicitError(tc.q, tc.d, 1)
 		step.selectRows = true
 		step.errorStage = "execute"
-		p.step(t, step)
+		scalarStep(t, p, step)
 		step.errorStage = "prepare"
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, referencePrepared(step))
 	}
-	// Text input remains valid until a demanded int4 cast. PostgreSQL custom
-	// planning can fold actual parameters, so this demand witness is native-only
-	// in the public smoke and engine tests rather than a false parity promise.
+	// The same-held demand scenarios independently assert PostgreSQL custom
+	// planning failures and native skipped casts in conditional_frames_test.go.
 }
 func TestReferenceConditionalDiagnostics(t *testing.T) {
 	p := conditionalReferenceSetup(t)
 	for _, empty := range []bool{false, true} {
 		if empty {
-			p.step(t, referenceExec("DELETE FROM t", 3))
+			scalarStep(t, p, referenceExec("DELETE FROM t", 3))
 		}
 		for _, tc := range []struct {
 			q string
@@ -112,66 +109,71 @@ func TestReferenceConditionalDiagnostics(t *testing.T) {
 			step := referenceImplicitError(tc.q, tc.d)
 			step.selectRows = true
 			step.errorStage = "execute"
-			p.step(t, step)
+			scalarStep(t, p, step)
 			step.errorStage = "prepare"
-			p.step(t, referencePrepared(step))
+			scalarStep(t, p, referencePrepared(step))
 		}
 		for _, q := range []string{"SELECT CASE WHEN v=0 THEN 0 ELSE 1/0 END FROM t", "SELECT COALESCE(v,1/0) FROM t", "SELECT GREATEST(100,1/0) FROM t", "SELECT NULLIF(NULL,1/0) FROM t"} {
 			step := referenceImplicitError(q, referenceDiagnostic{Code: "22012", Message: "division by zero"})
 			step.selectRows = true
 			step.errorStage = "execute"
-			p.step(t, step)
-			p.step(t, referencePrepared(step))
+			scalarStep(t, p, step)
+			scalarStep(t, p, referencePrepared(step))
 		}
 	}
 }
 func TestReferenceConditionalConsumers(t *testing.T) {
 	p := conditionalReferenceSetup(t)
-	p.step(t, referenceExec("CREATE TABLE d(a INTEGER DEFAULT CASE WHEN TRUE THEN COALESCE(NULL,7) ELSE 1/0 END,b INTEGER DEFAULT NULLIF(2,3),c INTEGER DEFAULT GREATEST(NULL,4),e INTEGER DEFAULT LEAST(NULL,5))", 0))
-	p.step(t, referenceExec("INSERT INTO d VALUES(DEFAULT,DEFAULT,DEFAULT,DEFAULT)", 1))
-	p.step(t, referenceSelect("SELECT a,b,c,e FROM d", []string{"a", "b", "c", "e"}, []string{"INT4", "INT4", "INT4", "INT4"}, [][]any{{int64(7), int64(2), int64(4), int64(5)}}))
-	p.step(t, referenceExec("CREATE TABLE out(v INTEGER)", 0))
-	p.step(t, referenceExec("CREATE TABLE decorated(v BIGINT)", 0))
-	p.step(t, referenceExec("INSERT INTO decorated VALUES(CASE WHEN TRUE THEN 1 ELSE 2147483648 END),(COALESCE(NULL,2147483648)) ORDER BY column1", 2))
-	p.step(t, referenceExec("INSERT INTO decorated SELECT GREATEST(v,9) FROM t", 3))
-	p.step(t, referenceSelect("SELECT v FROM decorated ORDER BY v", []string{"v"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(9)}, {int64(9)}, {int64(9)}, {int64(2147483648)}}))
-	p.step(t, referenceExec("INSERT INTO out VALUES(COALESCE(NULL,1)),(NULLIF(2,3)),(GREATEST(NULL,4)),(LEAST(NULL,5)),(CASE WHEN FALSE THEN 1/0 ELSE 6 END)", 5))
-	p.step(t, referenceExec("INSERT INTO out SELECT CASE WHEN b THEN 10 ELSE 20 END FROM t", 3))
-	p.step(t, referenceExec("UPDATE t SET v=CASE WHEN b THEN 10 WHEN id=2 THEN 20 ELSE 30 END WHERE COALESCE(TRUE,FALSE)", 3))
-	p.step(t, referenceSelect("SELECT v FROM t ORDER BY id", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}, {int64(20)}, {int64(30)}}))
-	p.step(t, referenceImplicitError("UPDATE t SET v=CASE WHEN id=1 THEN 9 ELSE 10/(id-2) END", referenceDiagnostic{Code: "22012", Message: "division by zero"}))
-	p.step(t, referenceSelect("SELECT v FROM t ORDER BY id", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}, {int64(20)}, {int64(30)}}))
-	p.step(t, referenceExec("DELETE FROM t WHERE CASE t.b WHEN TRUE THEN TRUE ELSE FALSE END", 1))
-	p.step(t, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}}))
+	scalarStep(t, p, referenceExec("CREATE TABLE d(a INTEGER DEFAULT CASE WHEN TRUE THEN COALESCE(NULL,7) ELSE 1/0 END,b INTEGER DEFAULT NULLIF(2,3),c INTEGER DEFAULT GREATEST(NULL,4),e INTEGER DEFAULT LEAST(NULL,5))", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO d VALUES(DEFAULT,DEFAULT,DEFAULT,DEFAULT)", 1))
+	scalarStep(t, p, referenceSelect("SELECT a,b,c,e FROM d", []string{"a", "b", "c", "e"}, []string{"INT4", "INT4", "INT4", "INT4"}, [][]any{{int64(7), int64(2), int64(4), int64(5)}}))
+	scalarStep(t, p, referenceExec("CREATE TABLE out(v INTEGER)", 0))
+	scalarStep(t, p, referenceExec("CREATE TABLE decorated(v BIGINT)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO decorated VALUES(CASE WHEN TRUE THEN 1 ELSE 2147483648 END),(COALESCE(NULL,2147483648)) ORDER BY column1", 2))
+	scalarStep(t, p, referenceExec("INSERT INTO decorated SELECT GREATEST(v,9) FROM t", 3))
+	scalarStep(t, p, referenceSelect("SELECT v FROM decorated ORDER BY v", []string{"v"}, []string{"INT8"}, [][]any{{int64(1)}, {int64(9)}, {int64(9)}, {int64(9)}, {int64(2147483648)}}))
+	scalarStep(t, p, referenceExec("INSERT INTO out VALUES(COALESCE(NULL,1)),(NULLIF(2,3)),(GREATEST(NULL,4)),(LEAST(NULL,5)),(CASE WHEN FALSE THEN 1/0 ELSE 6 END)", 5))
+	scalarStep(t, p, referenceExec("INSERT INTO out SELECT CASE WHEN b THEN 10 ELSE 20 END FROM t", 3))
+	scalarStep(t, p, referenceSelect("SELECT v FROM out ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}, {int64(4)}, {int64(5)}, {int64(6)}, {int64(10)}, {int64(20)}, {int64(20)}}))
+	scalarStep(t, p, referenceExec("UPDATE t SET v=CASE WHEN b THEN 10 WHEN id=2 THEN 20 ELSE 30 END WHERE COALESCE(TRUE,FALSE)", 3))
+	scalarStep(t, p, referenceSelect("SELECT v FROM t ORDER BY id", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}, {int64(20)}, {int64(30)}}))
+	scalarStep(t, p, referenceImplicitError("UPDATE t SET v=CASE WHEN id=1 THEN 9 ELSE 10/(id-2) END", referenceDiagnostic{Code: "22012", Message: "division by zero"}))
+	scalarStep(t, p, referenceSelect("SELECT v FROM t ORDER BY id", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}, {int64(20)}, {int64(30)}}))
+	scalarStep(t, p, referenceExec("DELETE FROM t WHERE CASE t.b WHEN TRUE THEN TRUE ELSE FALSE END", 1))
+	scalarStep(t, p, referenceSelect("SELECT id FROM t ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}, {int64(3)}}))
+	scalarStep(t, p, referenceSelect("SELECT COALESCE(t.v,1) FROM t ORDER BY id", []string{"coalesce"}, []string{"INT4"}, [][]any{{int64(20)}, {int64(30)}}))
+	step := referenceImplicitError("INSERT INTO out VALUES(COALESCE(NULL,NULL))", referenceDiagnostic{Code: "42804", Message: `column "v" is of type integer but expression is of type text`, Hint: "You will need to rewrite or cast the expression.", Position: "24"})
+	scalarStep(t, p, step)
+
 }
 
 func TestReferenceConditionalSequenceDemand(t *testing.T) {
 	p := conditionalReferenceSetup(t)
-	p.step(t, referenceExec("CREATE SEQUENCE seq", 0))
-	p.step(t, referencePrepared(referenceSelect("SELECT CASE nextval('seq') WHEN 1 THEN 10 WHEN 2 THEN 20 ELSE 30 END FROM t WHERE id=1", []string{"case"}, []string{"INT4"}, [][]any{{int64(10)}})))
-	p.step(t, referenceSelect("SELECT nextval('seq')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(2)}}))
-	p.step(t, referenceSelect("SELECT CASE WHEN b THEN 7 ELSE nextval('seq') END,COALESCE(v,nextval('seq')) FROM t WHERE id=1", []string{"nextval", "coalesce"}, []string{"INT8", "INT8"}, [][]any{{int64(7), int64(0)}}))
-	p.step(t, referenceSelect("SELECT nextval('seq')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(3)}}))
-	p.step(t, referenceSelect("SELECT CASE nextval('seq') WHEN 4 THEN CASE nextval('seq') WHEN 5 THEN 9 ELSE 0 END ELSE 0 END FROM t WHERE id=1", []string{"case"}, []string{"INT4"}, [][]any{{int64(9)}}))
-	p.step(t, referenceSelect("SELECT nextval('seq')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(6)}}))
+	scalarStep(t, p, referenceExec("CREATE SEQUENCE seq", 0))
+	scalarStep(t, p, referencePrepared(referenceSelect("SELECT CASE nextval('seq') WHEN 1 THEN 10 WHEN 2 THEN 20 ELSE 30 END FROM t WHERE id=1", []string{"case"}, []string{"INT4"}, [][]any{{int64(10)}})))
+	scalarStep(t, p, referenceSelect("SELECT nextval('seq')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(2)}}))
+	scalarStep(t, p, referenceSelect("SELECT CASE WHEN b THEN 7 ELSE nextval('seq') END,COALESCE(v,nextval('seq')) FROM t WHERE id=1", []string{"nextval", "coalesce"}, []string{"INT8", "INT8"}, [][]any{{int64(7), int64(0)}}))
+	scalarStep(t, p, referenceSelect("SELECT nextval('seq')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(3)}}))
+	scalarStep(t, p, referenceSelect("SELECT CASE nextval('seq') WHEN 4 THEN CASE nextval('seq') WHEN 5 THEN 9 ELSE 0 END ELSE 0 END FROM t WHERE id=1", []string{"case"}, []string{"INT4"}, [][]any{{int64(9)}}))
+	scalarStep(t, p, referenceSelect("SELECT nextval('seq')", []string{"nextval"}, []string{"INT8"}, [][]any{{int64(6)}}))
 }
 
 func TestReferenceConditionalDefaultDecisivePolicy(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE d(a BOOL DEFAULT CASE WHEN TRUE THEN FALSE AND CAST(CAST('oops' AS TEXT) AS INTEGER)=1 ELSE FALSE END,b BOOL DEFAULT CASE WHEN TRUE THEN TRUE OR CAST(CAST('oops' AS TEXT) AS INTEGER)=1 ELSE FALSE END,c BOOL DEFAULT COALESCE(FALSE AND CAST(CAST('oops' AS TEXT) AS INTEGER)=1,FALSE),e BOOL DEFAULT COALESCE(TRUE OR CAST(CAST('oops' AS TEXT) AS INTEGER)=1,FALSE))", 0))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE d(a BOOL DEFAULT CASE WHEN TRUE THEN FALSE AND CAST(CAST('oops' AS TEXT) AS INTEGER)=1 ELSE FALSE END,b BOOL DEFAULT CASE WHEN TRUE THEN TRUE OR CAST(CAST('oops' AS TEXT) AS INTEGER)=1 ELSE FALSE END,c BOOL DEFAULT COALESCE(FALSE AND CAST(CAST('oops' AS TEXT) AS INTEGER)=1,FALSE),e BOOL DEFAULT COALESCE(TRUE OR CAST(CAST('oops' AS TEXT) AS INTEGER)=1,FALSE))", 0))
 	insert := referenceExec("INSERT INTO d VALUES(DEFAULT,DEFAULT,DEFAULT,DEFAULT)", 1)
-	p.step(t, insert)
-	p.step(t, referencePrepared(insert))
+	scalarStep(t, p, insert)
+	scalarStep(t, p, referencePrepared(insert))
 	rows := referenceSelect("SELECT a,b,c,e FROM d", []string{"a", "b", "c", "e"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{false, true, false, true}, {false, true, false, true}})
-	p.step(t, rows)
-	p.step(t, referencePrepared(rows))
-	p.step(t, referenceExec("CREATE TABLE src(i INT)", 0))
+	scalarStep(t, p, rows)
+	scalarStep(t, p, referencePrepared(rows))
+	scalarStep(t, p, referenceExec("CREATE TABLE src(i INT)", 0))
 	empty := referenceExec("INSERT INTO d(a) SELECT FALSE FROM src", 0)
-	p.step(t, empty)
-	p.step(t, referencePrepared(empty))
-	p.step(t, referenceExec("INSERT INTO src VALUES(1)", 1))
+	scalarStep(t, p, empty)
+	scalarStep(t, p, referencePrepared(empty))
+	scalarStep(t, p, referenceExec("INSERT INTO src VALUES(1)", 1))
 	consumed := referenceExec("INSERT INTO d(a) SELECT FALSE FROM src", 1)
-	p.step(t, consumed)
-	p.step(t, referencePrepared(consumed))
-	p.step(t, referenceSelect("SELECT a,b,c,e FROM d", []string{"a", "b", "c", "e"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{false, true, false, true}, {false, true, false, true}, {false, true, false, true}, {false, true, false, true}}))
+	scalarStep(t, p, consumed)
+	scalarStep(t, p, referencePrepared(consumed))
+	scalarStep(t, p, referenceSelect("SELECT a,b,c,e FROM d", []string{"a", "b", "c", "e"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{false, true, false, true}, {false, true, false, true}, {false, true, false, true}, {false, true, false, true}}))
 }

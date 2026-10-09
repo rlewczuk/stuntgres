@@ -212,8 +212,12 @@ ANY does not infer bare parameter types: cast unresolved parameters explicitly.
 
 Simple/searched CASE, COALESCE, NULLIF, GREATEST and LEAST are scalar constructs
 in every existing general-scalar consumer, including DEFAULT/native roundtrip.
-CASE and COALESCE skip unneeded runtime children; NULLIF and extrema demand all
-arguments. All children still undergo analysis and authorization. A bounded
+Native CASE and COALESCE skip unneeded runtime children; native NULLIF and extrema
+demand all arguments. Pinned PostgreSQL can instead plan immutable bound
+conversions before CASE/COALESCE demand, and `NULLIF(NULL,10/v)` at v=0 returns
+SQL NULL rather than native22012. The reference suite asserts these outcomes
+independently, not as an optimizer guarantee. All children still undergo analysis
+and authorization. A bounded
 execution-only constant simplifier can reject constant division by zero beneath
 a row-dependent CASE/COALESCE, while decisive constant branches prune their
 unneeded runtime expressions. This is not general Boolean short-circuiting.
@@ -1066,7 +1070,7 @@ Genuinely unsupported calls retain their existing call guards.
 Native controls retain finalized computed BOOL
 values/metadata; dependency/ACL use includes both DISTINCT operands.
 Feature smoke: `make smoke RUN='^TestCompareNullSmoke$' VERBOSE=1`;
-native: `make test PACKAGES=. RUN='^TestCompareNull.*$' VERBOSE=1`;
+native: `make test PACKAGES=./reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1`;
 real pinned reference: `make reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1`.
 
 Baseline explicit casts extend the scalar positions above: `CAST(expr AS type)`,

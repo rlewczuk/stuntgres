@@ -1,4 +1,4 @@
-package stuntgres_test
+package reference_test
 
 import (
 	"bytes"
@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"testing"
-
 	"stuntgres"
+	"testing"
 )
 
-func TestBetweenDefaultCompositionMatrix(t *testing.T) {
+func TestReferenceBetweenDefaultCompositionControls(t *testing.T) {
 	for _, family := range []struct {
 		name, a, l, u string
 		null          bool
@@ -25,40 +24,15 @@ func TestBetweenDefaultCompositionMatrix(t *testing.T) {
 	} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/prepared=%v", family.name, prepared), func(t *testing.T) {
-				db := openLocal(t, stuntgres.NewDriver(), t.Name())
+				p := newReferenceScenario(t)
+				db := p.native
 				exec := func(query string, want int64) {
-					t.Helper()
-					var count int64
-					if prepared {
-						stmt, err := db.Prepare(query)
-						if err != nil {
-							t.Fatal(err)
-						}
-						result, err := stmt.Exec()
-						stmt.Close()
-						if err != nil {
-							t.Fatal(err)
-						}
-						count, err = result.RowsAffected()
-						if err != nil {
-							t.Fatal(err)
-						}
-					} else {
-						result, err := db.Exec(query)
-						if err != nil {
-							t.Fatal(err)
-						}
-						count, err = result.RowsAffected()
-						if err != nil {
-							t.Fatal(err)
-						}
-					}
-					if count != want {
-						t.Fatal(query, count, want)
-					}
+					step := referenceExec(query, want)
+					step.prepared = prepared
+					scalarRunStep(t, p.ctx, p.memory, p.memoryRecord, step)
 				}
 				definitions := []string{}
-				for i, form := range betweenForms {
+				for i, form := range betweenReferenceForms {
 					definitions = append(definitions, fmt.Sprintf("b%d BOOL DEFAULT (%s %s %s AND %s)", i, family.a, form, family.l, family.u))
 				}
 				exec("CREATE TABLE d("+strings.Join(definitions, ",")+")", 0)
@@ -67,11 +41,12 @@ func TestBetweenDefaultCompositionMatrix(t *testing.T) {
 				if family.null {
 					row = []any{nil, nil, nil, nil}
 				}
-				wantTuples(t, db, "SELECT * FROM d", [][]any{row})
+				scalarNativeTuples(t, db, "SELECT * FROM d", [][]any{row})
 				rows, err := db.Query("SELECT * FROM d")
 				if err != nil {
 					t.Fatal(err)
 				}
+				defer rows.Close()
 				meta, err := rows.ColumnTypes()
 				rows.Close()
 				if err != nil || len(meta) != 4 {
@@ -101,6 +76,11 @@ func TestBetweenDefaultCompositionMatrix(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				defer func() {
+					if err := held.Close(); err != nil {
+						t.Error(err)
+					}
+				}()
 				for range 2 {
 					result, err := held.Exec()
 					if err != nil {
@@ -111,11 +91,11 @@ func TestBetweenDefaultCompositionMatrix(t *testing.T) {
 					}
 				}
 				held.Close()
-				wantTuples(t, db, "SELECT * FROM d", [][]any{row, row, row})
+				scalarNativeTuples(t, db, "SELECT * FROM d", [][]any{row, row, row})
 				if err := stuntgres.Restore(ctx, db, strings.NewReader("CREATE TABLE partial(i INT); CREATE TABLE bad(b BOOL DEFAULT (TRUE BETWEEN 1 AND TRUE));")); err == nil {
 					t.Fatal("invalid restore accepted")
 				}
-				wantTuples(t, db, "SELECT * FROM d", [][]any{row, row, row})
+				scalarNativeTuples(t, db, "SELECT * FROM d", [][]any{row, row, row})
 				partial, err := db.Query("SELECT i FROM partial")
 				if partial != nil {
 					partial.Close()
@@ -135,7 +115,39 @@ func TestBetweenDefaultCompositionMatrix(t *testing.T) {
 					t.Fatal(err)
 				}
 				exec("INSERT INTO d DEFAULT VALUES", 1)
-				wantTuples(t, db, "SELECT * FROM d", [][]any{row, row, row, row})
+				scalarNativeTuples(t, db, "SELECT * FROM d", [][]any{row, row, row, row})
+				for _, backend := range p.backends() {
+					if !backend.pg {
+						continue
+					}
+					run := func(step referenceStep) {
+						step.prepared = prepared
+						scalarRunStep(t, p.ctx, backend.db, backend.recorder, step)
+					}
+					run(referenceExec("CREATE TABLE d("+strings.Join(definitions, ",")+")", 0))
+					run(referenceExec("INSERT INTO d DEFAULT VALUES", 1))
+					step := referenceSelect("SELECT * FROM d", []string{"b0", "b1", "b2", "b3"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{row})
+					run(step)
+					held, err := backend.db.PrepareContext(p.ctx, "INSERT INTO d DEFAULT VALUES")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer func() {
+						if err := held.Close(); err != nil {
+							t.Error(err)
+						}
+					}()
+					for range 2 {
+						scalarRunStep(t, p.ctx, referenceHeldStatement{backend.db, held, "INSERT INTO d DEFAULT VALUES"}, backend.recorder, referenceExec("INSERT INTO d DEFAULT VALUES", 1))
+					}
+					held.Close()
+					step.rows = [][]any{row, row, row}
+					run(step)
+					run(referenceExec("INSERT INTO d DEFAULT VALUES", 1))
+					step.rows = [][]any{row, row, row, row}
+					run(step)
+				}
+
 			})
 		}
 	}

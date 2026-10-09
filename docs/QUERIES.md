@@ -1217,8 +1217,10 @@ positive results independently, not false syntax-error parity.
 Public feature witness: `make smoke RUN='^TestLogicalSmoke$' VERBOSE=1`.
 Independent pinned PostgreSQL witnesses:
 `make reference RUN='^TestReferenceLogical.*$' VERBOSE=1`.
-Native/parser/engine units:
-`make test RUN='^TestLogical.*$' PACKAGES='. ./internal/parser ./internal/engine' VERBOSE=1`.
+Docker-free scalar scenarios:
+`make test RUN='^TestReferenceLogical.*$' PACKAGES=./reference VERBOSE=1`.
+Parser/engine units remain separate:
+`make test RUN='^TestLogical.*$' PACKAGES='./internal/parser ./internal/engine' VERBOSE=1`.
 
 
 
@@ -1486,7 +1488,7 @@ Executable acceptance (run these commands to establish verification):
 
 ```sh
 make smoke RUN='^TestCompareNullSmoke$' VERBOSE=1
-make test PACKAGES=. RUN='^TestCompareNull.*$' VERBOSE=1
+make test PACKAGES=./reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1
 make test PACKAGES=./internal/engine RUN='^TestExpressionCompareNull.*$' VERBOSE=1
 make test PACKAGES=./internal/parser VERBOSE=1
 make reference RUN='^TestReferenceCompareNull.*$' VERBOSE=1
@@ -1558,7 +1560,7 @@ comparison operands serialize directly with structural parentheses, without
 CASE identity bridges or evaluation of stored definitions.
 
 Executable feature evidence: `make smoke RUN='^TestBetweenSmoke$' VERBOSE=0`,
-`make test PACKAGES=. RUN='^TestBetween' VERBOSE=0`,
+`make test PACKAGES=./reference RUN='^TestReferenceBetween.*$' VERBOSE=0`,
 and `make reference RUN='^TestReferenceBetween' VERBOSE=0` against pinned18.0.
 
 ## Explicit baseline casts
@@ -1777,6 +1779,12 @@ operand's typmod unless signature coercion changes its type. Direct, Prepare
 and repeated execution retain the same logical schema, independent of values
 or nil parameters; argument Go types never choose the SQL signature.
 
+For the conditional VARCHAR vectors, constrained Length is `(3,true)` on both
+adapters. Unbounded VARCHAR instead exposes `(MaxInt64,true)` natively and
+`(-5,true)` through actual lib/pq; TEXT remains `(MaxInt64,true)`. Tests assert
+these descriptors independently, before normalization, including NULL outputs.
+
+
 ### Analysis, planning and runtime demand
 
 All children are analyzed, input-decoded, dependency-tracked and authorized,
@@ -1797,10 +1805,17 @@ conditional planning does not broaden that admission contract.
 Consequently `CASE WHEN TRUE THEN 1 ELSE 1/0 END` and `COALESCE(1,1/0)` succeed,
 but `CASE WHEN v=0 THEN 0 ELSE 1/0 END` or `COALESCE(v,1/0)` can fail `22012`
 during execution planning even for empty input or rows that would skip the
-division. Row-dependent division and parameter-dependent casts remain lazy
-inside CASE/COALESCE: `CASE WHEN b THEN 1 ELSE CAST(CAST($1 AS TEXT) AS INTEGER) END` need not decode
-bad TEXT through the cast when only TRUE rows select the other result.
-The parameter itself must still import according to its analyzed SQL type.
+division. Native row-dependent division and parameter-dependent casts remain
+lazy inside CASE/COALESCE: `CASE WHEN b THEN 1 ELSE CAST(CAST($1 AS TEXT) AS INTEGER) END`
+need not decode bad TEXT when only TRUE rows select the other result. The
+parameter itself must still import according to its analyzed SQL type. This is
+not demand parity: pinned PostgreSQL 18.0 can plan the immutable conversion of a
+bound TEXT parameter before CASE/COALESCE runtime demand and report22P02 even
+for the skipped branch. Tests retain the original id1v0 setup and consume the
+successful `"7"`, id2 result after failure on the same held statement. Native
+`NULLIF(NULL,10/v)` with v=0 reports22012; the exact PostgreSQL query instead
+returns one SQL NULL of type INT4. These outcomes are independently asserted,
+without forcing a generic plan or expanding native syntax.
 Ordinary queries do not gain consumed-default constant AND/OR pruning; this
 feature is not a general Boolean short-circuit or optimizer promise.
 Consumed stored defaults alone retain their existing decisive FALSE-AND and
@@ -1819,7 +1834,8 @@ row mutation; sequence side effects retain their existing separate contract.
 Permanent public witnesses:
 `make smoke RUN='^TestConditionalSmoke$' VERBOSE=0`,
 `make smoke RUN='^TestConditionalAggregateSmoke$' VERBOSE=0`,
-`make test RUN='^TestConditional' PACKAGES='. ./internal/parser ./internal/sqltype ./internal/engine' VERBOSE=0`,
+`make test RUN='^TestReferenceConditional.*$' PACKAGES=./reference VERBOSE=0`,
+`make test RUN='^TestConditional' PACKAGES='./internal/parser ./internal/sqltype ./internal/engine' VERBOSE=0`,
 and `make reference RUN='^TestReferenceConditional' VERBOSE=0` against the real
 pinned PostgreSQL 18.0 fixture. These commands must be executed to establish
 verification; expectations precede backend comparison.

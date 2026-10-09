@@ -585,7 +585,7 @@ they are not removed or reassociated through the sign.
 
 Feature smoke: `make smoke RUN='^TestCompareOpsSmoke$' VERBOSE=1`; independent
 pinned PostgreSQL coverage: `make reference RUN='^TestReferenceCompareOps' VERBOSE=1`;
-native coverage: `make test PACKAGES=. RUN='^TestCompareOps' VERBOSE=1`.
+native coverage: `make test PACKAGES=./reference RUN='^TestReferenceCompareOps.*$' VERBOSE=1`.
 
 ## Character types
 

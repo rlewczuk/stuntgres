@@ -1,17 +1,15 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"reflect"
+	"strings"
 	"testing"
 )
 
 func expressionReferenceSetup(t *testing.T) *referencePair {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(id INTEGER,v INTEGER,b BIGINT,s TEXT,f BOOLEAN)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1,1,2147483648,'x',TRUE),(2,NULL,2,'x',NULL),(3,2,3,'y',FALSE),(4,1,4,'x',TRUE)", 4))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE t(id INTEGER,v INTEGER,b BIGINT,s TEXT,f BOOLEAN)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO t VALUES(1,1,2147483648,'x',TRUE),(2,NULL,2,'x',NULL),(3,2,3,'y',FALSE),(4,1,4,'x',TRUE)", 4))
 	return p
 }
 func TestReferenceExpressionCoreScalars(t *testing.T) {
@@ -41,8 +39,8 @@ func TestReferenceExpressionCoreScalars(t *testing.T) {
 		referenceSelect("SELECT id FROM t WHERE $1", []string{"id"}, []string{"INT4"}, nil, nil),
 	}
 	for _, step := range cases {
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
 }
 func TestReferenceExpressionCoreDiagnostics(t *testing.T) {
@@ -63,15 +61,15 @@ func TestReferenceExpressionCoreDiagnostics(t *testing.T) {
 		step := referenceImplicitError(tc.q, tc.d)
 		step.selectRows = true
 		step.errorStage = "execute"
-		p.step(t, step)
+		scalarStep(t, p, step)
 		step.errorStage = "prepare"
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, referencePrepared(step))
 	}
 	bad := referenceImplicitError("SELECT id FROM t WHERE $1", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`, Context: "unnamed portal parameter $1 = '...'"}, "truth")
 	bad.selectRows = true
 	bad.errorStage = "execute"
-	p.step(t, bad)
-	p.step(t, referencePrepared(bad))
+	scalarStep(t, p, bad)
+	scalarStep(t, p, referencePrepared(bad))
 	for _, tc := range []struct {
 		q, detail string
 		arg       any
@@ -82,47 +80,55 @@ func TestReferenceExpressionCoreDiagnostics(t *testing.T) {
 		step := referenceImplicitError(tc.q, referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: tc.detail, Position: "8"}, tc.arg)
 		step.selectRows = true
 		step.errorStage = "execute"
-		p.step(t, step)
+		scalarStep(t, p, step)
 		step.errorStage = "prepare"
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, referencePrepared(step))
 	}
 	// Zero-argument pq Query uses simple protocol, unlike native sparse analysis.
 	// Assert distinct complete records without normalizing Code or Message.
 	gap := referenceImplicitError("SELECT $2 FROM t", referenceDiagnostic{Code: "42P18", Message: "could not determine data type of parameter $1"})
 	gap.selectRows = true
 	gap.errorStage = "execute"
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, gap)
+	scalarRunStep(t, p.ctx, p.memory, p.memoryRecord, gap)
 	simple := referenceImplicitError("SELECT $2 FROM t", referenceDiagnostic{Code: "42P02", Message: "there is no parameter $2", Position: "8"})
 	simple.selectRows = true
 	simple.errorStage = "execute"
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+	if p.postgres != nil {
+		scalarRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+	}
 	gap.errorStage = "prepare"
-	p.step(t, referencePrepared(gap))
-	p.step(t, referenceExec("CREATE TABLE atomic(i INT NOT NULL)", 0))
-	p.step(t, referenceExec("INSERT INTO atomic VALUES(99)", 1))
+	scalarStep(t, p, referencePrepared(gap))
+	scalarStep(t, p, referenceExec("CREATE TABLE atomic(i INT NOT NULL)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO atomic VALUES(99)", 1))
 	for _, step := range []referenceStep{
 		referenceImplicitError("INSERT INTO atomic VALUES(1),('oops')", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`, Position: "31"}),
 		referenceImplicitError("INSERT INTO atomic VALUES(1),(2147483648)", referenceDiagnostic{Code: "22003", Message: "integer out of range"}),
 		referenceImplicitError("INSERT INTO atomic VALUES(1),(NULL)", referenceDiagnostic{Code: "23502", Message: `null value in column "i" of relation "atomic" violates not-null constraint`, Detail: "Failing row contains (null).", Schema: "public", Table: "atomic", Column: "i"}),
 	} {
 		step.errorStage = "execute"
-		p.step(t, step)
+		scalarStep(t, p, step)
 		if step.diagnostic.Code == "22P02" {
 			step.errorStage = "prepare"
 		}
-		p.step(t, referencePrepared(step))
-		p.step(t, referenceSelect("SELECT i,7 FROM atomic", []string{"i", "?column?"}, []string{"INT4", "INT4"}, [][]any{{int64(99), int64(7)}}))
+		scalarStep(t, p, referencePrepared(step))
+		scalarStep(t, p, referenceSelect("SELECT i,7 FROM atomic", []string{"i", "?column?"}, []string{"INT4", "INT4"}, [][]any{{int64(99), int64(7)}}))
 	}
 }
 
 func TestReferenceExpressionCoreHeldPreparedParameters(t *testing.T) {
 	p := expressionReferenceSetup(t)
 	var observed [][][][]any
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		stmt, err := db.PrepareContext(p.ctx, "SELECT id FROM t WHERE v=$1 ORDER BY id")
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer func() {
+			if err := stmt.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 		gotExecutions := [][][]any{}
 		for i, arg := range []any{1, 2, nil} {
 			rows, err := stmt.QueryContext(p.ctx, arg)
@@ -130,6 +136,7 @@ func TestReferenceExpressionCoreHeldPreparedParameters(t *testing.T) {
 				stmt.Close()
 				t.Fatal(err)
 			}
+			defer rows.Close()
 			names, err := rows.Columns()
 			if err != nil || !reflect.DeepEqual(names, []string{"id"}) {
 				t.Fatal(names, err)
@@ -138,6 +145,7 @@ func TestReferenceExpressionCoreHeldPreparedParameters(t *testing.T) {
 			if err != nil || types[0].DatabaseTypeName() != "INT4" {
 				t.Fatal(types, err)
 			}
+			scalarAssertMetadata(t, backend.pg, types)
 			got := [][]any{}
 			for rows.Next() {
 				var value any
@@ -165,27 +173,50 @@ func TestReferenceExpressionCoreHeldPreparedParameters(t *testing.T) {
 		stmt.Close()
 		observed = append(observed, gotExecutions)
 	}
-	if !reflect.DeepEqual(observed[0], observed[1]) {
+	if len(observed) == 2 && !reflect.DeepEqual(observed[0], observed[1]) {
 		t.Fatal("held prepared backend parity", observed)
 	}
 }
 
 func TestReferenceExpressionCoreEmptyTableAnalysis(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(id INT,s TEXT)", 0))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE t(id INT,s TEXT,f BOOL)", 0))
 	for _, tc := range []struct {
-		q string
-		d referenceDiagnostic
+		q    string
+		want referenceDiagnostic
 	}{
 		{"SELECT missing FROM t", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "8"}},
-		{"SELECT id FROM t WHERE 'truth'", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`, Position: "24"}},
+		{"SELECT /*é*/ missing FROM t", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "14"}},
+		{"SELECT id FROM t WHERE missing=1", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "24"}},
+		{"SELECT id FROM t WHERE 1", referenceDiagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type integer", Position: "24"}},
 		{"SELECT id FROM t WHERE s", referenceDiagnostic{Code: "42804", Message: "argument of WHERE must be type boolean, not type text", Position: "24"}},
+		{"SELECT id FROM t WHERE id=TRUE", referenceDiagnostic{Code: "42883", Message: "operator does not exist: integer = boolean", Position: "26", Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}},
+		{"SELECT id FROM t WHERE 'truth'", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`, Position: "24"}},
+		{"SELECT $0 FROM t", referenceDiagnostic{Code: "42P02", Message: "there is no parameter $0", Position: "8"}},
+		{"SELECT $2 FROM t", referenceDiagnostic{Code: "42P18", Message: "could not determine data type of parameter $1"}},
+		{"SELECT $1 FROM t WHERE id=$1 ORDER BY id", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "integer versus text", Position: "8"}},
+		{"SELECT $1 FROM t WHERE f=$1 ORDER BY id", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "boolean versus text", Position: "8"}},
+		{"SELECT $1 FROM t WHERE $1", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "boolean versus text", Position: "8"}},
 	} {
-		step := referenceImplicitError(tc.q, tc.d)
-		step.selectRows = true
-		step.errorStage = "execute"
-		p.step(t, step)
-		step.errorStage = "prepare"
-		p.step(t, referencePrepared(step))
+		native := referenceImplicitError(tc.q, tc.want)
+		native.selectRows = true
+		native.errorStage = "execute"
+		for _, backend := range p.backends() {
+			step := native
+			if backend.pg && strings.Contains(tc.q, "$1") {
+				step = referenceImplicitError(tc.q, referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: "8"})
+				step.selectRows = true
+				step.errorStage = "execute"
+			}
+			if backend.pg && strings.Contains(tc.q, "$2") {
+				step = referenceImplicitError(tc.q, referenceDiagnostic{Code: "42P02", Message: "there is no parameter $2", Position: "8"})
+				step.selectRows = true
+				step.errorStage = "execute"
+			}
+			scalarRunStep(t, p.ctx, backend.db, backend.recorder, step)
+			native.errorStage = "prepare"
+			scalarRunStep(t, p.ctx, backend.db, backend.recorder, referencePrepared(native))
+			native.errorStage = "execute"
+		}
 	}
 }

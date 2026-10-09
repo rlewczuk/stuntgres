@@ -1,15 +1,13 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceConditionalAggregateComposition(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(v INTEGER)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1),(1),(2)", 3))
-	p.step(t, referenceExec("CREATE TABLE empty(v INTEGER)", 0))
-	p.step(t, referenceExec("CREATE TABLE out(v BIGINT)", 0))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE t(v INTEGER)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO t VALUES(1),(1),(2)", 3))
+	scalarStep(t, p, referenceExec("CREATE TABLE empty(v INTEGER)", 0))
+	scalarStep(t, p, referenceExec("CREATE TABLE out(v BIGINT)", 0))
 	for _, step := range []referenceStep{
 		referenceSelect("SELECT CASE count(*) WHEN 3 THEN count(*) ELSE 0 END,COALESCE(count(*),0),NULLIF(count(*),0),GREATEST(count(*),2),LEAST(count(*),2) FROM t", []string{"case", "coalesce", "nullif", "greatest", "least"}, []string{"INT8", "INT8", "INT8", "INT8", "INT8"}, [][]any{{int64(3), int64(3), int64(3), int64(3), int64(2)}}),
 		referenceSelect("SELECT CASE WHEN count(*)=3 THEN 7 ELSE 0 END FROM t HAVING COALESCE(count(*),0)>0", []string{"case"}, []string{"INT4"}, [][]any{{int64(7)}}),
@@ -19,18 +17,35 @@ func TestReferenceConditionalAggregateComposition(t *testing.T) {
 		referenceSelect("SELECT COALESCE(v,0),count(*) FROM empty GROUP BY COALESCE(v,0)", []string{"coalesce", "count"}, []string{"INT4", "INT8"}, [][]any{}),
 	} {
 		step.bag = true
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		for _, backend := range p.backends() {
+			held, err := backend.db.PrepareContext(p.ctx, step.query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := held.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			for range 2 {
+				scalarRunStep(t, p.ctx, referenceHeldStatement{backend.db, held, step.query}, backend.recorder, step)
+			}
+			if err := held.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		scalarStep(t, p, referencePrepared(step))
 	}
 	for _, q := range []string{
 		"INSERT INTO out SELECT CASE count(*) WHEN 3 THEN count(*) ELSE 0 END FROM t",
 		"INSERT INTO out SELECT COALESCE(count(*),9) FROM empty",
 	} {
 		step := referenceExec(q, 1)
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
-	p.step(t, referenceSelect("SELECT v FROM out ORDER BY v", []string{"v"}, []string{"INT8"}, [][]any{{int64(0)}, {int64(0)}, {int64(3)}, {int64(3)}}))
+	scalarStep(t, p, referenceSelect("SELECT v FROM out ORDER BY v", []string{"v"}, []string{"INT8"}, [][]any{{int64(0)}, {int64(0)}, {int64(3)}, {int64(3)}}))
 	for _, tc := range []struct {
 		q          string
 		diagnostic referenceDiagnostic
@@ -42,8 +57,8 @@ func TestReferenceConditionalAggregateComposition(t *testing.T) {
 		step := referenceImplicitError(tc.q, tc.diagnostic)
 		step.selectRows = true
 		step.errorStage = "execute"
-		p.step(t, step)
+		scalarStep(t, p, step)
 		step.errorStage = "prepare"
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, referencePrepared(step))
 	}
 }

@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"reflect"
 	"testing"
 )
@@ -101,13 +98,13 @@ func TestReferenceCompareNullMatrices(t *testing.T) {
 		cases = append(cases, referenceSelect("SELECT "+tc.expr+" FROM t ORDER BY id", []string{"?column?"}, []string{"BOOL"}, want))
 	}
 	for _, step := range cases {
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
-	p.step(t, referenceExec("CREATE TABLE empty(v INT)", 0))
+	scalarStep(t, p, referenceExec("CREATE TABLE empty(v INT)", 0))
 	step := referenceSelect("SELECT v IS NULL FROM empty", []string{"?column?"}, []string{"BOOL"}, nil)
-	p.step(t, step)
-	p.step(t, referencePrepared(step))
+	scalarStep(t, p, step)
+	scalarStep(t, p, referencePrepared(step))
 }
 
 func TestReferenceCompareNullAnyInteraction(t *testing.T) {
@@ -115,14 +112,34 @@ func TestReferenceCompareNullAnyInteraction(t *testing.T) {
 	for i, arg := range []any{true, false, nil} {
 		row := [][]any{{true, int64(0), false}, {false, int64(0), false}, {false, int64(1), true}}[i]
 		step := referenceSelect("SELECT $1 IS TRUE,num_nulls($1),$1 IS NULL FROM t", []string{"?column?", "num_nulls", "?column?"}, []string{"BOOL", "INT4", "BOOL"}, [][]any{row, row, row, row}, arg)
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
+	for _, backend := range p.backends() {
+		q := "SELECT $1 IS TRUE,num_nulls($1),$1 IS NULL FROM t"
+		held, err := backend.db.PrepareContext(p.ctx, q)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := held.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		for i, arg := range []any{true, false, nil} {
+			row := [][]any{{true, int64(0), false}, {false, int64(0), false}, {false, int64(1), true}}[i]
+			step := referenceSelect(q, []string{"?column?", "num_nulls", "?column?"}, []string{"BOOL", "INT4", "BOOL"}, [][]any{row, row, row, row}, arg)
+			step.bag = true
+			scalarRunStep(t, p.ctx, referenceHeldStatement{backend.db, held, q}, backend.recorder, step)
+		}
+		held.Close()
+	}
+
 }
 
 func TestReferenceCompareNullDiagnostics(t *testing.T) {
 	p := expressionReferenceSetup(t)
-	p.step(t, referenceExec("CREATE TABLE empty(v INT,s TEXT,b BIGINT)", 0))
+	scalarStep(t, p, referenceExec("CREATE TABLE empty(v INT,s TEXT,b BIGINT)", 0))
 	cases := []struct {
 		q    string
 		d    referenceDiagnostic
@@ -173,9 +190,9 @@ func TestReferenceCompareNullDiagnostics(t *testing.T) {
 		step := referenceImplicitError(tc.q, tc.d, tc.args...)
 		step.selectRows = true
 		step.errorStage = "execute"
-		p.step(t, step)
+		scalarStep(t, p, step)
 		step.errorStage = "prepare"
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, referencePrepared(step))
 	}
 	bad := referenceImplicitError("SELECT $1 IS TRUE FROM t", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`}, "truth")
 	bad.selectRows = true
@@ -183,31 +200,39 @@ func TestReferenceCompareNullDiagnostics(t *testing.T) {
 	pg := *bad.diagnostic
 	pg.Context = "unnamed portal parameter $1 = '...'"
 	bad.diagnostic = &pg
-	p.step(t, bad)
-	p.step(t, referencePrepared(bad))
+	scalarStep(t, p, bad)
+	scalarStep(t, p, referencePrepared(bad))
 	native := referenceImplicitError("SELECT $1 IS NULL FROM t", referenceDiagnostic{Code: "42P18", Message: "could not determine data type of parameter $1"})
 	native.selectRows = true
 	native.errorStage = "execute"
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
+	scalarRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
 	simple := referenceImplicitError("SELECT $1 IS NULL FROM t", referenceDiagnostic{Code: "42P02", Message: "there is no parameter $1", Position: "8"})
 	simple.selectRows = true
 	simple.errorStage = "execute"
-	referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+	if p.postgres != nil {
+		scalarRunStep(t, p.ctx, p.postgres, p.postgresRecord, simple)
+	}
 }
 
 func TestReferenceCompareNullHeldParameters(t *testing.T) {
 	p := expressionReferenceSetup(t)
-	for _, q := range []string{"SELECT id FROM t WHERE v IS NOT DISTINCT FROM $1 ORDER BY id", "SELECT id FROM t WHERE $1 IS NOT DISTINCT FROM v ORDER BY id", "SELECT id FROM t WHERE v IS NOT DISTINCT FROM $1 AND (v=$1) IS NOT FALSE ORDER BY id", "SELECT $1 IS TRUE,$1 IS NULL FROM t"} {
+	for _, q := range []string{"SELECT id FROM t WHERE v IS NOT DISTINCT FROM $1 ORDER BY id", "SELECT id FROM t WHERE $1 IS NOT DISTINCT FROM v ORDER BY id", "SELECT id FROM t WHERE v IS NOT DISTINCT FROM $1 AND (v=$1) IS NOT FALSE ORDER BY id", "SELECT $1 IS TRUE,$1 IS NULL FROM t", "SELECT $1 IS TRUE,$1 IS UNKNOWN FROM t"} {
 		observed := [][][][]any{}
-		for _, db := range []*sql.DB{p.memory, p.postgres} {
+		for _, backend := range p.backends() {
+			db := backend.db
 			stmt, err := db.PrepareContext(p.ctx, q)
 			if err != nil {
 				t.Fatal(q, err)
 			}
+			defer func() {
+				if err := stmt.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
 			args := []any{1, 2, nil}
 			names, types := []string{"id"}, []string{"INT4"}
 			wants := [][][]any{{{int64(1)}, {int64(4)}}, {{int64(3)}}, {{int64(2)}}}
-			if q == "SELECT $1 IS TRUE,$1 IS NULL FROM t" {
+			if q == "SELECT $1 IS TRUE,$1 IS NULL FROM t" || q == "SELECT $1 IS TRUE,$1 IS UNKNOWN FROM t" {
 				args = []any{true, false, nil}
 				names = []string{"?column?", "?column?"}
 				types = []string{"BOOL", "BOOL"}
@@ -219,6 +244,7 @@ func TestReferenceCompareNullHeldParameters(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				defer rows.Close()
 				gotNames, err := rows.Columns()
 				if err != nil || !reflect.DeepEqual(gotNames, names) {
 					t.Fatal(gotNames, err)
@@ -232,6 +258,7 @@ func TestReferenceCompareNullHeldParameters(t *testing.T) {
 						t.Fatal(metadata[j])
 					}
 				}
+				scalarAssertMetadata(t, backend.pg, metadata)
 				got := [][]any{}
 				for rows.Next() {
 					values := make([]any, len(names))
@@ -253,11 +280,40 @@ func TestReferenceCompareNullHeldParameters(t *testing.T) {
 				}
 				executions = append(executions, got)
 			}
+			if len(types) == 2 {
+				bad := referenceImplicitError(q, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`, Context: "unnamed portal parameter $1 = '...'"}, "truth")
+				bad.selectRows = true
+				bad.errorStage = "execute"
+				scalarRunStep(t, p.ctx, referenceHeldStatement{backend.db, stmt, q}, backend.recorder, bad)
+			}
 			stmt.Close()
 			observed = append(observed, executions)
 		}
-		if !reflect.DeepEqual(observed[0], observed[1]) {
+		if len(observed) == 2 && !reflect.DeepEqual(observed[0], observed[1]) {
 			t.Fatal("held backend parity", observed)
+		}
+	}
+	for _, backend := range p.backends() {
+		for _, q := range []string{"SELECT $1 IS DISTINCT FROM $2 FROM t", "SELECT $1 IS DISTINCT FROM $1 FROM t"} {
+			held, err := backend.db.PrepareContext(p.ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := held.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			args := []any{"x", "y"}
+			want := true
+			if q == "SELECT $1 IS DISTINCT FROM $1 FROM t" {
+				args = []any{"x"}
+				want = false
+			}
+			step := referenceSelect(q, []string{"?column?"}, []string{"BOOL"}, [][]any{{want}, {want}, {want}, {want}}, args...)
+			step.bag = true
+			scalarRunStep(t, p.ctx, referenceHeldStatement{backend.db, held, q}, backend.recorder, step)
+			held.Close()
 		}
 	}
 	for _, step := range []referenceStep{
@@ -266,8 +322,8 @@ func TestReferenceCompareNullHeldParameters(t *testing.T) {
 		referenceSelect("SELECT $1 IS DISTINCT FROM $2 FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {false}, {false}, {false}}, nil, nil),
 		referenceSelect("SELECT $1 IS DISTINCT FROM $1 FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {false}, {false}, {false}}, "x"),
 	} {
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
 }
 
@@ -286,9 +342,9 @@ func TestReferenceCompareNullParameterErrorPrecedence(t *testing.T) {
 			step := referenceImplicitError(tc.query, referenceDiagnostic{Code: tc.code, Message: "could not determine data type of parameter $" + tc.parameter, Position: tc.position}, tc.args...)
 			step.selectRows = true
 			step.errorStage = "execute"
-			p.step(t, step)
+			scalarStep(t, p, step)
 			step.errorStage = "prepare"
-			p.step(t, referencePrepared(step))
+			scalarStep(t, p, referencePrepared(step))
 		})
 	}
 }

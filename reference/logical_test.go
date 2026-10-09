@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -9,18 +7,18 @@ import (
 )
 
 func logicalReferenceSetup(t *testing.T) *referencePair {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(id INT,a BOOL,b BOOL,s TEXT)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1,TRUE,TRUE,'yes'),(2,TRUE,FALSE,'yes'),(3,TRUE,NULL,'yes'),(4,FALSE,TRUE,'yes'),(5,FALSE,FALSE,'yes'),(6,FALSE,NULL,'yes'),(7,NULL,TRUE,'yes'),(8,NULL,FALSE,'yes'),(9,NULL,NULL,'yes')", 9))
-	p.step(t, referenceExec("CREATE TABLE one(id INT)", 0))
-	p.step(t, referenceExec("INSERT INTO one VALUES(1)", 1))
-	p.step(t, referenceExec("CREATE TABLE empty(id INT,a BOOL,b BOOL,s TEXT)", 0))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE t(id INT,a BOOL,b BOOL,s TEXT)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO t VALUES(1,TRUE,TRUE,'yes'),(2,TRUE,FALSE,'yes'),(3,TRUE,NULL,'yes'),(4,FALSE,TRUE,'yes'),(5,FALSE,FALSE,'yes'),(6,FALSE,NULL,'yes'),(7,NULL,TRUE,'yes'),(8,NULL,FALSE,'yes'),(9,NULL,NULL,'yes')", 9))
+	scalarStep(t, p, referenceExec("CREATE TABLE one(id INT)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO one VALUES(1)", 1))
+	scalarStep(t, p, referenceExec("CREATE TABLE empty(id INT,a BOOL,b BOOL,s TEXT)", 0))
 	return p
 }
 
 func TestReferenceLogicalTruth(t *testing.T) {
 	p := logicalReferenceSetup(t)
-	both := func(s referenceStep) { t.Helper(); p.step(t, s); p.step(t, referencePrepared(s)) }
+	both := func(s referenceStep) { t.Helper(); scalarStep(t, p, s); scalarStep(t, p, referencePrepared(s)) }
 	for _, v := range []struct {
 		a, b    string
 		and, or any
@@ -75,8 +73,8 @@ func TestReferenceLogicalTruth(t *testing.T) {
 	both(referenceSelect("SELECT a AND b FROM empty", []string{"?column?"}, []string{"BOOL"}, nil))
 	both(referenceSelect("SELECT $1 AND TRUE,$1 FROM one", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{nil, nil}}, nil))
 	both(referenceSelect("SELECT $1 AND $1,NOT $1 OR $1 FROM one", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{false, true}}, false))
-	p.step(t, referenceExec("CREATE TABLE bag(a BOOL,b BOOL)", 0))
-	p.step(t, referenceExec("INSERT INTO bag VALUES(TRUE,TRUE),(TRUE,TRUE),(NULL,FALSE),(NULL,NULL)", 4))
+	scalarStep(t, p, referenceExec("CREATE TABLE bag(a BOOL,b BOOL)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO bag VALUES(TRUE,TRUE),(TRUE,TRUE),(NULL,FALSE),(NULL,NULL)", 4))
 	s := referenceSelect("SELECT a AND b,a OR b FROM bag", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}, {true, true}, {false, nil}, {nil, nil}})
 	s.bag = true
 	both(s)
@@ -117,9 +115,9 @@ func TestReferenceLogicalDiagnostics(t *testing.T) {
 		s := referenceImplicitError(tc.q, tc.d, tc.args...)
 		s.selectRows = true
 		s.errorStage = "execute"
-		p.step(t, s)
+		scalarStep(t, p, s)
 		s.errorStage = "prepare"
-		p.step(t, referencePrepared(s))
+		scalarStep(t, p, referencePrepared(s))
 	}
 	s := referenceImplicitError("SELECT NOT $1 FROM one", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type boolean: "truth"`}, "truth")
 	s.selectRows = true
@@ -127,8 +125,8 @@ func TestReferenceLogicalDiagnostics(t *testing.T) {
 	pg := *s.diagnostic
 	pg.Context = "unnamed portal parameter $1 = '...'"
 	s.diagnostic = &pg
-	p.step(t, s)
-	p.step(t, referencePrepared(s))
+	scalarStep(t, p, s)
+	scalarStep(t, p, referencePrepared(s))
 }
 
 // PostgreSQL accepts AND/OR here as bare target aliases. The native dialect
@@ -143,31 +141,46 @@ func TestReferenceLogicalKeywordAliasBoundary(t *testing.T) {
 		native := referenceImplicitError(tc.q, referenceDiagnostic{Code: "42601", Message: `syntax error at or near "FROM"`, Position: tc.position})
 		native.selectRows = true
 		native.errorStage = "execute"
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
+		scalarRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
 		native.errorStage = "prepare"
-		referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referencePrepared(native))
+		scalarRunStep(t, p.ctx, p.memory, p.memoryRecord, referencePrepared(native))
 		want := [][]any{{true}, {true}, {true}, {true}, {true}, {true}, {true}, {true}, {true}}
 		postgres := referenceSelect(tc.q, []string{tc.label}, []string{"BOOL"}, want)
 		postgres.bag = true
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, postgres)
-		referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(postgres))
+		if p.postgres != nil {
+			scalarRunStep(t, p.ctx, p.postgres, p.postgresRecord, postgres)
+		}
+		if p.postgres != nil {
+			scalarRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(postgres))
+		}
 	}
 }
 
 func TestReferenceLogicalHeldFrames(t *testing.T) {
 	p := logicalReferenceSetup(t)
 	pairs := []struct{ a, b, and, or, not any }{{true, true, true, true, false}, {true, false, false, true, false}, {true, nil, nil, true, false}, {false, true, false, true, true}, {false, false, false, false, true}, {false, nil, false, nil, true}, {nil, true, nil, true, nil}, {nil, false, false, nil, nil}, {nil, nil, nil, nil, nil}}
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		stmt, e := db.PrepareContext(p.ctx, "SELECT $1 AND $2,$1 OR $2,NOT $1 FROM one")
 		if e != nil {
 			t.Fatal(e)
 		}
+		defer func() {
+			if err := stmt.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 		filters := make([]*sql.Stmt, 3)
 		for i, expr := range []string{"$1 AND $2", "$1 OR $2", "NOT $1"} {
 			filters[i], e = db.PrepareContext(p.ctx, "SELECT id FROM one WHERE "+expr)
 			if e != nil {
 				t.Fatal(e)
 			}
+			defer func(held *sql.Stmt) {
+				if err := held.Close(); err != nil {
+					t.Error(err)
+				}
+			}(filters[i])
 		}
 		check := func(rows *sql.Rows, e error, names, types []string, want [][]any) {
 			t.Helper()
@@ -188,6 +201,7 @@ func TestReferenceLogicalHeldFrames(t *testing.T) {
 					t.Fatal(meta[i])
 				}
 			}
+			scalarAssertMetadata(t, backend.pg, meta)
 			got := [][]any{}
 			for rows.Next() {
 				values := make([]any, len(names))

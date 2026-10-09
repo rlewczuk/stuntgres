@@ -1,0 +1,73 @@
+package reference_test
+
+import (
+	"bytes"
+	"context"
+	"reflect"
+	"strings"
+	"stuntgres"
+	"testing"
+)
+
+func TestReferenceConditionalDefaultBooleanDemand(t *testing.T) {
+	ctx := context.Background()
+	p := newReferenceScenario(t)
+	t.Run("native-controls", func(t *testing.T) {
+		db := p.native
+		scalarNativeExec(t, db, "CREATE TABLE d(a BOOL DEFAULT CASE WHEN TRUE THEN FALSE AND CAST(CAST('oops' AS TEXT) AS INTEGER)=1 ELSE FALSE END,b BOOL DEFAULT CASE WHEN TRUE THEN TRUE OR CAST(CAST('oops' AS TEXT) AS INTEGER)=1 ELSE FALSE END,c BOOL DEFAULT COALESCE(FALSE AND CAST(CAST('oops' AS TEXT) AS INTEGER)=1,FALSE),e BOOL DEFAULT COALESCE(TRUE OR CAST(CAST('oops' AS TEXT) AS INTEGER)=1,FALSE))")
+		dump := func() []byte {
+			t.Helper()
+			var out bytes.Buffer
+			if err := stuntgres.Dump(ctx, db, &out); err != nil {
+				t.Fatal(err)
+			}
+			return out.Bytes()
+		}
+		definitions := func(data []byte) []string {
+			var lines []string
+			for _, line := range strings.Split(string(data), "\n") {
+				if strings.Contains(line, "DEFAULT") {
+					lines = append(lines, line)
+				}
+			}
+			return lines
+		}
+		before := definitions(dump())
+		if len(before) == 0 || !strings.Contains(strings.Join(before, "\n"), "oops") {
+			t.Fatal("stored defaults missing")
+		}
+		scalarNativeExec(t, db, "INSERT INTO d VALUES(DEFAULT,DEFAULT,DEFAULT,DEFAULT)")
+		scalarNativeTuples(t, db, "SELECT a,b,c,e FROM d", [][]any{{false, true, false, true}})
+		snapshot := dump()
+		if !reflect.DeepEqual(before, definitions(snapshot)) {
+			t.Fatal("consumption rewrote stored defaults")
+		}
+		if err := stuntgres.Reset(ctx, db); err != nil {
+			t.Fatal(err)
+		}
+		if err := stuntgres.Restore(ctx, db, bytes.NewReader(snapshot)); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(snapshot, dump()) {
+			t.Fatal("default roundtrip changed snapshot")
+		}
+		scalarNativeExec(t, db, "INSERT INTO d VALUES(DEFAULT,DEFAULT,DEFAULT,DEFAULT)")
+		scalarNativeTuples(t, db, "SELECT a,b,c,e FROM d", [][]any{{false, true, false, true}, {false, true, false, true}})
+		if !reflect.DeepEqual(before, definitions(dump())) {
+			t.Fatal("restored consumption rewrote stored defaults")
+		}
+	})
+	for _, backend := range p.backends() {
+		if !backend.pg {
+			continue
+		}
+		t.Run(backend.name, func(t *testing.T) {
+			run := func(step referenceStep) { scalarRunStep(t, p.ctx, backend.db, backend.recorder, step) }
+			run(referenceExec("CREATE TABLE d(a BOOL DEFAULT CASE WHEN TRUE THEN FALSE AND CAST(CAST('oops' AS TEXT) AS INTEGER)=1 ELSE FALSE END,b BOOL DEFAULT CASE WHEN TRUE THEN TRUE OR CAST(CAST('oops' AS TEXT) AS INTEGER)=1 ELSE FALSE END,c BOOL DEFAULT COALESCE(FALSE AND CAST(CAST('oops' AS TEXT) AS INTEGER)=1,FALSE),e BOOL DEFAULT COALESCE(TRUE OR CAST(CAST('oops' AS TEXT) AS INTEGER)=1,FALSE))", 0))
+			for range 2 {
+				run(referenceExec("INSERT INTO d VALUES(DEFAULT,DEFAULT,DEFAULT,DEFAULT)", 1))
+			}
+			run(referenceSelect("SELECT a,b,c,e FROM d", []string{"a", "b", "c", "e"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{false, true, false, true}, {false, true, false, true}}))
+		})
+	}
+}

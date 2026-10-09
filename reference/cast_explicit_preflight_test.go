@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -11,9 +9,9 @@ import (
 
 func TestReferenceCastExplicitParameterPreflight(t *testing.T) {
 	p := castReferenceSetup(t)
-	p.step(t, referenceExec("CREATE TABLE e(i INT4)", 0))
-	p.step(t, referenceExec("CREATE TABLE populated(i INT4)", 0))
-	p.step(t, referenceExec("INSERT INTO populated VALUES(1)", 1))
+	scalarStep(t, p, referenceExec("CREATE TABLE e(i INT4)", 0))
+	scalarStep(t, p, referenceExec("CREATE TABLE populated(i INT4)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO populated VALUES(1)", 1))
 	for _, tc := range []struct {
 		name, expression string
 		bad, good, again any
@@ -32,13 +30,9 @@ func TestReferenceCastExplicitParameterPreflight(t *testing.T) {
 			step := castReferenceError(q, tc.want, false)
 			step.errorStage = "execute"
 			step.args = []any{tc.bad}
-			t.Run(tc.name+"/"+source.name+"/direct", func(t *testing.T) { castReferenceBoth(t, p, step) })
-			// PostgreSQL is always exercised first, in its own subtest. A native
-			// failure cannot prevent the oracle from recording a later witness.
-			for _, backend := range []struct {
-				name string
-				db   referenceExecutor
-			}{{"postgres", p.postgres}, {"native", p.memory}} {
+			t.Run(tc.name+"/"+source.name+"/direct", func(t *testing.T) { scalarStep(t, p, step) })
+			// Each selected backend asserts execution-owned conversions independently.
+			for _, backend := range p.backends() {
 				t.Run(tc.name+"/"+source.name+"/fresh-prepared-and-private-frames/"+backend.name, func(t *testing.T) {
 					stmt, err := backend.db.PrepareContext(p.ctx, q)
 					if err != nil {
@@ -53,6 +47,7 @@ func TestReferenceCastExplicitParameterPreflight(t *testing.T) {
 									rows.Close()
 									t.Fatal("conversion failure exposed cursor")
 								}
+								referenceState(t, err, step.state)
 								referenceCheckDiagnostic(t, err, step, "execute")
 								return
 							}
@@ -68,6 +63,7 @@ func TestReferenceCastExplicitParameterPreflight(t *testing.T) {
 							if err != nil || len(meta) != 1 || meta[0].DatabaseTypeName() != "INT4" {
 								t.Fatal(meta, err)
 							}
+							scalarAssertMetadata(t, backend.pg, meta)
 							count := 0
 							for rows.Next() {
 								var got any
@@ -98,7 +94,7 @@ func TestReferenceCastExplicitParameterPreflight(t *testing.T) {
 			q := "SELECT i FROM e WHERE i=" + tc.expression
 			step := castReferenceError(q, tc.want, false)
 			step.args, step.prepared, step.errorStage = []any{tc.bad}, prepared, "execute"
-			t.Run(tc.name+"/rhs/prepared="+fmt.Sprint(prepared), func(t *testing.T) { castReferenceBoth(t, p, step) })
+			t.Run(tc.name+"/rhs/prepared="+fmt.Sprint(prepared), func(t *testing.T) { scalarStep(t, p, step) })
 		}
 	}
 }
@@ -106,28 +102,19 @@ func TestReferenceCastExplicitParameterPreflight(t *testing.T) {
 func TestReferenceCastExplicitSelectACLPreflight(t *testing.T) {
 	reader := "cast_preflight_reader"
 	roleReferenceCleanup(t, []string{reader})
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	// Namespace-USAGE setup is oracle fixture authority only. Native public
 	// has default USAGE; no production GRANT support is required or added.
-	for _, backend := range []struct {
-		name     string
-		db       referenceExecutor
-		recorder *referenceRecorder
-	}{
-		{"postgres", p.postgres, p.postgresRecord}, {"native", p.memory, p.memoryRecord},
-	} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name, func(t *testing.T) {
 			// Pin one public connection: session authorization is session-local.
-			db := p.postgres
-			if backend.name == "native" {
-				db = p.memory
-			}
+			db := backend.db
 			c, err := db.Conn(p.ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer c.Close()
-			run := func(s referenceStep) { referenceRunStep(t, p.ctx, c, backend.recorder, s) }
+			run := func(s referenceStep) { scalarRunStep(t, p.ctx, c, backend.recorder, s) }
 			defer func() {
 				if _, err := c.ExecContext(p.ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 					t.Error(err)
@@ -140,7 +127,7 @@ func TestReferenceCastExplicitSelectACLPreflight(t *testing.T) {
 				run(referenceExec(q, 0))
 			}
 			run(referenceExec("INSERT INTO secret VALUES(7,'oops',2147483648)", 1))
-			if backend.name == "postgres" {
+			if backend.pg {
 				if _, err := referenceAdmin.ExecContext(p.ctx, "GRANT USAGE ON SCHEMA public TO "+reader); err != nil {
 					t.Fatal(err)
 				}
@@ -178,7 +165,7 @@ func TestReferenceCastExplicitSelectACLPreflight(t *testing.T) {
 			}
 			run(referenceExec("RESET SESSION AUTHORIZATION", 0))
 			run(referenceSelect("SELECT i,s,n FROM secret", []string{"i", "s", "n"}, []string{"INT4", "TEXT", "INT8"}, [][]any{{int64(7), "oops", int64(2147483648)}}))
-			// newReferencePair cleans public only; remove this fixture namespace
+			// The mode-aware fixture cleans public only; remove this namespace
 			// before registered role teardown, including native-failure paths.
 		})
 	}

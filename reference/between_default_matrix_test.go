@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -21,8 +19,8 @@ func TestReferenceBetweenDefaultCompositionMatrix(t *testing.T) {
 	} {
 		for _, prepared := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/prepared=%v", family.name, prepared), func(t *testing.T) {
-				p := newReferencePair(t)
-				run := func(step referenceStep) { step.prepared = prepared; p.step(t, step) }
+				p := newReferenceScenario(t)
+				run := func(step referenceStep) { step.prepared = prepared; scalarStep(t, p, step) }
 				definitions := []string{}
 				for i, form := range betweenReferenceForms {
 					definitions = append(definitions, fmt.Sprintf("b%d BOOL DEFAULT (%s %s %s AND %s)", i, family.a, form, family.l, family.u))

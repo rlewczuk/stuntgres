@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -7,16 +5,16 @@ import "testing"
 var betweenReferenceForms = []string{"BETWEEN", "NOT BETWEEN", "BETWEEN SYMMETRIC", "NOT BETWEEN SYMMETRIC"}
 
 func betweenReferenceSetup(t *testing.T) *referencePair {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(id INTEGER,v INTEGER)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1,0),(2,1),(3,2),(4,3),(5,4),(6,NULL)", 6))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE t(id INTEGER,v INTEGER)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO t VALUES(1,0),(2,1),(3,2),(4,3),(5,4),(6,NULL)", 6))
 	return p
 }
 
 func betweenReferenceBoth(t *testing.T, p *referencePair, step referenceStep) {
 	t.Helper()
-	p.step(t, step)
-	p.step(t, referencePrepared(step))
+	scalarStep(t, p, step)
+	scalarStep(t, p, referencePrepared(step))
 }
 
 func TestReferenceBetweenMatrix(t *testing.T) {
@@ -47,17 +45,20 @@ func TestReferenceBetweenMatrix(t *testing.T) {
 			betweenReferenceBoth(t, p, referenceSelect("SELECT id FROM t WHERE v "+keyword+" "+arithmeticBounds+" ORDER BY id", []string{"id"}, []string{"INT4"}, want))
 		}
 	}
-	p.step(t, referenceExec("CREATE TABLE empty(v INTEGER)", 0))
-	betweenReferenceBoth(t, p, referenceSelect("SELECT v BETWEEN 1 AND 3 FROM empty", []string{"?column?"}, []string{"BOOL"}, nil))
-	step := referenceSelect("SELECT 2 BETWEEN 1 AND 3 FROM t WHERE id<3", []string{"?column?"}, []string{"BOOL"}, [][]any{{true}, {true}})
-	step.bag = true
-	betweenReferenceBoth(t, p, step)
+	scalarStep(t, p, referenceExec("CREATE TABLE empty(v INTEGER)", 0))
+	for form, keyword := range betweenReferenceForms {
+		betweenReferenceBoth(t, p, referenceSelect("SELECT v "+keyword+" 1 AND 3 FROM empty", []string{"?column?"}, []string{"BOOL"}, nil))
+		step := referenceSelect("SELECT 2 "+keyword+" 1 AND 3 FROM t WHERE id<3", []string{"?column?"}, []string{"BOOL"}, [][]any{{form == 0 || form == 2}, {form == 0 || form == 2}})
+		step.bag = true
+		betweenReferenceBoth(t, p, step)
+	}
+
 }
 
-func TestReferenceBetweenNullAndGrammar(t *testing.T) {
+func TestReferenceBetweenNullPositions(t *testing.T) {
 	p := betweenReferenceSetup(t)
-	p.step(t, referenceExec("CREATE TABLE n(id INTEGER,a INTEGER,l INTEGER,u INTEGER)", 0))
-	p.step(t, referenceExec("INSERT INTO n VALUES(1,NULL,1,3),(2,5,NULL,3),(3,5,3,NULL),(4,1,NULL,3),(5,1,3,NULL),(6,3,NULL,3),(7,3,3,NULL),(8,2,NULL,NULL),(9,NULL,NULL,NULL)", 9))
+	scalarStep(t, p, referenceExec("CREATE TABLE n(id INTEGER,a INTEGER,l INTEGER,u INTEGER)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO n VALUES(1,NULL,1,3),(2,5,NULL,3),(3,5,3,NULL),(4,1,NULL,3),(5,1,3,NULL),(6,3,NULL,3),(7,3,3,NULL),(8,2,NULL,NULL),(9,NULL,NULL,NULL)", 9))
 	for form, keyword := range betweenReferenceForms {
 		want := [][]any{{nil}, {nil}, {nil}, {nil}, {nil}, {nil}, {nil}, {nil}, {nil}}
 		ids := [][]any{}
@@ -72,10 +73,33 @@ func TestReferenceBetweenNullAndGrammar(t *testing.T) {
 		}
 		betweenReferenceBoth(t, p, referenceSelect("SELECT a "+keyword+" l AND u FROM n ORDER BY id", []string{"?column?"}, []string{"BOOL"}, want))
 		betweenReferenceBoth(t, p, referenceSelect("SELECT id FROM n WHERE a "+keyword+" l AND u ORDER BY id", []string{"id"}, []string{"INT4"}, ids))
+		for _, backend := range p.backends() {
+			q := "SELECT $1 " + keyword + " $2::INTEGER AND $3::INTEGER FROM t WHERE id=1"
+			stmt, err := backend.db.PrepareContext(p.ctx, q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := stmt.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			for row, args := range [][]any{{nil, 1, 3}, {5, nil, 3}, {5, 3, nil}, {1, nil, 3}, {1, 3, nil}, {3, nil, 3}, {3, 3, nil}, {2, nil, nil}, {nil, nil, nil}} {
+				scalarRunStep(t, p.ctx, referenceHeldStatement{backend.db, stmt, q}, backend.recorder, referenceSelect(q, []string{"?column?"}, []string{"BOOL"}, [][]any{want[row]}, args...))
+			}
+			if err := stmt.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		betweenReferenceBoth(t, p, referenceSelect("SELECT NULL "+keyword+" 1 AND 3 FROM t WHERE id=1", []string{"?column?"}, []string{"BOOL"}, [][]any{{nil}}))
 		for row, args := range [][]any{{nil, 1, 3}, {5, nil, 3}, {5, 3, nil}, {1, nil, 3}, {1, 3, nil}, {3, nil, 3}, {3, 3, nil}, {2, nil, nil}, {nil, nil, nil}} {
 			betweenReferenceBoth(t, p, referenceSelect("SELECT $1 "+keyword+" $2::INTEGER AND $3::INTEGER FROM t WHERE id=1", []string{"?column?"}, []string{"BOOL"}, [][]any{want[row]}, args...))
 		}
 	}
+}
+
+func TestReferenceBetweenGrammar(t *testing.T) {
+	p := betweenReferenceSetup(t)
 	for _, expr := range []string{"TRUE BETWEEN (1 BETWEEN 0 AND 2) AND TRUE", "TRUE BETWEEN FALSE AND (2 BETWEEN 1 AND 3)", "(TRUE BETWEEN (FALSE OR TRUE) AND TRUE)", "TRUE BETWEEN (1<2) AND TRUE", "TRUE BETWEEN (1<2) AND (2<3)", "TRUE BETWEEN 1<2 AND (2<3)", "2 BETWEEN 1 AND 3 = TRUE", "TRUE = 2 BETWEEN 1 AND 3", "(v IS NULL) BETWEEN FALSE AND TRUE", "(id=1) BETWEEN FALSE AND TRUE", "TRUE BETWEEN (TRUE AND TRUE) AND TRUE", "2 BeTwEeN /* lower */ (1+0) AND (2+1)"} {
 		betweenReferenceBoth(t, p, referenceSelect("SELECT "+expr+" FROM t WHERE id=1", []string{"?column?"}, []string{"BOOL"}, [][]any{{true}}))
 		betweenReferenceBoth(t, p, referenceSelect("SELECT id FROM t WHERE ("+expr+") AND id=1", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
@@ -90,7 +114,12 @@ func TestReferenceBetweenNullAndGrammar(t *testing.T) {
 		betweenReferenceBoth(t, p, referenceSelect("SELECT id FROM t WHERE "+tc.expr+" ORDER BY id", []string{"id"}, []string{"INT4"}, tc.ids))
 	}
 	betweenReferenceBoth(t, p, referenceSelect("SELECT v BETWEEN 1 AND 3 IS TRUE FROM t ORDER BY id", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {true}, {true}, {true}, {false}, {false}}))
-	p.step(t, referenceExec("CREATE TABLE words(between INTEGER,\"symmetric\" INTEGER)", 0))
-	p.step(t, referenceExec("INSERT INTO words VALUES(2,3)", 1))
+	scalarStep(t, p, referenceExec("CREATE TABLE words(between INTEGER,\"symmetric\" INTEGER)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO words VALUES(2,3)", 1))
 	betweenReferenceBoth(t, p, referenceSelect("SELECT between BETWEEN 1 AND 3,\"between\" BETWEEN 2 AND \"symmetric\" FROM words", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
+}
+
+func TestReferenceBetweenProjectionEndpoints(t *testing.T) {
+	p := betweenReferenceSetup(t)
+	betweenReferenceBoth(t, p, referenceSelect("SELECT v BETWEEN 1 AND 3,v NOT BETWEEN 1 AND 3,v BETWEEN SYMMETRIC 3 AND 1,v NOT BETWEEN SYMMETRIC 3 AND 1 FROM t ORDER BY id", []string{"?column?", "?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{false, true, false, true}, {true, false, true, false}, {true, false, true, false}, {true, false, true, false}, {false, true, false, true}, {nil, nil, nil, nil}}))
 }

@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -19,18 +17,18 @@ func TestReferenceBetweenProviders(t *testing.T) {
 		{"NUMERIC", "NaN", "Infinity", "NaN"}, {"REAL", "NaN", "Infinity", "NaN"}, {"DOUBLE PRECISION", "-0", "0", "0"},
 	} {
 		t.Run(tc.typ+tc.value, func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE p(a "+tc.typ+",l "+tc.typ+",u "+tc.typ+")", 0))
-			p.step(t, referenceExec("INSERT INTO p VALUES($1,$2,$3)", 1, tc.value, tc.lower, tc.upper))
+			p := newReferenceScenario(t)
+			scalarStep(t, p, referenceExec("CREATE TABLE p(a "+tc.typ+",l "+tc.typ+",u "+tc.typ+")", 0))
+			scalarStep(t, p, referenceExec("INSERT INTO p VALUES($1,$2,$3)", 1, tc.value, tc.lower, tc.upper))
 			betweenReferenceBoth(t, p, referenceSelect("SELECT a BETWEEN l AND u,a NOT BETWEEN l AND u,a BETWEEN SYMMETRIC u AND l,a NOT BETWEEN SYMMETRIC u AND l FROM p", []string{"?column?", "?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, false, true, false}}))
 		})
 	}
 }
 
 func TestReferenceBetweenIndependentTyping(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE m(i INTEGER,s TEXT,j BIGINT)", 0))
-	p.step(t, referenceExec("INSERT INTO m VALUES(1,'3',3)", 1))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE m(i INTEGER,s TEXT,j BIGINT)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO m VALUES(1,'3',3)", 1))
 	betweenReferenceBoth(t, p, referenceSelect("SELECT '2' BETWEEN i AND s,'2' BETWEEN SYMMETRIC i AND s FROM m", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))
 	for _, form := range betweenReferenceForms {
 		for _, arg := range []any{2, nil, 2} {

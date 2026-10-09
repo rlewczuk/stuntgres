@@ -1,9 +1,6 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"reflect"
 	"strings"
 	"testing"
@@ -36,13 +33,13 @@ func TestReferenceCastExplicitDiagnosticsPhases(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.q, func(t *testing.T) {
 			step := castReferenceError(tc.q, tc.d, false)
-			castReferenceBoth(t, p, step)
+			scalarStep(t, p, step)
 			if tc.analysis {
 				step.errorStage = "prepare"
-				castReferenceBoth(t, p, referencePrepared(step))
+				scalarStep(t, p, referencePrepared(step))
 			} else {
 				step.errorStage = "execute"
-				castReferenceBoth(t, p, referencePrepared(step))
+				scalarStep(t, p, referencePrepared(step))
 			}
 		})
 	}
@@ -50,19 +47,19 @@ func TestReferenceCastExplicitDiagnosticsPhases(t *testing.T) {
 		name string
 		pos  string
 	}{{"integer", "15"}, {"bigint", "14"}, {"boolean", "15"}, {"int", "11"}} {
-		castReferenceBoth(t, p, castReferenceError("SELECT "+tc.name+"('42') FROM t", referenceDiagnostic{Code: "42601", Message: `syntax error at or near "("`, Position: tc.pos}, false))
+		scalarStep(t, p, castReferenceError("SELECT "+tc.name+"('42') FROM t", referenceDiagnostic{Code: "42601", Message: `syntax error at or near "("`, Position: tc.pos}, false))
 	}
-	castReferenceBoth(t, p, castReferenceError(`SELECT "integer"('42') FROM t`, referenceDiagnostic{Code: "42883", Message: "function integer(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, false))
-	p.step(t, referenceExec("CREATE TABLE empty(n INT8,b BOOL)", 0))
+	scalarStep(t, p, castReferenceError(`SELECT "integer"('42') FROM t`, referenceDiagnostic{Code: "42883", Message: "function integer(unknown) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."}, false))
+	scalarStep(t, p, referenceExec("CREATE TABLE empty(n INT8,b BOOL)", 0))
 	for _, q := range []string{"SELECT n::bool FROM empty", "SELECT NULL::int8::bool FROM empty"} {
 		pos := "9"
 		if strings.Contains(q, "NULL") {
 			pos = "18"
 		}
 		step := castReferenceError(q, referenceDiagnostic{Code: "42846", Message: "cannot cast type bigint to boolean", Position: pos}, false)
-		castReferenceBoth(t, p, step)
+		scalarStep(t, p, step)
 		step.errorStage = "prepare"
-		castReferenceBoth(t, p, referencePrepared(step))
+		scalarStep(t, p, referencePrepared(step))
 	}
 }
 func TestReferenceCastExplicitParameters(t *testing.T) {
@@ -79,20 +76,40 @@ func TestReferenceCastExplicitParameters(t *testing.T) {
 				row = make([]any, len(tc.row))
 			}
 			step := referenceSelect(tc.q, tc.names, tc.types, [][]any{row, row, row}, arg)
-			castReferenceBoth(t, p, step)
-			castReferenceBoth(t, p, referencePrepared(step))
+			scalarStep(t, p, step)
+			scalarStep(t, p, referencePrepared(step))
 		}
+		for _, backend := range p.backends() {
+			held, err := backend.db.PrepareContext(p.ctx, tc.q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := held.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			for _, arg := range []any{tc.arg, nil, tc.arg} {
+				row := tc.row
+				if arg == nil {
+					row = make([]any, len(tc.row))
+				}
+				scalarRunStep(t, p.ctx, referenceHeldStatement{backend.db, held, tc.q}, backend.recorder, referenceSelect(tc.q, tc.names, tc.types, [][]any{row, row, row}, arg))
+			}
+			held.Close()
+		}
+
 	}
 	for _, name := range []string{"int4", "int8", "bool"} {
 		step := castReferenceError("SELECT "+name+"($1) FROM t", referenceDiagnostic{Code: "42725", Message: "function " + name + "(unknown) is not unique", Position: "8", Hint: "Could not choose a best candidate function. You might need to add explicit type casts."}, false, "42")
-		castReferenceBoth(t, p, step)
+		scalarStep(t, p, step)
 		step.errorStage = "prepare"
-		castReferenceBoth(t, p, referencePrepared(step))
+		scalarStep(t, p, referencePrepared(step))
 	}
 	step := castReferenceError("SELECT $1,$1::int4 FROM t", referenceDiagnostic{Code: "42P08", Message: "inconsistent types deduced for parameter $1", Detail: "integer versus text", Position: "8"}, false, 2)
-	castReferenceBoth(t, p, step)
+	scalarStep(t, p, step)
 	step.errorStage = "prepare"
-	castReferenceBoth(t, p, referencePrepared(step))
+	scalarStep(t, p, referencePrepared(step))
 	for _, q := range []string{"SELECT $1::int4 FROM t", "SELECT int4($1::text) FROM t"} {
 		step := castReferenceError(q, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}, false, "oops")
 		if strings.Contains(q, "$1::int4") {
@@ -100,13 +117,10 @@ func TestReferenceCastExplicitParameters(t *testing.T) {
 			pg.Context = "unnamed portal parameter $1 = '...'"
 			step.diagnostic = &pg
 		}
-		castReferenceBoth(t, p, step)
-		castReferenceBoth(t, p, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
-	for _, backend := range []struct {
-		name string
-		db   *sql.DB
-	}{{"postgres", p.postgres}, {"native", p.memory}} {
+	for _, backend := range p.backends() {
 		t.Run(backend.name+"-held", func(t *testing.T) {
 			stmt, err := backend.db.PrepareContext(p.ctx, "SELECT CAST($1 AS bool) FROM t ORDER BY id")
 			if err != nil {
@@ -118,10 +132,12 @@ func TestReferenceCastExplicitParameters(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				defer rows.Close()
 				meta, err := rows.ColumnTypes()
 				if err != nil || len(meta) != 1 || meta[0].DatabaseTypeName() != "BOOL" {
 					t.Fatal(meta, err)
 				}
+				scalarAssertMetadata(t, backend.pg, meta)
 				n := 0
 				for rows.Next() {
 					var got any
@@ -143,8 +159,8 @@ func TestReferenceCastExplicitParameters(t *testing.T) {
 }
 func TestReferenceCastExplicitAtomicity(t *testing.T) {
 	p := castReferenceSetup(t)
-	p.step(t, referenceExec("CREATE TABLE atom(i INT4)", 0))
-	p.step(t, referenceExec("INSERT INTO atom VALUES(7)", 1))
+	scalarStep(t, p, referenceExec("CREATE TABLE atom(i INT4)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO atom VALUES(7)", 1))
 	for _, tc := range []struct {
 		q        string
 		args     []any
@@ -153,13 +169,15 @@ func TestReferenceCastExplicitAtomicity(t *testing.T) {
 	}{{"INSERT INTO atom VALUES(CAST('8' AS int4)),(CAST('oops' AS int4))", nil, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`, Position: "50"}, true}, {"INSERT INTO atom VALUES(8),(2147483648::int4)", nil, referenceDiagnostic{Code: "22003", Message: "integer out of range"}, false}, {"INSERT INTO atom VALUES(int4($1::text)),(int4($2::text))", []any{"8", "oops"}, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}, false}} {
 		step := referenceImplicitError(tc.q, tc.d, tc.args...)
 		step.errorStage = "execute"
-		castReferenceBoth(t, p, step)
+		scalarStep(t, p, step)
 		if tc.analysis {
 			step.errorStage = "prepare"
-			castReferenceBoth(t, p, referencePrepared(step))
+			scalarStep(t, p, referencePrepared(step))
 		} else {
-			t.Run("postgres-prepared", func(t *testing.T) { referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(step)) })
+			if p.postgres != nil {
+				t.Run("postgres-prepared", func(t *testing.T) { scalarRunStep(t, p.ctx, p.postgres, p.postgresRecord, referencePrepared(step)) })
+			}
 		}
-		castReferenceBoth(t, p, referenceSelect("SELECT i FROM atom", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
+		scalarStep(t, p, referenceSelect("SELECT i FROM atom", []string{"i"}, []string{"INT4"}, [][]any{{int64(7)}}))
 	}
 }

@@ -228,6 +228,37 @@ For this migration's stricter aggregate proof, use
 `timeout --signal=KILL 300s make test-all VERBOSE=0`; the shared target's 900-second
 deadline is unchanged.
 
+The scalar-expression migration unions all 62 assigned root tests with existing
+reference assertions in 93 untagged definitions across BETWEEN, explicit casts,
+null/truth/distinct predicates, ordinary comparisons, conditional expressions,
+expression core and logical operators. The same definitions preserve complete
+raw rows and metadata, empty results, full diagnostics and execution stages,
+ordinary errors, LastInsertId, actual SAME-held reuse and concurrent frames.
+Comparison frames consume serial 7/NULL/7 before eight concurrent calls on that
+identical handle; expression-core frames consume 1/2/NULL (including the empty
+result) before sixteen concurrent calls on that identical handle. Each concurrent
+execution owns its recorder context. Native captured cursors,
+Dump/Reset/Restore and rejected-restore atomicity use the unwrapped native pool;
+PostgreSQL has independently specified real SQL consumer/state/cancellation
+phases, not fabricated fixture controls. Select the complete scalar family:
+
+```sh
+make test PACKAGES=./reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
+make reference RUN='^TestReference(Between[A-Za-z0-9_]*|CastExplicit[A-Za-z0-9_]*|CompareNull[A-Za-z0-9_]*|CompareOps[A-Za-z0-9_]*|Conditional[A-Za-z0-9_]*|ExpressionCore[A-Za-z0-9_]*|Logical[A-Za-z0-9_]*)$' VERBOSE=0
+```
+
+Metadata expectations distinguish computed targets from stored/identity columns:
+computed Nullable remains unknown; stored native BOOL columns can have known
+nullability. Native INT4 ScanType is `int64`, PostgreSQL's is `int32`, while raw
+integer cells are `int64` on both. Conditional unbounded VARCHAR exposes native
+Length `(MaxInt64,true)` versus actual lib/pq `(-5,true)`, not a normalized
+common descriptor. Pinned PostgreSQL can plan an immutable parameter conversion
+before CASE/COALESCE runtime demand and reject bad TEXT where native skips it;
+the original good `"7"` held calls consume and assert row 7 on both backends.
+Native `NULLIF(NULL,10/v)` demands division at v=0 and reports22012, whereas the
+same pinned PostgreSQL query returns one SQL NULL. These are explicit backend
+expectations, not a generic-plan setting or optimizer short-circuit promise.
+
 Their single definitions run the real public stuntgres `database/sql` adapter
 against independently hardcoded expectations by default. The explicit boolean
 test-binary flag adds real PostgreSQL; the build tag is not the mode selector:
@@ -249,6 +280,18 @@ legacy tagged case. `make test-all` first runs `go test -race ./...`, then
 `go test -race -tags reference ./reference -args -reference=true`, with uncached
 test flags and one shared 900-second wall-clock bound.
 
+The scalar migration's acceptance gate imposes a tighter, explicit **single
+300-second aggregate deadline**, distinct from the repository's 900-second
+defaults. With `RUN` and `PACKAGES` selection overrides unset, use:
+
+```sh
+timeout --signal=KILL 300s make test-all VERBOSE=0 TEST_FLAGS='-count=1 -timeout=300s'
+```
+
+The outer timeout covers compilation and both complete race suites together;
+the command-line Go timeout is also 300 seconds. A measured runtime below
+300 seconds alone is not evidence that this stricter bound was enforced.
+
 The tag retains untouched legacy PostgreSQL-only definitions. A tagged selection
 restricted to mode-aware migrated scenarios with `-reference=false` (flag after
 `-args`) is still Docker-free; selecting actual legacy cases lazily starts the
@@ -256,8 +299,9 @@ same singleton even when the runtime flag is absent/false. The tag alone
 therefore does not make the whole legacy suite quick. Other unmigrated families,
 richer tagged ordering/lock complements, the standalone PostgreSQL count
 column-ACL test and DML rules/triggers, privilege and exact blocker/server-
-cancellation edges remain tagged. Root `queryCoreRows`, `nullCountError` and
-`queryJoinsPublicFixture` remain for unmigrated callers, not as SQL test bodies.
+cancellation edges remain tagged. Root `queryCoreRows`, `nullCountError`,
+`queryJoinsPublicFixture`, `compareOpsRows`, `compareNullRows` and
+`castExplicitMetadata` remain for unmigrated callers, not as SQL test bodies.
 Untagged migrated definitions use the mode-aware fixture; host Dump/Reset/Restore
 and raw native cursor phases use its unwrapped native pool, with independently
 specified SQL consumer phases on PostgreSQL.

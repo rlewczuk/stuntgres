@@ -1,17 +1,14 @@
-//go:build reference
-
 package reference_test
 
 import (
-	"database/sql"
 	"reflect"
 	"testing"
 )
 
 func compareReferenceSetup(t *testing.T) *referencePair {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE t(id INTEGER,i INTEGER,j BIGINT,s TEXT,b BOOLEAN)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1,2147483647,2147483648,'a',FALSE),(2,-2147483648,-2147483649,'z',TRUE),(3,NULL,NULL,NULL,NULL),(4,7,7,'a',FALSE)", 4))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE t(id INTEGER,i INTEGER,j BIGINT,s TEXT,b BOOLEAN)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO t VALUES(1,2147483647,2147483648,'a',FALSE),(2,-2147483648,-2147483649,'z',TRUE),(3,NULL,NULL,NULL,NULL),(4,7,7,'a',FALSE)", 4))
 	return p
 }
 
@@ -40,30 +37,30 @@ func TestReferenceCompareOpsMatrix(t *testing.T) {
 				want = append(want, []any{v})
 			}
 			projection := referenceSelect("SELECT "+expr+" FROM t ORDER BY id", []string{"?column?"}, []string{"BOOL"}, want)
-			p.step(t, projection)
-			p.step(t, referencePrepared(projection))
+			scalarStep(t, p, projection)
+			scalarStep(t, p, referencePrepared(projection))
 			want = [][]any{}
 			for _, id := range ids {
 				want = append(want, []any{id})
 			}
 			filter := referenceSelect("SELECT id FROM t WHERE "+expr+" ORDER BY id", []string{"id"}, []string{"INT4"}, want)
-			p.step(t, filter)
-			p.step(t, referencePrepared(filter))
+			scalarStep(t, p, filter)
+			scalarStep(t, p, referencePrepared(filter))
 		}
 		for _, expr := range []string{"NULL" + tc.op + "i", "i" + tc.op + "NULL", "NULL" + tc.op + "NULL"} {
 			step := referenceSelect("SELECT "+expr+" FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{nil}, {nil}, {nil}, {nil}})
 			step.bag = true
-			p.step(t, step)
-			p.step(t, referencePrepared(step))
+			scalarStep(t, p, step)
+			scalarStep(t, p, referencePrepared(step))
 			step = referenceSelect("SELECT "+expr+" FROM t WHERE "+expr, []string{"?column?"}, []string{"BOOL"}, nil)
-			p.step(t, step)
-			p.step(t, referencePrepared(step))
+			scalarStep(t, p, step)
+			scalarStep(t, p, referencePrepared(step))
 		}
 	}
-	p.step(t, referenceExec("CREATE TABLE empty(i INTEGER,j BIGINT)", 0))
+	scalarStep(t, p, referenceExec("CREATE TABLE empty(i INTEGER,j BIGINT)", 0))
 	step := referenceSelect("SELECT i<j FROM empty", []string{"?column?"}, []string{"BOOL"}, nil)
-	p.step(t, step)
-	p.step(t, referencePrepared(step))
+	scalarStep(t, p, step)
+	scalarStep(t, p, referencePrepared(step))
 }
 
 func TestReferenceCompareOpsBoundariesAndParameters(t *testing.T) {
@@ -71,8 +68,8 @@ func TestReferenceCompareOpsBoundariesAndParameters(t *testing.T) {
 	for _, expr := range []string{"-9223372036854775808<-2147483648", "-2147483648>-9223372036854775808", "9223372036854775807>2147483647", "2147483647<9223372036854775807", "9007199254740993>9007199254740992", "9223372036854775807=9223372036854775807", "''<'a'", "'a'<'z'", "'z'<'é'", "FALSE<TRUE", "FALSE<=FALSE", "TRUE>=TRUE", "'a'<'b'"} {
 		step := referenceSelect("SELECT "+expr+" FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{true}, {true}, {true}, {true}})
 		step.bag = true
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
 	for _, step := range []referenceStep{
 		referenceSelect("SELECT TRUE<FALSE FROM t", []string{"?column?"}, []string{"BOOL"}, [][]any{{false}, {false}, {false}, {false}}),
@@ -91,8 +88,8 @@ func TestReferenceCompareOpsBoundariesAndParameters(t *testing.T) {
 		referenceSelect("SELECT i=$1,j=$1 FROM t ORDER BY id", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{false, false}, {false, false}, {nil, nil}, {true, true}}, 7),
 		referenceSelect("SELECT j=$1,i=$1 FROM t ORDER BY id", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{false, false}, {false, false}, {nil, nil}, {true, true}}, 7),
 	} {
-		p.step(t, step)
-		p.step(t, referencePrepared(step))
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
 	}
 }
 
@@ -100,10 +97,10 @@ func TestReferenceCompareOpsDiagnostics(t *testing.T) {
 	const hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
 	for _, empty := range []bool{false, true} {
 		t.Run(map[bool]string{false: "populated", true: "empty"}[empty], func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE t(id INT,i INT,j BIGINT,s TEXT,b BOOL)", 0))
+			p := newReferenceScenario(t)
+			scalarStep(t, p, referenceExec("CREATE TABLE t(id INT,i INT,j BIGINT,s TEXT,b BOOL)", 0))
 			if !empty {
-				p.step(t, referenceExec("INSERT INTO t VALUES(1,NULL,NULL,NULL,NULL)", 1))
+				scalarStep(t, p, referenceExec("INSERT INTO t VALUES(1,NULL,NULL,NULL,NULL)", 1))
 			}
 			for _, tc := range []struct {
 				q    string
@@ -123,9 +120,9 @@ func TestReferenceCompareOpsDiagnostics(t *testing.T) {
 				step := referenceImplicitError(tc.q, tc.d, tc.args...)
 				step.selectRows = true
 				step.errorStage = "execute"
-				p.step(t, step)
+				scalarStep(t, p, step)
 				step.errorStage = "prepare"
-				p.step(t, referencePrepared(step))
+				scalarStep(t, p, referencePrepared(step))
 			}
 			bad := referenceImplicitError("SELECT $1<i FROM t", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}, "oops")
 			bad.selectRows = true
@@ -133,8 +130,8 @@ func TestReferenceCompareOpsDiagnostics(t *testing.T) {
 			pg := *bad.diagnostic
 			pg.Context = "unnamed portal parameter $1 = '...'"
 			bad.diagnostic = &pg
-			p.step(t, bad)
-			p.step(t, referencePrepared(bad))
+			scalarStep(t, p, bad)
+			scalarStep(t, p, referencePrepared(bad))
 		})
 	}
 }
@@ -142,21 +139,29 @@ func TestReferenceCompareOpsDiagnostics(t *testing.T) {
 func TestReferenceCompareOpsHeldPrepared(t *testing.T) {
 	p := compareReferenceSetup(t)
 	var observed [][][][]any
-	for _, db := range []*sql.DB{p.memory, p.postgres} {
+	for _, backend := range p.backends() {
+		db := backend.db
 		stmt, err := db.PrepareContext(p.ctx, "SELECT $1<i FROM t ORDER BY id")
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer func() {
+			if err := stmt.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
 		executions := [][][]any{}
 		for _, arg := range []any{7, nil, 7} {
 			rows, err := stmt.QueryContext(p.ctx, arg)
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer rows.Close()
 			meta, err := rows.ColumnTypes()
 			if err != nil || len(meta) != 1 || meta[0].Name() != "?column?" || meta[0].DatabaseTypeName() != "BOOL" {
 				t.Fatal(meta, err)
 			}
+			scalarAssertMetadata(t, backend.pg, meta)
 			got := [][]any{}
 			for rows.Next() {
 				var v any
@@ -181,19 +186,28 @@ func TestReferenceCompareOpsHeldPrepared(t *testing.T) {
 		stmt.Close()
 		observed = append(observed, executions)
 	}
-	if !reflect.DeepEqual(observed[0], observed[1]) {
+	if len(observed) == 2 && !reflect.DeepEqual(observed[0], observed[1]) {
 		t.Fatal("held backend parity", observed)
 	}
 }
 
 func TestReferenceCompareOpsExtendedProviders(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE extended(i SMALLINT,j BIGINT,f REAL,g DOUBLE PRECISION,n NUMERIC,m NUMERIC,u UUID,v UUID,c TIME,d TIME,x TIMESTAMP,y TIMESTAMP)", 0))
-	p.step(t, referenceExec("INSERT INTO extended VALUES(-32768,2147483648,'NaN','Infinity',9007199254740993,9007199254740992,'7fffffffffffffffffffffffffffffff','80000000000000000000000000000000','01:00','02:00','2000-01-01','2000-01-02'),(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)", 2))
+	p := newReferenceScenario(t)
+	scalarStep(t, p, referenceExec("CREATE TABLE extended(i SMALLINT,j BIGINT,f REAL,g DOUBLE PRECISION,n NUMERIC,m NUMERIC,u UUID,v UUID,c TIME,d TIME,x TIMESTAMP,y TIMESTAMP)", 0))
+	scalarStep(t, p, referenceExec("INSERT INTO extended VALUES(-32768,2147483648,'NaN','Infinity',9007199254740993,9007199254740992,'7fffffffffffffffffffffffffffffff','80000000000000000000000000000000','01:00','02:00','2000-01-01','2000-01-02'),(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)", 2))
 	step := referenceSelect("SELECT i<j,f>g,n>m,u<v,c<d,x<y FROM extended", []string{"?column?", "?column?", "?column?", "?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, true, true, true}, {nil, nil, nil, nil, nil, nil}})
 	step.bag = true
-	p.step(t, step)
-	p.step(t, referencePrepared(step))
+	scalarStep(t, p, step)
+	scalarStep(t, p, referencePrepared(step))
+	for _, step := range []referenceStep{
+		referenceSelect("SELECT f=f,n=n,u=u,c=c,x=x FROM extended", []string{"?column?", "?column?", "?column?", "?column?", "?column?"}, []string{"BOOL", "BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true, true, true}, {nil, nil, nil, nil, nil}}),
+		referenceSelect("SELECT c=NULL,NULL<x FROM extended", []string{"?column?", "?column?"}, []string{"BOOL", "BOOL"}, [][]any{{nil, nil}, {nil, nil}}),
+	} {
+		step.bag = true
+		scalarStep(t, p, step)
+		scalarStep(t, p, referencePrepared(step))
+	}
+
 }
 
 func TestReferenceCompareOpsTemporalPreparedCaptures(t *testing.T) {
@@ -203,21 +217,29 @@ func TestReferenceCompareOpsTemporalPreparedCaptures(t *testing.T) {
 		"SELECT '2000-01-01 04:05:06.123'=TIMESTAMP(3) '2000-01-01 04:05:06.123' FROM t",
 	} {
 		var observed [][][][]any
-		for _, db := range []*sql.DB{p.memory, p.postgres} {
+		for _, backend := range p.backends() {
+			db := backend.db
 			stmt, err := db.PrepareContext(p.ctx, query)
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer func() {
+				if err := stmt.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
 			executions := [][][]any{}
 			for range 3 {
 				rows, err := stmt.QueryContext(p.ctx)
 				if err != nil {
 					t.Fatal(err)
 				}
+				defer rows.Close()
 				meta, err := rows.ColumnTypes()
 				if err != nil || len(meta) != 1 || meta[0].Name() != "?column?" || meta[0].DatabaseTypeName() != "BOOL" {
 					t.Fatal(meta, err)
 				}
+				scalarAssertMetadata(t, backend.pg, meta)
 				got := [][]any{}
 				for rows.Next() {
 					var v any
@@ -238,7 +260,7 @@ func TestReferenceCompareOpsTemporalPreparedCaptures(t *testing.T) {
 			stmt.Close()
 			observed = append(observed, executions)
 		}
-		if !reflect.DeepEqual(observed[0], observed[1]) {
+		if len(observed) == 2 && !reflect.DeepEqual(observed[0], observed[1]) {
 			t.Fatal("temporal prepared parity", observed)
 		}
 	}

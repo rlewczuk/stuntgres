@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -22,16 +20,16 @@ func TestReferenceCastExplicitEqualityDiagnosticOwnership(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			step := castReferenceError(tc.q, tc.d, false)
-			t.Run("direct", func(t *testing.T) { castReferenceBoth(t, p, step) })
+			t.Run("direct", func(t *testing.T) { scalarStep(t, p, step) })
 			step.errorStage = "prepare"
-			t.Run("prepared", func(t *testing.T) { castReferenceBoth(t, p, referencePrepared(step)) })
+			t.Run("prepared", func(t *testing.T) { scalarStep(t, p, referencePrepared(step)) })
 		})
 	}
 }
 
 func TestReferenceCastExplicitEmptyImmutableExecution(t *testing.T) {
 	p := castReferenceSetup(t)
-	p.step(t, referenceExec("CREATE TABLE e(i INT4,s TEXT)", 0))
+	scalarStep(t, p, referenceExec("CREATE TABLE e(i INT4,s TEXT)", 0))
 	for _, tc := range []struct {
 		q string
 		d referenceDiagnostic
@@ -47,10 +45,10 @@ func TestReferenceCastExplicitEmptyImmutableExecution(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			step := castReferenceError(tc.q, tc.d, false)
-			t.Run("direct", func(t *testing.T) { castReferenceBoth(t, p, step) })
+			t.Run("direct", func(t *testing.T) { scalarStep(t, p, step) })
 			// Both backends must successfully Prepare, then fail Query before
 			// publishing a cursor, even though the relation has no input rows.
-			t.Run("prepared", func(t *testing.T) { castReferenceBoth(t, p, referencePrepared(step)) })
+			t.Run("prepared", func(t *testing.T) { scalarStep(t, p, referencePrepared(step)) })
 		})
 	}
 	for _, tc := range []struct {
@@ -62,14 +60,11 @@ func TestReferenceCastExplicitEmptyImmutableExecution(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			step := referenceSelect(tc.q, []string{tc.name}, []string{tc.typ}, [][]any{})
-			t.Run("direct", func(t *testing.T) { castReferenceBoth(t, p, step) })
-			t.Run("prepared", func(t *testing.T) { castReferenceBoth(t, p, referencePrepared(step)) })
+			t.Run("direct", func(t *testing.T) { scalarStep(t, p, step) })
+			t.Run("prepared", func(t *testing.T) { scalarStep(t, p, referencePrepared(step)) })
 		})
 	}
-	for _, backend := range []struct {
-		name string
-		db   referenceExecutor
-	}{{"postgres", p.postgres}, {"native", p.memory}} {
+	for _, backend := range p.backends() {
 		t.Run("held-row-dependent/"+backend.name, func(t *testing.T) {
 			stmt, err := backend.db.PrepareContext(p.ctx, "SELECT s::int4 FROM e")
 			if err != nil {
@@ -80,10 +75,7 @@ func TestReferenceCastExplicitEmptyImmutableExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if rows.Next() || rows.Err() != nil {
-				t.Fatal("empty held execution", rows.Err())
-			}
-			rows.Close()
+			scalarRows(t, backend.pg, rows, []string{"s"}, []string{"INT4"}, nil, false)
 			result, err := backend.db.ExecContext(p.ctx, "INSERT INTO e VALUES(1,'oops')")
 			if err != nil {
 				t.Fatal(err)
@@ -98,17 +90,18 @@ func TestReferenceCastExplicitEmptyImmutableExecution(t *testing.T) {
 				t.Fatal("populated invalid row exposed cursor")
 			}
 			step := castReferenceError("SELECT s::int4 FROM e", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}, false)
+			referenceState(t, err, step.state)
 			referenceCheckDiagnostic(t, err, step, "execute")
 		})
 	}
 	t.Run("rejected-row-dependent", func(t *testing.T) {
 		step := referenceSelect("SELECT s::int4 FROM e WHERE i=0", []string{"s"}, []string{"INT4"}, [][]any{})
-		t.Run("direct", func(t *testing.T) { castReferenceBoth(t, p, step) })
-		t.Run("prepared", func(t *testing.T) { castReferenceBoth(t, p, referencePrepared(step)) })
+		t.Run("direct", func(t *testing.T) { scalarStep(t, p, step) })
+		t.Run("prepared", func(t *testing.T) { scalarStep(t, p, referencePrepared(step)) })
 	})
 	t.Run("rejected-immutable", func(t *testing.T) {
 		step := castReferenceError("SELECT 2147483648::int4 FROM e WHERE i=0", referenceDiagnostic{Code: "22003", Message: "integer out of range"}, false)
-		t.Run("direct", func(t *testing.T) { castReferenceBoth(t, p, step) })
-		t.Run("prepared", func(t *testing.T) { castReferenceBoth(t, p, referencePrepared(step)) })
+		t.Run("direct", func(t *testing.T) { scalarStep(t, p, step) })
+		t.Run("prepared", func(t *testing.T) { scalarStep(t, p, referencePrepared(step)) })
 	})
 }

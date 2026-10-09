@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
@@ -8,10 +6,10 @@ func TestReferenceBetweenDiagnostics(t *testing.T) {
 	const hint = "No operator matches the given name and argument types. You might need to add explicit type casts."
 	for _, empty := range []bool{false, true} {
 		t.Run(map[bool]string{false: "populated", true: "empty"}[empty], func(t *testing.T) {
-			p := newReferencePair(t)
-			p.step(t, referenceExec("CREATE TABLE t(i INTEGER)", 0))
+			p := newReferenceScenario(t)
+			scalarStep(t, p, referenceExec("CREATE TABLE t(i INTEGER)", 0))
 			if !empty {
-				p.step(t, referenceExec("INSERT INTO t VALUES(NULL),(0)", 2))
+				scalarStep(t, p, referenceExec("INSERT INTO t VALUES(NULL),(0)", 2))
 			}
 			for _, tc := range []struct {
 				q    string
@@ -34,9 +32,9 @@ func TestReferenceBetweenDiagnostics(t *testing.T) {
 				step := referenceImplicitError(tc.q, tc.d, tc.args...)
 				step.selectRows = true
 				step.errorStage = "execute"
-				p.step(t, step)
+				scalarStep(t, p, step)
 				step.errorStage = "prepare"
-				p.step(t, referencePrepared(step))
+				scalarStep(t, p, referencePrepared(step))
 			}
 			bad := referenceImplicitError("SELECT i BETWEEN $1 AND $2 FROM t", referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`}, "oops", 3)
 			bad.selectRows = true
@@ -45,6 +43,30 @@ func TestReferenceBetweenDiagnostics(t *testing.T) {
 			pg.Context = "unnamed portal parameter $1 = '...'"
 			bad.diagnostic = &pg
 			betweenReferenceBoth(t, p, bad)
+			for _, backend := range p.backends() {
+				q := "SELECT i BETWEEN $1 AND $2 FROM t ORDER BY i"
+				held, err := backend.db.PrepareContext(p.ctx, q)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := held.Close(); err != nil {
+						t.Error(err)
+					}
+				}()
+				step := referenceImplicitError(q, referenceDiagnostic{Code: "22P02", Message: `invalid input syntax for type integer: "oops"`, Context: "unnamed portal parameter $1 = '...'"}, "oops", 3)
+				step.selectRows = true
+				step.errorStage = "execute"
+				executor := referenceHeldStatement{backend.db, held, q}
+				scalarRunStep(t, p.ctx, executor, backend.recorder, step)
+				want := [][]any{{true}, {nil}}
+				if empty {
+					want = nil
+				}
+				scalarRunStep(t, p.ctx, executor, backend.recorder, referenceSelect(q, []string{"?column?"}, []string{"BOOL"}, want, 0, 3))
+				held.Close()
+			}
+
 		})
 	}
 }
