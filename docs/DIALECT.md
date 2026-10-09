@@ -536,6 +536,12 @@ savepoints. They affect future inserts, never existing data. DROP retains NOT NU
 Direct internal-sequence DROP fails2BP01 even CASCADE; OWNED BY reassociation fails
 0A000. Removing identity NOT NULL or assigning a regular DEFAULT fails42601;
 ALWAYS explicit UPDATE fails428C9, even for an empty target.
+Repeated SET GENERATED is rejected during utility execution, not parsing;
+numeric sequence validation takes precedence. ADD sequence validation precedes
+table identity/nullability/default guards, while all proposed changes stay
+private on any failure. See [identity ALTER diagnostics and shared regression
+coverage](TABLES.md#identity-columns--change-note). SQL GRANT is not added by
+this identity ALTER surface; owner-only ALTER uses existing role authority.
 
 TYPE on an original identity column accepts only SMALLINT/INTEGER/BIGINT.
 After binding every raw USING against the original tuple, it migrates the exact

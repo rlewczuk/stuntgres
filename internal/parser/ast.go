@@ -45,9 +45,10 @@ const (
 )
 
 type IdentityDefinition struct {
-	Mode    IdentityMode
-	Options []SequenceOption
-	Pos     Position
+	Mode             IdentityMode
+	Options          []SequenceOption
+	Pos              Position
+	ConflictingModes bool
 }
 
 type InsertOverride uint8

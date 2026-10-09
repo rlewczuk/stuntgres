@@ -4485,8 +4485,7 @@ sqldefault:
 		{
 			sqlVAL.identity = sqlDollar[1].identity
 			if sqlVAL.identity.Mode != IdentityNone {
-				sqllex.(*lexer).failAt("42601", "conflicting or redundant options", sqlDollar[2].tok.pos.Offset)
-				return 1
+				sqlVAL.identity.ConflictingModes = true
 			}
 			sqlVAL.identity.Mode = sqlDollar[4].identityMode
 		}

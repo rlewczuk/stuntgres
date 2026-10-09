@@ -332,7 +332,10 @@ Existing CHECK calls can use the same declaration's identity sequence without
 definition-time allocation. Dump orders identity-sequence view/CHECK dependents
 after their owning table, including retained TEMP collision remaps.
 Expression-generated columns remain excluded.
-Feature smokes: `make smoke RUN='^TestIdentity(Smoke|LifecycleSmoke|ControlsSmoke|CheckControlsSmoke)$' VERBOSE=0`.
+Feature smokes: `make smoke RUN='^TestIdentity(Smoke|ControlsSmoke|CheckControlsSmoke)$' VERBOSE=0`.
+The ALTER lifecycle is shared reference coverage:
+`make test PACKAGES=./reference RUN='^TestReferenceAlterIdentity' VERBOSE=0`;
+`make reference RUN='^TestReferenceAlterIdentity' VERBOSE=0`.
 
 SMALLSERIAL/SERIAL/BIGSERIAL (and serial2/4/8) expand CREATE columns to
 SMALLINT/INTEGER/BIGINT NOT NULL, ordinary nextval defaults and AUTO-owned

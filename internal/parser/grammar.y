@@ -357,7 +357,7 @@ identity_alter_options: SET GENERATED identity_mode { $$=&IdentityDefinition{Mod
  | RESTART { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Type:TypeName{Name:"default"},Pos:$1.pos}}} }
  | RESTART sequence_integer { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Value:$2,Pos:$1.pos}}} }
  | RESTART WITH sequence_integer { $$=&IdentityDefinition{Options:[]SequenceOption{{Name:"restart",Value:$3,Pos:$1.pos}}} }
- | identity_alter_options SET GENERATED identity_mode { $$=$1; if $$.Mode!=IdentityNone {sqllex.(*lexer).failAt("42601","conflicting or redundant options",$2.pos.Offset);return 1};$$.Mode=$4 }
+ | identity_alter_options SET GENERATED identity_mode { $$=$1; if $$.Mode!=IdentityNone {$$.ConflictingModes=true};$$.Mode=$4 }
  | identity_alter_options SET identity_set_option { if $3.Name=="as" || $3.Name=="owned" || $3.Name=="restart" {name:=$3.Name;if name=="owned"{name="owned_by"};sqllex.(*lexer).failAt("42601","sequence option \""+name+"\" not supported here",$3.Pos.Offset);return 1};$$=$1;$$.Options=append($$.Options,$3) }
  | identity_alter_options RESTART { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Type:TypeName{Name:"default"},Pos:$2.pos}) }
  | identity_alter_options RESTART sequence_integer { $$=$1;$$.Options=append($$.Options,SequenceOption{Name:"restart",Value:$3,Pos:$2.pos}) }

@@ -260,6 +260,16 @@ OWNED BY reassociation cannot bypass the link. Rename/schema/owner transitions
 preserve stable attribute ownership. Plain LIKE copies NOT NULL but not identity.
 Expression-generated columns remain unsupported.
 
+Identity ALTER diagnostic ordering follows PostgreSQL's utility phases. Repeated
+SET GENERATED clauses are syntactically valid but fail at execution with42601
+`conflicting or redundant options`, without a parser Position. Numeric sequence
+validation precedes that conflict. ADD privately validates/stages its sequence
+before checking existing identity, NOT NULL and regular-default guards: invalid
+CACHE can therefore produce22023 before55000. Nonintegral ADD produces22023
+`identity column type must be smallint, integer, or bigint`. A failed guard or a
+genuinely later action publishes neither the proposed sequence nor partial
+mode/options/restart changes; the old reciprocal link and row backing remain.
+
 The immutable identity definition is keyed by stable column attribute identity and
 holds the exact sequence address; the sequence holds the reciprocal internal-owned
 column address. Catalog validation requires both directions, integral type, NOT NULL,
@@ -290,8 +300,23 @@ original table/storage fences. A concurrently committed ALTER SEQUENCE must not 
 overwritten by stale options. Cancellation publishes no identity change and cleans
 the waiting operation; subsequent healthy INSERT remains usable. Regression witnesses:
 `TestIdentityAlterSequenceGrantFreshness`, `TestIdentityAlterCanceledPublication`,
-`TestReferenceIdentitySequenceGrantFreshness` and
-`TestIdentityControlsTemporaryCollision`.
+`TestReferenceIdentitySequenceGrantFreshness` (untagged dual-mode) and
+`TestIdentityControlsTemporaryCollision`. The migrated public ALTER lifecycle
+is covered by `TestReferenceAlterIdentityTransitions` and
+`TestReferenceAlterIdentityDropLifecycle`; the complete selected family is
+`^TestReferenceAlterIdentity` in `reference/`. See [test policy](TESTING.md)
+for oracle-first discovery and shared quick/reference execution.
+
+`TestReferenceAlterIdentityTransactionalAtomicity` covers genuinely later SET
+failure and private commit/rollback/savepoint behavior.
+`TestReferenceAlterIdentityWaitCancellation` observes real table/sequence waits
+before cancellation and checks healthy held-command reuse.
+`TestReferenceAlterIdentityControls` captures current state after ALTER, including
+explicitly named links and a removed second identity, rather than serializing
+ALTER history. Native controls retain old snapshots and preserve the altered
+baseline on malformed, reader-failed or canceled Restore. PostgreSQL server
+PID/lock-catalog cancellation probes are external fixture mechanisms; native
+context cancellation remains an ordinary Go error, not a fabricated SQLSTATE.
 
 Integral identity TYPE preserves the exact reciprocal sequence link and mode,
 owner, ACL and comments while using the sequence owner's AS rules for type,

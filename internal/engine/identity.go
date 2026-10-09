@@ -76,7 +76,7 @@ func (e *Engine) stageCreateIdentities(auth AuthorizationView, stage *CatalogSta
 			definition := constraint.Identity
 			id := table.columns[slot].Usage.Type.ID()
 			if id != sqltype.Int2 && id != sqltype.Int4 && id != sqltype.Int8 {
-				return sequenceOptionError("sequence type must be smallint, integer, or bigint")
+				return sequenceOptionError("identity column type must be smallint, integer, or bigint")
 			}
 			_, _, typeName := sequenceTypeLimits(id)
 			raw := []parser.SequenceOption{{Name: "as", Type: parser.TypeName{Name: typeName}}}

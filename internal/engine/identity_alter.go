@@ -20,6 +20,17 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	identity, exists := old.identities[attribute]
 	message := fmt.Sprintf(`column "%s" of relation "%s"`, action.Column.Text, old.name)
 	if action.Action == parser.AddIdentity {
+		// PostgreSQL executes the sequence before-command before table guards.
+		// Stage it privately; a failed guard must not change the old link.
+		next := *old
+		next.identities = maps.Clone(old.identities)
+		column := &parser.Column{Name: action.Column.Text, Constraints: []parser.ColumnConstraint{{Identity: action.Identity}}}
+		e.mu.Lock()
+		err := e.stageCreateIdentities(auth, stage, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
+		e.mu.Unlock()
+		if err != nil {
+			return old, err
+		}
 		if exists {
 			return old, sqlError("55000", message+" is already an identity column")
 		}
@@ -29,13 +40,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		if _, ok := old.defaults[attribute]; ok {
 			return old, sqlError("55000", message+" already has a default value")
 		}
-		next := *old
-		next.identities = maps.Clone(old.identities)
-		column := &parser.Column{Name: action.Column.Text, Constraints: []parser.ColumnConstraint{{Identity: action.Identity}}}
-		e.mu.Lock()
-		err := e.stageCreateIdentities(auth, stage, &next, &parser.CreateTable{Elements: []parser.TableElement{{Column: column}}})
-		e.mu.Unlock()
-		return &next, err
+		return &next, nil
 	}
 	if !exists {
 		if action.Action == parser.DropIdentity && action.IfExists {
@@ -74,30 +79,34 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		return &next, nil
 	}
 	definition := action.Identity
+	if len(definition.Options) != 0 {
+		for _, option := range definition.Options {
+			if option.Name == "logged" || option.Name == "unlogged" {
+				return old, sqlError("XX000", fmt.Sprintf(`option "%s" not recognized`, option.Name))
+			}
+			if option.Name == "as" || option.Name == "owned" {
+				return old, expressionError("42601", fmt.Sprintf(`sequence option "%s" not supported here`, option.Name), option.Pos)
+			}
+		}
+		if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {
+			return old, err
+		}
+		e.mu.Lock()
+		err := e.stageIdentitySequenceOptionsLocked(scope, stage, old, attribute, identity.sequence, definition.Options)
+		e.mu.Unlock()
+		if err != nil {
+			return old, err
+		}
+	}
+	// Numeric before-command errors take precedence over a utility mode conflict.
+	if definition.ConflictingModes {
+		return old, sqlError("42601", "conflicting or redundant options")
+	}
 	next := *old
 	next.identities = maps.Clone(old.identities)
 	if definition.Mode != parser.IdentityNone {
 		identity.mode = definition.Mode
 		next.identities[attribute] = identity
-	}
-	if len(definition.Options) == 0 {
-		return &next, nil
-	}
-	for _, option := range definition.Options {
-		if option.Name == "logged" || option.Name == "unlogged" {
-			return old, sqlError("XX000", fmt.Sprintf(`option "%s" not recognized`, option.Name))
-		}
-		if option.Name == "as" || option.Name == "owned" {
-			return old, expressionError("42601", fmt.Sprintf(`sequence option "%s" not supported here`, option.Name), option.Pos)
-		}
-	}
-	if err := scope.acquireSequence(ref, shareRowExclusive, false); err != nil {
-		return old, err
-	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := e.stageIdentitySequenceOptionsLocked(scope, stage, old, attribute, identity.sequence, definition.Options); err != nil {
-		return old, err
 	}
 	return &next, nil
 }
