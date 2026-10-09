@@ -96,6 +96,7 @@ scalar := query_column | value | (scalar) | CAST(scalar AS cast_type) | scalar::
         | NULLIF(logical_target, logical_target)
         | scalar || scalar | string_call
 string_call := (btrim | ltrim | rtrim | is_normalized)(scalar [, scalar])
+             | [schema.] (lower | upper | casefold | initcap)(scalar)
              | normalize(scalar [, normalization_form])
              | [schema.] "normalize"(scalar [, scalar])
              | TRIM([BOTH | LEADING | TRAILING] [scalar] FROM scalar)
@@ -179,6 +180,12 @@ existing scalar children and nested selected calls. This does not admit ordinary
 Unquoted `normalize` uses a form keyword; qualified or quoted ordinary calls
 accept a TEXT form value. SQL TRIM lowers to btrim/ltrim/rtrim, not a `trim()`
 function alias. See [core strings](DIALECT.md#core-string-functions--change-note).
+The four unary case calls return TEXT with inherited collation. Scalar/column
+COLLATE supports default/C/POSIX, pg_c_utf8 and pg_unicode_fast; see the core
+string rules for simple/full Unicode16 mapping, PostgreSQL18.0's original-input
+sigma-prefix boundary and the Unicode ILIKE boundary. Stored expression/CHECK
+deparsing retains TEXT conversion and required identifier quoting; its returned
+compact/pretty SQL can be executed.
 
 
 The FROM productions above are precedence notation: explicit joins bind tighter

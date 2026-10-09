@@ -693,8 +693,24 @@ no public cast edge is added, and retained TEXT results never consult a later
 catalog. Nested stored CHECK and explicit write/USING expressions propagate
 snapshot demand through existing statement capture. Native DEFAULT retains its
 existing REGCLASS-input exclusion (0A000); ordinary string defaults still compose
-with trim/normalization/concatenation. PostgreSQL-only DEFAULT success is tested
+with trim/normalization/concatenation and the four case providers. PostgreSQL-only DEFAULT success is tested
 separately, not advertised as native capability.
+
+`lower`, `upper`, `casefold` and `initcap` return unconstrained TEXT with inherited
+collation, including NULL outputs. They reuse the selected implicit character
+inputs, without adding numeric/BOOL/BYTEA casts. The default/C/POSIX mode is ASCII;
+pg_c_utf8811 uses Unicode16 simple mappings, Alphabetic plus ASCII digits for
+initcap, and simple UPPER at word starts. pg_unicode_fast6411 uses full
+lower/upper/title/fold mappings, Alphabetic plus Unicode Nd, and original-input
+Final_Sigma for lower (including initcap's lower phase). PostgreSQL18.0 treats a
+nonempty all-Case_Ignorable prefix as sufficient preceding context; an empty
+prefix or nearest nonignorable uncased character is not sufficient. The next
+nonignorable character must not be Cased. Original input, never mapped output,
+owns that context. Full expansions are not clipped to source typmod and folding
+does not normalize. These deterministic collations retain byte/codepoint
+comparison, BPCHAR tail semantics, immutable expression authority and stored
+Dump/Restore identity. NonNULL indeterminate case collation produces42P22; strict
+NULL bypasses classification.
 
 
 Normalization data is pinned to Unicode **16.0.0** in
@@ -706,19 +722,37 @@ https://www.unicode.org/Public/16.0.0/ucd/UnicodeData.txt,
 https://www.unicode.org/Public/16.0.0/ucd/DerivedNormalizationProps.txt and
 https://www.unicode.org/Public/16.0.0/ucd/NormalizationTest.txt.
 
+Case data additionally uses the original Unicode16.0.0 files
+`SpecialCasing.txt`, `CaseFolding.txt` and `DerivedCoreProperties.txt` in the same
+data directory, under the retained Unicode license. Original sources:
+https://www.unicode.org/Public/16.0.0/ucd/SpecialCasing.txt,
+https://www.unicode.org/Public/16.0.0/ucd/CaseFolding.txt and
+https://www.unicode.org/Public/16.0.0/ucd/DerivedCoreProperties.txt.
+UnicodeData supplies simple mappings and Nd (including First/Last ranges);
+SpecialCasing supplies unconditional full mappings plus Final_Sigma, excluding
+language-specific rules; CaseFolding supplies C+S simple and C+F full mappings,
+excluding T. DerivedCoreProperties supplies Alphabetic, Cased and Case_Ignorable.
+
 From the repository root, deterministic regeneration is:
 
 ```sh
 go run ./internal/sqltype/unicode16/generate \
   -source internal/sqltype/unicode16/data \
-  -output internal/sqltype/unicode16/tables_generated.go
+  -output internal/sqltype/unicode16/tables_generated.go \
+  -case-output internal/sqltype/unicode16/case_tables_generated.go
 ```
 
-The standard-library-only generator emits sorted static sparse arrays, recursive
-decomposition sequences, composition exclusions and all four quickcheck tables.
-Runtime has no network, ICU/cgo, mutable startup maps or dependence on Go's host
-Unicode tables. Tests compare regeneration byte-for-byte, exercise every official
-corpus row and independently read assigned scalars absent from Part1.
+The standard-library-only generator runs offline over those local originals.
+It emits sorted static sparse arrays, recursive decomposition sequences,
+composition exclusions, all four quickcheck tables, fixed inline case expansions
+up to three codepoints, and sorted merged case-property ranges. The optional
+`-case-output` preserves the original normalization-only invocation. Case scans
+use binary search and lazy output construction, not per-execution maps or rune
+arrays; unchanged results borrow the input. Runtime has no network, ICU/cgo,
+mutable startup maps or dependence on Go's host Unicode tables. Tests compare
+both outputs byte-for-byte, retain every official normalization corpus assertion,
+and independently check case mappings/properties, Unicode16 additions, title
+boundaries, original-input sigma context and bounded cancellation.
 
 The target is PostgreSQL18.0 release behavior. Its inclusive Hangul TBASE
 composition consumes U+11A7 after LV, and predicate quickcheck may still return
@@ -1349,9 +1383,12 @@ VARCHAR/TEXT trailing spaces remain significant. Text `_` advances one UTF8
 code point; BYTEA `_` advances one octet, so c3a9 matches `__`, not `_`.
 ILIKE folds ASCII A–Z only under default/C/POSIX; no Unicode folding is implied.
 Supported implicit column collation identities remain distinct and conflicting
-C/POSIX matching produces demanded 42P22. Explicit scalar COLLATE default/C/POSIX
-annotations override implicit identity or indeterminacy; distinct explicit
-identities fail analysis with 42P21 at the conflicting annotation.
+C/POSIX matching produces demanded42P22. Explicit scalar COLLATE also supports
+pg_c_utf8/pg_unicode_fast; annotations override implicit identity or indeterminacy,
+and distinct explicit identities fail analysis with42P21. Plain LIKE remains
+case-sensitive under the Unicode identities; effective Unicode-collation ILIKE
+is rejected with positioned native0A000. Explicit C on either operand can
+override an implicit Unicode identity and permits ASCII ILIKE.
 Result metadata is BOOL, including NULL and empty relations.
 No new character/binary conversions are introduced.
 Collation identity and explicit annotation authority survive collatable casts,

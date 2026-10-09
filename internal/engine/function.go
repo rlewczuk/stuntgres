@@ -69,7 +69,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (BoundExpr, err
 	switch name {
 	case "pg_get_constraintdef", "pg_get_expr":
 		return b.bindDeparse(raw, visible)
-	case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim":
+	case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "trim", "lower", "upper", "casefold", "initcap":
 		return b.bindStringFunction(raw, visible && name != "trim")
 	case "col_description", "obj_description", "shobj_description":
 		return b.bindCommentInquiry(raw, visible)

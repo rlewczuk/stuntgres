@@ -66,7 +66,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 			text = d
 		}
 	}
-	plan, err := sqltype.BindString("||", text.Usage(), text.Usage(), []sqltype.Usage{text.Usage(), text.Usage()}, [2]bool{true, true})
+	plan, err := sqltype.BindString("||", text.Usage(), text.Usage(), []sqltype.Usage{text.Usage(), text.Usage()}, [2]bool{true, true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

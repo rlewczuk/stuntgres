@@ -192,6 +192,10 @@ func (b *expressionBinder) bindLike(raw parser.OperatorExpr) (BoundExpr, error) 
 	if err != nil {
 		return nil, err
 	}
+	if !collation.collationConflict && (operator == "~~*" || operator == "!~~*") &&
+		(collation.usage.Collation.ID == 811 || collation.usage.Collation.ID == 6411) {
+		return nil, expressionError("0A000", "ILIKE is unsupported for this collation", raw.Pos)
+	}
 	provider, err := sqltype.BindLike(operator, l.ResultUsage(), r.ResultUsage(), b.typ(sqltype.Bool).Usage(), collation.collationConflict)
 	if err != nil {
 		return nil, err

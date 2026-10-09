@@ -216,7 +216,7 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			}
 			usages[i] = arg.ResultUsage()
 		}
-		plan, err := sqltype.BindString(n.plan.Name(), u, n.plan.TextUsage(), usages[:len(n.args)], n.textual)
+		plan, err := sqltype.BindString(n.plan.Name(), u, n.plan.TextUsage(), usages[:len(n.args)], n.textual, n.plan.CollationIndeterminate())
 		if err != nil || plan != n.plan {
 			return "", fmt.Errorf("stuntgres: invalid stored string provider")
 		}
@@ -880,7 +880,7 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		if !changed && text == n.plan.TextUsage() {
 			return node, false, nil
 		}
-		n.plan, err = sqltype.BindString(n.plan.Name(), info.usage, text, usages[:len(n.args)], n.textual)
+		n.plan, err = sqltype.BindString(n.plan.Name(), info.usage, text, usages[:len(n.args)], n.textual, n.plan.CollationIndeterminate())
 		n.expressionInfo = info
 		rebound = n
 	case mathExpression:

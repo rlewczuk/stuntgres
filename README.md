@@ -153,6 +153,23 @@ endpoint and set traversal without allocating a replacement string.
 See [syntax and boundaries](docs/DIALECT.md#core-string-functions--change-note).
 Feature smoke: `make smoke RUN='^TestStringCoreSmoke$' VERBOSE=0`.
 
+Change note: `lower`, `upper`, `casefold` and `initcap` accept one character
+input and return unconstrained TEXT, retaining its collation. Default/C/POSIX
+map ASCII only; `pg_c_utf8` uses simple Unicode16 mappings and
+`pg_unicode_fast` uses full Unicode16 mappings, including expansions and
+original-input final sigma with PostgreSQL18.0's leading-ignorable-prefix
+boundary. Folding is not lowercasing or normalization.
+BPCHAR padding is removed before conversion; TEXT/VARCHAR tails remain.
+Collated unknown parameters are inferred as TEXT before collation lookup;
+each occurrence retains its own collation without changing the held input type.
+These functions compose through existing query/write/default/CHECK/view paths
+and native Dump/Restore. Native encoding remains read-only UTF8; arbitrary
+libc/ICU locales and Unicode-collation ILIKE remain explicit exclusions.
+See [case rules](docs/DIALECT.md#core-string-functions--change-note) and
+[offline data generation](docs/TYPES.md#unicode16-normalization-data).
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceStringCaseSmoke$' VERBOSE=0`;
+pinned oracle: `make reference RUN='^TestReferenceStringCaseSmoke$' VERBOSE=0`.
+
 Qualified temporal declarations such as `pg_catalog.time(3)` and
 `pg_catalog.timestamp(3)` retain precision through native Dump/Restore;
 bounded temporal explicit casts and same-type precision annotations are supported.
@@ -238,8 +255,9 @@ Argument analysis precedes the 100-argument guard, then namespace/signature
 lookup and OID inference/coercion. Missing child columns therefore take precedence
 over missing explicit schemas, including in over-limit direct/prepared calls.
 Native inquiries cover all25 seeded types, seven fixed PostgreSQL18 collations
-and all128 fixed conversions. Extra collation identities are inquiry-only:
-comparison still supports default/C/POSIX, and no encoding conversion executes.
+and all128 fixed conversions. Comparison supports default/C/POSIX plus
+`pg_c_utf8`/`pg_unicode_fast`; `ucs_basic`/`unicode` remain inquiry-only,
+and no encoding conversion executes.
 Dump/Restore rebuilds these immutable identities without inventing owners or
 ACLs, including empty restores and imports into an independent Driver.
 Inquiry catalog/path capture is demand-driven, including nested views,
@@ -278,9 +296,10 @@ LIKE/NOT LIKE and ILIKE/NOT ILIKE support whole-string `%`/`_` matching,
 keyword ESCAPE and symbolic `~~`/`!~~`/`~~*`/`!~~*` operators. TEXT wildcards
 advance UTF8 code points; existing BYTEA LIKE advances octets. BPCHAR left
 operands retain physical padding. Supported default/C/POSIX ILIKE folds ASCII
-only; C and POSIX remain distinct collation identities. Existing scalar COLLATE
-annotations select default/C/POSIX explicitly and override implicit conflicts.
-Additional locale providers, regex and SIMILAR TO remain outside this feature.
+only; C and POSIX remain distinct collation identities. Scalar COLLATE also
+supports `pg_c_utf8`/`pg_unicode_fast`, with case-sensitive LIKE but a positioned
+0A000 ILIKE boundary. Explicit C on either operand overrides implicit Unicode
+collation and permits ASCII ILIKE. Arbitrary locales, regex and SIMILAR TO remain excluded.
 Collatable wrappers retain identity and demanded conflicts; indeterminate TEXT
 view outputs are rejected before publication, while BOOL matching views replay.
 See [matching semantics](docs/DIALECT.md#like-and-ilike--change-note).
@@ -357,8 +376,9 @@ are independently coerced; dependent CHECKs are reparsed from their original
 definitions against the final types. Each completed transformed row passes
 NOT NULL and affected CHECK validation before the next row is converted, with
 no partial publication on failure. Dependent views block the change.
-Column COLLATE supports only real pg_catalog default/C/POSIX
-identities under UTF8/C byte ordering; native Dump/Restore retains them.
+Column COLLATE supports real pg_catalog default/C/POSIX and
+`pg_c_utf8`/`pg_unicode_fast` identities under deterministic UTF8 byte/codepoint
+ordering; native Dump/Restore retains them.
 Fresh results expose the new type/typmod; held prepared results reject changed
 type/typmod/collation while eager rows retain their original metadata and values.
 Identity TYPE also migrates the existing internal sequence to the integral target,

@@ -14,12 +14,16 @@ func builtinCollationName(id uint32) string {
 		return "C"
 	case 951:
 		return "POSIX"
+	case 811:
+		return "pg_c_utf8"
+	case 6411:
+		return "pg_unicode_fast"
 	}
 	return ""
 }
 
 // Called under Engine.mu, using the ordinary namespace authorization rules.
-// These three distinct identities share the engine's UTF8/C byte comparator.
+// These five deterministic identities share the UTF8 byte/codepoint comparator.
 func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName, op *Operation) (sqltype.Usage, error) {
 	if raw == nil {
 		return u, nil
@@ -49,6 +53,10 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 			id = 950
 		case "POSIX":
 			id = 951
+		case "pg_c_utf8":
+			id = 811
+		case "pg_unicode_fast":
+			id = 6411
 		case "C.utf8", "C.UTF-8", "ucs_basic", "unicode":
 			return sqltype.Usage{}, expressionError("0A000", "collation is unsupported", pos)
 		}

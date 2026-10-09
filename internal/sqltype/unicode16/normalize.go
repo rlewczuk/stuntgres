@@ -1,5 +1,5 @@
-// Package unicode16 implements the selected PostgreSQL18 normalization algorithm
-// with Unicode16 data. PostgreSQL18's inclusive Hangul TBASE composition and
+// Package unicode16 implements the selected PostgreSQL18 normalization and case
+// algorithms with Unicode16 data. PostgreSQL18's inclusive Hangul TBASE composition and
 // predicate quickcheck are intentional release behavior, not input exceptions.
 package unicode16
 

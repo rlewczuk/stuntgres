@@ -46,7 +46,7 @@ func TestStringCoreProviderScalars(t *testing.T) {
 				textual[0], textual[1] = textual[1], textual[0]
 				want = tc.output + "|"
 			}
-			plan, err := BindString("||", text, text, args, textual)
+			plan, err := BindString("||", text, text, args, textual, false)
 			if err != nil {
 				t.Fatal(tc, err)
 			}
@@ -102,7 +102,7 @@ func TestStringCoreProviderFunctions(t *testing.T) {
 		if tc.unary {
 			args = args[:1]
 		}
-		plan, err := BindString(tc.name, text, text, args, [2]bool{true, true})
+		plan, err := BindString(tc.name, text, text, args, [2]bool{true, true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func TestStringCoreProviderFunctions(t *testing.T) {
 			t.Fatal(tc, s)
 		}
 	}
-	plan, err := BindString("normalize", text, text, []Usage{text, text}, [2]bool{true, true})
+	plan, err := BindString("normalize", text, text, []Usage{text, text}, [2]bool{true, true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestStringCoreProviderFunctions(t *testing.T) {
 		{"btrim", Text, []Usage{types[Int4].Usage()}, [2]bool{true, true}},
 		{"||", Text, []Usage{text, types[NameArray].Usage()}, [2]bool{true, false}},
 	} {
-		if _, err := BindString(tc.name, types[tc.result].Usage(), text, tc.args, tc.flags); err == nil {
+		if _, err := BindString(tc.name, types[tc.result].Usage(), text, tc.args, tc.flags, false); err == nil {
 			t.Fatal("accepted invalid signature", tc)
 		}
 	}
@@ -150,7 +150,7 @@ func TestStringCoreProviderFunctions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"btrim", "ltrim", "rtrim"} {
-		trim, err := BindString(name, text, text, []Usage{text}, [2]bool{true, true})
+		trim, err := BindString(name, text, text, []Usage{text}, [2]bool{true, true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}

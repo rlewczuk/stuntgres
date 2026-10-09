@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype/unicode16"
 	"unicode/utf8"
 )
@@ -53,16 +54,19 @@ type StringPlan struct {
 	count       uint8
 	textual     [2]bool
 	conversions [2]CoercionPlan
+	conflict    bool
+	caseOp      unicode16.CaseOperation
 }
 
-func (p StringPlan) Name() string     { return p.name }
-func (p StringPlan) Result() Usage    { return p.result }
-func (p StringPlan) TextUsage() Usage { return p.text }
+func (p StringPlan) Name() string                 { return p.name }
+func (p StringPlan) Result() Usage                { return p.result }
+func (p StringPlan) TextUsage() Usage             { return p.text }
+func (p StringPlan) CollationIndeterminate() bool { return p.conflict }
 
 // Bool-result predicates also receive the generation's TEXT owner, avoiding
 // global descriptor lookup or per-evaluation descriptor allocation.
-func BindString(name string, result, text Usage, args []Usage, textual [2]bool) (StringPlan, error) {
-	p := StringPlan{name: name, result: result, text: text, count: uint8(len(args)), textual: textual}
+func BindString(name string, result, text Usage, args []Usage, textual [2]bool, conflict bool) (StringPlan, error) {
+	p := StringPlan{name: name, result: result, text: text, count: uint8(len(args)), textual: textual, conflict: conflict}
 	if !result.Valid() || !text.Valid() || text.Type.ID() != Text || len(args) < 1 || len(args) > 2 {
 		return p, fmt.Errorf("invalid string signature")
 	}
@@ -74,6 +78,20 @@ func BindString(name string, result, text Usage, args []Usage, textual [2]bool) 
 	case "btrim", "ltrim", "rtrim", "normalize":
 		if result.Type.ID() != Text || !textual[0] || len(args) == 2 && !textual[1] {
 			return p, fmt.Errorf("invalid string function signature")
+		}
+	case "lower", "upper", "casefold", "initcap":
+		if len(args) != 1 || result.Type.ID() != Text || !textual[0] {
+			return p, fmt.Errorf("invalid case function signature")
+		}
+		switch name {
+		case "lower":
+			p.caseOp = unicode16.Lower
+		case "upper":
+			p.caseOp = unicode16.Upper
+		case "casefold":
+			p.caseOp = unicode16.Fold
+		case "initcap":
+			p.caseOp = unicode16.Initcap
 		}
 	case "is_normalized":
 		if result.Type.ID() != Bool || !textual[0] || len(args) == 2 && !textual[1] {
@@ -112,6 +130,8 @@ func (p StringPlan) Evaluate(ctx context.Context, values [2]Value, input InputEn
 		if values[i].Type() != p.args[i].Type {
 			return Value{}, fmt.Errorf("foreign string input value")
 		}
+	}
+	for i := range int(p.count) {
 		if values[i].IsNull() {
 			return Null(p.result.Type), nil
 		}
@@ -132,6 +152,32 @@ func (p StringPlan) Evaluate(ctx context.Context, values [2]Value, input InputEn
 		if err != nil {
 			return Value{}, err
 		}
+	}
+	if p.caseOp != 0 {
+		if p.conflict {
+			name := p.name
+			// PostgreSQL18.0 casefold uses lower() in this diagnostic.
+			if name == "casefold" {
+				name = "lower"
+			}
+			return Value{}, &sqlstate.Error{
+				Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22",
+				Message: "could not determine which collation to use for " + name + "() function",
+				Hint:    "Use the COLLATE clause to set the collation explicitly.",
+			}
+		}
+		mode := unicode16.ASCII
+		switch p.result.Collation.ID {
+		case 811:
+			mode = unicode16.Simple
+		case 6411:
+			mode = unicode16.Full
+		}
+		text, err := unicode16.ConvertCase(ctx, texts[0], p.caseOp, mode)
+		if err != nil {
+			return Value{}, err
+		}
+		return String(p.result.Type, text), nil
 	}
 	var text string
 	switch p.name {

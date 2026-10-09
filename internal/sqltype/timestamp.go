@@ -54,7 +54,7 @@ func (u Usage) Valid() bool {
 
 func (u Usage) validCollation() bool {
 	if IsCharacter(u.Type.ID()) || u.Type.ID() == Name {
-		return u.Collation.Derivation == Default && (u.Collation.ID == 100 || u.Collation.ID == 950 || u.Collation.ID == 951)
+		return u.Collation.Derivation == Default && (u.Collation.ID == 100 || u.Collation.ID == 950 || u.Collation.ID == 951 || u.Collation.ID == 811 || u.Collation.ID == 6411)
 	}
 	return u.Collation == u.Type.Usage().Collation
 }

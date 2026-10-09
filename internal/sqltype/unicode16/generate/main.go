@@ -1,4 +1,4 @@
-// Command generate emits deterministic Unicode16 normalization tables from the
+// Command generate emits deterministic Unicode16 normalization and case tables from the
 // original UCD files. No host Unicode tables, network or runtime dependencies.
 package main
 
@@ -191,6 +191,7 @@ func generate(source string) ([]byte, error) {
 func main() {
 	source := flag.String("source", "", "directory containing Unicode16 UCD files")
 	output := flag.String("output", "", "generated Go file")
+	caseOutput := flag.String("case-output", "", "optional generated case Go file")
 	flag.Parse()
 	if *source == "" || *output == "" || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "-source and -output are required")
@@ -199,6 +200,13 @@ func main() {
 	data, e := generate(*source)
 	if e == nil {
 		e = os.WriteFile(*output, data, 0644)
+	}
+	if e == nil && *caseOutput != "" {
+		var caseData []byte
+		caseData, e = generateCase(*source)
+		if e == nil {
+			e = os.WriteFile(*caseOutput, caseData, 0644)
+		}
 	}
 	if e != nil {
 		fmt.Fprintln(os.Stderr, e)

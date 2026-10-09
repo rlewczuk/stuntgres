@@ -57,7 +57,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	if err != nil {
 		return nil, err
 	}
-	plan, err := sqltype.BindString(name, info.usage, b.typ(sqltype.Text).Usage(), usages[:len(args)], textual)
+	plan, err := sqltype.BindString(name, info.usage, b.typ(sqltype.Text).Usage(), usages[:len(args)], textual, info.collationConflict)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,27 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		operands = make([]comparisonOperand, len(raw.Args))
 	}
 	for i, r := range raw.Args {
-		o, err := b.comparisonOperand(r)
+		policy := expressionPolicy{context: projectionContext}
+		if _, collated := r.(parser.CollateExpr); collated {
+			// COLLATE resolves before overload finalization. Give an unknown
+			// input the string candidate's TEXT context before that lookup;
+			// already typed inputs retain their type and signature diagnostics.
+			policy.expected = b.typ(sqltype.Text).Usage()
+			child := r
+			for {
+				collation, ok := child.(parser.CollateExpr)
+				if !ok {
+					break
+				}
+				child = collation.Child
+			}
+			if parameter, ok := child.(parser.ParameterExpr); ok {
+				if established := b.parameters[parameter.Number]; established.Type != nil {
+					policy.expected = established
+				}
+			}
+		}
+		o, err := b.comparisonOperandPolicy(r, policy)
 		if err != nil {
 			return nil, err
 		}
@@ -106,6 +126,9 @@ func (b *expressionBinder) bindStringFunction(raw parser.FunctionExpr, visible b
 		return b.finishBinary(name, raw.Pos, operands, syntax)
 	}
 	valid := visible && !raw.Variadic && len(operands) >= 1 && len(operands) <= 2
+	if name == "lower" || name == "upper" || name == "casefold" || name == "initcap" {
+		valid = valid && len(operands) == 1
+	}
 	for _, o := range operands {
 		if d := o.descriptor(); d != nil && !sqltype.StringTextInput(d.ID()) {
 			valid = false

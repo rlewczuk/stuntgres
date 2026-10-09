@@ -311,7 +311,7 @@ func (r pgRenderer) sql(ctx context.Context, node BoundExpr, parent pgRenderPare
 		if err != nil {
 			return "", err
 		}
-		return "(" + text + " COLLATE " + quoteIdentifier(builtinCollationName(n.usage.Collation.ID)) + ")", nil
+		return "(" + text + " COLLATE " + pgIdentifier(builtinCollationName(n.usage.Collation.ID)) + ")", nil
 	case coercionExpression:
 		if literal, ok := n.child.(literalExpression); ok && n.mode == sqltype.Explicit &&
 			literal.usage.Type == n.usage.Type && n.usage.Typmod >= 0 {

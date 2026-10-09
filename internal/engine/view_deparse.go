@@ -331,7 +331,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 		}
 		text, err := args(e.Args)
 		switch name {
-		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized":
+		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap":
 			return "pg_catalog." + name + "(" + text + ")", err
 		}
 		return objectNameText(e.Name) + "(" + text + ")", err

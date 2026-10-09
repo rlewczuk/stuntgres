@@ -86,7 +86,8 @@ comments and dependents while replacing the definition and outgoing dependencies
 Existing names/types/typmods/collations form a required prefix; trailing columns
 may be added. ALTER VIEW supports relation/column rename, owner/schema changes
 and security SET/RESET; grouped DROP VIEW supports RESTRICT/CASCADE and IF EXISTS.
-Scalar COLLATE annotations use only existing default/C/POSIX identities.
+Scalar COLLATE annotations support default/C/POSIX and the fixed Unicode16
+`pg_c_utf8`/`pg_unicode_fast` identities; arbitrary locale/ICU providers remain excluded.
 Cyclic replacement is admitted, but recursive reads fail42P17 and native cyclic
 Dump explicitly fails. CREATE RECURSIVE/TEMP syntax, check options, view writes,
 column defaults/type-changing ALTER, full catalogs/RLS/UDFs/optimizer facilities
@@ -874,14 +875,64 @@ release quickcheck. Resolved signatures are strict: NULL skips the body; malform
 forms otherwise fail22023 without a runtime call Position. Binding/arity/type/
 namespace failures occur during analysis, including beneath typed NULL.
 
+`lower(text)`, `upper(text)`, `casefold(text)` and `initcap(text)` return TEXT/-1
+and inherit input collation, not VARCHAR/BPCHAR width. Unknown strings, NULLs
+and bare parameters infer TEXT; typed numeric/BOOL/BYTEA arguments and wrong
+arities fail42883. BPCHAR-to-TEXT removes trailing ASCII spaces; TEXT/VARCHAR
+preserve them. NULL bypasses case classification, but not analysis of invalid
+children or explicit collation mismatches. NonNULL indeterminate collation
+fails42P22 with the COLLATE hint; PostgreSQL18.0 casefold uses `lower()` in that
+diagnostic. Namespace and authorization checks remain the ordinary shared rules.
+
+The fixed modes are:
+
+| Collation | Case conversion and initcap words |
+|---|---|
+| default100 / C950 / POSIX951 | ASCII lower/upper; fold equals lower; ASCII letters/digits form words and every nonASCII byte separates them |
+| pg_c_utf8 811 | Unicode16 simple lower/upper and C+S fold; initcap uses simple UPPER then lower; Alphabetic plus ASCII digits form words |
+| pg_unicode_fast 6411 | Unicode16 full lower/upper/title and C+F fold; initcap uses TITLE then lower; Alphabetic plus Unicode Nd form words |
+
+Full mappings can expand (`upper('ß')` → `SS`, fold `ﬃ` → `ffi`, lower `İ` →
+`i`+U+0307), without clipping to source width. Full lower uses original-input
+Final_Sigma, skipping Case_Ignorable on either side. PostgreSQL18.0 also accepts
+a nonempty all-ignorable prefix: lower(U+0345 followed by Σ) ends in `ς`, and
+initcap produces `Ις`. Bare Σ and a nearest nonignorable uncased predecessor
+remain nonfinal; a following nonignorable cased letter also prevents final sigma.
+Context comes from the original input, not emitted title expansions.
+Folding does not use final sigma and performs no normalization.
+Cherokee folding can produce uppercase.
+Unconditional SpecialCasing and Final_Sigma apply; tr/az/lt tailoring does not.
+Initcap uses alnum runs, not linguistic word segmentation: underscores,
+apostrophes and nonAlphabetic marks separate words; a leading digit consumes
+the word start rather than capitalizing its next letter. Fullwidth digits are
+word members only in the full mode. Scans, including sigma lookahead, check
+cancellation during bounded work; unchanged strings are borrowed.
+
+All five collation identities use deterministic UTF8 byte/codepoint ordering.
+No CREATE COLLATION, arbitrary libc/ICU locale, nondeterministic comparison or
+new native encoding setting is added. Native text remains UTF8. The real
+PostgreSQL LATIN1 control rejects nonNULL casefold, including empty text, with
+42601; strict NULL bypasses that restriction. Unicode-collation ILIKE is a
+documented native0A000 boundary, not silently ASCII matching; plain LIKE works.
+Case expressions use existing queries/writes/RETURNING/defaults/CHECKs/views,
+stored deparsing and native replay. Parenthesized DEFAULT forms retain current
+grammar limits; no arbitrary singleton expression or bare DEFAULT-call admission.
+Compact/pretty stored expression and CHECK presentation quotes collation
+identifiers only when required: `pg_unicode_fast` remains unquoted, while
+`"C"` and `"POSIX"` retain their case-preserving quotes. Returned SQL is executable.
+Qualified and unqualified case calls use the existing selected-string scalar
+grammar, including its bounded no-FROM exception. Plain LIKE/ILIKE projections
+without a selected-string expression still require FROM; activating Unicode
+collations does not broaden standalone SELECT admission.
+
 Normalization uses pinned Unicode16 canonical/compatibility data, recursive
 decomposition, stable canonical ordering, exclusions, blocking and algorithmic
 Hangul. PostgreSQL18.0's inclusive TBASE composition consumes U+11A7 after an LV
 syllable: NFC/NFKC of U+AC00 U+11A7 is U+AC00, yet its release quickcheck predicate
 is TRUE. This is release compatibility, not a claim that the predicate always
 equals normalize(input)==input. The independent official corpus remains unchanged,
-with a separate release-boundary regression. No locale/case folding, stream-safe
-CGJ insertion or truncation is performed.
+with a separate release-boundary regression. Normalization performs no case
+folding, locale conversion, stream-safe CGJ insertion or truncation.
 
 These expressions compose in existing queries, writes/RETURNING, grouping,
 defaults/checks, views and native Dump/Restore. Bounded selected-string no-FROM
@@ -1355,7 +1406,7 @@ Prepare remains metadata-only.
 Native Dump/Restore preserves NAME schemas/data/typed NULL/empty tables and old
 cursors, with deterministic redumps and no replacement on failed staging.
 Explicit NAME casts/typed literals/functions, arrays, internal `"char"`,
-non-C COLLATE, binary wire serving and PostgreSQL physical storage are not added.
+arbitrary locale COLLATE, binary wire serving and PostgreSQL physical storage are not added.
 PostgreSQL binary namerecv rejects64-byte input rather than clipping; native
 byte binds do not implement that protocol. See [NAME values](TYPES.md#name).
 Feature smoke: `make smoke RUN='^TestNameSmoke$' VERBOSE=0`;
@@ -1657,11 +1708,12 @@ misreading them as function-style casts; visibility inquiries use the existing
 implicit BIGINT-to-OID provider after a column is widened. The wrapper is parsed,
 never executed: it creates no metadata and does not broaden ordinary SQL admission.
 
-Column COLLATE (also in final CREATE declarations for Restore) resolves only
-`pg_catalog."default"`100, `"C"`950 and `"POSIX"`951, with namespace authority,
-UTF8/C byte comparison and distinct stored collation identities. Omission resets
-to the target type's intrinsic default. Missing names/noncollatable types fail;
-other locale/ICU implementations and general COLLATE expressions remain excluded.
+Column COLLATE (also in final CREATE declarations for Restore) resolves
+`pg_catalog."default"`100, `"C"`950, `"POSIX"`951, `pg_c_utf8`811 and
+`pg_unicode_fast`6411 with namespace authority, deterministic UTF8 byte/codepoint
+comparison and distinct stored identities. Omission resets to the target type's
+intrinsic default. Missing names/noncollatable types fail; arbitrary locale/ICU
+providers remain excluded. Scalar annotations use the same fixed identities.
 Dump emits final type/typmod/nondefault collation/default/NOT NULL/CHECK declarations,
 not ALTER history; Restore retains its CREATE/INSERT whitelist and atomic replay.
 
@@ -1969,7 +2021,7 @@ An earlier namespace fallback beats a later exact encoding. Conversion lookup
 uses name/namespace, not encoding pair/default/procedure privilege:4402 is visible
 despite having no UTF8 side. Metadata does not enable conversion execution,
 general locale comparison, imported OS collations or broader catalogs/DDL.
-Comparison retains only default/C/POSIX. Ordinary B-tree indexes participate in
+Comparison supports default/C/POSIX and pg_c_utf8/pg_unicode_fast. Ordinary B-tree indexes participate in
 relation visibility, including same-name cross-kind shadowing, and their
 definitions roundtrip through native Dump/Restore. CREATE TYPE/DOMAIN/COLLATION/
 CONVERSION, automatic row types, materialized/foreign tables and TEMP table
@@ -2318,13 +2370,20 @@ Escape normalization precedes ASCII-only ILIKE folding under admitted
 default/C/POSIX collations. Thus É/é do not match case-insensitively. C and POSIX
 are distinct identities: conflicting implicit nondefault operands, including an
 escape operand, raise 42P22 when matching non-NULL values. Implicit default yields
-to either. Existing scalar COLLATE annotations select default/C/POSIX explicitly;
+to a nondefault identity. Scalar COLLATE also admits pg_c_utf8/pg_unicode_fast;
 an explicit annotation, including default, wins over implicit conflicts.
 Equal explicit identities combine; different explicit identities fail analysis
 and Prepare with 42P21 at the second conflicting COLLATE, even for NULL or empty
 input. Collatable casts, conditional results and supported string outputs retain
 this expression authority. Stored view columns expose implicit physical identity.
 Other locale/nondeterministic providers remain excluded.
+Plain LIKE supports both Unicode identities. ILIKE/NOT ILIKE (`~~*`/`!~~*`)
+with effective pg_c_utf8 or pg_unicode_fast collation fails native0A000,
+`ILIKE is unsupported for this collation`, positioned at the operator during
+analysis/Prepare. The guard uses the combined collation, including the RHS and
+escape wrapper, after explicit-conflict resolution. Explicit C on either side
+overrides an implicit Unicode column and allows ASCII ILIKE; existing42P21 and
+indeterminate42P22 diagnostics remain authoritative.
 
 BPCHAR matching preserves the left operand's physical trailing spaces; BPCHAR
 patterns/escapes convert to TEXT and trim those spaces. VARCHAR retains them.

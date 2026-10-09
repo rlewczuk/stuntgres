@@ -27,7 +27,7 @@ func TestStringCoreReviewTrimCancellation(t *testing.T) {
 	text := mathTypes()[Text]
 	for _, direction := range []string{"btrim", "ltrim", "rtrim"} {
 		t.Run(direction, func(t *testing.T) {
-			plan, err := BindString(direction, text.Usage(), text.Usage(), []Usage{text.Usage(), text.Usage()}, [2]bool{true, true})
+			plan, err := BindString(direction, text.Usage(), text.Usage(), []Usage{text.Usage(), text.Usage()}, [2]bool{true, true}, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +84,7 @@ func TestStringCoreReviewTrimAllocations(t *testing.T) {
 				if tc.unary {
 					args = args[:1]
 				}
-				plan, err := BindString(direction, text.Usage(), text.Usage(), args, [2]bool{true, true})
+				plan, err := BindString(direction, text.Usage(), text.Usage(), args, [2]bool{true, true}, false)
 				if err != nil {
 					t.Fatal(err)
 				}

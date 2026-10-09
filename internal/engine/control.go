@@ -710,7 +710,7 @@ func restoreScalar(raw parser.Expr) error {
 			return fmt.Errorf("stuntgres: invalid restore scalar")
 		}
 		switch r.Name.Parts[len(r.Name.Parts)-1].Text {
-		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized":
+		case "btrim", "ltrim", "rtrim", "normalize", "is_normalized", "lower", "upper", "casefold", "initcap":
 		case "like_escape":
 			if len(r.Name.Parts) != 2 || r.Name.Parts[0].Text != "pg_catalog" || len(r.Args) != 2 || r.Variadic {
 				return fmt.Errorf("stuntgres: invalid restore scalar")

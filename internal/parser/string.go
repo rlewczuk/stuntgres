@@ -51,6 +51,8 @@ func stringSingleton(expr Expr) (valid, found bool) {
 		return true, false
 	case CastExpr:
 		return stringSingleton(e.Child)
+	case CollateExpr:
+		return stringSingleton(e.Child)
 	case RegclassExpr:
 		return stringSingleton(e.Child)
 	case TimeZoneExpr:
@@ -65,7 +67,7 @@ func stringSingleton(expr Expr) (valid, found bool) {
 			return false, false
 		}
 		name := e.Name.Parts[len(e.Name.Parts)-1].Text
-		found = name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized"
+		found = name == "btrim" || name == "ltrim" || name == "rtrim" || name == "trim" || name == "normalize" || name == "is_normalized" || name == "lower" || name == "upper" || name == "casefold" || name == "initcap"
 		if !found && !singletonArgument(e) {
 			return false, false
 		}
