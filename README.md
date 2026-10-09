@@ -638,6 +638,15 @@ The result has unrestricted interval precision; numeric AVG remains unsupported.
 Public AVG feature checks use the same independent contract in both modes:
 `make test PACKAGES=./reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`
 and `make reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
+`any_value(anyelement)` returns an arbitrary non-NULL input of its concrete type,
+or typed NULL for empty/all-NULL input. It preserves the datum representation
+and collation, but not input typmod or physical origin; metadata is nullable.
+No stable winner is promised when candidates differ. Explicitly type unknown
+arguments, for example `any_value($1::integer)`. Later argument errors still
+veto all output after a candidate is retained. Public direct/prepared, view,
+HAVING/ORDER and INSERT SELECT witnesses share one independent contract:
+`make test PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`
+and `make reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
 Equal typed keys, including NULL keys, form one group; empty global count returns one row
 containing zero, while empty grouped input returns no rows. Group order is not
 promised. The same eager pipeline serves direct/prepared queries and

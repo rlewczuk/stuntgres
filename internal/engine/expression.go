@@ -971,6 +971,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 			node, err = b.bindBooleanAggregate(r, name)
 		} else if r.Name == "avg" {
 			node, err = b.bindIntervalAvg(r, name)
+		} else if r.Name == "any_value" {
+			node, err = b.bindAnyValue(r, name)
 		} else {
 			node, err = b.bindCount(r, name)
 		}

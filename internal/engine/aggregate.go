@@ -23,6 +23,7 @@ const (
 	aggregateAnd
 	aggregateOr
 	aggregateIntervalAvg
+	aggregateAnyValue
 )
 
 type aggregateCall struct {

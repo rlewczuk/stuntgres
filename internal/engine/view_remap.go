@@ -247,6 +247,9 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 			case intervalAvgProvider:
 				p.usage.Type = typ(p.usage.Type)
 				copy.calls[i].provider = p
+			case anyValueProvider:
+				p.usage.Type = typ(p.usage.Type)
+				copy.calls[i].provider = p
 			default:
 				return nil, fmt.Errorf("stuntgres: unpersistable view aggregate")
 			}

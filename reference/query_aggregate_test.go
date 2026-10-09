@@ -11,6 +11,7 @@ func queryAggregateRegressionSteps() []referenceStep {
 		referenceSelect("SELECT k FROM t GROUP BY k HAVING count(*)>1", []string{"k"}, []string{"TEXT"}, [][]any{{"a"}}),
 		referenceSelect("SELECT 7 FROM empty HAVING TRUE", []string{"?column?"}, []string{"INT4"}, [][]any{{int64(7)}}),
 		referenceSelect("SELECT (v+1)*2,count(*) FROM t GROUP BY v+1", []string{"?column?", "count"}, []string{"INT4", "INT8"}, [][]any{{int64(4), int64(1)}, {nil, int64(1)}, {int64(6), int64(1)}}),
+		referenceSelect("SELECT k,v,count(*) FROM t GROUP BY k,v", []string{"k", "v", "count"}, []string{"TEXT", "INT4", "INT8"}, [][]any{{"a", int64(1), int64(1)}, {"a", nil, int64(1)}, {nil, int64(2), int64(1)}}),
 	}
 	for i := range steps {
 		steps[i].bag = true

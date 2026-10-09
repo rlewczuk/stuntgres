@@ -204,18 +204,31 @@ explicit interval cast. Invalid types/arity give42883 with the real signature,
 explicit-casts hint and character position. Valid numeric AVG overloads remain
 native0A000 capabilities, not nonexistent PostgreSQL signatures.
 
+`any_value(anyelement)` returns an arbitrary non-NULL datum of the concrete input
+type, not a stable first/last/minimum/maximum winner. Empty/all-NULL global input
+returns typed NULL; empty keyed input returns no rows. Result metadata is known
+nullable, retains input collation, drops source typmod and has no physical origin.
+Existing codecs and immutable datum representations are unchanged. Unknown
+NULL/string literals and unresolved parameters give42804 without a position;
+cast the argument explicitly. Zero/star/multiple arguments give42883. All input
+arguments evaluate even after a candidate is retained, preserving late-error
+and cancellation atomicity. Direct/prepared calls, views/native roundtrip,
+HAVING/ORDER and INSERT SELECT share the ordinary aggregate pipeline.
+Public smoke: `make test PACKAGES=./reference RUN='^TestReferenceAnyValueSmoke$' VERBOSE=0`;
+independent oracle: `make reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
+
 Grouping does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every/avg(interval), FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
+aggregates other than count/bool_and/bool_or/every/avg(interval)/any_value, FILTER/DISTINCT/ALL/in-call ORDER/OVER, DISTINCT/ALL grouping,
 grouping sets/ROLLUP/CUBE/empty grouping sets.
 No-FROM aggregate exclusion applies recursively across all targets, including
 siblings of selected sequence/REGCLASS singleton expressions. Group-expression
 constant identity preserves representation (including NUMERIC scale), separately
 from runtime typed grouping equality.
-Feature smoke: `make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0`;
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceQueryAggregateSmokeMigration$' VERBOSE=0`;
 real independent oracle: `make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0`.
-Expression-count smoke: `make smoke RUN='^TestCountExpressionSmoke$' VERBOSE=0`;
+Expression-count smoke: `make test PACKAGES=./reference RUN='^TestReferenceCountExpressionSmokeMigration$' VERBOSE=0`;
 independent oracle: `make reference RUN='^TestReferenceCountExpression' VERBOSE=0`.
-Boolean smoke: `make smoke RUN='^TestBooleanAggregateSmoke$' VERBOSE=0`;
+Boolean smoke: `make test PACKAGES=./reference RUN='^TestReferenceBooleanAggregateMigrationLifecycle$' VERBOSE=0`;
 independent oracle: `make reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0`.
 Parameterless count() gives42809 and preserves a qualified call name in its message.
 Children are analyzed before the more-than-100-argument guard54023, then

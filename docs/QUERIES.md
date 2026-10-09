@@ -549,6 +549,53 @@ column rights even on empty input. No all-column read is invented by count-star.
 INSERT assignment and RowsAffected use selected output occurrences, not the count
 datum. Restore's generated-sequence SELECT whitelist is unchanged.
 
+### Arbitrary non-NULL value — change note
+
+`any_value(anyelement)` returns an arbitrary non-NULL input datum, preserving its
+concrete SQL type and representation. It does not promise the first, last, minimum
+or maximum value, and separate calls/backends need not choose the same candidate.
+Repeated equal non-NULL inputs return that value. Empty/all-NULL global input
+returns one typed NULL; empty keyed input returns no rows with the full schema.
+The result label is `any_value`, with known nullable metadata even for a NOT NULL
+source. Result typmod is unrestricted (`-1`); input collation is retained and no
+physical source-column origin is reported. The existing type's public codec
+applies unchanged, including BYTEA, temporal, NUMERIC and catalog-carrier values.
+
+```sql
+SELECT any_value(v),count(v) FROM grouped_rows;
+SELECT k,any_value(v) FROM grouped_rows GROUP BY k;
+SELECT k FROM grouped_rows GROUP BY k HAVING any_value(v)>0;
+SELECT any_value($1::integer) FROM grouped_rows;
+```
+
+The polymorphic signature requires a concrete argument type. Bare NULL, unknown
+strings and unresolved parameters give `42804`, `could not determine polymorphic
+type because input has type unknown`, without a call-position field. An outer
+cast does not type the argument. An earlier binding occurrence can constrain a
+parameter; later SELECT/WHERE/HAVING/ORDER occurrences do not retroactively type
+an already-bound call. Use an explicit cast inside `any_value`.
+Zero/star or multiple arguments give the normal `42883` signature diagnostic;
+child analysis, the 100-argument guard, namespace visibility and nesting retain
+the existing aggregate precedence and full portable diagnostic fields.
+
+Direct/prepared SELECT, scalar wrappers, hidden HAVING/ORDER, INSERT SELECT,
+stored views and native Dump/Reset/Restore use the ordinary eager aggregate
+pipeline. Every argument still evaluates once per source occurrence after a
+candidate is retained. Later errors or cancellation prevent any result or partial
+INSERT batch. Finalized values retain their immutable payload through source,
+statement and fixture lifecycle changes; no aggregate work occurs during Next.
+Source ACLs apply even to empty or filtered-out input. This adds no relationless
+SELECT, FILTER/DISTINCT/ALL/in-call ORDER/OVER, ordinary arrays, casts or codecs.
+Existing native multi-statement and INSERT RETURNING parser boundaries remain
+`0A000`, before aggregate execution or consumer/signature analysis. Carrier
+eligibility does not add explicit casts to TEXT: use raw aggregate output and
+existing typed-column assignment or admitted typed parameter casts.
+
+Feature smoke: `make test PACKAGES=./reference RUN='^TestReferenceAnyValueSmoke$' VERBOSE=0`.
+Full shared contracts: `make test PACKAGES=./reference RUN='^TestReferenceAnyValue' VERBOSE=0`
+and `make reference RUN='^TestReferenceAnyValue' VERBOSE=0`.
+Each backend asserts membership independently when multiple candidates exist.
+
 ### Interval average — change note
 
 `avg(interval)` shares the grouped/global eager pipeline, including HAVING,
@@ -584,7 +631,7 @@ Public feature smoke, using independently pinned PostgreSQL18.0 expectations:
 and `make reference RUN='^TestReferenceIntervalAvg' VERBOSE=0`.
 
 This does not admit standalone SELECT without FROM,
-aggregates other than count/bool_and/bool_or/every/avg(interval), FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
+aggregates other than count/bool_and/bool_or/every/avg(interval)/any_value, FILTER, DISTINCT/ALL aggregate or grouping modifiers, within-call ORDER,
 OVER, grouping sets/ROLLUP/CUBE/empty sets, new scalar calls or
 optimizer/spill/parallel machinery.
 Aggregate occurrences anywhere in a standalone no-FROM projection remain excluded
@@ -597,17 +644,17 @@ Feature checks (repository root, quiet output):
 make test PACKAGES=./reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
 make test PACKAGES=./internal/engine RUN='^TestQueryAggregate' VERBOSE=0
 make test PACKAGES=./internal/parser RUN='^TestQueryAggregate' VERBOSE=0
-make test PACKAGES=. RUN='^TestBooleanAggregate' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0
 make test PACKAGES=./internal/engine RUN='^TestBooleanAggregate' VERBOSE=0
 make test PACKAGES=./internal/parser RUN='^TestBooleanAggregate' VERBOSE=0
 make reference RUN='^TestReferenceBooleanAggregate' VERBOSE=0
-make smoke RUN='^TestBooleanAggregateSmoke$' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceBooleanAggregateMigrationLifecycle$' VERBOSE=0
 make test PACKAGES=./internal/sqltype RUN='^TestGrouping' VERBOSE=0
 make reference RUN='^TestReferenceQueryAggregate' VERBOSE=0
-make smoke RUN='^TestQueryAggregateSmoke$' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceQueryAggregateSmokeMigration$' VERBOSE=0
 make test PACKAGES=./reference RUN='^TestReferenceCountExpression' VERBOSE=0
 make reference RUN='^TestReferenceCountExpression' VERBOSE=0
-make smoke RUN='^TestCountExpressionSmoke$' VERBOSE=0
+make test PACKAGES=./reference RUN='^TestReferenceCountExpressionSmokeMigration$' VERBOSE=0
 ```
 
 Query-read test migration carries the complete 67-test root assertion union into
@@ -1867,7 +1914,7 @@ row mutation; sequence side effects retain their existing separate contract.
 
 Permanent public witnesses:
 `make smoke RUN='^TestConditionalSmoke$' VERBOSE=0`,
-`make smoke RUN='^TestConditionalAggregateSmoke$' VERBOSE=0`,
+`make test PACKAGES=./reference RUN='^TestReferenceConditionalAggregateComposition$' VERBOSE=0`,
 `make test RUN='^TestReferenceConditional.*$' PACKAGES=./reference VERBOSE=0`,
 `make test RUN='^TestConditional' PACKAGES='./internal/parser ./internal/sqltype ./internal/engine' VERBOSE=0`,
 and `make reference RUN='^TestReferenceConditional' VERBOSE=0` against the real

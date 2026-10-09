@@ -1,5 +1,3 @@
-//go:build reference
-
 package reference_test
 
 import (
@@ -70,9 +68,13 @@ func booleanAggregateRegressionSteps() []referenceStep {
 
 // The portable RowDescription fields are checked by referenceRunStep. lib/pq
 // does not expose nullability; assert native nullability independently instead.
-func booleanAggregateReferenceMetadata(t *testing.T, p *referencePair, db *sql.DB, native, prepared bool) {
+func booleanAggregateReferenceMetadata(t *testing.T, p *referencePair, db *sql.DB, native, prepared bool, selected ...referenceStep) {
 	t.Helper()
-	const query = "SELECT bool_and(b),bool_or(b),every(b),count(b) FROM nn"
+	step := referenceSelect("SELECT bool_and(b),bool_or(b),every(b),count(b) FROM nn", []string{"bool_and", "bool_or", "every", "count"}, []string{"BOOL", "BOOL", "BOOL", "INT8"}, nil)
+	if len(selected) != 0 {
+		step = selected[0]
+	}
+	query := step.query
 	var rows *sql.Rows
 	var err error
 	if prepared {
@@ -81,9 +83,9 @@ func booleanAggregateReferenceMetadata(t *testing.T, p *referencePair, db *sql.D
 			t.Fatal(prepareErr)
 		}
 		defer stmt.Close()
-		rows, err = stmt.QueryContext(p.ctx)
+		rows, err = stmt.QueryContext(p.ctx, step.args...)
 	} else {
-		rows, err = db.QueryContext(p.ctx, query)
+		rows, err = db.QueryContext(p.ctx, query, step.args...)
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -93,74 +95,63 @@ func booleanAggregateReferenceMetadata(t *testing.T, p *referencePair, db *sql.D
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(types) != 4 {
-		t.Fatalf("column count = %d, want 4", len(types))
+	if len(types) != len(step.types) {
+		t.Fatalf("column count = %d, want %d", len(types), len(step.types))
 	}
 	for i, typ := range types {
-		if i < 3 && typ.ScanType() != reflect.TypeOf(false) {
+		isBoolean := step.types[i] == "BOOL" && (step.columns[i] == "bool_and" || step.columns[i] == "bool_or" || step.columns[i] == "every")
+		if isBoolean && typ.ScanType() != reflect.TypeFor[bool]() {
 			t.Errorf("column %d ScanType = %v, want bool", i, typ.ScanType())
 		}
-		if native {
-			if nullable, known := typ.Nullable(); !known || nullable != (i < 3) {
-				t.Errorf("column %d Nullable = %v,%v, want %v,true", i, nullable, known, i < 3)
+		if native && (isBoolean || step.columns[i] == "count") {
+			if nullable, known := typ.Nullable(); !known || nullable != isBoolean {
+				t.Errorf("column %d Nullable=%v,%v, want %v,true", i, nullable, known, isBoolean)
 			}
 		}
 	}
 }
 
 func TestReferenceBooleanAggregateRegression(t *testing.T) {
-	p := newReferencePair(t)
-	// Setup deliberately lives outside backend subtest selectors.
-	for _, step := range []referenceStep{
-		referenceExec("CREATE TABLE t(k TEXT,b BOOL,v INT,txt TEXT)", 0),
-		referenceExec("INSERT INTO t VALUES('T',TRUE,1,'true'),('T',TRUE,1,'true'),('T',NULL,1,'true'),('F',FALSE,1,'true'),('F',FALSE,1,'true'),('F',NULL,1,'true'),('M',TRUE,1,'true'),('M',FALSE,1,'true'),('M',NULL,1,'true'),('N',NULL,1,'true'),('N',NULL,1,'true')", 11),
-		referenceExec("CREATE TABLE empty(k TEXT,b BOOL,v INT,txt TEXT)", 0),
-		referenceExec("CREATE TABLE m(b BOOL)", 0),
-		referenceExec("INSERT INTO m VALUES(TRUE),(FALSE),(NULL)", 3),
-		referenceExec("CREATE TABLE nn(b BOOL NOT NULL)", 0),
-	} {
-		p.step(t, step)
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			for _, step := range []referenceStep{
+				referenceExec("CREATE TABLE t(k TEXT,b BOOL,v INT,txt TEXT)", 0),
+				referenceExec("INSERT INTO t VALUES('T',TRUE,1,'true'),('T',TRUE,1,'true'),('T',NULL,1,'true'),('F',FALSE,1,'true'),('F',FALSE,1,'true'),('F',NULL,1,'true'),('M',TRUE,1,'true'),('M',FALSE,1,'true'),('M',NULL,1,'true'),('N',NULL,1,'true'),('N',NULL,1,'true')", 11),
+				referenceExec("CREATE TABLE empty(k TEXT,b BOOL,v INT,txt TEXT)", 0),
+				referenceExec("CREATE TABLE m(b BOOL)", 0),
+				referenceExec("INSERT INTO m VALUES(TRUE),(FALSE),(NULL)", 3),
+				referenceExec("CREATE TABLE nn(b BOOL NOT NULL)", 0),
+			} {
+				referenceRunStep(t, p.ctx, backend.db, backend.recorder, step)
+			}
+			steps := append(booleanAggregateRegressionSteps(),
+				referenceSelect("SELECT k FROM t GROUP BY k HAVING bool_or(b)", []string{"k"}, []string{"TEXT"}, [][]any{{"T"}, {"M"}}),
+				referenceSelect("SELECT k FROM t GROUP BY k HAVING every(b)", []string{"k"}, []string{"TEXT"}, [][]any{{"T"}}),
+				referenceSelect("SELECT COALESCE(bool_and(b),FALSE) AS answer FROM empty", []string{"answer"}, []string{"BOOL"}, [][]any{{false}}),
+				referenceSelect("SELECT pg_catalog.bool_and(b),\"bool_or\"(b),every(b IS NULL) FROM m", []string{"bool_and", "bool_or", "every"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{false, true, false}}),
+			)
+			for _, step := range steps {
+				t.Run(step.query, func(t *testing.T) {
+					for _, prepared := range []bool{false, true} {
+						s := step
+						s.prepared, s.bag = prepared, true
+						if s.diagnostic != nil {
+							s.errorStage = "execute"
+							if prepared {
+								s.errorStage = "prepare"
+							}
+						}
+						if s.state == "" {
+							booleanAggregateReferenceMetadata(t, p, backend.db, !backend.pg, prepared, s)
+						}
+						referenceRunStep(t, p.ctx, backend.db, backend.recorder, s)
+					}
+				})
+			}
+			for _, prepared := range []bool{false, true} {
+				booleanAggregateReferenceMetadata(t, p, backend.db, !backend.pg, prepared)
+			}
+		})
 	}
-	t.Run("postgres_first", func(t *testing.T) {
-		for _, step := range booleanAggregateRegressionSteps() {
-			t.Run(step.query, func(t *testing.T) {
-				t.Run("direct", func(t *testing.T) {
-					if step.diagnostic != nil {
-						step.errorStage = "execute"
-					}
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
-				})
-				t.Run("prepared", func(t *testing.T) {
-					step = referencePrepared(step)
-					if step.diagnostic != nil {
-						step.errorStage = "prepare"
-					}
-					referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
-				})
-			})
-		}
-		t.Run("metadata_direct", func(t *testing.T) { booleanAggregateReferenceMetadata(t, p, p.postgres, false, false) })
-		t.Run("metadata_prepared", func(t *testing.T) { booleanAggregateReferenceMetadata(t, p, p.postgres, false, true) })
-	})
-	t.Run("paired", func(t *testing.T) {
-		for _, step := range booleanAggregateRegressionSteps() {
-			t.Run(step.query, func(t *testing.T) {
-				t.Run("direct", func(t *testing.T) {
-					if step.diagnostic != nil {
-						step.errorStage = "execute"
-					}
-					p.step(t, step)
-				})
-				t.Run("prepared", func(t *testing.T) {
-					step = referencePrepared(step)
-					if step.diagnostic != nil {
-						step.errorStage = "prepare"
-					}
-					p.step(t, step)
-				})
-			})
-		}
-		t.Run("native_metadata_direct", func(t *testing.T) { booleanAggregateReferenceMetadata(t, p, p.memory, true, false) })
-		t.Run("native_metadata_prepared", func(t *testing.T) { booleanAggregateReferenceMetadata(t, p, p.memory, true, true) })
-	})
 }

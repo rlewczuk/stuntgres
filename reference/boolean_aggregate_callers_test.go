@@ -1,11 +1,9 @@
-//go:build reference
-
 package reference_test
 
 import "testing"
 
 func TestReferenceBooleanAggregateCallers(t *testing.T) {
-	p := newReferencePair(t)
+	p := newReferenceScenario(t)
 	for _, s := range []referenceStep{referenceExec("CREATE TABLE t(k TEXT,b BOOL)", 0), referenceExec("INSERT INTO t VALUES('T',TRUE),('F',FALSE),('M',TRUE),('M',FALSE),('N',NULL),(NULL,TRUE)", 6), referenceExec("CREATE TABLE empty(k TEXT,b BOOL)", 0), referenceExec("CREATE TABLE d(v INT)", 0), referenceExec("INSERT INTO d VALUES(1),(0)", 2), referenceExec("CREATE TABLE out(b BOOL)", 0), referenceExec("INSERT INTO out VALUES(TRUE)", 1), referenceExec("CREATE VIEW aggregated(a,o,e,u) AS SELECT bool_and(b),bool_or(b),every(b),every('true') FROM t", 0)} {
 		p.step(t, s)
 	}
@@ -21,7 +19,7 @@ func TestReferenceBooleanAggregateCallers(t *testing.T) {
 		p.step(t, s)
 		p.step(t, referencePrepared(s))
 	}
-	for _, q := range []string{"SELECT bool_and(10/v=0) FROM d", "SELECT bool_or(10/v>0) FROM d", "INSERT INTO out SELECT bool_and(10/v=0) FROM d"} {
+	for _, q := range []string{"SELECT bool_and(10/v=0) FROM d", "SELECT bool_or(10/v>0) FROM d", "INSERT INTO out SELECT bool_and(10/v=0) FROM d", "INSERT INTO out SELECT bool_or(10/v>0) FROM d"} {
 		s := referenceImplicitError(q, referenceDiagnostic{Code: "22012", Message: "division by zero"})
 		s.selectRows = q[:6] == "SELECT"
 		p.step(t, s)
@@ -40,42 +38,39 @@ func TestReferenceBooleanAggregateCallers(t *testing.T) {
 }
 
 func TestReferenceBooleanAggregateCapabilityBoundaries(t *testing.T) {
-	p := newReferencePair(t)
-	p.step(t, referenceExec("CREATE TABLE m(b BOOL)", 0))
-	p.step(t, referenceExec("INSERT INTO m VALUES(TRUE),(FALSE),(NULL)", 3))
-	for _, tc := range []struct {
-		q    string
-		rows [][]any
-	}{
-		{"SELECT bool_and(DISTINCT b) FROM m", [][]any{{false}}},
-		{"SELECT bool_or(DISTINCT b) FROM m", [][]any{{true}}},
-		{"SELECT every(DISTINCT b) FROM m", [][]any{{false}}},
-		{"SELECT bool_and(b) FILTER (WHERE FALSE) FROM m", [][]any{{nil}}},
-		{"SELECT bool_and(b) FILTER (WHERE NULL) FROM m", [][]any{{nil}}},
-		{"SELECT bool_and(b) FILTER (WHERE b) FROM m", [][]any{{true}}},
-		{"SELECT bool_and(b) FILTER (WHERE NOT b) FROM m", [][]any{{false}}},
-		{"SELECT bool_and(b) FILTER (WHERE b IS NULL) FROM m", [][]any{{nil}}},
-		{"SELECT every(ALL b) FROM m", [][]any{{false}}},
-		{"SELECT bool_or(b ORDER BY b) FROM m", [][]any{{true}}},
-		{"SELECT bool_and(TRUE)", [][]any{{true}}},
-		{"SELECT bool_or(b) OVER () FROM m", [][]any{{true}, {true}, {true}}},
-	} {
-		for _, prepared := range []bool{false, true} {
-			native := referenceError(tc.q, "0A000")
-			native.selectRows = true
-			native.prepared = prepared
-			referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, native)
-			name := "bool_and"
-			if len(tc.q) >= 14 && tc.q[7:14] == "bool_or" {
-				name = "bool_or"
+	p := newReferenceScenario(t)
+	for _, backend := range p.backends() {
+		t.Run(backend.name, func(t *testing.T) {
+			run := func(s referenceStep) { referenceRunStep(t, p.ctx, backend.db, backend.recorder, s) }
+			run(referenceExec("CREATE TABLE m(b BOOL)", 0))
+			run(referenceExec("INSERT INTO m VALUES(TRUE),(FALSE),(NULL)", 3))
+			for _, tc := range []struct {
+				q, name string
+				rows    [][]any
+			}{
+				{"SELECT bool_and(DISTINCT b) FROM m", "bool_and", [][]any{{false}}},
+				{"SELECT bool_or(DISTINCT b) FROM m", "bool_or", [][]any{{true}}},
+				{"SELECT every(DISTINCT b) FROM m", "every", [][]any{{false}}},
+				{"SELECT bool_and(b) FILTER (WHERE FALSE) FROM m", "bool_and", [][]any{{nil}}},
+				{"SELECT bool_and(b) FILTER (WHERE NULL) FROM m", "bool_and", [][]any{{nil}}},
+				{"SELECT bool_and(b) FILTER (WHERE b) FROM m", "bool_and", [][]any{{true}}},
+				{"SELECT bool_and(b) FILTER (WHERE NOT b) FROM m", "bool_and", [][]any{{false}}},
+				{"SELECT bool_and(b) FILTER (WHERE b IS NULL) FROM m", "bool_and", [][]any{{nil}}},
+				{"SELECT every(ALL b) FROM m", "every", [][]any{{false}}},
+				{"SELECT bool_or(b ORDER BY b) FROM m", "bool_or", [][]any{{true}}},
+				{"SELECT bool_and(TRUE)", "bool_and", [][]any{{true}}},
+				{"SELECT bool_or(b) OVER () FROM m", "bool_or", [][]any{{true}, {true}, {true}}},
+			} {
+				for _, prepared := range []bool{false, true} {
+					s := referenceSelect(tc.q, []string{tc.name}, []string{"BOOL"}, tc.rows)
+					if !backend.pg {
+						s = referenceError(tc.q, "0A000")
+						s.selectRows = true
+					}
+					s.prepared, s.bag = prepared, true
+					run(s)
+				}
 			}
-			if tc.q[7:12] == "every" {
-				name = "every"
-			}
-			oracle := referenceSelect(tc.q, []string{name}, []string{"BOOL"}, tc.rows)
-			oracle.prepared = prepared
-			oracle.bag = true
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, oracle)
-		}
+		})
 	}
 }

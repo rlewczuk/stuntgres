@@ -1,0 +1,35 @@
+package parser
+
+import (
+	"errors"
+	"testing"
+
+	"stuntgres/internal/sqlstate"
+)
+
+func TestAnyValueGrammar(t *testing.T) {
+	for _, q := range []string{"SELECT any_value(v) FROM t", "SELECT pg_catalog.any_value(v) FROM t", "SELECT \"any_value\"(COALESCE(v,1)) FROM t", "SELECT any_value(),any_value(*),any_value(v,1) FROM t", "SELECT k FROM t GROUP BY k HAVING any_value(v)>0 ORDER BY any_value(v)", "SELECT any_value($1::integer) FROM t"} {
+		statements, err := Parse(q)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(q, statements, err)
+		}
+	}
+	statements, err := Parse("SELECT /*é*/ pg_catalog.any_value(v) FROM t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	call, ok := statements[0].(*Select).Targets[0].(AggregateExpr)
+	if !ok || call.Name != "any_value" || call.Schema == nil || call.Schema.Text != "pg_catalog" || call.Pos.Character != 14 || call.Star || len(call.Args) != 1 {
+		t.Fatal(call)
+	}
+}
+
+func TestAnyValueExclusions(t *testing.T) {
+	for _, q := range []string{"SELECT any_value(1)", "SELECT COALESCE(any_value(1),0)", "SELECT any_value(1),nextval('s')", "SELECT any_value(1),current_schema()", "SELECT any_value(DISTINCT v) FROM t", "SELECT any_value(ALL v) FROM t", "SELECT any_value(v ORDER BY v) FROM t", "SELECT any_value(v) FILTER (WHERE FALSE) FROM t", "SELECT any_value(v) OVER () FROM t"} {
+		statements, err := Parse("INSERT INTO t VALUES(1);" + q)
+		var diagnostic *sqlstate.Error
+		if len(statements) != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
+			t.Fatal(q, statements, err)
+		}
+	}
+}

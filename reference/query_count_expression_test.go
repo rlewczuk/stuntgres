@@ -1,6 +1,9 @@
 package reference_test
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func countExpressionRegressionSteps() []referenceStep {
 	steps := []referenceStep{
@@ -9,6 +12,7 @@ func countExpressionRegressionSteps() []referenceStep {
 		referenceSelect("SELECT count(v),count(v),count(1),count(FALSE),count(''),count(0) FROM t", []string{"count", "count", "count", "count", "count", "count"}, []string{"INT8", "INT8", "INT8", "INT8", "INT8", "INT8"}, [][]any{{int64(2), int64(2), int64(3), int64(3), int64(3), int64(3)}}),
 		referenceSelect("SELECT count(v) FROM empty", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}),
 		referenceSelect("SELECT count(v),count(1) FROM allnull", []string{"count", "count"}, []string{"INT8", "INT8"}, [][]any{{int64(0), int64(2)}}),
+		referenceSelect("SELECT count(v) FROM allnull", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}),
 		referenceSelect("SELECT count(v) FROM t WHERE FALSE", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}),
 		referenceSelect("SELECT count(v) FROM t WHERE NULL", []string{"count"}, []string{"INT8"}, [][]any{{int64(0)}}),
 		referenceSelect("SELECT k,count(v) FROM t GROUP BY k", []string{"k", "count"}, []string{"TEXT", "INT8"}, [][]any{{"a", int64(1)}, {nil, int64(1)}}),
@@ -41,6 +45,14 @@ func countExpressionRegressionSteps() []referenceStep {
 		{"SELECT count() FROM t", referenceDiagnostic{Code: "42809", Message: "count(*) must be used to call a parameterless aggregate function", Position: "8"}},
 		{"SELECT /*é*/ count() FROM t", referenceDiagnostic{Code: "42809", Message: "count(*) must be used to call a parameterless aggregate function", Position: "14"}},
 		{"SELECT count() FROM empty WHERE FALSE", referenceDiagnostic{Code: "42809", Message: "count(*) must be used to call a parameterless aggregate function", Position: "8"}},
+		{"SELECT pg_catalog.count() FROM t", referenceDiagnostic{Code: "42809", Message: "pg_catalog.count(*) must be used to call a parameterless aggregate function", Position: "8"}},
+		{"SELECT count(count(*),missing) FROM t", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "23"}},
+		{"SELECT count(count(*),1) FROM t", referenceDiagnostic{Code: "42883", Message: "function count(bigint, integer) does not exist", Hint: hint, Position: "8"}},
+		{"SELECT count(" + strings.Repeat("1,", 100) + "1) FROM t", referenceDiagnostic{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
+		{"SELECT count_missing_schema.count(missing) FROM t", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "35"}},
+		{"SELECT count_missing_schema.count(" + strings.Repeat("1,", 100) + "1) FROM empty", referenceDiagnostic{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"}},
+		{"SELECT count_missing_schema.count(1) FROM t WHERE FALSE", referenceDiagnostic{Code: "3F000", Message: `schema "count_missing_schema" does not exist`, Position: "8"}},
+		{"SELECT count_missing_schema.count(" + strings.Repeat("1,", 100) + "missing) FROM empty WHERE FALSE", referenceDiagnostic{Code: "42703", Message: `column "missing" does not exist`, Position: "235"}},
 		{"SELECT count(1,2) FROM t", referenceDiagnostic{Code: "42883", Message: "function count(integer, integer) does not exist", Hint: hint, Position: "8"}},
 		{"SELECT count(CAST(NULL AS INT),CAST(NULL AS TEXT)) FROM t", referenceDiagnostic{Code: "42883", Message: "function count(integer, text) does not exist", Hint: hint, Position: "8"}},
 		{"SELECT count(NULL,'x') FROM t", referenceDiagnostic{Code: "42883", Message: "function count(unknown, unknown) does not exist", Hint: hint, Position: "8"}},
