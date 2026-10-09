@@ -294,7 +294,7 @@ func joinExpressionSides(expr BoundExpr, leftWidth, rightWidth int) (uint8, erro
 	}
 	var children []BoundExpr
 	switch e := expr.(type) {
-	case literalExpression, parameterExpression, identityExpression:
+	case literalExpression, parameterExpression, identityExpression, currentDateTimeExpression:
 		return 0, nil
 	case coercionExpression:
 		return joinExpressionSides(e.child, leftWidth, rightWidth)

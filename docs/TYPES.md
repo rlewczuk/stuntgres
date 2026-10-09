@@ -1217,8 +1217,9 @@ encoding: its year-zero February 29 bind becomes `0001-03-01 BC`. Native DATE
 preserves `0001-02-29 BC`; textual BC input avoids that pq encoding limitation.
 `now`, `today`, `yesterday` and `tomorrow` use session-local transaction start;
 prepared typed/contextual constants freeze at analysis, while parameters read
-execution start. DateStyle affects input/output as described below. CURRENT_DATE,
-general temporal arithmetic, arrays and ordinary no-FROM SELECT remain excluded.
+execution start. DateStyle affects input/output as described below. CURRENT_DATE
+reads transaction start dynamically even when prepared; general temporal arithmetic,
+arrays and ordinary no-FROM SELECT remain excluded by this DATE type contract.
 
 Malformed input is `22007`; invalid calendar fields and finite-range failures
 are `22008`, preserving original input and English diagnostics.
@@ -1587,8 +1588,9 @@ analysis. Parameters, column casts/comparisons and AT LOCAL read execution setti
 Held cursors retain captured presentation and metadata across settings changes
 and native replacement. Dump uses canonical ISO/UTC timestamptz and stored timetz
 offsets, independent of TimeZone/DateStyle, and Restore preserves live settings.
-No timezone catalog views, INTERVAL arithmetic, timezone(...)
-aliases or CURRENT_* producer-family expansion are delivered here.
+No timezone catalog views, INTERVAL arithmetic or timezone(...) aliases are added.
+The five [SQL current date/time producers](DIALECT.md#sql-current-date-and-time--change-note)
+use these same codecs/settings and remain dynamic under held prepared execution.
 
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
 Public/provider witnesses: `make quickcheck PACKAGES=./reference RUN='^TestReferenceTimezone[A-Za-z0-9_]*$' VERBOSE=0`.

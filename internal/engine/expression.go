@@ -1012,6 +1012,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (Bound
 		if err != nil {
 			return nil, err
 		}
+	case parser.CurrentDateTimeExpr:
+		var err error
+		node, err = b.bindCurrentDateTime(r)
+		if err != nil {
+			return nil, err
+		}
 	case parser.ForbiddenGenerationExpr:
 		return nil, expressionError(r.Code, r.Message, r.Pos)
 	case parser.AggregateExpr:
@@ -1515,6 +1521,8 @@ func expressionName(raw parser.Expr, usage sqltype.Usage) (string, bool) {
 	switch r := raw.(type) {
 	case parser.IdentityExpr:
 		return r.Name, true
+	case parser.CurrentDateTimeExpr:
+		return r.Kind.Name(), true
 	case parser.AggregateExpr:
 		return r.Name, true
 	case parser.ConditionalExpr:
@@ -1789,7 +1797,7 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		}
 	}
 	switch raw.(type) {
-	case parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr:
+	case parser.CurrentDateTimeExpr, parser.IdentityExpr, parser.ColumnExpr, parser.ParameterExpr, parser.LiteralExpr, parser.TypedLiteralExpr, parser.CastExpr, parser.CollateExpr, parser.TimeZoneExpr, parser.OperatorExpr, parser.CallExpr, parser.RegclassExpr, parser.FunctionExpr, parser.AggregateExpr, parser.CaseExpr, parser.ConditionalExpr, parser.LogicalExpr, parser.PredicateExpr, parser.IndexSubqueryExpr:
 	default:
 		return comparisonOperand{}, fmt.Errorf("stuntgres: invalid comparison operand")
 	}

@@ -255,6 +255,15 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalog CatalogRead,
 	switch e := raw.(type) {
 	case parser.IdentityExpr:
 		return e.Name, nil
+	case parser.CurrentDateTimeExpr:
+		name := e.Kind.Name()
+		if name == "" || e.HasPrecision && (e.Kind == parser.CurrentDate || e.Precision < 0) {
+			return "", fmt.Errorf("stuntgres: invalid current datetime syntax")
+		}
+		if e.HasPrecision {
+			name += "(" + strconv.FormatInt(int64(min(e.Precision, 6)), 10) + ")"
+		}
+		return name, nil
 	case parser.LiteralExpr:
 		if ref, ok := v.sequenceRefs[e.Value.Pos.Offset]; ok {
 			d, exists := catalog.state.descriptors[ref.Address].(*relationDescriptor)

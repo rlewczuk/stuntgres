@@ -20,6 +20,9 @@ func (b *expressionBinder) sameGroupExpression(a, other BoundExpr) bool {
 	case identityExpression:
 		o, ok := other.(identityExpression)
 		return ok && e.kind == o.kind
+	case currentDateTimeExpression:
+		o, ok := other.(currentDateTimeExpression)
+		return ok && e.kind == o.kind && e.hasPrecision == o.hasPrecision
 	case aggregateExpression:
 		o, ok := other.(aggregateExpression)
 		return ok && e.slot == o.slot

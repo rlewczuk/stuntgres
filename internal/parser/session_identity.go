@@ -26,14 +26,14 @@ func IdentityFunctionName(name string) bool {
 	return false
 }
 
-// identitySingleton admits only identity-derived scalar trees, with literals
+// identitySingleton admits session-value-derived scalar trees, with literals
 // and parameters as siblings. It does not broaden general no-FROM SELECT.
 func identitySingleton(raw Expr) (valid, found bool) {
 	if raw == nil {
 		return true, false
 	}
 	switch e := raw.(type) {
-	case IdentityExpr:
+	case IdentityExpr, CurrentDateTimeExpr:
 		return true, true
 	case FunctionExpr:
 		if len(e.Name.Parts) == 0 || !IdentityFunctionName(e.Name.Parts[len(e.Name.Parts)-1].Text) {
@@ -52,6 +52,8 @@ func identitySingleton(raw Expr) (valid, found bool) {
 		return identitySingleton(e.Child)
 	case CastExpr:
 		return identitySingleton(e.Child)
+	case TimeZoneExpr:
+		return identitySingletonPair(e.Value, e.Zone)
 	case OperatorExpr:
 		return identitySingletonArgs(e.Args)
 	case LogicalExpr:

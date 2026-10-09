@@ -114,6 +114,8 @@ package parser
 %token <tok> IF EXISTS
 %token <tok> ROLE USER GROUP DROP WITH AUTHORIZATION SESSION_USER CURRENT_USER CURRENT_ROLE
 %token <tok> CURRENT_CATALOG SYSTEM_USER IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
+%token <tok> CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP LOCALTIME LOCALTIMESTAMP
+%token <tok> CURRENT_DATETIME_FUNC CURRENT_DATETIME_KEYWORD_FUNC
 %token <tok> LOCK ACCESS EXCLUSIVE MODE IN
 %token <tok> LIKE INCLUDING EXCLUDING SCHEMA ALTER RENAME OWNER CASCADE RESTRICT CURRENT_SCHEMA
 %token <tok> ILIKE ESCAPE
@@ -165,7 +167,7 @@ package parser
 %nonassoc CHECK_FUNC OVERLAY POSITION SUBSTRING
 %nonassoc GENERATION_OVER
 %nonassoc COALESCE NULLIF GREATEST LEAST CASE WHEN THEN ELSE
-%nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC
+%nonassoc IDENTITY_FUNC IDENTITY_KEYWORD_FUNC CURRENT_DATETIME_FUNC CURRENT_DATETIME_KEYWORD_FUNC
 %nonassoc STRING_FUNC NORMALIZE NORMALIZED TRIM NFC NFD NFKC NFKD
 %nonassoc '('
 %nonassoc KW_T CROSS INNER JOIN NATURAL LEFT RIGHT FULL OUTER LIKE ILIKE WITH WITHOUT
@@ -948,6 +950,18 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  | USER { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
  | SYSTEM_USER { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
  | CURRENT_SCHEMA { $$=IdentityExpr{Name:$1.text,Pos:$1.pos} }
+ | CURRENT_DATE { $$=CurrentDateTimeExpr{Kind:CurrentDate,Pos:$1.pos} }
+ | CURRENT_TIME { $$=CurrentDateTimeExpr{Kind:CurrentTime,Pos:$1.pos} }
+ | CURRENT_TIMESTAMP { $$=CurrentDateTimeExpr{Kind:CurrentTimestamp,Pos:$1.pos} }
+ | LOCALTIME { $$=CurrentDateTimeExpr{Kind:LocalTime,Pos:$1.pos} }
+ | LOCALTIMESTAMP { $$=CurrentDateTimeExpr{Kind:LocalTimestamp,Pos:$1.pos} }
+ | CURRENT_DATETIME_FUNC '(' ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Pos:$1.pos} }
+ | name '.' CURRENT_DATETIME_FUNC '(' ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} }
+ | name '.' CURRENT_DATETIME_KEYWORD_FUNC '(' ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Pos:$1.pos} }
+ | CURRENT_TIME '(' NUMBER ')' {raw,ok:=currentDateTimePrecision(sqllex,CurrentTime,$1,$3);if !ok{return 1};$$=raw}
+ | CURRENT_TIMESTAMP '(' NUMBER ')' {raw,ok:=currentDateTimePrecision(sqllex,CurrentTimestamp,$1,$3);if !ok{return 1};$$=raw}
+ | LOCALTIME '(' NUMBER ')' {raw,ok:=currentDateTimePrecision(sqllex,LocalTime,$1,$3);if !ok{return 1};$$=raw}
+ | LOCALTIMESTAMP '(' NUMBER ')' {raw,ok:=currentDateTimePrecision(sqllex,LocalTimestamp,$1,$3);if !ok{return 1};$$=raw}
  | IDENTITY_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' IDENTITY_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,Variadic:$5.Variadic,Pos:$1.pos} }
  | IDENTITY_KEYWORD_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,Variadic:$3.Variadic,Pos:$1.pos} }
@@ -1247,6 +1261,7 @@ setting_word_without_between: IDENT | AT | DELETE | SELECTED_FUNC %prec NAME_LIS
  | DOMAIN | TYPE | INCLUDE | TABLESPACE
  | INTERVAL %prec NAME_LIST | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | UNKNOWN | OPERATOR | sequence_name_word | conditional_word
  | ESCAPE
+ | CURRENT_DATETIME_FUNC %prec NAME_LIST
  | IDENTITY_FUNC %prec NAME_LIST {if !$1.keyword.columnName() {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 setting_word: setting_word_without_between | BETWEEN ;
 /* SQL-special function terminals retain their released ColumnName legality.
@@ -1259,12 +1274,12 @@ transaction_name: BEGIN | START | COMMIT | ROLLBACK | ABORT | WORK | TRANSACTION
 type_name: IDENT | DELETE | SELECTED_FUNC | KW_U | KW_T | KW_C | WITHOUT | ZONE | VALUES | INSERT | UPDATE | BY | SET | SHOW | RESET | SESSION | LOCAL | SETTING_FUNC | IF | EXISTS | DROP | ROLE | AUTHORIZATION | LOCK | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | SCHEMA | ALTER | RENAME | OWNER | CASCADE | RESTRICT | CURRENT_SCHEMA | COMMENT | IS | ISNULL | NOTNULL | UNKNOWN | ADD | INHERITS | transaction_name | sequence_name_word | conditional_word | BETWEEN
  | string_word
  | DOMAIN | TYPE | INCLUDE | TABLESPACE
- | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | INDEX | CONCURRENTLY | ILIKE | ESCAPE
+ | YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | OPERATOR | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | INDEX | CONCURRENTLY | ILIKE | ESCAPE
  | OVERLAY | POSITION | SUBSTRING | CHECK_FUNC ;
 generic_word: generic_word_without_exists | EXISTS ;
 generic_word_without_exists: generic_word_base | WITH ;
 generic_word_without_with: generic_word_base | EXISTS ;
-generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
+generic_word_base: IDENT | AT | INTERVAL | HOUR | MINUTE | SECOND | DAY | MONTH | YEAR | SELECTED_FUNC | IDENTITY_FUNC | CURRENT_DATETIME_FUNC | KW_U | KW_C | KW_T | KW_R | COLLATE | FOR | HAVING | TIMESTAMP | WITHOUT | TIME | ZONE | IF | ALL | LOCAL | ON | AUTHORIZATION | IN | ACCESS | EXCLUSIVE | MODE | LIKE | INCLUDING | EXCLUDING | CASCADE | RESTRICT | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | UNKNOWN | AND | OR | ONLY | DEFERRABLE | CONSTRAINT | CHECK | conditional_word | BETWEEN | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | OPERATOR | ILIKE | ESCAPE
  | DOMAIN | TYPE | ARRAY | INCLUDE | TABLESPACE
  | string_word | LEADING | TRAILING | BOTH | UNIQUE | NOT_DEFERRABLE_LA ;
 /* Predicate continuation tokens are not excluded bare-alias guards. In
@@ -1281,8 +1296,8 @@ bare_label: non_between_name { if $1.keyword!=nil && ($1.text=="filter" || $1.te
  | ON { sqllex.(*lexer).syntax($1); return 1 }
  | VARIADIC | SELECT | TABLE | ASC | DESC | NULL | TRUE | FALSE | DEFAULT | CAST | ALL | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | DISTINCT
  | CASE | WHEN | THEN | ELSE | SYMMETRIC
- | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CONCURRENTLY ;
-col_label: name | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE ;
+ | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | CONCURRENTLY ;
+col_label: name | ARRAY | BOTH | LEADING | TRAILING | PLACING | CONCURRENTLY | IDENTITY_KEYWORD_FUNC | CURRENT_DATETIME_KEYWORD_FUNC | CURRENT_CATALOG | SYSTEM_USER | CURRENT_DATE | CURRENT_TIME | CURRENT_TIMESTAMP | LOCALTIME | LOCALTIMESTAMP | RETURNING | VARIADIC | LIKE | KW_T | KW_R | COLLATE | FOR | LIMIT | OFFSET | FETCH | HAVING | CREATE | TABLE | INTO | SELECT | FROM | WHERE | ORDER | ASC | DESC | NOT | NULL | TRUE | FALSE | TO | DEFAULT | AS | CAST | ALL | ON | AUTHORIZATION | SESSION_USER | CURRENT_USER | CURRENT_ROLE | CURRENT_SCHEMA | USER | GROUP | WITH | IN | COLUMN | IS | ISNULL | NOTNULL | DISTINCT | AND | OR | END | ONLY | DEFERRABLE | CONSTRAINT | CHECK | CASE | WHEN | THEN | ELSE | SYMMETRIC | CROSS | INNER | JOIN | NATURAL | LEFT | RIGHT | FULL | OUTER | USING | ILIKE | UNIQUE ;
 suffix: predicate_suffix | GROUP | HAVING ;
 predicate_suffix: KW_T | KW_R | UNIQUE | INTO | DEFAULT | ALL | ON | WITH | USER | IN | CONSTRAINT ;
 relation_name: name { $$ = ObjectName{Parts:[]Identifier{{Text:$1.text, Pos:$1.pos}}} }

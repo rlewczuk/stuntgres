@@ -455,6 +455,8 @@ func (r scalarRenderer) sql(ctx context.Context, view CatalogRead, node BoundExp
 			return "pg_catalog." + n.kind.spelling() + "()", nil
 		}
 		return n.kind.spelling(), nil
+	case currentDateTimeExpression:
+		return n.sql()
 	case literalExpression:
 		if r.checkLiterals != nil {
 			*r.checkLiterals = append(*r.checkLiterals, n)
@@ -1043,6 +1045,9 @@ func retagBoundTypes(node BoundExpr, retainedType func(*sqltype.Descriptor) *sql
 		n.expressionInfo = info
 		rebound = n
 	case identityExpression:
+		n.expressionInfo = info
+		rebound = n
+	case currentDateTimeExpression:
 		n.expressionInfo = info
 		rebound = n
 	case literalExpression:

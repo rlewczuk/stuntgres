@@ -684,6 +684,16 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	}
+	if (token.code == IDENT || l.previousToken == int('.')) && currentDateTimeOrdinaryName(token.lexeme.text) {
+		next := l.nextRaw()
+		l.lookahead, l.hasLookahead = next, true
+		if next.code == int('(') {
+			token.code = CURRENT_DATETIME_FUNC
+			if token.lexeme.keyword != nil {
+				token.code = CURRENT_DATETIME_KEYWORD_FUNC
+			}
+		}
+	}
 	if token.code == IDENT && (binaryHashFunction(token.lexeme.text) || stringReplacementFunction(token.lexeme.text) || indexPropertyCallName(token.lexeme.text) || strings.EqualFold(token.lexeme.text, "format") || strings.HasPrefix(strings.ToLower(token.lexeme.text), "pg_get_")) {
 		token.code = SELECTED_FUNC
 	}

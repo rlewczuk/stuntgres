@@ -906,7 +906,10 @@ use session-local civil/instant interpretation. See [types](TYPES.md#time-zone-a
 and SHOW/RESET TIME ZONE use the existing settings utility. Optional interval
 precision and HOUR/HOUR TO MINUTE/MINUTE qualifiers apply only to this
 timezone-setting atom, not general INTERVAL expressions.
-No timezone(...) alias, CURRENT_* expansion or timezone catalog views are added.
+No timezone(...) alias or timezone catalog views are added. The five
+[SQL current date/time producers](DIALECT.md#sql-current-date-and-time--change-note)
+are supported with transaction-start values and distinct DATE/TIME/TIMETZ/
+TIMESTAMP/TIMESTAMPTZ result types.
 
 
 ## Ordinary B-tree indexes

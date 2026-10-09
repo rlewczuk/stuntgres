@@ -529,7 +529,7 @@ type queryTail struct {
 	Locking *RowLockClause
 }
 
-// IsSingleton admits selected-call and identity-derived projections without FROM.
+// IsSingleton admits selected-call and session-value-derived projections without FROM.
 func (s *Select) IsSingleton() bool {
 	if s.Values != nil || s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
 		return false
@@ -545,20 +545,16 @@ func (s *Select) IsSingleton() bool {
 	if sequenceProjection(s) {
 		return true
 	}
-	identities := true
+	sessionOrString := true
 	for _, target := range s.Targets {
 		valid, found := identitySingleton(target)
-		identities = identities && valid && found
+		if valid && found {
+			continue
+		}
+		valid, found = stringSingleton(target)
+		sessionOrString = sessionOrString && valid && found
 	}
-	if identities {
-		return true
-	}
-	stringsOnly := true
-	for _, target := range s.Targets {
-		valid, found := stringSingleton(target)
-		stringsOnly = stringsOnly && valid && found
-	}
-	if stringsOnly {
+	if sessionOrString {
 		return true
 	}
 	// A format ANY occurrence must reach normal shared parameter analysis even
@@ -613,7 +609,7 @@ func singletonArgument(expr Expr) bool {
 			}
 		}
 		return true
-	case LiteralExpr, TypedLiteralExpr, ParameterExpr:
+	case CurrentDateTimeExpr, LiteralExpr, TypedLiteralExpr, ParameterExpr:
 		return true
 	case CastExpr:
 		return singletonArgument(e.Child)
@@ -923,6 +919,43 @@ type IdentityExpr struct {
 
 func (IdentityExpr) expression()                {}
 func (e IdentityExpr) SourcePosition() Position { return e.Pos }
+
+// CurrentDateTimeExpr retains SQL value-function syntax, never a captured value.
+type CurrentDateTimeKind uint8
+
+const (
+	CurrentDate CurrentDateTimeKind = iota
+	CurrentTime
+	CurrentTimestamp
+	LocalTime
+	LocalTimestamp
+)
+
+func (k CurrentDateTimeKind) Name() string {
+	switch k {
+	case CurrentDate:
+		return "current_date"
+	case CurrentTime:
+		return "current_time"
+	case CurrentTimestamp:
+		return "current_timestamp"
+	case LocalTime:
+		return "localtime"
+	case LocalTimestamp:
+		return "localtimestamp"
+	}
+	return ""
+}
+
+type CurrentDateTimeExpr struct {
+	Kind         CurrentDateTimeKind
+	Precision    int32
+	HasPrecision bool
+	Pos          Position
+}
+
+func (CurrentDateTimeExpr) expression()                {}
+func (e CurrentDateTimeExpr) SourcePosition() Position { return e.Pos }
 
 // FunctionSyntax retains SQL special-form provenance for binary expressions.
 type FunctionSyntax uint8

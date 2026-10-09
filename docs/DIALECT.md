@@ -6,6 +6,51 @@ feature contracts, and the [development guide](DEVELOPMENT.md) for contributor i
 
 ## Supported surface and limits
 
+### SQL current date and time — change note
+
+`CURRENT_DATE` returns DATE; `CURRENT_TIME[(p)]` returns TIMETZ;
+`CURRENT_TIMESTAMP[(p)]` returns TIMESTAMPTZ; `LOCALTIME[(p)]` returns TIME;
+`LOCALTIMESTAMP[(p)]` returns TIMESTAMP. Each reads the microsecond-quantized
+top-level transaction start, not statement time or Prepare time. Explicit
+transactions preserve that instant across statements/savepoints. COMMIT/ROLLBACK,
+including AND CHAIN, and implicit statements obtain fresh transaction clocks;
+physical peer sessions remain independent.
+
+TimeZone is read for each statement: changes within a transaction alter civil
+date/clock/local timestamp and CURRENT_TIME's fixed offset without changing the
+CURRENT_TIMESTAMP instant. DateStyle controls normal date/timestamp text output.
+DATE is unrounded; civil time/local timestamp are derived before precision
+rounding, while TIMESTAMPTZ rounds the instant. Rounded TIME/TIMETZ may reach24:00;
+timestamp rounding carries into the next date.
+
+Only the four time/timestamp forms accept an unsigned integer precision literal.
+Omission preserves full microsecond precision;0–6 rounds fractional seconds.
+Higher precision succeeds at6 with WARNING22023 at analysis, once for Prepare
+and never repeated by SAME held Execute. Signed/empty/expression/parameter
+precision syntax is42601; CURRENT_DATE has no parentheses. Quoted or qualified
+ordinary function names do not become these keyword forms. Quoted current-family
+table and column identifiers remain case-preserving ordinary names, including
+before CREATE/INSERT column-list parentheses.
+
+Direct/prepared projections, existing casts/comparisons and scalar table/DML
+consumers preserve distinct descriptors and default keyword labels. Defaults,
+CHECK and views retain symbolic expressions through deparse/native replay.
+The producers are STABLE, not immutable generated/index expression providers.
+Native DATE/TIME/TIMETZ use strings and TIMESTAMP/TIMESTAMPTZ use time.Time;
+pq uses its existing temporal time.Time codecs. Nullable metadata remains unknown
+for computed producers; native stored/view columns retain declared metadata.
+Quote keyword-labelled view columns (for example `"current_time"`) to read them;
+bare `current_time` is a new SQL value function, not a column reference.
+
+This bounded singleton support admits current-derived scalar expressions,
+including existing `normalize(CURRENT_DATE::TEXT)` and
+`CURRENT_DATE::TEXT IS NORMALIZED` consumers, not
+general no-FROM SELECT or adjacent now/clock_timestamp/statement_timestamp/
+transaction_timestamp functions, datetime arithmetic or additional catalogs.
+Full shared scenarios: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeCurrent' VERBOSE=0`
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeCurrent' VERBOSE=0`.
+Feature smoke uses the same commands with `RUN='^TestReferenceDatetimeCurrentFeatureSmoke$'`.
+
 ### Domains — change note
 
 `CREATE DOMAIN [schema.]name [AS] base_type [COLLATE [schema.]collation] [NULL]`
@@ -2096,7 +2141,7 @@ closed Rows. Native DATE/TIME comparisons reject42883. DATE/TIMESTAMP
 comparisons are supported with the same PostgreSQL semantics, including midnight
 equality, civil-day ordering, infinities and SQL NULL propagation.
 Selected datetime casts and TimeZone/DateStyle are supported as documented in
-[temporal types](TYPES.md#time-zone-aware-values); arithmetic, CURRENT_DATE and ordinary no-FROM SELECT remain excluded. Smoke:
+[temporal types](TYPES.md#time-zone-aware-values); arithmetic and ordinary no-FROM SELECT remain excluded. CURRENT_DATE is supported as a bounded SQL value function. Smoke:
 `make quickcheck PACKAGES=./smoke RUN='^TestDateSmoke$' VERBOSE=1`; independent pinned reference:
 `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDate' VERBOSE=1`.
 
@@ -2916,8 +2961,9 @@ supported in existing scalar positions, including direct and prepared queries.
 For example, `TIMESTAMP 'epoch'::timestamp` preserves the timestamp value and
 `CAST(TIMESTAMP 'epoch' AS text)` renders `1970-01-01 00:00:00` under ISO DateStyle.
 This does not expand unrelated cast families: integer-to-VARCHAR remains excluded.
-Timezone name/abbreviation views, INTERVAL arithmetic, timezone(...) aliases and
-CURRENT_* producer-family expansion are excluded. The timezone-only INTERVAL
+Timezone name/abbreviation views, INTERVAL arithmetic and timezone(...) aliases
+are excluded. The five SQL current-date/time producers are supported separately.
+The timezone-only INTERVAL
 operand of SET TIME ZONE remains bounded independently of the general
 [interval value type](#interval-values--change-note).
 Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.

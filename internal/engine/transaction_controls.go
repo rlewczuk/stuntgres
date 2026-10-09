@@ -199,7 +199,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref TxRef, comm
 		t.entryIsolation, t.entryReadOnly = isolation, readOnly
 		t.entryDeferrable = deferrable
 		t.syncCharacteristics()
-		t.start = time.Now().UTC()
+		t.start = time.Now().UTC().Truncate(time.Microsecond)
 		t.ticket = candidate
 		candidate = nil
 		installedNext = true

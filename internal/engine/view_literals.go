@@ -70,6 +70,10 @@ func (b *expressionBinder) captureViewLiteralTree(raw parser.Expr, bound BoundEx
 		if _, ok := bound.(identityExpression); ok {
 			return nil
 		}
+	case parser.CurrentDateTimeExpr:
+		if _, ok := bound.(currentDateTimeExpression); ok {
+			return nil
+		}
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if _, typed := r.(parser.TypedLiteralExpr); typed {
 			if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
@@ -422,6 +426,8 @@ func (v *viewDefinition) validateLiteralTree(catalog CatalogRead, raw parser.Exp
 	}
 	switch r := raw.(type) {
 	case parser.IdentityExpr:
+		return nil
+	case parser.CurrentDateTimeExpr:
 		return nil
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if literal, ok := v.literals[path]; ok {

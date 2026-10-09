@@ -30,7 +30,7 @@ func remapBoundExpression(node BoundExpr, ref func(ObjectRef) ObjectRef, slots m
 	}
 	var next BoundExpr
 	switch n := node.(type) {
-	case identityExpression:
+	case identityExpression, currentDateTimeExpression:
 		next = n
 	case literalExpression:
 		if n.usage.Type.ContainsRegclass() && !n.value.IsNull() {

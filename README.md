@@ -21,6 +21,16 @@ See [index capability inquiries](docs/design/PG18-FUNC-INFO-INDEX-PROPERTIES.md)
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0`;
 pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceIndexPropertiesFeatureSmoke$' VERBOSE=0`.
 
+Change note: SQL `CURRENT_DATE`, `CURRENT_TIME[(p)]`,
+`CURRENT_TIMESTAMP[(p)]`, `LOCALTIME[(p)]` and `LOCALTIMESTAMP[(p)]` derive
+from the top-level transaction start, with microsecond precision and session
+TimeZone presentation. Held prepared expressions remain dynamic across transactions;
+savepoints do not restart their clock. Precision0–6 rounds, while unsigned higher
+precision clamps to6 with PostgreSQL's analysis-time warning. Zoned/local result
+types remain distinct. See [current date/time](docs/DIALECT.md#sql-current-date-and-time--change-note).
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceDatetimeCurrentFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceDatetimeCurrentFeatureSmoke$' VERBOSE=0`.
+
 Change note: JSON scalar storage now validates syntax while retaining exact
 source whitespace, key order, duplicate keys, numbers and escape spelling.
 SQL NULL and JSON `null` remain distinct. Direct/prepared columns, bound values,
@@ -157,8 +167,8 @@ its fixed offset. Rules are embedded from the pinned PostgreSQL 18.0 image,
 not the host timezone installation. See [temporal types](docs/TYPES.md#time-zone-aware-values)
 and [session settings](docs/SETTINGS.md#temporal-settings).
 Native logical Dump/Restore preserves these values independently of session
-presentation. This does not add timezone catalog views, general INTERVAL arithmetic,
-or the CURRENT_* producer family.
+presentation. This does not add timezone catalog views or general INTERVAL arithmetic.
+The five SQL current-date/time producers are supported separately.
 Public feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestTimezoneSmoke$' VERBOSE=0`.
 
 SELECT and INSERT SELECT support comma products, CROSS JOIN and inner or

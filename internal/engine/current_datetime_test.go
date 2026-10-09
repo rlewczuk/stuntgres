@@ -1,0 +1,177 @@
+package engine
+
+import (
+	"context"
+	"runtime"
+	"strings"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+	"testing"
+	"time"
+)
+
+func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
+	ctx := context.Background()
+	e := New()
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	for _, kind := range []parser.CurrentDateTimeKind{parser.CurrentDate, parser.CurrentTime, parser.CurrentTimestamp, parser.LocalTime, parser.LocalTimestamp} {
+		raw := parser.CurrentDateTimeExpr{Kind: kind, Pos: parser.Position{Character: 8, Offset: 7}}
+		if kind != parser.CurrentDate {
+			raw.HasPrecision = true
+			raw.Precision = 3
+		}
+		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
+		if err != nil {
+			t.Fatal(raw, err)
+		}
+		node, ok := bound.(currentDateTimeExpression)
+		if !ok || node.Properties() != (ExprProperties{Volatility: Stable}) || node.ResultUsage().Type.ID() != currentDateTimeType(kind) || plannedVolatility(node) != Stable || generationImmutable(node) {
+			t.Fatal(raw, node)
+		}
+		if _, err := node.Eval(nil); err == nil {
+			t.Fatal("missing evaluation context accepted")
+		}
+		if _, err := node.Eval(&EvalContext{Context: ctx}); err == nil {
+			t.Fatal("missing transaction clock accepted")
+		}
+		stamp := time.Date(2000, 1, 1, 12, 0, 0, 123500000, time.UTC)
+		value, err := node.Eval(&EvalContext{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: stamp}})
+		if err != nil || value.Type() != node.ResultUsage().Type {
+			t.Fatal(value, err)
+		}
+		sql, err := node.sql()
+		if err != nil {
+			t.Fatal(err)
+		}
+		rendered, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})
+		if err != nil || rendered != strings.ToUpper(sql) {
+			t.Fatal(rendered, sql, err)
+		}
+		replay, err := (scalarRenderer{}).sql(ctx, e.CatalogRead(), node)
+		if err != nil || replay != sql {
+			t.Fatal(replay, sql, err)
+		}
+		tree, err := (boundTree{expression: node}).StructuralOutput(ctx)
+		if err != nil || !strings.Contains(tree, "CurrentDateTime") || strings.Contains(tree, "Const") {
+			t.Fatal(tree, err)
+		}
+		target := New()
+		retagged, changed, err := retagBoundTypes(node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+			next, _ := target.CatalogRead().LookupType(d.ID())
+			return next
+		})
+		if err != nil || !changed {
+			t.Fatal(changed, err)
+		}
+		remapped, err := remapBoundExpression(retagged, func(ref ObjectRef) ObjectRef { t.Fatal("current leaf invented relation reference", ref); return ref }, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		copy := remapped.(currentDateTimeExpression)
+		if copy.kind != node.kind || copy.precision != node.precision || copy.hasPrecision != node.hasPrecision || copy.pos != node.pos || copy.usage.Type == node.usage.Type || validateCurrentDateTime(copy) != nil {
+			t.Fatal(node, copy)
+		}
+		if sides, err := joinExpressionSides(copy, 0, 0); err != nil || sides != 0 {
+			t.Fatal(sides, err)
+		}
+		if !b.sameGroupExpression(node, node) {
+			t.Fatal("current leaf not semantically equal to itself")
+		}
+		other := node
+		other.kind = parser.CurrentDate
+		if kind != parser.CurrentDate && b.sameGroupExpression(node, other) {
+			t.Fatal("different current kinds equated")
+		}
+	}
+	for _, raw := range []parser.CurrentDateTimeExpr{{Kind: 255}, {Kind: parser.CurrentDate, HasPrecision: true, Precision: 1}, {Kind: parser.CurrentTime, HasPrecision: true, Precision: -1}} {
+		if _, err := b.bindCurrentDateTime(raw); err == nil {
+			t.Fatal("invalid current AST accepted", raw)
+		}
+	}
+}
+
+// Function-level lifecycle seams, not another public SQL scenario. AST controls
+// and the admission gate exercise the same owner birth functions as SQL/driver.
+func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
+	e := New()
+	session := sessionStart(t, e, nil)
+	assertClock := func(stamp time.Time) {
+		t.Helper()
+		if stamp.IsZero() || stamp.Location() != time.UTC || stamp.Nanosecond()%1000 != 0 {
+			t.Fatal("owner clock not quantized UTC", stamp)
+		}
+	}
+	scopeFor := func() *StatementScope {
+		t.Helper()
+		op := transactionOperation(t, session)
+		scope, err := e.StartStatement(op)
+		if err != nil {
+			op.Done()
+			t.Fatal(err)
+		}
+		return scope
+	}
+	finish := func(scope *StatementScope, err error) {
+		t.Helper()
+		err = scope.Finish(err)
+		scope.op.Done()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	advance := func(stamp time.Time) {
+		t.Helper()
+		deadline := time.Now().Add(time.Second)
+		for !time.Now().After(stamp.Add(time.Microsecond)) {
+			if time.Now().After(deadline) {
+				t.Fatal("clock did not advance", stamp)
+			}
+			runtime.Gosched()
+		}
+	}
+	implicit := scopeFor()
+	if err := implicit.gate(&parser.Select{}); err != nil {
+		finish(implicit, err)
+	}
+	first := implicit.input.TransactionStart
+	assertClock(first)
+	finish(implicit, nil)
+	if !session.transactions.start.IsZero() {
+		t.Fatal("implicit clock retained after end")
+	}
+	advance(first)
+	ref := transactionBegin(t, session)
+	owner := session.transactions
+	outer := owner.start
+	assertClock(outer)
+	if !outer.After(first) {
+		t.Fatal("driver birth did not refresh", first, outer)
+	}
+	owner.mu.Lock()
+	mark := owner.captureSavepoint("clock")
+	owner.restoreSavepoint(mark, mark.settings.clone())
+	restored := owner.start
+	owner.mu.Unlock()
+	if !restored.Equal(outer) {
+		t.Fatal("savepoint rebirthed clock", outer, restored)
+	}
+	transactionEnd(t, session, ref, false)
+	advance(outer)
+	start := scopeFor()
+	_, err := start.executeControl(&parser.TransactionControl{Kind: parser.KindStart}, 0)
+	finish(start, err)
+	sqlClock := owner.start
+	assertClock(sqlClock)
+	if !sqlClock.After(outer) {
+		t.Fatal("SQL birth did not refresh", sqlClock, outer)
+	}
+	advance(sqlClock)
+	chain := scopeFor()
+	_, err = chain.executeControl(&parser.TransactionControl{Kind: parser.KindCommit, Chain: true}, 0)
+	finish(chain, err)
+	assertClock(owner.start)
+	if !owner.start.After(sqlClock) {
+		t.Fatal("CHAIN birth did not refresh", owner.start, sqlClock)
+	}
+	transactionEnd(t, session, owner.ref, false)
+}

@@ -49,7 +49,7 @@ func ContainsStringExpression(expr Expr) bool {
 // existing scalar repertoire; this does not admit arbitrary singleton queries.
 func stringSingleton(expr Expr) (valid, found bool) {
 	switch e := expr.(type) {
-	case LiteralExpr, TypedLiteralExpr, ParameterExpr, IdentityExpr:
+	case LiteralExpr, TypedLiteralExpr, ParameterExpr, IdentityExpr, CurrentDateTimeExpr:
 		return true, false
 	case CastExpr:
 		return stringSingleton(e.Child)

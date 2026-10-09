@@ -165,7 +165,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState) 
 	settings.currentReadOnly = t.readOnly
 	settings.currentDeferrable = t.deferrable
 	e.enrollSerializableLocked(t.ref, t.isolation)
-	t.start = time.Now().UTC()
+	t.start = time.Now().UTC().Truncate(time.Microsecond)
 	return nil
 }
 
