@@ -30,9 +30,19 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (BoundEx
 // bindSelect is shared by public SELECT and the internal INSERT producer.
 // Only the latter defers output unknowns to destination assignment.
 func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*BoundQuery, error) {
+	plainDistinct := s.Distinct != nil && len(s.Distinct.On) == 0
+	if s.Set != nil {
+		if mode := firstSetRowClause(s); mode != "" {
+			return nil, sqlError("0A000", mode+" is not allowed with UNION/INTERSECT/EXCEPT")
+		}
+		return nil, sqlError("0A000", "set operations are unsupported")
+	}
+	if s.Parenthesized && !contextual {
+		return nil, sqlError("0A000", "parenthesized SELECT is unsupported")
+	}
 	if s.Values != nil {
 		if s.Locking != nil {
-			return nil, sqlError("0A000", s.Locking.Mode+" cannot be applied to VALUES")
+			return nil, sqlError("0A000", s.Locking[0].Mode+" cannot be applied to VALUES")
 		}
 		return b.bindValues(s.Values, false)
 	}
@@ -177,7 +187,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			}
 		}
 	}
-	if s.Distinct {
+	if plainDistinct {
 		for i, expression := range projection {
 			projection[i], err = b.orderOutput(expression)
 			if err != nil {
@@ -189,6 +199,39 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	order, err := b.bindOrder(s.Order, projection, targetNames)
 	if err != nil {
 		return nil, err
+	}
+	if s.Distinct != nil && len(s.Distinct.On) != 0 {
+		rawKeys := make([]parser.OrderKey, len(s.Distinct.On))
+		for i, raw := range s.Distinct.On {
+			rawKeys[i] = parser.OrderKey{Expr: raw, Pos: raw.SourcePosition()}
+		}
+		distinct, err := b.bindOrder(&parser.Order{Keys: rawKeys}, projection, targetNames)
+		if err != nil {
+			return nil, err
+		}
+		matched := make([]bool, len(distinct))
+		unmatchedOrder := false
+		for _, key := range order {
+			found := false
+			for i, on := range distinct {
+				if b.sameGroupExpression(key.expression, on.expression) {
+					if unmatchedOrder {
+						return nil, expressionError("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", s.Distinct.On[i].SourcePosition())
+					}
+					matched[i], found = true, true
+				}
+			}
+			if !found {
+				unmatchedOrder = true
+			}
+		}
+		if unmatchedOrder {
+			for i, found := range matched {
+				if !found {
+					return nil, expressionError("42P10", "SELECT DISTINCT ON expressions must match initial ORDER BY expressions", s.Distinct.On[i].SourcePosition())
+				}
+			}
+		}
 	}
 	if b.noParameters && s.Order != nil {
 		frozen := *s.Order
@@ -207,7 +250,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		s.Order = &frozen
 	}
 	var distinctOrder []int
-	if s.Distinct {
+	if plainDistinct {
 		distinctOrder = make([]int, len(order))
 		for i, key := range order {
 			slot := key.outputOrdinal - 1
@@ -232,7 +275,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	results := make([]ColumnDescriptor, width)
 	regclassOutput := false
 	for i, expr := range projection {
-		if !contextual || s.Distinct {
+		if !contextual || plainDistinct {
 			var err error
 			expr, err = b.finalizeProjection(expr)
 			if err != nil {
@@ -272,7 +315,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		results[i] = result
 	}
 	var distinctFamilies []sqltype.Grouping
-	if s.Distinct {
+	if plainDistinct {
 		if width == 0 {
 			return nil, sqlError("42601", "SELECT DISTINCT must have at least one column")
 		}
@@ -288,7 +331,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 	if s.Locking != nil {
 		suffix := ""
 		switch {
-		case s.Distinct:
+		case s.Distinct != nil:
 			suffix = "DISTINCT clause"
 		case len(s.GroupBy) != 0:
 			suffix = "GROUP BY clause"
@@ -298,8 +341,11 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			suffix = "aggregate functions"
 		}
 		if suffix != "" {
-			return nil, sqlError("0A000", s.Locking.Mode+" is not allowed with "+suffix)
+			return nil, sqlError("0A000", s.Locking[0].Mode+" is not allowed with "+suffix)
 		}
+	}
+	if s.Distinct != nil && len(s.Distinct.On) != 0 {
+		return nil, sqlError("0A000", "SELECT DISTINCT ON is unsupported")
 	}
 	if grouped {
 		schema := make([]ColumnDescriptor, len(keys)+len(b.aggregates))
@@ -332,7 +378,7 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 			}
 		}
 	}
-	if s.Distinct {
+	if plainDistinct {
 		root = &distinctNode{querySchema: results, child: root, expressions: projection, grouping: distinctFamilies}
 		slots := make([]BoundExpr, len(projection))
 		for i, expression := range projection {
@@ -351,13 +397,26 @@ func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*Bound
 		root = b.scheduleCountProjection(root, projection)
 	}
 	if s.Locking != nil {
-		root = &rowLockNode{querySchema: root.Schema(), child: root, mode: queryRowMode(s.Locking.Mode)}
+		var marks []queryRowMark
+		var err error
+		if admission := b.queryLockAdmission; admission != nil && admission.selectQuery == s {
+			marks, err = admission.marks, admission.err
+		} else {
+			marks, err = queryLockTargets(s.From, s.Locking)
+		}
+		if err != nil {
+			return nil, err
+		}
+		for i, mark := range marks {
+			b.querySources[i].mark = mark
+		}
+		root = &rowLockNode{querySchema: root.Schema(), child: root, marks: marks, firstMode: queryRowMode(s.Locking[0].Mode)}
 	}
 	if bounds != nil {
 		bounds.querySchema, bounds.child = root.Schema(), root
 		root = bounds
 	}
-	if contextual && s.Distinct {
+	if contextual && plainDistinct {
 		// INSERT assignment mutates only the final output descriptors, never the
 		// source-typed descriptors retained by DISTINCT and its ordering/bounds.
 		results = append([]ColumnDescriptor(nil), results...)

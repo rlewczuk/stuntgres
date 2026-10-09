@@ -2365,13 +2365,22 @@ fixture; native replay and catalog identity replacement are native controls.
 
 ## SELECT row locking — change note
 
-Existing table/view SELECT and INSERT SELECT sources admit one trailing
-`FOR KEY SHARE`, `FOR SHARE`, `FOR NO KEY UPDATE` or `FOR UPDATE`, after ORDER BY
-when present. Qualified/quoted sources, parameters, aliases and existing
-inner/cross join forms retain their metadata and bag multiplicity. Unqualified
-locking covers contributing physical base relations beneath scalar views,
-including hidden contributors and zero-column outputs; no synthetic view RowIDs
-are used.
+Existing table/view SELECT and INSERT SELECT admit repeated adjacent locking
+clauses with per-clause OF and NOWAIT/SKIP LOCKED. The entire list follows ORDER
+BY and appears before or after the complete bounds group. OF resolves physical
+relation/view occurrences separately from expression qualifiers: a relation's
+own alias hides its original name; a whole-join alias does not hide child lock
+targets. Naming JOIN/USING aliases rejects0A000; qualified targets reject42601,
+unknown names42P01, with originating character positions. Duplicate OF targets
+are idempotent. Default marks cover all applicable source occurrences, including
+hidden contributors and zero-width outputs. FROM VALUES aliases are legal but
+have no RowID, UPDATE authority or physical grant.
+
+Stored OF targets retain their individual source occurrence through base renames
+and native Dump/Restore. Deparsing registers only each occurrence's finalized
+visible name: in `t CROSS JOIN t b`, alias `b` cannot hide the separate unaliased
+target `t`. Qualified same-basename sources with distinct aliases remain separate,
+and emitted definitions preserve selected contributors, strength and wait policy.
 
 The query pipeline is FROM/join → WHERE → ORDER → lock/recheck → projection.
 Everything is finalized before the adapter exposes Rows: Next/Close never acquires
@@ -2385,8 +2394,10 @@ resorting current values. Ordinary unmarked queries carry no locking provenance.
 View definitions may store a supported clause. Scalar locking waits until the
 outer scalar qualification has selected contributors; it does not gratuitously
 lock every row of a materialized view. Definition marks cover only their subtree;
-unrelated sources stay unmarked. Overlapping marks on one occurrence use the
-strongest SQL mode, KEY SHARE < SHARE < NO KEY UPDATE < UPDATE. An ordinary upper
+unrelated sources stay unmarked. Overlapping strength and policy merge
+independently: KEY SHARE < SHARE < NO KEY UPDATE < UPDATE and blocking < SKIP <
+NOWAIT. A stronger SKIP clause plus a weaker NOWAIT clause therefore means
+stronger NOWAIT, in either textual order. An ordinary upper
 aggregate over a marked view is legal: it locks/rechecks the qualifying input
 before grouping and aggregate Advance. HAVING FALSE or an outer filter excluding
 aggregate output does not undo those input locks. Aggregate outputs and unmarked
@@ -2401,16 +2412,26 @@ column of every marked base source, using each view's current owner or original
 security_invoker principal. Empty/filtered results still require authority and
 ROW SHARE relation locks. Prepare is row-lock-free and does not check executor
 UPDATE privileges; Execute refreshes candidates and authority. A clause reaching
-GROUP BY, HAVING or aggregate output produces `0A000`, `<clause> is not allowed
-with GROUP BY clause` / `HAVING clause` / `aggregate functions`, without Position.
+GROUP BY, HAVING, aggregates or DISTINCT produces mode-specific0A000 using the
+first actual clause mode. With locking, DISTINCT ON retains source/column/ORDER analysis;
+its expressions must match the initial ORDER keys. Structured set-operation
+result or arm marks reject0A000 before result arity/common typing. DISTINCT ON
+and UNION/INTERSECT/EXCEPT gain no execution provider; ordinary DISTINCT retains
+its existing source-typed projected-tuple materialization.
+Without locking, DISTINCT ON remains a parser capability boundary after complete
+syntax validation, including shared INSERT SELECT and stored definitions.
 Expanded GROUP BY/HAVING/aggregate view marks are checked at Execute after a
 successful Prepare, matching PostgreSQL18 planning. Their grouping diagnostic
 takes precedence over descending into a nullable outer-join input. Direct query
 grouping/rowmark bind restrictions remain unchanged.
-Sequences produce `42809`, `cannot lock rows in sequence "s"` at execution;
-ordinary sequence SELECT is unchanged. READ ONLY and REPEATABLE READ diagnostics
+Sequences produce `42809`, `cannot lock rows in sequence "s"` at execution,
+including unselected reference-mark siblings of marked queries. This kind
+validation adds no UPDATE ACL, grant or latest refresh on an unselected sibling.
+Ordinary sequence SELECT is unchanged. READ ONLY and REPEATABLE READ diagnostics
 and the four-by-four matrix are documented in
 [row locks](TRANSACTIONS.md#row-locks--change-note).
+Missing analyzed FROM sources retain their identifier Position in `42P01`,
+including OF-selected ROW SHARE admission as well as ordinary AS admission.
 Relation-lock waits during direct analysis or Prepare retain the source-name
 character Position for `55P03` and `40P01`, including ROW SHARE sources. Cached
 execution, utility/row waits and `57014` cancellation remain unpositioned.
@@ -2421,11 +2442,22 @@ physical tuple identity. Marked direct, nested, stored and empty reads fail0A000
 row grants or Position/Detail/Hint. Ordinary catalog reads remain supported;
 PostgreSQL physical catalog lockers are separately labeled reference controls.
 
-SELECT OF/NOWAIT/SKIP LOCKED/repeated clauses remain whole-input rejected with no
-prefix effects. No outer/derived joins, keys/indexes, LIMIT/OFFSET,
-set operations or additional locking subsystem are introduced.
-Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`;
-reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRowLock' VERBOSE=0`.
+NOWAIT and SKIP use the existing manager's atomic immediate-grant branch, never
+an external eligibility probe. NOWAIT reports55P03 with the physical base name;
+SKIP drops the whole candidate as soon as a selected contributor is unavailable.
+Earlier acquired contributors remain held. Neither option bypasses relation
+waits or changes the original sort rank; no order is promised without ORDER BY.
+Unselected siblings retain captured values during selected-row replacement.
+Unavailable/deleted/requalified candidates spend no OFFSET/LIMIT quota.
+Inherited marks enter a bounded view's own count frontier before survivor
+consumption; plain scalar views still defer to enclosing qualification.
+Native eager failure exposes no prefix/cursor. pq can expose an independently
+expected acquired prefix before terminal Rows.Err: consume that error and close
+rows/statements before rollback or other SQL on the same connection.
+CTEs, general derived SELECTs, cursors and adjacent excluded providers remain
+excluded. There is one occurrence manifest and arbiter for direct/stored marks.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLockFeatureSmoke$' VERBOSE=0`;
+pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryLockFeatureSmoke$' VERBOSE=0`.
 
 ## Standalone and FROM VALUES — change note (changelog)
 
@@ -2462,7 +2494,8 @@ authorize every real leaf through the existing statement-view path.
 
 Standalone VALUES cannot have FOR UPDATE. SELECT over FROM VALUES accepts the
 existing locking clause but locks no synthetic rows; mixed queries retain locks
-on their real leaves. This does not add OF syntax. Physical row rechecks retain
+on their OF-selected real leaves. Copy-valued OF targets acquire no tuple grants.
+Physical row rechecks retain
 the frozen synthetic occurrence rather than evaluating its cells again.
 This is a consumer-visible native execution boundary, not PostgreSQL EPQ
 expression-replay parity. Both refresh replaced physical rows and requalify

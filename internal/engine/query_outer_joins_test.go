@@ -194,7 +194,7 @@ func TestQueryOuterJoinsExecutionRowmarkModes(t *testing.T) {
 
 func TestQueryOuterJoinsLocalMarkFrontierManifest(t *testing.T) {
 	inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
-	left := &rowLockNode{child: &sourceNode{occurrence: 0}, mode: rowUpdate}
+	left := &rowLockNode{child: &sourceNode{occurrence: 0}, marks: []queryRowMark{{mode: rowUpdate}}, firstMode: rowUpdate}
 	for _, kind := range []parser.JoinKind{parser.JoinInner, parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
 		join := &joinNode{kind: kind, left: left, right: &sourceNode{occurrence: 1}}
 		marks := pendingQueryMarks(join, inputs, nil)

@@ -29,7 +29,7 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil)
+	b, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

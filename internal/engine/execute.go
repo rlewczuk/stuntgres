@@ -234,7 +234,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		expected = &candidate
 	}
-	b, err := e.describe(ctx, stmt, auth, scope.lockedRef, scope.input, op, expected)
+	b, err := e.describe(ctx, stmt, auth, scope.lockedRef, scope.input, op, expected, &scope.queryLockAdmission)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

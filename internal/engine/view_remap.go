@@ -211,7 +211,7 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 	case *evaluationNode:
 		next = &evaluationNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), base: n.base}
 	case *rowLockNode:
-		next = &rowLockNode{querySchema: schema, child: child(n.child), mode: n.mode}
+		next = &rowLockNode{querySchema: schema, child: child(n.child), marks: n.marks, firstMode: n.firstMode}
 	case *sourceNode:
 		next = &sourceNode{querySchema: schema, ref: ref(n.ref), occurrence: n.occurrence}
 	case *joinNode:
@@ -219,7 +219,7 @@ func remapViewQuery(node LogicalNode, ref func(ObjectRef) ObjectRef, typ func(*s
 	case *singletonNode:
 		next = &singletonNode{querySchema: schema}
 	case *projectNode:
-		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions)}
+		next = &projectNode{querySchema: schema, child: child(n.child), expressions: expressions(n.expressions), frozenValues: n.frozenValues}
 	case *distinctNode:
 		copy := *n
 		copy.querySchema = schema

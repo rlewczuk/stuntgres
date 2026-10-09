@@ -693,20 +693,14 @@ func (v AuthorizationView) checkSelectSources(sources []queryLeaf, sel *parser.S
 	if err := v.checkQuerySources(sources); err != nil {
 		return err
 	}
-	if sel.Locking != nil {
-		for _, source := range sources {
+	for _, source := range sources {
+		if source.mark.mode != 0 {
 			if err := v.checkColumns(binding{ref: source.ref, relation: source.relation}, UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}
-	}
-	mode := relationLockMode(0)
-	if sel.Locking != nil {
-		mode = queryRowMode(sel.Locking.Mode)
-	}
-	for _, source := range sources {
-		if source.relation.view != nil && (mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
-			if err := v.checkViewRowMarks(source.relation, mode, v.state.CurrentUser); err != nil {
+		if source.relation.view != nil && (source.mark.mode != 0 || viewHasStoredRowMarks(source.relation, v.catalog)) {
+			if err := v.checkViewRowMarks(source.relation, source.mark, v.state.CurrentUser); err != nil {
 				return err
 			}
 		}

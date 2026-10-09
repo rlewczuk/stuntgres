@@ -349,13 +349,15 @@ diagnostics and character positions have independent pinned18.0 reference
 expectations. See [alias diagnostic fidelity](QUERIES.md#query-labels-and-relation-aliases--diagnostic-fidelity-change-note).
 Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryAliases' VERBOSE=0`.
 
-Four trailing SELECT locking clauses are supported: `FOR KEY SHARE`, `FOR SHARE`,
-`FOR NO KEY UPDATE` and `FOR UPDATE`, including current inner/cross joins,
-persistent scalar views and INSERT SELECT sources. They lock contributing base
-RowIDs eagerly before result exposure and recheck the same frozen candidate
-combinations after READ COMMITTED contention. Unmarked reads remain nonblocking.
-Marks stored in a view apply to ordinary reads of that subtree, not unrelated
-sources; overlapping clauses normalize KEY SHARE < SHARE < NO KEY UPDATE < UPDATE.
+SELECT accepts repeated adjacent `FOR KEY SHARE`, `FOR SHARE`, `FOR NO KEY UPDATE`
+and `FOR UPDATE`, with optional per-clause `OF` and `NOWAIT`/`SKIP LOCKED`.
+The complete list appears before or after bounds, after ORDER BY. Existing joins,
+scalar views and INSERT SELECT share occurrence-owned row arbitration. OF uses
+the relation's alias if present and can name unprojected contributors; a whole-join
+alias does not hide child lock targets but is not itself lockable. FROM VALUES
+aliases are legal copy-valued targets without grants. Stored marks apply only to
+their selected subtree occurrences. Strength (KEY SHARE < SHARE < NO KEY UPDATE
+< UPDATE) and policy (blocking < SKIP < NOWAIT) merge independently.
 Enclosing marks reaching an outer join's nullable side reject on Execute after
 successful Prepare, including empty/LIMIT0 queries. Local stored input marks
 remain legal on either side of an unmarked outer query and settle at real-source
@@ -367,22 +369,30 @@ empty-right RIGHT scans left input marks. Selected/preserved physical marks and
 LIMIT0 guarantees remain independently tested across backends.
 An unmarked upper aggregate may consume a marked view: input locks precede
 grouping/HAVING, so an empty HAVING result does not release them. A FOR clause
-reaching GROUP BY/HAVING/aggregate output fails mode-specific0A000; sequences
-fail42809 at Execute. Native virtual catalogs reject marks with0A000
-`row locking is not supported for virtual catalog relations`, including empty
-and nested view paths. PostgreSQL's physical catalog lockability is an independent
-reference control, not native parity. READ ONLY
-fails25006 at Execute. At RR, KEY SHARE preserves snapshot values after a
-compatible update leaving UNIQUE keys unchanged; stronger modes and all concurrent
-deletions fail40001 with concurrent-update wording. Every table needs used-column
-SELECT plus UPDATE on any live column. `OF`, `NOWAIT`, `SKIP LOCKED` and repeated
-SELECT locking clauses remain excluded, as does adjacent query syntax.
+reaching GROUP BY/HAVING/aggregate or DISTINCT output fails mode-specific0A000.
+Plain DISTINCT retains its existing projected-tuple execution provider. DISTINCT
+ON and UNION/INTERSECT/EXCEPT are structurally recognized only for rejection:
+malformed syntax wins, and result-level set locking rejects before arity/common
+typing. They do not gain execution providers. Sequences fail42809
+at Execute even as unselected reference-mark siblings of a marked query, without
+new UPDATE requirements or physical grants on such siblings. Selected virtual
+catalog marks reject0A000 `row locking is not supported for virtual catalog relations`,
+including empty/nested paths; unselected catalogs remain ordinary copy sources.
+READ ONLY fails25006 at Execute. At RR, KEY SHARE retains snapshot values after
+compatible non-key updates; stronger modes/deletions fail40001. All read sources
+need used-column SELECT; only selected physical targets additionally need UPDATE
+on any live column. NOWAIT is atomic55P03 without joining the row queue; SKIP
+drops the whole unavailable candidate without refreshing it. These policies do
+not affect relation-lock waits. Acquired OFFSET-discarded survivors stay held;
+unavailable rows consume no bound quota. Bounded views settle inherited marks
+before their own counts, while plain scalar qualification stays deferred.
 UPDATE uses NO KEY UPDATE for unchanged keys, UPDATE for changed UNIQUE key
 datums; DELETE uses UPDATE. Matrix, lifetime,
 savepoint contribution restoration and exact diagnostics:
 [row locks](TRANSACTIONS.md#row-locks--change-note).
-Smoke: `make quickcheck PACKAGES=./smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke)$' VERBOSE=0`;
-reference: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRowLock' VERBOSE=0`.
+Smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLockFeatureSmoke$' VERBOSE=0`;
+pinned: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryLockFeatureSmoke$' VERBOSE=0`.
+Complete family: `RUN='^TestReference(QueryLock|RowLock|QueryLimit|QueryOuterJoins)'` in both modes.
 
 OID is also a supported column type: distinct unsigned32 type26, native int64
 results, unsigned comparison/order and directional integer casts. See

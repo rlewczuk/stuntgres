@@ -89,7 +89,7 @@ func TestQueryLimitLockingTail(t *testing.T) {
 				default:
 					t.Fatalf("unexpected statement %T", s)
 				}
-				if selected.Locking == nil || selected.Locking.Mode != clause || selected.Locking.Pos.Offset != strings.Index(query, clause) {
+				if len(selected.Locking) != 1 || selected.Locking[0].Mode != clause || selected.Locking[0].Pos.Offset != strings.Index(query, clause) {
 					t.Fatal(query, selected.Locking)
 				}
 				if (selected.Bounds != nil) != (tail.before != "" || tail.after != "") {

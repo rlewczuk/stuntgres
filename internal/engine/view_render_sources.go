@@ -67,6 +67,7 @@ type viewRenderer struct {
 	values                      int
 	presentation                viewPresentation
 	simple                      bool
+	rowTargets                  map[string]string
 }
 type viewRenderColumn struct {
 	name string
@@ -77,10 +78,18 @@ type viewRenderFrom struct {
 	root           LogicalNode
 	columns        []viewRenderColumn
 	slots          map[int]string
+	rowTarget      string
+	rowTargetSQL   string
+	rowSource      bool
 }
 
 func newViewRenderer(v *viewDefinition) *viewRenderer {
 	r := &viewRenderer{viewDefinition: v, slots: make(map[LogicalNode]map[int]string), reserved: make(map[string]bool)}
+	// Expression-only rendering supplies frozen literals/casts without SELECT
+	// syntax. OF names belong only to complete marked SELECT definitions.
+	if v.syntax != nil && len(v.syntax.Locking) != 0 {
+		r.rowTargets = make(map[string]string)
+	}
 	for _, ns := range v.namespaces {
 		for _, c := range ns.columns {
 			r.reserved[c.name] = true
@@ -168,6 +177,16 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 }
 
 func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item parser.FromItem) (viewRenderFrom, error) {
+	from, err := v.renderFromSQL(ctx, catalog, item)
+	if err == nil && v.rowTargets != nil && from.rowSource {
+		// Publish only the finalized visible target of this occurrence. An
+		// enclosing alias must not overwrite or delete a sibling's base name.
+		v.rowTargets[from.rowTarget] = from.rowTargetSQL
+	}
+	return from, err
+}
+
+func (v *viewRenderer) renderFromSQL(ctx context.Context, catalog CatalogRead, item parser.FromItem) (viewRenderFrom, error) {
 	if err := ctx.Err(); err != nil {
 		return viewRenderFrom{}, err
 	}
@@ -186,6 +205,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 		}
 		root := viewValuesAt(v.query.Root, ordinal)
 		from := viewRenderFrom{text: text, root: root}
+		from.rowSource = true
 		for i, column := range root.Schema() {
 			from.columns = append(from.columns, viewRenderColumn{name: column.Name, slot: i})
 		}
@@ -215,6 +235,11 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 		if v.simple {
 			name := relationDiagnosticNameAt(catalog, d, v.presentation.path)
 			from := viewRenderFrom{text: name, root: root, slots: make(map[int]string)}
+			if v.rowTargets != nil {
+				key := n.Name.Parts[len(n.Name.Parts)-1].Text
+				from.rowTarget, from.rowSource = key, true
+				from.rowTargetSQL = pgIdentifier(d.name)
+			}
 			for i, attribute := range d.attributes {
 				if c, ok := frozen[attribute]; ok {
 					from.slots[c.slot] = pgIdentifier(d.columns[i].Name)
@@ -225,6 +250,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 			return from, nil
 		}
 		from := viewRenderFrom{relation: quoteIdentifier(catalog.state.descriptors[d.namespace].Name()) + "." + quoteIdentifier(d.name), root: root}
+		from.rowTarget, from.rowSource = n.Name.Parts[len(n.Name.Parts)-1].Text, true
 		if v.presentation.deparse && v.presentation.pretty {
 			from.relation = relationDiagnosticNameAt(catalog, d, v.presentation.path)
 		}
@@ -238,14 +264,22 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog CatalogRead, item pa
 			from.columns = append(from.columns, column)
 		}
 		from.text = from.relation
-		aliased := v.aliasFrom(from, ns, v.sourceAlias(occurrence))
+		alias := v.sourceAlias(occurrence)
+		aliased := v.aliasFrom(from, ns, alias)
+		if v.rowTargets != nil {
+			aliased.rowTargetSQL = quoteIdentifier(alias)
+		}
 		// A surrounding table alias replaces this default, not nests it.
 		aliased.relation = from.relation
 		return aliased, nil
 	case *parser.AliasReference:
-		from, err := v.fromSQL(ctx, catalog, n.Input)
+		from, err := v.renderFromSQL(ctx, catalog, n.Input)
 		if err != nil {
 			return viewRenderFrom{}, err
+		}
+		if v.rowTargets != nil && from.rowSource {
+			from.rowTarget = n.Name.Text
+			from.rowTargetSQL = quoteIdentifier(n.Name.Text)
 		}
 		return v.aliasFrom(from, ns, n.Name.Text), nil
 	case *parser.JoinReference:

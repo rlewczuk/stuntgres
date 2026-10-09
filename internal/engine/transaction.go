@@ -247,9 +247,9 @@ type StatementScope struct {
 	lockedDescriptor       Descriptor
 	indexMaintenance       *indexMaintenanceGrant
 	querySources           []queryLeaf
+	queryLockAdmission     queryLockAdmission
 	queryLocks             *queryLockContext
 	activeViews            []ObjectAddress
-	queryLockMode          relationLockMode
 	lockedStorage          *relationStorage
 	lockedIdentityOnly     bool
 	txRef                  TxRef
@@ -739,8 +739,8 @@ func (s *StatementScope) Finish(err error) error {
 	s.viewCreationNamespace = ObjectRef{}
 	s.lockedStorage = nil
 	s.querySources = nil
+	s.queryLockAdmission = queryLockAdmission{}
 	s.queryLocks = nil
-	s.queryLockMode = 0
 	s.lockedIdentityOnly = false
 	s.finished = true
 	s.result = err

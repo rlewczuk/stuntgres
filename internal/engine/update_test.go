@@ -139,7 +139,7 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	bound, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil)
+	bound, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	if err != nil {
 		e.mu.Unlock()
 		scope.Finish(err)

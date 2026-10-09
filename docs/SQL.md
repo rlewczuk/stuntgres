@@ -83,11 +83,13 @@ returning_alias := (OLD | NEW) AS name
 SELECT [projection_target [, ...]] FROM from_list
        [WHERE logical_predicate] [GROUP BY logical_target [, ...]]
        [HAVING logical_predicate] [ORDER BY ordering_key [, ...]]
-       [query_bounds] [FOR KEY SHARE | FOR SHARE | FOR NO KEY UPDATE | FOR UPDATE]
+       [query_bounds] [locking_clause ...]
+locking_clause := FOR (KEY SHARE | SHARE | NO KEY UPDATE | UPDATE)
+                  [OF unqualified_relation_or_alias [, ...]] [NOWAIT | SKIP LOCKED]
 query_bounds := [OFFSET scalar_expression [ROW | ROWS]]
                 [LIMIT scalar_expression | LIMIT ALL
                  | FETCH (FIRST | NEXT) [count] (ROW | ROWS) ONLY]
-                -- OFFSET and LIMIT/FETCH may reverse; one locking clause may precede bounds.
+                -- OFFSET and LIMIT/FETCH may reverse; the entire locking list may precede bounds.
 ordering_key := (scalar_expression | output_label | output_ordinal)
                 [ASC | DESC] [NULLS FIRST | NULLS LAST]
 from_list := from_item [, from_item ...]
@@ -324,16 +326,20 @@ SQL PREPARE utility DDL is not added. CREATE/replace/ALTER/DROP VIEW retain the
 native explicit-transaction exclusion and read-only utility tags.
 
 
-A legal scalar definition may store one trailing FOR KEY SHARE/FOR SHARE/
-FOR NO KEY UPDATE/FOR UPDATE clause. CREATE remains row-lock-free; the immutable
-mark survives identity remapping, canonical deparse (after ORDER BY), Dump and
-Restore. Ordinary reads enforce stored marks on their physical base subtree.
-An outer clause combines using the strongest SQL mode; unrelated sources are
-not marked by a definition. Ordinary aggregation over a marked view is legal
-and locks qualifying input before grouping/HAVING, even if output is empty.
-A clause reaching a grouped/aggregate view is instead mode-specific0A000.
+A legal scalar definition may store repeated adjacent FOR KEY SHARE/FOR SHARE/
+FOR NO KEY UPDATE/FOR UPDATE clauses with per-clause OF and NOWAIT/SKIP LOCKED.
+CREATE remains row-lock-free; immutable occurrence targets and policies survive
+identity remapping, current-alias deparse, Dump and Restore. Ordinary reads
+enforce stored marks only on selected physical occurrences in that subtree.
+Inherited/stored strength and wait merge independently; strongest mode and
+NOWAIT win independently, not as a combined option pair. Unmarked aggregation
+over a marked view locks qualifying input before grouping/HAVING, even if output
+is empty. A clause reaching grouped/aggregate output is mode-specific0A000.
 An enclosing clause reaching a nullable outer-join input rejects with
-mode-specific0A000 on Execute after successful Prepare. Unmarked outer queries
+mode-specific0A000 on Execute after successful Prepare. Repeated clauses use the
+normalized strongest mode for that nullable occurrence's diagnostic; OF target
+insertion order, not physical table identity, chooses between illegal occurrences.
+Unmarked outer queries
 may consume locally marked stored inputs on either side: only demanded real
 source rows can lock; absence is explicit and never a physical RowID.
 Native preserves left-major demand rather than PostgreSQL's physical hash-build
@@ -357,8 +363,11 @@ BY retains its input-name priority and existing ordinal rules.
 LIMIT/OFFSET/FETCH bounds use the typed shared producer, not a view-specific
 executor. A view-local count fixes its input population and effects before an
 outer predicate runs. A positive count settles pending marks before consumed
-skipped/returned rows; an outer LIMIT0 does not produce an inner stage. Source
-ACL and bound type errors remain mandatory for0/past-end results. Scalar
+skipped/returned rows; an outer LIMIT0 does not produce an inner stage.
+Inherited marks also settle before a bounded view's own OFFSET/count, so SKIP
+refills its original candidate population rather than locking a pretruncated bag.
+Plain scalar views still defer marks to enclosing qualification.
+Source ACL and bound type errors remain mandatory for0/past-end results. Scalar
 qualification does not become predicate pushdown across security barriers.
 Canonical definitions retain bounds and their routine/sequence dependencies
 through rename, deparse and native Dump/Restore. See

@@ -105,7 +105,7 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, pre
 			targets[i] += " AS " + identifier(label)
 		}
 	}
-	text := viewTargetsSQL(targets, presentation, s.Distinct)
+	text := viewTargetsSQL(targets, presentation, s.Distinct != nil)
 	clause := " "
 	if presentation.deparse {
 		clause = "\n  "
@@ -182,8 +182,25 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog CatalogRead, pre
 			text += clause + bound.name + " " + part
 		}
 	}
-	if s.Locking != nil {
-		text += clause + s.Locking.Mode
+	for _, mark := range s.Locking {
+		text += clause + mark.Mode
+		if len(mark.Targets) != 0 {
+			targets := make([]string, len(mark.Targets))
+			for i, target := range mark.Targets {
+				name, ok := renderer.rowTargets[target.Parts[0].Text]
+				if !ok {
+					return "", fmt.Errorf("stuntgres: missing view rowmark target")
+				}
+				targets[i] = name
+			}
+			text += " OF " + strings.Join(targets, ", ")
+		}
+		switch mark.Wait {
+		case parser.RowLockNowait:
+			text += " NOWAIT"
+		case parser.RowLockSkip:
+			text += " SKIP LOCKED"
+		}
 	}
 	return text, nil
 }

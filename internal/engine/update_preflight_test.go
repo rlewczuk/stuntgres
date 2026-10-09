@@ -30,7 +30,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil)
+		b, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

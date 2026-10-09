@@ -37,7 +37,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	var view *VisibilityView
 	var source, from *querySource
 	if err == nil {
-		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil)
+		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	}
 	if err == nil {
 		err = e.initializeQueryLocksLocked(scope, b.update.from, b.querySources)

@@ -69,8 +69,9 @@ type sortNode struct {
 }
 type projectNode struct {
 	querySchema
-	child       LogicalNode
-	expressions []BoundExpr
+	child        LogicalNode
+	expressions  []BoundExpr
+	frozenValues bool // Synthetic FROM VALUES slots are already produced.
 }
 
 // preflightQuery retains schemas and source identity from analysis. Only paths
@@ -347,6 +348,7 @@ type querySource struct {
 	nestedRoot           LogicalNode
 	nestedInputs         *querySource
 	nestedStage          *indexedStage
+	inherited            queryRowMark // Execution-only mark crossing this view boundary.
 	// Only locking joins populate provenance; ordinary query work is unchanged.
 	occurrence          int
 	occurrences         []int
@@ -516,6 +518,7 @@ type queryState struct {
 	input      sqltype.InputEnvironment
 	output     sqltype.OutputEnvironment
 	locking    bool
+	inherited  queryRowMark
 }
 type indexedStage struct {
 	source           *querySource

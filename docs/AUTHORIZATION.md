@@ -132,20 +132,28 @@ sources still require source SELECT authorization; grants on dropped columns
 never qualify. UPDATE needs SELECT only on actual RHS/WHERE reads, not on
 columns merely retained.
 All four SELECT row-locking clauses additionally need UPDATE privilege on at
-least one live column of every selected base table, including unprojected join
-sources and empty/filtered results. This does not replace SELECT checks or require
-UPDATE on the projected/predicate columns. Prepare checks namespace/shape as
-usual; execution reevaluates the current principal's locking authority.
+least one live column of each OF-selected physical source (all applicable sources
+when OF is absent), including unprojected targets and empty/filtered results.
+Unselected siblings still need used-column SELECT but no new UPDATE privilege.
+FROM VALUES aliases have no physical UPDATE/grant requirement. Selection is per
+SQL occurrence, including repeated aliases of the same table. This does not
+require UPDATE on projected/predicate columns. Prepare checks namespace/shape;
+Execute reevaluates current authority, including held prepared statements.
 Sequence row marks first require sequence SELECT and UPDATE privileges; a
 SELECT-only actor receives42501 `permission denied for sequence s` before the
 42809 relation-kind error. With both rights (or owner/superuser authority),
 locking a sequence is still prohibited at Execute. No sequence column-ACL
 alternative is invented, and Prepare checks neither executor ACL nor row-mark kind.
+An unselected sequence sibling of a marked query still rejects42809 during
+reference-rowmark kind validation, without an invented UPDATE requirement,
+tuple grant or latest refresh on it. This is distinct from selecting a sequence
+for a physical rowmark. NOWAIT/SKIP do not weaken any ACL or relation-kind check.
 
-For marked view descendants, the extra base UPDATE check uses that boundary's
-current owner, or the original statement invoker for security_invoker definitions
-even below an ordinary owner view. Named-view SELECT/UPDATE checks are unchanged;
-a stored mark in an ordinary read does not invent named-view UPDATE privilege.
+For OF-selected marked view descendants, the extra base UPDATE check uses that
+boundary's current owner, or the original invoker for security_invoker definitions
+even below an ordinary owner view. Stored/inherited occurrence targets combine
+without granting UPDATE requirements to unselected siblings. Named-view checks
+remain unchanged; an ordinary read's stored mark does not invent named-view UPDATE.
 An UPDATE grant on an unprojected live base column suffices. Prepare performs no
 executor ACL checks; Execute rechecks before capture and after view preflight.
 CREATE VIEW stores clauses without executing the body or requiring base SELECT/

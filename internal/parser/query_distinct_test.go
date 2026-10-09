@@ -27,13 +27,13 @@ func TestQueryDistinctGrammar(t *testing.T) {
 			case *Insert:
 				selectStmt = s.Source.Select
 			}
-			if selectStmt == nil || !selectStmt.Distinct || selectStmt.Pos.Character != 1 && selectStmt.Pos.Character != 17 {
+			if selectStmt == nil || selectStmt.Distinct == nil || selectStmt.Pos.Character != 1 && selectStmt.Pos.Character != 17 {
 				t.Fatal(selectStmt)
 			}
 		})
 	}
 	statements, err := Parse("SELECT a FROM t")
-	if err != nil || statements[0].(*Select).Distinct {
+	if err != nil || statements[0].(*Select).Distinct != nil {
 		t.Fatal(statements, err)
 	}
 }

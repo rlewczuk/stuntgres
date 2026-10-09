@@ -12,17 +12,23 @@ type queryLeaf struct {
 	relation *relationDescriptor
 	storage  *relationStorage
 	uses     []int
+	mark     queryRowMark
 }
 
 func (s *StatementScope) acquireQueryRelations(sel *parser.Select, authorityStmt parser.Statement, execute bool) error {
-	if sel.Locking != nil {
-		s.queryLockMode = queryRowMode(sel.Locking.Mode)
-	}
-	for _, table := range parser.FromTables(sel.From) {
-		// Keep the enclosing CREATE VIEW authority for each leaf, including
-		// aliased and joined sources. The leaf SELECT identifies its lock mode.
-		if err := s.acquireRelationTarget(&parser.Select{From: table, Locking: sel.Locking}, authorityStmt, execute, true); err != nil {
+	marks, markErr := queryLockTargets(sel.From, sel.Locking)
+	s.queryLockAdmission = queryLockAdmission{selectQuery: sel, marks: marks, err: markErr}
+	for i, table := range parser.FromTables(sel.From) {
+		// OF semantic errors are reported by binding after column/ORDER analysis.
+		selection := &parser.Select{From: table}
+		if i < len(marks) && marks[i].mode != 0 {
+			selection.Locking = sel.Locking
+		}
+		if err := s.acquireRelationTarget(selection, authorityStmt, execute, true); err != nil {
 			return err
+		}
+		if i < len(marks) {
+			s.querySources[len(s.querySources)-1].mark = marks[i]
 		}
 	}
 	return nil
@@ -73,8 +79,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 			break
 		}
 	}
-	mode := scope.queryLockMode
-	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, mode, scope.queryLocks)
+	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, queryRowMark{}, scope.queryLocks)
 }
 
 // captureCommentSnapshotLocked shares one immutable catalog/role pair across
@@ -120,7 +125,7 @@ func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, rel
 	return nil
 }
 
-func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, mode relationLockMode, locks *queryLockContext) (*querySource, error) {
+func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker PrincipalRef, inherited queryRowMark, locks *queryLockContext) (*querySource, error) {
 	if err := e.captureCommentSnapshotLocked(scope); err != nil {
 		return nil, err
 	}
@@ -156,6 +161,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		sources = make([]*querySource, len(leaves))
 	}
 	for i, leaf := range leaves {
+		mark := mergeQueryRowMark(inherited, leaf.mark)
 		var source *querySource
 		switch leaf.relation.relationKind {
 		case sequenceRelation:
@@ -164,7 +170,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			source, err = captureQueryPrefix(view, leaf.ref)
 		default:
 			// Recursive view opening consumes the lock, including failures.
-			source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker, mode, locks)
+			source, err = e.openRelationSourceLocked(scope, leaf.ref, invoker, mark, locks)
 			e.mu.Lock()
 		}
 		if err != nil {
@@ -183,7 +189,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		source.locks = locks
 		if locks != nil && source.lineage == nil {
 			source.occurrence = len(locks.leaves)
-			locks.leaves = append(locks.leaves, queryLockLeaf{leaf: leaf, source: source, mode: mode})
+			locks.leaves = append(locks.leaves, queryLockLeaf{leaf: leaf, source: source, mark: mark})
 		}
 		if i == 0 {
 			first = source

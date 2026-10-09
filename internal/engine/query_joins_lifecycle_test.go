@@ -59,7 +59,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	var binding binding
 	if err == nil {
-		binding, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil)
+		binding, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	}
 	var source *querySource
 	if err == nil {
@@ -505,7 +505,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			auth, err := e.authorizationLocked(op)
 			var bound binding
 			if err == nil {
-				bound, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil)
+				bound, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 			}
 			var source *querySource
 			if err == nil {

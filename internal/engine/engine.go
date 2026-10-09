@@ -282,7 +282,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err != nil {
 		return StatementDescription{}, err
 	}
-	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef, scope.input, op, nil)
+	b, err := e.describe(op.ctx, stmt, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	if err != nil {
 		return StatementDescription{}, err
 	}
@@ -325,9 +325,10 @@ func objectNameText(n parser.ObjectName) string {
 // requiredRef is the exact acquired DML/utility target; query source occurrences
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
-func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) (binding, error) {
+func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission) (binding, error) {
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
+	binder.queryLockAdmission = admission
 	var view *parser.CreateView
 	if s, ok := stmt.(*parser.CreateView); ok {
 		view = s
@@ -687,7 +688,7 @@ func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth Autho
 		b.querySources = binder.querySources
 	case *parser.Select:
 		var err error
-		if s.Values == nil && s.From == nil && !s.IsSingleton() && !s.IsTypeSingleton() {
+		if s.Set == nil && s.Distinct == nil && s.Values == nil && s.From == nil && !s.IsSingleton() && !s.IsTypeSingleton() {
 			return b, sqlError("0A000", "SELECT without FROM is unsupported")
 		}
 		binder.queryAuth = &auth

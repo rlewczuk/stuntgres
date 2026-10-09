@@ -4,7 +4,7 @@ package parser
 // The engine must bind each target and require an enum cast or JSON annotation.
 // Missing types and modifiers consequently keep normal binder diagnostics.
 func (s *Select) IsTypeSingleton() bool {
-	if s.Values != nil || s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
+	if s.Set != nil || s.Distinct != nil || s.Parenthesized || s.Values != nil || s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
 		return false
 	}
 	for _, target := range s.Targets {

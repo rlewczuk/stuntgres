@@ -10,21 +10,67 @@ import (
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
 func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog CatalogRead, inherited relationLockMode) error {
+	return validateMarkedQueryJoin(c, node, catalog, nil, queryRowMark{mode: inherited})
+}
+
+func firstNullableQueryMark(a, b queryRowMark) queryRowMark {
+	if a.mode == 0 {
+		return b
+	}
+	if b.mode != 0 && b.order < a.order {
+		return b
+	}
+	return a
+}
+
+func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited queryRowMark) queryRowMark {
 	switch n := node.(type) {
 	case *sourceNode:
+		return queryOccurrenceMark(marks, n.occurrence, inherited)
+	case *joinNode:
+		return firstNullableQueryMark(nullableQueryRowMark(n.left, marks, inherited), nullableQueryRowMark(n.right, marks, inherited))
+	case *rowLockNode:
+		return nullableQueryRowMark(n.child, marks, inherited)
+	case *limitNode:
+		return nullableQueryRowMark(n.child, marks, inherited)
+	case *evaluationNode:
+		return nullableQueryRowMark(n.child, marks, inherited)
+	case *filterNode:
+		return nullableQueryRowMark(n.child, marks, inherited)
+	case *projectNode:
+		return nullableQueryRowMark(n.child, marks, inherited)
+	case *sortNode:
+		return nullableQueryRowMark(n.child, marks, inherited)
+	case *aggregateNode:
+		return nullableQueryRowMark(n.child, marks, inherited)
+	}
+	return queryRowMark{}
+}
+
+func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, catalog CatalogRead, marks []queryRowMark, inherited queryRowMark) error {
+	switch n := node.(type) {
+	case *sourceNode:
+		mark := queryOccurrenceMark(marks, n.occurrence, inherited)
 		if d, ok := catalog.state.descriptors[n.ref.Address].(*relationDescriptor); ok && d.view != nil {
-			if err := viewRowLockLegality(d.view, viewRowMode(d.view, inherited)); err != nil {
+			if err := viewRowLockLegality(d.view, queryRowDiagnostic(mark)); err != nil {
 				return err
 			}
 			root, err := preflightQuery(c, d.view.query.Root)
 			if err != nil {
 				return err
 			}
-			return validateQueryJoinExecution(c, root, catalog, inherited)
+			return validateMarkedQueryJoin(c, root, catalog, nil, mark)
 		}
 	case *joinNode:
-		if inherited != 0 && n.kind != parser.JoinInner {
-			return sqlError("0A000", queryRowClause(inherited)+" cannot be applied to the nullable side of an outer join")
+		mark := queryRowMark{}
+		if n.kind == parser.JoinLeft || n.kind == parser.JoinFull {
+			mark = nullableQueryRowMark(n.right, marks, inherited)
+		}
+		if n.kind == parser.JoinRight || n.kind == parser.JoinFull {
+			mark = firstNullableQueryMark(mark, nullableQueryRowMark(n.left, marks, inherited))
+		}
+		if mark.mode != 0 {
+			return sqlError("0A000", queryRowClause(mark.mode)+" cannot be applied to the nullable side of an outer join")
 		}
 		if n.kind == parser.JoinFull {
 			facts, err := fullJoinCondition(c, n, n.predicate, false)
@@ -35,29 +81,29 @@ func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog Catalo
 				return sqlError("0A000", "FULL JOIN is only supported with merge-joinable or hash-joinable join conditions")
 			}
 		}
-		if err := validateQueryJoinExecution(c, n.left, catalog, inherited); err != nil {
+		if err := validateMarkedQueryJoin(c, n.left, catalog, marks, inherited); err != nil {
 			return err
 		}
-		return validateQueryJoinExecution(c, n.right, catalog, inherited)
+		return validateMarkedQueryJoin(c, n.right, catalog, marks, inherited)
 	case *rowLockNode:
-		return validateQueryJoinExecution(c, n.child, catalog, strongerQueryRowMode(inherited, n.mode))
+		return validateMarkedQueryJoin(c, n.child, catalog, n.marks, inherited)
 	case *limitNode:
-		return validateQueryJoinExecution(c, n.child, catalog, inherited)
+		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
 	case *evaluationNode:
-		return validateQueryJoinExecution(c, n.child, catalog, inherited)
+		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
 	case *filterNode:
-		return validateQueryJoinExecution(c, n.child, catalog, inherited)
+		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
 	case *projectNode:
-		return validateQueryJoinExecution(c, n.child, catalog, inherited)
+		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
 	case *sortNode:
-		return validateQueryJoinExecution(c, n.child, catalog, inherited)
+		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
 	case *aggregateNode:
-		return validateQueryJoinExecution(c, n.child, catalog, inherited)
+		return validateMarkedQueryJoin(c, n.child, catalog, marks, inherited)
 	case *distinctNode:
-		if inherited != 0 {
-			return sqlError("0A000", queryRowClause(inherited)+" is not allowed with DISTINCT clause")
+		if inherited.mode != 0 {
+			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
 		}
-		return validateQueryJoinExecution(c, n.child, catalog, inherited)
+		return validateMarkedQueryJoin(c, n.child, catalog, nil, queryRowMark{})
 	}
 	return nil
 }

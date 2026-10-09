@@ -10,7 +10,7 @@ import (
 // execution-private scratch, never in the shared capture leaf modes.
 type queryPendingMark struct {
 	occurrences []int
-	mode        relationLockMode
+	mark        queryRowMark
 }
 
 func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPendingMark) []queryPendingMark {
@@ -23,7 +23,7 @@ func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPending
 		return pendingQueryMarks(n.child, inputs, dst)
 	case *rowLockNode:
 		dst = pendingQueryMarks(n.child, inputs, dst)
-		return append(dst, queryPendingMark{occurrences: queryTreeOccurrences(n.child, inputs, nil), mode: n.mode})
+		return appendPendingRowMarks(dst, n.marks, inputs)
 	case *sourceNode:
 		return pendingSourceMarks(querySourceAt(inputs, n.occurrence), dst)
 	case *joinNode:

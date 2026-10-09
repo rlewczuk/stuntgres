@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -77,38 +78,26 @@ func TestReferenceRowLockCancellation(t *testing.T) {
 }
 
 func TestReferenceRowLockBoundaries(t *testing.T) {
-	p := newReferenceScenario(t)
-	p.step(t, referenceExec("CREATE TABLE t(id INT,v INT)", 0))
-	p.step(t, referenceExec("INSERT INTO t VALUES(1,10)", 1))
-	for _, suffix := range []string{"FOR UPDATE OF t", "FOR SHARE NOWAIT", "FOR KEY SHARE SKIP LOCKED", "FOR UPDATE FOR SHARE", "FOR UPDATE garbage"} {
-		for _, prepared := range []bool{false, true} {
-			out := referenceRowQuery(p.ctx, p.memory, "SELECT id FROM t "+suffix, prepared)
-			if out.rows != nil {
-				out.rows.Close()
-				t.Fatal("excluded native clause exposed cursor", suffix)
-			}
-			if out.stmt != nil {
-				out.stmt.Close()
-				t.Fatal("excluded native Prepare returned handle", suffix)
-			}
-			if out.err == nil {
-				t.Fatal("excluded native clause accepted", suffix)
+	queryLockScenario(t, func(t *testing.T, p *referencePair, b referenceBackend, a, peer *sql.Conn) {
+		referenceRowAffected(t, p.ctx, a, "DELETE FROM t WHERE id>1", false, 3)
+		for _, suffix := range []string{"FOR UPDATE OF t", "FOR SHARE NOWAIT", "FOR KEY SHARE SKIP LOCKED", "FOR UPDATE FOR SHARE"} {
+			for _, prepared := range []bool{false, true} {
+				queryLockRows(t, p, b, a, "SELECT id FROM t "+suffix, prepared, "id", 1)
 			}
 		}
-	}
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("UPDATE t SET v=10", 1))
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceExec("UPDATE t SET id=2", 1))
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT id FROM t", []string{"id"}, []string{"INT4"}, [][]any{{int64(2)}}))
-	p.step(t, referenceSelect("SELECT v FROM t", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))
-	referenceRunStep(t, p.ctx, p.memory, p.memoryRecord, referenceSelect("SELECT v FROM t FOR SHARE", []string{"v"}, []string{"INT4"}, [][]any{{int64(10)}}))
-	if p.postgres != nil {
 		for _, prepared := range []bool{false, true} {
-			step := referenceImplicitError("(SELECT id FROM t UNION SELECT id FROM t) FOR UPDATE", referenceDiagnostic{Code: "0A000", Message: "FOR UPDATE is not allowed with UNION/INTERSECT/EXCEPT"})
-			step.selectRows = true
+			q := "SELECT id FROM t FOR UPDATE garbage"
+			stage := "execute"
 			if prepared {
-				step = referencePrepared(step)
+				stage = "prepare"
 			}
-			referenceRunStep(t, p.ctx, p.postgres, p.postgresRecord, step)
+			queryLockFailure(t, p, b, a, q, prepared, referenceDiagnostic{Code: "42601", Message: `syntax error at or near "garbage"`, Position: queryLockPosition(q, "garbage")}, stage)
+			queryLockFailure(t, p, b, a, "(SELECT id FROM t UNION SELECT id FROM t) FOR UPDATE", prepared, referenceDiagnostic{Code: "0A000", Message: "FOR UPDATE is not allowed with UNION/INTERSECT/EXCEPT"}, stage)
 		}
-	}
+		referenceRowAffected(t, p.ctx, peer, "UPDATE t SET v=10", false, 1)
+		referenceRowAffected(t, p.ctx, peer, "UPDATE t SET id=2", false, 1)
+		queryLockRows(t, p, b, peer, "SELECT id FROM t", false, "id", 2)
+		queryLockRows(t, p, b, peer, "SELECT v FROM t", false, "v", 10)
+		queryLockRows(t, p, b, a, "SELECT v FROM t FOR SHARE", false, "v", 10)
+	})
 }

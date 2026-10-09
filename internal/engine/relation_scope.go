@@ -178,7 +178,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 					ref = ObjectRef{owner: e.owner, Epoch: auth.catalog.Epoch(), Address: address}
 				}
 			}
-		} else if mode == accessShare || mode == rowExclusive {
+		} else if mode == accessShare || mode == relationRowShare || mode == rowExclusive {
 			ref, err = e.resolveReference(auth, name)
 		} else {
 			_, indexBuild := stmt.(*parser.CreateIndex)

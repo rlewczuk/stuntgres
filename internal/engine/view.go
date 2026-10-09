@@ -206,7 +206,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	b, err := e.describe(op.Context(), view, lookupAuth, scope.lockedRef, scope.input, op, nil)
+	b, err := e.describe(op.Context(), view, lookupAuth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

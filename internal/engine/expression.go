@@ -797,6 +797,7 @@ type expressionBinder struct {
 	aggregates            []aggregateCall
 	queryAuth             *AuthorizationView
 	querySources          []queryLeaf
+	queryLockAdmission    *queryLockAdmission
 	queryNamespace        *queryNamespace
 	queryHidden           []queryQualifier
 	queryNonLateral       bool

@@ -151,6 +151,14 @@ func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexe
 	if err != nil {
 		return indexedStage{}, err
 	}
+	// A bounded view cannot defer inherited rowmarks past its own survivor
+	// count. Plain scalar views still defer until enclosing qualification.
+	if state.inherited.mode != 0 && state.source.locks != nil {
+		occurrences := queryTreeOccurrences(n.child, state.source, nil)
+		if len(occurrences) != 0 {
+			child.pending = append(child.pending, queryPendingMark{occurrences: occurrences, mark: state.inherited})
+		}
+	}
 	child, err = settlePendingQueryMarks(ctx, state, n.child, child)
 	if err != nil {
 		return indexedStage{}, err

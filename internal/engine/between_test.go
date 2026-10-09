@@ -43,7 +43,7 @@ func TestBetweenBindingProperties(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil)
+		bound, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(tc.expr, err)
@@ -109,7 +109,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			bound, err := e.describe(op.ctx, ast, auth, ref, first, op, nil)
+			bound, err := e.describe(op.ctx, ast, auth, ref, first, op, nil, nil)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(err)
@@ -131,7 +131,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				}
 			}
 			for range 2 {
-				rebound, err := e.describe(op.ctx, ast, auth, ref, later, op, &desc)
+				rebound, err := e.describe(op.ctx, ast, auth, ref, later, op, &desc, nil)
 				if err != nil {
 					e.mu.Unlock()
 					t.Fatal(err)

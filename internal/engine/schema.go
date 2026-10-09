@@ -69,7 +69,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		diagnostic.Hint = "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."
 		return diagnostic
 	}
-	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, input, op, nil)
+	b, err := e.describe(op.Context(), s, auth, ObjectRef{}, input, op, nil, nil)
 	if err != nil {
 		return err
 	}

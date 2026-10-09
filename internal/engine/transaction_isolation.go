@@ -279,7 +279,7 @@ func modifyingTag(stmt parser.Statement) string {
 		return "DROP VIEW"
 	case *parser.Select:
 		if sel := stmt.(*parser.Select); sel.Locking != nil {
-			return "SELECT " + sel.Locking.Mode
+			return "SELECT " + sel.Locking[0].Mode
 		}
 	case *parser.CreateSequence:
 		return "CREATE SEQUENCE"

@@ -35,7 +35,7 @@ func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context,
 	var b binding
 	var view *VisibilityView
 	if err == nil {
-		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil)
+		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	}
 	if err == nil {
 		view, err = scope.acquireDataViewLocked(e, b.ref)

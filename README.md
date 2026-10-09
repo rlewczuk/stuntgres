@@ -612,18 +612,25 @@ suppresses producing children without bypassing typing, authorization or bound
 errors. Nonblocking views/filters/joins produce only demanded occurrences;
 sorting/grouping remain blockers. Local rowmarks settle at effect frontiers,
 not across a local count boundary. See [count and demand](docs/QUERIES.md#limit-offset-and-fetch--change-note-changelog).
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
+Feature checks: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimitSmoke$' VERBOSE=0`
+and `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLimitMigratedLockSmoke$' VERBOSE=0`.
 
-SELECT (including existing inner/cross joins, persistent scalar views and INSERT
-SELECT sources) supports one trailing `FOR KEY SHARE`, `FOR SHARE`,
-`FOR NO KEY UPDATE` or `FOR UPDATE`. Locks belong to contributing physical base
-RowIDs, not view output values or the entire table. Stored view clauses also apply
-to otherwise ordinary reads; unmarked SELECT remains a nonblocking MVCC read.
-Enclosing rowmarks over an outer join reject on Execute, including LIMIT0;
-Prepare still describes a valid query. An unmarked outer query may consume locally
-marked views on either input. Native locks real source rows at its left-major
-demand frontier, never absent NULL extensions; PostgreSQL may scan extra rows
-through a different physical plan. LIMIT0 locks none.
+Change note: SELECT (including existing joins, persistent scalar views and INSERT
+SELECT sources) accepts repeated adjacent `FOR KEY SHARE`, `FOR SHARE`,
+`FOR NO KEY UPDATE` and `FOR UPDATE` clauses, each with optional `OF` targets and
+`NOWAIT` or `SKIP LOCKED`. The complete list goes before or after bounds, after
+ORDER BY. OF selects relation occurrences/aliases, not projected columns;
+unselected siblings retain ordinary reads and need no extra UPDATE privilege.
+Strength and wait policy merge independently, with UPDATE and NOWAIT strongest.
+NOWAIT reports row-lock-not-available55P03; SKIP drops an unavailable whole join
+candidate and counts only survivors toward OFFSET/LIMIT. Already acquired
+contributors remain held. These policies do not bypass ordinary table-lock waits.
+Stored clauses retain targets/policies through rename, Dump/Restore and replay.
+Plain view marks remain deferred to enclosing qualification; a bounded view
+settles inherited marks before its own survivor count. Nullable-side selected
+marks reject on Execute even at LIMIT0; preserved-side/local stored marks remain
+legal. Synthetic FROM VALUES has no physical grants. LIMIT0 locks none, and
+unmarked SELECT remains a nonblocking MVCC read.
 READ COMMITTED lockers recheck
 the current version after contention; REPEATABLE READ KEY SHARE retains snapshot
 values only if no UNIQUE key datum changed since its snapshot. Restoring a key or
@@ -632,7 +639,9 @@ modes and deletions fail. UPDATE uses NO KEY UPDATE unless a UNIQUE key datum
 changes, when it uses UPDATE; DELETE uses UPDATE. See
 [row locking](docs/TRANSACTIONS.md#row-locks--change-note) for the compatibility
 matrix, privileges, eager execution and bounded syntax.
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
+Feature smoke: `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLockFeatureSmoke$' VERBOSE=0`;
+pinned counterpart: `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceQueryLockFeatureSmoke$' VERBOSE=0`.
+Complete locking/migrated-count coverage uses `RUN='^TestReference(QueryLock|RowLock|QueryLimit|QueryOuterJoins)'` in both modes.
 
 Selected `ALTER TABLE` nullability and named NOT NULL operations compose atomic
 action lists with `DROP COLUMN`, including explicit transactions/savepoints.

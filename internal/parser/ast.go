@@ -497,26 +497,51 @@ type UpdateAssignment struct {
 func (*Update) statement() {}
 
 type Select struct {
-	From     FromItem
-	Distinct bool
-	Values   *ValuesQuery
-	Targets  []Expr
-	Labels   []Identifier
-	Where    Expr
-	GroupBy  []Expr
-	Having   Expr
-	Order    *Order
-	Pos      Position
-	Locking  *RowLockClause
-	Bounds   *QueryBounds
+	From          FromItem
+	Values        *ValuesQuery
+	Targets       []Expr
+	Labels        []Identifier
+	Where         Expr
+	GroupBy       []Expr
+	Having        Expr
+	Order         *Order
+	Pos           Position
+	Locking       []RowLockClause
+	Bounds        *QueryBounds
+	Distinct      *DistinctClause
+	Set           *SetQuery
+	Parenthesized bool // Rejection-only top-level SELECT grouping.
 }
 
 func (*Select) statement() {}
 
 // RowLockClause is one positioned trailing locking clause.
 type RowLockClause struct {
-	Mode string
-	Pos  Position
+	Mode    string
+	Targets []ObjectName
+	Wait    RowLockWait
+	Pos     Position
+}
+
+type RowLockWait uint8
+
+const (
+	RowLockBlock RowLockWait = iota
+	RowLockSkip
+	RowLockNowait
+)
+
+// DISTINCT retains plain execution syntax and rejection-only ON positions.
+// Set shapes retain real syntax without introducing an execution provider.
+type DistinctClause struct {
+	On  []Expr
+	Pos Position
+}
+type SetQuery struct {
+	Left, Right *Select
+	Operator    string
+	All         bool
+	Pos         Position
 }
 
 // QueryBounds retains decoration presence even for LIMIT ALL/NULL.
@@ -526,12 +551,12 @@ type QueryBounds struct {
 
 type queryTail struct {
 	Bounds  *QueryBounds
-	Locking *RowLockClause
+	Locking []RowLockClause
 }
 
 // IsSingleton admits selected-call and session-value-derived projections without FROM.
 func (s *Select) IsSingleton() bool {
-	if s.Values != nil || s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
+	if s.Set != nil || s.Distinct != nil && len(s.Distinct.On) != 0 || s.Parenthesized || s.Values != nil || s.From != nil || s.Where != nil || len(s.GroupBy) != 0 || s.Having != nil || s.Order != nil || s.Locking != nil || len(s.Targets) == 0 {
 		return false
 	}
 	for _, target := range s.Targets {

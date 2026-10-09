@@ -580,11 +580,20 @@ make quickcheck REFERENCE=1 PACKAGES=./reference VERBOSE=0 RUN='^TestReferenceLo
 
 ## Row locks — change note
 
-SELECT supports one `FOR KEY SHARE`, `FOR SHARE`, `FOR NO KEY UPDATE`
-or `FOR UPDATE`, after ORDER BY and before or after LIMIT/OFFSET/FETCH.
-Existing inner/cross joins and INSERT SELECT sources use the same locking executor. `OF`, `NOWAIT`,
-`SKIP LOCKED` and multiple locking clauses remain excluded; LOCK TABLE's
-independent NOWAIT support does not admit SELECT options.
+SELECT supports repeated adjacent `FOR KEY SHARE`, `FOR SHARE`, `FOR NO KEY UPDATE`
+and `FOR UPDATE` clauses with optional per-clause `OF` and `NOWAIT`/`SKIP LOCKED`.
+The complete list follows ORDER BY and precedes or follows complete bounds.
+Existing joins, views and INSERT SELECT share one occurrence-owned arbiter.
+OF selects relation/alias occurrences, not output columns; unselected siblings
+keep ACCESS SHARE and ordinary SELECT authority, selected targets ROW SHARE plus
+UPDATE on any live column. Duplicate targets are idempotent; strength and wait
+merge independently. NOWAIT dominates SKIP, and SKIP dominates blocking.
+Both conditional policies use the same manager mutex/immediate-grant path.
+Unavailable NOWAIT returns55P03 `could not obtain lock on row in relation "t"`;
+SKIP rejects the whole joined candidate without a waiter, timer or latest refresh.
+Earlier candidate grants remain held. Conflicting earlier queued requests prevent
+barging; compatible/self-owned grants remain eligible. These row policies never
+bypass table-lock waits, and do not promise planner/join order without ORDER BY.
 
 Different owners conflict only on the same logical row. This matrix lists
 requested modes as rows and held modes as columns; **yes** means conflict:
@@ -648,8 +657,8 @@ including hidden/self-join contributors, duplicates and zero-width outputs.
 Pending local marks pass through scalar WHERE/joins and a mark owner's own
 ORDER, then settle before a consuming outer Sort, aggregate, count or final
 publication frontier—not on every inner view row. A stored clause applies to ordinary reads of that subtree;
-unrelated outer sources stay unmarked. Overlapping marks normalize to the
-strongest SQL mode, KEY SHARE < SHARE < NO KEY UPDATE < UPDATE.
+unrelated outer sources stay unmarked. Overlapping marks normalize SQL strength
+and wait policy independently, including stored/inherited options on an occurrence.
 Unmarked upper aggregation over a marked view consumes locks at its pre-group
 input frontier. Recheck precedes grouping/aggregate Advance; HAVING FALSE and
 outer filtering of aggregate outputs cannot release qualifying input locks.
@@ -663,9 +672,9 @@ genuine executed-input, empty-output lock retention independently.
 LIMIT/OFFSET/FETCH is a population/effect frontier. Evaluate OFFSET, then LIMIT,
 once before opening a producing child;0 takes no physical row grants. For a
 positive/unlimited count, pending marks settle before OFFSET/count consumes
-survivors. Skipped rows and returned rows are held; deleted or requalified-away
-candidates refill without spending the requested offset/count. Direct/inherited
-top-level marks follow their own Sort and stop after enough survivors, leaving
+survivors. Acquired OFFSET-discarded and returned rows are held; SKIP-unavailable,
+deleted or requalified-away candidates spend neither offset nor count.
+Direct/inherited top-level marks follow their own Sort and stop after enough survivors, leaving
 unvisited tails writable. A stored mark below an outer blocking Sort can hold
 all qualified input before an outer LIMIT1. The mark owner's own ORDER freezes
 its rank but does not move its mark across an enclosing scalar predicate.
@@ -673,11 +682,15 @@ A view-local LIMIT1 followed by outer rejection is empty but retains its inner
 winner's hold; it does not choose a different row using the outer predicate.
 Likewise local OFFSET1 LIMIT1 retains both skipped and returned holds even if
 outer qualification rejects the result. Outer LIMIT0 initializes neither.
+Execution-only inherited marks settle before a bounded view's own counters;
+ordinary scalar views remain deferred to enclosing qualification. No stored
+definition is mutated with an execution's inherited marks.
 Unmarked sibling aggregation never consumes another sibling's pending marks.
 Public results are still complete before exposure; public Next performs no lock
 wait, recheck, predicate or view production.
 
-Feature smoke: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimit(Smoke|LockSmoke)$' VERBOSE=0`.
+Feature checks: `make quickcheck PACKAGES=./smoke RUN='^TestQueryLimitSmoke$' VERBOSE=0`
+and `make quickcheck PACKAGES=./reference RUN='^TestReferenceQueryLimitMigratedLockSmoke$' VERBOSE=0`.
 
 
 REPEATABLE READ KEY SHARE can lock a live chain only if no UNIQUE key datum
@@ -698,11 +711,17 @@ in a read-only transaction`; an ordinary outer read of stored-mark views reports
 All modes require SELECT on used columns
 plus UPDATE on any live column of each marked base source. View descendant
 authority uses the current owner or original security_invoker, only at Execute.
-Sequences reject row marks with42809, `cannot lock rows in sequence "s"`.
+Sequences reject row marks with42809, `cannot lock rows in sequence "s"`, even
+as unselected reference-mark siblings; that kind preflight adds no UPDATE/grant/
+refresh on unselected sources.
 A clause reaching GROUP BY, HAVING or aggregate output rejects with mode-specific
 0A000 without a synthetic Position. Inherited expanded-view grouping legality
 is checked at Execute after successful Prepare, before nullable outer-join
 descendants; direct grouped-query bind restrictions remain unchanged.
+Plain DISTINCT retains its existing materializing provider and prohibits locking.
+DISTINCT ON and structured set-operation syntax is rejection-only. Malformed
+syntax takes precedence; result-level locking is prohibited before set result
+arity/common typing. No adjacent execution provider is introduced.
 Native virtual catalogs fail0A000 `row locking is not supported for virtual
 catalog relations`, even beneath views or when empty. PostgreSQL physical
 catalog row locking is separately exercised, not claimed as native parity.
@@ -723,10 +742,13 @@ native context cancellation remains an ordinary Go error. PostgreSQL physical
 tuple wait Context is independently checked only by reference controls, never
 fabricated from native logical RowIDs.
 
-Feature checks: `make quickcheck PACKAGES=./internal/engine RUN='^TestRowLock' VERBOSE=0`,
-`make quickcheck PACKAGES=./reference RUN='^TestReferenceRowLock[A-Za-z0-9_]*$' VERBOSE=0`,
-`make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReferenceRowLock[A-Za-z0-9_]*$' VERBOSE=0`, and
-`make quickcheck PACKAGES=./smoke RUN='^TestRowLock(Smoke|JoinSmoke|VersionSmoke|ViewSmoke|OrderedCacheSmoke)$' VERBOSE=0`.
+Feature checks: `make quickcheck PACKAGES=./internal/engine RUN='^Test(QueryLock|RowLock)' VERBOSE=0`,
+`make quickcheck PACKAGES=./reference RUN='^TestReference(QueryLock|RowLock|QueryLimit|QueryOuterJoins)' VERBOSE=0`,
+and `make quickcheck REFERENCE=1 PACKAGES=./reference RUN='^TestReference(QueryLock|RowLock|QueryLimit|QueryOuterJoins)' VERBOSE=0`.
+Focused feature smoke uses `RUN='^TestReferenceQueryLockFeatureSmoke$'` in both modes.
+Native eager failures return no cursor/partial result. PostgreSQL's streaming pq
+route may return an acquired prefix followed by terminal Rows.Err; callers/tests
+consume the full error and close rows/statements before recovery SQL.
 The family selector includes the migrated ViewInsert union; tagged PostgreSQL
 ACL/keyed controls remain exclusive and are included only by the tagged command.
 Exact native queue witnesses live in engine tests; public native deadlines are

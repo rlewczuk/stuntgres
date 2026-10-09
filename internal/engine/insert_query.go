@@ -257,7 +257,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
 	results := append([]ColumnDescriptor(nil), schema...)
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection}}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, frozenValues: true}}, nil
 }
 
 // VALUES exposes generated ASCII column names in one synthetic namespace.

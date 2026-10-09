@@ -330,8 +330,13 @@ func validateViewLeaves(catalog CatalogRead, definition *viewDefinition) error {
 			}
 			return visit(n.right)
 		case *rowLockNode:
-			if marked || definition.syntax.Locking == nil || queryRowClause(n.mode) == "" || queryRowClause(n.mode) != definition.syntax.Locking.Mode {
+			if marked || len(definition.syntax.Locking) == 0 || queryRowClause(n.firstMode) != definition.syntax.Locking[0].Mode || len(n.marks) != len(definition.sources) {
 				return fmt.Errorf("stuntgres: invalid stored view rowmark")
+			}
+			for _, mark := range n.marks {
+				if mark.mode != 0 && queryRowClause(mark.mode) == "" || mark.wait > parser.RowLockNowait {
+					return fmt.Errorf("stuntgres: invalid stored view rowmark")
+				}
 			}
 			marked = true
 			return visit(n.child)

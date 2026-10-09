@@ -36,13 +36,20 @@ func (s *StatementScope) acquireViewSources() error {
 		for _, leaf := range s.querySources {
 			admitted = admitted || ref == leaf.ref
 		}
-		if !admitted && !visited || admitted && mode != 0 && prior == 0 && s.queryLockMode == 0 {
+		admittedMode := relationLockMode(0)
+		for _, leaf := range s.querySources {
+			if leaf.ref == ref {
+				admittedMode = strongerQueryRowMode(admittedMode, leaf.mark.mode)
+			}
+		}
+		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
 			refs = append(refs, ref)
 		}
 		if d.view != nil {
-			mode = viewRowMode(d.view, mode)
-			for _, leaf := range d.view.sources {
-				if err := visit(leaf.ref, mode); err != nil {
+			marks := queryRootRowMarks(d.view.query.Root)
+			for i, leaf := range d.view.sources {
+				mark := queryOccurrenceMark(marks, i, queryRowMark{mode: mode})
+				if err := visit(leaf.ref, mark.mode); err != nil {
 					return err
 				}
 			}
@@ -63,7 +70,7 @@ func (s *StatementScope) acquireViewSources() error {
 		if err != nil {
 			break
 		}
-		err = visit(leaf.ref, s.queryLockMode)
+		err = visit(leaf.ref, leaf.mark.mode)
 	}
 	e.mu.Unlock()
 	if err != nil {

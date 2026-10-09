@@ -36,7 +36,7 @@ func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySour
 	auth, err := e.authorizationLocked(op)
 	var b binding
 	if err == nil {
-		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil)
+		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
 	}
 	var source *querySource
 	if err == nil {

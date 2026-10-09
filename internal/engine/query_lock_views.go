@@ -15,7 +15,7 @@ type queryLockContext struct {
 type queryLockLeaf struct {
 	leaf    queryLeaf
 	source  *querySource
-	mode    relationLockMode
+	mark    queryRowMark
 	changed bool
 	absent  bool
 }
@@ -61,7 +61,7 @@ func queryRootRowMode(node LogicalNode) relationLockMode {
 		case *evaluationNode:
 			node = n.child
 		case *rowLockNode:
-			return n.mode
+			return n.firstMode
 		case *distinctNode, *aggregateNode:
 			return 0 // Descendant marks are consumed at materialization.
 		default:
@@ -74,35 +74,41 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	if _, err := validateViewReadGraph(catalog, leaves); err != nil {
 		return 0, err
 	}
-	mode := queryRootRowMode(root)
-	var visit func(*relationDescriptor, relationLockMode) (relationLockMode, error)
-	visit = func(d *relationDescriptor, mode relationLockMode) (relationLockMode, error) {
+	marks := queryRootRowMarks(root)
+	var visit func(*relationDescriptor, queryRowMark, relationLockMode) (relationLockMode, error)
+	visit = func(d *relationDescriptor, inherited queryRowMark, diagnostic relationLockMode) (relationLockMode, error) {
 		if d.view == nil {
-			return mode, nil
+			if inherited.mode == 0 {
+				return 0, nil
+			}
+			if diagnostic != 0 {
+				return diagnostic, nil
+			}
+			return inherited.mode, nil
 		}
-		mode = viewRowMode(d.view, mode)
-		for _, leaf := range d.view.sources {
+		local := queryRootRowMarks(d.view.query.Root)
+		if diagnostic == 0 {
+			diagnostic = queryRootRowMode(d.view.query.Root)
+		}
+		for i, leaf := range d.view.sources {
 			child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
 			if !ok || leaf.ref.owner != e.owner || leaf.ref.Epoch != e.state.epoch {
 				return 0, ErrCatalogReplaced
 			}
-			first, err := visit(child, mode)
+			first, err := visit(child, queryOccurrenceMark(local, i, inherited), diagnostic)
 			if err != nil || first != 0 {
 				return first, err
 			}
 		}
 		return 0, nil
 	}
-	for _, leaf := range leaves {
-		first, err := visit(leaf.relation, mode)
+	for i, leaf := range leaves {
+		first, err := visit(leaf.relation, queryOccurrenceMark(marks, i, queryRowMark{}), queryRootRowMode(root))
 		if err != nil || first != 0 {
 			return first, err
 		}
 	}
 	return 0, nil
-}
-func viewRowMode(d *viewDefinition, inherited relationLockMode) relationLockMode {
-	return strongerQueryRowMode(inherited, queryRootRowMode(d.query.Root))
 }
 func viewHasStoredRowMarks(d *relationDescriptor, catalog CatalogRead) bool {
 	seen := make(map[ObjectAddress]bool)
@@ -130,7 +136,7 @@ func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
 	}
 	suffix := ""
 	switch {
-	case d.syntax.Distinct:
+	case d.syntax.Distinct != nil:
 		suffix = "DISTINCT clause"
 	case len(d.syntax.GroupBy) != 0:
 		suffix = "GROUP BY clause"
@@ -172,70 +178,72 @@ func viewRowLockLegality(d *viewDefinition, mode relationLockMode) error {
 // Called before any source expression is opened. Inherited rowmark legality,
 // kind and authorization checks remain Execute-only.
 func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) error {
-	inherited := queryRootRowMode(root)
-	marked, views := false, false
+	marks := queryRootRowMarks(root)
+	marked := queryRootRowMode(root) != 0
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	visibilityDemand, err := validateViewReadGraph(catalog, leaves)
 	if err != nil {
 		return err
 	}
 	scope.visibilityDemand = visibilityDemand
-	var visit func(*relationDescriptor, relationLockMode) error
-	visit = func(d *relationDescriptor, mode relationLockMode) error {
+	var visit func(*relationDescriptor, queryRowMark, bool) error
+	visit = func(d *relationDescriptor, inherited queryRowMark, referenceMarked bool) error {
 		if d.view != nil {
-			views = true
-			mode = viewRowMode(d.view, mode)
-			marked = marked || mode != 0
-			if err := viewRowLockLegality(d.view, mode); err != nil {
+			local := queryRootRowMarks(d.view.query.Root)
+			referenceMarked = referenceMarked || queryRootRowMode(d.view.query.Root) != 0
+			marked = marked || queryRootRowMode(d.view.query.Root) != 0
+			if err := viewRowLockLegality(d.view, queryRowDiagnostic(inherited)); err != nil {
 				return err
 			}
-			for _, leaf := range d.view.sources {
+			for i, leaf := range d.view.sources {
 				child, ok := catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
 				if !ok || leaf.ref.owner != e.owner || leaf.ref.Epoch != e.state.epoch {
 					return ErrCatalogReplaced
 				}
-				if err := visit(child, mode); err != nil {
+				if err := visit(child, queryOccurrenceMark(local, i, inherited), referenceMarked); err != nil {
 					return err
 				}
 			}
 			return nil
 		}
-		if mode == 0 {
+		// PostgreSQL validates reference rowmark kinds even for an unselected
+		// sequence sibling. This does not confer UPDATE ACLs or tuple grants.
+		if referenceMarked && d.relationKind == sequenceRelation {
+			return sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", d.name))
+		}
+		if inherited.mode == 0 {
 			return nil
 		}
 		marked = true
-		switch d.relationKind {
-		case catalogRelation:
+		if d.relationKind == catalogRelation {
 			return sqlError("0A000", "row locking is not supported for virtual catalog relations")
-		case sequenceRelation:
-			return sqlError("42809", fmt.Sprintf("cannot lock rows in sequence %q", d.name))
 		}
 		return nil
 	}
-	for _, leaf := range leaves {
-		if err := visit(leaf.relation, inherited); err != nil {
+	for i, leaf := range leaves {
+		if err := visit(leaf.relation, queryOccurrenceMark(marks, i, queryRowMark{}), queryRootRowMode(root) != 0); err != nil {
 			return err
 		}
 	}
-	if marked && views {
+	if marked {
 		scope.queryLocks = &queryLockContext{}
 	}
 	return nil
 }
 
-func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited relationLockMode, invoker PrincipalRef) error {
+func (v AuthorizationView) checkViewRowMarks(d *relationDescriptor, inherited queryRowMark, invoker PrincipalRef) error {
 	if _, err := validateViewReadGraph(v.catalog, []queryLeaf{{relation: d}}); err != nil {
 		return err
 	}
 	return v.checkViewRowMarksExpanded(d, inherited, invoker)
 }
 
-func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inherited relationLockMode, invoker PrincipalRef) error {
+func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inherited queryRowMark, invoker PrincipalRef) error {
 	if d.view == nil {
 		return nil
 	}
-	mode := viewRowMode(d.view, inherited)
-	if err := viewRowLockLegality(d.view, mode); err != nil {
+	marks := queryRootRowMarks(d.view.query.Root)
+	if err := viewRowLockLegality(d.view, queryRowDiagnostic(inherited)); err != nil {
 		return err
 	}
 	principal := d.owner
@@ -243,7 +251,8 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 		principal = invoker
 	}
 	v.state.CurrentUser = principal
-	for _, leaf := range d.view.sources {
+	for i, leaf := range d.view.sources {
+		mark := queryOccurrenceMark(marks, i, inherited)
 		child, ok := v.catalog.state.descriptors[leaf.ref.Address].(*relationDescriptor)
 		if !ok || leaf.ref.owner != v.catalog.owner.owner || leaf.ref.Epoch != v.catalog.Epoch() {
 			return ErrCatalogReplaced
@@ -265,12 +274,12 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *relationDescriptor, inhe
 		if err := v.checkColumns(binding{ref: leaf.ref, relation: child}, SelectPrivilege, indices); err != nil {
 			return err
 		}
-		if mode != 0 {
+		if mark.mode != 0 {
 			if err := v.checkColumns(binding{ref: leaf.ref, relation: child}, UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}
-		if err := v.checkViewRowMarksExpanded(child, mode, invoker); err != nil {
+		if err := v.checkViewRowMarksExpanded(child, mark, invoker); err != nil {
 			return err
 		}
 	}
@@ -298,6 +307,9 @@ func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
 	case *rowLockNode:
 		return queryLockRecheckWidth(n.child, inputs)
 	case *projectNode:
+		if n.frozenValues {
+			return 0
+		}
 		return len(n.Schema()) + queryLockRecheckWidth(n.child, inputs)
 	case *joinNode:
 		return len(n.Schema()) + queryLockRecheckWidth(n.left, inputs) + queryLockRecheckWidth(n.right, inputs)
@@ -401,6 +413,9 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		matches, err := updateMatches(evaluation, n.predicate)
 		return row, matches, err
 	case *projectNode:
+		if n.frozenValues {
+			return frozen, true, nil
+		}
 		row, ok, err := recheckLockedQuery(n.child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
@@ -467,10 +482,15 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 // frontier, including an outer join's local input producer.
 func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode, child indexedStage) (indexedStage, error) {
 	locks, scope := state.source.locks, state.source.scope
-	due := make([]relationLockMode, len(locks.leaves))
+	due := make([]queryRowMark, len(locks.leaves))
 	for _, mark := range child.pending {
 		for _, occurrence := range mark.occurrences {
-			due[occurrence] = strongerQueryRowMode(due[occurrence], mark.mode)
+			due[occurrence] = mergeQueryRowMark(due[occurrence], mark.mark)
+		}
+	}
+	for i, mark := range due {
+		if mark.mode != 0 {
+			due[i] = mergeQueryRowMark(mark, locks.leaves[i].mark)
 		}
 	}
 	occurrences := appendQueryOccurrences(nil, child.source)
@@ -509,8 +529,8 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 					locks.leaves[occurrence].changed = false
 					continue
 				}
-				mode := due[occurrence]
-				if mode == 0 {
+				mark := due[occurrence]
+				if mark.mode == 0 {
 					currentRows[occurrence] = versions[j].values
 					locks.leaves[occurrence].changed = false
 					continue
@@ -521,10 +541,15 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 				if raw >= len(entry.source.committed) {
 					hint -= len(entry.source.committed)
 				}
-				if err := scope.acquireQueryRow(entry.leaf, candidate.row, mode); err != nil {
+				acquired, err := scope.acquireQueryRow(entry.leaf, candidate.row, mark)
+				if err != nil {
 					return false, err
 				}
-				current, present, err := scope.latestQueryRow(entry.leaf, candidate, hint, mode)
+				if !acquired {
+					live = false
+					break
+				}
+				current, present, err := scope.latestQueryRow(entry.leaf, candidate, hint, mark.mode)
 				if err != nil {
 					return false, err
 				}
