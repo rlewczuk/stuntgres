@@ -32,6 +32,17 @@ benchmarks may exceed these deadlines; the default startup benchmark is bounded 
 
 Every nonblank production dependency entry must be `stuntgres` or start with `stuntgres/`. goyacc is a generation tool, not a runtime dependency. lib/pq, sqlmw and testcontainers are test-only. Benchmark startup target is below 1,000,000 ns/op; report observed allocations and timings, not a timing-sensitive test assertion.
 
+`TestBinaryHashAllocations` keeps equal small/large allocation counts (at most ten,
+zero for CRC) and measures bytes with `testing.Benchmark` in 1000-evaluation
+batches. Inputs and plans are constructed outside measurement. Batching amortizes
+process-wide runtime/race allocation noise that can dominate a twenty-call
+`TotalAlloc` sample; it does not disable race coverage. The three-byte and 1 MiB
+inputs retain the same budgets: at most 32 KiB allocated per evaluation and at
+most 1024 additional bytes for the large input. A payload-sized scratch copy
+therefore still fails even if its allocation count is constant. Run the focused
+gate with `make quickcheck PACKAGES=./internal/sqltype RUN='^TestBinaryHashAllocations$'`
+and again with `RACE=1`, under the existing deadlines.
+
 The public smoke tests live in `smoke/*_test.go` and are also part of `make quickcheck`.
 `make quickcheck PACKAGES=./smoke` runs the entire package, uncached and quiet unless `VERBOSE=1`.
 The baseline `TestSmoke` verifies rows, metadata, affected counts,

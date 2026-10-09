@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -209,17 +208,19 @@ func TestBinaryHashAllocations(t *testing.T) {
 			if (name == "crc32" || name == "crc32c") && largeCount != 0 {
 				t.Fatal("CRC allocations", largeCount)
 			}
-			// Count allocated bytes as well: a single payload-sized scratch allocation
-			// would have a constant allocation count, but violate this bounded budget.
-			bytesPerEvaluation := func(v Value) uint64 {
-				evaluate(v)
-				var before, after runtime.MemStats
-				runtime.ReadMemStats(&before)
-				for range 20 {
-					evaluate(v)
-				}
-				runtime.ReadMemStats(&after)
-				return (after.TotalAlloc - before.TotalAlloc) / 20
+			// A payload-sized scratch copy can keep the allocation count constant.
+			// Benchmark batches amortize process-wide runtime/race allocation noise;
+			// even the first calibration sample measures 1000 evaluations.
+			bytesPerEvaluation := func(v Value) int64 {
+				const batch = 1000
+				result := testing.Benchmark(func(b *testing.B) {
+					for range b.N {
+						for range batch {
+							evaluate(v)
+						}
+					}
+				})
+				return result.AllocedBytesPerOp() / batch
 			}
 			smallBytes, largeBytes := bytesPerEvaluation(small), bytesPerEvaluation(large)
 			if largeBytes > 32<<10 || largeBytes > smallBytes+1024 {
